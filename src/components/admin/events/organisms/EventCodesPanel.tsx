@@ -8,6 +8,11 @@ import { DateInput } from "@/components/ui/date-input";
 // jedno użycie kodu. Kolumna działania i podpowiedzi formularza mówią to
 // wprost - organizator widział dotąd samo „-50.00 PLN" i nie miał jak
 // sprawdzić, od czego ta kwota schodzi.
+//
+// REGUŁA KUMULACJI (TIX-13a) STOI PRZY RABACIE. Kod może nie łączyć się
+// z fazą sprzedaży i zniżką z planu albo mieć górny limit łącznego rabatu -
+// kolumna działania mówi o tym wprost, a okno pokazuje oba pola tylko wtedy,
+// gdy kod nalicza rabat i baza zna już te kolumny (`stackingAvailable`).
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -80,9 +85,12 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<{ row: EventCodeRow | null } | null>(null);
 
+  // Bez odpowiedzi listy nie wiemy, czy baza zna reguły kumulacji - nowy kod
+  // nie wysyła ich wtedy wcale (zapis nie może paść na nieznanej kolumnie).
+  const stackingAvailable = codesQ.data?.stackingAvailable === true;
   const rows = useMemo(() => {
     const q = search.trim().toUpperCase();
-    return (codesQ.data ?? []).filter(
+    return (codesQ.data?.rows ?? []).filter(
       (r) => q === "" || r.code.includes(q) || (r.name ?? "").toUpperCase().includes(q),
     );
   }, [codesQ.data, search]);
@@ -97,6 +105,14 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
               amount: `-${((r.discountCents ?? 0) / 100).toFixed(2)} ${r.currency ?? ""}`.trim(),
             }),
       );
+    }
+    if (r.appliesDiscount && r.stacking !== null) {
+      if (!r.stacking.stacksWithPromotions) parts.push(t("eventCodes.effect.noStacking"));
+      if (r.stacking.maxTotalDiscountPercent !== null) {
+        parts.push(
+          t("eventCodes.effect.maxTotal", { percent: r.stacking.maxTotalDiscountPercent }),
+        );
+      }
     }
     if (r.revealsHidden) parts.push(t("eventCodes.effect.reveal"));
     parts.push(
@@ -228,6 +244,7 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
           eventId={eventId}
           eventSlug={eventSlug}
           row={editing.row}
+          stackingAvailable={stackingAvailable}
           tickets={(ticketsQ.data ?? []).map((tk) => ({
             id: tk.id,
             name: lang === "en" ? tk.name_en || tk.name_pl : tk.name_pl || tk.name_en,
@@ -244,15 +261,26 @@ interface DialogProps {
   eventId: string;
   eventSlug: string;
   row: EventCodeRow | null;
+  /** Czy baza zna reguły kumulacji - decyduje o polach NOWEGO kodu. */
+  stackingAvailable: boolean;
   tickets: { id: string; name: string; currency: string }[];
   onClose: () => void;
 }
 
-function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogProps) {
+function EventCodeDialog({
+  eventId,
+  eventSlug,
+  row,
+  stackingAvailable,
+  tickets,
+  onClose,
+}: DialogProps) {
   const { t } = useTranslation();
   const save = useSaveEventCode(eventId);
   const [d, setD] = useState<EventCodeDraft>(() =>
-    row ? eventCodeRowToDraft(row) : emptyEventCodeDraft(tickets[0]?.currency ?? "PLN"),
+    row
+      ? eventCodeRowToDraft(row)
+      : emptyEventCodeDraft(tickets[0]?.currency ?? "PLN", stackingAvailable),
   );
   const [issue, setIssue] = useState<string | null>(null);
   const set = <K extends keyof EventCodeDraft>(k: K, v: EventCodeDraft[K]) =>
@@ -396,6 +424,48 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
                     />
                   </div>
                 )}
+              </div>
+            )}
+            {d.appliesDiscount && d.stacking !== null && (
+              <div className="grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="flex items-center justify-between gap-3 text-sm font-medium">
+                    {t("eventCodes.form.stacks")}
+                    <Switch
+                      checked={d.stacking.stacksWithPromotions}
+                      onCheckedChange={(v) =>
+                        setD((prev) =>
+                          prev.stacking === null
+                            ? prev
+                            : { ...prev, stacking: { ...prev.stacking, stacksWithPromotions: v } },
+                        )
+                      }
+                    />
+                  </label>
+                  <p className="text-xs text-muted-foreground">{t("eventCodes.form.stacksHint")}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="ec-max-total">{t("eventCodes.form.maxTotal")}</Label>
+                  <Input
+                    id="ec-max-total"
+                    inputMode="numeric"
+                    value={d.stacking.maxTotalDiscountPercent}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setD((prev) =>
+                        prev.stacking === null
+                          ? prev
+                          : {
+                              ...prev,
+                              stacking: { ...prev.stacking, maxTotalDiscountPercent: value },
+                            },
+                      );
+                    }}
+                  />
+                </div>
+                <p className="self-end text-xs text-muted-foreground">
+                  {t("eventCodes.form.maxTotalHint")}
+                </p>
               </div>
             )}
           </div>

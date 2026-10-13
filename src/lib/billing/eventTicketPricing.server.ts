@@ -408,6 +408,11 @@ export type EventTicketCouponResult =
        * dostało ten sam (miejsce prowadzącego tańsze od kodu - `null`).
        */
       perSeatCents: number | null;
+      /**
+       * Rabat kodu przycięty limitem łącznego rabatu (`max_total_discount_percent`).
+       * Procent kodu nie mówi wtedy, ile naprawdę zeszło - ekran pokazuje kwotę.
+       */
+      capped: boolean;
     }
   | { ok: false; error: string };
 
@@ -464,6 +469,7 @@ export async function applyEventTicketCoupon(
   let discountCents = split.discountCents;
   let finalCents = split.finalCents;
   let perSeatCents = split.perSeatCents;
+  let capped = false;
   if (policy.maxTotalDiscountPercent !== null) {
     const listCents = Math.max(input.listCents ?? input.amountCents, input.amountCents);
     const allowedTotal = Math.floor((listCents * policy.maxTotalDiscountPercent) / 100);
@@ -475,6 +481,7 @@ export async function applyEventTicketCoupon(
       finalCents = input.amountCents - allowedCode;
       // Rabat przycięty do limitu nie schodzi już „po równo z każdego miejsca".
       perSeatCents = null;
+      capped = true;
     }
   }
   // Kod 100% - bilet bez płatności (kasa). Dodatnia kwota poniżej minimum
@@ -492,6 +499,7 @@ export async function applyEventTicketCoupon(
     discountCents,
     finalCents,
     perSeatCents,
+    capped,
   };
 }
 
@@ -519,6 +527,8 @@ export interface EventTicketQuote {
     kind: "fixed" | "percent";
     percent: number | null;
     perSeatCents: number | null;
+    /** Rabat przycięty limitem łącznego rabatu kodu (TIX-13a). */
+    capped: boolean;
   } | null;
   /** Rabat kodu na całe zamówienie (0 bez kodu). */
   discountCents: number;
@@ -594,6 +604,7 @@ export async function quoteEventTicketOrder(
       kind: applied.kind,
       percent: applied.percent,
       perSeatCents: applied.perSeatCents,
+      capped: applied.capped,
     },
     discountCents: applied.discountCents,
     totalCents: applied.finalCents,

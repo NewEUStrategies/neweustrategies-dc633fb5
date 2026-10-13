@@ -103,7 +103,10 @@ function maTekst(slownik: ResourceTree, klucz: string): boolean {
  */
 const STRAZNIK_TENANTA = "forbidden";
 
-/** Zapisy, bilety, pakiety, stawki - `registrationsApi`, `packagesApi`, `audienceGrantsApi`. */
+/**
+ * Zapisy, bilety, pakiety, stawki - `registrationsApi`, `packagesApi`,
+ * `audienceGrantsApi`, `ticketTaxProfileApi`.
+ */
 const KODY_REJESTRACJI = [
   // admin_event_registration_decide / _upsert / _mark_notified, admin_event_waitlist_promote
   "already_registered",
@@ -792,6 +795,7 @@ const MAPY: readonly BramkowanaMapa[] = [
     nakladka: "src/lib/i18n-admin-event-registration.ts",
     pl: adminEventRegistrationPl,
     en: adminEventRegistrationEn,
+    // `ticketTaxProfileApi` - profil podatkowy biletu (TIX-09, 20261012130200).
     moduly: [
       "registrationsApi",
       "packagesApi",
@@ -801,6 +805,7 @@ const MAPY: readonly BramkowanaMapa[] = [
       "registrationRefundJournal",
       // Dowiazania kont do kartotek (REG-01, D14) - ta sama mapa panelu.
       "accountBindingsAdminApi",
+      "ticketTaxProfileApi",
     ],
     interpoluje: true,
   },

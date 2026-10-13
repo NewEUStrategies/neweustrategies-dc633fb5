@@ -771,6 +771,33 @@ export const adminEventRegistrationPl = {
     },
     // PAKIETY GRUPOWE. Jeden platnik, wiele imiennych miejsc - slownictwo
     // celowo mowi „miejsce", a nie „bilet": bilet kupuje sie dla siebie.
+    // Profil podatkowy biletu i pakietu (TIX-09, 20261012130200) - wspólna
+    // molekuła `TaxProfileFields` w oknie biletu i pakietu.
+    taxProfile: {
+      section: "Podatek na fakturze",
+      vatRate: "Stawka VAT",
+      vatRateHint:
+        "Stawka pozycji na fakturze i proformie. Stawkę liczoną w kasie Stripe ustala kod podatkowy poniżej.",
+      rateDefaultTenant: "Domyślna stawka organizatora",
+      rateDefaultTicket: "Jak bilet pakietu",
+      rates: {
+        "23": "23%",
+        "8": "8%",
+        "5": "5%",
+        "0": "0%",
+        zw: "zw - zwolniona",
+        np: "np - nie podlega",
+      },
+      vatExemptBasis: "Podstawa zwolnienia",
+      vatExemptBasisHint:
+        "Przepis zwalniający sprzedaż z VAT, np. art. 43 ust. 1 pkt 29 ustawy o VAT. Puste = podstawa z ustawień faktur.",
+      vatExemptBasisTooLong: "Podstawa ma {{length}} znaków - skróć ją do {{max}}.",
+      stripeTaxCode: "Kod podatkowy Stripe",
+      stripeTaxCodeHint: "Postać txcd_ i osiem cyfr. Puste = kod domyślny z ustawień Stripe Tax.",
+      stripeTaxCodeInvalid: "Kod podatkowy Stripe ma postać txcd_ i osiem cyfr, np. txcd_10000000.",
+      unavailable:
+        "Profil podatkowy będzie dostępny po aktualizacji bazy danych - pozostałe pola zapiszą się bez niego.",
+    },
     packages: {
       title: "Pakiety grupowe",
       subtitle:
@@ -822,7 +849,13 @@ export const adminEventRegistrationPl = {
         audience: "Odbiorca pakietu",
         seats: "Liczba miejsc",
         seatsHint: "Ile osób obejmuje jeden zakup pakietu.",
-        priceCents: "Cena pakietu (w groszach)",
+        // TIX-14a: cena w jednostce głównej waluty, nie w groszach.
+        price: "Cena pakietu",
+        priceHint: "Kwota w walucie pakietu, np. 899,00 albo 899 - nie w groszach.",
+        priceFormat: {
+          PLN: "Podaj cenę w złotych, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+          EUR: "Podaj cenę w euro, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+        },
         currency: "Waluta",
         quota: "Limit sprzedanych pakietów",
         quotaHint: "Puste pole = bez limitu.",
@@ -832,6 +865,27 @@ export const adminEventRegistrationPl = {
         requiresVerification: "Wymaga weryfikacji organizatora",
         active: "Aktywny",
         sortOrder: "Kolejność",
+        // TIX-07 / TIX-09: warunki zakupu i profil podatkowy pakietu.
+        termsSection: "Warunki zakupu",
+        admitBeforePayment: "Wpuszczaj przed opłaceniem zamówienia",
+        admitBeforePaymentHint:
+          "Wyłączone: delegat, który przyjmie zaproszenie, dostaje kod QR dopiero po opłaceniu zamówienia. Włączone: ufasz fakturze - kod QR wychodzi od razu.",
+        paymentTermsDays: "Termin płatności (dni)",
+        paymentTermsDaysHint:
+          "Ile dni kupujący ma na opłacenie zamówienia złożonego samodzielnie. Potem nieopłacone zamówienie wygasa, a miejsca wracają do puli - najpóźniej w chwili rozpoczęcia wydarzenia.",
+        paymentTermsDaysRange: "Termin płatności to pełna liczba dni od {{min}} do {{max}}.",
+        maxOpenOrders: "Nieopłacone zamówienia na kupującego",
+        maxOpenOrdersHint:
+          "Ile nieopłaconych zamówień na to wydarzenie jeden kupujący może mieć naraz, kupując ten pakiet. Puste pole = bez limitu.",
+        maxOpenOrdersRange:
+          "Limit to pełna liczba od {{min}} do {{max}} albo puste pole (bez limitu).",
+        termsLoading: "Wczytywanie warunków zakupu i profilu podatkowego…",
+        termsUnavailable:
+          "Warunki zakupu i profil podatkowy pakietu będą dostępne po aktualizacji bazy danych - pozostałe pola zapiszą się bez nich.",
+        termsLoadFailed:
+          "Nie udało się wczytać warunków zakupu i profilu podatkowego ({{reason}}) - zapis pakietu ich nie zmieni.",
+        termsMissing:
+          "Warunki zakupu i profil podatkowy tego pakietu nie są jeszcze wczytane - zapis pakietu ich nie zmieni.",
         save: "Zapisz pakiet",
         cancel: "Anuluj",
       },
@@ -864,8 +918,9 @@ export const adminEventRegistrationPl = {
         buyerName: "Nazwa płatnika",
         seatsTotal: "Liczba miejsc",
         seatsTotalHint: "Puste pole = tyle miejsc, ile daje pakiet.",
-        amountCents: "Kwota (w groszach)",
-        amountHint: "Puste pole = cena pakietu bez zmian.",
+        orderAmount: "Kwota zamówienia",
+        amountHint:
+          "W walucie pakietu, np. 899,00 - nie w groszach. Puste pole = cena pakietu bez zmian.",
         invoiceNote: "Notatka do faktury",
         save: "Utwórz zamówienie",
         cancel: "Anuluj",
@@ -961,7 +1016,7 @@ export const adminEventRegistrationPl = {
         descriptionEn: "Opis (angielski)",
         priceCents: "Cena",
         priceHint:
-          "Cena w najmniejszej jednostce waluty - 15000 to 150,00. Zero znaczy wejściówkę bezpłatną, która nadal ma pulę i okno sprzedaży.",
+          "Kwota w walucie biletu, np. 899,00 albo 899 - nie w groszach. Zero znaczy wejściówkę bezpłatną, która nadal ma pulę i okno sprzedaży.",
         currency: "Waluta",
         quota: "Pula miejsc",
         quotaHint:
@@ -996,7 +1051,7 @@ export const adminEventRegistrationPl = {
         phaseLabelEn: "Nazwa progu (EN)",
         phaseFrom: "Obowiązuje od",
         phaseTo: "Obowiązuje do",
-        phasePrice: "Cena w groszach",
+        phasePrice: "Cena progu",
         phaseAdd: "Dodaj próg cenowy",
         phaseRemove: "Usuń próg",
         phaseMoveUp: "Przenieś próg wyżej",
@@ -1016,6 +1071,19 @@ export const adminEventRegistrationPl = {
         waitlistEnabled: "Lista rezerwowa po wyczerpaniu puli",
         waitlistHint:
           "Wyłączona oznacza komunikat o wyprzedaniu zamiast kolejki - nikt nie czeka na miejsce, które nie wróci.",
+        // TIX-14a: ceny w jednostce głównej waluty; zapis niejednoznaczny
+        // („8,999", „1,299") jest odmową przy polu, nie zgadywaną kwotą.
+        moneyFormat: {
+          PLN: "Podaj cenę w złotych, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+          EUR: "Podaj cenę w euro, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+        },
+        phaseMoneyFormat: {
+          PLN: "Próg {{index}}: podaj cenę w złotych, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+          EUR: "Próg {{index}}: podaj cenę w euro, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+        },
+        // TIX-09: profil podatkowy nie wczytał się z powodu innego niż brak migracji.
+        taxProfileLoadFailed:
+          "Nie udało się wczytać profilu podatkowego ({{reason}}) - zapis biletu go nie zmieni.",
       },
 
       studio: {
@@ -1399,7 +1467,8 @@ export const adminEventRegistrationPl = {
       packageSortRange: "Kolejność musi mieścić się w zakresie 0-10000.",
       packageOrderBuyerEmail: "Podaj prawidłowy adres poczty płatnika.",
       packageOrderSeats: "Liczba miejsc w zamówieniu jest poza zakresem.",
-      packageOrderAmount: "Kwota zamówienia jest poza zakresem.",
+      packageOrderAmount:
+        "Podaj kwotę w walucie pakietu, np. 899,00 - najwyżej dwie cyfry po przecinku i nie więcej niż 100 000.",
       packageSeatEmail: "Podaj prawidłowy adres poczty zapraszanego.",
       packageSeatValidDays: "Ważność zaproszenia musi mieścić się w zakresie 1-90 dni.",
 
@@ -1491,7 +1560,7 @@ export const adminEventRegistrationPl = {
       // Jedna księga miejsc (20261012130000): pakiet trzyma miejsca na sali.
       seatsExhausted: "Na sali nie ma tylu wolnych miejsc - zmniejsz liczbę miejsc w pakiecie.",
       // Profil podatkowy pakietu (20261012130200).
-      invalidVatRate: "Stawka VAT musi być liczbą od 0 do 100.",
+      invalidVatRate: "Nieznana stawka VAT - wybierz 23%, 8%, 5%, 0%, zw albo np.",
       invalidTaxCode: "Kod podatkowy Stripe ma postać txcd_ i 8 cyfr.",
       invalidExemptBasis: "Podstawa zwolnienia z VAT może mieć najwyżej 300 znaków - skróć ją.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
@@ -2205,6 +2274,33 @@ export const adminEventRegistrationEn = {
         person_id: "Person",
       },
     },
+    taxProfile: {
+      section: "Tax on the invoice",
+      vatRate: "VAT rate",
+      vatRateHint:
+        "The line rate on the invoice and the pro forma. The tax code below sets the rate Stripe charges at checkout.",
+      rateDefaultTenant: "Organiser's default rate",
+      rateDefaultTicket: "Same as the package's ticket",
+      rates: {
+        "23": "23%",
+        "8": "8%",
+        "5": "5%",
+        "0": "0%",
+        zw: "exempt",
+        np: "not subject to VAT",
+      },
+      vatExemptBasis: "Exemption basis",
+      vatExemptBasisHint:
+        "The provision that exempts the sale from VAT, e.g. Art. 43(1)(29) of the VAT Act. Empty = the basis from the invoice settings.",
+      vatExemptBasisTooLong: "The basis has {{length}} characters - shorten it to {{max}}.",
+      stripeTaxCode: "Stripe tax code",
+      stripeTaxCodeHint:
+        "txcd_ followed by eight digits. Empty = the default code from Stripe Tax settings.",
+      stripeTaxCodeInvalid:
+        "A Stripe tax code is txcd_ followed by eight digits, e.g. txcd_10000000.",
+      unavailable:
+        "The tax profile becomes available after the database update - the other fields are saved without it.",
+    },
     packages: {
       title: "Group packages",
       subtitle:
@@ -2253,7 +2349,12 @@ export const adminEventRegistrationEn = {
         audience: "Package audience",
         seats: "Number of seats",
         seatsHint: "How many people one package purchase covers.",
-        priceCents: "Package price (in minor units)",
+        price: "Package price",
+        priceHint: "Amount in the package currency, e.g. 899.00 or 899 - not in cents.",
+        priceFormat: {
+          PLN: "Enter the price in złoty, e.g. 899.00 - at most two decimal places.",
+          EUR: "Enter the price in euro, e.g. 899.00 - at most two decimal places.",
+        },
         currency: "Currency",
         quota: "Limit of packages sold",
         quotaHint: "Empty = no limit.",
@@ -2263,6 +2364,27 @@ export const adminEventRegistrationEn = {
         requiresVerification: "Requires organiser verification",
         active: "Active",
         sortOrder: "Order",
+        termsSection: "Purchase terms",
+        admitBeforePayment: "Admit before the order is paid",
+        admitBeforePaymentHint:
+          "Off: a delegate who accepts an invitation gets the QR code only after the order is paid. On: you trust the invoice - the QR code is issued immediately.",
+        paymentTermsDays: "Payment terms (days)",
+        paymentTermsDaysHint:
+          "How many days a buyer has to pay a self-service order. After that an unpaid order expires and its seats return to the pool - at the latest when the event starts.",
+        paymentTermsDaysRange:
+          "Payment terms must be a whole number of days from {{min}} to {{max}}.",
+        maxOpenOrders: "Unpaid orders per buyer",
+        maxOpenOrdersHint:
+          "How many unpaid orders for this event one buyer may hold at once when buying this package. Empty = no limit.",
+        maxOpenOrdersRange:
+          "The limit must be a whole number from {{min}} to {{max}}, or empty for no limit.",
+        termsLoading: "Loading purchase terms and the tax profile…",
+        termsUnavailable:
+          "Purchase terms and the package tax profile become available after the database update - the other fields are saved without them.",
+        termsLoadFailed:
+          "Purchase terms and the tax profile could not be loaded ({{reason}}) - saving the package will not change them.",
+        termsMissing:
+          "The purchase terms and tax profile of this package are not loaded yet - saving the package will not change them.",
         save: "Save package",
         cancel: "Cancel",
       },
@@ -2292,8 +2414,9 @@ export const adminEventRegistrationEn = {
         buyerName: "Payer name",
         seatsTotal: "Number of seats",
         seatsTotalHint: "Empty = as many seats as the package gives.",
-        amountCents: "Amount (in minor units)",
-        amountHint: "Empty = package price unchanged.",
+        orderAmount: "Order amount",
+        amountHint:
+          "In the package currency, e.g. 899.00 - not in cents. Empty = package price unchanged.",
         invoiceNote: "Invoice note",
         save: "Create order",
         cancel: "Cancel",
@@ -2389,7 +2512,7 @@ export const adminEventRegistrationEn = {
         descriptionEn: "Description (English)",
         priceCents: "Price",
         priceHint:
-          "Price in the smallest currency unit - 15000 means 150.00. Zero means a free pass that still has a pool and a sales window.",
+          "Amount in the ticket currency, e.g. 899.00 or 899 - not in cents. Zero means a free pass that still has a pool and a sales window.",
         currency: "Currency",
         quota: "Seat pool",
         quotaHint:
@@ -2423,7 +2546,7 @@ export const adminEventRegistrationEn = {
         phaseLabelEn: "Phase name (EN)",
         phaseFrom: "Valid from",
         phaseTo: "Valid until",
-        phasePrice: "Price in cents",
+        phasePrice: "Tier price",
         phaseAdd: "Add pricing phase",
         phaseRemove: "Remove phase",
         phaseMoveUp: "Move phase up",
@@ -2443,6 +2566,16 @@ export const adminEventRegistrationEn = {
         waitlistEnabled: "Waiting list once the pool runs out",
         waitlistHint:
           "Turned off means a sold-out message instead of a queue - nobody waits for a seat that will not return.",
+        moneyFormat: {
+          PLN: "Enter the price in złoty, e.g. 899.00 - at most two decimal places.",
+          EUR: "Enter the price in euro, e.g. 899.00 - at most two decimal places.",
+        },
+        phaseMoneyFormat: {
+          PLN: "Tier {{index}}: enter the price in złoty, e.g. 899.00 - at most two decimal places.",
+          EUR: "Tier {{index}}: enter the price in euro, e.g. 899.00 - at most two decimal places.",
+        },
+        taxProfileLoadFailed:
+          "The tax profile could not be loaded ({{reason}}) - saving the ticket will not change it.",
       },
 
       studio: {
@@ -2820,7 +2953,8 @@ export const adminEventRegistrationEn = {
       packageSortRange: "The order must be between 0 and 10000.",
       packageOrderBuyerEmail: "Give a valid payer e-mail address.",
       packageOrderSeats: "The number of seats in the order is out of range.",
-      packageOrderAmount: "The order amount is out of range.",
+      packageOrderAmount:
+        "Enter the amount in the package currency, e.g. 899.00 - at most two decimal places and no more than 100,000.",
       packageSeatEmail: "Give a valid invitee e-mail address.",
       packageSeatValidDays: "Invitation validity must be between 1 and 90 days.",
 
@@ -2903,7 +3037,7 @@ export const adminEventRegistrationEn = {
         "E-mail will not deliver a ticket to this address (suppression list) - the existing ticket still works. Hand it over another way.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
       seatsExhausted: "The venue does not have that many free seats - reduce the package's seats.",
-      invalidVatRate: "The VAT rate must be a number from 0 to 100.",
+      invalidVatRate: "Unknown VAT rate - choose 23%, 8%, 5%, 0%, exempt or not subject to VAT.",
       invalidTaxCode: "A Stripe tax code looks like txcd_ followed by 8 digits.",
       invalidExemptBasis: "The VAT exemption basis can have at most 300 characters - shorten it.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",

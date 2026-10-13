@@ -2,13 +2,16 @@
 //
 // Testy celują w te przypadki, w których błąd jest CICHY: puste pole puli
 // zamienione na zero (bilet natychmiast wyprzedany), pusta data zamieniona na
-// „1970" i cena wpisana z przecinkiem, która po `Number()` staje się `NaN`.
+// „1970" i cena wpisana w złotych, a policzona jak grosze (TIX-14a: „899"
+// znaczyło 8,99 zł). Pole ceny mówi teraz w jednostce głównej waluty, a zapis
+// niejednoznaczny („8,999") jest odmową przy polu, nie zgadywaną kwotą.
 import { describe, expect, it } from "vitest";
 import {
   emptyTicketDraft,
   fromLocalInput,
   ticketDraftFromRow,
   ticketDraftIssue,
+  ticketDraftIssueMessage,
   ticketDraftToInput,
   toLocalInput,
   type TicketDraft,
@@ -21,7 +24,7 @@ function valid(overrides: Partial<TicketDraft> = {}): TicketDraft {
     key: "vip_pass",
     namePl: "Karnet VIP",
     nameEn: "VIP pass",
-    priceCents: "15000",
+    price: "150,00",
     ...overrides,
   };
 }
@@ -46,11 +49,39 @@ describe("ticketDraftIssue", () => {
     expect(ticketDraftIssue(valid({ nameEn: "" }))?.field).toBe("nameEn");
   });
 
-  it("cena z przecinkiem, minusem albo literą jest odrzucana przed żądaniem", () => {
-    for (const priceCents of ["150,00", "150.00", "-1", "abc", ""]) {
-      expect(ticketDraftIssue(valid({ priceCents }))?.field, priceCents).toBe("priceCents");
+  it("cena z minusem, literą, pusta albo niejednoznaczna jest odrzucana przed żądaniem", () => {
+    // „8,999" i „1,299" mogą znaczyć tysiące albo złotówki z groszami w trzech
+    // cyfrach - takiej kwoty nie zgadujemy.
+    for (const price of ["-1", "abc", "", "8,999", "1,299", "19.999", "12,5,0"]) {
+      expect(ticketDraftIssue(valid({ price })), price).toEqual({
+        field: "price",
+        errorKey: "invalidRequest",
+        messageKey: "adminEventRegistration.tickets.editor.moneyFormat.PLN",
+      });
     }
-    expect(ticketDraftIssue(valid({ priceCents: "0" }))).toBeNull();
+  });
+
+  it("cena w złotych przechodzi z przecinkiem, kropką, bez groszy i z odstępem tysięcy", () => {
+    for (const price of ["150,00", "150.00", "150", "0", "1 299,00", "1.299,00", "0,5"]) {
+      expect(ticketDraftIssue(valid({ price })), price).toBeNull();
+    }
+  });
+
+  it("zdanie o formacie kwoty mówi w walucie biletu", () => {
+    const issue = ticketDraftIssue(valid({ currency: "EUR", price: "8,999" }));
+    if (issue === null) throw new Error("„8,999” przeszło walidację");
+    expect(ticketDraftIssueMessage(issue)).toEqual({
+      key: "adminEventRegistration.tickets.editor.moneyFormat.EUR",
+      params: undefined,
+    });
+  });
+
+  it("odmowa bez własnego zdania czyta słownik odmów bazy", () => {
+    const issue = ticketDraftIssue(valid({ quota: "-3" }));
+    if (issue === null) throw new Error("ujemna pula przeszła walidację");
+    expect(ticketDraftIssueMessage(issue)).toEqual({
+      key: "adminEventRegistration.errors.invalidRequest",
+    });
   });
 
   it("pusta pula jest dopuszczalna (bez limitu), ujemna nie", () => {
@@ -78,6 +109,19 @@ describe("ticketDraftToInput", () => {
     expect(input.salesTo).toBeNull();
     expect(input.priceCents).toBe(15000);
     expect(input.eventId).toBe("e-1");
+  });
+
+  it.each([
+    ["899,00", 89_900],
+    ["899", 89_900],
+    ["899.00", 89_900],
+    ["8,99", 899],
+    ["0,5", 50],
+    ["1 299,00", 129_900],
+    ["  19,99  ", 1999],
+  ])("cena „%s” jedzie do payloadu jako %i groszy", (price, cents) => {
+    expect(ticketDraftIssue(valid({ price }))).toBeNull();
+    expect(ticketDraftToInput(valid({ price }), "e-1").priceCents).toBe(cents);
   });
 
   it("pula zero zostaje zerem - to bilet wyprzedany, nie bilet bez limitu", () => {
@@ -133,6 +177,24 @@ describe("ticketDraftFromRow", () => {
     expect(draft.salesFrom).toBe("");
     expect(draft.currency).toBe("EUR");
     expect(draft.id).toBe("t-1");
+  });
+
+  it("grosze z bazy wracają do pola w złotych - z separatorem języka interfejsu", () => {
+    const paid = { ...row, price_cents: 89_900 } as EventTicketRow;
+    expect(ticketDraftFromRow(paid).price).toBe("899,00");
+    expect(ticketDraftFromRow(paid, ".").price).toBe("899.00");
+    expect(ticketDraftFromRow(row).price).toBe("0,00");
+  });
+
+  it("wiersz -> pole -> payload oddaje te same grosze, także z kropką", () => {
+    for (const cents of [0, 1, 99, 1999, 89_900, 10_000_000]) {
+      const paid = { ...row, price_cents: cents } as EventTicketRow;
+      for (const separator of [",", "."] as const) {
+        const draft = ticketDraftFromRow(paid, separator);
+        expect(ticketDraftIssue(draft), `${cents} ${separator}`).toBeNull();
+        expect(ticketDraftToInput(draft, "e-1").priceCents).toBe(cents);
+      }
+    }
   });
 
   it("nieznana waluta spada do PLN, zamiast wysypywać listę wyboru", () => {

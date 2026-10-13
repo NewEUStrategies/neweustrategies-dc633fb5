@@ -149,8 +149,9 @@ export function isRefundTermsChanged(error: unknown): boolean {
 
 /**
  * Każda odmowa dopisania gości (rdzeń `_event_register_group_guests`, wejście
- * `event_register_group_guests_for_client` i wrapper zgodności w migracji
- * `20261012180300_event_group_guests_validation_first.sql`), w kolejności
+ * `event_register_group_guests_for_client` i wrapper zgodności - ostatnia
+ * definicja: migracja uzgadniająca `20261013900300_reg_main_merge_seat_ledger.sql`
+ * na ciałach `20261012180300` + TIX-03 z `20261012130000`), w kolejności
  * sprawdzeń. Baza oddaje je WARTOŚCIĄ `{ok:false, error}` - bez ogona
  * (`rate_limited` - kubełki adresu i konta liczone przed pracą, `event_ended`
  * - po końcu wydarzenia, `duplicate_guest` - ten sam adres dwa razy albo adres
@@ -170,8 +171,9 @@ export const GROUP_GUEST_REFUSALS = [
   "event_ended",
   "registration_closed",
   "already_settled",
-  // Otwarta kasa prowadzącego (TIX-03, scalenie z main): kwota zamówienia jest
-  // już policzona - gość dopisany teraz nie byłby w niej.
+  // TIX-03 (main): kasa tego zgłoszenia jest otwarta - jej kwota policzyła już
+  // miejsca, więc gość dopisany teraz nie byłby opłacony. Po scaleniu odmowa
+  // wraca WARTOŚCIĄ z rdzenia R38 jak pozostałe.
   "checkout_in_progress",
   "group_not_enabled",
   "sold_out",

@@ -9108,12 +9108,6 @@ select:not([multiple]):not([size]) option,
 .platform-date-input input::-webkit-calendar-picker-indicator {
   display: none;
 }
-[data-slot="form-label"] {
-  display: block;
-  min-height: var(--form-label-height);
-  line-height: var(--form-label-height);
-  overflow: visible;
-}
 
 [data-slot="select-trigger"] svg,
 [role="combobox"]:not(.input) svg {

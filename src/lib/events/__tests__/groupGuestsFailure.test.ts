@@ -34,12 +34,15 @@
 // i18n jedzie PRAWDZIWE (ta sama instancja, którą widzi uczestnik). Lista
 // `GROUP_GUEST_REFUSALS` jest porównywana z KOŃCOWYMI ciałami funkcji gości
 // w NAJNOWSZEJ migracji, która definiuje rdzeń `_event_register_group_guests`
-// (rdzeń, wejście serwerowe i wrapper zgodności): nowa odmowa w SQL bez wpisu
-// na liście (albo wpis bez odmowy) zapala pierwszy test, a wpis bez zdania
-// w słowniku - testy per kod. Odmowa to `RAISE EXCEPTION 'kod'` WEWNĄTRZ
+// (rdzeń, wejście serwerowe i wrapper zgodności; dziś `20261013900300`,
+// scalenie REG z main - TIX-03 `checkout_in_progress` na ciele REG): nowa
+// odmowa w SQL bez wpisu na liście (albo wpis bez odmowy) zapala pierwszy
+// test, a wpis bez zdania w słowniku - testy per kod. Plik wybieramy po
+// nazwie, a nie na sztywno - inaczej kolejna redefinicja przeszłaby obok
+// testu (main, TIX-03). Odmowa to `RAISE EXCEPTION 'kod'` WEWNĄTRZ
 // podtransakcji (łapana i oddawana wartością) albo wprost wartość
-// `'error', 'kod'` (brak konta, kubełki prób) - liczymy obie postaci.
-import { readFileSync, readdirSync } from "node:fs";
+// `'error', 'kod'` (brak konta, kubełki prób) - liczymy obie postaci (REG).
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/lib/i18n";
@@ -242,6 +245,12 @@ describe("groupGuestsFailure - zdania, które mówią, co zrobić", () => {
       already_settled: {
         pl: "Twoje zgłoszenie jest już rozliczone - do opłaconego zamówienia nie dopiszemy gości. Zapisz ich osobnym zgłoszeniem.",
         en: "Your registration is already settled - we cannot add guests to a paid order. Register them separately.",
+      },
+      // TIX-03: kasa jest otwarta - mówimy, co zrobić teraz i kiedy spróbować znowu
+      // (zamówienie liczy się jako otwarte przez 30 minut).
+      checkout_in_progress: {
+        pl: "Płatność za to zgłoszenie jest w toku, a jej kwota nie obejmie nowych gości. Dokończ ją i zapisz gości osobnym zgłoszeniem. Jeśli płatność została przerwana, spróbuj ponownie za 30 minut.",
+        en: "A payment for this registration is in progress and its amount does not cover new guests. Complete it and register the guests separately. If the payment was abandoned, try again in 30 minutes.",
       },
       group_not_enabled: {
         pl: "Ten bilet nie pozwala na zapis grupowy.",

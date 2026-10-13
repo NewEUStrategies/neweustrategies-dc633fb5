@@ -15,8 +15,9 @@
 //      zaproszeń ani wystawić faktury.
 //   3. PUSTE MIEJSCA I PUSTA KWOTA JADĄ JAKO `null`, a wpisane zero - jako
 //      zero. To dwie różne decyzje i ładunek musi je rozróżniać.
-//   4. LICZBA MIEJSC ODRZUCA ZERO, WARTOŚĆ UJEMNĄ I UŁAMEK; kwota odrzuca
-//      przecinek, minus i tekst. Każde z komunikatem PRZY SWOIM polu.
+//   4. LICZBA MIEJSC ODRZUCA ZERO, WARTOŚĆ UJEMNĄ I UŁAMEK; kwota (w złotych,
+//      TIX-14a) odrzuca zapis niejednoznaczny, minus i tekst. Każde z
+//      komunikatem PRZY SWOIM polu.
 //   5. LICZBY JADĄ JAKO LICZBY, nie jako tekst - `seats_total: "10"` przeszłoby
 //      przez jsonb i wróciło odmową typu bez nazwy kolumny.
 //   6. TRWAJĄCY ZAPIS BLOKUJE PRZYCISK - podwójne kliknięcie nie tworzy DWÓCH
@@ -69,6 +70,7 @@ function renderuj(props: Wejscie = {}) {
       open={wejscie.open ?? true}
       onOpenChange={onOpenChange}
       packageId={wejscie.packageId ?? SALES_IDS.eventPackage}
+      currency="PLN"
       isSaving={wejscie.isSaving ?? false}
       onSubmit={onSubmit}
     />
@@ -123,7 +125,7 @@ describe("EventPackageOrderDialog - otwarcie i czyszczenie", () => {
     expect(screen.getByText(`${O}createTitle`)).toBeInTheDocument();
     expect(pole("buyerEmail")).toHaveValue("");
     expect(pole("seatsTotal")).toHaveValue("");
-    expect(pole("amountCents")).toHaveValue("");
+    expect(pole("orderAmount")).toHaveValue("");
     expect(screen.getByText(`${O}seatsTotalHint`)).toBeInTheDocument();
     expect(screen.getByText(`${O}amountHint`)).toBeInTheDocument();
   });
@@ -136,7 +138,7 @@ describe("EventPackageOrderDialog - otwarcie i czyszczenie", () => {
     fireEvent.change(pole("buyerEmail"), { target: { value: "pierwszy@firma.test" } });
     fireEvent.change(pole("buyerName"), { target: { value: "Firma Pierwsza" } });
     fireEvent.change(pole("seatsTotal"), { target: { value: "10" } });
-    fireEvent.change(pole("amountCents"), { target: { value: "120000" } });
+    fireEvent.change(pole("orderAmount"), { target: { value: "1200,00" } });
     fireEvent.change(pole("invoiceNote"), { target: { value: "Zamówienie 1/2026" } });
 
     przerysuj({ open: false });
@@ -145,7 +147,7 @@ describe("EventPackageOrderDialog - otwarcie i czyszczenie", () => {
     expect(pole("buyerEmail")).toHaveValue("");
     expect(pole("buyerName")).toHaveValue("");
     expect(pole("seatsTotal")).toHaveValue("");
-    expect(pole("amountCents")).toHaveValue("");
+    expect(pole("orderAmount")).toHaveValue("");
     expect(pole("invoiceNote")).toHaveValue("");
   });
 
@@ -222,7 +224,7 @@ describe("EventPackageOrderDialog - miejsca i kwota", () => {
     // pakiet za darmo. Ta para asercji pilnuje OBU kierunków.
     renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("amountCents"), { target: { value: "0" } });
+    fireEvent.change(pole("orderAmount"), { target: { value: "0" } });
     fireEvent.click(przyciskZapisu());
 
     expect(ladunek().amountCents).toBe(0);
@@ -235,11 +237,33 @@ describe("EventPackageOrderDialog - miejsca i kwota", () => {
     renderuj();
     wypelnijMinimum();
     fireEvent.change(pole("seatsTotal"), { target: { value: " 10 " } });
-    fireEvent.change(pole("amountCents"), { target: { value: " 89900 " } });
+    fireEvent.change(pole("orderAmount"), { target: { value: " 899,00 " } });
     fireEvent.click(przyciskZapisu());
 
     expect(ladunek().seatsTotal).toBe(10);
     expect(ladunek().amountCents).toBe(89_900);
+  });
+
+  it.each([
+    ["899,00", 89_900],
+    ["899", 89_900],
+    ["899.5", 89_950],
+    ["1 299,00", 129_900],
+  ])("kwota „%s” to złote, nie grosze (TIX-14a) - %d gr", (wartosc, grosze) => {
+    // To samo pole w groszach wystawiało zamówienie „899" za 8,99 zł obok
+    // ceny pakietu wpisanej w złotych.
+    renderuj();
+    wypelnijMinimum();
+    fireEvent.change(pole("orderAmount"), { target: { value: wartosc } });
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek().amountCents).toBe(grosze);
+  });
+
+  it("podgląd obok pola mówi kwotę w walucie pakietu", () => {
+    renderuj();
+    fireEvent.change(pole("orderAmount"), { target: { value: "899,00" } });
+    const podglad = document.querySelector("[data-money-preview]");
+    expect(podglad?.textContent).toMatch(/899,00\s*zł/);
   });
 
   it.each([
@@ -269,25 +293,25 @@ describe("EventPackageOrderDialog - miejsca i kwota", () => {
   });
 
   it.each([
-    ["899,00", "przecinek zamiast kropki - odruch złotówkowy"],
-    ["899.00", "kropka dziesiętna, a kwota jest w groszach"],
+    ["8,999", "trzy cyfry po przecinku - złote czy tysiące?"],
+    ["1.299", "kropka bez drugiego separatora - zapis niejednoznaczny"],
     ["-100", "kwota ujemna"],
-    ["10000001", "ponad granicę stu tysięcy złotych"],
+    ["100000,01", "ponad granicę stu tysięcy złotych"],
     ["dużo", "tekst niebędący liczbą"],
   ])("kwota „%s” NIE wychodzi z formularza (%s)", (wartosc) => {
     renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("amountCents"), { target: { value: wartosc } });
+    fireEvent.change(pole("orderAmount"), { target: { value: wartosc } });
     fireEvent.click(przyciskZapisu());
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(bladPrzy(pole("amountCents"))).toBe("adminEventRegistration.errors.packageOrderAmount");
+    expect(bladPrzy(pole("orderAmount"))).toBe("adminEventRegistration.errors.packageOrderAmount");
   });
 
   it("górna granica kwoty jest DOMKNIĘTA - 100 000,00 jeszcze przechodzi", () => {
     renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("amountCents"), { target: { value: "10000000" } });
+    fireEvent.change(pole("orderAmount"), { target: { value: "100000,00" } });
     fireEvent.click(przyciskZapisu());
     expect(ladunek().amountCents).toBe(10_000_000);
   });
