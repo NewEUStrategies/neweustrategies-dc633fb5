@@ -25740,6 +25740,7 @@ export type Database = {
           consent_data_processing_at: string
           consent_marketing_at: string
           consent_partner_sharing_at: string
+          consent_partner_withdrawn_at: string
           consent_withdrawn_at: string
           created_at: string
           decided_at: string
