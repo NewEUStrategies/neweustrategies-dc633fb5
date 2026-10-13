@@ -38,6 +38,9 @@ const VALID: RegistrationSettingsDraft = {
   ticketCurrency: "PLN",
   joinUrl: "",
   recordingUrl: "",
+  // Kontekst odczytu pola otwarcia zapisow (zegar Warszawy) - nie pole zapisu.
+  timeZone: "Europe/Warsaw",
+  savedTimes: {},
 };
 
 function draft(patch: Partial<RegistrationSettingsDraft>): RegistrationSettingsDraft {
@@ -55,6 +58,17 @@ function keys(patch: Partial<RegistrationSettingsDraft>): string[] {
 describe("walidacja ustawien rejestracji", () => {
   it("poprawny szkic nie zglasza zadnego bledu", () => {
     expect(validateRegistrationSettingsDraft(VALID)).toEqual([]);
+  });
+
+  it("otwarcie zapisow bez chwili (napis niepelny) nie przechodzi", () => {
+    // Ladunek wyslalby wtedy pusty napis, czyli po cichu OTWORZYLBY zapisy od
+    // publikacji. Pole puste i pelne przechodza.
+    expect(keys({ rsvpOpensAt: "2026-09-01" })).toEqual([
+      "adminEvents.studio.registrationSettings.errors.rsvpOpensInvalid",
+    ]);
+    expect(fields({ rsvpOpensAt: "2026-02-30T10:00" })).toEqual(["rsvpOpensAt"]);
+    expect(fields({ rsvpOpensAt: "" })).toEqual([]);
+    expect(fields({ rsvpOpensAt: "2026-09-01T10:00" })).toEqual([]);
   });
 
   it("wymaga adresu zewnetrznego DOKLADNIE dla trybu external", () => {
@@ -251,12 +265,12 @@ describe("ostrzezenia ustawien rejestracji", () => {
     );
     expect(
       registrationSettingsWarnings(
-        draft({ earlyRsvpRank: "10", rsvpOpensAt: "2026-09-01T08:00:00.000Z" }),
+        draft({ earlyRsvpRank: "10", rsvpOpensAt: "2026-09-01T10:00" }),
         "onsite",
       ),
     ).not.toContain("adminEvents.studio.registrationSettings.warnings.earlyRankWithoutOpening");
     expect(
-      registrationSettingsWarnings(draft({ rsvpOpensAt: "2026-09-01T08:00:00.000Z" }), "onsite"),
+      registrationSettingsWarnings(draft({ rsvpOpensAt: "2026-09-01T10:00" }), "onsite"),
     ).not.toContain("adminEvents.studio.registrationSettings.warnings.earlyRankWithoutOpening");
   });
 
@@ -361,7 +375,8 @@ describe("szkic z wiersza RPC", () => {
         visibility: "public",
         min_tier_rank: 10,
         early_rsvp_rank: 20,
-        rsvp_opens_at: "2026-09-01T08:00:00.000Z",
+        rsvp_opens_at: "2026-09-01T08:00:00+00:00",
+        timezone: "Europe/Warsaw",
         chatham_house: true,
         capacity: 120,
         ticket_price_cents: 25_000,
@@ -376,13 +391,16 @@ describe("szkic z wiersza RPC", () => {
       visibility: "public",
       minTierRank: "10",
       earlyRsvpRank: "20",
-      rsvpOpensAt: "2026-09-01T08:00:00.000Z",
+      // Zegar Warszawy (CEST, +2), a chwila z bazy - w postaci kanonicznej.
+      rsvpOpensAt: "2026-09-01T10:00",
       chathamHouse: true,
       capacity: "120",
       ticketPrice: "250.00",
       ticketCurrency: "EUR",
       joinUrl: "https://stream.example.org",
       recordingUrl: "https://vod.example.org",
+      timeZone: "Europe/Warsaw",
+      savedTimes: { rsvpOpensAt: "2026-09-01T08:00:00.000Z" },
     });
   });
 
@@ -481,7 +499,7 @@ describe("payload dla admin_event_general_save", () => {
           visibility: "public",
           minTierRank: " 10 ",
           earlyRsvpRank: " 20 ",
-          rsvpOpensAt: " 2026-09-01T08:00:00.000Z ",
+          rsvpOpensAt: " 2026-09-01T10:00 ",
           chathamHouse: true,
           capacity: " 120 ",
           ticketPrice: "1 250,55",
@@ -581,7 +599,7 @@ describe("wykrywanie zmiany wersji roboczej", () => {
       { visibility: "public" },
       { minTierRank: "10" },
       { earlyRsvpRank: "20" },
-      { rsvpOpensAt: "2026-09-01T08:00:00.000Z" },
+      { rsvpOpensAt: "2026-09-01T10:00" },
       { chathamHouse: true },
       { capacity: "121" },
       { ticketPrice: "250,00" },

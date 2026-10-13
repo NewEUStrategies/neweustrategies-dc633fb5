@@ -81,7 +81,14 @@ Cloudflare).
 - **OPS-15 (strefa czasowa).** Okna dostępności spotkań, ustawienia spotkań,
   bilety, sesje, kody, ważność poświadczeń skanera i formularz tworzenia
   wydarzenia czytają czas w strefie wydarzenia (`timezone.ts`, `eventLocalInput.ts`);
-  atom `DateInput` traktuje wartość jako napis zegara ściennego.
+  atom `DateInput` traktuje wartość jako napis zegara ściennego. Domknięcie X6:
+  „Informacje ogólne", ustawienia zapisów, okno naboru, przyjęcie zgłoszenia
+  z planem sesji, klon edycji i harmonogram reklam strony głównej też edytują
+  zegar strefy wydarzenia (wspólna molekuła `AdminFormDateTimeRow` na `DateInput`,
+  podpowiedź strefy pod polem, nietknięty zapis oddaje chwilę z bazy). Zmiana
+  strefy na „Informacjach ogólnych" zostawia chwile i przelicza godziny w polach
+  (baza nie przesuwa sesji, biletów ani okien przy zmianie strefy); w klonie -
+  zostawia godzinę, bo klon przesuwa cały program o różnicę zegarów lokalnych.
 
 ## Kolejność wdrożenia
 
@@ -121,9 +128,12 @@ Cloudflare).
   jeszcze nie zgłosiły.
 - Backfill zgody jest domknięty na błąd: sponsorzy zobaczą mniej leadów ze zgodą
   dla zgłoszeń sprzed zmiany.
-- Formularze ogólne wydarzenia (`EventGeneralPanel`, ustawienia zapisów) nadal
-  edytują daty w strefie przeglądarki; chwile są poprawne, ale organizator spoza
-  strefy wydarzenia widzi tam inną godzinę niż w formularzu tworzenia.
+- Zmiana strefy istniejącego wydarzenia nie przesuwa jego programu: sesje, bilety,
+  kody i okna zostają w swoich chwilach (panel to mówi pod droplistą strefy).
+  Wydarzenie założone w złej strefie trzeba przestawić ręcznie; przesunięcie
+  całej osi czasu po stronie bazy wymagałoby osobnej migracji.
+- `DateTimePicker` (strefa przeglądarki) został wyłącznie w globalnych miejscach
+  reklamowych (`PlacementsPanel`), które nie należą do wydarzenia.
 - `event_register` wiąże konto z osobą po wpisanym e-mailu bez wymogu
   potwierdzonego adresu (stan sprzed zmiany); zaproszenia z pakietu wymagają już
   potwierdzonego e-maila.

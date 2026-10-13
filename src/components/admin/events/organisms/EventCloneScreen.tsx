@@ -28,7 +28,7 @@ import { EventCloneForm } from "@/components/admin/events/organisms/EventCloneFo
 import { EventStudioCreateShell } from "@/components/admin/events/studio/EventStudioCreateShell";
 import { adminCloneErrorMessage } from "@/lib/events/adminCloneErrors";
 import type { EventCloneInput } from "@/lib/events/eventCloneApi";
-import type { EventCloneDraft } from "@/lib/events/eventCloneDraft";
+import { cloneDraftInstant, type EventCloneDraft } from "@/lib/events/eventCloneDraft";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { useCloneEvent, useEventCloneSource } from "@/lib/events/useEventClone";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
@@ -50,7 +50,8 @@ export function EventCloneScreen({ sourceId, canClone }: { sourceId: string; can
     (draft: EventCloneDraft) =>
       setRail({
         title: pickLocalized({ title_pl: draft.titlePl, title_en: draft.titleEn }, "title", lang),
-        date: formatEventDateTime(draft.startsAt, draft.timezone, lang),
+        // Pole jest zegarem strefy edycji - rail formatuje CHWILĘ w tej strefie.
+        date: formatEventDateTime(cloneDraftInstant(draft, "startsAt"), draft.timezone, lang),
       }),
     [lang],
   );

@@ -13,6 +13,10 @@
 //      zatrzymać zapis PRZED bazą; brakujący tytuł - tak samo.
 //   5. ŁADUNEK INNY NIŻ SZKIC. Zapis ma oddać wejście złożone z TEGO szkicu
 //      (przycięte, z opcjami CRM), bez klucza idempotencji - ten dokłada ekran.
+//   6. TERMIN W STREFIE PRZEGLĄDARKI (OPS-15, X6). Pola są zegarem strefy
+//      nowej edycji, pod nimi stoi ta strefa, nietknięta podpowiedź wraca do
+//      bazy tą samą chwilą, a zmiana strefy zostawia GODZINĘ (jak klon
+//      przesuwa program) i przelicza chwilę.
 //
 // Radix Select i kalendarz nie działają pod happy-dom bez pełnego API
 // wskaźnika - mają natywne odpowiedniki. Przełączniki (Radix Switch) są
@@ -60,23 +64,32 @@ vi.mock("@/components/atoms/FormSelect", () => ({
     </select>
   ),
 }));
-vi.mock("@/components/ui/datetime-picker", () => ({
-  DateTimePicker: ({
+// Kontrakt atomu `DateInput`: napis zegara `YYYY-MM-DDTHH:mm` w strefie
+// edycji (OPS-15) albo `""`; `min` i opis pola przechodzą dalej.
+vi.mock("@/components/ui/date-input", () => ({
+  DateInput: ({
     id,
     value,
+    min,
     onChange,
+    "aria-describedby": describedBy,
   }: {
     id?: string;
-    value: string | null;
-    onChange: (iso: string | null) => void;
+    value?: string | null;
+    min?: string;
+    onChange?: (event: { target: { value: string } }) => void;
+    "aria-describedby"?: string;
   }) => (
     <input
       id={id}
       value={value ?? ""}
-      onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      min={min}
+      aria-describedby={describedBy}
+      onChange={(event) => onChange?.({ target: { value: event.target.value } })}
     />
   ),
 }));
+vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
 
 const { EventCloneForm } = await import("@/components/admin/events/organisms/EventCloneForm");
 
@@ -141,8 +154,9 @@ describe("EventCloneForm - szkic startowy", () => {
     const { container, onDraftChange } = mount();
     expect(screen.getByLabelText("adminEventClone.fields.titlePl")).toHaveValue("Kongres 2027");
     expect(screen.getByLabelText("adminEventClone.fields.titleEn")).toHaveValue("Congress 2027");
+    // Podpowiedź z bazy (08:00Z) jako zegar Warszawy - 20.03.2100 to jeszcze CET.
     expect(screen.getByLabelText("adminEventClone.fields.startsAt")).toHaveValue(
-      "2100-03-20T08:00:00.000Z",
+      "2100-03-20T09:00",
     );
     expect(screen.getByLabelText("adminEventClone.fields.timezone")).toHaveValue("Europe/Warsaw");
     expect(
@@ -203,20 +217,37 @@ describe("EventCloneForm - szkic startowy", () => {
 describe("EventCloneForm - edycja szkicu trafia do podglądu", () => {
   it("adres, koniec i strefa jadą do podglądu; koniec ma minimum = początek", async () => {
     mount();
+    expect(screen.getByLabelText("adminEventClone.fields.endsAt")).toHaveAttribute(
+      "min",
+      "2100-03-20T09:00",
+    );
     fireEvent.change(screen.getByLabelText("adminEventClone.fields.slug"), {
       target: { value: "Moj-Adres" },
     });
     fireEvent.change(screen.getByLabelText("adminEventClone.fields.endsAt"), {
-      target: { value: "2100-03-22T17:00:00.000Z" },
-    });
-    fireEvent.change(screen.getByLabelText("adminEventClone.fields.timezone"), {
-      target: { value: "Europe/London" },
+      target: { value: "2100-03-22T18:00" },
     });
     await waitFor(
       () =>
         expect(lastPreviewPayload()).toMatchObject({
           slug: "moj-adres",
+          // 18:00 w Warszawie (CET) = 17:00Z.
           ends_at: "2100-03-22T17:00:00.000Z",
+        }),
+      { timeout: 3000 },
+    );
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.timezone"), {
+      target: { value: "Europe/London" },
+    });
+    // Zmiana strefy ZOSTAWIA godziny (09:00 i 18:00) i czyta je w Londynie (GMT).
+    expect(screen.getByLabelText("adminEventClone.fields.startsAt")).toHaveValue(
+      "2100-03-20T09:00",
+    );
+    await waitFor(
+      () =>
+        expect(lastPreviewPayload()).toMatchObject({
+          starts_at: "2100-03-20T09:00:00.000Z",
+          ends_at: "2100-03-22T18:00:00.000Z",
           timezone: "Europe/London",
         }),
       { timeout: 3000 },
@@ -409,5 +440,42 @@ describe("EventCloneForm - zapis", () => {
       />,
     );
     expect(screen.getByLabelText("adminEventClone.fields.titlePl")).toHaveValue("Kongres 2027");
+  });
+});
+
+describe("EventCloneForm - termin w strefie nowej edycji (OPS-15)", () => {
+  function podpis(label: string): string {
+    const ids = screen.getByLabelText(label).getAttribute("aria-describedby") ?? "";
+    return ids
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
+
+  it("podpis pola nazywa strefę edycji i idzie za droplistą", () => {
+    mount();
+    expect(podpis("adminEventClone.fields.startsAt")).toBe(
+      "adminEventClone.fields.startsAtHint adminEvents.eventTime.zone(zone=Europe/Warsaw)",
+    );
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.timezone"), {
+      target: { value: "Europe/London" },
+    });
+    expect(podpis("adminEventClone.fields.startsAt")).toBe(
+      "adminEventClone.fields.startsAtHint adminEvents.eventTime.zone(zone=Europe/London)",
+    );
+  });
+
+  it("wpisana godzina liczy się w strefie edycji; zakładka jesienna mówi, co zapiszemy", () => {
+    const { onSubmit } = mount();
+    fireEvent.change(screen.getByLabelText("adminEventClone.fields.startsAt"), {
+      target: { value: "2100-10-31T02:30" },
+    });
+    expect(podpis("adminEventClone.fields.startsAt")).toMatch(
+      /^adminEventClone\.fields\.startsAtHint adminEvents\.eventTime\.overlap\(/,
+    );
+    submit();
+    // 31.10.2100 to noc zmiany czasu w UE: 02:30 bierze DRUGIE wystąpienie (CET).
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ startsAt: "2100-10-31T01:30:00.000Z" });
   });
 });

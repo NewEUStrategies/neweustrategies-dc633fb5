@@ -620,6 +620,7 @@ function CfpSubmissionBody({
         decisionNote={decision.decisionNote}
         feedbackToSpeaker={decision.feedbackToSpeaker}
         trackId={detail.trackId}
+        timeZone={settings.eventTimezone}
         tracks={settings.tracks}
         rooms={settings.rooms}
         isSaving={accept.isPending}

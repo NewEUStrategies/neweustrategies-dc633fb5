@@ -12,6 +12,22 @@
 // ŁADUNEK NIESIE KOMPLET PÓL - ekran edytuje wszystkie, więc PATCH po obecności
 // klucza nie ma tu czego oszczędzać, a pominięte pole zostawiłoby w bazie
 // wartość sprzed zmiany pod komunikatem „zapisano".
+//
+// OKNO NABORU JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15). Kalendarz
+// czytał chwile w strefie PRZEGLĄDARKI: „nabór do 23:59" wpisany w Londynie
+// dla kongresu w Warszawie zamykał zgłoszenia o 00:59 czasu kongresu, czyli
+// już następnego dnia na stronie naboru. Pola niosą napis `YYYY-MM-DDTHH:mm`
+// w strefie `timeZone` (`event_timezone` z RPC), chwile liczy wspólny
+// `lib/events/eventLocalInput.ts`, a `savedTimes` oddaje nietknięte pole co do
+// milisekundy - zapis samego tekstu strony naboru nie przycina `closes_at`
+// 23:59:59 do pełnej minuty.
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import type { CfpStatus } from "@/lib/events/cfpEnums";
 import type { CfpSettingsInput } from "@/lib/events/cfpApi";
 import type { CfpSettings } from "@/lib/events/cfpSurface";
@@ -38,6 +54,7 @@ export interface CfpCriterionDraft {
 
 export interface CfpSettingsDraft {
   status: CfpStatus;
+  /** `YYYY-MM-DDTHH:mm` w strefie `timeZone` albo `""` = bez granicy. */
   opensAt: string;
   closesAt: string;
   introPl: string;
@@ -54,6 +71,18 @@ export interface CfpSettingsDraft {
   criteria: CfpCriterionDraft[];
   speakerGroupId: string | null;
   speakerTicketTypeId: string | null;
+  /** Strefa wydarzenia (IANA, zwalidowana) - kontekst odczytu okna, nie pole zapisu. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola okna naboru. */
+  savedTimes: SavedInstants<CfpWindowField>;
+}
+
+/** Pola okna naboru - zegar w strefie wydarzenia. */
+export type CfpWindowField = "opensAt" | "closesAt";
+
+/** Pole okna -> chwila w UTC albo `null` (pole puste albo niepełne = bez granicy). */
+export function cfpWindowInstant(draft: CfpSettingsDraft, field: CfpWindowField): string | null {
+  return eventLocalInputToIso(draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
 }
 
 export type CfpSettingsField =
@@ -65,10 +94,13 @@ export interface CfpSettingsIssue {
 }
 
 export function cfpSettingsDraftFromSettings(settings: CfpSettings): CfpSettingsDraft {
+  const timeZone = eventTimeZone({ timezone: settings.eventTimezone });
+  const opensAt = canonicalInstant(settings.opensAt);
+  const closesAt = canonicalInstant(settings.closesAt);
   return {
     status: settings.status,
-    opensAt: settings.opensAt ?? "",
-    closesAt: settings.closesAt ?? "",
+    opensAt: eventLocalInput(opensAt, timeZone),
+    closesAt: eventLocalInput(closesAt, timeZone),
     introPl: settings.introPl,
     introEn: settings.introEn,
     guidelinesPl: settings.guidelinesPl,
@@ -93,6 +125,8 @@ export function cfpSettingsDraftFromSettings(settings: CfpSettings): CfpSettings
     })),
     speakerGroupId: settings.speakerGroupId,
     speakerTicketTypeId: settings.speakerTicketTypeId,
+    timeZone,
+    savedTimes: { opensAt, closesAt },
   };
 }
 
@@ -119,12 +153,15 @@ function uniqueKeys(keys: readonly string[]): boolean {
 
 export function validateCfpSettingsDraft(draft: CfpSettingsDraft): CfpSettingsIssue[] {
   const issues: CfpSettingsIssue[] = [];
-  // Porównanie CHWIL, nie napisów: baza oddaje `+00:00`, kalendarz `.000Z`,
-  // a porządek leksykalny dwóch zapisów tej samej chwili bywa odwrotny.
+  // Porównanie CHWIL w strefie wydarzenia, nie napisów: w jesiennej zakładce
+  // 02:30 po 02:59 bywa późniejsze. Pole podane, ale bez chwili (napis
+  // niepełny), poszłoby jako `null`, czyli po cichu ZDJĘŁOBY granicę okna.
+  const opens = cfpWindowInstant(draft, "opensAt");
+  const closes = cfpWindowInstant(draft, "closesAt");
   if (
-    draft.opensAt !== "" &&
-    draft.closesAt !== "" &&
-    !(Date.parse(draft.closesAt) > Date.parse(draft.opensAt))
+    (draft.opensAt.trim() !== "" && opens === null) ||
+    (draft.closesAt.trim() !== "" && closes === null) ||
+    (opens !== null && closes !== null && !(Date.parse(closes) > Date.parse(opens)))
   ) {
     issues.push({ field: "window", messageKey: "adminEventCfp.settings.validation.window" });
   }
@@ -179,8 +216,8 @@ export function cfpSettingsPayload(eventId: string, draft: CfpSettingsDraft): Cf
   return {
     eventId,
     status: draft.status,
-    opensAt: draft.opensAt === "" ? null : draft.opensAt,
-    closesAt: draft.closesAt === "" ? null : draft.closesAt,
+    opensAt: cfpWindowInstant(draft, "opensAt"),
+    closesAt: cfpWindowInstant(draft, "closesAt"),
     introPl: draft.introPl,
     introEn: draft.introEn,
     guidelinesPl: draft.guidelinesPl,

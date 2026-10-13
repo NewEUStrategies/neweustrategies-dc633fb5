@@ -340,6 +340,12 @@ describe("EventStudioModuleSections - dane, ktore panel dostaje osobno", () => {
     expect(montaz("tracks")?.timeZoneLabel).toBe("Europe/Warsaw");
   });
 
+  it("tablica sponsorow dostaje STREFE WYDARZENIA - harmonogram reklam jest zegarem w niej", () => {
+    render(<S.EventSponsorsSection row={adminEventDetailRow({ timezone: "Europe/London" })} />);
+
+    expect(montaz("sponsorBoard")?.timezone).toBe("Europe/London");
+  });
+
   it("otwarte pasmo trzyma TRASA, nie ekran - `?track=` wraca po odswiezeniu", () => {
     const otwarte: (string | null)[] = [];
     render(
