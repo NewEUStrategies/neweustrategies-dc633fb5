@@ -27,6 +27,10 @@
 --        Stare cialo blokowalo prowadzacego PRZED wydarzeniem i zakleszczalo
 --        sie z `payments_apply_event_ticket_outcome` (wydarzenie -> bilet ->
 --        zgloszenie).
+--     E. (przeglad R38, 20261012180300) Ten sam NOWY gosc u dwoch prowadzacych
+--        naraz, droga serwerowa `event_register_group_guests_for_client`:
+--        obie odpowiedzi identyczne `{ok:true, added:1}`, gosc zapisany raz,
+--        a jego adres wraca wylacznie w dostawie serwera przegranego.
 --   W kazdym wariancie sesja glowna trzyma wiersz wydarzenia, a asercja
 --   dowodzi, ze OBIE sesje NAPRAWDE czekaja na blokadzie, zanim ja zwolni.
 --
@@ -519,6 +523,66 @@ SELECT pg_temp.assert(
   '29/D: stan spojny - prowadzacy oplacony; goscie albo odrzuceni jako already_settled, albo oplaceni razem z nim');
 
 -- ---------------------------------------------------------------------------
+-- E) TEN SAM NOWY GOSC U DWOCH PROWADZACYCH NARAZ (przeglad R38, 20261012180300)
+-- ---------------------------------------------------------------------------
+-- Droga produkcyjna (`event_register_group_guests_for_client`, serwer):
+-- przegrany wyscigu widzi goscia juz zapisanego przez zwyciezce i POMIJA go
+-- bez sladu - obie odpowiedzi sa identyczne `{ok:true, added:1}`, a adres
+-- goscia wraca wylacznie w dostawie serwera przegranego (wiadomosc „juz
+-- zapisany"). Stare cialo odpowiadalo przegranemu `already_registered: <adres>`.
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, status,
+                           registration_mode, registration_flow, capacity) VALUES
+  ('c9100000-0000-4000-8000-00000000000e', 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9', 't29-race-e',
+   'Wyscig E', 'Race E', now() + interval '10 days', 'published', 'form', 'instant', NULL);
+INSERT INTO public.event_ticket_types (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency,
+                                       quota, group_registration_enabled, group_max_size) VALUES
+  ('c9200000-0000-4000-8000-00000000000e', 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9',
+   'c9100000-0000-4000-8000-00000000000e', 't29_race_e', 'Wyscig E', 'Race E', 0, 'PLN', NULL, true, 5);
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode, payment_status,
+   decided_at, decision_source, created_by) VALUES
+  ('c9400000-0000-4000-8000-0000000000e1', 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9', 'c9100000-0000-4000-8000-00000000000e',
+   'c9300000-0000-4000-8000-000000000001', 'c9200000-0000-4000-8000-00000000000e', 'approved', 'form', 'not_required',
+   now(), 'system', 'c9000000-0000-4000-8000-000000000001'),
+  ('c9400000-0000-4000-8000-0000000000e2', 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9', 'c9100000-0000-4000-8000-00000000000e',
+   'c9300000-0000-4000-8000-000000000002', 'c9200000-0000-4000-8000-00000000000e', 'approved', 'form', 'not_required',
+   now(), 'system', 'c9000000-0000-4000-8000-000000000002');
+
+BEGIN;
+SELECT 1 FROM public.events WHERE id = 'c9100000-0000-4000-8000-00000000000e' FOR UPDATE;
+SELECT dblink_send_query('r29a', $$SELECT public.event_register_group_guests_for_client(
+  'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9', 'c9000000-0000-4000-8000-000000000001', 'ip:' || md5('t29-e-a'),
+  'c9400000-0000-4000-8000-0000000000e1',
+  '[{"first_name":"Wspolny","last_name":"Gosc","email":"e-shared.t29@example.org"}]'::jsonb)$$);
+SELECT dblink_send_query('r29b', $$SELECT public.event_register_group_guests_for_client(
+  'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9', 'c9000000-0000-4000-8000-000000000002', 'ip:' || md5('t29-e-b'),
+  'c9400000-0000-4000-8000-0000000000e2',
+  '[{"first_name":"Wspolny","last_name":"Gosc","email":"e-shared.t29@example.org"}]'::jsonb)$$);
+SELECT pg_temp.r29_wait(ARRAY['r29a', 'r29b'],
+  '29/E DOWOD: oba dopisania tego samego goscia czekaja JEDNOCZESNIE na blokadzie wydarzenia');
+COMMIT;
+SELECT pg_temp.r29_collect('E', 'r29a');
+SELECT pg_temp.r29_collect('E', 'r29b');
+
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM r29_out WHERE variant = 'E' AND err IS NOT NULL)
+  AND (SELECT count(*) FROM r29_out WHERE variant = 'E' AND res->'client' = '{"ok": true, "added": 1}'::jsonb) = 2,
+  '29/E R38: obie odpowiedzi identyczne {ok:true, added:1} - przegrany nie dowiaduje sie, ze gosc juz ma zapis');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.event_registrations r JOIN public.event_people p ON p.id = r.person_id
+    WHERE r.event_id = 'c9100000-0000-4000-8000-00000000000e' AND p.email_norm = 'e-shared.t29@example.org') = 1
+  AND (SELECT count(*) FROM public.event_people
+        WHERE tenant_id = 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9' AND email_norm = 'e-shared.t29@example.org') = 1,
+  '29/E: gosc zapisany DOKLADNIE raz (jedna osoba, jedno zgloszenie)');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM r29_out WHERE variant = 'E' AND res->'delivery' = '[]'::jsonb) = 1
+  AND (SELECT count(*) FROM r29_out WHERE variant = 'E'
+        AND jsonb_array_length(res->'delivery') = 1
+        AND res->'delivery'->0->>'kind' = 'already_registered'
+        AND res->'delivery'->0->'recipient'->>'email' = 'e-shared.t29@example.org') = 1,
+  '29/E: adres pominietego goscia WYLACZNIE w dostawie serwera przegranego (wiadomosc „juz zapisany")');
+
+-- ---------------------------------------------------------------------------
 -- SPRZATANIE FAZY 2
 -- ---------------------------------------------------------------------------
 SELECT dblink_disconnect('r29a');
@@ -529,6 +593,8 @@ DROP EXTENSION dblink;
 
 DELETE FROM public.rate_limits
  WHERE scope = 'event_register.guests' AND subject_id LIKE 'user:c9000000-0000-4000-8000-00000000000_';
+DELETE FROM public.rate_limits
+ WHERE scope = 'event_register.ip' AND subject_id IN ('ip:' || md5('t29-e-a'), 'ip:' || md5('t29-e-b'));
 DELETE FROM public.domain_events WHERE tenant_id = 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9';
 DELETE FROM public.tenants WHERE id = 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9';
 DELETE FROM public.profiles WHERE id::text LIKE 'c9000000-%';
@@ -538,5 +604,7 @@ SELECT pg_temp.assert(
   (SELECT count(*) FROM public.event_registrations WHERE tenant_id = 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9') = 0
   AND (SELECT count(*) FROM public.tenants WHERE id = 'c9c9c9c9-c9c9-4c9c-8c9c-c9c9c9c9c9c9') = 0
   AND (SELECT count(*) FROM auth.users WHERE id::text LIKE 'c9000000-%') = 0
-  AND (SELECT count(*) FROM public.rate_limits WHERE subject_id LIKE 'user:c9000000-%') = 0,
+  AND (SELECT count(*) FROM public.rate_limits WHERE subject_id LIKE 'user:c9000000-%') = 0
+  AND (SELECT count(*) FROM public.rate_limits
+        WHERE subject_id IN ('ip:' || md5('t29-e-a'), 'ip:' || md5('t29-e-b'))) = 0,
   '29/sprzatanie: faza wspolbieznosci nie zostawila po sobie ani jednego wiersza');
