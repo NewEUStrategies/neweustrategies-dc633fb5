@@ -284,6 +284,37 @@ export const eventRegistrationPl = {
       qrTitle: "Kod wejścia",
       qrHint: "Zapisz go teraz - pokazujemy go tylko raz.",
       backToEvents: "Przejdź do listy wydarzeń",
+      // Podgląd zaproszenia, pola i regulaminy wydarzenia (REG-15).
+      loading: "Sprawdzamy zaproszenie...",
+      previewFailed: "Nie udało się sprawdzić zaproszenia. Spróbuj ponownie za chwilę.",
+      retry: "Spróbuj ponownie",
+      forEvent: "Wydarzenie: {{title}}",
+      addressedTo: "Zaproszenie wysłano na adres {{email}}.",
+      fieldsTitle: "Pytania organizatora",
+      termsTitle: "Regulaminy i zgody",
+      accountMatches:
+        "Jesteś zalogowany na konto z potwierdzonym adresem zaproszenia - zgłoszenie trafi do Twoich „Moich zgłoszeń”.",
+      accountOther:
+        "Zgłoszenie nie trafi do Twojego konta: zaproszenie wysłano na inny adres albo adres konta nie jest potwierdzony. Kod wejścia i link samoobsługi pokażemy po potwierdzeniu udziału.",
+      signInHint:
+        "Masz konto z adresem zaproszenia? Zaloguj się przed potwierdzeniem, a zgłoszenie trafi do Twojego panelu uczestnika.",
+      accountLinked: "Zgłoszenie jest w Twoich „Moich zgłoszeniach”.",
+      accountNotLinked:
+        "Zgłoszenie nie jest przypięte do Twojego konta - zachowaj kod wejścia i link samoobsługi poniżej.",
+      stateTitle: "Tego zaproszenia nie można przyjąć",
+      stateUsed: "To zaproszenie zostało już wykorzystane.",
+      stateExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
+      stateEventEnded: "Wydarzenie już się odbyło - zaproszenia nie można przyjąć.",
+      stateEventCancelled: "Wydarzenie zostało odwołane.",
+      stateOrderCancelled: "Zamówienie pakietu zostało anulowane - miejsce nie jest już dostępne.",
+      stateOrderRefunded: "Zamówienie pakietu zostało zwrócone - miejsce nie jest już dostępne.",
+      stateUnavailable: "Zaproszenie jest teraz niedostępne. Skontaktuj się z organizatorem.",
+      // Odmowy przyjęcia w tonie zaproszenia (reszta spada do `errors`).
+      errors: {
+        eventEnded: "Wydarzenie już się odbyło - zaproszenia nie można przyjąć.",
+        alreadyRegistered:
+          "Osoba z tego zaproszenia ma już aktywne zgłoszenie na to wydarzenie - nie trzeba nic robić.",
+      },
     },
     validation: {
       firstName: "Podaj imię.",
@@ -411,6 +442,7 @@ export const eventRegistrationPl = {
       seatTaken: "To zaproszenie zostało już wykorzystane.",
       invitationExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
       orderCancelled: "Zamówienie pakietu zostało anulowane.",
+      orderRefunded: "Zamówienie pakietu zostało zwrócone - miejsce nie jest już dostępne.",
     },
   },
   // ZAKUP PAKIETU GRUPOWEGO oczami kupujacego. Slownictwo mowi „zestaw miejsc",
@@ -780,6 +812,35 @@ export const eventRegistrationEn = {
       qrTitle: "Entry code",
       qrHint: "Save it now - we show it only once.",
       backToEvents: "Go to the event list",
+      loading: "Checking the invitation...",
+      previewFailed: "We could not check the invitation. Please try again in a moment.",
+      retry: "Try again",
+      forEvent: "Event: {{title}}",
+      addressedTo: "The invitation was sent to {{email}}.",
+      fieldsTitle: "Questions from the organiser",
+      termsTitle: "Terms and consents",
+      accountMatches:
+        "You are signed in to an account with the confirmed invitation address - the registration will appear under “My registrations”.",
+      accountOther:
+        "The registration will not be linked to your account: the invitation was sent to another address or your account address is not confirmed. We will show the entry code and the self-service link after you confirm attendance.",
+      signInHint:
+        "Do you have an account with the invitation address? Sign in before confirming and the registration will appear in your participant panel.",
+      accountLinked: "The registration is under “My registrations”.",
+      accountNotLinked:
+        "The registration is not linked to your account - keep the entry code and the self-service link below.",
+      stateTitle: "This invitation cannot be accepted",
+      stateUsed: "This invitation has already been used.",
+      stateExpired: "The invitation has expired - ask the organiser for a new one.",
+      stateEventEnded: "The event is over - the invitation can no longer be accepted.",
+      stateEventCancelled: "The event has been cancelled.",
+      stateOrderCancelled: "The package order was cancelled - the seat is no longer available.",
+      stateOrderRefunded: "The package order was refunded - the seat is no longer available.",
+      stateUnavailable: "The invitation is not available right now. Please contact the organiser.",
+      errors: {
+        eventEnded: "The event is over - the invitation can no longer be accepted.",
+        alreadyRegistered:
+          "The invited person already has an active registration for this event - nothing else to do.",
+      },
     },
     validation: {
       firstName: "Enter your first name.",
@@ -899,6 +960,7 @@ export const eventRegistrationEn = {
       seatTaken: "This invitation has already been used.",
       invitationExpired: "The invitation has expired - ask the organiser for a new one.",
       orderCancelled: "The order behind this seat has been cancelled.",
+      orderRefunded: "The package order was refunded - the seat is no longer available.",
     },
   },
   eventPackages: {
