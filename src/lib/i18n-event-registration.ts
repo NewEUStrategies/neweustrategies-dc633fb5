@@ -189,6 +189,8 @@ export const eventRegistrationPl = {
           "Twoje zgłoszenie zostało odwołane lub odrzucone - nie można już dopisać do niego gości.",
         alreadySettled:
           "Twoje zgłoszenie jest już rozliczone - do opłaconego zamówienia nie dopiszemy gości. Zapisz ich osobnym zgłoszeniem.",
+        checkoutInProgress:
+          "Płatność za Twoje zgłoszenie jest w toku - dokończ ją albo zamknij, zanim dopiszesz gości.",
         groupNotEnabled: "Ten bilet nie pozwala na zapis grupowy.",
         groupTooLarge: "Za dużo osób jak na limit grupy tego biletu. Usuń część gości.",
         groupTooLargeMax:
@@ -806,6 +808,8 @@ export const eventRegistrationEn = {
           "Your registration has been cancelled or rejected - guests can no longer be added to it.",
         alreadySettled:
           "Your registration is already settled - we cannot add guests to a paid order. Register them separately.",
+        checkoutInProgress:
+          "A payment for your registration is in progress - finish or close it before adding guests.",
         groupNotEnabled: "This ticket does not allow group registration.",
         groupTooLarge: "Too many people for this ticket's group limit. Remove some guests.",
         groupTooLargeMax:

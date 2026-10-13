@@ -322,7 +322,7 @@ COMMENT ON FUNCTION public.event_coupon_revealed_tickets(uuid, uuid, text) IS
 
 -- C) GOSCIE GRUPY ------------------------------------------------------------------------
 -- Rdzen: cialo z 20261012180300:86-406 (REG, R38). ZMIANA (scalenie z main,
--- TIX-03) oznaczona w miejscu. Wrapper: cialo z 20261012180300:485-512 bez zmian.
+-- TIX-03) oznaczona w miejscu. Wejscie serwerowe i wrapper - bez zmian.
 CREATE OR REPLACE FUNCTION public._event_register_group_guests(
   p_tenant uuid,
   p_uid uuid,
@@ -663,6 +663,72 @@ GRANT EXECUTE ON FUNCTION public._event_register_group_guests(uuid, uuid, uuid, 
 COMMENT ON FUNCTION public._event_register_group_guests(uuid, uuid, uuid, jsonb) IS
   'Rdzen dopisania gosci do WLASNEGO zgloszenia prowadzacego (najemca i konto z argumentow; wlasnosc: created_by albo osoba z kontem). R38: cala lista walidowana PRZED odczytem czlonkostwa (ksztalt, <= 49 gosci, imiona, adresy, znaki sterujace, duplikat w liscie albo adres prowadzacego -> duplicate_guest); gosc z aktywnym zapisem pomijany bez sladu w client (added = liczba poprawnych gosci), wiadomosc do niego w delivery. Blokady wydarzenie -> bilet -> zgloszenie (REG-08), event_ended (REG-13), otwarta kasa prowadzacego -> checkout_in_progress (TIX-03), status gosci (REG-07), oferta ceny prowadzacego (REG-16), nowa osoba invitation bez zgod ON CONFLICT, istniejaca nietknieta (REG-14/REG-02). Wynik {client, delivery}; kubelki licza wejscia. Tylko service_role.';
 
+-- Wejscie serwerowe: cialo z 20261012180300:417-478 bez zmian (ostatni zapis
+-- trzech funkcji gosci stoi w jednym pliku - groupGuestsFailure.test.ts).
+CREATE OR REPLACE FUNCTION public.event_register_group_guests_for_client(
+  _tenant_id uuid,
+  _user_id uuid,
+  _ip_subject text,
+  p_lead_registration_id uuid,
+  p_guests jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, extensions, pg_temp
+AS $$
+DECLARE
+  v_prev_sub text := current_setting('request.jwt.claim.sub', true);
+  v_prev_role text := current_setting('request.jwt.claim.role', true);
+  v_prev_claims text := current_setting('request.jwt.claims', true);
+  v_ip_ok boolean;
+  v_user_ok boolean;
+  v_out jsonb;
+BEGIN
+  -- Tozsamosc od serwera: najemca z zaufanego hosta, solony skrot adresu -
+  -- nigdy surowy adres. Brak ktoregos to blad serwera, nie odpowiedz.
+  -- Bez konta goscia nie ma kogo dopisac: odmowa wartoscia, bez kubelka.
+  IF _user_id IS NULL THEN
+    PERFORM public._require_server_probe(_tenant_id, _ip_subject);
+    RETURN jsonb_build_object(
+      'client', jsonb_build_object('ok', false, 'error', 'account_required'),
+      'delivery', '[]'::jsonb);
+  END IF;
+  PERFORM public._require_server_identity(_tenant_id, _user_id, _ip_subject);
+
+  -- KUBELKI PRZED PRACA, POZA PODTRANSAKCJA RDZENIA (R38, REG-04). Adres:
+  -- ten sam kubelek i prog co zapis zalogowanego (`event_register.ip`, 120 /
+  -- 10 min - kazde wpisanie adresu na liste wydarzenia z jednego IP liczy sie
+  -- razem); konto: `event_register.guests` (12 / 10 min, jak dotad). Odmowa
+  -- rdzenia wraca wartoscia, wiec zadna proba nie cofa licznika.
+  SELECT h.allowed INTO v_ip_ok
+    FROM public.rate_limit_hit('event_register.ip', _ip_subject, 120, 10) h;
+  SELECT h.allowed INTO v_user_ok
+    FROM public.rate_limit_hit('event_register.guests', 'user:' || _user_id::text, 12, 10) h;
+  IF NOT COALESCE(v_ip_ok, false) OR NOT COALESCE(v_user_ok, false) THEN
+    RETURN jsonb_build_object(
+      'client', jsonb_build_object('ok', false, 'error', 'rate_limited'),
+      'delivery', '[]'::jsonb);
+  END IF;
+
+  -- Na czas wywolania wolajacym JEST konto z sesji (wyzwalacze i zdarzenia
+  -- domenowe czytaja auth.uid()); potem poprzednia tozsamosc.
+  PERFORM public._set_request_identity(
+    _user_id::text, 'authenticated',
+    jsonb_build_object('sub', _user_id, 'role', 'authenticated')::text);
+  v_out := public._event_register_group_guests(_tenant_id, _user_id, p_lead_registration_id, p_guests);
+  PERFORM public._set_request_identity(v_prev_sub, v_prev_role, v_prev_claims);
+  RETURN v_out;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.event_register_group_guests_for_client(uuid, uuid, text, uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.event_register_group_guests_for_client(uuid, uuid, text, uuid, jsonb) TO service_role;
+
+COMMENT ON FUNCTION public.event_register_group_guests_for_client(uuid, uuid, text, uuid, jsonb) IS
+  'Dopisanie gosci z funkcji serwerowej (registerEventGroupGuests) - TYLKO service_role. Najemca z zaufanego hosta, konto ze zweryfikowanej sesji (NULL = account_required), solony skrot adresu ip:<32 hex> - argumentami. Kubelki event_register.ip (120 / 10 min, wspolny z zapisem) i event_register.guests (12 / 10 min na konto) przed praca. Zwraca {client, delivery}: client {ok:true, added} | {ok:false, error} (bez detail); delivery = wiadomosci event_registration_already_registered dla pominietych gosci - tylko dla serwera.';
+
+-- Wrapper zgodnosci: cialo z 20261012180300:485-512 bez zmian.
 CREATE OR REPLACE FUNCTION public.event_register_group_guests(p_lead_registration_id uuid, p_guests jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql

@@ -170,6 +170,9 @@ export const GROUP_GUEST_REFUSALS = [
   "event_ended",
   "registration_closed",
   "already_settled",
+  // Otwarta kasa prowadzącego (TIX-03, scalenie z main): kwota zamówienia jest
+  // już policzona - gość dopisany teraz nie byłby w niej.
+  "checkout_in_progress",
   "group_not_enabled",
   "sold_out",
 ] as const;
