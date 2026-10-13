@@ -8,6 +8,12 @@
 // LICZBY POKAZUJEMY OBOK PULI, bo pula bez liczby zajętych miejsc nie mówi nic o
 // tym, czy można ją bezpiecznie obniżyć - a RPC odmawia zejścia poniżej zajętych.
 //
+// TERMINY W STREFIE WYDARZENIA - w formularzu i w tabeli (klasa OPS-15). Tabela
+// pokazywała okno sprzedaży w strefie serwisu, a formularz miał je w strefie
+// wydarzenia: przy kongresie poza Polską te same terminy różniłyby się o godzinę
+// między wierszem a dialogiem. Przełącznik aktywności i duplikacja przechodzą
+// przez szkic, który pamięta chwile z bazy - okno wraca bez zmian.
+//
 // PROFIL PODATKOWY (TIX-09) ZAPISUJE SIĘ PO BILECIE, pod identyfikatorem
 // oddanym przez upsert - tak jak wygląd i tryb podatku. Odmowa tego drugiego
 // zapisu NIE jest połykana: bilet już stoi, więc organizator dostaje zdanie
@@ -526,6 +532,7 @@ export function EventTicketsPanel({
         eventSlug={eventSlug}
         presentation={edited === null ? undefined : lookOf(edited.id)}
         onDuplicate={edited === null ? undefined : () => void duplicate(edited)}
+        timezone={zone}
       />
 
       <AlertDialog

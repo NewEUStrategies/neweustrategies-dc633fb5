@@ -24,7 +24,10 @@
 // 5. OSOBNY ORIGIN (OPS-13). Z `VITE_SCANNER_ORIGIN` trasa pod originem
 //    portalu przenosi urządzenie pod origin skanera (token we fragmencie) po
 //    skasowaniu danych skanera z originu portalu - chyba że leżą tam niewysłane
-//    skany: wtedy skaner pracuje dalej z banerem przeniesienia.
+//    skany: wtedy skaner pracuje dalej z banerem przeniesienia. Sprzątanie,
+//    które się NIE powiodło (IndexedDB, skaner w innej karcie), zatrzymuje
+//    przeniesienie: token nie wyjeżdża, a ekran daje „Spróbuj ponownie" albo
+//    pracę pod starym adresem.
 // 6. MANIFEST WISI PRZY TEJ TRASIE, nie w nagłówku serwisu: instalowalny ma być
 //    skaner, a nie portal.
 //
@@ -32,7 +35,7 @@
 // testowe (`ScannerApp.test.tsx` i panele). Tutaj przedmiotem dowodu jest
 // WYŁĄCZNIE sklejenie trasy: nagłówek, adres i to, co trasa podaje aplikacji.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 interface AppProps {
   initialToken: string | null;
@@ -48,6 +51,8 @@ const h = vi.hoisted(() => ({
   /** Czy pod originem portalu leżą niewysłane skany. */
   holdsWork: false,
   purges: 0,
+  /** Wynik kolejnego sprzątania; `false` = nic nie skasowano (token zostaje). */
+  purgeResult: true,
 }));
 
 vi.mock("@/components/events/scanner/organisms/ScannerApp", () => ({
@@ -76,8 +81,9 @@ vi.mock("@/lib/events/scannerRelocation", () => ({
   holdsScannerWork: () => Promise.resolve(h.holdsWork),
   purgeScannerData: () => {
     h.purges += 1;
-    window.localStorage.removeItem("nes.scanner.device-token");
-    return Promise.resolve(true);
+    // Jak prawdziwe sprzątanie: token znika OSTATNI i tylko po udanym kasowaniu.
+    if (h.purgeResult) window.localStorage.removeItem("nes.scanner.device-token");
+    return Promise.resolve(h.purgeResult);
   },
 }));
 
@@ -131,6 +137,7 @@ beforeEach(() => {
   h.swRegistrations = 0;
   h.holdsWork = false;
   h.purges = 0;
+  h.purgeResult = true;
   window.localStorage.clear();
   window.history.replaceState(null, "", "/");
 });
@@ -283,6 +290,106 @@ describe("trasa /scanner - osobny origin skanera (OPS-13)", () => {
     await waitFor(() =>
       expect(replace).toHaveBeenLastCalledWith("https://scan.example.eu/scanner#e=legacy_link"),
     );
+  });
+
+  describe("sprzątanie originu portalu się NIE powiodło (Codex P1)", () => {
+    const blokada = () =>
+      screen.findByRole("alert").then((alert) => {
+        expect(alert).toHaveTextContent("NIE zostało przeniesione na https://scan.example.eu");
+        return alert;
+      });
+
+    it("brak przekierowania, token zostaje pod portalem i NIE wyjeżdża; ekran daje ponowienie", async () => {
+      const replace = vi.spyOn(window.location, "replace").mockImplementation(() => undefined);
+      h.purgeResult = false;
+      window.localStorage.setItem("nes.scanner.device-token", TOKEN);
+      const Route = await routeWithScannerOrigin();
+      window.history.replaceState(null, "", PATH);
+      await renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+
+      await blokada();
+      expect(h.purges).toBe(1);
+      expect(replace).not.toHaveBeenCalled();
+      // Nieudane sprzątanie zostawia token - inaczej kolejka na dysku byłaby nie do odczytania.
+      expect(window.localStorage.getItem("nes.scanner.device-token")).toBe(TOKEN);
+      // Skaner NIE startuje sam pod portalem (karta nie bierze blokady środowiska).
+      expect(h.props).toEqual([]);
+      expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Pracuj dalej pod tym adresem" })).toBeTruthy();
+    });
+
+    it("token z FRAGMENTU nie wyjeżdża po nieudanym sprzątaniu, a ponowienie z sukcesem go przenosi", async () => {
+      const replace = vi.spyOn(window.location, "replace").mockImplementation(() => undefined);
+      h.purgeResult = false;
+      const Route = await routeWithScannerOrigin();
+      window.history.replaceState(null, "", `${PATH}#t=${TOKEN}`);
+      await renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+
+      await blokada();
+      expect(replace).not.toHaveBeenCalled();
+      expect(window.location.href).not.toContain(TOKEN);
+
+      h.purgeResult = true;
+      fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith(`https://scan.example.eu/scanner#t=${TOKEN}`),
+      );
+      expect(h.purges).toBe(2);
+      expect(h.props).toEqual([]);
+    });
+
+    it("ponowienie, które znowu się nie uda, zostaje na ekranie blokady bez przekierowania", async () => {
+      const replace = vi.spyOn(window.location, "replace").mockImplementation(() => undefined);
+      h.purgeResult = false;
+      window.localStorage.setItem("nes.scanner.device-token", TOKEN);
+      const Route = await routeWithScannerOrigin();
+      window.history.replaceState(null, "", PATH);
+      await renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+      await blokada();
+
+      fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+      await waitFor(() => expect(h.purges).toBe(2));
+      await blokada();
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("ponowienie najpierw pyta o niewysłaną pracę - kolejka powstała w międzyczasie nie jest kasowana", async () => {
+      const replace = vi.spyOn(window.location, "replace").mockImplementation(() => undefined);
+      h.purgeResult = false;
+      const Route = await routeWithScannerOrigin();
+      window.history.replaceState(null, "", `${PATH}#t=${TOKEN}`);
+      await renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+      await blokada();
+
+      h.holdsWork = true;
+      fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+      await waitFor(() => expect(h.props.length).toBeGreaterThan(0));
+      expect(lastProps()).toEqual({
+        initialToken: TOKEN,
+        notice: null,
+        relocateTo: "https://scan.example.eu",
+      });
+      expect(h.purges).toBe(1);
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("„Pracuj dalej pod tym adresem” otwiera skaner z banerem przeniesienia i bez przekierowania", async () => {
+      const replace = vi.spyOn(window.location, "replace").mockImplementation(() => undefined);
+      h.purgeResult = false;
+      const Route = await routeWithScannerOrigin();
+      window.history.replaceState(null, "", `${PATH}#t=${TOKEN}`);
+      await renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+      await blokada();
+
+      fireEvent.click(screen.getByRole("button", { name: "Pracuj dalej pod tym adresem" }));
+      await waitFor(() => expect(h.props.length).toBeGreaterThan(0));
+      expect(lastProps()).toEqual({
+        initialToken: TOKEN,
+        notice: null,
+        relocateTo: "https://scan.example.eu",
+      });
+      expect(replace).not.toHaveBeenCalled();
+    });
   });
 
   it("niewysłane skany pod originem portalu: skaner pracuje tu dalej, z banerem przeniesienia", async () => {

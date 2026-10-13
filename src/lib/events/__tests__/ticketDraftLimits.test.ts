@@ -274,7 +274,7 @@ describe("wiersz bazy -> formularz", () => {
   it("bilet bez ceny promocyjnej ma puste pole, a nie zero", () => {
     // Zero znaczyloby „promocja za darmo", czyli bilet gratis dla kazdego,
     // kto zdazy przed terminem.
-    expect(ticketDraftFromRow(eventTicketRow()).earlyBirdPrice).toBe("");
+    expect(ticketDraftFromRow(eventTicketRow(), STREFA).earlyBirdPrice).toBe("");
   });
 });
 
@@ -293,8 +293,24 @@ describe("cennik fazowy z JSON-a bazy", () => {
     // `savedFrom`/`savedTo` niosa chwile z bazy (nietkniete pole wraca co do
     // milisekundy); okno nieczytelne nie ma czego zapamietac.
     expect(phases).toEqual([
-      { labelPl: "", labelEn: "", from: "", to: "", price: "120,00" },
-      { labelPl: "", labelEn: "", from: "", to: "", price: "99,00" },
+      {
+        labelPl: "",
+        labelEn: "",
+        from: "",
+        to: "",
+        price: "120,00",
+        savedFrom: null,
+        savedTo: null,
+      },
+      {
+        labelPl: "",
+        labelEn: "",
+        from: "",
+        to: "",
+        price: "99,00",
+        savedFrom: null,
+        savedTo: null,
+      },
     ]);
   });
 
@@ -363,12 +379,12 @@ describe("cennik fazowy z JSON-a bazy", () => {
   });
 
   it("cena progu przechodzi baza -> pole -> payload bez zmiany groszy", () => {
-    const [phase] = phasesFromJson([{ price_cents: 12_345, label_pl: "Faza I" }]);
+    const [phase] = phasesFromJson([{ price_cents: 12_345, label_pl: "Faza I" }], STREFA);
     expect(phase.price).toBe("123,45");
     const input = ticketDraftToInput(valid({ phases: [phase] }), EVENT_ID);
     expect(input.priceSchedule[0].priceCents).toBe(12_345);
     // Separator angielski czyta sie tak samo.
-    const [en] = phasesFromJson([{ price_cents: 12_345 }], ".");
+    const [en] = phasesFromJson([{ price_cents: 12_345 }], STREFA, ".");
     expect(en.price).toBe("123.45");
     expect(ticketDraftToInput(valid({ phases: [en] }), EVENT_ID).priceSchedule[0].priceCents).toBe(
       12_345,

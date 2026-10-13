@@ -34,6 +34,7 @@ import {
   ticketDraftFromRow,
   ticketDraftIssue,
   ticketDraftToInput,
+  type TicketDraft,
 } from "@/lib/events/ticketDraft";
 import {
   emptyPackageDraft,
@@ -237,14 +238,14 @@ describe("sessionDraft w strefie wydarzenia", () => {
 
 describe("ticketDraft w strefie wydarzenia", () => {
   it("sprzedaz do 18:00 wpisana w Londynie zamyka sie o 18:00 czasu kongresu", () => {
-    const draft = {
+    const draft: TicketDraft = {
       ...emptyTicketDraft(10, WARSZAWA),
       key: "standard",
       namePl: "Standard",
       nameEn: "Standard",
       salesFrom: "2026-09-01T09:00",
       salesTo: "2026-09-30T18:00",
-      earlyBirdPriceCents: "0",
+      earlyBirdPrice: "0",
       earlyBirdUntil: "2026-09-10T23:59",
     };
     expect(ticketDraftIssue(draft)).toBeNull();
@@ -283,12 +284,12 @@ describe("ticketDraft w strefie wydarzenia", () => {
 
   it("faza z nowo wpisana granica liczy sie w strefie wydarzenia, z regula zakladki", () => {
     const [phase] = phasesFromJson([{ price_cents: 900 }], WARSZAWA);
-    const draft = {
+    const draft: TicketDraft = {
       ...emptyTicketDraft(10, WARSZAWA),
       key: "standard",
       namePl: "Standard",
       nameEn: "Standard",
-      priceCents: "1000",
+      price: "10,00",
       phases: [{ ...phase, from: "2026-10-25T02:30", to: "2026-10-26T00:00" }],
     };
     expect(ticketDraftIssue(draft)).toBeNull();

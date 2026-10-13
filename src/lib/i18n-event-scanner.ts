@@ -52,6 +52,10 @@ export const eventScannerPl = {
       legacyLink:
         "Ten link parowania ma stary format i NIE został użyty - kod urządzenia mógł trafić do historii przeglądarki. Poproś organizatora o nowy kod QR do parowania.",
       relocating: "Przenoszę skaner pod jego własny adres…",
+      relocationBlocked:
+        "Nie udało się usunąć danych skanera spod tego adresu, więc urządzenie NIE zostało przeniesione na {{origin}}. Skaner może być otwarty w innej karcie - zamknij ją i spróbuj ponownie.",
+      relocationRetry: "Spróbuj ponownie",
+      relocationStay: "Pracuj dalej pod tym adresem",
     },
 
     // -----------------------------------------------------------------
@@ -496,6 +500,10 @@ export const eventScannerEn = {
       legacyLink:
         "This pairing link uses the old format and was NOT used - the device code may have reached the browser history. Ask the organiser for a new pairing QR code.",
       relocating: "Moving the scanner to its own address…",
+      relocationBlocked:
+        "The scanner data could not be removed from this address, so the device was NOT moved to {{origin}}. The scanner may be open in another tab - close it and try again.",
+      relocationRetry: "Try again",
+      relocationStay: "Keep working at this address",
     },
 
     session: {

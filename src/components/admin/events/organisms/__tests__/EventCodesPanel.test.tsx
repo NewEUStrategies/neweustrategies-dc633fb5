@@ -21,9 +21,15 @@
 //   7. KOD KWOTOWY JEST „OD BILETU". Kasa zapisu grupowego i pakiet zdejmują
 //      kwotę z KAŻDEGO miejsca - kolumna działania mówi „/ bilet", a pod kwotą
 //      stoi podpowiedź. Samo „-50.00 PLN" czytało się jak rabat na zamówienie.
-//   8. REGUŁA KUMULACJI (TIX-13a). Kolumna działania mówi, że kod nie łączy się
+//   8. OKNO WAŻNOŚCI JEST ZEGAREM STREFY WYDARZENIA (F12/F15). Tabela i pola
+//      mówią strefą z propsa `timezone`, pod polami stoi „Godzina w strefie …",
+//      a zapis bez dotykania dat oddaje chwile z bazy co do milisekundy.
+//   9. REGUŁA KUMULACJI (TIX-13a). Kolumna działania mówi, że kod nie łączy się
 //      z promocjami albo ma limit łącznego rabatu; okno pokazuje oba pola przy
 //      rabacie, a baza bez tych kolumn nie dostaje ich ani w oknie, ani w zapisie.
+//
+// Atom `DateInput` (pole + kalendarz w popoverze) jest tu gołym polem - jak
+// w `EventTicketPhasesEditor.test.tsx`; sam atom ma własne testy.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reguł szkicu (`eventCodeDraftIssue`,
 // `eventCodeDraftToPayload`, `eventCodeStatus`) - mają tabele przypadków
@@ -662,6 +668,78 @@ describe("zakres biletów w oknie", () => {
       ticketScope: "specific",
       ticketTypeIds: ["t2"],
     });
+  });
+});
+
+describe("okno ważności w strefie wydarzenia (F12/F15)", () => {
+  // 08:00Z-16:00Z 1-10 maja 2026: w Warszawie (CEST) 10:00-18:00,
+  // w Nowym Jorku (EDT) 04:00-12:00. PostgREST oddaje `+00:00`.
+  const okienko = {
+    validFrom: "2026-05-01T08:00:00+00:00",
+    validUntil: "2026-05-10T16:00:00+00:00",
+  };
+
+  it("tabela pokazuje okno zegarem strefy wydarzenia, nie przeglądarki", () => {
+    h.rows = [kod(okienko)];
+    panel("Europe/Warsaw");
+    expect(within(wiersz()).getByText(/1 maj 2026.*10:00/)).toBeTruthy();
+    expect(within(wiersz()).getByText(/10 maj 2026.*18:00/)).toBeTruthy();
+  });
+
+  it("inna strefa wydarzenia - inny zegar w tabeli", () => {
+    h.rows = [kod(okienko)];
+    panel("America/New_York");
+    expect(within(wiersz()).getByText(/1 maj 2026.*04:00/)).toBeTruthy();
+  });
+
+  it("edycja: pola pokazują zegar Warszawy, a pod nimi stoi nazwa strefy", () => {
+    h.rows = [kod(okienko)];
+    panel();
+    kliknij(within(wiersz()).getByRole("button", { name: `${C}.edit` }));
+    expect(within(okno()).getByLabelText(`${C}.form.validFrom`)).toHaveProperty(
+      "value",
+      "2026-05-01T10:00",
+    );
+    expect(within(okno()).getByLabelText(`${C}.form.validUntil`)).toHaveProperty(
+      "value",
+      "2026-05-10T18:00",
+    );
+    expect(
+      within(okno()).getAllByText("adminEvents.eventTime.zone(zone=Europe/Warsaw)"),
+    ).toHaveLength(2);
+  });
+
+  it("zapis bez dotykania dat oddaje chwile z bazy co do milisekundy", () => {
+    h.rows = [kod({ ...okienko, validUntil: "2026-05-10T15:59:59.999+00:00" })];
+    panel();
+    kliknij(within(wiersz()).getByRole("button", { name: `${C}.edit` }));
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.save` }));
+    const draft = h.saveCalls[0]?.draft;
+    if (draft === undefined) throw new Error("brak zapisu");
+    const payload = eventCodeDraftToPayload("ev1", draft);
+    expect(payload.valid_from).toBe("2026-05-01T08:00:00.000Z");
+    expect(payload.valid_until).toBe("2026-05-10T15:59:59.999Z");
+  });
+
+  it("wpisana godzina z luki zmiany czasu mówi, co zapiszemy", () => {
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    wpisz(`${C}.form.validFrom`, "2026-03-29T02:30");
+    expect(
+      within(okno()).getByText("adminEvents.eventTime.gap(value=03:30,zone=Europe/Warsaw)"),
+    ).toBeTruthy();
+  });
+
+  it("odwrócone okno (od po do) zatrzymuje zapis zdaniem `dates`", () => {
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    wpisz(`${C}.form.code`, "lato24");
+    wpisz(`${C}.form.amount`, "15");
+    wpisz(`${C}.form.validFrom`, "2026-05-02T10:00");
+    wpisz(`${C}.form.validUntil`, "2026-05-01T10:00");
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.save` }));
+    expect(within(okno()).getByRole("alert").textContent).toBe(`${C}.issues.dates`);
+    expect(h.saveCalls).toEqual([]);
   });
 });
 

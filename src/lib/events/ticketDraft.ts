@@ -15,6 +15,13 @@
 // nazwy pola, więc każdy warunek, który baza sprawdza, ma tu odpowiednik z
 // kluczem komunikatu przy polu.
 //
+// TERMINY SĄ ZEGAREM W STREFIE WYDARZENIA, nie przeglądarki (klasa OPS-15).
+// „Sprzedaż do 18:00" wpisane w Londynie dla kongresu w Warszawie zamykało
+// sprzedaż o 19:00 czasu kongresu. Szkic niesie strefę (`timeZone`) i chwile
+// z bazy (`savedTimes`, `savedFrom`/`savedTo` faz): nietknięte pole wraca co do
+// milisekundy, więc „przełącz aktywność" i duplikacja nie przycinają
+// `sales_to` 23:59:59 do pełnej minuty. Konwersje: `lib/events/eventLocalInput.ts`.
+//
 // CENY W POLACH SĄ W JEDNOSTCE GŁÓWNEJ WALUTY (TIX-14a). Formularz prowadził
 // je w groszach, więc redaktor, który wpisał „899", myśląc o złotych,
 // wystawiał bilet za 8,99 zł. Pole mówi teraz „899,00", a grosze liczy
@@ -26,6 +33,13 @@ import {
   parseMoneyInput,
   type MoneyDecimalSeparator,
 } from "@/lib/billing/moneyInput";
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import type {
   EventTicketInput,
   EventTicketRow,
@@ -106,6 +120,9 @@ export interface TicketPhaseDraft {
   to: string;
   /** Cena progu w jednostce głównej waluty („899,00"), jak cena bazowa. */
   price: string;
+  /** Chwile z bazy, z których powstały `from`/`to`; brak = faza nowa. */
+  savedFrom?: string | null;
+  savedTo?: string | null;
 }
 
 export const TICKET_MAX_PHASES = 12;
@@ -192,15 +209,29 @@ export function fromLocalInput(
   return eventLocalInputToIso(value, timeZone, saved);
 }
 
+/** Pole daty szkicu -> chwila (z pamięcią chwili z bazy). */
+function draftInstant(
+  draft: TicketDraft,
+  field: "salesFrom" | "salesTo" | "earlyBirdUntil",
+): string | null {
+  return fromLocalInput(draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
+}
+
 /**
- * Wiersz bazy -> formularz. Kwoty z groszy na jednostkę główną („1999" ->
- * „19,99"); `decimalSeparator` dobiera wołający do języka interfejsu, a parser
- * przyjmuje oba, więc wybór nie zmienia kwoty.
+ * Wiersz bazy -> formularz. Daty jako zegar strefy wydarzenia `timeZone`;
+ * kwoty z groszy na jednostkę główną („1999" -> „19,99"). `decimalSeparator`
+ * dobiera wołający do języka interfejsu, a parser przyjmuje oba, więc wybór
+ * nie zmienia kwoty.
  */
 export function ticketDraftFromRow(
   row: EventTicketRow,
+  timeZone: string | null | undefined,
   decimalSeparator: MoneyDecimalSeparator = ",",
 ): TicketDraft {
+  const zone = eventTimeZone({ timezone: timeZone });
+  const salesFrom = canonicalInstant(row.sales_from);
+  const salesTo = canonicalInstant(row.sales_to);
+  const earlyBirdUntil = canonicalInstant(row.early_bird_until);
   return {
     id: row.id,
     key: row.key,
@@ -225,7 +256,7 @@ export function ticketDraftFromRow(
     // Brak ceny promocyjnej zostaje pustym polem (`centsToMoneyInput(null)`),
     // nie „0,00" - zero znaczyłoby promocję za darmo.
     earlyBirdPrice: centsToMoneyInput(row.early_bird_price_cents ?? null, decimalSeparator),
-    earlyBirdUntil: toLocalInput(row.early_bird_until ?? null),
+    earlyBirdUntil: toLocalInput(earlyBirdUntil, zone),
     accessCode: "",
     hasAccessCode: row.has_access_code === true,
     removeAccessCode: false,
@@ -233,7 +264,9 @@ export function ticketDraftFromRow(
     waitlistEnabled: row.waitlist_enabled !== false,
     benefitsPl: (row.benefits_pl ?? []).join("\n"),
     benefitsEn: (row.benefits_en ?? []).join("\n"),
-    phases: phasesFromJson(row.price_schedule, decimalSeparator),
+    phases: phasesFromJson(row.price_schedule, zone, decimalSeparator),
+    timeZone: zone,
+    savedTimes: { salesFrom, salesTo, earlyBirdUntil },
   };
 }
 
@@ -482,7 +515,7 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     sortOrder: Number(draft.sortOrder.trim() === "" ? "0" : draft.sortOrder.trim()),
     earlyBirdPriceCents:
       draft.earlyBirdPrice.trim() === "" ? null : moneyCents(draft.earlyBirdPrice),
-    earlyBirdUntil: fromLocalInput(draft.earlyBirdUntil),
+    earlyBirdUntil: draftInstant(draft, "earlyBirdUntil"),
     // Trzy stany kodu: `undefined` = zostaw, `null` = zdejmij, napis = ustaw.
     accessCode: draft.removeAccessCode
       ? null
@@ -496,19 +529,20 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     priceSchedule: draft.phases.map((phase): TicketPricePhaseInput => ({
       labelPl: phase.labelPl.trim(),
       labelEn: phase.labelEn.trim(),
-      from: fromLocalInput(phase.from),
-      to: fromLocalInput(phase.to),
+      from: fromLocalInput(phase.from, draft.timeZone, phase.savedFrom ?? null),
+      to: fromLocalInput(phase.to, draft.timeZone, phase.savedTo ?? null),
       priceCents: moneyCents(phase.price),
     })),
   };
 }
 
 /**
- * `price_schedule` (jsonb) -> wiersze formularza, kwoty z groszy na jednostkę
- * główną („9900" -> „99,00"). Bełkot odpada po cichu.
+ * `price_schedule` (jsonb) -> wiersze formularza w strefie `timeZone`, kwoty
+ * z groszy na jednostkę główną („9900" -> „99,00"). Bełkot odpada po cichu.
  */
 export function phasesFromJson(
   value: unknown,
+  timeZone: string | null | undefined,
   decimalSeparator: MoneyDecimalSeparator = ",",
 ): TicketPhaseDraft[] {
   if (!Array.isArray(value)) return [];
@@ -523,9 +557,11 @@ export function phasesFromJson(
     out.push({
       labelPl: typeof row.label_pl === "string" ? row.label_pl : "",
       labelEn: typeof row.label_en === "string" ? row.label_en : "",
-      from: toLocalInput(typeof row.from === "string" ? row.from : null),
-      to: toLocalInput(typeof row.to === "string" ? row.to : null),
+      from: toLocalInput(savedFrom, timeZone),
+      to: toLocalInput(savedTo, timeZone),
       price: centsToMoneyInput(Math.trunc(price), decimalSeparator),
+      savedFrom,
+      savedTo,
     });
   }
   return out;

@@ -15,6 +15,10 @@ import { DateInput } from "@/components/ui/date-input";
 // o dwa rzędy wielkości; grosze liczy `ticketDraftToInput`, a podgląd obok
 // pola pokazuje kwotę tak, jak zobaczy ją kupujący. Edytor NIE ocenia wpisu -
 // werdykt (z numerem progu) wystawia `ticketDraftIssue` przy zapisie.
+//
+// GRANICE PROGU SĄ ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
+// biletu - pod każdym polem stoi strefa, a w noc zmiany czasu zdanie o tym,
+// którą godzinę zapiszemy.
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +40,8 @@ export interface EventTicketPhasesEditorProps {
   onChange: (phases: TicketPhaseDraft[]) => void;
   /** Komunikat walidacji dla CAŁEJ listy - baza też odrzuca ją w całości. */
   error: string | null;
+  /** Strefa wydarzenia (IANA), w której pola granic progu są zegarem. */
+  timeZone: string;
   /** Waluta biletu - podgląd kwoty progu mówi w niej, jak cena bazowa. */
   currency?: string;
 }
@@ -44,9 +50,14 @@ export function EventTicketPhasesEditor({
   phases,
   onChange,
   error,
+  timeZone,
   currency = "PLN",
 }: EventTicketPhasesEditorProps) {
-  const { t } = useTranslation();
+  ensureAdminEventsI18n();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const hintFor = (value: string, saved: string | null | undefined): string =>
+    eventLocalInputHint(t, lang, value, timeZone, saved ?? null) ?? "";
 
   const patch = (index: number, part: Partial<TicketPhaseDraft>) =>
     onChange(phases.map((phase, i) => (i === index ? { ...phase, ...part } : phase)));

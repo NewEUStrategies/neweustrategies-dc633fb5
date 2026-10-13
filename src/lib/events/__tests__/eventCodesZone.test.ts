@@ -59,6 +59,8 @@ const row = (validFrom: string | null, validUntil: string | null): EventCodeRow 
   validFrom,
   validUntil,
   ticketTypeIds: [],
+  // Reguła kumulacji (TIX-13a) nie dotyczy okna ważności; `null` = baza bez kolumn.
+  stacking: null,
 });
 
 /** Payload -> wiersz, jak po zapisie i ponownym odczycie przez PostgREST. */

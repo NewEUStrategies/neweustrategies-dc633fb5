@@ -400,6 +400,7 @@ export function EventPackagesPanel({
         nextSortOrder={nextSortOrder}
         isSaving={save.isPending}
         onSubmit={submit}
+        timezone={timezone}
         packageTerms={packageTerms}
       />
 

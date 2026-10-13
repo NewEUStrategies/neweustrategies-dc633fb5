@@ -10,6 +10,10 @@
 // miejsce to zwykły bilet - dopuszczamy je, bo bywa etapem przejściowym przy
 // przenoszeniu cennika, ale limit górny trzyma literówki w ryzach.
 //
+// OKNO SPRZEDAŻY JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
+// biletu: szkic niesie strefę i chwile z bazy, więc przełącznik aktywności
+// w tabeli pakietów nie przesuwa ani nie przycina okna.
+//
 // CENA W POLU JEST W JEDNOSTCE GŁÓWNEJ WALUTY (TIX-14a). Pole pokazywało grosze
 // („89900" dla 899 zł), więc organizator, który wpisał „899", myśląc
 // o złotych, wystawiał pakiet za 8,99 zł. Grosze liczy wyłącznie
@@ -27,6 +31,8 @@ import {
   parseMoneyInput,
   type MoneyDecimalSeparator,
 } from "@/lib/billing/moneyInput";
+import { canonicalInstant, type SavedInstants } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import {
   fromLocalInput,
   toLocalInput,
@@ -100,6 +106,10 @@ export interface PackageDraft {
   requiresVerification: boolean;
   isActive: boolean;
   sortOrder: string;
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola okna są zegarem. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola okna (edycja); pusto dla nowego pakietu. */
+  savedTimes: SavedInstants<"salesFrom" | "salesTo">;
   /** `null` = warunki nieznane: niepokazywane, niesprawdzane i niewysyłane. */
   terms: PackageTermsDraft | null;
 }
@@ -186,6 +196,7 @@ export function packageTermsForDraft(
 
 export function emptyPackageDraft(
   sortOrder: number,
+  timeZone: string | null | undefined,
   terms: PackageTermsDraft | null = null,
 ): PackageDraft {
   return {
@@ -207,20 +218,27 @@ export function emptyPackageDraft(
     requiresVerification: false,
     isActive: true,
     sortOrder: String(sortOrder),
+    timeZone: eventTimeZone({ timezone: timeZone }),
+    savedTimes: {},
     terms,
   };
 }
 
 /**
- * Wiersz bazy -> formularz. Cena z groszy na jednostkę główną („89900" ->
- * „899,00"); separator dobiera wołający do języka interfejsu, a parser
- * przyjmuje oba, więc wybór nie zmienia kwoty.
+ * Wiersz bazy -> formularz. Okno sprzedaży jako zegar strefy wydarzenia
+ * `timeZone`; cena z groszy na jednostkę główną („89900" -> „899,00").
+ * Separator dobiera wołający do języka interfejsu, a parser przyjmuje oba,
+ * więc wybór nie zmienia kwoty.
  */
 export function packageDraftFromRow(
   row: EventPackageRow,
+  timeZone: string | null | undefined,
   terms: PackageTermsDraft | null = null,
   decimalSeparator: MoneyDecimalSeparator = ",",
 ): PackageDraft {
+  const zone = eventTimeZone({ timezone: timeZone });
+  const salesFrom = canonicalInstant(row.sales_from);
+  const salesTo = canonicalInstant(row.sales_to);
   return {
     id: row.id,
     key: row.key,
@@ -244,6 +262,8 @@ export function packageDraftFromRow(
     requiresVerification: row.requires_verification,
     isActive: row.is_active,
     sortOrder: String(row.sort_order ?? 100),
+    timeZone: zone,
+    savedTimes: { salesFrom, salesTo },
     terms,
   };
 }

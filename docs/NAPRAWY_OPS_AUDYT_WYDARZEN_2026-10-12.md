@@ -69,8 +69,12 @@ Cloudflare).
   Nieznane kody z kolejki mają własny limit (100/60 min) i osobną blokadę, która
   nie zatrzymuje skanowania na żywo. `expires_at` ≤ koniec wydarzenia + 7 dni.
 - **OPS-13 (osobny origin).** Opcjonalne `VITE_SCANNER_ORIGIN`, przeniesienie
-  urządzenia i sprzątanie tokenu z originu portalu domknięte na błąd. Kroki
-  infrastruktury: `docs/OPS_SKANER_OSOBNY_ORIGIN_2026-10-12.md`.
+  urządzenia i sprzątanie tokenu z originu portalu domknięte na błąd. Trasa
+  przenosi urządzenie wyłącznie po potwierdzonym sprzątaniu: gdy kasowanie
+  IndexedDB się nie powiedzie albo skaner pracuje w innej karcie, token nie
+  wyjeżdża, a ekran daje „Spróbuj ponownie" (cały obieg od nowa, z pytaniem
+  o niewysłaną pracę) albo pracę pod starym adresem z banerem przeniesienia.
+  Kroki infrastruktury: `docs/OPS_SKANER_OSOBNY_ORIGIN_2026-10-12.md`.
 - **OPS-14 (portfele).** Kontrola zgodności klucza z certyfikatem Pass Type ID
   i terminów (ostrzeżenie 30 dni wcześniej), pamięć klucza i klasy, pominięcie
   zbędnych zapisów obiektu. Obiekty Google przechodzą w INACTIVE przy anulowaniu,
@@ -89,6 +93,11 @@ Cloudflare).
   strefy na „Informacjach ogólnych" zostawia chwile i przelicza godziny w polach
   (baza nie przesuwa sesji, biletów ani okien przy zmianie strefy); w klonie -
   zostawia godzinę, bo klon przesuwa cały program o różnicę zegarów lokalnych.
+  Po scaleniu `main` (TIX-07/09/10/13a/14a) szkice biletu, pakietu i kodu niosą
+  jednocześnie strefę wydarzenia, kwoty w jednostce głównej waluty, warunki
+  pakietu i regułę kumulacji kodu; poprawka okna kodu z TIX-10 (strefa
+  przeglądarki) ustępuje strefie wydarzenia, a jej testy biegną dla przeglądarki
+  w innej strefie niż wydarzenie.
 
 ## Kolejność wdrożenia
 
@@ -106,12 +115,13 @@ Cloudflare).
 
 ## Weryfikacja
 
-- `bash scripts/events-harness/run.sh`: 209 migracji, 4390 asercji, wszystkie
-  zielone (stan wyjściowy: 181 migracji, 3889 asercji). Nowe pliki asercji:
-  33, 34, 54, 55 (dwa), 56, 57, 61, 78.
-- `tsgo --noEmit`, bramki `check:sql-*`, `check:ts-sql-contract`,
-  `check:types-freshness` i pozostałe statyczne: zielone. `check:rpc-contract`
-  odrzuca wyłącznie `event_speaker_detail` - tak samo na `main` przed zmianą.
+- `bash scripts/events-harness/run.sh` na drzewie scalonym z `main`:
+  226 migracji, 4603 asercje, wszystkie zielone (stan wyjściowy: 181 migracji,
+  3889 asercji). Nowe pliki asercji: 33, 34, 54, 55 (dwa), 56, 57, 61, 78.
+  `bash scripts/tenant-isolation-harness/run.sh`: 126 asercji, zielone.
+- `tsgo --noEmit`, bramki `check:sql-*` (w tym `check:sql-definer-views`),
+  `check:migration-lanes`, `check:rpc-contract`, `check:ts-sql-contract`,
+  `check:types-freshness`, `format:check` i pozostałe statyczne: zielone.
 - Pełny `vitest run` w czterech częściach (stan przed domknięciem X6): 139
   niezaliczonych testów, każdy obecny co do nazwy na `main` przed zmianą (tam 140;
   test okna kodu w `EventCodesPanel` przechodzi po naprawie OPS-15). Po X6 testy

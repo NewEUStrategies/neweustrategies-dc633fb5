@@ -7,6 +7,10 @@
 // miejsce z pakietu zamienia się w zwykłe zgłoszenie na wskazanym bilecie, więc
 // literówka w identyfikatorze dawałaby pakiet, którego nie da się zrealizować.
 //
+// OKNO SPRZEDAŻY JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
+// biletu - strefa przychodzi od rodzica, a pod polem stoi jej nazwa albo zdanie
+// o luce/zakładce zmiany czasu.
+//
 // CENA W ZŁOTYCH, NIE W GROSZACH (TIX-14a) - z podglądem kwoty obok pola
 // (wspólny atom `MoneyInputPreview`, ten sam co w oknie biletu).
 //
@@ -70,6 +74,8 @@ interface EventPackageDialogProps {
   nextSortOrder: number;
   isSaving: boolean;
   onSubmit: (input: EventPackageInput) => void;
+  /** Strefa wydarzenia (`events.timezone`); pola okna sprzedaży są zegarem w niej. */
+  timezone: string | null;
   /** Warunki zakupu i profil podatkowy pakietów wydarzenia (`usePackageTerms`). */
   packageTerms: PackageTermsLookup;
 }
@@ -85,16 +91,19 @@ export function EventPackageDialog({
   nextSortOrder,
   isSaving,
   onSubmit,
+  timezone,
   packageTerms,
 }: EventPackageDialogProps) {
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const zone = eventTimeZone({ timezone });
   // Kwota z bazy wraca do pola z separatorem języka interfejsu; parser i tak
   // przyjmuje oba, więc przełączenie języka nie zmienia zapisanej kwoty.
   const decimalSeparator = moneyDecimalSeparator(i18n.language);
   const decimalSeparatorRef = useRef(decimalSeparator);
   decimalSeparatorRef.current = decimalSeparator;
-  const [draft, setDraft] = useState<PackageDraft>(() => emptyPackageDraft(nextSortOrder));
+  const [draft, setDraft] = useState<PackageDraft>(() => emptyPackageDraft(nextSortOrder, zone));
   const [touched, setTouched] = useState(false);
 
   // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM - dokładnie jak
@@ -107,6 +116,8 @@ export function EventPackageDialog({
   nextSortOrderRef.current = nextSortOrder;
   const packageRef = useRef(eventPackage);
   packageRef.current = eventPackage;
+  const zoneRef = useRef(zone);
+  zoneRef.current = zone;
   const termsRef = useRef(packageTerms);
   termsRef.current = packageTerms;
   const packageId = eventPackage === null ? null : eventPackage.id;
@@ -117,8 +128,8 @@ export function EventPackageDialog({
     const terms = packageTermsForDraft(row === null ? null : row.id, termsRef.current);
     setDraft(
       row === null
-        ? emptyPackageDraft(nextSortOrderRef.current, terms)
-        : packageDraftFromRow(row, terms, decimalSeparatorRef.current),
+        ? emptyPackageDraft(nextSortOrderRef.current, zoneRef.current, terms)
+        : packageDraftFromRow(row, zoneRef.current, terms, decimalSeparatorRef.current),
     );
     setTouched(false);
   }, [open, packageId]);

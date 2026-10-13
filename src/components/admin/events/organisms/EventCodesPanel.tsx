@@ -284,17 +284,20 @@ interface DialogProps {
 function EventCodeDialog({
   eventId,
   eventSlug,
+  zone,
   row,
   stackingAvailable,
   tickets,
   onClose,
 }: DialogProps) {
-  const { t } = useTranslation();
+  ensureAdminEventsI18n();
+  const { t, i18n } = useTranslation();
+  const uiLang: UiLang = i18n.language.startsWith("en") ? "en" : "pl";
   const save = useSaveEventCode(eventId);
   const [d, setD] = useState<EventCodeDraft>(() =>
     row
-      ? eventCodeRowToDraft(row)
-      : emptyEventCodeDraft(tickets[0]?.currency ?? "PLN", stackingAvailable),
+      ? eventCodeRowToDraft(row, zone)
+      : emptyEventCodeDraft(tickets[0]?.currency ?? "PLN", zone, stackingAvailable),
   );
   const [issue, setIssue] = useState<string | null>(null);
   const set = <K extends keyof EventCodeDraft>(k: K, v: EventCodeDraft[K]) =>

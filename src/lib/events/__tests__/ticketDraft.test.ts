@@ -190,16 +190,16 @@ describe("ticketDraftFromRow", () => {
 
   it("grosze z bazy wracają do pola w złotych - z separatorem języka interfejsu", () => {
     const paid = { ...row, price_cents: 89_900 } as EventTicketRow;
-    expect(ticketDraftFromRow(paid).price).toBe("899,00");
-    expect(ticketDraftFromRow(paid, ".").price).toBe("899.00");
-    expect(ticketDraftFromRow(row).price).toBe("0,00");
+    expect(ticketDraftFromRow(paid, STREFA).price).toBe("899,00");
+    expect(ticketDraftFromRow(paid, STREFA, ".").price).toBe("899.00");
+    expect(ticketDraftFromRow(row, STREFA).price).toBe("0,00");
   });
 
   it("wiersz -> pole -> payload oddaje te same grosze, także z kropką", () => {
     for (const cents of [0, 1, 99, 1999, 89_900, 10_000_000]) {
       const paid = { ...row, price_cents: cents } as EventTicketRow;
       for (const separator of [",", "."] as const) {
-        const draft = ticketDraftFromRow(paid, separator);
+        const draft = ticketDraftFromRow(paid, STREFA, separator);
         expect(ticketDraftIssue(draft), `${cents} ${separator}`).toBeNull();
         expect(ticketDraftToInput(draft, "e-1").priceCents).toBe(cents);
       }

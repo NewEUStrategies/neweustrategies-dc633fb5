@@ -177,6 +177,7 @@ function renderuj(props: Wejscie = {}) {
       nextSortOrder={wejscie.nextSortOrder ?? 110}
       isSaving={wejscie.isSaving ?? false}
       onSubmit={onSubmit}
+      timezone={STREFA}
       packageTerms={wejscie.packageTerms ?? gotowe()}
     />
   );

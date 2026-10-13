@@ -29,9 +29,9 @@
 //      pola, aktywna, bez grup i dat; edycja - dane wiersza i jego
 //      identyfikator. Szkic i komunikaty błędów z poprzedniego otwarcia nie
 //      wracają.
-//   7. JĘZYK PANELU DOCIERA DO PÓL. Pola daty podpisują się (pusta wartość,
-//      czyszczenie) po polsku albo po angielsku (także dla „en-GB"), a pola
-//      wyboru grup mają nazwy w języku panelu.
+//   7. JĘZYK PANELU DOCIERA DO PÓL. Kalendarz pola daty i jego przyciski
+//      (czyszczenie, „gotowe") podpisują się po polsku albo po angielsku (także
+//      dla „en-GB"), a pola wyboru grup mają nazwy w języku panelu.
 //   8. PANEL PRACUJE NA SWOIM WYDARZENIU - każdy hook dostaje jego
 //      identyfikator, a szkic zapisu niesie go dalej.
 //   9. WALIDUJE PANEL, NIE PRZEGLĄDARKA, A BŁĄD JEST PRZYPIĘTY DO POLA.
@@ -56,7 +56,10 @@
 //
 // ATRAPY. `ImageUrlField` i pole daty (`AdminFormDateTimeRow` z atomem
 // `DateInput`) są PRAWDZIWE (Radix Popover i kalendarz działają pod happy-dom
-// od `fireEvent.click`). Atrapą jest tylko:
+// od `fireEvent.click`). Pole daty to natywny `<input type="datetime-local">`
+// z wartością zegara ściennego („2099-06-14T14:00"); kalendarz otwiera ikona
+// `[data-calendar-opener]` obok pola, a „Wyczyść"/„Gotowe" są w jego dymku.
+// Atrapą jest tylko:
 // `MediaPickerDialog` (sięga do biblioteki mediów przez Supabase), Radix
 // Switch (nie przełącza się pod happy-dom bez pełnego pointer API - atrapa
 // z `@/test/reactStubs`) i `confirmDialog` (okno potwierdzenia rysuje
@@ -283,9 +286,21 @@ const otworzNowa = () => kliknij(screen.getByRole("button", { name: `${A}.add` }
 const otworzEdycje = (index = 0) =>
   kliknij(within(wiersz(index)).getByRole("button", { name: `${A}.edit` }));
 
-/** Otwiera kalendarz pola daty i zwraca jego dymek. */
+/** Natywne pole daty o tej etykiecie (jedyna kontrolka etykiety w atomie). */
+const poleDaty = (etykieta: string): HTMLInputElement => {
+  const pole = screen.getByLabelText(etykieta);
+  if (!(pole instanceof HTMLInputElement)) throw new Error(`${etykieta} nie jest polem`);
+  return pole;
+};
+
+/**
+ * Otwiera kalendarz pola daty ikoną obok pola i zwraca jego dymek. Ikona jest
+ * dekoracyjna (`aria-hidden`), więc szukamy jej w otoczce pola, nie po roli.
+ */
 function kalendarz(etykieta: string): HTMLElement {
-  kliknij(screen.getByLabelText(etykieta));
+  const ikona = poleDaty(etykieta).parentElement?.querySelector("[data-calendar-opener]");
+  if (!(ikona instanceof HTMLElement)) throw new Error(`pole ${etykieta} nie ma ikony kalendarza`);
+  kliknij(ikona);
   const dymek = screen.getAllByRole("dialog").find((d) => d !== okno());
   if (dymek === undefined) throw new Error(`kalendarz pola ${etykieta} się nie otworzył`);
   return dymek;
@@ -300,18 +315,16 @@ function zamknijKalendarz(): void {
 
 // Napisy selektora daty idą przez i18n (`dateTimePicker.*`), a ten plik
 // zastępuje `react-i18next` atrapą zwracającą klucz z jawnym językiem.
-const PUSTE_PL = "dateTimePicker.placeholder(lng=pl)";
 const WYCZYSC_PL = "dateTimePicker.clear(lng=pl)";
 /** Podpis pola harmonogramu: strefa wydarzenia (`eventLocalInputHint`). */
 const STREFA = "adminEvents.eventTime.zone(zone=Europe/Warsaw)";
 
 /**
- * Przycisk czyszczenia pola daty. Stoi OBOK triggera (ten sam rodzic), nie
- * w nim - element interaktywny wewnątrz `<button>` to niepoprawny HTML.
+ * Przycisk czyszczenia pola daty - w dymku kalendarza tego pola (pole jest
+ * natywnym `<input>`, więc obok niego nie ma drugiej kontrolki).
  */
 function wyczyscPole(etykieta: string, nazwa = WYCZYSC_PL): HTMLElement {
-  const trigger = screen.getByLabelText(etykieta);
-  return within(trigger.parentElement as HTMLElement).getByRole("button", { name: nazwa });
+  return within(kalendarz(etykieta)).getByRole("button", { name: nazwa });
 }
 
 /**
@@ -551,8 +564,8 @@ describe("okno nowej reklamy", () => {
     for (const nazwa of ["Goście VIP", "Press", "Wolontariusze"]) {
       expect(grupaWOknie(nazwa).getAttribute("aria-checked")).toBe("false");
     }
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe(PUSTE_PL);
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe(PUSTE_PL);
+    expect(poleDaty(`${A}.startsAt`).value).toBe("");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("");
   });
 
   it("kadr podglądu obrazu komputerowego jest pionowym banerem, a mobilnego - ekranem telefonu", () => {
@@ -829,8 +842,8 @@ describe("okno edycji reklamy", () => {
     );
     // FIXED_NOW to 15.06.2099, południe UTC: od wczoraj do za pięć dni -
     // w zegarze WARSZAWY (CEST, +2), nie maszyny.
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe("14.06.2099, 14:00");
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe("20.06.2099, 14:00");
+    expect(poleDaty(`${A}.startsAt`).value).toBe("2099-06-14T14:00");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("2099-06-20T14:00");
   });
 
   it("zapis bez zmian niesie identyfikator reklamy i jej dane", () => {
@@ -869,7 +882,7 @@ describe("okno edycji reklamy", () => {
     otworzEdycje();
     for (const etykieta of [`${A}.startsAt`, `${A}.endsAt`]) {
       kliknij(wyczyscPole(etykieta));
-      expect(screen.getByLabelText(etykieta).textContent).toBe(PUSTE_PL);
+      expect(poleDaty(etykieta).value).toBe("");
     }
     zapisz();
     expect(h.saveCalls[0]).toMatchObject({ startsAt: "", endsAt: "" });
@@ -910,11 +923,16 @@ describe("język panelu w oknie", () => {
     h.lang = "en-GB";
     panel();
     otworzEdycje();
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe("14.06.2099, 14:00");
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe(
-      "dateTimePicker.placeholder(lng=en)",
-    );
-    expect(wyczyscPole(`${A}.startsAt`, "dateTimePicker.clear(lng=en)")).toBeTruthy();
+    expect(poleDaty(`${A}.startsAt`).value).toBe("2099-06-14T14:00");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("");
+    // Dymek kalendarza i jego przyciski mówią po angielsku.
+    const dymek = kalendarz(`${A}.startsAt`);
+    expect(dymek.getAttribute("aria-label")).toBe("dateTimePicker.openCalendar(lng=en)");
+    expect(
+      within(dymek).getByRole("button", { name: "dateTimePicker.clear(lng=en)" }),
+    ).toBeTruthy();
+    expect(within(dymek).getByRole("button", { name: "dateTimePicker.done(lng=en)" })).toBeTruthy();
+    zamknijKalendarz();
     ustawDzien(`${A}.endsAt`, 16);
     zapisz();
     expect(h.saveCalls[0]).toMatchObject({ startsAt: relativeIso(-DZIEN), endsAt: POLNOC_16 });
@@ -965,8 +983,8 @@ describe("harmonogram w strefie wydarzenia (OPS-15) - organizator w Londynie", (
     panel();
     otworzEdycje();
     // Dawny kalendarz pokazałby godzinę Londynu (13:00, 22:59).
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe("14.06.2099, 14:00");
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe("20.06.2099, 23:59");
+    expect(poleDaty(`${A}.startsAt`).value).toBe("2099-06-14T14:00");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("2099-06-20T23:59");
     expect(screen.getByLabelText(`${A}.startsAt`)).toHaveAccessibleDescription(STREFA);
   });
 

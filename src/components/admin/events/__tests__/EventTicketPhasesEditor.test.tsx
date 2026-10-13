@@ -87,6 +87,7 @@ function Harness({
     <EventTicketPhasesEditor
       phases={phases}
       error={error}
+      timeZone="Europe/Warsaw"
       currency={currency}
       onChange={(next) => {
         onChange(next);
