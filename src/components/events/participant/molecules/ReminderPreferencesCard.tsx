@@ -49,6 +49,13 @@ const CLOSED_STATUSES: ReadonlySet<string> = new Set(["cancelled", "rejected"]);
 /** Klucz listy „Moich zgłoszeń" - sekcja kanałów czyta `notify_sms` stamtąd. */
 const MY_REGISTRATIONS_KEY = ["profile", "event-registrations"] as const;
 
+/** Odpowiedź z preferencjami (a nie odmowa wartością albo baza bez migracji). */
+function isLoaded(
+  data: RegistrationPreferences | undefined,
+): data is Extract<RegistrationPreferences, { kind: "ok" }> {
+  return data?.kind === "ok";
+}
+
 type ReminderPatch = Pick<
   ChannelPrefsInput,
   "remindEmail" | "remindPush" | "remindSms" | "remindSessions" | "notifySms" | "smsConsent"
@@ -215,8 +222,8 @@ export function ReminderPreferencesCard({
     onSettled: () => setConsentOpen(false),
   });
 
-  const data = query.data;
-  const prefs = data?.kind === "ok" ? data : null;
+  const data: RegistrationPreferences | undefined = query.data;
+  const prefs: RegistrationPreferencesData | null = isLoaded(data) ? data : null;
 
   return (
     <section
