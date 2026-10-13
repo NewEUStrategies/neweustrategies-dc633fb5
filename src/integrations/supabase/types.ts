@@ -20523,6 +20523,7 @@ export type Database = {
           last_dunning_at: string | null
           last_dunning_transaction_id: string | null
           last_event_at: string | null
+          last_event_id: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
           pause_collection_behavior: string | null
@@ -20550,6 +20551,7 @@ export type Database = {
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
+          last_event_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           pause_collection_behavior?: string | null
@@ -20577,6 +20579,7 @@ export type Database = {
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
+          last_event_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           pause_collection_behavior?: string | null
