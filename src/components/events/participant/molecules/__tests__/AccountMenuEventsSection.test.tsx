@@ -87,6 +87,8 @@ function zapis(over: Partial<ParticipantRegistration> = {}): ParticipantRegistra
     amountCents: 0,
     refundedCents: 0,
     currency: "PLN",
+    paymentShared: false,
+    refundState: null,
     webhooks: [],
     ...over,
   };

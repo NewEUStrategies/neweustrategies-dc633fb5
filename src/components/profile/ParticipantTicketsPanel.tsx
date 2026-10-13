@@ -71,6 +71,14 @@ function statusKey(status: string): string {
   return "unknown";
 }
 
+/** Płatność gościa opłaconego zamówieniem prowadzącego - po samym `payment_status`. */
+function sharedPaymentLabel(paymentStatus: string | null, t: (key: string) => string): string {
+  if (paymentStatus === "refunded") return t("participantTickets.payment.refunded");
+  if (paymentStatus === "partially_refunded") return t("participantTickets.payment.partial");
+  if (paymentStatus === "paid") return t("participantTickets.payment.paidByGroup");
+  return t("participantTickets.payment.unpaid");
+}
+
 function money(cents: number | null, currency: string | null, locale: string): string {
   if (cents === null) return "-";
   return new Intl.NumberFormat(locale, {
@@ -110,8 +118,11 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
     item.amountCents !== null && item.amountCents > 0 && item.refundedCents >= item.amountCents;
   const partiallyRefunded = item.refundedCents > 0 && !fullyRefunded;
 
-  const paymentLabel =
-    item.amountCents === null || item.amountCents === 0
+  // Gość grupy (płaci prowadzący) nie dostaje z bazy kwoty zamówienia - pusta
+  // kwota NIE znaczy tu „bezpłatne", tylko „opłacone cudzym zamówieniem".
+  const paymentLabel = item.paymentShared
+    ? sharedPaymentLabel(item.paymentStatus, t)
+    : item.amountCents === null || item.amountCents === 0
       ? t("participantTickets.payment.free")
       : fullyRefunded
         ? t("participantTickets.payment.refunded")
@@ -225,6 +236,14 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           {t("participantTickets.reason.title")}
         </h3>
         <p className="text-sm text-muted-foreground">{reasonSentence}</p>
+        {/* Stan zwrotu zamknietego zgloszenia (takze zamknietego odwolaniem
+            calego wydarzenia, przeglad R45) - baza oddaje go tylko dla
+            zgloszen zamknietych i tylko z wlasnego zamowienia uczestnika. */}
+        {item.refundState !== null && (
+          <p className="mt-1 text-sm text-foreground">
+            {t(`participantTickets.refundState.${item.refundState}`)}
+          </p>
+        )}
         {/* Tylko zgloszenie zamkniete: powod na ponownie otwartym wierszu byl
             juz nieaktualny (baza i tak go nie oddaje - podwojny zamek). */}
         {item.participantReason !== null &&

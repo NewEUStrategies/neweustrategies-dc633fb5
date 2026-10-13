@@ -63,8 +63,32 @@ export interface ParticipantRegistration {
   amountCents: number | null;
   refundedCents: number;
   currency: string | null;
+  /**
+   * Zgłoszenie opłacone CUDZYM zamówieniem (gość grupy, płaci prowadzący;
+   * przegląd R45). Baza nie oddaje wtedy zamówienia - ani kwoty całej grupy,
+   * ani identyfikatorów operatora, ani webhooków - więc `amountCents` jest
+   * puste, a karta mówi „opłacone przez zapisującego grupę", nie „bezpłatne".
+   */
+  paymentShared: boolean;
+  /**
+   * Stan zwrotu ZAMKNIĘTEGO zgłoszenia (także zamkniętego odwołaniem całego
+   * wydarzenia) - ze zlecenia zwrotu zamówienia uczestnika. `null` = brak
+   * zlecenia albo starsza baza.
+   */
+  refundState: ParticipantRefundState | null;
   webhooks: TicketWebhookEntry[];
 }
+
+/** Stan zwrotu w słowniku uczestnika (`event_my_registrations.refund_state`). */
+export type ParticipantRefundState = "queued" | "processing" | "review" | "refunded" | "declined";
+
+const REFUND_STATES: ReadonlySet<string> = new Set<ParticipantRefundState>([
+  "queued",
+  "processing",
+  "review",
+  "refunded",
+  "declined",
+]);
 
 type Bag = Record<string, unknown>;
 
@@ -140,8 +164,15 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
     amountCents: int(row, "amount_cents"),
     refundedCents: int(row, "refunded_amount_cents") ?? 0,
     currency: text(row, "currency"),
+    paymentShared: bool(row, "payment_shared", false),
+    refundState: refundStateOf(text(row, "refund_state")),
     webhooks: parseWebhooks(row["webhooks"]),
   };
+}
+
+/** Nieznana wartość z bazy nie udaje znanego stanu - karta jej nie pokazuje. */
+function refundStateOf(value: string | null): ParticipantRefundState | null {
+  return value !== null && REFUND_STATES.has(value) ? (value as ParticipantRefundState) : null;
 }
 
 /**

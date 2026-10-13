@@ -169,6 +169,8 @@ function registration(over: Partial<ParticipantRegistration> = {}): ParticipantR
     amountCents: 15000,
     refundedCents: 0,
     currency: "PLN",
+    paymentShared: false,
+    refundState: null,
     webhooks: [],
     ...over,
   };
@@ -300,6 +302,43 @@ describe("ParticipantTicketsPanel - stan i pieniądze", () => {
     expect(await screen.findByText("participantTickets.reason.refunded")).toBeInTheDocument();
     expect(screen.getByText("participantTickets.reason.partial")).toBeInTheDocument();
     expect(screen.getAllByText(/participantTickets\.reason\.cancelled/)).toHaveLength(1);
+  });
+
+  // Przegląd R45: gość grupy nie dostaje z bazy kwoty zamówienia prowadzącego.
+  // Pusta kwota przy `payment_shared` to „opłacone przez zapisującego grupę",
+  // a nie „bezpłatne".
+  it("gość opłacony zamówieniem prowadzącego: „opłacone przez grupę”, nie „bezpłatne”", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({
+        registrationId: "r-guest",
+        amountCents: null,
+        paymentStatus: "paid",
+        paymentShared: true,
+      }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    expect(await screen.findByText("participantTickets.payment.paidByGroup")).toBeInTheDocument();
+    expect(screen.queryByText("participantTickets.payment.free")).toBeNull();
+  });
+
+  // Przegląd R45: zgłoszenie zamknięte odwołaniem wydarzenia (albo rezygnacją)
+  // pokazuje stan zwrotu ze zlecenia - uczestnik wie, że pieniądze wracają.
+  it("zamknięte zgłoszenie pokazuje stan zwrotu; bez stanu - żadnego zdania", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({
+        registrationId: "r-queued",
+        status: "cancelled",
+        cancelledAt: "2026-08-10T10:00:00.000Z",
+        paymentStatus: "paid",
+        refundState: "queued",
+      }),
+      registration({ registrationId: "r-none", status: "approved", refundState: null }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    expect(await screen.findByText("participantTickets.refundState.queued")).toBeInTheDocument();
+    expect(screen.getAllByText(/participantTickets\.refundState\./)).toHaveLength(1);
   });
 
   // REG-06: jedyny tekst decyzji na karcie to powód napisany DLA uczestnika,

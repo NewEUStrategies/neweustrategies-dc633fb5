@@ -257,6 +257,13 @@ export interface TicketOutcomePayload {
    * Ponowiony webhook dostaje `false` - i nie dokłada dzwonków.
    */
   newly_settled?: boolean;
+  /**
+   * `true`, gdy BAZA już zadzwoniła do organizatorów (przegląd R45): wpłata
+   * na odwołanym wydarzeniu zamknęła zgłoszenie ze zwrotem albo trafiła na
+   * zgłoszenie już zamknięte. Drugi dzwonek z TS byłby duplikatem. Brak pola
+   * (baza sprzed migracji) = dzwoni TS, jak dotąd.
+   */
+  organizer_alerted?: boolean;
 }
 
 function str(source: Record<string, unknown> | null | undefined, key: string): string | null {
@@ -628,7 +635,13 @@ export async function notifyTicketOutcome(
   // Wpłata bez miejsca: ruch ma organizator. RAZ na wpłatę - ponowiony webhook
   // (`newly_settled: false`) i ładunek bez pola (panel, stara baza) nie
   // dokładają dzwonka.
-  if (outcome === "paid" && admission !== "seated" && payload.newly_settled === true) {
+  // Dzwonek, który baza już wysłała (`organizer_alerted`), nie wychodzi drugi raz.
+  if (
+    outcome === "paid" &&
+    admission !== "seated" &&
+    payload.newly_settled === true &&
+    payload.organizer_alerted !== true
+  ) {
     result.organizerAlerted = await alertOrganizers(payload, admission);
   }
 

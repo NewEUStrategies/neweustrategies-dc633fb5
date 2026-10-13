@@ -115,6 +115,14 @@ const KODY_REJESTRACJI = [
   // admin_event_refund_job_decide - decyzje w dzienniku zwrotow (REG-03)
   "refund_manual_payment",
   "refund_shared_payment",
+  // admin_event_registration_decide - rezygnacja ze zwrotu, ktory jest juz
+  // u operatora, i oznaczenie zwrotu wplaty dzielonej (przeglad R45)
+  "refund_in_progress",
+  "refund_order_shared",
+  // admin_event_waitlist_promote - awans na odwolanym albo zakonczonym
+  // wydarzeniu (przeglad R45)
+  "event_cancelled",
+  "event_ended",
   "invalid_action",
   "invalid_request",
   "invalid_transition",
