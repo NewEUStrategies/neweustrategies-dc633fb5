@@ -19,9 +19,13 @@
 //   6. LIMIT DWUNASTU PROGÓW ODCINA DODAWANIE, zamiast pozwolić zbudować
 //      cennik, który baza i tak odrzuci w całości.
 //   7. EDYTOR NIE OCENIA WARTOŚCI. Okno zamknięte przed otwarciem, okna
-//      nachodzące na siebie i kwota z przecinkiem zostają dokładnie takie, jak
-//      je wpisano - werdykt należy do `ticketDraftIssue`, a edytor pokazuje go
-//      jako JEDEN komunikat dla całej listy (baza też odrzuca ją w całości).
+//      nachodzące na siebie i kwota niejednoznaczna („8,999") zostają dokładnie
+//      takie, jak je wpisano - werdykt należy do `ticketDraftIssue`, a edytor
+//      pokazuje go jako JEDEN komunikat dla całej listy (baza też odrzuca ją
+//      w całości).
+//   8. KWOTA JEST W ZŁOTYCH (TIX-14a), a obok pola stoi jej podgląd w walucie
+//      biletu - liczony tym samym parserem, którym szkic liczy grosze. Zapis
+//      nie do przeczytania podglądu nie ma.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Walidacji progów - tabela przypadków jest
 // w `lib/events/__tests__/ticketDraft.test.ts`, a wpięcie komunikatu do
@@ -69,13 +73,21 @@ const onChange = vi.fn<(phases: TicketPhaseDraft[]) => void>();
  * kliknięcia, bo pochodzą z właściwości. Atrapa rodzica robi dokładnie to, co
  * robi `EventTicketDialog` - zapisuje nową listę i rysuje ją ponownie.
  */
-function Harness({ initial, error }: { initial: TicketPhaseDraft[]; error: string | null }) {
+function Harness({
+  initial,
+  error,
+  currency,
+}: {
+  initial: TicketPhaseDraft[];
+  error: string | null;
+  currency?: string;
+}) {
   const [phases, setPhases] = useState(initial);
   return (
     <EventTicketPhasesEditor
       phases={phases}
       error={error}
-      timeZone="Europe/Warsaw"
+      currency={currency}
       onChange={(next) => {
         onChange(next);
         setPhases(next);
@@ -84,9 +96,17 @@ function Harness({ initial, error }: { initial: TicketPhaseDraft[]; error: strin
   );
 }
 
-function renderuj(initial: TicketPhaseDraft[] = [], error: string | null = null) {
-  return render(<Harness initial={initial} error={error} />);
+function renderuj(
+  initial: TicketPhaseDraft[] = [],
+  error: string | null = null,
+  currency?: string,
+) {
+  return render(<Harness initial={initial} error={error} currency={currency} />);
 }
+
+/** Podgląd kwoty obok pola ceny w wierszu o podanym numerze. */
+const podgladWierszu = (index: number) =>
+  wiersze()[index].querySelector("[data-money-preview]")?.textContent ?? null;
 
 const E = "adminEventRegistration.tickets.editor.";
 
@@ -128,9 +148,7 @@ describe("EventTicketPhasesEditor - pusta lista i dodawanie", () => {
     renderuj([]);
     fireEvent.click(przyciskDodania());
 
-    expect(ostatniaLista()).toEqual([
-      { labelPl: "", labelEn: "", from: "", to: "", priceCents: "" },
-    ]);
+    expect(ostatniaLista()).toEqual([{ labelPl: "", labelEn: "", from: "", to: "", price: "" }]);
     expect(screen.queryByText(`${E}phasesEmpty`)).not.toBeInTheDocument();
     expect(wiersze()).toHaveLength(1);
     expect(poleWierszu(0, "phaseFrom")).toHaveValue("");
@@ -163,14 +181,14 @@ describe("EventTicketPhasesEditor - edycja pojedynczego wiersza", () => {
   it("zmiana w drugim wierszu NIE rusza pierwszego", () => {
     // Łatka idzie po indeksie; pomyłka w tym miejscu przepisywałaby cenę
     // wszystkich progów naraz, a na ekranie wyglądałaby jak jedna zmiana.
-    renderuj([prog({ labelPl: "Early bird", priceCents: "9900" }), prog({ labelPl: "Regularna" })]);
-    fireEvent.change(poleWierszu(1, "phasePrice"), { target: { value: "15000" } });
+    renderuj([prog({ labelPl: "Early bird", price: "99,00" }), prog({ labelPl: "Regularna" })]);
+    fireEvent.change(poleWierszu(1, "phasePrice"), { target: { value: "150,00" } });
 
     expect(ostatniaLista()).toEqual([
-      { labelPl: "Early bird", labelEn: "", from: "", to: "", priceCents: "9900" },
-      { labelPl: "Regularna", labelEn: "", from: "", to: "", priceCents: "15000" },
+      { labelPl: "Early bird", labelEn: "", from: "", to: "", price: "99,00" },
+      { labelPl: "Regularna", labelEn: "", from: "", to: "", price: "150,00" },
     ]);
-    expect(poleWierszu(0, "phasePrice")).toHaveValue("9900");
+    expect(poleWierszu(0, "phasePrice")).toHaveValue("99,00");
   });
 
   it("każde pole wiersza trafia do SWOJEJ kolumny - także obie nazwy", () => {
@@ -179,32 +197,53 @@ describe("EventTicketPhasesEditor - edycja pojedynczego wiersza", () => {
     fireEvent.change(poleWierszu(0, "phaseLabelEn"), { target: { value: "Last minute" } });
     fireEvent.change(poleWierszu(0, "phaseFrom"), { target: { value: "2026-09-01T00:00" } });
     fireEvent.change(poleWierszu(0, "phaseTo"), { target: { value: "2026-09-10T23:59" } });
-    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "19900" } });
+    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "199,00" } });
 
     expect(ostatniaLista()[0]).toEqual({
       labelPl: "Ostatnia szansa",
       labelEn: "Last minute",
       from: "2026-09-01T00:00",
       to: "2026-09-10T23:59",
-      priceCents: "19900",
+      price: "199,00",
     });
   });
 
-  it("kwota z bazy jest pokazywana w GROSZACH, znak w znak", () => {
-    // 1999 groszy to 19,99 w kasie. Gdyby edytor „pomógł" i pokazał 19,99,
-    // zapis wysłałby z powrotem dwa rzędy wielkości mniej.
-    renderuj([prog({ priceCents: "1999" })]);
-    expect(poleWierszu(0, "phasePrice")).toHaveValue("1999");
+  it("kwota jest pokazywana w ZŁOTYCH, znak w znak, z klawiaturą dziesiętną", () => {
+    // Szkic trzyma „19,99" (z 1999 groszy) - edytor pokazuje to samo, bez
+    // „pomocy", która przestawiłaby kwotę o dwa rzędy wielkości.
+    renderuj([prog({ price: "19,99" })]);
+    expect(poleWierszu(0, "phasePrice")).toHaveValue("19,99");
+    expect(poleWierszu(0, "phasePrice")).toHaveAttribute("inputmode", "decimal");
     expect(screen.getByText(`${E}phasePrice`)).toBeInTheDocument();
+  });
+
+  it("podgląd obok pola pokazuje kwotę w walucie biletu i idzie za wpisem", () => {
+    renderuj([prog({ price: "899" })]);
+    expect(podgladWierszu(0)).toMatch(/^899,00\s?zł$/);
+
+    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "1 299,5" } });
+    expect(podgladWierszu(0)).toMatch(/^1\s?299,50\s?zł$/);
+  });
+
+  it("podgląd mówi w walucie biletu podanej przez okno", () => {
+    renderuj([prog({ price: "49,90" })], null, "EUR");
+    expect(podgladWierszu(0)).toMatch(/^49,90\s?€$/);
+  });
+
+  it("zapis nie do przeczytania nie ma podglądu - miejsce zostaje", () => {
+    renderuj([prog({ price: "8,999" })]);
+    expect(podgladWierszu(0)).toBe("");
+    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "" } });
+    expect(podgladWierszu(0)).toBe("");
   });
 });
 
 describe("EventTicketPhasesEditor - kolejność rozstrzyga o cenie", () => {
   it("przeniesienie WYŻEJ zamienia progi miejscami w całej liście", () => {
     renderuj([
-      prog({ labelPl: "Early bird", priceCents: "9900" }),
-      prog({ labelPl: "Regularna", priceCents: "15000" }),
-      prog({ labelPl: "Last minute", priceCents: "19900" }),
+      prog({ labelPl: "Early bird", price: "99,00" }),
+      prog({ labelPl: "Regularna", price: "150,00" }),
+      prog({ labelPl: "Last minute", price: "199,00" }),
     ]);
 
     fireEvent.click(akcjaWierszu(2, "phaseMoveUp"));
@@ -214,8 +253,8 @@ describe("EventTicketPhasesEditor - kolejność rozstrzyga o cenie", () => {
       "Last minute",
       "Regularna",
     ]);
-    expect(poleWierszu(1, "phasePrice")).toHaveValue("19900");
-    expect(poleWierszu(2, "phasePrice")).toHaveValue("15000");
+    expect(poleWierszu(1, "phasePrice")).toHaveValue("199,00");
+    expect(poleWierszu(2, "phasePrice")).toHaveValue("150,00");
   });
 
   it("przeniesienie NIŻEJ jest odwrotnością przeniesienia wyżej", () => {
@@ -276,7 +315,7 @@ describe("EventTicketPhasesEditor - okna czasowe i werdykt", () => {
     // którego nikt nie ustawiał, i to w polu, na które redaktor już nie
     // patrzy. Odmowę wystawia `ticketDraftIssue` przy zapisie - i to ona
     // wraca tu jako `error`.
-    renderuj([prog({ from: "2026-09-10T10:00", to: "2026-09-01T10:00", priceCents: "9900" })]);
+    renderuj([prog({ from: "2026-09-10T10:00", to: "2026-09-01T10:00", price: "99,00" })]);
 
     expect(poleWierszu(0, "phaseFrom")).toHaveValue("2026-09-10T10:00");
     expect(poleWierszu(0, "phaseTo")).toHaveValue("2026-09-01T10:00");
@@ -284,8 +323,8 @@ describe("EventTicketPhasesEditor - okna czasowe i werdykt", () => {
   });
 
   it("próg BEZ daty końca zostaje bezterminowy - pole nie dostaje żadnej daty", () => {
-    renderuj([prog({ from: "2026-09-01T00:00", priceCents: "9900" })]);
-    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "10900" } });
+    renderuj([prog({ from: "2026-09-01T00:00", price: "99,00" })]);
+    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "109,00" } });
 
     expect(poleWierszu(0, "phaseTo")).toHaveValue("");
     expect(ostatniaLista()[0].to).toBe("");
@@ -302,13 +341,13 @@ describe("EventTicketPhasesEditor - okna czasowe i werdykt", () => {
         labelPl: "Tydzień promocji",
         from: "2026-09-01T00:00",
         to: "2026-09-30T23:59",
-        priceCents: "9900",
+        price: "99,00",
       }),
       prog({
         labelPl: "Wrzesień",
         from: "2026-09-01T00:00",
         to: "2026-09-30T23:59",
-        priceCents: "15000",
+        price: "150,00",
       }),
     ];
     renderuj(nachodzace);
@@ -317,17 +356,17 @@ describe("EventTicketPhasesEditor - okna czasowe i werdykt", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     fireEvent.click(akcjaWierszu(1, "phaseMoveUp"));
-    expect(ostatniaLista().map((phase) => phase.priceCents)).toEqual(["15000", "9900"]);
+    expect(ostatniaLista().map((phase) => phase.price)).toEqual(["150,00", "99,00"]);
   });
 
-  it("kwota z przecinkiem NIE jest tu prostowana ani odrzucana", () => {
-    // Edytor jest powierzchnią tekstową - „cichego" zaokrąglenia do 19 groszy
-    // nikt by nie zauważył. Zapis zatrzymuje `ticketDraftIssue`, co dowodzi
-    // `EventTicketDialog.test.tsx`.
+  it("kwota niejednoznaczna NIE jest tu prostowana ani odrzucana", () => {
+    // Edytor jest powierzchnią tekstową - „cichego" zaokrąglenia „8,999" do
+    // 9,00 nikt by nie zauważył. Zapis zatrzymuje `ticketDraftIssue`, co
+    // dowodzi `EventTicketDialog.test.tsx`.
     renderuj([prog()]);
-    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "19,99" } });
-    expect(ostatniaLista()[0].priceCents).toBe("19,99");
-    expect(poleWierszu(0, "phasePrice")).toHaveValue("19,99");
+    fireEvent.change(poleWierszu(0, "phasePrice"), { target: { value: "8,999" } });
+    expect(ostatniaLista()[0].price).toBe("8,999");
+    expect(poleWierszu(0, "phasePrice")).toHaveValue("8,999");
   });
 
   it("komunikat dotyczy CAŁEJ listy i jest ogłaszany jako alarm", () => {

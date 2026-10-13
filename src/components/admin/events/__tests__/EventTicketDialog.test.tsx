@@ -1,9 +1,10 @@
 // Molekuła „Formularz biletu" - SKLEJENIE czternastu pól z regułami szkicu.
 //
-// TO JEST EKRAN, KTÓRY DOTYKA PIENIĘDZY. Cena biletu żyje w bazie w GROSZACH
-// i formularz też prowadzi ją w groszach (podpowiedź mówi wprost: „15000 to
-// 150,00"). Pomyłka o jedno zero jest tu nie do zauważenia wzrokiem, więc
-// asercje idą na ŁADUNKU przekazanym do `onSubmit`, a nie na wyglądzie pola.
+// TO JEST EKRAN, KTÓRY DOTYKA PIENIĘDZY. Cena biletu żyje w bazie w GROSZACH,
+// a formularz prowadzi ją w ZŁOTYCH (TIX-14a: „899" wpisane w polu groszowym
+// dawało bilet za 8,99 zł). Pomyłka o dwa rzędy jest tu nie do zauważenia
+// wzrokiem, więc asercje idą na ŁADUNKU przekazanym do `onSubmit`, a nie na
+// wyglądzie pola.
 //
 // CO TEN PLIK DOWODZI.
 //   1. DIALOG ZAMKNIĘTY NIE RENDERUJE TREŚCI, a KAŻDE otwarcie odtwarza szkic:
@@ -13,10 +14,11 @@
 //   2. TRYB TWORZENIA I TRYB EDYCJI TO DWA RÓŻNE EKRANY: inny tytuł i klucz,
 //      który po zapisie jest ZAMROŻONY (RPC i tak go przy edycji ignoruje,
 //      więc czynne pole byłoby obietnicą bez pokrycia).
-//   3. KWOTA JEDZIE W GROSZACH W OBIE STRONY. Wiersz z 1999 wraca do ładunku
-//      jako 1999 - nie 19,99 i nie 199 900. Wejścia zdegenerowane (przecinek,
-//      kropka, minus, pustka, litery, trzy miejsca po przecinku) NIE WYCHODZĄ
-//      z formularza i mają komunikat PRZY SWOIM polu.
+//   3. KWOTA W POLU JEST W ZŁOTYCH, W ŁADUNKU W GROSZACH. Wiersz z 1999 pokazuje
+//      „19,99" i wraca do ładunku jako 1999 - nie 19 i nie 199 900. „899,00"
+//      i „899" to 89 900 groszy. Wejścia zdegenerowane (minus, pustka, litery,
+//      trzy miejsca po przecinku, „8,999") NIE WYCHODZĄ z formularza i mają
+//      komunikat o zapisie kwoty PRZY SWOIM polu; obok pola stoi podgląd kwoty.
 //   4. LIMITY: pula ujemna i ułamkowa nie wychodzi, pusta pula jedzie jako
 //      `null` (bez limitu), a nie jako zero (bilet natychmiast wyprzedany).
 //   5. TRZY STANY KODU DOSTĘPU mają trzy różne ładunki: brak klucza w obiekcie
@@ -25,6 +27,9 @@
 //   7. TRWAJĄCY ZAPIS BLOKUJE PRZYCISK - podwójne kliknięcie wysyła RAZ.
 //   8. MOLEKUŁA NIE ZAMYKA SIĘ SAMA. Zamknięcie po sukcesie należy do rodzica,
 //      więc odmowa serwera zostawia dialog otwarty z całą pracą użytkownika.
+//   9. PROFIL PODATKOWY (TIX-09) jedzie TRZECIM argumentem `onSubmit` tylko
+//      wtedy, gdy redaktor go zmienił; zły kod Stripe albo za długa podstawa
+//      zatrzymują zapis, a baza bez migracji pokazuje zdanie zamiast pól.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Tabel reguł szkicu (`ticketDraftIssue`,
 // `ticketDraftToInput`, `toLocalInput`) - są w
@@ -46,6 +51,8 @@ import type { ComponentProps, ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
+import { EMPTY_TAX_PROFILE, type TaxProfileDraft } from "@/lib/events/taxProfileDraft";
+import type { TicketTaxProfileState } from "@/lib/events/ticketTaxProfileApi";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 // `DateInput` jest kalendarzem (przycisk + popover), a nie natywnym polem -
@@ -144,8 +151,13 @@ const DEFAULT_TICKET_PRESENTATION: TicketPresentation = {
   groupMaxSize: 10,
 };
 
-const onSubmit = vi.fn<(input: EventTicketInput) => void>();
+const onSubmit =
+  vi.fn<
+    (input: EventTicketInput, look: TicketPresentation, taxProfile: TaxProfileDraft | null) => void
+  >();
 const onOpenChange = vi.fn();
+
+const GOTOWY_PUSTY: TicketTaxProfileState = { status: "ready", value: EMPTY_TAX_PROFILE };
 
 interface Wejscie {
   open?: boolean;
@@ -153,6 +165,7 @@ interface Wejscie {
   nextSortOrder?: number;
   isSaving?: boolean;
   presentation?: TicketPresentation;
+  taxProfile?: TicketTaxProfileState;
 }
 
 /** Strefa wydarzenia - terminy biletu są zegarem w niej. */
@@ -169,6 +182,7 @@ function renderuj(props: Wejscie = {}) {
       nextSortOrder={wejscie.nextSortOrder ?? 30}
       isSaving={wejscie.isSaving ?? false}
       onSubmit={onSubmit}
+      taxProfile={wejscie.taxProfile ?? GOTOWY_PUSTY}
       presentation={wejscie.presentation}
     />
   );
@@ -180,7 +194,12 @@ function renderuj(props: Wejscie = {}) {
 }
 
 const E = "adminEventRegistration.tickets.editor.";
+const TP = "adminEventRegistration.taxProfile.";
+const FORMAT_PLN = `${E}moneyFormat.PLN`;
 const pole = (nazwa: string) => screen.getByLabelText(`${E}${nazwa}`);
+/** Podgląd kwoty stojący obok pola ceny. */
+const podgladKwoty = (field: HTMLElement): string | null =>
+  field.parentElement?.querySelector("[data-money-preview]")?.textContent ?? null;
 const przyciskZapisu = () => screen.getByRole("button", { name: `${E}saveAction` });
 const przyciskAnuluj = () => screen.getByRole("button", { name: `${E}cancelAction` });
 
@@ -204,6 +223,13 @@ function ladunek(): EventTicketInput {
   const call = onSubmit.mock.calls.at(-1);
   if (call === undefined) throw new Error("formularz nie wysłał niczego");
   return call[0];
+}
+
+/** Profil podatkowy z ostatniego zapisu (`null` = bez zapisu profilu). */
+function profilZapisu(): TaxProfileDraft | null {
+  const call = onSubmit.mock.calls.at(-1);
+  if (call === undefined) throw new Error("formularz nie wysłał niczego");
+  return call[2];
 }
 
 /** Nowy bilet w stanie gotowym do zapisu - klucz i obie nazwy. */
@@ -232,6 +258,7 @@ describe("EventTicketDialog - otwarcie, tryby i resztki", () => {
     expect(pole("key")).toHaveValue("");
     expect(pole("sortOrder")).toHaveValue("40");
     expect(pole("priceCents")).toHaveValue("0");
+    expect(pole("priceCents")).toHaveAttribute("inputmode", "decimal");
     expect(pole("quota")).toHaveValue("");
     expect(pole("minTierRank")).toHaveValue("0");
   });
@@ -253,7 +280,7 @@ describe("EventTicketDialog - otwarcie, tryby i resztki", () => {
     // otwiera bilet B i zapisuje - z ceną A, bo formularz wyglądał na
     // wypełniony celowo.
     const { przerysuj } = renderuj({ ticket: eventTicketRow() });
-    expect(pole("priceCents")).toHaveValue("1999");
+    expect(pole("priceCents")).toHaveValue("19,99");
 
     przerysuj({ open: false });
     przerysuj({
@@ -270,20 +297,20 @@ describe("EventTicketDialog - otwarcie, tryby i resztki", () => {
 
     expect(pole("key")).toHaveValue("student");
     expect(pole("namePl")).toHaveValue("Bilet studencki");
-    expect(pole("priceCents")).toHaveValue("4900");
+    expect(pole("priceCents")).toHaveValue("49,00");
     expect(pole("quota")).toHaveValue("30");
   });
 
   it("PORZUCONE zmiany nie wracają przy ponownym otwarciu tego samego biletu", () => {
     const bilet = eventTicketRow();
     const { przerysuj } = renderuj({ ticket: bilet });
-    fireEvent.change(pole("priceCents"), { target: { value: "999999" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "9999,99" } });
     fireEvent.change(pole("namePl"), { target: { value: "Pomyłka" } });
 
     przerysuj({ open: false });
     przerysuj({ open: true, ticket: bilet });
 
-    expect(pole("priceCents")).toHaveValue("1999");
+    expect(pole("priceCents")).toHaveValue("19,99");
     expect(pole("namePl")).toHaveValue("Karnet VIP");
   });
 
@@ -295,22 +322,37 @@ describe("EventTicketDialog - otwarcie, tryby i resztki", () => {
   });
 });
 
-describe("EventTicketDialog - kwoty w groszach", () => {
-  it("1999 z bazy wraca do ładunku jako 1999 - bez dzielenia i bez mnożenia", () => {
+describe("EventTicketDialog - kwoty w złotych", () => {
+  it("1999 groszy z bazy to „19,99” w polu i 1999 w ładunku", () => {
     // Obie strony konwersji w jednym teście: wiersz -> pole -> ładunek. Błąd
-    // o jedno zero (199 900) albo o dwa rzędy (19,99) przechodziłby przez
+    // o jedno zero (199 900) albo o dwa rzędy (19) przechodziłby przez
     // formularz niezauważony - w kasie już nie.
     renderuj({ ticket: eventTicketRow({ price_cents: 1999 }) });
-    expect(pole("priceCents")).toHaveValue("1999");
+    expect(pole("priceCents")).toHaveValue("19,99");
     fireEvent.click(przyciskZapisu());
     expect(ladunek().priceCents).toBe(1999);
     expect(ladunek().currency).toBe("PLN");
   });
 
   it.each([
-    ["19,99", "przecinek zamiast kropki - odruch złotówkowy"],
-    ["19.99", "kropka dziesiętna - grosze są liczbą całkowitą"],
-    ["19.999", "trzy miejsca po przecinku"],
+    ["899,00", 89_900],
+    ["899", 89_900],
+    ["899.00", 89_900],
+    ["1 299,00", 129_900],
+    ["8,99", 899],
+  ])("cena „%s” jedzie do ładunku jako %i groszy", (wartosc, grosze) => {
+    // „899" to 899 zł, a nie 8,99 zł - dokładnie ten błąd naprawia TIX-14a.
+    renderuj();
+    wypelnijMinimum();
+    fireEvent.change(pole("priceCents"), { target: { value: wartosc } });
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek().priceCents).toBe(grosze);
+  });
+
+  it.each([
+    ["8,999", "trzy cyfry po przecinku - tysiące czy grosze?"],
+    ["1,299", "przecinek tysięcy bez części dziesiętnej"],
+    ["19.999", "trzy miejsca po kropce"],
     ["-1", "cena ujemna"],
     ["", "pole puste"],
     ["dwadzieścia", "tekst niebędący liczbą"],
@@ -321,7 +363,30 @@ describe("EventTicketDialog - kwoty w groszach", () => {
     fireEvent.click(przyciskZapisu());
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(bladPrzy(pole("priceCents"))).toBe("adminEventRegistration.errors.invalidRequest");
+    expect(bladPrzy(pole("priceCents"))).toBe(FORMAT_PLN);
+  });
+
+  it("zdanie o zapisie kwoty mówi w walucie biletu", () => {
+    renderuj();
+    wypelnijMinimum();
+    fireEvent.change(pole("currency"), { target: { value: "EUR" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "8,999" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(bladPrzy(pole("priceCents"))).toBe(`${E}moneyFormat.EUR`);
+  });
+
+  it("obok pola stoi podgląd kwoty w walucie biletu - i znika przy zapisie błędnym", () => {
+    renderuj();
+    fireEvent.change(pole("priceCents"), { target: { value: "899" } });
+    expect(podgladKwoty(pole("priceCents"))).toMatch(/^899,00\s?zł$/);
+
+    fireEvent.change(pole("currency"), { target: { value: "EUR" } });
+    expect(podgladKwoty(pole("priceCents"))).toMatch(/^899,00\s?€$/);
+
+    fireEvent.change(pole("priceCents"), { target: { value: "8,999" } });
+    expect(podgladKwoty(pole("priceCents"))).toBe("");
   });
 
   it("zero jest ceną DOPUSZCZALNĄ - wejściówka bezpłatna z pulą i oknem", () => {
@@ -338,7 +403,7 @@ describe("EventTicketDialog - kwoty w groszach", () => {
   it("białe znaki wokół kwoty i nazw są obcinane, nie wysyłane", () => {
     renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("priceCents"), { target: { value: "  1999  " } });
+    fireEvent.change(pole("priceCents"), { target: { value: "  19,99  " } });
     fireEvent.change(pole("namePl"), { target: { value: "  Karnet VIP  " } });
     fireEvent.click(przyciskZapisu());
     expect(ladunek().priceCents).toBe(1999);
@@ -350,14 +415,14 @@ describe("EventTicketDialog - kwoty w groszach", () => {
     // jest granicą CHECK-a, więc formularz odcina ją przed żądaniem.
     const { przerysuj } = renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("priceCents"), { target: { value: "10000000" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "100 000,00" } });
     fireEvent.click(przyciskZapisu());
     expect(ladunek().priceCents).toBe(10_000_000);
 
     przerysuj({ open: false });
     przerysuj({ open: true });
     wypelnijMinimum();
-    fireEvent.change(pole("priceCents"), { target: { value: "10000001" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "100000,01" } });
     fireEvent.click(przyciskZapisu());
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(bladPrzy(pole("priceCents"))).toBe("adminEventRegistration.errors.invalidRequest");
@@ -467,8 +532,8 @@ describe("EventTicketDialog - cena promocyjna", () => {
     // bilet byłby na stałe tańszy, niż go wyceniono.
     renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("priceCents"), { target: { value: "15000" } });
-    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "9900" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "150,00" } });
+    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "99,00" } });
     fireEvent.click(przyciskZapisu());
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -490,8 +555,8 @@ describe("EventTicketDialog - cena promocyjna", () => {
   it("cena promocyjna WYŻSZA od podstawowej nie wychodzi, równa - wychodzi", () => {
     const { przerysuj } = renderuj();
     wypelnijMinimum();
-    fireEvent.change(pole("priceCents"), { target: { value: "15000" } });
-    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "15001" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "150,00" } });
+    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "150,01" } });
     fireEvent.change(pole("earlyBirdUntil"), { target: { value: "2026-09-01T10:00" } });
     fireEvent.click(przyciskZapisu());
     expect(onSubmit).not.toHaveBeenCalled();
@@ -504,12 +569,39 @@ describe("EventTicketDialog - cena promocyjna", () => {
     przerysuj({ open: false });
     przerysuj({ open: true });
     wypelnijMinimum();
-    fireEvent.change(pole("priceCents"), { target: { value: "15000" } });
-    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "15000" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "150" } });
+    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "150,00" } });
     fireEvent.change(pole("earlyBirdUntil"), { target: { value: "2026-09-01T10:00" } });
     fireEvent.click(przyciskZapisu());
     expect(ladunek().earlyBirdPriceCents).toBe(15_000);
     expect(ladunek().earlyBirdUntil).toBe("2026-09-01T08:00:00.000Z");
+  });
+
+  it("cena promocyjna nie do przeczytania zatrzymuje zapis zdaniem o kwocie przy SWOIM polu", () => {
+    renderuj();
+    wypelnijMinimum();
+    fireEvent.change(pole("priceCents"), { target: { value: "150" } });
+    fireEvent.change(pole("earlyBirdPriceCents"), { target: { value: "8,999" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(bladPrzy(pole("earlyBirdPriceCents"))).toBe(FORMAT_PLN);
+    expect(bladPrzy(pole("earlyBirdUntil"))).toBeNull();
+  });
+
+  it("cena promocyjna z bazy wraca w złotych i jedzie z powrotem w groszach", () => {
+    renderuj({
+      ticket: eventTicketRow({
+        price_cents: 89_900,
+        early_bird_price_cents: 69_950,
+        early_bird_until: "2026-09-01T08:30:00.000Z",
+      }),
+    });
+    expect(pole("earlyBirdPriceCents")).toHaveValue("699,50");
+    expect(podgladKwoty(pole("earlyBirdPriceCents"))).toMatch(/^699,50\s?zł$/);
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek().priceCents).toBe(89_900);
+    expect(ladunek().earlyBirdPriceCents).toBe(69_950);
   });
 
   it("bilet bez ceny promocyjnej wysyła oba pola jako null", () => {
@@ -602,14 +694,14 @@ describe("EventTicketDialog - korzyści, progi i przełączniki", () => {
     });
   });
 
-  it("próg cennika dodany w edytorze dojeżdża do ładunku w groszach i w ISO", () => {
+  it("próg cennika wpisany w złotych dojeżdża do ładunku w groszach i w ISO", () => {
     renderuj();
     wypelnijMinimum();
     fireEvent.click(screen.getByRole("button", { name: `${E}phaseAdd` }));
     fireEvent.change(screen.getByLabelText(`${E}phaseLabelPl`), {
       target: { value: "  Early bird  " },
     });
-    fireEvent.change(screen.getByLabelText(`${E}phasePrice`), { target: { value: "9900" } });
+    fireEvent.change(screen.getByLabelText(`${E}phasePrice`), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText(`${E}phaseTo`), {
       target: { value: "2026-09-01T23:59" },
     });
@@ -627,19 +719,40 @@ describe("EventTicketDialog - korzyści, progi i przełączniki", () => {
     ]);
   });
 
-  it("próg bez ceny zatrzymuje zapis komunikatem dla CAŁEJ listy", () => {
+  it("próg bez ceny zatrzymuje zapis komunikatem dla CAŁEJ listy - z numerem progu", () => {
     // Baza odrzuca cennik w całości i bez numeru wiersza, więc komunikat też
-    // dotyczy listy - ale musi się w ogóle pojawić, inaczej redaktor klika
-    // „Zapisz" w kółko bez żadnej odpowiedzi.
+    // stoi pod listą - ale musi się w ogóle pojawić i wskazać próg, inaczej
+    // redaktor klika „Zapisz" w kółko bez żadnej odpowiedzi.
     renderuj();
     wypelnijMinimum();
     fireEvent.click(screen.getByRole("button", { name: `${E}phaseAdd` }));
     fireEvent.click(przyciskZapisu());
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "adminEventRegistration.errors.invalidPriceSchedule",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent(`${E}phaseMoneyFormat.PLN(index=1)`);
+  });
+
+  it("cena progu z bazy wraca w złotych, a niezmieniona jedzie tymi samymi groszami", () => {
+    renderuj({
+      ticket: eventTicketRow({
+        price_cents: 15_000,
+        price_schedule: [{ label_pl: "Early", label_en: "Early", price_cents: 12_345 }],
+      }),
+    });
+    expect(screen.getByLabelText(`${E}phasePrice`)).toHaveValue("123,45");
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek().priceSchedule.map((phase) => phase.priceCents)).toEqual([12_345]);
+  });
+
+  it("próg z kwotą niejednoznaczną zatrzymuje zapis - nie zgadujemy groszy", () => {
+    renderuj();
+    wypelnijMinimum();
+    fireEvent.click(screen.getByRole("button", { name: `${E}phaseAdd` }));
+    fireEvent.change(screen.getByLabelText(`${E}phasePrice`), { target: { value: "8,999" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(`${E}phaseMoneyFormat.PLN(index=1)`);
   });
 
   it("trzy przełączniki i kolejność dojeżdżają do ładunku", () => {
@@ -766,11 +879,11 @@ describe("EventTicketDialog - moment komunikatu i zapis w locie", () => {
     // ruszał mimo otwartego dialogu i zamiatał wpisaną cenę. Teraz zależnością
     // jest TOŻSAMOŚĆ wiersza, a kolejność początkowa idzie przez `ref`.
     const { przerysuj } = renderuj({ ticket: eventTicketRow(), nextSortOrder: 30 });
-    fireEvent.change(pole("priceCents"), { target: { value: "12900" } });
+    fireEvent.change(pole("priceCents"), { target: { value: "129,00" } });
 
     przerysuj({ nextSortOrder: 40 });
 
-    expect(pole("priceCents")).toHaveValue("12900");
+    expect(pole("priceCents")).toHaveValue("129,00");
   });
 });
 
@@ -811,5 +924,181 @@ describe("EventTicketDialog - podgląd podatku", () => {
       presentation: { ...DEFAULT_TICKET_PRESENTATION, taxMode: "exclusive" },
     });
     expect(screen.queryByText(PLUS_TAX)).toBeNull();
+  });
+});
+
+describe("EventTicketDialog - profil podatkowy (TIX-09)", () => {
+  const ZW: TaxProfileDraft = {
+    vatRate: "zw",
+    vatExemptBasis: "art. 43 ust. 1 pkt 29 ustawy o VAT",
+    stripeTaxCode: "txcd_20030000",
+  };
+  const stawka = () => screen.getByLabelText(`${TP}vatRate`);
+  const kod = () => screen.getByLabelText(`${TP}stripeTaxCode`);
+  const podstawa = () => screen.getByLabelText(`${TP}vatExemptBasis`);
+
+  it("sekcja „podatek na fakturze” stoi w oknie z wartością ZAPISANĄ biletu", () => {
+    renderuj({ ticket: eventTicketRow(), taxProfile: { status: "ready", value: ZW } });
+
+    expect(screen.getByText(`${TP}section`)).toBeInTheDocument();
+    expect(stawka()).toHaveValue("zw");
+    expect(kod()).toHaveValue("txcd_20030000");
+    expect(podstawa()).toHaveValue(ZW.vatExemptBasis);
+    expect(kod()).toBeEnabled();
+  });
+
+  it("zapis BEZ zmian w profilu nie niesie profilu - drugiego RPC nie będzie", () => {
+    renderuj({ ticket: eventTicketRow(), taxProfile: { status: "ready", value: ZW } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(profilZapisu()).toBeNull();
+  });
+
+  it("nowy bilet bez profilu nie niesie profilu, a z ustawioną stawką - niesie", () => {
+    const { przerysuj } = renderuj();
+    wypelnijMinimum();
+    fireEvent.click(przyciskZapisu());
+    expect(profilZapisu()).toBeNull();
+
+    przerysuj({ open: false });
+    przerysuj({ open: true });
+    wypelnijMinimum();
+    fireEvent.change(stawka(), { target: { value: "8" } });
+    fireEvent.change(kod(), { target: { value: "txcd_10000000" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(profilZapisu()).toEqual({
+      vatRate: "8",
+      vatExemptBasis: "",
+      stripeTaxCode: "txcd_10000000",
+    });
+  });
+
+  it("zmieniony profil jedzie trzecim argumentem obok biletu i wyglądu", () => {
+    renderuj({ ticket: eventTicketRow(), taxProfile: { status: "ready", value: ZW } });
+    fireEvent.change(stawka(), { target: { value: "23" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(ladunek().id).toBe(SALES_IDS.ticket);
+    expect(profilZapisu()).toEqual({ ...ZW, vatRate: "23" });
+  });
+
+  it("zły kod Stripe zatrzymuje CAŁY zapis z komunikatem przy polu kodu", () => {
+    renderuj({ ticket: eventTicketRow() });
+    fireEvent.change(kod(), { target: { value: "txcd_123" } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(bladPrzy(kod())).toBe(`${TP}stripeTaxCodeInvalid`);
+
+    // Poprawka gasi komunikat i przepuszcza zapis z profilem.
+    fireEvent.change(kod(), { target: { value: "TXCD_10000000" } });
+    fireEvent.click(przyciskZapisu());
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(profilZapisu()?.stripeTaxCode).toBe("TXCD_10000000");
+  });
+
+  it("podstawa zwolnienia dłuższa niż 300 znaków zatrzymuje zapis - bez przycinania", () => {
+    renderuj({ ticket: eventTicketRow() });
+    fireEvent.change(stawka(), { target: { value: "zw" } });
+    fireEvent.change(podstawa(), { target: { value: "x".repeat(301) } });
+    fireEvent.click(przyciskZapisu());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(podstawa()).toHaveValue("x".repeat(301));
+    expect(bladPrzy(podstawa())).toBe(`${TP}vatExemptBasisTooLong(length=301,max=300)`);
+  });
+
+  it("błąd biletu i błąd profilu świecą razem po pierwszej próbie zapisu", () => {
+    renderuj();
+    fireEvent.change(kod(), { target: { value: "zly" } });
+    expect(bladPrzy(kod())).toBeNull();
+
+    fireEvent.click(przyciskZapisu());
+    expect(bladPrzy(pole("key"))).toBe("adminEventRegistration.errors.invalidKey");
+    expect(bladPrzy(kod())).toBe(`${TP}stripeTaxCodeInvalid`);
+  });
+
+  it("baza bez migracji: zdanie zamiast pól i zapis BEZ profilu", () => {
+    renderuj({ ticket: eventTicketRow(), taxProfile: { status: "unavailable" } });
+
+    expect(screen.getByText(`${TP}unavailable`)).toBeInTheDocument();
+    expect(screen.queryByLabelText(`${TP}vatRate`)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(`${TP}stripeTaxCode`)).not.toBeInTheDocument();
+
+    fireEvent.click(przyciskZapisu());
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(profilZapisu()).toBeNull();
+  });
+
+  it("awaria odczytu profilu mówi to zdaniem z powodem i nie zapisuje profilu", () => {
+    renderuj({
+      ticket: eventTicketRow(),
+      taxProfile: { status: "failed", error: new Error("forbidden") },
+    });
+
+    expect(screen.getByText(/taxProfileLoadFailed\(reason=/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(`${TP}vatRate`)).not.toBeInTheDocument();
+    fireEvent.click(przyciskZapisu());
+    expect(profilZapisu()).toBeNull();
+  });
+
+  it("w trakcie wczytywania pola są zgaszone, a zapis nie niesie profilu", () => {
+    renderuj({ ticket: eventTicketRow(), taxProfile: { status: "loading" } });
+
+    expect(kod()).toBeDisabled();
+    fireEvent.click(przyciskZapisu());
+    expect(profilZapisu()).toBeNull();
+  });
+
+  it("profil wczytany PO otwarciu staje się wartością pól i punktem odniesienia", () => {
+    const { przerysuj } = renderuj({
+      ticket: eventTicketRow(),
+      taxProfile: { status: "loading" },
+    });
+    przerysuj({ taxProfile: { status: "ready", value: ZW } });
+
+    expect(kod()).toBeEnabled();
+    expect(kod()).toHaveValue("txcd_20030000");
+    fireEvent.click(przyciskZapisu());
+    // Wartość z bazy nie jest zmianą - nic do zapisania.
+    expect(profilZapisu()).toBeNull();
+  });
+
+  it("odświeżenie profilu w tle NIE kasuje wpisanej zmiany", () => {
+    const { przerysuj } = renderuj({
+      ticket: eventTicketRow(),
+      taxProfile: { status: "ready", value: ZW },
+    });
+    fireEvent.change(kod(), { target: { value: "txcd_10000000" } });
+
+    // Nowy obiekt z tą samą treścią - tak wygląda ponowny odczyt zapytania.
+    przerysuj({ taxProfile: { status: "ready", value: { ...ZW } } });
+
+    expect(kod()).toHaveValue("txcd_10000000");
+    fireEvent.click(przyciskZapisu());
+    expect(profilZapisu()).toEqual({ ...ZW, stripeTaxCode: "txcd_10000000" });
+  });
+
+  it("ponowne otwarcie innego biletu startuje od JEGO profilu, nie od resztek", () => {
+    const { przerysuj } = renderuj({
+      ticket: eventTicketRow(),
+      taxProfile: { status: "ready", value: ZW },
+    });
+    fireEvent.change(kod(), { target: { value: "txcd_10000000" } });
+
+    przerysuj({ open: false });
+    przerysuj({
+      open: true,
+      ticket: eventTicketRow({ id: SALES_IDS.otherTicket, key: "student" }),
+      taxProfile: GOTOWY_PUSTY,
+    });
+
+    expect(kod()).toHaveValue("");
+    expect(stawka()).toHaveValue("default");
+    fireEvent.click(przyciskZapisu());
+    expect(profilZapisu()).toBeNull();
   });
 });

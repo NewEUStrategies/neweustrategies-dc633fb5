@@ -119,7 +119,8 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
           },
           { items: [{ price: "price_new", quantity: 2 }] },
         ],
-        metadata: { nes_ops_rev: "1" },
+        // Odcisk pozycji, od których zaplanowano zmianę (`nes_basis`).
+        metadata: { nes_ops_rev: "1", nes_basis: expect.stringMatching(/^[0-9a-f]{40}$/) },
       },
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );

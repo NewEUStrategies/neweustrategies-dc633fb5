@@ -6,6 +6,7 @@
 // Moduł jest czysty (importuje wyłącznie typy) - nie ma czego mockować.
 import { describe, expect, it, vi } from "vitest";
 import {
+  invoiceFullPeriodStart,
   isStripeDisputeStatus,
   mapStripeSubscription,
   normalizeStripeEvent,
@@ -308,6 +309,66 @@ describe("normalizeStripeEvent - zdarzenia subskrypcji", () => {
       const e = event("customer.subscription.updated", stripeSubscription({ status }));
       expect(normalized(e).eventType, `status=${String(status)}`).toBe(expected);
     }
+  });
+
+  it("zastosowana oczekująca zmiana niesie pozycje PO zmianie i harmonogram z chwili zastosowania", () => {
+    const applied = normalized(
+      event(
+        "customer.subscription.pending_update_applied",
+        stripeSubscription({ schedule: "sub_sched_1" }),
+      ),
+    );
+
+    expect(applied.eventType).toBe("subscription.pending_update_applied");
+    expect(applied.data).toMatchObject({
+      id: "sub_1",
+      status: "active",
+      scheduleId: "sub_sched_1",
+      items: [{ quantity: 2, price: { id: "price_1", externalId: "pro_monthly" } }],
+    });
+    const scheduleOf = (schedule: unknown) =>
+      (
+        normalized(
+          event("customer.subscription.pending_update_applied", stripeSubscription({ schedule })),
+        ).data as { scheduleId?: unknown }
+      ).scheduleId;
+    expect(scheduleOf({ id: "sub_sched_2", object: "subscription_schedule" })).toBe("sub_sched_2");
+    expect(scheduleOf(null)).toBeNull();
+    expect(scheduleOf(undefined)).toBeNull();
+  });
+
+  it("zastosowana oczekująca zmiana niesie fakturę dopłaty i datę końca `cancel_at` - tylko datę, nie flagę", () => {
+    const applied = (over: Record<string, unknown>) =>
+      normalized(event("customer.subscription.pending_update_applied", stripeSubscription(over)))
+        .data as { latestInvoiceId?: unknown; cancelAt?: unknown };
+
+    expect(applied({ latest_invoice: "in_upgrade", cancel_at: 1_702_000_000 })).toMatchObject({
+      latestInvoiceId: "in_upgrade",
+      cancelAt: 1_702_000_000,
+    });
+    expect(applied({ latest_invoice: { id: "in_obj", object: "invoice" } }).latestInvoiceId).toBe(
+      "in_obj",
+    );
+    expect(applied({ latest_invoice: null, cancel_at: null })).toMatchObject({
+      latestInvoiceId: null,
+      cancelAt: null,
+    });
+    // Flaga jedzie w oczekującej zmianie; zakończona subskrypcja nie ma planu końca.
+    expect(applied({ cancel_at_period_end: true, cancel_at: 1_702_000_000 }).cancelAt).toBeNull();
+    expect(applied({ status: "canceled", cancel_at: 1_702_000_000 }).cancelAt).toBeNull();
+  });
+
+  it("wygasła oczekująca zmiana to zwykła migawka stanu - typ z ZNORMALIZOWANEGO statusu", () => {
+    const expired = (over: Record<string, unknown> = {}) =>
+      normalized(event("customer.subscription.pending_update_expired", stripeSubscription(over)));
+
+    expect(expired().eventType).toBe("subscription.updated");
+    expect(expired({ status: "past_due" }).eventType).toBe("subscription.past_due");
+    expect(expired({ pause_collection: { behavior: "void" } }).eventType).toBe(
+      "subscription.paused",
+    );
+    // Pozycje się nie zmieniły, więc harmonogram nie ma czego cofać.
+    expect(expired({ schedule: "sub_sched_1" }).data).not.toHaveProperty("scheduleId");
   });
 
   it("dokłada do każdego zdarzenia subskrypcji pełny model domenowy", () => {
@@ -719,6 +780,20 @@ describe("normalizeStripeEvent - faktury", () => {
     );
 
     expect(data.customData).toEqual({ purpose: "donation" });
+  });
+
+  it("znacznik daty końca na fakturze dopłaty (`nes_*`) nie przykrywa metadanych subskrypcji", () => {
+    const data = transactionOf(
+      event(
+        "invoice.paid",
+        invoice({
+          metadata: { nes_upgrade_cancel_at: "1767225600", nes_upgrade_canceled_at: "1764547200" },
+          parent: { subscription_details: { metadata: { userId: "user-1" } } },
+        }),
+      ),
+    );
+
+    expect(data.customData).toEqual({ userId: "user-1" });
   });
 
   it("mapuje nieudane obciążenie faktury na transaction.payment_failed", () => {
@@ -1217,5 +1292,42 @@ describe("normalizeStripeEvent - powód wystawienia faktury", () => {
       transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
         .billingReason,
     ).toBeNull();
+  });
+
+  // Codex P1 (PR #502): zmiana interwału (miesięczny -> roczny) idzie fakturą
+  // `subscription_update`, ale resetuje okres i obciąża za cały nowy - to
+  // zapłata ZA OKRES. Odróżnia ją pozycja subskrypcji bez proraty.
+  it("niesie, czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty)", () => {
+    const line = (proration: boolean, start = 1_800_000_000) => ({
+      period: { start, end: start + 365 * 86_400 },
+      parent: {
+        type: "subscription_item_details",
+        subscription_item_details: { proration, invoice_item: proration ? "ii_1" : null },
+      },
+    });
+    const charges = (lines: unknown[]) =>
+      transactionOf(
+        event("invoice.paid", {
+          id: "in_1",
+          billing_reason: "subscription_update",
+          lines: { data: lines },
+        }),
+      ).chargesFullPeriod;
+
+    // Zmiana interwału: kredyt za resztę starego okresu + pełny nowy okres.
+    expect(charges([line(true), line(false)])).toBe(true);
+    // Zwykła dopłata: same proraty.
+    expect(charges([line(true), line(true)])).toBe(false);
+    expect(charges([])).toBe(false);
+    // Ładunek sprzed Basil: `type` i `proration` na samej pozycji.
+    expect(
+      charges([{ type: "subscription", proration: false, period: { start: 1_800_000_000 } }]),
+    ).toBe(true);
+    expect(
+      charges([{ type: "invoiceitem", proration: false, period: { start: 1_800_000_000 } }]),
+    ).toBe(false);
+    expect(
+      invoiceFullPeriodStart({ lines: { data: [line(true, 1_700_000_000), line(false)] } }),
+    ).toBe(new Date(1_800_000_000 * 1000).toISOString());
   });
 });

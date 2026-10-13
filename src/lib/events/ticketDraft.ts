@@ -15,19 +15,17 @@
 // nazwy pola, więc każdy warunek, który baza sprawdza, ma tu odpowiednik z
 // kluczem komunikatu przy polu.
 //
-// TERMINY SĄ ZEGAREM W STREFIE WYDARZENIA, nie przeglądarki (klasa OPS-15).
-// „Sprzedaż do 18:00" wpisane w Londynie dla kongresu w Warszawie zamykało
-// sprzedaż o 19:00 czasu kongresu. Szkic niesie strefę (`timeZone`) i chwile
-// z bazy (`savedTimes`, `savedFrom`/`savedTo` faz): nietknięte pole wraca co do
-// milisekundy, więc „przełącz aktywność" i duplikacja nie przycinają
-// `sales_to` 23:59:59 do pełnej minuty. Konwersje: `lib/events/eventLocalInput.ts`.
+// CENY W POLACH SĄ W JEDNOSTCE GŁÓWNEJ WALUTY (TIX-14a). Formularz prowadził
+// je w groszach, więc redaktor, który wpisał „899", myśląc o złotych,
+// wystawiał bilet za 8,99 zł. Pole mówi teraz „899,00", a grosze liczy
+// wyłącznie `parseMoneyInput` / `centsToMoneyInput` - zapis niejednoznaczny
+// („8,999", „1,299") jest błędem przy polu, nie zgadywaną kwotą. Reguły kwot
+// (sufit, early bird nie droższy od ceny bazowej) porównują GROSZE.
 import {
-  canonicalInstant,
-  eventLocalInput,
-  eventLocalInputToIso,
-  type SavedInstants,
-} from "@/lib/events/eventLocalInput";
-import { eventTimeZone } from "@/lib/events/timezone";
+  centsToMoneyInput,
+  parseMoneyInput,
+  type MoneyDecimalSeparator,
+} from "@/lib/billing/moneyInput";
 import type {
   EventTicketInput,
   EventTicketRow,
@@ -53,8 +51,11 @@ export interface TicketDraft {
   nameEn: string;
   descriptionPl: string;
   descriptionEn: string;
-  /** Grosze/eurocenty jako tekst - input HTML nie zna liczb, tylko znaki. */
-  priceCents: string;
+  /**
+   * Cena w jednostce głównej waluty jako tekst („899,00"), NIE w groszach -
+   * grosze liczy `parseMoneyInput` dopiero przy walidacji i w payloadzie.
+   */
+  price: string;
   currency: TicketCurrency;
   /** Pusty tekst = bez limitu miejsc na tym bilecie. */
   quota: string;
@@ -66,8 +67,11 @@ export interface TicketDraft {
   groupId: string | null;
   isActive: boolean;
   sortOrder: string;
-  /** Cena promocyjna obowiązująca do `earlyBirdUntil`; pusty tekst = brak. */
-  earlyBirdPriceCents: string;
+  /**
+   * Cena promocyjna (jednostka główna waluty) obowiązująca do `earlyBirdUntil`;
+   * pusty tekst = brak ceny promocyjnej.
+   */
+  earlyBirdPrice: string;
   /** `datetime-local` - termin końca ceny promocyjnej. */
   earlyBirdUntil: string;
   /**
@@ -100,10 +104,8 @@ export interface TicketPhaseDraft {
   /** `datetime-local` w strefie biletu albo pusty tekst = od zawsze / bezterminowo. */
   from: string;
   to: string;
-  priceCents: string;
-  /** Chwile z bazy, z których powstały `from`/`to`; brak = faza nowa. */
-  savedFrom?: string | null;
-  savedTo?: string | null;
+  /** Cena progu w jednostce głównej waluty („899,00"), jak cena bazowa. */
+  price: string;
 }
 
 export const TICKET_MAX_PHASES = 12;
@@ -111,7 +113,16 @@ export const TICKET_MAX_BENEFITS = 20;
 export const TICKET_MAX_BENEFIT_LENGTH = 200;
 
 export function emptyTicketPhase(): TicketPhaseDraft {
-  return { labelPl: "", labelEn: "", from: "", to: "", priceCents: "" };
+  return { labelPl: "", labelEn: "", from: "", to: "", price: "" };
+}
+
+/**
+ * Tekst pola ceny -> grosze dla payloadu. Zapis błędny daje `NaN`, a nie zero:
+ * zero to bilet bezpłatny, więc cicha zamiana „abc" na 0 zł rozdawałaby
+ * bilety. `ticketDraftIssue` odcina taki zapis wcześniej.
+ */
+function moneyCents(value: string): number {
+  return parseMoneyInput(value) ?? Number.NaN;
 }
 
 /** Textarea -> lista korzysci: puste linie odpadaja, kolejnosc zostaje. */
@@ -137,7 +148,9 @@ export function emptyTicketDraft(
     nameEn: "",
     descriptionPl: "",
     descriptionEn: "",
-    priceCents: "0",
+    // „0" czyta się tak samo z przecinkiem i z kropką - nowy bilet jest
+    // bezpłatny, dopóki redaktor nie wpisze kwoty.
+    price: "0",
     currency: "PLN",
     quota: "",
     salesFrom: "",
@@ -147,7 +160,7 @@ export function emptyTicketDraft(
     groupId: null,
     isActive: true,
     sortOrder: String(sortOrder),
-    earlyBirdPriceCents: "",
+    earlyBirdPrice: "",
     earlyBirdUntil: "",
     accessCode: "",
     hasAccessCode: false,
@@ -179,22 +192,15 @@ export function fromLocalInput(
   return eventLocalInputToIso(value, timeZone, saved);
 }
 
-/** Pole daty szkicu -> chwila (z pamięcią chwili z bazy). */
-function draftInstant(
-  draft: TicketDraft,
-  field: "salesFrom" | "salesTo" | "earlyBirdUntil",
-): string | null {
-  return fromLocalInput(draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
-}
-
+/**
+ * Wiersz bazy -> formularz. Kwoty z groszy na jednostkę główną („1999" ->
+ * „19,99"); `decimalSeparator` dobiera wołający do języka interfejsu, a parser
+ * przyjmuje oba, więc wybór nie zmienia kwoty.
+ */
 export function ticketDraftFromRow(
   row: EventTicketRow,
-  timeZone: string | null | undefined,
+  decimalSeparator: MoneyDecimalSeparator = ",",
 ): TicketDraft {
-  const zone = eventTimeZone({ timezone: timeZone });
-  const salesFrom = canonicalInstant(row.sales_from);
-  const salesTo = canonicalInstant(row.sales_to);
-  const earlyBirdUntil = canonicalInstant(row.early_bird_until);
   return {
     id: row.id,
     key: row.key,
@@ -202,7 +208,7 @@ export function ticketDraftFromRow(
     nameEn: row.name_en,
     descriptionPl: row.description_pl ?? "",
     descriptionEn: row.description_en ?? "",
-    priceCents: String(row.price_cents ?? 0),
+    price: centsToMoneyInput(row.price_cents ?? 0, decimalSeparator),
     currency: (TICKET_CURRENCIES as readonly string[]).includes(row.currency)
       ? (row.currency as TicketCurrency)
       : "PLN",
@@ -216,11 +222,10 @@ export function ticketDraftFromRow(
     groupId: row.group_id ?? null,
     isActive: row.is_active,
     sortOrder: String(row.sort_order ?? 0),
-    earlyBirdPriceCents:
-      row.early_bird_price_cents === null || row.early_bird_price_cents === undefined
-        ? ""
-        : String(row.early_bird_price_cents),
-    earlyBirdUntil: toLocalInput(earlyBirdUntil, zone),
+    // Brak ceny promocyjnej zostaje pustym polem (`centsToMoneyInput(null)`),
+    // nie „0,00" - zero znaczyłoby promocję za darmo.
+    earlyBirdPrice: centsToMoneyInput(row.early_bird_price_cents ?? null, decimalSeparator),
+    earlyBirdUntil: toLocalInput(row.early_bird_until ?? null),
     accessCode: "",
     hasAccessCode: row.has_access_code === true,
     removeAccessCode: false,
@@ -228,9 +233,7 @@ export function ticketDraftFromRow(
     waitlistEnabled: row.waitlist_enabled !== false,
     benefitsPl: (row.benefits_pl ?? []).join("\n"),
     benefitsEn: (row.benefits_en ?? []).join("\n"),
-    phases: phasesFromJson(row.price_schedule, zone),
-    timeZone: zone,
-    savedTimes: { salesFrom, salesTo, earlyBirdUntil },
+    phases: phasesFromJson(row.price_schedule, decimalSeparator),
   };
 }
 
@@ -247,11 +250,11 @@ export type TicketDraftField =
   | "nameEn"
   | "descriptionPl"
   | "descriptionEn"
-  | "priceCents"
+  | "price"
   | "quota"
   | "salesTo"
   | "minTierRank"
-  | "earlyBirdPriceCents"
+  | "earlyBirdPrice"
   | "earlyBirdUntil"
   | "accessCode"
   | "accessCodeHint"
@@ -262,8 +265,39 @@ export type TicketDraftField =
 
 export interface TicketDraftIssue {
   field: TicketDraftField;
-  /** Klucz w `adminEventRegistration.errors.*`. */
+  /** Klucz w `adminEventRegistration.errors.*` - ten, którym odmówiłaby baza. */
   errorKey: string;
+  /**
+   * Pełny klucz zdania przy polu, gdy mówi ono więcej niż odmowa bazy - dziś
+   * zapis kwoty, której nie da się jednoznacznie przeczytać („8,999"). Brak =
+   * `adminEventRegistration.errors.<errorKey>` (patrz `ticketDraftIssueMessage`).
+   */
+  messageKey?: string;
+  /** Parametry zdania `messageKey` (np. numer progu cennika). */
+  params?: Record<string, number | string>;
+}
+
+/** Klucz i parametry zdania, które formularz pokazuje przy polu `issue.field`. */
+export function ticketDraftIssueMessage(issue: TicketDraftIssue): {
+  key: string;
+  params?: Record<string, number | string>;
+} {
+  return issue.messageKey === undefined
+    ? { key: `adminEventRegistration.errors.${issue.errorKey}` }
+    : { key: issue.messageKey, params: issue.params };
+}
+
+/**
+ * Zdanie o zapisie kwoty w walucie biletu („Podaj cenę w złotych, np.
+ * 899,00"). Klucz per waluta, bo „w złotych" / „w euro" odmienia się inaczej
+ * niż kod waluty wstawiony w zdanie.
+ */
+function moneyFormatKey(currency: TicketCurrency): string {
+  return `adminEventRegistration.tickets.editor.moneyFormat.${currency}`;
+}
+
+function phaseMoneyFormatKey(currency: TicketCurrency): string {
+  return `adminEventRegistration.tickets.editor.phaseMoneyFormat.${currency}`;
 }
 
 /**
@@ -292,9 +326,19 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
     return { field: "descriptionEn", errorKey: "invalidRequest" };
   }
 
-  const price = intOrNull(draft.priceCents);
-  if (price === null || Number.isNaN(price) || price < 0 || price > TICKET_MAX_PRICE_CENTS) {
-    return { field: "priceCents", errorKey: "invalidRequest" };
+  // Cena jest obowiązkowa: puste pole, minus, litery i zapis niejednoznaczny
+  // („8,999") dostają zdanie o formacie kwoty w walucie biletu. Sufit liczymy
+  // w groszach, po przeczytaniu kwoty.
+  const price = parseMoneyInput(draft.price);
+  if (price === null) {
+    return {
+      field: "price",
+      errorKey: "invalidRequest",
+      messageKey: moneyFormatKey(draft.currency),
+    };
+  }
+  if (price > TICKET_MAX_PRICE_CENTS) {
+    return { field: "price", errorKey: "invalidRequest" };
   }
 
   const quota = intOrNull(draft.quota);
@@ -331,26 +375,31 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   // a termin bez ceny nie zmieniałby niczego. CHECK w bazie odrzuca oba przypadki
   // bez nazwy pola, więc rozstrzygamy je tutaj, przy właściwym polu.
   //
-  // SKŁADNIA LICZBY ROZSTRZYGA SIĘ PIERWSZA. „199,00" nie jest liczbą, więc jest
+  // SKŁADNIA KWOTY ROZSTRZYGA SIĘ PIERWSZA. „8,999" nie jest kwotą, więc jest
   // błędem CENY, a nie brakującego terminu. Odwrotna kolejność podświetlała pole
   // TERMINU: redaktor uzupełniał datę, zapisywał ponownie i dopiero w drugim
-  // obiegu formularza dowiadywał się, co naprawdę jest źle.
-  const early = intOrNull(draft.earlyBirdPriceCents);
+  // obiegu formularza dowiadywał się, co naprawdę jest źle. Puste pole to brak
+  // ceny promocyjnej, nie błąd zapisu.
+  const earlyText = draft.earlyBirdPrice.trim();
+  const early = earlyText === "" ? null : parseMoneyInput(earlyText);
   const hasEarlyDate = draft.earlyBirdUntil.trim() !== "";
-  if (early !== null && Number.isNaN(early)) {
-    return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
+  if (earlyText !== "" && early === null) {
+    return {
+      field: "earlyBirdPrice",
+      errorKey: "invalidEarlyBird",
+      messageKey: moneyFormatKey(draft.currency),
+    };
   }
   if (early !== null && !hasEarlyDate) {
     return { field: "earlyBirdUntil", errorKey: "invalidEarlyBird" };
   }
   if (early === null && hasEarlyDate) {
-    return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
+    return { field: "earlyBirdPrice", errorKey: "invalidEarlyBird" };
   }
-  if (early !== null) {
-    const base = intOrNull(draft.priceCents);
-    if (early < 0 || base === null || Number.isNaN(base) || early > base) {
-      return { field: "earlyBirdPriceCents", errorKey: "invalidEarlyBird" };
-    }
+  // Porównanie w GROSZACH: cena bazowa jest już przeczytana i mieści się
+  // pod sufitem, więc promocja nie droższa od niej też się mieści.
+  if (early !== null && early > price) {
+    return { field: "earlyBirdPrice", errorKey: "invalidEarlyBird" };
   }
 
   const code = draft.accessCode.trim();
@@ -381,14 +430,19 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
   if (draft.phases.length > TICKET_MAX_PHASES) {
     return { field: "phases", errorKey: "invalidPriceSchedule" };
   }
-  for (const phase of draft.phases) {
-    const phasePrice = intOrNull(phase.priceCents);
-    if (
-      phasePrice === null ||
-      Number.isNaN(phasePrice) ||
-      phasePrice < 0 ||
-      phasePrice > TICKET_MAX_PRICE_CENTS
-    ) {
+  for (const [index, phase] of draft.phases.entries()) {
+    // Próg bez czytelnej kwoty dostaje zdanie z NUMEREM progu - komunikat stoi
+    // pod całą listą, więc bez numeru redaktor szukałby wiersza po omacku.
+    const phasePrice = parseMoneyInput(phase.price);
+    if (phasePrice === null) {
+      return {
+        field: "phases",
+        errorKey: "invalidPriceSchedule",
+        messageKey: phaseMoneyFormatKey(draft.currency),
+        params: { index: index + 1 },
+      };
+    }
+    if (phasePrice > TICKET_MAX_PRICE_CENTS) {
       return { field: "phases", errorKey: "invalidPriceSchedule" };
     }
     const phaseFrom = fromLocalInput(phase.from, draft.timeZone, phase.savedFrom ?? null);
@@ -416,7 +470,7 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     nameEn: draft.nameEn.trim(),
     descriptionPl: draft.descriptionPl.trim(),
     descriptionEn: draft.descriptionEn.trim(),
-    priceCents: Number(draft.priceCents.trim()),
+    priceCents: moneyCents(draft.price),
     currency: draft.currency,
     quota: quota === null || Number.isNaN(quota) ? null : quota,
     salesFrom: draftInstant(draft, "salesFrom"),
@@ -427,8 +481,8 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     isActive: draft.isActive,
     sortOrder: Number(draft.sortOrder.trim() === "" ? "0" : draft.sortOrder.trim()),
     earlyBirdPriceCents:
-      draft.earlyBirdPriceCents.trim() === "" ? null : Number(draft.earlyBirdPriceCents.trim()),
-    earlyBirdUntil: draftInstant(draft, "earlyBirdUntil"),
+      draft.earlyBirdPrice.trim() === "" ? null : moneyCents(draft.earlyBirdPrice),
+    earlyBirdUntil: fromLocalInput(draft.earlyBirdUntil),
     // Trzy stany kodu: `undefined` = zostaw, `null` = zdejmij, napis = ustaw.
     accessCode: draft.removeAccessCode
       ? null
@@ -442,20 +496,20 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     priceSchedule: draft.phases.map((phase): TicketPricePhaseInput => ({
       labelPl: phase.labelPl.trim(),
       labelEn: phase.labelEn.trim(),
-      from: fromLocalInput(phase.from, draft.timeZone, phase.savedFrom ?? null),
-      to: fromLocalInput(phase.to, draft.timeZone, phase.savedTo ?? null),
-      priceCents: Number(phase.priceCents.trim()),
+      from: fromLocalInput(phase.from),
+      to: fromLocalInput(phase.to),
+      priceCents: moneyCents(phase.price),
     })),
   };
 }
 
 /**
- * `price_schedule` (jsonb) -> wiersze formularza w strefie `timeZone`.
- * Bełkot odpada po cichu.
+ * `price_schedule` (jsonb) -> wiersze formularza, kwoty z groszy na jednostkę
+ * główną („9900" -> „99,00"). Bełkot odpada po cichu.
  */
 export function phasesFromJson(
   value: unknown,
-  timeZone: string | null | undefined,
+  decimalSeparator: MoneyDecimalSeparator = ",",
 ): TicketPhaseDraft[] {
   if (!Array.isArray(value)) return [];
   const out: TicketPhaseDraft[] = [];
@@ -469,11 +523,9 @@ export function phasesFromJson(
     out.push({
       labelPl: typeof row.label_pl === "string" ? row.label_pl : "",
       labelEn: typeof row.label_en === "string" ? row.label_en : "",
-      from: toLocalInput(savedFrom, timeZone),
-      to: toLocalInput(savedTo, timeZone),
-      priceCents: String(Math.trunc(price)),
-      savedFrom,
-      savedTo,
+      from: toLocalInput(typeof row.from === "string" ? row.from : null),
+      to: toLocalInput(typeof row.to === "string" ? row.to : null),
+      price: centsToMoneyInput(Math.trunc(price), decimalSeparator),
     });
   }
   return out;

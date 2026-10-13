@@ -32,6 +32,8 @@ export const eventCodesPl = {
       all: "Wszystkie bilety",
       specific: "Wybrane bilety: {{count}}",
       perTicket: "{{amount}} / bilet",
+      noStacking: "Nie łączy się z promocjami",
+      maxTotal: "Łączny rabat do {{percent}}%",
     },
     form: {
       code: "Kod",
@@ -49,6 +51,12 @@ export const eventCodesPl = {
       amountPerTicketHint:
         "Kwota schodzi z każdego biletu - także w zapisie grupowym i w pakiecie (najwyżej do ceny biletu).",
       currency: "Waluta",
+      stacks: "Łączy się z innymi promocjami",
+      stacksHint:
+        "Wyłączone: przy cenie z fazy sprzedaży (np. early bird) albo zniżce z planu członkowskiego kasa odmówi tego kodu.",
+      maxTotal: "Limit łącznego rabatu (%)",
+      maxTotalHint:
+        "Puste = bez limitu. Faza sprzedaży, zniżka z planu i kod razem nie zejdą niżej - kod da najwyżej tyle, ile zostało do limitu.",
       revealHidden: "Odsłoń ukryte bilety",
       revealHint: "Ukryte bilety pojawią się w formularzu po wpisaniu kodu.",
       tickets: "Bilety objęte kodem",
@@ -67,6 +75,7 @@ export const eventCodesPl = {
       quantity: "Liczba użyć musi być dodatnią liczbą całkowitą.",
       dates: "Koniec musi być po początku.",
       tickets: "Wybierz co najmniej jeden bilet.",
+      maxTotal: "Limit łącznego rabatu: puste albo liczba całkowita od 1 do 100.",
     },
     actions: { activate: "Włącz", deactivate: "Wyłącz", delete: "Usuń", copyUrl: "Kopiuj link" },
     toasts: {
@@ -109,6 +118,8 @@ export const eventCodesEn = {
       all: "All tickets",
       specific: "Specific tickets: {{count}}",
       perTicket: "{{amount}} per ticket",
+      noStacking: "Does not stack with promotions",
+      maxTotal: "Total discount up to {{percent}}%",
     },
     form: {
       code: "Code",
@@ -126,6 +137,12 @@ export const eventCodesEn = {
       amountPerTicketHint:
         "Taken off every ticket - also in group registrations and packages (at most the ticket price).",
       currency: "Currency",
+      stacks: "Stacks with other promotions",
+      stacksHint:
+        "Off: with a sales-phase price (e.g. early bird) or a membership-plan discount, checkout refuses this code.",
+      maxTotal: "Total discount cap (%)",
+      maxTotalHint:
+        "Empty = no cap. The sales phase, plan discount and code together never go further - the code gives at most what is left up to the cap.",
       revealHidden: "Reveal hidden tickets",
       revealHint: "Hidden tickets appear in the form once the code is entered.",
       tickets: "Applicable tickets",
@@ -144,6 +161,7 @@ export const eventCodesEn = {
       quantity: "Quantity must be a positive whole number.",
       dates: "The end must be after the start.",
       tickets: "Select at least one ticket.",
+      maxTotal: "Total discount cap: empty or a whole number from 1 to 100.",
     },
     actions: { activate: "Enable", deactivate: "Disable", delete: "Delete", copyUrl: "Copy link" },
     toasts: {

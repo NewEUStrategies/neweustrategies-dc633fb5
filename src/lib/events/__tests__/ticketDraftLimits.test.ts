@@ -8,9 +8,10 @@
 // ma tu miec odpowiednik z polem i kluczem komunikatu - i to jest jedyny powod,
 // dla ktorego `ticketDraftIssue` w ogole istnieje.
 //
-// CENA JEST W GROSZACH. `price_cents: 1999` to 19,99 w kasie. Pomylka o rzad
-// wielkosci w tym miejscu obciaza karte uczestnika dziesieciokrotnie, wiec sufit
-// i podloga ceny maja tu asercje na wartosciach granicznych, a nie „gdzies duzo".
+// CENA W BAZIE JEST W GROSZACH, W POLU - W ZLOTYCH (TIX-14a). `price_cents:
+// 1999` to 19,99 w kasie i „19,99" w polu formularza. Pomylka o rzad wielkosci
+// w tym miejscu obciaza karte uczestnika dziesieciokrotnie, wiec sufit i
+// podloga ceny maja tu asercje na wartosciach granicznych, a nie „gdzies duzo".
 import { describe, expect, it } from "vitest";
 import {
   TICKET_ACCESS_CODE_MAX,
@@ -26,12 +27,14 @@ import {
   emptyTicketPhase,
   fromLocalInput,
   phasesFromJson,
+  ticketDraftIssueMessage,
   ticketDraftFromRow,
   ticketDraftIssue,
   ticketDraftToInput,
   type TicketDraft,
   type TicketPhaseDraft,
 } from "@/lib/events/ticketDraft";
+import { centsToMoneyInput } from "@/lib/billing/moneyInput";
 import { eventTicketRow } from "@/test/events/adminSalesRows";
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -44,7 +47,7 @@ function valid(overrides: Partial<TicketDraft> = {}): TicketDraft {
     key: "vip_pass",
     namePl: "Karnet VIP",
     nameEn: "VIP pass",
-    priceCents: "15000",
+    price: "150,00",
     ...overrides,
   };
 }
@@ -120,7 +123,7 @@ describe("dlugosci tekstow maja odpowiednik przy polu, a nie odmowe bez nazwy", 
   });
 
   it("cennik dluzszy niz limit odpada w calosci, nie po jednym progu", () => {
-    const faza = (): TicketPhaseDraft => ({ ...emptyTicketPhase(), priceCents: "10000" });
+    const faza = (): TicketPhaseDraft => ({ ...emptyTicketPhase(), price: "100,00" });
     const zaDuzo = Array.from({ length: TICKET_MAX_PHASES + 1 }, faza);
     expect(ticketDraftIssue(valid({ phases: zaDuzo }))).toEqual({
       field: "phases",
@@ -134,22 +137,27 @@ describe("dlugosci tekstow maja odpowiednik przy polu, a nie odmowe bez nazwy", 
 
 describe("cena i pula - kwoty, ktore obciazaja karte uczestnika", () => {
   it("cena na suficie przechodzi, o grosz wyzej nie", () => {
-    // Sufit to 100 000,00 w groszach. Wyzej to literowka (dodane zero), a
-    // literowka w cenie jest widoczna dopiero na wyciagu uczestnika.
-    expect(ticketDraftIssue(valid({ priceCents: String(TICKET_MAX_PRICE_CENTS) }))).toBeNull();
-    expect(ticketDraftIssue(valid({ priceCents: String(TICKET_MAX_PRICE_CENTS + 1) }))).toEqual({
-      field: "priceCents",
+    // Sufit to 100 000,00 (10 000 000 groszy). Wyzej to literowka (dodane
+    // zero), a literowka w cenie jest widoczna dopiero na wyciagu uczestnika.
+    expect(
+      ticketDraftIssue(valid({ price: centsToMoneyInput(TICKET_MAX_PRICE_CENTS) })),
+    ).toBeNull();
+    expect(ticketDraftIssue(valid({ price: "100000,00" }))).toBeNull();
+    expect(ticketDraftIssue(valid({ price: "100000,01" }))).toEqual({
+      field: "price",
       errorKey: "invalidRequest",
     });
   });
 
   it("cena zero jest legalna (bilet bezplatny), cena ujemna nie", () => {
     // Bilet za zero zloty to wstep wolny, a nie blad; cena ujemna to przelew
-    // do uczestnika.
-    expect(ticketDraftIssue(valid({ priceCents: "0" }))).toBeNull();
-    expect(ticketDraftIssue(valid({ priceCents: "-1" }))).toEqual({
-      field: "priceCents",
+    // do uczestnika - i zapis, ktorego parser kwoty nie czyta.
+    expect(ticketDraftIssue(valid({ price: "0" }))).toBeNull();
+    expect(ticketDraftIssue(valid({ price: "0,00" }))).toBeNull();
+    expect(ticketDraftIssue(valid({ price: "-1" }))).toEqual({
+      field: "price",
       errorKey: "invalidRequest",
+      messageKey: "adminEventRegistration.tickets.editor.moneyFormat.PLN",
     });
   });
 
@@ -165,15 +173,33 @@ describe("cena i pula - kwoty, ktore obciazaja karte uczestnika", () => {
     // „Promocja" drozsza od ceny regularnej to zarzut wprowadzania w blad,
     // a nie usterka formularza.
     const drozsza = valid({
-      priceCents: "15000",
-      earlyBirdPriceCents: "15001",
+      price: "150,00",
+      earlyBirdPrice: "150,01",
       earlyBirdUntil: "2026-09-01T10:00",
     });
     expect(ticketDraftIssue(drozsza)).toEqual({
-      field: "earlyBirdPriceCents",
+      field: "earlyBirdPrice",
       errorKey: "invalidEarlyBird",
     });
-    expect(ticketDraftIssue({ ...drozsza, earlyBirdPriceCents: "15000" })).toBeNull();
+    // Porownanie idzie w GROSZACH, nie na tekscie: „150" i „150,00" to ta sama
+    // kwota, a „99,9" (99,90) jest tansze od „150".
+    expect(ticketDraftIssue({ ...drozsza, earlyBirdPrice: "150" })).toBeNull();
+    expect(ticketDraftIssue({ ...drozsza, price: "150", earlyBirdPrice: "99,9" })).toBeNull();
+  });
+
+  it("pusta cena promocyjna bez terminu to brak promocji, nie blad", () => {
+    const draft = valid({ earlyBirdPrice: "  ", earlyBirdUntil: "" });
+    expect(ticketDraftIssue(draft)).toBeNull();
+    expect(ticketDraftToInput(draft, EVENT_ID).earlyBirdPriceCents).toBeNull();
+  });
+
+  it("cena promocyjna w zlotych jedzie do payloadu w groszach", () => {
+    const input = ticketDraftToInput(
+      valid({ price: "899", earlyBirdPrice: "699,50", earlyBirdUntil: "2026-09-01T10:00" }),
+      EVENT_ID,
+    );
+    expect(input.priceCents).toBe(89_900);
+    expect(input.earlyBirdPriceCents).toBe(69_950);
   });
 
   // DEFEKT NAPRAWIONY W PRODUKCJI: skladnia liczby rozstrzyga sie przed
@@ -185,9 +211,13 @@ describe("cena i pula - kwoty, ktore obciazaja karte uczestnika", () => {
   // i dopiero wtedy dowiadywal sie o cenie - dwa obiegi formularza zamiast
   // jednego, a przez pierwszy z nich komunikat mowil nieprawde o tym, co jest
   // zle.
-  it("cena promocyjna nie bedaca liczba podswietla pole CENY, nie terminu", () => {
-    const issue = ticketDraftIssue(valid({ earlyBirdPriceCents: "199,00", earlyBirdUntil: "" }));
-    expect(issue?.field).toBe("earlyBirdPriceCents");
+  it("cena promocyjna nie bedaca kwota podswietla pole CENY, nie terminu", () => {
+    const issue = ticketDraftIssue(valid({ earlyBirdPrice: "8,999", earlyBirdUntil: "" }));
+    expect(issue).toEqual({
+      field: "earlyBirdPrice",
+      errorKey: "invalidEarlyBird",
+      messageKey: "adminEventRegistration.tickets.editor.moneyFormat.PLN",
+    });
   });
 });
 
@@ -201,7 +231,7 @@ describe("waluta biletu", () => {
   it("waluta jedzie do payloadu dokladnie taka, jaka wybrano", () => {
     // Kasa liczy w walucie z biletu; podmiana na domyslna obciazylaby karte
     // w zlotowkach kwota policzona w euro.
-    const input = ticketDraftToInput(valid({ currency: "EUR", priceCents: "4900" }), EVENT_ID);
+    const input = ticketDraftToInput(valid({ currency: "EUR", price: "49,00" }), EVENT_ID);
     expect(input.currency).toBe("EUR");
     expect(input.priceCents).toBe(4900);
     expect(input.eventId).toBe(EVENT_ID);
@@ -217,7 +247,7 @@ describe("waluta biletu", () => {
 });
 
 describe("wiersz bazy -> formularz", () => {
-  it("cena promocyjna z bazy wraca do pola jako liczba w groszach", () => {
+  it("cena promocyjna z bazy wraca do pola jako kwota w zlotych", () => {
     // Brak tego przepisania kasowalby promocje przy KAZDEJ edycji biletu -
     // formularz odeslalby puste pole, a to znaczy „zdejmij cene promocyjna".
     const draft = ticketDraftFromRow(
@@ -228,8 +258,12 @@ describe("wiersz bazy -> formularz", () => {
       }),
       STREFA,
     );
-    expect(draft.earlyBirdPriceCents).toBe("990");
-    expect(draft.priceCents).toBe("1999");
+    expect(draft.earlyBirdPrice).toBe("9,90");
+    expect(draft.price).toBe("19,99");
+    // I wraca do bazy dokladnie tymi samymi groszami.
+    const input = ticketDraftToInput(draft, EVENT_ID);
+    expect(input.earlyBirdPriceCents).toBe(990);
+    expect(input.priceCents).toBe(1999);
     // Termin ma wrocic do pola jako TA SAMA chwila. Sama niepustosc pola
     // przepuscilaby przesuniecie o strefe, czyli promocje konczaca sie
     // godzine za wczesnie albo za pozno - i cene inna niz w cenniku.
@@ -240,7 +274,7 @@ describe("wiersz bazy -> formularz", () => {
   it("bilet bez ceny promocyjnej ma puste pole, a nie zero", () => {
     // Zero znaczyloby „promocja za darmo", czyli bilet gratis dla kazdego,
     // kto zdazy przed terminem.
-    expect(ticketDraftFromRow(eventTicketRow(), STREFA).earlyBirdPriceCents).toBe("");
+    expect(ticketDraftFromRow(eventTicketRow()).earlyBirdPrice).toBe("");
   });
 });
 
@@ -259,24 +293,8 @@ describe("cennik fazowy z JSON-a bazy", () => {
     // `savedFrom`/`savedTo` niosa chwile z bazy (nietkniete pole wraca co do
     // milisekundy); okno nieczytelne nie ma czego zapamietac.
     expect(phases).toEqual([
-      {
-        labelPl: "",
-        labelEn: "",
-        from: "",
-        to: "",
-        priceCents: "12000",
-        savedFrom: null,
-        savedTo: null,
-      },
-      {
-        labelPl: "",
-        labelEn: "",
-        from: "",
-        to: "",
-        priceCents: "9900",
-        savedFrom: null,
-        savedTo: null,
-      },
+      { labelPl: "", labelEn: "", from: "", to: "", price: "120,00" },
+      { labelPl: "", labelEn: "", from: "", to: "", price: "99,00" },
     ]);
   });
 
@@ -312,11 +330,48 @@ describe("cennik fazowy z JSON-a bazy", () => {
   it("cena progu podlega temu samemu sufitowi co cena bazowa", () => {
     const ponadSufit: TicketPhaseDraft = {
       ...emptyTicketPhase(),
-      priceCents: String(TICKET_MAX_PRICE_CENTS + 1),
+      price: centsToMoneyInput(TICKET_MAX_PRICE_CENTS + 1),
     };
     expect(ticketDraftIssue(valid({ phases: [ponadSufit] }))).toEqual({
       field: "phases",
       errorKey: "invalidPriceSchedule",
     });
+  });
+
+  it("prog z kwota nie do przeczytania dostaje zdanie z NUMEREM progu", () => {
+    // Komunikat stoi pod cala lista - bez numeru redaktor szukalby wiersza
+    // po omacku.
+    const issue = ticketDraftIssue(
+      valid({
+        phases: [
+          { ...emptyTicketPhase(), price: "99,00" },
+          { ...emptyTicketPhase(), price: "8,999" },
+        ],
+      }),
+    );
+    expect(issue).toEqual({
+      field: "phases",
+      errorKey: "invalidPriceSchedule",
+      messageKey: "adminEventRegistration.tickets.editor.phaseMoneyFormat.PLN",
+      params: { index: 2 },
+    });
+    if (issue === null) throw new Error("prog „8,999” przeszedl walidacje");
+    expect(ticketDraftIssueMessage(issue)).toEqual({
+      key: "adminEventRegistration.tickets.editor.phaseMoneyFormat.PLN",
+      params: { index: 2 },
+    });
+  });
+
+  it("cena progu przechodzi baza -> pole -> payload bez zmiany groszy", () => {
+    const [phase] = phasesFromJson([{ price_cents: 12_345, label_pl: "Faza I" }]);
+    expect(phase.price).toBe("123,45");
+    const input = ticketDraftToInput(valid({ phases: [phase] }), EVENT_ID);
+    expect(input.priceSchedule[0].priceCents).toBe(12_345);
+    // Separator angielski czyta sie tak samo.
+    const [en] = phasesFromJson([{ price_cents: 12_345 }], ".");
+    expect(en.price).toBe("123.45");
+    expect(ticketDraftToInput(valid({ phases: [en] }), EVENT_ID).priceSchedule[0].priceCents).toBe(
+      12_345,
+    );
   });
 });

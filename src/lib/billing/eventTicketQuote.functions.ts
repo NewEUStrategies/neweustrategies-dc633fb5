@@ -5,6 +5,10 @@
 // i NIGDY nie woła `redeem_b2b_coupon`: podgląd kodu nie może zjadać jego
 // limitu. Uwierzytelnienie jak w kasie, bo wycena czyta pulę planu i zgłoszenie
 // wołającego (`auth.uid()`).
+//
+// POST, choć to odczyt (TIX-11): ładunek niesie kod dostępu i kod rabatowy.
+// W GET jechałyby w adresie URL - do logów proxy i CDN, historii przeglądarki
+// i nagłówka Referer. W treści POST nie zostają nigdzie po drodze.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -19,7 +23,7 @@ const quoteSchema = z.object({
   access_code: z.string().trim().max(64).optional(),
 });
 
-export const quoteEventTicketCheckout = createServerFn({ method: "GET" })
+export const quoteEventTicketCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => quoteSchema.parse(input))
   .handler(async ({ data, context }): Promise<EventTicketQuote> => {

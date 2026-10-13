@@ -10,11 +10,23 @@
 // miejsce to zwykły bilet - dopuszczamy je, bo bywa etapem przejściowym przy
 // przenoszeniu cennika, ale limit górny trzyma literówki w ryzach.
 //
-// OKNO SPRZEDAŻY JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
-// biletu: szkic niesie strefę i chwile z bazy, więc przełącznik aktywności
-// w tabeli pakietów nie przesuwa ani nie przycina okna.
-import { canonicalInstant, type SavedInstants } from "@/lib/events/eventLocalInput";
-import { eventTimeZone } from "@/lib/events/timezone";
+// CENA W POLU JEST W JEDNOSTCE GŁÓWNEJ WALUTY (TIX-14a). Pole pokazywało grosze
+// („89900" dla 899 zł), więc organizator, który wpisał „899", myśląc
+// o złotych, wystawiał pakiet za 8,99 zł. Grosze liczy wyłącznie
+// `parseMoneyInput` / `centsToMoneyInput`; zapis niejednoznaczny („8,999")
+// jest błędem przy polu, a nie zgadywaną kwotą.
+//
+// WARUNKI ZAKUPU I PROFIL PODATKOWY (TIX-07, TIX-09) są w szkicu jako `terms`,
+// a `null` znaczy „nieznane" - baza bez migracji, nieudany odczyt albo pakiet,
+// którego nie ma w odpowiedzi `admin_event_package_terms`. Nieznanych warunków
+// formularz nie pokazuje, nie sprawdza i NIE WYSYŁA: upsert zmienia kolumnę
+// tylko przy kluczu obecnym w ładunku, więc wartości domyślne wpisane w miejsce
+// nieznanych nadpisałyby prawdziwe warunki przy pierwszej zmianie nazwy.
+import {
+  centsToMoneyInput,
+  parseMoneyInput,
+  type MoneyDecimalSeparator,
+} from "@/lib/billing/moneyInput";
 import {
   fromLocalInput,
   toLocalInput,
@@ -27,13 +39,43 @@ import {
   type TicketCurrency,
 } from "@/lib/events/ticketDraft";
 import {
+  EMPTY_TAX_PROFILE,
+  taxProfileFromRow,
+  taxProfileIssues,
+  taxProfileToPayload,
+  type TaxProfileDraft,
+  type TaxProfileField,
+} from "@/lib/events/taxProfileDraft";
+import {
   PACKAGE_AUDIENCES,
   type EventPackageInput,
   type EventPackageRow,
+  type EventPackageTermsInput,
+  type EventPackageTermsRow,
   type PackageAudience,
 } from "@/lib/events/packagesApi";
 
 export const PACKAGE_MAX_SEATS = 1_000;
+
+/** Termin płatności - CHECK `event_ticket_packages_payment_terms_range` i DEFAULT kolumny. */
+export const PACKAGE_MIN_PAYMENT_TERMS_DAYS = 1;
+export const PACKAGE_MAX_PAYMENT_TERMS_DAYS = 120;
+export const PACKAGE_DEFAULT_PAYMENT_TERMS_DAYS = 14;
+
+/** Limit nieopłaconych zamówień - CHECK `event_ticket_packages_open_orders_range` i DEFAULT. */
+export const PACKAGE_MIN_OPEN_ORDERS = 1;
+export const PACKAGE_MAX_OPEN_ORDERS = 100;
+export const PACKAGE_DEFAULT_OPEN_ORDERS = 3;
+
+/** Warunki zakupu i profil podatkowy pakietu w formularzu (pola liczbowe jako tekst). */
+export interface PackageTermsDraft {
+  /** Zaufanie do faktury: delegat dostaje QR, zanim zamówienie zostanie opłacone. */
+  admitBeforePayment: boolean;
+  paymentTermsDays: string;
+  /** Pusty tekst = bez limitu nieopłaconych zamówień. */
+  maxOpenOrdersPerBuyer: string;
+  taxProfile: TaxProfileDraft;
+}
 
 export interface PackageDraft {
   /** `null` = nowy pakiet; wtedy klucz jest edytowalny, później zamrożony. */
@@ -46,7 +88,8 @@ export interface PackageDraft {
   descriptionEn: string;
   audience: PackageAudience;
   seats: string;
-  priceCents: string;
+  /** Cena w jednostce głównej waluty („899,00"), nie w groszach. */
+  price: string;
   currency: TicketCurrency;
   /** Pusty tekst = bez limitu sprzedanych pakietów. */
   quota: string;
@@ -57,22 +100,93 @@ export interface PackageDraft {
   requiresVerification: boolean;
   isActive: boolean;
   sortOrder: string;
-  /** Strefa wydarzenia (IANA, zwalidowana), w której pola okna są zegarem. */
-  timeZone: string;
-  /** Chwile z bazy, z których powstały pola okna (edycja); pusto dla nowego pakietu. */
-  savedTimes: SavedInstants<"salesFrom" | "salesTo">;
+  /** `null` = warunki nieznane: niepokazywane, niesprawdzane i niewysyłane. */
+  terms: PackageTermsDraft | null;
 }
 
-export type PackageDraftField = keyof PackageDraft;
+export type PackageTermsField = "paymentTermsDays" | "maxOpenOrdersPerBuyer";
+
+export type PackageDraftField =
+  Exclude<keyof PackageDraft, "terms"> | PackageTermsField | TaxProfileField;
 
 export interface PackageDraftIssue {
   field: PackageDraftField;
+  /** Klucz w `adminEventRegistration.errors.*` - ten, którym odmówiłaby baza. */
   errorKey: string;
+  /**
+   * Pełny klucz zdania przy polu, gdy mówi ono więcej niż odmowa bazy (zapis
+   * kwoty, termin płatności, profil podatkowy). Brak =
+   * `adminEventRegistration.errors.<errorKey>` - patrz `packageDraftIssueMessage`.
+   */
+  messageKey?: string;
+  /** Parametry zdania `messageKey`. */
+  params?: Record<string, number | string>;
+}
+
+/** Klucz i parametry zdania, które formularz pokazuje przy polu `issue.field`. */
+export function packageDraftIssueMessage(issue: PackageDraftIssue): {
+  key: string;
+  params?: Record<string, number | string>;
+} {
+  return issue.messageKey === undefined
+    ? { key: `adminEventRegistration.errors.${issue.errorKey}` }
+    : { key: issue.messageKey, params: issue.params };
+}
+
+const EDITOR = "adminEventRegistration.packages.editor";
+
+/**
+ * Co panel wie o warunkach zakupu pakietów wydarzenia (`usePackageTerms`).
+ * Tylko `ready` daje szkicowi warunki; pozostałe stany zostawiają `terms: null`
+ * i różnią się wyłącznie zdaniem, które formularz pokazuje w miejscu sekcji.
+ */
+export type PackageTermsLookup =
+  | { status: "loading" }
+  /** Baza bez migracji 20261012130000/130200. */
+  | { status: "unavailable" }
+  /** Odczyt się nie udał - warunków nie znamy, więc ich nie ruszamy. */
+  | { status: "failed"; error: unknown }
+  | { status: "ready"; byPackage: ReadonlyMap<string, EventPackageTermsRow> };
+
+/** Warunki nowego pakietu = wartości domyślne kolumn (DEFAULT w migracjach). */
+export function defaultPackageTerms(): PackageTermsDraft {
+  return {
+    admitBeforePayment: false,
+    paymentTermsDays: String(PACKAGE_DEFAULT_PAYMENT_TERMS_DAYS),
+    maxOpenOrdersPerBuyer: String(PACKAGE_DEFAULT_OPEN_ORDERS),
+    taxProfile: { ...EMPTY_TAX_PROFILE },
+  };
+}
+
+export function packageTermsDraftFromRow(row: EventPackageTermsRow): PackageTermsDraft {
+  return {
+    admitBeforePayment: row.admit_before_payment,
+    paymentTermsDays: String(row.payment_terms_days),
+    maxOpenOrdersPerBuyer:
+      row.max_open_orders_per_buyer === null ? "" : String(row.max_open_orders_per_buyer),
+    taxProfile: taxProfileFromRow(row),
+  };
+}
+
+/**
+ * Warunki, od których startuje formularz pakietu `packageId` (`null` = nowy).
+ *
+ * ZAPISANY PAKIET BEZ WIERSZA W ODPOWIEDZI TO WARUNKI NIEZNANE, nie domyślne -
+ * np. pakiet założony przed chwilą, zanim lista warunków zdążyła się odświeżyć.
+ */
+export function packageTermsForDraft(
+  packageId: string | null,
+  lookup: PackageTermsLookup,
+): PackageTermsDraft | null {
+  if (lookup.status !== "ready") return null;
+  if (packageId === null) return defaultPackageTerms();
+  const row = lookup.byPackage.get(packageId);
+  return row === undefined ? null : packageTermsDraftFromRow(row);
 }
 
 export function emptyPackageDraft(
   sortOrder: number,
-  timeZone: string | null | undefined,
+  terms: PackageTermsDraft | null = null,
 ): PackageDraft {
   return {
     id: null,
@@ -84,7 +198,7 @@ export function emptyPackageDraft(
     descriptionEn: "",
     audience: "company",
     seats: "5",
-    priceCents: "0",
+    price: "0",
     currency: "PLN",
     quota: "",
     salesFrom: "",
@@ -93,18 +207,20 @@ export function emptyPackageDraft(
     requiresVerification: false,
     isActive: true,
     sortOrder: String(sortOrder),
-    timeZone: eventTimeZone({ timezone: timeZone }),
-    savedTimes: {},
+    terms,
   };
 }
 
+/**
+ * Wiersz bazy -> formularz. Cena z groszy na jednostkę główną („89900" ->
+ * „899,00"); separator dobiera wołający do języka interfejsu, a parser
+ * przyjmuje oba, więc wybór nie zmienia kwoty.
+ */
 export function packageDraftFromRow(
   row: EventPackageRow,
-  timeZone: string | null | undefined,
+  terms: PackageTermsDraft | null = null,
+  decimalSeparator: MoneyDecimalSeparator = ",",
 ): PackageDraft {
-  const zone = eventTimeZone({ timezone: timeZone });
-  const salesFrom = canonicalInstant(row.sales_from);
-  const salesTo = canonicalInstant(row.sales_to);
   return {
     id: row.id,
     key: row.key,
@@ -117,7 +233,7 @@ export function packageDraftFromRow(
       ? (row.audience as PackageAudience)
       : "company",
     seats: String(row.seats ?? 1),
-    priceCents: String(row.price_cents ?? 0),
+    price: centsToMoneyInput(row.price_cents ?? 0, decimalSeparator),
     currency: (TICKET_CURRENCIES as readonly string[]).includes(row.currency)
       ? (row.currency as TicketCurrency)
       : "PLN",
@@ -128,8 +244,7 @@ export function packageDraftFromRow(
     requiresVerification: row.requires_verification,
     isActive: row.is_active,
     sortOrder: String(row.sort_order ?? 100),
-    timeZone: zone,
-    savedTimes: { salesFrom, salesTo },
+    terms,
   };
 }
 
@@ -145,6 +260,50 @@ function intOrNull(value: string): number | null {
   if (!/^-?\d+$/.test(trimmed)) return null;
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function inRange(value: number | null, min: number, max: number): value is number {
+  return value !== null && value >= min && value <= max;
+}
+
+/**
+ * Pierwszy powód, dla którego warunki zakupu nie mogą zostać zapisane.
+ *
+ * ODMOWA, NIE PRZYCIĘCIE. „0" dni albo „150" zamówień nie zamienia się po
+ * cichu w najbliższą dopuszczalną wartość - organizator dostaje zdanie przy
+ * polu i sam decyduje, co miał na myśli.
+ */
+function packageTermsIssue(terms: PackageTermsDraft): PackageDraftIssue | null {
+  const days = intOrNull(terms.paymentTermsDays);
+  if (!inRange(days, PACKAGE_MIN_PAYMENT_TERMS_DAYS, PACKAGE_MAX_PAYMENT_TERMS_DAYS)) {
+    return {
+      field: "paymentTermsDays",
+      errorKey: "invalidRequest",
+      messageKey: `${EDITOR}.paymentTermsDaysRange`,
+      params: { min: PACKAGE_MIN_PAYMENT_TERMS_DAYS, max: PACKAGE_MAX_PAYMENT_TERMS_DAYS },
+    };
+  }
+  if (terms.maxOpenOrdersPerBuyer.trim() !== "") {
+    const limit = intOrNull(terms.maxOpenOrdersPerBuyer);
+    if (!inRange(limit, PACKAGE_MIN_OPEN_ORDERS, PACKAGE_MAX_OPEN_ORDERS)) {
+      return {
+        field: "maxOpenOrdersPerBuyer",
+        errorKey: "invalidRequest",
+        messageKey: `${EDITOR}.maxOpenOrdersRange`,
+        params: { min: PACKAGE_MIN_OPEN_ORDERS, max: PACKAGE_MAX_OPEN_ORDERS },
+      };
+    }
+  }
+  // Zdania przy polach profilu rysuje `TaxProfileFields` (z liczbą znaków do
+  // skrócenia); tutaj wystarczy, że błąd ZATRZYMUJE zapis i wskazuje pole.
+  const tax = taxProfileIssues(terms.taxProfile);
+  if (tax.stripeTaxCode === true) {
+    return { field: "stripeTaxCode", errorKey: "invalidTaxCode" };
+  }
+  if (tax.vatExemptBasis === true) {
+    return { field: "vatExemptBasis", errorKey: "invalidExemptBasis" };
+  }
+  return null;
 }
 
 export function packageDraftIssue(draft: PackageDraft): PackageDraftIssue | null {
@@ -172,9 +331,19 @@ export function packageDraftIssue(draft: PackageDraft): PackageDraftIssue | null
     return { field: "seats", errorKey: "packageSeatsRange" };
   }
 
-  const price = intOrNull(draft.priceCents);
-  if (price === null || price < 0 || price > TICKET_MAX_PRICE_CENTS) {
-    return { field: "priceCents", errorKey: "packagePriceRange" };
+  // Puste pole, minus, litery i zapis niejednoznaczny („8,999") dostają zdanie
+  // o formacie kwoty w walucie pakietu (klucz per waluta, bo „w złotych" /
+  // „w euro" odmienia się inaczej niż kod waluty). Sufit liczymy w groszach.
+  const price = parseMoneyInput(draft.price);
+  if (price === null) {
+    return {
+      field: "price",
+      errorKey: "packagePriceRange",
+      messageKey: `${EDITOR}.priceFormat.${draft.currency}`,
+    };
+  }
+  if (price > TICKET_MAX_PRICE_CENTS) {
+    return { field: "price", errorKey: "packagePriceRange" };
   }
 
   if (draft.quota.trim() !== "") {
@@ -200,7 +369,26 @@ export function packageDraftIssue(draft: PackageDraft): PackageDraftIssue | null
     return { field: "sortOrder", errorKey: "packageSortRange" };
   }
 
-  return null;
+  return draft.terms === null ? null : packageTermsIssue(draft.terms);
+}
+
+/**
+ * Warunki szkicu -> ładunek. Warunki, których nie da się przeczytać, NIE jadą
+ * (`null`), zamiast jechać wartością zastępczą: wołający, który pominął
+ * `packageDraftIssue`, zostawia wtedy kolumny bez zmian, a nie wpisuje
+ * „bez limitu" w miejsce literówki.
+ */
+function packageTermsToInput(terms: PackageTermsDraft | null): EventPackageTermsInput | null {
+  if (terms === null || packageTermsIssue(terms) !== null) return null;
+  const days = intOrNull(terms.paymentTermsDays);
+  if (days === null) return null;
+  return {
+    admitBeforePayment: terms.admitBeforePayment,
+    paymentTermsDays: days,
+    maxOpenOrdersPerBuyer:
+      terms.maxOpenOrdersPerBuyer.trim() === "" ? null : intOrNull(terms.maxOpenOrdersPerBuyer),
+    tax: taxProfileToPayload(terms.taxProfile),
+  };
 }
 
 export function packageDraftToInput(draft: PackageDraft, eventId: string): EventPackageInput {
@@ -215,7 +403,7 @@ export function packageDraftToInput(draft: PackageDraft, eventId: string): Event
     descriptionEn: draft.descriptionEn.trim(),
     audience: draft.audience,
     seats: intOrNull(draft.seats) ?? 1,
-    priceCents: intOrNull(draft.priceCents) ?? 0,
+    priceCents: parseMoneyInput(draft.price) ?? 0,
     currency: draft.currency,
     quota: draft.quota.trim() === "" ? null : (intOrNull(draft.quota) ?? null),
     salesFrom: draftInstant(draft, "salesFrom"),
@@ -224,5 +412,6 @@ export function packageDraftToInput(draft: PackageDraft, eventId: string): Event
     requiresVerification: draft.requiresVerification,
     isActive: draft.isActive,
     sortOrder: intOrNull(draft.sortOrder) ?? 100,
+    terms: packageTermsToInput(draft.terms),
   };
 }

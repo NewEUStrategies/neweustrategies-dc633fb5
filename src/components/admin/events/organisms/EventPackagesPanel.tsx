@@ -49,6 +49,7 @@ import {
   useSaveEventPackage,
   useSetPackageOrderStatus,
 } from "@/lib/events/useEventPackages";
+import { usePackageTerms } from "@/lib/events/usePackageTerms";
 import { useEventTickets } from "@/lib/events/useEventRegistrations";
 
 function formatPrice(cents: number, currency: string, locale: string): string {
@@ -75,6 +76,10 @@ export function EventPackagesPanel({
   const { t, i18n } = useTranslation();
   const packagesQ = useEventPackages(eventId);
   const ticketsQ = useEventTickets(eventId);
+  // Warunki zakupu i profil podatkowy (TIX-07, TIX-09) - osobne RPC, bo lista
+  // pakietow ich nie niesie. Klucz siedzi w galezi wydarzenia, wiec zapis
+  // pakietu uniewaznia go razem z lista.
+  const packageTerms = usePackageTerms(eventId);
   const save = useSaveEventPackage(eventId);
   const remove = useDeleteEventPackage(eventId);
   const createOrder = useCreatePackageOrder(eventId);
@@ -119,6 +124,9 @@ export function EventPackagesPanel({
     });
   };
 
+  // Przelacznik niesie caly wiersz, ale BEZ warunkow zakupu i podatku: szkic
+  // z samego wiersza ma `terms: null`, wiec ladunek nie ma tych kluczy i baza
+  // zostawia je bez zmian - wycofanie oferty nie dotyka terminu platnosci.
   const toggleActive = (row: EventPackageRow, next: boolean) => {
     save.mutate(
       { ...packageDraftToInput(packageDraftFromRow(row, timezone), eventId), isActive: next },
@@ -392,7 +400,7 @@ export function EventPackagesPanel({
         nextSortOrder={nextSortOrder}
         isSaving={save.isPending}
         onSubmit={submit}
-        timezone={timezone}
+        packageTerms={packageTerms}
       />
 
       <EventPackageOrderDialog
@@ -401,6 +409,7 @@ export function EventPackagesPanel({
           if (!open) setOrderDialogPackage(null);
         }}
         packageId={orderDialogPackage ?? ""}
+        currency={rows.find((row) => row.id === orderDialogPackage)?.currency ?? "PLN"}
         isSaving={createOrder.isPending}
         onSubmit={submitOrder}
       />

@@ -4,6 +4,12 @@
 // nadpisaniami warunków oferty (negocjacja, rabat delegacyjny), więc pusty
 // input musi wysłać `null`, a nie `0` - zero zamknęłoby zamówienie bez ani
 // jednego miejsca albo wystawiło je za darmo.
+//
+// KWOTA W ZŁOTYCH (TIX-14a), jak cena pakietu w tym samym panelu. Pole w
+// groszach obok ceny w złotych to dwie jednostki na jednym ekranie: „899"
+// wpisane tu z myślą o złotych wystawiało zamówienie za 8,99 zł. Tekst zamienia
+// na grosze ten sam parser co cenę pakietu, a podgląd mówi kwotę w walucie
+// pakietu, zanim zamówienie powstanie.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -17,6 +23,8 @@ import {
 } from "@/components/ui/dialog";
 import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
+import { MoneyInputPreview } from "@/components/admin/events/atoms/MoneyInputPreview";
+import { parseMoneyInput } from "@/lib/billing/moneyInput";
 import type { PackageOrderInput } from "@/lib/events/packagesApi";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -25,15 +33,19 @@ interface OrderDraft {
   buyerEmail: string;
   buyerName: string;
   seatsTotal: string;
-  amountCents: string;
+  /** Kwota w jednostce głównej waluty pakietu („899,00"); puste = cena pakietu. */
+  amount: string;
   invoiceNote: string;
 }
+
+/** Górna granica nadpisanej kwoty: 100 000,00 w walucie pakietu. */
+const MAX_ORDER_AMOUNT_CENTS = 10_000_000;
 
 const EMPTY: OrderDraft = {
   buyerEmail: "",
   buyerName: "",
   seatsTotal: "",
-  amountCents: "",
+  amount: "",
   invoiceNote: "",
 };
 
@@ -56,10 +68,10 @@ export function orderDraftIssue(draft: OrderDraft): { field: OrderField; errorKe
       return { field: "seatsTotal", errorKey: "packageOrderSeats" };
     }
   }
-  if (draft.amountCents.trim() !== "") {
-    const amount = intOrNull(draft.amountCents);
-    if (amount === null || amount > 10_000_000) {
-      return { field: "amountCents", errorKey: "packageOrderAmount" };
+  if (draft.amount.trim() !== "") {
+    const amount = parseMoneyInput(draft.amount);
+    if (amount === null || amount > MAX_ORDER_AMOUNT_CENTS) {
+      return { field: "amount", errorKey: "packageOrderAmount" };
     }
   }
   return null;
@@ -69,6 +81,8 @@ interface EventPackageOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   packageId: string;
+  /** Waluta pakietu - podgląd kwoty mówi w niej, jak cena pakietu. */
+  currency: string;
   isSaving: boolean;
   onSubmit: (input: PackageOrderInput) => void;
 }
@@ -77,6 +91,7 @@ export function EventPackageOrderDialog({
   open,
   onOpenChange,
   packageId,
+  currency,
   isSaving,
   onSubmit,
 }: EventPackageOrderDialogProps) {
@@ -105,7 +120,7 @@ export function EventPackageOrderDialog({
       buyerEmail: draft.buyerEmail.trim(),
       buyerName: draft.buyerName.trim(),
       seatsTotal: draft.seatsTotal.trim() === "" ? null : intOrNull(draft.seatsTotal),
-      amountCents: draft.amountCents.trim() === "" ? null : intOrNull(draft.amountCents),
+      amountCents: draft.amount.trim() === "" ? null : parseMoneyInput(draft.amount),
       invoiceNote: draft.invoiceNote.trim(),
     });
   };
@@ -144,12 +159,13 @@ export function EventPackageOrderDialog({
             error={errorFor("seatsTotal")}
           />
           <AdminFormTextRow
-            label={t("adminEventRegistration.packages.orders.amountCents")}
+            label={t("adminEventRegistration.packages.orders.orderAmount")}
             hint={t("adminEventRegistration.packages.orders.amountHint")}
-            value={draft.amountCents}
-            onValueChange={(value) => set("amountCents", value)}
-            inputMode="numeric"
-            error={errorFor("amountCents")}
+            value={draft.amount}
+            onValueChange={(value) => set("amount", value)}
+            inputMode="decimal"
+            error={errorFor("amount")}
+            endAdornment={<MoneyInputPreview value={draft.amount} currency={currency} />}
           />
           <AdminFormTextRow
             label={t("adminEventRegistration.packages.orders.invoiceNote")}

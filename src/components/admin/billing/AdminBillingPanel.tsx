@@ -26,6 +26,7 @@ import { AdminTicketOrdersPanel } from "@/components/admin/billing/AdminTicketOr
 import { AdminPaymentOrdersPanel } from "@/components/admin/billing/AdminPaymentOrdersPanel";
 
 import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
+import { LegacyNonPaymentReconcileCard } from "@/components/admin/billing/LegacyNonPaymentReconcileCard";
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
 import { uiLocale } from "@/lib/i18n/format";
@@ -354,6 +355,9 @@ export function AdminBillingPanel() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Jednorazowe uzgodnienie anulowań sprzed reguły karencji (operator platformy). */}
+      <LegacyNonPaymentReconcileCard />
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="flex items-center justify-between gap-3">

@@ -246,6 +246,18 @@ vi.mock("@/lib/events/ticketPresentation", async (importOriginal) => {
   };
 });
 
+// Profil podatkowy (TIX-09) ma własne pliki (`ticketTaxProfileApi.test.ts`
+// i `EventTicketsPanelStudio.test.tsx`); tutaj hooki zapytań są atrapą, bo
+// panel renderuje się bez `QueryClientProvider`.
+vi.mock("@/lib/events/ticketTaxProfileApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/events/ticketTaxProfileApi")>();
+  return {
+    ...actual,
+    useTicketTaxProfiles: () => ({ data: new Map(), error: null, refetch: vi.fn() }),
+    useSaveTicketTaxProfile: () => ({ mutate: vi.fn(), isPending: false }),
+  };
+});
+
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
 import { DZIEN, freezeClock, relativeIso } from "@/test/time";

@@ -8,7 +8,8 @@
 //      Otwarcie istniejącego biletu zaczyna od JEGO wyglądu, nie od domyślnego.
 //   2. „BEZPŁATNY" ZERUJE WSZYSTKO, CO KOSZTUJE: cenę, cenę promocyjną i progi
 //      cenowe. Bilet oznaczony jako bezpłatny z ceną w ładunku pobrałby opłatę.
-//      Wpisanie kwoty > 0 samo przełącza typ na „płatny".
+//      Wpisanie kwoty > 0 (w złotych, TIX-14a) samo przełącza typ na „płatny",
+//      a kwota w połowie wpisywania („150,") nie przełącza go tam i z powrotem.
 //   3. ETYKIETA CENY MA DWA JĘZYKI i znika z formularza, gdy organizator ją
 //      wyłączy - pole bez skutku byłoby obietnicą bez pokrycia.
 //   4. ROZMIAR GRUPY JEST PRZYCIĘTY DO GRANIC (2-50), zanim dotrze do ładunku.
@@ -35,6 +36,7 @@ import {
   DEFAULT_TICKET_PRESENTATION,
   type TicketPresentation,
 } from "@/lib/events/ticketPresentation";
+import { EMPTY_TAX_PROFILE, type TaxProfileDraft } from "@/lib/events/taxProfileDraft";
 
 const h = vi.hoisted(() => ({
   lang: "pl" as string,
@@ -99,7 +101,10 @@ vi.mock("@/components/atoms/FormSelect", () => {
 
 import { EventTicketDialog } from "@/components/admin/events/molecules/EventTicketDialog";
 
-const onSubmit = vi.fn<(input: EventTicketInput, look: TicketPresentation) => void>();
+const onSubmit =
+  vi.fn<
+    (input: EventTicketInput, look: TicketPresentation, taxProfile: TaxProfileDraft | null) => void
+  >();
 const onDuplicate = vi.fn();
 
 const E = "adminEventRegistration.tickets.editor.";
@@ -123,6 +128,7 @@ function renderuj(props: Wejscie = {}) {
       nextSortOrder={30}
       isSaving={false}
       onSubmit={onSubmit}
+      taxProfile={{ status: "ready", value: EMPTY_TAX_PROFILE }}
       eventSlug={props.eventSlug}
       presentation={props.presentation}
       onDuplicate={props.withDuplicate === true ? onDuplicate : undefined}
@@ -300,18 +306,31 @@ describe("typ biletu - bezpłatny i płatny", () => {
   it("wpisanie kwoty > 0 samo przełącza na „płatny”, a zero z powrotem na „bezpłatny”", () => {
     renderuj();
 
-    wpisz(`${E}priceCents`, "15000");
+    wpisz(`${E}priceCents`, "150");
     expect(wybor(`${S}paid`)).toBeChecked();
 
-    wpisz(`${E}priceCents`, "0");
+    wpisz(`${E}priceCents`, "0,00");
+    expect(wybor(`${S}free`)).toBeChecked();
+  });
+
+  it("kwota w połowie wpisywania nie przełącza typu, a puste pole to „bezpłatny”", () => {
+    renderuj();
+
+    wpisz(`${E}priceCents`, "150");
+    wpisz(`${E}priceCents`, "150,");
+    expect(wybor(`${S}paid`)).toBeChecked();
+    wpisz(`${E}priceCents`, "150,5");
+    expect(wybor(`${S}paid`)).toBeChecked();
+
+    wpisz(`${E}priceCents`, "");
     expect(wybor(`${S}free`)).toBeChecked();
   });
 
   it("„bezpłatny” zeruje cenę i cenę promocyjną w ładunku", () => {
     renderuj();
     wypelnijMinimum();
-    wpisz(`${E}priceCents`, "15000");
-    wpisz(`${E}earlyBirdPriceCents`, "9900");
+    wpisz(`${E}priceCents`, "150,00");
+    wpisz(`${E}earlyBirdPriceCents`, "99,00");
 
     fireEvent.click(wybor(`${S}free`));
     zapisz();
@@ -326,7 +345,7 @@ describe("typ biletu - bezpłatny i płatny", () => {
 
     fireEvent.click(wybor(`${S}paid`));
     expect(wybor(`${S}paid`)).toBeChecked();
-    wpisz(`${E}priceCents`, "15000");
+    wpisz(`${E}priceCents`, "150");
     zapisz();
 
     expect(ostatni().input.priceCents).toBe(15000);
@@ -370,7 +389,7 @@ describe("podgląd biletu", () => {
   it("bez etykiety płatny bilet pokazuje kwotę w walucie biletu", () => {
     renderuj();
 
-    wpisz(`${E}priceCents`, "15000");
+    wpisz(`${E}priceCents`, "150");
 
     expect(within(podglad()).getByText(/150,00/)).toBeTruthy();
     expect(within(podglad()).queryByText(`${S}free`)).toBeNull();
@@ -378,7 +397,7 @@ describe("podgląd biletu", () => {
 
   it("własna etykieta wygrywa z kwotą", () => {
     renderuj();
-    wpisz(`${E}priceCents`, "15000");
+    wpisz(`${E}priceCents`, "150,00");
 
     wpisz(`${S}label (${S}tabPl)`, "od 99 zł");
 

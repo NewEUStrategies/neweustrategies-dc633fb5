@@ -15,13 +15,18 @@
 --   * pełny wiersz czytają wyłącznie: właściciel (get_own_author_profile),
 --     admin tego samego tenanta (admin_get_author_profile) - nie-admin
 --     i admin obcego tenanta dostają pusty zbiór, anon nie ma EXECUTE.
+--   * (20261012200000) widok jest TYLKO DO ODCZYTU dla anon/authenticated:
+--     domyślne uprawnienia schematu dawały im INSERT/UPDATE/DELETE na
+--     auto-aktualizowalnym widoku DEFINER (właściciel z BYPASSRLS), czyli
+--     zapis obok RLS tabeli bazowej; event_speaker_detail nie czyta
+--     contact_email z widoku (dryf drizzle 0150 na produkcji).
 --
 -- Konwencje: plik samowystarczalny (BEGIN/plan/finish/ROLLBACK), wcielenia
 -- przez SET LOCAL ROLE + request.jwt.claims, seed z wyłączonymi triggerami
 -- auth.users - jak w security_hardening_rls_test.sql.
 
 BEGIN;
-SELECT plan(16);
+SELECT plan(23);
 
 -- ── (1) Kształt publicznej projekcji: zero kanałów kontaktowych ─────────────
 SELECT hasnt_column(
@@ -43,6 +48,31 @@ SELECT hasnt_column(
 SELECT has_column(
   'public', 'author_profiles_public', 'media_contact_name',
   'widok author_profiles_public zachowuje media_contact_name (nazwa, nie kanał kontaktu)'
+);
+
+-- ── (1b) Widok tylko do odczytu dla ról klienckich (20261012200000) ─────────
+SELECT ok(
+  has_table_privilege('anon', 'public.author_profiles_public', 'SELECT')
+    AND has_table_privilege('authenticated', 'public.author_profiles_public', 'SELECT'),
+  'anon i authenticated czytają author_profiles_public (SELECT zostaje)'
+);
+SELECT ok(
+  NOT has_any_column_privilege('anon', 'public.author_profiles_public',
+    'INSERT, UPDATE, REFERENCES')
+    AND NOT has_table_privilege('anon', 'public.author_profiles_public',
+      'DELETE, TRUNCATE, TRIGGER'),
+  'anon NIE ma żadnego prawa zapisu do author_profiles_public (ani na widoku, ani kolumnowo)'
+);
+SELECT ok(
+  NOT has_any_column_privilege('authenticated', 'public.author_profiles_public',
+    'INSERT, UPDATE, REFERENCES')
+    AND NOT has_table_privilege('authenticated', 'public.author_profiles_public',
+      'DELETE, TRUNCATE, TRIGGER'),
+  'authenticated NIE ma żadnego prawa zapisu do author_profiles_public (ani na widoku, ani kolumnowo)'
+);
+SELECT ok(
+  pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) !~ 'contact_email',
+  'event_speaker_detail() nie czyta contact_email (e-mail autora nie wychodzi oknem prelegenta)'
 );
 
 -- ── (2) Privacy by default ──────────────────────────────────────────────────
@@ -164,6 +194,34 @@ SELECT is(
      WHERE user_id = 'e0000000-0000-0000-0000-000000000001'),
   1,
   'anon widzi publiczny profil autora w author_profiles_public (projekcja bez kolumn kontaktowych)'
+);
+
+-- ── (10) Zapis przez widok odrzucony, zanim dotknie tabeli bazowej ──────────
+-- Widok DEFINER sprawdza tabelę bazową jako właściciel (BYPASSRLS), więc
+-- jedyną zaporą jest brak praw zapisu do samego widoku: 42501.
+SELECT throws_ok(
+  $$UPDATE public.author_profiles_public SET job_title = 'Hijacked'
+      WHERE user_id = 'e0000000-0000-0000-0000-000000000001'$$,
+  '42501', NULL,
+  'anon NIE nadpisze publicznego profilu autora przez author_profiles_public'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"e0000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+
+SELECT throws_ok(
+  $$DELETE FROM public.author_profiles_public
+      WHERE user_id = 'e0000000-0000-0000-0000-000000000001'$$,
+  '42501', NULL,
+  'zalogowany czytelnik NIE usunie cudzego profilu autora przez author_profiles_public'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.author_profiles_public (user_id, tenant_id, is_public, job_title)
+      VALUES ('e0000000-0000-0000-0000-000000000003',
+              'f6666666-6666-6666-6666-666666666666', true, 'Planted')$$,
+  '42501', NULL,
+  'zalogowany czytelnik NIE wstawi profilu (także w obcym tenancie) przez author_profiles_public'
 );
 
 SELECT * FROM finish();

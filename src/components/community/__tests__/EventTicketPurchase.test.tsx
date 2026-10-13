@@ -538,6 +538,18 @@ describe("kod rabatowy: nasze pole, nie pole operatora", () => {
     expect(screen.queryByText(realT("pl")("eventRegistration.payment.promoError"))).toBeNull();
   });
 
+  it("kod, który nie łączy się z promocją biletu, ma własne zdanie (TIX-13a)", async () => {
+    h.checkout.mockResolvedValue({ ok: false, mode: "coupon", error: "coupon_not_combinable" });
+    renderPurchase();
+    const button = await buyButton();
+    fireEvent.change(codeInput(), { target: { value: "LATO" } });
+    fireEvent.click(button);
+    expect(
+      await screen.findByText(realT("pl")("eventRegistration.payment.promoNotCombinable")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(realT("pl")("eventRegistration.payment.promoError"))).toBeNull();
+  });
+
   it("pole mówi po angielsku na angielskiej stronie", async () => {
     h.lang = "en";
     renderPurchase({ lang: "en" });

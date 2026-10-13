@@ -9,9 +9,11 @@ import {
   PAYMENT_GRACE_DAYS,
   accessActiveAt,
   accessPeriodFromEvent,
+  effectiveCancellationReason,
   isDelinquentSubscriptionStatus,
   isEntitledSubscriptionStatus,
   isNonPaymentCancellation,
+  paymentCoversPeriod,
   paymentGraceEnd,
 } from "@/lib/billing/accessPeriod";
 
@@ -187,5 +189,46 @@ describe("karencja płatności", () => {
     expect(["past_due", "unpaid"].every(isDelinquentSubscriptionStatus)).toBe(true);
     expect(isNonPaymentCancellation("cancellation_requested")).toBe(false);
     expect(isNonPaymentCancellation(null)).toBe(false);
+  });
+});
+
+// Anulowanie bez powodu u operatora (stare wersje API, dawne anulowania):
+// kotwica karencji w wierszu bez zapłaty za bieżący okres to koniec
+// windykacji - inaczej ponowne `deleted` cofało przycięcie do końca roku.
+describe("powód anulowania bez `cancellation_details`", () => {
+  it("powód operatora zawsze wygrywa", () => {
+    expect(
+      effectiveCancellationReason({
+        reason: "cancellation_requested",
+        firstPaymentFailedAt: inDays(-5),
+        periodStart: inDays(-5),
+      }),
+    ).toBe("cancellation_requested");
+  });
+
+  it("brak powodu + kotwica bez zapłaty za okres = brak płatności; bez kotwicy - rezygnacja", () => {
+    const base = { firstPaymentFailedAt: inDays(-5), periodStart: inDays(-5) };
+    expect(effectiveCancellationReason({ ...base, lastPaymentAt: inDays(-370) })).toBe(
+      "payment_failed",
+    );
+    expect(effectiveCancellationReason({ ...base, lastPaymentAt: null })).toBe("payment_failed");
+    expect(effectiveCancellationReason({ ...base, firstPaymentFailedAt: null })).toBeNull();
+  });
+
+  it("zapłata zaksięgowana w bieżącym okresie znosi wnioskowanie z kotwicy", () => {
+    expect(
+      effectiveCancellationReason({
+        firstPaymentFailedAt: inDays(-5),
+        periodStart: inDays(-5),
+        lastPaymentAt: inDays(-1),
+      }),
+    ).toBeNull();
+  });
+
+  it("zapłata pokrywa okres od jego początku; bez którejkolwiek daty - nie", () => {
+    expect(paymentCoversPeriod(inDays(-5), inDays(-5))).toBe(true);
+    expect(paymentCoversPeriod(inDays(-6), inDays(-5))).toBe(false);
+    expect(paymentCoversPeriod(null, inDays(-5))).toBe(false);
+    expect(paymentCoversPeriod(inDays(-1), null)).toBe(false);
   });
 });

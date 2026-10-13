@@ -9,9 +9,14 @@
 // jego powstania edycja biletu PRZENOSI istniejące przypisanie bez zmian,
 // zamiast po cichu je zerować przy każdym zapisie nazwy.
 //
-// TERMINY SĄ ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15). Strefa przychodzi
-// od rodzica (`timezone`), szkic ją niesie, a pod każdym polem daty stoi
-// „Godzina w strefie …" - albo zdanie o luce/zakładce zmiany czasu.
+// CENY W ZŁOTYCH, NIE W GROSZACH (TIX-14a). Każde pole ceny (bazowa, promocyjna,
+// progi) przyjmuje kwotę w jednostce głównej waluty i ma obok podgląd kwoty
+// liczony tym samym parserem, którym szkic liczy grosze.
+//
+// PROFIL PODATKOWY (TIX-09) PRZYCHODZI OD RODZICA jako stan zapytania i wraca
+// TRZECIM argumentem `onSubmit` - wyłącznie wtedy, gdy redaktor go zmienił.
+// Szkic profilu startuje od wartości zapisanej dopiero, gdy ta się wczyta;
+// odświeżenie listy w tle nie nadpisuje już wpisanych zmian.
 import { clampGroupSize } from "@/lib/events/ticketTaxGroup";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -41,6 +46,8 @@ import {
 } from "@/lib/events/ticketPresentation";
 import { toast } from "sonner";
 import { EventTicketPhasesEditor } from "@/components/admin/events/molecules/EventTicketPhasesEditor";
+import { TaxProfileFields } from "@/components/admin/events/molecules/TaxProfileFields";
+import { MoneyInputPreview } from "@/components/admin/events/atoms/MoneyInputPreview";
 import {
   TICKET_ACCESS_CODE_MAX,
   TICKET_CURRENCIES,
@@ -51,13 +58,25 @@ import {
   emptyTicketDraft,
   ticketDraftFromRow,
   ticketDraftIssue,
+  ticketDraftIssueMessage,
   ticketDraftToInput,
   type TicketCurrency,
   type TicketDraft,
   type TicketDraftField,
 } from "@/lib/events/ticketDraft";
+import { moneyDecimalSeparator, parseMoneyInput } from "@/lib/billing/moneyInput";
 import { formatMoney } from "@/lib/billing/types";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
+import {
+  EMPTY_TAX_PROFILE,
+  taxProfileIssues,
+  type TaxProfileDraft,
+} from "@/lib/events/taxProfileDraft";
+import {
+  ticketTaxProfileChanged,
+  type TicketTaxProfileState,
+} from "@/lib/events/ticketTaxProfileApi";
+import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
@@ -96,7 +115,21 @@ interface EventTicketDialogProps {
   /** Domyślna kolejność dla nowego biletu - koniec listy. */
   nextSortOrder: number;
   isSaving: boolean;
-  onSubmit: (input: EventTicketInput, presentation: TicketPresentation) => void;
+  /**
+   * `taxProfile` = profil do zapisu osobnym RPC po upsercie biletu albo `null`,
+   * gdy nie ma czego zapisywać (bez zmian, baza bez migracji, profil się nie
+   * wczytał).
+   */
+  onSubmit: (
+    input: EventTicketInput,
+    presentation: TicketPresentation,
+    taxProfile: TaxProfileDraft | null,
+  ) => void;
+  /**
+   * Profil podatkowy edytowanego biletu (TIX-09). Dla nowego biletu `ready`
+   * niesie `EMPTY_TAX_PROFILE` - tyle zapisze baza bez drugiego RPC.
+   */
+  taxProfile: TicketTaxProfileState;
   /** Slug wydarzenia - buduje bezpośredni link rejestracyjny biletu. */
   eventSlug?: string;
   /** Zapisana prezentacja edytowanego biletu (widoczność, etykieta, zapis grupowy). */
@@ -115,6 +148,7 @@ export function EventTicketDialog({
   nextSortOrder,
   isSaving,
   onSubmit,
+  taxProfile,
   eventSlug,
   presentation,
   onDuplicate,
@@ -124,8 +158,12 @@ export function EventTicketDialog({
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const uiLang: "pl" | "en" = i18n.language.startsWith("en") ? "en" : "pl";
-  const zone = eventTimeZone({ timezone });
-  const [draft, setDraft] = useState<TicketDraft>(() => emptyTicketDraft(nextSortOrder, zone));
+  // Kwota z bazy wraca do pola z separatorem języka interfejsu; parser i tak
+  // przyjmuje oba, więc przełączenie języka nie zmienia zapisanej kwoty.
+  const decimalSeparator = moneyDecimalSeparator(uiLang);
+  const decimalSeparatorRef = useRef(decimalSeparator);
+  decimalSeparatorRef.current = decimalSeparator;
+  const [draft, setDraft] = useState<TicketDraft>(() => emptyTicketDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
   const [look, setLook] = useState<TicketPresentation>(DEFAULT_TICKET_PRESENTATION);
   const [contentLang, setContentLang] = useState<"pl" | "en">("pl");
@@ -133,6 +171,11 @@ export function EventTicketDialog({
   const groupsQ = useEventGroups(eventId, open);
   const presentationRef = useRef(presentation);
   presentationRef.current = presentation;
+  // Profil podatkowy: `taxSaved` = wartość zapisana, od której liczymy zmianę;
+  // `null` = jeszcze nie wiemy (wczytywanie, migracja, awaria) i NIE zapisujemy.
+  const [taxSaved, setTaxSaved] = useState<TaxProfileDraft | null>(null);
+  const [taxDraft, setTaxDraft] = useState<TaxProfileDraft>(EMPTY_TAX_PROFILE);
+  const taxReady = taxProfile.status === "ready" ? taxProfile.value : null;
 
   // Szkic odtwarzamy przy KAŻDYM otwarciu, nie tylko przy zmianie biletu:
   // porzucone zmiany nie mogą wrócić do formularza następnego biletu.
@@ -158,18 +201,33 @@ export function EventTicketDialog({
     const row = ticketRef.current;
     const next =
       row === null
-        ? emptyTicketDraft(nextSortOrderRef.current, zoneRef.current)
-        : ticketDraftFromRow(row, zoneRef.current);
+        ? emptyTicketDraft(nextSortOrderRef.current)
+        : ticketDraftFromRow(row, decimalSeparatorRef.current);
     setDraft(next);
-    setPaid(next.priceCents.trim() !== "" && next.priceCents.trim() !== "0");
+    setPaid((parseMoneyInput(next.price) ?? 0) > 0);
     setLook(presentationRef.current ?? DEFAULT_TICKET_PRESENTATION);
     setContentLang("pl");
     setTouched(false);
+    setTaxSaved(null);
+    setTaxDraft(EMPTY_TAX_PROFILE);
   }, [open, ticketId]);
 
+  // Profil wczytany PO otwarciu (albo od razu) staje się punktem odniesienia
+  // RAZ na otwarcie - kolejna odpowiedź zapytania (odświeżenie w tle) trafia
+  // tu z `taxSaved !== null` i nie rusza tego, co redaktor już wpisał.
+  useEffect(() => {
+    if (!open || taxSaved !== null || taxReady === null) return;
+    setTaxSaved(taxReady);
+    setTaxDraft(taxReady);
+  }, [open, taxSaved, taxReady]);
+
   const issue = ticketDraftIssue(draft);
-  const errorFor = (field: TicketDraftField): string | null =>
-    touched && issue?.field === field ? t(`adminEventRegistration.errors.${issue.errorKey}`) : null;
+  const taxInvalid = taxSaved !== null && Object.keys(taxProfileIssues(taxDraft)).length > 0;
+  const errorFor = (field: TicketDraftField): string | null => {
+    if (!touched || issue?.field !== field) return null;
+    const message = ticketDraftIssueMessage(issue);
+    return message.params === undefined ? t(message.key) : t(message.key, message.params);
+  };
 
   const set = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
@@ -185,7 +243,12 @@ export function EventTicketDialog({
       if (issue.field.endsWith("En")) setContentLang("en");
       return;
     }
-    onSubmit(ticketDraftToInput(draft, eventId), look);
+    // Zły kod podatkowy albo za długa podstawa zatrzymują CAŁY zapis: bilet
+    // zapisany bez profilu, o który redaktor prosił, rozjechałby fakturę z kasą.
+    if (taxInvalid) return;
+    const taxToSave =
+      taxSaved !== null && ticketTaxProfileChanged(taxSaved, taxDraft) ? taxDraft : null;
+    onSubmit(ticketDraftToInput(draft, eventId), look, taxToSave);
   };
 
   const isNew = draft.id === null;
@@ -194,11 +257,13 @@ export function EventTicketDialog({
   const choosePaid = (next: boolean) => {
     setPaid(next);
     if (!next) {
-      set("priceCents", "0");
-      set("earlyBirdPriceCents", "");
+      set("price", "0");
+      set("earlyBirdPrice", "");
       set("phases", []);
     }
   };
+  const priceCents = parseMoneyInput(draft.price);
+  const isPaidPrice = paid && priceCents !== null && priceCents > 0;
   const registrationUrl =
     !isNew && eventSlug !== undefined && eventSlug !== ""
       ? ticketRegistrationUrl(eventSlug, draft.key)
@@ -416,14 +481,19 @@ export function EventTicketDialog({
               <AdminFormTextRow
                 label={t("adminEventRegistration.tickets.editor.priceCents")}
                 hint={t("adminEventRegistration.tickets.editor.priceHint")}
-                value={draft.priceCents}
+                value={draft.price}
                 onValueChange={(value) => {
-                  set("priceCents", value);
-                  const cents = Number(value.trim());
-                  setPaid(value.trim() !== "" && Number.isFinite(cents) && cents !== 0);
+                  set("price", value);
+                  // Typ biletu idzie za kwotą, którą DA SIĘ przeczytać. Zapis
+                  // w połowie („15,") nie przełącza go tam i z powrotem przy
+                  // każdej literze; puste pole to bilet bez ceny.
+                  const cents = parseMoneyInput(value);
+                  if (cents !== null) setPaid(cents > 0);
+                  else if (value.trim() === "") setPaid(false);
                 }}
-                inputMode="numeric"
-                error={errorFor("priceCents")}
+                inputMode="decimal"
+                error={errorFor("price")}
+                endAdornment={<MoneyInputPreview value={draft.price} currency={draft.currency} />}
               />
               <AdminFormEnumRow<TicketCurrency>
                 label={t("adminEventRegistration.tickets.editor.currency")}
@@ -435,10 +505,13 @@ export function EventTicketDialog({
               <AdminFormTextRow
                 label={t("adminEventRegistration.tickets.editor.earlyBirdPriceCents")}
                 hint={t("adminEventRegistration.tickets.editor.earlyBirdHint")}
-                value={draft.earlyBirdPriceCents}
-                onValueChange={(value) => set("earlyBirdPriceCents", value)}
-                inputMode="numeric"
-                error={errorFor("earlyBirdPriceCents")}
+                value={draft.earlyBirdPrice}
+                onValueChange={(value) => set("earlyBirdPrice", value)}
+                inputMode="decimal"
+                error={errorFor("earlyBirdPrice")}
+                endAdornment={
+                  <MoneyInputPreview value={draft.earlyBirdPrice} currency={draft.currency} />
+                }
               />
               <AdminFormTextRow
                 label={t("adminEventRegistration.tickets.editor.earlyBirdUntil")}
@@ -457,9 +530,31 @@ export function EventTicketDialog({
                 phases={draft.phases}
                 onChange={(phases) => set("phases", phases)}
                 error={errorFor("phases")}
-                timeZone={draft.timeZone}
+                currency={draft.currency}
               />
             </AdminFormSection>
+
+            {taxProfile.status === "loading" || taxProfile.status === "ready" ? (
+              <TaxProfileFields
+                value={taxDraft}
+                onChange={setTaxDraft}
+                inherit="tenant"
+                showErrors={touched}
+                // Do wczytania wartości zapisanej pola są zgaszone: wpis na
+                // pustym szkicu zostałby i tak nadpisany wartością z bazy.
+                disabled={taxSaved === null}
+              />
+            ) : (
+              <AdminFormSection title={t("adminEventRegistration.taxProfile.section")} columns={1}>
+                <p className="text-sm text-muted-foreground" role="note">
+                  {taxProfile.status === "unavailable"
+                    ? t("adminEventRegistration.taxProfile.unavailable")
+                    : t("adminEventRegistration.tickets.editor.taxProfileLoadFailed", {
+                        reason: adminRegistrationErrorMessage(taxProfile.error),
+                      })}
+                </p>
+              </AdminFormSection>
+            )}
 
             <AdminFormSection
               title={t("adminEventRegistration.tickets.studio.other")}
@@ -584,16 +679,11 @@ export function EventTicketDialog({
                 !look.showPriceLabel
                   ? null
                   : (contentLang === "en" ? look.priceLabelEn : look.priceLabelPl).trim() ||
-                    (paid && Number(draft.priceCents) > 0
-                      ? formatMoney(Number(draft.priceCents), draft.currency, contentLang)
+                    (isPaidPrice && priceCents !== null
+                      ? formatMoney(priceCents, draft.currency, contentLang)
                       : t("adminEventRegistration.tickets.studio.free"))
               }
-              taxAdded={
-                look.showPriceLabel &&
-                look.taxMode === "exclusive" &&
-                paid &&
-                Number(draft.priceCents) > 0
-              }
+              taxAdded={look.showPriceLabel && look.taxMode === "exclusive" && isPaidPrice}
               salesTo={draft.salesTo}
               salesToSaved={draft.savedTimes.salesTo ?? null}
               timeZone={draft.timeZone}

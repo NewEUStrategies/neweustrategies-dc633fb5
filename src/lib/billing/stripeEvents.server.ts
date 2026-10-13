@@ -12,7 +12,11 @@
 // oznacza brak dopasowania do `BILLING_CATALOG` - dyspozytor i tak odrzuci
 // takie zdarzenie (patrz `readIds` w `webhookDispatch.server.ts`).
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
-import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDispatch.server";
+import type {
+  PendingUpdateAppliedData,
+  SubscriptionData,
+  TransactionData,
+} from "@/lib/billing/webhookDispatch.server";
 import { readPremiumNewsletterConsentMetadata } from "@/lib/billing/premiumNewsletter";
 
 /** Znormalizowane zdarzenie - gotowe do przekazania do `dispatchWebhookEvent`. */
@@ -121,6 +125,18 @@ function mapScheduledChange(sub: Raw, status: string): SubscriptionData["schedul
   const cancelAt = isoFromUnix(sub.cancel_at);
   if (cancelAt && status !== "canceled") return { action: "cancel", effectiveAt: cancelAt };
   return null;
+}
+
+/**
+ * Koniec zaplanowany DATĄ (`cancel_at` bez flagi) w sekundach operatora - ta
+ * sama reguła co `mapScheduledChange`, bez przejścia przez ISO, bo dyspozytor
+ * porównuje ją co do sekundy ze stanem operatora. `null` = brak daty, flaga
+ * (jej zdjęcie jedzie w oczekującej zmianie) albo subskrypcja zakończona.
+ */
+function scheduledCancelDate(sub: Raw): number | null {
+  if (sub.cancel_at_period_end === true || strOf(sub.status) === "canceled") return null;
+  const at = sub.cancel_at;
+  return typeof at === "number" && Number.isFinite(at) && at > 0 ? at : null;
 }
 
 /** Mapuje obiekt subskrypcji Stripe (API Basil) na `SubscriptionData`. */
@@ -311,6 +327,35 @@ function mapTransactionFromCheckoutSession(
   };
 }
 
+/**
+ * Początek okresu, za który faktura pobiera PEŁNĄ opłatę: pierwsza pozycja
+ * subskrypcji, która nie jest proratą (API Basil+:
+ * `parent.subscription_item_details.proration`, starsze ładunki: `type:
+ * "subscription"` i `proration`). Dopłata za zmianę w trakcie okresu (upgrade
+ * planu, więcej miejsc) ma same pozycje proraty („Unused time" / „Remaining
+ * time"), a zmiana interwału (miesięczny -> roczny) resetuje okres i obciąża
+ * za cały nowy - jej pozycja zaczyna się z początkiem nowego okresu. `null` =
+ * faktura nie ma takiej pozycji (albo ładunek nie niesie pozycji).
+ */
+export function invoiceFullPeriodStart(invoice: Raw): string | null {
+  const lines =
+    isRecord(invoice.lines) && Array.isArray(invoice.lines.data) ? invoice.lines.data : [];
+  for (const line of lines) {
+    if (!isRecord(line)) continue;
+    const parent = isRecord(line.parent) ? line.parent : null;
+    const itemDetails = isRecord(parent?.subscription_item_details)
+      ? parent?.subscription_item_details
+      : null;
+    const fullPeriod = itemDetails
+      ? itemDetails.proration === false
+      : line.type === "subscription" && line.proration === false;
+    if (!fullPeriod) continue;
+    const start = isoFromUnix(isRecord(line.period) ? line.period.start : null);
+    if (start) return start;
+  }
+  return null;
+}
+
 /** Mapuje `invoice.*` na `TransactionData` - dokłada pola potrzebne do dokumentu rozliczeniowego. */
 function mapTransactionFromInvoice(
   invoice: Raw,
@@ -345,8 +390,11 @@ function mapTransactionFromInvoice(
     idOf(invoice.subscription) ??
     idOf(subDetails?.subscription) ??
     idOf(lineSubDetails?.subscription);
+  // Klucze operacyjne aplikacji (`nes_*` - znacznik daty końca na fakturze
+  // odrzuconego upgrade'u) to nie dane zakupu: same nie mogą przesłonić
+  // metadanych subskrypcji (`userId`, `purpose`), jak niepusta lista faktury.
   const metadata =
-    isRecord(invoice.metadata) && Object.keys(invoice.metadata).length > 0
+    isRecord(invoice.metadata) && Object.keys(invoice.metadata).some((k) => !k.startsWith("nes_"))
       ? invoice.metadata
       : isRecord(subDetails?.metadata) && Object.keys(subDetails.metadata as Raw).length > 0
         ? (subDetails.metadata as Raw)
@@ -380,6 +428,10 @@ function mapTransactionFromInvoice(
     // jej odrzucenie zostawia subskrypcję `active` i NIE jest zaległością
     // odnowienia, więc windykacja musi ją odróżnić od `subscription_cycle`.
     billingReason: strOf(invoice.billing_reason),
+    // Czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty) -
+    // dopłata za zmianę interwału otwiera nim nowy, opłacony okres, a zwykła
+    // dopłata (same proraty) nie.
+    chargesFullPeriod: invoiceFullPeriodStart(invoice) !== null,
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
     // Stan to `invoice.status` operatora (draft/open/paid/void/uncollectible),
     // tłumaczony na stan rejestru w `billingDocumentStatus`. Wcześniej stało tu
@@ -601,6 +653,32 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
 
     case "customer.subscription.resumed":
       return { eventType: "subscription.resumed", data: mapStripeSubscription(object) };
+
+    // Zmiana natychmiastowa z odrzuconą dopłatą (`pending_if_incomplete`),
+    // opłacona później w oknie operatora: pozycje niosą już nową cenę/ilość.
+    // Osobny typ, bo poza lustrem stanu dyspozytor rozstrzyga harmonogram
+    // zachowany przy odmowie - dlatego jedzie tu harmonogram dołączony W
+    // CHWILI zastosowania (`PendingUpdateAppliedData`), zanim ktokolwiek
+    // zdąży założyć nowy - i datę końca `cancel_at` zachowaną przy odmowie
+    // upgrade'u: faktura, której zapłata zastosowała zmianę, i sama data.
+    case "customer.subscription.pending_update_applied": {
+      const data: PendingUpdateAppliedData = {
+        ...mapStripeSubscription(object),
+        scheduleId: idOf(object.schedule),
+        latestInvoiceId: idOf(object.latest_invoice),
+        cancelAt: scheduledCancelDate(object),
+      };
+      return { eventType: "subscription.pending_update_applied", data };
+    }
+
+    // Oczekująca zmiana wygasła bez zapłaty: pozycje zostały stare, a
+    // harmonogram (zaplanowana wcześniej zmiana) jest dokładnie tym, na co
+    // klient się umówił - nie ma czego rozstrzygać. Zwykła migawka stanu pod
+    // strażnikiem kolejności, jak `customer.subscription.updated`.
+    case "customer.subscription.pending_update_expired": {
+      const data = mapStripeSubscription(object);
+      return { eventType: subscriptionEventType(data.status || null), data };
+    }
 
     case "checkout.session.completed": {
       // Sesja "unpaid" (np. przelew w toku) nie ma jeszcze pieniędzy na koncie -

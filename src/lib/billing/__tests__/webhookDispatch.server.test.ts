@@ -2269,6 +2269,41 @@ describe("zdarzenie piaskownicy na wdrożeniu produkcyjnym (PAY-05)", () => {
     expect(rpc.calls).toHaveLength(0);
   });
 
+  it("oczekująca zmiana zastosowana w piaskownicy: ślad księgowy bez pytania operatora o harmonogram i datę końca", async () => {
+    // Bez bramki dyspozytor czytałby i ZMIENIAŁ piaskownicę operatora
+    // (zwolnienie harmonogramu, zdjęcie `cancel_at`) w odpowiedzi na jej
+    // webhook - produkcja tego nie robi (jak przy remisie i wyrównaniu).
+    const subscriptions = subscriptionsTable([storedSubscription({ environment: "sandbox" })]);
+
+    const outcome = await dispatchWebhookEvent({
+      eventId: "evt_sandbox_oczekujaca",
+      eventType: "subscription.pending_update_applied",
+      data: {
+        ...subscriptionEvent({ status: "active" }),
+        scheduleId: "sub_sched_atrapa_1",
+        latestInvoiceId: "in_atrapa_doplata",
+        cancelAt: 1_788_000_000,
+      },
+      environment: "sandbox",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(outcome).toBe("processed");
+    expect(stripeApi.calls).toHaveLength(0);
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "active",
+      last_event_id: "evt_sandbox_oczekujaca",
+    });
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(db.chainsFor("notifications")).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith("[payments] sandbox event on production deployment", {
+      eventId: "evt_sandbox_oczekujaca",
+      eventType: "subscription.pending_update_applied",
+      environment: "sandbox",
+      handling: "bookkeeping_only",
+    });
+  });
+
   it("rezygnacja z piaskownicy zapisuje stan, ale nie rusza uprawnień ani maili", async () => {
     const subscriptions = subscriptionsTable([storedSubscription({ environment: "sandbox" })]);
 
