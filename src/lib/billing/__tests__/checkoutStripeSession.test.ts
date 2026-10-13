@@ -700,12 +700,13 @@ describe("createCheckoutOrder - RODZAJ zamówienia planu wynika z PLANU (przegl�
   // powierzchnia ataku ręcznie złożonym POST-em.
   //
   // JAK NAPRAWIONE. Zakup planu ZAWSZE przechodzi przez `planCheckoutPricing`,
-  // a rozbieżność deklaracji z wyceną to odmowa `kind_mismatch` PRZED kuponem
-  // i zamówieniem.
-  it("`kind=one_time` z planem MIESIĘCZNYM: `kind_mismatch`, bez zamówienia, kuponu i operatora", async () => {
+  // a rozbieżność deklaracji z wyceną to odmowa PRZED kuponem i zamówieniem:
+  // plan cykliczny kupowany „jednorazowo" - `plan_not_one_time` (ten sam kod
+  // co strażnik bazy, TIX-02), kierunek odwrotny - `kind_mismatch`.
+  it("`kind=one_time` z planem MIESIĘCZNYM: `plan_not_one_time`, bez zamówienia, kuponu i operatora", async () => {
     await expect(
       call(planPayload({ kind: "one_time", coupon_code: "PARTNER-CEE" })),
-    ).rejects.toThrow("kind_mismatch");
+    ).rejects.toThrow("plan_not_one_time");
 
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
     expect(rpcCalls).toHaveLength(0);
@@ -718,7 +719,7 @@ describe("createCheckoutOrder - RODZAJ zamówienia planu wynika z PLANU (przegl�
       ok(planQuote({ tier_key: "pro", interval: "year", price_cents: 49000 })),
     );
 
-    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("kind_mismatch");
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_not_one_time");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 
@@ -782,16 +783,33 @@ describe("createCheckoutOrder - RODZAJ zamówienia planu wynika z PLANU (przegl�
 describe("createCheckoutOrder - jedno zamówienie, jeden przedmiot", () => {
   // Plan, treść i bilet wykluczają się: zamówienie wycenione jednym
   // przedmiotem i zrealizowane drugim to płatność za tanie, dostęp do drogiego.
+  // Odmowę daje walidator ładunku (`checkoutPayloadIssue`, TIX-01) - jeden kod
+  // na każdą mieszankę, zanim handler przeczyta cokolwiek z bazy.
   it.each([
-    ["plan + wydarzenie", { kind: "one_time", plan_id: PLAN_ID, event_id: EVENT_ID }],
+    [
+      "plan + wydarzenie",
+      { kind: "one_time", plan_id: PLAN_ID, event_id: EVENT_ID },
+      "ticket_payload_conflict",
+    ],
     [
       "plan + treść",
       { kind: "one_time", plan_id: PLAN_ID, entity_type: "post", entity_id: POST_ID },
+      "entity_payload_conflict",
     ],
-    ["subskrypcja + wydarzenie", { kind: "subscription", plan_id: PLAN_ID, event_id: EVENT_ID }],
+    [
+      "plan + sam rodzaj treści (bez identyfikatora)",
+      { kind: "one_time", plan_id: PLAN_ID, entity_type: "post" },
+      "entity_payload_conflict",
+    ],
+    [
+      "subskrypcja + wydarzenie",
+      { kind: "subscription", plan_id: PLAN_ID, event_id: EVENT_ID },
+      "subscription_payload_conflict",
+    ],
     [
       "treść + wydarzenie (bilet po cenie wpisu)",
       { kind: "one_time", entity_type: "post", entity_id: POST_ID, event_id: EVENT_ID },
+      "ticket_payload_conflict",
     ],
     [
       "treść + zgłoszenie etapu 4",
@@ -801,11 +819,12 @@ describe("createCheckoutOrder - jedno zamówienie, jeden przedmiot", () => {
         entity_id: POST_ID,
         registration_id: REGISTRATION_ID,
       },
+      "registration_requires_ticket",
     ],
-  ])("%s: `purchase_target_conflict` przed jakimkolwiek odczytem", async (_label, over) => {
+  ])("%s: odmowa przed jakimkolwiek odczytem", async (_label, over, reason) => {
     await expect(
       call({ success_path: "/x", cancel_path: "/x", environment: "sandbox", ...over }),
-    ).rejects.toThrow("purchase_target_conflict");
+    ).rejects.toThrow(reason);
     expect(chain.chains).toHaveLength(0);
     expect(rpcCalls).toHaveLength(0);
     expect(h.calls).toHaveLength(0);

@@ -30,7 +30,10 @@ const h = vi.hoisted(() => ({
   invoiceStatus: new Map<string, string>(),
   /** `checkout.sessions.list({ payment_intent })` - sesje znane operatorowi. */
   sessionsByIntent: new Map<string, Record<string, unknown>>(),
-  /** Pełna sala dla zakupu bez zgłoszenia (`assertSeatAvailable`). */
+  /**
+   * Pełna sala dla zakupu bez zgłoszenia - decyzja bazy pod blokadą
+   * (`_event_rsvp_claim_paid_seat`, TIX-08).
+   */
   seatsFull: false,
   /** Zlecenia zwrotu u operatora: parametry i opcje żądania (klucz idempotencji). */
   refundRequests: [] as Array<{ params: unknown; options: unknown }>,
@@ -249,7 +252,18 @@ beforeEach(() => {
   h.seatsFull = false;
   h.refundRequests.length = 0;
   const rpc = supabaseRpcStub();
-  rpc.setData("payments_apply_event_ticket_outcome", null);
+  // Zakup bez zgłoszenia z formularza: baza odsyła `registration_not_found`,
+  // a miejsce RSVP rozstrzyga `_event_rsvp_claim_paid_seat` (TIX-05, TIX-08).
+  rpc.setData("payments_apply_event_ticket_outcome", {
+    applied: false,
+    reason: "registration_not_found",
+  });
+  rpc.setResponse("_event_rsvp_claim_paid_seat", () => ({
+    data: h.seatsFull
+      ? { ok: false, reason: "event_full" }
+      : { ok: true, seated: true, already: false },
+    error: null,
+  }));
   rpc.setData("apply_b2b_coupon_effects", { applied: false, reason: "no_redemption" });
   rpc.setData("release_b2b_coupon_for_user", true);
   rpc.setData("enqueue_notification", "bell-1");

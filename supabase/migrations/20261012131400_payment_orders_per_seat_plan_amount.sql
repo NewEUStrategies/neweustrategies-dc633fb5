@@ -2,9 +2,9 @@
 --
 -- Obie kasy liczą teraz kwotę zamówienia z WIERSZA PLANU razem z liczbą
 -- miejsc (`planCheckoutPricing`: Zespół = stawka za miejsce x miejsca, z progiem
--- wolumenowym). Strażnik wstawienia z 20260730175806 porównywał kwotę z ceną
--- JEDNEGO miejsca, więc zamówienie na dwa miejsca kończyło się wyjątkiem
--- „amount_cents exceeds plan price" - błąd serwera zamiast wyceny.
+-- wolumenowym). Strażnik wstawienia porównywał kwotę z ceną JEDNEGO miejsca,
+-- więc zamówienie na dwa miejsca kończyło się wyjątkiem „amount_cents exceeds
+-- plan price" - błąd serwera zamiast wyceny.
 --
 -- Pułap dla planu za miejsce to cena miejsca x 100, czyli górny limit miejsc
 -- w jednym zamówieniu (`MAX_PLAN_SEATS` w planPricing.ts, ten sam co limit
@@ -13,7 +13,18 @@
 -- w katalogu wyłącznie warstwa `team` (`BILLING_CATALOG`, `perSeat: true`).
 -- Pozostałe plany zachowują dotychczasowy pułap: cena planu.
 --
--- Ciało funkcji poza tym jednym warunkiem jest identyczne z 20260730175806.
+-- RODZAJ ZAMÓWIENIA WYNIKA Z PLANU W OBIE STRONY (przegląd PAY-01, 0.0/7.0).
+-- `payment_orders_purchase_shape_guard` (TIX-02) odmawia planu cyklicznego
+-- kupionego jednorazowo (`plan_not_one_time`). Kierunek odwrotny - plan
+-- jednorazowy jako subskrypcja (miesięczny dostęp za produkt jednorazowy) -
+-- kasa odmawia kodem `kind_mismatch`; ten sam kod stoi tu jako drugi zamek.
+--
+-- Ciało: 20261012130300_payment_orders_purchase_shape_guard (TIX-01, TIX-02 bez
+-- zmian); zmiany oznaczone `PAY-01`. Migracja idzie PO strażniku kształtu,
+-- więc musi nieść całe jego ciało - inaczej cofnęłaby kontrole TIX.
+-- IDEMPOTENTNA: CREATE OR REPLACE.
+-- DOWÓD: supabase/tests/payment_orders_per_seat_amount_test.sql,
+--        supabase/tests/event_ticket_payment_binding_test.sql (TIX-01/02).
 CREATE OR REPLACE FUNCTION public.payment_orders_secure_insert()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -23,6 +34,7 @@ AS $function$
 DECLARE
   plan_row public.access_plans%ROWTYPE;
   plan_cap bigint;
+  v_meta jsonb;
 BEGIN
   -- Service role (webhooki, narzędzia serwerowe) omija walidację.
   IF current_setting('role', true) = 'service_role'
@@ -64,10 +76,19 @@ BEGIN
     IF NOT plan_row.active THEN
       RAISE EXCEPTION 'payment_orders.plan_id refers to an inactive plan';
     END IF;
+    -- TIX-02: zakup jednorazowy planu = dostep dozywotni, wiec wolno go zlozyc
+    -- wylacznie na plan jednorazowy. Plan cykliczny idzie subskrypcja.
+    IF NEW.kind::text = 'one_time' AND plan_row.interval::text <> 'one_time' THEN
+      RAISE EXCEPTION 'plan_not_one_time: a recurring plan cannot be bought as a one-time purchase';
+    END IF;
+    -- PAY-01: kierunek odwrotny - plan jednorazowy nie zakłada subskrypcji.
+    IF NEW.kind::text = 'subscription' AND plan_row.interval::text = 'one_time' THEN
+      RAISE EXCEPTION 'kind_mismatch: a one-time plan cannot be bought as a subscription';
+    END IF;
     -- Kwota nie może przewyższać ceny planu w jego walucie - dla planu za
-    -- miejsce ceny 100 miejsc (patrz nagłówek). Rabaty (kupony) obniżają
-    -- kwotę i pozostają dozwolone; przeliczenie na inną walutę prezentacji
-    -- odbywa się poza tym warunkiem.
+    -- miejsce ceny 100 miejsc (PAY-01, patrz nagłówek). Rabaty (kupony)
+    -- obniżają kwotę i pozostają dozwolone; przeliczenie na inną walutę
+    -- prezentacji odbywa się poza tym warunkiem.
     plan_cap := plan_row.price_cents::bigint
       * CASE WHEN plan_row.tier_key = 'team' THEN 100 ELSE 1 END;
     IF NEW.currency = upper(plan_row.currency) AND NEW.amount_cents > plan_cap THEN
@@ -78,6 +99,16 @@ BEGIN
   -- Spójność referencji do encji (bilet/wydarzenie itp.).
   IF NEW.entity_id IS NOT NULL AND NEW.entity_type IS NULL THEN
     RAISE EXCEPTION 'payment_orders.entity_type is required when entity_id is set';
+  END IF;
+
+  -- TIX-01: metadane biletu wylacznie na zamowieniu biletowym.
+  v_meta := COALESCE(NEW.metadata, '{}'::jsonb);
+  IF (v_meta ? 'event_id' OR v_meta ? 'registration_id' OR v_meta ? 'ticket_type_id')
+     AND (NEW.kind::text <> 'one_time' OR NEW.plan_id IS NOT NULL OR NEW.entity_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'ticket_order_conflict: ticket metadata on a plan or content order';
+  END IF;
+  IF v_meta ? 'registration_id' AND NOT (v_meta ? 'ticket_type_id' AND v_meta ? 'event_id') THEN
+    RAISE EXCEPTION 'ticket_order_conflict: a registration is paid only with its ticket and event';
   END IF;
 
   RETURN NEW;

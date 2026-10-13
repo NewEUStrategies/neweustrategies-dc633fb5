@@ -62,9 +62,15 @@ vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
 const admin = vi.hoisted(() => ({
   rpc: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
 }));
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { rpc: (fn: string, args: Record<string, unknown>) => admin.rpc!(fn, args) },
-}));
+vi.mock("@/integrations/supabase/client.server", async () => {
+  const { couponPolicyAdminFrom } = await import("@/test/billing/fixtures");
+  return {
+    supabaseAdmin: {
+      rpc: (fn: string, args: Record<string, unknown>) => admin.rpc!(fn, args),
+      from: couponPolicyAdminFrom(),
+    },
+  };
+});
 
 const { quoteEventTicketCheckout } = await import("@/lib/billing/eventTicketQuote.functions");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");

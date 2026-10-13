@@ -104,7 +104,7 @@ describe("loadCheckoutSettings", () => {
   });
 
   it("ZAPISANY wybór najemcy (`true`) jest honorowany - kasa nie przepisuje go po cichu (PAY-06, 0.4)", async () => {
-    // Migracja 20261012130100 zmienia wyłącznie DEFAULT kolumny. Wiersz
+    // Migracja 20261012131100 zmienia wyłącznie DEFAULT kolumny. Wiersz
     // zapisany panelem przed zmianą może nieść `true` bez świadomej decyzji,
     // ale tabela nie odróżnia go od włączenia celowego - przegląd tych
     // wierszy jest krokiem operatora, a kod obcego najemcy zatrzymuje

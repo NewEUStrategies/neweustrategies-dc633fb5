@@ -35,12 +35,27 @@
 // księgowania (pieniądze już pobrano), ale oznacza zamówienie do weryfikacji
 // i alarmuje administratorów najemcy. Kod promocyjny obcego najemcy albo spoza
 // zakresu kuponu WSTRZYMUJE nadanie (S8, `promotionCodeScope.server`).
+//
+// BILET: MIEJSCE DAJE TYLKO BAZA (audyt TIX-05, TIX-08). Odpowiedź
+// `payments_apply_event_ticket_outcome` rozstrzyga, co webhook robi dalej
+// (`paidTicketVerdict`): zgłoszenie z miejscem -> RSVP i mail; zakup bez
+// zgłoszenia -> miejsce RSVP pod blokadą wydarzenia
+// (`_event_rsvp_claim_paid_seat`, brak miejsca = zwrot); odmowa bazy (cudze
+// zgłoszenie, zła kwota, druga wpłata) -> BEZ RSVP i bez „miejsce
+// zarezerwowane", zwrot w kolejce i zawiadomienie kupującego oraz
+// organizatora. Błąd RPC to wyjątek (ponowienie), a nie cicha zgoda.
+//
+// Bilet za ZERO (kod 100%, TIX-13a) przechodzi tę samą ścieżkę rozliczenia
+// (`settleFreeTicketOrder`), tylko bez operatora - nie ma czego zwracać ani
+// sprawdzać u Stripe.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { TicketOutcomePayload } from "@/lib/events/registrationOutcomeNotify.server";
-import { paidSeatConfirmed } from "@/lib/events/paidAdmission";
+import type { AdjustmentOrder } from "@/lib/billing/refunds.server";
+import { isTicketPaymentRefusal, paidTicketVerdict } from "@/lib/events/paidAdmission";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import { entitlementForOrder } from "@/lib/billing/entitlement";
 import {
   NO_PROMOTION_CODE_REVIEW,
@@ -94,6 +109,38 @@ export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refund
  * zapisała wyłącznie identyfikatory operatora; `skipped` - nic się nie zmieniło.
  */
 export type SubscriptionSettleOutcome = "settled" | "stamped" | "skipped";
+
+/** Zamówienie w kształcie potrzebnym realizacji (odczyt z `payment_orders`). */
+interface FulfilOrderRow {
+  id: string;
+  user_id: string | null;
+  tenant_id: string;
+  plan_id: string | null;
+  kind: "subscription" | "one_time";
+  entity_type: "post" | "page" | "media" | null;
+  entity_id: string | null;
+  amount_cents: number;
+  currency: string | null;
+  metadata: Json | null;
+  environment?: string | null;
+  status?: string | null;
+  provider?: string | null;
+  refunded_amount_cents?: number | null;
+  provider_session_id?: string | null;
+  provider_intent_id?: string | null;
+  provider_payment_intent_id?: string | null;
+}
+
+const FULFIL_ORDER_COLUMNS =
+  "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency, metadata, environment, status, provider, refunded_amount_cents, provider_session_id, provider_intent_id, provider_payment_intent_id";
+
+/**
+ * Sposób rozliczenia: wpłata operatora (w środowisku zdarzenia - tam idzie
+ * zwrot i odczyt kodów promocyjnych) albo zamówienie darmowe (kod 100%,
+ * `settleFreeTicketOrder`) - to drugie nie ma czego zwracać ani sprawdzać
+ * u operatora.
+ */
+type SettlementMode = { provider: "stripe"; env: StripeEnv } | { provider: "coupon" };
 
 function str(source: Record<string, unknown> | null, key: string): string | null {
   const v = source?.[key];
@@ -157,12 +204,24 @@ function refundedInFull(order: {
 }
 
 /**
- * Statusy, z których wolno przejść na `paid`. NIE `refunded` (zwrot wyprzedził
- * realizację - pieniądze już wróciły) i NIE `canceled` (zamówienie zamknięte,
- * rezerwacja kuponu oddana). `failed` tak: porażka mogła dotyczyć wcześniejszej
- * próby, a operator potwierdza właśnie pobrane pieniądze.
+ * Statusy, z których wolno przejść na `paid` (domknięcie subskrypcji, bilet
+ * za zero). NIE `refunded` (zwrot wyprzedził realizację - pieniądze już
+ * wróciły) i NIE `canceled` (zamówienie zamknięte, rezerwacja kuponu oddana).
+ * `failed` tak: porażka mogła dotyczyć wcześniejszej próby, a operator
+ * potwierdza właśnie pobrane pieniądze. Wpłata za zamówienie jednorazowe -
+ * patrz `SETTLEABLE_STATUSES`.
  */
 const PAYABLE_STATUSES = ["pending", "processing", "failed"] as const;
+
+/**
+ * Statusy, z których WPŁATA OPERATORA za zamówienie jednorazowe przechodzi na
+ * `paid`: kasa w toku oraz `canceled` - opłacona sesja na anulowanym
+ * zamówieniu to realna wpłata, którą trzeba rozliczyć (#498). Nigdy
+ * `refunded` - zwrot nie wraca do `paid` (PAY-07, `refundedInFull`).
+ * Zamówienie darmowe (kod 100%) rozlicza się wyłącznie z `PAYABLE_STATUSES`:
+ * anulowane oddało już kod do puli, a pieniędzy, które trzeba rozliczyć, nie ma.
+ */
+const SETTLEABLE_STATUSES = [...PAYABLE_STATUSES, "canceled"] as const;
 
 /** Statusy kasy w toku - jedyne, które zamyka wygaśnięcie albo porażka płatności. */
 const OPEN_STATUSES = ["pending", "processing"] as const;
@@ -467,12 +526,14 @@ function asPayload(data: unknown): TicketOutcomePayload | null {
 const TRANSIENT_SQLSTATES: ReadonlySet<string> = new Set(["40P01", "40001"]);
 
 /**
- * Ostatnia bramka limitu miejsc - już po pobraniu pieniędzy.
+ * Brak miejsca po wpłacie za zakup BEZ zgłoszenia (RSVP) - już po pobraniu
+ * pieniędzy.
  *
  * Sprawdzenie przy tworzeniu zamówienia nie wystarcza: między nakładką
- * płatności a webhookiem ostatnie miejsce może zająć ktoś inny. Zamiast
- * sprzedać nieistniejące wejście zwracamy całą kwotę i zostawiamy zamówienie
- * jako zwrócone. Zwraca `true`, gdy zamówienie zostało zamknięte zwrotem.
+ * płatności a webhookiem ostatnie miejsce może zająć ktoś inny. Decyzję podjęła
+ * baza pod blokadą (`_event_rsvp_claim_paid_seat` -> `event_full`); tu zwracamy
+ * całą kwotę i zamykamy zamówienie. Zamówienie darmowe (kod 100%) nie ma czego
+ * zwracać u operatora: zostaje anulowane, a użycie kodu wraca do puli.
  *
  * KSIĘGI ZWROTU NA ZAMÓWIENIU (S3, 5.2 / 7.7). Stripe dosyła potem własne
  * `charge.refunded` tego samego zwrotu, a `refunds.server` znajduje zamówienie
@@ -482,65 +543,78 @@ const TRANSIENT_SQLSTATES: ReadonlySet<string> = new Set(["40P01", "40001"]);
  * całą intencję płatności) i intencję płatności - korekta operatora trafia
  * wtedy w bramkę powtórki i nie robi nic.
  */
-async function refundIfOversold(
+async function refundOversold(
   txn: OneTimeTransaction,
-  order: { id: string; user_id: string; tenant_id: string | null; plan_id: string | null },
-  eventId: string,
+  order: FulfilOrderRow,
   amountCents: number | null,
   currency: string,
-  env: StripeEnv,
-): Promise<boolean> {
+  mode: SettlementMode,
+): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
-
-  try {
-    await assertSeatAvailable(supabaseAdmin, eventId, order.user_id);
-    return false;
-  } catch (err) {
-    if (!(err instanceof Error) || err.message !== "event_full") throw err;
-  }
-
-  // Zwrot w ŚRODOWISKU ZDARZENIA, nie w domyślnym. `resolveEnvironment(null)`
-  // dawało `sandbox` wszędzie poza produkcją - podgląd z kluczami live zlecał
-  // zwrot transakcji live kluczem piaskownicy, operator odpowiadał
-  // „nie ma takiej płatności", a webhook kręcił się w ponowieniach.
-  const { refundTransactionFully } = await import("@/lib/billing/refundProvider.server");
-  const refund = await refundTransactionFully(env, txn.id, "oversold");
-  if (!refund.ok) {
-    // Zwrot nie przeszedł u operatora - nie wolno udawać, że sprawa jest
-    // zamknięta. Rzucamy, żeby webhook został ponowiony.
-    throw new Error(`one-time: oversold refund failed (${txn.id}): ${refund.error}`);
-  }
+  if (!order.user_id) return;
 
   const nowIso = new Date().toISOString();
-  const { error: flipErr } = await supabaseAdmin
-    .from("payment_orders")
-    .update({
-      status: "refunded",
-      provider: "stripe",
-      provider_intent_id: txn.id,
-      ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
-      ...(typeof amountCents === "number"
-        ? { amount_cents: amountCents, refunded_amount_cents: amountCents, currency }
-        : {}),
-      updated_at: nowIso,
-      ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
-    })
-    .eq("id", order.id);
-  if (flipErr) throw new Error(`one-time: oversold status flip failed: ${flipErr.message}`);
+  if (mode.provider === "coupon") {
+    const { error: flipErr } = await supabaseAdmin
+      .from("payment_orders")
+      .update({ status: "canceled", updated_at: nowIso })
+      .eq("id", order.id);
+    if (flipErr) throw new Error(`one-time: free order cancel failed: ${flipErr.message}`);
+    const couponId = str(asRecord(order.metadata), "coupon_id");
+    if (couponId) {
+      const { error: releaseErr } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
+        _tenant_id: order.tenant_id,
+        _user_id: order.user_id,
+        _coupon_id: couponId,
+        _order_id: order.id,
+      });
+      if (releaseErr) {
+        console.error("[payments] free order coupon release failed", order.id, releaseErr.message);
+      }
+    }
+  } else {
+    // Zwrot w ŚRODOWISKU ZDARZENIA, nie w domyślnym (PAY-14b).
+    // `resolveEnvironment(null)` dawało `sandbox` wszędzie poza produkcją -
+    // podgląd z kluczami live zlecał zwrot transakcji live kluczem piaskownicy,
+    // operator odpowiadał „nie ma takiej płatności", a webhook kręcił się
+    // w ponowieniach.
+    const { refundTransactionFully } = await import("@/lib/billing/refundProvider.server");
+    const refund = await refundTransactionFully(mode.env, txn.id, "oversold");
+    if (!refund.ok) {
+      // Zwrot nie przeszedł u operatora - nie wolno udawać, że sprawa jest
+      // zamknięta. Rzucamy, żeby webhook został ponowiony.
+      throw new Error(`one-time: oversold refund failed (${txn.id}): ${refund.error}`);
+    }
 
-  await applyTicketOutcome(order.id, "refunded");
+    const { error: flipErr } = await supabaseAdmin
+      .from("payment_orders")
+      .update({
+        status: "refunded",
+        provider: "stripe",
+        provider_intent_id: txn.id,
+        ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
+        ...(typeof amountCents === "number"
+          ? { amount_cents: amountCents, refunded_amount_cents: amountCents, currency }
+          : {}),
+        updated_at: nowIso,
+        ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
+      })
+      .eq("id", order.id);
+    if (flipErr) throw new Error(`one-time: oversold status flip failed: ${flipErr.message}`);
 
-  const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
-  await notifyRefundEmail({
-    userId: order.user_id,
-    planId: order.plan_id,
-    amountCents,
-    currency,
-    transactionId: txn.id,
-    accessUntil: nowIso,
-    idempotencySeed: `oversold:${order.id}`,
-  });
+    await applyTicketOutcome(order.id, "refunded");
+
+    const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
+    await notifyRefundEmail({
+      userId: order.user_id,
+      planId: order.plan_id,
+      amountCents,
+      currency,
+      transactionId: txn.id,
+      accessUntil: nowIso,
+      idempotencySeed: `oversold:${order.id}`,
+    });
+  }
 
   if (order.tenant_id) {
     await supabaseAdmin.from("notifications").insert({
@@ -549,25 +623,91 @@ async function refundIfOversold(
       kind: "billing",
       title_pl: "Brak wolnych miejsc - zwrot płatności",
       title_en: "Event sold out - payment refunded",
-      body_pl: "Ostatnie miejsce zajęto przed zaksięgowaniem płatności. Zwróciliśmy pełną kwotę.",
-      body_en: "The last seat was taken before your payment settled. We refunded the full amount.",
+      body_pl:
+        mode.provider === "coupon"
+          ? "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli."
+          : "Ostatnie miejsce zajęto przed zaksięgowaniem płatności. Zwróciliśmy pełną kwotę.",
+      body_en:
+        mode.provider === "coupon"
+          ? "The last seat was taken before your ticket was issued. Your code is usable again."
+          : "The last seat was taken before your payment settled. We refunded the full amount.",
       href: "/profile/tickets",
       icon: "receipt",
     });
   }
+}
 
-  return true;
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * Miejsce RSVP dla wpłaty bez zgłoszenia - JEDNA decyzja w bazie pod blokadą
+ * wiersza wydarzenia (TIX-08). Dwa webhooki o ostatnie miejsce nie przejdą
+ * już obu odczytów przed zapisem. `full` = zwrot.
+ *
+ * OKNO WDROŻENIA: bez funkcji w bazie (migracja przed kodem) zostaje dawny
+ * odczyt + zapis - bez blokady, ale nie gorszy niż przed zmianą.
+ */
+async function claimPaidRsvpSeat(
+  order: FulfilOrderRow,
+  eventId: string,
+): Promise<"seated" | "full"> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("_event_rsvp_claim_paid_seat", {
+    p_order_id: order.id,
+  });
+  if (!error) {
+    const verdict = asRecord(data);
+    if (verdict?.ok === true) return "seated";
+    if (verdict?.reason === "event_full") return "full";
+    throw new Error(`one-time: rsvp seat claim refused (${order.id}): ${String(verdict?.reason)}`);
+  }
+  if (!isMigrationPending(error)) {
+    throw new Error(`one-time: rsvp seat claim failed (${order.id}): ${error.message}`);
+  }
+
+  const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
+  try {
+    await assertSeatAvailable(supabaseAdmin, eventId, order.user_id as string);
+  } catch (err) {
+    if (err instanceof Error && err.message === "event_full") return "full";
+    throw err;
+  }
+  const { error: rsvpErr } = await supabaseAdmin.from("event_rsvps").upsert(
+    {
+      tenant_id: order.tenant_id,
+      event_id: eventId,
+      user_id: order.user_id as string,
+      status: "going",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "event_id,user_id" },
+  );
+  if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
+  return "seated";
 }
 
 /**
  * Przenosi wynik płatności na zgłoszenie uczestnika (potwierdzenie, brak
  * zapłaty, zwrot + promocja z listy rezerwowej). Jedna funkcja bazowa, więc
- * webhook i panel admina dają identyczny skutek. Fail-soft: zamówienie jest
- * już zaksięgowane, a brak zgłoszenia to normalny przypadek (RSVP bez
- * formularza).
+ * webhook i panel admina dają identyczny skutek. Brak zgłoszenia to normalny
+ * przypadek (RSVP bez formularza) - wraca jako `registration_not_found`.
  *
- * Zwraca ładunek RPC (albo `null` przy błędzie) - wołający czyta z niego, czy
- * wpłata dała miejsce (`registration_status`), zanim potwierdzi RSVP.
+ * BŁĄD RPC PRZY WPŁACIE RZUCA (TIX-05). Dotąd połykany błąd dawał `null`,
+ * a `null` czytało się jak „miejsce jest Twoje": kupujący dostawał RSVP i link
+ * wejścia, a zgłoszenie zostawało nieopłacone, bez kodu QR. Wyjątek zamienia
+ * się w 500, operator ponawia webhook (rozliczenie wpłaty jest idempotentne
+ * i biegnie od nowa), a funkcja bazowa - dla tego samego zamówienia też.
+ * Zwrot zostaje fail-soft (`null`): powtórka zwrotu kończy się `skipped`,
+ * zanim doszłaby tu drugi raz, więc wyjątek niczego by nie dokończył -
+ * zgłoszenie po awarii poprawia organizator. Zamknięcie kasy (wygaśnięcie,
+ * odrzucona płatność) rzuca na życzenie (`throwOnError`, 4.6).
+ *
+ * Zwraca ładunek RPC - wołający czyta z niego, czy wpłata dała miejsce
+ * (`paidTicketVerdict`), zanim potwierdzi RSVP.
  */
 export async function applyTicketOutcome(
   orderId: string,
@@ -605,29 +745,47 @@ export async function applyTicketOutcome(
   }
   if (error) {
     console.error("[payments] ticket outcome failed", orderId, outcome, error.message);
+    if (outcome === "paid") {
+      throw new Error(`one-time: ticket outcome failed (${orderId}): ${error.message}`);
+    }
     if (options.throwOnError) {
       throw new Error(`ticket outcome failed (${orderId}, ${outcome}): ${error.message}`);
     }
     return null;
   }
   const payload = asPayload(data);
+  if (payload === null) {
+    if (outcome === "paid") throw new Error(`one-time: ticket outcome unreadable (${orderId})`);
+    return null;
+  }
   if (options.notify === false) return payload;
 
   // Powiadomienie idzie po zapisie i nigdy go nie unieważnia (fail-soft).
   try {
-    const { notifyTicketOutcome } = await import("@/lib/events/registrationOutcomeNotify.server");
-    await notifyTicketOutcome(payload ?? {});
+    const { notifyTicketOutcome, notifyTicketRefusal } =
+      await import("@/lib/events/registrationOutcomeNotify.server");
+    if (outcome === "paid" && isTicketPaymentRefusal(payload)) {
+      await notifyTicketRefusal(payload);
+    } else {
+      await notifyTicketOutcome(payload);
+    }
   } catch (err) {
     console.error("[payments] ticket outcome notify failed", orderId, err);
   }
 
   // BILETY Z KODEM QR po opłaceniu: płacący i każdy gość jego grupy dostaje
-  // osobny mail od razu. Bez warunku `applied` - ponowiony webhook musi móc
-  // dokończyć wysyłkę, a podwójnemu wydaniu zapobiega baza (zajęcie
-  // i `ticket_code_sent_at`). Czego ta ścieżka nie domknie, zbierze cron
-  // (`event-ticket-codes`). Wiersz w kolejce albo czekający na decyzję kodu
-  // nie dostanie - baza wydaje go wyłącznie zgłoszeniu z miejscem.
-  if (outcome === "paid" && typeof payload?.registration_id === "string") {
+  // osobny mail od razu. Wyłącznie po wpłacie, którą baza ZAPISAŁA na
+  // zgłoszeniu (`applied`) - odmowa (cudze zgłoszenie, druga wpłata) też niesie
+  // `registration_id`, ale kodu nie dostaje. Ponowiony webhook dokańcza
+  // wysyłkę (rozliczenie jest idempotentne), a podwójnemu wydaniu zapobiega
+  // baza (zajęcie i `ticket_code_sent_at`). Czego ta ścieżka nie domknie,
+  // zbierze cron (`event-ticket-codes`). Wiersz w kolejce albo czekający na
+  // decyzję kodu nie dostanie - baza wydaje go wyłącznie zgłoszeniu z miejscem.
+  if (
+    outcome === "paid" &&
+    payload.applied === true &&
+    typeof payload.registration_id === "string"
+  ) {
     const { issueAndSendTicketCodes } = await import("@/lib/events/ticketCodeNotify.server");
     await issueAndSendTicketCodes(payload.registration_id);
   }
@@ -872,25 +1030,26 @@ export async function settleSubscriptionCheckoutOrder(
   return changed ? "settled" : "skipped";
 }
 
-async function fulfilOrder(
-  txn: OneTimeTransaction,
-  orderId: string,
-  env: StripeEnv,
-): Promise<OneTimeOutcome> {
+async function loadOrder(orderId: string): Promise<FulfilOrderRow | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { grantEntitlement } = await import("@/lib/billing/grant.server");
-
   // `environment` (kolumna z 20260731220000) nie jest jeszcze w wygenerowanym
   // types.ts; nazwanie jej w .select() zatruwałoby typ całego wiersza, więc dla
   // tego odczytu rzutujemy klienta na luźny typ (konwencja jak invoice.server).
   const { data: order, error } = await (supabaseAdmin as unknown as SupabaseClient)
     .from("payment_orders")
-    .select(
-      "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, amount_cents, currency, metadata, environment, status, refunded_amount_cents, provider_session_id, provider_intent_id, provider_payment_intent_id",
-    )
+    .select(FULFIL_ORDER_COLUMNS)
     .eq("id", orderId)
     .maybeSingle();
   if (error) throw new Error(`one-time: order lookup failed: ${error.message}`);
+  return (order as FulfilOrderRow | null) ?? null;
+}
+
+async function fulfilOrder(
+  txn: OneTimeTransaction,
+  orderId: string,
+  env: StripeEnv,
+): Promise<OneTimeOutcome> {
+  const order = await loadOrder(orderId);
   if (!order) {
     console.warn("[payments] one-time: unknown order", orderId);
     return "skipped";
@@ -900,19 +1059,163 @@ async function fulfilOrder(
   // tego samego środowiska, w którym powstało. Bez tego sandboxowy webhook
   // (opłacony kartą testową) mógłby zrealizować realne zamówienie. Odpowiednik
   // `.eq("environment", env)` ze ścieżki subskrypcyjnej.
-  const orderEnv = (order as { environment?: string }).environment ?? "live";
+  const orderEnv = order.environment ?? "live";
   if (orderEnv !== env) {
     console.warn(
       `[payments] one-time: environment mismatch - order ${orderId} is '${orderEnv}', webhook is '${env}'; skipping`,
     );
     return "skipped";
   }
+  return (await settleOrder(txn, order, { provider: "stripe", env })).outcome;
+}
+
+/** Wynik rozliczenia darmowego zamówienia - kasa mówi z niego kupującemu prawdę. */
+export interface FreeTicketSettlement {
+  outcome: Exclude<OneTimeOutcome, "donation" | "held">;
+  /** Miejsce potwierdzone (zgłoszenie z miejscem albo RSVP przyznane pod blokadą). */
+  seated: boolean;
+}
+
+/**
+ * Zamówienie biletu za ZERO (kod 100%, TIX-13a) - rozliczenie bez operatora.
+ * Woła je kasa (`createCheckoutOrder`) zaraz po zarezerwowaniu użycia kodu,
+ * a ponawia tick zadań (`runUnsettledFreeTicketOrders`); reszta jest tą samą
+ * ścieżką co wpłata z webhooka: zgłoszenie, kod QR, RSVP, maile.
+ *
+ * PONOWIENIE. Darmowe zamówienie nie ma webhooka, który powtórzyłby rozliczenie
+ * urwane po księgowaniu - dlatego `paid` też przechodzi: cała ścieżka jest
+ * idempotentna dla tego samego zamówienia (RPC, klucze idempotencji maili,
+ * dzwonki na `newly_settled`), tak jak przy ponowionym webhooku.
+ *
+ * Inne zamówienie jest pomijane - ta funkcja nie może oznaczyć jako opłaconego
+ * niczego, za co ktoś powinien zapłacić: tylko zamówienie biletu za zero,
+ * założone z kodem (`provider = coupon`, `coupon_id` w metadanych), oczekujące
+ * albo już zaksięgowane - nigdy anulowane. Baza i tak porównuje kwotę z ceną
+ * biletu (`_event_ticket_order_mismatch`: kwota + rabat kodu >= cena).
+ */
+export async function settleFreeTicketOrder(orderId: string): Promise<FreeTicketSettlement> {
+  const order = await loadOrder(orderId);
+  const meta = asRecord(order?.metadata);
+  if (
+    !order ||
+    order.amount_cents !== 0 ||
+    order.kind !== "one_time" ||
+    (order.status !== "pending" && order.status !== "paid") ||
+    order.provider !== "coupon" ||
+    !str(meta, "event_id") ||
+    !str(meta, "coupon_id")
+  ) {
+    console.warn("[payments] free ticket order rejected", orderId);
+    return { outcome: "skipped", seated: false };
+  }
+  const settled = await settleOrder(
+    {
+      id: `free_${order.id}`,
+      amountCents: 0,
+      currency: order.currency,
+      customerEmail: null,
+      customData: null,
+    },
+    order,
+    { provider: "coupon" },
+  );
+  // `skipped` = zamówienie zamknięte między odczytem a księgowaniem - kasa nie
+  // obiecuje wtedy biletu, a tick liczy je jako porażkę.
+  const outcome =
+    settled.outcome === "oversold_refunded" || settled.outcome === "skipped"
+      ? settled.outcome
+      : "order";
+  return { outcome, seated: settled.seated };
+}
+
+/** Bilans jednego przebiegu ponowień darmowych zamówień (tick zadań). */
+export interface UnsettledFreeTicketOrdersResult {
+  claimed: number;
+  settled: number;
+  failed: number;
+  deferred: number;
+  skipped?: "migration_pending";
+}
+
+/**
+ * Ponawia rozliczenie darmowych zamówień biletowych, które utknęły (kasa
+ * urwała się przed księgowaniem albo po nim). Listę wskazuje baza
+ * (`_event_free_ticket_orders_unsettled`: same fakty - status, zgłoszenie,
+ * RSVP, znacznik odmowy). Błąd jednego zamówienia nie zatrzymuje reszty;
+ * zamówienie, które znów padło, wróci w następnym ticku.
+ */
+export async function runUnsettledFreeTicketOrders(
+  admin: SupabaseClient<Database>,
+  limit = 10,
+  deadlineAt: number = Date.now() + 5_000,
+): Promise<UnsettledFreeTicketOrdersResult> {
+  const result: UnsettledFreeTicketOrdersResult = {
+    claimed: 0,
+    settled: 0,
+    failed: 0,
+    deferred: 0,
+  };
+  if (Date.now() > deadlineAt) return result;
+  const { data, error } = await admin.rpc("_event_free_ticket_orders_unsettled", {
+    p_limit: limit,
+  });
+  if (error) {
+    if (isMigrationPending(error)) return { ...result, skipped: "migration_pending" };
+    throw new Error(`free ticket orders lookup failed: ${error.message}`);
+  }
+  const ids = (Array.isArray(data) ? data : []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  for (const id of ids) {
+    result.claimed += 1;
+    if (Date.now() > deadlineAt) {
+      result.deferred += 1;
+      continue;
+    }
+    try {
+      const settled = await settleFreeTicketOrder(id);
+      if (settled.outcome === "skipped") result.failed += 1;
+      else result.settled += 1;
+    } catch (err) {
+      result.failed += 1;
+      console.error(
+        "[payments] free ticket order retry failed",
+        id,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  return result;
+}
+
+/** Skutek rozliczenia: wynik dla webhooka i to, czy miejsce zostało potwierdzone. */
+interface SettledOrder {
+  outcome: OneTimeOutcome;
+  seated: boolean;
+}
+
+/**
+ * Rozliczenie opłaconego zamówienia jednorazowego - JEDNA ścieżka dla wpłaty
+ * operatora (`fulfilOrder`) i biletu za zero (`settleFreeTicketOrder`):
+ * bramka zwrotu, przegląd kwoty i kodów promocyjnych, uprawnienie,
+ * księgowanie, efekty kuponu, rozstrzygnięcie miejsca przez bazę i maile.
+ */
+async function settleOrder(
+  txn: OneTimeTransaction,
+  order: FulfilOrderRow,
+  mode: SettlementMode,
+): Promise<SettledOrder> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { grantEntitlement } = await import("@/lib/billing/grant.server");
 
   // BRAMKA ZWROTU - PRZED uprawnieniem. Zwrot PEŁNY, który wyprzedził
   // realizację (albo powtórka realizacji po zwrocie), zastaje zamówienie
   // `refunded` lub z licznikiem zwrotów równym kwocie. Grant w tym miejscu
-  // wskrzeszał dostęp klientowi, który ma już pieniądze z powrotem. Zwrot
-  // CZĘŚCIOWY (korekta ceny) realizacji nie blokuje - patrz `refundedInFull`.
+  // wskrzeszał dostęp klientowi, który ma już pieniądze z powrotem, a od
+  // 20261012 dyspozytor ponawia `transaction.completed` także po błędzie
+  // zapisu dokumentu - księgowanie przestawiłoby zwrot (odmowa wpłaty, pełna
+  // sala) z powrotem na opłacone. Zwrot CZĘŚCIOWY (korekta ceny) realizacji
+  // nie blokuje - patrz `refundedInFull`.
   const orderStatus = typeof order.status === "string" ? order.status : null;
   const refundedSoFar = Number(order.refunded_amount_cents ?? 0);
   if (
@@ -923,14 +1226,7 @@ async function fulfilOrder(
     })
   ) {
     console.warn("[payments] one-time: order already refunded - fulfilment refused", order.id);
-    return "skipped";
-  }
-  // Zamówienie zamknięte (`canceled`: kasa wygasła albo kupon przepadł przed
-  // sesją) nie ma prawa dostać płatności. Skoro jednak przyszła, pieniądze są
-  // u nas - decyzja (zwrot albo ręczne nadanie) należy do człowieka.
-  if (orderStatus === "canceled") {
-    console.error("[payments] one-time: payment for a canceled order - needs review", order.id);
-    return "skipped";
+    return { outcome: "skipped", seated: false };
   }
 
   // Księgi dostają kwotę POBRANĄ brutto (S5) - zwroty, faktury wydarzeń
@@ -943,45 +1239,28 @@ async function fulfilOrder(
   // kwotą pobraną brutto, a nie oczekiwaną kwotą netto.
   const mismatch = orderStatus === "paid" ? null : amountMismatch(txn, order);
 
-  const preMetadata = (order.metadata ?? {}) as Record<string, unknown>;
-  const ticketEventId = str(preMetadata, "event_id");
+  const preMetadata = asRecord(order.metadata) ?? {};
+  const eventId = str(preMetadata, "event_id");
 
-  // 0. Bilet: autorytatywna kontrola miejsc PRZED nadaniem uprawnienia.
-  //
-  // TYLKO DLA ZAKUPU BEZ ZGŁOSZENIA (RSVP, `EventTicketPurchase`). Zamówienie
-  // z `registration_id` rozstrzyga baza: `payments_apply_event_ticket_outcome`
-  // sprawdza miejsca pod blokadą (wydarzenie -> pula -> zgłoszenie) i przy
-  // braku miejsca stawia wpłatę w kolejce OPŁACONEJ. `assertSeatAvailable`
-  // liczy RSVP 'going' względem `events.capacity` - inną księgę niż
-  // `event_registrations`, ślepą na pule wejściówek - więc zwrot z tej bramki
-  // anulowałby zgłoszenie, które baza właśnie zakolejkowała jako opłacone.
-  if (ticketEventId && order.user_id && !str(preMetadata, "registration_id")) {
-    const refunded = await refundIfOversold(
-      txn,
-      { id: order.id, user_id: order.user_id, tenant_id: order.tenant_id, plan_id: order.plan_id },
-      ticketEventId,
-      amountCents,
-      currency,
-      env,
-    );
-    if (refunded) return "oversold_refunded";
-  }
-
-  // 0b. Kody promocyjne operatora (S8). Kod obcego najemcy albo spoza zakresu
+  // 0. Kody promocyjne operatora (S8). Kod obcego najemcy albo spoza zakresu
   // kuponu: pieniądze pobrane, więc zamówienie jest `paid` (księgi muszą się
   // zgadzać z operatorem), ale dostępu NIE nadajemy - decyduje administrator.
-  const promo = await reviewPromotionCodes(env, txn.promotionCodeIds, {
-    id: order.id,
-    tenantId: order.tenant_id,
-    planId: order.plan_id,
-    eventId: ticketEventId,
-  });
+  // Bilet za zero nie przeszedł przez operatora - nie ma czego sprawdzać.
+  const promo =
+    mode.provider === "stripe"
+      ? await reviewPromotionCodes(mode.env, txn.promotionCodeIds, {
+          id: order.id,
+          tenantId: order.tenant_id,
+          planId: order.plan_id,
+          eventId,
+        })
+      : NO_PROMOTION_CODE_REVIEW;
   const review = orderReview(mismatch, promo);
   const metadata = reviewedMetadata(preMetadata, review, promo.unscopedIds);
   const paidPatch = {
     status: "paid" as const,
     paid_at: paidAtOf(txn),
-    provider: "stripe",
+    provider: mode.provider,
     provider_intent_id: txn.id,
     provider_session_id: txn.sessionId ?? txn.id,
     ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
@@ -991,34 +1270,37 @@ async function fulfilOrder(
     ...(metadata ? { metadata } : {}),
     ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
   };
+  const payable = mode.provider === "stripe" ? SETTLEABLE_STATUSES : PAYABLE_STATUSES;
 
   if (promo.hold && review) {
     const { data: held, error: holdErr } = await supabaseAdmin
       .from("payment_orders")
       .update(paidPatch)
       .eq("id", order.id)
-      .in("status", [...PAYABLE_STATUSES])
+      .in("status", [...payable])
       .select("id");
     if (holdErr) throw new Error(`one-time: order hold flip failed: ${holdErr.message}`);
     // Zero przestawionych wierszy przy zamówieniu nieopłaconym = zwrot albo
     // zamknięcie wyprzedziło zapis; dostępu i tak nie ma, alarmu też nie.
-    if ((held ?? []).length === 0 && orderStatus !== "paid") return "skipped";
+    if ((held ?? []).length === 0 && orderStatus !== "paid") {
+      return { outcome: "skipped", seated: false };
+    }
     await alertOrderReview(order, review, true);
-    return "held";
+    return { outcome: "held", seated: false };
   }
 
   // 1. Uprawnienie (idempotentne) - zanim cokolwiek uzna zamówienie za opłacone.
   await grantEntitlement({ ...order, amount_cents: amountCents }, txn.id);
 
   // 2. Księgowanie - `paid_at` stemplowane dokładnie raz mimo ponowień,
-  // i WYŁĄCZNIE z kasy w toku (`PAYABLE_STATUSES`): zwrócone albo zamknięte
-  // zamówienie nie wraca na opłacone. Licznika zwrotów nie dotykamy - zwrot
-  // częściowy sprzed realizacji zostaje w księgach.
+  // i WYŁĄCZNIE ze statusu, który wolno rozliczyć (`SETTLEABLE_STATUSES` /
+  // `PAYABLE_STATUSES`): zwrócone zamówienie nie wraca na opłacone. Licznika
+  // zwrotów nie dotykamy - zwrot częściowy sprzed realizacji zostaje w księgach.
   const { data: flipped, error: updateErr } = await supabaseAdmin
     .from("payment_orders")
     .update(paidPatch)
     .eq("id", order.id)
-    .in("status", [...PAYABLE_STATUSES])
+    .in("status", [...payable])
     .select("id");
   if (updateErr) throw new Error(`one-time: order paid flip failed: ${updateErr.message}`);
 
@@ -1041,8 +1323,10 @@ async function fulfilOrder(
         current?.status ?? null,
       );
       const { revokeOrderAccess } = await import("@/lib/billing/refunds.server");
-      await revokeOrderAccess(order, new Date().toISOString(), [txn.id]);
-      return "skipped";
+      await revokeOrderAccess(order as unknown as AdjustmentOrder, new Date().toISOString(), [
+        txn.id,
+      ]);
+      return { outcome: "skipped", seated: false };
     }
   } else if (review) {
     await alertOrderReview(order, review);
@@ -1052,33 +1336,30 @@ async function fulfilOrder(
   const { applyCouponEffectsForOrder } = await import("@/lib/billing/couponEffects.server");
   await applyCouponEffectsForOrder(order.id);
 
-  const eventId = ticketEventId;
-
   // Zamówienie zanonimizowane (konto usunięte, dowód księgowy został -
   // migracja 20260803090002): punkty 1-3 wciąż mają sens, bo dotyczą ksiąg.
   // RSVP, dzwonek i mail nie mają już adresata - kończymy tutaj, zamiast
   // rzucać i skazywać webhook na wieczne ponowienia.
   if (!order.user_id) {
     console.warn("[payments] one-time: order has no owner (anonymised), effects skipped", order.id);
-    return "order";
+    return { outcome: "order", seated: false };
   }
 
   // 4. Bilet na wydarzenie. NAJPIERW zgłoszenie: to samo zdarzenie płatności
   // potwierdza zgłoszenie z formularza, wydaje kod QR i zdejmuje wpis z listy
-  // rezerwowej - albo, gdy miejsca już nie ma lub bilet wymaga akceptacji,
-  // zostawia wpłatę w kolejce / w oczekiwaniu na decyzję.
+  // rezerwowej - albo zostawia wpłatę w kolejce / w oczekiwaniu na decyzję,
+  // albo ODMAWIA wpłaty (cudze zgłoszenie, zła kwota, druga wpłata).
   //
   // RSVP 'going' DOPIERO PO ODPOWIEDZI BAZY i tylko przy potwierdzonym
-  // miejscu. `get_event_access` daje za nie link wejścia, a `loadMyEventTicket`
-  // kartę biletu - a kupujący w kolejce albo czekający na decyzję nie ma
-  // jeszcze ani jednego, ani drugiego. Ponowienie webhooka po tej zmianie
-  // kolejności jest bezpieczne: RPC jest idempotentne dla tego samego
-  // zamówienia, mail i SMS mają klucze idempotencji, a dzwonki stoją na
-  // `newly_settled`.
-  let ticket: TicketOutcomePayload | null = null;
+  // miejscu: zgłoszenie z miejscem albo zakup bez zgłoszenia, któremu baza
+  // przyznała miejsce RSVP pod blokadą. Ponowienie webhooka jest bezpieczne:
+  // RPC są idempotentne dla tego samego zamówienia, mail i SMS mają klucze
+  // idempotencji, a dzwonki stoją na `newly_settled`.
+  let seated = false;
   if (eventId) {
-    ticket = await applyTicketOutcome(order.id, "paid");
-    if (paidSeatConfirmed(ticket)) {
+    const ticket = await applyTicketOutcome(order.id, "paid");
+    const verdict = paidTicketVerdict(ticket);
+    if (verdict === "seated") {
       const { error: rsvpErr } = await supabaseAdmin.from("event_rsvps").upsert(
         {
           tenant_id: order.tenant_id,
@@ -1090,11 +1371,21 @@ async function fulfilOrder(
         { onConflict: "event_id,user_id" },
       );
       if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
+      seated = true;
+    } else if (verdict === "rsvp") {
+      if ((await claimPaidRsvpSeat(order, eventId)) === "full") {
+        await refundOversold(txn, order, amountCents, currency, mode);
+        return { outcome: "oversold_refunded", seated: false };
+      }
+      seated = true;
+    } else if (verdict === "refused") {
+      console.warn("[payments] one-time: ticket payment refused", order.id, ticket?.reason);
     }
     // Zwrot częściowy sprzed realizacji (2.8 / 5.9): wpłata dała miejsce,
     // a rozliczenie zgłoszenia ma pokazać korektę ceny. Bez powiadomienia -
-    // klient dostał już mail o zwrocie z obsługi korekty.
-    if (refundedSoFar > 0) {
+    // klient dostał już mail o zwrocie z obsługi korekty. Odmówiona wpłata
+    // idzie w całości do zwrotu w kolejce bazy - korekty nie ma na czym zapisać.
+    if (refundedSoFar > 0 && verdict !== "refused") {
       await applyTicketOutcome(order.id, "partial_refund", refundedSoFar, { notify: false });
     }
   }
@@ -1117,8 +1408,9 @@ async function fulfilOrder(
   }
   // „Miejsce zarezerwowane" tylko przy potwierdzonym miejscu. Kupujący
   // w kolejce albo czekający na decyzję dostał już właściwy mail
-  // (`event_ticket_paid_waitlisted` / `_pending`) z `applyTicketOutcome`.
-  if (eventId && paidSeatConfirmed(ticket)) {
+  // (`event_ticket_paid_waitlisted` / `_pending`), a odmówiona wpłata -
+  // zawiadomienie o zwrocie (`notifyTicketRefusal`) z `applyTicketOutcome`.
+  if (eventId && seated) {
     await notifyEventRegistration({
       userId: order.user_id,
       eventId,
@@ -1129,7 +1421,7 @@ async function fulfilOrder(
       idempotencySeed: order.id,
     });
   }
-  return "order";
+  return { outcome: "order", seated };
 }
 
 /** Rozdziela opłaconą transakcję jednorazową na właściwy skutek biznesowy. */

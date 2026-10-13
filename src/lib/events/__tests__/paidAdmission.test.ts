@@ -9,7 +9,12 @@
 // kto miejsce ma.
 import { describe, expect, it } from "vitest";
 
-import { paidAdmission, paidSeatConfirmed } from "@/lib/events/paidAdmission";
+import {
+  isTicketPaymentRefusal,
+  paidAdmission,
+  paidSeatConfirmed,
+  paidTicketVerdict,
+} from "@/lib/events/paidAdmission";
 
 describe("paidAdmission - status zgłoszenia po wpłacie", () => {
   it.each([
@@ -36,27 +41,72 @@ describe("paidAdmission - status zgłoszenia po wpłacie", () => {
   );
 });
 
-describe("paidSeatConfirmed - czy wolno potwierdzić RSVP i „miejsce zarezerwowane”", () => {
-  it("brak odpowiedzi (błąd RPC) zostawia starą ścieżkę", () => {
-    expect(paidSeatConfirmed(null)).toBe(true);
+describe("paidTicketVerdict - co webhook robi z wpłatą po odpowiedzi bazy (TIX-05)", () => {
+  it("brak odpowiedzi to NIE miejsce - dawniej połknięty błąd RPC dawał RSVP i link wejścia", () => {
+    expect(paidTicketVerdict(null)).toBe("none");
+    expect(paidSeatConfirmed(null)).toBe(false);
   });
 
-  it("`applied: false` (zakup bez zgłoszenia z formularza) zostawia starą ścieżkę", () => {
-    expect(paidSeatConfirmed({ applied: false, registration_status: "waitlist" })).toBe(true);
-    expect(paidSeatConfirmed({})).toBe(true);
+  it("zakup bez zgłoszenia z formularza idzie ścieżką RSVP (miejsce rozstrzyga baza pod blokadą)", () => {
+    expect(paidTicketVerdict({ applied: false, reason: "registration_not_found" })).toBe("rsvp");
+    // Ścieżka RSVP nie jest jeszcze potwierdzonym miejscem zgłoszenia.
+    expect(paidSeatConfirmed({ applied: false, reason: "registration_not_found" })).toBe(false);
   });
+
+  it.each([
+    "already_settled_by_another_order",
+    "registration_mismatch",
+    "registration_not_owned",
+    "ticket_mismatch",
+    "amount_mismatch",
+    "currency_mismatch",
+  ])("odmowa bazy (%s) to odmowa - bez RSVP i bez „miejsce zarezerwowane”", (reason) => {
+    expect(paidTicketVerdict({ applied: false, reason })).toBe("refused");
+    expect(isTicketPaymentRefusal({ applied: false, reason })).toBe(true);
+    expect(paidSeatConfirmed({ applied: false, reason })).toBe(false);
+  });
+
+  it("jawny znacznik `refused` z bazy wystarcza niezależnie od powodu", () => {
+    expect(isTicketPaymentRefusal({ applied: false, refused: true, reason: "nowy_powod" })).toBe(
+      true,
+    );
+  });
+
+  it("wpłata zaksięgowana na zgłoszeniu odwołanym (`applied` + `refused`) to odmowa, nie miejsce", () => {
+    // Baza wiąże wpłatę ze zgłoszeniem i kolejkuje zwrot; kupujący ma dostać
+    // zawiadomienie o zwrocie, a nie RSVP ani „miejsce zarezerwowane”.
+    const payload = {
+      applied: true,
+      refused: true,
+      reason: "registration_closed",
+      registration_status: "cancelled",
+    };
+    expect(paidTicketVerdict(payload)).toBe("refused");
+    expect(isTicketPaymentRefusal(payload)).toBe(true);
+    expect(paidSeatConfirmed(payload)).toBe(false);
+  });
+
+  it.each(["not_a_ticket_order", "order_not_found"])(
+    "%s nie jest odmową wpłaty - nic do rozliczenia",
+    (reason) => {
+      expect(paidTicketVerdict({ applied: false, reason })).toBe("none");
+      expect(isTicketPaymentRefusal({ applied: false, reason })).toBe(false);
+    },
+  );
 
   it("zapis bez pola statusu (baza sprzed migracji) potwierdza miejsce", () => {
     expect(paidSeatConfirmed({ applied: true })).toBe(true);
   });
 
   it("przyjęte zgłoszenie potwierdza miejsce", () => {
+    expect(paidTicketVerdict({ applied: true, registration_status: "approved" })).toBe("seated");
     expect(paidSeatConfirmed({ applied: true, registration_status: "approved" })).toBe(true);
   });
 
   it.each(["waitlist", "pending", "cancelled"])(
     "%s: wpłata bez miejsca NIE potwierdza RSVP ani maila o rezerwacji",
     (status) => {
+      expect(paidTicketVerdict({ applied: true, registration_status: status })).toBe("awaiting");
       expect(paidSeatConfirmed({ applied: true, registration_status: status })).toBe(false);
     },
   );

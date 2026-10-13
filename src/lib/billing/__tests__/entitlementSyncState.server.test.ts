@@ -7,7 +7,7 @@
 //   * DUPLIKAT UPRAWNIENIA. Kolejne zdarzenie tej samej subskrypcji ma
 //     zaktualizować JEDEN wiersz po `external_ref`, a nie dopisać drugi -
 //     także wtedy, gdy dwa zdarzenia ścigają się o wstawienie (indeks
-//     unikalny `external_ref`, 20261012130300: przegrany dostaje 23505).
+//     unikalny `external_ref`, 20261012131300: przegrany dostaje 23505).
 //   * WSKRZESZENIE PO ZWROCIE. Uprawnienie odebrane po zwrocie jest
 //     ostateczne - spóźnione zdarzenie nie przywraca płatnego dostępu.
 //   * POZORNY SUKCES. Błąd odczytu albo zapisu MUSI polecieć wyjątkiem

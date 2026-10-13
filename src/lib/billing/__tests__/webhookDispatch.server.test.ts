@@ -932,7 +932,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
   it("równoległy zapis uprawnienia: przegrany wyścig (23505) aktualizuje TEN SAM wiersz", async () => {
     // Drugi przeplot tego samego wyścigu: oba zdarzenia czytają „brak
     // uprawnienia", zanim którekolwiek je wstawi. Indeks unikalny
-    // `external_ref` (20261012130300) odrzuca drugie wstawienie, a kod zamienia
+    // `external_ref` (20261012131300) odrzuca drugie wstawienie, a kod zamienia
     // je w aktualizację - nie w drugi wiersz.
     //
     // Skutki zakładania biegną PRZED wstawieniem wiersza (1.2), więc wiersz
