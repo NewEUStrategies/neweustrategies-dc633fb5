@@ -7,16 +7,24 @@
 // drugą subskrypcję bez śladu u organizatora - podwójne obciążenie wychodziło
 // dopiero w reklamacji. Każdy przypadek niżej przybija jedną granicę:
 //   * ten sam model -> ostrzeżenie RAZ (ponowienie zdarzenia nie dzwoni),
-//   * zdarzenia widzące się nawzajem -> ten sam klucz, jeden dzwonek,
+//   * `created(incomplete)` -> `updated(active)` po 3DS -> ostrzeżenie przy
+//     aktywacji (w obie strony), ponowienie aktywacji nie dzwoni,
+//   * subskrypcja z panelu bez `metadata.userId` -> właściciel z naszych
+//     wierszy tego klienta, ostrzeżenie; powtórka tego dnia nie dzwoni,
+//   * sprawdzenia widzące się nawzajem (także RÓWNOLEGLE, przy nieatomowym
+//     `enqueue_notification`) -> ten sam klucz, atomowa bramka, jeden dzwonek,
 //   * darowizna -> cisza (nowa z `purpose`, istniejąca z rejestru darowizn),
 //   * inny model rozliczenia -> alarm INFORMACYJNY,
 //   * jedna subskrypcja -> cisza, ale sprawdzenie naprawdę się odbyło,
-//   * awaria albo zawieszenie alarmu -> webhook i tak przetworzony.
+//   * awaria albo zawieszenie alarmu -> webhook i tak przetworzony; chwilowa
+//     awaria odczytu ponawia się w tle, awaria bramki nie wycisza dzwonka.
 //
 // ATRAPUJEMY GRANICE: klienta Supabase, SDK operatora (bezpiecznik - nic tu
 // nie ma prawa niczego anulować u operatora) i `waitUntil` środowiska
 // Workers, żeby test mógł dokończyć pracę „za odpowiedzią" deterministycznie.
-// Dispatch, efekty zakupu i `notifyTenantAdmins` biegną prawdziwym kodem.
+// Dispatch, efekty zakupu, `notifyTenantAdmins` i `rateLimit` biegną
+// prawdziwym kodem; `enqueue_notification` i `rate_limit_hit` odwzorowują
+// semantykę SQL (pierwsza nieatomowo, druga atomowo).
 //
 // RODO: adresy syntetyczne (`example.com`), identyfikatory zmyślone.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,11 +125,15 @@ interface Scenario {
   /** Żywe subskrypcje planu, które zwraca odczyt „czy jest druga". */
   live: LiveRow[];
   liveError?: string;
+  /** Ile PIERWSZYCH odczytów „czy jest druga" pada (chwilowa awaria bazy). */
+  liveFailures?: number;
   /** Odczyt zawieszony na zawsze (alarm, który się nie kończy). */
   liveHangs?: boolean;
   /** Identyfikatory znane rejestrowi darowizn. */
   donationIds: string[];
   userRolesError?: string;
+  /** Błąd bramki jednokrotności (`rate_limit_hit`). */
+  gateError?: string;
 }
 
 let scenario: Scenario;
@@ -153,7 +165,14 @@ function subscriptionsResponder(): TableResponder {
     if (chain.has("update") && chain.has("select")) return ok([{ id: "row-nowy" }]);
     if (isLiveLookup(chain)) {
       if (scenario.liveHangs) return new Promise<SupabaseResult>(() => undefined);
-      return scenario.liveError ? fail(scenario.liveError) : ok(scenario.live);
+      if (scenario.liveFailures && scenario.liveFailures > 0) {
+        scenario.liveFailures -= 1;
+        return fail("connection reset");
+      }
+      if (scenario.liveError) return fail(scenario.liveError);
+      // Jak SQL: `neq` wyklucza subskrypcję, która właśnie się sprawdza.
+      const self = chain.argsOf("neq")?.[1];
+      return ok(scenario.live.filter((row) => row.provider_subscription_id !== self));
     }
     if (chain.has("maybeSingle")) return ok(scenario.inserted ? null : EXISTING_ROW);
     return ok(null);
@@ -174,11 +193,168 @@ function donationsResponder(): TableResponder {
 
 /** Deduplikacja `enqueue_notification`: (odbiorca, rodzaj, href) - jak w SQL. */
 let deliveredKeys: Set<string>;
+/** Licznik `rate_limits` (zakres, podmiot) - atomowy, jak INSERT ... ON CONFLICT DO UPDATE. */
+let gateHits: Map<string, number>;
+/** Stan lustra `subscriptions` w scenariuszach wielozdarzeniowych (`null` = odpowiedzi ze `scenario`). */
+let mirror: Map<string, MirrorRow> | null;
+
+interface MirrorRow {
+  id: string;
+  provider_subscription_id: string;
+  provider_customer_id: string;
+  user_id: string;
+  tenant_id: string;
+  environment: string;
+  price_id: string;
+  product_id: string;
+  status: string;
+  quantity: number;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  trial_ends_at: string | null;
+  cancel_at_period_end: boolean;
+  pause_collection_behavior: string | null;
+  first_payment_failed_at: string | null;
+  purchase_confirmed_at: string | null;
+  last_event_at: string | null;
+  last_payment_at: string | null;
+}
+
+function eqFilters(chain: RecordedChain): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const call of chain.calls) {
+    if (call.method === "eq") out[String(call.args[0])] = call.args[1];
+  }
+  return out;
+}
+
+/**
+ * Lustro `subscriptions` ze stanem: wstawienie-jeśli-brak, strażnik kolejności
+ * (`last_event_at < stamp`), atomowe zajęcie `purchase_confirmed_at` i odczyty
+ * z filtrami - po to, żeby `created(incomplete)` -> `updated(active)` szło
+ * przez dispatch dokładnie tymi zapytaniami, którymi idzie w produkcji.
+ */
+function mirrorResponder(rows: Map<string, MirrorRow>): TableResponder {
+  return (chain) => {
+    const eq = eqFilters(chain);
+    const id = typeof eq.provider_subscription_id === "string" ? eq.provider_subscription_id : null;
+    const target = id ? rows.get(id) : undefined;
+    const inEnv = (row: MirrorRow) =>
+      eq.environment === undefined || row.environment === eq.environment;
+
+    if (chain.has("upsert")) {
+      const values = chain.argsOf("upsert")?.[0] as Partial<MirrorRow> & {
+        provider_subscription_id: string;
+      };
+      if (rows.has(values.provider_subscription_id)) return ok([]);
+      // Najemcę przypina trigger z profilu właściciela - nie ładunek.
+      const row = {
+        trial_ends_at: null,
+        first_payment_failed_at: null,
+        last_event_at: null,
+        ...values,
+        id: `row-${values.provider_subscription_id}`,
+        tenant_id: TENANT,
+        purchase_confirmed_at: null,
+        last_payment_at: null,
+      } as MirrorRow;
+      rows.set(row.provider_subscription_id, row);
+      return ok([{ id: row.id, tenant_id: row.tenant_id, user_id: row.user_id }]);
+    }
+    if (chain.has("update")) {
+      const patch = (chain.argsOf("update")?.[0] ?? {}) as Partial<MirrorRow>;
+      if (!target || !inEnv(target)) return ok(chain.has("select") ? [] : null);
+      if (chain.has("is")) {
+        // `claimPurchaseConfirmation`: UPDATE ... WHERE purchase_confirmed_at IS NULL.
+        if (target.purchase_confirmed_at) return ok([]);
+        Object.assign(target, patch);
+        return ok([{ id: target.id }]);
+      }
+      if (chain.has("or")) {
+        // Strażnik kolejności: zajęcie tylko starszego (albo pustego) znacznika.
+        const stamp = Date.parse(String(patch.last_event_at));
+        if (target.last_event_at && Date.parse(target.last_event_at) >= stamp) return ok([]);
+        target.last_event_at = String(patch.last_event_at);
+        return ok([{ id: target.id }]);
+      }
+      if ("last_event_at" in eq) return ok(null); // zwolnienie zajęcia po błędzie
+      Object.assign(target, patch);
+      return ok(null);
+    }
+    if (isLiveLookup(chain)) {
+      const statuses = (chain.argsOf("in")?.[1] ?? []) as string[];
+      const self = chain.argsOf("neq")?.[1];
+      return ok(
+        [...rows.values()]
+          .filter(
+            (row) =>
+              row.tenant_id === eq.tenant_id &&
+              row.user_id === eq.user_id &&
+              row.environment === eq.environment &&
+              statuses.includes(row.status) &&
+              row.provider_subscription_id !== self,
+          )
+          .map((row) => ({
+            provider_subscription_id: row.provider_subscription_id,
+            price_id: row.price_id,
+            status: row.status,
+          })),
+      );
+    }
+    if (typeof eq.provider_customer_id === "string") {
+      return ok(
+        [...rows.values()]
+          .filter((row) => row.provider_customer_id === eq.provider_customer_id && inEnv(row))
+          .map((row) => ({
+            provider_subscription_id: row.provider_subscription_id,
+            user_id: row.user_id,
+            tenant_id: row.tenant_id,
+          })),
+      );
+    }
+    if (chain.has("maybeSingle")) return ok(target && inEnv(target) ? { ...target } : null);
+    return ok(null);
+  };
+}
+
+/** Żywa, potwierdzona subskrypcja planu, którą konto już ma. */
+function liveMirrorRow(overrides: Partial<MirrorRow> = {}): MirrorRow {
+  return {
+    id: `row-${OLD_SUB}`,
+    provider_subscription_id: OLD_SUB,
+    provider_customer_id: "cus_atrapa",
+    user_id: BUYER,
+    tenant_id: TENANT,
+    environment: "live",
+    price_id: "pro_monthly",
+    product_id: "plan_pro",
+    status: "active",
+    quantity: 1,
+    current_period_start: "2026-09-20T00:00:00.000Z",
+    current_period_end: "2026-10-20T00:00:00.000Z",
+    trial_ends_at: null,
+    cancel_at_period_end: false,
+    pause_collection_behavior: null,
+    first_payment_failed_at: null,
+    purchase_confirmed_at: "2026-09-20T00:00:00.000Z",
+    last_event_at: "2026-09-20T00:00:00.000Z",
+    last_payment_at: "2026-09-20T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function useMirror(rows: MirrorRow[]): Map<string, MirrorRow> {
+  mirror = new Map(rows.map((row) => [row.provider_subscription_id, row]));
+  db.setResponse("subscriptions", mirrorResponder(mirror));
+  return mirror;
+}
 
 beforeEach(() => {
   h.background.length = 0;
   scenario = { inserted: true, live: [], donationIds: [] };
   deliveredKeys = new Set();
+  gateHits = new Map();
+  mirror = null;
   db = supabaseFromStub();
   rpc = supabaseRpcStub();
   for (const table of TABLES) db.setResponse(table, ok(null));
@@ -209,11 +385,27 @@ beforeEach(() => {
   );
   rpc.setData("email_filter_suppressed", []);
   rpc.setData("org_apply_subscription_seats", { linked: false });
-  rpc.setResponse("enqueue_notification", (call: RecordedRpc) => {
+  // Wiernie jak SQL (20260926153300): `IF EXISTS (...) THEN RETURN NULL; END IF;
+  // INSERT ...` BEZ blokady - pod READ COMMITTED dwa równoległe wywołania mijają
+  // się między sprawdzeniem a zapisem i oba wstawiają dzwonek.
+  rpc.setResponse("enqueue_notification", async (call: RecordedRpc) => {
     const key = `${String(call.arg("p_user_id"))}|${String(call.arg("p_kind"))}|${String(call.arg("p_href"))}`;
-    if (deliveredKeys.has(key)) return ok(null);
+    const exists = deliveredKeys.has(key);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    if (exists) return ok(null);
     deliveredKeys.add(key);
     return ok(`notif-${deliveredKeys.size}`);
+  });
+  // `rate_limit_hit`: INSERT ... ON CONFLICT DO UPDATE SET count = count + 1
+  // RETURNING - drugie wywołanie czeka na blokadę wiersza i widzi licznik 2.
+  rpc.setResponse("rate_limit_hit", (call: RecordedRpc) => {
+    if (scenario.gateError) return fail(scenario.gateError);
+    const key = `${String(call.arg("_scope"))}|${String(call.arg("_subject"))}`;
+    const hits = (gateHits.get(key) ?? 0) + 1;
+    gateHits.set(key, hits);
+    return ok([
+      { allowed: hits <= Number(call.arg("_max")), hits, bucket_start: "2026-10-13T00:00:00Z" },
+    ]);
   });
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -337,7 +529,7 @@ describe("webhook: druga żywa subskrypcja planu w tym samym modelu", () => {
     expect(duplicateBells()).toHaveLength(1);
   });
 
-  it("dwa zdarzenia widzące się nawzajem dają TEN SAM klucz i jeden dzwonek", async () => {
+  it("dwa sprawdzenia widzące się nawzajem (po kolei) dają TEN SAM klucz i jeden dzwonek", async () => {
     scenario.live = [
       { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
     ];
@@ -362,11 +554,13 @@ describe("webhook: druga żywa subskrypcja planu w tym samym modelu", () => {
     });
 
     expect(first).toMatchObject({ kind: "alerted", severity: "warning", delivered: 1 });
-    expect(second).toMatchObject({ kind: "alerted", severity: "warning", delivered: 0 });
+    // Drugie sprawdzenie zatrzymuje atomowa bramka - do `enqueue_notification` nie dochodzi.
+    expect(second).toMatchObject({ kind: "deduped", severity: "warning" });
     expect(first.kind === "alerted" && first.dedupeKey).toBe("sub_nowa,sub_stara");
-    expect(second.kind === "alerted" && second.dedupeKey).toBe("sub_nowa,sub_stara");
-    const hrefs = duplicateBells().map((call) => call.arg("p_href"));
-    expect(hrefs).toEqual([hrefs[0], hrefs[0]]);
+    expect(second.kind === "deduped" && second.dedupeKey).toBe("sub_nowa,sub_stara");
+    expect(duplicateBells().map((call) => call.arg("p_href"))).toEqual([
+      "/admin/billing?duplicate_subscriptions=sub_nowa,sub_stara",
+    ]);
   });
 
   it("klucz deduplikacji nie zależy od kolejności i nie dubluje identyfikatorów", () => {
@@ -552,5 +746,244 @@ describe("webhook: awaria alarmu nie dotyka obsługi zdarzenia", () => {
     // Odczyt ruszył - alarm nie został po prostu pominięty.
     await vi.waitFor(() => expect(liveLookups()).toHaveLength(1));
     h.background.length = 0;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Przegląd poprawek: aktywacja po 3DS, panel operatora, równoległe sprawdzenia.
+// ---------------------------------------------------------------------------
+
+/** Aktywacja po 3DS / przelewie - kilka sekund po `created`. */
+const ACTIVATED_AT = "2026-10-13T10:00:07.000Z";
+
+async function deliver(
+  eventType: string,
+  data: SubscriptionData,
+  occurredAt: string,
+  environment: "live" | "sandbox" = "live",
+): Promise<string> {
+  return dispatchWebhookEvent({ eventType, data, environment, occurredAt });
+}
+
+const liveLookupScope = (chain: RecordedChain | undefined) =>
+  chain?.calls.filter((c) => c.method === "eq").map((c) => c.args);
+
+describe("webhook: drugi plan aktywowany dopiero po 3DS (created incomplete -> updated active)", () => {
+  it("ostrzega RAZ przy aktywacji, a ponowienie tej samej aktywacji nie dzwoni drugi raz", async () => {
+    const rows = useMirror([liveMirrorRow()]);
+
+    expect(await deliverCreated(createdEvent({ status: "incomplete" }))).toBe("processed");
+    await settleBackground();
+    // `incomplete` to jeszcze nie drugi opłacony plan - kasa unieważnia taką fakturę.
+    expect(rows.get(NEW_SUB)?.status).toBe("incomplete");
+    expect(duplicateBells()).toHaveLength(0);
+
+    const activation = createdEvent({ status: "active" });
+    expect(await deliver("subscription.activated", activation, ACTIVATED_AT)).toBe("processed");
+    await settleBackground();
+
+    // Pierwsze wejście w stan uprawniający = zajęcie potwierdzenia zakupu.
+    expect(rows.get(NEW_SUB)?.purchase_confirmed_at).not.toBeNull();
+    const [lookup] = liveLookups();
+    // Zakres z WIERSZA (`existing.tenant_id` / `user_id`), nie z ładunku.
+    expect(liveLookupScope(lookup)).toEqual([
+      ["tenant_id", TENANT],
+      ["user_id", BUYER],
+      ["environment", "live"],
+    ]);
+    expect(lookup?.argsOf("neq")).toEqual(["provider_subscription_id", NEW_SUB]);
+    const bells = duplicateBells();
+    expect(bells).toHaveLength(1);
+    expect(bells[0]?.arg("p_title_pl")).toBe("Druga aktywna subskrypcja planu");
+    expect(bells[0]?.arg("p_href")).toBe(
+      "/admin/billing?duplicate_subscriptions=sub_nowa,sub_stara",
+    );
+
+    // Ponowienie tej samej aktywacji: potwierdzenie już zajęte - bez drugiego sprawdzenia.
+    await deliver("subscription.activated", activation, ACTIVATED_AT);
+    await settleBackground();
+    expect(liveLookups()).toHaveLength(1);
+    expect(duplicateBells()).toHaveLength(1);
+  });
+
+  it("lustrzany przypadek: druga jeszcze `incomplete` przy pierwszym sprawdzeniu - alarm przy JEJ aktywacji", async () => {
+    useMirror([
+      liveMirrorRow({
+        status: "incomplete",
+        purchase_confirmed_at: null,
+        last_payment_at: null,
+        last_event_at: "2026-10-13T09:59:00.000Z",
+      }),
+    ]);
+
+    // Nowa wchodzi od razu jako `active`: starsza (`incomplete`) nie jest żywym planem.
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+    expect(liveLookups()).toHaveLength(1);
+    expect(duplicateBells()).toHaveLength(0);
+
+    // Starsza kończy 3DS - teraz ONA widzi nową i dzwoni.
+    const olderActivation = createdEvent({ id: OLD_SUB, status: "active" });
+    expect(await deliver("subscription.activated", olderActivation, ACTIVATED_AT)).toBe(
+      "processed",
+    );
+    await settleBackground();
+
+    expect(liveLookups()).toHaveLength(2);
+    expect(liveLookups()[1]?.argsOf("neq")).toEqual(["provider_subscription_id", OLD_SUB]);
+    const bells = duplicateBells();
+    expect(bells).toHaveLength(1);
+    expect(bells[0]?.arg("p_href")).toBe(
+      "/admin/billing?duplicate_subscriptions=sub_nowa,sub_stara",
+    );
+  });
+
+  it("chwilowa awaria odczytu nie gubi jedynego sprawdzenia - ponawia je w tle", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    scenario.liveFailures = 1;
+
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    expect(liveLookups()).toHaveLength(2);
+    expect(duplicateBells()).toHaveLength(1);
+    expect(
+      loggedWith(console.error, "[payments] duplicate plan subscription check failed"),
+    ).toHaveLength(0);
+  });
+});
+
+describe("webhook: subskrypcja z panelu operatora (bez `metadata.userId`)", () => {
+  it("właściciela bierze z NASZYCH wierszy po kliencie operatora i ostrzega o drugim planie", async () => {
+    const rows = useMirror([liveMirrorRow({ provider_customer_id: "cus_panel" })]);
+    const panel = createdEvent({ customerId: "cus_panel", customData: {} });
+
+    expect(await deliverCreated(panel)).toBe("processed");
+    await settleBackground();
+
+    // Bez właściciela w metadanych wiersz nie powstaje i dostęp nie idzie - jak dotąd.
+    expect(rows.has(NEW_SUB)).toBe(false);
+    expect(db.chainsFor("subscriptions").filter((c) => c.has("upsert"))).toHaveLength(0);
+    const ownerLookup = db
+      .chainsFor("subscriptions")
+      .find((c) => eqFilters(c).provider_customer_id !== undefined);
+    expect(ownerLookup && eqFilters(ownerLookup)).toEqual({
+      provider_customer_id: "cus_panel",
+      environment: "live",
+    });
+    expect(liveLookupScope(liveLookups()[0])).toEqual([
+      ["tenant_id", TENANT],
+      ["user_id", BUYER],
+      ["environment", "live"],
+    ]);
+    const bells = duplicateBells();
+    expect(bells).toHaveLength(1);
+    expect(bells[0]?.arg("p_user_id")).toBe(ADMIN);
+    expect(bells[0]?.arg("p_title_pl")).toBe("Subskrypcja planu spoza kasy obok żywego planu");
+    expect(String(bells[0]?.arg("p_body_pl"))).toContain(NEW_SUB);
+    expect(String(bells[0]?.arg("p_body_pl"))).toContain(OLD_SUB);
+    expect(
+      loggedWith(console.error, "[payments] unmirrored plan subscription next to a live plan"),
+    ).toEqual([
+      [
+        "[payments] unmirrored plan subscription next to a live plan",
+        expect.objectContaining({
+          subscriptionId: NEW_SUB,
+          otherSubscriptionIds: [OLD_SUB],
+          tenantId: TENANT,
+          environment: "live",
+          severity: "warning",
+        }),
+      ],
+    ]);
+
+    // Klient, którego nie znamy: bez najemcy z bazy nie ma komu dzwonić - tylko log.
+    await deliverCreated(createdEvent({ id: "sub_obca", customerId: "cus_obcy", customData: {} }));
+    await settleBackground();
+    expect(liveLookups()).toHaveLength(1);
+    expect(duplicateBells()).toHaveLength(1);
+  });
+
+  it("`incomplete` -> `active` z panelu dzwoni przy aktywacji, a ponowienie tego samego dnia już nie", async () => {
+    useMirror([liveMirrorRow({ provider_customer_id: "cus_panel" })]);
+    const panel = { customerId: "cus_panel", customData: {} };
+
+    await deliverCreated(createdEvent({ ...panel, status: "incomplete" }));
+    await settleBackground();
+    expect(duplicateBells()).toHaveLength(0);
+
+    const activation = createdEvent({ ...panel, status: "active" });
+    expect(await deliver("subscription.activated", activation, ACTIVATED_AT)).toBe("processed");
+    await settleBackground();
+    expect(duplicateBells()).toHaveLength(1);
+
+    await deliver("subscription.activated", activation, ACTIVATED_AT);
+    await settleBackground();
+    expect(duplicateBells()).toHaveLength(1);
+    expect(rpc.callsFor("rate_limit_hit").map((c) => [c.arg("_scope"), c.arg("_subject")])).toEqual(
+      [
+        ["billing.duplicate_plan_alert", `${TENANT}:live:sub_nowa,sub_stara`],
+        ["billing.duplicate_plan_alert", `${TENANT}:live:sub_nowa,sub_stara`],
+      ],
+    );
+  });
+});
+
+describe("deduplikacja: dwa sprawdzenia widzące się nawzajem RÓWNOLEGLE", () => {
+  const check = (subscriptionId: string) =>
+    alertOnDuplicatePlanSubscription({
+      subscriptionId,
+      userId: BUYER,
+      tenantId: TENANT,
+      environment: "live",
+      priceId: "pro_monthly",
+      status: "active",
+    });
+
+  it("atomowa bramka przed dzwonkiem daje jeden dzwonek, choć `enqueue_notification` nie jest atomowe", async () => {
+    scenario.live = [
+      { provider_subscription_id: NEW_SUB, price_id: "pro_monthly", status: "active" },
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+
+    // Drugie sprawdzenie rusza, gdy pierwsze jest już W OKNIE `enqueue_notification`
+    // (po EXISTS, przed INSERT) - dokładnie tam, gdzie dwa izolaty mijają się
+    // w produkcji. Start po wejściu w okno, a nie `Promise.all` od zera: atrapa
+    // modułów vitest myli równoległe dynamiczne importy tego samego modułu
+    // (drugi dostaje prawdziwego klienta), a to nie jest zachowanie produkcji.
+    const first = check(NEW_SUB);
+    await vi.waitFor(() => expect(rpc.callsFor("enqueue_notification").length).toBeGreaterThan(0));
+    const outcomes = await Promise.all([first, check(OLD_SUB)]);
+
+    expect(duplicateBells()).toHaveLength(1);
+    expect(deliveredKeys.size).toBe(1);
+    expect(outcomes.map((o) => o.kind).sort()).toEqual(["alerted", "deduped"]);
+    expect(
+      rpc
+        .callsFor("rate_limit_hit")
+        .map((c) => [c.arg("_scope"), c.arg("_subject"), c.arg("_max"), c.arg("_window_minutes")]),
+    ).toEqual([
+      ["billing.duplicate_plan_alert", `${TENANT}:live:sub_nowa,sub_stara`, 1, 1440],
+      ["billing.duplicate_plan_alert", `${TENANT}:live:sub_nowa,sub_stara`, 1, 1440],
+    ]);
+    // Oba sprawdzenia i tak zostawiają ślad w logu.
+    expect(loggedWith(console.error, "[payments] duplicate live plan subscription")).toHaveLength(
+      2,
+    );
+  });
+
+  it("awaria bramki nie wycisza alarmu (fail-open)", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    scenario.gateError = "connection reset";
+
+    const outcome = await check(NEW_SUB);
+
+    expect(rpc.callsFor("rate_limit_hit")).toHaveLength(1);
+    expect(outcome).toMatchObject({ kind: "alerted", delivered: 1 });
+    expect(duplicateBells()).toHaveLength(1);
   });
 });

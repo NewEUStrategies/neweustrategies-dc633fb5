@@ -20,6 +20,7 @@ import {
 } from "@/lib/billing/accessPeriod";
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { PremiumNewsletterConsentGrant } from "@/lib/billing/premiumNewsletter";
+import type { UnmirroredPlanSubscriptionInput } from "@/lib/billing/duplicateSubscriptionAlert.server";
 
 export type SubscriptionData = {
   id: string;
@@ -436,6 +437,88 @@ async function claimPurchaseConfirmation(subscriptionId: string, env: StripeEnv)
   return Array.isArray(data) && data.length > 0;
 }
 
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** Zakres sprawdzenia drugiego planu - właściciel i najemca z WIERSZA, nie z ładunku. */
+interface DuplicateCheckScope {
+  userId: string | null | undefined;
+  tenantId: string | null | undefined;
+  priceId: string;
+  status: string;
+  purpose: string | null;
+}
+
+/**
+ * `claimPurchaseConfirmation` + siatka bezpieczeństwa za kasą: druga żywa
+ * subskrypcja planu tego konta (skrajny wyścig, osobny zakup w innym modelu
+ * rozliczenia, subskrypcja z panelu z wpisanym właścicielem).
+ *
+ * DLACZEGO PRZY ZAJĘCIU, A NIE PRZY WSTAWIENIU. Zajęcie wygrywa DOKŁADNIE raz
+ * na subskrypcję i dokładnie przy pierwszym wejściu w stan uprawniający -
+ * także wtedy, gdy wiersz powstał jako `incomplete`, a `active` przyszło
+ * osobnym `updated` po 3DS albo przelewie (zwykła droga kart z UE). Sprawdzenie
+ * przy samym wstawieniu pomijało `incomplete` i nic go potem nie powtarzało.
+ * Ponowienie po sukcesie przegrywa zajęcie i nie dzwoni drugi raz; ponowienie
+ * po awarii przed zajęciem dochodzi do niego i sprawdza wtedy.
+ *
+ * Tylko alarm i log, bez anulowania; sprawdzenie biegnie za odpowiedzią
+ * i NIGDY nie rzuca (także gdy moduł alarmu się nie załaduje) - zajęcie już
+ * wygrało, więc wyjątek tutaj zgubiłby mail i dzwonek potwierdzenia na zawsze.
+ */
+function claimConfirmationWithDuplicateCheck(
+  subscriptionId: string,
+  env: StripeEnv,
+  scope: DuplicateCheckScope,
+): () => Promise<boolean> {
+  return async () => {
+    const won = await claimPurchaseConfirmation(subscriptionId, env);
+    if (!won) return false;
+    try {
+      if (!scope.userId || !scope.tenantId) {
+        throw new Error("subscription row without owner scope");
+      }
+      const { scheduleDuplicatePlanSubscriptionAlert } =
+        await import("@/lib/billing/duplicateSubscriptionAlert.server");
+      scheduleDuplicatePlanSubscriptionAlert({
+        subscriptionId,
+        userId: scope.userId,
+        tenantId: scope.tenantId,
+        environment: env,
+        priceId: scope.priceId,
+        status: scope.status,
+        purpose: scope.purpose,
+      });
+    } catch (err) {
+      console.error("[payments] duplicate plan subscription check not scheduled", {
+        subscriptionId,
+        error: errorText(err),
+      });
+    }
+    return true;
+  };
+}
+
+/**
+ * Subskrypcja bez `metadata.userId` (panel operatora): wiersza nie zakładamy,
+ * ale sprawdzamy, czy ten sam klient operatora nie ma już żywego planu
+ * u NASZEGO właściciela (moduł alarmu czyta go z wierszy tego klienta).
+ * W tle i nigdy nie rzuca.
+ */
+async function scheduleUnmirroredPlanCheck(input: UnmirroredPlanSubscriptionInput): Promise<void> {
+  try {
+    const { scheduleUnmirroredPlanSubscriptionAlert } =
+      await import("@/lib/billing/duplicateSubscriptionAlert.server");
+    scheduleUnmirroredPlanSubscriptionAlert(input);
+  } catch (err) {
+    console.error("[payments] duplicate plan subscription check not scheduled", {
+      subscriptionId: input.subscriptionId,
+      error: errorText(err),
+    });
+  }
+}
+
 /** Wynik zakładania wiersza: `exists` = wiersz już był (nic nie zapisano). */
 type CreateOutcome = "inserted" | "exists" | "invalid";
 
@@ -468,6 +551,17 @@ async function handleCreated(
   const { priceId, productId, quantity, trialEndsAt } = readIds(data);
   if (!userId) {
     console.error("[payments] missing customData.userId", data.id);
+    // Subskrypcja spoza kasy (panel operatora nie wpisuje metadanych): bez
+    // właściciela nie nadajemy dostępu, ale klient płaci - a jeśli ma już żywy
+    // plan, płaci podwójnie. Właściciela zna wyłącznie nasza baza.
+    await scheduleUnmirroredPlanCheck({
+      subscriptionId: data.id,
+      customerId: data.customerId,
+      environment: env,
+      priceId,
+      status: data.status,
+      purpose: data.customData?.purpose ?? null,
+    });
     return "invalid";
   }
   if (!priceId || !productId) {
@@ -514,31 +608,12 @@ async function handleCreated(
       { onConflict: "provider_subscription_id", ignoreDuplicates: true },
     )
     // `tenant_id` i `user_id` z RETURNING: najemcę przypina trigger z profilu
-    // właściciela, więc alarm o drugiej subskrypcji niżej nie bierze go z ładunku.
+    // właściciela, więc alarm o drugiej subskrypcji (przy zajęciu potwierdzenia
+    // niżej) nie bierze go z ładunku.
     .select("id, tenant_id, user_id");
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
   if (!inserted || inserted.length === 0) return "exists";
-
-  // Siatka bezpieczeństwa za kasą: druga żywa subskrypcja planu tego konta
-  // (panel operatora, skrajny wyścig, osobny zakup w innym modelu
-  // rozliczenia). Wyłącznie przy NOWYM wierszu - ponowienie zdarzenia zastaje
-  // wiersz (`exists`) i nie dzwoni drugi raz. Tylko alarm i log, bez
-  // anulowania; sprawdzenie biegnie za odpowiedzią i nigdy nie rzuca, więc
-  // nie wstrzymuje ani nie wywraca nadania uprawnienia poniżej.
   const insertedRow = inserted[0];
-  if (insertedRow?.tenant_id && insertedRow.user_id) {
-    const { scheduleDuplicatePlanSubscriptionAlert } =
-      await import("@/lib/billing/duplicateSubscriptionAlert.server");
-    scheduleDuplicatePlanSubscriptionAlert({
-      subscriptionId: data.id,
-      userId: insertedRow.user_id,
-      tenantId: insertedRow.tenant_id,
-      environment: env,
-      priceId,
-      status: data.status,
-      purpose: data.customData?.purpose ?? null,
-    });
-  }
 
   const period = accessPeriodFromEvent({
     kind: "created",
@@ -552,6 +627,7 @@ async function handleCreated(
 
   // Uprawnienie zawsze (stan operatora wygrywa), potwierdzenie zakupu tylko
   // w stanie uprawniającym i raz - bramkę i zajęcie trzyma `applyPurchaseEffects`.
+  // Wygrane zajęcie uruchamia też sprawdzenie drugiego planu (zakres z RETURNING).
   const { applyPurchaseEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyPurchaseEffects({
     userId,
@@ -560,7 +636,13 @@ async function handleCreated(
     periodEnd: period.accessUntil,
     environment: env,
     cancelAtPeriodEnd,
-    claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
+    claimConfirmation: claimConfirmationWithDuplicateCheck(data.id, env, {
+      userId: insertedRow?.user_id,
+      tenantId: insertedRow?.tenant_id,
+      priceId,
+      status: data.status,
+      purpose: data.customData?.purpose ?? null,
+    }),
     status: data.status,
     newsletterConsent: data.customData?.newsletterConsent ?? null,
   });
@@ -627,6 +709,21 @@ async function handleUpdated(
     }
     await handleUpdated(data, env, stamp, { retried: true });
     return;
+  }
+
+  // Bez wiersza i bez `metadata.userId`: subskrypcja spoza kasy (panel
+  // operatora), np. `incomplete` z `created`, które dopiero teraz weszło w
+  // `active`. Lustro jej nie zna, więc sprawdzenie drugiego planu idzie po
+  // kliencie operatora; powtórki tłumi bramka jednokrotności modułu alarmu.
+  if (!existing) {
+    await scheduleUnmirroredPlanCheck({
+      subscriptionId: data.id,
+      customerId: data.customerId,
+      environment: env,
+      priceId: eventPriceId,
+      status: data.status,
+      purpose: data.customData?.purpose ?? null,
+    });
   }
 
   const entitled = isEntitledSubscriptionStatus(data.status);
@@ -720,7 +817,16 @@ async function handleUpdated(
       periodEnd: period.accessUntil,
       environment: env,
       cancelAtPeriodEnd,
-      claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
+      // Pierwsze wejście w stan uprawniający istniejącego wiersza (aktywacja po
+      // 3DS / przelewie): wygrane zajęcie sprawdza drugi plan w zakresie
+      // `existing`, nie ładunku.
+      claimConfirmation: claimConfirmationWithDuplicateCheck(data.id, env, {
+        userId: existing.user_id,
+        tenantId: existing.tenant_id,
+        priceId,
+        status: data.status,
+        purpose: data.customData?.purpose ?? null,
+      }),
       status: data.status,
       newsletterConsent: data.customData?.newsletterConsent ?? null,
     });
