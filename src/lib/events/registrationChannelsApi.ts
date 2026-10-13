@@ -14,6 +14,13 @@
 // `notify_*` to główne przełączniki kanału, `remind_*` - podprzełączniki
 // przypomnień.
 //
+// WYCOFANIE ZAWSZE (przegląd R67). Klucz zgłoszenia zamkniętego albo po końcu
+// wydarzenia przyjmuje WYŁĄCZNIE wyłączenie (każdy wysłany przełącznik
+// `false`, bez zgody) - włączenie dostaje dotychczasową odmowę
+// (`already_closed` / `manage_expired`). Okno zgody odsyła podpowiedź numeru,
+// którą pokazało (`phoneHint`); numer zmieniony w międzyczasie daje
+// `phone_changed`.
+//
 // ODCZYT: `event_registration_preferences` - ta sama tożsamość, odmowy
 // WARTOŚCIĄ (`not_found` / `expired`, jak podgląd rezygnacji). Numer telefonu
 // nie wychodzi nigdy: tylko trzy ostatnie cyfry do zdania o zgodzie.
@@ -58,6 +65,14 @@ export interface ChannelPrefsInput {
    * potwierdzenie w oknie zgody (`SmsConsentConfirm`).
    */
   smsConsent?: boolean;
+  /**
+   * Podpowiedź numeru, którą POKAZAŁO okno zgody (trzy ostatnie cyfry albo
+   * `null`, gdy okno cyfr nie pokazało) - przegląd R67. Baza porównuje ją
+   * z bieżącym numerem i przy niezgodności odmawia (`phone_changed`): zgoda
+   * dotyczy numeru, który uczestnik widział. Bez pola (`undefined`) - bez
+   * porównania (okno bez wczytanych preferencji).
+   */
+  phoneHint?: string | null;
 }
 
 export interface ChannelPrefs {
@@ -83,6 +98,8 @@ const CHANNEL_KEYS: ReadonlyArray<readonly [keyof ChannelPrefsInput, string]> = 
   ["remindSms", "remind_sms"],
   ["remindSessions", "remind_sessions"],
   ["smsConsent", "sms_consent"],
+  // `null` też jedzie: „okno nie pokazało cyfr" to inna podpowiedź niż brak pola.
+  ["phoneHint", "phone_hint"],
 ];
 
 /** Zmienia kanały i przypomnienia pojedynczego zgłoszenia. */
@@ -118,6 +135,7 @@ export async function setRegistrationChannels(input: ChannelPrefsInput): Promise
 export const CHANNEL_ERROR_CODES = [
   "sms_consent_required",
   "phone_required",
+  "phone_changed",
   "manage_expired",
   "already_closed",
   "not_found",

@@ -60,6 +60,15 @@ const gniazda = vi.hoisted(() => ({
   kalendarz: [] as ManagePanelSlotProps[],
   poWydarzeniu: [] as ManagePanelSlotProps[],
   zgody: [] as Array<{ token: string | null }>,
+  wycofanie: [] as Array<{ manageToken: string; reason: string }>,
+}));
+
+// Przegląd R67: karta samego wyłączania SMS-ów i e-maili (klucz wygasły).
+vi.mock("@/components/events/participant/molecules/ChannelWithdrawCard", () => ({
+  ChannelWithdrawCard: (props: { manageToken: string; reason: string }) => {
+    gniazda.wycofanie.push(props);
+    return <div data-testid="karta-wycofania-kanalow" />;
+  },
 }));
 
 vi.mock("@/components/events/participant/slots/ManageConsentsSlot", () => ({
@@ -235,6 +244,7 @@ beforeEach(() => {
   gniazda.kalendarz.length = 0;
   gniazda.poWydarzeniu.length = 0;
   gniazda.zgody.length = 0;
+  gniazda.wycofanie.length = 0;
   quote.mockResolvedValue({
     seats: 1,
     unitCents: 15000,
@@ -663,6 +673,26 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
     expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
     expect(await screen.findByTestId("gniazdo-zgody")).toBeInTheDocument();
     expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
+  });
+
+  it("R67: klucz wygasły - karta WYŁĄCZENIA SMS-ów i e-maili stoi obok zgód", async () => {
+    // Gniazda nie rysują się bez stanu zgłoszenia, a zgodę na SMS trzeba móc
+    // wycofać także po końcu wydarzenia (baza przyjmuje samo wyłączenie).
+    manageView.mockResolvedValue(null);
+    preview.mockResolvedValue({ kind: "expired" });
+    renderPanel();
+
+    expect(await screen.findByTestId("karta-wycofania-kanalow")).toBeInTheDocument();
+    expect(gniazda.wycofanie.at(-1)).toEqual({ manageToken: TOKEN, reason: "expired" });
+    expect(screen.queryByTestId("gniazdo-kalendarz-przypomnienia")).toBeNull();
+  });
+
+  it("R67: ważny klucz - karty wyłączania w panelu NIE ma (zgłoszenie obsługuje gniazdo)", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    renderPanel();
+
+    await screen.findByTestId("gniazdo-kalendarz-przypomnienia");
+    expect(screen.queryByTestId("karta-wycofania-kanalow")).toBeNull();
   });
 
   it("REG-14: po rezygnacji gniazdo zgód zostaje (zgodę wycofuje się niezależnie)", async () => {

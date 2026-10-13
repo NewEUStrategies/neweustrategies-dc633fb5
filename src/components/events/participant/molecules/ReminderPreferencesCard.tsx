@@ -58,7 +58,13 @@ function isLoaded(
 
 type ReminderPatch = Pick<
   ChannelPrefsInput,
-  "remindEmail" | "remindPush" | "remindSms" | "remindSessions" | "notifySms" | "smsConsent"
+  | "remindEmail"
+  | "remindPush"
+  | "remindSms"
+  | "remindSessions"
+  | "notifySms"
+  | "smsConsent"
+  | "phoneHint"
 >;
 
 function ReminderSwitch({
@@ -275,10 +281,17 @@ export function ReminderPreferencesCard({
                 phoneHint={prefs.phoneHint}
                 pending={save.isPending}
                 onConfirm={() =>
+                  // Zgoda dotyczy numeru z okna: baza porównuje podpowiedź
+                  // i odmawia (`phone_changed`), gdy numer zmienił się w tle.
                   save.mutate(
                     prefs.notifySms
-                      ? { remindSms: true, smsConsent: true }
-                      : { remindSms: true, notifySms: true, smsConsent: true },
+                      ? { remindSms: true, smsConsent: true, phoneHint: prefs.phoneHint }
+                      : {
+                          remindSms: true,
+                          notifySms: true,
+                          smsConsent: true,
+                          phoneHint: prefs.phoneHint,
+                        },
                   )
                 }
                 onCancel={() => setConsentOpen(false)}

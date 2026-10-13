@@ -342,9 +342,46 @@ describe("setRegistrationChannels", () => {
     });
   });
 
+  // Przegląd R67: okno zgody odsyła podpowiedź numeru, którą pokazało. `null`
+  // („okno nie pokazało cyfr") to inna informacja niż brak pola (bez
+  // porównania), więc jedzie jako jawny JSON null.
+  it("phone_hint jedzie z zgodą: napis, jawny null - a bez pola wcale", async () => {
+    rpc().setData("event_registration_set_channels", { registration_id: REG });
+
+    await api.setRegistrationChannels({
+      registrationId: REG,
+      notifySms: true,
+      smsConsent: true,
+      phoneHint: "200",
+    });
+    expect(payloadOf("event_registration_set_channels")).toEqual({
+      registration_id: REG,
+      notify_sms: true,
+      sms_consent: true,
+      phone_hint: "200",
+    });
+
+    await api.setRegistrationChannels({
+      registrationId: REG,
+      notifySms: true,
+      smsConsent: true,
+      phoneHint: null,
+    });
+    expect(payloadOf("event_registration_set_channels")).toEqual({
+      registration_id: REG,
+      notify_sms: true,
+      sms_consent: true,
+      phone_hint: null,
+    });
+
+    await api.setRegistrationChannels({ registrationId: REG, notifySms: false });
+    expect(payloadOf("event_registration_set_channels")).not.toHaveProperty("phone_hint");
+  });
+
   it.each([
     ["sms_consent_required: enabling SMS needs explicit consent", "sms_consent_required"],
     ["phone_required: registration has no phone number", "phone_required"],
+    ["phone_changed: the phone number changed since the consent was shown", "phone_changed"],
     ["manage_expired: this management link expired when the event ended", "manage_expired"],
     ["already_closed: this registration is already closed", "already_closed"],
     ["not_found: registration does not exist", "not_found"],

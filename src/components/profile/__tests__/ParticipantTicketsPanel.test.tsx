@@ -119,7 +119,12 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
     clientSecret === null ? null : <div data-testid="checkout-modal">{clientSecret}</div>,
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
+// Jedyne RPC wołane wprost z tego panelu: preferencje zgłoszenia, które okno
+// zgody na SMS czyta przy otwarciu (podpowiedź numeru, przegląd R67).
+const prefsRpc = vi.hoisted(() => vi.fn());
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { rpc: (name: string, args?: unknown) => prefsRpc(name, args) },
+}));
 
 // Stan faktury ma własny test; tu liczy się, że atom dostaje identyfikator
 // TEGO zgłoszenia i stoi w nagłówku jego karty.
@@ -142,6 +147,19 @@ const { ParticipantTicketsPanel } = await import("@/components/profile/Participa
 const REGISTRATION_ID = "11111111-1111-1111-1111-111111111111";
 const EVENT_ID = "22222222-2222-2222-2222-222222222222";
 const TICKET_ID = "33333333-3333-3333-3333-333333333333";
+
+/**
+ * Przycisk „Zgadzam się", gdy już przyjmuje kliknięcie: okno zgody czeka na
+ * podpowiedź numeru z preferencji (R67) i do tego czasu jest nieaktywne.
+ */
+async function confirmEnabled(): Promise<HTMLElement> {
+  const button = (
+    await screen.findByText("participantTickets.channels.smsConsent.confirm")
+  ).closest("button");
+  if (button === null) throw new Error("test: brak przycisku zgody");
+  await waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
 
 function registration(over: Partial<ParticipantRegistration> = {}): ParticipantRegistration {
   return {
@@ -197,6 +215,19 @@ beforeEach(() => {
     registrationId: REGISTRATION_ID,
     notifyEmail: true,
     notifySms: true,
+  });
+  prefsRpc.mockResolvedValue({
+    data: {
+      ok: true,
+      registration_id: REGISTRATION_ID,
+      status: "pending",
+      notify_email: true,
+      notify_sms: false,
+      has_account: true,
+      has_phone: true,
+      phone_hint: "200",
+    },
+    error: null,
   });
 });
 
@@ -452,19 +483,62 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     await waitFor(() => expect(switches[1]).not.toBeDisabled());
     fireEvent.click(switches[1] as HTMLElement);
 
-    // Sam przełącznik niczego nie zapisuje - pyta o zgodę.
+    // Sam przełącznik niczego nie zapisuje - pyta o zgodę, z końcówką numeru
+    // z preferencji TEGO zgłoszenia (przegląd R67).
+    expect(
+      await screen.findByText("participantTickets.channels.smsConsent.body(hint=200)"),
+    ).toBeTruthy();
+    expect(setChannels).not.toHaveBeenCalled();
+    expect(prefsRpc).toHaveBeenCalledWith("event_registration_preferences", {
+      p_payload: { registration_id: REGISTRATION_ID },
+    });
+
+    fireEvent.click(await confirmEnabled());
+    await waitFor(() =>
+      expect(setChannels).toHaveBeenCalledWith({
+        registrationId: REGISTRATION_ID,
+        notifySms: true,
+        smsConsent: true,
+        // Zgoda dotyczy numeru z okna - baza porówna podpowiedź (`phone_changed`).
+        phoneHint: "200",
+      }),
+    );
+  });
+
+  it("R67: preferencje niedostępne - zdanie bez cyfr i zgoda BEZ podpowiedzi", async () => {
+    prefsRpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "missing" } });
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
+    await waitFor(() => expect(switches[1]).not.toBeDisabled());
+    fireEvent.click(switches[1] as HTMLElement);
     expect(
       await screen.findByText("participantTickets.channels.smsConsent.bodyNoHint"),
     ).toBeTruthy();
-    expect(setChannels).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText("participantTickets.channels.smsConsent.confirm"));
+    fireEvent.click(await confirmEnabled());
     await waitFor(() =>
       expect(setChannels).toHaveBeenCalledWith({
         registrationId: REGISTRATION_ID,
         notifySms: true,
         smsConsent: true,
       }),
+    );
+  });
+
+  it("R67: numer zmieniony w tle (`phone_changed`) ma własne zdanie", async () => {
+    setChannels.mockRejectedValue(
+      new Error("phone_changed: the phone number changed since the consent was shown"),
+    );
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
+    await waitFor(() => expect(switches[1]).not.toBeDisabled());
+    fireEvent.click(switches[1] as HTMLElement);
+    fireEvent.click(await confirmEnabled());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("participantTickets.channels.errors.phoneChanged"),
     );
   });
 
@@ -477,7 +551,9 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     fireEvent.click(await screen.findByText("participantTickets.channels.smsConsent.cancel"));
 
     await waitFor(() =>
-      expect(screen.queryByText("participantTickets.channels.smsConsent.bodyNoHint")).toBeNull(),
+      expect(
+        screen.queryByText("participantTickets.channels.smsConsent.body(hint=200)"),
+      ).toBeNull(),
     );
     expect(setChannels).not.toHaveBeenCalled();
   });
@@ -514,7 +590,7 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     const switches = await screen.findAllByRole("switch");
     await waitFor(() => expect(switches[1]).not.toBeDisabled());
     fireEvent.click(switches[1] as HTMLElement);
-    fireEvent.click(await screen.findByText("participantTickets.channels.smsConsent.confirm"));
+    fireEvent.click(await confirmEnabled());
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith("participantTickets.channels.errors.phoneRequired"),

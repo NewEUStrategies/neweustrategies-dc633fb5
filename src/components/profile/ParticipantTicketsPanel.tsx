@@ -43,6 +43,7 @@ import {
 import {
   registrationPreferencesKey,
   useParticipantSmsAvailable,
+  useRegistrationPreferences,
 } from "@/lib/events/useRegistrationPreferences";
 import { SmsConsentConfirm } from "@/components/events/participant/molecules/SmsConsentConfirm";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
@@ -96,10 +97,25 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
 
   const smsAvailable = useParticipantSmsAvailable();
   const [smsConsentOpen, setSmsConsentOpen] = useState(false);
+  // ZGODA NA NUMER, KTÓRY POKAZANO (przegląd R67). Okno zgody czyta
+  // podpowiedź numeru z preferencji tego zgłoszenia - dopiero przy otwarciu,
+  // ten sam wpis cache co karta przypomnień - i odsyła ją z potwierdzeniem.
+  // Numer zmieniony w tle daje odmowę `phone_changed` zamiast zgody na numer,
+  // którego uczestnik nie widział. Bez wczytanych preferencji (baza sprzed
+  // migracji, błąd) podpowiedź nie jedzie wcale.
+  const consentPrefs = useRegistrationPreferences({
+    registrationId: item.registrationId,
+    enabled: smsConsentOpen,
+  });
+  const consentPrefsData = consentPrefs.data?.kind === "ok" ? consentPrefs.data : null;
 
   const channels = useMutation({
-    mutationFn: (patch: { notifyEmail?: boolean; notifySms?: boolean; smsConsent?: boolean }) =>
-      setRegistrationChannels({ registrationId: item.registrationId, ...patch }),
+    mutationFn: (patch: {
+      notifyEmail?: boolean;
+      notifySms?: boolean;
+      smsConsent?: boolean;
+      phoneHint?: string | null;
+    }) => setRegistrationChannels({ registrationId: item.registrationId, ...patch }),
     onSuccess: () => {
       toast.success(t("participantTickets.channels.saved"));
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -293,9 +309,15 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
         )}
         <SmsConsentConfirm
           open={smsConsentOpen}
-          phoneHint={null}
-          pending={channels.isPending}
-          onConfirm={() => channels.mutate({ notifySms: true, smsConsent: true })}
+          phoneHint={consentPrefsData?.phoneHint ?? null}
+          pending={channels.isPending || (smsConsentOpen && consentPrefs.isFetching)}
+          onConfirm={() =>
+            channels.mutate(
+              consentPrefsData !== null
+                ? { notifySms: true, smsConsent: true, phoneHint: consentPrefsData.phoneHint }
+                : { notifySms: true, smsConsent: true },
+            )
+          }
           onCancel={() => setSmsConsentOpen(false)}
         />
       </section>
