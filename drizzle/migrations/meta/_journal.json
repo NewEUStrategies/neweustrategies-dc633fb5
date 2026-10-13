@@ -1506,6 +1506,13 @@
       "when": 1791927162049,
       "tag": "0214_event_wallet_pass_queue_robustness",
       "breakpoints": true
+    },
+    {
+      "idx": 215,
+      "version": "7",
+      "when": 1791927282596,
+      "tag": "0215_event_session_delete_subtree_signups",
+      "breakpoints": true
     }
   ]
 }
