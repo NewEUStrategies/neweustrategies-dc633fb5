@@ -26,6 +26,12 @@
 //      wpisane przed zalogowaniem zostają, dochodzi tylko adres z konta.
 //   8. ZAMKNIĘCIE BEZ POWODU (`closedReason: null`) mówi „nieznany powód", a nie
 //      pokazuje klucza sklejonego z `null`.
+//   9. ODPOWIEDŹ NEUTRALNA KOŃCZY ZAPIS GRUPY (REG-04, decyzja D3). Po
+//      `check_email` nic o zgłoszeniu nie idzie dalej: goście nie jadą do bazy,
+//      bilety nie wychodzą, a ekran „sprawdź skrzynkę" mówi tylko, że goście
+//      nie doszli - bez panelu ponowienia i bez odmowy. Formularz rozstrzyga po
+//      `kind`, więc tak samo kończy się odpowiedź, która mimo to niesie
+//      zgłoszenie prowadzącego.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reszty ścieżki uczestnika (pola organizatora,
 // zgody, regulaminy, odmowy zapisu, rezygnacja) - ma ją
@@ -42,8 +48,9 @@
 // (`groupGuestsServerFnStub` - prawdziwy ładunek gości, odpowiedź planowana pod
 // `event_register_group_guests_for_client`), poczty i kasy,
 // tożsamość, język, toasty i modal Stripe. Parser
-// formularza i wszystkie komponenty potomne jadą prawdziwe. Wyjątkiem jest
-// punkt 8 - kształt, którego parser nie oddaje, podajemy z pominięciem parsera.
+// formularza i wszystkie komponenty potomne jadą prawdziwe. Wyjątkiem są
+// punkty 8 i 9 - kształt, którego parser albo `submitRegistration` nie oddaje,
+// podajemy z pominięciem tej warstwy.
 //
 // RODO: dane osób są syntetyczne, adresy wyłącznie w domenach example.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,6 +58,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { Json } from "@/integrations/supabase/types";
+import type { RegistrationSubmitOutcome } from "@/lib/events/publicRegistrationApi";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { REGISTER_FOR_CLIENT_RPC } from "@/test/events/registrationServerFn";
@@ -67,7 +75,11 @@ const h = vi.hoisted(() => ({
   user: null as TestUser | null,
   lang: "pl" as "pl" | "en",
   formOverride: null as RegistrationForm | null,
+  /** Przekształca wynik prawdziwego `submitRegistration` (punkt 9). */
+  reshapeOutcome: null as
+    ((outcome: RegistrationSubmitOutcome) => RegistrationSubmitOutcome) | null,
   sendConfirmation: vi.fn(),
+  sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
   quote: vi.fn(),
 }));
@@ -104,6 +116,10 @@ vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
   confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
 }));
 
+vi.mock("@/lib/events/groupTicketCodes.functions", () => ({
+  sendGroupTicketCodes: { name: "sendGroupTicketCodes" },
+}));
+
 vi.mock("@/lib/billing/checkout.functions", () => ({
   createCheckoutOrder: { name: "createCheckoutOrder" },
 }));
@@ -117,9 +133,11 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
   useServerFn: (fn: { name?: string }) =>
     fn.name === "confirmEventRegistrationEmail"
       ? h.sendConfirmation
-      : fn.name === "quoteEventTicketCheckout"
-        ? h.quote
-        : h.checkout,
+      : fn.name === "sendGroupTicketCodes"
+        ? h.sendTicketCodes
+        : fn.name === "quoteEventTicketCheckout"
+          ? h.quote
+          : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -135,8 +153,9 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
     clientSecret === null ? null : <div data-testid="checkout-modal">{clientSecret}</div>,
 }));
 
-// Parser zostaje prawdziwy; podmiana wchodzi WYŁĄCZNIE wtedy, gdy test poda
-// gotowy formularz (punkt 8).
+// Parser i zapis zostają prawdziwe; podmiana wchodzi WYŁĄCZNIE wtedy, gdy test
+// poda gotowy formularz (punkt 8) albo przekształcenie wyniku zapisu (punkt 9) -
+// zapis i tak idzie przez funkcję serwerową, przekształcany jest dopiero wynik.
 vi.mock("@/lib/events/publicRegistrationApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/events/publicRegistrationApi")>();
   return {
@@ -145,6 +164,10 @@ vi.mock("@/lib/events/publicRegistrationApi", async (importOriginal) => {
       h.formOverride === null
         ? actual.fetchRegistrationForm(slug, ticketKey)
         : Promise.resolve(h.formOverride),
+    submitRegistration: async (input: Parameters<typeof actual.submitRegistration>[0]) => {
+      const outcome = await actual.submitRegistration(input);
+      return h.reshapeOutcome === null ? outcome : h.reshapeOutcome(outcome);
+    },
   };
 });
 
@@ -322,8 +345,10 @@ beforeEach(() => {
   h.user = null;
   h.lang = "pl";
   h.formOverride = null;
+  h.reshapeOutcome = null;
   h.sendConfirmation.mockReset();
   h.sendConfirmation.mockResolvedValue({ ok: true });
+  h.sendTicketCodes.mockReset();
   h.checkout.mockReset();
   h.quote.mockReset();
   h.quote.mockResolvedValue({
@@ -715,5 +740,48 @@ describe("zamknięcie bez podanego powodu", () => {
     expect(await screen.findByText("eventRegistration.closed.unknown")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.closed.null")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(label("firstName"))).not.toBeInTheDocument();
+  });
+});
+
+describe("zapis grupowy - odpowiedź neutralna kończy zapis", () => {
+  /**
+   * Odpowiedź neutralna, która mimo to niesie zgłoszenie prowadzącego.
+   * `submitRegistration` takiej nie oddaje (D3: niezweryfikowany dostaje stałe
+   * `{ ok: true, outcome: "check_email" }`), ale dopiero ona dowodzi, że
+   * formularz kończy zapis po `kind`. Przy samym stałym `check_email`
+   * przepuszczenie odpowiedzi dalej byłoby z zewnątrz niewidoczne:
+   * `outcome.result` to `undefined`, a błąd typu połyka gałąź ponowienia gości,
+   * której ekran „sprawdź skrzynkę" nie rysuje.
+   */
+  function neutralCarryingLead(outcome: RegistrationSubmitOutcome): RegistrationSubmitOutcome {
+    if (outcome.kind !== "registered") throw new Error("test: zapis prowadzącego miał przejść");
+    const leaked = { kind: "check_email" as const, result: outcome.result };
+    return leaked;
+  }
+
+  it.each([
+    ["stałe check_email z serwera", null],
+    ["check_email niosące zgłoszenie prowadzącego", neutralCarryingLead],
+  ])("%s: goście nie jadą do bazy, ekran mówi tylko, że nie doszli", async (_shape, reshape) => {
+    if (reshape === null) stub().setData(REGISTER_RPC, { ok: true, outcome: "check_email" });
+    h.reshapeOutcome = reshape;
+    h.user = LEAD;
+    renderForm();
+    await screen.findByText(`${G}.title`);
+    fireEvent.click(addButton());
+    fillGuest(2, "Ewa", "Nowak", "ewa.nowak@example.org");
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("eventRegistration.result.checkEmailTitle")).toBeInTheDocument();
+    expect(screen.getByText(`${G}.guestsNotAdded`)).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1);
+    // Nic o zgłoszeniu nie idzie dalej: ani goście, ani ich bilety.
+    expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+    // Ani panelu ponowienia gości, ani odmowy, ani klucza samoobsługi.
+    expect(screen.queryByRole("button", { name: `${G}.retry.submit` })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(MANAGE_TOKEN)).not.toBeInTheDocument();
   });
 });
