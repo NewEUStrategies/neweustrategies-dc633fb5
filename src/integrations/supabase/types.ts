@@ -13805,6 +13805,7 @@ export type Database = {
         Row: {
           auto_armed_at: string | null
           base_url: string
+          billing_secret: string
           community_last_tick_at: string | null
           community_last_tick_error: string | null
           community_last_tick_status: string | null
@@ -13826,6 +13827,7 @@ export type Database = {
         Insert: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -13847,6 +13849,7 @@ export type Database = {
         Update: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
