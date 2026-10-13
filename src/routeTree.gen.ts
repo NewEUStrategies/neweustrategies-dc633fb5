@@ -58,7 +58,6 @@ import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ErrorRouteImport } from './routes/error'
-import { Route as EventConsentConfirmRouteImport } from './routes/event-consent.confirm'
 import { Route as DonateRouteImport } from './routes/donate'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContributorsRouteImport } from './routes/contributors'
@@ -126,6 +125,7 @@ import { Route as MediaSplatRouteImport } from './routes/media.$'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSavedRouteImport } from './routes/events.saved'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
+import { Route as EventConsentConfirmRouteImport } from './routes/event-consent.confirm'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as ClubApplyRouteImport } from './routes/club.apply'
@@ -331,8 +331,8 @@ import { Route as AdminEventsRegistrationsRouteImport } from './routes/admin.eve
 import { Route as AdminEventsOnsiteRouteImport } from './routes/admin.events.onsite'
 import { Route as AdminEventsMeetingsRouteImport } from './routes/admin.events.meetings'
 import { Route as AdminEventsListRouteImport } from './routes/admin.events.list'
-import { Route as AdminEventsAccountBindingsRouteImport } from './routes/admin.events.account-bindings'
 import { Route as AdminEventsAgendaRouteImport } from './routes/admin.events.agenda'
+import { Route as AdminEventsAccountBindingsRouteImport } from './routes/admin.events.account-bindings'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
 import { Route as AdminCouponsCampaignsRouteImport } from './routes/admin.coupons.campaigns'
@@ -683,11 +683,6 @@ const ErrorRoute = ErrorRouteImport.update({
   path: '/error',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EventConsentConfirmRoute = EventConsentConfirmRouteImport.update({
-  id: '/event-consent/confirm',
-  path: '/event-consent/confirm',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DonateRoute = DonateRouteImport.update({
   id: '/donate',
   path: '/donate',
@@ -1022,6 +1017,11 @@ const EventsSlugRoute = EventsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => EventsRoute,
+} as any)
+const EventConsentConfirmRoute = EventConsentConfirmRouteImport.update({
+  id: '/event-consent/confirm',
+  path: '/event-consent/confirm',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
@@ -2065,17 +2065,17 @@ const AdminEventsListRoute = AdminEventsListRouteImport.update({
   path: '/list',
   getParentRoute: () => AdminEventsRoute,
 } as any)
+const AdminEventsAgendaRoute = AdminEventsAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => AdminEventsRoute,
+} as any)
 const AdminEventsAccountBindingsRoute =
   AdminEventsAccountBindingsRouteImport.update({
     id: '/account-bindings',
     path: '/account-bindings',
     getParentRoute: () => AdminEventsRoute,
   } as any)
-const AdminEventsAgendaRoute = AdminEventsAgendaRouteImport.update({
-  id: '/agenda',
-  path: '/agenda',
-  getParentRoute: () => AdminEventsRoute,
-} as any)
 const AdminCrmIdRoute = AdminCrmIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -2659,7 +2659,6 @@ export interface FileRoutesByFullPath {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
-  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -2798,6 +2797,7 @@ export interface FileRoutesByFullPath {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
@@ -3082,7 +3082,6 @@ export interface FileRoutesByTo {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
-  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/glossary': typeof GlossaryRoute
@@ -3207,6 +3206,7 @@ export interface FileRoutesByTo {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/media/$': typeof MediaSplatRoute
@@ -3491,7 +3491,6 @@ export interface FileRoutesById {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
-  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -3630,6 +3629,7 @@ export interface FileRoutesById {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
@@ -3918,7 +3918,6 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
-    | '/event-consent/confirm'
     | '/events'
     | '/experts'
     | '/feed'
@@ -4057,6 +4056,7 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
+    | '/event-consent/confirm'
     | '/events/$slug'
     | '/events/saved'
     | '/live/rss.xml'
@@ -4341,7 +4341,6 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
-    | '/event-consent/confirm'
     | '/experts'
     | '/feed'
     | '/glossary'
@@ -4466,6 +4465,7 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
+    | '/event-consent/confirm'
     | '/events/saved'
     | '/live/rss.xml'
     | '/media/$'
@@ -4749,7 +4749,6 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
-    | '/event-consent/confirm'
     | '/events'
     | '/experts'
     | '/feed'
@@ -4888,6 +4887,7 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
+    | '/event-consent/confirm'
     | '/events/$slug'
     | '/events/saved'
     | '/live_/rss.xml'
@@ -5175,7 +5175,6 @@ export interface RootRouteChildren {
   CookiesRoute: typeof CookiesRoute
   DonateRoute: typeof DonateRoute
   ErrorRoute: typeof ErrorRoute
-  EventConsentConfirmRoute: typeof EventConsentConfirmRoute
   EventsRoute: typeof EventsRouteWithChildren
   ExpertsRoute: typeof ExpertsRoute
   FeedRoute: typeof FeedRoute
@@ -5237,6 +5236,7 @@ export interface RootRouteChildren {
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  EventConsentConfirmRoute: typeof EventConsentConfirmRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
   MediaSplatRoute: typeof MediaSplatRoute
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
@@ -5648,13 +5648,6 @@ declare module '@tanstack/react-router' {
       path: '/error'
       fullPath: '/error'
       preLoaderRoute: typeof ErrorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/event-consent/confirm': {
-      id: '/event-consent/confirm'
-      path: '/event-consent/confirm'
-      fullPath: '/event-consent/confirm'
-      preLoaderRoute: typeof EventConsentConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/donate': {
@@ -6125,6 +6118,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/events/$slug'
       preLoaderRoute: typeof EventsSlugRouteImport
       parentRoute: typeof EventsRoute
+    }
+    '/event-consent/confirm': {
+      id: '/event-consent/confirm'
+      path: '/event-consent/confirm'
+      fullPath: '/event-consent/confirm'
+      preLoaderRoute: typeof EventConsentConfirmRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
@@ -7561,18 +7561,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsListRouteImport
       parentRoute: typeof AdminEventsRoute
     }
-    '/admin/events/account-bindings': {
-      id: '/admin/events/account-bindings'
-      path: '/account-bindings'
-      fullPath: '/admin/events/account-bindings'
-      preLoaderRoute: typeof AdminEventsAccountBindingsRouteImport
-      parentRoute: typeof AdminEventsRoute
-    }
     '/admin/events/agenda': {
       id: '/admin/events/agenda'
       path: '/agenda'
       fullPath: '/admin/events/agenda'
       preLoaderRoute: typeof AdminEventsAgendaRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
+    '/admin/events/account-bindings': {
+      id: '/admin/events/account-bindings'
+      path: '/account-bindings'
+      fullPath: '/admin/events/account-bindings'
+      preLoaderRoute: typeof AdminEventsAccountBindingsRouteImport
       parentRoute: typeof AdminEventsRoute
     }
     '/admin/crm/$id': {
@@ -9167,7 +9167,6 @@ const rootRouteChildren: RootRouteChildren = {
   CookiesRoute: CookiesRoute,
   DonateRoute: DonateRoute,
   ErrorRoute: ErrorRoute,
-  EventConsentConfirmRoute: EventConsentConfirmRoute,
   EventsRoute: EventsRouteWithChildren,
   ExpertsRoute: ExpertsRoute,
   FeedRoute: FeedRoute,
@@ -9231,6 +9230,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  EventConsentConfirmRoute: EventConsentConfirmRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
   MediaSplatRoute: MediaSplatRoute,
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,
