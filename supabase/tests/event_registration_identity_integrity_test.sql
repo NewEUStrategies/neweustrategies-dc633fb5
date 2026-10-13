@@ -191,9 +191,10 @@ RESET ROLE;
 -- dowiazana do wolajacego. Sprawdzamy ja PO zapisie Y: osoba ma wtedy
 -- prawowitego wlasciciela, a X - dawniej dowiazany pierwszym zapisem, ktorego
 -- `COALESCE(p.user_id, ...)` juz by nie oddal - nie ma do niej zadnego prawa.
--- (Przed dowiazaniem Y obecne cialo `event_registration_cancel` przepuszcza
--- kazde konto: warunek wlasnosci daje NULL dla osoby bez konta - zgloszone
--- wlascicielowi tej funkcji, B4.)
+-- (Osoba BEZ konta tez nie daje prawa rezygnacji: cialo
+-- `event_registration_cancel` z 20261012170100 wymaga `v_uid IS NOT NULL AND
+-- person_user_id IS NOT DISTINCT FROM v_uid`, wiec NULL po stronie osoby to
+-- `forbidden`, a nie przepustka.)
 SELECT set_config('request.jwt.claim.sub', 'b1c00000-0000-0000-0000-0000000000a1', true);
 SELECT set_config('request.jwt.claims',
   '{"sub":"b1c00000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
