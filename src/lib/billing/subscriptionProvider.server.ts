@@ -50,6 +50,14 @@
 // jedzie W TEJ SAMEJ oczekującej aktualizacji (operator przyjmuje w niej
 // `cancel_at_period_end`) - jedno zdarzenie zamiast dwóch konkurujących.
 //
+// Odrzucona dopłata bywa opłacona PÓŹNIEJ: klient płaci fakturę ze strony
+// operatora w oknie oczekującej zmiany (~23 h), a operator stosuje zmianę sam
+// (`customer.subscription.pending_update_applied`) - już poza tym modułem,
+// więc zachowany harmonogram zostawał i na koniec okresu cofał opłacony
+// upgrade / dołożone miejsca. Tę samą decyzję co po udanej dopłacie podejmuje
+// wtedy webhook (`reconcileScheduleWithAppliedUpdate`), ale tylko dla
+// harmonogramu, którego następna faza zmianie przeczy.
+//
 // Ta sama zasada - nieudana operacja nie kasuje zaplanowanej zmiany - dotyczy
 // rezygnacji i powrotu do bieżącej liczby miejsc. Rezygnacja MUSI zwolnić
 // harmonogram przed flagą (operator nie łączy obu), więc gdy flaga się nie
@@ -431,7 +439,8 @@ async function failureOf(
  * harmonogramem) i odtwarza, gdy flaga się nie ustawi
  * (`restoreReleasedSchedule`), powrót do bieżącej liczby miejsc - tylko gdy
  * harmonogram niesie wyłącznie zmianę miejsc (`dropPendingSeatChange`), a
- * zmiana natychmiastowa - dopiero PO udanej dopłacie (`releaseSupersededSchedule`).
+ * zmiana natychmiastowa - dopiero PO udanej dopłacie (`releaseSupersededSchedule`)
+ * albo po dopłacie opłaconej później (`reconcileScheduleWithAppliedUpdate`).
  * Zwolnienie jest jednorazowe per harmonogram, więc klucz z samego
  * identyfikatora jest deterministyczny i bezpieczny.
  */
@@ -1307,4 +1316,159 @@ export async function updateSubscriptionQuantity(
   } catch (e) {
     return failureOf(stripe, subscriptionId, e);
   }
+}
+
+// --- oczekująca zmiana zastosowana po czasie ---------------------------------
+
+/** Pozycja z migawki zdarzenia: cena operatora (`price_...`, nie `lookup_key`) i ilość. */
+export interface AppliedSubscriptionLine {
+  price: string;
+  quantity: number;
+}
+
+/**
+ * Co stało się z harmonogramem po zastosowanej oczekującej zmianie:
+ * - `released`     - następna faza cofała zmianę (niższy plan albo mniej
+ *                    miejsc przy tej samej cenie): harmonogram zwolniony,
+ * - `rewritten`    - następna faza niosła INNĄ cenę (panel operatora,
+ *                    migracja cennika) i mniej miejsc: cena zostaje, ilość
+ *                    wraca do opłaconej,
+ * - `kept`         - następna faza zmianie nie przeczy (albo jej kształtu nie
+ *                    umiemy odczytać) - nietknięta,
+ * - `not_attached` - w chwili zastosowania harmonogramu nie było, a dziś nie
+ *                    ma go wcale albo steruje inny (nowsza decyzja),
+ * - `superseded`   - pozycje u operatora nie są już tymi z migawki: późniejsza
+ *                    operacja rozstrzygnęła harmonogram po swojemu,
+ * - `missing`      - operator nie zna subskrypcji (usunięta w piaskownicy).
+ */
+export type AppliedUpdateScheduleOutcome =
+  "released" | "rewritten" | "kept" | "not_attached" | "superseded" | "missing";
+
+function isResourceMissing(error: unknown): boolean {
+  const failure = error as { code?: unknown; raw?: { code?: unknown } } | null;
+  return (failure?.code ?? failure?.raw?.code) === "resource_missing";
+}
+
+/** Ranga planu z katalogu dla ceny operatora; `null` = cena spoza katalogu. */
+function catalogRankOf(price: unknown): number | null {
+  return catalogEntryByPriceId(readableLookupKey(price))?.rank ?? null;
+}
+
+/**
+ * Czy zaplanowana cena to NIŻSZY plan niż opłacona właśnie. Cena fazy to sam
+ * identyfikator (fazy nie rozwijamy), więc `lookup_key` doczytujemy - tylko
+ * dla ceny innej niż bieżąca. Cena spoza katalogu (po żadnej stronie) nie ma
+ * rangi: nie wiemy, że jest niższa, więc nie zwalniamy niczego na domysł.
+ */
+async function isLowerPlan(
+  stripe: Stripe,
+  nextPrice: string,
+  appliedPrice: unknown,
+): Promise<boolean> {
+  const appliedRank = catalogRankOf(appliedPrice);
+  if (appliedRank === null) return false;
+  const nextRank = catalogRankOf(await stripe.prices.retrieve(nextPrice));
+  return nextRank !== null && nextRank < appliedRank;
+}
+
+/**
+ * Harmonogram po oczekującej zmianie zastosowanej PÓŹNIEJ - odrzucona dopłata
+ * (`updateWithProration`) opłacona w oknie operatora, zdarzenie
+ * `customer.subscription.pending_update_applied`. Pozycje niosą już nową
+ * cenę/ilość, ale harmonogram zachowany przy odmowie (zaplanowany downgrade,
+ * zmniejszenie miejsc) wciąż zastosowałby STARĄ decyzję na koniec okresu:
+ * klient płaciłby mniej, niż wybrał, a plan po cichu spadałby przy odnowieniu.
+ * Po udanej dopłacie od razu zwalnia go `releaseSupersededSchedule`; tu
+ * podejmujemy tę decyzję z opóźnieniem, na ŻYWYM stanie, i tylko gdy
+ * następna faza zmianie przeczy (`pendingPhaseLines`, para pozycja-pozycja):
+ *
+ * - niższy plan (ranga katalogu) albo mniej miejsc przy tej samej cenie -
+ *   zwolnienie tym samym pomocnikiem co po udanej dopłacie (klucz z
+ *   identyfikatora harmonogramu, deterministyczny),
+ * - inna, nie niższa cena (panel, migracja cennika) i mniej miejsc -
+ *   przepisanie faz (`scheduleFromNextPeriod`): cena zostaje, ilość wraca do
+ *   opłaconej - jak przy powrocie do bieżącej liczby miejsc,
+ * - wszystko inne (wyższy plan, tyle samo albo więcej miejsc, kształt
+ *   nieczytelny) zostaje.
+ *
+ * NOWSZA DECYZJA KLIENTA ZOSTAJE. Zdarzenie bywa dostarczone z opóźnieniem
+ * (ponowienie po błędzie), a klient mógł w tym czasie zaplanować downgrade
+ * już z nowego planu. Działamy więc tylko na harmonogramie, który był
+ * dołączony W CHWILI zastosowania (`applied.scheduleId` z migawki) - bez
+ * niego nie pytamy operatora wcale - i tylko gdy pozycje u operatora wciąż
+ * są tymi z migawki. Przepisania faz TEGO SAMEGO harmonogramu między
+ * zastosowaniem a obsługą zdarzenia nie odróżnimy (operator nie podaje,
+ * kiedy zmieniono fazy) - takie okno istnieje tylko przy spóźnionej dostawie.
+ *
+ * W przeciwieństwie do operacji z UI ta funkcja RZUCA: błąd operatora (także
+ * zgubiona odpowiedź) wraca do webhooka, który odpowiada 500 i dostaje
+ * zdarzenie ponownie. Ponowienie czyta żywy stan od nowa, więc zwolnienie,
+ * które jednak weszło, nie idzie drugi raz.
+ */
+export async function reconcileScheduleWithAppliedUpdate(
+  env: StripeEnv,
+  subscriptionId: string,
+  applied: { scheduleId: string | null; lines: readonly AppliedSubscriptionLine[] },
+): Promise<AppliedUpdateScheduleOutcome> {
+  if (!applied.scheduleId) return "not_attached";
+  const stripe = await getStripeClient(env);
+  let live: Stripe.Subscription;
+  try {
+    live = await retrieveLive(stripe, subscriptionId);
+  } catch (e) {
+    if (isResourceMissing(e)) return "missing";
+    throw e;
+  }
+
+  const schedule = attachedSchedule(live);
+  if (
+    live.status === "canceled" ||
+    refOf(live.schedule) !== applied.scheduleId ||
+    !schedule ||
+    !LIVE_SCHEDULE_STATUSES.has(schedule.status)
+  ) {
+    return "not_attached";
+  }
+
+  const items = live.items.data;
+  const liveQuantity = (index: number) => Math.max(1, items[index]?.quantity ?? 1);
+  const unchanged =
+    items.length === applied.lines.length &&
+    applied.lines.every(
+      (line, index) =>
+        refOf(items[index]?.price) === line.price &&
+        (items[index]?.quantity ?? 1) === line.quantity,
+    );
+  if (!unchanged) return "superseded";
+
+  const pending = pendingPhaseLines(live);
+  if (!pending || pending.length !== items.length) return "kept";
+
+  let lowerPlan = false;
+  let fewerSeats = false;
+  let samePrices = true;
+  for (const [index, next] of pending.entries()) {
+    if (next.quantity < liveQuantity(index)) fewerSeats = true;
+    if (next.price === refOf(items[index]?.price)) continue;
+    samePrices = false;
+    if (await isLowerPlan(stripe, next.price, items[index]?.price)) lowerPlan = true;
+  }
+
+  if (lowerPlan || (fewerSeats && samePrices)) {
+    await releaseAttachedSchedule(stripe, live);
+    return "released";
+  }
+  if (fewerSeats) {
+    await scheduleFromNextPeriod(
+      stripe,
+      subscriptionId,
+      live,
+      pending.map((line, index) => ({
+        price: line.price,
+        quantity: Math.max(line.quantity, liveQuantity(index)),
+      })),
+    );
+    return "rewritten";
+  }
+  return "kept";
 }

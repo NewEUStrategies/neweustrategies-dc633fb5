@@ -889,6 +889,43 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
   });
 }
 
+/**
+ * Migawka `customer.subscription.pending_update_applied`: stan subskrypcji
+ * PO zastosowaniu oczekującej zmiany plus harmonogram dołączony W TEJ
+ * CHWILI (`stripeEvents.server`) - `null` = żadnego.
+ */
+export type PendingUpdateAppliedData = SubscriptionData & { scheduleId?: string | null };
+
+/**
+ * Odrzucona dopłata (upgrade, więcej miejsc) opłacona później: operator
+ * zastosował zmianę, ale harmonogram zachowany przy odmowie cofnąłby ją na
+ * koniec okresu. Decyzję podejmuje warstwa operatora na żywym stanie
+ * (`reconcileScheduleWithAppliedUpdate`), klientem środowiska ZDARZENIA.
+ *
+ * Błąd operatora RZUCA - celowo bez łapania: trasa odpowiada 500, dziennik
+ * zostawia zdarzenie `failed`, a operator ponawia je i rozstrzygnięcie idzie
+ * od nowa. „Pominięte" przy żywym sprzecznym harmonogramie byłoby ciche:
+ * stary downgrade wszedłby przy odnowieniu.
+ *
+ * @returns czy harmonogram u operatora się zmienił (zwolniony albo przepisany)
+ */
+async function settleScheduleAfterAppliedUpdate(
+  data: PendingUpdateAppliedData,
+  env: StripeEnv,
+): Promise<boolean> {
+  if (!data.scheduleId) return false;
+  const { reconcileScheduleWithAppliedUpdate } =
+    await import("@/lib/billing/subscriptionProvider.server");
+  const outcome = await reconcileScheduleWithAppliedUpdate(env, data.id, {
+    scheduleId: data.scheduleId,
+    lines: (data.items ?? []).map((item) => ({
+      price: item.price.id,
+      quantity: item.quantity ?? 1,
+    })),
+  });
+  return outcome === "released" || outcome === "rewritten";
+}
+
 function amountFromTransaction(data: TransactionData): number | null {
   const raw = data.details?.totals?.grandTotal;
   if (!raw) return null;
@@ -1133,6 +1170,7 @@ export const HANDLED_EVENT_TYPES = [
   "subscription.resumed",
   "subscription.imported",
   "subscription.canceled",
+  "subscription.pending_update_applied",
   "transaction.completed",
   "transaction.updated",
   "transaction.payment_failed",
@@ -1225,6 +1263,23 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
     case "subscription.canceled": {
       const sub = input.data as SubscriptionData;
       return runGuardedSubscriptionEvent(sub, env, eventStamp(occurredAt), "canceled");
+    }
+    // Oczekująca zmiana zastosowana po późniejszej zapłacie. NAJPIERW
+    // harmonogram u operatora (żywy stan - niezależnie od werdyktu strażnika,
+    // bo spóźniona migawka nie czyni sprzecznego harmonogramu mniej żywym),
+    // potem lustro tym samym strażnikiem co każda aktualizacja. Błąd
+    // harmonogramu zostawia znacznik nietknięty, więc ponowienie zdarzenia
+    // przejdzie strażnika i rozstrzygnie oba kroki od nowa.
+    case "subscription.pending_update_applied": {
+      const sub = input.data as PendingUpdateAppliedData;
+      const settled = await settleScheduleAfterAppliedUpdate(sub, env);
+      const mirrored = await runGuardedSubscriptionEvent(
+        sub,
+        env,
+        eventStamp(occurredAt),
+        "updated",
+      );
+      return settled ? "processed" : mirrored;
     }
     // Nieudane obciążenie: operator sygnalizuje je dwoma zdarzeniami
     // (`payment_failed` przy odrzuceniu, `past_due` przy wejściu transakcji w

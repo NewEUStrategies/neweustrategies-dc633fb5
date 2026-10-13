@@ -419,6 +419,27 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
     case "customer.subscription.resumed":
       return { eventType: "subscription.resumed", data: mapStripeSubscription(object) };
 
+    // Zmiana natychmiastowa z odrzuconą dopłatą (`pending_if_incomplete`),
+    // opłacona później w oknie operatora: pozycje niosą już nową cenę/ilość.
+    // Osobny typ, bo poza lustrem stanu dyspozytor rozstrzyga harmonogram
+    // zachowany przy odmowie - dlatego jedzie tu harmonogram dołączony W
+    // CHWILI zastosowania (`PendingUpdateAppliedData`), zanim ktokolwiek
+    // zdąży założyć nowy.
+    case "customer.subscription.pending_update_applied":
+      return {
+        eventType: "subscription.pending_update_applied",
+        data: { ...mapStripeSubscription(object), scheduleId: idOf(object.schedule) },
+      };
+
+    // Oczekująca zmiana wygasła bez zapłaty: pozycje zostały stare, a
+    // harmonogram (zaplanowana wcześniej zmiana) jest dokładnie tym, na co
+    // klient się umówił - nie ma czego rozstrzygać. Zwykła migawka stanu pod
+    // strażnikiem kolejności, jak `customer.subscription.updated`.
+    case "customer.subscription.pending_update_expired": {
+      const data = mapStripeSubscription(object);
+      return { eventType: subscriptionEventType(data.status || null), data };
+    }
+
     case "checkout.session.completed": {
       // Sesja "unpaid" (np. przelew w toku) nie ma jeszcze pieniędzy na koncie -
       // realizacja przyjdzie dopiero z `checkout.session.async_payment_succeeded`.

@@ -107,6 +107,12 @@ class FakeStripe {
    * ale odpowiedź ginie - zerwane połączenie po stronie klienta.
    */
   loseResponseOf: "sub.update" | "schedule.release" | null = null;
+  /**
+   * Następne zwolnienie harmonogramu odbija się PRZED wykonaniem (limit
+   * zapytań, blokada obiektu) - operator niczego nie zapamiętuje pod kluczem,
+   * więc ponowienie tym samym kluczem naprawdę się wykona.
+   */
+  rejectNextRelease: Error | null = null;
   private seq = 0;
   private readonly now = PERIOD_START + 3_600;
 
@@ -190,6 +196,65 @@ class FakeStripe {
     return id;
   }
 
+  /**
+   * Klient płaci odrzuconą wcześniej dopłatę (strona faktury, inna karta) w
+   * oknie oczekującej zmiany: operator stosuje `pending_update` - pozycje
+   * dostają nową cenę/ilość, faktura jest opłacona, a dołączony harmonogram
+   * zostaje nietknięty. Zwraca migawkę subskrypcji z chwili zastosowania
+   * (ładunek `customer.subscription.pending_update_applied`: harmonogram jako
+   * identyfikator, nie obiekt).
+   */
+  payPendingInvoice(): Raw {
+    const pending = this.sub.pending_update as {
+      subscription_items: { price?: string; quantity?: number }[];
+    } | null;
+    if (!pending) throw new Error("test: brak oczekującej zmiany do zastosowania");
+    const item = this.sub.items.data[0];
+    const next = pending.subscription_items[0];
+    if (next.price) item.price = { id: next.price, lookup_key: lookupKeyOf(next.price) };
+    if (next.quantity) item.quantity = next.quantity;
+    if (this.sub.latest_invoice) {
+      const invoice = this.invoices.get(this.sub.latest_invoice);
+      if (invoice) invoice.status = "paid";
+    }
+    this.sub.pending_update = null;
+    this.emit();
+    return this.view();
+  }
+
+  /**
+   * Odnowienie na koniec okresu: dołączony harmonogram wchodzi w następną
+   * fazę (jej pozycje zastępują pozycje subskrypcji), a bez fazy następnej
+   * zwalnia subskrypcję (`end_behavior: release`).
+   */
+  renew(): void {
+    const item = this.sub.items.data[0];
+    const length = item.current_period_end - item.current_period_start;
+    const schedule = this.liveSchedule();
+    if (schedule?.current_phase) {
+      const start = schedule.current_phase.start_date;
+      const index = schedule.phases.findIndex((phase) => phase.start_date === start);
+      const next = schedule.phases[index + 1] as
+        { items?: { price: string; quantity?: number }[] } | undefined;
+      const line = next?.items?.[0];
+      if (line) {
+        item.price = { id: line.price, lookup_key: lookupKeyOf(line.price) };
+        item.quantity = line.quantity ?? 1;
+        schedule.current_phase = {
+          start_date: item.current_period_end,
+          end_date: item.current_period_end + length,
+        };
+      } else {
+        schedule.status = "released";
+        schedule.subscription = null;
+        this.sub.schedule = null;
+      }
+    }
+    item.current_period_start = item.current_period_end;
+    item.current_period_end += length;
+    this.emit();
+  }
+
   private delivered<T>(name: "sub.update" | "schedule.release", value: T): T {
     if (this.loseResponseOf !== name) return value;
     this.loseResponseOf = null;
@@ -270,6 +335,10 @@ class FakeStripe {
         list: async (p: { lookup_keys: string[] }) => ({
           data: p.lookup_keys.map((k) => ({ id: priceIdOf(k) })),
         }),
+        retrieve: async (id: string) => {
+          this.log.push("price.retrieve:EXEC");
+          return { id, lookup_key: lookupKeyOf(id) };
+        },
       },
       paymentIntents: { retrieve: async () => ({ status: "requires_payment_method" }) },
       subscriptions: {
@@ -370,8 +439,14 @@ class FakeStripe {
             if (params.metadata) Object.assign(schedule.metadata, params.metadata);
             return schedule;
           }),
-        release: async (id: string, _p: Raw, opts?: { idempotencyKey?: string }) =>
-          this.delivered(
+        release: async (id: string, _p: Raw, opts?: { idempotencyKey?: string }) => {
+          if (this.rejectNextRelease) {
+            const error = this.rejectNextRelease;
+            this.rejectNextRelease = null;
+            this.log.push("schedule.release:REJECTED");
+            throw error;
+          }
+          return this.delivered(
             "schedule.release",
             this.idem("schedule.release", opts?.idempotencyKey, () => {
               const schedule = this.schedules.get(id);
@@ -384,7 +459,8 @@ class FakeStripe {
               this.emit();
               return schedule;
             }),
-          ),
+          );
+        },
       },
     } as unknown as Stripe;
   }
@@ -402,6 +478,7 @@ import {
   changeSubscriptionPrice,
   PAUSED_BY_OPERATOR,
   PAYMENT_FAILED,
+  reconcileScheduleWithAppliedUpdate,
   resumeProviderSubscription,
   updateSubscriptionQuantity,
 } from "@/lib/billing/subscriptionProvider.server";
@@ -873,5 +950,197 @@ describe("pauza poboru operatora - samoobsługowe wznowienie (przegląd #10)", (
       mode: "collection_resumed",
     });
     expect(fake.sub.pause_collection).toBeNull();
+  });
+});
+
+describe("odrzucona dopłata opłacona PÓŹNIEJ - `pending_update_applied` (luka po #9/#41)", () => {
+  /**
+   * Webhook dostaje migawkę z chwili zastosowania - harmonogram jako
+   * identyfikator i pozycje z cenami operatora (`price_...`).
+   */
+  const settle = (snapshot: Raw) => {
+    const items = (snapshot.items as { data: FakeItem[] }).data;
+    return reconcileScheduleWithAppliedUpdate("sandbox", "sub_1", {
+      scheduleId: typeof snapshot.schedule === "string" ? snapshot.schedule : null,
+      lines: items.map((item) => ({ price: item.price.id, quantity: item.quantity })),
+    });
+  };
+
+  const upgradeDeclined = async () => {
+    fake.declineNextPayment = true;
+    expect(await changePlan("business_monthly")).toMatchObject({
+      ok: false,
+      error: PAYMENT_FAILED,
+    });
+  };
+
+  const seatsDeclined = async () => {
+    fake.declineNextPayment = true;
+    expect(await seats(12)).toMatchObject({ ok: false, error: PAYMENT_FAILED });
+  };
+
+  const proFake = () =>
+    new FakeStripe({}, { price: { id: priceIdOf("pro_monthly"), lookup_key: "pro_monthly" } });
+
+  it("upgrade przy zaplanowanym downgradzie: zapłata w oknie zwalnia harmonogram, odnowienie po nowym planie", async () => {
+    useFake(proFake());
+    expect(await changePlan("plus_monthly")).toMatchObject({ ok: true, effect: "scheduled" });
+    const downgrade = fake.sub.schedule;
+    await upgradeDeclined();
+
+    const snapshot = fake.payPendingInvoice();
+    // Luka: operator zastosował upgrade, ale harmonogram z downgradem żyje -
+    // bez zwolnienia odnowienie zeszłoby na Plus, a klient zapłacił za Business.
+    expect(fake.sub.items.data[0].price.lookup_key).toBe("business_monthly");
+    expect(snapshot.schedule).toBe(downgrade);
+    expect(fake.liveSchedule()?.phases[1]).toMatchObject({
+      items: [{ price: priceIdOf("plus_monthly") }],
+    });
+
+    expect(await settle(snapshot)).toBe("released");
+    expect(fake.liveSchedule()).toBeNull();
+    expect(fake.schedules.get(String(downgrade))?.status).toBe("released");
+
+    fake.renew();
+    expect(fake.sub.items.data[0].price.lookup_key).toBe("business_monthly");
+  });
+
+  it("dołożenie miejsc przy zaplanowanym zmniejszeniu: zapłata w oknie - odnowienie na opłaconej liczbie miejsc", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    await seats(5);
+    await seatsDeclined();
+
+    const snapshot = fake.payPendingInvoice();
+    expect(fake.sub.items.data[0].quantity).toBe(12);
+
+    expect(await settle(snapshot)).toBe("released");
+    fake.renew();
+    expect(fake.sub.items.data[0].quantity).toBe(12);
+  });
+
+  it.each([
+    {
+      name: "przejście na dłuższy cykl z panelu (Business kwartalnie)",
+      fakeFor: proFake,
+      next: { price: priceIdOf("business_quarterly"), quantity: 1 },
+      change: upgradeDeclined,
+      renewed: { lookup_key: "business_quarterly", quantity: 1 },
+    },
+    {
+      name: "zaplanowane w panelu 12 miejsc, dokupione od razu",
+      fakeFor: () => new FakeStripe({}, teamItem(10)),
+      next: { price: priceIdOf("team_monthly_seat"), quantity: 12 },
+      change: seatsDeclined,
+      renewed: { lookup_key: "team_monthly_seat", quantity: 12 },
+    },
+  ])("zgodny harmonogram zostaje nietknięty: $name", async ({ fakeFor, next, change, renewed }) => {
+    useFake(fakeFor());
+    const scheduleId = fake.seedSchedule([next]);
+    await change();
+    const snapshot = fake.payPendingInvoice();
+
+    expect(await settle(snapshot)).toBe("kept");
+    expect(fake.liveSchedule()?.id).toBe(scheduleId);
+    expect(fake.liveSchedule()?.phases[1]).toMatchObject({ items: [next] });
+    expect(fake.log.filter((l) => l.startsWith("schedule."))).toEqual([]);
+
+    fake.renew();
+    expect(fake.sub.items.data[0]).toMatchObject({
+      price: { lookup_key: renewed.lookup_key },
+      quantity: renewed.quantity,
+    });
+  });
+
+  it("zmiana ceny z panelu i mniej miejsc: zostaje nowa cena, ilość wraca do opłaconej", async () => {
+    const NEXT_PRICE = "price_team_monthly_seat_2027";
+    useFake(new FakeStripe({}, teamItem(10)));
+    const scheduleId = fake.seedSchedule([{ price: NEXT_PRICE, quantity: 10 }]);
+    await seatsDeclined();
+
+    expect(await settle(fake.payPendingInvoice())).toBe("rewritten");
+
+    // Zwolnienie skasowałoby migrację ceny, której klient nie zmieniał -
+    // jak przy powrocie do bieżącej liczby miejsc (`dropPendingSeatChange`).
+    const live = fake.liveSchedule();
+    expect(live?.id).toBe(scheduleId);
+    expect(live?.phases).toEqual([
+      expect.objectContaining({
+        items: [{ price: priceIdOf("team_monthly_seat"), quantity: 12 }],
+        end_date: PERIOD_END,
+      }),
+      expect.objectContaining({ items: [{ price: NEXT_PRICE, quantity: 12 }] }),
+    ]);
+    fake.renew();
+    expect(fake.sub.items.data[0]).toMatchObject({ price: { id: NEXT_PRICE }, quantity: 12 });
+  });
+
+  it("harmonogram założony PO zastosowaniu zmiany to nowsza decyzja klienta - zostaje, bez pytania operatora", async () => {
+    useFake(proFake());
+    await upgradeDeclined();
+    const snapshot = fake.payPendingInvoice();
+    expect(snapshot.schedule).toBeNull();
+    // Spóźniona dostawa (ponowienie webhooka): klient zdążył już zaplanować
+    // downgrade z nowego planu.
+    expect(await changePlan("plus_monthly")).toMatchObject({ ok: true, effect: "scheduled" });
+    const later = fake.sub.schedule;
+    const calls = fake.log.length;
+
+    expect(await settle(snapshot)).toBe("not_attached");
+    expect(fake.liveSchedule()?.id).toBe(later);
+    expect(fake.log).toHaveLength(calls);
+  });
+
+  it("odnowienie zdążyło przed obsługą zdarzenia: pozycje już nie te z migawki - harmonogram nietknięty", async () => {
+    useFake(proFake());
+    await changePlan("plus_monthly");
+    await upgradeDeclined();
+    const snapshot = fake.payPendingInvoice();
+    fake.renew();
+    const scheduleId = fake.sub.schedule;
+
+    // Zwolnienie po fakcie nie przywróci opłaconego planu, a pozycje opisuje
+    // już inna (późniejsza) chwila - nie działamy na nieaktualnej migawce.
+    expect(await settle(snapshot)).toBe("superseded");
+    expect(fake.liveSchedule()?.id).toBe(scheduleId);
+    expect(fake.log.filter((l) => l.startsWith("schedule.release"))).toEqual([]);
+  });
+
+  it("odmowa operatora przy zwolnieniu: wyjątek (webhook ponowi), ponowienie zwalnia", async () => {
+    useFake(proFake());
+    await changePlan("plus_monthly");
+    await upgradeDeclined();
+    const snapshot = fake.payPendingInvoice();
+    fake.rejectNextRelease = stripeError(
+      "Too many requests",
+      "invalid_request_error",
+      "rate_limit",
+    );
+
+    await expect(settle(snapshot)).rejects.toThrow(/Too many requests/);
+    // Harmonogram żyje - błąd nie może zniknąć jako „przetworzone".
+    expect(fake.liveSchedule()).not.toBeNull();
+
+    expect(await settle(snapshot)).toBe("released");
+    expect(fake.liveSchedule()).toBeNull();
+    expect(fake.log.filter((l) => l.startsWith("schedule.release"))).toEqual([
+      "schedule.release:REJECTED",
+      "schedule.release:EXEC",
+    ]);
+  });
+
+  it("zwolnienie weszło, a odpowiedź zginęła: wyjątek, a ponowienie widzi zwolniony harmonogram", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    await seats(5);
+    await seatsDeclined();
+    const snapshot = fake.payPendingInvoice();
+    fake.loseResponseOf = "schedule.release";
+
+    await expect(settle(snapshot)).rejects.toThrow(/Connection reset/);
+    expect(fake.liveSchedule()).toBeNull();
+
+    expect(await settle(snapshot)).toBe("not_attached");
+    expect(fake.log.filter((l) => l.startsWith("schedule.release"))).toEqual([
+      "schedule.release:EXEC",
+    ]);
   });
 });

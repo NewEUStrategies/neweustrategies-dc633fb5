@@ -304,6 +304,45 @@ describe("normalizeStripeEvent - zdarzenia subskrypcji", () => {
     }
   });
 
+  it("zastosowana oczekująca zmiana niesie pozycje PO zmianie i harmonogram z chwili zastosowania", () => {
+    const applied = normalized(
+      event(
+        "customer.subscription.pending_update_applied",
+        stripeSubscription({ schedule: "sub_sched_1" }),
+      ),
+    );
+
+    expect(applied.eventType).toBe("subscription.pending_update_applied");
+    expect(applied.data).toMatchObject({
+      id: "sub_1",
+      status: "active",
+      scheduleId: "sub_sched_1",
+      items: [{ quantity: 2, price: { id: "price_1", externalId: "pro_monthly" } }],
+    });
+    const scheduleOf = (schedule: unknown) =>
+      (
+        normalized(
+          event("customer.subscription.pending_update_applied", stripeSubscription({ schedule })),
+        ).data as { scheduleId?: unknown }
+      ).scheduleId;
+    expect(scheduleOf({ id: "sub_sched_2", object: "subscription_schedule" })).toBe("sub_sched_2");
+    expect(scheduleOf(null)).toBeNull();
+    expect(scheduleOf(undefined)).toBeNull();
+  });
+
+  it("wygasła oczekująca zmiana to zwykła migawka stanu - typ z ZNORMALIZOWANEGO statusu", () => {
+    const expired = (over: Record<string, unknown> = {}) =>
+      normalized(event("customer.subscription.pending_update_expired", stripeSubscription(over)));
+
+    expect(expired().eventType).toBe("subscription.updated");
+    expect(expired({ status: "past_due" }).eventType).toBe("subscription.past_due");
+    expect(expired({ pause_collection: { behavior: "void" } }).eventType).toBe(
+      "subscription.paused",
+    );
+    // Pozycje się nie zmieniły, więc harmonogram nie ma czego cofać.
+    expect(expired({ schedule: "sub_sched_1" }).data).not.toHaveProperty("scheduleId");
+  });
+
   it("dokłada do każdego zdarzenia subskrypcji pełny model domenowy", () => {
     const data = subscriptionOf(event("customer.subscription.created", stripeSubscription()));
 
