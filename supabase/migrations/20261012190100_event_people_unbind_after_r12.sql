@@ -1,0 +1,54 @@
+-- ============================================================================
+-- NAPRAWA HISTORII REG-01 PO POPRAWKACH PRZEGLADU R12 (decyzja D14):
+-- PONOWNE ODWIAZANIE DOWIAZAN, KTORE PRZESTALY SPELNIAC D1.
+--
+-- DEFEKT. Przeglad R12 zmienil regule D1 i pisarzy `event_people.user_id`
+--   PO naprawie 20261012190000 w kolejnosci tresci (choc nie wersji):
+--   * 20261012180600 - potwierdzenie nadane przez administratora (zaproszenie
+--     z haslem tymczasowym, import zespolu) nie dowodzi skrzynki, adresy
+--     porownywane ze zwijaniem wylacznie A-Z. Dowiazania takich kont, ktore
+--     20261012190000 uznal za `verified`, teraz NIE spelniaja D1;
+--   * 20261012180800 - rejestr kont zalozonych przez administratora;
+--   * 20261012180500 / 180550 / 180700 - wlasciciel = potwierdzony adres;
+--     zmiana adresu przez organizatora odwiazuje konto.
+--   Na bazie, na ktorej 20261012190000 juz biegl przed tymi zmianami (albo
+--   gdy konto starym kodem powstalo w oknie wdrozenia), audyt
+--   `event_people_account_binding_audit()` znow zwraca wiersze.
+--
+-- ZMIANA 20261012 (R12): jednym przebiegiem
+--   1. `_auth_admin_provisioned_backfill()` - dopisuje do rejestru konta
+--      zalozone przez administratora od 20261012180800 (idempotentna);
+--   2. `_event_people_unbind_unverified('reg01_remediation')` - odwiazuje
+--      wszystko, co audyt zwraca w tej chwili, z wpisem w
+--      `event_person_account_unbinds` (ryzyko, np. `admin_provisioned`).
+--   Ta migracja jest OSTATNIA dotykajaca `event_people.user_id` w serii REG.
+--
+-- RUNBOOK (jako service_role, po wdrozeniu):
+--   * `SELECT count(*) FROM public.event_people_account_binding_audit()` = 0
+--     (kryterium REG-01, D1);
+--   * `SELECT tenant_id, count(*) FROM public.event_people_account_binding_review()
+--     GROUP BY 1` - OSOBNA kategoria `suspect_takeover` (20261012180650):
+--     dowiazania spelniajace D1 z sygnalem przejecia z podmiana adresu.
+--     Nie sa odwiazywane automatycznie - organizator decyduje na ekranie
+--     dowiazan (lista „do przegladu"). REZYDUUM: podmiana bez sladu
+--     w `email_send_log` i bez zgloszenia innego konta jest nie do
+--     odroznienia od uczciwego dowiazania (opis w naglowku 180650).
+--
+-- CZEGO TO NIE ZAMYKA: jak 20261012190000 - odwiazani wlasciciele odzyskuja
+--   panel przez `event_my_account_link`, ponowny zapis albo przywrocenie przez
+--   organizatora (admin_event_person_account_restore). Konta zalozone przez
+--   administratora odzyskuja dowiazanie WYLACZNIE przywroceniem albo
+--   potwierdzona zmiana adresu konta (naglowek 180600).
+--   Plik bez znacznika harnessu wydarzen: harness nie ma `user_invitations`
+--   (backfill), a jego baza startuje pusta - naprawa jest tam no-opem.
+-- KOLEJNOSC WDROZENIA: OSTATNIA w serii REG, po 20261012180500-180900
+--   i 20261012190000. Przed: liczby z audytu i przegladu jak wyzej.
+-- IDEMPOTENTNA: obie funkcje dopisuja/odwiazuja wylacznie to, co jest do
+--   zrobienia w danej chwili (drugi przebieg - 0 i 0).
+-- DOWOD: supabase/tests/event_identity_consents_r12_test.sql (konto
+--   zalozone przez administratora: audyt -> naprawa -> 0 wierszy, wpis
+--   `admin_provisioned`), supabase/tests/event_people_account_binding_test.sql.
+-- ============================================================================
+
+SELECT public._auth_admin_provisioned_backfill();
+SELECT public._event_people_unbind_unverified('reg01_remediation');
