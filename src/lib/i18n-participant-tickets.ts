@@ -25,8 +25,19 @@ export const participantTicketsPl = {
       refunded: "Zwrócone",
       partial: "Zwrot częściowy",
       free: "Bezpłatne",
+      // Gość grupy: płaci osoba zapisująca grupę (kwoty zamówienia nie pokazujemy).
+      paidByGroup: "Opłacone przez osobę zapisującą grupę",
       amount: "Kwota",
       refundedAmount: "Kwota zwrotu",
+    },
+    // Stan zwrotu zamkniętego zgłoszenia (przegląd R45) - także po odwołaniu
+    // całego wydarzenia przez organizatora.
+    refundState: {
+      queued: "Zwrot został zlecony - pieniądze wrócą na kartę lub konto, z którego zapłacono.",
+      processing: "Zwrot jest realizowany przez operatora płatności.",
+      review: "Organizator rozpatruje zwrot - dostaniesz informację o decyzji.",
+      refunded: "Zwrot został wykonany.",
+      declined: "Organizator nie zlecił zwrotu dla tego zgłoszenia.",
     },
     waitlistPosition: "Pozycja na liście rezerwowej: {{position}}",
     reason: {
@@ -153,8 +164,17 @@ export const participantTicketsEn = {
       refunded: "Refunded",
       partial: "Partially refunded",
       free: "Free",
+      paidByGroup: "Paid by the person who registered the group",
       amount: "Amount",
       refundedAmount: "Refunded amount",
+    },
+    refundState: {
+      queued:
+        "The refund has been ordered - the money will return to the card or account you paid from.",
+      processing: "The payment provider is processing the refund.",
+      review: "The organiser is reviewing the refund - you will be told about the decision.",
+      refunded: "The refund has been completed.",
+      declined: "The organiser did not order a refund for this registration.",
     },
     waitlistPosition: "Waiting list position: {{position}}",
     reason: {

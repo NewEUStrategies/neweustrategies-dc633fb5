@@ -533,6 +533,29 @@ describe("fetchMyRegistrations", () => {
     expect(item.refundedCents).toBe(0);
   });
 
+  // Przegląd R45: gość grupy dostaje `payment_shared` zamiast zamówienia
+  // prowadzącego, a zamknięte zgłoszenie - `refund_state`. Starsza baza nie
+  // ma tych kluczy: wtedy „nie dzielone" i brak stanu, nie zgadywanie.
+  it("payment_shared i refund_state: znane wartości przechodzą, reszta to brak", async () => {
+    rpc().setData("event_my_registrations", {
+      registrations: [
+        wiersz({ registration_id: "r-guest", payment_shared: true, refund_state: "queued" }),
+        wiersz({ registration_id: "r-odd", payment_shared: "tak", refund_state: "pending" }),
+        wiersz({ registration_id: "r-old" }),
+      ],
+    });
+
+    const [gosc, dziwny, stary] = await api.fetchMyRegistrations();
+
+    expect(gosc.paymentShared).toBe(true);
+    expect(gosc.refundState).toBe("queued");
+    // Surowy stan zlecenia z bazy (`pending`) nie jest słowem uczestnika.
+    expect(dziwny.paymentShared).toBe(false);
+    expect(dziwny.refundState).toBeNull();
+    expect(stary.paymentShared).toBe(false);
+    expect(stary.refundState).toBeNull();
+  });
+
   // OPT-OUT NA ODCZYCIE POCZTY, OPT-IN SMS-A. Zgłoszenie sprzed wprowadzenia
   // przełączników nie ma tych pól: e-mail czyta się jako „wysyłamy" (domyślne
   // `false` wyciszyłoby powiadomienia o pieniądzach bez decyzji), a SMS jako

@@ -71,6 +71,7 @@ import {
 import { useEventTypes } from "@/lib/events/useEventTypes";
 import { fetchAdminEvents, type AdminEventListRow } from "@/lib/events/eventsListApi";
 import { deleteEvent, runEventReminders } from "@/lib/admin/community";
+import { eventDeleteFailureKey } from "@/lib/admin/eventDeleteErrors";
 import { ensureI18n as ensureCommunityEventsI18n } from "@/lib/i18n-admin-community-events";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureCloneI18n } from "@/lib/i18n-admin-event-clone";
@@ -369,7 +370,12 @@ export function EventsListManager({
       toast.success(t("adminCommunityEvents.toasts.deleted"));
       setSelectedIds([]);
     },
-    onError: (error: Error) => toast.error(error.message),
+    // Wydarzenie z pieniędzmi baza odmawia usunąć (`event_has_payments`) -
+    // redaktor dostaje zdanie z drogą wyjścia (odwołanie), nie kod triggera.
+    onError: (error: Error) => {
+      const key = eventDeleteFailureKey(error);
+      toast.error(key ? t(key) : error.message);
+    },
     onSettled: () => {
       // Uniewaznienie TAKZE po bledzie: czesc wierszy mogla juz zniknac, a lista
       // pokazujaca skasowane wydarzenia jest gorsza niz komunikat o bledzie.

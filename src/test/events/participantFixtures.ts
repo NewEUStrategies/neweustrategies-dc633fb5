@@ -54,6 +54,8 @@ export function makeParticipantRegistration(
     amountCents: 12000,
     refundedCents: 0,
     currency: "PLN",
+    paymentShared: false,
+    refundState: null,
     webhooks: [],
     ...overrides,
   };

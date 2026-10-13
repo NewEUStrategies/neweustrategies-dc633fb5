@@ -1409,6 +1409,13 @@ export const adminEventRegistrationPl = {
         "Ta wpłata przeszła poza operatorem płatności - oddaj ją poza systemem i oznacz zwrot.",
       refundSharedPayment:
         "Wpłata obejmuje inne aktywne zgłoszenia - zwrot całości przez operatora jest zablokowany.",
+      // Decyzja organizatora (przegląd R45): rezygnacja ze zwrotu, który jest
+      // już u operatora, i oznaczenie zwrotu wpłaty dzielonej z grupą.
+      refundInProgress:
+        "Zwrot tej wpłaty jest już u operatora płatności albo zakończony - rezygnacja ze zwrotu nie jest możliwa.",
+      refundOrderShared:
+        "Wpłata obejmuje też inne aktywne zgłoszenia grupy - rozlicz zwrot w dzienniku zwrotów albo anuluj całą grupę.",
+      eventEnded: "Wydarzenie już się zakończyło - awans z listy rezerwowej nie jest możliwy.",
       noSeatsLeft: "Brak wolnych miejsc dla tego biletu. Użyj listy rezerwowej.",
       quotaBelowSold: "Pula nie może być mniejsza od liczby zajętych miejsc ({{count}}).",
       ticketInUse: "Bilet jest używany przez {{count}} zapisów - wyłącz go zamiast usuwać.",
@@ -2781,6 +2788,11 @@ export const adminEventRegistrationEn = {
         "This payment did not go through the payment provider - return it outside the system and mark it refunded.",
       refundSharedPayment:
         "The payment covers other active registrations - a full refund through the provider is blocked.",
+      refundInProgress:
+        "The refund of this payment is already with the payment provider or completed - it can no longer be waived.",
+      refundOrderShared:
+        "The payment also covers other active registrations of the group - settle the refund in the refund journal or cancel the whole group.",
+      eventEnded: "The event has already ended - promotion from the waiting list is not possible.",
       noSeatsLeft: "No free seat for this ticket. Use the waiting list.",
       quotaBelowSold: "The pool cannot be smaller than the number of taken seats ({{count}}).",
       ticketInUse:

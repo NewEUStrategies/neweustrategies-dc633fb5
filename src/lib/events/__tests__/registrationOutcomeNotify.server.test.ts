@@ -1580,6 +1580,23 @@ describe("wpłata na zgłoszeniu zamkniętym i zgodność ze starą bazą", () =
     },
   );
 
+  it.each(["cancelled", "rejected"])(
+    "%s + `organizer_alerted` (baza już zadzwoniła, przegląd R45): bez drugiego dzwonka z TS",
+    async (status) => {
+      givenAdmins([{ user_id: ADMIN_A }]);
+      const result = await notifyTicketOutcome(
+        payload({ registration_status: status, newly_settled: true, organizer_alerted: true }),
+      );
+
+      expect(result.organizerAlerted).toBe(0);
+      expect(organizerRows()).toHaveLength(0);
+      expect(stub.chainsFor("user_roles")).toHaveLength(0);
+      // Kupujący nadal nie dostaje niczego - jak bez flagi.
+      expect(mail.attempts).toHaveLength(0);
+      expect(buyerBells()).toHaveLength(0);
+    },
+  );
+
   it("brak `registration_status` (baza sprzed migracji) = dotychczasowy „bilet opłacony”", async () => {
     const result = await notifyTicketOutcome(payload({ newly_settled: true }));
 
