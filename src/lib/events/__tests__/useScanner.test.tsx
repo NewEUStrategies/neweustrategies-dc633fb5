@@ -39,6 +39,7 @@ import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
 import type { CachedSession } from "@/lib/events/scannerOfflineStorage";
 import type { LocalDecisionLogEntry, RosterPage, RosterSnapshot } from "@/lib/events/scannerRoster";
 import type { ScanConflict } from "@/lib/events/scannerSyncIssues";
+import type { DeviceQueueMarker, QueueMarker } from "@/lib/events/scannerQueueMarker";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 import type {
   QueuedScanOutcome,
@@ -62,6 +63,8 @@ vi.mock("@/lib/events/scannerApi", () => api);
 /** Pamięć trybu offline (sesja, lista, dziennik, odrzucone, konflikty) w RAM. */
 const store = vi.hoisted(() => ({
   session: null as CachedSession | null,
+  /** Znacznik kolejki urządzenia (w prawdziwym magazynie - zaszyfrowany). */
+  marker: null as DeviceQueueMarker | null,
   roster: null as RosterSnapshot | null,
   log: [] as LocalDecisionLogEntry[],
   rejected: [] as RejectedScan[],
@@ -107,6 +110,7 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
   loadConflicts: () => Promise.resolve([...store.conflicts]),
   wipeOfflineSession: () => {
     store.session = null;
+    store.marker = null;
     store.roster = null;
     store.log = [];
     store.wipes += 1;
@@ -127,6 +131,7 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
   // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
   wipeAllOfflineData: () => {
     store.session = null;
+    store.marker = null;
     store.roster = null;
     store.log = [];
     store.rejected = [];
@@ -135,6 +140,13 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
     return Promise.resolve();
   },
   purgeExpiredRoster: () => Promise.resolve(false),
+  // Znacznik kolejki (OPS-12) - sejf ma własne testy; tu pamięć w RAM.
+  saveQueueMarker: (deviceId: string, marker: QueueMarker) => {
+    store.marker = { deviceId, marker };
+    return Promise.resolve(true);
+  },
+  loadQueueMarker: (deviceId: string) =>
+    Promise.resolve(store.marker?.deviceId === deviceId ? store.marker.marker : null),
 }));
 
 /** Pamiec urzadzenia w RAM - bez localStorage i bez IndexedDB. */
@@ -202,6 +214,7 @@ const SESSION: ScannerSession = {
       kind: "event_entry",
       directionMode: "in_only",
       accessMode: "control",
+      reentryPolicy: "allow",
       capacity: null,
       dedupeWindowSeconds: 0,
       sortOrder: 0,
@@ -227,12 +240,18 @@ function scanResult(over: Partial<CheckinScanResult> = {}): CheckinScanResult {
       kind: "event_entry",
       directionMode: "in_only",
       accessMode: "control",
+      reentryPolicy: null,
       capacity: null,
       occupancy: 12,
     },
     person: null,
     otherEventTitlePl: null,
     otherEventTitleEn: null,
+    reentry: false,
+    reentryPreviousAt: null,
+    credential: null,
+    superseded: null,
+    displayName: null,
     ...over,
     // Baza bez decyzji urządzenia ma to samo zdanie, chyba że test mówi inaczej.
     serverAdmit: over.serverAdmit ?? over.admit ?? true,
@@ -254,6 +273,7 @@ function leadResult(over: Partial<LeadScanResult> = {}): LeadScanResult {
       email: "anna@example.org",
       phone: "+48 600 100 200",
     },
+    superseded: null,
     ...over,
   };
 }

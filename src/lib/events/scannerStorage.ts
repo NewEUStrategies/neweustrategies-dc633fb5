@@ -49,7 +49,13 @@ import {
   type VaultSecret,
 } from "@/lib/events/scannerVault";
 
-const TOKEN_KEY = "nes.scanner.device-token";
+/**
+ * Klucz poświadczenia w `localStorage`. `__root.tsx` ma KOPIĘ tego literału
+ * (sprzątanie resztek pod originem portalu bez importu modułów skanera na
+ * ścieżce bootu) - parytet pilnuje `rootRoute.test.tsx`.
+ */
+export const SCANNER_TOKEN_STORAGE_KEY = "nes.scanner.device-token";
+const TOKEN_KEY = SCANNER_TOKEN_STORAGE_KEY;
 const DB_NAME = "nes-scanner";
 const DB_VERSION = 1;
 const STORE = "outbox";

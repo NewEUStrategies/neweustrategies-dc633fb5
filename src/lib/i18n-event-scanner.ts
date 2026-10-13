@@ -14,9 +14,15 @@
 // odmowami poświadczenia - każda mówi, czy czekać, czy prosić o nowy kod.
 //
 // KLUCZE ODPOWIADAJĄ WARTOŚCIOM Z BAZY, JEDEN DO JEDNEGO:
-//   * `event_checkins.result` -> `eventScanner.outcomes.*` (sześć wartości
-//     z ograniczenia CHECK, plus `repeat`, `unknown_code` i `wrong_event`,
-//     które są WYNIKAMI RPC, a nie wierszami dziennika),
+//   * `event_checkins.result` -> `eventScanner.outcomes.*` (osiem wartości
+//     z ograniczenia CHECK, w tym `denied_already_inside` - OPS-08, oraz
+//     `denied_code_superseded` z 20261012111000 - wiersz konfliktu, gdy bramka
+//     offline wpuściła kod już zastąpiony; plus
+//     `repeat`, `unknown_code`, `wrong_event` i `code_superseded` - OPS-04,
+//     które są WYNIKAMI RPC, a nie wierszami dziennika); zgoda na PONOWNE
+//     wejście (`reentry`) ma własny nagłówek `grantedReentry`,
+//   * `superseded.{credential,reason}` odpowiedzi `code_superseded` ->
+//     `eventScanner.superseded.<ticket|badge>.<reissued|revoked|invalidated>`,
 //   * `event_checkpoints.direction_mode` -> `eventScanner.directions.*`,
 //   * `event_badge_prints.reason` -> `eventScanner.badge.reasons.*`,
 //   * odmowy `_event_scanner_device_auth` -> `eventScanner.errors.*`.
@@ -108,6 +114,8 @@ export const eventScannerPl = {
       occupancy: "Na miejscu: {{count}}",
       capacity: "Limit: {{count}}",
       trackMode: "Ten punkt tylko liczy wejścia - nikomu nie odmawia.",
+      reentryDeny:
+        "Ponowne wejście zablokowane - kto jest w środku, nie wejdzie drugi raz, dopóki nie wyjdzie.",
       dedupeWindow_one: "Powtórne piknięcie w ciągu {{count}} sekundy nie tworzy nowego wpisu.",
       dedupeWindow_few: "Powtórne piknięcie w ciągu {{count}} sekund nie tworzy nowego wpisu.",
       dedupeWindow_many: "Powtórne piknięcie w ciągu {{count}} sekund nie tworzy nowego wpisu.",
@@ -166,6 +174,10 @@ export const eventScannerPl = {
       deniedDirection: "Zły kierunek",
       deniedCapacity: "Brak miejsc",
       deniedCheckpointInactive: "Punkt nieaktywny",
+      deniedAlreadyInside: "Już w środku - nie wpuszczaj",
+      deniedCodeSuperseded: "Kod zastąpiony przed skanem",
+      codeSuperseded: "Kod zastąpiony",
+      grantedReentry: "Ponowne wejście - wpuść",
       saved: "Zapisano",
       replay: "Skan już zapisany",
       printed: "Wydruk zapisany",
@@ -181,8 +193,39 @@ export const eventScannerPl = {
       deniedDirection: "Ten punkt obsługuje inny kierunek ruchu.",
       deniedCapacity: "Punkt osiągnął limit obecności.",
       deniedCheckpointInactive: "Ten punkt został wyłączony w panelu.",
+      deniedAlreadyInside:
+        "Ta osoba jest już w środku, a punkt nie wpuszcza ponownie. Skieruj ją do koordynatora.",
+      deniedAlreadyInsideAt:
+        "Wejście zapisane {{when}}, bez wyjścia - punkt nie wpuszcza ponownie. Skieruj osobę do koordynatora.",
+      deniedCodeSuperseded:
+        "Bramka bez sieci wpuściła kod, który był już zastąpiony - organizator zobaczy to jako konflikt.",
+      codeSuperseded: "Ten kod już nie wpuszcza. Poproś o aktualny identyfikator albo bilet.",
+      grantedReentry: "Ta osoba była już w środku - punkt pozwala wejść ponownie.",
+      grantedReentryAt: "Poprzednie wejście: {{when}}. Punkt pozwala wejść ponownie.",
       replay: "Ten sam skan dotarł do bazy wcześniej - nic nie zostało zdublowane.",
       previousCheckin: "Poprzednia odprawa: {{when}}",
+    },
+
+    // -----------------------------------------------------------------
+    // Kod zastąpiony (OPS-04): poświadczenie × powód, z chwilą zastąpienia.
+    // Każde zdanie mówi, co zrobić - poprosić o aktualny kod albo odesłać.
+    // -----------------------------------------------------------------
+    superseded: {
+      holder: "Kod należał do: {{name}}",
+      badge: {
+        reissued:
+          "Wydrukowano nowy identyfikator ({{when}}) - ten jest nieważny. Poproś o aktualny.",
+        revoked:
+          "Identyfikator unieważniony ({{when}}) po zwrocie albo anulowaniu zgłoszenia. Skieruj do recepcji.",
+        invalidated:
+          "Identyfikator zgłoszony jako zgubiony i unieważniony ({{when}}). Poproś o aktualny.",
+      },
+      ticket: {
+        reissued: "Wydano nowy bilet ({{when}}) - ten jest nieważny. Poproś o aktualny.",
+        revoked:
+          "Bilet unieważniony ({{when}}) po zwrocie albo anulowaniu zgłoszenia. Skieruj do recepcji.",
+        invalidated: "Bilet zgłoszony jako zgubiony i unieważniony ({{when}}). Poproś o aktualny.",
+      },
     },
 
     person: {
@@ -504,6 +547,7 @@ export const eventScannerEn = {
       occupancy: "On site: {{count}}",
       capacity: "Capacity: {{count}}",
       trackMode: "This checkpoint only counts entries - it never refuses anyone.",
+      reentryDeny: "Re-entry blocked - anyone inside cannot enter again until they leave.",
       dedupeWindow_one: "A repeat scan within {{count}} second does not create a new entry.",
       dedupeWindow_other: "A repeat scan within {{count}} seconds does not create a new entry.",
     },
@@ -554,6 +598,10 @@ export const eventScannerEn = {
       deniedDirection: "Wrong direction",
       deniedCapacity: "At capacity",
       deniedCheckpointInactive: "Checkpoint inactive",
+      deniedAlreadyInside: "Already inside - do not admit",
+      deniedCodeSuperseded: "Code replaced before the scan",
+      codeSuperseded: "Code replaced",
+      grantedReentry: "Re-entry - admit",
       replay: "Scan already recorded",
       saved: "Saved",
       printed: "Print recorded",
@@ -569,8 +617,33 @@ export const eventScannerEn = {
       deniedDirection: "This checkpoint handles the other direction of travel.",
       deniedCapacity: "The checkpoint reached its occupancy limit.",
       deniedCheckpointInactive: "This checkpoint was switched off in the panel.",
+      deniedAlreadyInside:
+        "This person is already inside and the checkpoint does not allow re-entry. Refer them to the coordinator.",
+      deniedAlreadyInsideAt:
+        "Entry recorded {{when}} with no exit - the checkpoint does not allow re-entry. Refer the person to the coordinator.",
+      deniedCodeSuperseded:
+        "The offline gate admitted a code that had already been replaced - the organiser sees it as a conflict.",
+      codeSuperseded: "This code no longer admits. Ask for the current badge or ticket.",
+      grantedReentry: "This person was already inside - the checkpoint allows re-entry.",
+      grantedReentryAt: "Previous entry: {{when}}. The checkpoint allows re-entry.",
       replay: "The same scan reached the server earlier - nothing was duplicated.",
       previousCheckin: "Previous check-in: {{when}}",
+    },
+
+    superseded: {
+      holder: "Code belonged to: {{name}}",
+      badge: {
+        reissued: "A new badge was printed ({{when}}) - this one is void. Ask for the current one.",
+        revoked:
+          "Badge revoked ({{when}}) after a refund or a cancelled registration. Send them to the desk.",
+        invalidated: "Badge reported lost and revoked ({{when}}). Ask for the current one.",
+      },
+      ticket: {
+        reissued: "A new ticket was issued ({{when}}) - this one is void. Ask for the current one.",
+        revoked:
+          "Ticket revoked ({{when}}) after a refund or a cancelled registration. Send them to the desk.",
+        invalidated: "Ticket reported lost and revoked ({{when}}). Ask for the current one.",
+      },
     },
 
     person: {

@@ -24,6 +24,13 @@
 //  11. SKAN SPOD INNEGO POŚWIADCZENIA wyjeżdża pod bieżącym tokenem; kolejka
 //      unieważnionego urządzenia znika z widoku.
 //  12. WSTRZYMANIE W PANELU kasuje token i kolejkę, więc „Wznów" nie wraca.
+//  13. WYDRUKOWANY IDENTYFIKATOR (`bh`) i zapis z samym identyfikatorem są
+//      offline „nieznanym kodem"; kod ZASTĄPIONY (`sh`) jedzie z decyzją
+//      `unknown_code` i liczy się do blokady (R1/R3).
+//  14. POZYCJA BEZ ZNACZNIKA KOLEJKI (albo ze znacznikiem z chwili wysyłki)
+//      po terminie poświadczenia - baza odrzuca ją `device_expired` (R0/R11).
+//  15. PONOWNE WEJŚCIE offline przy polityce `deny` przechodzi, a polityka
+//      zmieniona w panelu nie dociera bez ponownego parowania (OPS-08).
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, waitFor } from "@testing-library/react";
@@ -45,6 +52,7 @@ import type {
   LeadScanInput,
   LeadScanResult,
   RosterPageInput,
+  ScannerBootstrap,
 } from "@/lib/events/scannerApi";
 import { OUTBOX_CAPACITY, type OutboxItem, type RejectedScan } from "@/lib/events/scannerOutbox";
 import type { CachedSession } from "@/lib/events/scannerOfflineStorage";
@@ -55,12 +63,13 @@ import type {
   RosterSnapshot,
 } from "@/lib/events/scannerRoster";
 import type { ScanConflict } from "@/lib/events/scannerSyncIssues";
+import type { DeviceQueueMarker, QueueMarker } from "@/lib/events/scannerQueueMarker";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 
 freezeClock();
 
 const api = vi.hoisted(() => ({
-  bootstrapScanner: vi.fn<(token: string) => Promise<ScannerSession>>(),
+  bootstrapScanner: vi.fn<(token: string) => Promise<ScannerBootstrap>>(),
   recordCheckinScan: vi.fn<(input: CheckinScanInput) => Promise<CheckinScanResult>>(),
   recordLeadScan: vi.fn<(input: LeadScanInput) => Promise<LeadScanResult>>(),
   fetchScannerRoster: vi.fn<(input: RosterPageInput) => Promise<RosterPage>>(),
@@ -96,6 +105,8 @@ vi.mock("@/lib/events/scannerStorage", () => ({
 
 const store = vi.hoisted(() => ({
   session: null as CachedSession | null,
+  /** Znacznik kolejki urządzenia (w prawdziwym magazynie - zaszyfrowany). */
+  marker: null as DeviceQueueMarker | null,
   roster: null as RosterSnapshot | null,
   /** Odczyt listy wstrzymany przez test (wyścig z odłączeniem). */
   rosterGate: null as Promise<RosterSnapshot | null> | null,
@@ -138,6 +149,7 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
   loadConflicts: () => Promise.resolve([...store.conflicts]),
   wipeOfflineSession: () => {
     store.session = null;
+    store.marker = null;
     store.roster = null;
     store.log = [];
     store.wipes += 1;
@@ -158,6 +170,7 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
   // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
   wipeAllOfflineData: () => {
     store.session = null;
+    store.marker = null;
     store.roster = null;
     store.log = [];
     store.rejected = [];
@@ -166,6 +179,13 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
     return Promise.resolve();
   },
   purgeExpiredRoster: () => Promise.resolve(false),
+  // Znacznik kolejki (OPS-12) - sejf ma własne testy; tu pamięć w RAM.
+  saveQueueMarker: (deviceId: string, marker: QueueMarker) => {
+    store.marker = { deviceId, marker };
+    return Promise.resolve(true);
+  },
+  loadQueueMarker: (deviceId: string) =>
+    Promise.resolve(store.marker?.deviceId === deviceId ? store.marker.marker : null),
 }));
 
 const { useScannerRuntime } = await import("@/lib/events/useScanner");
@@ -207,6 +227,7 @@ function session(over: Partial<ScannerSession> = {}): ScannerSession {
         kind: "event_entry",
         directionMode: "in_out",
         accessMode: "control",
+        reentryPolicy: "allow",
         capacity: null,
         dedupeWindowSeconds: 60,
         sortOrder: 0,
@@ -220,6 +241,8 @@ function entry(over: Partial<RosterEntry> = {}): RosterEntry {
   return {
     registrationId: "r-olga",
     hash: sha(CODE),
+    badgeHash: null,
+    supersededHashes: [],
     status: "approved",
     firstName: "Olga",
     lastName: "Obecna",
@@ -264,12 +287,18 @@ function scanResult(over: Partial<CheckinScanResult> = {}): CheckinScanResult {
       kind: null,
       directionMode: null,
       accessMode: "control",
+      reentryPolicy: null,
       capacity: null,
       occupancy: null,
     },
     person: null,
     otherEventTitlePl: null,
     otherEventTitleEn: null,
+    reentry: false,
+    reentryPreviousAt: null,
+    credential: null,
+    superseded: null,
+    displayName: null,
     ...over,
     // Baza bez decyzji urządzenia ma to samo zdanie, chyba że test mówi inaczej.
     serverAdmit: over.serverAdmit ?? over.admit ?? true,
@@ -345,6 +374,7 @@ beforeEach(() => {
   store.session = null;
   store.roster = null;
   store.rosterGate = null;
+  store.marker = null;
   store.log = [];
   store.rejected = [];
   store.conflicts = [];
@@ -987,6 +1017,7 @@ function leadResult(): LeadScanResult {
     consent: false,
     deviceLocked: false,
     person: null,
+    superseded: null,
   };
 }
 
@@ -1636,5 +1667,351 @@ describe("OPS-05: awarie przejściowe nie zostawiają skanów w kolejce", () => 
 
     act(() => result.current.retryAll());
     await waitFor(() => expect(result.current.outbox).toEqual([]));
+  });
+});
+
+/* ------------------------------------------- OPS-04: dwa kody i zastąpione --- */
+
+describe("lista offline: identyfikator, zapis bez biletu i kod zastąpiony (R1/R3)", () => {
+  const BADGE = "BADGE-OLGA-0000000000000000000001";
+  const BADGE_ONLY = "BADGE-ALA-00000000000000000000002";
+  const OLD_BADGE = "BADGE-OLGA-STARY-0000000000000003";
+
+  async function withBadges() {
+    api.bootstrapScanner.mockResolvedValue(session());
+    api.fetchScannerRoster.mockResolvedValue(
+      page({
+        total: 2,
+        rows: [
+          entry({ badgeHash: sha(BADGE), supersededHashes: [sha(OLD_BADGE)] }),
+          entry({
+            registrationId: "r-ala",
+            hash: null,
+            badgeHash: sha(BADGE_ONLY),
+            firstName: "Ala",
+          }),
+        ],
+      }),
+    );
+    const view = render();
+    await waitFor(() => expect(view.result.current.roster.count).toBe(2));
+    goOffline();
+    return view;
+  }
+
+  async function scan(view: Awaited<ReturnType<typeof withBadges>>, code: string) {
+    let outcome: Awaited<ReturnType<typeof view.result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      outcome = await view.result.current.submitCheckin({
+        code,
+        checkpointId: CP,
+        direction: "in",
+      });
+    });
+    if (outcome === undefined || !outcome.queued)
+      throw new Error("test: skan nie trafił do kolejki");
+    return outcome;
+  }
+
+  it("bramka offline WPUSZCZA wydrukowany identyfikator i zapis z samym identyfikatorem", async () => {
+    const view = await withBadges();
+    expect((await scan(view, BADGE)).local).toMatchObject({
+      outcome: "granted",
+      admit: true,
+      entry: { registrationId: "r-olga" },
+    });
+    expect((await scan(view, BADGE_ONLY)).local).toMatchObject({
+      outcome: "granted",
+      admit: true,
+      entry: { registrationId: "r-ala" },
+    });
+    // Do bazy jadą zgody - nie „nieznany kod", który baza zapisałaby jako odmowę.
+    expect(view.result.current.outbox.map((item) => item.offlineOutcome)).toEqual([
+      "granted",
+      "granted",
+    ]);
+  });
+
+  it("kod ZASTĄPIONY to `code_superseded` offline: odmowa, pozycja jedzie BEZ decyzji, dziennik nietknięty", async () => {
+    const view = await withBadges();
+    const outcome = await scan(view, OLD_BADGE);
+    expect(outcome.local).toMatchObject({
+      outcome: "code_superseded",
+      admit: false,
+      entry: { registrationId: "r-olga" },
+    });
+    // Baza nie zna `code_superseded` jako decyzji offline - odpowie nim sama,
+    // bez wiersza w dzienniku i POZA oknem blokady nieznanych kodów.
+    const item = view.result.current.outbox[0];
+    expect(item.offlineOutcome).toBeUndefined();
+    expect(item.offlineAdmitted).toBeUndefined();
+    expect(store.log).toEqual([]);
+  });
+});
+
+/* ---------------------------------------------- OPS-12: znacznik kolejki --- */
+
+describe("znacznik kolejki: stempel w chwili kolejkowania (R0/R11)", () => {
+  const M1: QueueMarker = {
+    value: "AAAAAGkAAAA" + "1".repeat(43),
+    validUntil: relativeIso(GODZINA),
+  };
+  const M2: QueueMarker = {
+    value: "AAAAAGkAAAB" + "2".repeat(43),
+    validUntil: relativeIso(GODZINA + 30 * MINUTA),
+  };
+
+  /** Baza po terminie: skan z kolejki tylko ze znacznikiem M1 albo M2, nigdy bez. */
+  function serverAfterExpiry(expiresAt: string) {
+    return (input: CheckinScanInput) => {
+      const expired = Date.now() >= Date.parse(expiresAt);
+      const known = input.queueMarker === M1.value || input.queueMarker === M2.value;
+      if (expired && !(input.queued === true && known)) {
+        return Promise.reject(new Error("device_expired: this scanner credential has expired"));
+      }
+      return Promise.resolve(scanResult());
+    };
+  }
+
+  it("skan kolejkowany PRZED terminem i wysłany PO terminie niesie znacznik z chwili kolejkowania", async () => {
+    const expiresAt = relativeIso(GODZINA);
+    api.bootstrapScanner.mockResolvedValue({ ...session({ expiresAt }), queueMarker: M1 });
+    api.fetchScannerRoster.mockResolvedValue(page());
+    const view = render();
+    await waitFor(() => expect(view.result.current.roster.count).toBe(1));
+    goOffline();
+    await act(async () => {
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    const scannedAt = view.result.current.outbox[0].deviceScannedAt;
+    expect(view.result.current.outbox[0].queueMarker).toBe(M1.value);
+
+    // Termin mija bez sieci; sieć wraca dopiero godzinę po nim.
+    advanceClock(2 * GODZINA);
+    api.recordCheckinScan.mockImplementation(serverAfterExpiry(expiresAt));
+    goOnline();
+
+    await waitFor(() => expect(view.result.current.outbox).toEqual([]));
+    expect(api.recordCheckinScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queued: true,
+        queueMarker: M1.value,
+        deviceScannedAt: scannedAt,
+      }),
+    );
+    expect(view.result.current.rejected).toEqual([]);
+  });
+
+  it("pozycja BEZ znacznika po terminie to trwała odmowa TEJ pozycji (`device_expired`), reszta jedzie", async () => {
+    const expiresAt = relativeIso(-GODZINA);
+    device.queue = [
+      queued({ id: "legacy", deviceScannedAt: relativeIso(-2 * GODZINA) }),
+      queued({ id: "stamped", deviceScannedAt: relativeIso(-90 * MINUTA), queueMarker: M1.value }),
+    ];
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false, expiresAt }));
+    api.recordCheckinScan.mockImplementation(serverAfterExpiry(expiresAt));
+    const { result } = render();
+    await waitFor(() => expect(result.current.lastFlush).not.toBeNull());
+    expect(result.current.rejected.map((row) => row.item.id)).toEqual(["legacy"]);
+    expect(result.current.outbox).toEqual([]);
+    expect(result.current.lastFlush).toMatchObject({ sent: 1, rejected: 1 });
+    // Znacznik nie trafia na listę odrzuconych (eksport krąży pocztą).
+    expect(JSON.stringify(result.current.rejected)).not.toContain(M1.value);
+  });
+
+  it("stempel to znacznik aktualny przy KOLEJKOWANIU, nie przy wysyłce; nowszy z odpowiedzi trafia do kolejnych pozycji", async () => {
+    api.bootstrapScanner.mockResolvedValue({
+      ...session({ offlineRoster: false }),
+      queueMarker: M1,
+    });
+    const view = render();
+    await waitFor(() => expect(view.result.current.status).toBe("ready"));
+    goOffline();
+    await act(async () => {
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+      await view.result.current.submitLead({ code: CODE, note: null, interestRating: null });
+    });
+    expect(view.result.current.outbox.map((item) => item.queueMarker)).toEqual([
+      M1.value,
+      M1.value,
+    ]);
+
+    // Pierwsza wysłana pozycja przynosi nowszy znacznik - druga i tak jedzie
+    // ze swoim (M1), bo baza liczy skan od chwili wydania JEGO znacznika.
+    api.recordCheckinScan.mockResolvedValue({ ...scanResult(), queueMarker: M2 });
+    api.recordLeadScan.mockResolvedValue(leadResult());
+    goOnline();
+    await waitFor(() => expect(view.result.current.outbox).toEqual([]));
+    expect(api.recordLeadScan).toHaveBeenCalledWith(
+      expect.objectContaining({ queued: true, queueMarker: M1.value }),
+    );
+
+    goOffline();
+    await act(async () => {
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(view.result.current.outbox[0].queueMarker).toBe(M2.value);
+  });
+
+  it("odpowiedź bez znacznika (albo spóźniona ze starszym) nie kasuje nowszego", async () => {
+    api.bootstrapScanner.mockResolvedValue({
+      ...session({ offlineRoster: false }),
+      queueMarker: M2,
+    });
+    api.recordCheckinScan.mockResolvedValueOnce({ ...scanResult(), queueMarker: M1 });
+    api.recordCheckinScan.mockResolvedValueOnce({ ...scanResult(), queueMarker: null });
+    const view = render();
+    await waitFor(() => expect(view.result.current.status).toBe("ready"));
+    await act(async () => {
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    goOffline();
+    await act(async () => {
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(view.result.current.outbox[0].queueMarker).toBe(M2.value);
+  });
+
+  it("znacznik z listy offline też stempluje kolejkę; znacznik trafia do sejfu urządzenia", async () => {
+    api.bootstrapScanner.mockResolvedValue(session());
+    api.fetchScannerRoster.mockResolvedValue({ ...page(), queueMarker: M1 });
+    const view = render();
+    await waitFor(() => expect(view.result.current.roster.count).toBe(1));
+    await waitFor(() => expect(store.marker).toEqual({ deviceId: "dev-1", marker: M1 }));
+    goOffline();
+    await act(async () => {
+      await view.result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(view.result.current.outbox[0].queueMarker).toBe(M1.value);
+  });
+
+  it("ZIMNY START bez sieci: znacznik wraca z sejfu i stempluje pierwszy skan", async () => {
+    store.session = cached(TOKEN);
+    store.marker = { deviceId: "dev-1", marker: M1 };
+    offline = true;
+    const view = render();
+    await waitFor(() => expect(view.result.current.status).toBe("ready"));
+    await act(async () => {
+      await view.result.current.submitLead({ code: CODE, note: null, interestRating: null });
+    });
+    expect(view.result.current.outbox[0].queueMarker).toBe(M1.value);
+  });
+
+  it("znacznik INNEGO urządzenia nie stempluje pozycji; odłączenie kasuje znacznik", async () => {
+    store.session = cached(TOKEN);
+    store.marker = { deviceId: "dev-inne", marker: M1 };
+    offline = true;
+    const view = render();
+    await waitFor(() => expect(view.result.current.status).toBe("ready"));
+    await act(async () => {
+      await view.result.current.submitLead({ code: CODE, note: null, interestRating: null });
+    });
+    expect(view.result.current.outbox[0].queueMarker).toBeUndefined();
+
+    await act(async () => {
+      await view.result.current.disconnect();
+    });
+    expect(store.marker).toBeNull();
+  });
+});
+
+/* --------------------------------------- OPS-08: ponowne wejście offline --- */
+
+describe("ponowne wejście offline: polityka `deny` z dziennika zgód (OPS-08)", () => {
+  const denySession = () =>
+    session({
+      checkpoints: [{ ...session().checkpoints[0], reentryPolicy: "deny" }],
+    });
+
+  it("osoba W ŚRODKU (zgoda online dziś, bez wyjścia) - offline `denied_already_inside`", async () => {
+    const { result } = await withRoster({ checkpoints: denySession().checkpoints });
+    api.recordCheckinScan.mockResolvedValue(
+      scanResult({ person: { ...personCard(), registrationId: "r-olga" } }),
+    );
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    // Poza oknem powtórzeń (60 s) - to już nie jest podwójne piknięcie.
+    advanceClock(10 * MINUTA);
+    goOffline();
+    let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
+    });
+    expect(outcome).toMatchObject({
+      queued: true,
+      local: {
+        outcome: "denied_already_inside",
+        admit: false,
+        reentryPreviousAt: FIXED_NOW.toISOString(),
+      },
+    });
+    expect(result.current.outbox[0]).toMatchObject({
+      offlineAdmitted: false,
+      offlineOutcome: "denied_already_inside",
+    });
+  });
+
+  it("wyjście na tym punkcie zeruje stan - kolejne wejście offline jest zgodą", async () => {
+    const { result } = await withRoster({ checkpoints: denySession().checkpoints });
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    advanceClock(5 * MINUTA);
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "out" });
+    });
+    advanceClock(5 * MINUTA);
+    let back: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      back = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(back).toMatchObject({
+      local: { outcome: "granted", admit: true, reentryPreviousAt: null },
+    });
+  });
+
+  it("polityka zmieniona w panelu dociera z listą offline - do sesji i do jej kopii na urządzeniu", async () => {
+    api.bootstrapScanner.mockResolvedValue(session());
+    api.fetchScannerRoster.mockResolvedValue({
+      ...page(),
+      checkpoints: [{ id: CP, reentryPolicy: "deny" }],
+    });
+    const { result } = render();
+    await waitFor(() => expect(result.current.session?.checkpoints[0].reentryPolicy).toBe("deny"));
+    await waitFor(() => expect(store.session?.session.checkpoints[0].reentryPolicy).toBe("deny"));
+
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    advanceClock(10 * MINUTA);
+    let again: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      again = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(again).toMatchObject({ local: { outcome: "denied_already_inside" } });
+  });
+
+  it("polityka `allow`: drugie wejście jest zgodą z chwilą poprzedniego (ponowne wejście)", async () => {
+    const { result } = await withRoster();
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    advanceClock(10 * MINUTA);
+    let again: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      again = await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(again).toMatchObject({
+      local: { outcome: "granted", admit: true, reentryPreviousAt: FIXED_NOW.toISOString() },
+    });
   });
 });

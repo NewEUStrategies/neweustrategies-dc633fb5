@@ -19,6 +19,11 @@
 //   6. TERMIN WAŻNOŚCI JEST OPCJONALNY, ale wpisany musi być PRZYSZŁY i jedzie
 //      w UTC - poświadczenie z terminem wstecz jest martwe w chwili wydania.
 //   7. NIEPEŁNY FORMULARZ NIE WOŁA WARSTWY WYDANIA - asercja na atrapie.
+//   8. TERMIN MA GÓRNĄ GRANICĘ (OPS-12): koniec wydarzenia + 7 dni. Kalendarz
+//      się na niej kończy (`max`), podpowiedź ją podaje, termin po niej blokuje
+//      wydanie zdaniem `expiry_too_late` (tym samym, którym odmówiłaby baza),
+//      a po granicy - wydarzenie skończyło się ponad tydzień temu - wydania nie
+//      ma wcale. Bez dat wydarzenia granicę zna tylko baza.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Reguł wersji roboczej (długość etykiety,
 // zbiór uprawnień, konwersja `datetime-local` -> ISO) - tabele przypadków są
@@ -49,6 +54,8 @@ const h = vi.hoisted(() => ({
   writeText: vi.fn<(text: string) => Promise<void>>(),
   /** Każde żądanie kodu QR czeka na jawne rozwiązanie - stąd kontrola wyścigu. */
   qrCalls: [] as { url: string; resolve: (dataUrl: string) => void }[],
+  /** Wiersz wydarzenia z cache studia (`useAdminEventDetail`); `null` = brak dat. */
+  wydarzenie: null as { starts_at: string | null; ends_at: string | null } | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -56,6 +63,11 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 // Klient bazy nie jest przedmiotem dowodu, a jego moduł domaga się konfiguracji
 // środowiska przy imporcie - okno bierze z `onsiteApi` wyłącznie SŁOWNIK zakresów.
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+// Granica terminu (OPS-12) liczy się z wiersza wydarzenia, który studio i tak
+// trzyma w cache - tu jest atrapą, bo przedmiotem dowodu jest okno, nie zapytanie.
+vi.mock("@/lib/events/useAdminEventDetail", () => ({
+  useAdminEventDetail: () => ({ data: h.wydarzenie }),
+}));
 vi.mock("qrcode", () => ({
   default: {
     toDataURL: (url: string) =>
@@ -186,6 +198,7 @@ const anuluj = () => screen.getByRole("button", { name: "adminEventOnsite.action
 beforeEach(() => {
   vi.clearAllMocks();
   h.qrCalls = [];
+  h.wydarzenie = null;
   h.writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -391,6 +404,78 @@ describe("ScannerDeviceDialog - walidacja i ładunek", () => {
     expect(odczytany.getDate()).toBe(31);
     expect(odczytany.getHours()).toBe(23);
     expect(odczytany.getMinutes()).toBe(45);
+  });
+});
+
+describe("ScannerDeviceDialog - granica terminu (OPS-12)", () => {
+  // Koniec wydarzenia 2099-06-10 18:00 UTC -> granica 2099-06-17 18:00 UTC.
+  const KONIEC = "2099-06-10T18:00:00.000Z";
+  const GRANICA = "2099-06-17T18:00:00.000Z";
+  /** Granica w zapisie pola `datetime-local` (zegar przeglądarki organizatora). */
+  const granicaLokalnie = () => {
+    const d = new Date(GRANICA);
+    const pad = (part: number) => String(part).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+      d.getHours(),
+    )}:${pad(d.getMinutes())}`;
+  };
+
+  it("kalendarz kończy się 7 dni po wydarzeniu, a podpowiedź podaje granicę", () => {
+    h.wydarzenie = { starts_at: "2099-06-09T08:00:00.000Z", ends_at: KONIEC };
+    renderujWydanie();
+    expect(terminWaznosci()).toHaveAttribute("max", granicaLokalnie());
+    const podpowiedz = document.getElementById("device-expires-at-hint");
+    expect(podpowiedz?.textContent).toContain(`${D}expiresHint`);
+    expect(podpowiedz?.textContent).toContain(`${BLAD}expiryTooLate`);
+    expect(podpowiedz?.textContent).toContain("2099");
+  });
+
+  it("wydarzenie bez końca liczy granicę od startu + 1 dzień (lustro bazy)", () => {
+    h.wydarzenie = { starts_at: "2099-06-09T18:00:00.000Z", ends_at: null };
+    renderujWydanie();
+    expect(terminWaznosci()).toHaveAttribute("max", granicaLokalnie());
+  });
+
+  it("TERMIN PO GRANICY blokuje wydanie zdaniem `expiry_too_late` - tym samym, którym odmówiłaby baza", () => {
+    h.wydarzenie = { starts_at: null, ends_at: KONIEC };
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-06-20T10:00" } });
+    fireEvent.click(wydaj());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(`${BLAD}expiryTooLate`);
+  });
+
+  it("termin W GRANICY przechodzi i jedzie w żądaniu", () => {
+    h.wydarzenie = { starts_at: null, ends_at: KONIEC };
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-06-15T10:00" } });
+    fireEvent.click(wydaj());
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0].expiresAt).toMatch(/^2099-06-15T/);
+    expect(screen.queryByText(`${BLAD}expiryTooLate`)).not.toBeInTheDocument();
+  });
+
+  it("PO GRANICY (koniec ponad tydzień temu) wydania nie ma wcale - powód widać od razu", () => {
+    h.wydarzenie = { starts_at: "2020-01-01T08:00:00.000Z", ends_at: "2020-01-02T18:00:00.000Z" };
+    const { onSubmit } = renderujWydanie();
+    // Bez kliknięcia „Wydaj": powód jest na ekranie, zanim operator wypełni formularz.
+    expect(screen.getByRole("alert")).toHaveTextContent(`${BLAD}expiryTooLate`);
+    expect(terminWaznosci()).toBeDisabled();
+    expect(wydaj()).toBeDisabled();
+
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.click(wydaj());
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("bez dat wydarzenia granicę zna tylko baza - kalendarz bez `max`, zwykła podpowiedź", () => {
+    renderujWydanie();
+    expect(terminWaznosci()).not.toHaveAttribute("max");
+    expect(document.getElementById("device-expires-at-hint")?.textContent).toBe(`${D}expiresHint`);
   });
 });
 

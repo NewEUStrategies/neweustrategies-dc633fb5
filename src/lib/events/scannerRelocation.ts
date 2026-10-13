@@ -13,7 +13,21 @@
 // (`purgeScannerData`) - przed przekierowaniem, z czekaniem na zapis na dysk.
 // Token jedzie pod nowy origin we FRAGMENCIE (`scannerUrl`), więc urządzenie
 // nie wymaga ponownego parowania, a poświadczenie nie trafia do żadnego logu.
-import { clearOutbox, clearStoredToken, countStoredOutbox } from "@/lib/events/scannerStorage";
+//
+// RESZTKI POD ORIGINEM PORTALU SPRZĄTA TEŻ START PORTALU. Telefon sparowany
+// przed wdrożeniem osobnego originu, który nigdy już nie otworzy `/scanner`
+// pod originem portalu, trzymałby tam token na zawsze - obok treści CMS.
+// `__root.tsx` (bez wagi na ścieżce bootu: dynamiczny import po bezczynności,
+// tylko gdy origin skanera jest skonfigurowany, inny niż bieżący, a token leży
+// w `localStorage`) woła `purgeLeftoverScannerData` - ta sama reguła co trasa:
+// niewysłane skany albo lista do wyjaśnienia zatrzymują sprzątanie.
+import {
+  clearOutbox,
+  clearStoredToken,
+  countStoredOutbox,
+  readStoredToken,
+} from "@/lib/events/scannerStorage";
+import { SCANNER_ORIGIN, scannerRelocationTarget } from "@/lib/events/scannerLink";
 import {
   loadConflicts,
   loadRejected,
@@ -34,4 +48,21 @@ export async function holdsScannerWork(): Promise<boolean> {
 export async function purgeScannerData(): Promise<void> {
   clearStoredToken();
   await Promise.all([clearOutbox(), wipeAllOfflineData()]);
+}
+
+/**
+ * Sprzątanie resztek skanera pod originem PORTALU przy starcie dowolnej
+ * strony (patrz nagłówek). `true` = token i dane zniknęły; `false` = nie ma
+ * czego sprzątać (origin skanera nieskonfigurowany albo jesteśmy pod nim, brak
+ * tokenu) albo pod tym originem leży niewysłana praca.
+ */
+export async function purgeLeftoverScannerData(
+  current: string,
+  configured: string | null = SCANNER_ORIGIN,
+): Promise<boolean> {
+  if (scannerRelocationTarget(current, configured) === null) return false;
+  if (readStoredToken() === null) return false;
+  if (await holdsScannerWork()) return false;
+  await purgeScannerData();
+  return true;
 }

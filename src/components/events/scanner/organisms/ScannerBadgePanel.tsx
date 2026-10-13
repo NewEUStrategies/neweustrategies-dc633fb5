@@ -15,6 +15,11 @@
 // POWÓD JEST WYBOREM CZŁOWIEKA, NIE DOMYSŁEM. Baza umie zgadnąć („był wydruk
 // -> reprint_lost"), ale to zgadywanie psuje statystykę reklamacji. Operator
 // wskazuje powód jednym kliknięciem, zanim naciśnie „zapisz".
+//
+// KOD ZASTĄPIONY NIE DRUKUJE (OPS-04). Stary identyfikator po dodruku albo
+// bilet po zwrocie nie zapisuje wydruku i nie liczy się do blokady - ekran
+// mówi, które poświadczenie, kiedy i dlaczego przestało działać, zamiast
+// „Nieznany kod". Na stanowisku druku bez imienia i nazwiska.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -24,7 +29,10 @@ import { Button } from "@/components/ui/button";
 import { BADGE_PRINT_REASONS, type BadgePrintReason } from "@/lib/events/onsiteEnums";
 import { recordBadgePrintScan, type BadgePrintScanResult } from "@/lib/events/scannerApi";
 import { scannerErrorMessage } from "@/lib/events/scannerErrors";
+import { supersededHint } from "@/lib/events/scannerOutcomeView";
 import type { ScannerSession } from "@/lib/events/scannerSession";
+import { formatEventDateTime } from "@/lib/events/timezone";
+import { uiLang } from "@/lib/i18n/format";
 import { ScanOutcomeBanner } from "@/components/events/scanner/atoms/ScanOutcomeBanner";
 import { ScanPersonCard } from "@/components/events/scanner/molecules/ScanPersonCard";
 import { ScannerCodeInput } from "@/components/events/scanner/molecules/ScannerCodeInput";
@@ -33,6 +41,13 @@ import { ensureI18n as ensureScannerI18n } from "@/lib/i18n-event-scanner";
 ensureScannerI18n();
 
 const COPIES = [1, 2, 3] as const;
+
+/** Wynik zapisu wydruku -> nagłówek; reszta (nieznany kod) to „Nieznany kod". */
+const BADGE_TITLE: Readonly<Partial<Record<string, string>>> = {
+  printed: "eventScanner.outcomes.printed",
+  wrong_event: "eventScanner.outcomes.wrongEvent",
+  code_superseded: "eventScanner.outcomes.codeSuperseded",
+};
 
 export function ScannerBadgePanel({
   deviceToken,
@@ -43,7 +58,8 @@ export function ScannerBadgePanel({
   session: ScannerSession;
   online: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState<BadgePrintReason>("first_issue");
   const [copies, setCopies] = useState(1);
@@ -66,6 +82,13 @@ export function ScannerBadgePanel({
         setFailure(scannerErrorMessage(error));
       });
   };
+
+  const superseded =
+    result?.outcome === "code_superseded"
+      ? supersededHint(result.superseded, (iso) =>
+          formatEventDateTime(iso, session.event.timezone, lang),
+        )
+      : null;
 
   return (
     <div className="space-y-4">
@@ -132,13 +155,8 @@ export function ScannerBadgePanel({
         <div className="space-y-3">
           <ScanOutcomeBanner
             tone={result.outcome === "printed" ? "granted" : "warning"}
-            title={
-              result.outcome === "printed"
-                ? t("eventScanner.outcomes.printed")
-                : result.outcome === "wrong_event"
-                  ? t("eventScanner.outcomes.wrongEvent")
-                  : t("eventScanner.outcomes.unknownCode")
-            }
+            title={t(BADGE_TITLE[result.outcome] ?? "eventScanner.outcomes.unknownCode")}
+            hint={superseded === null ? null : t(superseded.key, superseded.params)}
           />
 
           {result.outcome === "printed" && (

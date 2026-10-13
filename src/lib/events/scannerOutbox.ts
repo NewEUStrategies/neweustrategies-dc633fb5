@@ -85,9 +85,11 @@
 // znaków (`codePrefix`): tyle wystarczy organizatorowi, a eksport krążący
 // pocztą nie wpuści nikogo na salę.
 //
-// ZNACZNIK KOLEJKI (`queueMarker`) jest nieprzezroczysty: baza może go nadać,
-// kolejka go przechowa (zaszyfrowany, w części tajnej sejfu) i odeśle
-// z ładunkiem przy wysyłce - bez kolejnej migracji formatu zapisu.
+// ZNACZNIK KOLEJKI (`queueMarker`, OPS-12) jest nieprzezroczysty: środowisko
+// stempluje nim pozycję W CHWILI KOLEJKOWANIA (znacznik aktualny wtedy, nie
+// przy wysyłce - patrz `scannerQueueMarker.ts`), kolejka go przechowa
+// (zaszyfrowany, w części tajnej sejfu) i odeśle z ładunkiem przy wysyłce. Bez
+// niego baza po terminie poświadczenia odrzuca skan (`device_expired`).
 import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums";
 import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
 import {
@@ -129,7 +131,11 @@ export interface OutboxItem {
   /** Nie ponawiamy przed tą chwilą (wykładnicze wycofanie). */
   nextAttemptAt: string;
   lastError: string | null;
-  /** Nieprzezroczysty znacznik bazy odsyłany z ładunkiem przy wysyłce. */
+  /**
+   * Znacznik kolejki aktualny w chwili, w której pozycja trafiła do kolejki -
+   * odsyłany z ładunkiem przy wysyłce (OPS-12). Brak = pozycja sprzed tej
+   * zmiany albo urządzenie, które nie dostało jeszcze żadnego znacznika.
+   */
   queueMarker?: string | null;
   /**
    * Zaszyfrowana część tajna, której ta karta NIE otworzyła (blok spod innego
@@ -371,6 +377,7 @@ export function enqueueScanWithOverflow(
     );
     if (index !== -1) {
       const next = [...queue];
+      const marker = item.queueMarker ?? next[index].queueMarker;
       next[index] = {
         ...next[index],
         // Notatka i ocena z NOWSZEGO skanu wygrywają, ale nie kasują starszych
@@ -378,6 +385,9 @@ export function enqueueScanWithOverflow(
         note: item.note ?? next[index].note,
         interestRating: item.interestRating ?? next[index].interestRating,
         deviceScannedAt: item.deviceScannedAt,
+        // Chwila skanu przechodzi na nowszy skan, więc znacznik też: baza
+        // sprawdza je RAZEM (skan najwyżej kwadrans przed wydaniem znacznika).
+        ...(marker === undefined ? {} : { queueMarker: marker }),
       };
       return { queue: next, overflow: [] };
     }

@@ -15,15 +15,23 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 // LINK PAROWANIA NIESIE TOKEN WE FRAGMENCIE (`/scanner#t=`, OPS-07) - stary
 // link `?t=` nie paruje. KOLEJKA W INDEXEDDB JEST ZASZYFROWANA (OPS-06):
 // rekord ma skrót i prefiks kodu, a sam kod tylko w bloku AES-GCM.
+//
+// ZNACZNIK KOLEJKI (OPS-12): konfiguracja oddaje `queue_marker`, klient
+// deklaruje `client_caps: ["queue_marker"]`, stempluje nim skan w chwili
+// kolejkowania i odsyła go z pozycją - a na dysku trzyma go tylko w sejfie.
 
 const DEVICE_TOKEN = "e2e-scanner-token-0123456789";
 const CHECKPOINT_ID = "11111111-1111-4111-8111-111111111111";
+/** Znacznik kolejki w kształcie z bazy (54 znaki base64url) - nieprzezroczysty. */
+const QUEUE_MARKER = "AAAAAGkAAAAe2e" + "M".repeat(40);
+/** Termin poświadczenia - tydzień od startu testu (znacznik ważny dobę). */
+const EXPIRES_AT = new Date(Date.now() + 7 * 24 * 3_600_000).toISOString();
 
 const SESSION = {
   device_id: "22222222-2222-4222-8222-222222222222",
   label: "Recepcja A",
   scopes: ["checkin"],
-  expires_at: null,
+  expires_at: EXPIRES_AT,
   pinned_checkpoint_id: CHECKPOINT_ID,
   sponsor_id: null,
   event: {
@@ -43,11 +51,14 @@ const SESSION = {
       kind: "event_entry",
       direction_mode: "in_only",
       access_mode: "control",
+      reentry_policy: "allow",
       capacity: null,
       dedupe_window_seconds: 0,
       sort_order: 0,
     },
   ],
+  queue_marker: QUEUE_MARKER,
+  queue_marker_valid_until: new Date(Date.now() + 24 * 3_600_000).toISOString(),
 };
 
 const GRANTED_SCAN = {
@@ -60,19 +71,29 @@ const GRANTED_SCAN = {
   repeat_count: 0,
   previous_checkin_at: null,
   device_locked: false,
-  checkpoint: { id: CHECKPOINT_ID, name_pl: "Wejście główne", name_en: "Main entrance" },
+  checkpoint: {
+    id: CHECKPOINT_ID,
+    name_pl: "Wejście główne",
+    name_en: "Main entrance",
+    reentry_policy: "allow",
+  },
   person: { person_id: "55555555-5555-4555-8555-555555555555", first_name: "Anna" },
   other_event: null,
+  reentry: false,
+  reentry_previous_at: null,
+  credential: "ticket",
 };
 
 interface ScannerCalls {
   bootstrap: number;
+  /** Ładunki konfiguracji - deklaracja zdolności klienta (`client_caps`). */
+  bootstrapPayloads: Array<Record<string, unknown>>;
   checkin: Array<Record<string, unknown>>;
 }
 
 /** Zaślepia płaszczyznę urządzenia i zwraca licznik wywołań do asercji. */
 async function stubScannerPlane(page: Page): Promise<ScannerCalls> {
-  const calls: ScannerCalls = { bootstrap: 0, checkin: [] };
+  const calls: ScannerCalls = { bootstrap: 0, bootstrapPayloads: [], checkin: [] };
 
   const json = (route: Route, body: unknown) =>
     route.fulfill({
@@ -83,6 +104,8 @@ async function stubScannerPlane(page: Page): Promise<ScannerCalls> {
 
   await page.route("**/rest/v1/rpc/event_scanner_bootstrap*", async (route) => {
     calls.bootstrap += 1;
+    const raw = route.request().postDataJSON() as { p_payload?: Record<string, unknown> } | null;
+    calls.bootstrapPayloads.push(raw?.p_payload ?? {});
     await json(route, SESSION);
   });
 
@@ -188,6 +211,11 @@ test.describe("aplikacja skanera", () => {
     await expect(page.getByText("Urządzenie: Recepcja A")).toBeVisible();
     await expect(page.locator("#scanner-code")).toBeVisible();
     expect(calls.bootstrap).toBeGreaterThanOrEqual(1);
+    // Klient mówi bazie, że stempluje kolejkę znacznikiem (OPS-12).
+    expect(calls.bootstrapPayloads[0]).toMatchObject({
+      device_token: DEVICE_TOKEN,
+      client_caps: ["queue_marker"],
+    });
 
     // Poświadczenie przeżywa zamknięcie karty - inaczej wolontariusz wpisywałby
     // je po każdym wygaszeniu ekranu.
@@ -311,6 +339,8 @@ test.describe("aplikacja skanera", () => {
     expect(queued[0]).not.toHaveProperty("code");
     expect(queued[0].sealed).toMatchObject({ iv: expect.any(String), data: expect.any(String) });
     expect(JSON.stringify(queued)).not.toContain("TICKET-OFFLINE-1");
+    // Znacznik kolejki też tylko w bloku sejfu.
+    expect(JSON.stringify(queued)).not.toContain(QUEUE_MARKER);
     expect(calls.checkin).toHaveLength(0);
 
     // 3) Powrót sieci opróżnia kolejkę bez udziału człowieka.
@@ -320,7 +350,13 @@ test.describe("aplikacja skanera", () => {
     });
 
     await expect.poll(() => calls.checkin.length, { timeout: 30_000 }).toBe(1);
-    expect(calls.checkin[0]).toMatchObject({ code: "TICKET-OFFLINE-1" });
+    // Pozycja z kolejki niesie znacznik z chwili kolejkowania (OPS-12) - bez
+    // niego baza po terminie poświadczenia odrzuciłaby skan.
+    expect(calls.checkin[0]).toMatchObject({
+      code: "TICKET-OFFLINE-1",
+      queued: true,
+      queue_marker: QUEUE_MARKER,
+    });
     await expect.poll(async () => (await readOutbox(page)).length, { timeout: 10_000 }).toBe(0);
     await expect(page.getByRole("heading", { name: "Kolejka skanów" })).toBeHidden();
   });
@@ -429,6 +465,7 @@ test.describe("aplikacja skanera", () => {
     for (const value of [atRest.idb, atRest.local]) {
       expect(value).not.toContain(code);
       expect(value).not.toContain(DEVICE_TOKEN);
+      expect(value).not.toContain(QUEUE_MARKER);
     }
   });
 });

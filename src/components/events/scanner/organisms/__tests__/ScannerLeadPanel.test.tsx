@@ -11,7 +11,9 @@
 // 3. brak sieci mówi „w kolejce", a nie „zapisano",
 // 4. notatka i ocena dopisują się do TEGO SAMEGO skanu (drugie wywołanie
 //    z tym samym kodem), a nie tworzą drugiego leadu,
-// 5. notatka poprzedniej osoby nie przykleja się do następnej.
+// 5. notatka poprzedniej osoby nie przykleja się do następnej,
+// 6. kod ZASTĄPIONY (OPS-04) nie jest „nieznanym kodem": bursztyn, powód
+//    i chwila zastąpienia, bez notatnika i bez danych osoby.
 //
 // i18n jest zamockowane kluczami (parytetu PL/EN pilnuje osobna bramka
 // słowników), ale komunikat odmowy powstaje POZA Reactem
@@ -67,6 +69,7 @@ function leadResult(over: Partial<LeadScanResult> = {}): LeadScanResult {
       email: "anna@example.org",
       phone: "+48 600 100 200",
     },
+    superseded: null,
     ...over,
   };
 }
@@ -272,6 +275,32 @@ describe("ScannerLeadPanel", () => {
 
     scan("QR-9");
     expect(await screen.findByText("eventScanner.outcomes.unknownCode")).toBeInTheDocument();
+    expect(screen.queryByLabelText("eventScanner.lead.noteLabel")).toBeNull();
+  });
+
+  it("kod ZASTĄPIONY to nie „nieznany kod” - bursztyn z powodem i chwilą, bez notatnika", async () => {
+    const submitLead = vi.fn().mockResolvedValue({
+      queued: false,
+      result: leadResult({
+        outcome: "code_superseded",
+        consent: false,
+        person: null,
+        superseded: {
+          credential: "ticket",
+          reason: "revoked",
+          supersededAt: "2026-10-12T08:01:02Z",
+        },
+      }),
+    });
+    render(<ScannerLeadPanel runtime={runtimeStub({ submitLead })} timezone="Europe/Warsaw" />);
+
+    scan("QR-OLD");
+    expect(await screen.findByText("eventScanner.outcomes.codeSuperseded")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAttribute("data-tone", "warning");
+    expect(
+      screen.getByText(/^eventScanner\.superseded\.ticket\.revoked\(when=/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventScanner.outcomes.unknownCode")).toBeNull();
     expect(screen.queryByLabelText("eventScanner.lead.noteLabel")).toBeNull();
   });
 

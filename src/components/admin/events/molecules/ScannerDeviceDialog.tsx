@@ -17,6 +17,14 @@
 // telefon listę uczestników (bez e-maili i telefonów, ze skrótami kodów zamiast
 // kodów), więc pole jest domyślnie puste, stoi obok ostrzeżenia i działa tylko
 // razem z uprawnieniem do odprawy.
+//
+// TERMIN MA GÓRNĄ GRANICĘ (OPS-12): koniec wydarzenia + 7 dni
+// (`scannerExpiryLimit`, lustro `_event_scanner_expiry_limit`). Kalendarz nie
+// pozwala wybrać później, podpowiedź podaje granicę, wpisana ręcznie później
+// data blokuje wydanie zdaniem `expiry_too_late` - tym samym, którym odmówiłaby
+// baza - a po granicy (wydarzenie skończyło się ponad tydzień temu) wydania nie
+// ma wcale. Granicę liczymy z wiersza wydarzenia, który studio i tak trzyma
+// w cache (`useAdminEventDetail`); bez dat wydarzenia granicę zna tylko baza.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -50,12 +58,23 @@ import {
   validateScannerDeviceDraft,
   type ScannerDeviceDraft,
 } from "@/lib/events/onsiteDraft";
+import { isoToLocal, localToIso } from "@/lib/events/onsiteDraft";
+import {
+  isExpiryTooLate,
+  isIssueWindowClosed,
+  scannerExpiryLimit,
+} from "@/lib/events/scannerExpiryLimit";
 import { scannerOriginFor, scannerPairingUrl } from "@/lib/events/scannerLink";
+import { browserTimeZone } from "@/lib/events/timezone";
+import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
+import { formatDate, uiLang } from "@/lib/i18n/format";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 
 ensureOnsiteI18n();
 
 const NONE = "__none__";
+
+const EXPIRY_TOO_LATE = "adminEventOnsite.errors.expiryTooLate";
 
 export interface ScannerRelationOption {
   id: string;
@@ -81,9 +100,11 @@ export function ScannerDeviceDialog({
   isSaving,
   onSubmit,
 }: ScannerDeviceDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [draft, setDraft] = useState<ScannerDeviceDraft>(() => emptyScannerDeviceDraft());
   const [touched, setTouched] = useState(false);
+  const eventQ = useAdminEventDetail(eventId);
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +112,34 @@ export function ScannerDeviceDialog({
     setTouched(false);
   }, [open]);
 
-  const errors = validateScannerDeviceDraft(draft);
+  // Granica terminu (OPS-12) - patrz nagłówek.
+  const expiryLimit = scannerExpiryLimit(eventQ.data);
+  const issueClosed = isIssueWindowClosed(expiryLimit, Date.now());
+  const chosenExpiry = localToIso(draft.expiresAtLocal);
+  const tooLate = isExpiryTooLate(
+    typeof chosenExpiry === "string" ? chosenExpiry : null,
+    expiryLimit,
+  );
+  const errors = [
+    ...validateScannerDeviceDraft(draft),
+    ...(tooLate ? [{ field: "expiresAtLocal", messageKey: EXPIRY_TOO_LATE }] : []),
+  ];
+  const expiryHint =
+    expiryLimit === null
+      ? t("adminEventOnsite.devices.dialog.expiresHint")
+      : `${t("adminEventOnsite.devices.dialog.expiresHint")} ${t(EXPIRY_TOO_LATE)} (${formatDate(
+          expiryLimit,
+          lang,
+          {
+            year: "numeric",
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            // Pole `datetime-local` mówi czasem przeglądarki - granica też.
+            timeZone: browserTimeZone(),
+          },
+        )})`;
   const hasCheckin = draft.scopes.includes("checkin");
   const errorFor = (field: string): string | null => {
     if (!touched) return null;
@@ -109,7 +157,7 @@ export function ScannerDeviceDialog({
 
   const submit = () => {
     setTouched(true);
-    if (errors.length > 0) return;
+    if (errors.length > 0 || issueClosed) return;
     onSubmit(scannerDeviceDraftToInput(draft, eventId));
   };
 
@@ -213,13 +261,18 @@ export function ScannerDeviceDialog({
             </p>
           </div>
 
+          {/* Po granicy baza nie wyda poświadczenia z żadnym terminem - mówimy
+              to od razu, bez czekania na „Wydaj". */}
           <AdminFormTextRow
+            id="device-expires-at"
             label={t("adminEventOnsite.devices.dialog.expiresAt")}
-            hint={t("adminEventOnsite.devices.dialog.expiresHint")}
+            hint={expiryHint}
             value={draft.expiresAtLocal}
             onValueChange={(value) => setDraft((prev) => ({ ...prev, expiresAtLocal: value }))}
             type="datetime-local"
-            error={errorFor("expiresAtLocal")}
+            max={expiryLimit === null ? undefined : isoToLocal(expiryLimit)}
+            disabled={issueClosed}
+            error={issueClosed ? t(EXPIRY_TOO_LATE) : errorFor("expiresAtLocal")}
           />
         </AdminFormSection>
 
@@ -227,7 +280,7 @@ export function ScannerDeviceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             {t("adminEventOnsite.actions.cancel")}
           </Button>
-          <Button onClick={submit} disabled={isSaving}>
+          <Button onClick={submit} disabled={isSaving || issueClosed}>
             <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("adminEventOnsite.actions.issueDevice")}
           </Button>

@@ -123,6 +123,7 @@ function session(over: Partial<ScannerSession> = {}): ScannerSession {
         kind: "event_entry",
         directionMode: "in_only",
         accessMode: "control",
+        reentryPolicy: "allow",
         capacity: null,
         dedupeWindowSeconds: 0,
         sortOrder: 0,

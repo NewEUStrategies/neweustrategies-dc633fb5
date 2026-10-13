@@ -308,7 +308,9 @@ export function ScannerApp({
 
       {/* ------------------------------------------------------------ tryb */}
       {activeMode === "checkin" && <ScannerCheckinPanel runtime={runtime} session={session} />}
-      {activeMode === "lead" && <ScannerLeadPanel runtime={runtime} />}
+      {activeMode === "lead" && (
+        <ScannerLeadPanel runtime={runtime} timezone={session.event.timezone} />
+      )}
       {activeMode === "badge" && runtime.token !== null && (
         <ScannerBadgePanel deviceToken={runtime.token} session={session} online={runtime.online} />
       )}

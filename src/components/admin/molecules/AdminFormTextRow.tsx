@@ -34,6 +34,8 @@ export function AdminFormTextRow({
   maxLength,
   rows,
   type,
+  min,
+  max,
   inputMode,
   monospace,
   disabled,
@@ -54,6 +56,12 @@ export function AdminFormTextRow({
   rows?: number;
   /** Typ pola HTML jednolinijkowego (`number`, `datetime-local`, `url`). */
   type?: string;
+  /**
+   * Granice pola jednolinijkowego (`number`, `datetime-local`) - w formacie
+   * wartości pola. Przeglądarka nie pozwala wybrać spoza nich w kalendarzu.
+   */
+  min?: string;
+  max?: string;
   inputMode?: "numeric" | "decimal" | "text";
   /** Klucz techniczny i kolor heksadecymalny czyta się monospace'em. */
   monospace?: boolean;
@@ -98,12 +106,21 @@ export function AdminFormTextRow({
       </div>
       {rows === undefined ? (
         endAdornment === undefined ? (
-          <Input {...shared} type={type} inputMode={inputMode} autoFocus={autoFocus} />
+          <Input
+            {...shared}
+            type={type}
+            min={min}
+            max={max}
+            inputMode={inputMode}
+            autoFocus={autoFocus}
+          />
         ) : (
           <div className="flex items-center gap-2">
             <Input
               {...shared}
               type={type}
+              min={min}
+              max={max}
               inputMode={inputMode}
               autoFocus={autoFocus}
               className={cn(shared.className, "min-w-0 flex-1")}
