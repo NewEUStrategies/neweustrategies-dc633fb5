@@ -44,9 +44,24 @@ const COUPON_ID = "ffffffff-0000-4000-8000-00000000000c";
  */
 const h = vi.hoisted(() => {
   const calls: { method: string; args: unknown[] }[] = [];
+  /**
+   * Cena katalogowa w kształcie operatora: `plus_monthly` - 49 zł za sztukę,
+   * co miesiąc, rozliczana za ilość. Bramka spójności (PAY-01) porównuje typ,
+   * walutę, cykl i kwotę z wyceną planu, więc atrapa niesie wszystkie cztery.
+   */
+  const catalogPrice = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: "price_1",
+    lookup_key: "plus_monthly",
+    type: "recurring",
+    currency: "pln",
+    billing_scheme: "per_unit",
+    unit_amount: 4900,
+    recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
+    ...over,
+  });
   const state = {
     /** Cena katalogowa zwracana przez operatora (pusto = brak ceny). */
-    prices: [] as unknown[],
+    prices: [catalogPrice()] as unknown[],
     /** Subskrypcje klienta u operatora (`subscriptions.list`). */
     remoteSubscriptions: [] as unknown[],
     /** Wynik `checkout.sessions.create`; wyjątek symuluje odmowę operatora. */
@@ -65,7 +80,7 @@ const h = vi.hoisted(() => {
       }
     };
   };
-  return { calls, state, record };
+  return { calls, state, record, catalogPrice };
 });
 
 vi.mock("@tanstack/react-start", async () =>
@@ -219,18 +234,12 @@ function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
   };
 }
 
-/** Cena katalogowa u operatora - domyślnie zgodna z `planQuote()` (49 zł / mies.). */
+/**
+ * Cena katalogowa u operatora - domyślnie zgodna z `planQuote()` (49 zł / mies.).
+ * Ta sama atrapa co `h.catalogPrice` (testy audytu SUB-05 używają tej nazwy).
+ */
 function stripePrice(over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id: "price_1",
-    lookup_key: "plus_monthly",
-    type: "recurring",
-    billing_scheme: "per_unit",
-    unit_amount: 4900,
-    currency: "pln",
-    recurring: { interval: "month", interval_count: 1 },
-    ...over,
-  };
+  return h.catalogPrice(over);
 }
 
 function couponOk(over: Partial<CouponVerdict> = {}): CouponVerdict {
@@ -339,7 +348,7 @@ function entityPayload(over: Record<string, unknown> = {}): Record<string, unkno
 
 beforeEach(() => {
   h.calls.length = 0;
-  h.state.prices = [stripePrice()];
+  h.state.prices = [h.catalogPrice()];
   h.state.remoteSubscriptions = [];
   h.state.sessionError = null;
   h.state.coupon = { id: "coupon_1" };
@@ -475,7 +484,7 @@ describe("createCheckoutOrder - subskrypcja idzie CENĄ KATALOGOWĄ", () => {
   it("liczba miejsc jedzie do pozycji sesji, a nie tylko do kwoty zamówienia", async () => {
     chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
     h.state.prices = [
-      stripePrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
     ];
 
     await call(planPayload({ seats: 7 }));
@@ -662,15 +671,62 @@ describe("createCheckoutOrder - kupon B2B w sesji subskrypcji", () => {
     expect(lastSession()?.discounts).toBeUndefined();
   });
 
-  it("odpowiedź operatora BEZ identyfikatora kuponu nie wywraca sesji", async () => {
-    // Zamówienie i tak ma poprawną kwotę po kuponie; brak rabatu w nakładce
-    // jest kosmetyką, a wywalona kasa nie.
+  it("odpowiedź operatora BEZ identyfikatora kuponu to ODMOWA, nie sesja bez zniżki (przegląd 0.2)", async () => {
+    // Zamówienie zapisało kwotę PO kuponie. Sesja bez rabatu pobrałaby cenę
+    // katalogową - więcej, niż pokazała kasa - a realizacja oflagowałaby rozjazd
+    // dopiero po pobraniu pieniędzy. Ten sam wynik co w drugim silniku.
     h.state.coupon = {};
 
     const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
 
-    expect(result.ok).toBe(true);
-    expect(lastSession()?.discounts).toBeUndefined();
+    expect(result).toEqual({
+      ok: false,
+      mode: "stripe",
+      error: "discount_unavailable",
+      orderId: "order-1",
+    });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _coupon_id: COUPON_ID });
+  });
+
+  it("AWARIA operatora przy zakładaniu rabatu zamyka zamówienie i ZWALNIA kupon (przegląd 0.2)", async () => {
+    // CO BYŁO ZŁE. Wyjątek z `coupons.create` (limit zapytań, timeout po
+    // ponowieniu) wylatywał z handlera: zamówienie zostawało `pending` bez
+    // sesji - więc bez `checkout.session.expired` i bez sprzątania - a jedyne
+    // użycie kodu partnerskiego przepadało za zamówienie, którego nikt nie
+    // opłaci. Drugi silnik zamykał to już wcześniej (`failOrder`).
+    h.state.couponError = new Error("rate_limit: too many requests");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
+
+    expect(result).toMatchObject({ ok: false, mode: "stripe", orderId: "order-1" });
+    expect(result.ok === false && result.error).toContain("rate_limit");
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcCalls.map((c) => c.fn)).toEqual([
+      "validate_b2b_coupon_for_user",
+      "redeem_b2b_coupon_for_user",
+      "payment_order_mark_session",
+      "release_b2b_coupon_for_user",
+    ]);
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
+      _coupon_id: COUPON_ID,
+      _order_id: "order-1",
+    });
+    expect(
+      logged.mock.calls.some((args) => String(args[0]).includes("provider coupon failed")),
+    ).toBe(true);
+    logged.mockRestore();
   });
 });
 
@@ -748,6 +804,273 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.error).toContain("card_declined");
     logged.mockRestore();
+  });
+});
+
+describe("createCheckoutOrder - wspólna wycena planu i bramka ceny (audyt PAY-01)", () => {
+  // Ten silnik liczy cenę planu tą samą funkcją co drugi (`planPricing.ts`)
+  // i tak samo przekazuje operatorowi oczekiwany tryb i walutę. Cena pod
+  // `lookup_key` innego typu albo w innej walucie niż zamówienie to odmowa,
+  // a nie sesja za coś innego.
+  it("cena JEDNORAZOWA pod kluczem planu cyklicznego: `price_mismatch`, zamówienie `failed`, kupon zwolniony", async () => {
+    h.state.prices = [h.catalogPrice({ type: "one_time", recurring: null })];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
+
+    expect(result).toEqual({
+      ok: false,
+      mode: "stripe",
+      error: "price_mismatch",
+      orderId: "order-1",
+    });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _order_id: "order-1" });
+    logged.mockRestore();
+  });
+
+  it("cena w INNEJ WALUCIE niż plan: `price_mismatch`", async () => {
+    h.state.prices = [h.catalogPrice({ currency: "eur" })];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload());
+
+    expect(result).toMatchObject({ ok: false, error: "price_mismatch" });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    logged.mockRestore();
+  });
+});
+
+describe("createCheckoutOrder - RODZAJ zamówienia planu wynika z PLANU (przegląd PAY-01, 0.0/7.0)", () => {
+  // CO BYŁO ZŁE. Ten silnik brał `kind` z żądania. `kind=one_time` z planem
+  // MIESIĘCZNYM omijał wycenę, otwierał sesję `payment` z ceną osadzoną za
+  // jeden okres i zakładał zamówienie `one_time` z `plan_id` - a takie
+  // zamówienie realizacja zamienia w dostęp DOŻYWOTNI (`entitlementForOrder`:
+  // `lifetime: true`, `current_period_end` NULL). Kwota sesji była równa
+  // kwocie zamówienia, więc nic nie flagowało rozjazdu. W drugą stronę
+  // `kind=subscription` z planem jednorazowym dawało miesięczny dostęp za
+  // produkt jednorazowy. Żaden ekran nie składa takiego żądania - to czysta
+  // powierzchnia ataku ręcznie złożonym POST-em.
+  //
+  // JAK NAPRAWIONE. Zakup planu ZAWSZE przechodzi przez `planCheckoutPricing`,
+  // a rozbieżność deklaracji z wyceną to odmowa PRZED kuponem i zamówieniem:
+  // plan cykliczny kupowany „jednorazowo" - `plan_not_one_time` (ten sam kod
+  // co strażnik bazy, TIX-02), kierunek odwrotny - `kind_mismatch`.
+  it("`kind=one_time` z planem MIESIĘCZNYM: `plan_not_one_time`, bez zamówienia, kuponu i operatora", async () => {
+    await expect(
+      call(planPayload({ kind: "one_time", coupon_code: "PARTNER-CEE" })),
+    ).rejects.toThrow("plan_not_one_time");
+
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(rpcCalls).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("`kind=one_time` z planem ROCZNYM Pro też jest odmową - jeden rok nie kupuje dożywocia", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "pro", interval: "year", price_cents: 49000 })),
+    );
+
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_not_one_time");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("`kind=subscription` z planem JEDNORAZOWYM (Decision Lab): `kind_mismatch`, bez zamówienia i kuponu", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+
+    await expect(
+      call(planPayload({ kind: "subscription", coupon_code: "PARTNER-CEE" })),
+    ).rejects.toThrow("kind_mismatch");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(rpcCalls).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("plan jednorazowy z `kind=one_time` idzie CENĄ KATALOGOWĄ w trybie `payment` (jak drugi silnik)", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({
+          tier_key: "decision_lab",
+          interval: "one_time",
+          price_cents: 1600000,
+          trial_days: 14,
+        }),
+      ),
+    );
+    h.state.prices = [
+      h.catalogPrice({
+        id: "price_lab",
+        lookup_key: "decision_lab_seat",
+        type: "one_time",
+        recurring: null,
+        unit_amount: 1600000,
+      }),
+    ];
+
+    const result = await call(planPayload({ kind: "one_time" }));
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.mode).toBe("payment");
+    expect(lastSession()?.line_items[0]).toMatchObject({ price: "price_lab", quantity: 1 });
+    expect(lastSession()?.line_items[0]?.price_data).toBeUndefined();
+    expect(lastSession()?.subscription_data).toBeUndefined();
+    const order = chain.lastChain("payment_orders")?.argsOf("insert")?.[0] as
+      Record<string, unknown> | undefined;
+    expect(order).toMatchObject({ kind: "one_time", amount_cents: 1600000, plan_id: PLAN_ID });
+  });
+
+  it("plan cykliczny z `kind=subscription` zakłada zamówienie `subscription`", async () => {
+    await call(planPayload());
+
+    const order = chain.lastChain("payment_orders")?.argsOf("insert")?.[0] as
+      Record<string, unknown> | undefined;
+    expect(order?.kind).toBe("subscription");
+  });
+});
+
+describe("createCheckoutOrder - jedno zamówienie, jeden przedmiot", () => {
+  // Plan, treść i bilet wykluczają się: zamówienie wycenione jednym
+  // przedmiotem i zrealizowane drugim to płatność za tanie, dostęp do drogiego.
+  // Odmowę daje walidator ładunku (`checkoutPayloadIssue`, TIX-01) - jeden kod
+  // na każdą mieszankę, zanim handler przeczyta cokolwiek z bazy.
+  it.each([
+    [
+      "plan + wydarzenie",
+      { kind: "one_time", plan_id: PLAN_ID, event_id: EVENT_ID },
+      "ticket_payload_conflict",
+    ],
+    [
+      "plan + treść",
+      { kind: "one_time", plan_id: PLAN_ID, entity_type: "post", entity_id: POST_ID },
+      "entity_payload_conflict",
+    ],
+    [
+      "plan + sam rodzaj treści (bez identyfikatora)",
+      { kind: "one_time", plan_id: PLAN_ID, entity_type: "post" },
+      "entity_payload_conflict",
+    ],
+    [
+      "subskrypcja + wydarzenie",
+      { kind: "subscription", plan_id: PLAN_ID, event_id: EVENT_ID },
+      "subscription_payload_conflict",
+    ],
+    [
+      "treść + wydarzenie (bilet po cenie wpisu)",
+      { kind: "one_time", entity_type: "post", entity_id: POST_ID, event_id: EVENT_ID },
+      "ticket_payload_conflict",
+    ],
+    [
+      "treść + zgłoszenie etapu 4",
+      {
+        kind: "one_time",
+        entity_type: "post",
+        entity_id: POST_ID,
+        registration_id: REGISTRATION_ID,
+      },
+      "registration_requires_ticket",
+    ],
+  ])("%s: odmowa przed jakimkolwiek odczytem", async (_label, over, reason) => {
+    await expect(
+      call({ success_path: "/x", cancel_path: "/x", environment: "sandbox", ...over }),
+    ).rejects.toThrow(reason);
+    expect(chain.chains).toHaveLength(0);
+    expect(rpcCalls).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+});
+
+describe("createCheckoutOrder - cena u operatora zgodna z planem (przegląd PAY-01, 0.1)", () => {
+  it("plan Pro KWARTALNY bez wpisu katalogu: `plan_price_missing`, bez schodzenia na `pro_monthly`", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "pro", interval: "quarter", price_cents: 12900 })),
+    );
+
+    await expect(call(planPayload())).rejects.toThrow("plan_price_missing");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("DRYF KWOTY u operatora (99 zł za plan 49 zł): `price_mismatch`, zamówienie `failed`, kupon zwolniony", async () => {
+    h.state.prices = [h.catalogPrice({ unit_amount: 9900 })];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
+
+    expect(result).toEqual({
+      ok: false,
+      mode: "stripe",
+      error: "price_mismatch",
+      orderId: "order-1",
+    });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _order_id: "order-1" });
+    logged.mockRestore();
+  });
+
+  it("cena w INNYM CYKLU niż plan (kwartał zamiast miesiąca): `price_mismatch`", async () => {
+    h.state.prices = [
+      h.catalogPrice({
+        recurring: { interval: "month", interval_count: 3, usage_type: "licensed" },
+      }),
+    ];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload());
+
+    expect(result).toMatchObject({ ok: false, error: "price_mismatch" });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    logged.mockRestore();
+  });
+
+  it("kwota ceny liczona za WSZYSTKIE miejsca: 7 × 99 zł zgodne z zamówieniem", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
+    h.state.prices = [
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
+    ];
+
+    const result = await call(planPayload({ seats: 7 }));
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.line_items[0]).toMatchObject({ price: "price_team", quantity: 7 });
+  });
+});
+
+describe("createCheckoutOrder - idempotencja u operatora (audyt PAY-16a)", () => {
+  // Klucz pochodzi z zamówienia i z celu wywołania: ponowienie nie zakłada
+  // drugiej sesji ani drugiego kuponu, a sesja i kupon tego samego zamówienia
+  // nie dzielą klucza (Stripe odrzuca klucz z innymi parametrami).
+  const optionsOf = (method: string): unknown =>
+    h.calls.filter((c) => c.method === method).at(-1)?.args[1];
+
+  it("sesja subskrypcji i jej kupon dostają klucze z zamówienia", async () => {
+    await call(planPayload({ coupon_code: "PARTNER-CEE" }));
+
+    expect(optionsOf("coupons.create")).toEqual({ idempotencyKey: "checkout_coupon:order-1" });
+    expect(optionsOf("checkout.sessions.create")).toEqual({
+      idempotencyKey: "checkout_session:order-1",
+    });
+  });
+
+  it("sesja z ceną osadzoną (treść) dostaje klucz z zamówienia", async () => {
+    await call(entityPayload());
+
+    expect(optionsOf("checkout.sessions.create")).toEqual({
+      idempotencyKey: "checkout_session:order-1",
+    });
   });
 });
 

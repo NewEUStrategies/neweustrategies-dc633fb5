@@ -57,7 +57,12 @@ const h = vi.hoisted(() => ({
    * znaczników rozstrzygany żywym stanem). Domyślnie pusty - każde inne
    * wywołanie operatora kończy test jawnym błędem.
    */
-  stripe: { current: null as { subscriptions: { retrieve: StripeRetrieve } } | null },
+  stripe: {
+    current: null as {
+      subscriptions: { retrieve: StripeRetrieve };
+      invoices?: { retrieve: (id: string) => Promise<unknown> };
+    } | null,
+  },
 }));
 
 type StripeRetrieve = (id: string, params?: unknown) => Promise<unknown>;
@@ -72,7 +77,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-vi.mock("@/lib/stripe.server", () => ({
+// `environmentGrantsAccess` zostaje PRAWDZIWE (czysta funkcja bramki PAY-05,
+// poza produkcją oba środowiska nadają dostęp).
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
   getStripeClient: async () => {
@@ -147,6 +155,14 @@ function matches(row: Row, chain: RecordedChain): boolean {
     switch (method) {
       case "eq":
         return row[column] === args[1];
+      // `neq` (zapis uprawnienia omija `refunded`) i porównania czasu (próg
+      // deduplikacji dzwonka `gte created_at`) - jak PostgREST.
+      case "neq":
+        return row[column] !== args[1];
+      case "gte":
+        return row[column] != null && cmp(row[column], args[1]) >= 0;
+      case "lt":
+        return row[column] != null && cmp(row[column], args[1]) < 0;
       case "is":
         return args[1] === null ? row[column] == null : row[column] === args[1];
       case "gt":
@@ -350,12 +366,26 @@ function stripeInvoice(o: InvoiceOpts): Record<string, unknown> {
   };
 }
 
+/**
+ * Identyfikator zdarzenia operatora: ta sama treść, typ i chwila = TO SAMO
+ * zdarzenie (ponowna dostawa, ponowienie z panelu), inna treść w tej samej
+ * sekundzie = INNE zdarzenie. Trasa podaje dyspozytorowi `event.id`, a po
+ * scaleniu z PAY-02 strażnik rozpoznaje po nim powtórkę (`replay`) - bez
+ * identyfikatora każda powtórka byłaby remisem rozstrzyganym u operatora.
+ */
+function eventId(type: string, object: Record<string, unknown>, at: string): string {
+  let hash = 0;
+  for (const char of JSON.stringify(object)) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return `evt_${type}_${at}_${(hash >>> 0).toString(36)}`;
+}
+
 /** Surowe zdarzenie Stripe -> normalizacja -> dyspozytor (jak trasa HTTP). */
 async function deliver(type: string, object: Record<string, unknown>, at: string) {
-  const event = { id: `evt_${type}_${at}`, type, created: unix(at), data: { object } };
+  const event = { id: eventId(type, object, at), type, created: unix(at), data: { object } };
   const normalized = normalizeStripeEvent(event as unknown as VerifiedWebhookEvent);
   if (!normalized) throw new Error(`test: zdarzenie ${type} poza zakresem integracji`);
   return dispatchWebhookEvent({
+    eventId: event.id,
     eventType: normalized.eventType,
     data: normalized.data,
     environment: "live",
@@ -397,13 +427,19 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
       stripeSubscription({ status: "active", ...period }),
       activated,
     );
+    // Po scaleniu z PAY-02 spóźnione zdarzenie (`stale`) nie stosuje ładunku,
+    // ale WYRÓWNUJE uprawnienie żywym stanem operatora (jego wcześniejsza próba
+    // mogła zapisać uprawnienie i paść) - stąd odczyt i `processed` zamiast
+    // `skipped`. Ładunek `incomplete` niczego nie cofa.
+    const retrieve = stripeLive(() => stripeSubscription({ status: "active", ...period }));
     const outcome = await deliver(
       "customer.subscription.created",
       stripeSubscription({ status: "incomplete", ...period }),
       created,
     );
 
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("processed");
+    expect(retrieve).toHaveBeenCalledTimes(1);
     expect(subscriptionRow()).toMatchObject({ status: "active", last_event_at: activated });
     expect(grantsAccess(entitlement())).toBe(true);
     // Zakup potwierdzony raz - przy aktywacji, a nie drugi raz przy `created`.
@@ -526,16 +562,22 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
       /entitlement sync: insert failed/,
     );
     expect(mails("subscription_confirmed")).toHaveLength(0);
-    expect(subscriptionRow()?.purchase_confirmed_at).toBeNull();
+    // Po scaleniu z PAY-02 (1.2) skutki założenia idą PRZED wstawieniem
+    // wiersza: porażka zostawia „brak wiersza", więc ponowienie znów idzie
+    // ścieżką zakładania - potwierdzenie zakupu nie ma czego zużyć.
+    expect(subscriptionRow()).toBeUndefined();
 
     expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
     expect(grantsAccess(entitlement())).toBe(true);
     expect(mails("subscription_confirmed")).toHaveLength(1);
     expect(bells("Subskrypcja aktywna")).toHaveLength(1);
 
-    // Powtórka po sukcesie niczego nie dubluje.
-    expect(await deliver("customer.subscription.created", object, at)).toBe("skipped");
+    // Powtórka po sukcesie niczego nie dubluje. Strażnik rozpoznaje TO SAMO
+    // zdarzenie po identyfikatorze (`replay`) i przechodzi obsługę jeszcze raz
+    // (idempotentnie) - stąd `processed`, ale potwierdzenie jest już zajęte.
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
     expect(mails("subscription_confirmed")).toHaveLength(1);
+    expect(bells("Subskrypcja aktywna")).toHaveLength(1);
   });
 
   it("zdarzenie stanu, którego obsługa padła, przechodzi przy ponowieniu", async () => {
@@ -574,7 +616,9 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
     });
 
     expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
-    expect(await deliver("customer.subscription.created", object, at)).toBe("skipped");
+    // Druga dostawa to `replay` (ten sam identyfikator zdarzenia, PAY-02):
+    // obsługa biegnie jeszcze raz, idempotentnie - `processed`, bez duplikatów.
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
 
     expect(subscriptions).toHaveLength(1);
     expect(mails("subscription_confirmed")).toHaveLength(1);
@@ -980,6 +1024,16 @@ describe("SUB-16: windykacja liczy każdą próbę i podaje jej termin", () => {
 
   it("spóźniona porażka próby, po której płatność już przeszła, nie otwiera nowego cyklu", async () => {
     await activeSubscription();
+    // PAY-13 (4.5): porażka sprzed ostatniej płatności jest pomijana WYŁĄCZNIE,
+    // gdy TA faktura jest opłacona u operatora - windykacja pyta o nią.
+    h.stripe.current = {
+      subscriptions: {
+        retrieve: async () => {
+          throw new Error("test: ten przypadek nie ma prawa czytać subskrypcji");
+        },
+      },
+      invoices: { retrieve: async (id: string) => ({ id, status: "paid" }) },
+    };
     await deliver("invoice.payment_failed", stripeInvoice({ attempt: 1 }), relativeIso(-2 * DZIEN));
     await deliver("invoice.paid", stripeInvoice({ attempt: 2 }), relativeIso(-1 * DZIEN));
     // Ponowiona dostawa drugiej próby sprzed zapłaty.
@@ -1391,7 +1445,9 @@ describe("strażnik kolejności: remis sekundy, wiersz „w trakcie” i awaria 
     await deliver("customer.subscription.updated", object, at);
 
     // `h.stripe.current` pusty: każde wywołanie operatora wywróciłoby test.
-    expect(await deliver("customer.subscription.updated", object, at)).toBe("skipped");
+    // Powtórkę rozpoznaje identyfikator zdarzenia (`replay`, PAY-02): obsługa
+    // przechodzi jeszcze raz idempotentnie (`processed`), bez pytania operatora.
+    expect(await deliver("customer.subscription.updated", object, at)).toBe("processed");
     expect(subscriptionRow()).toMatchObject({ status: "active", last_event_at: at });
   });
 });
@@ -1426,17 +1482,21 @@ describe("potwierdzenie zakupu nie ginie po awarii (#2, #42)", () => {
     await expect(deliver("customer.subscription.updated", active, at)).rejects.toThrow(
       /entitlement sync: insert failed/,
     );
-    expect(subscriptionRow()?.status).toBe("active");
+    // PAY-02 (1.2): skutki założenia PRZED wstawieniem - po porażce wiersza nie ma.
+    expect(subscriptionRow()).toBeUndefined();
     expect(mails("subscription_confirmed")).toHaveLength(0);
 
-    // `created` z wcześniejszej sekundy dociera między porażką a ponowieniem.
+    // `created` z wcześniejszej sekundy dociera między porażką a ponowieniem
+    // i zakłada wiersz (`incomplete`, bez potwierdzenia) - dlatego `processed`.
     expect(
       await deliver(
         "customer.subscription.created",
         stripeSubscription({ status: "incomplete", ...period }),
         relativeIso(-1 * DZIEN - 2 * SEKUNDA),
       ),
-    ).toBe("skipped");
+    ).toBe("processed");
+    expect(mails("subscription_confirmed")).toHaveLength(0);
+    // Ponowienie aktywacji jest świeższe od `created` - potwierdza zakup.
     expect(await deliver("customer.subscription.updated", active, at)).toBe("processed");
 
     expect(grantsAccess(entitlement())).toBe(true);
@@ -1465,8 +1525,11 @@ describe("potwierdzenie zakupu nie ginie po awarii (#2, #42)", () => {
         relativeIso(-2 * DZIEN + 60 * 60 * SEKUNDA),
       ),
     ).toBe("processed");
-    // Ponowienie `created` jest już starsze od zapisanego stanu.
-    expect(await deliver("customer.subscription.created", created, createdAt)).toBe("skipped");
+    // Ponowienie `created` jest już starsze od zapisanego stanu (`stale`):
+    // ładunku nie stosuje, uprawnienie wyrównuje żywym stanem operatora
+    // (PAY-02) - `processed`, bez drugiego potwierdzenia.
+    stripeLive(() => stripeSubscription({ status: "active", ...period }));
+    expect(await deliver("customer.subscription.created", created, createdAt)).toBe("processed");
 
     expect(grantsAccess(entitlement())).toBe(true);
     expect(mails("subscription_confirmed")).toHaveLength(1);
@@ -1493,8 +1556,13 @@ describe("potwierdzenie zakupu nie ginie po awarii (#2, #42)", () => {
     await expect(deliver("customer.subscription.updated", active, activatedAt)).rejects.toThrow(
       /entitlement sync: update failed/,
     );
-    // Status `active` jest już zapisany - to on zmylił stary warunek aktywacji.
-    expect(subscriptionRow()?.status).toBe("active");
+    // Po scaleniu z PAY-02 stan zapisuje się PO skutkach (zapis warunkiem na
+    // zajęcie), więc wiersz zostaje `incomplete`. Wyzwalaczem potwierdzenia
+    // i tak jest pusty `purchase_confirmed_at`, nie poprzedni status (SUB-02).
+    expect(subscriptionRow()).toMatchObject({
+      status: "incomplete",
+      purchase_confirmed_at: null,
+    });
 
     expect(await deliver("customer.subscription.updated", active, activatedAt)).toBe("processed");
     expect(grantsAccess(entitlement())).toBe(true);
@@ -1774,5 +1842,203 @@ describe("koniec windykacji to nie rezygnacja - treść dla klienta (#7)", () =>
     const [bell] = bells("Subskrypcja zakończona");
     expect(bell?.body_pl).toMatch(/do końca okresu karencji/);
     expect(grantsAccess(entitlement())).toBe(true);
+  });
+});
+
+// =============================================================================
+// SCALENIE #495 (SUB) Z PAY-02/S1: jeden strażnik, komunikaty po zapisie stanu.
+// =============================================================================
+
+describe("S1 x SUB-03: karencja nie ożywia korekty (zwrot / spór bieżącego okresu)", () => {
+  it("zaległość w NOWYM okresie i koniec windykacji po zwrocie: uprawnienie zostaje `refunded`", async () => {
+    // Zwrot bieżącego okresu zapisuje `refunded` + `canceled_at` = chwila
+    // korekty (S1). Stripe przesuwa okres przy odnowieniu PRZED obciążeniem,
+    // więc nieudane odnowienie przychodzi jako `past_due` z okresem zaczętym po
+    // korekcie, a karencja (SUB-03) dawała mu dostęp. Klient, któremu właśnie
+    // zwróciliśmy pieniądze, dostawał dwa tygodnie za kolejną nieudaną płatność
+    // - a koniec windykacji (`deleted`, `payment_failed`) jeszcze raz.
+    const start = relativeIso(-40 * DZIEN);
+    const renewalAt = relativeIso(-10 * DZIEN);
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({ status: "active", periodStart: start, periodEnd: renewalAt }),
+      start,
+    );
+    const correctedAt = relativeIso(-20 * DZIEN);
+    Object.assign(entitlement()!, { status: "refunded", canceled_at: correctedAt });
+
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({
+        status: "past_due",
+        periodStart: renewalAt,
+        periodEnd: relativeIso(20 * DZIEN),
+      }),
+      renewalAt,
+    );
+    expect(entitlement()).toMatchObject({ status: "refunded", canceled_at: correctedAt });
+
+    await deliver(
+      "customer.subscription.deleted",
+      stripeSubscription({
+        status: "canceled",
+        periodStart: renewalAt,
+        periodEnd: relativeIso(20 * DZIEN),
+        cancellationReason: "payment_failed",
+      }),
+      relativeIso(-1 * DZIEN),
+    );
+    expect(entitlement()).toMatchObject({ status: "refunded", canceled_at: correctedAt });
+    expect(grantsAccess(entitlement())).toBe(false);
+  });
+
+  it("kolejne OPŁACONE odnowienie po korekcie nadal ją ożywia", async () => {
+    const start = relativeIso(-40 * DZIEN);
+    const renewalAt = relativeIso(-10 * DZIEN);
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({ status: "active", periodStart: start, periodEnd: renewalAt }),
+      start,
+    );
+    Object.assign(entitlement()!, { status: "refunded", canceled_at: relativeIso(-20 * DZIEN) });
+
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({
+        status: "active",
+        periodStart: renewalAt,
+        periodEnd: relativeIso(20 * DZIEN),
+      }),
+      renewalAt,
+    );
+
+    expect(entitlement()).toMatchObject({ status: "active", canceled_at: null });
+    expect(grantsAccess(entitlement())).toBe(true);
+  });
+});
+
+describe("rezygnacja nigdy nieopłaconej subskrypcji - powtórka po zapisie", () => {
+  it("ponowiona rezygnacja (wiersz już `canceled`) nie daje dostępu, maila ani dzwonka", async () => {
+    // Po scaleniu z PAY-02 ponowna dostawa tego samego zdarzenia to `replay`,
+    // który przechodzi obsługę jeszcze raz - a wiersz ma już status
+    // `canceled`, nie `incomplete`. Bez reguły „brak potwierdzenia i płatności
+    // przy wierszu `canceled` = nigdy nieopłacona" druga dostawa dawała dostęp
+    // do końca ROCZNEGO okresu i mail „rezygnacja, dostęp do końca opłaconego
+    // okresu".
+    const at = relativeIso(-1 * DZIEN);
+    const period = {
+      priceKey: "plus_annual",
+      periodStart: at,
+      periodEnd: relativeIso(364 * DZIEN),
+    };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({ status: "incomplete", ...period }),
+      at,
+    );
+    const deleted = stripeSubscription({
+      status: "canceled",
+      ...period,
+      cancellationReason: "cancellation_requested",
+    });
+    const deletedAt = relativeIso(-1 * DZIEN + 60 * 60 * SEKUNDA);
+
+    expect(await deliver("customer.subscription.deleted", deleted, deletedAt)).toBe("processed");
+    expect(await deliver("customer.subscription.deleted", deleted, deletedAt)).toBe("processed");
+
+    expect(subscriptionRow()?.status).toBe("canceled");
+    expect(grantsAccess(entitlement())).toBe(false);
+    expect(h.emails).toHaveLength(0);
+    expect(notifications).toHaveLength(0);
+    expect(crmWrites()).toHaveLength(0);
+  });
+});
+
+describe("potwierdzenie zakupu po zapisie stanu - przejściowa awaria zgody (SUB-15 #34 x A3)", () => {
+  it("awaria zapisu zgody PO wstawieniu wiersza: zdarzenie pada, ponowienie zapisuje zgodę i potwierdza RAZ", async () => {
+    // Komunikaty zakupu (CRM, zgoda z checkoutu, zajęcie potwierdzenia, mail,
+    // dzwonek) wychodzą dopiero PO zapisie wiersza. Przejściowa awaria zapisu
+    // zgody nie może wtedy zniknąć w logu: zdarzenie musi paść, żeby operator
+    // je ponowił - a ponowienie (`replay`) widzi pusty `purchase_confirmed_at`
+    // i ogłasza zakup jeszcze raz, tym razem do skutku.
+    const newsletter = table([]);
+    let failNext = true;
+    db.setResponse("newsletter_subscribers", (chain) => {
+      if (failNext && chain.has("upsert")) {
+        failNext = false;
+        return fail("could not serialize access", "40001");
+      }
+      return newsletter(chain);
+    });
+    const at = relativeIso(-1 * DZIEN);
+    const object = stripeSubscription({
+      status: "active",
+      periodStart: at,
+      periodEnd: relativeIso(29 * DZIEN),
+      metadata: premiumNewsletterConsentMetadata({
+        version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+        lang: "pl",
+        at: relativeIso(-1 * DZIEN - 5 * SEKUNDA),
+      }),
+    });
+
+    await expect(deliver("customer.subscription.created", object, at)).rejects.toThrow(
+      /newsletter insert failed/,
+    );
+    // Stan zapisany (dostęp jest), potwierdzenie wolne - nic nie wyszło.
+    expect(grantsAccess(entitlement())).toBe(true);
+    expect(subscriptionRow()?.purchase_confirmed_at).toBeNull();
+    expect(mails("subscription_confirmed")).toHaveLength(0);
+
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
+    expect(newsletterWrites()).toHaveLength(2);
+    expect(subscriptionRow()?.purchase_confirmed_at).toBeTruthy();
+    expect(mails("subscription_confirmed")).toHaveLength(1);
+    expect(bells("Subskrypcja aktywna")).toHaveLength(1);
+  });
+});
+
+describe("wyrównanie po wyparciu liczy karencję (PAY-02 x SUB-03)", () => {
+  it("spóźnione zdarzenie przy zaległości: uprawnienie do końca karencji, nie do końca nowego roku", async () => {
+    const renewalAt = relativeIso(-3 * DZIEN);
+    const yearAgo = new Date(Date.parse(renewalAt) - 365 * DZIEN).toISOString();
+    const nextYear = new Date(Date.parse(renewalAt) + 365 * DZIEN).toISOString();
+    const annual = { priceKey: "plus_annual" };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        ...annual,
+        periodStart: yearAgo,
+        periodEnd: renewalAt,
+      }),
+      yearAgo,
+    );
+    const pastDue = { status: "past_due", ...annual, periodStart: renewalAt, periodEnd: nextYear };
+    await deliver("customer.subscription.updated", stripeSubscription(pastDue), renewalAt);
+
+    // Spóźnione `updated(active)` sprzed odnowienia: ładunku nie stosuje,
+    // uprawnienie wyrównuje żywym stanem operatora (zaległość) - z tą samą
+    // karencją co obsługa zdarzenia, a nie do końca przesuniętego okresu.
+    stripeLive(() => stripeSubscription(pastDue));
+    expect(
+      await deliver(
+        "customer.subscription.updated",
+        stripeSubscription({
+          status: "active",
+          ...annual,
+          periodStart: yearAgo,
+          periodEnd: renewalAt,
+        }),
+        relativeIso(-200 * DZIEN),
+      ),
+    ).toBe("processed");
+
+    const graceEnd = new Date(Date.parse(renewalAt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
+    expect(subscriptionRow()).toMatchObject({
+      status: "past_due",
+      first_payment_failed_at: renewalAt,
+    });
+    expect(entitlement()?.current_period_end).toBe(graceEnd);
   });
 });

@@ -43,7 +43,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       update: (patch: Record<string, unknown>) => {
         updates.push({ table, ...patch });
         const done = async () => ({ error: null });
-        const eq = () => Object.assign(done(), { neq: done, eq });
+        // Warunkowe księgowanie (`.in("status", ...).select("id")`) oddaje
+        // przestawiony wiersz - pierwsza dostawa zmienia stan zamówienia.
+        const flipped = async () => ({ data: [{ id: order.id }], error: null });
+        const eq = () => Object.assign(done(), { neq: done, eq, in: () => ({ select: flipped }) });
         return { eq };
       },
       insert: async (row: Record<string, unknown>) => {

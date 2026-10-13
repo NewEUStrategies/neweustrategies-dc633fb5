@@ -17,6 +17,10 @@
 //   3. IDEMPOTENCJA SYNCHRONIZACJI KUPONÓW. Kod jest kluczem naturalnym po obu
 //      stronach; istniejący rabat NIE MOŻE być tworzony po raz drugi, bo klient
 //      dostałby dwa rabaty na jeden kod.
+//   4. ZAWĘŻENIE KODÓW NA WSPÓLNYM KONCIE (audyt PAY-06). Kod jedzie tylko od
+//      najemcy z polem kodu Stripe, kod planowy dostaje produkty swoich planów
+//      (a bez nich nie jedzie wcale), a kontrola zdarzeń mówi, których typów
+//      odbiornik nie subskrybuje.
 //
 // ŻADNE żądanie nie wychodzi do Stripe - klient operatora jest atrapą.
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
@@ -36,13 +40,20 @@ const h = vi.hoisted(() => {
     coupons: { current: [] as Array<Record<string, unknown>> | null },
     webhookRows: { current: [] as Array<Record<string, unknown>> | null },
     endpoints: { current: [] as Array<Record<string, unknown>> },
+    /** Wiersz `checkout_settings` najemcy (`maybeSingle`). */
+    checkoutSettings: { current: null as Record<string, unknown> | null },
+    /** Plany najemcy czytane przy zawężaniu kodów planowych. */
+    plans: { current: [] as Array<Record<string, unknown>> | null },
     endpointsThrow: { current: false },
-    prices: { current: new Map<string, { id: string }>() },
+    prices: { current: new Map<string, { id: string; product?: unknown }>() },
     pricesThrow: { current: false },
     promoByCode: { current: new Map<string, string>() },
     promoThrows: { current: false },
     createdCoupons: [] as Array<Record<string, unknown>>,
     createdPromos: [] as Array<Record<string, unknown>>,
+    /** Drugi argument wywołań operatora (`RequestOptions`, klucz idempotencji). */
+    couponOptions: [] as unknown[],
+    promoOptions: [] as unknown[],
     /** Parametry każdego `promotionCodes.list` - tabela pyta o aktywne kopie. */
     promoListCalls: [] as Array<Record<string, unknown>>,
     couponCreateThrows: { current: false },
@@ -62,7 +73,7 @@ const h = vi.hoisted(() => {
       state.chains.push(entry);
       const link: Record<string, unknown> = {};
       for (const method of ["select", "order", "limit"]) link[method] = () => link;
-      for (const method of ["eq", "gte"]) {
+      for (const method of ["eq", "gte", "in"]) {
         link[method] = (column: string, value: unknown) => {
           entry.filters.push([column, value]);
           return link;
@@ -77,12 +88,22 @@ const h = vi.hoisted(() => {
       // terminalnym, a nie `await` na łańcuchu - atrapa musi je znać.
       link.maybeSingle = () =>
         Promise.resolve({
-          data: table === "profiles" ? { tenant_id: state.tenant.current as string | null } : null,
+          data:
+            table === "profiles"
+              ? { tenant_id: state.tenant.current as string | null }
+              : table === "checkout_settings"
+                ? state.checkoutSettings.current
+                : null,
           error: null,
         });
       link.then = (onFulfilled?: (value: unknown) => unknown) =>
         Promise.resolve({
-          data: table === "b2b_coupons" ? state.coupons.current : state.webhookRows.current,
+          data:
+            table === "b2b_coupons"
+              ? state.coupons.current
+              : table === "access_plans"
+                ? state.plans.current
+                : state.webhookRows.current,
           error: null,
         }).then(onFulfilled);
       return link;
@@ -113,6 +134,7 @@ const h = vi.hoisted(() => {
               data: [...state.prices.current.entries()].map(([lookupKey, price]) => ({
                 id: price.id,
                 lookup_key: lookupKey,
+                product: price.product ?? null,
               })),
             }),
     },
@@ -130,15 +152,17 @@ const h = vi.hoisted(() => {
         const id = state.promoByCode.current.get(code);
         return Promise.resolve({ data: id ? [{ id }] : [] });
       },
-      create: (payload: Record<string, unknown>) => {
+      create: (payload: Record<string, unknown>, options?: unknown) => {
         state.createdPromos.push(payload);
+        state.promoOptions.push(options);
         return Promise.resolve({ id: "promo_new" });
       },
     },
     coupons: {
-      create: (payload: Record<string, unknown>) => {
+      create: (payload: Record<string, unknown>, options?: unknown) => {
         if (state.couponCreateThrows.current) return Promise.reject(new Error("odmowa"));
         state.createdCoupons.push(payload);
+        state.couponOptions.push(options);
         return Promise.resolve({ id: "coupon_new" });
       },
     },
@@ -197,9 +221,11 @@ import {
   assertAdminWithTenant,
   assertSuperAdmin,
   buildPaymentsDiagnostics,
+  missingWebhookEventTypes,
   syncCouponDiscounts,
 } from "@/lib/billing/diagnostics.server";
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
+import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 
 /** Klient admina z atrapy - `assertAdmin` przyjmuje go parametrem. */
 function adminClient(): Parameters<typeof assertAdmin>[0] {
@@ -231,6 +257,10 @@ beforeEach(() => {
   h.webhookRows.current = [];
   h.endpoints.current = [];
   h.endpointsThrow.current = false;
+  // Najemca z WŁĄCZONYM polem kodu Stripe - inaczej synchronizacja niczego nie
+  // wypycha (domyślne PAY-06). Przypadki „pole wyłączone" ustawiają to jawnie.
+  h.checkoutSettings.current = { allow_promotion_codes: true };
+  h.plans.current = [];
   h.prices.current = new Map(
     BILLING_CATALOG.map((entry) => [entry.priceId, { id: `price_${entry.priceId}` }]),
   );
@@ -239,6 +269,8 @@ beforeEach(() => {
   h.promoThrows.current = false;
   h.createdCoupons.length = 0;
   h.createdPromos.length = 0;
+  h.couponOptions.length = 0;
+  h.promoOptions.length = 0;
   h.promoListCalls.length = 0;
   h.couponCreateThrows.current = false;
   h.chains.length = 0;
@@ -784,7 +816,7 @@ describe("syncCouponDiscounts - IDEMPOTENCJA", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 1 - 1, existing: 1, failed: 0 });
+    expect(result).toEqual({ created: 1 - 1, existing: 1, failed: 0, skipped: 0 });
     expect(h.createdCoupons).toHaveLength(0);
   });
 
@@ -793,7 +825,7 @@ describe("syncCouponDiscounts - IDEMPOTENCJA", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 1, existing: 0, failed: 0 });
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 0 });
     expect(h.createdPromos[0]).toMatchObject({ code: "NOWY" });
   });
 
@@ -877,7 +909,7 @@ describe("syncCouponDiscounts - IDEMPOTENCJA", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 0, existing: 0, failed: 2 });
+    expect(result).toEqual({ created: 0, existing: 0, failed: 2, skipped: 0 });
     expect(consoleError).toHaveBeenCalledTimes(2);
     consoleError.mockRestore();
   });
@@ -890,7 +922,7 @@ describe("syncCouponDiscounts - IDEMPOTENCJA", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 1, existing: 0, failed: 0 });
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 0 });
     expect(h.createdPromos).toHaveLength(1);
   });
 
@@ -903,13 +935,14 @@ describe("syncCouponDiscounts - IDEMPOTENCJA", () => {
     expect(chain.filters).toContainEqual(["active", true]);
   });
 
-  it("pusty zbiór kuponów daje trzy zera, nie wyjątek", async () => {
+  it("pusty zbiór kuponów daje same zera, nie wyjątek", async () => {
     h.coupons.current = [];
 
     expect(await syncCouponDiscounts("sandbox", TENANT)).toEqual({
       created: 0,
       existing: 0,
       failed: 0,
+      skipped: 0,
     });
     expect(h.createdPromos).toHaveLength(0);
   });
@@ -954,7 +987,7 @@ describe("syncCouponDiscounts - CO NIE JEDZIE do operatora", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 1, existing: 0, failed: 0 });
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 0 });
     expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
     expect(h.createdCoupons).toHaveLength(1);
   });
@@ -968,7 +1001,7 @@ describe("syncCouponDiscounts - CO NIE JEDZIE do operatora", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 0, existing: 0, failed: 0 });
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 0 });
     expect(h.createdPromos).toHaveLength(0);
   });
 
@@ -977,7 +1010,7 @@ describe("syncCouponDiscounts - CO NIE JEDZIE do operatora", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 1, existing: 0, failed: 0 });
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 0 });
   });
 
   it("nazwa kuponu mieści się w limicie Stripe (40 znaków) także dla długiego kodu", async () => {
@@ -1027,6 +1060,7 @@ describe("PUSTA odpowiedź bazy - `null` zamiast tablicy", () => {
       created: 0,
       existing: 0,
       failed: 0,
+      skipped: 0,
     });
     expect(h.createdCoupons).toHaveLength(0);
   });
@@ -1043,7 +1077,7 @@ describe("KUPON Z DZIURAMI - kolumny, które przyszły puste", () => {
 
     const result = await syncCouponDiscounts("sandbox", TENANT);
 
-    expect(result).toEqual({ created: 1, existing: 0, failed: 0 });
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 0 });
     expect(h.createdPromos).toHaveLength(1);
     expect(h.createdPromos[0]).toMatchObject({ code: "PRAWIDLOWY" });
   });
@@ -1079,5 +1113,308 @@ describe("KUPON Z DZIURAMI - kolumny, które przyszły puste", () => {
     await syncCouponDiscounts("sandbox", TENANT);
 
     expect(h.createdCoupons[0]).toMatchObject({ amount_off: 0, currency: "pln" });
+  });
+});
+
+describe("buildPaymentsDiagnostics - subskrybowane typy zdarzeń (audyt PAY-06)", () => {
+  // Zdarzenie spoza subskrypcji odbiornika NIE PRZYCHODZI wcale. Brak
+  // `checkout.session.expired` to rezerwacje kuponów, które nigdy nie wracają
+  // do puli; brak `charge.dispute.closed` - spór, którego rozstrzygnięcie nie
+  // przywraca ani nie zamyka dostępu. Kontrola musi wymienić brakujące typy
+  // z nazwy, bo to operator włącza je w panelu Stripe.
+  it("odbiornik z kompletem obsługiwanych typów daje „ok” i pustą listę braków", async () => {
+    h.endpoints.current = [
+      {
+        id: "we_1",
+        url: APP_WEBHOOK_URL,
+        status: "enabled",
+        enabled_events: [...STRIPE_WEBHOOK_EVENT_TYPES],
+      },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+    const total = STRIPE_WEBHOOK_EVENT_TYPES.length;
+
+    expect(checkById(diag, "webhook_events")).toEqual({
+      id: "webhook_events",
+      state: "ok",
+      detail: `${total}/${total}`,
+    });
+    expect(diag.missingWebhookEvents).toEqual([]);
+  });
+
+  it("`*` u operatora znaczy wszystkie zdarzenia - niczego nie brakuje", async () => {
+    h.endpoints.current = [
+      { id: "we_1", url: APP_WEBHOOK_URL, status: "enabled", enabled_events: ["*"] },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_events").state).toBe("ok");
+    expect(diag.missingWebhookEvents).toEqual([]);
+  });
+
+  it("BRAK `checkout.session.expired` i `charge.dispute.closed` to ostrzeżenie z ich nazwami", async () => {
+    const enabled = STRIPE_WEBHOOK_EVENT_TYPES.filter(
+      (type) => type !== "checkout.session.expired" && type !== "charge.dispute.closed",
+    );
+    h.endpoints.current = [
+      { id: "we_1", url: APP_WEBHOOK_URL, status: "enabled", enabled_events: enabled },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+    const total = STRIPE_WEBHOOK_EVENT_TYPES.length;
+
+    expect(checkById(diag, "webhook_events")).toMatchObject({
+      state: "warn",
+      detail: `${total - 2}/${total}`,
+    });
+    expect(diag.missingWebhookEvents).toEqual([
+      "checkout.session.expired",
+      "charge.dispute.closed",
+    ]);
+    expect(diag.destinations[0]?.missingEvents).toEqual(diag.missingWebhookEvents);
+  });
+
+  it("obcy odbiornik z kompletem zdarzeń nie zasłania braków NASZEGO", async () => {
+    h.endpoints.current = [
+      { id: "we_obcy", url: "https://obcy.test/hook", status: "enabled", enabled_events: ["*"] },
+      {
+        id: "we_1",
+        url: APP_WEBHOOK_URL,
+        status: "enabled",
+        enabled_events: ["checkout.session.completed"],
+      },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_events").state).toBe("warn");
+    expect(diag.missingWebhookEvents).toContain("invoice.paid");
+    expect(diag.missingWebhookEvents).not.toContain("checkout.session.completed");
+  });
+
+  it("liczą się AKTYWNE odbiorniki: wyłączona stara kopia bez zdarzeń nie świeci", async () => {
+    h.endpoints.current = [
+      { id: "we_stary", url: APP_WEBHOOK_URL, status: "disabled", enabled_events: [] },
+      { id: "we_1", url: APP_WEBHOOK_URL, status: "enabled", enabled_events: ["*"] },
+    ];
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_events").state).toBe("ok");
+    expect(diag.missingWebhookEvents).toEqual([]);
+  });
+
+  it("brak naszego odbiornika to `error` - zdarzenia nie mają dokąd dojść", async () => {
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_events")).toMatchObject({
+      state: "error",
+      detail: "no_endpoint",
+    });
+  });
+
+  it("bez kluczy bramki kontrola zdarzeń ostrzega, zamiast zgadywać", async () => {
+    h.configured.current = false;
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_events").state).toBe("warn");
+    expect(diag.missingWebhookEvents).toEqual([]);
+  });
+
+  it("missingWebhookEventTypes: lista w kolejności obsługiwanych typów", () => {
+    expect(missingWebhookEventTypes(["*"])).toEqual([]);
+    expect(missingWebhookEventTypes([])).toEqual([...STRIPE_WEBHOOK_EVENT_TYPES]);
+  });
+});
+
+describe("syncCouponDiscounts - zawężenie kodów na WSPÓLNYM koncie (audyt PAY-06)", () => {
+  const PLAN_PRO = "aaaaaaaa-0000-4000-8000-0000000000aa";
+  const PLAN_LAB = "aaaaaaaa-0000-4000-8000-0000000000bb";
+
+  it("najemca BEZ pola kodu Stripe: nic nie jedzie do operatora, kody liczą się jako pominięte", async () => {
+    // Najemca, który pola nie włączył, nie ma gdzie przyjąć kodu, a kopia na
+    // wspólnym koncie zadziałałaby u każdego najemcy z włączonym polem.
+    h.checkoutSettings.current = { allow_promotion_codes: false };
+    h.coupons.current = [
+      { id: "c1", code: "PIERWSZY", discount_kind: "percent", discount_percent: 10 },
+      { id: "c2", code: "DRUGI", discount_kind: "percent", discount_percent: 10 },
+    ];
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 2 });
+    expect(h.createdCoupons).toHaveLength(0);
+    expect(h.createdPromos).toHaveLength(0);
+    expect(h.promoListCalls).toHaveLength(0);
+    const settings = h.chains.find((entry) => entry.table === "checkout_settings")!;
+    expect(settings.filters).toContainEqual(["tenant_id", TENANT]);
+  });
+
+  it("brak wiersza ustawień (domyślne) też niczego nie wypycha - fail-closed", async () => {
+    h.checkoutSettings.current = null;
+    h.coupons.current = [{ id: "c1", code: "KOD", discount_kind: "percent", discount_percent: 5 }];
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos).toHaveLength(0);
+  });
+
+  it("kod i kupon niosą metadane `{ source, tenant_id, coupon_id }`", async () => {
+    h.coupons.current = [
+      { id: "c-ogolny", code: "OGOLNY", discount_kind: "percent", discount_percent: 10 },
+    ];
+
+    await syncCouponDiscounts("sandbox", TENANT);
+
+    const metadata = { source: "b2b_coupon_sync", tenant_id: TENANT, coupon_id: "c-ogolny" };
+    expect(h.createdPromos[0]).toMatchObject({ metadata });
+    expect(h.createdCoupons[0]).toMatchObject({ metadata });
+  });
+
+  it("kod PLANOWY dostaje `applies_to.products` z produktem ceny katalogowej planu", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PROMO-PRO",
+        discount_kind: "fixed",
+        discount_cents: 2000,
+        currency: "PLN",
+        plan_ids: [PLAN_PRO],
+      },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: "pro", interval: "month" }];
+    h.prices.current.set("pro_monthly", { id: "price_pro", product: { id: "prod_pro" } });
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 0 });
+    expect(h.createdCoupons[0]).toMatchObject({ applies_to: { products: ["prod_pro"] } });
+    // Plany czytane w zakresie najemcy - klient serwisowy omija RLS.
+    const plans = h.chains.find((entry) => entry.table === "access_plans")!;
+    expect(plans.filters).toContainEqual(["tenant_id", TENANT]);
+    expect(plans.filters).toContainEqual(["id", [PLAN_PRO]]);
+  });
+
+  it("kod planowy z planem BEZ rozwiązanego produktu NIE jedzie (fail-closed)", async () => {
+    // Bez `applies_to` kod działałby u operatora na KAŻDY produkt wspólnego
+    // konta - także na plany, których kupon w bazie nie obejmuje.
+    h.coupons.current = [
+      {
+        id: "c-mix",
+        code: "MIX",
+        discount_kind: "percent",
+        discount_percent: 20,
+        plan_ids: [PLAN_PRO, PLAN_LAB],
+      },
+      { id: "c-ogolny", code: "OGOLNY", discount_kind: "percent", discount_percent: 10 },
+    ];
+    // Plan Lab nie istnieje u najemcy (albo nie ma ceny) - produktu brak.
+    h.plans.current = [{ id: PLAN_PRO, tier_key: "pro", interval: "month" }];
+    h.prices.current.set("pro_monthly", { id: "price_pro", product: "prod_pro" });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
+    expect(h.createdCoupons[0]).not.toHaveProperty("applies_to");
+    consoleError.mockRestore();
+  });
+
+  it("kod PRZED datą startu nie jedzie - operator nie zna `valid_from`", async () => {
+    h.coupons.current = [
+      {
+        id: "c-jutro",
+        code: "JUTRO",
+        discount_kind: "percent",
+        discount_percent: 10,
+        valid_from: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    ];
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos).toHaveLength(0);
+  });
+
+  it("kod po terminie i kod z wyczerpanym limitem nie jadą", async () => {
+    h.coupons.current = [
+      {
+        id: "c-stary",
+        code: "STARY",
+        discount_kind: "percent",
+        discount_percent: 10,
+        valid_until: new Date(Date.now() - 86_400_000).toISOString(),
+      },
+      {
+        id: "c-pelny",
+        code: "PELNY",
+        discount_kind: "percent",
+        discount_percent: 10,
+        max_redemptions: 5,
+        redemptions_count: 5,
+      },
+    ];
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 2 });
+  });
+
+  it("limit użyć u operatora to RESZTA limitu z bazy, nie pełny limit", async () => {
+    // Liczniki bazy i operatora są rozłączne - pełny limit u operatora
+    // podwajałby pulę kodu, który w bazie jest już w połowie zużyty.
+    h.coupons.current = [
+      {
+        id: "c-limit",
+        code: "LIMIT",
+        discount_kind: "percent",
+        discount_percent: 10,
+        max_redemptions: 10,
+        redemptions_count: 4,
+      },
+    ];
+
+    await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(h.createdPromos[0]).toMatchObject({ max_redemptions: 6 });
+  });
+
+  it("kupon i kod operatora dostają klucze idempotencji - stałe dla tych samych parametrów", async () => {
+    h.coupons.current = [
+      { id: "c-klucz", code: "KLUCZ", discount_kind: "percent", discount_percent: 10 },
+    ];
+
+    await syncCouponDiscounts("sandbox", TENANT);
+    await syncCouponDiscounts("sandbox", TENANT);
+
+    const [firstCoupon, secondCoupon] = h.couponOptions as Array<{ idempotencyKey: string }>;
+    const [firstPromo] = h.promoOptions as Array<{ idempotencyKey: string }>;
+    expect(firstCoupon?.idempotencyKey).toMatch(/^b2b_coupon_sync:c-klucz:coupon:[0-9a-f]{24}$/);
+    expect(firstPromo?.idempotencyKey).toMatch(
+      /^b2b_coupon_sync:c-klucz:promotion_code:[0-9a-f]{24}$/,
+    );
+    // Ponowiony przebieg z tymi samymi parametrami = ten sam klucz (operator
+    // odda ten sam kupon zamiast drugiego).
+    expect(secondCoupon?.idempotencyKey).toBe(firstCoupon?.idempotencyKey);
+  });
+
+  it("zmieniony kupon dostaje NOWY klucz - operator odrzuca klucz z innymi parametrami", async () => {
+    h.coupons.current = [
+      { id: "c-klucz", code: "KLUCZ", discount_kind: "percent", discount_percent: 10 },
+    ];
+    await syncCouponDiscounts("sandbox", TENANT);
+    h.coupons.current = [
+      { id: "c-klucz", code: "KLUCZ", discount_kind: "percent", discount_percent: 15 },
+    ];
+    await syncCouponDiscounts("sandbox", TENANT);
+
+    const [first, second] = h.couponOptions as Array<{ idempotencyKey: string }>;
+    expect(second?.idempotencyKey).not.toBe(first?.idempotencyKey);
   });
 });

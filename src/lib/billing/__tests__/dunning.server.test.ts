@@ -43,6 +43,9 @@ import { DZIEN, FIXED_NOW_ISO, GODZINA, freezeClock, relativeIso } from "@/test/
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
   emails: [] as unknown[],
+  /** Status faktur u operatora (4.5); `Error` = awaria odczytu. */
+  invoices: {} as Record<string, { status: string } | Error>,
+  invoiceLookups: [] as Array<{ env: string; id: string }>,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -52,6 +55,23 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       return h.db.current.from(table);
     },
   },
+}));
+
+// Granica operatora: odczyt faktury, której dotyczy porażka (4.5). Nieznana
+// faktura to błąd testu - przypadek, który nie planuje odczytu, nie ma go robić.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
+  getStripeClient: async (env: string) => ({
+    invoices: {
+      retrieve: async (id: string) => {
+        h.invoiceLookups.push({ env, id });
+        const reply = h.invoices[id];
+        if (reply instanceof Error) throw reply;
+        if (!reply) throw new Error(`test: nieplanowany odczyt faktury ${id}`);
+        return { id, ...reply };
+      },
+    },
+  }),
 }));
 
 vi.mock("@/lib/email/transactional.server", async () => {
@@ -81,6 +101,7 @@ interface SubRow {
   current_period_end: string | null;
   payment_failure_count: number;
   last_dunning_transaction_id: string | null;
+  last_payment_at?: string | null;
 }
 
 let db: SupabaseFromStub;
@@ -105,6 +126,8 @@ function plansResponder(chain: RecordedChain): SupabaseResult {
 
 beforeEach(() => {
   h.emails.length = 0;
+  h.invoices = {};
+  h.invoiceLookups.length = 0;
   notificationsBroken = false;
   sub = {
     user_id: BILLING_IDS.me,
@@ -413,7 +436,10 @@ describe("applyPaymentFailedEffects - nieudane obciążenie", () => {
 });
 
 describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce", () => {
-  it("zeruje licznik i klucz deduplikacji, wysyła potwierdzenie z ceną planu i dzwoni", async () => {
+  it("zeruje licznik, ale ZOSTAWIA klucz deduplikacji; wysyła potwierdzenie z ceną planu i dzwoni", async () => {
+    // PAY-13: klucz deduplikacji zostaje - kolejna porażka w nowym cyklu ma
+    // nową fakturę, a wyzerowany klucz przepuszczał spóźnione `payment_failed`
+    // tej samej, już opłaconej faktury.
     row().payment_failure_count = 2;
     row().last_dunning_transaction_id = "txn_1";
     const ctx = context({ occurredAt: relativeIso(-2 * GODZINA) });
@@ -425,8 +451,8 @@ describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce",
       payment_failure_count: 0,
       last_payment_failed_at: null,
       last_payment_at: ctx.occurredAt,
-      last_dunning_transaction_id: null,
-      // Zamknięty cykl zamyka też kotwicę karencji (audyt SUB-03).
+      // Zamknięty cykl zamyka też kotwicę karencji (audyt SUB-03); klucz
+      // deduplikacji zostaje (PAY-13, patrz nazwa przypadku).
       first_payment_failed_at: null,
       updated_at: FIXED_NOW_ISO,
     });
@@ -488,5 +514,265 @@ describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce",
     );
     expect(mails()).toHaveLength(1);
     error.mockRestore();
+  });
+});
+
+/** Wiersz żyje jak w bazie: zapis zmienia to, co czyta następne zdarzenie. */
+function persistWrites(): void {
+  db.setResponse("subscriptions", (chain) => {
+    if (chain.has("update")) {
+      // Zamknięcie cyklu (`claimRecovery`) czyta RETURNING - zajęte, gdy
+      // cykl był otwarty PRZED zapisem (jak warunek `gt(count, 0)` w bazie).
+      const claimed = row().payment_failure_count > 0;
+      Object.assign(row(), chain.argsOf("update")?.[0]);
+      return ok(chain.has("select") ? (claimed ? [{ id: "sub-row-1" }] : []) : null);
+    }
+    return ok({ ...row() });
+  });
+}
+
+describe("PAY-13 - porażka, która przyszła PO odzyskaniu płatności", () => {
+  it("PAY-13: porażka po odzyskaniu TEJ SAMEJ faktury -> bez maila, bez licznika, bez dzwonka", async () => {
+    // Kolejność dostaw: `payment_failed` (in_1) -> `paid` (in_1) -> powtórzone
+    // albo spóźnione `payment_failed` (in_1). Klient zapłacił - mail
+    // „płatność nie powiodła się" byłby nieprawdą, a licznik prób skróciłby
+    // mu windykację przy następnej, prawdziwej porażce.
+    persistWrites();
+    const failedAt = relativeIso(-3 * GODZINA);
+    await applyPaymentFailedEffects(context({ transactionId: "in_1", occurredAt: failedAt }));
+    await applyPaymentRecoveredEffects(
+      context({ transactionId: "in_1", occurredAt: relativeIso(-2 * GODZINA) }),
+    );
+    const mailsBefore = mails().length;
+    const writesBefore = db.chainsFor("subscriptions").filter((c) => c.has("update")).length;
+    const bellsBefore = db.chainsFor("notifications").length;
+
+    await applyPaymentFailedEffects(context({ transactionId: "in_1", occurredAt: failedAt }));
+
+    expect(mails()).toHaveLength(mailsBefore);
+    expect(mails().filter((mail) => mail.type === "payment_failed")).toHaveLength(1);
+    expect(db.chainsFor("subscriptions").filter((c) => c.has("update"))).toHaveLength(writesBefore);
+    expect(db.chainsFor("notifications")).toHaveLength(bellsBefore);
+    expect(row().payment_failure_count).toBe(0);
+  });
+
+  it("4.5: porażka spoza kolejności, której faktura JEST już opłacona -> pominięta (decyduje faktura)", async () => {
+    // Pierwsza dostawa `invoice.payment_failed` przyszła PO `invoice.paid`
+    // tej samej faktury - klucz deduplikacji jest pusty, więc rozstrzyga
+    // stan faktury u operatora, a nie znacznik czasu.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+    h.invoices["in_stara"] = { status: "paid" };
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_stara", occurredAt: relativeIso(-5 * GODZINA) }),
+    );
+
+    expect(h.invoiceLookups).toEqual([{ env: "live", id: "in_stara" }]);
+    expect(mails()).toHaveLength(0);
+    expect(subscriptionUpdate().patch).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] stale payment failure of an already paid invoice - ignored",
+      expect.objectContaining({ subscriptionId: SUB, transactionId: "in_stara" }),
+    );
+    warn.mockRestore();
+  });
+
+  it("4.5: porażka INNEJ, wciąż nieopłaconej faktury starsza niż znacznik płatności -> pełna windykacja", async () => {
+    // Naprawa z uzgadniania powtórzyła sesję Checkout subskrypcji i przesunęła
+    // `last_payment_at` na „teraz". Wczorajsze odnowienie `in_R` nadal nie
+    // jest zapłacone - dawna bramka czasowa zjadała jego porażkę i klient
+    // nie dostawał żadnego wezwania aż do utraty dostępu.
+    row().last_payment_at = relativeIso(-5 * 60 * 1000);
+    row().last_dunning_transaction_id = "in_poprzednia";
+    h.invoices["in_R"] = { status: "open" };
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_R", occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(subscriptionUpdate().patch).toMatchObject({
+      payment_failure_count: 1,
+      last_dunning_transaction_id: "in_R",
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("4.5: awaria odczytu faktury RZUCA przed licznikiem, mailem i dzwonkiem - zdarzenie wróci", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+    h.invoices["in_stara"] = new Error("connection reset");
+
+    await expect(
+      applyPaymentFailedEffects(
+        context({ transactionId: "in_stara", occurredAt: relativeIso(-5 * GODZINA) }),
+      ),
+    ).rejects.toThrow("dunning: invoice status lookup failed (in_stara): connection reset");
+
+    expect(subscriptionUpdate().patch).toBeUndefined();
+    expect(mails()).toHaveLength(0);
+    expect(db.chainsFor("notifications")).toHaveLength(0);
+  });
+
+  it("4.5: faktura nieznana operatorowi w tym środowisku nie jest opłacona - porażka przechodzi", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+    h.invoices["in_zgubiona"] = Object.assign(new Error("No such invoice"), {
+      code: "resource_missing",
+      statusCode: 404,
+    });
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_zgubiona", occurredAt: relativeIso(-5 * GODZINA) }),
+    );
+
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("porażka w kolejności (nowsza niż ostatnia płatność) nie pyta operatora", async () => {
+    row().last_payment_at = relativeIso(-30 * DZIEN);
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_nowa", occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(h.invoiceLookups).toHaveLength(0);
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("identyfikator spoza faktur (`txn_...`) spoza kolejności: nie ma czego sprawdzić, porażka przechodzi", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "txn_stary", occurredAt: relativeIso(-5 * GODZINA) }),
+    );
+
+    expect(h.invoiceLookups).toHaveLength(0);
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("NOWA porażka po odzyskaniu (nowsza faktura) uruchamia pełną windykację", async () => {
+    row().last_payment_at = relativeIso(-30 * DZIEN);
+    row().last_dunning_transaction_id = "in_poprzednia";
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_nowa", occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(subscriptionUpdate().patch).toMatchObject({
+      payment_failure_count: 1,
+      last_dunning_transaction_id: "in_nowa",
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("spóźnione `invoice.paid` STAREJ faktury nie cofa znacznika ostatniej płatności", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+
+    await applyPaymentRecoveredEffects(context({ occurredAt: relativeIso(-40 * DZIEN) }));
+
+    expect(subscriptionUpdate().patch).toMatchObject({
+      last_payment_at: relativeIso(-1 * GODZINA),
+    });
+  });
+
+  it("nieczytelny znacznik ostatniej płatności nie zjada prawdziwej porażki", async () => {
+    row().last_payment_at = "nie-data";
+
+    await applyPaymentFailedEffects(context());
+
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+});
+
+// Scalenie #495 (SUB-16: windykacja per próba) z PAY-13 (pomijamy wyłącznie
+// porażkę faktury JUŻ opłaconej) i z przeglądem 6.2 (odczyty, które mogą
+// rzucić, PRZED zapisem klucza deduplikacji / zajęciem cyklu).
+describe("SUB-16 + PAY-13 + 6.2 - windykacja per próba po scaleniu", () => {
+  it("6.2: awaria odczytu planu NIE zapisuje klucza próby - ponowienie wysyła mail i dzwonek", async () => {
+    persistWrites();
+    db.setResponse("access_plans", () => fail("statement timeout", "57014"));
+    const ctx = context({ transactionId: "in_1", attemptCount: 1 });
+
+    await expect(applyPaymentFailedEffects(ctx)).rejects.toThrow("plan lookup failed");
+    // Klucz wolny, licznik bez zmian - ponowienie operatora nie jest „duplikatem".
+    expect(row()).toMatchObject({ payment_failure_count: 0, last_dunning_transaction_id: null });
+    expect(mails()).toHaveLength(0);
+
+    db.setResponse("access_plans", plansResponder);
+    await applyPaymentFailedEffects(ctx);
+
+    expect(row()).toMatchObject({
+      payment_failure_count: 1,
+      last_dunning_transaction_id: "in_1:1",
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+    expect(db.chainsFor("notifications")).toHaveLength(1);
+  });
+
+  it("6.2: awaria odczytu planu przy odzyskaniu NIE zamyka cyklu - ponowienie wysyła potwierdzenie", async () => {
+    persistWrites();
+    row().payment_failure_count = 2;
+    row().last_dunning_transaction_id = "in_1:2";
+    db.setResponse("access_plans", () => fail("statement timeout", "57014"));
+    const ctx = context({ transactionId: "in_1", attemptCount: 3 });
+
+    await expect(applyPaymentRecoveredEffects(ctx)).rejects.toThrow("plan lookup failed");
+    expect(row().payment_failure_count).toBe(2);
+
+    db.setResponse("access_plans", plansResponder);
+    await applyPaymentRecoveredEffects(ctx);
+
+    expect(row().payment_failure_count).toBe(0);
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_recovered"]);
+  });
+
+  it("ponowiona dostawa próby 2 sprzed zapłaty: faktura opłacona u operatora -> pominięta, bez nowego cyklu", async () => {
+    // Próba 1 otworzyła cykl, próba 2 przeszła (zapłata), a operator ponawia
+    // porażkę próby 2 sprzed zapłaty. Klucz `in_1:1` jej nie odsiewa (wyższy
+    // numer próby), więc decyduje stan faktury u operatora (PAY-13).
+    persistWrites();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_1", attemptCount: 1, occurredAt: relativeIso(-2 * DZIEN) }),
+    );
+    await applyPaymentRecoveredEffects(
+      context({ transactionId: "in_1", attemptCount: 2, occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+    h.invoices["in_1"] = { status: "paid" };
+
+    await applyPaymentFailedEffects(
+      context({
+        transactionId: "in_1",
+        attemptCount: 2,
+        occurredAt: relativeIso(-1 * DZIEN - GODZINA),
+      }),
+    );
+
+    expect(h.invoiceLookups).toEqual([{ env: "live", id: "in_1" }]);
+    expect(row().payment_failure_count).toBe(0);
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed", "payment_recovered"]);
+    warn.mockRestore();
+  });
+
+  it("kolejne próby jednej faktury: licznik rośnie co próbę, powtórka starszej próby odpada bez pytania operatora", async () => {
+    persistWrites();
+    for (const attempt of [1, 2, 3]) {
+      await applyPaymentFailedEffects(
+        context({
+          transactionId: "in_1",
+          attemptCount: attempt,
+          occurredAt: relativeIso((attempt - 4) * DZIEN),
+        }),
+      );
+    }
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_1", attemptCount: 2, occurredAt: relativeIso(-2 * DZIEN) }),
+    );
+
+    expect(row()).toMatchObject({
+      payment_failure_count: 3,
+      last_dunning_transaction_id: "in_1:3",
+    });
+    expect(mails().filter((mail) => mail.type === "payment_failed")).toHaveLength(3);
+    expect(h.invoiceLookups).toHaveLength(0);
   });
 });

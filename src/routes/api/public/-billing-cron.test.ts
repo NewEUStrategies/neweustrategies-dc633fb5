@@ -1,11 +1,15 @@
 // Harmonogram rozliczeń: POST /api/public/billing-cron.
 //
 // PO CO TEN PLIK ISTNIEJE. To jest PUBLICZNY adres, pod który każdy z internetu
-// może wysłać POST-a, a za nim stoi trzy zadania dotykające PIENIĘDZY i DOSTĘPU:
+// może wysłać POST-a, a za nim stoją zadania dotykające PIENIĘDZY i DOSTĘPU:
 //   * `runBillingReminders`      - masowa wysyłka maili do płacących klientów,
 //   * `sendSeatGraceReminders`   - maile o kończącej się karencji miejsc,
-//   * `expireSeatGrace`          - realne ODEBRANIE dostępu członkom zespołów.
-// Jedyną bramką jest współdzielony sekret w nagłówku `x-billing-cron-secret`.
+//   * `expireSeatGrace`          - realne ODEBRANIE dostępu członkom zespołów,
+//   * `sweepWebhookEvents`       - dobowa siatka zamiatarki dziennika płatności
+//                                  (ponowienie zdarzeń operatora, które padły).
+// Jedyną bramką jest sekret w nagłówku `x-billing-cron-secret` - WŁASNY sekret
+// rozliczeń (`BILLING_CRON_SECRET` albo `job_runner_settings.billing_secret`),
+// nigdy sekret wspólny z harmonogramem społeczności (PAY-17a, przegląd 3.5/7.9).
 // Do 31.08.2026 ten plik nie miał ANI JEDNEGO testu (0% linii, 0 z 8 funkcji),
 // czyli zdjęcie bramki albo odwrócenie porównania sekretu przechodziłoby przez
 // CI bez śladu - a skutkiem byłby publiczny przycisk „wyślij mail do wszystkich
@@ -22,7 +26,8 @@
 // GRANICE, KTÓRE ATRAPUJEMY: klient Supabase (service role) i dostawca poczty
 // (`sendTxEmail`). WSZYSTKO inne biegnie PRAWDZIWE - `reminders.server`,
 // `notifications.server`, `purchaseEffects.server`, `teamSeats.server`,
-// limiter po IP i porównanie sekretu w stałym czasie. To one są przedmiotem
+// zamiatarka `webhookReplay.server`, limiter po IP i porównanie sekretu
+// w stałym czasie. To one są przedmiotem
 // dowodu, więc atrapowanie ich zamieniłoby ten plik w test atrapy.
 //
 // RODO: żaden adres w tym pliku nie jest prawdziwy - wyłącznie example.com /
@@ -203,7 +208,15 @@ interface SeedOptions {
   planLookupFailsFor?: string[];
   /** Czy istnieje profil odbiorcy - bez niego mail nie ma dokąd pójść. */
   profile?: boolean;
-  jobRunner?: { enabled: boolean; secret: string } | null | "error";
+  /**
+   * Wiersz `job_runner_settings`: `secret` to sekret WSPÓLNY runnera (otwiera
+   * community-cron i jobs-tick), `billing_secret` - prywatny sekret rozliczeń.
+   */
+  jobRunner?: { enabled: boolean; secret?: string; billing_secret?: string } | null | "error";
+  /** Kandydaci zamiatarki dziennika płatności (RPC); `"error"` = odmowa bazy. */
+  webhookEvents?: Record<string, unknown>[] | "error";
+  /** Ile ms „trwają" przypomnienia (zegar przesuwa odczyt subskrypcji). */
+  remindersTakeMs?: number;
 }
 
 function seed(options: SeedOptions = {}): void {
@@ -214,9 +227,10 @@ function seed(options: SeedOptions = {}): void {
   const planFails = options.planLookupFailsFor ?? [];
   const hasProfile = options.profile !== false;
 
-  stub.setResponse("subscriptions", () =>
-    subs === "error" ? fail("subscriptions unavailable", "57014") : ok(subs),
-  );
+  stub.setResponse("subscriptions", () => {
+    if (options.remindersTakeMs) vi.setSystemTime(Date.now() + options.remindersTakeMs);
+    return subs === "error" ? fail("subscriptions unavailable", "57014") : ok(subs);
+  });
 
   // `access_plans` obsługuje DWA różne odczyty: mapowanie ceny na plan
   // (`resolvePlanForPrice`, filtr po `tier_key`) i dociągnięcie nazwy planu do
@@ -268,6 +282,13 @@ function seed(options: SeedOptions = {}): void {
     ),
   );
 
+  const webhookEvents = options.webhookEvents ?? [];
+  // Wiersze dziennika poza kandydatami: przejęcie i domknięcie zwracają
+  // dotknięty wiersz, odczyt ładunku - pusty ładunek.
+  stub.setResponse("payment_webhook_events", (chain: RecordedChain) =>
+    chain.has("maybeSingle") ? ok({ payload: null }) : ok([{ id: "row-1" }]),
+  );
+
   const runner = options.jobRunner;
   stub.setResponse("job_runner_settings", () => {
     if (runner === "error") throw new Error("job_runner_settings unreachable");
@@ -282,6 +303,12 @@ function seed(options: SeedOptions = {}): void {
     if (expired === "error") return { data: null, error: { message: "rpc denied" } };
     return { data: { expired }, error: null };
   });
+  // Kandydaci zamiatarki liczeni w bazie (przegląd 3.2).
+  db.rpc.set("payment_webhook_sweep_candidates", () =>
+    webhookEvents === "error"
+      ? { data: null, error: { message: "webhook log unavailable" } }
+      : { data: webhookEvents, error: null },
+  );
 }
 
 beforeEach(() => {
@@ -364,24 +391,51 @@ describe("autoryzacja: współdzielony sekret w nagłówku", () => {
     expect(db.current!.chainsFor("subscriptions")).toHaveLength(1);
   });
 
-  it("gdy BILLING_CRON_SECRET nie jest ustawiony, wchodzi COMMUNITY_CRON_SECRET", async () => {
+  // KRYTERIUM PAY-17a. DEFEKT NAPRAWIONY (kod produkcyjny).
+  //
+  // CO BYŁO ZŁE. Bez `BILLING_CRON_SECRET` endpoint przyjmował
+  // `COMMUNITY_CRON_SECRET` - sekret harmonogramu społeczności (push, digesty),
+  // z innym właścicielem, inną rotacją i szerszym gronem znających go osób.
+  // Znajomość sekretu od digestów otwierała masową wysyłkę maili do
+  // abonentów i odbieranie dostępu zespołom.
+  it("tylko COMMUNITY_CRON_SECRET w środowisku -> 401 i żadne zadanie nie ruszyło", async () => {
     vi.stubEnv("BILLING_CRON_SECRET", "");
     vi.stubEnv("COMMUNITY_CRON_SECRET", "sekret-spolecznosciowy");
+    seed({ jobRunner: null, subscriptions: [sub()] });
 
     const res = await post({ secret: "sekret-spolecznosciowy" });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
+    expect(db.current!.chainsFor("subscriptions")).toHaveLength(0);
+    expect(db.current!.chainsFor("payment_webhook_events")).toHaveLength(0);
+    expect(mail.sent).toEqual([]);
   });
 
-  it("gdy BILLING_CRON_SECRET JEST ustawiony, sekret społecznościowy NIE działa", async () => {
-    // Kolejność `BILLING || COMMUNITY` to reguła bezpieczeństwa, nie kosmetyka:
-    // rotacja sekretu billingu nie może zostawić czynnego starego sekretu
-    // drugiego harmonogramu.
+  it("gdy BILLING_CRON_SECRET JEST ustawiony, sekret społecznościowy też NIE działa", async () => {
     vi.stubEnv("COMMUNITY_CRON_SECRET", "sekret-spolecznosciowy");
 
     const res = await post({ secret: "sekret-spolecznosciowy" });
 
     expect(res.status).toBe(401);
+  });
+
+  // Przegląd 7.9: operator, który wpisze sekret społeczności także jako
+  // BILLING_CRON_SECRET, otworzyłby rozliczenia każdemu, kto zna sekret od
+  // digestów. Taka konfiguracja jest błędem - odmowa i wpis w logu.
+  it("BILLING_CRON_SECRET RÓWNY COMMUNITY_CRON_SECRET to błąd konfiguracji: 401 i log", async () => {
+    vi.stubEnv("BILLING_CRON_SECRET", "sekret-wspolny-dla-obu");
+    vi.stubEnv("COMMUNITY_CRON_SECRET", "sekret-wspolny-dla-obu");
+    seed({ jobRunner: null, subscriptions: [sub()] });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await post({ secret: "sekret-wspolny-dla-obu" });
+
+    expect(res.status).toBe(401);
+    expect(mail.sent).toEqual([]);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("BILLING_CRON_SECRET jest równy COMMUNITY_CRON_SECRET"),
+    );
+    consoleError.mockRestore();
   });
 
   it("brak sekretu w środowisku ORAZ w bazie - 401 (fail-closed)", async () => {
@@ -399,32 +453,63 @@ describe("autoryzacja: współdzielony sekret w nagłówku", () => {
 // ===========================================================================
 // BRAMKA SEKRETU - wariant bazodanowy (pg_cron -> net.http_post)
 // ===========================================================================
-describe("autoryzacja: sekret runnera zadań z `job_runner_settings`", () => {
+describe("autoryzacja: prywatny sekret rozliczeń z `job_runner_settings.billing_secret`", () => {
   beforeEach(() => {
     vi.stubEnv("BILLING_CRON_SECRET", "");
     vi.stubEnv("COMMUNITY_CRON_SECRET", "");
   });
 
-  it("WŁĄCZONY wpis z pasującym sekretem uruchamia cykl", async () => {
-    seed({ jobRunner: { enabled: true, secret: "sekret-z-bazy" }, subscriptions: [sub()] });
+  it("WŁĄCZONY wpis z pasującym sekretem ROZLICZEŃ uruchamia cykl", async () => {
+    seed({
+      jobRunner: { enabled: true, secret: "sekret-runnera", billing_secret: "sekret-rozliczen" },
+      subscriptions: [sub()],
+    });
 
-    const res = await post({ secret: "sekret-z-bazy" });
+    const res = await post({ secret: "sekret-rozliczen" });
 
     expect(res.status).toBe(200);
     expect(mail.sent).toHaveLength(1);
+    // Odczyt sięga WYŁĄCZNIE po sekret rozliczeń - sekretu wspólnego nie czyta.
+    expect(db.current!.chainsFor("job_runner_settings")[0]?.argsOf("select")).toEqual([
+      "enabled, billing_secret",
+    ]);
+  });
+
+  // KRYTERIUM PAY-17a (przegląd 3.5/7.9). DEFEKT NAPRAWIONY.
+  //
+  // CO BYŁO ZŁE. Wariant bazodanowy porównywał nagłówek z
+  // `job_runner_settings.secret` - sekretem, który otwiera też community-cron
+  // i jobs-tick, a `scheduler.yml` podsuwał go jako `COMMUNITY_CRON_SECRET`.
+  // Kto znał sekret od digestów, dostawał 200 na masową wysyłkę maili.
+  it("sekret RUNNERA (wspólny z community-cron, równy COMMUNITY_CRON_SECRET) -> 401, nic nie ruszyło", async () => {
+    vi.stubEnv("COMMUNITY_CRON_SECRET", "sekret-runnera");
+    seed({
+      jobRunner: { enabled: true, secret: "sekret-runnera", billing_secret: "sekret-rozliczen" },
+      subscriptions: [sub()],
+    });
+
+    const res = await post({ secret: "sekret-runnera" });
+
+    expect(res.status).toBe(401);
+    expect(db.current!.chainsFor("subscriptions")).toHaveLength(0);
+    expect(db.rpcCalls).toEqual([]);
+    expect(mail.sent).toEqual([]);
   });
 
   it("wpis WYŁĄCZONY (`enabled:false`) nie autoryzuje, nawet z dobrym sekretem", async () => {
-    seed({ jobRunner: { enabled: false, secret: "sekret-z-bazy" }, subscriptions: [sub()] });
+    seed({
+      jobRunner: { enabled: false, billing_secret: "sekret-rozliczen" },
+      subscriptions: [sub()],
+    });
 
-    const res = await post({ secret: "sekret-z-bazy" });
+    const res = await post({ secret: "sekret-rozliczen" });
 
     expect(res.status).toBe(401);
     expect(mail.sent).toEqual([]);
   });
 
   it("wpis z PUSTYM sekretem nie autoryzuje pustego nagłówka", async () => {
-    seed({ jobRunner: { enabled: true, secret: "" } });
+    seed({ jobRunner: { enabled: true, billing_secret: "" } });
 
     const res = await post({ secret: "" });
 
@@ -444,7 +529,7 @@ describe("autoryzacja: sekret runnera zadań z `job_runner_settings`", () => {
     // znaczyć „nie wpuszczam", a nie „wpuszczam, bo baza milczy".
     seed({ jobRunner: "error", subscriptions: [sub()] });
 
-    const res = await post({ secret: "sekret-z-bazy" });
+    const res = await post({ secret: "sekret-rozliczen" });
 
     expect(res.status).toBe(401);
     expect(mail.sent).toEqual([]);
@@ -816,7 +901,8 @@ describe("zadanie 3: wygaszenie karencji miejsc", () => {
 
     const res = await run();
 
-    expect(db.rpcCalls).toEqual(["org_expire_seat_grace"]);
+    // Jedno wygaszenie; po nim już tylko odczyt kandydatów zamiatarki (RPC).
+    expect(db.rpcCalls).toEqual(["org_expire_seat_grace", "payment_webhook_sweep_candidates"]);
     expect(section(await body(res), "seatGrace")).toMatchObject({ expired: 2 });
   });
 
@@ -862,7 +948,8 @@ describe("zadanie 3: wygaszenie karencji miejsc", () => {
 
     expect(mail.sent[0]).toMatchObject({ type: "team_seat_grace_reminder" });
     expect(db.current!.chainsFor("organization_seats")).toHaveLength(1);
-    expect(db.rpcCalls).toEqual(["org_expire_seat_grace"]);
+    // Jedno wygaszenie; po nim już tylko odczyt kandydatów zamiatarki (RPC).
+    expect(db.rpcCalls).toEqual(["org_expire_seat_grace", "payment_webhook_sweep_candidates"]);
   });
 });
 
@@ -965,6 +1052,136 @@ describe("izolacja zadań w cyklu", () => {
       "team_seat_access_ended",
       "team_seat_grace_reminder",
     ]);
+  });
+});
+
+// ===========================================================================
+// KARENCJA PŁATNOŚCI PLANU ZESPÓŁ (SUB-03) - obok zamiatarki, nie zamiast niej
+// ===========================================================================
+// Scalenie z audytem SUB (#495) dokłada do cyklu zawieszenie zespołów po
+// karencji płatności. Obie gałęzie dopisały swoje zadanie w tym samym miejscu
+// cyklu - dowodzimy, że w odpowiedzi są OBA wyniki i że awaria jednego nie
+// gasi drugiego (zamiatarka biegnie ostatnia, z terminem wołającego).
+describe("zadanie 4: karencja płatności planu Zespół (SUB-03)", () => {
+  it("biegnie w każdym cyklu - w odpowiedzi `teamPaymentGrace` OBOK `webhookSweep`", async () => {
+    const res = await run();
+    const payload = await body(res);
+
+    expect(res.status).toBe(200);
+    expect(section(payload, "teamPaymentGrace")).toEqual({ suspended: 0 });
+    expect(section(payload, "webhookSweep")).toMatchObject({ scanned: 0, failed: 0 });
+  });
+
+  it("padnięcie karencji płatności NIE zabija zamiatarki ani nie zmienia kodu odpowiedzi", async () => {
+    // Odczyt organizacji z subskrypcją operatora (filtr `.not(...)`) to
+    // wyłącznie zapytanie karencji płatności - przypomnienia o miejscach
+    // czytają organizacje bez niego.
+    db.current!.setResponse("member_organizations", (chain: RecordedChain) => {
+      if (chain.has("not")) throw new Error("orgs transport died");
+      return ok([]);
+    });
+
+    const res = await run();
+    const payload = await body(res);
+
+    expect(res.status).toBe(200);
+    // Zapytanie karencji naprawdę padło (a nie zostało pominięte).
+    expect(db.current!.chainsFor("member_organizations").some((chain) => chain.has("not"))).toBe(
+      true,
+    );
+    expect(section(payload, "teamPaymentGrace")).toEqual({ suspended: 0 });
+    expect(db.rpcCalls).toContain("payment_webhook_sweep_candidates");
+  });
+});
+
+// ===========================================================================
+// ZAMIATARKA DZIENNIKA PŁATNOŚCI - dobowa siatka bezpieczeństwa
+// ===========================================================================
+describe("zadanie 5: zamiatarka dziennika płatności", () => {
+  it("biegnie w każdym cyklu i raportuje liczniki w odpowiedzi", async () => {
+    // Ścieżką podstawową jest tick zadań co 5 minut; tu jest siatka na wypadek
+    // stojącego pg_cron - bez niej zdarzenie, które padło, czekałoby na
+    // człowieka z rolą `super_admin`.
+    const res = await run();
+
+    expect(res.status).toBe(200);
+    expect(section(await body(res), "webhookSweep")).toMatchObject({
+      scanned: 0,
+      processed: 0,
+      failed: 0,
+    });
+    expect(db.rpcCalls).toContain("payment_webhook_sweep_candidates");
+  });
+
+  /** Kandydat zamiatarki z pustym ładunkiem: przejęty wiersz kończy jako `failed`. */
+  const candidate = {
+    id: "row-1",
+    event_id: "evt_cron_1",
+    event_type: "customer.updated",
+    environment: "live",
+    occurred_at: iso(-0.05),
+    status: "failed",
+    created_at: iso(-0.05),
+    last_retried_at: null,
+    processed_at: iso(-0.04),
+    retry_count: 0,
+  };
+  const claimed = () =>
+    db.current!.chainsFor("payment_webhook_events").filter((chain) => chain.has("update"));
+
+  it("szybkie przypomnienia: zamiatarka ma przed sobą termin wołającego i bierze wiersz", async () => {
+    seed({ webhookEvents: [candidate] });
+
+    const payload = await body(await run());
+
+    expect(section(payload, "webhookSweep")).toMatchObject({ due: 1, failed: 1, deferred: 0 });
+    expect(claimed().length).toBeGreaterThan(0);
+  });
+
+  // KRYTERIUM przeglądu 3.0. Dawniej termin zamiatarki to „10 s od jej
+  // startu" - doklejone PO przypomnieniach, bez związku z 25 s, po których
+  // pg_net zrywał połączenie. Wiersz zaczęty po długich przypomnieniach ginął
+  // w połowie obsługi. Teraz termin to chwila zerwania połączenia przez
+  // wołającego (60 s od przyjęcia żądania) minus zapas 2 s. Wiersz zaczęty
+  // przed terminem żyje „za odpowiedzią" (30 s po zerwaniu, więcej niż jego
+  // budżet 20 s), więc startuje także bez pełnego budżetu przed terminem -
+  // bramka „pełne 20 s przed terminem" odkładała go tu do następnej doby.
+  it("przypomnienia zjadły 45 s: zamiatarka i tak bierze wiersz - dokończy go „za odpowiedzią”", async () => {
+    seed({ webhookEvents: [candidate], remindersTakeMs: 45_000 });
+
+    const payload = await body(await run());
+
+    expect(section(payload, "webhookSweep")).toMatchObject({ due: 1, failed: 1, deferred: 0 });
+    expect(claimed().length).toBeGreaterThan(0);
+  });
+
+  it("przypomnienia zjadły 58 s (termin wołającego minus zapas): zamiatarka NIE zaczyna wiersza", async () => {
+    seed({ webhookEvents: [candidate], remindersTakeMs: 58_000 });
+
+    const payload = await body(await run());
+
+    expect(section(payload, "webhookSweep")).toMatchObject({ due: 1, deferred: 1, failed: 0 });
+    expect(claimed()).toHaveLength(0);
+  });
+
+  it("awaria zamiatarki NIE zmienia kodu odpowiedzi - o 500 decydują wyłącznie przypomnienia", async () => {
+    seed({ webhookEvents: "error" });
+
+    const res = await run();
+
+    expect(res.status).toBe(200);
+    expect(section(await body(res), "webhookSweep")).toMatchObject({
+      error: "webhook sweep read failed: webhook log unavailable",
+    });
+  });
+
+  it("padnięcie przypomnień NIE zabija zamiatarki", async () => {
+    seed({ subscriptions: "error" });
+
+    const res = await run();
+
+    expect(res.status).toBe(500);
+    expect(db.rpcCalls).toContain("payment_webhook_sweep_candidates");
   });
 });
 

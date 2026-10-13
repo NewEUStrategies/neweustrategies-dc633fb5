@@ -142,6 +142,26 @@ export function catalogPriceForPlan(plan: {
   return BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ?? null;
 }
 
+/**
+ * Pozycja katalogu dla DOKŁADNEJ pary (warstwa, cykl) planu - wersja dla kasy
+ * (audyt PAY-01, przegląd 0.1; wycena `catalogPlanQuote`).
+ *
+ * Różnica wobec `catalogPriceForPlan`: cykl spoza słownika albo jego brak NIE
+ * jest czytany jako miesiąc. `catalogPriceForPlan` zostaje przy tej
+ * normalizacji dla odczytów sprzed kolumny `interval`; kasa nie może zgadywać -
+ * plan z cyklem, którego katalog nie zna, dostałby cenę miesięczną, a operator
+ * obciążałby co miesiąc za coś, co zamówienie opisuje inaczej.
+ */
+export function exactCatalogEntryForPlan(plan: {
+  tier_key?: string | null;
+  interval?: string | null;
+}): CatalogPriceEntry | null {
+  const tier = plan.tier_key ?? "";
+  const interval = plan.interval ?? "";
+  if (!tier || !interval) return null;
+  return BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ?? null;
+}
+
 /** Cykl rozliczeniowy w słowniku operatora (Stripe zna tylko day/week/month/year). */
 export interface CatalogRecurring {
   interval: "week" | "month" | "year";
@@ -177,7 +197,11 @@ export function catalogRecurringFor(entry: CatalogPriceEntry): CatalogRecurring 
 /** Minimalny kształt ceny operatora, jakiego potrzebuje kontrola cyklu. */
 export interface CatalogPriceCycleShape {
   type?: string | null;
-  recurring?: { interval?: string | null; interval_count?: number | null } | null;
+  recurring?: {
+    interval?: string | null;
+    interval_count?: number | null;
+    usage_type?: string | null;
+  } | null;
 }
 
 /**
@@ -192,6 +216,11 @@ export interface CatalogPriceCycleShape {
  * jako miesiąc × 1) dostawała od synchronizacji „ok" i blokowała każdy zakup
  * planu na zawsze. Ten sam predykat po obu stronach sprawia, że to, co kasa
  * odrzuca, synchronizacja odtwarza.
+ *
+ * Cena cykliczna musi też rozliczać się ZA ILOŚĆ (`usage_type: licensed`, audyt
+ * PAY-01): cena `metered` pod tym samym kluczem nalicza za zgłoszone zużycie,
+ * nie za miejsca z pozycji sesji, więc kwota zamówienia nie opisywałaby
+ * obciążenia - kasa odmawia, a synchronizacja zakłada cenę od nowa.
  */
 export function catalogCycleMismatch(
   price: CatalogPriceCycleShape,
@@ -202,7 +231,8 @@ export function catalogCycleMismatch(
   return (
     price.type !== "recurring" ||
     price.recurring?.interval !== cycle.interval ||
-    (price.recurring?.interval_count ?? 1) !== cycle.interval_count
+    (price.recurring?.interval_count ?? 1) !== cycle.interval_count ||
+    (price.recurring?.usage_type ?? "licensed") !== "licensed"
   );
 }
 
@@ -232,6 +262,11 @@ export const MAX_PLAN_SEATS = 100;
  * Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po 79 zł) jest w trybie
  * `volume`: po osiągnięciu progu WSZYSTKIE miejsca liczą się niżej - tak samo
  * jak cena schodkowa zakładana przez synchronizację katalogu.
+ *
+ * Pozycja wyłącznie z DOKŁADNEJ pary (`exactCatalogEntryForPlan`): wycena
+ * prowadzi do obciążenia, więc cykl, którego katalog nie zna, nie jest czytany
+ * jako miesiąc. Rodzaj zamówienia i tryb sesji dokłada `planCheckoutPricing`
+ * (`planPricing.ts`) - ta funkcja liczy wyłącznie pozycję, ilość i kwotę.
  */
 export function catalogPlanQuote(
   plan: {
@@ -243,7 +278,7 @@ export function catalogPlanQuote(
   },
   seats?: number | null,
 ): CatalogPlanQuote | null {
-  const entry = catalogPriceForPlan(plan);
+  const entry = exactCatalogEntryForPlan(plan);
   if (!entry) return null;
   const requested = Number.isFinite(seats) ? Math.trunc(seats as number) : 1;
   const quantity = entry.perSeat ? Math.min(Math.max(requested, 1), MAX_PLAN_SEATS) : 1;

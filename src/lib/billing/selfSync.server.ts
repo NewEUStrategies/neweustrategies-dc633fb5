@@ -21,6 +21,33 @@ export interface SelfSyncResult {
   statuses: string[];
 }
 
+/**
+ * Znacznik i identyfikator zdarzenia syntetycznego (1.1).
+ *
+ * Stan z `subscriptions.retrieve` jest prawdziwy na chwilę ODCZYTU, więc
+ * znacznik bierzemy PRZED odczytem i ucinamy do pełnej sekundy minus jedna.
+ * Stripe stempluje zdarzenia z rozdzielczością sekundy: dawny znacznik
+ * „teraz" w milisekundach PO odczycie (np. 10:00:00.600) robił z
+ * `customer.subscription.updated` wysłanego w tej samej sekundzie (10:00:00)
+ * zdarzenie spóźnione - opłacona subskrypcja zostawała `incomplete`, a klient
+ * bez dostępu aż do następnego zdarzenia. Teraz każde zdarzenie operatora
+ * z sekundy odczytu albo późniejszej jest od synchronizacji ŚWIEŻSZE, a
+ * starsze i tak opisuje stan, który odczyt już widział.
+ *
+ * Identyfikator jest stały w obrębie sekundy: ponowienie tego samego
+ * kliknięcia to `replay` (skutki idempotentne), a nie remis z odczytem API.
+ */
+function selfSyncMark(
+  subscriptionId: string,
+  readStartedAt: number,
+): { occurredAt: string; eventId: string } {
+  const second = Math.floor(readStartedAt / 1000);
+  return {
+    occurredAt: new Date((second - 1) * 1000).toISOString(),
+    eventId: `self-sync:${subscriptionId}:${second}`,
+  };
+}
+
 /** Identyfikator wygląda jak subskrypcja Stripe. */
 function isSubscriptionId(value: string | null | undefined): value is string {
   return typeof value === "string" && value.startsWith("sub_");
@@ -116,6 +143,8 @@ export async function syncUserSubscriptionsFromProvider(
   const statuses: string[] = [];
 
   for (const id of ids) {
+    // Znacznik PRZED odczytem - patrz `selfSyncMark`.
+    const mark = selfSyncMark(id, Date.now());
     let subscription: Stripe.Subscription;
     try {
       subscription = await stripe.subscriptions.retrieve(id, { expand: ["items.data.price"] });
@@ -133,10 +162,11 @@ export async function syncUserSubscriptionsFromProvider(
     if (!normalized) continue;
 
     const outcome = await dispatchWebhookEvent({
+      eventId: mark.eventId,
       eventType: normalized.eventType,
       data: normalized.data,
       environment,
-      occurredAt: new Date().toISOString(),
+      occurredAt: mark.occurredAt,
     });
     if (outcome === "processed") applied += 1;
   }

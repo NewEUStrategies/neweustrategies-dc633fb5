@@ -287,6 +287,9 @@ describe("trasa /checkout/$planId - sklejenie i bramka tożsamości", () => {
 describe("trasa /checkout/$planId - podsumowanie zamówienia", () => {
   it("składa podsumowanie planu z ceną, opisem i obietnicami checkoutu", async () => {
     signedInBuyer();
+    // Pole kodu Stripe jest domyślnie wyłączone (PAY-06) - tenant je tu WŁĄCZA,
+    // żeby obietnica o kodzie rabatowym miała z czego wynikać.
+    h.settings = { ...DEFAULT_CHECKOUT_SETTINGS, allow_promotion_codes: true };
     await mount();
 
     expect(await screen.findByText("Plan Pro")).toBeInTheDocument();
@@ -420,17 +423,20 @@ describe("trasa /checkout/$planId - sesja płatności", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Zapłać/ }));
 
     await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    // Ceny NIE wysyłamy (audyt PAY-01): serwer wyprowadza wpis katalogu
+    // z planu, a żądanie niosące `priceId` mogłoby związać plan z cudzą ceną.
     expect(h.planCheckout).toHaveBeenCalledWith({
       data: {
         planId: PLAN_ID,
-        // `pro` + `month` -> wpis katalogu, a nie kwota z formularza klienta.
-        priceId: "pro_monthly",
         couponCode: undefined,
         returnUrl: `${window.location.origin}/checkout/success`,
         environment: "sandbox",
         locale: "pl",
       },
     });
+    const payload = (h.planCheckout.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(payload).not.toHaveProperty("priceId");
+    expect(payload).not.toHaveProperty("quantity");
   });
 
   it("osadza ramkę operatora z sekretem sesji i banerem trybu testowego", async () => {

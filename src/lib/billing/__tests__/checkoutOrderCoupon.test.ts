@@ -84,6 +84,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 
 const { callServerFn } = await import("@/test/serverFn");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");
+const { minimumChargeCents } = await import("@/lib/billing/chargeMinimum");
 
 // --- kształty z wygenerowanych typów ---------------------------------------
 
@@ -507,15 +508,73 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
   });
 
   it("kwota końcowa równa minimum przechodzi - granica jest po stronie dozwolonej", async () => {
+    // Minimum operatora W WALUCIE ZAMÓWIENIA: dla złotówek 2,00 zł.
+    const minimum = minimumChargeCents("PLN");
     rpcResponses.set(
       "validate_b2b_coupon_for_user",
-      ok([couponOk({ discount_cents: 4850, final_cents: 50 })]),
+      ok([couponOk({ discount_cents: 4900 - minimum, final_cents: minimum })]),
     );
 
     const result = await call(planPayload());
 
+    expect(minimum).toBe(200);
     expect(result.ok).toBe(true);
-    expect(insertedOrder()?.amount_cents).toBe(50);
+    expect(insertedOrder()?.amount_cents).toBe(minimum);
+  });
+});
+
+describe("createCheckoutOrder - minimum operatora po kuponie, parytet z drugim silnikiem (przegląd PAY-01, 0.3)", () => {
+  // CO BYŁO ZŁE. Ten silnik odrzucał kwotę po kuponie poniżej 50 jednostek
+  // w KAŻDEJ walucie, drugi nie miał progu wcale. Stripe obciąża w złotówkach
+  // od 2,00 zł, więc 1,50 zł mijało tę bramkę i padało u operatora po
+  // założeniu zamówienia i rezerwacji kuponu. Oba silniki liczą teraz jedną
+  // regułą (`chargeMinimum.ts`) - te same przypadki stoją
+  // w `stripeCheckoutFunctions.test.ts`.
+  const minimum = minimumChargeCents("PLN");
+
+  it.each([
+    ["kupon 100% (0 zł)", 0],
+    ["1 grosz", 1],
+    ["49 groszy (dawny próg)", 49],
+    ["1,50 zł (dawniej przechodziło)", 150],
+    ["grosz pod minimum (1,99 zł)", minimum - 1],
+  ])(
+    "%s po kuponie: `final_amount_too_low` przed zamówieniem i rezerwacją",
+    async (_label, finalCents) => {
+      rpcResponses.set(
+        "validate_b2b_coupon_for_user",
+        ok([couponOk({ discount_cents: 4900 - finalCents, final_cents: finalCents })]),
+      );
+
+      const result = await call(planPayload());
+
+      expect(result).toEqual({ ok: false, mode: "coupon", error: "final_amount_too_low" });
+      expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
+    },
+  );
+
+  it("odblokowanie treści liczy tę samą regułą w walucie reguły dostępu", async () => {
+    chain.setResponse(
+      "content_access_public",
+      ok({ mode: "paid", one_time_price_cents: 1500, one_time_currency: "PLN" }),
+    );
+    rpcResponses.set(
+      "validate_b2b_coupon_for_user",
+      ok([couponOk({ discount_cents: 1350, final_cents: 150 })]),
+    );
+
+    const result = await call({
+      kind: "one_time",
+      entity_type: "post",
+      entity_id: ENTITY_ID,
+      success_path: "/analizy/tekst",
+      cancel_path: "/analizy/tekst",
+      coupon_code: "PARTNER",
+    });
+
+    expect(result).toEqual({ ok: false, mode: "coupon", error: "final_amount_too_low" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 });
 
@@ -636,21 +695,38 @@ describe("createCheckoutOrder - przegrany wyścig o ostatnie użycie kuponu", ()
 
 describe("createCheckoutOrder - waluta prezentacji", () => {
   /**
-   * Konwersja dotyczy zamówień z kwotą wyliczoną SERWEROWO. Zakup jednorazowy
-   * planu jest takim zamówieniem; subskrypcja NIE JEST (jej walutę rozstrzyga
-   * cennik operatora) i ma osobny przypadek na końcu bloku.
+   * Konwersja dotyczy zamówień z kwotą osadzoną w pozycji sesji - tu
+   * odblokowanie treści za 49 zł. Plan (subskrypcja i plan jednorazowy) idzie
+   * ceną katalogową, której walutę rozstrzyga cennik operatora - ma osobny
+   * przypadek na końcu bloku. Do 12.10.2026 ten blok używał „jednorazowego
+   * zakupu" planu MIESIĘCZNEGO, czyli dokładnie kształtu, który kupował dostęp
+   * dożywotni ceną jednego okresu (przegląd PAY-01, 0.0) - dziś to odmowa.
    */
-  function oneTimePlanPayload(over: Record<string, unknown> = {}): Record<string, unknown> {
-    // Zakup jednorazowy przyjmuje tylko plan jednorazowy (TIX-02).
-    chain.setResponse("access_plans", ok(planQuote({ interval: "one_time" })));
-    return planPayload({ kind: "one_time", ...over });
+  function contentPayload(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      kind: "one_time",
+      entity_type: "post",
+      entity_id: ENTITY_ID,
+      success_path: "/analizy/tekst",
+      cancel_path: "/analizy/tekst",
+      environment: "sandbox",
+      coupon_code: "partner-cee",
+      ...over,
+    };
   }
+
+  beforeEach(() => {
+    chain.setResponse(
+      "content_access_public",
+      ok({ mode: "paid", one_time_price_cents: 4900, one_time_currency: "PLN" }),
+    );
+  });
 
   it("wersja angielska rozlicza w euro po kursie NBP, licząc oryginał i finał RAZEM", async () => {
     // Niezmiennik audytu: oryginał = finał + rabat, DOKŁADNIE w walucie
     // docelowej. Konwersja każdej kwoty osobno rozjeżdża go o grosz przy
     // zaokrągleniu, a to grosz w księgach.
-    const result = await call(oneTimePlanPayload({ display_currency: "EUR" }));
+    const result = await call(contentPayload({ display_currency: "EUR" }));
 
     expect(result.ok).toBe(true);
     const order = insertedOrder();
@@ -664,7 +740,7 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
   });
 
   it("audyt użycia kuponu jest zapisywany w TEJ SAMEJ walucie co zamówienie", async () => {
-    await call(oneTimePlanPayload({ display_currency: "EUR" }));
+    await call(contentPayload({ display_currency: "EUR" }));
 
     expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _applied_cents: 250,
@@ -674,7 +750,7 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
   });
 
   it("waluta zgodna z ceną planu nie zmienia kwoty", async () => {
-    const result = await call(oneTimePlanPayload({ display_currency: "PLN" }));
+    const result = await call(contentPayload({ display_currency: "PLN" }));
 
     expect(result.ok).toBe(true);
     expect(insertedOrder()?.currency).toBe("PLN");
@@ -682,14 +758,14 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
   });
 
   it("bez wskazania waluty prezentacji zamówienie zostaje w walucie planu", async () => {
-    await call(oneTimePlanPayload());
+    await call(contentPayload());
 
     expect(insertedOrder()?.currency).toBe("PLN");
     expect(insertedOrder()?.amount_cents).toBe(3900);
   });
 
   it("kupon jest walidowany PRZED konwersją - kupony są definiowane per waluta", async () => {
-    await call(oneTimePlanPayload({ display_currency: "EUR" }));
+    await call(contentPayload({ display_currency: "EUR" }));
 
     expect(rpcArgs("validate_b2b_coupon_for_user")).toMatchObject({
       _amount_cents: 4900,
@@ -724,7 +800,7 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
       ok([couponOk({ discount_cents: 0, final_cents: 4900 })]),
     );
 
-    const result = await call(oneTimePlanPayload({ display_currency: "EUR" }));
+    const result = await call(contentPayload({ display_currency: "EUR" }));
 
     expect(result.ok).toBe(true);
     expect(insertedOrder()?.currency).toBe("EUR");
