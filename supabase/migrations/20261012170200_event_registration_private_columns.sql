@@ -58,35 +58,42 @@
 -- ============================================================================
 
 -- A) GRANTY KOLUMNOWE --------------------------------------------------------------
--- REVOKE na tabeli nie zdejmuje grantow kolumnowych, wiec kolumny prywatne
--- odbieramy jawnie - powtorne uruchomienie (albo wczesniejszy grant
--- kolumnowy) nie zostawia furtki.
+-- Lista kolumn z katalogu w chwili migracji MINUS jawna lista prywatnych:
+-- ta sama migracja dziala na produkcji i na harnessie (inny zestaw kolumn
+-- modulow), a wykluczenie, ktorego kolumny nie ma, jest po prostu pomijane.
+-- REVOKE na tabeli zdejmuje tez granty kolumnowe; prywatne kolumny
+-- odbieramy dodatkowo jawnie (anon tez) - powtorne uruchomienie albo czyjs
+-- wczesniejszy grant kolumnowy nie zostawia furtki.
 DO $grants$
 DECLARE
+  v_spec record;
   v_cols text;
+  v_private text;
 BEGIN
-  SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum)
-    INTO v_cols
-    FROM pg_attribute a
-   WHERE a.attrelid = 'public.event_registrations'::regclass
-     AND a.attnum > 0
-     AND NOT a.attisdropped
-     AND a.attname NOT IN ('decision_note', 'submitted_profile', 'manage_token_hash', 'qr_token_hash');
-  EXECUTE 'REVOKE SELECT ON public.event_registrations FROM authenticated';
-  EXECUTE format('GRANT SELECT (%s) ON public.event_registrations TO authenticated', v_cols);
-  EXECUTE 'REVOKE SELECT (decision_note, submitted_profile, manage_token_hash, qr_token_hash) '
-       || 'ON public.event_registrations FROM authenticated, anon';
+  FOR v_spec IN
+    SELECT *
+      FROM (VALUES
+        ('public.event_registrations'::regclass,
+         ARRAY['decision_note', 'submitted_profile', 'manage_token_hash', 'qr_token_hash']),
+        ('public.event_people'::regclass, ARRAY['notes'])
+      ) AS t(rel, private_cols)
+  LOOP
+    SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum)
+            FILTER (WHERE NOT a.attname = ANY (v_spec.private_cols)),
+           string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum)
+            FILTER (WHERE a.attname = ANY (v_spec.private_cols))
+      INTO v_cols, v_private
+      FROM pg_attribute a
+     WHERE a.attrelid = v_spec.rel
+       AND a.attnum > 0
+       AND NOT a.attisdropped;
 
-  SELECT string_agg(quote_ident(a.attname), ', ' ORDER BY a.attnum)
-    INTO v_cols
-    FROM pg_attribute a
-   WHERE a.attrelid = 'public.event_people'::regclass
-     AND a.attnum > 0
-     AND NOT a.attisdropped
-     AND a.attname NOT IN ('notes');
-  EXECUTE 'REVOKE SELECT ON public.event_people FROM authenticated';
-  EXECUTE format('GRANT SELECT (%s) ON public.event_people TO authenticated', v_cols);
-  EXECUTE 'REVOKE SELECT (notes) ON public.event_people FROM authenticated, anon';
+    EXECUTE format('REVOKE SELECT ON %s FROM authenticated', v_spec.rel);
+    EXECUTE format('GRANT SELECT (%s) ON %s TO authenticated', v_cols, v_spec.rel);
+    IF v_private IS NOT NULL THEN
+      EXECUTE format('REVOKE SELECT (%s) ON %s FROM authenticated, anon', v_private, v_spec.rel);
+    END IF;
+  END LOOP;
 END
 $grants$;
 

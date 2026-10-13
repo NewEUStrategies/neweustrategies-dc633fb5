@@ -20,7 +20,7 @@
 -- refund_terms_changed), podglad bez wyroczni, decyzje organizatora o zleceniu,
 -- straznik ponownego przyjecia i ACL nowych funkcji.
 BEGIN;
-SELECT plan(64);
+SELECT plan(67);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -73,7 +73,7 @@ INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, e
 
 INSERT INTO public.event_ticket_types (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency)
 SELECT ('b4200000-0000-0000-0000-0000000000' || s)::uuid, 'b40a0000-0000-0000-0000-0000000000aa',
-       ('b4100000-0000-0000-0000-0000000000' || s)::uuid, 'b4-' || s, 'Wstep', 'Admission', 10000, 'PLN'
+       ('b4100000-0000-0000-0000-0000000000' || s)::uuid, 'b4_' || s, 'Wstep', 'Admission', 10000, 'PLN'
   FROM unnest(ARRAY['01', '02', '03', '07', '08', '09', '0a']) AS s;
 
 -- Zasady zwrotu PRZED zaplata (migawka czyta je przy wstawieniu):
@@ -173,8 +173,10 @@ INSERT INTO public.event_participant_settings (tenant_id, event_id, refund_mode,
   ('b40a0000-0000-0000-0000-0000000000aa', 'b4100000-0000-0000-0000-00000000000a', 'none', 168);
 
 -- Zlecenie zwrotu (jeden wiersz) - zamowieniem albo, recznie, zgloszeniem.
+-- SECURITY DEFINER: czytany takze pod SET ROLE authenticated (identyfikator
+-- zlecenia do decyzji organizatora), a tabela jest tylko dla service_role.
 CREATE FUNCTION pg_temp.b4_job(_reg uuid) RETURNS public.event_registration_refund_jobs
-LANGUAGE sql AS $$
+LANGUAGE sql SECURITY DEFINER AS $$
   SELECT j.* FROM public.event_registration_refund_jobs j
    WHERE j.registration_id = _reg
       OR j.payment_order_id = (SELECT r.payment_order_id FROM public.event_registrations r WHERE r.id = _reg)
@@ -546,15 +548,21 @@ SELECT is(
   (public.admin_event_registration_decide(jsonb_build_object('registration_id', 'b4400000-0000-0000-0000-000000000004',
      'action', 'cancel')) ->> 'promoted_from_waitlist')::int,
   0, 'REG-13: organizator zamyka zgloszenie po koncu - bez awansu z kolejki');
--- Ponowne przyjecie po rezygnacji wycofuje zlecenie, ktore nie wyszlo do operatora.
-SELECT lives_ok(
+-- Straznik ponownego przyjecia: zwrot u operatora (dzierzawa wyzej wziela
+-- zlecenie z migawki) blokuje przywrocenie; zlecenie, ktore nie wyszlo do
+-- operatora (anulowanie przez organizatora, pending), jest wycofywane.
+SELECT throws_like(
   $$SELECT public.admin_event_registration_decide(jsonb_build_object('registration_id', 'b4400000-0000-0000-0000-00000000000a',
     'action', 'approve'))$$,
-  'organizator przywraca zgloszenie po rezygnacji');
+  'invalid_transition%', 'zwrot w drodze u operatora blokuje ponowne przyjecie');
+SELECT lives_ok(
+  $$SELECT public.admin_event_registration_decide(jsonb_build_object('registration_id', 'b4400000-0000-0000-0000-000000000091',
+    'action', 'approve'))$$,
+  'organizator przywraca zgloszenie anulowane ze zwrotem jeszcze w kolejce');
 RESET ROLE;
 SELECT ok(
   (SELECT status FROM public.event_registrations WHERE id = 'b4400000-0000-0000-0000-000000000041') = 'waitlist'
-  AND (SELECT j.state FROM pg_temp.b4_job('b4400000-0000-0000-0000-00000000000a') j) = 'cancelled',
+  AND (SELECT j.state FROM pg_temp.b4_job('b4400000-0000-0000-0000-000000000091') j) = 'cancelled',
   'kolejka po koncu nietknieta; ponowne przyjecie wycofuje zlecenie zwrotu');
 
 SELECT set_config('request.jwt.claims', '', true);
