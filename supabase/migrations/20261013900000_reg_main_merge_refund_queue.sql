@@ -29,14 +29,12 @@
 --   przywrocenie zgloszenia przy `refund_unconfirmed` wycofywalo zlecenie
 --   (bilet i pieniadze naraz), a dziennik nie oddawal `escalated_at`.
 --   Odwrotnie: zlecenie z odmowy wplaty (TIX-05) dostawalo domyslne
---   pochodzenie `organizer_rejected`, a przy wplacie na zgloszenie juz
---   zamkniete siatka bezpieczenstwa REG zostawiala `needs_review`, choc
---   odpowiedz bazy obiecywala kupujacemu automatyczny zwrot (`refund_queued`).
+--   pochodzenie REG `organizer_rejected` (naprawa zapisu: 20261013900100,
+--   tu - wiersze juz zapisane).
 --
 -- ZMIANA (unia obu intencji, ciala zbudowane na NAJNOWSZYCH definicjach:
 --   kolejka i straznik - 20261012181200, claim/settle/dziennik - 20261012170050
---   + 20261012120000, decyzja - 20261012170050, zapis zlecenia - 20261012181200,
---   odmowa wplaty - 20261012130100, helper eskalacji - 20261012120000)
+--   + 20261012120000, helper eskalacji - 20261012120000)
 --   1. CHECK-i powodu: jeden slownik (zamkniecie REG + eskalacja main) i regula
 --      main „needs_review zawsze z powodem" (ten sam stan co 20261012170000).
 --   2. `_event_refund_job_escalate`: cialo main, tresc alarmu bez slowa
@@ -54,20 +52,11 @@
 --      porazce + zdarzenie `event.registration.refund_failed.v1` (REG) -
 --      jeden alarm (helper), bez drugiego dzwonka REG.
 --   6. Dziennik: pola REG + `escalated_at` (main).
---   7. `_event_registration_cancel_refund` i `admin_event_refund_job_decide`
---      (tylko REG, ale pisza ten sam wiersz co eskalacja main): ponowne
---      zlecenie czysci `escalated_at`/`provider_refund_id`; zlecenie
---      `refund_unconfirmed` nie jest nadpisywane ani rozstrzygane recznie
---      (`invalid_transition` - najpierw potwierdzenie albo `refund.failed`).
---   8. `_event_ticket_payment_refused` (main): pochodzenie `system`, kwota
---      i waluta zamowienia; zlecenie `needs_review/closed_without_refund_decision`
---      wstawione przez siatke REG w TEJ SAMEJ transakcji (wplata na zgloszenie
---      juz zamkniete) staje sie automatycznym zwrotem, gdy nikt aktywny nie
---      dzieli wplaty; `refund_queued` mowi prawde (zwrot automatyczny albo
---      juz w drodze), a nie „wiersz istnieje".
---   9. Backfill: zlecenia z odmowy wplaty (znacznik `ticket_refusal` na
+--   7. Zapis zlecenia po rezygnacji, decyzja organizatora i odmowa wplaty
+--      (TIX-05) - osobny plik 20261013900100 (limit 45 KiB).
+--   8. Backfill: zlecenia z odmowy wplaty (znacznik `ticket_refusal` na
 --      zamowieniu) dostaja pochodzenie `system` zamiast domyslnego
---      `organizer_rejected`.
+--      `organizer_rejected` (odmowa juz wdrozona w main: 20261012130100).
 --
 -- CZEGO TO NIE ZAMYKA. Dwa helpery dzwonka (`_tenant_admins_alert` main
 --   i `_event_refund_alert_organizers` REG) zostaja - pierwszy wymaga profilu
@@ -101,7 +90,7 @@ ALTER TABLE public.event_registration_refund_jobs
 COMMENT ON COLUMN public.event_registration_refund_jobs.review_reason IS
   'Dlaczego zlecenie czeka na czlowieka albo dlaczego zwrotu nie ma. Zamkniecie (REG-03): outside_refund_window | refund_disabled | shared_payment | manual_payment | organizer_waived | closed_without_refund_decision. Eskalacja kolejki z alarmem (INV-19c, wylacznie _event_refund_job_escalate): active_registrations_share_payment | attempts_exhausted | provider_refund_failed | refund_unconfirmed. needs_review zawsze z powodem. last_error zostaje bledem operatora.';
 
--- 9) BACKFILL POCHODZENIA ODMOW WPLATY --------------------------------------
+-- 8) BACKFILL POCHODZENIA ODMOW WPLATY --------------------------------------
 UPDATE public.event_registration_refund_jobs j
    SET origin = 'system', updated_at = now()
   FROM public.payment_orders o
