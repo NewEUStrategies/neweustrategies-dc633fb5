@@ -32244,10 +32244,12 @@ export type Database = {
       }
       unaccent: { Args: { "": string }; Returns: string }
       unendorse_skill: { Args: { p_skill_id: string }; Returns: undefined }
-      user_has_tier_feature: {
-        Args: { _feature: string; p_user: string }
-        Returns: boolean
-      }
+      user_has_tier_feature:
+        | { Args: { _feature: string; p_user: string }; Returns: boolean }
+        | {
+            Args: { _feature: string; p_tenant: string; p_user: string }
+            Returns: boolean
+          }
       user_is_editorial: { Args: { p_user: string }; Returns: boolean }
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }

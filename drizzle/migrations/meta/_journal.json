@@ -1212,6 +1212,13 @@
       "when": 1791881210366,
       "tag": "0172_payment_webhook_events_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1791881410769,
+      "tag": "0173_tier_entitlement_seat_status_tenant",
+      "breakpoints": true
     }
   ]
 }
