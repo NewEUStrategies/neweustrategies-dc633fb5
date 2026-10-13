@@ -626,6 +626,10 @@ describe("PackageInviteAccept - pakiet jeszcze nieopłacony (TIX-07)", () => {
       wynik({ status: "pending", awaitingPayment: true, qrToken: null }),
     );
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
+    // Scalenie z main (PR #504): formularz REG-15 staje dopiero po podglądzie
+    // zaproszenia i formularzu wydarzenia - test TIX-07 czeka na niego jak
+    // reszta pliku.
+    await formularzGotowy();
     wypelnij();
     wyslij();
 
