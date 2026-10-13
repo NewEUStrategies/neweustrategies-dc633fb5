@@ -16,12 +16,14 @@
 --      zerowanie wycofania); jedyne zdjecie wycofania to warunkowe CASE
 --      w `_event_person_consents_confirm` dla kanalu DOI.
 --
--- TYMCZASOWA LISTA (moze TYLKO malec). Trzy dzisiejsze funkcje pisza stemple
--- wprost i naleza do innych jednostek naprawy, ktore przepinaja je na funkcje
--- rejestru: `event_register` (B1a), `event_package_invite_accept` (B2),
--- `_event_cfp_resolve_person` (B3). Jednostka, ktora naprawi swoja funkcje,
--- USUWA jej nazwe z `pg_temp.ecw_pending()` - asercja 5 czerwieni plik, dopoki
--- martwy wpis zostaje (martwy wpis to przyszla furtka).
+-- TYMCZASOWA LISTA (moze TYLKO malec). Dzisiejsze funkcje, ktore pisza stemple
+-- wprost, naleza do innych jednostek naprawy, ktore przepinaja je na funkcje
+-- rejestru: `event_package_invite_accept` (B2), `_event_cfp_resolve_person`
+-- (B3). `event_register` (B1a) zniknal z listy w 20261012140000 - rdzen
+-- `_event_register` pisze zgody wylacznie przez funkcje rejestru. Jednostka,
+-- ktora naprawi swoja funkcje, USUWA jej nazwe z `pg_temp.ecw_pending()` -
+-- asercja 5 czerwieni plik, dopoki martwy wpis zostaje (martwy wpis to
+-- przyszla furtka).
 --
 -- JAK. Zrodlo kazdej funkcji (plpgsql/sql) z wycietymi komentarzami
 -- i literalami (lekser bajtowy jak w check_whitelist_writers_test.sql),
@@ -143,8 +145,7 @@ $f$;
 CREATE FUNCTION pg_temp.ecw_pending()
 RETURNS TABLE (proname name)
 LANGUAGE sql IMMUTABLE AS $f$
-  VALUES ('event_register'::name),             -- B1a: _event_register przez funkcje rejestru
-         ('event_package_invite_accept'::name), -- B2: bez nadpisania i bez `= NULL`
+  VALUES ('event_package_invite_accept'::name), -- B2: bez nadpisania i bez `= NULL`
          ('_event_cfp_resolve_person'::name)    -- B3: marketing przez _event_person_consents_confirm
 $f$;
 

@@ -37,7 +37,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(78);
+SELECT plan(82);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -741,7 +741,37 @@ SELECT is(
   public.event_coupon_revealed_tickets(NULL, 'ec100000-0000-0000-0000-0000000000e1', 'ECG-VIP'),
   ARRAY[]::uuid[],
   'odslanianie: bez najemcy nie ma w czym szukac');
+
+-- ── 38-41. Odslanianie pelnymi wierszami na WSPOLNYM predykacie ──────────────
+-- (20261012140000/140100, REG-05). `event_coupon_revealed_tickets` i zapis
+-- (`_event_register`) pytaja te sama `_event_reveal_coupon_covers`; formularz
+-- dostaje odsloniete bilety jako pelne obiekty z `event_registration_revealed_tickets`.
+SELECT is(
+  ARRAY(SELECT (x->>'id')::uuid FROM jsonb_array_elements(
+    public.event_registration_revealed_tickets('ec0a0000-0000-0000-0000-0000000000aa', NULL,
+      'ip:ecececececececececececececececec', 'ec100000-0000-0000-0000-0000000000e1', ' ecg-vip ')) x),
+  public.event_coupon_revealed_tickets('ec0a0000-0000-0000-0000-0000000000aa',
+    'ec100000-0000-0000-0000-0000000000e1', ' ecg-vip '),
+  'odslanianie: pelne wiersze i identyfikatory z jednego predykatu (ten sam ukryty bilet)');
+SELECT ok(
+  (SELECT x->>'key' = 'ecg_vip' AND (x->>'is_hidden')::boolean AND x ? 'effective_price_cents' AND x ? 'availability'
+     FROM jsonb_array_elements(
+       public.event_registration_revealed_tickets('ec0a0000-0000-0000-0000-0000000000aa', NULL,
+         'ip:ecececececececececececececececec', 'ec100000-0000-0000-0000-0000000000e1', 'ECG-VIP')) x),
+  'odslanianie: bilet przychodzi obiektem formularza (klucz, cena, dostepnosc)');
+SELECT is(
+  public.event_registration_revealed_tickets('ec0b0000-0000-0000-0000-0000000000bb', NULL,
+    'ip:ecececececececececececececececec', 'ec100000-0000-0000-0000-0000000000e1', 'ECG-VIP'),
+  '[]'::jsonb,
+  'odslanianie pelnymi wierszami: kod najemcy B nie siega do wydarzenia najemcy A');
 RESET ROLE;
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.event_registration_revealed_tickets(uuid,uuid,text,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_registration_revealed_tickets(uuid,uuid,text,uuid,text)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_registration_revealed_tickets(uuid,uuid,text,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public._event_reveal_coupon_covers(uuid,uuid,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_reveal_coupon_covers(uuid,uuid,uuid,text)', 'EXECUTE'),
+  'odslanianie pelnymi wierszami i wspolny predykat: wylacznie service_role');
 
 SELECT set_config('request.jwt.claims', '', true);
 SELECT set_config('request.headers', '', true);
