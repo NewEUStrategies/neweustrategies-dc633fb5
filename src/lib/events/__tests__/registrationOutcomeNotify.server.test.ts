@@ -240,6 +240,7 @@ vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: budget.rateLimit }
 
 import {
   notifyTicketOutcome,
+  notifyTicketRefusal,
   type TicketOutcomePayload,
 } from "@/lib/events/registrationOutcomeNotify.server";
 
@@ -1952,5 +1953,42 @@ describe("REG-10: SMS o wyniku płatności i awansie tylko przez sendParticipant
       expect(gsm7Septets(entry.body)).toBeLessThanOrEqual(160);
       expect(entry.body).toContain("Kongres Bezpieczenstwa Lodz");
     }
+  });
+});
+
+// SCALENIE Z MAIN (PR #504): odmowa wpłaty na zamknięte zgłoszenie (TIX-05,
+// main) i dzwonek z bazy przy zwrocie czekającym na decyzję (R45, REG) mówią
+// organizatorowi to samo - drugi dzwonek z TS nie wychodzi, kupujący swój
+// dostaje zawsze.
+describe("odmowa wpłaty: dzwonek organizatora raz", () => {
+  function refusal(over: Partial<TicketOutcomePayload> = {}): TicketOutcomePayload {
+    return payload({
+      applied: true,
+      refused: true,
+      reason: "registration_closed",
+      registration_status: "cancelled",
+      newly_settled: true,
+      ...over,
+    });
+  }
+
+  it("bez `organizer_alerted`: dzwonek kupującego i dzwonek organizatora z TS", async () => {
+    givenAdmins([{ user_id: ADMIN_A }]);
+    await notifyTicketRefusal(refusal({ refund_queued: true }));
+
+    expect(buyerBells()).toHaveLength(1);
+    expect(buyerBells()[0]).toMatchObject({ user_id: USER });
+    expect(organizerRows()).toHaveLength(1);
+    expect(organizerRows()[0]).toMatchObject({ user_id: ADMIN_A });
+  });
+
+  it("`organizer_alerted` (baza już zadzwoniła - przegląd wspólnej wpłaty): kupujący tak, organizator nie", async () => {
+    givenAdmins([{ user_id: ADMIN_A }]);
+    await notifyTicketRefusal(refusal({ refund_queued: false, organizer_alerted: true }));
+
+    expect(buyerBells()).toHaveLength(1);
+    expect(buyerBells()[0]?.["body_pl"]).toContain("organizator sprawdzi płatność");
+    expect(organizerRows()).toHaveLength(0);
+    expect(stub.chainsFor("user_roles")).toHaveLength(0);
   });
 });

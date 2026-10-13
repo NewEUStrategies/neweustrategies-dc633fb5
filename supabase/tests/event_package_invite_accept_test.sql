@@ -290,14 +290,18 @@ SELECT ok(
          FROM public.event_people WHERE tenant_id = 'b2ba0000-0000-0000-0000-0000000000aa'
           AND email_norm = 'del@epi.example'),
   'zaproszony z potwierdzonym adresem: kartoteka del@ dowiazana do jego konta, account_linked true');
+-- SCALENIE Z MAIN (PR #504): zrodlo `package_invitation` (main 20261012130000/
+-- 130001, TIX-07/TIX-04: CHECK-i dostaly te wartosc, a oplacenie i anulowanie
+-- zamowienia znajduja po niej delegatow) zamiast `invitation` (REG
+-- 20261012132200 - obejscie starego CHECK-u). Unia: 20261013900400.
 SELECT ok(
-  (SELECT bool_and(p.source = 'invitation') FROM public.event_people p
+  (SELECT bool_and(p.source = 'package_invitation') FROM public.event_people p
     WHERE p.tenant_id = 'b2ba0000-0000-0000-0000-0000000000aa'
       AND p.email_norm IN ('del@epi.example', 'unconf@epi.example', 'nw@epi.example'))
-  AND (SELECT count(*) = 4 AND bool_and(r.source = 'invitation' AND r.status = 'approved'
+  AND (SELECT count(*) = 4 AND bool_and(r.source = 'package_invitation' AND r.status = 'approved'
                                         AND r.registration_mode = 'form')
          FROM public.event_registrations r WHERE r.tenant_id = 'b2ba0000-0000-0000-0000-0000000000aa'),
-  'zrodlo invitation w kartotece i zgloszeniu (dozwolone przez CHECK), zgloszenia zatwierdzone w trybie form');
+  'zrodlo package_invitation w kartotece i zgloszeniu (dozwolone przez CHECK), zgloszenia zatwierdzone w trybie form');
 SELECT ok(
   (SELECT s.registration_id = (SELECT (v->>'registration_id')::uuid FROM epi_r WHERE k = 'd_del')
           AND s.assigned_at IS NOT NULL
@@ -401,9 +405,10 @@ SELECT is(
   (SELECT count(*)::integer FROM public.domain_events d
     WHERE d.tenant_id = 'b2ba0000-0000-0000-0000-0000000000aa'
       AND d.event_type = 'event.registration.created.v1'
-      AND d.payload->>'source' = 'invitation'),
+      AND d.payload->>'source' = 'package_invitation'),
   5,
-  'kazde przyjecie emituje event.registration.created.v1 ze zrodlem invitation');
+  -- SCALENIE Z MAIN (PR #504): zrodlo jak w wierszu (main TIX-07, REG-15).
+  'kazde przyjecie emituje event.registration.created.v1 ze zrodlem package_invitation');
 SELECT throws_like(
   $$UPDATE public.event_package_seats SET invite_token_hash = NULL
      WHERE id = 'b2bc0000-0000-0000-0000-0000000000c1'$$,

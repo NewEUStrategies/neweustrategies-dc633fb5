@@ -730,6 +730,10 @@ export async function notifyTicketOutcome(
  * dała biletu i co dalej (zwrot w kolejce albo przegląd), a organizator -
  * dzwonek z powodem. Nigdy „miejsce zarezerwowane". Fail-soft: wpłata jest już
  * zaksięgowana, a zwrot siedzi w kolejce w bazie.
+ *
+ * Wpłata na zamknięte zgłoszenie, której zwrot czeka na decyzję (wspólna
+ * wpłata), ma dzwonek do organizatorów już z bazy (`organizer_alerted`, R45) -
+ * drugi z TS nie wychodzi, tak jak w `notifyTicketOutcome`.
  */
 export async function notifyTicketRefusal(payload: TicketOutcomePayload): Promise<void> {
   const contact = readContact(payload);
@@ -757,5 +761,5 @@ export async function notifyTicketRefusal(payload: TicketOutcomePayload): Promis
       console.error("[events] ticket refusal bell failed", err);
     }
   }
-  await alertOrganizers(payload, "refused");
+  if (payload.organizer_alerted !== true) await alertOrganizers(payload, "refused");
 }

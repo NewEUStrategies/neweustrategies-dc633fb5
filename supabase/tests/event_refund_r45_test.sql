@@ -28,8 +28,8 @@
 --   8/9. Statyczny straznik kolejnosci blokad (bilet nigdy przed wydarzeniem,
 --      zamowienie i zgloszenie nigdy przed wydarzeniem).
 --   10. „Moje zgloszenia": gosc nie widzi zamowienia prowadzacego.
---   11. Granty kolumnowe decided_by/cancel_reason; dzwonek przy wplacie na
---      zamkniete zgloszenie.
+--   11. Granty kolumnowe decided_by/cancel_reason; wplata na zamkniete
+--      zgloszenie (po scaleniu z main: odmowa ze zwrotem automatycznym).
 BEGIN;
 SELECT plan(52);
 
@@ -383,11 +383,17 @@ SELECT lives_ok(
       'registration_id', 'e4540000-0000-0000-0000-0000000b0011', 'action', 'approve'))$$,
   '3: organizator przyjmuje ponownie TYLKO goscia');
 RESET ROLE;
+-- SCALENIE Z MAIN (PR #504): przeglad wspolnej wplaty w KOLEJCE to eskalacja
+-- INV-19c (main 20261012120000: powod `active_registrations_share_payment`
+-- i alarm `escalated_at` - ten sam powod, ktory nadaje zamiatanie dzierzawy);
+-- intencja R45 (zlecenie platnika zostaje, idzie do przegladu) bez zmian.
+-- Unia: 20261013900000. `shared_payment` zostaje powodem ZAMKNIECIA (ocena).
 SELECT ok(
-  (SELECT j.state = 'needs_review' AND j.review_reason = 'shared_payment'
+  (SELECT j.state = 'needs_review' AND j.review_reason = 'active_registrations_share_payment'
+          AND j.escalated_at IS NOT NULL
           AND j.registration_id = 'e4540000-0000-0000-0000-0000000a0011'
      FROM pg_temp.r45_job('e4550000-0000-0000-0000-000000000011') j),
-  '3 KRYTERIUM: zwrot prowadzacej nie znika - przeglad shared_payment (gosc dzieli wplate)');
+  '3 KRYTERIUM: zwrot prowadzacej nie znika - przeglad wspolnej wplaty z alarmem (gosc dzieli wplate)');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$SELECT public.admin_event_registration_decide(jsonb_build_object(
@@ -406,11 +412,13 @@ SELECT lives_ok(
       'registration_id', 'e4540000-0000-0000-0000-0000000b0012', 'action', 'reject', 'note', 'brak miejsca dla goscia'))$$,
   '4: organizator odrzuca oplaconego goscia aktywnej prowadzacej');
 RESET ROLE;
+-- SCALENIE Z MAIN (PR #504): jak w 3 - eskalacja INV-19c z alarmem.
 SELECT ok(
-  (SELECT j.state = 'needs_review' AND j.review_reason = 'shared_payment'
+  (SELECT j.state = 'needs_review' AND j.review_reason = 'active_registrations_share_payment'
+          AND j.escalated_at IS NOT NULL
           AND j.registration_id = 'e4540000-0000-0000-0000-0000000b0012'
      FROM pg_temp.r45_job('e4550000-0000-0000-0000-000000000012') j),
-  '4 KRYTERIUM: odrzucony gosc aktywnej prowadzacej - przeglad shared_payment, nie zwrot calosci');
+  '4 KRYTERIUM: odrzucony gosc aktywnej prowadzacej - przeglad wspolnej wplaty z alarmem, nie zwrot calosci');
 SET LOCAL ROLE authenticated;
 SELECT lives_ok(
   $$SELECT public.admin_event_registration_decide(jsonb_build_object(
@@ -623,17 +631,35 @@ SELECT ok(
   AND NOT has_column_privilege('authenticated', 'public.event_registrations', 'decision_note', 'SELECT')
   AND has_column_privilege('authenticated', 'public.event_registrations', 'status', 'SELECT'),
   '11: authenticated nie czyta decided_by ani cancel_reason (status nadal tak)');
+-- SCALENIE Z MAIN (PR #504): od TIX-01 (main 20261012130100) wplata rozlicza
+-- wskazane zgloszenie tylko, gdy konto zamowienia jest jego wlascicielem -
+-- zgloszenie 0a zalozylo to samo konto, ktore teraz placi (inaczej odmowa
+-- `registration_not_owned` zaslonilaby sciezke zamknietego zgloszenia).
+UPDATE public.event_registrations SET created_by = 'e4500000-0000-0000-0000-0000000000c1'
+ WHERE id = 'e4540000-0000-0000-0000-0000000001a1';
 INSERT INTO r45_outcome
 SELECT 'closed1a1', public.payments_apply_event_ticket_outcome('e4550000-0000-0000-0000-0000000001a1', 'paid');
+-- SCALENIE Z MAIN (PR #504): wplata na zgloszenie odwolane PRZED wplata nie
+-- kupila niczego - main 20261012130100 (TIX-05) robi z niej ODMOWE ze zwrotem
+-- automatycznym (`refused`, `refund_queued`, pochodzenie `system`), a REG R45
+-- (20261012181400) zostawial zlecenie siatki w przegladzie z dzwonkiem z bazy.
+-- Unia (20261013900100/900200): zwrot automatyczny, gdy nikt aktywny nie
+-- dzieli wplaty - organizatora zawiadamia odmowa (TS), baza nie dzwoni drugi
+-- raz; przeglad z dzwonkiem z bazy zostaje dla wspolnej wplaty
+-- (supabase/tests/reg_main_merge_test.sql).
 SELECT ok(
-  (SELECT v->>'registration_status' = 'cancelled' AND (v->>'organizer_alerted')::boolean
+  (SELECT v->>'registration_status' = 'cancelled' AND (v->>'refused')::boolean
+          AND (v->>'refund_queued')::boolean AND v->>'reason' = 'registration_closed'
+          AND NOT (v->>'organizer_alerted')::boolean
      FROM r45_outcome WHERE k = 'closed1a1')
-  AND (SELECT j.state = 'needs_review' FROM pg_temp.r45_job('e4550000-0000-0000-0000-0000000001a1') j)
-  AND EXISTS (SELECT 1 FROM public.notifications n
+  AND (SELECT j.state = 'pending' AND j.origin = 'system' AND j.review_reason IS NULL
+              AND j.amount_cents = 10000 AND j.currency = 'PLN'
+         FROM pg_temp.r45_job('e4550000-0000-0000-0000-0000000001a1') j)
+  AND NOT EXISTS (SELECT 1 FROM public.notifications n
                WHERE n.user_id = 'e4500000-0000-0000-0000-0000000000a1'
                  AND n.kind = 'billing'
                  AND n.href = '/admin/events/e4510000-0000-0000-0000-00000000000a/registration/list'),
-  '11: wplata na zamkniete zgloszenie - zlecenie w przegladzie i dzwonek z bazy');
+  '11: wplata na zamkniete zgloszenie - odmowa ze zwrotem automatycznym (TIX-05), bez drugiego dzwonka z bazy');
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- ACL NOWYCH FUNKCJI
