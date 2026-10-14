@@ -348,6 +348,9 @@ body {
    gamutem sRGB zostają w oklch - hex spłaszczyłby je na ekranach P3. Dopisując
    nową klasę palety, dopisz jej kolor tutaj tylko po tym samym sprawdzeniu. */
 @theme {
+  /* Text over the auth photograph stays light in both site themes;
+     primary-foreground is for brand buttons and may be dark. */
+  --color-auth-image-foreground: #ffffff;
   --color-red-50: #fef2f2;
   --color-red-100: #ffe2e2;
   --color-red-500: #fb2c36;
