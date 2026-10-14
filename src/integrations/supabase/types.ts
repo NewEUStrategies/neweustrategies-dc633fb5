@@ -26877,6 +26877,7 @@ export type Database = {
           id: string
           job_title: string
           last_name: string
+          participant_reason: string
           person_id: string
           person_user_id: string
           phone: string
