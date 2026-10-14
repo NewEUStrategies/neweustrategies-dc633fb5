@@ -20959,6 +20959,56 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_send_log: {
+        Row: {
+          attempts: number
+          claim_id: string
+          claimed_at: string
+          created_at: string
+          detail: string | null
+          id: string
+          idempotency_key: string
+          sent_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claim_id?: string
+          claimed_at?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          idempotency_key: string
+          sent_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claim_id?: string
+          claimed_at?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          idempotency_key?: string
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_send_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       speaker_profiles: {
         Row: {
           bio_en: string | null
@@ -33182,6 +33232,20 @@ export type Database = {
           skill_id: string
         }[]
       }
+      sms_send_claim: {
+        Args: { p_idempotency_key: string; p_tenant_id: string }
+        Returns: Json
+      }
+      sms_send_finish: {
+        Args: {
+          p_claim_id: string
+          p_detail?: string
+          p_status: string
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
+      sms_send_log_prune: { Args: { p_limit?: number }; Returns: number }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       sync_org_verification: { Args: { p_user_id: string }; Returns: Json }
       telemetry_retention_prune: { Args: { p_limit?: number }; Returns: Json }
