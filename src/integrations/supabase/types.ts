@@ -474,6 +474,41 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_admin_provisioned_accounts: {
+        Row: {
+          email_norm: string
+          invitation_id: string | null
+          recorded_at: string
+          source: string
+          tenant_id: string | null
+          user_id: string
+        }
+        Insert: {
+          email_norm: string
+          invitation_id?: string | null
+          recorded_at?: string
+          source: string
+          tenant_id?: string | null
+          user_id: string
+        }
+        Update: {
+          email_norm?: string
+          invitation_id?: string | null
+          recorded_at?: string
+          source?: string
+          tenant_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auth_admin_provisioned_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auth_email_events: {
         Row: {
           action_url_host: string | null
@@ -23306,6 +23341,10 @@ export type Database = {
       _email_dlq_redact: {
         Args: { p_dlq_at: string; p_message: Json }
         Returns: Json
+      }
+      _event_account_admin_provisioned: {
+        Args: { p_uid: string }
+        Returns: boolean
       }
       _event_admission_quote: {
         Args: { p_ip_subject: string; p_payload: Json }
