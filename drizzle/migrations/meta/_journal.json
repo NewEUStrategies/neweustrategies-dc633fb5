@@ -2059,6 +2059,13 @@
       "when": 1791997332720,
       "tag": "0293_reg_main_merge2_registration_views",
       "breakpoints": true
+    },
+    {
+      "idx": 294,
+      "version": "7",
+      "when": 1791997796357,
+      "tag": "0294_reg_main_merge2_scanner_gate",
+      "breakpoints": true
     }
   ]
 }

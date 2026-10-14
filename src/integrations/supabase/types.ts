@@ -23483,28 +23483,17 @@ export type Database = {
         Args: { _at: string; _event_id: string; _tenant: string }
         Returns: string
       }
-      _event_checkin_evaluate:
-        | {
-            Args: {
-              _checkpoint_id: string
-              _direction: string
-              _event_id: string
-              _person_id: string
-              _tenant: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _at?: string
-              _checkpoint_id: string
-              _direction: string
-              _event_id: string
-              _person_id: string
-              _tenant: string
-            }
-            Returns: Json
-          }
+      _event_checkin_evaluate: {
+        Args: {
+          _at?: string
+          _checkpoint_id: string
+          _direction: string
+          _event_id: string
+          _person_id: string
+          _tenant: string
+        }
+        Returns: Json
+      }
       _event_checkin_inside_since: {
         Args: {
           _at: string
