@@ -1597,6 +1597,13 @@
       "when": 1791961379702,
       "tag": "0227_event_consent_confirm_withdraw",
       "breakpoints": true
+    },
+    {
+      "idx": 228,
+      "version": "7",
+      "when": 1791962333137,
+      "tag": "0228_event_cfp_resolve_person_verified",
+      "breakpoints": true
     }
   ]
 }
