@@ -15,7 +15,8 @@
 // CZEGO NIE DUBLUJE: `MessageOrConnectButton` ma własne testy - tu jest
 // atrapą-markerem i sprawdzamy wyłącznie propsy, które dostaje.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
+import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 
 const h = vi.hoisted(() => ({
   language: "pl" as "pl" | "en",
@@ -42,6 +43,11 @@ vi.mock("@/components/network/MessageOrConnectButton", () => ({
       {`contact:${displayName}`}
     </button>
   ),
+}));
+
+vi.mock("@/lib/iconLibrary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/iconLibrary")>()),
+  listIcons: async () => [],
 }));
 
 import { realT } from "@/test/i18nReal";

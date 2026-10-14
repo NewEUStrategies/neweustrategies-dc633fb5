@@ -26,4 +26,5 @@
 - Render the section-label action arrow from the shared `NorthEastArrow` component (slider dots keep `AngleChevron` < >) - a hairline diagonal with an open corner, sized at about three quarters of the label em minus 1 px with `vector-effect="non-scaling-stroke"` - so the default arrow option reads as a premium "↗" in every widget; text glyphs "›"/"⟶" remain only for the explicitly chosen chevron/long options, and "none" removes the mark entirely.
 - Use `kinetic-signal-notch` as the default and template variant for every CMS Builder `section-label`, so existing backfilled pages and newly created pages share one section-heading treatment while slider navigation keeps its dedicated angle chevrons.
 
-- Reuse homepage chrome controls in AuthPortal for consistent language and theme switching.
+- Reuse homepage chrome in AuthPortal for consistent switches.
+- Use BrandIcon and brandTile on member profiles for admin icons and expert-style interactions.
