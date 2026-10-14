@@ -334,7 +334,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         {layout.showHero && (
           <section
             key={`hero-${theme}-${illustration}`}
-            className={`relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-white shadow-2xl shadow-primary/20 min-h-[640px] animate-[fadeInUp_.6s_ease-out] bg-muted ${layout.hero}`}
+            className={`relative hidden lg:flex flex-col justify-between rounded-2xl overflow-hidden text-auth-image-foreground shadow-2xl shadow-primary/20 min-h-[640px] animate-[fadeInUp_.6s_ease-out] bg-muted ${layout.hero}`}
             style={{
               backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.35) 0%, rgba(15,23,42,0.15) 45%, rgba(15,23,42,0.65) 100%), url("${illustration}")`,
               backgroundSize: "cover",
@@ -346,11 +346,11 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
               <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
                 {heroTitle}
               </h2>
-              <p className="text-sm text-primary-foreground/90 max-w-xs drop-shadow">{heroSub}</p>
+              <p className="text-sm text-auth-image-foreground/90 max-w-xs drop-shadow">{heroSub}</p>
             </div>
-            <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-primary-foreground/80">
+            <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-auth-image-foreground/80">
               <span>© {new Date().getFullYear()} New European Strategies</span>
-              <span className="px-2 py-1 rounded bg-white/15 backdrop-blur-sm">
+              <span className="px-2 py-1 rounded bg-auth-image-foreground/15 backdrop-blur-sm">
                 {uiLanguage.toUpperCase()}
               </span>
             </div>
