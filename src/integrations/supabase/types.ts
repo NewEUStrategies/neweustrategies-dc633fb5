@@ -24300,6 +24300,10 @@ export type Database = {
         Args: { p_old_email_norm: string; p_person: string; p_tenant: string }
         Returns: boolean
       }
+      _event_phone_sms_destination: {
+        Args: { p_phone: string }
+        Returns: string
+      }
       _event_plan_seat_link_backfill: { Args: never; Returns: Json }
       _event_plan_seat_needed: {
         Args: {
