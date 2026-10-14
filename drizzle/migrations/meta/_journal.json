@@ -1611,6 +1611,13 @@
       "when": 1791962451255,
       "tag": "0229_email_unsubscribe_withdraws_event_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1791962675349,
+      "tag": "0230_event_register_core",
+      "breakpoints": true
     }
   ]
 }

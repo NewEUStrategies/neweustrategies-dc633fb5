@@ -24227,6 +24227,17 @@ export type Database = {
         Returns: boolean
       }
       _event_refund_unconfirmed_days: { Args: never; Returns: number }
+      _event_register: {
+        Args: {
+          p_ip_subject: string
+          p_issue_confirmation: boolean
+          p_payload: Json
+          p_tenant: string
+          p_uid: string
+          p_user_agent: string
+        }
+        Returns: Json
+      }
       _event_registration_actor: {
         Args: {
           _manage_token: string
@@ -24273,6 +24284,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_registration_ticket_json: {
+        Args: { t: Database["public"]["Tables"]["event_ticket_types"]["Row"] }
+        Returns: Json
+      }
       _event_registration_unit_price: {
         Args: {
           p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
@@ -24304,6 +24319,15 @@ export type Database = {
       _event_reminders_claim: {
         Args: { p_limit?: number; p_sms?: boolean }
         Returns: Json
+      }
+      _event_reveal_coupon_covers: {
+        Args: {
+          p_code: string
+          p_event_id: string
+          p_tenant: string
+          p_ticket_id: string
+        }
+        Returns: boolean
       }
       _event_rsvp_claim_paid_seat: {
         Args: { p_order_id: string }
