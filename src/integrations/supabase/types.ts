@@ -23270,6 +23270,10 @@ export type Database = {
         Args: { p_source_type: string }
         Returns: number
       }
+      _email_dlq_redact: {
+        Args: { p_dlq_at: string; p_message: Json }
+        Returns: Json
+      }
       _event_admission_quote: {
         Args: { p_ip_subject: string; p_payload: Json }
         Returns: Json
@@ -30444,6 +30448,10 @@ export type Database = {
       email_default_tenant_id: { Args: never; Returns: string }
       email_deliverability_counts: {
         Args: { p_days?: number; p_tenant: string }
+        Returns: Json
+      }
+      email_dlq_prune: {
+        Args: { p_limit?: number; p_max_age?: string }
         Returns: Json
       }
       email_filter_suppressed: {
