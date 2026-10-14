@@ -1548,6 +1548,13 @@
       "when": 1791958772045,
       "tag": "0220_event_person_crm_sync_consent_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 221,
+      "version": "7",
+      "when": 1791959095021,
+      "tag": "0221_sms_send_log",
+      "breakpoints": true
     }
   ]
 }
