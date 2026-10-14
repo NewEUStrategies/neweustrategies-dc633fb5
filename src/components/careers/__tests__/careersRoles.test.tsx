@@ -816,7 +816,8 @@ describe("CareerRoleCard: treść oferty i jej oznaczenia", () => {
     expect(obwodka).toHaveClass("border-brand/50", "bg-brand/[0.08]");
     expect(belka).toHaveClass("bg-[position:0%_100%]");
     expect(poswiata).toHaveClass("bg-[position:0%_100%]", "opacity-50");
-    expect(intern).toHaveClass("-translate-y-0.5");
+    // Karty nie podskakują - wybór sygnalizują wyłącznie warstwy koloru.
+    expect(intern).not.toHaveClass("-translate-y-0.5");
 
     for (const card of [analyst, marketing]) {
       const opis = within(card).getByRole("heading", { level: 3 }).textContent ?? "";
