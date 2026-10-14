@@ -10277,6 +10277,9 @@ export type Database = {
           promoted_at: string | null
           qr_issued_at: string | null
           qr_token_hash: string | null
+          quote_valid_until: string | null
+          quoted_currency: string | null
+          quoted_price_cents: number | null
           registration_mode: string
           remind_email: boolean
           remind_push: boolean
@@ -10332,6 +10335,9 @@ export type Database = {
           promoted_at?: string | null
           qr_issued_at?: string | null
           qr_token_hash?: string | null
+          quote_valid_until?: string | null
+          quoted_currency?: string | null
+          quoted_price_cents?: number | null
           registration_mode: string
           remind_email?: boolean
           remind_push?: boolean
@@ -10387,6 +10393,9 @@ export type Database = {
           promoted_at?: string | null
           qr_issued_at?: string | null
           qr_token_hash?: string | null
+          quote_valid_until?: string | null
+          quoted_currency?: string | null
+          quoted_price_cents?: number | null
           registration_mode?: string
           remind_email?: boolean
           remind_push?: boolean
@@ -22940,6 +22949,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_bind_uid_for_email: {
+        Args: { p_email_norm: string; p_tenant: string; p_uid: string }
+        Returns: string
+      }
       _event_cfp_acceptance_undo: {
         Args: { p_actor: string; p_submission_id: string; p_tenant: string }
         Returns: Json
@@ -23523,6 +23536,13 @@ export type Database = {
         Args: { _at: string; _tz: string }
         Returns: boolean
       }
+      _event_manage_token_resolve: {
+        Args: { _purpose: string; _tenant: string; _token: string }
+        Returns: {
+          registration_id: string
+          verdict: string
+        }[]
+      }
       _event_meeting_available: {
         Args: {
           _ends: string
@@ -23787,6 +23807,7 @@ export type Database = {
         }
         Returns: string
       }
+      _event_registration_quote_ttl: { Args: never; Returns: string }
       _event_registration_refund_failed: {
         Args: {
           p_environment: string
@@ -23807,6 +23828,13 @@ export type Database = {
           p_refund_id: string
         }
         Returns: boolean
+      }
+      _event_registration_unit_price: {
+        Args: {
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
+          p_ticket: Database["public"]["Tables"]["event_ticket_types"]["Row"]
+        }
+        Returns: Json
       }
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
@@ -24193,6 +24221,10 @@ export type Database = {
         Args: { p_tenant: string; p_ticket_type_id: string }
         Returns: number
       }
+      _event_uid_owns_email: {
+        Args: { p_email: string; p_uid: string }
+        Returns: boolean
+      }
       _event_unique_page_slug: {
         Args: { _base: string; _tenant: string }
         Returns: string
@@ -24322,6 +24354,10 @@ export type Database = {
       }
       _require_server_identity: {
         Args: { p_probe_subject: string; p_tenant: string; p_uid: string }
+        Returns: undefined
+      }
+      _require_server_probe: {
+        Args: { p_probe_subject: string; p_tenant: string }
         Returns: undefined
       }
       _set_request_identity: {
@@ -30448,6 +30484,10 @@ export type Database = {
       }
       event_registration_notify_payload: {
         Args: { p_payload: Json }
+        Returns: Json
+      }
+      event_registration_notify_payload_for_tenant: {
+        Args: { _tenant_id: string; p_payload: Json }
         Returns: Json
       }
       event_registration_partner_consent_withdraw: {
