@@ -62,7 +62,7 @@ export function CareersHero({
         >
           {t("careers.hero.badge", { value: offers.length })}
           <ArrowRight
-            className="h-3.5 w-3.5 text-brand-ink transition-transform duration-200 group-hover:translate-x-0.5"
+            className="h-3.5 w-3.5 text-current transition-transform duration-300 ease-out group-hover:translate-x-[3px] motion-reduce:transition-none"
             aria-hidden
           />
         </button>
@@ -121,11 +121,11 @@ export function CareersHero({
           <Button
             size="lg"
             onClick={onSeeRoles}
-            className="group h-12 gap-2 rounded-[6px] px-6 text-sm font-semibold shadow-[0_14px_30px_-18px_color-mix(in_oklab,var(--primary)_85%,transparent)] transition-transform duration-200 hover:-translate-y-0.5"
+            className="group h-12 gap-2 rounded-[6px] px-6 text-sm font-semibold shadow-[0_14px_30px_-18px_color-mix(in_oklab,var(--primary)_85%,transparent)] transition-[background-color,box-shadow] duration-300 ease-out hover:bg-primary/92 motion-reduce:transition-none"
           >
             {t("careers.ctaPrimary")}
             <ArrowRight
-              className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+              className="h-4 w-4 text-current transition-transform duration-300 ease-out group-hover:translate-x-[3px] motion-reduce:transition-none"
               aria-hidden
             />
           </Button>
