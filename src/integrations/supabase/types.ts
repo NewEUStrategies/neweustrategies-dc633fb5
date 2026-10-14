@@ -23386,6 +23386,10 @@ export type Database = {
         Args: { p_email_norm: string; p_tenant: string; p_uid: string }
         Returns: string
       }
+      _event_cancelled_event_close_paid: {
+        Args: { _actor: string; _event_id: string; _tenant: string }
+        Returns: Json
+      }
       _event_cfp_acceptance_undo: {
         Args: { p_actor: string; p_submission_id: string; p_tenant: string }
         Returns: Json

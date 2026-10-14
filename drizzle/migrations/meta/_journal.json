@@ -1772,6 +1772,13 @@
       "when": 1791986037497,
       "tag": "0252_marketing_consent_unsubscribe_contact_crm_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 253,
+      "version": "7",
+      "when": 1791986804200,
+      "tag": "0253_event_cancellation_closes_paid",
+      "breakpoints": true
     }
   ]
 }
