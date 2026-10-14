@@ -23587,6 +23587,12 @@ export type Database = {
         Returns: Json
       }
       _event_consent_backfill_legacy: { Args: never; Returns: number }
+      _event_consent_confirmation_state: {
+        Args: {
+          p_conf: Database["public"]["Tables"]["event_consent_confirmations"]["Row"]
+        }
+        Returns: string
+      }
       _event_consent_issue_confirmation: {
         Args: {
           p_event: string
@@ -26561,6 +26567,10 @@ export type Database = {
       admin_event_refund_jobs: { Args: { p_event_id: string }; Returns: Json }
       admin_event_registration_code_invalidate: {
         Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_registration_consent_detail: {
+        Args: { p_registration_id: string }
         Returns: Json
       }
       admin_event_registration_decide: {
@@ -30594,6 +30604,30 @@ export type Database = {
       }
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
+      event_consent_confirm_for_request: {
+        Args: {
+          _ip_subject: string
+          _tenant_id: string
+          _user_agent: string
+          _user_id: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      event_consent_confirmation_preview: {
+        Args: { _tenant_id: string; p_token: string }
+        Returns: Json
+      }
+      event_consent_withdraw_for_request: {
+        Args: {
+          _ip_subject: string
+          _tenant_id: string
+          _user_agent: string
+          _user_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       event_coupon_revealed_tickets: {
         Args: { p_code: string; p_event_id: string; p_tenant: string }
         Returns: string[]
@@ -30702,6 +30736,7 @@ export type Database = {
       event_my_account_link: { Args: { p_payload?: Json }; Returns: Json }
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
       event_my_cfp_submissions: { Args: { p_slug: string }; Returns: Json }
+      event_my_consent_state: { Args: never; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_set: { Args: { p_payload?: Json }; Returns: Json }
       event_my_event_profile_sync_account: {
