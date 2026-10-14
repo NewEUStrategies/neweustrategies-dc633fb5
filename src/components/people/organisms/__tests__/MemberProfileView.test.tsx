@@ -15,8 +15,8 @@
 // CZEGO NIE DUBLUJE: `MessageOrConnectButton` ma własne testy - tu jest
 // atrapą-markerem i sprawdzamy wyłącznie propsy, które dostaje.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, within } from "@testing-library/react";
-import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const h = vi.hoisted(() => ({
   language: "pl" as "pl" | "en",
@@ -84,7 +84,12 @@ function profile(over: Partial<MemberProfile> = {}): MemberProfile {
 
 function mount(p: MemberProfile, lang: "pl" | "en" = "pl") {
   h.language = lang;
-  return render(<MemberProfileView profile={p} lang={lang} />);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<MemberProfileView profile={p} lang={lang} />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 afterEach(() => {
