@@ -1919,6 +1919,13 @@
       "when": 1791992473290,
       "tag": "0273_checkout_settings_promo_default_off",
       "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1791992563374,
+      "tag": "0274_subscription_event_guard",
+      "breakpoints": true
     }
   ]
 }
