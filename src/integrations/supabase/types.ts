@@ -31125,6 +31125,19 @@ export type Database = {
           user_id: string
         }[]
       }
+      event_people_account_binding_review: {
+        Args: { p_tenant?: string }
+        Returns: {
+          account_email_norm: string
+          email_norm: string
+          mails_elsewhere: number
+          person_id: string
+          registrations_by_others: number
+          risk: string
+          tenant_id: string
+          user_id: string
+        }[]
+      }
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_for_client: {
         Args: {
