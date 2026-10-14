@@ -2024,6 +2024,13 @@
       "when": 1791996371605,
       "tag": "0288_reg_main_merge_seat_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1791996511146,
+      "tag": "0289_reg_main_merge_package_invite",
+      "breakpoints": true
     }
   ]
 }
