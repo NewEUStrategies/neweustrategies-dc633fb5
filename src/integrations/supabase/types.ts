@@ -10467,54 +10467,78 @@ export type Database = {
       }
       event_registration_refund_jobs: {
         Row: {
+          amount_cents: number | null
           attempts: number
           claim_token: string | null
           claimed_at: string | null
           created_at: string
+          currency: string | null
+          decided_at: string | null
+          decided_by: string | null
           escalated_at: string | null
           event_id: string
           id: string
           last_error: string | null
           next_attempt_at: string
-          payment_order_id: string
+          origin: string
+          payment_order_id: string | null
           provider_refund_id: string | null
+          refund_deadline_at: string | null
           registration_id: string
+          requested_by: string | null
+          review_note: string | null
           review_reason: string | null
           state: string
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          amount_cents?: number | null
           attempts?: number
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          currency?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
           escalated_at?: string | null
           event_id: string
           id?: string
           last_error?: string | null
           next_attempt_at?: string
-          payment_order_id: string
+          origin?: string
+          payment_order_id?: string | null
           provider_refund_id?: string | null
+          refund_deadline_at?: string | null
           registration_id: string
+          requested_by?: string | null
+          review_note?: string | null
           review_reason?: string | null
           state?: string
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          amount_cents?: number | null
           attempts?: number
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          currency?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
           escalated_at?: string | null
           event_id?: string
           id?: string
           last_error?: string | null
           next_attempt_at?: string
-          payment_order_id?: string
+          origin?: string
+          payment_order_id?: string | null
           provider_refund_id?: string | null
+          refund_deadline_at?: string | null
           registration_id?: string
+          requested_by?: string | null
+          review_note?: string | null
           review_reason?: string | null
           state?: string
           tenant_id?: string
@@ -10583,6 +10607,8 @@ export type Database = {
           quote_valid_until: string | null
           quoted_currency: string | null
           quoted_price_cents: number | null
+          refund_terms_deadline_at: string | null
+          refund_terms_mode: string | null
           registration_mode: string
           remind_email: boolean
           remind_push: boolean
@@ -10642,6 +10668,8 @@ export type Database = {
           quote_valid_until?: string | null
           quoted_currency?: string | null
           quoted_price_cents?: number | null
+          refund_terms_deadline_at?: string | null
+          refund_terms_mode?: string | null
           registration_mode: string
           remind_email?: boolean
           remind_push?: boolean
@@ -10701,6 +10729,8 @@ export type Database = {
           quote_valid_until?: string | null
           quoted_currency?: string | null
           quoted_price_cents?: number | null
+          refund_terms_deadline_at?: string | null
+          refund_terms_mode?: string | null
           registration_mode?: string
           remind_email?: boolean
           remind_push?: boolean
@@ -24236,6 +24266,17 @@ export type Database = {
         Args: { p_lapsed_order?: string; p_registration_id: string }
         Returns: string
       }
+      _event_refund_alert_organizers: {
+        Args: {
+          _body_en: string
+          _body_pl: string
+          _event_id: string
+          _tenant: string
+          _title_en: string
+          _title_pl: string
+        }
+        Returns: number
+      }
       _event_refund_attempt_budget: { Args: never; Returns: number }
       _event_refund_job_escalate: {
         Args: { p_error?: string; p_job_id: string; p_reason: string }
@@ -24262,6 +24303,18 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_registration_cancel_refund: {
+        Args: {
+          _actor: string
+          _assessment: Json
+          _note?: string
+          _origin: string
+          _registration_id: string
+          _tenant: string
+          _waive?: boolean
+        }
+        Returns: Json
+      }
       _event_registration_checkout_open: {
         Args: { p_registration_id: string; p_tenant: string }
         Returns: boolean
@@ -24278,6 +24331,15 @@ export type Database = {
         Returns: string
       }
       _event_registration_quote_ttl: { Args: never; Returns: string }
+      _event_registration_refund_assess: {
+        Args: {
+          _at?: string
+          _origin: string
+          _registration_id: string
+          _tenant: string
+        }
+        Returns: Json
+      }
       _event_registration_refund_failed: {
         Args: {
           p_environment: string
