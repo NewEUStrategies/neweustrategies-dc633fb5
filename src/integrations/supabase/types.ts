@@ -24665,6 +24665,7 @@ export type Database = {
         Returns: undefined
       }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
+      _event_text_has_control: { Args: { p_text: string }; Returns: boolean }
       _event_ticket_checkout_quote: {
         Args: {
           p_access_code: string

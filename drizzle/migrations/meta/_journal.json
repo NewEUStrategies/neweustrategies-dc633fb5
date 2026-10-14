@@ -1688,6 +1688,13 @@
       "when": 1791981644004,
       "tag": "0240_event_registration_private_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1791982500316,
+      "tag": "0241_event_register_control_chars_race",
+      "breakpoints": true
     }
   ]
 }
