@@ -2066,6 +2066,13 @@
       "when": 1791997796357,
       "tag": "0294_reg_main_merge2_scanner_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1791998072365,
+      "tag": "0295_reg_main_merge2_scanner_roster_badges",
+      "breakpoints": true
     }
   ]
 }
