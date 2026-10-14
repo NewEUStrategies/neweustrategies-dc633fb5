@@ -10135,6 +10135,72 @@ export type Database = {
           },
         ]
       }
+      event_person_account_unbinds: {
+        Row: {
+          account_email_norm: string | null
+          email_norm: string | null
+          id: string
+          person_id: string
+          reason: string
+          registrations_by_account: number
+          restored_at: string | null
+          restored_by: string | null
+          restored_email_norm: string | null
+          risk: string
+          tenant_id: string
+          unbound_at: string
+          unbound_by: string | null
+          user_id: string | null
+        }
+        Insert: {
+          account_email_norm?: string | null
+          email_norm?: string | null
+          id?: string
+          person_id: string
+          reason: string
+          registrations_by_account?: number
+          restored_at?: string | null
+          restored_by?: string | null
+          restored_email_norm?: string | null
+          risk: string
+          tenant_id: string
+          unbound_at?: string
+          unbound_by?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          account_email_norm?: string | null
+          email_norm?: string | null
+          id?: string
+          person_id?: string
+          reason?: string
+          registrations_by_account?: number
+          restored_at?: string | null
+          restored_by?: string | null
+          restored_email_norm?: string | null
+          risk?: string
+          tenant_id?: string
+          unbound_at?: string
+          unbound_by?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_person_account_unbinds_person_fkey"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_person_account_unbinds_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_person_crm_links: {
         Row: {
           created_at: string
@@ -24060,6 +24126,14 @@ export type Database = {
         Args: { p_person_id: string; p_tenant: string }
         Returns: number
       }
+      _event_people_unbind_unverified: {
+        Args: { p_reason?: string }
+        Returns: number
+      }
+      _event_person_account_risk: {
+        Args: { p_created_by: string; p_email_norm: string; p_user_id: string }
+        Returns: string
+      }
       _event_person_consent_crm_withdraw: {
         Args: {
           p_evidence: string
@@ -26453,6 +26527,18 @@ export type Database = {
         Returns: Json
       }
       admin_event_participant_settings_save: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_people_account_bindings: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
+      admin_event_person_account_restore: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_person_account_unbind: {
         Args: { p_payload: Json }
         Returns: Json
       }
@@ -30816,6 +30902,19 @@ export type Database = {
         }[]
       }
       event_participant_options: { Args: { p_slug: string }; Returns: Json }
+      event_people_account_binding_audit: {
+        Args: { p_tenant?: string }
+        Returns: {
+          account_email_confirmed: boolean
+          account_email_norm: string
+          email_norm: string
+          person_id: string
+          registrations_by_account: number
+          risk: string
+          tenant_id: string
+          user_id: string
+        }[]
+      }
       event_register: { Args: { p_payload: Json }; Returns: Json }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
