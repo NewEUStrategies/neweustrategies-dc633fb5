@@ -1639,6 +1639,13 @@
       "when": 1791963770765,
       "tag": "0233_event_waitlist_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 234,
+      "version": "7",
+      "when": 1791964096968,
+      "tag": "0234_event_group_guests_hardening",
+      "breakpoints": true
     }
   ]
 }
