@@ -1849,6 +1849,13 @@
       "when": 1791990439324,
       "tag": "0263_event_people_unbind_after_r12",
       "breakpoints": true
+    },
+    {
+      "idx": 264,
+      "version": "7",
+      "when": 1791990527278,
+      "tag": "0264_author_profiles_public_drop_contact_email",
+      "breakpoints": true
     }
   ]
 }
