@@ -23,7 +23,7 @@ export function CareerFilterChip({
         "text-sm font-medium transition-[color,background-color,border-color,transform] duration-200",
         active
           ? "border-primary/60 bg-primary/10 text-foreground"
-          : "border-border/70 bg-card/60 text-muted-foreground hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground",
+          : "border-border/70 bg-card/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
       )}
     >
       <span className="truncate">{label}</span>
