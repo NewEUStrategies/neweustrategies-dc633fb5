@@ -1870,6 +1870,13 @@
       "when": 1791991127628,
       "tag": "0266_donations_ledger_integrity",
       "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1791991255315,
+      "tag": "0267_payment_webhook_events_retention",
+      "breakpoints": true
     }
   ]
 }
