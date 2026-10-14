@@ -1681,6 +1681,13 @@
       "when": 1791981272290,
       "tag": "0239_event_registration_cancel_decide",
       "breakpoints": true
+    },
+    {
+      "idx": 240,
+      "version": "7",
+      "when": 1791981644004,
+      "tag": "0240_event_registration_private_columns",
+      "breakpoints": true
     }
   ]
 }
