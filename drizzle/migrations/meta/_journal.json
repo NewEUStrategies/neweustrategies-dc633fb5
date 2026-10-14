@@ -2017,6 +2017,13 @@
       "when": 1791996101107,
       "tag": "0287_reg_main_merge_ticket_outcome",
       "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1791996371605,
+      "tag": "0288_reg_main_merge_seat_ledger",
+      "breakpoints": true
     }
   ]
 }
