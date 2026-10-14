@@ -1583,6 +1583,13 @@
       "when": 1791960766807,
       "tag": "0225_event_people_account_binding_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1791961117701,
+      "tag": "0226_event_package_invite_accept_verified",
+      "breakpoints": true
     }
   ]
 }
