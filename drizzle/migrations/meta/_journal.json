@@ -1632,6 +1632,13 @@
       "when": 1791963388217,
       "tag": "0232_event_registration_quote_consumers",
       "breakpoints": true
+    },
+    {
+      "idx": 233,
+      "version": "7",
+      "when": 1791963770765,
+      "tag": "0233_event_waitlist_settlement",
+      "breakpoints": true
     }
   ]
 }
