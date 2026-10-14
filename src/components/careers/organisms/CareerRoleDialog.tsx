@@ -111,7 +111,7 @@ export function CareerRoleDialog({
           >
             {t("careers.roles.apply")}
             <ArrowRight
-              className="h-4 w-4 transition-transform duration-200 group-hover/cta:translate-x-0.5"
+              className="h-4 w-4 shrink-0 text-current transition-transform duration-300 ease-out group-hover/cta:translate-x-[3px] motion-reduce:transition-none"
               aria-hidden
             />
           </Button>
