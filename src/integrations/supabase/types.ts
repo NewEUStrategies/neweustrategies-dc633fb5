@@ -23578,6 +23578,7 @@ export type Database = {
         Args: { _ends: string; _starts: string }
         Returns: string
       }
+      _event_email_hint: { Args: { p_email: string }; Returns: string }
       _event_free_ticket_orders_unsettled: {
         Args: { p_limit?: number }
         Returns: string[]
@@ -30604,6 +30605,7 @@ export type Database = {
           sort_order: number
         }[]
       }
+      event_my_account_link: { Args: { p_payload?: Json }; Returns: Json }
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
       event_my_cfp_submissions: { Args: { p_slug: string }; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }

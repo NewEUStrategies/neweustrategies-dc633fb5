@@ -1569,6 +1569,13 @@
       "when": 1791959886728,
       "tag": "0223_event_reminder_channel_gates",
       "breakpoints": true
+    },
+    {
+      "idx": 224,
+      "version": "7",
+      "when": 1791960443319,
+      "tag": "0224_event_people_verified_account_binding",
+      "breakpoints": true
     }
   ]
 }
