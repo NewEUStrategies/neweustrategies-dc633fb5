@@ -16,6 +16,7 @@
 // atrapą-markerem i sprawdzamy wyłącznie propsy, które dostaje.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const h = vi.hoisted(() => ({
   language: "pl" as "pl" | "en",
@@ -42,6 +43,11 @@ vi.mock("@/components/network/MessageOrConnectButton", () => ({
       {`contact:${displayName}`}
     </button>
   ),
+}));
+
+vi.mock("@/lib/iconLibrary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/iconLibrary")>()),
+  listIcons: async () => [],
 }));
 
 import { realT } from "@/test/i18nReal";
@@ -78,7 +84,12 @@ function profile(over: Partial<MemberProfile> = {}): MemberProfile {
 
 function mount(p: MemberProfile, lang: "pl" | "en" = "pl") {
   h.language = lang;
-  return render(<MemberProfileView profile={p} lang={lang} />);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<MemberProfileView profile={p} lang={lang} />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 afterEach(() => {

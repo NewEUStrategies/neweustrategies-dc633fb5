@@ -5,6 +5,9 @@ import { useTranslation } from "react-i18next";
 import type { MemberProfile } from "@/lib/profile/memberProfile";
 import { MessageOrConnectButton } from "@/components/network/MessageOrConnectButton";
 import { ensureI18n } from "@/lib/i18n-member-profile";
+import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
+import { cn } from "@/lib/utils";
 
 ensureI18n();
 
@@ -46,12 +49,12 @@ export function MemberProfileView({
             src={profile.avatar_url}
             alt=""
             aria-hidden="true"
-            className="h-20 w-20 shrink-0 rounded-full object-cover ring-1 ring-border"
+            className="h-20 w-20 shrink-0 rounded-[6px] object-cover ring-1 ring-border"
           />
         ) : (
           <span
             aria-hidden="true"
-            className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-primary/10 text-xl font-semibold text-primary"
+            className="grid h-20 w-20 shrink-0 place-items-center rounded-[6px] bg-primary/10 text-xl font-semibold text-primary"
           >
             {initials(profile.display_name)}
           </span>
@@ -60,7 +63,10 @@ export function MemberProfileView({
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-foreground">
             <span className="truncate">{profile.display_name}</span>
             {profile.verified ? (
-              <BadgeCheck
+              <BrandIcon
+                name="badge-check"
+                fallback={BadgeCheck}
+                alt={t("memberProfile.verified")}
                 className="h-5 w-5 shrink-0 text-primary"
                 aria-label={t("memberProfile.verified")}
               />
@@ -68,13 +74,25 @@ export function MemberProfileView({
           </h1>
           {role !== "" ? (
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
+              <BrandIcon
+                name="briefcase"
+                fallback={Briefcase}
+                className="h-3.5 w-3.5 shrink-0"
+                alt=""
+                aria-hidden="true"
+              />
               {role}
             </p>
           ) : null}
           {profile.location !== null ? (
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              <BrandIcon
+                name="location"
+                fallback={MapPin}
+                className="h-3.5 w-3.5 shrink-0"
+                alt=""
+                aria-hidden="true"
+              />
               {profile.location}
             </p>
           ) : null}
@@ -83,20 +101,31 @@ export function MemberProfileView({
           {profile.is_self ? (
             <Link
               to="/profile/edit"
-              className="inline-flex items-center gap-1.5 rounded-[4px] border border-border px-3 py-1.5 text-sm hover:bg-muted"
+              className="inline-flex items-center gap-1.5 rounded-[6px] border border-border px-3 py-1.5 text-sm transition-colors duration-200 hover:bg-muted motion-reduce:transition-none"
             >
-              <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+              <BrandIcon
+                name="pen-line"
+                fallback={PenLine}
+                className="h-3.5 w-3.5 shrink-0"
+                alt=""
+                aria-hidden="true"
+              />
               {t("memberProfile.editProfile")}
             </Link>
           ) : (
-            <MessageOrConnectButton userId={profile.id} displayName={profile.display_name} />
+            <MessageOrConnectButton
+              userId={profile.id}
+              displayName={profile.display_name}
+              displayAvatar={profile.avatar_url}
+              className="rounded-[6px] transition-colors duration-200 motion-reduce:transition-none"
+            />
           )}
           {profile.is_author ? (
             <Link
               to="/author/$slug"
               params={{ slug: profile.slug }}
               data-member-author-link
-              className="inline-flex items-center rounded-[4px] bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex items-center rounded-[6px] bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors duration-200 hover:bg-primary/90 motion-reduce:transition-none"
             >
               {t("memberProfile.authorProfile")}
             </Link>
@@ -135,9 +164,19 @@ export function MemberProfileView({
                       href={linkedin}
                       target="_blank"
                       rel="noopener noreferrer nofollow"
-                      className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                      className={cn(
+                        BRAND_TILE_CLASS,
+                        "h-8 gap-2 px-2 motion-reduce:transition-none",
+                      )}
+                      style={brandTileStyle("linkedin")}
                     >
-                      <Linkedin className="h-3.5 w-3.5" aria-hidden="true" />
+                      <BrandIcon
+                        name="linkedin"
+                        fallback={Linkedin}
+                        className="h-4 w-4 shrink-0"
+                        alt=""
+                        aria-hidden="true"
+                      />
                       {t("memberProfile.linkedin")}
                     </a>
                   </li>
@@ -148,9 +187,19 @@ export function MemberProfileView({
                       href={website}
                       target="_blank"
                       rel="noopener noreferrer nofollow"
-                      className="inline-flex items-center gap-1.5 text-primary hover:underline"
+                      className={cn(
+                        BRAND_TILE_CLASS,
+                        "h-8 gap-2 px-2 motion-reduce:transition-none",
+                      )}
+                      style={brandTileStyle("website")}
                     >
-                      <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+                      <BrandIcon
+                        name="website"
+                        fallback={Globe}
+                        className="h-4 w-4 shrink-0"
+                        alt=""
+                        aria-hidden="true"
+                      />
                       {t("memberProfile.website")}
                     </a>
                   </li>
