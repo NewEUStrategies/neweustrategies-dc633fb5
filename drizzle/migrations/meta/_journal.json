@@ -1702,6 +1702,13 @@
       "when": 1791982925100,
       "tag": "0242_event_register_entry_unique_mapping",
       "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1791983079352,
+      "tag": "0243_event_package_invite_accept_control_chars",
+      "breakpoints": true
     }
   ]
 }
