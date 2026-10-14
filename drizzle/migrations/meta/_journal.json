@@ -1807,6 +1807,13 @@
       "when": 1791987814257,
       "tag": "0257_event_seat_writers_lock_order",
       "breakpoints": true
+    },
+    {
+      "idx": 258,
+      "version": "7",
+      "when": 1791987965467,
+      "tag": "0258_event_qr_settled_roster_my_orders",
+      "breakpoints": true
     }
   ]
 }
