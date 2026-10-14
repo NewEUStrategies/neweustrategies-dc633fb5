@@ -24475,6 +24475,10 @@ export type Database = {
         Returns: Json
       }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
+      _event_scan_is_not_entry_code: {
+        Args: { p_code: string }
+        Returns: boolean
+      }
       _event_scanner_code_lookup: {
         Args: { _code: string; _tenant: string }
         Returns: {

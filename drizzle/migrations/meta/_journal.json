@@ -1821,6 +1821,13 @@
       "when": 1791988251183,
       "tag": "0259_event_sms_optout_phone_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 260,
+      "version": "7",
+      "when": 1791988819748,
+      "tag": "0260_event_scanner_not_entry_code",
+      "breakpoints": true
     }
   ]
 }
