@@ -275,6 +275,12 @@ function updates(): Record<string, unknown>[] {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
+  // Izolacja od poswiadczen hosta: testy same deklaruja klucze operatora
+  // (stubOperatorKeys), wiec prawdziwe klucze z otoczenia nie moga zmieniac
+  // wyniku.
+  vi.stubEnv("STRIPE_SANDBOX_API_KEY", "");
+  vi.stubEnv("STRIPE_LIVE_API_KEY", "");
+  vi.stubEnv("LOVABLE_API_KEY", "");
   provider.envs.length = 0;
   provider.canceled.length = 0;
   provider.idempotencyKeys.length = 0;
