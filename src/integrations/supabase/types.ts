@@ -10598,6 +10598,7 @@ export type Database = {
           paid_amount_recorded_at: string | null
           paid_amount_recorded_by: string | null
           paid_at: string | null
+          participant_reason: string | null
           payment_order_id: string | null
           payment_status: string
           person_id: string
@@ -10659,6 +10660,7 @@ export type Database = {
           paid_amount_recorded_at?: string | null
           paid_amount_recorded_by?: string | null
           paid_at?: string | null
+          participant_reason?: string | null
           payment_order_id?: string | null
           payment_status?: string
           person_id: string
@@ -10720,6 +10722,7 @@ export type Database = {
           paid_amount_recorded_at?: string | null
           paid_amount_recorded_by?: string | null
           paid_at?: string | null
+          participant_reason?: string | null
           payment_order_id?: string | null
           payment_status?: string
           person_id?: string
@@ -26746,6 +26749,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_refund_preview: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -31089,6 +31096,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_cancel_preview: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
       event_registration_claim_plan_seat: {
         Args: { p_dry_run?: boolean; p_registration_id: string }
         Returns: Json
