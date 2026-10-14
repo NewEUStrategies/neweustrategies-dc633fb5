@@ -23270,6 +23270,7 @@ export type Database = {
         Returns: undefined
       }
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
+      _auth_admin_provisioned_backfill: { Args: never; Returns: number }
       _b2b_coupon_evaluate:
         | {
             Args: {
