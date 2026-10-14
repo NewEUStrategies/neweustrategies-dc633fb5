@@ -23698,6 +23698,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_invite_probe_guard: {
+        Args: { p_tenant: string; p_uid: string }
+        Returns: undefined
+      }
+      _event_invite_probe_miss: {
+        Args: { p_tenant: string; p_uid: string }
+        Returns: undefined
+      }
       _event_invoice_add_line: {
         Args: {
           p_corrects_line?: string
@@ -30806,6 +30814,7 @@ export type Database = {
       event_my_speaker_panel: { Args: { p_slug: string }; Returns: Json }
       event_my_speaker_profile_set: { Args: { p_payload: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
+      event_package_invite_preview: { Args: { p_payload: Json }; Returns: Json }
       event_package_order_attribution_attach: {
         Args: { p_payload: Json }
         Returns: Json
