@@ -26666,6 +26666,10 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: string[]
       }
+      admin_event_refund_job_decide: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_refund_jobs: { Args: { p_event_id: string }; Returns: Json }
       admin_event_registration_code_invalidate: {
         Args: { p_payload: Json }

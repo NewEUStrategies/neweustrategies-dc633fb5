@@ -1667,6 +1667,13 @@
       "when": 1791980433721,
       "tag": "0237_event_refund_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 238,
+      "version": "7",
+      "when": 1791980784358,
+      "tag": "0238_event_refund_queue_journal",
+      "breakpoints": true
     }
   ]
 }
