@@ -24274,6 +24274,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _event_scanner_device_note_caps: {
+        Args: { _caps: Json; _device_id: string; _tenant: string }
+        Returns: string
+      }
       _event_scanner_device_note_failure: {
         Args: { _device_id: string }
         Returns: boolean
@@ -24560,7 +24564,10 @@ export type Database = {
         }
         Returns: number
       }
-      _event_wallet_pass_queue_legacy_google_objects: { Args: never; Returns: number }
+      _event_wallet_pass_queue_legacy_google_objects: {
+        Args: never
+        Returns: number
+      }
       _event_wallet_pass_revocations_claim: {
         Args: { p_limit?: number }
         Returns: Json
