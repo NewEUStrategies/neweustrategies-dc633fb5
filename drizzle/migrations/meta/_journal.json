@@ -1674,6 +1674,13 @@
       "when": 1791980784358,
       "tag": "0238_event_refund_queue_journal",
       "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1791981272290,
+      "tag": "0239_event_registration_cancel_decide",
+      "breakpoints": true
     }
   ]
 }
