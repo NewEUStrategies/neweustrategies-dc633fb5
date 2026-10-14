@@ -23471,11 +23471,29 @@ export type Database = {
         Returns: Json
       }
       _event_consent_backfill_legacy: { Args: never; Returns: number }
+      _event_consent_issue_confirmation: {
+        Args: {
+          p_event: string
+          p_ip_subject: string
+          p_lang: string
+          p_person: string
+          p_purposes: string[]
+          p_registration: string
+          p_tenant: string
+          p_text_version: number
+          p_user_agent: string
+        }
+        Returns: string
+      }
       _event_consent_text_check: {
         Args: { p_lang: string; p_purpose: string; p_version: number }
         Returns: undefined
       }
       _event_consent_url: { Args: { p_value: string }; Returns: string }
+      _event_consent_withdraw_by_email: {
+        Args: { p_channel: string; p_email: string; p_tenant: string }
+        Returns: boolean
+      }
       _event_default_pages: {
         Args: never
         Returns: {
@@ -23990,6 +24008,48 @@ export type Database = {
       _event_partner_consent_carry_withdrawal: {
         Args: { p_person_id: string; p_tenant: string }
         Returns: number
+      }
+      _event_person_consent_crm_withdraw: {
+        Args: {
+          p_evidence: string
+          p_ip_subject: string
+          p_person: string
+          p_tenant: string
+          p_user_agent: string
+        }
+        Returns: undefined
+      }
+      _event_person_consents_confirm: {
+        Args: {
+          p_actor: string
+          p_confirmation: string
+          p_event: string
+          p_evidence: string
+          p_ip_subject: string
+          p_lang: string
+          p_person: string
+          p_project?: boolean
+          p_purposes: string[]
+          p_registration: string
+          p_source: string
+          p_tenant: string
+          p_text_version: number
+          p_user_agent: string
+        }
+        Returns: undefined
+      }
+      _event_person_consents_withdraw: {
+        Args: {
+          p_actor: string
+          p_evidence: string
+          p_ip_subject: string
+          p_person: string
+          p_purposes: string[]
+          p_source: string
+          p_tenant: string
+          p_user_agent: string
+        }
+        Returns: boolean
       }
       _event_person_crm_sync: {
         Args: {
