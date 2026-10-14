@@ -1520,6 +1520,20 @@
       "when": 1791927315565,
       "tag": "0216_event_package_invite_accept_account_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1791957985902,
+      "tag": "0217_reg_foundations",
+      "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1791958228332,
+      "tag": "0218_event_consent_ledger",
+      "breakpoints": true
     }
   ]
 }
