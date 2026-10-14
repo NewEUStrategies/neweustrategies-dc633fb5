@@ -1940,6 +1940,13 @@
       "when": 1791992746992,
       "tag": "0276_payment_orders_per_seat_plan_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1791992916180,
+      "tag": "0277_billing_cron_own_secret",
+      "breakpoints": true
     }
   ]
 }
