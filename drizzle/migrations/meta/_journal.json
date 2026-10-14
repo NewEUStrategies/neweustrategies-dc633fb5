@@ -1814,6 +1814,13 @@
       "when": 1791987965467,
       "tag": "0258_event_qr_settled_roster_my_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 259,
+      "version": "7",
+      "when": 1791988251183,
+      "tag": "0259_event_sms_optout_phone_consent",
+      "breakpoints": true
     }
   ]
 }
