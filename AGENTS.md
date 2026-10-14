@@ -5,7 +5,7 @@
 
 - Share `eh-slider-arrow` and `AngleChevron` across sliders.
 - Share `EventModuleHero` across tabs, participant profile and studio preview; keep overview separate.
-- Share contact field ceilings between client/server validation and counters; retain complete submitted text in CRM responses and reject oversized custom values rather than slicing them, so visible limits match storage.
+- Share contact limits across client/server validation and counters; preserve full CRM messages and reject oversized custom values, never slice, so displayed limits match storage.
 
 - Use `tsgo --noEmit` for the preview timeout.
 - Share date/time/select atoms and sizing tokens; preserve local dates and native form values to prevent date shifts and corrupt submissions.
@@ -18,7 +18,7 @@
 
 - Resolve per-widget dark accents from CMS content `accentColorDark`, falling back to existing accent inversion, so instance-specific colors never override all section labels.
 
-- Treat widget typography, spacing, dimensions, borders, shadows and interaction geometry as shared across light/dark; only colors and theme-specific media may vary, so switching themes never changes layout.
+- Share widget typography, spacing, dimensions, borders, shadows and interaction geometry across light/dark; vary only colors and theme media to prevent layout shifts.
 - Render minimized chats from the shared session-backed store, with a maximum of three avatar bubbles on mobile and compact pills on desktop, so restoration state stays consistent across responsive surfaces.
 - Derive article table-of-contents activity from heading geometry in one animation-frame-throttled scroll listener, to avoid skipped sections on fast scroll.
 - Build article-audio controls from shared stateful icon atoms, so the sidebar widget and global audio bar preserve identical geometry, animation, and theme contrast.
