@@ -1800,6 +1800,13 @@
       "when": 1791987677594,
       "tag": "0256_event_registration_decide_refund_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 257,
+      "version": "7",
+      "when": 1791987814257,
+      "tag": "0257_event_seat_writers_lock_order",
+      "breakpoints": true
     }
   ]
 }
