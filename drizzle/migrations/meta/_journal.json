@@ -1863,6 +1863,13 @@
       "when": 1791991041473,
       "tag": "0265_public_definer_views_read_only",
       "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1791991127628,
+      "tag": "0266_donations_ledger_integrity",
+      "breakpoints": true
     }
   ]
 }
