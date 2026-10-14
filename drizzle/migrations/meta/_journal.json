@@ -1625,6 +1625,13 @@
       "when": 1791963047117,
       "tag": "0231_event_register_entry",
       "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1791963388217,
+      "tag": "0232_event_registration_quote_consumers",
+      "breakpoints": true
     }
   ]
 }
