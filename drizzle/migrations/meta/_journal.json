@@ -1856,6 +1856,13 @@
       "when": 1791990527278,
       "tag": "0264_author_profiles_public_drop_contact_email",
       "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1791991041473,
+      "tag": "0265_public_definer_views_read_only",
+      "breakpoints": true
     }
   ]
 }
