@@ -1709,6 +1709,13 @@
       "when": 1791983079352,
       "tag": "0243_event_package_invite_accept_control_chars",
       "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1791983328471,
+      "tag": "0244_event_group_guests_validation_first",
+      "breakpoints": true
     }
   ]
 }

@@ -24297,6 +24297,15 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_register_group_guests: {
+        Args: {
+          p_guests: Json
+          p_lead_registration_id: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: Json
+      }
       _event_registration_actor: {
         Args: {
           _manage_token: string
@@ -31090,6 +31099,16 @@ export type Database = {
       }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
+        Returns: Json
+      }
+      event_register_group_guests_for_client: {
+        Args: {
+          _ip_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_guests: Json
+          p_lead_registration_id: string
+        }
         Returns: Json
       }
       event_registration_attribution_attach: {
