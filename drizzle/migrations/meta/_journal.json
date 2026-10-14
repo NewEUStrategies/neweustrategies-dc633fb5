@@ -1912,6 +1912,13 @@
       "when": 1791992032567,
       "tag": "0272_subscription_lifecycle_reconcile",
       "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1791992473290,
+      "tag": "0273_checkout_settings_promo_default_off",
+      "breakpoints": true
     }
   ]
 }
