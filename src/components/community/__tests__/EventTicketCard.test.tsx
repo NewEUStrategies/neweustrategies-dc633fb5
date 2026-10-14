@@ -1,15 +1,17 @@
-// Karta „mój bilet" - 32 linie, do dziś 0% pokrycia.
+// Karta potwierdzenia rezerwacji na stronie wydarzenia („mój bilet").
 //
 // CO JEST PRZEDMIOTEM DOWODU. Ta karta jest jedynym miejscem w serwisie, które
 // pokazuje uczestnikowi jego WŁASNE dane osobowe razem z numerem transakcji
-// i kodem wejściowym. Trzy rzeczy są tu warte testu, a żadna z nich nie jest
-// „czy się wyrenderowało":
+// i numerem potwierdzenia. Trzy rzeczy są tu warte testu, a żadna z nich nie
+// jest „czy się wyrenderowało":
 //
-//   1. CO NIESIE KOD QR. Kod jest skanowany przy wejściu przez obcą osobę
-//      i bywa pokazywany z ekranu telefonu w kolejce. Wolno mu nieść WYŁĄCZNIE
-//      adres weryfikacyjny z numerem biletu - nie imię, nie e-mail, nie numer
-//      transakcji. Test czyta ARGUMENT, z jakim komponent woła generator kodu,
-//      i sprawdza, czego w nim NIE MA.
+//   1. BRAK KODU QR (REG-12, kryterium audytu „brak ticketQrPayload w UI").
+//      Dawniej karta rysowała QR z numerem `NES-…` w adresie `?ticket=`, którego
+//      skaner przy bramce nie zna - każdy skan był „nieznanym kodem" liczonym
+//      do blokady urządzenia. Karta nie rysuje już żadnego obrazka, nie woła
+//      generatora kodu, a zamiast tego mówi, gdzie jest prawdziwy kod wejścia
+//      (`ticket.entry`). Statyczny skan `src/` pilnuje, że funkcja budująca tamten
+//      adres nie wraca.
 //
 //   2. KTÓRE RUBRYKI ZNIKAJĄ. Bilet bezpłatny nie ma kwoty ani numeru
 //      transakcji, wydarzenie online nie ma miejsca. Pusta rubryka na
@@ -23,9 +25,10 @@
 // CO JEST ATRAPOWANE I DLACZEGO:
 //   * `@tanstack/react-start` -> `useServerFn` zwraca przekazaną funkcję, więc
 //     atrapa `getMyEventTicket` jest wołana pod własną nazwą;
-//   * `qrcode` - prawdziwa biblioteka rysuje bitmapę, a nas interesuje TREŚĆ
-//      kodu, nie jego piksele; atrapa pozwala też sterować momentem, w którym
-//      obrazek jest gotowy (stan „QR jeszcze się liczy");
+//   * `qrcode` - atrapa ZOSTAJE, żeby dowieść, że karta nie woła generatora
+//     kodu wcale (gdyby ktoś przywrócił QR, test zobaczy wywołanie);
+//   * `@tanstack/react-router` -> `Link` jako zwykły `<a>` (karta nie stoi tu
+//     w drzewie tras);
 //   * `./ticketDocument` - ma WŁASNY test (ucieczka znaków w pliku HTML, 100%);
 //     tutaj dowodzimy tylko tego, CO karta mu podaje i pod jaką nazwą pliku.
 //     Powtarzanie tam asercji o treści dokumentu byłoby duplikatem.
@@ -38,7 +41,9 @@
 // GRANICA DOWODU: nic tutaj nie dowodzi, że backend pokazuje bilet TYLKO
 // właścicielowi - to trzyma RLS i `loadMyEventTicket` (własne testy warstwy
 // serwerowej). Ten plik odpowiada za to, co widzi posiadacz biletu.
-import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { MyEventTicket } from "@/lib/events/ticketTypes";
@@ -75,13 +80,19 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
 });
 vi.mock("@/lib/events/ticket.functions", () => ({ getMyEventTicket: h.loadTicket }));
 vi.mock("qrcode", () => ({ default: { toDataURL: h.toDataURL } }));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/community/ticketDocument", () => ({
   buildTicketDocument: h.buildDoc,
   downloadTicketDocument: h.downloadDoc,
 }));
 
 import { EventTicketCard } from "@/components/community/EventTicketCard";
-import { ticketQrPayload } from "@/lib/events/ticketCode";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { realT } from "@/test/i18nReal";
 import { axeViolations, summarize } from "@/test/axe";
@@ -117,21 +128,9 @@ function ticket(overrides: Partial<MyEventTicket> = {}): MyEventTicket {
     paidAt: "2026-09-01T10:00:00.000Z",
     holderName: "Ada Przykładowska",
     holderEmail: "ada.przykladowska@example.org",
+    entry: "emailed_qr",
     ...overrides,
   };
-}
-
-/**
- * Obietnica z zewnętrznym spustem - potrzebna tam, gdzie test musi ZATRZYMAĆ
- * odpowiedź w locie (odmontowanie w trakcie rysowania kodu QR). Ten sam idiom
- * co `src/components/admin/seo/__tests__/UrlInspectionWidget.test.tsx`.
- */
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
 }
 
 function renderCard(props: { eventId?: string; enabled?: boolean } = {}) {
@@ -161,7 +160,7 @@ function label(key: string, lang: "pl" | "en" = "pl"): string {
   return realT(lang)(`community.events.ticket.${key}`);
 }
 
-/** Karta jest asynchroniczna (bilet + rysowanie kodu) - czekamy na rubryki. */
+/** Karta jest asynchroniczna (odczyt biletu) - czekamy na rubryki. */
 async function waitForRows(container: HTMLElement): Promise<void> {
   await waitFor(() => expect(container.querySelector("dl")).not.toBeNull());
 }
@@ -201,25 +200,64 @@ describe("kiedy karty nie ma", () => {
   });
 });
 
-describe("kod QR niesie WYŁĄCZNIE numer biletu", () => {
-  it("treść kodu to adres weryfikacyjny z numerem biletu", async () => {
+/** Wszystkie pliki `.ts`/`.tsx` w `src/` poza testami - do skanu statycznego. */
+function sourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) {
+      if (name === "__tests__" || name === "node_modules") continue;
+      out.push(...sourceFiles(path));
+    } else if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) {
+      out.push(path);
+    }
+  }
+  return out;
+}
+
+describe("REG-12: karta NIE rysuje kodu QR (numer potwierdzenia to nie kod wejścia)", () => {
+  it("brak obrazka, brak wywołania generatora kodu, brak tekstu alternatywnego QR", async () => {
     const { container } = renderCard();
     await waitForRows(container);
-    await waitFor(() => expect(h.toDataURL).toHaveBeenCalled());
-    const payload = h.toDataURL.mock.calls[0]?.[0];
-    expect(payload).toBe(ticketQrPayload(CANONICAL_SITE_ORIGIN, "szczyt-energetyczny", CODE));
-    expect(payload).toContain(CODE);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(h.toDataURL).not.toHaveBeenCalled();
+    expect(container.innerHTML).not.toContain("?ticket=");
   });
 
-  it("w kodzie nie ma imienia, adresu e-mail ani numeru transakcji", async () => {
-    // To jest cała stawka tej rubryki: kod skanuje obcy człowiek przy wejściu.
+  it("numer potwierdzenia stoi jako etykieta z wyjaśnieniem, że nie otwiera bramki", async () => {
     const { container } = renderCard();
     await waitForRows(container);
-    await waitFor(() => expect(h.toDataURL).toHaveBeenCalled());
-    const payload = h.toDataURL.mock.calls[0]?.[0] ?? "";
-    for (const secret of ["Ada", "Przykładowska", "example.org", "tx_zmyslone_0001"]) {
-      expect(payload).not.toContain(secret);
-    }
+    expect(rowValue(container, label("code"))).toBe(CODE);
+    expect(label("code")).toBe("Numer potwierdzenia");
+    expect(container.textContent).toContain(label("notEntryCode"));
+  });
+
+  it("`emailed_qr`: zdanie o mailu „Twój bilet” i odnośnik do listy zgłoszeń w profilu", async () => {
+    const { container } = renderCard();
+    await waitForRows(container);
+    expect(container.textContent).toContain(label("entryEmailedQr"));
+    const link = screen.getByRole("link", { name: label("myRegistrations") });
+    expect(link).toHaveAttribute("href", "/profile/tickets");
+  });
+
+  it.each([
+    ["qr_pending", "entryQrPending"],
+    ["contact_organizer", "entryContactOrganizer"],
+    ["guest_list", "entryGuestList"],
+  ] as const)("`%s` mówi swoje zdanie i nie odsyła do kodu z maila", async (entry, key) => {
+    h.loadTicket.mockResolvedValue(ticket({ entry }));
+    const { container } = renderCard();
+    await waitForRows(container);
+    expect(container.textContent).toContain(label(key));
+    expect(container.textContent).not.toContain(label("entryEmailedQr"));
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("pobranie jest dostępne od razu - nie czeka na żaden obrazek", async () => {
+    const { container } = renderCard();
+    await waitForRows(container);
+    expect(screen.getByRole("button", { name: label("download") })).toBeEnabled();
   });
 
   it("adres e-mail posiadacza nie trafia do DOM karty", async () => {
@@ -229,40 +267,26 @@ describe("kod QR niesie WYŁĄCZNIE numer biletu", () => {
     expect(container.textContent).toContain("Ada Przykładowska");
   });
 
-  it("tekst alternatywny obrazka mówi tylko o numerze biletu", async () => {
-    renderCard();
-    const img = await screen.findByRole("img");
-    expect(img).toHaveAttribute("src", QR_PNG);
-    expect(img).toHaveAccessibleName(label("qrAlt").replace("{{code}}", CODE));
-  });
-
-  it("dopóki kod się liczy, jest zastępnik i pobranie jest zablokowane", async () => {
-    // Potwierdzenie BEZ kodu QR jest bezużyteczne przy wejściu, więc przycisk
-    // pobrania czeka na obrazek.
-    h.toDataURL.mockReturnValue(new Promise<string>(() => {}));
-    const { container } = renderCard();
-    await waitForRows(container);
-    expect(screen.queryByRole("img")).toBeNull();
-    expect(screen.getByRole("button", { name: label("download") })).toBeDisabled();
-  });
-
-  it("odmontowanie przed dorysowaniem kodu nie aktualizuje już stanu", async () => {
-    // Strażnik `cancelled` w efekcie. Bez niego React zgłasza aktualizację
-    // stanu odmontowanego komponentu - a to sygnał wycieku, nie kosmetyka.
-    const qr = deferred<string>();
-    h.toDataURL.mockReturnValue(qr.promise);
-    const errors: unknown[] = [];
-    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      errors.push(args[0]);
+  it("STATYCZNIE: w `src/` nie ma już `ticketQrPayload` ani QR rysowanego z numeru potwierdzenia", () => {
+    // Kryterium audytu REG-12 dosłownie. Skan obejmuje cały kod produkcyjny,
+    // nie tylko kartę - powrót funkcji w dowolnym innym miejscu też jest błędem.
+    const offenders = sourceFiles(join(process.cwd(), "src")).filter((file) => {
+      const text = readFileSync(file, "utf8");
+      // Drugi warunek: plik, który rysuje QR (`qrcode`) i dotyka numeru
+      // potwierdzenia (`ticketCodeFrom` / `ticket.code`) - czyli QR z numeru,
+      // którego skaner nie zna, pod dowolną nową nazwą.
+      const drawsQr = /from "qrcode"/.test(text);
+      return (
+        text.includes("ticketQrPayload") ||
+        (drawsQr && /ticketCodeFrom|\bticket\.code\b/.test(text))
+      );
     });
-    const { container, unmount } = renderCard();
-    await waitForRows(container);
-    await waitFor(() => expect(h.toDataURL).toHaveBeenCalled());
-    unmount();
-    qr.resolve(QR_PNG);
-    await Promise.resolve();
-    spy.mockRestore();
-    expect(errors).toEqual([]);
+    expect(offenders).toEqual([]);
+  });
+
+  it("STATYCZNIE: moduł numeru potwierdzenia nie eksportuje `ticketQrPayload`", async () => {
+    const mod = await import("@/lib/events/ticketCode");
+    expect(Object.keys(mod)).not.toContain("ticketQrPayload");
   });
 });
 
@@ -340,7 +364,8 @@ describe("język strony rozstrzyga tytuł i format terminu", () => {
     await waitForRows(container);
     expect(rowValue(container, label("date", "en"))).toContain("September 2026");
     expect(container.textContent).toContain(realT("en")("community.events.ticket.title"));
-    expect(container.textContent).not.toContain("Numer biletu");
+    expect(container.textContent).not.toContain("Numer potwierdzenia");
+    expect(rowValue(container, label("code", "en"))).toBe(CODE);
   });
 
   it("pusty tytuł angielski spada na polski, a nie na pustkę", async () => {
@@ -356,16 +381,17 @@ describe("język strony rozstrzyga tytuł i format terminu", () => {
 });
 
 describe("pobranie potwierdzenia", () => {
-  it("dokument dostaje bilet, język, tytuł, termin i gotowy kod QR", async () => {
+  it("dokument dostaje bilet, język, tytuł i termin - bez żadnego kodu QR", async () => {
     const { container } = renderCard();
     await waitForRows(container);
     fireEvent.click(await screen.findByRole("button", { name: label("download") }));
     const input = h.buildDoc.mock.calls[0]?.[0];
     expect(input?.lang).toBe("pl");
     expect(input?.title).toBe("Szczyt energetyczny");
-    expect(input?.qrDataUrl).toBe(QR_PNG);
     expect(input?.dateLabel).toContain("września 2026");
     expect(input?.ticket.code).toBe(CODE);
+    expect(input === undefined ? [] : Object.keys(input)).not.toContain("qrDataUrl");
+    expect(h.toDataURL).not.toHaveBeenCalled();
   });
 
   it("plik nazywa się numerem biletu, a nie „ticket.html”", async () => {
@@ -418,13 +444,12 @@ describe("dostępność", () => {
   it("gotowa karta biletu nie ma naruszeń axe", async () => {
     const { container } = renderCard();
     await waitForRows(container);
-    await screen.findByRole("img");
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);
   });
 
-  it("karta z niegotowym kodem QR też nie ma naruszeń axe", async () => {
-    h.toDataURL.mockReturnValue(new Promise<string>(() => {}));
+  it("karta trybu listy gości (bez odnośnika) też nie ma naruszeń axe", async () => {
+    h.loadTicket.mockResolvedValue(ticket({ entry: "guest_list" }));
     const { container } = renderCard();
     await waitForRows(container);
     const violations = await axeViolations(container);

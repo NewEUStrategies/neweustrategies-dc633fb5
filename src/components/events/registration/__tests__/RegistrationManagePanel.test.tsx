@@ -18,6 +18,15 @@
 // 7. PO ODWOŁANIU nie ma już czego odwoływać: przycisk znika, a jego miejsce
 //    zajmuje potwierdzenie (z informacją o osobie z listy rezerwowej).
 //
+// 10. KLUCZ POZA ADRESAMI, KTÓRE WYCHODZĄ (REG-17): „kopiuj" daje odnośnik
+//     z kluczem we FRAGMENCIE, adres powrotu z kasy jest BEZ klucza (klucz
+//     czeka w `sessionStorage`), a klucz wygasły z końcem wydarzenia (podgląd
+//     stanu `expired`) zostawia samo zdanie i gniazdo zgód.
+//
+// 9. ZGODY (REG-14): gniazdo wycofania zgód (`ManageConsentsSlot`, atrapa
+//    z `data-testid`) stoi pod panelem przy KAŻDYM kluczu, który nie jest
+//    nieznany - także przy kluczu wygasłym i po rezygnacji.
+//
 // 8. GNIAZDA TORÓW F1-F5 (spec B.11, BLK-5). Pod kartą stanu zgłoszenia (gdy
 //    stan jest znany) stoją gniazda B (akcje biletu), A (przypomnienia
 //    i kalendarz) i C (po wydarzeniu). KAŻDY moduł gniazda stoi tu na atrapie
@@ -29,7 +38,7 @@
 // POZA Reactem, na prawdziwej instancji i18next, więc tam asercja czyta to,
 // co naprawdę zobaczy uczestnik w powiadomieniu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import type { EventPageHeader } from "@/lib/community/publicQueries";
 import type {
@@ -38,14 +47,36 @@ import type {
   RegistrationCancelResult,
   RegistrationManageView,
 } from "@/lib/events/publicRegistrationApi";
+import type { CancellationPreview } from "@/lib/events/cancellationPreview";
 import type { ManagePanelSlotProps } from "@/components/events/participant/slots/slotTypes";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { MANAGE_RETURN_STASH_KEY } from "@/lib/events/manageToken";
+
+/** Podgląd stanu mówi „klucz wygasł" (REG-17) zamiast zgłoszenia. */
+const widok = vi.hoisted(() => ({ wygasl: false }));
 
 /** Właściwości przekazane gniazdom torów - kontrakt BLK-5 (montaż + właściwości). */
 const gniazda = vi.hoisted(() => ({
   akcje: [] as ManagePanelSlotProps[],
   kalendarz: [] as ManagePanelSlotProps[],
   poWydarzeniu: [] as ManagePanelSlotProps[],
+  zgody: [] as Array<{ token: string | null }>,
+  wycofanie: [] as Array<{ manageToken: string; reason: string }>,
+}));
+
+// Przegląd R67: karta samego wyłączania SMS-ów i e-maili (klucz wygasły).
+vi.mock("@/components/events/participant/molecules/ChannelWithdrawCard", () => ({
+  ChannelWithdrawCard: (props: { manageToken: string; reason: string }) => {
+    gniazda.wycofanie.push(props);
+    return <div data-testid="karta-wycofania-kanalow" />;
+  },
+}));
+
+vi.mock("@/components/events/participant/slots/ManageConsentsSlot", () => ({
+  ManageConsentsSlot: (props: { token: string | null }) => {
+    gniazda.zgody.push(props);
+    return <div data-testid="gniazdo-zgody" />;
+  },
 }));
 
 vi.mock("@/components/events/participant/slots/ManageTicketActionsSlot", () => ({
@@ -71,6 +102,7 @@ const fetchHeader = vi.fn<(slug: string) => Promise<EventPageHeader | null>>();
 const cancel = vi.fn<(input: CancelRegistrationInput) => Promise<RegistrationCancelResult>>();
 const manageView =
   vi.fn<(input: { manageToken?: string }) => Promise<RegistrationManageView | null>>();
+const preview = vi.fn<(input: { manageToken?: string }) => Promise<CancellationPreview>>();
 const withdraw =
   vi.fn<(input: { manageToken?: string }) => Promise<PartnerConsentWithdrawResult>>();
 const checkout = vi.fn();
@@ -122,7 +154,12 @@ vi.mock("@/lib/community/publicQueries", () => ({
 
 vi.mock("@/lib/events/publicRegistrationApi", () => ({
   cancelRegistration: (input: CancelRegistrationInput) => cancel(input),
-  fetchRegistrationManageView: (input: { manageToken?: string }) => manageView(input),
+  loadRegistrationManageView: async (input: { manageToken?: string }) => {
+    if (widok.wygasl) return { kind: "expired" as const };
+    const view = await manageView(input);
+    return view === null ? { kind: "not_found" as const } : { kind: "view" as const, view };
+  },
+  fetchCancellationPreview: (input: { manageToken?: string }) => preview(input),
   withdrawPartnerConsent: (input: { manageToken?: string }) => withdraw(input),
 }));
 
@@ -162,6 +199,30 @@ function confirmButton(): HTMLElement {
   return screen.getByRole("button", { name: "eventFront.manage.confirm" });
 }
 
+/** Podgląd rezygnacji (REG-03) - domyślnie bez pieniędzy, bez odmowy. */
+function okPreview(
+  refund: Partial<NonNullable<Extract<CancellationPreview, { kind: "ok" }>["refund"]>> = {},
+): CancellationPreview {
+  return {
+    kind: "ok",
+    registrationId: "11111111-1111-1111-1111-111111111111",
+    status: "approved",
+    canCancel: true,
+    refusal: null,
+    refund: {
+      effect: "none",
+      reviewReason: null,
+      amountCents: null,
+      currency: null,
+      refundMode: null,
+      refundDeadlineAt: null,
+      groupGuestsClosing: 0,
+      acknowledgementRequired: false,
+      ...refund,
+    },
+  };
+}
+
 /** Odpowiedź `event_registration_manage_view` w kształcie z migracji. */
 function manageState(over: Partial<RegistrationManageView> = {}): RegistrationManageView {
   return {
@@ -182,9 +243,13 @@ function manageState(over: Partial<RegistrationManageView> = {}): RegistrationMa
 
 beforeEach(() => {
   vi.clearAllMocks();
+  widok.wygasl = false;
+  window.sessionStorage.clear();
   gniazda.akcje.length = 0;
   gniazda.kalendarz.length = 0;
   gniazda.poWydarzeniu.length = 0;
+  gniazda.zgody.length = 0;
+  gniazda.wycofanie.length = 0;
   quote.mockResolvedValue({
     seats: 1,
     unitCents: 15000,
@@ -197,7 +262,9 @@ beforeEach(() => {
   });
   fetchHeader.mockResolvedValue(header());
   manageView.mockResolvedValue(null);
-  cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
+  // Domyślnie rezygnacja bez pieniędzy - ekran wygląda jak przed REG-03.
+  preview.mockResolvedValue(okPreview());
+  cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0, refund: null });
   writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -293,10 +360,13 @@ describe("RegistrationManagePanel", () => {
     });
 
     fireEvent.click(confirmButton());
+    // Potwierdzenie czeka na skutek finansowy z podglądu (REG-03).
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
     fireEvent.click(confirmButton());
 
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
     expect(cancel).toHaveBeenCalledWith({ manageToken: TOKEN });
+    expect(preview).toHaveBeenCalledWith({ manageToken: TOKEN });
   });
 
   it("rezygnacja wymaga DRUGIEGO kliknięcia - pierwsze tylko pyta", async () => {
@@ -338,7 +408,7 @@ describe("RegistrationManagePanel", () => {
   it("zwolnione miejsce pokazuje się TYLKO wtedy, gdy ktoś faktycznie wszedł", async () => {
     // `promoted_from_waitlist` bywa zerem (nie było kolejki). Zdanie „miejsce
     // trafiło do 0 osób" jest gorsze niż milczenie.
-    cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
+    cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0, refund: null });
     const zero = renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
     fireEvent.click(confirmButton());
@@ -346,7 +416,7 @@ describe("RegistrationManagePanel", () => {
     expect(screen.queryByText(/eventFront\.manage\.promoted/)).toBeNull();
     zero.unmount();
 
-    cancel.mockResolvedValue({ registrationId: "r2", promotedFromWaitlist: 2 });
+    cancel.mockResolvedValue({ registrationId: "r2", promotedFromWaitlist: 2, refund: null });
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
     fireEvent.click(confirmButton());
@@ -403,22 +473,24 @@ describe("RegistrationManagePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "eventFront.manage.confirming" }));
     expect(cancel).toHaveBeenCalledTimes(1);
 
-    release({ registrationId: "r1", promotedFromWaitlist: 0 });
+    release({ registrationId: "r1", promotedFromWaitlist: 0, refund: null });
     expect(await screen.findByText("eventFront.manage.cancelled")).toBeInTheDocument();
   });
 
-  it("kopiowanie odnośnika składa PEŁNY adres strony zarządzania z kluczem", async () => {
+  it("kopiowanie odnośnika składa PEŁNY adres strony zarządzania z kluczem WE FRAGMENCIE", async () => {
     // To jedyny sposób, w jaki uczestnik odzyska tę stronę bez konta. Adres bez
     // klucza (albo z uciętym kluczem) prowadzi do formularza „wklej klucz",
-    // którego nikt już nie ma.
+    // którego nikt już nie ma. Klucz stoi we fragmencie (REG-17): otwarcie
+    // skopiowanego adresu nie wysyła go serwerowi.
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.copyLink" }));
 
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
-        `https://neweuropeanstrategies.com/events/${SLUG}/manage?token=${TOKEN}`,
+        `https://neweuropeanstrategies.com/events/${SLUG}/manage#token=${TOKEN}`,
       ),
     );
+    expect(writeText.mock.calls[0]?.[0]).not.toContain("?token=");
     expect(toast.success).toHaveBeenCalledWith("eventFront.manage.copied");
   });
 
@@ -471,9 +543,30 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     const payload = checkout.mock.calls[0]?.[0] as { data: Record<string, unknown> };
     expect(payload.data.registration_id).toBe("11111111-1111-1111-1111-111111111111");
     expect(payload.data.event_id).toBe("22222222-2222-2222-2222-222222222222");
-    // Powrót ma prowadzić NA TĘ STRONĘ, z kluczem - inaczej uczestnik wraca
-    // z kasy do formularza „wklej klucz", którego już nie ma.
-    expect(payload.data.success_path).toBe(`/events/${SLUG}/manage?token=${TOKEN}`);
+    // REG-17: powrót prowadzi NA TĘ STRONĘ, ale BEZ klucza - adres powrotu
+    // dostaje dostawca płatności. Klucz czeka w `sessionStorage` tej karty
+    // (odłożony PRZED otwarciem kasy), więc trasa odda go panelowi po powrocie.
+    expect(payload.data.success_path).toBe(`/events/${SLUG}/manage`);
+    expect(payload.data.cancel_path).toBe(`/events/${SLUG}/manage`);
+    expect(JSON.stringify(payload)).not.toContain(TOKEN);
+    const stash = JSON.parse(window.sessionStorage.getItem(MANAGE_RETURN_STASH_KEY) ?? "null") as {
+      slug: string;
+      token: string;
+    } | null;
+    expect(stash).toMatchObject({ slug: SLUG, token: TOKEN });
+  });
+
+  it("REG-17: kasa, która odmówiła, nie odkłada klucza", async () => {
+    manageView.mockResolvedValue(manageState());
+    checkout.mockResolvedValue({ ok: false, mode: "config", error: "provider_unavailable" });
+    renderPanel();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
+    );
+
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(window.sessionStorage.getItem(MANAGE_RETURN_STASH_KEY)).toBeNull();
   });
 
   it("zapłacone zgłoszenie NIE pokazuje kasy drugi raz", async () => {
@@ -546,6 +639,7 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
       "gniazdo-kalendarz-przypomnienia",
       "gniazdo-po-wydarzeniu",
       "eventFront.manage.confirmTitle",
+      "gniazdo-zgody",
     ]);
     for (const props of [
       gniazda.akcje.at(-1),
@@ -568,6 +662,70 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
     expect(gniazda.akcje.at(-1)?.token).toBe(TOKEN);
   });
 
+  it("REG-14: gniazdo zgód dostaje WYŁĄCZNIE aktywny klucz", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    renderPanel();
+
+    await screen.findByTestId("gniazdo-zgody");
+    expect(gniazda.zgody.at(-1)).toEqual({ token: TOKEN });
+  });
+
+  it("REG-14: klucz wygasły (po wydarzeniu) - stanu nie ma, ale wycofanie zgód JEST", async () => {
+    manageView.mockResolvedValue(null);
+    preview.mockResolvedValue({ kind: "expired" });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(await screen.findByTestId("gniazdo-zgody")).toBeInTheDocument();
+    expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
+  });
+
+  it("R67: klucz wygasły - karta WYŁĄCZENIA SMS-ów i e-maili stoi obok zgód", async () => {
+    // Gniazda nie rysują się bez stanu zgłoszenia, a zgodę na SMS trzeba móc
+    // wycofać także po końcu wydarzenia (baza przyjmuje samo wyłączenie).
+    manageView.mockResolvedValue(null);
+    preview.mockResolvedValue({ kind: "expired" });
+    renderPanel();
+
+    expect(await screen.findByTestId("karta-wycofania-kanalow")).toBeInTheDocument();
+    expect(gniazda.wycofanie.at(-1)).toEqual({ manageToken: TOKEN, reason: "expired" });
+    expect(screen.queryByTestId("gniazdo-kalendarz-przypomnienia")).toBeNull();
+  });
+
+  it("R67: ważny klucz - karty wyłączania w panelu NIE ma (zgłoszenie obsługuje gniazdo)", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    renderPanel();
+
+    await screen.findByTestId("gniazdo-kalendarz-przypomnienia");
+    expect(screen.queryByTestId("karta-wycofania-kanalow")).toBeNull();
+  });
+
+  it("REG-14: po rezygnacji gniazdo zgód zostaje (zgodę wycofuje się niezależnie)", async () => {
+    manageView.mockResolvedValue(
+      manageState({ status: "approved", paymentStatus: "not_required" }),
+    );
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+    expect(await screen.findByText("eventFront.manage.cancelled")).toBeInTheDocument();
+    expect(screen.getByTestId("gniazdo-zgody")).toBeInTheDocument();
+  });
+
+  it("REG-14: nieznany klucz i brak klucza - gniazda zgód NIE ma", async () => {
+    preview.mockResolvedValue({ kind: "not_found" });
+    renderPanel();
+    expect(await screen.findByText("eventFront.manage.notFound")).toBeInTheDocument();
+    await waitFor(() => expect(preview).toHaveBeenCalled());
+    expect(screen.queryByTestId("gniazdo-zgody")).toBeNull();
+
+    cleanup();
+    renderPanel(null);
+    expect(await screen.findByText("eventFront.manage.missingToken")).toBeInTheDocument();
+    expect(screen.queryByTestId("gniazdo-zgody")).toBeNull();
+  });
+
   it("dopóki stanu zgłoszenia nie ma (nieznany klucz), gniazd NIE ma", async () => {
     manageView.mockResolvedValue(null);
     renderPanel();
@@ -576,6 +734,215 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
     expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
     expect(screen.queryByTestId("gniazdo-kalendarz-przypomnienia")).toBeNull();
     expect(screen.queryByTestId("gniazdo-po-wydarzeniu")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SKUTEK FINANSOWY PRZED POTWIERDZENIEM (REG-03) I ODMOWY Z GÓRY (REG-13/17)
+//
+// Do REG-03 ekran mówił „Twoje miejsce trafi do kolejnej osoby" i nic
+// o pieniądzach - a baza zamykała opłacone zgłoszenie bez zwrotu i bez śladu.
+// Teraz drugi krok pokazuje skutek z podglądu, potwierdzenie czeka na niego
+// i odsyła go do bazy (`acknowledged_effect`), a odmowy znane z góry chowają
+// przycisk zamiast kończyć się błędem po kliknięciu.
+// ---------------------------------------------------------------------------
+describe("RegistrationManagePanel - skutek finansowy rezygnacji (REG-03)", () => {
+  it("drugi krok pokazuje zwrot z kwotą, a potwierdzenie odsyła skutek do bazy", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    preview.mockResolvedValue(
+      okPreview({
+        effect: "full_refund",
+        amountCents: 10000,
+        currency: "PLN",
+        refundMode: "policy",
+        refundDeadlineAt: "2026-09-08T08:00:00Z",
+        acknowledgementRequired: true,
+      }),
+    );
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    expect(
+      await screen.findByText(/eventRegistration\.cancelRefund\.fullRefund\(amount=100,00/),
+    ).toBeInTheDocument();
+    // Termin zwrotu w strefie wydarzenia (08:00 UTC = 10:00 w Warszawie).
+    expect(
+      screen.getByText("eventRegistration.cancelRefund.deadline(date=8 września 2026 10:00)"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(confirmButton());
+    await waitFor(() =>
+      expect(cancel).toHaveBeenCalledWith({
+        manageToken: TOKEN,
+        acknowledgedEffect: "full_refund",
+      }),
+    );
+  });
+
+  it("potwierdzenie jest ZABLOKOWANE, dopóki skutek się nie wczyta", async () => {
+    preview.mockReturnValue(new Promise<CancellationPreview>(() => {}));
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    expect(screen.getByText("eventRegistration.cancelRefund.loading")).toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+    fireEvent.click(confirmButton());
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("rezygnacja po terminie mówi wprost: bez automatycznego zwrotu", async () => {
+    preview.mockResolvedValue(
+      okPreview({
+        effect: "no_refund",
+        reviewReason: "outside_refund_window",
+        refundMode: "policy",
+        refundDeadlineAt: "2026-09-08T08:00:00Z",
+        acknowledgementRequired: true,
+      }),
+    );
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+
+    expect(
+      await screen.findByText(
+        "eventRegistration.cancelRefund.noRefundWindow(date=8 września 2026 10:00)",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+    await waitFor(() =>
+      expect(cancel).toHaveBeenCalledWith({ manageToken: TOKEN, acknowledgedEffect: "no_refund" }),
+    );
+  });
+
+  it("zmieniony skutek (`refund_terms_changed`) odświeża podgląd i zostawia pytanie otwarte", async () => {
+    preview.mockResolvedValue(okPreview({ effect: "full_refund", acknowledgementRequired: true }));
+    cancel.mockRejectedValue(new Error("refund_terms_changed: no_refund"));
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    const before = preview.mock.calls.length;
+
+    fireEvent.click(confirmButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventRegistration.cancelRefund.termsChanged"),
+    );
+    await waitFor(() => expect(preview.mock.calls.length).toBeGreaterThan(before));
+    // Pytanie zostaje otwarte z nowym skutkiem - para „odwołaj / zostaw" stoi dalej.
+    expect(screen.getByRole("button", { name: "eventFront.manage.keep" })).toBeInTheDocument();
+  });
+
+  it("po rezygnacji mówi, że zwrot został zlecony", async () => {
+    preview.mockResolvedValue(okPreview({ effect: "full_refund", acknowledgementRequired: true }));
+    cancel.mockResolvedValue({
+      registrationId: "r1",
+      promotedFromWaitlist: 0,
+      refund: {
+        effect: "full_refund",
+        jobState: "pending",
+        reviewReason: null,
+        amountCents: 10000,
+        currency: "PLN",
+        refundDeadlineAt: null,
+      },
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+
+    expect(
+      await screen.findByText(/eventRegistration\.cancelRefund\.refundQueued\(amount=100,00/),
+    ).toBeInTheDocument();
+  });
+
+  it("po końcu wydarzenia (REG-13) nie ma przycisku rezygnacji - jest zdanie", async () => {
+    preview.mockResolvedValue({
+      kind: "ok",
+      registrationId: "11111111-1111-1111-1111-111111111111",
+      status: "approved",
+      canCancel: false,
+      refusal: "event_ended",
+      refund: null,
+    });
+    renderPanel();
+
+    expect(
+      await screen.findByText("eventRegistration.cancelRefund.refusals.eventEnded"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.confirm" })).toBeNull();
+  });
+
+  it("wygasły klucz (REG-17) mówi „odnośnik wygasł” i nie pokazuje rezygnacji", async () => {
+    preview.mockResolvedValue({ kind: "expired" });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
+    expect(screen.queryByText("eventFront.manage.notFound")).toBeNull();
+  });
+
+  it("REG-17: wygaśnięcie z PODGLĄDU STANU (podgląd rezygnacji niedostępny) - zdanie, bez rezygnacji i kopiowania, z gniazdem zgód", async () => {
+    // Okno wdrożenia: `event_registration_cancel_preview` jeszcze nie istnieje
+    // (`unavailable`), ale `event_registration_manage_view` już mówi
+    // `{ok:false, reason:'expired'}`. Panel nie może wtedy pokazać „nie
+    // znaleziono" ani przycisku rezygnacji, który baza i tak odrzuci.
+    widok.wygasl = true;
+    preview.mockResolvedValue({ kind: "unavailable" });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.notFound")).toBeNull();
+    expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.confirm" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.copyLink" })).toBeNull();
+    expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
+    // Zgodę wycofuje się w dowolnej chwili - także kluczem wygasłym.
+    expect(await screen.findByTestId("gniazdo-zgody")).toBeInTheDocument();
+  });
+
+  it("REG-17: wygaśnięcie wygrywa z odmową z podglądu - bez przycisku kopiowania", async () => {
+    widok.wygasl = true;
+    preview.mockResolvedValue({
+      kind: "ok",
+      registrationId: "11111111-1111-1111-1111-111111111111",
+      status: "approved",
+      canCancel: false,
+      refusal: "event_ended",
+      refund: null,
+    });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.copyLink" })).toBeNull();
+  });
+
+  it("odmowa `event_ended` po kliknięciu mówi zdaniem rezygnacji, nie zapisu", async () => {
+    cancel.mockRejectedValue(new Error("event_ended: the event has already ended"));
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Wydarzenie już się zakończyło - zgłoszenia nie da się odwołać. W sprawie wpłaty napisz do organizatora.",
+      ),
+    );
+  });
+
+  it("częściowy zwrot NIE jest opisany jak zwrot całości", async () => {
+    manageView.mockResolvedValue(
+      manageState({ status: "approved", paymentStatus: "partially_refunded" }),
+    );
+    renderPanel();
+
+    expect(
+      await screen.findByText("eventFront.manage.paymentPartiallyRefunded"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.paymentRefunded")).toBeNull();
   });
 });
 

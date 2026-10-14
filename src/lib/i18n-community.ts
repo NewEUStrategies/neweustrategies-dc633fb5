@@ -73,15 +73,24 @@ export const communityPl = {
       ticket: {
         title: "Twój bilet",
         confirmed: "Miejsce potwierdzone",
-        code: "Numer biletu",
+        // Numer `NES-…` to potwierdzenie rezerwacji, nie kod wejścia (REG-12).
+        code: "Numer potwierdzenia",
         date: "Termin",
         place: "Miejsce",
         holder: "Uczestnik",
         amount: "Kwota",
         transaction: "Numer transakcji",
         download: "Pobierz potwierdzenie",
-        qrAlt: "Kod QR biletu {{code}}",
-        hint: "Okaż kod QR przy wejściu. Potwierdzenie znajdziesz też w mailu.",
+        hint: "Potwierdzenie rezerwacji znajdziesz też w mailu po zapisie.",
+        notEntryCode:
+          "Numer potwierdzenia nie otwiera bramki - przy wejściu skanujemy kod QR biletu albo szukamy Cię po nazwisku.",
+        entryEmailedQr:
+          "Kod QR do wejścia wysłaliśmy mailem „Twój bilet”. Status zgłoszenia sprawdzisz w zakładce",
+        myRegistrations: "Moje zgłoszenia",
+        entryQrPending: "Kod QR do wejścia wyślemy mailem „Twój bilet”, gdy organizator go wyda.",
+        entryContactOrganizer:
+          "Nie udało się doręczyć maila z kodem QR do wejścia - napisz do organizatora wydarzenia.",
+        entryGuestList: "Przy wejściu sprawdzimy Cię na liście gości - wystarczy imię i nazwisko.",
       },
       seatsLeft_one: "Zostało {{count}} miejsce",
       seatsLeft_few: "Zostały {{count}} miejsca",
@@ -316,15 +325,25 @@ export const communityEn = {
       ticket: {
         title: "Your ticket",
         confirmed: "Seat confirmed",
-        code: "Ticket number",
+        code: "Booking reference",
         date: "Date",
         place: "Location",
         holder: "Attendee",
         amount: "Amount",
         transaction: "Transaction number",
         download: "Download confirmation",
-        qrAlt: "Ticket QR code {{code}}",
-        hint: "Show the QR code at the entrance. The confirmation is also in your inbox.",
+        hint: "The booking confirmation is also in the e-mail you received after registering.",
+        notEntryCode:
+          "The booking reference does not open the gate - at the entrance we scan your ticket QR code or find you by name.",
+        entryEmailedQr:
+          "We sent your entry QR code in the “Your ticket” e-mail. You can check your registration status in",
+        myRegistrations: "My registrations",
+        entryQrPending:
+          "We will send your entry QR code in the “Your ticket” e-mail once the organiser issues it.",
+        entryContactOrganizer:
+          "We could not deliver the e-mail with your entry QR code - please contact the event organiser.",
+        entryGuestList:
+          "At the entrance we will check you on the guest list - your name is enough.",
       },
       seatsLeft_one: "{{count}} seat left",
       seatsLeft_other: "{{count}} seats left",

@@ -15,10 +15,17 @@
 // `event_registration_set_channels`, a wysyłka transakcyjna czyta te same
 // kolumny - to jedna prawda, nie dwie.
 //
+// SMS TYLKO ZA ZGODĄ (REG-10, D12). Włączenie SMS-a otwiera `SmsConsentConfirm`
+// i dopiero zgoda wysyła `notify_sms: true` z `sms_consent: true`; wyłączenie
+// idzie od razu. Gdy platforma nie wysyła SMS-ów, przełącznika nie da się
+// włączyć (wyłączyć - zawsze). Odmowy bazy (`sms_consent_required`,
+// `phone_required`, ...) mają własne zdania (`channelErrorKey`).
+//
 // GNIAZDA TORÓW F1-F5 (spec B.11). Karta ma trzy PUSTE gniazda, które
 // wypełniają tory: B pod sekcją płatności (oferta, przekazanie, zwrot),
 // A pod kanałami (przypomnienia), C nad dziennikiem płatności (ankieta,
 // certyfikat). Linie montażu gniazd są nietykalne dla torów.
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -28,10 +35,18 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  channelErrorKey,
   fetchMyRegistrations,
   setRegistrationChannels,
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
+import type { RegistrationPreferencesData } from "@/lib/events/registrationChannelsApi";
+import {
+  registrationPreferencesKey,
+  useParticipantSmsAvailable,
+  useRegistrationPreferences,
+} from "@/lib/events/useRegistrationPreferences";
+import { SmsConsentConfirm } from "@/components/events/participant/molecules/SmsConsentConfirm";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { EventInvoiceTicketStatus } from "@/components/events/invoices/atoms/EventInvoiceTicketStatus";
 import { RegistrationCardActionsSlot } from "@/components/events/participant/slots/RegistrationCardActionsSlot";
@@ -58,6 +73,14 @@ function statusKey(status: string): string {
   return "unknown";
 }
 
+/** Płatność gościa opłaconego zamówieniem prowadzącego - po samym `payment_status`. */
+function sharedPaymentLabel(paymentStatus: string | null, t: (key: string) => string): string {
+  if (paymentStatus === "refunded") return t("participantTickets.payment.refunded");
+  if (paymentStatus === "partially_refunded") return t("participantTickets.payment.partial");
+  if (paymentStatus === "paid") return t("participantTickets.payment.paidByGroup");
+  return t("participantTickets.payment.unpaid");
+}
+
 function money(cents: number | null, currency: string | null, locale: string): string {
   if (cents === null) return "-";
   return new Intl.NumberFormat(locale, {
@@ -73,22 +96,53 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
   const locale = isEn ? "en-GB" : "pl-PL";
   const title = (isEn ? item.eventTitleEn : item.eventTitlePl) ?? item.eventSlug;
 
+  const smsAvailable = useParticipantSmsAvailable();
+  const [smsConsentOpen, setSmsConsentOpen] = useState(false);
+  // ZGODA NA NUMER, KTÓRY POKAZANO (przegląd R67). Okno zgody czyta
+  // podpowiedź numeru z preferencji tego zgłoszenia - dopiero przy otwarciu,
+  // ten sam wpis cache co karta przypomnień - i odsyła ją z potwierdzeniem.
+  // Numer zmieniony w tle daje odmowę `phone_changed` zamiast zgody na numer,
+  // którego uczestnik nie widział. Bez wczytanych preferencji (baza sprzed
+  // migracji, błąd) podpowiedź nie jedzie wcale.
+  const consentPrefs = useRegistrationPreferences({
+    registrationId: item.registrationId,
+    enabled: smsConsentOpen,
+  });
+  // Lokalna stała zawęża unię (`kind`) - pole wyniku zapytania by jej nie zawęziło.
+  const consentResult = consentPrefs.data;
+  const consentPrefsData: RegistrationPreferencesData | null =
+    consentResult?.kind === "ok" ? consentResult : null;
+
   const channels = useMutation({
-    mutationFn: (patch: { notifyEmail?: boolean; notifySms?: boolean }) =>
-      setRegistrationChannels({ registrationId: item.registrationId, ...patch }),
+    mutationFn: (patch: {
+      notifyEmail?: boolean;
+      notifySms?: boolean;
+      smsConsent?: boolean;
+      phoneHint?: string | null;
+    }) => setRegistrationChannels({ registrationId: item.registrationId, ...patch }),
     onSuccess: () => {
       toast.success(t("participantTickets.channels.saved"));
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      // Karta przypomnień tego zgłoszenia czyta `notify_*` ze swojego wpisu.
+      void queryClient.invalidateQueries({
+        queryKey: registrationPreferencesKey(item.registrationId),
+      });
     },
-    onError: () => toast.error(t("participantTickets.channels.failed")),
+    onError: (error: unknown) => toast.error(t(channelErrorKey(error))),
+    onSettled: () => setSmsConsentOpen(false),
   });
+  // Wyłączyć SMS można zawsze; włączyć - tylko gdy platforma je wysyła.
+  const smsLocked = !item.notifySms && !smsAvailable;
 
   const fullyRefunded =
     item.amountCents !== null && item.amountCents > 0 && item.refundedCents >= item.amountCents;
   const partiallyRefunded = item.refundedCents > 0 && !fullyRefunded;
 
-  const paymentLabel =
-    item.amountCents === null || item.amountCents === 0
+  // Gość grupy (płaci prowadzący) nie dostaje z bazy kwoty zamówienia - pusta
+  // kwota NIE znaczy tu „bezpłatne", tylko „opłacone cudzym zamówieniem".
+  const paymentLabel = item.paymentShared
+    ? sharedPaymentLabel(item.paymentStatus, t)
+    : item.amountCents === null || item.amountCents === 0
       ? t("participantTickets.payment.free")
       : fullyRefunded
         ? t("participantTickets.payment.refunded")
@@ -202,11 +256,24 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           {t("participantTickets.reason.title")}
         </h3>
         <p className="text-sm text-muted-foreground">{reasonSentence}</p>
-        {item.cancelReason !== null && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("participantTickets.reason.note", { note: item.cancelReason })}
+        {/* Stan zwrotu zamknietego zgloszenia (takze zamknietego odwolaniem
+            calego wydarzenia, przeglad R45) - baza oddaje go tylko dla
+            zgloszen zamknietych i tylko z wlasnego zamowienia uczestnika. */}
+        {item.refundState !== null && (
+          <p className="mt-1 text-sm text-foreground">
+            {t(`participantTickets.refundState.${item.refundState}`)}
           </p>
         )}
+        {/* Tylko zgloszenie zamkniete: powod na ponownie otwartym wierszu byl
+            juz nieaktualny (baza i tak go nie oddaje - podwojny zamek). */}
+        {item.participantReason !== null &&
+          (item.status === "rejected" || item.status === "cancelled") && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("participantTickets.reason.participantReason", {
+                reason: item.participantReason,
+              })}
+            </p>
+          )}
         {item.decisionSource !== null && (
           <p className="mt-1 text-xs text-muted-foreground">
             {t("participantTickets.reason.source", { source: item.decisionSource })}
@@ -231,12 +298,32 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           <label className="flex items-center gap-2 text-sm text-foreground">
             <Switch
               checked={item.notifySms}
-              disabled={channels.isPending}
-              onCheckedChange={(checked) => channels.mutate({ notifySms: checked })}
+              disabled={channels.isPending || smsLocked}
+              onCheckedChange={(checked) =>
+                checked ? setSmsConsentOpen(true) : channels.mutate({ notifySms: false })
+              }
             />
             {t("participantTickets.channels.sms")}
           </label>
         </div>
+        {smsLocked && (
+          <p className="text-xs text-muted-foreground">
+            {t("participantTickets.channels.smsUnavailable")}
+          </p>
+        )}
+        <SmsConsentConfirm
+          open={smsConsentOpen}
+          phoneHint={consentPrefsData?.phoneHint ?? null}
+          pending={channels.isPending || (smsConsentOpen && consentPrefs.isFetching)}
+          onConfirm={() =>
+            channels.mutate(
+              consentPrefsData !== null
+                ? { notifySms: true, smsConsent: true, phoneHint: consentPrefsData.phoneHint }
+                : { notifySms: true, smsConsent: true },
+            )
+          }
+          onCancel={() => setSmsConsentOpen(false)}
+        />
       </section>
       <RegistrationCardRemindersSlot item={item} />
       <RegistrationCardFollowUpSlot item={item} />

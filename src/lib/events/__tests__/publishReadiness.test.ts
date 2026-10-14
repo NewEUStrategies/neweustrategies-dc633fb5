@@ -225,6 +225,41 @@ describe("buildPublishReadiness - plan sali", () => {
   });
 });
 
+// BILETY UKRYTE BEZ KODU (REG-05, decyzja D6). Od B1a link rejestracyjny
+// z kluczem biletu nie odslania juz biletu ukrytego bez kodu dostepu - organizator,
+// ktory rozeslal sam link, musi to wiedziec przed publikacja. Pozycja istnieje
+// tylko wtedy, gdy panel policzyl bilety (prezentacja wrocila).
+describe("buildPublishReadiness - bilety ukryte bez kodu dostepu", () => {
+  it("bez policzonej prezentacji pozycji nie ma wcale", () => {
+    for (const report of [
+      buildPublishReadiness(input()),
+      buildPublishReadiness(input({ hiddenTicketsWithoutCode: null })),
+    ]) {
+      expect(report.checks.map((item) => item.key)).not.toContain("hiddenTickets");
+    }
+  });
+
+  it("zero takich biletow - pozycja spelniona i liczona w postepie", () => {
+    const report = buildPublishReadiness(input({ hiddenTicketsWithoutCode: 0 }));
+    expect(report.totalCount).toBe(15);
+    expect(failedKeys(report)).toEqual([]);
+  });
+
+  it("bilet ukryty bez kodu to OSTRZEZENIE (nie blokada) ze skrotem do biletow", () => {
+    const report = buildPublishReadiness(input({ hiddenTicketsWithoutCode: 2 }));
+    expect(report.canPublish).toBe(true);
+    expect(report.warnings).toEqual([
+      {
+        key: "hiddenTickets",
+        severity: "warning",
+        section: "registrationTickets",
+        passed: false,
+        count: 2,
+      },
+    ]);
+  });
+});
+
 // Panel sklada klucz szablonem `readiness.checks.<klucz>` - brak tekstu dla
 // nowej pozycji nie wywroci kompilacji, tylko pokaze organizatorowi surowy klucz.
 describe("teksty pozycji gotowosci", () => {

@@ -189,6 +189,8 @@ describe("problemy gości", () => {
     ["name", true, false],
     ["email", false, true],
     ["duplicate", false, true],
+    // Znaku sterującego nie widać w polu - oznaczamy wszystkie trzy (R38).
+    ["control", true, true],
   ])("problem „%s” stoi przy gościu i oznacza właściwe pola", (issue, nazwa, adres) => {
     lista({ guests: [EWA, JAN], issues: [null, issue] });
 

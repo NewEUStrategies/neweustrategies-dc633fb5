@@ -94,6 +94,10 @@ export const adminCommunityEventsPl = {
       remindersSent_few: "Wysłano {{count}} przypomnienia",
       remindersSent_many: "Wysłano {{count}} przypomnień",
       remindersSent_other: "Wysłano {{count}} przypomnień",
+      // Odmowa bazy `event_has_payments` (przegląd R45): usunięcie zabrałoby
+      // opłacone zgłoszenia razem ze śladem pieniędzy.
+      deleteHasPayments:
+        "Tego wydarzenia nie można usunąć: ma opłacone zgłoszenia albo historię zwrotów. Odwołaj je - opłacone zgłoszenia zamkną się ze zwrotem.",
     },
 
     speakers: {
@@ -348,6 +352,8 @@ export const adminCommunityEventsEn = {
       saved: "Saved",
       remindersSent_one: "Sent {{count}} reminder",
       remindersSent_other: "Sent {{count}} reminders",
+      deleteHasPayments:
+        "This event cannot be deleted: it has paid registrations or refund history. Cancel it instead - paid registrations close with a refund.",
     },
 
     speakers: {

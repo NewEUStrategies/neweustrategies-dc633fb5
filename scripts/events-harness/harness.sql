@@ -67,11 +67,34 @@ CREATE OR REPLACE FUNCTION extensions.hmac(text, text, text) RETURNS bytea
 LANGUAGE sql IMMUTABLE AS $$ SELECT public.hmac($1, $2, $3) $$;
 
 -- ----------------------------------------------------------------------------
--- auth (ksztalt z platformy Supabase; z auth.users modul czyta wylacznie `id`)
+-- auth (ksztalt z platformy Supabase; z auth.users modul czyta `id`, `email`
+-- i `email_confirmed_at` - reszta kolumn GoTrue nie jest tu potrzebna)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS auth.users (
   id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text
+  email text,
+  -- Potwierdzenie adresu (GoTrue). Czyta je regula wiazania konta z osoba
+  -- (`_event_uid_owns_email` / `_event_bind_uid_for_email`, 20261012130500:
+  -- konto wiaze sie z kartoteka TYLKO przy POTWIERDZONYM adresie) i akceptacja
+  -- przekazania biletu. Kolumna stoi TU, w ksztalcie tabeli, a nie dopisana
+  -- pozniej: obie funkcje sa LANGUAGE sql, a takie cialo Postgres waliduje przy
+  -- CREATE - kolumna musi istniec, zanim replay dojdzie do ich migracji.
+  --
+  -- DEFAULT now(), bo tak wyglada produkcja dla kazdej SESJI: przy wlaczonym
+  -- potwierdzaniu adresu GoTrue nie wydaje tokenu kontu bez potwierdzenia,
+  -- wiec kazdy aktor `act_as` jest kontem potwierdzonym. Istniejace fixture'y
+  -- wstawiaja `(id, email)` i zachowuja sie jak dotad. Fixture, ktory
+  -- potrzebuje konta NIEPOTWIERDZONEGO, wstawia jawnie
+  -- `email_confirmed_at = NULL` (pgTAP-owy stub platformy nie ma domyslnej
+  -- wartosci i tam NULL jest stanem wyjsciowym).
+  email_confirmed_at timestamptz DEFAULT now(),
+  -- `app_metadata` konta (GoTrue: zmienia je wylacznie klucz serwisowy).
+  -- Czyta je `_event_account_admin_provisioned` (20261012180600, przeglad
+  -- R12): konto zalozone przez administratora z `email_confirm: true` niesie
+  -- `provisioned_by_admin` i NIE dowodzi skrzynki. Funkcja jest LANGUAGE sql,
+  -- wiec kolumna musi stac tu, zanim replay dojdzie do jej migracji.
+  -- Domyslnie pusty obiekt - jak konto z rejestracji wlasnej.
+  raw_app_meta_data jsonb DEFAULT '{}'::jsonb
 );
 
 -- Aktor sesji. Puste = anonim (`auth.uid()` zwraca NULL), dokladnie jak
@@ -1371,14 +1394,11 @@ GRANT SELECT, INSERT ON public.audit_log TO authenticated;
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- auth.users.email_confirmed_at - kolumna platformy Supabase (GoTrue).
--- Czyta ja regula wiazania konta z osoba (R-9: `event_register` wiaze konto
--- tylko przy POTWIERDZONYM adresie) i akceptacja przekazania biletu (S8).
--- DEFAULT now(): istniejace fixture'y harnessu wstawiaja `(id, email)` i maja
--- zachowac sie jak konta potwierdzone; przypadek niepotwierdzony test ustawia
--- jawnie `email_confirmed_at = NULL`.
+-- auth.users.email_confirmed_at (potwierdzenie adresu konta, S8) - kolumna
+-- stoi w ksztalcie `auth.users` w sekcji `auth` na poczatku pliku, razem
+-- z uzasadnieniem DEFAULT now(). Dopisywana tu ALTER-em byla niewidoczna dla
+-- czytajacego ksztalt tabeli, ktory glosil „tylko id".
 -- ----------------------------------------------------------------------------
-ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz DEFAULT now();
 
 -- ----------------------------------------------------------------------------
 -- public.rate_limits + public.rate_limit_hit - licznik okienkowy.
@@ -2054,3 +2074,26 @@ ALTER TABLE public.user_consents ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_consents TO authenticated;
 GRANT ALL ON public.user_consents TO service_role;
 -- === /f6 ===
+
+-- === f7: dziennik wysylek poczty - sygnal przegladu przejec (20261012180650) ===
+-- PO CO. `event_people_account_binding_review` (przeglad R12, ustalenie 3)
+-- szuka maili wyslanych dla zgloszen osoby na adres INNY niz obecny adres
+-- kartoteki (przejecie z podmiana adresu). Funkcja jest LANGUAGE sql, wiec
+-- tabela musi istniec przy replayu. Ksztalt: kolumny, ktore czyta przeglad
+-- (najemca, adresat, klucz idempotencji w metadanych), z produkcji
+-- 20260728212941 + `tenant_id` z 20260913101000. Bez triggerow i polityk -
+-- pisze tu wylacznie fixture harnessu.
+CREATE TABLE IF NOT EXISTS public.email_send_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id text,
+  template_name text NOT NULL,
+  recipient_email text NOT NULL,
+  status text NOT NULL,
+  error_message text,
+  metadata jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+ALTER TABLE public.email_send_log ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.email_send_log TO service_role;
+-- === /f7 ===

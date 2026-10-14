@@ -4,16 +4,18 @@
 // CO TEN PLIK DOWODZI.
 //   1. SEKCJA GOŚCI ISTNIEJE TYLKO PRZY BILECIE Z ZAPISEM GRUPOWYM. Zwykły bilet
 //      jej nie rysuje, a gość bez konta widzi zdanie o logowaniu zamiast pól -
-//      `event_register_group_guests` ma GRANT wyłącznie dla `authenticated`.
+//      dopisanie gości (funkcja serwerowa `registerEventGroupGuests`) wymaga
+//      konta z sesji.
 //   2. GOŚCIE JADĄ DO BAZY DOPIERO PO ZAPISIE PROWADZĄCEGO, przypięci jego
 //      identyfikatorem, z danymi przyciętymi i adresem małymi literami.
 //   3. BŁĘDNY GOŚĆ ZATRZYMUJE WYSŁANIE U SIEBIE: brak nazwiska, zły adres albo
 //      adres prowadzącego na liście gości - bez żadnego wywołania RPC. Każda
 //      zmiana listy zdejmuje komunikaty, bo odnosiły się do starej listy.
 //   4. ODMOWA DOPISANIA GOŚCI NIE COFA ZAPISU PROWADZĄCEGO: potwierdzenie stoi,
-//      mail do prowadzącego wychodzi, a powód odmowy (zdanie o gościu, nie
-//      o zapisie prowadzącego) widać nad potwierdzeniem razem z listą gości
-//      gotową do ponownego dopisania.
+//      a powód odmowy (zdanie o gościu, nie o zapisie prowadzącego) widać nad
+//      potwierdzeniem razem z listą gości gotową do ponownego dopisania. Mail
+//      do prowadzącego wysyła serwer po zapisie (REG-04) - przeglądarka go nie
+//      woła.
 //   5. GOŚCIE ZOSTAJĄ W FORMULARZU, GDY PRZESTAJĄ MIEĆ SENS: po zmianie biletu na
 //      zwykły albo po wylogowaniu lista nie jedzie do bazy, która by jej nie
 //      przyjęła.
@@ -24,9 +26,15 @@
 //      wpisane przed zalogowaniem zostają, dochodzi tylko adres z konta.
 //   8. ZAMKNIĘCIE BEZ POWODU (`closedReason: null`) mówi „nieznany powód", a nie
 //      pokazuje klucza sklejonego z `null`.
+//   9. ODPOWIEDŹ NEUTRALNA KOŃCZY ZAPIS GRUPY (REG-04, decyzja D3). Po
+//      `check_email` nic o zgłoszeniu nie idzie dalej: goście nie jadą do bazy,
+//      bilety nie wychodzą, a ekran „sprawdź skrzynkę" mówi tylko, że goście
+//      nie doszli - bez panelu ponowienia i bez odmowy. Formularz rozstrzyga po
+//      `kind`, więc tak samo kończy się odpowiedź, która mimo to niesie
+//      zgłoszenie prowadzącego.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reszty ścieżki uczestnika (pola organizatora,
-// zgody, regulaminy, odmowy `event_register`, rezygnacja) - ma ją
+// zgody, regulaminy, odmowy zapisu, rezygnacja) - ma ją
 // `PublicRegistrationFormBehaviour.test.tsx`; bramki „płatna wejściówka wymaga
 // konta" - ma ją `components/events/__tests__/publicRegistrationForm.test.tsx`.
 // Reguł walidacji gości (`guestIssues`) - mają tabelę przypadków w
@@ -35,18 +43,26 @@
 // - ma ją `GroupGuestsEditor.test.tsx`.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE, jak w pliku zachowań: klienta Supabase (RPC),
-// server fn poczty i kasy, tożsamość, język, toasty i modal Stripe. Parser
-// formularza i wszystkie komponenty potomne jadą prawdziwe. Wyjątkiem jest
-// punkt 8 - kształt, którego parser nie oddaje, podajemy z pominięciem parsera.
+// server fn zapisu (`registrationServerFnStub` - prawdziwy `p_payload`,
+// odpowiedź planowana pod `event_register_for_client`), server fn gości
+// (`groupGuestsServerFnStub` - prawdziwy ładunek gości, odpowiedź planowana pod
+// `event_register_group_guests_for_client`), poczty i kasy,
+// tożsamość, język, toasty i modal Stripe. Parser
+// formularza i wszystkie komponenty potomne jadą prawdziwe. Wyjątkiem są
+// punkty 8 i 9 - kształt, którego parser albo `submitRegistration` nie oddaje,
+// podajemy z pominięciem tej warstwy.
 //
 // RODO: dane osób są syntetyczne, adresy wyłącznie w domenach example.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { Json } from "@/integrations/supabase/types";
+import type { RegistrationSubmitOutcome } from "@/lib/events/publicRegistrationApi";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
+import { REGISTER_FOR_CLIENT_RPC } from "@/test/events/registrationServerFn";
+import { GROUP_GUESTS_FOR_CLIENT_RPC } from "@/test/events/groupGuestsServerFn";
 
 interface TestUser {
   id: string;
@@ -59,7 +75,11 @@ const h = vi.hoisted(() => ({
   user: null as TestUser | null,
   lang: "pl" as "pl" | "en",
   formOverride: null as RegistrationForm | null,
+  /** Przekształca wynik prawdziwego `submitRegistration` (punkt 9). */
+  reshapeOutcome: null as
+    ((outcome: RegistrationSubmitOutcome) => RegistrationSubmitOutcome) | null,
   sendConfirmation: vi.fn(),
+  sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
   quote: vi.fn(),
 }));
@@ -84,8 +104,20 @@ vi.mock("@tanstack/react-router", async () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock("@/lib/events/eventRegistration.functions", async () =>
+  (await import("@/test/events/registrationServerFn")).registrationServerFnStub(() => h.rpc),
+);
+
+vi.mock("@/lib/events/groupGuests.functions", async () =>
+  (await import("@/test/events/groupGuestsServerFn")).groupGuestsServerFnStub(() => h.rpc),
+);
+
 vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
   confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
+}));
+
+vi.mock("@/lib/events/groupTicketCodes.functions", () => ({
+  sendGroupTicketCodes: { name: "sendGroupTicketCodes" },
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
@@ -101,9 +133,11 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
   useServerFn: (fn: { name?: string }) =>
     fn.name === "confirmEventRegistrationEmail"
       ? h.sendConfirmation
-      : fn.name === "quoteEventTicketCheckout"
-        ? h.quote
-        : h.checkout,
+      : fn.name === "sendGroupTicketCodes"
+        ? h.sendTicketCodes
+        : fn.name === "quoteEventTicketCheckout"
+          ? h.quote
+          : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -119,16 +153,21 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
     clientSecret === null ? null : <div data-testid="checkout-modal">{clientSecret}</div>,
 }));
 
-// Parser zostaje prawdziwy; podmiana wchodzi WYŁĄCZNIE wtedy, gdy test poda
-// gotowy formularz (punkt 8).
+// Parser i zapis zostają prawdziwe; podmiana wchodzi WYŁĄCZNIE wtedy, gdy test
+// poda gotowy formularz (punkt 8) albo przekształcenie wyniku zapisu (punkt 9) -
+// zapis i tak idzie przez funkcję serwerową, przekształcany jest dopiero wynik.
 vi.mock("@/lib/events/publicRegistrationApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/events/publicRegistrationApi")>();
   return {
     ...actual,
-    fetchRegistrationForm: (slug: string) =>
+    fetchRegistrationForm: (slug: string, ticketKey?: string | null) =>
       h.formOverride === null
-        ? actual.fetchRegistrationForm(slug)
+        ? actual.fetchRegistrationForm(slug, ticketKey)
         : Promise.resolve(h.formOverride),
+    submitRegistration: async (input: Parameters<typeof actual.submitRegistration>[0]) => {
+      const outcome = await actual.submitRegistration(input);
+      return h.reshapeOutcome === null ? outcome : h.reshapeOutcome(outcome);
+    },
   };
 });
 
@@ -141,8 +180,10 @@ const REGISTRATION_ID = "22222222-2222-2222-2222-222222222222";
 const MANAGE_TOKEN = "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj";
 
 const FORM_RPC = "event_registration_form";
-const REGISTER_RPC = "event_register";
-const GUESTS_RPC = "event_register_group_guests";
+/** Odpowiedź funkcji serwerowej zapisu - planowana w atrapie pod tą nazwą. */
+const REGISTER_RPC = REGISTER_FOR_CLIENT_RPC;
+/** Odpowiedź funkcji serwerowej gości - planowana w atrapie pod tą nazwą. */
+const GUESTS_RPC = GROUP_GUESTS_FOR_CLIENT_RPC;
 
 const G = "eventRegistration.group";
 
@@ -220,6 +261,8 @@ function formPayload(tickets: Record<string, Json>[]): Record<string, Json> {
 
 function registerPayload(): Record<string, Json> {
   return {
+    ok: true,
+    outcome: "registered",
     registration_id: REGISTRATION_ID,
     event_id: EVENT_ID,
     person_id: null,
@@ -298,15 +341,14 @@ beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.rpc.setData(FORM_RPC, formPayload([ticketRow()]));
   h.rpc.setData(REGISTER_RPC, registerPayload());
-  h.rpc.setData(GUESTS_RPC, {
-    added: 1,
-    registration_ids: ["33333333-3333-3333-3333-333333333333"],
-  });
+  h.rpc.setData(GUESTS_RPC, { ok: true, added: 1 });
   h.user = null;
   h.lang = "pl";
   h.formOverride = null;
+  h.reshapeOutcome = null;
   h.sendConfirmation.mockReset();
   h.sendConfirmation.mockResolvedValue({ ok: true });
+  h.sendTicketCodes.mockReset();
   h.checkout.mockReset();
   h.quote.mockReset();
   h.quote.mockResolvedValue({
@@ -446,7 +488,7 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
   });
 
   it("odmowa dopisania gości NIE cofa zapisu prowadzącego - powód stoi nad potwierdzeniem", async () => {
-    stub().setError(GUESTS_RPC, "already_registered: ewa.nowak@example.org");
+    stub().setData(GUESTS_RPC, { ok: false, error: "invalid_email" });
     h.user = LEAD;
     renderForm();
     await screen.findByText(`${G}.title`);
@@ -457,19 +499,18 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
     submitForm();
 
     expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
-    // ZMIANA 2026-09-23: odmowa gości ma WŁASNE zdanie, które nazywa gościa
-    // (`groupGuestsFailure`), zamiast zdania o zapisie prowadzącego. Panel
-    // ponowienia na ekranie potwierdzenia rysuje je przez `t()`, więc w tym
-    // pliku widać klucz z parametrem - treść PL/EN pilnuje
-    // `groupGuestsFailure.test.ts`. Lista gości zostaje do poprawienia.
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      `${G}.errors.alreadyRegistered(email=ewa.nowak@example.org)`,
-    );
+    // ZMIANA 2026-09-23: odmowa gości ma WŁASNE zdanie (`groupGuestsFailure`),
+    // zamiast zdania o zapisie prowadzącego. Panel ponowienia na ekranie
+    // potwierdzenia rysuje je przez `t()`, więc w tym pliku widać klucz - treść
+    // PL/EN pilnuje `groupGuestsFailure.test.ts`. Lista gości zostaje do
+    // poprawienia. ZMIANA R38: odmowa nie niesie adresu gościa (gościa z zapisem
+    // baza pomija bez śladu), więc przykładem jest odmowa formatu adresu.
+    expect(screen.getByRole("alert").textContent).toBe(`${G}.errors.invalidEmail`);
     expect(screen.getByDisplayValue("ewa.nowak@example.org")).toBeInTheDocument();
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(1);
-    await waitFor(() =>
-      expect(h.sendConfirmation).toHaveBeenCalledWith({ data: { manageToken: MANAGE_TOKEN } }),
-    );
+    // Potwierdzenie prowadzącego wysłał serwer razem z zapisem (REG-04) -
+    // przeglądarka nie ma już własnej drogi do poczty.
+    expect(h.sendConfirmation).not.toHaveBeenCalled();
   });
 });
 
@@ -604,14 +645,11 @@ describe("zapis grupowy - kiedy goście dostaną bilety", () => {
   });
 
   it("goście dopisani ponownie z ekranu potwierdzenia też dostają zdanie o biletach", async () => {
-    stub().setError(GUESTS_RPC, "sold_out");
+    stub().setData(GUESTS_RPC, { ok: false, error: "sold_out" });
     await registerWithGuest();
     expect(screen.queryByText(/ticketsSent/)).not.toBeInTheDocument();
 
-    stub().setData(GUESTS_RPC, {
-      added: 1,
-      registration_ids: ["33333333-3333-3333-3333-333333333333"],
-    });
+    stub().setData(GUESTS_RPC, { ok: true, added: 1 });
     fireEvent.click(screen.getByRole("button", { name: `${G}.retry.submit` }));
 
     expect(await screen.findByText(`${G}.ticketsSent(count=1)`)).toBeInTheDocument();
@@ -702,5 +740,48 @@ describe("zamknięcie bez podanego powodu", () => {
     expect(await screen.findByText("eventRegistration.closed.unknown")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.closed.null")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(label("firstName"))).not.toBeInTheDocument();
+  });
+});
+
+describe("zapis grupowy - odpowiedź neutralna kończy zapis", () => {
+  /**
+   * Odpowiedź neutralna, która mimo to niesie zgłoszenie prowadzącego.
+   * `submitRegistration` takiej nie oddaje (D3: niezweryfikowany dostaje stałe
+   * `{ ok: true, outcome: "check_email" }`), ale dopiero ona dowodzi, że
+   * formularz kończy zapis po `kind`. Przy samym stałym `check_email`
+   * przepuszczenie odpowiedzi dalej byłoby z zewnątrz niewidoczne:
+   * `outcome.result` to `undefined`, a błąd typu połyka gałąź ponowienia gości,
+   * której ekran „sprawdź skrzynkę" nie rysuje.
+   */
+  function neutralCarryingLead(outcome: RegistrationSubmitOutcome): RegistrationSubmitOutcome {
+    if (outcome.kind !== "registered") throw new Error("test: zapis prowadzącego miał przejść");
+    const leaked = { kind: "check_email" as const, result: outcome.result };
+    return leaked;
+  }
+
+  it.each([
+    ["stałe check_email z serwera", null],
+    ["check_email niosące zgłoszenie prowadzącego", neutralCarryingLead],
+  ])("%s: goście nie jadą do bazy, ekran mówi tylko, że nie doszli", async (_shape, reshape) => {
+    if (reshape === null) stub().setData(REGISTER_RPC, { ok: true, outcome: "check_email" });
+    h.reshapeOutcome = reshape;
+    h.user = LEAD;
+    renderForm();
+    await screen.findByText(`${G}.title`);
+    fireEvent.click(addButton());
+    fillGuest(2, "Ewa", "Nowak", "ewa.nowak@example.org");
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("eventRegistration.result.checkEmailTitle")).toBeInTheDocument();
+    expect(screen.getByText(`${G}.guestsNotAdded`)).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1);
+    // Nic o zgłoszeniu nie idzie dalej: ani goście, ani ich bilety.
+    expect(stub().callsFor(GUESTS_RPC)).toHaveLength(0);
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+    // Ani panelu ponowienia gości, ani odmowy, ani klucza samoobsługi.
+    expect(screen.queryByRole("button", { name: `${G}.retry.submit` })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(MANAGE_TOKEN)).not.toBeInTheDocument();
   });
 });

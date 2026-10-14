@@ -23,6 +23,10 @@
 // `admin_event_registration_group_links`. Bez tego organizator widzial gosci
 // jak zwykle zgloszenia, nie wiedzial, ze zatwierdzenie prowadzacego przyjmie
 // cala grupe, i nie mial jak wyslac biletu komus, do kogo mail nie doszedl.
+//
+// ZGODY I DANE Z ZAPISU (REG-02 / REG-14) w rozwinieciu wiersza: dane, ktore
+// przyslal niezweryfikowany zapisujacy (kartoteka ich nie przyjela), ksiega
+// zgod osoby i otwarty link double opt-in - ladowane dopiero po rozwinieciu.
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
@@ -34,6 +38,7 @@ import {
   Download,
   MailPlus,
   Search,
+  ShieldCheck,
   ShieldOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,7 +53,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
-import { RegistrationDecideDialog } from "@/components/admin/events/molecules/RegistrationDecideDialog";
+import {
+  RegistrationDecideDialog,
+  type RegistrationDecision,
+} from "@/components/admin/events/molecules/RegistrationDecideDialog";
+import { RegistrationConsentDetail } from "@/components/admin/events/molecules/RegistrationConsentDetail";
 import { RegistrationRefundJournal } from "@/components/admin/events/molecules/RegistrationRefundJournal";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
@@ -68,6 +77,7 @@ import {
   hasMissingRequiredTerms,
   hasPartnerConsent,
   isAwaitingWaitlistNotice,
+  promotedCount,
   registrationGroupLabel,
   registrationOffsetForPage,
   registrationPageCount,
@@ -128,6 +138,7 @@ const TICKET_BADGE_KEYS: Record<TicketBadge, string> = {
   awaitingPayment: "ticketAwaitingPayment",
   undeliverable: "ticketUndeliverable",
   paidWaitlisted: "ticketPaidWaitlisted",
+  unpaidWaitlisted: "ticketUnpaidWaitlisted",
   paidAwaitingDecision: "ticketPaidAwaitingDecision",
   paidClosed: "ticketPaidClosed",
 };
@@ -143,6 +154,7 @@ const TICKET_BADGE_VARIANT: Record<TicketBadge, BadgeVariant> = {
   awaitingPayment: "outline",
   undeliverable: "destructive",
   paidWaitlisted: "secondary",
+  unpaidWaitlisted: "outline",
   paidAwaitingDecision: "secondary",
   paidClosed: "destructive",
 };
@@ -177,6 +189,8 @@ export function RegistrationsListPanel({
 
   const [decided, setDecided] = useState<EventRegistrationRow | null>(null);
   const [action, setAction] = useState<RegistrationAction | null>(null);
+  // Rozwiniety wiersz zgod (jeden naraz - szczegol laduje sie dopiero po kliknieciu).
+  const [consentOpenId, setConsentOpenId] = useState<string | null>(null);
 
   const filters = useMemo(
     () => ({ eventId, ticketTypeId, groupId: null, q, from: null, to: null }),
@@ -246,11 +260,19 @@ export function RegistrationsListPanel({
     resetPage();
   };
 
-  const confirmDecision = (note: string | null) => {
+  const confirmDecision = (decision: RegistrationDecision) => {
     if (decided === null || action === null) return;
     const registrationId = decided.id;
     decide.mutate(
-      { registrationId, action, note },
+      {
+        registrationId,
+        action,
+        // Notatka wewnetrzna i powod dla uczestnika jada OSOBNO (REG-06);
+        // `refund` tylko przy anulowaniu oplaconego (REG-03).
+        note: decision.note,
+        participantReason: decision.participantReason ?? undefined,
+        refund: decision.refund,
+      },
       {
         onSuccess: () => {
           toast.success(t(`${base}.toasts.${TOAST_KEYS[action]}`));
@@ -289,7 +311,13 @@ export function RegistrationsListPanel({
     promote.mutate(
       { eventId, registrationId: null, ticketTypeId, count: promoteCount },
       {
-        onSuccess: () => toast.success(t(`${base}.toasts.promoted`, { count: promoteCount })),
+        // Liczba z ODPOWIEDZI, nie z pola: awans bierze tylko rozliczonych
+        // (20261012150000), wiec prosba o 3 bywa awansem 1 albo 0.
+        onSuccess: (result) => {
+          const promoted = promotedCount(result);
+          if (promoted > 0) toast.success(t(`${base}.toasts.promoted`, { count: promoted }));
+          else toast.info(t(`${base}.toasts.promotedNone`));
+        },
         onError: fail,
       },
     );
@@ -717,6 +745,11 @@ export function RegistrationsListPanel({
                   {row.decision_note === null || row.decision_note === "" ? null : (
                     <p className="max-w-xs">{`${t(`${base}.decision.note`)}: ${row.decision_note}`}</p>
                   )}
+                  {/* Co uslyszal uczestnik (REG-06) - osobno od notatki wewnetrznej. */}
+                  {(row.participant_reason ?? null) === null ||
+                  row.participant_reason === "" ? null : (
+                    <p className="max-w-xs">{`${t(`${base}.decision.participantReason`)}: ${row.participant_reason}`}</p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -755,6 +788,17 @@ export function RegistrationsListPanel({
                       {t("adminEventRegistration.actions.resendGroupTickets")}
                     </Button>
                   ) : null}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-expanded={consentOpenId === row.id}
+                    onClick={() => setConsentOpenId(consentOpenId === row.id ? null : row.id)}
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {consentOpenId === row.id
+                      ? t("adminEventRegistration.consentDetail.hide")
+                      : t("adminEventRegistration.consentDetail.toggle")}
+                  </Button>
                   {hasPartnerConsent(row) ? (
                     <Button
                       size="sm"
@@ -767,6 +811,11 @@ export function RegistrationsListPanel({
                     </Button>
                   ) : null}
                 </div>
+                {consentOpenId === row.id ? (
+                  <div className="w-full">
+                    <RegistrationConsentDetail eventId={eventId} registrationId={row.id} />
+                  </div>
+                ) : null}
               </li>
             );
           })}
@@ -806,6 +855,7 @@ export function RegistrationsListPanel({
       <RegistrationDecideDialog
         open={action !== null}
         action={action}
+        registrationId={decided?.id ?? null}
         personName={decided === null ? "" : registrationPersonName(decided)}
         hint={groupHint}
         isPending={decide.isPending}

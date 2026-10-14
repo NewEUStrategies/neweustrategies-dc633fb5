@@ -13,7 +13,8 @@ import { describe, expect, it } from "vitest";
 import { extractLatestDefinitions } from "../../../../scripts/lib/sqlMigrations";
 import {
   REFUND_ATTEMPT_BUDGET,
-  REFUND_REVIEW_REASONS,
+  REFUND_ESCALATION_REASONS,
+  REFUND_JOB_REVIEW_REASONS,
   REFUND_UNCONFIRMED_DAYS,
 } from "@/lib/events/registrationRefundJournal";
 import {
@@ -41,13 +42,20 @@ describe("polityka zleceń zwrotu: TS == SQL", () => {
     expect(REFUND_UNCONFIRMED_DAYS).toBe(sqlConstant("_event_refund_unconfirmed_days"));
   });
 
-  it("każdy powód z CHECK-a ma etykietę i wskazówkę w obu językach", () => {
+  it("każdy powód eskalacji ma gałąź w helperze eskalacji", () => {
     const helper = LATEST.get("public._event_refund_job_escalate/3");
     expect(helper, "brak helpera eskalacji").toBeDefined();
-    for (const reason of REFUND_REVIEW_REASONS) {
-      // Helper zna dozwolone stany źródłowe KAŻDEGO powodu - powód bez gałęzi
-      // w helperze byłby odrzucany jako `invalid_review_reason`.
+    for (const reason of REFUND_ESCALATION_REASONS) {
+      // Helper zna dozwolone stany źródłowe KAŻDEGO powodu eskalacji - powód
+      // bez gałęzi w helperze byłby odrzucany jako `invalid_review_reason`.
       expect(helper!.body).toContain(`'${reason}'`);
+    }
+  });
+
+  it("każdy powód z CHECK-a ma etykietę i wskazówkę w obu językach", () => {
+    // Scalenie z REG-03: powody zamknięcia (podgląd rezygnacji, decyzja
+    // organizatora) i powody eskalacji kolejki dzielą jeden słownik dziennika.
+    for (const reason of REFUND_JOB_REVIEW_REASONS) {
       for (const dict of [adminEventRegistrationPl, adminEventRegistrationEn]) {
         const entry = dict.adminEventRegistration.refundJournal.reasons[reason];
         expect(entry.label.length, `${reason}: etykieta`).toBeGreaterThan(0);

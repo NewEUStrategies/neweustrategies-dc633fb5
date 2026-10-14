@@ -42,7 +42,15 @@ import { describe, expect, it } from "vitest";
 import { TX_EMAIL_CATEGORY } from "@/lib/email/suppressionPolicy";
 import type { EmailLang } from "../nes-layout";
 import { iconUrl, type EmailIconName } from "../icons";
-import { TX_EMAIL_TYPES, txCopy, txSubject, type TxCopy, type TxEmailType } from "../tx-copy";
+import {
+  EVENT_CONSENT_PURPOSE_COPY,
+  TX_EMAIL_TYPES,
+  txCopy,
+  txSubject,
+  type TxCopy,
+  type TxEmailType,
+} from "../tx-copy";
+import { eventRegistrationEn, eventRegistrationPl } from "@/lib/i18n-event-registration";
 
 const LANGS: readonly EmailLang[] = ["pl", "en"];
 
@@ -137,7 +145,9 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     // 36 -> 47: jedenaście maili funkcji uczestnika (`PARTICIPANT_TX_EMAIL_TYPES`).
     // 47 -> 50: bilet odwołany razem z grupą (`event_ticket_revoked`) i wpłata
     // bez miejsca (`event_ticket_paid_waitlisted`, `event_ticket_paid_pending`).
-    expect(zeSlownika).toHaveLength(50);
+    // 50 -> 52: zapis na zajęty adres (`event_registration_already_registered`)
+    // i double opt-in zgód (`event_consent_confirm`) - REG-04/REG-14.
+    expect(zeSlownika).toHaveLength(52);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -261,8 +271,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    // 50 typów razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(100);
+    // 52 typy razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(104);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {
@@ -312,5 +322,32 @@ describe("tx-copy - brak tłumaczenia i spadek na język domyślny", () => {
 
     expect(() => txSubject(zBazy as TxEmailType, "pl", {})).toThrow();
     expect(txCopy(zBazy as TxEmailType, "pl")).toBeUndefined();
+  });
+});
+
+// DOUBLE OPT-IN (REG-14, decyzja D5). Odbiorca potwierdza w mailu DOKŁADNIE ten
+// tekst, który pokazał mu checkbox formularza - inny napis w mailu to zgoda na
+// coś, czego formularz nie mówił (art. 7 ust. 1 RODO: administrator musi umieć
+// wykazać, na co zgodzono się). Słownik maili nie wciąga i18next, więc tekst
+// jest kopią - i ta kopia nie może się rozjechać z formularzem.
+describe("tx-copy - treść zgód w mailu double opt-in", () => {
+  it("napisy celów są identyczne z napisami checkboxów formularza zapisu (PL i EN)", () => {
+    const pl = eventRegistrationPl.eventRegistration.consents;
+    const en = eventRegistrationEn.eventRegistration.consents;
+    expect(EVENT_CONSENT_PURPOSE_COPY.pl).toEqual({
+      marketing: pl.marketing,
+      partner_sharing: pl.partnerSharing,
+    });
+    expect(EVENT_CONSENT_PURPOSE_COPY.en).toEqual({
+      marketing: en.marketing,
+      partner_sharing: en.partnerSharing,
+    });
+  });
+
+  it("mail z zgodą mówi, że odnośnik wygasa po 7 dniach - jak token w bazie", () => {
+    expect(txCopy("event_consent_confirm", "pl").note).toContain("7 dni");
+    expect(txCopy("event_consent_confirm", "en").note).toContain("7 days");
+    expect(txCopy("event_consent_confirm", "pl").labels.consent).toBe("Zgoda");
+    expect(txCopy("event_consent_confirm", "en").labels.consent).toBe("Consent");
   });
 });

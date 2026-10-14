@@ -1057,7 +1057,11 @@ INSERT INTO b2_setnull_register VALUES
   ('event_package_seats', 'event_package_seats_assigned_stamp', 'registration_id', 'repaired'),
   ('event_checkins', 'event_checkins_actor_exactly_one', 'operator_user_id', 'repaired'),
   ('event_badge_prints', 'event_badge_prints_actor_exactly_one', 'printed_by', 'repaired'),
-  ('event_lead_scans', 'event_lead_scans_actor_exactly_one', 'scanned_by_user_id', 'repaired');
+  ('event_lead_scans', 'event_lead_scans_actor_exactly_one', 'scanned_by_user_id', 'repaired'),
+  -- SCALENIE Z MAIN (PR #504, runda 4): para REG-01 (20261012132100) -
+  -- `restored_by` (konto administratora, ON DELETE SET NULL) w CHECK-u stempla
+  -- przywrocenia; NULL spelnia CHECK, a `restored_at` zostaje jako slad.
+  ('event_person_account_unbinds', 'event_person_account_unbinds_restored_stamp', 'restored_by', 'null_ok');
 
 CREATE TEMP VIEW b2_setnull_pairs AS
   WITH fk AS (

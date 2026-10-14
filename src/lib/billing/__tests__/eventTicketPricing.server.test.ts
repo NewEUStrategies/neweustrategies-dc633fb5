@@ -887,3 +887,82 @@ describe("priceEventTicket - kod dostępu jako sonda (20261007140400)", () => {
     );
   });
 });
+
+// REG-16 (decyzja D8): zgłoszenie nieopłacone pamięta cenę z chwili zapisu,
+// a baza liczy cenę EFEKTYWNĄ (`_event_registration_unit_price`) i oddaje ją
+// w kontekście płatności z `price_source`. Wycena z cennika (`amount_cents`
+// z kasy biletu - tu 10000, cena PO granicy early birda) nie może jej nadpisać.
+describe("cena z chwili zapisu (REG-16)", () => {
+  const REGISTRATION_ID = "dddddddd-0000-4000-8000-000000000005";
+
+  function context(extra: Record<string, unknown>, seats = 1): void {
+    rpcResponses.set(
+      "event_registration_payment_context",
+      ok({
+        ok: true,
+        event_id: EVENT_ID,
+        ticket_type_id: TICKET_ID,
+        holder_is_caller: true,
+        ...extra,
+      }),
+    );
+    rpcResponses.set("event_registration_group_seats", ok(seats));
+  }
+
+  const input = { userId: USER_ID, eventId: EVENT_ID, ticketTypeId: TICKET_ID };
+
+  it("granica early birda: kasa bierze cenę zgłoszenia (5000), nie bieżącą z cennika (10000)", async () => {
+    context({
+      amount_cents: 5000,
+      price_source: "quote",
+      quote_valid_until: "2099-01-01T00:00:00Z",
+    });
+    const price = await priceEventTicket(client(), { ...input, registrationId: REGISTRATION_ID });
+    expect(price).toMatchObject({ unitCents: 5000, leadUnitCents: 5000, amountCents: 5000 });
+    expect(price.phaseLabel).toBe("Cena z chwili zapisu");
+  });
+
+  it("goście zgłoszenia płacą tę samą cenę z chwili zapisu", async () => {
+    context({ amount_cents: 5000, price_source: "quote" }, 3);
+    const quote = await quoteEventTicketOrder(client(), {
+      ...input,
+      registrationId: REGISTRATION_ID,
+    });
+    expect(quote).toMatchObject({ seats: 3, unitCents: 5000, subtotalCents: 15000 });
+  });
+
+  it("oferta wygasła - baza mówi `current` i jej kwotę; etykieta zostaje fazy cennika", async () => {
+    context({ amount_cents: 10000, price_source: "current" });
+    const price = await priceEventTicket(client(), { ...input, registrationId: REGISTRATION_ID });
+    expect(price.unitCents).toBe(10000);
+    expect(price.phaseLabel).toBe("Last minute");
+  });
+
+  it("benefit planu liczy się od ceny zgłoszenia, nie od cennika", async () => {
+    plan.allowance = { discountPct: 50 };
+    context({ amount_cents: 5000, price_source: "quote" });
+    const price = await priceEventTicket(client(), { ...input, registrationId: REGISTRATION_ID });
+    expect(price).toMatchObject({ unitCents: 5000, leadUnitCents: 2500, planBenefit: "discount" });
+  });
+
+  it("starsza baza bez `price_source` - cena z cennika, dokładnie jak dotąd", async () => {
+    // Stary kontekst też niesie `amount_cents` (cena teraz) - bez klucza
+    // źródła NIE jest ceną zgłoszenia i nie może zastąpić wyceny kasy.
+    context({ amount_cents: 4200 });
+    const price = await priceEventTicket(client(), { ...input, registrationId: REGISTRATION_ID });
+    expect(price.unitCents).toBe(10000);
+    expect(price.phaseLabel).toBe("Last minute");
+  });
+
+  it("kasa bez zgłoszenia nie pyta o kontekst - cena z cennika", async () => {
+    const price = await priceEventTicket(client(), { ...input, registrationId: null });
+    expect(price.unitCents).toBe(10000);
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("event_registration_payment_context");
+  });
+
+  it("kwota nieliczbowa w kontekście nie jest ceną", async () => {
+    context({ amount_cents: "5000", price_source: "quote" });
+    const price = await priceEventTicket(client(), { ...input, registrationId: REGISTRATION_ID });
+    expect(price.unitCents).toBe(10000);
+  });
+});

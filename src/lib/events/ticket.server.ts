@@ -21,7 +21,7 @@ import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 import { ticketCodeFrom } from "./ticketCode";
-import type { EventSeatState, MyEventTicket } from "./ticketTypes";
+import type { EventSeatState, MyEventTicket, TicketEntryMode } from "./ticketTypes";
 
 function publicClient(): SupabaseClient {
   const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
@@ -139,6 +139,27 @@ export async function assertSeatAvailable(
   if (seats.isFull) throw new Error("event_full");
 }
 
+/** Rozliczenie, przy którym zgłoszenie dostaje kod QR (D11) - inaczej lista gości. */
+const SETTLED_PAYMENT = new Set(["paid", "partially_refunded", "not_required"]);
+
+interface EntryRow {
+  payment_status: string | null;
+  ticket_code_sent_at: string | null;
+  ticket_code_undeliverable_at: string | null;
+}
+
+/**
+ * Gdzie jest prawdziwy kod wejścia (REG-12). Karta na stronie wydarzenia to
+ * potwierdzenie rezerwacji; kod QR wydaje baza tylko zgłoszeniu rozliczonemu
+ * i wysyła go mailem „Twój bilet".
+ */
+export function ticketEntryMode(row: EntryRow | null): TicketEntryMode {
+  if (row === null || !SETTLED_PAYMENT.has(row.payment_status ?? "")) return "guest_list";
+  if (row.ticket_code_sent_at !== null) return "emailed_qr";
+  if (row.ticket_code_undeliverable_at !== null) return "contact_organizer";
+  return "qr_pending";
+}
+
 /** Bilet zalogowanego użytkownika; `null`, gdy nie ma potwierdzonego wejścia. */
 export async function loadMyEventTicket(
   supabase: SupabaseClient,
@@ -153,7 +174,7 @@ export async function loadMyEventTicket(
     .maybeSingle();
   if (!rsvp || rsvp.status !== "going") return null;
 
-  // Trzy odczyty niezależne od siebie - jeden round-trip zamiast trzech.
+  // Cztery odczyty niezależne od siebie - jeden round-trip zamiast czterech.
   //
   // ZAMÓWIENIE FILTRUJE BAZA, NIE TEN KOD. Wcześniej brały się „20 ostatnich
   // opłaconych zamówień użytkownika" i dopasowanie `metadata.event_id` szło
@@ -162,27 +183,52 @@ export async function loadMyEventTicket(
   // jest tym samym, którym `rsvp_event()` sprawdza opłacenie
   // (`metadata ->> 'event_id'`), więc bilet i bramka wejścia widzą to samo
   // zamówienie.
-  const [{ data: event }, { data: order }, { data: profile }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, slug, title_pl, title_en, starts_at, ends_at, timezone, location")
-      .eq("id", eventId)
-      .maybeSingle(),
-    supabase
-      .from("payment_orders")
-      .select("id, amount_cents, currency, paid_at, provider_intent_id")
-      .eq("user_id", userId)
-      .eq("status", "paid")
-      .eq("metadata->>event_id", eventId)
-      .order("paid_at", { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("profiles")
-      .select("email, first_name, last_name, display_name")
-      .eq("id", userId)
-      .maybeSingle(),
-  ]);
+  //
+  // ZGŁOSZENIE WOŁAJĄCEGO, NIE „JAKIEŚ WIDOCZNE". Sama polityka RLS nie
+  // wystarcza: `event_registrations_staff_read` oddaje organizatorowi KAŻDE
+  // zgłoszenie najemcy, więc administrator zapisany na wydarzenie dostawał
+  // tryb wejścia z najnowszego cudzego zgłoszenia (przegląd R67) - np.
+  // „kod przyszedł mailem", choć jego własne zgłoszenie czeka na zapłatę.
+  // Złączenie wewnętrzne z `event_people` po `user_id` wołającego zostawia
+  // wyłącznie jego własne wiersze - także dla roli z szerszym odczytem.
+  // Podpowiedź klucza obcego (`event_registrations_person_fkey`, para
+  // `(tenant_id, person_id)`, więc osoba jest z tego samego najemcy) jest
+  // jawna: tabele łączą też tabele pośrednie (np. leady), a PostgREST bez
+  // podpowiedzi odmówiłby osadzenia jako niejednoznacznego. Kolumny są jawne -
+  // bez hashy kodu i klucza, których `authenticated` i tak nie czyta (D10).
+  const [{ data: event }, { data: order }, { data: profile }, { data: registration }] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select("id, slug, title_pl, title_en, starts_at, ends_at, timezone, location")
+        .eq("id", eventId)
+        .maybeSingle(),
+      supabase
+        .from("payment_orders")
+        .select("id, amount_cents, currency, paid_at, provider_intent_id")
+        .eq("user_id", userId)
+        .eq("status", "paid")
+        .eq("metadata->>event_id", eventId)
+        .order("paid_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("email, first_name, last_name, display_name")
+        .eq("id", userId)
+        .maybeSingle(),
+      supabase
+        .from("event_registrations")
+        .select(
+          "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at, event_people!event_registrations_person_fkey!inner(user_id)",
+        )
+        .eq("event_id", eventId)
+        .eq("event_people.user_id", userId)
+        .in("status", ["approved", "attended"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
   if (!event) return null;
 
   const holderName =
@@ -200,6 +246,15 @@ export async function loadMyEventTicket(
     timezone: event.timezone ?? null,
     location: event.location ?? null,
     code: ticketCodeFrom(order?.id ?? rsvp.id),
+    entry: ticketEntryMode(
+      registration
+        ? {
+            payment_status: registration.payment_status ?? null,
+            ticket_code_sent_at: registration.ticket_code_sent_at ?? null,
+            ticket_code_undeliverable_at: registration.ticket_code_undeliverable_at ?? null,
+          }
+        : null,
+    ),
     transactionId: order?.provider_intent_id ?? null,
     amountCents: order?.amount_cents ?? null,
     currency: order?.currency ?? null,

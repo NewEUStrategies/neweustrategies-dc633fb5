@@ -44,6 +44,33 @@ export function actionRequiresReason(action: RegistrationAction): boolean {
   return REASON_REQUIRED.includes(action);
 }
 
+/**
+ * Sufity tekstow decyzji (REG-06) - te same liczby, co CHECK-i
+ * `event_registrations_note_len` / `event_registrations_participant_reason_len`
+ * i odmowy `note_too_long` / `participant_reason_too_long` w
+ * `admin_event_registration_decide`. Pole i licznik w oknie decyzji czytaja
+ * je stad: za dlugi tekst blokuje zapis, nigdy nie jest przycinany.
+ */
+export const DECISION_NOTE_MAX_LENGTH = 2000;
+export const PARTICIPANT_REASON_MAX_LENGTH = 1000;
+/**
+ * Najkrotsza notatka, ktora baza uznaje za uzasadnienie (CHECK
+ * `event_registrations_rejection_has_reason`, odmowa `reason_required` przy
+ * odrzuceniu i przy anulowaniu bez zwrotu).
+ */
+export const DECISION_NOTE_MIN_LENGTH = 3;
+
+/**
+ * Decyzje, przy ktorych organizator moze podac powod WIDOCZNY dla uczestnika
+ * (`participant_reason`). Baza przyjmuje go tez przy `refund`, ale panel tej
+ * akcji nie oferuje; przy kazdej innej decyzji odmawia (`invalid_request`).
+ */
+const PARTICIPANT_REASON_ACTIONS: readonly RegistrationAction[] = ["reject", "cancel"];
+
+export function actionAcceptsParticipantReason(action: RegistrationAction): boolean {
+  return PARTICIPANT_REASON_ACTIONS.includes(action);
+}
+
 /** Wariant plakietki statusu - jedno miejsce, zeby lista i szuflada zgadzaly sie. */
 export type StatusTone = "neutral" | "warning" | "success" | "danger" | "info";
 
@@ -92,6 +119,18 @@ export function registrationGroupLabel(
   const en = row.group_name_en ?? "";
   const primary = lang === "en" ? en || pl : pl || en;
   return primary === "" ? (row.group_key ?? null) : primary;
+}
+
+/**
+ * Faktyczna liczba awansow z odpowiedzi `admin_event_waitlist_promote`
+ * (`promoted`). Od 20261012150000 awans bierze tylko rozliczonych, wiec
+ * liczba z pola formularza nie mowi, ilu awansowalo - komunikat panelu czyta
+ * odpowiedz bazy. Kazdy inny ksztalt to 0, a nie liczba zgadnieta.
+ */
+export function promotedCount(result: unknown): number {
+  if (result === null || typeof result !== "object" || !("promoted" in result)) return 0;
+  const value = result.promoted;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
 }
 
 /** Awansowany z rezerwy, komu nie wyslano jeszcze wiadomosci. */
@@ -170,6 +209,7 @@ export type TicketBadge =
   | "awaitingPayment"
   | "undeliverable"
   | "paidWaitlisted"
+  | "unpaidWaitlisted"
   | "paidAwaitingDecision"
   | "paidClosed";
 
@@ -214,12 +254,18 @@ function paidWithoutSeat(status: string, paymentStatus: string): TicketBadge | n
  *
  * WIERSZ BEZ MIEJSCA mowi, ze jest oplacony (`paidWithoutSeat`) - to jedyna
  * plakietka „biletu" poza statusami z miejscem.
+ *
+ * NIEOPLACONY W KOLEJCE (20261012150000, REG-07) mowi, ze NIE awansuje sam:
+ * awans automatyczny bierze tylko rozliczonych, wiec bez plakietki organizator
+ * czekalby na awans, ktory nie nastapi. Wchodzi, placac (przy wolnym miejscu),
+ * albo decyzja organizatora.
  */
 export function ticketBadge(
   status: string,
   link: RegistrationGroupLink | null,
 ): TicketBadge | null {
   if (link === null) return null;
+  if (status === "waitlist" && link.payment_status === "unpaid") return "unpaidWaitlisted";
   if (!holdsTicket(status)) return paidWithoutSeat(status, link.payment_status);
   if (TICKET_PAYMENTS.includes(link.payment_status)) {
     if (link.ticket_code_undeliverable_at !== null) return "undeliverable";

@@ -577,6 +577,11 @@ function grantedWithinWindow(input: {
   });
 }
 
+// DECYZJA PO STATUSIE WYSTARCZA, BO LISTA JEST JUZ PRZESIANA. Bramka online
+// odsyla przyjete, ale nierozliczone zgloszenie (poza furtka organizatora),
+// a `event_scanner_roster` takiego wiersza w ogole nie eksportuje (delta oddaje
+// go w `removed`, 20261012181500, przeglad R45) - kod QR wydrukowany na nim
+// wczesniej nie ma tu czego dopasowac i konczy sie `unknown_code`.
 export function decideOffline(input: {
   entry: RosterEntry | null;
   /** Skrót znaleziony wśród kodów ZASTĄPIONYCH (`matchRoster`). */

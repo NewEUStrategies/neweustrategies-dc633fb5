@@ -67,6 +67,8 @@ import {
 } from "@/lib/i18n-admin-event-sponsor-report";
 import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
 import { adminCloneFailure } from "@/lib/events/adminCloneErrors";
+import { cancellationFailure } from "@/lib/events/publicRegistrationErrors";
+import { eventRegistrationEn, eventRegistrationPl } from "@/lib/i18n-event-registration";
 import { adminEventCloneEn, adminEventClonePl } from "@/lib/i18n-admin-event-clone";
 
 // ══ FUNKCJE UCZESTNIKA F1-F5: BLOKI TORÓW (spec B.11-2) ══════════════════════
@@ -76,6 +78,8 @@ import { adminEventCloneEn, adminEventClonePl } from "@/lib/i18n-admin-event-clo
 // najmniej dwie linie, których nikt nie zmienia - scalanie torów nie
 // konfliktuje na tym pliku.
 // >>> PF-A imports (begin)
+import { channelErrorKey } from "@/lib/events/registrationChannelsApi";
+import { participantTicketsEn, participantTicketsPl } from "@/lib/i18n-participant-tickets";
 // <<< PF-A imports (end)
 //
 // (separator bloków - tych dwóch linii nie edytuje żaden tor)
@@ -106,6 +110,22 @@ const STRAZNIK_TENANTA = "forbidden";
 const KODY_REJESTRACJI = [
   // admin_event_registration_decide / _upsert / _mark_notified, admin_event_waitlist_promote
   "already_registered",
+  // admin_event_registration_decide - limity tekstow decyzji (REG-06) i pomocnicze
+  // zwrotu (`_event_registration_refund_assess` / `_cancel_refund`, REG-03)
+  "note_too_long",
+  "participant_reason_too_long",
+  "invalid_payload",
+  // admin_event_refund_job_decide - decyzje w dzienniku zwrotow (REG-03)
+  "refund_manual_payment",
+  "refund_shared_payment",
+  // admin_event_registration_decide - rezygnacja ze zwrotu, ktory jest juz
+  // u operatora, i oznaczenie zwrotu wplaty dzielonej (przeglad R45)
+  "refund_in_progress",
+  "refund_order_shared",
+  // admin_event_waitlist_promote - awans na odwolanym albo zakonczonym
+  // wydarzeniu (przeglad R45)
+  "event_cancelled",
+  "event_ended",
   "invalid_action",
   "invalid_request",
   "invalid_transition",
@@ -157,6 +177,13 @@ const KODY_REJESTRACJI = [
   // w SQL-u, wiec skan migracji jej nie zobaczy; stoi tu, zeby bramka pilnowala
   // jej zdania w obu jezykach.
   "ticket_address_suppressed",
+  // admin_event_person_account_unbind / _restore - dowiazania kont do kartotek
+  // (REG-01, D14; ekran /admin/events/account-bindings, `accountBindingsAdminApi`)
+  "not_bound",
+  "already_restored",
+  "account_deleted",
+  "person_bound",
+  "account_in_use",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -421,6 +448,15 @@ const KODY_NABORU_UCZESTNIK = [
   "not_editable",
   "email_required",
   "email_in_use",
+  // konto bez potwierdzonego adresu (`_event_cfp_resolve_person`, REG-01 / D1)
+  "email_unverified",
+  // rejestr zgod (`_event_person_consents_confirm`, REG-14) - marketing naboru
+  // idzie przez ksiege; funkcja naboru sprawdza warunki wczesniej, ale skan
+  // domyka sie po wywolaniach, wiec kody stoja na liscie (ze zdaniem)
+  "consent_text_unknown",
+  "consent_withdrawn_requires_reconfirmation",
+  "invalid_consent_evidence",
+  "invalid_consent_purpose",
   // zgoda na przetwarzanie danych tylko z jawnego zaznaczenia (`_event_cfp_resolve_person`)
   "consent_required",
   "invalid_name",
@@ -577,6 +613,9 @@ const KODY_PROSBY_O_FAKTURE = [
   "operator_invoice",
   "request_foreign",
   "source_plan_ticket",
+  // REG-17: `_event_registration_actor` pyta `_event_manage_token_resolve`
+  // (cel spoza listy = `invalid_payload`).
+  "invalid_payload",
 ] as const;
 
 /**
@@ -633,6 +672,26 @@ const KODY_PLANU_SALI = [
   STRAZNIK_TENANTA,
 ] as const;
 /**
+ * Samoobsługa zgłoszenia uczestnika - `publicRegistrationApi` (rezygnacja i jej
+ * podgląd, widok po kluczu, formularz). REG-03/REG-13/REG-17: potwierdzenie
+ * skutku finansowego, koniec wydarzenia i wygasły klucz.
+ */
+const KODY_REZYGNACJI = [
+  // event_registration_cancel / _cancel_preview (+ _event_registration_refund_assess,
+  // _event_registration_cancel_refund, _event_manage_token_resolve)
+  "already_closed",
+  "event_ended",
+  "event_finished",
+  "forbidden",
+  "invalid_payload",
+  "invalid_request",
+  "manage_expired",
+  "not_found",
+  "refund_ack_required",
+  "refund_terms_changed",
+] as const;
+
+/**
  * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
  * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
  * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
@@ -641,7 +700,29 @@ type PfExtraCode = readonly [mapName: string, code: string];
 
 // >>> PF-A codes (begin)
 const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
-const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
+const PF_A_BEZ_INTERPOLACJI: readonly string[] = ["participantChannelErrors"];
+
+/**
+ * Kanały, przypomnienia i zgoda na SMS jednego zgłoszenia - `registrationChannelsApi`
+ * (`event_registration_set_channels`, `event_registration_preferences`;
+ * REG-09/REG-10, migracja 20261012131100).
+ */
+const KODY_KANALOW_UCZESTNIKA = [
+  // event_registration_set_channels - zgoda i numer przy włączaniu SMS-a
+  "sms_consent_required",
+  "phone_required",
+  // przegląd R67: numer zmieniony po pokazaniu okna zgody (`phone_hint`)
+  "phone_changed",
+  // klucz samoobsługi przez `_event_manage_token_resolve` (cel act)
+  "manage_expired",
+  "already_closed",
+  "not_found",
+  "auth_required",
+  // ścisłe typy przełączników, pusty ładunek, cel resolvera
+  "invalid_payload",
+  // public_tenant_id() bez hosta
+  "invalid_tenant",
+] as const;
 // <<< PF-A codes (end)
 //
 // (separator bloków - tych dwóch linii nie edytuje żaden tor)
@@ -728,6 +809,10 @@ const MAPY: readonly BramkowanaMapa[] = [
       "packagesApi",
       "audienceGrantsApi",
       "ticketResend.functions",
+      // Dziennik zwrotow (REG-03) - decyzje organizatora tlumaczy ta sama mapa.
+      "registrationRefundJournal",
+      // Dowiazania kont do kartotek (REG-01, D14) - ta sama mapa panelu.
+      "accountBindingsAdminApi",
       "ticketTaxProfileApi",
     ],
     interpoluje: true,
@@ -864,7 +949,29 @@ const MAPY: readonly BramkowanaMapa[] = [
     moduly: ["seatingApi"],
     interpoluje: true,
   },
+  {
+    nazwa: "publicCancellationErrors",
+    prefix: "eventRegistration.errors.",
+    klucz: (error) => cancellationFailure(error).key,
+    kody: KODY_REZYGNACJI,
+    nakladka: "src/lib/i18n-event-registration.ts",
+    pl: eventRegistrationPl,
+    en: eventRegistrationEn,
+    moduly: ["publicRegistrationApi"],
+    interpoluje: true,
+  },
   // >>> PF-A maps (begin)
+  {
+    nazwa: "participantChannelErrors",
+    prefix: "participantTickets.channels.errors.",
+    klucz: (error) => channelErrorKey(error),
+    kody: KODY_KANALOW_UCZESTNIKA,
+    nakladka: "src/lib/i18n-participant-tickets.ts",
+    pl: participantTicketsPl,
+    en: participantTicketsEn,
+    moduly: ["registrationChannelsApi"],
+    interpoluje: false,
+  },
   // <<< PF-A maps (end)
   //
   // (separator bloków - tych dwóch linii nie edytuje żaden tor)

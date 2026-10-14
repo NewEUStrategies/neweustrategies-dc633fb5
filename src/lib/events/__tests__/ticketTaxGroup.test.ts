@@ -3,8 +3,9 @@ import { act, waitFor } from "@testing-library/react";
 
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 
-// Klient Supabase atrapujemy WYŁĄCZNIE dla `registerGroupGuests` - reszta
-// modułu to czyste funkcje i atrapy nie dotyka.
+// Klient Supabase atrapujemy dla panelu organizatora, a funkcję serwerową gości
+// (`registerEventGroupGuests`) - dla `registerGroupGuests`. Reszta modułu to
+// czyste funkcje i atrap nie dotyka.
 const h = vi.hoisted(() => ({
   rpc: vi.fn<
     (
@@ -12,10 +13,15 @@ const h = vi.hoisted(() => ({
       args?: Record<string, unknown>,
     ) => Promise<{ data: unknown; error: { message: string } | null }>
   >(),
+  guests: vi.fn<(call: { data: unknown }) => Promise<unknown>>(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (name: string, args?: Record<string, unknown>) => h.rpc(name, args) },
+}));
+
+vi.mock("@/lib/events/groupGuests.functions", () => ({
+  registerEventGroupGuests: (call: { data: unknown }) => h.guests(call),
 }));
 
 const {
@@ -61,6 +67,18 @@ describe("ticketTaxGroup", () => {
     expect(issues).toEqual([null, "name", "email", "duplicate", "duplicate"]);
   });
 
+  // R38: baza odrzuca znak sterujący w danych gościa (`_event_text_has_control`)
+  // PRZED sprawdzeniem, kto ma zapis - edytor mówi to pod wierszem.
+  it("znak sterujący w imieniu, nazwisku albo adresie to problem `control`", () => {
+    const issues = guestIssues([
+      { firstName: "An\tna", lastName: "Nowak", email: "anna@example.com" },
+      { firstName: "Jan", lastName: "Ko\u0085w", email: "jan@example.com" },
+      { firstName: "Ewa", lastName: "Lis", email: "ewa\u0001@example.com" },
+      { firstName: "Zażółć", lastName: "Gęślą", email: "jazn@example.com" },
+    ]);
+    expect(issues).toEqual(["control", "control", "control", null]);
+  });
+
   it("normalises payload and totals", () => {
     expect(guestsToPayload([{ firstName: " A ", lastName: " B ", email: " A@X.PL " }])).toEqual([
       { first_name: "A", last_name: "B", email: "a@x.pl" },
@@ -70,36 +88,48 @@ describe("ticketTaxGroup", () => {
   });
 });
 
-// `registerGroupGuests` czyta `added` z odpowiedzi jsonb zawężeniem typu, bez
-// rzutowania na `Record<string, unknown>`. Zachowanie ma zostać to samo: liczba,
-// gdy baza ją podała, zero przy każdym innym kształcie, rzut przy odmowie.
+// `registerGroupGuests` woła FUNKCJĘ SERWEROWĄ (R38): przeglądarka nie zna już
+// RPC gości - najemcę, konto i skrót adresu dokłada serwer
+// (`groupGuests.server.test.ts`). Tu: ładunek, liczba dopisanych i odmowa jako
+// `Error("kod")` dla słownika gości.
 describe("registerGroupGuests", () => {
   const LEAD = "22222222-2222-2222-2222-222222222222";
   const GUEST = { firstName: " Ewa ", lastName: "Lis", email: "EWA@example.com" };
 
-  beforeEach(() => h.rpc.mockReset());
+  beforeEach(() => {
+    h.rpc.mockReset();
+    h.guests.mockReset();
+  });
 
-  it("woła RPC gości kluczem prowadzącego i oddaje liczbę dopisanych", async () => {
-    h.rpc.mockResolvedValue({ data: { added: 1, registration_ids: ["r-1"] }, error: null });
+  it("woła funkcję serwerową kluczem prowadzącego i oddaje liczbę dopisanych", async () => {
+    h.guests.mockResolvedValue({ ok: true, added: 1 });
 
     await expect(registerGroupGuests(LEAD, [GUEST])).resolves.toBe(1);
-    expect(h.rpc).toHaveBeenCalledWith("event_register_group_guests", {
-      p_lead_registration_id: LEAD,
-      p_guests: [{ first_name: "Ewa", last_name: "Lis", email: "ewa@example.com" }],
+    expect(h.guests).toHaveBeenCalledWith({
+      data: {
+        leadRegistrationId: LEAD,
+        guests: [{ first_name: "Ewa", last_name: "Lis", email: "ewa@example.com" }],
+      },
     });
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 
-  it("każdy inny kształt odpowiedzi to zero, a nie wyjątek", async () => {
-    for (const data of [null, [], "3", 3, { registration_ids: [] }, { added: "2" }]) {
-      h.rpc.mockResolvedValueOnce({ data, error: null });
-      await expect(registerGroupGuests(LEAD, [GUEST]), JSON.stringify(data)).resolves.toBe(0);
-    }
+  it("odmowa-wartość {ok:false, error} rzuca samym kodem - mapuje go słownik gości", async () => {
+    h.guests.mockResolvedValueOnce({ ok: false, error: "rate_limited" });
+    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow(new Error("rate_limited"));
+
+    h.guests.mockResolvedValueOnce({ ok: false, error: "duplicate_guest" });
+    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow(new Error("duplicate_guest"));
   });
 
-  it("odmowa bazy rzuca komunikatem RAISE - mapuje go słownik gości", async () => {
-    h.rpc.mockResolvedValue({ data: null, error: { message: "group_too_large" } });
+  it("awaria funkcji serwerowej przechodzi wyżej jako wyjątek", async () => {
+    h.guests.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow("Failed to fetch");
+  });
 
-    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow("group_too_large");
+  it("sukces z pominiętymi gośćmi wygląda tak samo - liczba z serwera bez zmian", async () => {
+    h.guests.mockResolvedValueOnce({ ok: true, added: 2 });
+    await expect(registerGroupGuests(LEAD, [GUEST, GUEST])).resolves.toBe(2);
   });
 });
 

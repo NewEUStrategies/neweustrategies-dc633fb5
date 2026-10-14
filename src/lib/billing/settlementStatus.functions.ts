@@ -59,6 +59,9 @@ export const getSettlementReport = createServerFn({ method: "POST" })
         .in("payment_order_id", ids);
       if (jobError) throw new Error(jobError.message);
       for (const j of jobRows ?? []) {
+        // Zlecenie bez zamówienia (wpłata ręczna, REG-03) nie należy do żadnego
+        // wiersza tej listy - filtr `in` i tak go nie zwraca, typ pilnuje reszty.
+        if (j.payment_order_id === null) continue;
         jobs.set(j.payment_order_id, { state: j.state, error: j.last_error });
       }
     }

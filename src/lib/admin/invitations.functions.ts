@@ -72,6 +72,30 @@ function slugify(input: string): string {
     .slice(0, 60);
 }
 
+/**
+ * Znacznik konta założonego przez ADMINISTRATORA z potwierdzonym adresem
+ * (`email_confirm: true`). Takie konto ma `email_confirmed_at`, choć nikt nie
+ * kliknął linku w tej skrzynce - a administrator zna (tryb hasła) albo mógł
+ * znać hasło. Moduł wydarzeń uznaje potwierdzony adres konta za dowód skrzynki
+ * (decyzja D1, `_event_uid_owns_email`), więc bez znacznika administrator
+ * obszaru A mógł założyć konto na cudzy adres i przejąć kartotekę tej osoby
+ * w obszarze B (przegląd R12, ustalenie 4). Baza czyta znacznik z
+ * `auth.users.raw_app_meta_data` i nie uznaje takiego konta za właściciela
+ * adresu `provisioned_email`, dopóki konto ma ten adres.
+ *
+ * `app_metadata`, nie `user_metadata`: tylko klucz serwisowy zmienia
+ * `app_metadata`, a `user_metadata` właściciel sesji nadpisuje sam
+ * (`auth.updateUser({ data })`) - znacznik dałoby się zdjąć hasłem
+ * tymczasowym. Ustawiany w TYM SAMYM wywołaniu `createUser`: nie ma chwili, w
+ * której konto istnieje bez znacznika.
+ */
+function adminProvisionedAppMetadata(email: string): {
+  provisioned_by_admin: true;
+  provisioned_email: string;
+} {
+  return { provisioned_by_admin: true, provisioned_email: email.trim().toLowerCase() };
+}
+
 function generateTempPassword(): string {
   // 16 znaków, alfabet unikający mylących glifów (0/O/1/l/I)
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -378,6 +402,8 @@ async function performSend(
           email,
           password: tempPassword,
           email_confirm: true,
+          // Potwierdzenie nadane przez administratora nie dowodzi skrzynki.
+          app_metadata: adminProvisionedAppMetadata(email),
           user_metadata: {
             display_name: displayName,
             tenant_id: inv.tenant_id,
@@ -1003,6 +1029,9 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
               email: d.email,
               password: tempPassword,
               email_confirm: true,
+              // Jak w `performSend`: potwierdzenie z importu zespołu to nie
+              // dowód skrzynki (`adminProvisionedAppMetadata`).
+              app_metadata: adminProvisionedAppMetadata(d.email),
               user_metadata: {
                 display_name: d.name,
                 tenant_id: tenantId,

@@ -111,6 +111,9 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Zgloszenia E1 z kluczami samoobslugi (w bazie skrot SHA-256, jak w event_register).
+-- Klucze maja KSZTALT `_event_new_qr_token()` (32 znaki base64url): od REG-17
+-- przypiecie pyta `_event_manage_token_resolve`, ktory klucz innego ksztaltu
+-- odrzuca bez liczenia skrotu (20261012160000).
 INSERT INTO public.event_registrations
   (id, tenant_id, event_id, person_id, status, registration_mode, payment_status,
    payment_order_id, manage_token_hash, created_at, group_lead_registration_id)
@@ -118,19 +121,19 @@ VALUES
   ('28c00000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111',
    '28e00000-0000-0000-0000-0000000000e1', '28f00000-0000-0000-0000-000000000001',
    'approved', 'form', 'paid', '28b00000-0000-0000-0000-000000000001',
-   encode(digest('token-28-jeden-aaaaaaaaaaaaaaaaaa', 'sha256'), 'hex'), now(), NULL),
+   encode(digest('token-28-jeden-aaaaaaaaaaaaaaaaa', 'sha256'), 'hex'), now(), NULL),
   ('28c00000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    '28e00000-0000-0000-0000-0000000000e1', '28f00000-0000-0000-0000-000000000002',
    'approved', 'form', 'partially_refunded', '28b00000-0000-0000-0000-000000000002',
-   encode(digest('token-28-dwa-bbbbbbbbbbbbbbbbbbbbb', 'sha256'), 'hex'), now(), NULL),
+   encode(digest('token-28-dwa-bbbbbbbbbbbbbbbbbbb', 'sha256'), 'hex'), now(), NULL),
   ('28c00000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111',
    '28e00000-0000-0000-0000-0000000000e1', '28f00000-0000-0000-0000-000000000003',
    'approved', 'form', 'not_required', NULL,
-   encode(digest('token-28-trzy-ccccccccccccccccccc', 'sha256'), 'hex'), now(), NULL),
+   encode(digest('token-28-trzy-cccccccccccccccccc', 'sha256'), 'hex'), now(), NULL),
   ('28c00000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111',
    '28e00000-0000-0000-0000-0000000000e1', '28f00000-0000-0000-0000-000000000004',
    'approved', 'form', 'paid', '28b00000-0000-0000-0000-000000000004',
-   encode(digest('token-28-cztery-ddddddddddddddddd', 'sha256'), 'hex'), now(), NULL),
+   encode(digest('token-28-cztery-dddddddddddddddd', 'sha256'), 'hex'), now(), NULL),
   ('28c00000-0000-0000-0000-000000000006', '11111111-1111-1111-1111-111111111111',
    '28e00000-0000-0000-0000-0000000000e1', '28f00000-0000-0000-0000-000000000006',
    'approved', 'form', 'not_required', NULL,
@@ -138,7 +141,7 @@ VALUES
   ('28c00000-0000-0000-0000-000000000007', '11111111-1111-1111-1111-111111111111',
    '28e00000-0000-0000-0000-0000000000e1', '28f00000-0000-0000-0000-000000000007',
    'approved', 'form', 'paid', '28b00000-0000-0000-0000-000000000007',
-   encode(digest('token-28-siedem-ggggggggggggggggg', 'sha256'), 'hex'), now(), NULL)
+   encode(digest('token-28-siedem-gggggggggggggggg', 'sha256'), 'hex'), now(), NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- Gosc grupy prowadzacego r1 - TO SAMO zamowienie. Nie jest osobna konwersja.
@@ -637,7 +640,7 @@ DECLARE
 BEGIN
   -- r1: pierwsza wizyta organicznie, ostatnia z kampanii Wiosna z gclid, zgoda reklamowa.
   v_res := public.event_registration_attribution_attach(jsonb_build_object(
-    'manage_token', 'token-28-jeden-aaaaaaaaaaaaaaaaaa',
+    'manage_token', 'token-28-jeden-aaaaaaaaaaaaaaaaa',
     'first', jsonb_build_object('ts', v_first_ms, 'referrer_host', 'google.com'),
     'last', jsonb_build_object('ts', v_touch_ms, 'utm_source', 'google', 'utm_medium', 'cpc',
       'utm_campaign', 'Wiosna', 'click_id_type', 'gclid', 'click_id', 'CjwKCAjw-kampania-jeden'),
@@ -683,7 +686,7 @@ BEGIN
 
   -- Zapis raz.
   v_res := public.event_registration_attribution_attach(jsonb_build_object(
-    'manage_token', 'token-28-jeden-aaaaaaaaaaaaaaaaaa',
+    'manage_token', 'token-28-jeden-aaaaaaaaaaaaaaaaa',
     'last', jsonb_build_object('ts', v_touch_ms, 'utm_source', 'nadpis'), 'ad_consent', true));
   PERFORM pg_temp.assert(v_res->>'reason' = 'already_attached' AND (v_res->>'attached')::boolean = false
     AND (SELECT a.utm_source FROM public.event_registration_attributions a
@@ -694,7 +697,7 @@ BEGIN
 
   -- r2: PMax z gbraid, ale BEZ zgody reklamowej.
   v_res := public.event_registration_attribution_attach(jsonb_build_object(
-    'manage_token', 'token-28-dwa-bbbbbbbbbbbbbbbbbbbbb',
+    'manage_token', 'token-28-dwa-bbbbbbbbbbbbbbbbbbb',
     'last', jsonb_build_object('ts', v_touch_ms, 'gad_campaign_id', '987654321', 'gad_source', '1',
       'click_id_type', 'gbraid', 'click_id', 'GBRAID-bez-zgody-123'),
     'ad_consent', false));
@@ -715,7 +718,7 @@ BEGIN
 
   -- r3: wejscie bezposrednie (zgoda na pomiar, brak dotkniec).
   v_res := public.event_registration_attribution_attach(jsonb_build_object(
-    'manage_token', ' token-28-trzy-ccccccccccccccccccc ', 'first', NULL, 'last', NULL));
+    'manage_token', ' token-28-trzy-cccccccccccccccccc ', 'first', NULL, 'last', NULL));
   SELECT a.* INTO v_a FROM public.event_registration_attributions a
    WHERE a.registration_id = '28c00000-0000-0000-0000-000000000003';
   PERFORM pg_temp.assert(v_a.source = '(direct)' AND v_a.medium = '(none)'
@@ -731,7 +734,7 @@ BEGIN
 
   -- r7: klikniecie PO platnosci (do licznika "before_click" eksportu).
   PERFORM public.event_registration_attribution_attach(jsonb_build_object(
-    'manage_token', 'token-28-siedem-ggggggggggggggggg',
+    'manage_token', 'token-28-siedem-gggggggggggggggg',
     'last', jsonb_build_object('ts', floor(extract(epoch FROM now() - interval '1 hour') * 1000),
       'utm_source', 'google', 'utm_medium', 'cpc', 'utm_campaign', 'wiosna',
       'click_id_type', 'gclid', 'click_id', 'CjwKCAjw-po-platnosci'),
@@ -758,7 +761,7 @@ SELECT pg_temp.assert_raises_like(
 -- Klucz najemcy A pod hostem najemcy B nie istnieje.
 SELECT set_config('nes.public_tenant', '28000000-0000-0000-0000-0000000000b0', false);
 SELECT pg_temp.assert(public.event_registration_attribution_attach(
-    '{"manage_token":"token-28-cztery-ddddddddddddddddd"}'::jsonb)->>'reason' = 'not_found',
+    '{"manage_token":"token-28-cztery-dddddddddddddddd"}'::jsonb)->>'reason' = 'not_found',
   '28/przypiecie/izolacja: klucz najemcy A pod hostem B = nie znaleziono');
 SELECT set_config('nes.public_tenant', '', false);
 

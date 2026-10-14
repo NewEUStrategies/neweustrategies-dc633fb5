@@ -489,6 +489,44 @@ describe("wiersz biletu - nazwa i wygląd", () => {
   });
 });
 
+// REG-05 (decyzja D6): od B1a link z kluczem biletu nie odsłania już biletu
+// ukrytego BEZ kodu dostępu - organizator, który rozsyła sam link, musi to
+// widzieć w wierszu i przy kopiowaniu linku, a nie dopiero od uczestników.
+describe("bilet ukryty bez kodu dostępu", () => {
+  it("ukryty bilet BEZ kodu ma plakietkę z wyjaśnieniem", () => {
+    h.looks = new Map([[SALES_IDS.ticket, WYGLAD_UKRYTY]]);
+    panel();
+
+    const badge = within(wiersz()).getByText(`${S}.hiddenNeedsCode`);
+    expect(badge).toHaveAttribute("title", `${S}.hiddenNeedsCodeHint`);
+  });
+
+  it("ukryty bilet Z kodem dostępu i bilet widoczny - bez plakietki", () => {
+    h.rows = [
+      eventTicketRow({ id: SALES_IDS.ticket, has_access_code: true }),
+      eventTicketRow({ id: SALES_IDS.otherTicket, name_pl: "Drugi" }),
+    ];
+    h.looks = new Map([[SALES_IDS.ticket, WYGLAD_UKRYTY]]);
+    panel();
+
+    expect(within(wiersz(0)).queryByText(`${S}.hiddenNeedsCode`)).toBeNull();
+    expect(within(wiersz(1)).queryByText(`${S}.hiddenNeedsCode`)).toBeNull();
+  });
+
+  it("skopiowany link do takiego biletu mówi, że sam link nie wystarczy", async () => {
+    h.looks = new Map([[SALES_IDS.ticket, WYGLAD_UKRYTY]]);
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.copyUrl`));
+    await dokoncz();
+
+    expect(h.clipboard).toEqual(["https://nes.example/events/forum/register?ticket=vip_pass"]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${S}.copyUrlNeedsCode`);
+    expect(h.toastSuccess).not.toHaveBeenCalledWith(`${S}.copied`);
+  });
+});
+
 describe("menu wiersza", () => {
   it("menu jest zamknięte, dopóki nikt go nie otworzy", () => {
     panel();

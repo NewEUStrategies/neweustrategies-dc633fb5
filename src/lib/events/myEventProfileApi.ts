@@ -12,6 +12,7 @@
 // harmonogram", a nie kopia programu wydarzenia.
 import { supabase } from "@/integrations/supabase/client";
 import type { AttendeeGroupTag } from "@/lib/events/publicEventApi";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 type Bag = Record<string, unknown>;
 
@@ -221,7 +222,11 @@ export async function fetchMyEventProfile(slug: string): Promise<MyEventPanelSta
   return parsePanel(data);
 }
 
-/** Pola opcjonalne: brak klucza = „nie ruszaj", pusty napis = „wyczyść". */
+/**
+ * Pola opcjonalne: brak klucza = „nie ruszaj", pusty napis = „wyczyść".
+ * `email` wysyłamy WYŁĄCZNIE przy zmianie - i wyłącznie na potwierdzony adres
+ * konta (inaczej `email_unverified`, REG-01).
+ */
 export interface MyEventProfileInput {
   slug: string;
   first_name?: string;
@@ -267,8 +272,86 @@ export async function saveMyEventProfile(input: MyEventProfileInput): Promise<My
 }
 
 /**
+ * ODMOWY ZMIANY ADRESU KARTOTEKI (REG-01, migracja 20261012132000). Adres
+ * profilu wydarzenia może być wyłącznie POTWIERDZONYM adresem konta - baza
+ * odmawia `email_unverified`, `email_in_use` albo `email_required`. Głowa
+ * komunikatu plpgsql -> klucz `eventMe.errors.<camel>`; inne odmowy zostają
+ * przy ogólnym zdaniu formularza (`null`).
+ */
+export const MY_EVENT_PROFILE_ERROR_CODES = [
+  "email_unverified",
+  "email_in_use",
+  "email_required",
+] as const;
+export type MyEventProfileErrorCode = (typeof MY_EVENT_PROFILE_ERROR_CODES)[number];
+
+export function myEventProfileErrorKey(error: unknown): string | null {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message: unknown }).message)
+        : typeof error === "string"
+          ? error
+          : "";
+  const separator = message.indexOf(":");
+  const head = (separator === -1 ? message : message.slice(0, separator)).trim();
+  if (!(MY_EVENT_PROFILE_ERROR_CODES as readonly string[]).includes(head)) return null;
+  return `eventMe.errors.${head.replace(/_([a-z])/g, (_all, chr: string) => chr.toUpperCase())}`;
+}
+
+/** Czy adres (po normalizacji jak `event_people.email_norm`) jest ten sam. */
+export function sameEmail(a: string | null | undefined, b: string | null | undefined): boolean {
+  return (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+}
+
+/** Powód, dla którego `event_my_account_link` nie dowiązał kartoteki. */
+export const MY_EVENT_ACCOUNT_LINK_REASONS = [
+  "email_unconfirmed",
+  "no_record",
+  "record_bound_elsewhere",
+] as const;
+export type MyEventAccountLinkReason = (typeof MY_EVENT_ACCOUNT_LINK_REASONS)[number];
+
+export interface MyEventAccountLink {
+  linked: boolean;
+  /** Konto było już dowiązane - nic się nie zmieniło. */
+  alreadyLinked: boolean;
+  personId: string | null;
+  reason: MyEventAccountLinkReason | null;
+}
+
+/**
+ * SAMODZIELNE DOWIĄZANIE KARTOTEKI (REG-01, D14). Baza dowiązuje do konta
+ * niedowiązaną osobę najemcy o POTWIERDZONYM adresie konta - gość, który
+ * założył konto po zapisie, i osoba odwiązana naprawą historii odzyskują
+ * panel bez organizatora. Ładunek pusty: konto z sesji, najemca z hosta.
+ * `null` = baza sprzed migracji (PGRST202/42883) - panel zachowuje się jak dotąd.
+ */
+export async function linkMyEventAccount(): Promise<MyEventAccountLink | null> {
+  const { data, error } = await supabase.rpc("event_my_account_link", { p_payload: {} });
+  if (error) {
+    if (isMigrationPending(error)) return null;
+    throw error;
+  }
+  const row = bag(data);
+  if (row === null) return null;
+  const reason = text(row, "reason");
+  return {
+    linked: bool(row, "linked"),
+    alreadyLinked: bool(row, "already_linked"),
+    personId: text(row, "person_id"),
+    reason: (MY_EVENT_ACCOUNT_LINK_REASONS as readonly string[]).includes(reason ?? "")
+      ? (reason as MyEventAccountLinkReason)
+      : null,
+  };
+}
+
+/**
  * Uzupełnia kartotekę wydarzenia danymi z konta platformy. Nadpisujemy tylko
  * puste pola po stronie bazy - decyzje o widoczności kontaktu zostają nietknięte.
+ * Adres kartoteki bierze baza WYŁĄCZNIE z potwierdzonego adresu logowania
+ * (nigdy z profilu konta, który użytkownik zmienia sam - REG-01).
  */
 export async function syncMyEventProfileFromAccount(slug: string): Promise<MyEventPanelState> {
   const { data, error } = await supabase.rpc("event_my_event_profile_sync_account", {

@@ -59,6 +59,16 @@ export const SEATS_UNAVAILABLE = "registration_not_payable:seats_unavailable";
 /** Minimalna kwota obciążenia po kodzie (50 gr) - poniżej kod jest odmową. */
 export const MIN_TICKET_TOTAL_CENTS = 50;
 
+/**
+ * Etykieta fazy, gdy obowiązuje cena zapamiętana przy zapisie (REG-16). Kasa
+ * wybiera etykiety faz tak samo jak dla progów organizatora: polska przed
+ * angielską (`label_pl`, potem `label_en`).
+ */
+export const REGISTRATION_QUOTE_PHASE_LABEL = {
+  pl: "Cena z chwili zapisu",
+  en: "Price at registration",
+} as const;
+
 const NO_TICKET_TYPE = "00000000-0000-0000-0000-000000000000";
 
 /** Kształt kodu podatkowego produktu Stripe - ten sam CHECK co w bazie. */
@@ -150,6 +160,15 @@ export async function priceEventTicket(
 ): Promise<EventTicketPrice> {
   // Kasa bez zgłoszenia kupuje miejsce WOŁAJĄCEGO - benefit mu przysługuje.
   let holderIsCaller = true;
+  // CENA ZGŁOSZENIA (REG-16, decyzja D8). Zgłoszenie nieopłacone pamięta cenę
+  // z chwili zapisu, a baza liczy cenę EFEKTYWNĄ jedną regułą
+  // (`_event_registration_unit_price`: niższa z zapamiętanej i bieżącej, póki
+  // oferta ważna). Bez tego kwota na ekranie potwierdzenia (early bird) i kwota
+  // w kasie (cena standardowa po granicy progu) rozjeżdżały się. Kontekst
+  // starszej bazy nie ma klucza `price_source` - wtedy liczy cena z cennika,
+  // dokładnie jak dotąd.
+  let registrationUnitCents: number | null = null;
+  let priceFromQuote = false;
   // ZGŁOSZENIE, ZA KTÓRE PŁACIMY. Autorytetem jest baza: RLS
   // `event_registrations` jest zamknięte dla uczestnika, a rzutowanie odczytu
   // na `service_role` oddałoby serwerowi aplikacji prawo czytania CUDZYCH
@@ -179,6 +198,14 @@ export async function priceEventTicket(
     // Tylko jawne `false` odbiera benefit: baza sprzed 20260926140000 pola nie
     // zna, a jej odpowiedź nadal dotyczy zwykle miejsca samego wołającego.
     holderIsCaller = parsedCtx.holder_is_caller !== false;
+    if (
+      typeof parsedCtx.price_source === "string" &&
+      typeof parsedCtx.amount_cents === "number" &&
+      Number.isFinite(parsedCtx.amount_cents)
+    ) {
+      registrationUnitCents = Math.trunc(parsedCtx.amount_cents);
+      priceFromQuote = parsedCtx.price_source === "quote";
+    }
   }
 
   // CENNIK WYDARZENIA. Kwotę, okno sprzedaży, miejsca, rangę członkostwa i kod
@@ -208,8 +235,12 @@ export async function priceEventTicket(
   if (typeof parsed.event_id !== "string" || parsed.event_id !== input.eventId) {
     throw new Error("ticket_not_available");
   }
+  // Cena miejsca: zgłoszenia (gdy baza ją podała), inaczej z cennika. Wycena
+  // biletu i tak biegnie wyżej - sprawdza wydarzenie, sprzedaż i kod dostępu.
+  // Goście zgłoszenia kopiują jego ofertę (B6), więc płacą tę samą cenę.
   const quotedAmount =
-    typeof parsed.amount_cents === "number" ? Math.trunc(parsed.amount_cents) : 0;
+    registrationUnitCents ??
+    (typeof parsed.amount_cents === "number" ? Math.trunc(parsed.amount_cents) : 0);
   // BENEFIT PLANU - tylko na miejscu wołającego (patrz nagłówek). Cena gościa
   // to cena z cennika.
   let leadUnitCents = quotedAmount;
@@ -234,15 +265,16 @@ export async function priceEventTicket(
   const ticketName = firstText(parsed.name_pl, parsed.name_en);
   const phase = objectOf(parsed.phase);
   const phaseSource = typeof phase?.source === "string" ? phase.source : "";
-  const phaseLabel =
-    firstText(phase?.label_pl, phase?.label_en) ||
-    (phaseSource === "early_bird"
-      ? "Early bird"
-      : phaseSource === "last_minute"
-        ? "Last minute"
-        : phaseSource === "phase"
-          ? "Faza sprzedaży"
-          : "");
+  const phaseLabel = priceFromQuote
+    ? firstText(REGISTRATION_QUOTE_PHASE_LABEL.pl, REGISTRATION_QUOTE_PHASE_LABEL.en)
+    : firstText(phase?.label_pl, phase?.label_en) ||
+      (phaseSource === "early_bird"
+        ? "Early bird"
+        : phaseSource === "last_minute"
+          ? "Last minute"
+          : phaseSource === "phase"
+            ? "Faza sprzedaży"
+            : "");
 
   // PODATEK. Tryb (wliczony/doliczany) i kod podatkowy produktu pochodzą
   // z biletu; stawkę liczy Stripe z kodu - ta sama, którą bilet niesie na

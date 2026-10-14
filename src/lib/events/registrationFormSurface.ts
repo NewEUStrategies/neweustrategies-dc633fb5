@@ -1,4 +1,5 @@
-// Parser publicznego formularza zapisu (`event_registration_form(p_event_slug)`).
+// Parser publicznego formularza zapisu (`event_registration_form(p_event_slug,
+// p_ticket_key)`) i biletów odsłoniętych kodem (`event_registration_revealed_tickets`).
 //
 // DLACZEGO PARSER, A NIE RZUTOWANIE. RPC oddaje `jsonb`, więc typ po stronie
 // klienta jest deklaracją intencji, nie faktem. Rzutowanie `as` zamienia zmianę
@@ -35,6 +36,10 @@ export type TicketAvailability = (typeof TICKET_AVAILABILITIES)[number];
 /** Powody zamknięcia zapisu, którymi odpowiada RPC (plus `unknown` awaryjnie). */
 export const REGISTRATION_CLOSED_REASONS = [
   "event_cancelled",
+  // REG-13: wydarzenie już się odbyło (`COALESCE(ends_at, starts_at) < now()`,
+  // ta sama reguła co `event_page_header`). Do tej naprawy baza go nie znała,
+  // a zapis po zakończeniu przechodził.
+  "event_ended",
   "registration_disabled",
   "registration_external",
   "registration_not_open",
@@ -169,6 +174,19 @@ export interface RegistrationForm {
   consents: RegistrationFormField[];
   tickets: RegistrationFormTicket[];
   terms: RegistrationFormTerm[];
+  /**
+   * Wydarzenie ma aktywne bilety UKRYTE (REG-05, decyzja D6). Od B1a formularz
+   * publiczny ich nie oddaje - odsłania je wyłącznie kod (`reveals_hidden`)
+   * albo link z kluczem biletu za kodem dostępu - więc tylko ta flaga mówi,
+   * że pole kodu ma sens. Brak klucza (starszy backend) = wyliczane z listy
+   * (`hasHiddenTickets`).
+   */
+  hasHiddenTickets?: boolean;
+  /**
+   * Zapis wymaga wyboru biletu (wydarzenie ma aktywne bilety, także ukryte).
+   * Brak klucza = `tickets.length > 0` (`requiresTicketChoice`).
+   */
+  requiresTicket?: boolean;
 }
 
 export const EMPTY_REGISTRATION_FORM: RegistrationForm = {
@@ -179,6 +197,8 @@ export const EMPTY_REGISTRATION_FORM: RegistrationForm = {
   consents: [],
   tickets: [],
   terms: [],
+  hasHiddenTickets: false,
+  requiresTicket: false,
 };
 
 type Bag = Record<string, unknown>;
@@ -343,6 +363,59 @@ function toFormField(row: Record<string, unknown>): RegistrationFormField {
   };
 }
 
+/** Jeden bilet w kształcie formularza - ten sam dla formularza i dla odsłonięcia kodem. */
+function toFormTicket(row: Bag): RegistrationFormTicket {
+  const priceCents = int(row, "price_cents");
+  const phase = phaseOf(row.phase, priceCents);
+  return {
+    id: text(row, "id"),
+    key: text(row, "key"),
+    namePl: text(row, "name_pl"),
+    nameEn: text(row, "name_en"),
+    descriptionPl: text(row, "description_pl"),
+    descriptionEn: text(row, "description_en"),
+    priceCents,
+    // Brak wyliczonej kwoty degraduje do ceny bazowej, nie do zera: darmowy
+    // bilet z powodu literówki w SQL-u jest gorszy niż cena katalogowa.
+    effectivePriceCents:
+      optionalInt(row, "effective_price_cents") ?? phase.priceCents ?? priceCents,
+    phase,
+    benefitsPl: stringList(row.benefits_pl),
+    benefitsEn: stringList(row.benefits_en),
+    currency: nullableText(row, "currency") ?? "EUR",
+    requiresApproval: bool(row, "requires_approval"),
+    minTierRank: int(row, "min_tier_rank"),
+    salesFrom: nullableText(row, "sales_from"),
+    salesTo: nullableText(row, "sales_to"),
+    seatsLeft: optionalInt(row, "seats_left"),
+    availability: availabilityOf(row),
+    tierLocked: bool(row, "tier_locked"),
+    requiresAccessCode: bool(row, "requires_access_code"),
+    accessCodeHint: text(row, "access_code_hint"),
+    isHidden: bool(row, "is_hidden"),
+    showPriceLabel: row.show_price_label !== false,
+    priceLabelPl: text(row, "price_label_pl"),
+    priceLabelEn: text(row, "price_label_en"),
+    groupRegistrationEnabled: bool(row, "group_registration_enabled"),
+    // Starszy backend bez tych kluczy degraduje do wartości domyślnych
+    // kolumn (10 osób, podatek wliczony) - tych samych, które ma baza.
+    groupMaxSize: clampGroupSize(optionalInt(row, "group_max_size") ?? GROUP_SIZE_DEFAULT),
+    taxMode: parseTicketTaxMode(row.tax_mode) ?? "inclusive",
+  };
+}
+
+/**
+ * Lista biletów w kształcie formularza z dowolnej odpowiedzi `jsonb` - także
+ * z `event_registration_revealed_tickets` (B1a), która oddaje bilety ukryte
+ * odsłonięte kodem tym samym obiektem co formularz. Wiersz bez identyfikatora
+ * odpada: nie da się go ani wybrać, ani wysłać.
+ */
+export function parseRegistrationFormTickets(value: unknown): RegistrationFormTicket[] {
+  return rows(value)
+    .map(toFormTicket)
+    .filter((ticket) => ticket.id !== "");
+}
+
 export function parseRegistrationForm(payload: Json | null | undefined): RegistrationForm {
   const source = bag(payload);
   if (source === null) return EMPTY_REGISTRATION_FORM;
@@ -351,6 +424,7 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
   if (event === null) return EMPTY_REGISTRATION_FORM;
 
   const isOpen = bool(source, "is_open");
+  const tickets = rows(source.tickets).map(toFormTicket);
 
   return {
     event,
@@ -358,46 +432,7 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
     closedReason: closedReasonOf(source, isOpen),
     fields: rows(source.fields).map(toFormField),
     consents: rows(source.consents).map(toFormField),
-    tickets: rows(source.tickets).map((row) => {
-      const priceCents = int(row, "price_cents");
-      const phase = phaseOf(row.phase, priceCents);
-      return {
-        id: text(row, "id"),
-        key: text(row, "key"),
-        namePl: text(row, "name_pl"),
-        nameEn: text(row, "name_en"),
-        descriptionPl: text(row, "description_pl"),
-        descriptionEn: text(row, "description_en"),
-        priceCents,
-        // Brak wyliczonej kwoty degraduje do ceny bazowej, nie do zera: darmowy
-        // bilet z powodu literówki w SQL-u jest gorszy niż cena katalogowa.
-        effectivePriceCents:
-          optionalInt(row, "effective_price_cents") ?? phase.priceCents ?? priceCents,
-        phase,
-        benefitsPl: stringList(row.benefits_pl),
-        benefitsEn: stringList(row.benefits_en),
-        currency: nullableText(row, "currency") ?? "EUR",
-        requiresApproval: bool(row, "requires_approval"),
-        minTierRank: int(row, "min_tier_rank"),
-        salesFrom: nullableText(row, "sales_from"),
-        salesTo: nullableText(row, "sales_to"),
-        seatsLeft: optionalInt(row, "seats_left"),
-        availability: availabilityOf(row),
-        tierLocked: bool(row, "tier_locked"),
-        requiresAccessCode: bool(row, "requires_access_code"),
-        accessCodeHint: text(row, "access_code_hint"),
-        isHidden: bool(row, "is_hidden"),
-        showPriceLabel: row.show_price_label !== false,
-        priceLabelPl: text(row, "price_label_pl"),
-        priceLabelEn: text(row, "price_label_en"),
-        groupRegistrationEnabled: bool(row, "group_registration_enabled"),
-        // Starszy backend bez tych kluczy degraduje do wartości domyślnych
-        // kolumn (10 osób, podatek wliczony) - tych samych, które ma baza.
-        groupMaxSize: clampGroupSize(optionalInt(row, "group_max_size") ?? GROUP_SIZE_DEFAULT),
-        taxMode: parseTicketTaxMode(row.tax_mode) ?? "inclusive",
-      };
-    }),
-
+    tickets,
     terms: rows(source.terms).map((row) => ({
       id: text(row, "id"),
       key: text(row, "key"),
@@ -409,6 +444,14 @@ export function parseRegistrationForm(payload: Json | null | undefined): Registr
       isRequired: bool(row, "is_required"),
       version: int(row, "version"),
     })),
+    // Starszy backend oddaje bilety ukryte na liście (z `is_hidden`) i nie zna
+    // obu kluczy - wtedy liczymy je z listy, jak dotąd.
+    hasHiddenTickets:
+      typeof source.has_hidden_tickets === "boolean"
+        ? source.has_hidden_tickets || tickets.some((ticket) => ticket.isHidden === true)
+        : tickets.some((ticket) => ticket.isHidden === true),
+    requiresTicket:
+      typeof source.requires_ticket === "boolean" ? source.requires_ticket : tickets.length > 0,
   };
 }
 
@@ -417,9 +460,18 @@ export function isTicketSelectable(ticket: RegistrationFormTicket): boolean {
   return ticket.availability === "on_sale" && !ticket.tierLocked;
 }
 
-/** Czy trzeba wybrać bilet: baza wymaga wyboru, gdy wydarzenie ma bilety. */
+/**
+ * Czy trzeba wybrać bilet: baza wymaga wyboru, gdy wydarzenie ma AKTYWNE
+ * bilety - także wtedy, gdy wszystkie są ukryte i lista formularza jest pusta
+ * (REG-05: uczestnik musi je odsłonić kodem).
+ */
 export function requiresTicketChoice(form: RegistrationForm): boolean {
-  return form.tickets.length > 0;
+  return form.requiresTicket ?? form.tickets.length > 0;
+}
+
+/** Czy pole kodu odsłaniającego ma sens - wydarzenie ma bilety ukryte. */
+export function hasHiddenTickets(form: RegistrationForm): boolean {
+  return form.hasHiddenTickets ?? form.tickets.some((ticket) => ticket.isHidden === true);
 }
 
 /** Zgody obowiązkowe - bez nich `event_register()` rzuca `terms_required`. */
@@ -429,15 +481,49 @@ export function requiredTermIds(form: RegistrationForm): string[] {
 
 /**
  * Bilety widoczne dla uczestnika. Bilet ukryty pojawia się wyłącznie wtedy,
- * gdy link rejestracyjny wskazuje go kluczem (`?ticket=klucz`) - tak działa
- * „bezpośredni link rejestracyjny" z panelu biletów. Ukrycie nie jest
- * zabezpieczeniem; do tego służy kod dostępu weryfikowany w bazie.
+ * gdy link rejestracyjny wskazuje go kluczem (`?ticket=klucz`) albo kod go
+ * odsłonił. Od REG-05 to SIATKA BEZPIECZEŃSTWA na okno wdrożenia: nowy
+ * formularz biletów ukrytych w ogóle nie oddaje (wyjątek: bilet za kodem
+ * dostępu wskazany kluczem - i tak wymaga kodu przy zapisie), a stary oddawał
+ * je wszystkie.
  */
 export function visibleTickets(
   tickets: RegistrationFormTicket[],
   requestedKey: string | null,
 ): RegistrationFormTicket[] {
   return tickets.filter((ticket) => ticket.isHidden !== true || ticket.key === requestedKey);
+}
+
+/**
+ * Wynik odsłonięcia biletów kodem (`revealEventCodeTickets`): kod po
+ * normalizacji, identyfikatory i - od B1a - pełne wiersze biletów. Przed
+ * migracją serwer zna tylko identyfikatory, a wiersze ma formularz.
+ */
+export interface TicketReveal {
+  code: string;
+  ticketIds: string[];
+  tickets: RegistrationFormTicket[];
+}
+
+/**
+ * Bilety ukryte odsłonięte kodem, dołączone do formularza - jedna lista dla
+ * wyboru, walidacji szkicu i wysyłki. Bilet już obecny na liście zostaje
+ * w wersji formularza (stary backend oddaje tam też bilety ukryte), nowy
+ * dochodzi na koniec w kolejności z bazy. Pusta lista nie zmienia formularza.
+ */
+export function withRevealedTickets(
+  form: RegistrationForm,
+  revealed: readonly RegistrationFormTicket[],
+): RegistrationForm {
+  const known = new Set(form.tickets.map((ticket) => ticket.id));
+  const added: RegistrationFormTicket[] = [];
+  for (const ticket of revealed) {
+    if (ticket.id === "" || known.has(ticket.id)) continue;
+    // Dwa kody odsłaniające ten sam bilet to nadal JEDNA karta do wyboru.
+    known.add(ticket.id);
+    added.push(ticket);
+  }
+  return added.length === 0 ? form : { ...form, tickets: [...form.tickets, ...added] };
 }
 
 /** Własna etykieta ceny biletu albo `null`, gdy obowiązuje etykieta domyślna. */

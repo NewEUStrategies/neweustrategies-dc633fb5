@@ -608,11 +608,15 @@ BEGIN
     format($$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"%s","last_name":"P","consent_data_processing":true}}')$$, repeat('x', 81)),
     'invalid_speaker', '42/(f): zbyt dlugie imie odrzucone nazwanym bledem');
 
+  -- ZMIANA 20261012133100 (REG-14): zgoda marketingowa naboru idzie przez
+  -- rejestr zgod, wiec formularz wysyla wersje i jezyk tekstu, ktory pokazal
+  -- (ten sam wersjonowany napis co formularz zapisu). Bez nich zgoda nie jest
+  -- zapisywana - brak dowodu, co osoba widziala.
   v := public.event_cfp_submission_save(jsonb_build_object(
     'slug', 'cfp-42',
     'speaker', jsonb_build_object('first_name', 'Piotr', 'last_name', 'Prelegent',
       'job_title', 'Analityk', 'company_text', 'Instytut', 'consent_marketing', true,
-      'consent_data_processing', true),
+      'consent_data_processing', true, 'lang', 'pl', 'consent_text_version', 1),
     'title_pl', 'Transformacja energetyczna', 'talk_language', 'pl', 'notify_lang', 'en',
     'format_key', 'talk', 'track_id', '42700000-0000-0000-0000-000000000071',
     'topics', jsonb_build_array(' energia ', 'OZE', ' '),
@@ -632,6 +636,12 @@ BEGIN
         AND p.consent_marketing_at IS NOT NULL AND p.job_title = 'Analityk'
        FROM public.event_people p WHERE p.id = v_person),
     '42/(f): kartoteka zglaszajacego: konto, adres KONTA, stempel przetwarzania i marketingu z JAWNEGO zaznaczenia');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) = 1 AND bool_and(r.status = 'confirmed' AND r.evidence = 'verified_account'
+                                       AND r.text_version = 1 AND r.text_lang = 'pl' AND r.source = 'event_cfp')
+       FROM public.event_consent_records r
+      WHERE r.person_id = v_person AND r.purpose = 'marketing'),
+    '42/(f): zgoda marketingowa naboru z wpisem ksiegi (verified_account, tekst v1/pl) - REG-14');
   PERFORM pg_temp.assert(
     (SELECT s.duration_min = 30 AND s.topics = ARRAY['energia', 'OZE'] AND s.notify_lang = 'en'
         AND s.answers = '{"poziom":"zaawansowany","nagranie":true}'::jsonb

@@ -9,6 +9,10 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  REGISTRATION_FIELD_LIMITS as LIMITS,
+  hasControlCharacters,
+} from "@/lib/events/registrationFieldLimits";
 
 export type TicketTaxMode = "inclusive" | "exclusive";
 
@@ -43,20 +47,30 @@ export interface GroupGuest {
 
 export const EMPTY_GUEST: GroupGuest = { firstName: "", lastName: "", email: "" };
 
-export type GuestIssue = "name" | "email" | "duplicate";
+export type GuestIssue = "name" | "email" | "duplicate" | "control";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/;
 
-/** Walidacja listy gości; `leadEmail` blokuje wpisanie samego siebie. */
+/**
+ * Walidacja listy gości; `leadEmail` blokuje wpisanie samego siebie. Te same
+ * reguły i ta sama kolejność co baza (`_event_register_group_guests`, R38):
+ * imiona, znaki sterujące, adres, duplikat - baza sprawdza CAŁĄ listę, zanim
+ * spojrzy, kto ma już zapis, więc formularz łapie to samo pod polem.
+ */
 export function guestIssues(guests: readonly GroupGuest[], leadEmail = ""): (GuestIssue | null)[] {
   const seen = new Set<string>();
   const lead = leadEmail.trim().toLowerCase();
   if (lead) seen.add(lead);
   return guests.map((g) => {
-    if (!g.firstName.trim() || !g.lastName.trim()) return "name";
-    if (g.firstName.trim().length > 80 || g.lastName.trim().length > 80) return "name";
+    const first = g.firstName.trim();
+    const last = g.lastName.trim();
+    if (!first || !last) return "name";
+    if (first.length > LIMITS.name || last.length > LIMITS.name) return "name";
     const email = g.email.trim().toLowerCase();
-    if (!EMAIL_RE.test(email) || email.length > 320) return "email";
+    if (hasControlCharacters(first) || hasControlCharacters(last) || hasControlCharacters(email)) {
+      return "control";
+    }
+    if (!EMAIL_RE.test(email) || email.length > LIMITS.email) return "email";
     if (seen.has(email)) return "duplicate";
     seen.add(email);
     return null;
@@ -148,19 +162,28 @@ export function useSaveTicketTaxGroup(
 
 // --- Publiczne ------------------------------------------------------------
 
+/**
+ * Dopisanie gości do zgłoszenia prowadzącego - przez SERWER (R38, REG-04).
+ *
+ * Przeglądarka nie woła już bazy wprost: funkcja serwerowa
+ * `registerEventGroupGuests` bierze najemcę z hosta, konto z sesji i solony
+ * skrót adresu, a baza liczy kubełek adresu i konta. Gość, który ma już zapis
+ * na wydarzenie, jest pomijany bez śladu w odpowiedzi (wiadomość dostaje on
+ * sam, mailem z serwera) - `added` to liczba poprawnych gości z listy.
+ *
+ * Odmowa (`{ok:false, error}`, zawsze bez adresu gościa) kończy się
+ * `Error("kod")`, który tłumaczy słownik gości (`groupGuestsFailure`). Moduł
+ * funkcji serwerowej ładujemy dynamicznie: czyste pomocniki tego pliku czyta
+ * też serwer (kasa), a deklaracja funkcji serwerowej jest tam zbędna.
+ */
 export async function registerGroupGuests(
   leadRegistrationId: string,
   guests: readonly GroupGuest[],
 ): Promise<number> {
-  const { data, error } = await supabase.rpc("event_register_group_guests", {
-    p_lead_registration_id: leadRegistrationId,
-    p_guests: guestsToPayload(guests),
+  const { registerEventGroupGuests } = await import("@/lib/events/groupGuests.functions");
+  const result = await registerEventGroupGuests({
+    data: { leadRegistrationId, guests: guestsToPayload(guests) },
   });
-  if (error) throw new Error(error.message);
-  // `Json` zawęża się do obiektu samym sprawdzeniem typu - rzutowanie na
-  // `Record<string, unknown>` niczego tu nie dodawało poza ślepą plamką.
-  if (data === null || typeof data !== "object" || Array.isArray(data) || !("added" in data)) {
-    return 0;
-  }
-  return typeof data.added === "number" ? data.added : 0;
+  if (!result.ok) throw new Error(result.error);
+  return result.added;
 }

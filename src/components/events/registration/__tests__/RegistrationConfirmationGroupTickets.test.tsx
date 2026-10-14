@@ -35,6 +35,20 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
   LazyEmbeddedCheckoutDialog: () => null,
 }));
 
+// Podgląd skutku rezygnacji (REG-03) - domyślnie rezygnacja bez pieniędzy;
+// ten plik nie dotyczy skutku finansowego (patrz RegistrationConfirmationStatuses).
+vi.mock("@/lib/events/publicRegistrationApi", () => ({
+  fetchCancellationPreview: () =>
+    Promise.resolve({
+      kind: "ok",
+      registrationId: "11111111-1111-1111-1111-111111111111",
+      status: "approved",
+      canCancel: true,
+      refusal: null,
+      refund: null,
+    }),
+}));
+
 const { RegistrationConfirmation } =
   await import("@/components/events/registration/RegistrationConfirmation");
 
@@ -49,12 +63,14 @@ function result(over: Partial<RegistrationResult> = {}): RegistrationResult {
     decisionSource: null,
     waitlistPosition: null,
     ticketTypeId: null,
-    qrToken: null,
     manageToken: null,
     paymentRequired: false,
     paymentStatus: "not_required",
     amountCents: null,
     currency: null,
+    quoteValidUntil: null,
+    accountLinked: null,
+    consentConfirmationRequired: false,
     ...over,
   };
 }

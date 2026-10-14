@@ -432,6 +432,7 @@ function registrationRow(overrides: Partial<EventRegistrationRow> = {}): EventRe
     id: "f4000000-0000-4000-8000-000000000001",
     job_title: "Analityk",
     last_name: "Nowak",
+    participant_reason: BRAK_NAPISU,
     person_id: BRAK_NAPISU,
     person_user_id: BRAK_NAPISU,
     phone: BRAK_NAPISU,

@@ -125,6 +125,7 @@ import { Route as MediaSplatRouteImport } from './routes/media.$'
 import { Route as LiveRssDotxmlRouteImport } from './routes/live_.rss[.]xml'
 import { Route as EventsSavedRouteImport } from './routes/events.saved'
 import { Route as EventsSlugRouteImport } from './routes/events.$slug'
+import { Route as EventConsentConfirmRouteImport } from './routes/event-consent.confirm'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ClubElementsRouteImport } from './routes/club.elements'
 import { Route as ClubApplyRouteImport } from './routes/club.apply'
@@ -331,6 +332,7 @@ import { Route as AdminEventsOnsiteRouteImport } from './routes/admin.events.ons
 import { Route as AdminEventsMeetingsRouteImport } from './routes/admin.events.meetings'
 import { Route as AdminEventsListRouteImport } from './routes/admin.events.list'
 import { Route as AdminEventsAgendaRouteImport } from './routes/admin.events.agenda'
+import { Route as AdminEventsAccountBindingsRouteImport } from './routes/admin.events.account-bindings'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
 import { Route as AdminCouponsCampaignsRouteImport } from './routes/admin.coupons.campaigns'
@@ -1015,6 +1017,11 @@ const EventsSlugRoute = EventsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => EventsRoute,
+} as any)
+const EventConsentConfirmRoute = EventConsentConfirmRouteImport.update({
+  id: '/event-consent/confirm',
+  path: '/event-consent/confirm',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   id: '/email/unsubscribe',
@@ -2063,6 +2070,12 @@ const AdminEventsAgendaRoute = AdminEventsAgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => AdminEventsRoute,
 } as any)
+const AdminEventsAccountBindingsRoute =
+  AdminEventsAccountBindingsRouteImport.update({
+    id: '/account-bindings',
+    path: '/account-bindings',
+    getParentRoute: () => AdminEventsRoute,
+  } as any)
 const AdminCrmIdRoute = AdminCrmIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -2784,6 +2797,7 @@ export interface FileRoutesByFullPath {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
@@ -2865,6 +2879,7 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/account-bindings': typeof AdminEventsAccountBindingsRoute
   '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
@@ -3191,6 +3206,7 @@ export interface FileRoutesByTo {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events/saved': typeof EventsSavedRoute
   '/live/rss.xml': typeof LiveRssDotxmlRoute
   '/media/$': typeof MediaSplatRoute
@@ -3271,6 +3287,7 @@ export interface FileRoutesByTo {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/account-bindings': typeof AdminEventsAccountBindingsRoute
   '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
@@ -3612,6 +3629,7 @@ export interface FileRoutesById {
   '/club/apply': typeof ClubApplyRoute
   '/club/elements': typeof ClubElementsRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events/$slug': typeof EventsSlugRouteWithChildren
   '/events/saved': typeof EventsSavedRoute
   '/live_/rss.xml': typeof LiveRssDotxmlRoute
@@ -3693,6 +3711,7 @@ export interface FileRoutesById {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/account-bindings': typeof AdminEventsAccountBindingsRoute
   '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
@@ -4037,6 +4056,7 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
+    | '/event-consent/confirm'
     | '/events/$slug'
     | '/events/saved'
     | '/live/rss.xml'
@@ -4118,6 +4138,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/account-bindings'
     | '/admin/events/agenda'
     | '/admin/events/list'
     | '/admin/events/meetings'
@@ -4444,6 +4465,7 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
+    | '/event-consent/confirm'
     | '/events/saved'
     | '/live/rss.xml'
     | '/media/$'
@@ -4524,6 +4546,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/account-bindings'
     | '/admin/events/agenda'
     | '/admin/events/list'
     | '/admin/events/meetings'
@@ -4864,6 +4887,7 @@ export interface FileRouteTypes {
     | '/club/apply'
     | '/club/elements'
     | '/email/unsubscribe'
+    | '/event-consent/confirm'
     | '/events/$slug'
     | '/events/saved'
     | '/live_/rss.xml'
@@ -4945,6 +4969,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/account-bindings'
     | '/admin/events/agenda'
     | '/admin/events/list'
     | '/admin/events/meetings'
@@ -5211,6 +5236,7 @@ export interface RootRouteChildren {
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  EventConsentConfirmRoute: typeof EventConsentConfirmRoute
   LiveRssDotxmlRoute: typeof LiveRssDotxmlRoute
   MediaSplatRoute: typeof MediaSplatRoute
   MeetingsEventSlugRoute: typeof MeetingsEventSlugRoute
@@ -6092,6 +6118,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/events/$slug'
       preLoaderRoute: typeof EventsSlugRouteImport
       parentRoute: typeof EventsRoute
+    }
+    '/event-consent/confirm': {
+      id: '/event-consent/confirm'
+      path: '/event-consent/confirm'
+      fullPath: '/event-consent/confirm'
+      preLoaderRoute: typeof EventConsentConfirmRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
       id: '/email/unsubscribe'
@@ -7535,6 +7568,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsAgendaRouteImport
       parentRoute: typeof AdminEventsRoute
     }
+    '/admin/events/account-bindings': {
+      id: '/admin/events/account-bindings'
+      path: '/account-bindings'
+      fullPath: '/admin/events/account-bindings'
+      preLoaderRoute: typeof AdminEventsAccountBindingsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
     '/admin/crm/$id': {
       id: '/admin/crm/$id'
       path: '/$id'
@@ -8361,6 +8401,7 @@ const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
 )
 
 interface AdminEventsRouteChildren {
+  AdminEventsAccountBindingsRoute: typeof AdminEventsAccountBindingsRoute
   AdminEventsAgendaRoute: typeof AdminEventsAgendaRoute
   AdminEventsListRoute: typeof AdminEventsListRoute
   AdminEventsMeetingsRoute: typeof AdminEventsMeetingsRoute
@@ -8373,6 +8414,7 @@ interface AdminEventsRouteChildren {
 }
 
 const AdminEventsRouteChildren: AdminEventsRouteChildren = {
+  AdminEventsAccountBindingsRoute: AdminEventsAccountBindingsRoute,
   AdminEventsAgendaRoute: AdminEventsAgendaRoute,
   AdminEventsListRoute: AdminEventsListRoute,
   AdminEventsMeetingsRoute: AdminEventsMeetingsRoute,
@@ -9188,6 +9230,7 @@ const rootRouteChildren: RootRouteChildren = {
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  EventConsentConfirmRoute: EventConsentConfirmRoute,
   LiveRssDotxmlRoute: LiveRssDotxmlRoute,
   MediaSplatRoute: MediaSplatRoute,
   MeetingsEventSlugRoute: MeetingsEventSlugRoute,

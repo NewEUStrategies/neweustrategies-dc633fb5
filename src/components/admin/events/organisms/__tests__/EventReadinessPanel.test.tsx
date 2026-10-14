@@ -74,6 +74,10 @@ const RPC_GOTOWOSCI = [
   "admin_event_rooms_list",
   "admin_event_seat_maps_list",
   "admin_event_sessions_list",
+  // Widocznosc biletu (`is_hidden`) i jego podatek/grupa - prezentacja biletow
+  // (REG-05: bilet ukryty bez kodu dostepu).
+  "admin_event_ticket_presentation",
+  "admin_event_ticket_tax_group",
   "admin_event_tickets_list",
 ];
 
@@ -102,6 +106,11 @@ function planuj(
     /** Typy biletów wyłączone ze sprzedaży - `event_register` ich nie widzi. */
     nieaktywne?: number;
     plany?: Record<string, unknown>[];
+    /**
+     * Bilety UKRYTE (aktywne): `true` = z kodem dostępu, `false` = bez kodu -
+     * takiego REG-05 nie odsłania sam link rejestracyjny.
+     */
+    ukryte?: boolean[];
   } = {},
 ): void {
   const puste = (ile: number): Record<string, string>[] =>
@@ -115,6 +124,11 @@ function planuj(
       id: `wylaczony-${index}`,
       is_active: false,
     })),
+    ...(options.ukryte ?? []).map((zKodem, index) => ({
+      id: `ukryty-${index}`,
+      is_active: true,
+      has_access_code: zKodem,
+    })),
   ];
   stub().setData("admin_event_publish_readiness", []);
   stub().setData("admin_event_sessions_list", options.sesje ?? []);
@@ -122,6 +136,18 @@ function planuj(
   stub().setData("admin_event_agenda_conflicts", puste(options.kolizje ?? 0));
   stub().setData("admin_event_tickets_list", bilety);
   stub().setData("admin_event_seat_maps_list", options.plany ?? []);
+  stub().setData(
+    "admin_event_ticket_presentation",
+    bilety.map((bilet) => ({
+      id: bilet.id,
+      is_hidden: bilet.id.startsWith("ukryty-"),
+      show_price_label: true,
+      price_label_pl: null,
+      price_label_en: null,
+      group_registration_enabled: false,
+    })),
+  );
+  stub().setData("admin_event_ticket_tax_group", []);
 }
 
 function panel(overrides: Partial<AdminEventDetailRow> = {}) {
@@ -234,8 +260,9 @@ describe("EventReadinessPanel - naglowek i postep", () => {
     planuj();
     panel();
 
-    // Dwa braki (sesje, sale) z czternastu warunkow - liczby ida parametrami.
-    expect(await screen.findByText(`${R}progress(passed=12,total=14)`)).toBeInTheDocument();
+    // Dwa braki (sesje, sale) z pietnastu warunkow (z biletami ukrytymi,
+    // REG-05) - liczby ida parametrami.
+    expect(await screen.findByText(`${R}progress(passed=13,total=15)`)).toBeInTheDocument();
   });
 
   it("komplet spelniony konczy sie ZDANIEM, a nie pusta ramka", async () => {
@@ -245,7 +272,7 @@ describe("EventReadinessPanel - naglowek i postep", () => {
     panel();
 
     expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
-    expect(screen.getByText(`${R}progress(passed=14,total=14)`)).toBeInTheDocument();
+    expect(screen.getByText(`${R}progress(passed=15,total=15)`)).toBeInTheDocument();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
@@ -296,7 +323,7 @@ describe("EventReadinessPanel - plan sali", () => {
 
     await screen.findByText(`${R}checks.seating(count=3)`);
     expect(skrot("seating", 3)).toBe(`/admin/events/${STUDIO_EVENT_ID}/registration/seating`);
-    expect(screen.getByText(`${R}progress(passed=14,total=15)`)).toBeInTheDocument();
+    expect(screen.getByText(`${R}progress(passed=15,total=16)`)).toBeInTheDocument();
   });
 
   it("plan w szkicu nie ostrzega i nie wchodzi do licznika", async () => {
@@ -304,16 +331,39 @@ describe("EventReadinessPanel - plan sali", () => {
     panel();
 
     expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
-    expect(screen.getByText(`${R}progress(passed=14,total=14)`)).toBeInTheDocument();
+    expect(screen.getByText(`${R}progress(passed=15,total=15)`)).toBeInTheDocument();
   });
 
   it("WYLACZONY modul planu sali nie pyta bazy o plany", async () => {
     planuj({ sesje: [adminEventSessionRow()], sale: 1, plany: [plan({})] });
     panel({ features: { seating: false } });
 
-    await poczekaj(4);
+    await poczekaj(6);
     expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
     expect(stub().names()).not.toContain("admin_event_seat_maps_list");
+  });
+});
+
+// REG-05 (decyzja D6): sam link rejestracyjny z kluczem biletu nie odslania
+// juz biletu UKRYTEGO bez kodu dostepu. Organizator, ktory rozeslal link,
+// dowiaduje sie o tym PRZED publikacja - ostrzezeniem ze skrotem do biletow.
+describe("EventReadinessPanel - bilety ukryte bez kodu dostepu", () => {
+  it("bilet ukryty BEZ kodu daje ostrzezenie z liczba i skrotem do biletow", async () => {
+    planuj({ sesje: [adminEventSessionRow()], sale: 1, ukryte: [false, true] });
+    panel();
+
+    await screen.findByText(`${R}checks.hiddenTickets(count=1)`);
+    expect(skrot("hiddenTickets", 1)).toBe(`/admin/events/${STUDIO_EVENT_ID}/registration/tickets`);
+    // Ostrzezenie, nie blokada: bilet za kodem odslaniajacym to poprawna konfiguracja.
+    expect(screen.queryByText(`${R}blocked(count=1)`)).toBeNull();
+  });
+
+  it("bilet ukryty Z kodem dostepu nie ostrzega", async () => {
+    planuj({ sesje: [adminEventSessionRow()], sale: 1, ukryte: [true] });
+    panel();
+
+    expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`${R}checks\\.hiddenTickets`))).toBeNull();
   });
 });
 

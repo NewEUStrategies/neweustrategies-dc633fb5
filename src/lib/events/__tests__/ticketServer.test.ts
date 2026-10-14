@@ -522,6 +522,136 @@ describe("loadMyEventTicket", () => {
     return stub;
   }
 
+  // REG-12: karta mówi, GDZIE jest prawdziwy kod wejścia - z własnego
+  // zgłoszenia (RLS `event_registrations_self_read`), nie z numeru
+  // potwierdzenia, którego skaner nie zna.
+  describe("tryb wejścia (`entry`) z własnego zgłoszenia", () => {
+    function withRegistration(row: Record<string, unknown> | null): SupabaseClientStub {
+      const stub = ticketScenario({});
+      stub.db.setResponse("event_registrations", ok(row));
+      return stub;
+    }
+
+    const PAID = {
+      status: "approved",
+      payment_status: "paid",
+      ticket_code_sent_at: null,
+      ticket_code_undeliverable_at: null,
+    };
+
+    it.each([
+      ["brak zgłoszenia (RSVP sprzed formularza)", null, "guest_list"],
+      ["zgłoszenie nieopłacone", { ...PAID, payment_status: "unpaid" }, "guest_list"],
+      ["zgłoszenie po zwrocie", { ...PAID, payment_status: "refunded" }, "guest_list"],
+      [
+        "kod wysłany mailem",
+        { ...PAID, ticket_code_sent_at: "2026-09-01T10:00:00Z" },
+        "emailed_qr",
+      ],
+      [
+        "mail z kodem niedoręczony",
+        { ...PAID, ticket_code_undeliverable_at: "2026-09-01T10:00:00Z" },
+        "contact_organizer",
+      ],
+      ["rozliczone, kod jeszcze nie wyszedł", PAID, "qr_pending"],
+      [
+        "bezpłatne (not_required), kod wyszedł",
+        {
+          ...PAID,
+          payment_status: "not_required",
+          ticket_code_sent_at: "2026-09-01T10:00:00Z",
+        },
+        "emailed_qr",
+      ],
+    ] as const)("%s -> %s", async (_label, row, entry) => {
+      const stub = withRegistration(row);
+      const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+      expect(ticket?.entry).toBe(entry);
+    });
+
+    it("zgłoszenie czyta TO wydarzenie, tylko stany z prawem wejścia, najnowsze", async () => {
+      const stub = withRegistration(PAID);
+      await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+      const chain = stub.db.lastChain("event_registrations");
+      expect(chain?.argsOf("select")?.[0]).toBe(
+        "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at, event_people!event_registrations_person_fkey!inner(user_id)",
+      );
+      expect(chain?.argsOf("eq")).toEqual(["event_id", EVENT_IDS.event]);
+      expect(chain?.argsOf("in")).toEqual(["status", ["approved", "attended"]]);
+      expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
+      expect(chain?.argsOf("limit")).toEqual([1]);
+    });
+
+    // PRZEGLĄD R67. RLS nie zawęża odczytu do WŁASNEGO zgłoszenia: polityka
+    // `event_registrations_staff_read` oddaje organizatorowi każde zgłoszenie
+    // najemcy. Atrapa odgrywa właśnie ten odczyt - wszystkie wiersze
+    // wydarzenia - i stosuje tylko filtry, które zapytanie naprawdę niesie
+    // (`eq` na kolumnach i na osadzonym `event_people.user_id`, złączenie
+    // wewnętrzne). Bez filtra osoby organizator dostawał tryb wejścia
+    // z najnowszego CUDZEGO zgłoszenia.
+    describe("organizator zapisany na wydarzenie (odczyt staff widzi wszystkich)", () => {
+      const STAFF = "a6700000-0000-4000-8000-0000000000d1";
+      const OTHER = "a6700000-0000-4000-8000-0000000000d2";
+      const rows = [
+        {
+          // własne zgłoszenie organizatora: przyjęte, NIEOPŁACONE (bez kodu)
+          user: STAFF,
+          created_at: "2026-09-01T10:00:00Z",
+          row: { ...PAID, payment_status: "unpaid" },
+        },
+        {
+          // cudze, nowsze: opłacone, kod wysłany mailem
+          user: OTHER,
+          created_at: "2026-09-02T10:00:00Z",
+          row: { ...PAID, ticket_code_sent_at: "2026-09-02T11:00:00Z" },
+        },
+      ];
+
+      function staffVisibleTable(chain: RecordedChain): SupabaseResult {
+        let out = rows.filter((entry) =>
+          chain.calls
+            .filter((call) => call.method === "eq")
+            .map((call) => call.args)
+            .every(([column, value]) =>
+              column === "event_people.user_id" ? entry.user === value : true,
+            ),
+        );
+        out = [...out].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+        const first = out[0];
+        return ok(
+          first === undefined ? null : { ...first.row, event_people: { user_id: first.user } },
+        );
+      }
+
+      it("tryb wejścia pochodzi z JEGO zgłoszenia, nie z najnowszego cudzego", async () => {
+        const stub = ticketScenario({});
+        stub.db.setResponse("event_registrations", staffVisibleTable);
+        const ticket = await loadMyEventTicket(asClient(stub), STAFF, EVENT_IDS.event);
+        // Własne zgłoszenie jest nieopłacone: lista gości, a nie „kod w mailu".
+        expect(ticket?.entry).toBe("guest_list");
+      });
+
+      it("filtr osoby wołającego idzie DO BAZY (złączenie wewnętrzne po user_id)", async () => {
+        const stub = ticketScenario({});
+        stub.db.setResponse("event_registrations", staffVisibleTable);
+        await loadMyEventTicket(asClient(stub), STAFF, EVENT_IDS.event);
+        const chain = stub.db.lastChain("event_registrations");
+        const eqs = chain?.calls.filter((call) => call.method === "eq").map((call) => call.args);
+        expect(eqs).toContainEqual(["event_people.user_id", STAFF]);
+        expect(chain?.argsOf("select")?.[0]).toContain(
+          "event_people!event_registrations_person_fkey!inner(user_id)",
+        );
+      });
+
+      it("kontrapunkt: drugi uczestnik nadal widzi SWÓJ kod wysłany mailem", async () => {
+        const stub = ticketScenario({});
+        stub.db.setResponse("event_registrations", staffVisibleTable);
+        const ticket = await loadMyEventTicket(asClient(stub), OTHER, EVENT_IDS.event);
+        expect(ticket?.entry).toBe("emailed_qr");
+      });
+    });
+  });
+
   it("bez wiersza RSVP nie ma biletu", async () => {
     const stub = ticketScenario({ rsvp: null });
     await expect(

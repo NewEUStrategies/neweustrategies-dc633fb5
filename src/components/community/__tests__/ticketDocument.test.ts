@@ -1,4 +1,7 @@
-// Potwierdzenie biletu jako samodzielny plik HTML.
+// Potwierdzenie rezerwacji jako samodzielny plik HTML.
+//
+// TO NIE BILET WSTĘPU (REG-12): plik nie niesie kodu QR - numer potwierdzenia
+// nie otwiera bramki, a notka odsyła do maila „Twój bilet".
 //
 // DLACZEGO TO NIE JEST „TYLKO SZABLON". Dokument skleja HTML z danych, których
 // źródłem jest baza i formularz: tytuł wydarzenia, miejsce, imię uczestnika,
@@ -27,6 +30,7 @@ function ticket(overrides: Partial<MyEventTicket> = {}): MyEventTicket {
     paidAt: "2026-08-01T10:00:00.000Z",
     holderName: "Anna Kowalska",
     holderEmail: "anna@example.org",
+    entry: "emailed_qr",
     ...overrides,
   };
 }
@@ -35,7 +39,6 @@ const BASE = {
   lang: "pl" as const,
   title: "Szczyt energetyczny",
   dateLabel: "1 września 2026, 10:00",
-  qrDataUrl: "data:image/png;base64,AAAA",
 };
 
 describe("buildTicketDocument - treść", () => {
@@ -48,7 +51,7 @@ describe("buildTicketDocument - treść", () => {
     expect(html).toContain('<meta charset="utf-8" />');
   });
 
-  it("niesie numer biletu, termin, miejsce, uczestnika i numer transakcji", () => {
+  it("niesie numer potwierdzenia, termin, miejsce, uczestnika i numer transakcji", () => {
     const html = buildTicketDocument({ ...BASE, ticket: ticket() });
     for (const value of [
       "NES-1A2B-3C4D",
@@ -72,7 +75,7 @@ describe("buildTicketDocument - treść", () => {
     expect(html).not.toContain("Numer transakcji");
     expect(html).not.toContain("Miejsce");
     expect(html).not.toContain("Termin");
-    expect(html).toContain("Numer biletu");
+    expect(html).toContain("Numer potwierdzenia");
   });
 
   it("bez imienia podpisuje biletem adresem e-mail", () => {
@@ -91,26 +94,30 @@ describe("buildTicketDocument - treść", () => {
     expect(html).not.toContain("Uczestnik");
   });
 
-  it("osadza kod QR jako obraz z tekstem alternatywnym", () => {
+  it("REG-12: dokument NIE niesie kodu QR ani żadnego obrazka", () => {
     const html = buildTicketDocument({ ...BASE, ticket: ticket() });
-    expect(html).toContain('<img src="data:image/png;base64,AAAA"');
-    expect(html).toContain('alt="NES-1A2B-3C4D"');
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain('class="qr"');
+    expect(html).not.toContain("?ticket=");
+    expect(html).toContain("NES-1A2B-3C4D");
   });
 
-  it("bez kodu QR dokument nadal powstaje - z pustym miejscem na obraz", () => {
-    // Generowanie QR może paść (brak canvasu, wyłączony JS w trakcie); bilet
-    // z samym numerem wciąż działa przy wejściu.
-    const html = buildTicketDocument({ ...BASE, ticket: ticket(), qrDataUrl: null });
-    expect(html).toContain('<div class="qr"></div>');
-    expect(html).toContain("NES-1A2B-3C4D");
+  it("REG-12: tytuł i notka mówią, że to potwierdzenie rezerwacji, nie bilet wstępu", () => {
+    const pl = buildTicketDocument({ ...BASE, ticket: ticket() });
+    const en = buildTicketDocument({ ...BASE, lang: "en", ticket: ticket() });
+    expect(pl).toContain("<title>Potwierdzenie rezerwacji - Szczyt energetyczny</title>");
+    expect(pl).toContain("nie bilet wstępu");
+    expect(pl).toContain("„Twój bilet”");
+    expect(en).toContain("Booking confirmation");
+    expect(en).toContain("not an entry ticket");
   });
 
   it("obie wersje językowe mają własne etykiety i pouczenie", () => {
     const pl = buildTicketDocument({ ...BASE, ticket: ticket() });
     const en = buildTicketDocument({ ...BASE, lang: "en", ticket: ticket() });
-    expect(pl).toContain("Numer biletu");
+    expect(pl).toContain("Numer potwierdzenia");
     expect(pl).toContain("nieprzenoszalne");
-    expect(en).toContain("Ticket number");
+    expect(en).toContain("Booking reference");
     expect(en).toContain("non-transferable");
     expect(en).toContain('<html lang="en">');
   });

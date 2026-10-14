@@ -8,9 +8,10 @@
 // `event_my_registrations` składa komplet po stronie bazy dla `auth.uid()`
 // i nie przyjmuje ŻADNEGO identyfikatora od wołającego.
 //
-// KANAŁY ZMIENIA UCZESTNIK, NIE ORGANIZATOR. `event_registration_set_channels`
-// przyjmuje albo identyfikator zgłoszenia zalogowanego właściciela, albo klucz
-// `manage_token` z maila - ta druga droga jest jedyną dla gościa bez konta.
+// KANAŁY ZMIENIA UCZESTNIK, NIE ORGANIZATOR - przez `registrationChannelsApi`
+// (re-eksport niżej): identyfikator zgłoszenia zalogowanego właściciela albo
+// klucz `manage_token` z maila. SMS jest domyślnie wyłączony i włącza się
+// wyłącznie z jawną zgodą (REG-10).
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -44,7 +45,13 @@ export interface ParticipantRegistration {
   promotedAt: string | null;
   notifyEmail: boolean;
   notifySms: boolean;
-  cancelReason: string | null;
+  /**
+   * Powód zamknięcia napisany DLA uczestnika (`participant_reason`, REG-06) -
+   * tylko przy zgłoszeniu odrzuconym albo anulowanym. Celowo bez zapasu
+   * w `cancel_reason`/`decision_note`: notatka wewnętrzna organizatora nigdy
+   * nie trafia na tę kartę, także przy starszej bazie.
+   */
+  participantReason: string | null;
   decisionSource: string | null;
   eventSlug: string;
   eventTitlePl: string | null;
@@ -56,8 +63,32 @@ export interface ParticipantRegistration {
   amountCents: number | null;
   refundedCents: number;
   currency: string | null;
+  /**
+   * Zgłoszenie opłacone CUDZYM zamówieniem (gość grupy, płaci prowadzący;
+   * przegląd R45). Baza nie oddaje wtedy zamówienia - ani kwoty całej grupy,
+   * ani identyfikatorów operatora, ani webhooków - więc `amountCents` jest
+   * puste, a karta mówi „opłacone przez zapisującego grupę", nie „bezpłatne".
+   */
+  paymentShared: boolean;
+  /**
+   * Stan zwrotu ZAMKNIĘTEGO zgłoszenia (także zamkniętego odwołaniem całego
+   * wydarzenia) - ze zlecenia zwrotu zamówienia uczestnika. `null` = brak
+   * zlecenia albo starsza baza.
+   */
+  refundState: ParticipantRefundState | null;
   webhooks: TicketWebhookEntry[];
 }
+
+/** Stan zwrotu w słowniku uczestnika (`event_my_registrations.refund_state`). */
+export type ParticipantRefundState = "queued" | "processing" | "review" | "refunded" | "declined";
+
+const REFUND_STATES: ReadonlySet<string> = new Set<ParticipantRefundState>([
+  "queued",
+  "processing",
+  "review",
+  "refunded",
+  "declined",
+]);
 
 type Bag = Record<string, unknown>;
 
@@ -119,8 +150,9 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
     waitlistPosition: int(row, "waitlist_position"),
     promotedAt: text(row, "promoted_at"),
     notifyEmail: bool(row, "notify_email", true),
-    notifySms: bool(row, "notify_sms", true),
-    cancelReason: text(row, "cancel_reason"),
+    // Brak pola to brak dowodu zgody - SMS nie jest domyślny (REG-10).
+    notifySms: bool(row, "notify_sms", false),
+    participantReason: text(row, "participant_reason"),
     decisionSource: text(row, "decision_source"),
     eventSlug: slug,
     eventTitlePl: text(row, "event_title_pl"),
@@ -132,8 +164,15 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
     amountCents: int(row, "amount_cents"),
     refundedCents: int(row, "refunded_amount_cents") ?? 0,
     currency: text(row, "currency"),
+    paymentShared: bool(row, "payment_shared", false),
+    refundState: refundStateOf(text(row, "refund_state")),
     webhooks: parseWebhooks(row["webhooks"]),
   };
+}
+
+/** Nieznana wartość z bazy nie udaje znanego stanu - karta jej nie pokazuje. */
+function refundStateOf(value: string | null): ParticipantRefundState | null {
+  return value !== null && REFUND_STATES.has(value) ? (value as ParticipantRefundState) : null;
 }
 
 /**
@@ -175,41 +214,22 @@ export async function fetchMyRegistrations(): Promise<ParticipantRegistration[]>
   return out;
 }
 
-export interface ChannelPrefsInput {
-  registrationId?: string;
-  /** Klucz z maila - jedyna droga dla uczestnika bez konta. */
-  manageToken?: string;
-  notifyEmail?: boolean;
-  notifySms?: boolean;
-}
-
-export interface ChannelPrefs {
-  registrationId: string;
-  notifyEmail: boolean;
-  notifySms: boolean;
-}
-
-/** Zmienia kanały powiadomień pojedynczego zgłoszenia. */
-export async function setRegistrationChannels(input: ChannelPrefsInput): Promise<ChannelPrefs> {
-  const payload: Record<string, Json> = {};
-  if (input.registrationId !== undefined) payload["registration_id"] = input.registrationId;
-  if (input.manageToken !== undefined) payload["manage_token"] = input.manageToken;
-  if (input.notifyEmail !== undefined) payload["notify_email"] = input.notifyEmail;
-  if (input.notifySms !== undefined) payload["notify_sms"] = input.notifySms;
-
-  const { data, error } = await supabase.rpc("event_registration_set_channels", {
-    p_payload: payload as Json,
-  });
-  if (error) throw error;
-  const row = bag(data);
-  const id = row === null ? null : text(row, "registration_id");
-  if (row === null || id === null) throw new Error("invalid_response");
-  return {
-    registrationId: id,
-    notifyEmail: bool(row, "notify_email", true),
-    notifySms: bool(row, "notify_sms", true),
-  };
-}
+// Kanały, przypomnienia i zgoda na SMS mieszkają w `registrationChannelsApi`
+// (własna mapa odmów i bramka i18n); ten moduł oddaje je dalej, żeby ekrany
+// i testy importowały je jak dotąd.
+export {
+  CHANNEL_ERROR_CODES,
+  channelErrorCode,
+  channelErrorKey,
+  fetchRegistrationPreferences,
+  parseRegistrationPreferences,
+  setRegistrationChannels,
+  type ChannelErrorCode,
+  type ChannelPrefs,
+  type ChannelPrefsInput,
+  type RegistrationPreferences,
+  type RegistrationPreferencesData,
+} from "@/lib/events/registrationChannelsApi";
 
 export interface SpeakerSessionEntry {
   sessionId: string;

@@ -14,6 +14,7 @@ import * as React from "react";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import {
+  EVENT_CONSENT_PURPOSE_COPY,
   PARTICIPANT_TX_DETAIL_LABELS,
   PARTICIPANT_TX_EMAIL_TYPES,
   isParticipantTxEmailType,
@@ -55,6 +56,8 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "event_registration_approved",
   "event_registration_rejected",
   "event_waitlist_promoted",
+  "event_registration_already_registered",
+  "event_consent_confirm",
   "event_cfp_submission_received",
   "event_cfp_submission_accepted",
   "event_cfp_submission_rejected",
@@ -90,21 +93,22 @@ export interface TxEmailPreview {
 const SITE_URL = "https://neweuropeanstrategies.com";
 
 /**
- * Przykladowe uzasadnienie odmowy w podgladzie maila.
+ * Przykladowy powod odmowy dla uczestnika (`participant_reason`, REG-06)
+ * w podgladzie maila - nigdy notatka wewnetrzna.
  *
  * MAPA PO JEZYKU, A NIE TERNARY. Reszta danych demonstracyjnych w tym pliku
  * rozgalezia sie w kodzie (dlug zmierzony przez `check:i18n-hardcoded`);
  * nowy wpis nie ma powodu ten dlug powiekszac, a `Record<EmailLang, string>`
  * jest kanonicznym zapisem tej samej rzeczy.
  */
-const DEMO_DECISION_NOTE: Record<EmailLang, string> = {
+const DEMO_PARTICIPANT_REASON: Record<EmailLang, string> = {
   pl: "Komplet miejsc dla tej grupy uczestników.",
   en: "The seat pool for this participant group is full.",
 };
 
 /**
  * Dane demonstracyjne biletu na wydarzenie - ten sam zapis, co
- * `DEMO_DECISION_NOTE` wyzej i z tego samego powodu.
+ * `DEMO_PARTICIPANT_REASON` wyzej i z tego samego powodu.
  *
  * `DEMO_TICKET_PRICE` sluzy DWOM rzeczom naraz: to cena biletu i zarazem kwota
  * zwrotu calkowitego (`event_ticket_refunded` oddaje cale wejsciowke). Zwrot
@@ -118,6 +122,11 @@ const DEMO_TICKET_PRICE: Record<EmailLang, string> = { pl: "450,00 PLN", en: "PL
 const DEMO_PARTIAL_REFUND: Record<EmailLang, string> = { pl: "150,00 PLN", en: "PLN 150.00" };
 /** Kod wejścia w kształcie `_event_new_qr_token()` (32 znaki base64url). */
 const DEMO_ENTRY_CODE = "Nes2026DemoTicketCode0123456789A";
+/**
+ * Token potwierdzenia zgody w kształcie `_event_new_qr_token()` - wyłącznie
+ * do podglądu. Jedzie we FRAGMENCIE adresu, jak w prawdziwym mailu.
+ */
+const DEMO_CONSENT_TOKEN = "Nes2026DemoConsentToken012345678";
 const DEMO_REFUND_LABEL: Record<EmailLang, string> = {
   pl: "Kwota zwrotu",
   en: "Refunded amount",
@@ -142,7 +151,7 @@ interface DemoData {
 /**
  * Dane demonstracyjne maili uczestnika F1-F5 - JEDNA wartość na etykietę
  * z kontraktu `PARTICIPANT_TX_DETAIL_LABELS`, w obu językach mapą (nie
- * ternarym, patrz `DEMO_DECISION_NOTE`). Wiersze budujemy z kontraktu, więc
+ * ternarym, patrz `DEMO_PARTICIPANT_REASON`). Wiersze budujemy z kontraktu, więc
  * podgląd nie może pokazać innego zestawu wierszy niż ten, który wysyłają tory.
  */
 const DEMO_PARTICIPANT_VALUES: Record<EmailLang, Record<ParticipantTxDetailLabel, string>> = {
@@ -357,7 +366,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         details: [
           { label: l.event, value: eventTitle },
           { label: l.date, value: eventDate },
-          { label: l.decisionNote, value: DEMO_DECISION_NOTE[lang] },
+          { label: l.participantReason, value: DEMO_PARTICIPANT_REASON[lang] },
         ],
         ctaUrl: `${SITE_URL}/events`,
       };
@@ -371,6 +380,27 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.waitlistPosition, value: "3" },
         ],
         ctaUrl: `${SITE_URL}/events`,
+      };
+    // Ponowny zapis na zajęty adres: sam tytuł wydarzenia i przycisk do jego
+    // strony - ŻADNEGO klucza samoobsługi ani statusu (to nie jest
+    // potwierdzenie, tylko wiadomość o próbie).
+    case "event_registration_already_registered":
+      return {
+        subjectName: eventTitle,
+        details: [{ label: l.event, value: eventTitle }],
+        ctaUrl: `${SITE_URL}/events/demo`,
+      };
+    // Double opt-in: jeden wiersz na potwierdzany cel, z dokładnym napisem
+    // checkboxa; token jedzie we fragmencie, jak w wysyłce.
+    case "event_consent_confirm":
+      return {
+        subjectName: eventTitle,
+        details: [
+          { label: l.event, value: eventTitle },
+          { label: l.consent, value: EVENT_CONSENT_PURPOSE_COPY[lang].marketing },
+          { label: l.consent, value: EVENT_CONSENT_PURPOSE_COPY[lang].partner_sharing },
+        ],
+        ctaUrl: `${SITE_URL}/event-consent/confirm#token=${DEMO_CONSENT_TOKEN}`,
       };
     // Nabór prelegentów: potwierdzenie wysłania i trzy decyzje organizatora.
     // Decyzje niosą informację zwrotną organizatora; przycisk prowadzi do

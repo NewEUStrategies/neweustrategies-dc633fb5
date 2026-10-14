@@ -19,10 +19,18 @@
 // 3) PUSTY SUKCES NIE ISTNIEJE. Odpowiedz bez `registration_id` konczy sie
 //    bledem, bo bez identyfikatora zgloszenia nie da sie ani pokazac, ani
 //    odwolac - a ekran „jestes zapisany" bez zapisu jest gorszy niz awaria.
-// 4) KOD WEJSCIA WRACA RAZ. Udane wywolanie kasuje skrot tokenu w bazie
-//    (`20260827221214:698-702`), wiec `qr_token` i `manage_token` maja dojechac
-//    do komponentu w calosci; pusty napis ma sie czytac jako BRAK, a nie jako
-//    kod, ktory da sie pokazac na bramce.
+// 4) KOD WEJSCIA WRACA RAZ. Udane wywolanie przypisuje miejsce (ponowne uzycie
+//    linku to `seat_taken`, 20261012132200), wiec `qr_token` i `manage_token`
+//    maja dojechac do komponentu w calosci; pusty napis ma sie czytac jako
+//    BRAK, a nie jako kod, ktory da sie pokazac na bramce.
+// 6) ODMOWA WARTOSCIA TO TEZ ODMOWA (REG-15). Baza odpowiada na nieznany token
+//    `{ok:false, error}` - wyjatek wycofalby licznik prob - a modul zamienia to
+//    na wyjatek w ksztalcie dawnego wyjatku bazy (`kod: ogon`). Pusty sukces
+//    z `ok:false` bylby ekranem „jestes zapisany" bez zapisu.
+// 7) FORMULARZ WYDARZENIA JEDZIE DO BAZY. Odpowiedzi (`answers`) i
+//    zaakceptowane regulaminy (`accepted_term_ids`) - bez nich baza odmawia
+//    `missing_required_fields` / `terms_required`; jezyk i wersja tekstow zgod
+//    trafiaja do ksiegi zgod (A2).
 // 5) TOKEN JEST POSWIADCZENIEM, NIE IDENTYFIKATOREM (naglowek
 //    `packageInviteApi.ts:3-6`). Nie wolno go logowac ani odkladac gdzie
 //    indziej niz w polu `token` ladunku. Token w tescie jest SYNTETYCZNY -
@@ -49,6 +57,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 const api = await import("@/lib/events/packageInviteApi");
+const { EVENT_CONSENT_TEXT_VERSION } = await import("@/lib/events/consentTexts");
 
 /** Token syntetyczny: 64 znaki szesnastkowe - ksztalt zaproszenia KUPUJACEGO. */
 const TOKEN = "b7c1a9d3e5f70246813579bdf0a2c4e68a1b3c5d7e9f02468ace13579bdf0246";
@@ -79,13 +88,17 @@ const accepting: import("@/lib/events/packageInviteApi").PackageInviteAcceptInpu
   consentDataProcessing: true,
 };
 
-/** Odpowiedz w ksztalcie z `20260827221214:711-717`. */
+/** Odpowiedz w ksztalcie z `20261012132200` (przyjecie zaproszenia, REG-15). */
 const accepted = {
+  ok: true,
   registration_id: REGISTRATION_ID,
   event_id: EVENT_ID,
+  event_slug: "kongres-2026",
   status: "approved",
   qr_token: QR_TOKEN,
   manage_token: MANAGE_TOKEN,
+  account_linked: true,
+  marketing_recorded: false,
 };
 
 beforeEach(() => {
@@ -106,7 +119,47 @@ describe("acceptPackageInvite - ladunek", () => {
       first_name: "Halina",
       last_name: "Zaremba",
       consent_data_processing: true,
+      answers: {},
+      accepted_term_ids: [],
+      consent_marketing: false,
+      lang: "pl",
+      consent_text_version: EVENT_CONSENT_TEXT_VERSION,
     });
+  });
+
+  // Pola obowiazkowe i regulaminy wydarzenia sprawdza baza (REG-15) - bez nich
+  // odmawia `missing_required_fields` / `terms_required`. Odpowiedzi jada jako
+  // obiekt `klucz -> wartosc` (ten sam ksztalt co zapis), regulaminy jako lista
+  // identyfikatorow.
+  it("odpowiedzi na pola i zaakceptowane regulaminy jada w ladunku", async () => {
+    rpc().setData("event_package_invite_accept", accepted);
+    await api.acceptPackageInvite({
+      ...accepting,
+      answers: [
+        { key: "sektor", value: "energia" },
+        { key: "  ", value: "pominiete" },
+        { key: "tematy", value: ["a", "b"] },
+      ],
+      acceptedTermIds: ["4e5f0000-0000-4000-8000-000000000903"],
+      lang: "en",
+    });
+
+    const sent = payloadOf();
+    expect(sent.answers).toEqual({ sektor: "energia", tematy: ["a", "b"] });
+    expect(sent.accepted_term_ids).toEqual(["4e5f0000-0000-4000-8000-000000000903"]);
+    expect(sent.lang).toBe("en");
+  });
+
+  // Marketing nie ma wartosci domyslnej tak samo jak zgoda RODO: nieoznaczony
+  // jedzie jako jawne `false`, oznaczony - jako `true` (baza zapisze go
+  // wylacznie zweryfikowanemu wlascicielowi adresu zaproszenia).
+  it("zgoda marketingowa jedzie doslownie, nieoznaczona jako `false`", async () => {
+    rpc().setData("event_package_invite_accept", accepted);
+    await api.acceptPackageInvite({ ...accepting, consentMarketing: true });
+    expect(payloadOf().consent_marketing).toBe(true);
+
+    await api.acceptPackageInvite({ ...accepting, consentMarketing: undefined });
+    expect(payloadOf().consent_marketing).toBe(false);
   });
 
   // Brak danej to brak klucza: `null` znaczylby „wyczysc" i skasowalby
@@ -162,11 +215,45 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     expect(result).toEqual({
       registrationId: REGISTRATION_ID,
       eventId: EVENT_ID,
+      eventSlug: "kongres-2026",
       status: "approved",
       awaitingPayment: false,
       qrToken: QR_TOKEN,
       manageToken: MANAGE_TOKEN,
+      accountLinked: true,
     });
+  });
+
+  // `account_linked` mowi, czy zgloszenie trafilo do konta wolajacego (konto
+  // wiaze sie tylko z potwierdzonym adresem zaproszenia). Brak klucza = starsza
+  // baza, ktora tego nie wiedziala - `null`, a nie zgadywane `false`.
+  it("`account_linked` czyta sie doslownie, brak klucza jako `null`", async () => {
+    rpc().setData("event_package_invite_accept", { ...accepted, account_linked: false });
+    expect((await api.acceptPackageInvite(accepting)).accountLinked).toBe(false);
+
+    const { account_linked: _pominiete, ...starsza } = accepted;
+    rpc().setData("event_package_invite_accept", starsza);
+    expect((await api.acceptPackageInvite(accepting)).accountLinked).toBeNull();
+  });
+
+  // Pudlo tokenu przychodzi WARTOSCIA (`{ok:false}`), bo wyjatek wycofalby
+  // licznik prob w bazie. Modul zamienia je na wyjatek z glowa kodu - mapa
+  // odmow tlumaczy oba okna wdrozenia tym samym slownikiem.
+  it.each(["invalid_token", "rate_limited"])(
+    "odmowa wartoscia `%s` konczy sie wyjatkiem z kodem w glowie",
+    async (kod) => {
+      rpc().setData("event_package_invite_accept", { ok: false, error: kod });
+
+      await expect(api.acceptPackageInvite(accepting)).rejects.toThrow(
+        new RegExp(`^${kod}: invitation refused$`),
+      );
+    },
+  );
+
+  it("odmowa wartoscia bez kodu nie udaje sukcesu - `unknown`", async () => {
+    rpc().setData("event_package_invite_accept", { ok: false, registration_id: REGISTRATION_ID });
+
+    await expect(api.acceptPackageInvite(accepting)).rejects.toThrow(/^unknown: /);
   });
 
   // TIX-07: pakiet jeszcze nieopłacony - zgłoszenie czeka, kodu wejścia nie ma.
@@ -203,8 +290,9 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     expect(result.qrToken).toBeNull();
     expect(result.manageToken).toBeNull();
     expect(result.eventId).toBeNull();
-    // Baza sprzed 20261012130000 przyjmowala od razu - brak statusu w
-    // odpowiedzi czyta sie jako zatwierdzone, bez oczekiwania na platnosc.
+    // Brak statusu w odpowiedzi czyta sie jako zatwierdzone, bez oczekiwania
+    // na platnosc: baza sprzed 20261012130000 przyjmowala od razu, a miejsce
+    // z oplaconego pakietu wchodzi zatwierdzone takze po scaleniu z REG-15.
     expect(result.status).toBe("approved");
     expect(result.awaitingPayment).toBe(false);
   });
@@ -230,6 +318,87 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     );
 
     await expect(api.acceptPackageInvite(accepting)).rejects.toThrow(/^seat_taken/);
+  });
+});
+
+/* ------------------------------------------------------------ podglad --- */
+
+describe("fetchPackageInvitePreview - podglad przed formularzem (REG-15)", () => {
+  const preview = {
+    ok: true,
+    state: "open",
+    event_id: EVENT_ID,
+    event_slug: "kongres-2026",
+    event_title_pl: "Kongres 2026",
+    event_title_en: "Congress 2026",
+    event_starts_at: "2026-11-20T09:00:00+00:00",
+    invite_name: "Halina",
+    invite_email_hint: "h***@example.com",
+    account_matches: true,
+    expires_at: null,
+  };
+
+  it("wola `event_package_invite_preview` z samym tokenem i czyta podglad", async () => {
+    rpc().setData("event_package_invite_preview", preview);
+
+    const result = await api.fetchPackageInvitePreview(TOKEN);
+    expect(rpc().names()).toEqual(["event_package_invite_preview"]);
+    expect(rpc().lastCall("event_package_invite_preview")?.args).toEqual({
+      p_payload: { token: TOKEN },
+    });
+    expect(result).toEqual({
+      state: "open",
+      eventId: EVENT_ID,
+      eventSlug: "kongres-2026",
+      eventTitlePl: "Kongres 2026",
+      eventTitleEn: "Congress 2026",
+      eventStartsAt: "2026-11-20T09:00:00+00:00",
+      inviteName: "Halina",
+      inviteEmailHint: "h***@example.com",
+      accountMatches: true,
+      expiresAt: null,
+    });
+  });
+
+  // Pelny adres zaproszenia nie jest czescia kontraktu - nawet gdyby baza go
+  // kiedys oddala, modul go nie przenosi (posiadacz linku to nie zawsze
+  // zaproszony).
+  it("nie przenosi pelnego adresu, tylko zamaskowana podpowiedz", async () => {
+    rpc().setData("event_package_invite_preview", {
+      ...preview,
+      invite_email: "halina@example.com",
+    });
+
+    const result = await api.fetchPackageInvitePreview(TOKEN);
+    expect(JSON.stringify(result)).not.toContain("halina@example.com");
+  });
+
+  it("`account_matches` tylko doslowne `true` - inna wartosc to brak dopasowania", async () => {
+    rpc().setData("event_package_invite_preview", { ...preview, account_matches: "true" });
+    expect((await api.fetchPackageInvitePreview(TOKEN))?.accountMatches).toBe(false);
+  });
+
+  it("nieznany stan czyta sie jako `unavailable`, a nie jako `open`", async () => {
+    rpc().setData("event_package_invite_preview", { ...preview, state: "half_open" });
+    expect((await api.fetchPackageInvitePreview(TOKEN))?.state).toBe("unavailable");
+  });
+
+  it("pudlo tokenu wartoscia konczy sie wyjatkiem `invalid_token: ...`", async () => {
+    rpc().setData("event_package_invite_preview", { ok: false, error: "invalid_token" });
+
+    await expect(api.fetchPackageInvitePreview(TOKEN)).rejects.toThrow(/^invalid_token: /);
+  });
+
+  // Wdrozenie „najpierw kod": baza bez funkcji podgladu (PGRST202/42883) to
+  // `null` - strona pokazuje sam formularz jak dotad. Kazdy inny blad leci dalej.
+  it.each(["PGRST202", "42883"])("brak funkcji w bazie (%s) to `null`", async (code) => {
+    rpc().setError("event_package_invite_preview", "function does not exist", code);
+    await expect(api.fetchPackageInvitePreview(TOKEN)).resolves.toBeNull();
+  });
+
+  it("inny blad bazy nie jest polykany", async () => {
+    rpc().setError("event_package_invite_preview", "rate_limited: too many invitation attempts");
+    await expect(api.fetchPackageInvitePreview(TOKEN)).rejects.toThrow(/^rate_limited/);
   });
 });
 

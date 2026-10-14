@@ -46,7 +46,7 @@
 //
 // Radix Select i Dialog nie działają pod happy-dom bez pełnego pointer API.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { MouseEventHandler, ReactNode } from "react";
 import type { RegistrationCounts } from "@/lib/events/registrationCounts";
 import type {
@@ -63,7 +63,7 @@ const WYDARZENIE = "11111111-1111-4111-8111-111111111111";
 const BILET = "aaaaaaaa-1111-4111-8111-111111111111";
 const INNY_BILET = "aaaaaaaa-2222-4222-8222-222222222222";
 
-type Wynik = { onSuccess?: () => void; onError?: (error: unknown) => void };
+type Wynik = { onSuccess?: (data?: unknown) => void; onError?: (error: unknown) => void };
 
 const h = vi.hoisted(() => ({
   lang: "pl" as string,
@@ -83,6 +83,8 @@ const h = vi.hoisted(() => ({
   decidePending: false,
   promoteCalls: [] as unknown[],
   promoteError: null as unknown,
+  /** Odpowiedź `admin_event_waitlist_promote` - komunikat czyta z niej liczbę. */
+  promoteResult: { promoted: 0, registrations: [] } as unknown,
   promotePending: false,
   /** Wywołania server fn poczty, w kolejności - dowód SZEREGOWOŚCI. */
   notifyCalls: [] as { registrationId: string; notice: string }[],
@@ -118,6 +120,9 @@ const h = vi.hoisted(() => ({
   exportSeatError: null as unknown,
   /** Treść ostatniego pliku CSV złożonego przez eksport. */
   csvParts: [] as string[],
+  /** Skutek finansowy anulowania (`fetchRegistrationRefundPreview`) i wywołania. */
+  refundPreview: null as unknown,
+  refundPreviewCalls: [] as string[],
 }));
 
 // Dziennik ma osobne testy odczytu, błędu i ponowienia. Ten test izoluje
@@ -125,6 +130,18 @@ const h = vi.hoisted(() => ({
 vi.mock("@/components/admin/events/molecules/RegistrationRefundJournal", () => ({
   RegistrationRefundJournal: ({ eventId }: { eventId: string }) => (
     <div data-testid="refund-journal" data-event-id={eventId} />
+  ),
+}));
+
+// Zgody i dane z zapisu (REG-02 / REG-14) mają własny plik testów
+// (`RegistrationConsentDetail.test.tsx`) - tu liczy się montaż po rozwinięciu.
+vi.mock("@/components/admin/events/molecules/RegistrationConsentDetail", () => ({
+  RegistrationConsentDetail: (props: { eventId: string; registrationId: string }) => (
+    <div
+      data-testid="consent-detail"
+      data-event-id={props.eventId}
+      data-registration-id={props.registrationId}
+    />
   ),
 }));
 
@@ -156,6 +173,12 @@ vi.mock("@/lib/events/adminRegistrationErrors", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: () => undefined } }));
 vi.mock("@/lib/events/registrationsApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/registrationsApi")>()),
+  // Skutek finansowy anulowania (REG-03) - okno decyzji pyta o niego przy
+  // `cancel`. Domyślnie zgłoszenie bez wpłaty: okno wygląda jak przed REG-03.
+  fetchRegistrationRefundPreview: (registrationId: string) => {
+    h.refundPreviewCalls.push(registrationId);
+    return Promise.resolve(h.refundPreview);
+  },
   fetchRegistrations: (query: RegistrationsQuery) => {
     h.listQueries.push({ eksport: true, ...query });
     if (h.exportError !== null) return Promise.reject(h.exportError);
@@ -316,7 +339,7 @@ vi.mock("@/components/admin/events/molecules/RegistrationDecideDialog", async (i
         <button
           type="button"
           data-testid="okno-potwierdz-na-slepo"
-          onClick={() => props.onConfirm(null)}
+          onClick={() => props.onConfirm({ note: null, participantReason: null })}
         />
       </>
     ),
@@ -349,7 +372,7 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
   usePromoteFromWaitlist: () => ({
     mutate: (input: WaitlistPromoteInput, wynik: Wynik) => {
       h.promoteCalls.push(input);
-      if (h.promoteError === null) wynik.onSuccess?.();
+      if (h.promoteError === null) wynik.onSuccess?.(h.promoteResult);
       else wynik.onError?.(h.promoteError);
     },
     isPending: h.promotePending,
@@ -396,6 +419,8 @@ import { emptyRegistrationCounts } from "@/lib/events/registrationCounts";
 import { eventTicketRow } from "@/test/events/adminSalesRows";
 import { seatLookupRow } from "@/test/events/seatingFixtures";
 import { FIXED_NOW_ISO } from "@/test/time";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 /**
  * Kolumny NULL-owalne, które generator typuje jako `string`/`number`.
@@ -478,7 +503,10 @@ function counts(over: Partial<RegistrationCounts> = {}): RegistrationCounts {
 const B = "adminEventRegistration.registrations";
 
 function panel(props: { eventSlug?: string } = {}) {
-  return render(<RegistrationsListPanel eventId={WYDARZENIE} eventSlug={props.eventSlug ?? ""} />);
+  // Okno decyzji czyta skutek anulowania przez react-query (REG-03).
+  return renderWithQueryClient(
+    <RegistrationsListPanel eventId={WYDARZENIE} eventSlug={props.eventSlug ?? ""} />,
+  );
 }
 
 const przycisk = (nazwa: string | RegExp): HTMLElement =>
@@ -535,6 +563,19 @@ function opcje(el: HTMLElement): string[] {
 
 beforeEach(() => {
   h.lang = "pl";
+  h.refundPreview = {
+    effect: "none",
+    reviewReason: null,
+    amountCents: null,
+    currency: null,
+    refundMode: null,
+    refundDeadlineAt: null,
+    groupGuestsClosing: 0,
+    acknowledgementRequired: false,
+    jobState: null,
+    paymentStatus: "not_required",
+  };
+  h.refundPreviewCalls = [];
   h.rows = [registrationRow()];
   h.total = 1;
   h.listLoading = false;
@@ -551,6 +592,7 @@ beforeEach(() => {
   h.decidePending = false;
   h.promoteCalls = [];
   h.promoteError = null;
+  h.promoteResult = { promoted: 0, registrations: [] };
   h.promotePending = false;
   h.notifyCalls = [];
   h.notifyResults = {};
@@ -882,11 +924,15 @@ describe("liczniki i pojemność sali", () => {
 
   it("licznik czekających na powiadomienie pokazuje się TYLKO, gdy ktoś czeka", () => {
     h.counts = counts({ awaitingNotice: 0 });
-    const { rerender } = panel();
+    const { rerender, queryClient } = panel();
     expect(screen.queryByText(/waitlist\.awaitingNotice/)).toBeNull();
 
     h.counts = counts({ awaitingNotice: 4 });
-    rerender(<RegistrationsListPanel eventId={WYDARZENIE} />);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <RegistrationsListPanel eventId={WYDARZENIE} />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("adminEventRegistration.waitlist.awaitingNotice: 4")).toBeTruthy();
   });
@@ -1055,6 +1101,25 @@ describe("co niesie wiersz zgłoszenia", () => {
     expect(screen.getAllByText(/decision\.note/)).toHaveLength(1);
   });
 
+  it("powód dla uczestnika stoi OSOBNO od notatki wewnętrznej (REG-06)", () => {
+    // Organizator musi widzieć, co usłyszał uczestnik - bez tego jedynym
+    // śladem byłby dziennik wysyłek maili.
+    h.rows = [
+      registrationRow({
+        id: "a",
+        decision_note: "WEWN: podejrzana firma",
+        participant_reason: "Pula dla firm jest wyczerpana.",
+      }),
+      registrationRow({ id: "b", participant_reason: "" }),
+    ];
+    panel();
+
+    expect(
+      screen.getByText(`${B}.decision.participantReason: Pula dla firm jest wyczerpana.`),
+    ).toBeTruthy();
+    expect(screen.getAllByText(/decision\.participantReason/)).toHaveLength(1);
+  });
+
   it("nazwa biletu spada na drugi język, a bez obu na klucz", () => {
     h.lang = "en";
     h.rows = [
@@ -1094,11 +1159,38 @@ describe("co niesie wiersz zgłoszenia", () => {
     panel();
 
     const wiersz = wiersze()[0] as HTMLElement;
-    expect(within(wiersz).queryAllByRole("button")).toHaveLength(0);
+    // Jedyny przycisk to rozwinięcie zgód i danych z zapisu (REG-14) - podgląd,
+    // nie decyzja.
+    expect(
+      within(wiersz)
+        .queryAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["adminEventRegistration.consentDetail.toggle"]);
     // Nieznany stan i tak dostaje plakietkę - pusty pasek statusu czyta się jak
     // uszkodzony wiersz. (Napis awaryjny dokłada i18n przez `defaultValue`,
     // czego atrapa słownika nie pokazuje - tu liczy się, że plakietka JEST.)
     expect(within(wiersz).getByText(/statuses\.z_kosmosu/)).toBeTruthy();
+  });
+});
+
+describe("zgody i dane z zapisu (REG-02 / REG-14)", () => {
+  it("rozwinięcie montuje szczegół zgód TEGO wiersza, drugie kliknięcie go zwija", () => {
+    const row = registrationRow({ status: "approved" });
+    h.rows = [row];
+    panel();
+
+    const wiersz = wiersze()[0] as HTMLElement;
+    expect(screen.queryByTestId("consent-detail")).toBeNull();
+    fireEvent.click(
+      within(wiersz).getByRole("button", { name: "adminEventRegistration.consentDetail.toggle" }),
+    );
+    const detail = screen.getByTestId("consent-detail");
+    expect(detail.getAttribute("data-event-id")).toBe(WYDARZENIE);
+    expect(detail.getAttribute("data-registration-id")).toBe(row.id);
+    fireEvent.click(
+      within(wiersz).getByRole("button", { name: "adminEventRegistration.consentDetail.hide" }),
+    );
+    expect(screen.queryByTestId("consent-detail")).toBeNull();
   });
 });
 
@@ -1157,7 +1249,7 @@ describe("decyzja organizatora", () => {
     h.decideError = new Error("registrations: invalid_transition");
     panel();
     otworzDecyzje("adminEventRegistration.actions.reject");
-    const powod = screen.getByLabelText(`${B}.decideDialog.reasonLabel`);
+    const powod = screen.getByLabelText(`${B}.decideDialog.noteLabel`);
     fireEvent.change(powod, { target: { value: "brak miejsc" } });
 
     potwierdz();
@@ -1166,7 +1258,7 @@ describe("decyzja organizatora", () => {
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(
-      (screen.getByLabelText(`${B}.decideDialog.reasonLabel`) as HTMLTextAreaElement).value,
+      (screen.getByLabelText(`${B}.decideDialog.noteLabel`) as HTMLTextAreaElement).value,
     ).toBe("brak miejsc");
     // Poczta NIE leci, skoro decyzja się nie zapisała.
     expect(h.notifyCalls).toEqual([]);
@@ -1218,7 +1310,7 @@ describe("decyzja organizatora", () => {
     panel();
     otworzDecyzje(`adminEventRegistration.actions.${czynnosc}`);
     if (czynnosc === "reject") {
-      fireEvent.change(screen.getByLabelText(`${B}.decideDialog.reasonLabel`), {
+      fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
         target: { value: "brak miejsc" },
       });
     }
@@ -1241,7 +1333,7 @@ describe("decyzja organizatora", () => {
       panel();
       otworzDecyzje(`adminEventRegistration.actions.${czynnosc}`);
       if (czynnosc === "cancel") {
-        fireEvent.change(screen.getByLabelText(`${B}.decideDialog.reasonLabel`), {
+        fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
           target: { value: "rezygnacja" },
         });
       }
@@ -1276,11 +1368,87 @@ describe("decyzja organizatora", () => {
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.notifyFailed`));
   });
+
+  // REG-06: DWA POLA, DWÓCH ODBIORCÓW. Notatka wewnętrzna zostaje w historii,
+  // powód dla uczestnika jedzie osobnym kluczem - mail o odrzuceniu dalej leci.
+  it("odrzucenie wysyła notatkę wewnętrzną i powód dla uczestnika OSOBNO, mail leci", async () => {
+    h.rows = [registrationRow({ status: "pending" })];
+    panel();
+    otworzDecyzje("adminEventRegistration.actions.reject");
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
+      target: { value: "  WEWN: konkurencja  " },
+    });
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.participantReasonLabel`), {
+      target: { value: " Pula dla firm jest wyczerpana. " },
+    });
+
+    potwierdz();
+
+    expect(h.decideCalls).toEqual([
+      {
+        registrationId: "reg-1",
+        action: "reject",
+        note: "WEWN: konkurencja",
+        participantReason: "Pula dla firm jest wyczerpana.",
+      },
+    ]);
+    await waitFor(() =>
+      expect(h.notifyCalls).toEqual([{ registrationId: "reg-1", notice: "rejected" }]),
+    );
+  });
+
+  // REG-03: anulowanie OPŁACONEGO zgłoszenia pyta bazę o skutek, a „nie zwracaj"
+  // jedzie jawnie jako `refund: none` - z wymaganą notatką.
+  it("anulowanie opłaconego: skutek przed decyzją, „nie zwracaj” wymaga notatki i wysyła refund none", async () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.refundPreview = {
+      effect: "full_refund",
+      reviewReason: null,
+      amountCents: 15000,
+      currency: "PLN",
+      refundMode: "policy",
+      refundDeadlineAt: null,
+      groupGuestsClosing: 0,
+      acknowledgementRequired: true,
+      jobState: "pending",
+      paymentStatus: "paid",
+    };
+    panel();
+    otworzDecyzje("adminEventRegistration.actions.cancel");
+
+    const okno = screen.getByRole("dialog");
+    expect(await within(okno).findByText(/decideDialog\.refund\.full/)).toBeTruthy();
+    expect(h.refundPreviewCalls).toEqual(["reg-1"]);
+
+    fireEvent.click(within(okno).getByLabelText(`${B}.decideDialog.refund.waive`));
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
+      target: { value: "ab" },
+    });
+    // Dwa znaki to za mało - baza liczy uzasadnienie od trzech.
+    expect(
+      within(okno).getByRole("button", { name: `${B}.decideDialog.confirmAction` }),
+    ).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
+      target: { value: "Bilet przeniesiony na 2027" },
+    });
+    potwierdz();
+
+    expect(h.decideCalls).toEqual([
+      {
+        registrationId: "reg-1",
+        action: "cancel",
+        note: "Bilet przeniesiony na 2027",
+        refund: "none",
+      },
+    ]);
+  });
 });
 
 describe("awans z rezerwy", () => {
   it("awans jedzie z wydarzeniem, filtrem biletu i LICZBĄ z pola", () => {
     h.tickets = [eventTicketRow()];
+    h.promoteResult = { promoted: 3, registrations: [] };
     panel();
     fireEvent.change(dropka(`${B}.filters.ticket`), { target: { value: BILET } });
     fireEvent.change(poleLiczbowe("adminEventRegistration.waitlist.promoteCountLabel"), {
@@ -1293,6 +1461,33 @@ describe("awans z rezerwy", () => {
       { eventId: WYDARZENIE, registrationId: null, ticketTypeId: BILET, count: 3 },
     ]);
     expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.promoted(count=3)`);
+  });
+
+  // KOMUNIKAT MÓWI, ILU NAPRAWDĘ AWANSOWAŁO. Od 20261012150000 awans bierze
+  // tylko rozliczonych: prośba o 3 przy jednym opłaconym w kolejce to awans 1,
+  // a „Awansowano 3 osób" byłoby nieprawdą (REG-07).
+  it("komunikat podaje liczbę z ODPOWIEDZI bazy, a nie z pola", () => {
+    h.promoteResult = { promoted: 1, registrations: [{ registration_id: "r-1" }] };
+    panel();
+    fireEvent.change(poleLiczbowe("adminEventRegistration.waitlist.promoteCountLabel"), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.promote"));
+
+    expect((h.promoteCalls[0] as WaitlistPromoteInput).count).toBe(3);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.promoted(count=1)`);
+    expect(h.toastSuccess).not.toHaveBeenCalledWith(`${B}.toasts.promoted(count=3)`);
+  });
+
+  it("zero awansów to osobny komunikat - nie „sukces” z liczbą z pola", () => {
+    h.promoteResult = { promoted: 0, registrations: [] };
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.promote"));
+
+    expect(h.toastInfo).toHaveBeenCalledWith(`${B}.toasts.promotedNone`);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
   // ZERO ALBO ŚMIECI W POLU LICZBOWYM to awans zera osób - operacja, która

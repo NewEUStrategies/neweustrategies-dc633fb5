@@ -121,7 +121,7 @@ describe("EventTicketCodePanel", () => {
     renderPanel(`#t=${QR}&m=${MANAGE}`);
 
     const link = await screen.findByText("eventRegistration.ticketPage.manage");
-    expect(link.closest("a")).toHaveAttribute("href", `/events/kongres/manage?token=${MANAGE}`);
+    expect(link.closest("a")).toHaveAttribute("href", `/events/kongres/manage#token=${MANAGE}`);
   });
 
   it("adres bez kodu mówi, skąd go wziąć, i nie rysuje pustego QR", async () => {

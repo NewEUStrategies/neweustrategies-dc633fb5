@@ -170,10 +170,10 @@ export function EventTicketsPanel({
     );
   };
 
-  const copyText = (value: string) => {
+  const copyText = (value: string, copiedKey = "adminEventRegistration.tickets.studio.copied") => {
     void navigator.clipboard
       .writeText(value)
-      .then(() => toast.success(t("adminEventRegistration.tickets.studio.copied")))
+      .then(() => toast.success(t(copiedKey)))
       .catch(() => toast.error(t("adminEventRegistration.tickets.studio.copyFailed")));
   };
 
@@ -343,6 +343,9 @@ export function EventTicketsPanel({
                   const look = lookOf(row.id);
                   const url =
                     eventSlug === undefined ? null : ticketRegistrationUrl(eventSlug, row.key);
+                  // REG-05: bilet ukryty BEZ kodu dostępu nie wychodzi z bazy
+                  // po samym kluczu z linku - tylko po kodzie odsłaniającym.
+                  const hiddenNeedsCode = look.isHidden && !row.has_access_code;
                   const groupName = isPl ? row.group_name_pl : row.group_name_en;
                   return (
                     <tr key={row.id} className="align-middle">
@@ -435,13 +438,23 @@ export function EventTicketsPanel({
                           : t("adminEventRegistration.tickets.studio.noDate")}
                       </td>
                       <td className="px-3 py-3">
-                        <Badge variant="outline">
-                          {t(
-                            look.isHidden
-                              ? "adminEventRegistration.tickets.studio.hidden"
-                              : "adminEventRegistration.tickets.studio.visible",
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge variant="outline">
+                            {t(
+                              look.isHidden
+                                ? "adminEventRegistration.tickets.studio.hidden"
+                                : "adminEventRegistration.tickets.studio.visible",
+                            )}
+                          </Badge>
+                          {hiddenNeedsCode && (
+                            <Badge
+                              variant="secondary"
+                              title={t("adminEventRegistration.tickets.studio.hiddenNeedsCodeHint")}
+                            >
+                              {t("adminEventRegistration.tickets.studio.hiddenNeedsCode")}
+                            </Badge>
                           )}
-                        </Badge>
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-right whitespace-nowrap">
                         <Button
@@ -492,7 +505,12 @@ export function EventTicketsPanel({
                                   label={t("adminEventRegistration.tickets.studio.copyUrl")}
                                   onSelect={() => {
                                     setMenuFor(null);
-                                    copyText(url);
+                                    copyText(
+                                      url,
+                                      hiddenNeedsCode
+                                        ? "adminEventRegistration.tickets.studio.copyUrlNeedsCode"
+                                        : undefined,
+                                    );
                                   }}
                                 />
                               ) : null}

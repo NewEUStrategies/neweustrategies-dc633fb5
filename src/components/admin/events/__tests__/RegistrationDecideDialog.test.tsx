@@ -8,35 +8,48 @@
 //      z puli, anulowanie je oddaje, nieobecność je ZOSTAWIA zajęte - to trzy
 //      różne skutki dla puli miejsc i organizator musi je przeczytać PRZED
 //      kliknięciem, a nie wywnioskować z nazwy przycisku.
-//   3. POWÓD BLOKUJE PRZYCISK TYLKO PRZY ODRZUCENIU I ANULOWANIU. Baza wraca
-//      wtedy błędem `reason_required`, więc puste pole musi zatrzymać się tutaj;
-//      przy pozostałych czterech to samo pole jest notatką wewnętrzną i wymóg
-//      nauczyłby organizatora wpisywać kropkę.
-//   4. SAME SPACJE TO NADAL BRAK POWODU. Bez obcięcia białych znaków „ "
-//      przechodzi walidację i ląduje w historii zgłoszenia jako uzasadnienie.
-//   5. PUSTA NOTATKA JEDZIE JAKO `null`, NIE JAKO PUSTY NAPIS - pusty napis
-//      w historii wygląda jak notatka, którą ktoś napisał i skasował.
-//   6. NOWA DECYZJA ZACZYNA OD PUSTEGO POLA - i po zamknięciu okna, i przy
-//      zmianie czynności bez zamykania. Przeniesiony powód trafiłby do historii
-//      innego zgłoszenia jako uzasadnienie, którego nikt nie napisał.
-//   7. TRWAJĄCY ZAPIS ODCINA OBA PRZYCISKI - drugie kliknięcie to druga decyzja
-//      w tej samej sprawie.
-//
-// CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Zbioru czynności wymagających powodu
-// (`actionRequiresReason`) i dozwolonych przejść stanu - tabele przypadków są
-// w `lib/events/__tests__/registrationRows.test.ts`; tutaj dowodzimy, że okno
-// tej reguły UŻYWA i co robi z wynikiem. (2) Samego wywołania RPC decyzji -
-// molekuła dostaje `onConfirm` w propsie i nie zna warstwy zapisu.
+//   3. DWA POLA, DWÓCH ODBIORCÓW (REG-06). Notatka wewnętrzna jest przy KAŻDEJ
+//      czynności i ma zdanie „nie trafia do uczestnika"; powód widoczny dla
+//      uczestnika stoi WYŁĄCZNIE przy odrzuceniu i anulowaniu. Przy innej
+//      czynności nigdy nie jedzie (baza i tak by odmówiła `invalid_request`).
+//   4. NOTATKA BLOKUJE PRZYCISK TYLKO TAM, GDZIE BAZA JEJ WYMAGA. Same spacje to
+//      nadal brak notatki; odrzucenie liczy od 3 znaków (CHECK bazy).
+//   5. LIMITY SĄ WSPÓLNE Z BAZĄ I BLOKUJĄ, NIE TNĄ: 2000 znaków notatki i 1000
+//      powodu - licznik pokazuje limit, przekroczenie gasi przycisk.
+//   6. PUSTE POLA JADĄ JAKO `null`, obcięte z białych znaków.
+//   7. NOWA DECYZJA ZACZYNA OD PUSTYCH PÓL - i po zamknięciu okna, i przy
+//      zmianie czynności bez zamykania.
+//   8. ANULOWANIE OPŁACONEGO (REG-03): okno pyta bazę o skutek finansowy,
+//      pokazuje go przed decyzją, a „Nie zwracaj płatności" wymaga notatki
+//      i jedzie jako `refund: none`. Zgłoszenie bez wpłaty nie ma tego pola.
+//   9. TRWAJĄCY ZAPIS ODCINA OBA PRZYCISKI.
 //
 // Radix Dialog nie działa pod happy-dom bez pełnego pointer API - jest
 // podmieniony na natywny odpowiednik, w którym TREŚĆ istnieje wyłącznie przy
 // otwartym oknie (tak jak portal Radixa).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import type { RegistrationAction } from "@/lib/events/registrationsApi";
+import { fireEvent, screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import type { RegistrationAction, RegistrationRefundPreview } from "@/lib/events/registrationsApi";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+
+const h = vi.hoisted(() => ({
+  preview: null as RegistrationRefundPreview | null,
+  previewCalls: [] as string[],
+}));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
+
+vi.mock("@/lib/events/registrationsApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events/registrationsApi")>()),
+  fetchRegistrationRefundPreview: (registrationId: string) => {
+    h.previewCalls.push(registrationId);
+    return h.preview === null ? Promise.reject(new Error("boom")) : Promise.resolve(h.preview);
+  },
+}));
 
 vi.mock("@/components/ui/dialog", () => {
   const stan = { open: false };
@@ -58,12 +71,14 @@ const { RegistrationDecideDialog } =
   await import("@/components/admin/events/molecules/RegistrationDecideDialog");
 
 const BAZA = "adminEventRegistration.registrations.decideDialog";
+const REG = "11111111-1111-4111-8111-111111111111";
 
 interface Props {
   open?: boolean;
   action?: RegistrationAction | null;
   personName?: string;
   isPending?: boolean;
+  registrationId?: string | null;
 }
 
 function renderuj(props: Props = {}) {
@@ -74,45 +89,66 @@ function renderuj(props: Props = {}) {
     action: props.action === undefined ? ("reject" as RegistrationAction) : props.action,
     personName: props.personName ?? "Anna Kowalska",
     isPending: props.isPending ?? false,
+    registrationId: props.registrationId === undefined ? REG : props.registrationId,
   };
-  const wynik = render(
+  const wynik = renderWithQueryClient(
     <RegistrationDecideDialog {...wlasciwosci} onOpenChange={onOpenChange} onConfirm={onConfirm} />,
   );
   const przerysuj = (zmiana: Props) =>
     wynik.rerender(
-      <RegistrationDecideDialog
-        {...wlasciwosci}
-        {...{
-          open: zmiana.open ?? wlasciwosci.open,
-          action: zmiana.action === undefined ? wlasciwosci.action : zmiana.action,
-          personName: zmiana.personName ?? wlasciwosci.personName,
-          isPending: zmiana.isPending ?? wlasciwosci.isPending,
-        }}
-        onOpenChange={onOpenChange}
-        onConfirm={onConfirm}
-      />,
+      <QueryClientProvider client={wynik.queryClient}>
+        <RegistrationDecideDialog
+          {...wlasciwosci}
+          {...{
+            open: zmiana.open ?? wlasciwosci.open,
+            action: zmiana.action === undefined ? wlasciwosci.action : zmiana.action,
+            personName: zmiana.personName ?? wlasciwosci.personName,
+            isPending: zmiana.isPending ?? wlasciwosci.isPending,
+          }}
+          onOpenChange={onOpenChange}
+          onConfirm={onConfirm}
+        />
+      </QueryClientProvider>,
     );
   return { ...wynik, onOpenChange, onConfirm, przerysuj };
 }
 
-const pole = () => screen.getByRole("textbox");
+const notatka = () => screen.getByLabelText(`${BAZA}.noteLabel`);
+const powodUczestnika = () => screen.getByLabelText(`${BAZA}.participantReasonLabel`);
 const potwierdz = () => screen.getByRole("button", { name: `${BAZA}.confirmAction` });
 const anuluj = () => screen.getByRole("button", { name: `${BAZA}.cancelAction` });
 
+/** Skutek anulowania z bazy - domyślnie opłacone zgłoszenie z automatycznym zwrotem. */
+function skutek(over: Partial<RegistrationRefundPreview> = {}): RegistrationRefundPreview {
+  return {
+    effect: "full_refund",
+    reviewReason: null,
+    amountCents: 15000,
+    currency: "PLN",
+    refundMode: "policy",
+    refundDeadlineAt: null,
+    groupGuestsClosing: 0,
+    acknowledgementRequired: true,
+    jobState: "pending",
+    paymentStatus: "paid",
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  h.preview = skutek({ effect: "none", jobState: null, amountCents: null, currency: null });
+  h.previewCalls = [];
 });
 
 describe("RegistrationDecideDialog - kiedy okna nie ma", () => {
   it("BEZ WYBRANEJ CZYNNOŚCI okno nie renderuje NICZEGO", () => {
-    // Bez tego wczesnego wyjścia okno rysuje się z pustym tytułem i czynnym
-    // przyciskiem „Potwierdź" - klik potwierdzałby decyzję, której nie ma.
     const { container } = renderuj({ action: null });
     expect(container).toBeEmptyDOMElement();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("okno ZAMKNIĘTE nie pokazuje ani tytułu, ani pola powodu", () => {
+  it("okno ZAMKNIĘTE nie pokazuje ani tytułu, ani pól", () => {
     renderuj({ open: false });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText(`${BAZA}.rejectTitle`)).not.toBeInTheDocument();
@@ -120,67 +156,146 @@ describe("RegistrationDecideDialog - kiedy okna nie ma", () => {
   });
 });
 
-describe("RegistrationDecideDialog - sześć czynności, sześć zdań", () => {
+describe("RegistrationDecideDialog - sześć czynności, sześć zdań, dwa pola", () => {
   const przypadki: {
     action: RegistrationAction;
     tytul: string;
     tresc: string;
-    powodWymagany: boolean;
+    notatkaWymagana: boolean;
+    powodDlaUczestnika: boolean;
   }[] = [
-    { action: "approve", tytul: "approveTitle", tresc: "approveBody", powodWymagany: false },
-    { action: "reject", tytul: "rejectTitle", tresc: "rejectBody", powodWymagany: true },
-    { action: "waitlist", tytul: "waitlistTitle", tresc: "waitlistBody", powodWymagany: false },
-    { action: "cancel", tytul: "cancelTitle", tresc: "cancelBody", powodWymagany: true },
-    { action: "attended", tytul: "attendedTitle", tresc: "attendedBody", powodWymagany: false },
-    { action: "no_show", tytul: "noShowTitle", tresc: "noShowBody", powodWymagany: false },
+    {
+      action: "approve",
+      tytul: "approveTitle",
+      tresc: "approveBody",
+      notatkaWymagana: false,
+      powodDlaUczestnika: false,
+    },
+    {
+      action: "reject",
+      tytul: "rejectTitle",
+      tresc: "rejectBody",
+      notatkaWymagana: true,
+      powodDlaUczestnika: true,
+    },
+    {
+      action: "waitlist",
+      tytul: "waitlistTitle",
+      tresc: "waitlistBody",
+      notatkaWymagana: false,
+      powodDlaUczestnika: false,
+    },
+    {
+      action: "cancel",
+      tytul: "cancelTitle",
+      tresc: "cancelBody",
+      notatkaWymagana: true,
+      powodDlaUczestnika: true,
+    },
+    {
+      action: "attended",
+      tytul: "attendedTitle",
+      tresc: "attendedBody",
+      notatkaWymagana: false,
+      powodDlaUczestnika: false,
+    },
+    {
+      action: "no_show",
+      tytul: "noShowTitle",
+      tresc: "noShowBody",
+      notatkaWymagana: false,
+      powodDlaUczestnika: false,
+    },
   ];
 
   it.each(przypadki)(
-    "„$action" + "” ma własny tytuł, własną treść i własną semantykę pola",
-    ({ action, tytul, tresc, powodWymagany }) => {
-      // Jeden nagłówek na sześć czynności byłby zaproszeniem do pomyłki:
-      // „nieobecność" i „anulowanie" różnią się tym, czy miejsce wraca do puli.
+    "„$action" + "” ma własny tytuł, treść i właściwe pola",
+    ({ action, tytul, tresc, notatkaWymagana, powodDlaUczestnika }) => {
       renderuj({ action });
       expect(screen.getByRole("heading", { name: `${BAZA}.${tytul}` })).toBeInTheDocument();
       expect(screen.getByText(`${BAZA}.${tresc}`)).toBeInTheDocument();
 
-      const etykieta = powodWymagany ? "reasonLabel" : "noteLabel";
-      expect(screen.getByLabelText(`${BAZA}.${etykieta}`)).toBe(pole());
-      if (powodWymagany) {
-        expect(pole()).toHaveAttribute("placeholder", `${BAZA}.reasonPlaceholder`);
-      } else {
-        expect(pole()).not.toHaveAttribute("placeholder");
-      }
-      // Pusty formularz: wymóg powodu jest JEDYNYM powodem blokady przycisku.
-      expect(potwierdz()).toHaveProperty("disabled", powodWymagany);
+      // Notatka wewnętrzna jest ZAWSZE i mówi, że nie trafia do uczestnika.
+      expect(notatka()).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`${BAZA}.noteHint`))).toBeInTheDocument();
+      // Powód dla uczestnika - tylko przy zamknięciu.
+      expect(screen.queryByLabelText(`${BAZA}.participantReasonLabel`) !== null).toBe(
+        powodDlaUczestnika,
+      );
+      expect(screen.getAllByRole("textbox")).toHaveLength(powodDlaUczestnika ? 2 : 1);
+      // Pusty formularz: wymóg notatki jest JEDYNYM powodem blokady przycisku.
+      expect(potwierdz()).toHaveProperty("disabled", notatkaWymagana);
     },
   );
 
   it("imię osoby, której dotyczy decyzja, jest na ekranie", () => {
-    // Okno otwiera się z wiersza listy; bez imienia organizator potwierdza
-    // decyzję w sprawie kogoś, kogo w tym momencie nie widzi.
     renderuj({ action: "approve", personName: "Jan Nowak" });
     expect(screen.getByText("Jan Nowak")).toBeInTheDocument();
   });
 });
 
-describe("RegistrationDecideDialog - powód wymagany", () => {
-  it("SAME SPACJE to nadal brak powodu - przycisk zostaje zablokowany", () => {
-    // Bez obcięcia białych znaków spacja przechodzi tutaj, a w historii
-    // zgłoszenia zostaje uzasadnienie, którego nie da się przeczytać.
-    renderuj({ action: "reject" });
-    fireEvent.change(pole(), { target: { value: "   " } });
-    expect(potwierdz()).toBeDisabled();
+describe("RegistrationDecideDialog - dwa pola, dwóch odbiorców (REG-06)", () => {
+  it("odrzucenie oddaje notatkę i powód OSOBNO, obcięte z białych znaków", () => {
+    const { onConfirm } = renderuj({ action: "reject" });
+    fireEvent.change(notatka(), { target: { value: "  Brak miejsc w puli  " } });
+    fireEvent.change(powodUczestnika(), { target: { value: "  Powód Y  " } });
     fireEvent.click(potwierdz());
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(onConfirm).toHaveBeenCalledWith({
+      note: "Brak miejsc w puli",
+      participantReason: "Powód Y",
+    });
   });
 
-  it("wpisany powód odblokowuje przycisk i jedzie OBCIĘTY z białych znaków", () => {
+  it("powód dla uczestnika z samych spacji jedzie jako null", () => {
     const { onConfirm } = renderuj({ action: "reject" });
-    fireEvent.change(pole(), { target: { value: "  Brak miejsc w puli  " } });
-    expect(potwierdz()).toBeEnabled();
+    fireEvent.change(notatka(), { target: { value: "Duplikat zgłoszenia" } });
+    fireEvent.change(powodUczestnika(), { target: { value: "   " } });
     fireEvent.click(potwierdz());
-    expect(onConfirm).toHaveBeenCalledWith("Brak miejsc w puli");
+    expect(onConfirm).toHaveBeenCalledWith({
+      note: "Duplikat zgłoszenia",
+      participantReason: null,
+    });
+  });
+
+  it("po zmianie czynności na zatwierdzenie powód dla uczestnika NIE jedzie", () => {
+    const { przerysuj, onConfirm } = renderuj({ action: "reject" });
+    fireEvent.change(powodUczestnika(), { target: { value: "Powód Y" } });
+    przerysuj({ action: "approve" });
+    expect(screen.queryByLabelText(`${BAZA}.participantReasonLabel`)).toBeNull();
+    fireEvent.click(potwierdz());
+    expect(onConfirm).toHaveBeenCalledWith({ note: null, participantReason: null });
+  });
+
+  it("limity bazy blokują, nie tną: 1001 znaków powodu albo 2001 notatki gasi przycisk", () => {
+    const { onConfirm } = renderuj({ action: "reject" });
+    fireEvent.change(notatka(), { target: { value: "Notatka ok" } });
+    fireEvent.change(powodUczestnika(), { target: { value: "x".repeat(1001) } });
+    expect(potwierdz()).toBeDisabled();
+    expect(screen.getByText(/1001 \/ 1000/)).toBeInTheDocument();
+
+    fireEvent.change(powodUczestnika(), { target: { value: "x".repeat(1000) } });
+    expect(potwierdz()).toBeEnabled();
+
+    fireEvent.change(notatka(), { target: { value: "n".repeat(2001) } });
+    expect(potwierdz()).toBeDisabled();
+    fireEvent.click(potwierdz());
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("RegistrationDecideDialog - notatka wymagana", () => {
+  it("SAME SPACJE to nadal brak notatki - przycisk zostaje zablokowany", () => {
+    renderuj({ action: "reject" });
+    fireEvent.change(notatka(), { target: { value: "   " } });
+    expect(potwierdz()).toBeDisabled();
+  });
+
+  it("odrzucenie liczy notatkę od 3 znaków (CHECK bazy), a pusta notatka blokuje", () => {
+    renderuj({ action: "reject" });
+    fireEvent.change(notatka(), { target: { value: "ok" } });
+    expect(potwierdz()).toBeDisabled();
+    fireEvent.change(notatka(), { target: { value: "oki" } });
+    expect(potwierdz()).toBeEnabled();
   });
 
   it("zablokowany przycisk NIE woła warstwy zapisu", () => {
@@ -192,54 +307,103 @@ describe("RegistrationDecideDialog - powód wymagany", () => {
 
 describe("RegistrationDecideDialog - notatka nieobowiązkowa", () => {
   it("puste pole jedzie jako null, nie jako pusty napis", () => {
-    // Pusty napis w historii wygląda jak notatka skasowana przez człowieka;
-    // `null` mówi wprost, że nikt jej nie pisał.
     const { onConfirm } = renderuj({ action: "approve" });
     fireEvent.click(potwierdz());
-    expect(onConfirm).toHaveBeenCalledWith(null);
-  });
-
-  it("pole wypełnione samymi spacjami też jedzie jako null", () => {
-    const { onConfirm } = renderuj({ action: "attended" });
-    fireEvent.change(pole(), { target: { value: "  \n " } });
-    fireEvent.click(potwierdz());
-    expect(onConfirm).toHaveBeenCalledWith(null);
+    expect(onConfirm).toHaveBeenCalledWith({ note: null, participantReason: null });
   });
 
   it("wpisana notatka jedzie obcięta", () => {
     const { onConfirm } = renderuj({ action: "no_show" });
-    fireEvent.change(pole(), { target: { value: " nie dotarł, potwierdzone SMS-em " } });
+    fireEvent.change(notatka(), { target: { value: " nie dotarł, potwierdzone SMS-em " } });
     fireEvent.click(potwierdz());
-    expect(onConfirm).toHaveBeenCalledWith("nie dotarł, potwierdzone SMS-em");
+    expect(onConfirm).toHaveBeenCalledWith({
+      note: "nie dotarł, potwierdzone SMS-em",
+      participantReason: null,
+    });
   });
 });
 
 describe("RegistrationDecideDialog - pozostałość po poprzedniej decyzji", () => {
-  it("ZAMKNIĘCIE I OTWARCIE czyści pole", () => {
-    // Regresja, którą to łapie: powód odrzucenia Anny zostaje w polu przy
-    // decyzji o Janie i - jeśli organizator go nie zauważy - ląduje w JEGO
-    // historii jako uzasadnienie.
+  it("ZAMKNIĘCIE I OTWARCIE czyści oba pola", () => {
     const { przerysuj } = renderuj({ action: "reject" });
-    fireEvent.change(pole(), { target: { value: "Zgłoszenie duplikat" } });
-    expect(pole()).toHaveValue("Zgłoszenie duplikat");
+    fireEvent.change(notatka(), { target: { value: "Zgłoszenie duplikat" } });
+    fireEvent.change(powodUczestnika(), { target: { value: "Powód" } });
 
     przerysuj({ open: false });
     przerysuj({ open: true });
 
-    expect(pole()).toHaveValue("");
+    expect(notatka()).toHaveValue("");
+    expect(powodUczestnika()).toHaveValue("");
+  });
+});
+
+describe("RegistrationDecideDialog - anulowanie opłaconego (REG-03)", () => {
+  it("pokazuje skutek PRZED decyzją i domyślnie zleca zwrot (`refund: full`)", async () => {
+    h.preview = skutek();
+    const { onConfirm } = renderuj({ action: "cancel" });
+
+    expect(await screen.findByText(/refund\.full\(amount=/)).toBeInTheDocument();
+    expect(h.previewCalls).toEqual([REG]);
+
+    fireEvent.change(notatka(), { target: { value: "Prośba uczestnika" } });
+    fireEvent.click(potwierdz());
+    expect(onConfirm).toHaveBeenCalledWith({
+      note: "Prośba uczestnika",
+      participantReason: null,
+      refund: "full",
+    });
   });
 
-  it("ZMIANA CZYNNOŚCI bez zamykania okna też czyści pole", () => {
-    // Lista pozwala przełączyć decyzję w locie; powód napisany pod odrzucenie
-    // nie jest notatką do zatwierdzenia.
-    const { przerysuj, onConfirm } = renderuj({ action: "reject" });
-    fireEvent.change(pole(), { target: { value: "Niekompletne dane" } });
+  it("„Nie zwracaj płatności” wymaga notatki (3 znaki) i jedzie jako `refund: none`", async () => {
+    h.preview = skutek();
+    const { onConfirm } = renderuj({ action: "cancel" });
 
-    przerysuj({ action: "approve" });
+    fireEvent.click(await screen.findByLabelText(`${BAZA}.refund.waive`));
+    fireEvent.change(notatka(), { target: { value: "ab" } });
+    expect(potwierdz()).toBeDisabled();
 
-    expect(pole()).toHaveValue("");
+    fireEvent.change(notatka(), { target: { value: "Bilet na 2027" } });
     fireEvent.click(potwierdz());
-    expect(onConfirm).toHaveBeenCalledWith(null);
+    expect(onConfirm).toHaveBeenCalledWith({
+      note: "Bilet na 2027",
+      participantReason: null,
+      refund: "none",
+    });
+  });
+
+  it("wspólna wpłata mówi o decyzji w dzienniku, bez kwoty", async () => {
+    h.preview = skutek({
+      effect: "organizer_review",
+      reviewReason: "shared_payment",
+      amountCents: null,
+      currency: null,
+      jobState: "needs_review",
+    });
+    renderuj({ action: "cancel" });
+    expect(await screen.findByText(`${BAZA}.refund.shared`)).toBeInTheDocument();
+  });
+
+  it("zgłoszenie bez wpłaty nie ma pola „nie zwracaj” i nie wysyła klucza `refund`", async () => {
+    const { onConfirm } = renderuj({ action: "cancel" });
+    await screen.findByText(`${BAZA}.cancelBody`);
+    expect(screen.queryByLabelText(`${BAZA}.refund.waive`)).toBeNull();
+    fireEvent.change(notatka(), { target: { value: "Rezygnacja telefoniczna" } });
+    fireEvent.click(potwierdz());
+    expect(onConfirm).toHaveBeenCalledWith({
+      note: "Rezygnacja telefoniczna",
+      participantReason: null,
+    });
+  });
+
+  it("odmowa podglądu mówi to wprost, a decyzja zostaje możliwa", async () => {
+    h.preview = null;
+    renderuj({ action: "cancel" });
+    expect(await screen.findByText(`${BAZA}.refund.loadError`)).toBeInTheDocument();
+  });
+
+  it("przy innej czynności okno NIE pyta bazy o płatność", () => {
+    renderuj({ action: "reject" });
+    expect(h.previewCalls).toEqual([]);
   });
 });
 
@@ -256,11 +420,9 @@ describe("RegistrationDecideDialog - zapis w locie i wyjście", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("trwający zapis blokuje przycisk także tam, gdzie powód JEST wpisany", () => {
-    // Dwa niezależne powody blokady - bez tego przypadku odwrócenie `||` na
-    // `&&` przeszłoby niezauważone.
+  it("trwający zapis blokuje przycisk także tam, gdzie notatka JEST wpisana", () => {
     const { onConfirm } = renderuj({ action: "reject", isPending: true });
-    fireEvent.change(pole(), { target: { value: "Powód jest" } });
+    fireEvent.change(notatka(), { target: { value: "Powód jest" } });
     expect(potwierdz()).toBeDisabled();
     fireEvent.click(potwierdz());
     expect(onConfirm).not.toHaveBeenCalled();
@@ -268,7 +430,7 @@ describe("RegistrationDecideDialog - zapis w locie i wyjście", () => {
 
   it("anulowanie zamyka okno BEZ decyzji", () => {
     const { onOpenChange, onConfirm } = renderuj({ action: "reject" });
-    fireEvent.change(pole(), { target: { value: "Coś tam" } });
+    fireEvent.change(notatka(), { target: { value: "Coś tam" } });
     fireEvent.click(anuluj());
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onConfirm).not.toHaveBeenCalled();

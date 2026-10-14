@@ -142,11 +142,12 @@ INSERT INTO public.event_registrations
    payment_status, payment_order_id, paid_at, manage_token_hash, lang, group_lead_registration_id,
    decided_at, decision_source)
 VALUES
-  -- R1: posiadacz U1, zglaszajacy U2, platnik U3, klucz samoobslugi
+  -- R1: posiadacz U1, zglaszajacy U2, platnik U3, klucz samoobslugi (ksztalt
+  -- `_event_new_qr_token()`, 32 znaki - od REG-17 aktor pyta resolver klucza)
   ('13500000-0000-0000-0000-000000000001', '13131313-1313-1313-1313-131313131313',
    '13100000-0000-0000-0000-000000000001', '13300000-0000-0000-0000-000000000001', 'approved', 'form',
    '13000000-0000-0000-0000-000000000002', 'paid', '13400000-0000-0000-0000-000000000001', now(),
-   encode(digest('tok13-holder-abcdefghijklmnopqrstuv', 'sha256'), 'hex'), NULL, NULL,
+   encode(digest('tok13-holder-abcdefghijklmnopqrs', 'sha256'), 'hex'), NULL, NULL,
    now(), 'system'),
   -- R_nl: gosc bez konta, jezyk z newslettera (adres rozna wielkoscia liter)
   ('13500000-0000-0000-0000-000000000002', '13131313-1313-1313-1313-131313131313',
@@ -322,12 +323,12 @@ BEGIN
       AND NOT (v->>'is_registrant')::boolean AND NOT (v->>'is_payer')::boolean,
     '13/aktor: obcy uzytkownik - zgloszenie istnieje, zadnej roli (kontrapunkt)');
 
-  v := public._event_registration_actor(a, NULL, NULL, 'tok13-holder-abcdefghijklmnopqrstuv');
+  v := public._event_registration_actor(a, NULL, NULL, 'tok13-holder-abcdefghijklmnopqrs');
   PERFORM pg_temp.assert((v->>'exists')::boolean AND (v->>'via_token')::boolean
       AND (v->>'is_holder')::boolean AND v->>'registration_id' = r1::text,
     '13/aktor: posiadacz po kluczu samoobslugi (via_token)');
 
-  v := public._event_registration_actor(a, r1, NULL, '  tok13-holder-abcdefghijklmnopqrstuv  ');
+  v := public._event_registration_actor(a, r1, NULL, '  tok13-holder-abcdefghijklmnopqrs  ');
   PERFORM pg_temp.assert((v->>'via_token')::boolean AND (v->>'is_holder')::boolean
       AND NOT (v->>'is_registrant')::boolean AND NOT (v->>'is_payer')::boolean,
     '13/aktor: znane id + wlasciwy klucz (z bialymi znakami) -> via_token i is_holder');
@@ -339,7 +340,7 @@ BEGIN
 
   PERFORM pg_temp.assert(
     public._event_registration_actor(b, r1, '13000000-0000-0000-0000-000000000001', NULL)->>'exists' = 'false'
-    AND public._event_registration_actor(b, NULL, NULL, 'tok13-holder-abcdefghijklmnopqrstuv')->>'exists' = 'false',
+    AND public._event_registration_actor(b, NULL, NULL, 'tok13-holder-abcdefghijklmnopqrs')->>'exists' = 'false',
     '13/aktor: obcy najemca -> exists:false (po id i po kluczu)');
   PERFORM pg_temp.assert(
     public._event_registration_actor(NULL, r1, NULL, NULL)->>'exists' = 'false'

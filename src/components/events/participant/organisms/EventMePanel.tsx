@@ -53,7 +53,7 @@ import { EventMeFollowUpSlot } from "@/components/events/participant/slots/Event
 import { EventMeScheduleSlot } from "@/components/events/participant/slots/EventMeScheduleSlot";
 import { parseEventMeTab, type EventMeTab } from "@/lib/events/eventMeTabs";
 import { useEventParticipantOptions } from "@/lib/events/useEventParticipantOptions";
-import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
+import { useAutoLinkMyEventAccount, useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import { useMyConnections } from "@/lib/network/useConnections";
 import { ensureI18n } from "@/lib/i18n-cart";
 import { ensureI18n as ensureEventParticipantI18n } from "@/lib/i18n-event-participant";
@@ -144,6 +144,10 @@ export function EventMePanel({
   const viewer = useViewerCardFacts();
   const signedIn = session !== null && !loading;
   const panel = useMyEventProfile(slug, signedIn);
+  // Brak kartoteki = jedna prosba o dowiazanie osoby o POTWIERDZONYM adresie
+  // konta (REG-01, D14) - gosc sprzed konta i osoba odwiazana naprawa historii
+  // odzyskuja panel bez organizatora.
+  const accountLink = useAutoLinkMyEventAccount(slug, panel.data, signedIn);
   const options = useEventParticipantOptions(slug, signedIn);
   // „Zobacz, jak widzą Cię inni" - ten sam rekord, tylko w kształcie karty
   // katalogowej. Stan jest lokalny, bo to sposób patrzenia, nie dane.
@@ -164,6 +168,7 @@ export function EventMePanel({
   }
 
   const registration = panel.data?.registration ?? null;
+  const linkReason = accountLink.data?.linked === false ? accountLink.data.reason : null;
   const flags = options.data ?? null;
   const followUpOffered = flags !== null && (flags.certificateEnabled || flags.surveyEnabled);
 
@@ -175,6 +180,18 @@ export function EventMePanel({
           <RegistrationStatusBadge status={registration?.status ?? null} />
         </div>
         <p className="text-sm text-muted-foreground">{t("eventMe.lead")}</p>
+        {accountLink.data?.linked === true && !accountLink.data.alreadyLinked && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t("eventMe.accountLink.linked")}
+          </p>
+        )}
+        {(linkReason === "email_unconfirmed" || linkReason === "record_bound_elsewhere") && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {linkReason === "email_unconfirmed"
+              ? t("eventMe.accountLink.emailUnconfirmed")
+              : t("eventMe.accountLink.boundElsewhere")}
+          </p>
+        )}
         {/* Nabór prelegentów: panel prelegenta / recenzenta - tylko dla osób z tą rolą. */}
         <EventMeCfpLinks slug={slug} signedIn={signedIn} />
       </header>

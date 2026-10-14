@@ -1,4 +1,4 @@
-// Wysyłka SMS - jedno wyjście z systemu, świadomie wąskie.
+// Wysyłka SMS - transport do operatora, świadomie wąski.
 //
 // PO CO W OGÓLE SMS. Powiadomienie o statusie rejestracji na wydarzenie bywa
 // czasowo krytyczne: awans z listy rezerwowej dzień przed wydarzeniem albo
@@ -6,27 +6,30 @@
 // zagląda do skrzynki. Mail zostaje kanałem podstawowym (nosi szczegóły
 // i dokument), SMS jest krótkim sygnałem „sprawdź pocztę".
 //
+// JEDYNE WYJŚCIE TO `sendParticipantSms` (REG-10). Ten moduł zna wyłącznie
+// operatora i dziennik idempotencji; wyłącznik platformy, zgodę uczestnika,
+// GSM-7 i budżet najemcy sprawdza `@/lib/events/participantNotify.server`,
+// który jako JEDYNY importuje `sendSms` (bramka
+// `src/lib/notify/__tests__/smsSingleExit.gate.test.ts`). Inni wołający biorą
+// stąd najwyżej `normalizePhone`, `trimSmsBody` i typy.
+//
 // KANAŁ JEST OPCJONALNY I FAIL-SOFT. Bez skonfigurowanego dostawcy funkcja
 // zwraca `disabled` i NIE rzuca - webhook płatności nie może się wywrócić przez
 // bramkę SMS. Ta sama zasada, co przy mailu: uprawnienie ma priorytet nad
 // powiadomieniem.
 //
-// Moduł server-only (token dostawcy) - importuj wyłącznie z handlerów.
+// Moduł server-only (token dostawcy, klient service_role) - importuj
+// wyłącznie z handlerów.
 
 export type SmsResult =
-  { ok: true; skipped?: "disabled" | "no_recipient" | "duplicate" } | { ok: false; error: string };
+  | { ok: true; skipped?: "disabled" | "no_recipient" | "duplicate" | "in_flight" }
+  | { ok: false; error: string };
 
 /** Limit jednego segmentu GSM-7 z zapasem na stopkę dostawcy. */
 const MAX_LENGTH = 300;
 
-/** Kubełek licznika, w którym mieszkają klucze idempotencji SMS-a. */
-const IDEMPOTENCY_SCOPE = "sms.once";
-
-/**
- * Okno bramki powtórzeń - 3 doby, bo tyle mniej więcej ponawia webhooka
- * operator płatności, a to on jest źródłem duplikatów.
- */
-const IDEMPOTENCY_WINDOW_MINUTES = 3 * 24 * 60;
+/** Sufit kodu błędu w dzienniku (CHECK `sms_send_log_detail_len`). */
+const DETAIL_MAX = 200;
 
 /**
  * Normalizuje numer do E.164. Numer bez prefiksu kraju traktujemy jako polski
@@ -51,66 +54,96 @@ export function trimSmsBody(body: string): string {
   return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
-export interface SmsInput {
-  to: string | null | undefined;
-  body: string;
-  /**
-   * Klucz idempotencji - ten sam klucz nie wyśle SMS-a dwa razy. Pole jest
-   * OPCJONALNE, żeby nie zmieniać kontraktu wołającym, którzy nadają
-   * z ludzkiego kliknięcia: bez klucza brama zachowuje się dokładnie jak dotąd.
-   */
-  idempotencyKey?: string;
+/**
+ * Wejście transportu. Klucz idempotencji idzie ZAWSZE w parze z najemcą -
+ * dziennik `sms_send_log` jest per najemca, a klucz bez najemcy nie miałby
+ * gdzie zamieszkać. SMS bez klucza (ludzkie kliknięcie) idzie bez dziennika.
+ */
+export type SmsInput = { to: string | null | undefined; body: string } & (
+  | { idempotencyKey?: undefined; tenantId?: undefined }
+  | { idempotencyKey: string; tenantId: string }
+);
+
+/** Rezerwacja klucza w dzienniku albo decyzja „nie wysyłaj". */
+type ClaimOutcome = { kind: "send"; claimId: string | null } | { kind: "stop"; result: SmsResult };
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
- * Bramka powtórzeń. Poczta ma na to `email_send_log` (`sendTxEmail` liczy
- * wpisy po `message_id`); SMS nie ma ŻADNEGO dziennika, więc rolę pamięci
- * pełni licznik `rate_limits` z limitem 1 - `rate_limit_hit` robi
- * INSERT ... ON CONFLICT DO UPDATE RETURNING, czyli rozstrzyga wyścig dwóch
- * dostarczeń tego samego webhooka w jednym zapytaniu.
+ * Rezerwacja klucza przed wysyłką (`sms_send_claim`, REG-11). Klucz NIE jest
+ * już zużywany przed operatorem: „wysłane" zapisuje dopiero `finishClaim` po
+ * przyjęciu wiadomości, a błąd operatora zwalnia klucz do ponowienia.
  *
- * ZNANA SZCZELINA: okno licznika jest kubełkiem stałej długości, więc
- * ponowienie, które przekroczy jego granicę, przejdzie. Przechyla to bramkę
- * w stronę wysłania, nie wyciszenia - tak samo jak fail-open niżej, bo awaria
- * licznika nie może zabrać uczestnikowi wiadomości o pieniądzach.
+ * FAIL-OPEN przy awarii dziennika (błąd RPC, rzut, baza bez migracji):
+ * cisza po nieudanej płatności jest gorsza niż SMS wysłany drugi raz przy
+ * awarii bazy. Ścieżkę przypomnień i tak trzyma budżet najemcy (fail-closed)
+ * i dziennik doręczeń.
  */
-async function alreadySent(key: string): Promise<boolean> {
+async function claimKey(tenantId: string, key: string): Promise<ClaimOutcome> {
   try {
-    const { rateLimit } = await import("@/lib/server/rate-limit.server");
-    const allowed = await rateLimit({
-      scope: IDEMPOTENCY_SCOPE,
-      subjectId: key,
-      max: 1,
-      windowMinutes: IDEMPOTENCY_WINDOW_MINUTES,
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.rpc("sms_send_claim", {
+      p_tenant_id: tenantId,
+      p_idempotency_key: key,
     });
-    return !allowed;
+    if (error) {
+      console.error("[sms] idempotency gate failed", { code: error.code, message: error.message });
+      return { kind: "send", claimId: null };
+    }
+    const row =
+      typeof data === "object" && data !== null && !Array.isArray(data)
+        ? (data as Record<string, unknown>)
+        : {};
+    const state = row["state"];
+    const claimId = row["claim_id"];
+    if (state === "claimed" && typeof claimId === "string" && claimId !== "") {
+      return { kind: "send", claimId };
+    }
+    // `duplicate` mówi prawdę: dziennik ma ten klucz jako PRZYJĘTY przez operatora.
+    if (state === "sent") return { kind: "stop", result: { ok: true, skipped: "duplicate" } };
+    // Inny proces wysyła ten sam SMS teraz - nie dublujemy, wołający ponowi.
+    if (state === "in_flight") return { kind: "stop", result: { ok: true, skipped: "in_flight" } };
+    if (state === "exhausted") {
+      return { kind: "stop", result: { ok: false, error: "sms_retry_exhausted" } };
+    }
+    console.error("[sms] idempotency gate failed", { state: String(state) });
+    return { kind: "send", claimId: null };
   } catch (err) {
-    console.error("[sms] idempotency gate failed", err);
-    return false;
+    console.error("[sms] idempotency gate failed", { error: errorText(err) });
+    return { kind: "send", claimId: null };
   }
 }
 
-/**
- * Wysyła SMS przez SMSAPI (REST). Dostawca jest wymienny: cała wiedza o nim
- * mieszka w tej jednej funkcji, reszta systemu widzi `sendSms`.
- */
-export async function sendSms(input: SmsInput): Promise<SmsResult> {
-  const token = process.env["SMSAPI_TOKEN"];
-  const sender = process.env["SMSAPI_SENDER"];
-  if (!token) return { ok: true, skipped: "disabled" };
-
-  const to = normalizePhone(input.to);
-  if (!to) return { ok: true, skipped: "no_recipient" };
-
-  // Bramka stoi PO sprawdzeniu dostawcy i numeru: klucz ma się zużywać
-  // dopiero wtedy, gdy wiadomość naprawdę ma dokąd pójść.
-  if (input.idempotencyKey && (await alreadySent(input.idempotencyKey))) {
-    return { ok: true, skipped: "duplicate" };
+/** Zamknięcie rezerwacji wynikiem operatora. Nigdy nie rzuca. */
+async function finishClaim(tenantId: string, claimId: string, result: SmsResult): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const args: { p_tenant_id: string; p_claim_id: string; p_status: string; p_detail?: string } = {
+      p_tenant_id: tenantId,
+      p_claim_id: claimId,
+      p_status: result.ok ? "sent" : "failed",
+    };
+    if (!result.ok) args.p_detail = result.error.slice(0, DETAIL_MAX);
+    const { error } = await supabaseAdmin.rpc("sms_send_finish", args);
+    if (error) {
+      console.error("[sms] idempotency finish failed", {
+        code: error.code,
+        message: error.message,
+      });
+    }
+  } catch (err) {
+    console.error("[sms] idempotency finish failed", { error: errorText(err) });
   }
+}
 
+/** Jedno wywołanie operatora (SMSAPI, REST). Nigdy nie rzuca. */
+async function deliver(token: string, to: string, body: string): Promise<SmsResult> {
+  const sender = process.env["SMSAPI_SENDER"];
   const params = new URLSearchParams({
     to: to.replace("+", ""),
-    message: trimSmsBody(input.body),
+    message: trimSmsBody(body),
     format: "json",
     encoding: "utf-8",
   });
@@ -134,6 +167,35 @@ export async function sendSms(input: SmsInput): Promise<SmsResult> {
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: errorText(err) };
   }
+}
+
+/**
+ * Wysyła SMS przez SMSAPI. Dostawca jest wymienny: cała wiedza o nim mieszka
+ * w tym module, reszta systemu widzi `sendParticipantSms`.
+ *
+ * Kolejność: dostawca -> numer -> rezerwacja klucza -> operator -> zamknięcie
+ * rezerwacji. Dziennik pytamy dopiero wtedy, gdy wiadomość naprawdę ma dokąd
+ * pójść - wyłączony kanał i zły numer nie zostawiają wpisów.
+ */
+export async function sendSms(input: SmsInput): Promise<SmsResult> {
+  const token = process.env["SMSAPI_TOKEN"];
+  if (!token) return { ok: true, skipped: "disabled" };
+
+  const to = normalizePhone(input.to);
+  if (!to) return { ok: true, skipped: "no_recipient" };
+
+  let claimId: string | null = null;
+  if (input.idempotencyKey !== undefined) {
+    const claim = await claimKey(input.tenantId, input.idempotencyKey);
+    if (claim.kind === "stop") return claim.result;
+    claimId = claim.claimId;
+  }
+
+  const result = await deliver(token, to, input.body);
+  if (claimId !== null && input.tenantId !== undefined) {
+    await finishClaim(input.tenantId, claimId, result);
+  }
+  return result;
 }

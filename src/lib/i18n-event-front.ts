@@ -557,7 +557,8 @@ export const eventFrontPl = {
         "Klucz dostałeś raz, w potwierdzeniu zapisu. Bez niego rezygnację przyjmie tylko organizator.",
       missingToken: "Otwórz odnośnik z potwierdzenia zapisu albo wklej klucz poniżej.",
       confirmTitle: "Odwołać udział?",
-      confirmBody: "Zapis zniknie z listy uczestników, a Twoje miejsce trafi do kolejnej osoby.",
+      confirmBody:
+        "Zapis zniknie z listy uczestników, a Twoje miejsce trafi do kolejnej osoby. Poniżej widzisz, co stanie się z wpłatą.",
       confirm: "Odwołaj udział",
       confirming: "Odwołujemy…",
       keep: "Zostaw zapis",
@@ -586,7 +587,12 @@ export const eventFrontPl = {
       paymentUnpaid: "Wejściówka nie jest jeszcze opłacona - kod wstępu powstaje po wpłacie.",
       paymentPaid: "Wejściówka jest opłacona.",
       paymentRefunded: "Wpłata została zwrócona.",
+      // Częściowy zwrot NIE jest zwrotem całości (REG-03) - miejsce zostaje.
+      paymentPartiallyRefunded: "Część wpłaty została zwrócona.",
       notFound: "Nie znaleźliśmy zgłoszenia dla tego klucza.",
+      // Klucz wygasa z końcem wydarzenia (REG-13/REG-17, decyzja D7).
+      expired:
+        "Ten odnośnik wygasł po zakończeniu wydarzenia. W sprawie zgłoszenia napisz do organizatora.",
       // ZGODA NA PRZEKAZANIE DANYCH PARTNEROM. Udziela się jej jednym
       // kliknięciem w formularzu zapisu, więc wycofuje się ją tu tak samo
       // (art. 7 ust. 3 RODO) - bez konta i bez maila do organizatora.
@@ -1251,7 +1257,7 @@ export const eventFrontEn = {
       missingToken: "Open the link from your confirmation or paste the key below.",
       confirmTitle: "Cancel your attendance?",
       confirmBody:
-        "Your registration leaves the attendee list and your seat goes to the next person.",
+        "Your registration leaves the attendee list and your seat goes to the next person. Below you can see what happens to your payment.",
       confirm: "Cancel attendance",
       confirming: "Cancelling…",
       keep: "Keep my registration",
@@ -1274,7 +1280,10 @@ export const eventFrontEn = {
         "The admission is not paid yet - the entry code is issued once the payment clears.",
       paymentPaid: "The admission is paid.",
       paymentRefunded: "The payment has been refunded.",
+      paymentPartiallyRefunded: "Part of the payment has been refunded.",
       notFound: "We found no registration for this key.",
+      expired:
+        "This link expired when the event ended. Please contact the organiser about your registration.",
       partnerTitle: "Sharing your data with partners",
       partnerBody:
         "You agreed to share your data with the partners of this event (e.g. exhibitors who scan your badge). You can withdraw this consent at any time - partners will stop receiving your data.",

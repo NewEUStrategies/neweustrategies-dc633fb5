@@ -281,11 +281,16 @@ SELECT pg_temp.order78('grupa', '78a00000-0000-0000-0000-000000000003', 20000,
 DO $$
 DECLARE v jsonb;
 BEGIN
+  -- SCALENIE Z MAIN (PR #504): od R38 (REG 20261012180300) dopisanie gosci
+  -- oddaje odmowe WARTOSCIA `{ok:false, error}` (rdzen
+  -- `_event_register_group_guests`, wrapper tylko service_role), a nie
+  -- wyjatkiem - TIX-03 siedzi w tym rdzeniu (20261013900300). Ta sama odmowa,
+  -- inny ksztalt; wiersz goscia nie powstaje.
   PERFORM pg_temp.act_as('78a00000-0000-0000-0000-000000000003', '78000000-0000-0000-0000-0000000000a0');
-  PERFORM pg_temp.assert_raises_like(
-    $q$SELECT public.event_register_group_guests('78400000-0000-0000-0000-000000000010',
-         '[{"first_name":"Nowy","last_name":"Gosc","email":"nowy.78@example.org"}]'::jsonb)$q$,
-    'checkout_in_progress',
+  v := public.event_register_group_guests('78400000-0000-0000-0000-000000000010',
+         '[{"first_name":"Nowy","last_name":"Gosc","email":"nowy.78@example.org"}]'::jsonb);
+  PERFORM pg_temp.assert(v = '{"ok": false, "error": "checkout_in_progress"}'::jsonb
+    AND NOT EXISTS (SELECT 1 FROM public.event_people WHERE email_norm = 'nowy.78@example.org'),
     '78/B TIX-03: dopisanie goscia przy otwartej kasie zgloszenia - odmowa');
   PERFORM pg_temp.act_as();
 

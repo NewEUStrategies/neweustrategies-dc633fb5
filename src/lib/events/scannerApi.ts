@@ -17,6 +17,18 @@
 // bywa zgubione. Wyjątkiem jest skan leadu - tam dane kontaktowe wracają
 // WYŁĄCZNIE przy udzielonej i niewycofanej zgodzie, i tak też je pokazujemy.
 //
+// NUMER POTWIERDZENIA I ADRES NIE IDĄ DO BAZY (REG-12). Każda funkcja ze
+// skanowanym kodem pyta najpierw `assertScannableCode`: numer `NES-XXXX-XXXX`
+// i adres (dawny QR karty ze strony wydarzenia) baza i tak by odrzuciła jako
+// nieznany kod - liczony do blokady urządzenia. Odmowa `not_entry_code` jest
+// lokalna i nie zostawia śladu w dzienniku ani w liczniku.
+//
+// BAZA MÓWI TO SAMO (przegląd R67). Cztery RPC skanu rozpoznają te same napisy
+// przed wyszukaniem kodu i oddają wynik `outcome: 'not_entry_code'` bez
+// licznika blokady (stara aplikacja bez bramki lokalnej też nie zablokuje
+// urządzenia). Gdyby taki wynik tu dotarł, zamieniamy go na tę samą odmowę co
+// bramka lokalna - jedna klasyfikacja, jedno zdanie przy bramce.
+//
 // KONTRAKT 20261013110500-110400 (OPS-04, OPS-08, OPS-12). Odpowiedzi niosą
 // wynik `code_superseded` (kod zastąpiony - `superseded`, `display_name`),
 // `denied_already_inside` i flagę ponownego wejścia (`reentry`,
@@ -28,6 +40,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 import { parseScannerSession, type ScannerSession } from "@/lib/events/scannerSession";
 import { parseRosterPage, type RosterPage } from "@/lib/events/scannerRoster";
+import { assertScannableCode, NOT_ENTRY_CODE_ERROR } from "@/lib/events/ticketCode";
 import {
   SCANNER_CLIENT_CAPS,
   parseQueueMarker,
@@ -38,6 +51,11 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+/** Wynik `not_entry_code` z bazy -> ta sama odmowa, co `assertScannableCode`. */
+function rejectNotEntryCode(row: Record<string, unknown>): void {
+  if (row.outcome === "not_entry_code") throw new Error(NOT_ENTRY_CODE_ERROR);
 }
 
 function text(value: unknown): string | null {
@@ -278,6 +296,7 @@ export interface CheckinScanResult {
 
 function parseCheckinScan(value: unknown): CheckinScanResult {
   const row = record(value);
+  rejectNotEntryCode(row);
   const other = record(row.other_event);
   const direction = text(row.direction);
   return {
@@ -338,6 +357,7 @@ export interface CheckinScanInput {
  * nie potrzebuje klucza idempotencji.
  */
 export async function resolveCheckinScan(input: CheckinScanInput): Promise<CheckinScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_checkin_resolve", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -352,6 +372,7 @@ export async function resolveCheckinScan(input: CheckinScanInput): Promise<Check
 
 /** Zapis odprawy w dzienniku. Idempotentny po `client_scan_uid`. */
 export async function recordCheckinScan(input: CheckinScanInput): Promise<CheckinScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_checkin_record", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -428,6 +449,7 @@ export interface LeadScanInput {
 }
 
 export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_lead_scan_record", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -441,6 +463,7 @@ export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResu
   });
   if (error !== null) throw new Error(error.message);
   const row = record(data);
+  rejectNotEntryCode(row);
   return {
     outcome: text(row.outcome) ?? "unknown",
     leadId: text(row.lead_id),
@@ -571,6 +594,7 @@ export interface BadgePrintScanInput {
 export async function recordBadgePrintScan(
   input: BadgePrintScanInput,
 ): Promise<BadgePrintScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_badge_print_record", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -582,6 +606,7 @@ export async function recordBadgePrintScan(
   });
   if (error !== null) throw new Error(error.message);
   const row = record(data);
+  rejectNotEntryCode(row);
   return {
     outcome: text(row.outcome) ?? "unknown",
     printId: text(row.print_id),

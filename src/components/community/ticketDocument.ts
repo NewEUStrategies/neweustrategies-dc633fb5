@@ -1,8 +1,12 @@
-// Potwierdzenie biletu jako samodzielny plik do pobrania.
+// Potwierdzenie rezerwacji jako samodzielny plik do pobrania.
 //
-// Dokument jest jednym plikiem HTML z osadzonym kodem QR (data URL) - otwiera
-// się bez internetu i drukuje do PDF, a przy tym nie wymaga ciężkiej
-// biblioteki PDF w bundlu przeglądarki.
+// Dokument jest jednym plikiem HTML - otwiera się bez internetu i drukuje do
+// PDF, a przy tym nie wymaga ciężkiej biblioteki PDF w bundlu przeglądarki.
+//
+// TO NIE JEST BILET WSTĘPU (REG-12). Plik nie niesie kodu QR: numer
+// potwierdzenia `NES-XXXX-XXXX` nie otwiera bramki, a dawny QR z tym numerem
+// kończył się przy wejściu „nieznanym kodem". Kod wejścia przychodzi osobnym
+// mailem „Twój bilet" - i tak mówi notka pod tabelą.
 import type { MyEventTicket } from "@/lib/events/ticketTypes";
 
 export interface TicketDocumentInput {
@@ -10,29 +14,28 @@ export interface TicketDocumentInput {
   lang: "pl" | "en";
   title: string;
   dateLabel: string | null;
-  qrDataUrl: string | null;
 }
 
 const COPY = {
   pl: {
-    doc: "Potwierdzenie biletu",
+    doc: "Potwierdzenie rezerwacji",
     brand: "New European Strategies",
-    code: "Numer biletu",
+    code: "Numer potwierdzenia",
     date: "Termin",
     place: "Miejsce",
     holder: "Uczestnik",
     transaction: "Numer transakcji",
-    note: "Okaż ten kod przy wejściu. Potwierdzenie jest imienne i nieprzenoszalne.",
+    note: "To potwierdzenie rezerwacji, nie bilet wstępu. Kod QR do wejścia (jeśli wydarzenie go używa) przychodzi osobnym mailem „Twój bilet”. Potwierdzenie jest imienne i nieprzenoszalne.",
   },
   en: {
-    doc: "Ticket confirmation",
+    doc: "Booking confirmation",
     brand: "New European Strategies",
-    code: "Ticket number",
+    code: "Booking reference",
     date: "Date",
     place: "Location",
     holder: "Attendee",
     transaction: "Transaction number",
-    note: "Show this code at the entrance. The confirmation is personal and non-transferable.",
+    note: "This is a booking confirmation, not an entry ticket. The entry QR code (if the event uses one) arrives in a separate “Your ticket” e-mail. The confirmation is personal and non-transferable.",
   },
 } as const;
 
@@ -50,7 +53,6 @@ export function buildTicketDocument({
   lang,
   title,
   dateLabel,
-  qrDataUrl,
 }: TicketDocumentInput): string {
   const c = COPY[lang];
   const rows: Array<[string, string | null]> = [
@@ -81,14 +83,11 @@ export function buildTicketDocument({
   th { text-align:left; font-weight:500; color:#6b6b6b; font-size:13px; padding:8px 12px 8px 0;
        white-space:nowrap; vertical-align:top; }
   td { font-size:14px; padding:8px 0; }
-  .qr { text-align:center; margin:24px 0; }
-  .qr img { width:200px; height:200px; }
   .note { font-size:12px; color:#6b6b6b; margin-top:20px; }
 </style></head>
 <body><div class="card">
   <p class="brand">${escapeHtml(c.brand)}</p>
   <h1>${escapeHtml(title)}</h1>
-  <div class="qr">${qrDataUrl ? `<img src="${qrDataUrl}" alt="${escapeHtml(ticket.code)}" />` : ""}</div>
   <table><tbody>${body}</tbody></table>
   <p class="note">${escapeHtml(c.note)}</p>
 </div></body></html>`;

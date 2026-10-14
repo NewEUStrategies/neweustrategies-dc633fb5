@@ -13,6 +13,17 @@ export interface EventSeatState {
   checkedAt: string;
 }
 
+/**
+ * Jak posiadacz wchodzi na wydarzenie (REG-12) - karta na stronie wydarzenia
+ * NIE jest biletem wstępu, więc mówi, gdzie jest prawdziwy kod:
+ *   * `emailed_qr` - kod QR wyszedł mailem „Twój bilet" (`ticket_code_sent_at`);
+ *   * `qr_pending` - zgłoszenie rozliczone, kod jeszcze nie wyszedł;
+ *   * `contact_organizer` - mail z kodem nie dał się doręczyć;
+ *   * `guest_list` - bez rozliczonego zgłoszenia (RSVP sprzed formularza
+ *     zgłoszeń albo zgłoszenie bez wpłaty): wejście po nazwisku z listy.
+ */
+export type TicketEntryMode = "emailed_qr" | "qr_pending" | "contact_organizer" | "guest_list";
+
 export interface MyEventTicket {
   eventId: string;
   slug: string;
@@ -22,8 +33,13 @@ export interface MyEventTicket {
   endsAt: string | null;
   timezone: string | null;
   location: string | null;
-  /** Numer biletu prezentowany posiadaczowi i zakodowany w QR. */
+  /**
+   * Numer potwierdzenia `NES-XXXX-XXXX` (z zamówienia albo RSVP) - etykieta do
+   * rozmowy z biurem, NIGDY kod wejścia ani treść kodu QR.
+   */
   code: string;
+  /** Gdzie jest prawdziwy kod wejścia - zdanie na karcie. */
+  entry: TicketEntryMode;
   /** Numer transakcji u operatora - tylko dla biletów płatnych. */
   transactionId: string | null;
   amountCents: number | null;

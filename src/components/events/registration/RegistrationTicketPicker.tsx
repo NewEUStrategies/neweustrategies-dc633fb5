@@ -18,6 +18,13 @@
 // WLASNE zdania - „ten kod nic nie odslania" powiedziane w czasie awarii
 // albo blokady to nieprawda o waznym kodzie. Przycisk stoi wylaczony, dopoki
 // pytanie jest w drodze: podwojne klikniecie to dwie proby z limitu.
+//
+// BILETY UKRYTE NIE PRZYCHODZA Z FORMULARZEM (REG-05, decyzja D6). Od B1a
+// `event_registration_form` ich nie oddaje, wiec o polu kodu decyduje flaga
+// formularza (`hasHiddenTickets`), a odsloniete bilety przychodza z serwera
+// PELNYMI wierszami - komponent oddaje je rodzicowi (`onReveal`), ktory
+// dokleja je do formularza i wysyla kod przy zapisie (`reveal_code`). Lista
+// biletow, ktora komponent dostaje, jest juz ta doklejona.
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Lock } from "lucide-react";
@@ -28,11 +35,13 @@ import {
   isTicketSelectable,
   visibleTickets,
   type RegistrationFormTicket,
+  type TicketReveal,
 } from "@/lib/events/registrationFormSurface";
 import { normalizeCouponCode } from "@/lib/billing/coupons";
 import { formatMoney } from "@/lib/billing/types";
 import { revealEventCodeTickets } from "@/lib/events/eventCodeReveal.functions";
 import { rememberEventCode } from "@/lib/events/eventCodeMemory";
+import { REGISTRATION_FIELD_LIMITS } from "@/lib/events/registrationFieldLimits";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
@@ -45,6 +54,9 @@ export function RegistrationTicketPicker({
   lang,
   invalid,
   eventId,
+  hasHiddenTickets = false,
+  requestedKey: requestedKeyProp,
+  onReveal,
 }: {
   tickets: RegistrationFormTicket[];
   value: string | null;
@@ -53,10 +65,23 @@ export function RegistrationTicketPicker({
   invalid: boolean;
   /** Włącza pole kodu dostępu (odsłanianie ukrytych biletów). */
   eventId?: string;
+  /**
+   * Wydarzenie ma bilety ukryte, których formularz nie oddaje (B1a) - pole
+   * kodu pojawia się także przy liście bez żadnego biletu ukrytego.
+   */
+  hasHiddenTickets?: boolean;
+  /**
+   * Klucz biletu z linku (`?ticket=`), gdy rodzic już go zna (pyta nim
+   * formularz). Brak = komponent czyta go z adresu sam.
+   */
+  requestedKey?: string | null;
+  /** Odsłonięte bilety i kod, którym je odsłonięto - rodzic dokleja je do formularza. */
+  onReveal?: (reveal: TicketReveal) => void;
 }) {
   const { t } = useTranslation();
   // Klucz z linku czytamy po hydratacji - SSR nie zna query stringa klienta.
-  const [requestedKey, setRequestedKey] = useState<string | null>(null);
+  const [urlKey, setUrlKey] = useState<string | null>(null);
+  const requestedKey = requestedKeyProp !== undefined ? requestedKeyProp : urlKey;
   const [revealed, setRevealed] = useState<string[]>([]);
   const [code, setCode] = useState("");
   const [revealNote, setRevealNote] = useState<string | null>(null);
@@ -65,14 +90,15 @@ export function RegistrationTicketPicker({
   // zatrzymuje tez drugie pytanie wyslane w tej samej klatce.
   const inFlight = useRef(false);
   const reveal = useServerFn(revealEventCodeTickets);
-  const hasHidden = tickets.some((ticket) => ticket.isHidden === true);
+  const hasHidden = hasHiddenTickets || tickets.some((ticket) => ticket.isHidden === true);
 
   const applyCode = async (raw: string) => {
     if (!eventId || raw.trim() === "" || inFlight.current) return;
     rememberEventCode(eventId, raw);
-    // Kod dluzszy niz 64 znaki nie istnieje w bazie (baza odpowiada na niego
-    // pusta lista) - mowimy to bez pytania serwera i bez proby z limitu.
-    if (normalizeCouponCode(raw).length > 64) {
+    // Kod dluzszy niz sufit kontraktu (64 znaki) nie istnieje w bazie (baza
+    // odpowiada na niego pusta lista) - mowimy to bez pytania serwera i bez
+    // proby z limitu.
+    if (normalizeCouponCode(raw).length > REGISTRATION_FIELD_LIMITS.code) {
       setRevealed([]);
       setRevealNote(t("eventRegistration.payment.revealNone"));
       return;
@@ -80,9 +106,17 @@ export function RegistrationTicketPicker({
     inFlight.current = true;
     setRevealing(true);
     try {
-      const result = await reveal({ data: { eventId, code: normalizeCouponCode(raw) } });
+      const normalized = normalizeCouponCode(raw);
+      const result = await reveal({ data: { eventId, code: normalized } });
       if (result.ok) {
         setRevealed(result.ticketIds);
+        // Wiersze biletów (B1a) idą do rodzica; przed migracją lista jest
+        // pusta, a bilety ukryte ma jeszcze sam formularz.
+        onReveal?.({
+          code: normalized,
+          ticketIds: result.ticketIds,
+          tickets: result.tickets ?? [],
+        });
         setRevealNote(
           result.ticketIds.length > 0
             ? t("eventRegistration.payment.revealFound", { count: result.ticketIds.length })
@@ -106,7 +140,7 @@ export function RegistrationTicketPicker({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setRequestedKey(params.get("ticket"));
+    setUrlKey(params.get("ticket"));
     const fromUrl = params.get("code");
     if (fromUrl) {
       setCode(fromUrl.toUpperCase());
@@ -131,9 +165,12 @@ export function RegistrationTicketPicker({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <label className="flex-1 space-y-1 text-sm">
             <span className="font-medium">{t("eventRegistration.payment.revealLabel")}</span>
+            <span className="block text-xs text-muted-foreground">
+              {t("eventRegistration.payment.revealHint")}
+            </span>
             <input
               value={code}
-              maxLength={64}
+              maxLength={REGISTRATION_FIELD_LIMITS.code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder={t("eventRegistration.payment.promoPlaceholder")}
               className="h-10 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"

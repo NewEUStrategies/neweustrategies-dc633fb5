@@ -1,4 +1,4 @@
-// Numer biletu i treść kodu QR.
+// Numer potwierdzenia rezerwacji i bramka skanera (REG-12).
 //
 // DLACZEGO TO MA TEST, SKORO „KOD NIE JEST SEKRETEM": bo jest OBIETNICĄ.
 // Uczestnik dostaje ten napis mailem, pokazuje go przy wejściu, a obsługa
@@ -8,7 +8,12 @@
 // nie właściwością techniczną, a `ticketCodeFrom` nie ma ani jednego wywołania
 // w testach do dziś (audyt pokrycia 18.08.2026, MODUŁ 7).
 import { describe, expect, it } from "vitest";
-import { ticketCodeFrom, ticketQrPayload } from "@/lib/events/ticketCode";
+import {
+  BOOKING_REFERENCE_PATTERN,
+  assertScannableCode,
+  classifyScannedCode,
+  ticketCodeFrom,
+} from "@/lib/events/ticketCode";
 
 const ORDER_ID = "55555555-5555-4555-8555-555555555555";
 const RSVP_ID = "44444444-4444-4444-8444-444444444444";
@@ -106,37 +111,52 @@ describe("ticketCodeFrom", () => {
   });
 });
 
-describe("ticketQrPayload", () => {
-  const CODE = "NES-1A2B-3C4D";
+// BRAMKA SKANERA (REG-12, kryterium „test skanu kodu z karty"). Dawna karta na
+// stronie wydarzenia rysowała QR z adresem `?ticket=NES-…`, a obsługa i goście
+// przepisują numer z wydruku. Ani jedno, ani drugie nie jest kodem biletu -
+// baza odrzuciłaby to jako nieznany kod i doliczyła do blokady urządzenia.
+describe("classifyScannedCode / assertScannableCode", () => {
+  const CARD_CODE = ticketCodeFrom(ORDER_ID);
+  const OLD_CARD_QR = `https://neweuropeanstrategies.com/events/szczyt-energetyczny?ticket=${encodeURIComponent(CARD_CODE)}`;
+  /** Prawdziwy kod biletu: 24 bajty base64url (`_event_new_qr_token()`). */
+  const REAL_CODE = "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj";
 
-  it("buduje adres weryfikacyjny biletu", () => {
-    expect(ticketQrPayload("https://nes.example", "szczyt-energetyczny", CODE)).toBe(
-      "https://nes.example/events/szczyt-energetyczny?ticket=NES-1A2B-3C4D",
-    );
+  it("numer potwierdzenia z karty pasuje do wzorca i jest rozpoznany", () => {
+    expect(CARD_CODE).toMatch(BOOKING_REFERENCE_PATTERN);
+    expect(classifyScannedCode(CARD_CODE)).toBe("booking_reference");
+    expect(classifyScannedCode(` ${CARD_CODE.toLowerCase()}\n`)).toBe("booking_reference");
   });
 
-  it("obcina końcowe ukośniki origin", () => {
-    // Origin bywa podawany z ukośnikiem (konfiguracja, `window.location.origin`
-    // za proxy). Bez obcięcia kod QR prowadziłby pod `//events/...`, czyli na
-    // adres protokołowo-względny - w czytniku telefonu to inny host.
-    expect(ticketQrPayload("https://nes.example/", "slug", CODE)).toBe(
-      "https://nes.example/events/slug?ticket=NES-1A2B-3C4D",
-    );
-    expect(ticketQrPayload("https://nes.example///", "slug", CODE)).toBe(
-      "https://nes.example/events/slug?ticket=NES-1A2B-3C4D",
-    );
+  it("dawny QR karty (adres strony z `?ticket=NES-…`) to też numer potwierdzenia", () => {
+    expect(classifyScannedCode(OLD_CARD_QR)).toBe("booking_reference");
   });
 
-  it("koduje kod w parametrze zapytania", () => {
-    expect(ticketQrPayload("https://nes.example", "slug", "NES 1A/2B&x")).toBe(
-      "https://nes.example/events/slug?ticket=NES%201A%2F2B%26x",
-    );
+  it("inny adres (np. QR parowania urządzenia) to `url`", () => {
+    expect(classifyScannedCode("https://nes.example/scanner?t=abc")).toBe("url");
+    expect(classifyScannedCode("http://nes.example/events/x?ticket=nie-numer")).toBe("url");
+    expect(classifyScannedCode("https://")).toBe("url");
   });
 
-  it("dla pustego origin daje adres względny, nie protokołowo-względny", () => {
-    // SSR nie zna origin. Wynik musi zaczynać się od JEDNEGO ukośnika.
-    const payload = ticketQrPayload("", "slug", CODE);
-    expect(payload).toBe("/events/slug?ticket=NES-1A2B-3C4D");
-    expect(payload.startsWith("//")).toBe(false);
+  it("prawdziwy kod biletu i kody o nietypowym kształcie rozstrzyga baza", () => {
+    expect(classifyScannedCode(REAL_CODE)).toBe("candidate");
+    expect(classifyScannedCode("AAA")).toBe("candidate");
+    expect(classifyScannedCode("NES-1234")).toBe("candidate");
+    // Alfabet numeru nie ma I ani O - napis z nimi nie jest numerem potwierdzenia.
+    expect(classifyScannedCode("NES-IIII-OOOO")).toBe("candidate");
+  });
+
+  it("odmowa ma głowę `not_entry_code` - klasa „odmowa” skanera, bez ponawiania", () => {
+    expect(() => assertScannableCode(CARD_CODE)).toThrow(/^not_entry_code: /);
+    expect(() => assertScannableCode(OLD_CARD_QR)).toThrow(/^not_entry_code: /);
+    expect(() => assertScannableCode("https://nes.example/scanner?t=abc")).toThrow(
+      /^not_entry_code: /,
+    );
+    expect(() => assertScannableCode(REAL_CODE)).not.toThrow();
+    expect(() => assertScannableCode("AAA")).not.toThrow();
+  });
+
+  it("moduł nie eksportuje już `ticketQrPayload` (kryterium „brak ticketQrPayload w UI”)", async () => {
+    const mod = await import("@/lib/events/ticketCode");
+    expect(Object.keys(mod)).not.toContain("ticketQrPayload");
   });
 });

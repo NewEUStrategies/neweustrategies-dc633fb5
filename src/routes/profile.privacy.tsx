@@ -21,6 +21,8 @@
 //
 // Każda zmiana zgody przechodzi przez audytowaną ścieżkę: CMP -> registryBridge
 // -> set_user_consent (IP/UA czytane serwerowo), albo wprost set_user_consent.
+// Zgody dla organizatora wydarzeń (REG-14) mają własną księgę i własną drogę
+// wycofania (`withdrawEventConsents` - skrót IP i przeglądarka z serwera).
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Cookie, ShieldCheck, ArrowRight } from "lucide-react";
@@ -28,6 +30,7 @@ import { ConsentsPanel } from "@/components/notifications/ConsentsPanel";
 import { GpcDeclarationSlot } from "@/components/consent/GpcSurfaceSlots";
 import { VisibilityAndContactSection } from "@/components/profile/privacy/VisibilityAndContactSection";
 import { DataRightsSection } from "@/components/profile/privacy/DataRightsSection";
+import { EventOrganizerConsentsSection } from "@/components/profile/privacy/EventOrganizerConsentsSection";
 import { ensureI18n as ensureNetworkI18n } from "@/lib/i18n-network";
 import { requestConsentPreferences } from "@/lib/ads/consent";
 
@@ -90,6 +93,10 @@ function PrivacyPage() {
         </div>
 
         <ConsentsPanel source="profile_privacy" />
+
+        {/* Zgody zaznaczone przy zapisach na wydarzenia (REG-14) - osobna
+            księga organizatora, nie katalog zgód platformy wyżej. */}
+        <EventOrganizerConsentsSection />
       </section>
 
       {/* 3. Prawa do danych - przeniesione z /profile/security. */}

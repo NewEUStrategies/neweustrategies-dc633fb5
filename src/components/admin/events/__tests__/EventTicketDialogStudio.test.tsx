@@ -256,6 +256,30 @@ describe("wygląd biletu jedzie drugim argumentem zapisu", () => {
     expect(ostatni().look.isHidden).toBe(false);
   });
 
+  it("ukryty bez kodu dostępu mówi, że sam link nie wystarczy; kod gasi zdanie (REG-05)", () => {
+    const uwaga = () => screen.queryByText(`${S}hiddenNeedsCodeHint`);
+    renderuj();
+    wypelnijMinimum();
+    expect(uwaga()).toBeNull();
+
+    fireEvent.click(wybor(`${S}hidden`));
+    expect(uwaga()).toHaveAttribute("role", "note");
+
+    wpisz(`${E}accessCode`, "PARTNER-7");
+    expect(uwaga()).toBeNull();
+  });
+
+  it("zapisany kod gasi zdanie, a jego zdjęcie przywraca je", () => {
+    renderuj({
+      ticket: eventTicketRow({ has_access_code: true }),
+      presentation: { ...DEFAULT_TICKET_PRESENTATION, isHidden: true },
+    });
+    expect(screen.queryByText(`${S}hiddenNeedsCodeHint`)).toBeNull();
+
+    fireEvent.click(przelacznik(`${E}removeAccessCode`));
+    expect(screen.getByText(`${S}hiddenNeedsCodeHint`)).toBeInTheDocument();
+  });
+
   it("zapis grupowy odsłania rozmiar grupy, a ten jest przycięty do granic", () => {
     renderuj();
     wypelnijMinimum();

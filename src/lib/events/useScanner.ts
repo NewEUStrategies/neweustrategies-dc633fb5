@@ -100,6 +100,7 @@ import {
   type CheckinScanResult,
   type LeadScanResult,
 } from "@/lib/events/scannerApi";
+import { assertScannableCode } from "@/lib/events/ticketCode";
 import type { RosterPage } from "@/lib/events/scannerRoster";
 import {
   newerQueueMarker,
@@ -1442,6 +1443,9 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error(NO_SESSION);
       assertNotExpired();
+      // Numer potwierdzenia albo adres (REG-12) - odmowa PRZED kolejką offline:
+      // nie trafia do kolejki, do decyzji z listy ani do licznika urządzenia.
+      assertScannableCode(input.code);
       // Pokolenie parowania tego skanu - patrz nagłówek („PAROWANIE MA POKOLENIE").
       const generation = pairingRef.current;
       const superseded = () => pairingRef.current !== generation;
@@ -1556,6 +1560,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error(NO_SESSION);
       assertNotExpired();
+      assertScannableCode(input.code);
       const generation = pairingRef.current;
       const superseded = () => pairingRef.current !== generation;
       const scannedAt = correctedNowIso(clockOffsetRef.current);

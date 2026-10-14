@@ -10,18 +10,39 @@
 // identyfikator zapisu zalogowanego wlasciciela, albo ten klucz - dlatego gosc
 // tez ma tu dzialajacy przycisk, a nie prosbe o kontakt z organizatorem.
 //
+// SKUTEK FINANSOWY PRZED POTWIERDZENIEM (REG-03). Zgloszenie oplacone (np.
+// wplata przeszla na tym ekranie) odwoluje sie w dwoch krokach: najpierw
+// zdanie, co stanie sie z wplata, potem potwierdzenie, ktore odsyla ten skutek
+// do bazy (`acknowledged_effect`). Rezygnacja bez pieniedzy zostaje jednym
+// kliknieciem - tak jak dotad.
+//
 // ODNOSNIK DO ZARZADZANIA JEST WAZNIEJSZY NIZ SAM KLUCZ. Goly napis do
 // przepisania z ekranu ginie razem z zakladka; adres `/events/<slug>/manage`
-// z kluczem w zapytaniu da sie zapisac, wyslac sobie mailem i otworzyc na
-// telefonie w dniu wydarzenia. Pokazujemy oba, bo klucz bywa wklejany recznie
+// z kluczem we fragmencie (`#token=` - nie trafia do logow serwera, REG-17) da
+// sie zapisac, wyslac sobie mailem i otworzyc na telefonie w dniu wydarzenia. Pokazujemy oba, bo klucz bywa wklejany recznie
 // w innej przegladarce niz ta, w ktorej powstal zapis.
+//
+// TEN EKRAN WIDZI TYLKO ZWERYFIKOWANY WLASCICIEL ADRESU (REG-04, decyzja D3).
+// Kazdy inny dostaje `RegistrationCheckEmail` - bez klucza, rezygnacji i kasy.
+// Tutaj dochodza wiec dwa zdania o koncie: zgloszenie NIE powiazane z kontem
+// zalogowanego (REG-01: konto ma inny potwierdzony adres) i zgody czekajace na
+// potwierdzenie mailem (D5), oraz termin ceny z chwili zapisu (REG-16).
 import { useState } from "react";
-import { Check, Copy, Link as LinkIcon, XCircle } from "lucide-react";
+import { Check, Copy, Info, Link as LinkIcon, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import type { RegistrationResult } from "@/lib/events/publicRegistrationApi";
+import {
+  acknowledgedEffectFor,
+  cancellationReady,
+  type CancellationEffect,
+  type CancellationRefusal,
+} from "@/lib/events/cancellationPreview";
+import { useCancellationPreview } from "@/lib/events/useCancellationPreview";
+import { CancellationFinancialEffect } from "@/components/events/registration/molecules/CancellationFinancialEffect";
 import { manageLinkPath } from "@/lib/events/manageToken";
+import { formatEventDateTime } from "@/lib/events/timezone";
 import { Button } from "@/components/ui/button";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -39,6 +60,8 @@ export function RegistrationConfirmation({
   cancelling,
   onCancel,
   guestsAdded = 0,
+  signedIn = false,
+  lang = "pl",
 }: {
   result: RegistrationResult;
   /** Slug wydarzenia - buduje adres strony zarzadzania zgloszeniem. */
@@ -54,9 +77,17 @@ export function RegistrationConfirmation({
   /** Zapis odwolany w tej sesji - przycisk rezygnacji nie ma juz sensu. */
   cancelled: boolean;
   cancelling: boolean;
-  onCancel: () => void;
+  /** Rezygnacja; skutek finansowy jedzie tylko wtedy, gdy baza go wymaga. */
+  onCancel: (acknowledgedEffect?: CancellationEffect) => void;
   /** Ilu gosci baza dopisala do tego zgloszenia (zapis grupowy); 0 = bez grupy. */
   guestsAdded?: number;
+  /**
+   * Wolajacy jest zalogowany - tylko wtedy zdanie „zgloszenie nie jest
+   * powiazane z kontem" ma sens (gosc bez konta nie ma czego wiazac).
+   */
+  signedIn?: boolean;
+  /** Jezyk terminu ceny z chwili zapisu. */
+  lang?: "pl" | "en";
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -67,6 +98,29 @@ export function RegistrationConfirmation({
    */
   const [planSettled, setPlanSettled] = useState(false);
   const status = planSettled ? "approved" : result.status;
+  /** Drugi krok rezygnacji - skutek finansowy na ekranie, czeka na potwierdzenie. */
+  const [asking, setAsking] = useState(false);
+  const previewQuery = useCancellationPreview({
+    slug,
+    manageToken: result.manageToken,
+    registrationId: result.manageToken === null ? result.registrationId : null,
+    enabled: !cancelled,
+  });
+  const preview = previewQuery.data;
+  const refusal: CancellationRefusal | null =
+    preview?.kind === "ok" && !preview.canCancel ? preview.refusal : null;
+  const acknowledgedEffect = acknowledgedEffectFor(preview);
+
+  function startCancel(): void {
+    // Bez pieniedzy (albo baza bez podgladu) - jedno klikniecie, jak dotad.
+    // Blad podgladu tez otwiera drugi krok: uczestnik widzi, ze skutku nie
+    // udalo sie sprawdzic, i moze sprobowac ponownie.
+    if (acknowledgedEffect === undefined && !previewQuery.isError) {
+      onCancel(undefined);
+      return;
+    }
+    setAsking(true);
+  }
 
   const statusMessage =
     status === "waitlist"
@@ -113,12 +167,35 @@ export function RegistrationConfirmation({
    */
   const amountCents = result.amountCents ?? null;
   const currency = result.currency ?? null;
+  // `?? null` / `=== true` z tego samego powodu co wyzej: wynik sklada tez kod
+  // wywolujacy (i testy), a brak pola nie moze rysowac zdania.
+  const quoteUntil =
+    result.paymentRequired && !planSettled
+      ? formatEventDateTime(result.quoteValidUntil ?? null, null, lang)
+      : "";
+  const accountNotLinked = signedIn && result.accountLinked === false;
+  const consentPending = result.consentConfirmationRequired === true;
 
   return (
     <section className="space-y-6" aria-live="polite">
       <p className="rounded-[6px] border border-primary/40 bg-primary/5 p-4 text-sm text-foreground">
         {cancelled ? t("eventRegistration.result.cancelled") : statusMessage}
       </p>
+
+      {/* KONTO I ZGODY. Zgloszenie zalogowanego, ktorego baza nie powiazala
+          z kontem (inny potwierdzony adres), nie pojawi sie w „Moich
+          zgloszeniach" - bez tego zdania uczestnik szukalby go tam na prozno.
+          Zgody marketingowe czekaja na klikniecie w mailu (double opt-in). */}
+      {!cancelled && accountNotLinked && (
+        <p className="text-sm text-muted-foreground">
+          {t("eventRegistration.result.accountNotLinked")}
+        </p>
+      )}
+      {!cancelled && consentPending && (
+        <p className="text-sm text-muted-foreground">
+          {t("eventRegistration.result.checkEmailConsent")}
+        </p>
+      )}
 
       {/* BILETY GOSCI GRUPY. Kazdy gosc dostaje WLASNY mail z kodem QR - ale
           nie zawsze teraz. Bez tego zdania kupujacy nie wiedzial, czy goscie
@@ -148,6 +225,14 @@ export function RegistrationConfirmation({
               <p className="text-xs text-muted-foreground">
                 {t("eventRegistration.result.paymentNoTicketYet")}
               </p>
+              {/* CENA Z CHWILI ZAPISU MA TERMIN (REG-16). Do niego kasa liczy
+                  nizsza z zapamietanej i biezacej; po nim - biezaca. Bez tego
+                  zdania zmiana kwoty po granicy promocji bylaby niespodzianka. */}
+              {quoteUntil !== "" && (
+                <p className="text-xs text-muted-foreground">
+                  {t("eventRegistration.result.quoteValidUntil", { date: quoteUntil })}
+                </p>
+              )}
             </>
           )}
           {/* DROGA DO KASY. Zdanie o braku wejsciowki ZOSTAJE - czlowiek ma
@@ -208,8 +293,48 @@ export function RegistrationConfirmation({
         </div>
       )}
 
-      {!cancelled && (
-        <Button type="button" variant="ghost" disabled={cancelling} onClick={onCancel}>
+      {!cancelled && refusal !== null && (
+        <p className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {t(REFUSAL_KEYS[refusal])}
+        </p>
+      )}
+
+      {!cancelled && refusal === null && asking && (
+        <div className="space-y-3 rounded-[6px] border border-destructive/40 bg-destructive/5 p-4">
+          <CancellationFinancialEffect
+            preview={preview}
+            isError={previewQuery.isError}
+            onRetry={() => void previewQuery.refetch()}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={cancelling || !cancellationReady(preview)}
+              onClick={() => onCancel(acknowledgedEffect)}
+            >
+              <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+              {cancelling
+                ? t("eventRegistration.actions.cancelling")
+                : t("eventRegistration.actions.confirmCancel")}
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setAsking(false)}>
+              {t("eventFront.manage.keep")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!cancelled && refusal === null && !asking && (
+        <Button
+          type="button"
+          variant="ghost"
+          // Do czasu wczytania podgladu nie wiadomo, czy rezygnacja dotyczy
+          // pieniedzy - przycisk czeka chwile, zamiast wyslac ja bez skutku.
+          disabled={cancelling || (preview === undefined && !previewQuery.isError)}
+          onClick={startCancel}
+        >
           <XCircle className="mr-2 h-4 w-4" aria-hidden="true" />
           {cancelling
             ? t("eventRegistration.actions.cancelling")
@@ -219,3 +344,10 @@ export function RegistrationConfirmation({
     </section>
   );
 }
+
+/** Odmowa znana z podgladu -> zdanie (literaly kluczy dla bramki slownikow). */
+const REFUSAL_KEYS: Record<CancellationRefusal, string> = {
+  already_closed: "eventRegistration.cancelRefund.refusals.alreadyClosed",
+  event_finished: "eventRegistration.cancelRefund.refusals.eventFinished",
+  event_ended: "eventRegistration.cancelRefund.refusals.eventEnded",
+};

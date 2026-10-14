@@ -166,6 +166,14 @@ export interface RegistrationPayActionProps {
   ownedByCaller?: boolean;
   /** Zgłoszenie rozliczone BEZ kasy (bilet z puli planu) - przyjęte. */
   onSettled?: () => void;
+  /**
+   * Tuż przed wyjściem do kasy (otwarcie płatności albo przejście dalej).
+   *
+   * Strona samoobsługi odkłada tu klucz do `sessionStorage` (REG-17): adres
+   * powrotu od dostawcy płatności nie może nieść klucza, a bez niego powrót
+   * z kasy kończyłby się polem „wklej klucz".
+   */
+  onBeforeCheckout?: () => void;
 }
 
 export function RegistrationPayAction({
@@ -179,6 +187,7 @@ export function RegistrationPayAction({
   showAmount = true,
   ownedByCaller,
   onSettled,
+  onBeforeCheckout,
 }: RegistrationPayActionProps) {
   const { t, i18n } = useTranslation();
   const { session } = useAuth();
@@ -494,6 +503,7 @@ export function RegistrationPayAction({
         setRefusal(ticketCheckoutRefusal(result.error));
         return;
       }
+      onBeforeCheckout?.();
       if (result.mode === "stripe") {
         setClientSecret(result.clientSecret);
         return;

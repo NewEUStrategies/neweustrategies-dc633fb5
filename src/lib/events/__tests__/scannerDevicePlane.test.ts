@@ -31,6 +31,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseRpcStub } from "@/test/supabase/rpc";
+import { EVENT_IDS } from "@/test/events/fixtures";
+import { isRetryableScanError, scanErrorKind } from "@/lib/events/scannerErrorKind";
+import { ticketCodeFrom } from "@/lib/events/ticketCode";
 
 const h = vi.hoisted(() => ({
   rpc: null as ReturnType<typeof import("@/test/supabase/rpc").supabaseRpcStub> | null,
@@ -967,5 +970,72 @@ describe("scannerApi - termin żądania", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// REG-12, kryterium „test skanu kodu z karty". Karta na stronie wydarzenia
+// rysowała QR z adresem `?ticket=NES-…`; numer potwierdzenia bywa też
+// przepisywany z wydruku. Baza odrzuciłaby oba jako nieznany kod - i doliczyła
+// porażkę do okna blokady urządzenia (20 w 10 minut). Odmowa jest lokalna:
+// ani jedno żądanie nie wychodzi.
+describe("scannerApi - numer potwierdzenia z karty nie dociera do bazy", () => {
+  const NUMER = ticketCodeFrom(EVENT_IDS.order);
+  const STARY_QR = `https://neweuropeanstrategies.com/events/onsite-a?ticket=${NUMER}`;
+
+  it.each([
+    ["numer potwierdzenia", NUMER],
+    ["dawny QR karty (adres z `?ticket=`)", STARY_QR],
+  ])("%s: każda funkcja skanu odmawia `not_entry_code` bez wołania RPC", async (_opis, kod) => {
+    await expect(
+      api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: kod, checkpointId: PUNKT }),
+    ).rejects.toThrow(/^not_entry_code: /);
+    await expect(api.resolveCheckinScan({ deviceToken: TOKEN_BRAMKI, code: kod })).rejects.toThrow(
+      /^not_entry_code: /,
+    );
+    await expect(api.recordLeadScan({ deviceToken: TOKEN_STOISKA, code: kod })).rejects.toThrow(
+      /^not_entry_code: /,
+    );
+    await expect(
+      api.recordBadgePrintScan({ deviceToken: TOKEN_BRAMKI, code: kod }),
+    ).rejects.toThrow(/^not_entry_code: /);
+    expect(rpc().calls).toEqual([]);
+  });
+
+  it("odmowa jest klasy „odmowa” (bez ponawiania i bez kolejki), nie awarią sieci", async () => {
+    const error = await api
+      .recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: NUMER })
+      .catch((e: unknown) => e);
+    expect(scanErrorKind(error)).toBe("refused");
+    expect(isRetryableScanError(error)).toBe(false);
+  });
+
+  // PRZEGLĄD R67: RPC skanu rozpoznają numer potwierdzenia i adres także po
+  // stronie bazy (`outcome: 'not_entry_code'`, bez licznika blokady). Taki
+  // wynik jest tą samą odmową co bramka lokalna - nie „nieznanym wynikiem".
+  it("wynik `not_entry_code` z bazy daje tę samą odmowę, co bramka lokalna", async () => {
+    rpc().setData("event_checkin_record", { outcome: "not_entry_code", admit: false });
+    rpc().setData("event_checkin_resolve", { outcome: "not_entry_code", admit: false });
+    rpc().setData("event_lead_scan_record", { outcome: "not_entry_code", device_locked: false });
+    rpc().setData("event_badge_print_record", { outcome: "not_entry_code", device_locked: false });
+
+    const errors = await Promise.all([
+      api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD }).catch((e: unknown) => e),
+      api.resolveCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD }).catch((e: unknown) => e),
+      api.recordLeadScan({ deviceToken: TOKEN_STOISKA, code: KOD }).catch((e: unknown) => e),
+      api.recordBadgePrintScan({ deviceToken: TOKEN_BRAMKI, code: KOD }).catch((e: unknown) => e),
+    ]);
+    for (const error of errors) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/^not_entry_code: /);
+      expect(scanErrorKind(error)).toBe("refused");
+    }
+    // Kod przeszedł bramkę lokalną - pytanie poszło do bazy, odmowa przyszła z niej.
+    expect(rpc().calls).toHaveLength(4);
+  });
+
+  it("KONTROLA DODATNIA: prawdziwy kod biletu nadal idzie do bazy", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
+    await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD, checkpointId: PUNKT });
+    expect(payloadOf("event_checkin_record").code).toBe(KOD);
   });
 });

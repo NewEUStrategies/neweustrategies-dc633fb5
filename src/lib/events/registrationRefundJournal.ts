@@ -1,4 +1,22 @@
+// Dziennik zwrotów zgłoszeń wydarzenia (REG-03, decyzja D9; eskalacja INV-19c).
+//
+// KAŻDE ZAMKNIĘCIE OPŁACONEGO ZGŁOSZENIA ZOSTAWIA TU WIERSZ: odrzucenie,
+// anulowanie przez organizatora, rezygnacja uczestnika i zamknięcie bez
+// decyzji (siatka bezpieczeństwa w bazie). `pending` idzie do operatora
+// płatności sam, `needs_review` czeka na decyzję organizatora z powodem
+// (`review_reason`) - powodem zamknięcia (REG-03) albo eskalacji kolejki
+// (wyczerpane próby, odmowa albo brak potwierdzenia operatora, 20261012120000),
+// po której administratorzy dostają alarm (`escalated_at`).
+//
+// WPŁATA RĘCZNA NIE MA ZAMÓWIENIA. Przelew przyjęty przez organizatora (akcja
+// „opłacone") zostawia wiersz z `payment_order_id = null` - parser go przyjmuje,
+// a dziennik oferuje dla niego tylko „oznacz jako zwrócone" i „nie zwracaj".
+//
+// PARSER JEST ŚCISŁY: wiersz, którego nie umiemy przeczytać, to błąd wczytania,
+// a nie pusty dziennik - pusty dziennik obiecywałby, że nic nie czeka na zwrot.
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { REFUND_REVIEW_REASONS } from "@/lib/events/cancellationPreview";
 
 export const REFUND_JOB_STATES = [
   "pending",
@@ -11,18 +29,44 @@ export const REFUND_JOB_STATES = [
 ] as const;
 export type RefundJobState = (typeof REFUND_JOB_STATES)[number];
 
+/** Kto zamknął zgłoszenie (CHECK `event_refund_jobs_origin_values`). */
+export const REFUND_JOB_ORIGINS = [
+  "organizer_rejected",
+  "organizer_cancelled",
+  "participant_cancelled",
+  "system",
+] as const;
+export type RefundJobOrigin = (typeof REFUND_JOB_ORIGINS)[number];
+
+/** Decyzje organizatora o zleceniu (`admin_event_refund_job_decide`). */
+export const REFUND_JOB_DECISIONS = ["refund", "mark_refunded", "dismiss"] as const;
+export type RefundJobDecision = (typeof REFUND_JOB_DECISIONS)[number];
+
 /**
- * Dlaczego zlecenie czeka na człowieka - każda wartość CHECK-a
- * `event_refund_jobs_review_reason_check` (20261012120000) ma etykietę
- * i wskazówkę w słowniku `adminEventRegistration.refundJournal.reasons`.
+ * Powody eskalacji kolejki - jedyne wejścia helpera `_event_refund_job_escalate`
+ * (20261012120000), który przenosi zlecenie do `needs_review` RAZEM z alarmem
+ * dla administratorów. Wspólna płatność ma tu własną nazwę
+ * (`active_registrations_share_payment`): to kolejka wykryła ją przy próbie
+ * zwrotu, a nie organizator przy zamknięciu (`shared_payment`).
  */
-export const REFUND_REVIEW_REASONS = [
+export const REFUND_ESCALATION_REASONS = [
   "active_registrations_share_payment",
   "attempts_exhausted",
   "provider_refund_failed",
   "refund_unconfirmed",
 ] as const;
-export type RefundReviewReason = (typeof REFUND_REVIEW_REASONS)[number];
+
+/**
+ * Dlaczego zlecenie czeka na człowieka (albo dlaczego zwrotu nie ma) - każda
+ * wartość CHECK-a `event_refund_jobs_review_reason_values`: powody zamknięcia
+ * (te same, które widzi podgląd rezygnacji) i powody eskalacji. Każda ma
+ * etykietę i wskazówkę w `adminEventRegistration.refundJournal.reasons`.
+ */
+export const REFUND_JOB_REVIEW_REASONS = [
+  ...REFUND_REVIEW_REASONS,
+  ...REFUND_ESCALATION_REASONS,
+] as const;
+export type RefundJobReviewReason = (typeof REFUND_JOB_REVIEW_REASONS)[number];
 
 /**
  * Budżet prób zlecenia zwrotu - LUSTRO `public._event_refund_attempt_budget()`.
@@ -41,74 +85,133 @@ export const REFUND_UNCONFIRMED_DAYS = 7;
 
 export interface RefundJournalRow {
   id: string;
-  payment_order_id: string;
+  registration_id: string | null;
+  /** `null` = wpłata poza operatorem płatności (przelew przyjęty ręcznie). */
+  payment_order_id: string | null;
   person_name: string;
   state: RefundJobState;
+  origin: RefundJobOrigin;
+  /** Powód przeglądu; `null` poza `needs_review` (albo przed eskalacją). */
+  review_reason: RefundJobReviewReason | null;
+  amount_cents: number | null;
+  currency: string | null;
+  refund_deadline_at: string | null;
+  /** Notatka organizatora przy decyzji - wewnętrzna, nigdy dla uczestnika. */
+  review_note: string | null;
+  decided_at: string | null;
   attempts: number;
   last_error: string | null;
-  /** Powód przeglądu; `null` poza `needs_review` (albo przed eskalacją). */
-  review_reason: RefundReviewReason | null;
   /** Kiedy administratorzy dostali alarm o tym zleceniu; `null` = nigdy. */
   escalated_at: string | null;
   next_attempt_at: string;
   created_at: string;
 }
 
+function invalid(): never {
+  throw new Error("invalid_refund_journal");
+}
+
 /** Pole opcjonalne kontraktu: brak klucza (starsze RPC) czytamy jak `null`. */
-function optionalText(value: unknown): string | null | undefined {
-  if (value === undefined || value === null) return null;
-  return typeof value === "string" ? value : undefined;
+function optionalText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") invalid();
+  return value;
+}
+
+function optionalCents(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) invalid();
+  return value;
+}
+
+function oneOf<T extends string>(values: readonly T[], value: unknown): T {
+  if (typeof value !== "string" || !values.some((known) => known === value)) invalid();
+  return value as T;
 }
 
 export async function fetchRegistrationRefundJournal(eventId: string): Promise<RefundJournalRow[]> {
   const { data, error } = await supabase.rpc("admin_event_refund_jobs", { p_event_id: eventId });
   if (error) throw error;
-  if (!Array.isArray(data)) throw new Error("invalid_refund_journal");
+  if (!Array.isArray(data)) invalid();
   return data.map((value) => {
-    if (!value || typeof value !== "object" || Array.isArray(value))
-      throw new Error("invalid_refund_journal");
-    const {
-      id,
-      payment_order_id,
-      person_name,
-      state,
-      attempts,
-      last_error,
-      next_attempt_at,
-      created_at,
-    } = value;
-    const reviewReason = optionalText(value.review_reason);
-    const escalatedAt = optionalText(value.escalated_at);
+    if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
+    const row = value as Record<string, unknown>;
+    const { id, person_name, attempts, next_attempt_at, created_at } = row;
     if (
       typeof id !== "string" ||
-      typeof payment_order_id !== "string" ||
       typeof person_name !== "string" ||
-      typeof state !== "string" ||
-      !REFUND_JOB_STATES.some((known) => known === state) ||
       typeof attempts !== "number" ||
       !Number.isInteger(attempts) ||
       attempts < 0 ||
-      (last_error !== null && typeof last_error !== "string") ||
-      // Nieznany powód to ten sam błąd co nieznany stan: panel nie zgaduje
-      // etykiety, tylko mówi, że odczyt się nie udał.
-      reviewReason === undefined ||
-      (reviewReason !== null && !REFUND_REVIEW_REASONS.some((known) => known === reviewReason)) ||
-      escalatedAt === undefined ||
       typeof next_attempt_at !== "string" ||
       typeof created_at !== "string"
     )
-      throw new Error("invalid_refund_journal");
+      invalid();
+    const reason = optionalText(row.review_reason);
     return {
       id,
-      payment_order_id,
+      registration_id: optionalText(row.registration_id),
+      payment_order_id: optionalText(row.payment_order_id),
       person_name,
-      state: state as RefundJobState,
+      state: oneOf(REFUND_JOB_STATES, row.state),
+      // Baza sprzed REG-03 nie zna pochodzenia - wtedy każdy wiersz był
+      // odrzuceniem (jedyna droga do dziennika).
+      origin:
+        row.origin === undefined ? "organizer_rejected" : oneOf(REFUND_JOB_ORIGINS, row.origin),
+      // Nieznany powód to ten sam błąd co nieznany stan: panel nie zgaduje
+      // etykiety, tylko mówi, że odczyt się nie udał.
+      review_reason: reason === null ? null : oneOf(REFUND_JOB_REVIEW_REASONS, reason),
+      amount_cents: optionalCents(row.amount_cents),
+      currency: optionalText(row.currency),
+      refund_deadline_at: optionalText(row.refund_deadline_at),
+      review_note: optionalText(row.review_note),
+      decided_at: optionalText(row.decided_at),
       attempts,
-      last_error,
-      review_reason: reviewReason as RefundReviewReason | null,
-      escalated_at: escalatedAt,
+      last_error: optionalText(row.last_error),
+      escalated_at: optionalText(row.escalated_at),
       next_attempt_at,
       created_at,
     };
   });
+}
+
+/**
+ * Decyzje, które dziennik oferuje dla wiersza. Zwrot przez operatora tylko
+ * dla zamówienia Stripe; wpłata poza operatorem (bez zamówienia albo inny
+ * operator - `manual_payment`) dostaje „oznacz jako zwrócone": zwrot
+ * zamówienia Stripe idzie przez operatora, żeby księga i operator się nie
+ * rozjechały. Baza i tak odmawia niepasującej decyzji.
+ *
+ * Zwrot przyjęty przez operatora, ale niepotwierdzony (`refund_unconfirmed`),
+ * może jeszcze dojść - żadna decyzja nie jest wtedy bezpieczna (drugi zwrot,
+ * „nie zwracaj" przy pieniądzach w drodze). Organizator sprawdza status
+ * u operatora; webhook domknie zlecenie albo przeniesie je do
+ * `provider_refund_failed`, gdzie decyzja znów jest możliwa.
+ */
+export function refundJobDecisions(row: RefundJournalRow): readonly RefundJobDecision[] {
+  if (row.state !== "needs_review" && row.state !== "failed") return [];
+  if (row.review_reason === "refund_unconfirmed") return [];
+  return row.payment_order_id === null || row.review_reason === "manual_payment"
+    ? ["mark_refunded", "dismiss"]
+    : ["refund", "dismiss"];
+}
+
+/** Najkrótsza notatka, którą baza przyjmuje przy „nie zwracaj" (`reason_required`). */
+export const REFUND_DISMISS_NOTE_MIN_LENGTH = 3;
+/** Sufit notatki decyzji - CHECK `event_refund_jobs_review_note_len` / `note_too_long`. */
+export const REFUND_NOTE_MAX_LENGTH = 2000;
+
+export async function decideRefundJob(input: {
+  jobId: string;
+  action: RefundJobDecision;
+  note?: string | null;
+}): Promise<Json> {
+  const payload: Record<string, Json> = { job_id: input.jobId, action: input.action };
+  const note = input.note?.trim() ?? "";
+  if (note !== "") payload.note = note;
+  const { data, error } = await supabase.rpc("admin_event_refund_job_decide", {
+    p_payload: payload,
+  });
+  if (error) throw error;
+  return (data ?? {}) as Json;
 }

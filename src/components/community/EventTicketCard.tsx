@@ -1,34 +1,48 @@
-// Widok mojego biletu na wydarzenie: kod QR do okazania przy wejściu,
-// numer biletu, numer transakcji i pobranie potwierdzenia jako pliku.
+// Potwierdzenie rezerwacji na stronie wydarzenia: numer potwierdzenia, termin,
+// miejsce, kwota, numer transakcji, zdanie o tym, gdzie jest kod wejścia,
+// i pobranie potwierdzenia jako pliku.
+//
+// BEZ KODU QR (REG-12). Dawniej karta rysowała QR z numerem `NES-XXXX-XXXX`
+// (adres `?ticket=`), którego skaner przy bramce nie zna: każdy taki skan był
+// „nieznanym kodem" liczonym do blokady urządzenia. Prawdziwy kod wejścia
+// (losowy, 32 znaki) wydaje baza zgłoszeniu rozliczonemu i wysyła mailem
+// „Twój bilet" - karta mówi, gdzie go szukać (`ticket.entry`), i odsyła do
+// listy zgłoszeń w profilu.
 //
 // Dane pochodzą wyłącznie z backendu (`getMyEventTicket`, RLS na własnym
-// wierszu RSVP i zamówieniu) - komponent niczego nie wylicza z ceny klienta.
-import { browserPublicOrigin } from "@/lib/http/host";
-import { useEffect, useMemo, useState } from "react";
+// wierszu RSVP, zamówieniu i zgłoszeniu) - komponent niczego nie wylicza
+// z ceny klienta.
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Download, QrCode } from "lucide-react";
-import QRCode from "qrcode";
+import { CheckCircle2, Download, Info, Ticket } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMyEventTicket } from "@/lib/events/ticket.functions";
-import { ticketQrPayload } from "@/lib/events/ticketCode";
+import type { TicketEntryMode } from "@/lib/events/ticketTypes";
 import { formatMoney } from "@/lib/billing/types";
 import { buildTicketDocument, downloadTicketDocument } from "./ticketDocument";
 
 export interface EventTicketCardProps {
   eventId: string;
   lang: "pl" | "en";
-  /** Pokazujemy bilet dopiero, gdy backend potwierdził wejściówkę. */
+  /** Pokazujemy kartę dopiero, gdy backend potwierdził wejściówkę. */
   enabled: boolean;
 }
+
+/** Tryb wejścia -> zdanie (literały kluczy dla bramki słowników). */
+const ENTRY_KEYS: Record<TicketEntryMode, string> = {
+  emailed_qr: "community.events.ticket.entryEmailedQr",
+  qr_pending: "community.events.ticket.entryQrPending",
+  contact_organizer: "community.events.ticket.entryContactOrganizer",
+  guest_list: "community.events.ticket.entryGuestList",
+};
 
 export function EventTicketCard({ eventId, lang, enabled }: EventTicketCardProps) {
   const { t } = useTranslation();
   const loadTicket = useServerFn(getMyEventTicket);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const ticketQ = useQuery({
     queryKey: ["event-ticket", eventId],
@@ -38,23 +52,6 @@ export function EventTicketCard({ eventId, lang, enabled }: EventTicketCardProps
   });
 
   const ticket = ticketQ.data ?? null;
-
-  const qrPayload = useMemo(() => {
-    if (!ticket || typeof window === "undefined") return null;
-    return ticketQrPayload(browserPublicOrigin(), ticket.slug, ticket.code);
-  }, [ticket]);
-
-  useEffect(() => {
-    if (!qrPayload) return;
-    let cancelled = false;
-    void QRCode.toDataURL(qrPayload, { width: 320, margin: 1 }).then((url) => {
-      if (!cancelled) setQrDataUrl(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [qrPayload]);
-
   if (!enabled || !ticket) return null;
 
   const title = (lang === "en" ? ticket.titleEn : ticket.titlePl) || ticket.titlePl;
@@ -89,58 +86,56 @@ export function EventTicketCard({ eventId, lang, enabled }: EventTicketCardProps
     <Card className="mt-6 overflow-hidden">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <QrCode className="h-4 w-4 text-primary" aria-hidden="true" />
+          <Ticket className="h-4 w-4 text-primary" aria-hidden="true" />
           {t("community.events.ticket.title")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-6 sm:grid-cols-[auto,1fr]">
-        <div className="flex flex-col items-center gap-2">
-          {qrDataUrl ? (
-            <img
-              src={qrDataUrl}
-              alt={t("community.events.ticket.qrAlt", { code: ticket.code })}
-              className="h-40 w-40 rounded-md border border-border bg-white p-2"
-              width={160}
-              height={160}
-            />
-          ) : (
-            <div
-              className="h-40 w-40 animate-pulse rounded-md border border-border bg-muted"
-              aria-hidden="true"
-            />
-          )}
-          <p className="font-mono text-xs tracking-wide text-muted-foreground">{ticket.code}</p>
-        </div>
-
-        <div className="space-y-3">
-          <p className="inline-flex items-center gap-2 text-sm text-primary">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            {t("community.events.ticket.confirmed")}
+      <CardContent className="space-y-4">
+        <p className="inline-flex items-center gap-2 text-sm text-primary">
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          {t("community.events.ticket.confirmed")}
+        </p>
+        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          {rows.map((row) => (
+            <div key={row.label}>
+              <dt className="text-xs text-muted-foreground">{row.label}</dt>
+              <dd className="break-words text-sm">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
+          <p className="flex items-start gap-2 text-sm text-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              {t(ENTRY_KEYS[ticket.entry])}{" "}
+              {ticket.entry === "emailed_qr" && (
+                <>
+                  <Link to="/profile/tickets" className="text-primary hover:underline">
+                    {t("community.events.ticket.myRegistrations")}
+                  </Link>
+                  .
+                </>
+              )}
+            </span>
           </p>
-          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-            {rows.map((row) => (
-              <div key={row.label}>
-                <dt className="text-xs text-muted-foreground">{row.label}</dt>
-                <dd className="break-words text-sm">{row.value}</dd>
-              </div>
-            ))}
-          </dl>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!qrDataUrl}
-            onClick={() =>
-              downloadTicketDocument(
-                buildTicketDocument({ ticket, lang, title, dateLabel, qrDataUrl }),
-                `${ticket.code}.html`,
-              )
-            }
-          >
-            <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-            {t("community.events.ticket.download")}
-          </Button>
-          <p className="text-xs text-muted-foreground">{t("community.events.ticket.hint")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("community.events.ticket.notEntryCode")}
+          </p>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() =>
+            downloadTicketDocument(
+              buildTicketDocument({ ticket, lang, title, dateLabel }),
+              `${ticket.code}.html`,
+            )
+          }
+        >
+          <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("community.events.ticket.download")}
+        </Button>
+        <p className="text-xs text-muted-foreground">{t("community.events.ticket.hint")}</p>
       </CardContent>
     </Card>
   );

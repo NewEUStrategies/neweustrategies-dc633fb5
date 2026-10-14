@@ -64,6 +64,25 @@ describe("registration rejection refund worker", () => {
     );
   });
 
+  // REG-03: powód u operatora wynika z pochodzenia zlecenia, a ziarno
+  // idempotencji zostaje jedno na zamówienie.
+  it.each([
+    ["participant_cancelled", "registration_cancelled"],
+    ["organizer_cancelled", "registration_cancelled"],
+    ["organizer_rejected", "registration_rejected"],
+    ["system", "registration_rejected"],
+    [undefined, "registration_rejected"],
+  ])("pochodzenie %s zleca zwrot z powodem %s", async (origin, reason) => {
+    stub.setData("_event_registration_refunds_claim", [{ ...job, origin }]);
+    await run();
+    expect(h.refund).toHaveBeenCalledWith(
+      "sandbox",
+      "pi_test_payment",
+      reason,
+      "event-rejection:order-1",
+    );
+  });
+
   it.each([
     { environment: "unknown" },
     { provider: "mock" },

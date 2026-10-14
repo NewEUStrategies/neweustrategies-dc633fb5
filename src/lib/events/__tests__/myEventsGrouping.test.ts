@@ -17,7 +17,7 @@ function registration(overrides: Partial<ParticipantRegistration> = {}): Partici
     promotedAt: null,
     notifyEmail: true,
     notifySms: false,
-    cancelReason: null,
+    participantReason: null,
     decisionSource: null,
     eventSlug: "szczyt",
     eventTitlePl: "Szczyt",
@@ -29,6 +29,8 @@ function registration(overrides: Partial<ParticipantRegistration> = {}): Partici
     amountCents: 19900,
     refundedCents: 0,
     currency: "PLN",
+    paymentShared: false,
+    refundState: null,
     webhooks: [],
   };
   return { ...base, ...overrides };

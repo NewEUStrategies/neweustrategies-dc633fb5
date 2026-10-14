@@ -8,6 +8,10 @@
 //
 // PUSTE POLE = WYCZYSZCZENIE. Wysyłamy każdy klucz, który użytkownik widzi na
 // ekranie, więc skasowanie treści realnie usuwa dane - bez „duchów" z importu.
+// WYJĄTEK: adres e-mail (REG-01). To klucz, po którym kolejne zapisy,
+// zaproszenia i bilety znajdują kartotekę, więc może być wyłącznie
+// POTWIERDZONYM adresem konta. Pole jest tylko do odczytu, zmienia je przycisk
+// „Użyj adresu konta", a adres jedzie do bazy wyłącznie wtedy, gdy się zmienił.
 //
 // KONTAKT JEST DOMYŚLNIE PRYWATNY. E-mail i telefon trafiają do katalogu
 // uczestników wyłącznie po włączeniu przełącznika widoczności - milczenie
@@ -15,6 +19,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Activity,
@@ -40,6 +45,8 @@ import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/med
 import { uiLang } from "@/lib/i18n/format";
 import {
   SOCIAL_KEYS,
+  myEventProfileErrorKey,
+  sameEmail,
   type MyAccountSnapshot,
   type MyEventProfile,
   type SocialKey,
@@ -95,6 +102,9 @@ interface FormState {
 /**
  * Pola tekstowe obcinane przy zapisie.
  *
+ * `email` NIE jest tu wymieniony: jedzie wyłącznie przy zmianie (REG-01),
+ * osobną gałęzią w `onSubmit`.
+ *
  * `company_id` i `photo_url` NIE są tu wymienione świadomie: pierwsze to
  * identyfikator kartoteki, drugie adres złożony przez wgrywanie - żadne nie
  * pochodzi z klawiatury uczestnika. `social_links` mają własną pętlę wyżej,
@@ -103,7 +113,6 @@ interface FormState {
 const TRIMMED_TEXT_FIELDS = [
   "first_name",
   "last_name",
-  "email",
   "phone",
   "job_title",
   "company_text",
@@ -319,6 +328,7 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
   const save = useSaveMyEventProfile(slug);
   const sync = useSyncMyEventProfileFromAccount(slug);
   const { user, tenantId } = useAuth();
+  const accountEmail = user?.email?.trim() ? user.email.trim().toLowerCase() : null;
   const registerUpload = useServerFn(registerMediaUpload);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -427,11 +437,27 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
     for (const key of BULLET_TEXT_FIELDS) {
       trimmed[key] = parseBullets(form[key] ?? "").join("\n");
     }
+    // ADRES JEDZIE TYLKO PRZY ZMIANIE (REG-01). Baza przyjmuje wyłącznie
+    // potwierdzony adres konta; niezmieniony adres nie jest zmianą, więc nie ma
+    // powodu ryzykować odmowy całego zapisu profilu.
+    const { email, ...rest } = trimmed;
+    const nextEmail = email.trim();
+    const emailChanged = profile !== null && !sameEmail(nextEmail, profile.email);
     save.mutate(
-      { ...trimmed, social_links: links, push_account: pushAccount },
+      {
+        ...rest,
+        ...(emailChanged ? { email: nextEmail } : {}),
+        social_links: links,
+        push_account: pushAccount,
+      },
       {
         onSuccess: () => toast.success(t("eventMe.profileSaved")),
-        onError: (error) => toast.error(`${t("eventMe.profileSaveError")} ${error.message}`.trim()),
+        onError: (error) => {
+          const key = myEventProfileErrorKey(error);
+          toast.error(
+            key !== null ? t(key) : `${t("eventMe.profileSaveError")} ${error.message}`.trim(),
+          );
+        },
       },
     );
   };
@@ -646,10 +672,37 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
             <FieldBox
               label={t("eventMe.fields.email")}
               value={form.email}
-              onChange={field("email")}
+              readOnly
+              aria-describedby="event-profile-email-hint"
               inputMode="email"
               autoComplete="email"
             />
+            <p id="event-profile-email-hint" className="text-xs text-muted-foreground">
+              {t("eventMe.fields.emailAccountHint")}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {/* Adres SESJI to adres, który GoTrue potwierdził; baza i tak
+                  sprawdza potwierdzenie (`email_unverified`). */}
+              {profile !== null &&
+                accountEmail !== null &&
+                !sameEmail(accountEmail, form.email) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setForm((prev) => ({ ...prev, email: accountEmail }))}
+                  >
+                    {t("eventMe.actions.useAccountEmail")}
+                  </Button>
+                )}
+              <Link
+                to="/profile/security"
+                className="text-xs text-primary underline-offset-2 hover:underline"
+              >
+                {t("eventMe.actions.changeAccountEmail")}
+              </Link>
+            </div>
             <label className="flex items-center justify-between gap-3 rounded-[6px] border border-border px-3 py-2">
               <span className="text-xs text-muted-foreground">
                 {t("eventMe.fields.emailVisible")}

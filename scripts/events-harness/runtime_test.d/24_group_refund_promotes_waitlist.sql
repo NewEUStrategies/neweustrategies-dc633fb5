@@ -4,12 +4,13 @@
 --
 -- CO SPRAWDZA
 --   1. Pelny zwrot Stripe (prowadzacy anulowany): za kazdego OPLACONEGO
---      i PRZYJETEGO goscia awansuje jedna osoba z kolejki jego biletu, PO
---      petli i Z POMINIECIEM wlasnej grupy - nieoplacony gosc tej grupy
---      stojacy na czele kolejki nie dostaje awansu (zamyka go kaskada);
---      za miejsce prowadzacego awansuje funkcja wyniku (mail z webhooka);
---      pula nie jest przekroczona; awansowani czekaja w panelu
---      i (rozliczeni) w cronie; ponowiony zwrot nikogo nie dopycha.
+--      i PRZYJETEGO goscia awansuje jedna ROZLICZONA osoba z kolejki jego
+--      biletu, PO petli i Z POMINIECIEM wlasnej grupy - nieoplacony gosc tej
+--      grupy stojacy na czele kolejki nie dostaje awansu (zamyka go kaskada),
+--      a nieoplacony zapis spoza grupy (W2) czeka na swojej pozycji
+--      (REG-07, 20261012150000); za miejsce prowadzacego awansuje funkcja
+--      wyniku (mail z webhooka); pula nie jest przekroczona; awansowani
+--      czekaja w panelu i w cronie; ponowiony zwrot nikogo nie dopycha.
 --   2. Zwrot czesciowy nie awansuje nikogo; zwrot czesciowy, ktory narastajaco
 --      pokrywa cale obciazenie, awansuje tak samo jak pelny.
 --   3. `admin_event_registration_decide` 'refund': gosc obecny liczy sie jako
@@ -226,6 +227,9 @@ SELECT pg_temp.grf_solo('x1', 'cb100000-0000-0000-0000-000000000001', 'cb200000-
 -- A3, W1 (oplacony), W2 (nieoplacony), W3 (oplacony), W4, W5.
 -- Zwrot zwalnia 3 miejsca: A1 i A2 (awans w galezi zwrotu, z pominieciem
 -- A3 z czola kolejki) i prowadzacego (awans w funkcji wyniku).
+-- ZMIANA 20261012 (REG-07): awansuja tylko ROZLICZENI - W1 i W3 za gosci, W4
+-- za prowadzacego; nieoplacony W2 czeka na swojej pozycji (wczesniej ta
+-- sekcja oczekiwala awansu W2, czyli utrwalala defekt).
 SELECT pg_temp.grf_group('a', 'cb000000-0000-0000-0000-000000000001',
   'cb200000-0000-0000-0000-000000000001', 3);
 SELECT pg_temp.grf_order('cb600000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000001',
@@ -289,22 +293,31 @@ BEGIN
                      WHERE d.aggregate_id = pg_temp.grf('a_g3')::text
                        AND d.event_type = 'event.registration.promoted.v1'),
     '24/zwrot: nieoplacony gosc grupy z czola kolejki NIE awansowal - zamknela go kaskada, bez zdarzenia awansu');
-  PERFORM pg_temp.assert(pg_temp.grf_promoted('w1') AND pg_temp.grf_promoted('w2'),
-    '24/zwrot: dwa miejsca gosci awansuja dwie pierwsze osoby spoza grupy - czekaja w panelu na powiadomienie');
+  PERFORM pg_temp.assert(pg_temp.grf_promoted('w1') AND pg_temp.grf_promoted('w3'),
+    '24/zwrot: dwa miejsca gosci awansuja dwie pierwsze ROZLICZONE osoby spoza grupy - czekaja w panelu na powiadomienie');
+  PERFORM pg_temp.assert(
+    (SELECT r.status = 'waitlist' AND r.payment_status = 'unpaid' AND r.promoted_at IS NULL
+            AND r.qr_token_hash IS NULL AND r.waitlist_position IS NOT NULL
+       FROM public.event_registrations r WHERE r.id = pg_temp.grf('w2'))
+    AND NOT EXISTS (SELECT 1 FROM public.domain_events d
+                     WHERE d.aggregate_id = pg_temp.grf('w2')::text
+                       AND d.event_type = 'event.registration.promoted.v1'),
+    '24/zwrot: REG-07 - nieoplacony W2 nie awansuje, czeka na swojej pozycji bez kodu i bez zdarzenia awansu');
   PERFORM pg_temp.assert((v->'waitlist'->>'promoted')::integer = 1
-    AND v->'waitlist'->'registrations'->0->>'registration_id' = pg_temp.grf('w3')::text
-    AND pg_temp.grf_promoted('w3'),
-    '24/zwrot: miejsce prowadzacego awansuje funkcja wyniku - trzecia osoba, w wyniku dla maila z webhooka');
+    AND v->'waitlist'->'registrations'->0->>'registration_id' = pg_temp.grf('w4')::text
+    AND pg_temp.grf_promoted('w4'),
+    '24/zwrot: miejsce prowadzacego awansuje funkcja wyniku - trzecia rozliczona osoba (W4), w wyniku dla maila z webhooka');
   PERFORM pg_temp.assert(
     (SELECT count(*) FROM public.event_registrations r
-      WHERE r.id IN (pg_temp.grf('w4'), pg_temp.grf('w5'), pg_temp.grf('x1'))
-        AND r.status = 'waitlist') = 3,
-    '24/zwrot: czwarta i piata osoba czekaja dalej, kolejka innego biletu nietknieta');
+      WHERE r.id IN (pg_temp.grf('w5'), pg_temp.grf('x1'))
+        AND r.status = 'waitlist') = 2,
+    '24/zwrot: piata osoba czeka dalej, kolejka innego biletu nietknieta');
   PERFORM pg_temp.assert(pg_temp.grf_sold('cb200000-0000-0000-0000-000000000001') = 4,
     '24/zwrot: pula T1 znow pelna (4) - awans nie wyszedl ponad wolne miejsca');
   PERFORM pg_temp.assert(
     pg_temp.grf('w1') = ANY(public._event_ticket_codes_pending(500))
     AND pg_temp.grf('w3') = ANY(public._event_ticket_codes_pending(500))
+    AND pg_temp.grf('w4') = ANY(public._event_ticket_codes_pending(500))
     AND NOT (pg_temp.grf('w2') = ANY(public._event_ticket_codes_pending(500))),
     '24/zwrot: rozliczeni awansowani czekaja w cronie na bilet, nieoplacony - nie');
 
@@ -312,7 +325,7 @@ BEGIN
   v := public.payments_apply_event_ticket_outcome('cb600000-0000-0000-0000-000000000001', 'refunded');
   PERFORM pg_temp.assert((v->>'applied')::boolean
     AND (v->'waitlist'->>'promoted')::integer = 0
-    AND (SELECT status FROM public.event_registrations WHERE id = pg_temp.grf('w4')) = 'waitlist'
+    AND (SELECT status FROM public.event_registrations WHERE id = pg_temp.grf('w5')) = 'waitlist'
     AND pg_temp.grf_sold('cb200000-0000-0000-0000-000000000001') = 4,
     '24/zwrot: ponowiony webhook nie awansuje nikogo wiecej');
 END $$;

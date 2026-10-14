@@ -103,6 +103,13 @@ export interface RenderedRoute extends RenderResult {
   currentPath: () => string;
   /** Search params PO przejściu przez `validateSearch` trasy. */
   search: () => Record<string, unknown>;
+  /**
+   * Fragment bieżącej lokalizacji (bez `#`) - trasy z poświadczeniem we
+   * fragmencie (`#token=`) przepisują adres i to jest przedmiot dowodu.
+   */
+  hash: () => string;
+  /** Surowe zapytanie bieżącej lokalizacji (`?…` albo pusty napis). */
+  searchStr: () => string;
   /** `meta` z `head()` dopasowanej trasy - to, co trafiłoby do `<HeadContent/>`. */
   meta: () => RouteMetaEntry[];
   /** `links` z `head()` - m.in. kanoniczny adres i preload obrazu LCP. */
@@ -178,6 +185,8 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     queryClient,
     currentPath: () => router.state.location.pathname,
     search: () => (router.state.matches.at(-1)?.search ?? {}) as Record<string, unknown>,
+    hash: () => router.state.location.hash,
+    searchStr: () => router.state.location.searchStr,
     meta: () => (router.state.matches.at(-1)?.meta ?? []) as RouteMetaEntry[],
     links: () => (router.state.matches.at(-1)?.links ?? []) as RouteMetaEntry[],
     headScripts: () => (router.state.matches.at(-1)?.headScripts ?? []) as RouteMetaEntry[],

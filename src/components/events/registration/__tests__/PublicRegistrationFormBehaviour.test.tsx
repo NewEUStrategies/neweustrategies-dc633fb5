@@ -21,12 +21,17 @@
 // 5. POLA OPCJONALNE PUSTE NIE JADA DO RPC. Pusty napis w `p_payload` znaczy w
 //    plpgsql „wyczysc", a brak klucza znaczy „nie dotykaj".
 // 6. REZYGNACJA DZIALA DLA GOSCIA (kluczem) I DLA WLASCICIELA (identyfikatorem).
-// 7. POTWIERDZENIE MAILOWE JEST FAIL-SOFT. Brak maila nie moze uniewaznic
-//    zapisu ani wywrocic ekranu potwierdzenia.
-// 8. ODMOWA DOPISANIA GOSCI MOWI O GOSCIACH. `event_register_group_guests`
-//    odmawia wlasnymi kodami (`group_too_large`, `already_registered: <email>`),
-//    a do tej naprawy szly one przez slownik zapisu prowadzacego i konczyly sie
-//    ogolnym „Nie udalo sie zapisac" - choc zgloszenie kupujacego juz stalo.
+// 7. POCZTA I ATRYBUCJA SA PO STRONIE SERWERA (REG-04). Przegladarka nie wola
+//    juz ani potwierdzenia mailowego, ani przypiecia atrybucji - robi to
+//    funkcja serwerowa zapisu PO odpowiedzi, wiec ekran nie zalezy od poczty,
+//    a atrybucja jedzie z zapisem osobnym argumentem. Odpowiedz neutralna
+//    („sprawdz skrzynke") nie pokazuje klucza, rezygnacji ani kasy.
+// 8. ODMOWA DOPISANIA GOSCI MOWI O GOSCIACH. Funkcja serwerowa gosci
+//    (`registerEventGroupGuests` -> `event_register_group_guests_for_client`)
+//    odmawia wlasnymi kodami (`group_too_large`, `duplicate_guest`), a do tej
+//    naprawy szly one przez slownik zapisu prowadzacego i konczyly sie ogolnym
+//    „Nie udalo sie zapisac" - choc zgloszenie kupujacego juz stalo. Adresu
+//    goscia z zapisem odpowiedz nie niesie nigdy (przeglad R38).
 // 9. ODMOWA GOSCI NIE GUBI LISTY. Zgloszenie prowadzacego zostaje potwierdzone,
 //    a goscie wracaja do edycji na ekranie potwierdzenia z przyciskiem
 //    ponowienia - ponowny zapis z formularza konczylby sie
@@ -38,16 +43,20 @@
 //    liczba z formularza bylaby w zdaniu zawsze nieprawdziwa. Odczyt limitu
 //    idzie osobno (fail-soft) i jego porazka nie zamyka strony zapisu.
 //
-// ATRAPUJEMY WYLACZNIE GRANICE: klienta Supabase, wywolania server fn (poczta
-// potwierdzajaca i kasa), tozsamosc, jezyk interfejsu, toasty i modal operatora
-// Stripe. `publicRegistrationApi`, `registrationFormSurface`,
-// `registrationSubmitDraft` i wszystkie komponenty potomne formularza jada
-// PRAWDZIWE - inaczej test dowodzilby wylacznie tego, ze atrapy sie zgadzaja.
+// ATRAPUJEMY WYLACZNIE GRANICE: klienta Supabase, wywolania server fn (zapis,
+// odsloniecie biletow, bilety grupy i kasa), tozsamosc, jezyk interfejsu, toasty
+// i modal operatora Stripe. `publicRegistrationApi`, `registrationPayload`,
+// `registrationFormSurface`, `registrationSubmitDraft` i wszystkie komponenty
+// potomne formularza jada PRAWDZIWE - inaczej test dowodzilby wylacznie tego,
+// ze atrapy sie zgadzaja.
 //
-// ZAWEZENIE NAJEMCA. Zapis idzie przez publiczne RPC (`event_registration_form`,
-// `event_register`, `event_registration_cancel`), wiec asertujemy NAZWE FUNKCJI
-// i LADUNEK; samo zawezenie tenantem siedzi w SQL (`public_tenant_id()`) i
-// pilnuje go bramka `check:sql-tenant-scope`.
+// ZAWEZENIE NAJEMCA. Odczyt i rezygnacja ida przez publiczne RPC
+// (`event_registration_form`, `event_registration_cancel`), a zapis przez
+// funkcje serwerowa (`submitEventRegistration`), ktora sama bierze najemce z
+// hosta i uzytkownika z sesji. Atrapa funkcji serwerowej
+// (`@/test/events/registrationServerFn`) sklada PRAWDZIWY `p_payload` i oddaje
+// odpowiedz zaplanowana pod `event_register_for_client` - asertujemy wiec
+// LADUNEK, a tozsamosci po stronie serwera pilnuje `eventRegistration.server.test.ts`.
 //
 // i18n jest zamockowane kluczami (parytetu PL/EN pilnuje osobna bramka
 // slownikow). Wyjatkiem sa zdania odmowy: `registrationErrorMessage` liczy je
@@ -64,6 +73,9 @@ import type { Json } from "@/integrations/supabase/types";
 import type { RegistrationFieldType } from "@/lib/events/registrationsApi";
 import { axeViolations, summarize } from "@/test/axe";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
+import { REGISTER_FOR_CLIENT_RPC } from "@/test/events/registrationServerFn";
+import { fail } from "@/test/supabase/chain";
+import { parseRegistrationFormTickets } from "@/lib/events/registrationFormSurface";
 
 interface TestUser {
   id: string;
@@ -79,6 +91,7 @@ const h = vi.hoisted(() => ({
   sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
   quote: vi.fn(),
+  reveal: vi.fn(),
 }));
 
 /** Zapora przed odpowiedzia RPC - test trzyma zadanie „w trakcie". */
@@ -103,15 +116,49 @@ vi.mock("@tanstack/react-router", async () => ({
   useNavigate: () => vi.fn(),
 }));
 
+// Zapis idzie funkcja serwerowa wolana WPROST (`publicRegistrationApi`), wiec
+// atrapa podmienia sam modul. Zapora `rpcGate` obejmuje ja tak samo jak RPC -
+// test moze przytrzymac zapis „w trakcie".
+vi.mock("@/lib/events/eventRegistration.functions", async () => {
+  const { registrationServerFnStub } = await import("@/test/events/registrationServerFn");
+  const server = registrationServerFnStub(() => h.rpc);
+  return {
+    submitEventRegistration: async (call: Parameters<typeof server.submitEventRegistration>[0]) => {
+      if (rpcGate.current !== null) await rpcGate.current;
+      return server.submitEventRegistration(call);
+    },
+  };
+});
+
+// Dopisanie gosci tez idzie funkcja serwerowa (R38) - atrapa planuje odpowiedz
+// pod nazwa wejscia serwerowego, z ta sama zapora `rpcGate`.
+vi.mock("@/lib/events/groupGuests.functions", async () => {
+  const { groupGuestsServerFnStub } = await import("@/test/events/groupGuestsServerFn");
+  const server = groupGuestsServerFnStub(() => h.rpc);
+  return {
+    registerEventGroupGuests: async (
+      call: Parameters<typeof server.registerEventGroupGuests>[0],
+    ) => {
+      if (rpcGate.current !== null) await rpcGate.current;
+      return server.registerEventGroupGuests(call);
+    },
+  };
+});
+
 // Moduly server fn ciagna middleware Supabase i SDK Stripe - w tescie
 // przegladarkowym potrzebna jest wylacznie ich TOZSAMOSC, po ktorej
-// `useServerFn` rozdziela wywolania.
+// `useServerFn` rozdziela wywolania. Potwierdzenie mailowe zostaje w atrapie
+// tylko po to, zeby udowodnic, ze formularz go JUZ nie wola (REG-04).
 vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
   confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
 }));
 
 vi.mock("@/lib/events/groupTicketCodes.functions", () => ({
   sendGroupTicketCodes: { name: "sendGroupTicketCodes" },
+}));
+
+vi.mock("@/lib/events/eventCodeReveal.functions", () => ({
+  revealEventCodeTickets: { name: "revealEventCodeTickets" },
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
@@ -131,7 +178,9 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
         ? h.sendTicketCodes
         : fn.name === "quoteEventTicketCheckout"
           ? h.quote
-          : h.checkout,
+          : fn.name === "revealEventCodeTickets"
+            ? h.reveal
+            : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -139,13 +188,16 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 
 vi.mock("@/lib/i18n/useLang", () => ({ useLang: () => h.lang }));
-// Lejek Google Ads - beacon kroku i przypiecie atrybucji (ich bramki zgody
-// maja wlasne testy; tu: KIEDY i Z CZYM formularz je wola).
-const funnel = vi.hoisted(() => ({ send: vi.fn(), attach: vi.fn() }));
+// Lejek Google Ads - beacon kroku i atrybucja (ich bramki zgody maja wlasne
+// testy; tu: KIEDY i Z CZYM formularz je wola). `attachRegistrationAttribution`
+// zostaje w atrapie tylko po to, zeby udowodnic, ze przegladarka juz go nie
+// wola - atrybucje przypina serwer po zapisie.
+const funnel = vi.hoisted(() => ({ send: vi.fn(), attach: vi.fn(), payload: vi.fn() }));
 vi.mock("@/lib/events/eventFunnelBeacon", () => ({
   sendEventFunnelStep: (step: string, target: unknown) => funnel.send(step, target),
 }));
 vi.mock("@/lib/events/registrationAttribution", () => ({
+  attributionPayload: () => funnel.payload(),
   attachRegistrationAttribution: (token: string) => funnel.attach(token),
 }));
 
@@ -166,8 +218,22 @@ const REGISTRATION_ID = "22222222-2222-2222-2222-222222222222";
 const MANAGE_TOKEN = "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj";
 
 const FORM_RPC = "event_registration_form";
-const REGISTER_RPC = "event_register";
+/** Odpowiedz funkcji serwerowej zapisu - planowana w atrapie pod ta nazwa. */
+const REGISTER_RPC = REGISTER_FOR_CLIENT_RPC;
 const CANCEL_RPC = "event_registration_cancel";
+const CANCEL_PREVIEW_RPC = "event_registration_cancel_preview";
+
+/** Podgląd rezygnacji (REG-03) w kształcie z migracji - domyślnie bez pieniędzy. */
+function cancelPreviewPayload(refund: Record<string, Json> = {}): Json {
+  return {
+    ok: true,
+    registration_id: REGISTRATION_ID,
+    status: "approved",
+    can_cancel: true,
+    refusal: null,
+    refund: { effect: "none", acknowledgement_required: false, group_guests_closing: 0, ...refund },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // LADUNEK RPC W POSTACI, W JAKIEJ ODDAJE GO BAZA (jsonb, snake_case). Parser
@@ -264,8 +330,14 @@ function formPayload(over: Record<string, Json> = {}): Record<string, Json> {
   };
 }
 
+/**
+ * Odpowiedz `client` funkcji serwerowej dla zapisu zweryfikowanego (B1a:
+ * `outcome: 'registered'`) - serwer oddaje ja przegladarce w calosci.
+ */
 function registerPayload(over: Record<string, Json> = {}): Record<string, Json> {
   return {
+    ok: true,
+    outcome: "registered",
     registration_id: REGISTRATION_ID,
     event_id: EVENT_ID,
     person_id: null,
@@ -281,6 +353,14 @@ function registerPayload(over: Record<string, Json> = {}): Record<string, Json> 
     currency: null,
     ...over,
   };
+}
+
+/** Odmowa bazy w postaci, w jakiej oddaje ja serwer: wartosc, nie wyjatek. */
+function refuse(error: string, detail?: string): void {
+  stub().setData(
+    REGISTER_RPC,
+    detail === undefined ? { ok: false, error } : { ok: false, error, detail },
+  );
 }
 
 function stub(): SupabaseRpcStub {
@@ -330,11 +410,22 @@ function submitForm(): void {
   fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.submit" }));
 }
 
+/**
+ * Rezygnacja z ekranu po zapisie. Przycisk czeka na podgląd skutku
+ * finansowego (REG-03) - bez niego nie wiadomo, czy wystarczy jedno kliknięcie.
+ */
+async function clickCancel(): Promise<void> {
+  const button = screen.getByRole("button", { name: "eventRegistration.actions.cancel" });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
+
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.rpc.setData(FORM_RPC, formPayload());
   h.rpc.setData(REGISTER_RPC, registerPayload());
   h.rpc.setData(CANCEL_RPC, { registration_id: REGISTRATION_ID, promoted_from_waitlist: 0 });
+  h.rpc.setData(CANCEL_PREVIEW_RPC, cancelPreviewPayload());
   h.user = null;
   h.lang = "pl";
   h.sendConfirmation.mockReset();
@@ -353,10 +444,14 @@ beforeEach(() => {
     totalCents: 10000,
     couponError: null,
   });
+  h.reveal.mockReset();
+  h.reveal.mockResolvedValue({ ok: true, ticketIds: [], tickets: [] });
   rpcGate.current = null;
   funnel.send.mockReset();
   funnel.attach.mockReset();
   funnel.attach.mockResolvedValue(true);
+  funnel.payload.mockReset();
+  funnel.payload.mockReturnValue(null);
 });
 
 afterEach(cleanup);
@@ -384,21 +479,37 @@ describe("PublicRegistrationForm - lejek Google Ads", () => {
     expect(funnel.send).not.toHaveBeenCalled();
   });
 
-  it("udany zapis przypina atrybucje KLUCZEM samoobslugi; bez klucza - nic", async () => {
+  it("atrybucja jedzie Z ZAPISEM do serwera, a przegladarka niczego nie przypina sama", async () => {
+    // REG-04: dawniej przegladarka przypinala atrybucje kluczem samoobslugi PO
+    // zapisie - przy odpowiedzi neutralnej klucza juz nie dostaje, wiec
+    // przypina ja serwer, ktory klucz zna. Atrybucja nie jest czescia
+    // `p_payload` (to inny zapis, z wlasna bramka zgody).
+    const attribution = {
+      first: { gclid: "Cj0-pierwszy", source: "google" },
+      last: { gclid: "Cj0-ostatni", source: "google" },
+      ad_consent: true,
+    };
+    funnel.payload.mockReturnValue(attribution);
     renderForm();
     await fillPerson();
     acceptDataProcessing();
     submitForm();
-    await waitFor(() => expect(funnel.attach).toHaveBeenCalledWith(MANAGE_TOKEN));
-    cleanup();
 
-    funnel.attach.mockReset();
-    stub().setData(REGISTER_RPC, registerPayload({ manage_token: null }));
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(stub().lastCall(REGISTER_RPC)?.arg("attribution")).toEqual(attribution);
+    expect(payloadOf(REGISTER_RPC)).not.toHaveProperty("attribution");
+    expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
+    expect(funnel.attach).not.toHaveBeenCalled();
+  });
+
+  it("bez zgody reklamowej atrybucja jedzie jako `null` - nie jako pusty obiekt", async () => {
     renderForm();
     await fillPerson();
     acceptDataProcessing();
     submitForm();
-    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(2));
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(stub().lastCall(REGISTER_RPC)?.arg("attribution")).toBeNull();
     expect(funnel.attach).not.toHaveBeenCalled();
   });
 });
@@ -658,7 +769,7 @@ describe("PublicRegistrationForm - pole obowiazkowe blokuje wyslanie", () => {
   ];
 
   for (const fieldType of types) {
-    it(`puste pole „${fieldType}” oznaczone jako obowiazkowe nie wola event_register()`, async () => {
+    it(`puste pole „${fieldType}” oznaczone jako obowiazkowe nie wola zapisu`, async () => {
       stub().setData(
         FORM_RPC,
         formPayload({
@@ -973,7 +1084,7 @@ describe("PublicRegistrationForm - wejsciowka za kodem dostepu", () => {
   });
 
   it("odmowa bazy za zly kod mowi o kodzie i nie kasuje formularza", async () => {
-    stub().setError(REGISTER_RPC, "invalid_access_code: this ticket requires a valid access code");
+    refuse("invalid_access_code");
     gatedForm();
     renderForm();
     await fillPerson();
@@ -997,7 +1108,9 @@ describe("PublicRegistrationForm - wejsciowka za kodem dostepu", () => {
 // ---------------------------------------------------------------------------
 describe("PublicRegistrationForm - odmowa zapisu", () => {
   it("odmowa NIE kasuje wypelnionego formularza - to jedyna droga do poprawki", async () => {
-    stub().setError(REGISTER_RPC, "already_registered");
+    // B1a: `already_registered` dostaje juz tylko zweryfikowany wlasciciel
+    // adresu (anonim dostaje odpowiedz neutralna) - zdanie zostaje to samo.
+    refuse("already_registered");
     renderForm();
     await fillPerson();
     fireEvent.change(screen.getByLabelText(label("jobTitle")), { target: { value: "Analityk" } });
@@ -1015,13 +1128,39 @@ describe("PublicRegistrationForm - odmowa zapisu", () => {
   });
 
   it("nieznany kod odmowy dostaje zdanie, po ktorym da sie dzialac", async () => {
-    stub().setError(REGISTER_RPC, 'violates check constraint "events_slug_check"');
+    // Serwer zamienia kazdy blad bazy spoza kontraktu na `unknown` - tresc
+    // bledu Postgresa nie dochodzi do przegladarki.
+    refuse("unknown");
     renderForm();
     await fillPerson();
     acceptDataProcessing();
     submitForm();
 
     expect(await screen.findByText("Nie udało się zapisać. Spróbuj ponownie.")).toBeInTheDocument();
+  });
+
+  it("awaria transportu funkcji serwerowej tez konczy sie zdaniem, a nie pustym ekranem", async () => {
+    stub().setError(REGISTER_RPC, "Failed to fetch");
+    renderForm();
+    await fillPerson();
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("Nie udało się zapisać. Spróbuj ponownie.")).toBeInTheDocument();
+    expect(screen.getByLabelText(label("firstName"))).toHaveValue("Anna");
+  });
+
+  it("odmowa z lista pol liczy je ze `detail` - klucze pol nie trafiaja na ekran", async () => {
+    // Serwer oddaje `{ error, detail }`, a API sklada z tego `error: detail` -
+    // ten sam ksztalt, ktory slownik odmow znal z komunikatow plpgsql.
+    refuse("missing_required_fields", "diet,seats");
+    renderForm();
+    await fillPerson();
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("Nie wypełniono pól obowiązkowych (2).")).toBeInTheDocument();
+    expect(screen.queryByText(/diet,seats/)).not.toBeInTheDocument();
   });
 
   it("odpowiedz bez identyfikatora zapisu NIE rysuje sukcesu bez tresci", async () => {
@@ -1051,26 +1190,41 @@ describe("PublicRegistrationForm - po udanym zapisie", () => {
     await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
   }
 
-  it("nazwa RPC i komplet kluczy kontraktu - zawezenie najemca robi SQL", async () => {
+  it("funkcja serwerowa i komplet kluczy kontraktu - najemce i konto bierze serwer", async () => {
     await submitHappyPath();
 
     expect(stub().lastCall(REGISTER_RPC)?.name).toBe(REGISTER_RPC);
+    // Przegladarka nie ma juz drogi do `event_register` - zapis idzie WYLACZNIE
+    // funkcja serwerowa (REG-04).
+    expect(stub().names()).not.toContain("event_register");
     expect(Object.keys(payloadOf(REGISTER_RPC)).sort()).toEqual([
       "accepted_term_ids",
       "answers",
       "consent_data_processing",
       "consent_marketing",
       "consent_partner_sharing",
+      // Wersja tekstow zgod, ktore formularz pokazal - ksiega zgod ja zapisuje.
+      "consent_text_version",
       "email",
       "event_slug",
       "first_name",
+      // Jezyk widza - w nim serwer wysle maila o zapisie albo o zajetym adresie.
+      "lang",
       "last_name",
       // Wydarzenie bez biletow i tak wysyla `ticket_type_id: null` - jawne
-      // „bez biletu" jest tu poprawne, bo `event_register` ZAKLADA wiersz,
-      // a nie aktualizuje istniejacego.
+      // „bez biletu" jest tu poprawne, bo zapis ZAKLADA wiersz, a nie
+      // aktualizuje istniejacego.
       "ticket_type_id",
     ]);
     expect(payloadOf(REGISTER_RPC).event_slug).toBe(SLUG);
+    expect(payloadOf(REGISTER_RPC).lang).toBe("pl");
+  });
+
+  it("widz angielski wysyla `lang: en` - mail z serwera przyjdzie w jego jezyku", async () => {
+    h.lang = "en";
+    await submitHappyPath();
+
+    expect(payloadOf(REGISTER_RPC).lang).toBe("en");
   });
 
   it("formularz znika, a jego miejsce zajmuje potwierdzenie z kluczem samoobslugi", async () => {
@@ -1080,25 +1234,18 @@ describe("PublicRegistrationForm - po udanym zapisie", () => {
     expect(screen.queryByLabelText(label("firstName"))).not.toBeInTheDocument();
   });
 
-  it("potwierdzenie mailowe dostaje klucz, ktorym serwer sam odczyta adres", async () => {
-    await submitHappyPath();
-
-    // Serwer NIE ufa niczemu poza tym kluczem: adres, jezyk i status bierze
-    // z bazy. Wyslanie tu adresu e-mail bylo by otwarciem cudzej skrzynki.
-    await waitFor(() =>
-      expect(h.sendConfirmation).toHaveBeenCalledWith({ data: { manageToken: MANAGE_TOKEN } }),
-    );
-  });
-
-  it("odmowa wysylki potwierdzenia NIE uniewaznia zapisu ani nie wywraca ekranu", async () => {
-    h.sendConfirmation.mockRejectedValue(new Error("smtp_unavailable"));
+  it("przegladarka NIE wola potwierdzenia mailowego - wysyla je serwer po zapisie", async () => {
+    // REG-04: dawniej formularz wolal `confirmEventRegistrationEmail` z kluczem.
+    // Teraz poczte wysyla funkcja serwerowa po odpowiedzi, wiec ekran nie
+    // zalezy od poczty, a odpowiedz neutralna nie musi oddawac klucza.
     await submitHappyPath();
 
     expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
     expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
+    expect(h.sendConfirmation).not.toHaveBeenCalled();
   });
 
-  it("zapis bez klucza samoobslugi nie wola poczty - serwer nie mialby czym uwierzytelnic", async () => {
+  it("zapis bez klucza samoobslugi tez rysuje potwierdzenie i nie wola poczty", async () => {
     await submitHappyPath({ manage_token: null });
 
     expect(await screen.findByText("eventRegistration.result.approved")).toBeInTheDocument();
@@ -1111,6 +1258,301 @@ describe("PublicRegistrationForm - po udanym zapisie", () => {
     expect(
       await screen.findByText("eventRegistration.result.waitlist(position=3)"),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ODPOWIEDZ NEUTRALNA (REG-04, decyzja D3). Kazdy, kto nie jest
+// zweryfikowanym wlascicielem adresu, dostaje to samo „sprawdz skrzynke" -
+// i dla nowego zapisu, i dla adresu, ktory juz ma zgloszenie.
+// ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - odpowiedz neutralna „sprawdz skrzynke”", () => {
+  async function fillNeutral(): Promise<void> {
+    stub().setData(REGISTER_RPC, { ok: true, outcome: "check_email" });
+    renderForm();
+    await fillPerson();
+    acceptDataProcessing();
+  }
+
+  it("pokazuje wpisany adres - bez statusu, klucza, rezygnacji i kasy", async () => {
+    await fillNeutral();
+    submitForm();
+
+    expect(await screen.findByText("eventRegistration.result.checkEmailTitle")).toBeInTheDocument();
+    expect(
+      screen.getByText("eventRegistration.result.checkEmail(email=anna.kowalska@example.com)"),
+    ).toBeInTheDocument();
+    // Status, klucz, rezygnacja albo kasa zdradzalyby, czy adres jest na liscie
+    // - a klucz dawalby obcemu wladze nad cudzym zgloszeniem.
+    expect(screen.queryByText(MANAGE_TOKEN)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/eventRegistration\.result\.(approved|pending|waitlist)/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "eventRegistration.actions.cancel" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "eventRegistration.payment.payNow" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(label("firstName"))).not.toBeInTheDocument();
+    // Bez zaznaczonej zgody marketingowej nie zapowiadamy drugiego maila.
+    expect(
+      screen.queryByText("eventRegistration.result.checkEmailConsent"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.actions.back").closest("a")).toHaveAttribute(
+      "href",
+      `/events/${SLUG}`,
+    );
+    expect(h.sendConfirmation).not.toHaveBeenCalled();
+    expect(h.quote).not.toHaveBeenCalled();
+  });
+
+  it("zaznaczona zgoda marketingowa zapowiada osobny mail do potwierdzenia (double opt-in)", async () => {
+    await fillNeutral();
+    fireEvent.click(screen.getByRole("checkbox", { name: /consents.marketing/ }));
+    submitForm();
+
+    expect(
+      await screen.findByText("eventRegistration.result.checkEmailConsent"),
+    ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SUFITY DLUGOSCI (REG-02). Te same liczby, co CHECK-i bazy i walidacja
+// serwera (`REGISTRATION_FIELD_LIMITS`): pole ich nie przepuszcza, a tekst
+// wklejony obok `maxLength` zatrzymuje zapis U SIEBIE - nigdy nie jest
+// przycinany po cichu.
+// ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - sufity dlugosci pol", () => {
+  it("kazde pole danych osobowych ma `maxLength` z kontraktu", async () => {
+    renderForm();
+    await screen.findByLabelText(label("firstName"));
+
+    const expected: ReadonlyArray<readonly [string, number]> = [
+      ["firstName", 80],
+      ["lastName", 80],
+      ["email", 320],
+      ["phone", 40],
+      ["jobTitle", 160],
+      ["company", 200],
+      ["socialProfile", 500],
+    ];
+    for (const [name, max] of expected) {
+      expect(screen.getByLabelText(label(name))).toHaveAttribute("maxLength", String(max));
+    }
+  });
+
+  it("stanowisko ponad sufit zatrzymuje zapis zdaniem z limitem, a tekst zostaje w polu", async () => {
+    const tooLong = "A".repeat(161);
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(label("jobTitle")), { target: { value: tooLong } });
+    acceptDataProcessing();
+    submitForm();
+
+    expect(
+      await screen.findByText("eventRegistration.validation.tooLong(max=160)"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(label("jobTitle"))).toHaveValue(tooLong);
+    expect(screen.getByLabelText(label("jobTitle"))).toHaveAttribute("aria-invalid", "true");
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+  });
+
+  it("telefon spoza zakresu dlugosci mowi o zakresie, a nie o „zlym numerze”", async () => {
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(label("phone")), { target: { value: "12" } });
+    acceptDataProcessing();
+    submitForm();
+
+    expect(
+      await screen.findByText("eventRegistration.validation.phoneLength(max=40,min=4)"),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+  });
+
+  it("stanowisko dokladnie na suficie przechodzi w calosci", async () => {
+    const atLimit = "B".repeat(160);
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(label("jobTitle")), { target: { value: atLimit } });
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(payloadOf(REGISTER_RPC).job_title).toBe(atLimit);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KONTO A ADRES ZGLOSZENIA (REG-01). Baza wiaze zgloszenie z kontem wylacznie
+// przez potwierdzony adres konta - inny adres to zgloszenie poza „Moimi
+// zgloszeniami", i uczestnik musi to wiedziec PRZED wyslaniem.
+// ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - adres inny niz adres konta", () => {
+  it("zalogowany z innym adresem widzi zdanie; ten sam adres w innej wielkosci liter - nie", async () => {
+    h.user = { id: "u-1", email: "anna.kowalska@example.com" };
+    renderForm();
+    const email = await screen.findByLabelText(label("email"));
+    expect(
+      screen.queryByText("eventRegistration.form.emailDiffersFromAccount"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(email, { target: { value: "inny.adres@example.org" } });
+    expect(screen.getByText("eventRegistration.form.emailDiffersFromAccount")).toBeInTheDocument();
+
+    // Baza porownuje `lower(btrim(...))` - ekran nie moze straszyc ostrzej.
+    fireEvent.change(email, { target: { value: " Anna.Kowalska@EXAMPLE.com " } });
+    expect(
+      screen.queryByText("eventRegistration.form.emailDiffersFromAccount"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("gosc bez konta nie widzi zdania o koncie", async () => {
+    renderForm();
+    await fillPerson();
+    expect(
+      screen.queryByText("eventRegistration.form.emailDiffersFromAccount"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BILETY UKRYTE ZA KODEM (REG-05). Od B1a formularz nie oddaje biletow
+// ukrytych - mowi tylko, ze sa (`has_hidden_tickets`). Kod odslania je przez
+// funkcje serwerowa (pelne wiersze), a zapis wysyla ten kod jako `reveal_code`,
+// bo baza sprawdza go ponownie.
+// ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - bilety ukryte za kodem", () => {
+  const HIDDEN = "t-hidden";
+  const hiddenRow = ticketRow({
+    id: HIDDEN,
+    key: "vip-zamkniety",
+    name_pl: "Bilet zamkniety",
+    is_hidden: true,
+  });
+
+  function hiddenForm(over: Record<string, Json> = {}): void {
+    stub().setData(
+      FORM_RPC,
+      formPayload({ tickets: [ticketRow()], has_hidden_tickets: true, ...over }),
+    );
+  }
+
+  afterEach(() => window.sessionStorage.clear());
+
+  it("flaga z bazy pokazuje pole kodu, choc na liscie nie ma zadnego biletu ukrytego", async () => {
+    hiddenForm();
+    renderForm();
+
+    expect(await screen.findByLabelText(/payment\.revealLabel/)).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.payment.revealHint")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Bilet zamkniety/ })).not.toBeInTheDocument();
+  });
+
+  it("odsloniety bilet dochodzi do wyboru, a kod jedzie z zapisem jako `reveal_code`", async () => {
+    hiddenForm();
+    h.reveal.mockResolvedValue({
+      ok: true,
+      ticketIds: [HIDDEN],
+      tickets: parseRegistrationFormTickets([hiddenRow]),
+    });
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(/payment\.revealLabel/), {
+      target: { value: "vip-2026" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.payment.revealApply" }));
+
+    fireEvent.click(await screen.findByRole("radio", { name: /Bilet zamkniety/ }));
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(h.reveal).toHaveBeenCalledWith({ data: { eventId: EVENT_ID, code: "VIP-2026" } });
+    expect(payloadOf(REGISTER_RPC)).toMatchObject({
+      ticket_type_id: HIDDEN,
+      reveal_code: "VIP-2026",
+    });
+    expect(payloadOf(REGISTER_RPC)).not.toHaveProperty("access_code");
+  });
+
+  it("bilet zwykly NIE wysyla kodu odsloniecia - kod nie jest przepustka do niczego innego", async () => {
+    hiddenForm();
+    h.reveal.mockResolvedValue({
+      ok: true,
+      ticketIds: [HIDDEN],
+      tickets: parseRegistrationFormTickets([hiddenRow]),
+    });
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(/payment\.revealLabel/), {
+      target: { value: "vip-2026" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.payment.revealApply" }));
+    await screen.findByRole("radio", { name: /Bilet zamkniety/ });
+    fireEvent.click(screen.getByRole("radio", { name: /Bilet standardowy/ }));
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(payloadOf(REGISTER_RPC).ticket_type_id).toBe("t-standard");
+    expect(payloadOf(REGISTER_RPC)).not.toHaveProperty("reveal_code");
+  });
+
+  it("same bilety ukryte i brak kodu - zapis stoi ze zdaniem o kodzie, nie o wyborze", async () => {
+    hiddenForm({ tickets: [], requires_ticket: true });
+    renderForm();
+    await fillPerson();
+    acceptDataProcessing();
+    submitForm();
+
+    expect(
+      await screen.findByText("eventRegistration.validation.ticketHiddenOnly"),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KLUCZ BILETU Z LINKU (`?ticket=`). Od B1a baza sama decyduje, czy klucz
+// odslania bilet - formularz musi go wiec przekazac w odczycie.
+// ---------------------------------------------------------------------------
+describe("PublicRegistrationForm - klucz biletu z linku", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("klucz z linku idzie do odczytu formularza jako `p_ticket_key`", async () => {
+    window.history.replaceState(null, "", `/events/${SLUG}/register?ticket=partner-vip`);
+    renderForm();
+    await screen.findByLabelText(label("firstName"));
+
+    expect(stub().lastCall(FORM_RPC)?.arg("p_ticket_key")).toBe("partner-vip");
+    expect(stub().lastCall(FORM_RPC)?.arg("p_event_slug")).toBe(SLUG);
+  });
+
+  it("bez klucza odczyt nie wysyla `p_ticket_key` - stara sygnatura dziala dalej", async () => {
+    renderForm();
+    await screen.findByLabelText(label("firstName"));
+
+    expect(stub().lastCall(FORM_RPC)?.has("p_ticket_key")).toBe(false);
+  });
+
+  it("baza bez nowej sygnatury (PGRST202) - formularz czyta sie stara sygnatura", async () => {
+    window.history.replaceState(null, "", `/events/${SLUG}/register?ticket=partner-vip`);
+    stub().setResponse(FORM_RPC, (call) =>
+      call.has("p_ticket_key")
+        ? fail("Could not find the function", "PGRST202")
+        : { data: formPayload(), error: null },
+    );
+    renderForm();
+
+    expect(await screen.findByLabelText(label("firstName"))).toBeInTheDocument();
+    expect(
+      stub()
+        .callsFor(FORM_RPC)
+        .map((call) => call.has("p_ticket_key")),
+    ).toEqual([true, false]);
   });
 });
 
@@ -1130,7 +1572,7 @@ describe("PublicRegistrationForm - rezygnacja tuz po zapisie", () => {
   it("gosc odwoluje zapis KLUCZEM - to jego jedyne poswiadczenie", async () => {
     await submitAndOpenConfirmation();
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     await waitFor(() => expect(stub().callsFor(CANCEL_RPC)).toHaveLength(1));
     expect(payloadOf(CANCEL_RPC)).toEqual({ manage_token: MANAGE_TOKEN });
@@ -1141,17 +1583,47 @@ describe("PublicRegistrationForm - rezygnacja tuz po zapisie", () => {
     h.user = { id: "u-1", email: "anna.kowalska@example.com" };
     await submitAndOpenConfirmation({ manage_token: null });
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     await waitFor(() => expect(stub().callsFor(CANCEL_RPC)).toHaveLength(1));
     expect(payloadOf(CANCEL_RPC)).toEqual({ registration_id: REGISTRATION_ID });
+  });
+
+  it("opłacone zgłoszenie: dwa kroki, skutek na ekranie, a rezygnacja niesie go do bazy (REG-03)", async () => {
+    stub().setData(
+      CANCEL_PREVIEW_RPC,
+      cancelPreviewPayload({
+        effect: "full_refund",
+        amount_cents: 10000,
+        currency: "PLN",
+        acknowledgement_required: true,
+      }),
+    );
+    await submitAndOpenConfirmation();
+
+    await clickCancel();
+
+    // Pierwsze kliknięcie tylko pyta - nic nie poszło do bazy.
+    expect(
+      await screen.findByText(/eventRegistration\.cancelRefund\.fullRefund\(amount=100,00/),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(CANCEL_RPC)).toHaveLength(0);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "eventRegistration.actions.confirmCancel" }),
+    );
+    await waitFor(() => expect(stub().callsFor(CANCEL_RPC)).toHaveLength(1));
+    expect(payloadOf(CANCEL_RPC)).toEqual({
+      manage_token: MANAGE_TOKEN,
+      acknowledged_effect: "full_refund",
+    });
   });
 
   it("odmowa rezygnacji NIE udaje, ze zapis zostal odwolany", async () => {
     stub().setError(CANCEL_RPC, "already_closed");
     await submitAndOpenConfirmation();
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     expect(await screen.findByText("Ten zapis jest już zamknięty.")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.result.cancelled")).not.toBeInTheDocument();
@@ -1221,7 +1693,8 @@ describe("PublicRegistrationForm - dostepnosc", () => {
 });
 
 describe("PublicRegistrationForm - zapis grupowy", () => {
-  const GROUP_RPC = "event_register_group_guests";
+  // Odpowiedz funkcji serwerowej gosci planowana pod nazwa jej wejscia w bazie.
+  const GROUP_RPC = "event_register_group_guests_for_client";
   const USER: TestUser = { id: "u-lead", email: "anna.kowalska@example.com" };
 
   function groupForm(over: Record<string, Json> = {}): void {
@@ -1278,7 +1751,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   it("zapis dopisuje gości i wysyła bilety z kodem QR kluczem prowadzącego", async () => {
     h.user = USER;
     groupForm();
-    stub().setData(GROUP_RPC, { added: 2, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 2 });
     renderForm();
     await fillPerson();
     fireEvent.click(addButton());
@@ -1300,7 +1773,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   it("awaria wysyłki biletów nie unieważnia zapisu grupy", async () => {
     h.user = USER;
     groupForm();
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     h.sendTicketCodes.mockRejectedValue(new Error("network"));
     renderForm();
     await fillPerson();
@@ -1328,6 +1801,63 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     expect(stub().lastCall(REGISTER_RPC)).toBeUndefined();
   });
 
+  it("prowadzący z gośćmi pod adresem INNYM niż konto - zapis stoi U SIEBIE", async () => {
+    // REG-01 (D1): goście dochodzą do zgłoszenia KONTA prowadzącego, a baza
+    // wiąże konto wyłącznie przez jego adres. Inny adres skończyłby się
+    // odpowiedzią neutralną bez gości - mówimy to przed wysłaniem.
+    h.user = USER;
+    groupForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(label("email")), {
+      target: { value: "inny.adres@example.org" },
+    });
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    acceptDataProcessing();
+    submitForm();
+
+    expect(
+      await screen.findByText("eventRegistration.group.leadEmailMismatch"),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(REGISTER_RPC)).toHaveLength(0);
+    expect(stub().callsFor(GROUP_RPC)).toHaveLength(0);
+  });
+
+  it("inny adres BEZ gości nie blokuje - to zwykły zapis poza kontem", async () => {
+    h.user = USER;
+    groupForm();
+    renderForm();
+    await fillPerson();
+    fireEvent.change(screen.getByLabelText(label("email")), {
+      target: { value: "inny.adres@example.org" },
+    });
+    acceptDataProcessing();
+    submitForm();
+
+    await waitFor(() => expect(stub().callsFor(REGISTER_RPC)).toHaveLength(1));
+    expect(screen.queryByText("eventRegistration.group.leadEmailMismatch")).toBeNull();
+  });
+
+  it("odpowiedź neutralna NIE dopisuje gości ani nie wysyła biletów - i ekran to mówi", async () => {
+    // Bez identyfikatora zgłoszenia nie ma do czego dopisać gości; cicha
+    // utrata listy byłaby gorsza niż zdanie, że trzeba to zrobić ponownie.
+    h.user = USER;
+    groupForm();
+    stub().setData(REGISTER_RPC, { ok: true, outcome: "check_email" });
+    renderForm();
+    await fillPerson();
+    fireEvent.click(addButton());
+    fillGuest(0, "gosc.jeden@example.com");
+    acceptDataProcessing();
+    submitForm();
+
+    expect(await screen.findByText("eventRegistration.result.checkEmailTitle")).toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.group.guestsNotAdded")).toBeInTheDocument();
+    expect(stub().callsFor(GROUP_RPC)).toHaveLength(0);
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+  });
+
   /**
    * Formularz otwarty przy limicie 3, prowadzący + dwóch gości, a organizator
    * obniża limit do 2, zanim kupujący kliknie „Zapisz się". Tylko w takim
@@ -1337,7 +1867,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   async function submitAfterLimitLowered(): Promise<void> {
     h.user = USER;
     groupForm();
-    stub().setError(GROUP_RPC, "group_too_large");
+    stub().setData(GROUP_RPC, { ok: false, error: "group_too_large" });
     renderForm();
     await fillPerson();
     fireEvent.click(addButton());
@@ -1388,7 +1918,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     expect(retryButton()).not.toBeDisabled();
     expect(addButton()).toBeDisabled();
 
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
     expect(
       await screen.findByText("eventRegistration.group.retry.added(count=1)"),
@@ -1401,7 +1931,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   it("nieudany odczyt limitu nie zmyśla liczby i NIE zamyka strony zapisu", async () => {
     h.user = USER;
     groupForm();
-    stub().setError(GROUP_RPC, "group_too_large");
+    stub().setData(GROUP_RPC, { ok: false, error: "group_too_large" });
     renderForm();
     await fillPerson();
     fireEvent.click(addButton());
@@ -1433,7 +1963,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     register: Record<string, Json> = {},
   ): Promise<void> {
     h.user = USER;
-    stub().setError(GROUP_RPC, refusal);
+    stub().setData(GROUP_RPC, { ok: false, error: refusal });
     stub().setData(REGISTER_RPC, registerPayload(register));
     renderForm();
     await fillPerson();
@@ -1449,14 +1979,14 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
 
   it("odmowa gości NIE gubi listy: potwierdzenie stoi, a goście wracają do edycji", async () => {
     groupForm();
-    await submitWithRefusedGuest("already_registered: gosc.jeden@example.com");
+    await submitWithRefusedGuest("duplicate_guest");
 
     // Zgłoszenie prowadzącego jest potwierdzone mimo odmowy gości.
     expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
     expect(screen.getByText(MANAGE_TOKEN)).toBeInTheDocument();
-    // Odmowa mówi, KTÓRY gość ma już zapis.
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "eventRegistration.group.errors.alreadyRegistered(email=gosc.jeden@example.com)",
+    // Odmowa mówi o gościach - bez adresu kogokolwiek (R38).
+    expect(screen.getByRole("alert").textContent).toBe(
+      "eventRegistration.group.errors.duplicateGuest",
     );
     // Lista wpisana w formularzu stoi w polach, edytowalna, w limicie biletu.
     expect(guestInput(0, "first")).toHaveValue("Gość");
@@ -1471,11 +2001,11 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
 
   it("ponowienie dopisuje gości do TEGO SAMEGO zgłoszenia i wysyła bilety kluczem", async () => {
     groupForm();
-    await submitWithRefusedGuest("already_registered: gosc.jeden@example.com");
+    await submitWithRefusedGuest("duplicate_guest");
     expect(h.sendTicketCodes).not.toHaveBeenCalled();
 
     fireEvent.change(guestInput(0, "email"), { target: { value: "gosc.nowy@example.com" } });
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
 
     expect(
@@ -1503,7 +2033,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     await submitWithRefusedGuest("sold_out");
     expect(screen.getByRole("alert")).toHaveTextContent("eventRegistration.group.errors.soldOut");
     let release: () => void = () => {};
-    stub().setResponse(GROUP_RPC, { data: { added: 1, registration_ids: [] }, error: null });
+    stub().setResponse(GROUP_RPC, { data: { ok: true, added: 1 }, error: null });
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -1526,7 +2056,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     h.sendTicketCodes.mockRejectedValue(new Error("network"));
     await submitWithRefusedGuest("group_too_large");
 
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
 
     expect(
@@ -1540,7 +2070,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     groupForm();
     await submitWithRefusedGuest("group_too_large", { manage_token: null });
 
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
 
     expect(
@@ -1565,7 +2095,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     // Podgląd kasy przed dopisaniem gości: jedno miejsce.
     await waitFor(() => expect(h.quote).toHaveBeenCalledTimes(1));
     h.quote.mockResolvedValue({ ...(await h.quote.mock.results[0]?.value), seats: 2 });
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
     await screen.findByText("eventRegistration.group.retry.added(count=1)");
     // Dopisanie gości zmienia liczbę miejsc - rozbicie pod przyciskiem musi się
@@ -1588,7 +2118,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     groupForm();
     await submitWithRefusedGuest("group_too_large");
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     expect(await screen.findByText("eventRegistration.result.cancelled")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /eventRegistration.group.retry/ })).toBeNull();

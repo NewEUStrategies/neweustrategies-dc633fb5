@@ -15,10 +15,14 @@
 // ODMOWY DOPISANIA GOŚCI MAJĄ WŁASNY SŁOWNIK (`groupGuestsFailure`).
 // `event_register_group_guests` używa części tych samych słów co
 // `event_register`, ale mówi nimi o czym innym: `not_found` znaczy tam „nie ma
-// zgłoszenia prowadzącego na TYM koncie", a nie „nie ma wydarzenia", a
-// `already_registered: <email>` dotyczy jednego z gości, nie kupującego.
+// zgłoszenia prowadzącego na TYM koncie", a nie „nie ma wydarzenia".
 // Słownik zapisu prowadzącego podsuwał więc zdanie nieprawdziwe albo ogólne
 // „Nie udało się zapisać" - choć zgłoszenie kupującego już stało w bazie.
+//
+// ADRES GOŚCIA NIE WYCHODZI NIGDY (R38). Gość z zapisem na wydarzenie jest
+// pomijany bez śladu w odpowiedzi; stara baza (okno wdrożenia) odpowiadała
+// `already_registered: <email>` - zdanie nie powtarza adresu, nawet gdy ogon
+// dotrze.
 import i18n from "@/lib/i18n";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
@@ -87,28 +91,101 @@ export function registrationErrorMessage(error: unknown): string {
   return i18n.t(failure.key, failure.params);
 }
 
+const CANCEL_PREFIX = "eventRegistration.cancelRefund.errors.";
+
 /**
- * Każdy `RAISE EXCEPTION` z `event_register_group_guests` (ostatnia definicja:
- * migracja `20261012130000_event_ticket_seat_ledger.sql`), w kolejności
- * sprawdzeń w funkcji. Lista jest jawna, a nie wyliczana z `i18n.exists`, żeby
- * test mógł dowieść, że KAŻDA odmowa tej funkcji ma zdanie w obu językach.
+ * Odmowa REZYGNACJI -> zdanie. Ten sam słownik co zapis, z jednym wyjątkiem:
+ * `event_ended` przy zapisie znaczy „zapisy zamknięte", a przy rezygnacji
+ * „po wydarzeniu nie odwołasz zgłoszenia - w sprawie wpłaty napisz do
+ * organizatora" (REG-13). Słowa z `cancelRefund.errors` wygrywają, reszta
+ * spada do `registrationErrorMessage`.
+ */
+export function cancellationFailure(error: unknown): RegistrationFailure {
+  ensureEventRegistrationI18n();
+  const { head } = splitMessage(error);
+  if (/^[a-z][a-z0-9_]*$/.test(head)) {
+    const candidate = `${CANCEL_PREFIX}${camel(head)}`;
+    if (i18n.exists(candidate)) return { key: candidate, params: {} };
+  }
+  return registrationFailure(error);
+}
+
+/** Gotowe zdanie odmowy rezygnacji (toast, pole błędu ekranu po zapisie). */
+export function cancellationErrorMessage(error: unknown): string {
+  const failure = cancellationFailure(error);
+  return i18n.t(failure.key, failure.params);
+}
+
+const INVITE_PREFIX = "eventRegistration.invite.errors.";
+
+/**
+ * Odmowa PRZYJĘCIA ZAPROSZENIA pakietowego -> zdanie (REG-15). Ten sam słownik
+ * co zapis, z wyjątkami w tonie zaproszenia: `event_ended` znaczy tu „zaproszenia
+ * nie można przyjąć", a `already_registered` dotyczy osoby z zaproszenia, nie
+ * wypełniającego formularz. Słowa z `invite.errors` wygrywają, reszta spada do
+ * `registrationFailure`.
+ */
+export function packageInviteFailure(error: unknown): RegistrationFailure {
+  ensureEventRegistrationI18n();
+  const { head } = splitMessage(error);
+  if (/^[a-z][a-z0-9_]*$/.test(head)) {
+    const candidate = `${INVITE_PREFIX}${camel(head)}`;
+    if (i18n.exists(candidate)) return { key: candidate, params: {} };
+  }
+  return registrationFailure(error);
+}
+
+/** Gotowe zdanie odmowy przyjęcia zaproszenia pakietowego. */
+export function packageInviteErrorMessage(error: unknown): string {
+  const failure = packageInviteFailure(error);
+  return i18n.t(failure.key, failure.params);
+}
+
+/** Czy odmowa rezygnacji mówi, że skutek finansowy się zmienił (podgląd do odświeżenia). */
+export function isRefundTermsChanged(error: unknown): boolean {
+  const { head } = splitMessage(error);
+  return head === "refund_terms_changed" || head === "refund_ack_required";
+}
+
+/**
+ * Każda odmowa dopisania gości (rdzeń `_event_register_group_guests`, wejście
+ * `event_register_group_guests_for_client` i wrapper zgodności - ostatnia
+ * definicja: migracja uzgadniająca `20261013900300_reg_main_merge_seat_ledger.sql`
+ * na ciałach `20261012180300` + TIX-03 z `20261012130000`), w kolejności
+ * sprawdzeń. Baza oddaje je WARTOŚCIĄ `{ok:false, error}` - bez ogona
+ * (`rate_limited` - kubełki adresu i konta liczone przed pracą, `event_ended`
+ * - po końcu wydarzenia, `duplicate_guest` - ten sam adres dwa razy albo adres
+ * prowadzącego); funkcja serwerowa oddaje przeglądarce sam kod. Lista jest
+ * jawna, a nie wyliczana z `i18n.exists`, żeby test mógł dowieść, że KAŻDA
+ * odmowa tych funkcji ma zdanie w obu językach.
  */
 export const GROUP_GUEST_REFUSALS = [
   "account_required",
+  "rate_limited",
   "invalid_guests",
-  "not_found",
-  "registration_closed",
-  "already_settled",
-  // TIX-03: kasa tego zgłoszenia jest otwarta - jej kwota policzyła już
-  // miejsca, więc gość dopisany teraz nie byłby opłacony.
-  "checkout_in_progress",
-  "group_not_enabled",
   "group_too_large",
-  "sold_out",
   "invalid_name",
   "invalid_email",
-  "already_registered",
+  "duplicate_guest",
+  "not_found",
+  "event_ended",
+  "registration_closed",
+  "already_settled",
+  // TIX-03 (main): kasa tego zgłoszenia jest otwarta - jej kwota policzyła już
+  // miejsca, więc gość dopisany teraz nie byłby opłacony. Po scaleniu odmowa
+  // wraca WARTOŚCIĄ z rdzenia R38 jak pozostałe.
+  "checkout_in_progress",
+  "group_not_enabled",
+  "sold_out",
 ] as const;
+
+/**
+ * Odmowy STAREJ bazy (okno wdrożenia „najpierw kod", przed 20261012180300):
+ * `already_registered: <email>`. Nowa baza ich nie zna - gościa z zapisem
+ * pomija - ale funkcja serwerowa woła starą funkcję przy PGRST202/42883, więc
+ * kod ma zdanie, które NIE powtarza adresu.
+ */
+export const GROUP_GUEST_LEGACY_REFUSALS = ["already_registered"] as const;
 
 export type GroupGuestRefusal = (typeof GROUP_GUEST_REFUSALS)[number];
 
@@ -151,7 +228,7 @@ export function groupGuestsFailure(
   context: GroupGuestsFailureContext = {},
 ): RegistrationFailure {
   ensureEventRegistrationI18n();
-  const { head, tail } = splitMessage(error);
+  const { head } = splitMessage(error);
 
   if (isGroupGuestRefusal(head)) {
     if (head === "group_too_large") {
@@ -160,14 +237,12 @@ export function groupGuestsFailure(
         ? { key: `${GROUP_PREFIX}groupTooLargeMax`, params: { max } }
         : { key: `${GROUP_PREFIX}groupTooLarge`, params: {} };
     }
-    if (head === "already_registered") {
-      // Ogon to adres gościa (`RAISE EXCEPTION 'already_registered: %', v_email`)
-      // - bez niego kupujący zgadywałby, którą osobę z listy usunąć.
-      return tail === ""
-        ? { key: `${GROUP_PREFIX}alreadyRegisteredUnknown`, params: {} }
-        : { key: `${GROUP_PREFIX}alreadyRegistered`, params: { email: tail } };
-    }
     return { key: `${GROUP_PREFIX}${camel(head)}`, params: {} };
+  }
+  // Stara baza: adres gościa z ogona NIE trafia do zdania (R38) - adres
+  // czyjegoś zapisu to dokładnie to, czego odpowiedź nie może zdradzać.
+  if (head === "already_registered") {
+    return { key: `${GROUP_PREFIX}alreadyRegisteredUnknown`, params: {} };
   }
 
   const fallback = registrationFailure(error);

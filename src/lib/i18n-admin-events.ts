@@ -1075,6 +1075,15 @@ export const adminEventsPl = {
           seating_few: "{{count}} uprawnione osoby bez miejsca na opublikowanym planie sali",
           seating_many: "{{count}} uprawnionych osób bez miejsca na opublikowanym planie sali",
           seating_other: "{{count}} uprawnionej osoby bez miejsca na opublikowanym planie sali",
+          // REG-05: sam link rejestracyjny nie odsłania już biletu ukrytego bez kodu.
+          hiddenTickets_one:
+            "{{count}} bilet ukryty bez kodu dostępu - link go nie pokaże, odsłoni go tylko kod z „Kodów wydarzenia”",
+          hiddenTickets_few:
+            "{{count}} bilety ukryte bez kodu dostępu - link ich nie pokaże, odsłoni je tylko kod z „Kodów wydarzenia”",
+          hiddenTickets_many:
+            "{{count}} biletów ukrytych bez kodu dostępu - link ich nie pokaże, odsłoni je tylko kod z „Kodów wydarzenia”",
+          hiddenTickets_other:
+            "{{count}} biletu ukrytego bez kodu dostępu - link go nie pokaże, odsłoni go tylko kod z „Kodów wydarzenia”",
         },
       },
 
@@ -2177,6 +2186,10 @@ export const adminEventsEn = {
           tickets: "Add a ticket type for paid registration",
           seating_one: "{{count}} eligible attendee without a seat on a published seating plan",
           seating_other: "{{count}} eligible attendees without a seat on a published seating plan",
+          hiddenTickets_one:
+            "{{count}} hidden ticket without an access code - the link will not show it, only a code from “Event codes” reveals it",
+          hiddenTickets_other:
+            "{{count}} hidden tickets without an access code - the link will not show them, only a code from “Event codes” reveals them",
         },
       },
 

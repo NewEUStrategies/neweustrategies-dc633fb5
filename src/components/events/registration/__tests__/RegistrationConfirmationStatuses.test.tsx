@@ -65,6 +65,42 @@ vi.mock("@/components/checkout/LazyEmbeddedCheckoutDialog", () => ({
     clientSecret === null ? null : <div data-testid="checkout-modal">{clientSecret}</div>,
 }));
 
+/** Podgląd skutku rezygnacji (REG-03) - sterowany przez przypadek testowy. */
+const preview = vi.hoisted(() => ({
+  value: null as unknown,
+  calls: [] as unknown[],
+}));
+vi.mock("@/lib/events/publicRegistrationApi", () => ({
+  fetchCancellationPreview: (input: unknown) => {
+    preview.calls.push(input);
+    return Promise.resolve(preview.value);
+  },
+}));
+
+function okPreview(refund: Record<string, unknown> | null): unknown {
+  return {
+    kind: "ok",
+    registrationId: "11111111-1111-1111-1111-111111111111",
+    status: "approved",
+    canCancel: true,
+    refusal: null,
+    refund:
+      refund === null
+        ? null
+        : {
+            effect: "none",
+            reviewReason: null,
+            amountCents: null,
+            currency: null,
+            refundMode: null,
+            refundDeadlineAt: null,
+            groupGuestsClosing: 0,
+            acknowledgementRequired: false,
+            ...refund,
+          },
+  };
+}
+
 const { toast } = await import("sonner");
 const { RegistrationConfirmation } =
   await import("@/components/events/registration/RegistrationConfirmation");
@@ -84,12 +120,14 @@ function result(over: Partial<RegistrationResult> = {}): RegistrationResult {
     decisionSource: null,
     waitlistPosition: null,
     ticketTypeId: null,
-    qrToken: null,
     manageToken: null,
     paymentRequired: false,
     paymentStatus: "not_required",
     amountCents: null,
     currency: null,
+    quoteValidUntil: null,
+    accountLinked: null,
+    consentConfirmationRequired: false,
     ...over,
   };
 }
@@ -114,6 +152,8 @@ function renderConfirmation(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  preview.value = okPreview({ effect: "none" });
+  preview.calls = [];
   quote.mockResolvedValue({
     seats: 1,
     unitCents: 15000,
@@ -133,7 +173,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe("RegistrationConfirmation - co uczestnik czyta o swoim zgloszeniu", () => {
   it("zapis przyjety od reki mowi „jestes zapisany”", () => {
-    renderConfirmation({ status: "approved", qrToken: "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj" });
+    renderConfirmation({ status: "approved" });
 
     expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.result.paymentTitle")).not.toBeInTheDocument();
@@ -234,7 +274,7 @@ describe("RegistrationConfirmation - klucz zarzadzania zapisem", () => {
 
     expect(screen.getByText("eventFront.manage.manageLink").closest("a")).toHaveAttribute(
       "href",
-      `/events/kongres%20cee/manage?token=${MANAGE_TOKEN}`,
+      `/events/kongres%20cee/manage#token=${MANAGE_TOKEN}`,
     );
   });
 
@@ -326,12 +366,76 @@ describe("RegistrationConfirmation - klucz zarzadzania zapisem", () => {
 // REZYGNACJA.
 // ---------------------------------------------------------------------------
 describe("RegistrationConfirmation - rezygnacja z zapisu", () => {
-  it("gosc bez konta ma dzialajacy przycisk, a nie prosbe o kontakt z organizatorem", () => {
+  /** Przycisk rezygnacji czeka na podgląd skutku finansowego (REG-03). */
+  async function przyciskRezygnacji(): Promise<HTMLElement> {
+    const button = screen.getByRole("button", { name: "eventRegistration.actions.cancel" });
+    await waitFor(() => expect(button).toBeEnabled());
+    return button;
+  }
+
+  it("gosc bez konta ma dzialajacy przycisk, a nie prosbe o kontakt z organizatorem", async () => {
     const { onCancel } = renderConfirmation({ manageToken: MANAGE_TOKEN });
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    fireEvent.click(await przyciskRezygnacji());
 
+    // Rezygnacja bez pieniędzy: JEDNO kliknięcie i BEZ potwierdzenia skutku.
     expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledWith(undefined);
+    expect(preview.calls).toEqual([{ manageToken: MANAGE_TOKEN }]);
+  });
+
+  it("opłacone zgłoszenie: dwa kroki, skutek na ekranie i potwierdzenie ze skutkiem", async () => {
+    preview.value = okPreview({
+      effect: "no_refund",
+      reviewReason: "refund_disabled",
+      acknowledgementRequired: true,
+    });
+    const { onCancel } = renderConfirmation({ manageToken: MANAGE_TOKEN });
+
+    fireEvent.click(await przyciskRezygnacji());
+
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByText("eventRegistration.cancelRefund.noRefundDisabled")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "eventRegistration.actions.confirmCancel" }),
+    );
+    expect(onCancel).toHaveBeenCalledWith("no_refund");
+  });
+
+  it("„zostaw zapis” cofa drugi krok bez rezygnacji", async () => {
+    preview.value = okPreview({ effect: "full_refund", acknowledgementRequired: true });
+    const { onCancel } = renderConfirmation({ manageToken: MANAGE_TOKEN });
+
+    fireEvent.click(await przyciskRezygnacji());
+    fireEvent.click(screen.getByRole("button", { name: "eventFront.manage.keep" }));
+
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "eventRegistration.actions.cancel" })).toBeEnabled();
+  });
+
+  it("po końcu wydarzenia (REG-13) zamiast przycisku stoi zdanie", async () => {
+    preview.value = {
+      kind: "ok",
+      registrationId: REGISTRATION_ID,
+      status: "approved",
+      canCancel: false,
+      refusal: "event_ended",
+      refund: null,
+    };
+    renderConfirmation({ manageToken: MANAGE_TOKEN });
+
+    expect(
+      await screen.findByText("eventRegistration.cancelRefund.refusals.eventEnded"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "eventRegistration.actions.cancel" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("bez klucza podgląd pyta po identyfikatorze zgłoszenia (właściciel konta)", async () => {
+    renderConfirmation({ manageToken: null });
+    await przyciskRezygnacji();
+    expect(preview.calls).toEqual([{ registrationId: REGISTRATION_ID }]);
   });
 
   it("w trakcie rezygnacji przycisk jest zablokowany - jedno kliknięcie, jedno RPC", () => {

@@ -73,6 +73,12 @@ const PROTECTED_INTAKE_TABLES: ReadonlySet<string> = new Set([
   // event_registration_attribution_attach (SECURITY DEFINER, manage_token).
   "event_funnel_events",
   "event_registration_attributions",
+  // Rejestr zgod uczestnikow wydarzen (REG-02/REG-14): ksiege dowodu
+  // i linki double opt-in pisza wylacznie funkcje SECURITY DEFINER
+  // `_event_person_consents_*` / `_event_consent_issue_confirmation`.
+  // Polityka INSERT dla klienta = fabrykacja zgody RODO na cudzy adres.
+  "event_consent_records",
+  "event_consent_confirmations",
 ]);
 
 function render(policy: PolicyDef): string {

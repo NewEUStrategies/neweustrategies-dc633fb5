@@ -7,15 +7,22 @@
 // Ikona wyłącznie z wyselekcjonowanej listy (`CURATED_ICON_NAMES`) - nazwa
 // spoza niej ładuje w przeglądarce leniwy rejestr 109 KB.
 //
-// SMS: TRZY BRAMKI PRZED OPERATOREM (R-6, S11).
+// SMS: JEDYNE WYJŚCIE Z SYSTEMU (REG-10). Ten moduł jako JEDYNY importuje
+// `sendSms` (bramka `smsSingleExit.gate.test.ts`) - przypomnienia, wynik
+// płatności i awans z kolejki idą przez `sendParticipantSms`. Zgodę uczestnika
+// (`notify_sms` + stempel `remind_sms_consent_at`) sprawdza wołający: skaner
+// przypomnień w SQL, `readChannels` w `registrationOutcomeNotify.server`.
+// TRZY BRAMKI PRZED OPERATOREM (R-6, S11):
 //   1. wyłącznik platformy - `SMSAPI_TOKEN` ORAZ `EVENT_SMS_ENABLED === "1"`
 //      (polityka prywatności musi najpierw wymienić operatora SMS);
 //   2. treść w GSM-7 i najwyżej 160 septetów (jeden segment) - treść budują
 //      `composeSmsBody` + `formatSmsMoment`, tu tylko sprawdzamy;
 //   3. budżet najemcy 300 SMS na dobę, FAIL-CLOSED: awaria licznika NIE
 //      zdejmuje limitu z kanału, który kosztuje pieniądze.
-// Dopiero potem `sendSms` (klucz idempotencji chroni przed powtórką tego
-// samego przypomnienia z dwóch harmonogramów).
+// Dopiero potem `sendSms` z kluczem idempotencji i NAJEMCĄ: dziennik
+// `sms_send_log` (REG-11) zapisuje „wysłane" dopiero po przyjęciu przez
+// operatora, więc ponowienie po błędzie naprawdę wysyła, a powtórka po
+// sukcesie dostaje `duplicate`.
 import { gsm7Septets, isGsm7 } from "@/lib/events/gsm7";
 import type { SmsResult } from "@/lib/notify/sms.server";
 
@@ -114,5 +121,10 @@ export async function sendParticipantSms(
   });
   if (!allowed) return { ok: false, skipped: "budget" };
   const { sendSms } = await import("@/lib/notify/sms.server");
-  return sendSms({ to: input.to, body: input.body, idempotencyKey: input.idempotencyKey });
+  return sendSms({
+    to: input.to,
+    body: input.body,
+    idempotencyKey: input.idempotencyKey,
+    tenantId: input.tenantId,
+  });
 }

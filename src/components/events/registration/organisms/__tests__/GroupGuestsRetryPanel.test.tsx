@@ -17,13 +17,16 @@
 //      zablokowane, więc dwa kliknięcia nie wysyłają dwóch żądań.
 //   5. SUKCES CHOWA LISTĘ I BŁĄD, mówi, ile osób dopisano, i woła `onAdded`
 //      (formularz wysyła wtedy bilety z kodem QR).
-//   6. KOLEJNA ODMOWA ZOSTAWIA LISTĘ i podmienia zdanie na nowe - np. adres
-//      gościa, który ma już zapis.
+//   6. KOLEJNA ODMOWA ZOSTAWIA LISTĘ i podmienia zdanie na nowe - np. duplikat
+//      adresu. Adresu gościa, który ma już zapis, zdanie nie powtarza nigdy
+//      (przegląd R38): stara baza podawała go w ogonie odmowy.
 //   7. BŁĘDNY GOŚĆ ZATRZYMUJE PONOWIENIE U SIEBIE, bez wywołania RPC.
 //
-// ATRAPUJEMY WYŁĄCZNIE GRANICE: klienta Supabase i i18n (kluczami - parytetu
-// PL/EN pilnuje `groupGuestsFailure.test.ts`). `registerGroupGuests`,
-// `guestIssues`, `groupGuestsFailure` i `GroupGuestsEditor` jadą PRAWDZIWE.
+// ATRAPUJEMY WYŁĄCZNIE GRANICE: funkcję serwerową gości (`registerEventGroupGuests`,
+// przez wspólną atrapę RPC `event_register_group_guests_for_client` - serwer ma
+// własny test, `groupGuests.server.test.ts`) i i18n (kluczami - parytetu PL/EN
+// pilnuje `groupGuestsFailure.test.ts`). `registerGroupGuests`, `guestIssues`,
+// `groupGuestsFailure` i `GroupGuestsEditor` jadą PRAWDZIWE.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
@@ -44,13 +47,22 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (name: string, args?: Record<string, unknown>) => h.rpc(name, args) },
 }));
 
+// Funkcja serwerowa gości: ten sam ładunek trafia do atrapy RPC pod nazwą
+// wejścia serwerowego, a jej `data` to odpowiedź serwera dla przeglądarki.
+vi.mock("@/lib/events/groupGuests.functions", async () => {
+  const { groupGuestsServerFnStub } = await import("@/test/events/groupGuestsServerFn");
+  return groupGuestsServerFnStub(() => ({
+    rpc: (name: string, args?: Record<string, unknown>) => h.rpc(name, args),
+  }));
+});
+
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 
 const { GroupGuestsRetryPanel } =
   await import("@/components/events/registration/organisms/GroupGuestsRetryPanel");
 
 const LEAD_ID = "22222222-2222-2222-2222-222222222222";
-const GROUP_RPC = "event_register_group_guests";
+const GROUP_RPC = "event_register_group_guests_for_client";
 const EWA: GroupGuest = { firstName: "Ewa", lastName: "Lis", email: "ewa.lis@example.com" };
 const JAN: GroupGuest = { firstName: "Jan", lastName: "Nowak", email: "jan.nowak@example.org" };
 const GUESTS: GroupGuest[] = [EWA, JAN];
@@ -131,7 +143,7 @@ function deferredRpc(): (result: RpcResult) => void {
 
 beforeEach(() => {
   h.rpc.mockReset();
-  h.rpc.mockResolvedValue({ data: { added: 2, registration_ids: [] }, error: null });
+  h.rpc.mockResolvedValue({ data: { ok: true, added: 2 }, error: null });
 });
 
 afterEach(cleanup);
@@ -332,7 +344,7 @@ describe("GroupGuestsRetryPanel - ponowienie", () => {
       ],
     });
 
-    release({ data: { added: 2, registration_ids: [] }, error: null });
+    release({ data: { ok: true, added: 2 }, error: null });
 
     expect(
       await screen.findByText("eventRegistration.group.retry.added(count=2)"),
@@ -353,23 +365,31 @@ describe("GroupGuestsRetryPanel - ponowienie", () => {
     expect(screen.queryByRole("button", { name: /eventRegistration.group.retry/ })).toBeNull();
   });
 
-  it("kolejna odmowa zostawia listę i mówi, KTÓRY gość ma już zapis", async () => {
-    h.rpc.mockResolvedValueOnce({
-      data: null,
-      error: { message: "already_registered: jan.nowak@example.org" },
-    });
+  it("kolejna odmowa (wartość serwera) zostawia listę i podmienia zdanie", async () => {
+    h.rpc.mockResolvedValueOnce({ data: { ok: false, error: "duplicate_guest" }, error: null });
     const { onAdded } = renderPanel();
 
     fireEvent.click(retryButton());
 
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "eventRegistration.group.errors.alreadyRegistered(email=jan.nowak@example.org)",
-      ),
-    );
+    await waitFor(() => expect(alertText()).toBe("eventRegistration.group.errors.duplicateGuest"));
     expect(input(1, "email")).toHaveValue("jan.nowak@example.org");
     expect(retryButton()).not.toBeDisabled();
     expect(onAdded).not.toHaveBeenCalled();
+  });
+
+  it("R38: odmowa starej bazy z adresem gościa nie pokazuje adresu", async () => {
+    h.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "already_registered: jan.nowak@example.org" },
+    });
+    renderPanel();
+
+    fireEvent.click(retryButton());
+
+    await waitFor(() =>
+      expect(alertText()).toBe("eventRegistration.group.errors.alreadyRegisteredUnknown"),
+    );
+    expect(alertText()).not.toContain("jan.nowak@example.org");
   });
 
   it("błędny gość zatrzymuje ponowienie u siebie, a poprawka zdejmuje błąd", async () => {

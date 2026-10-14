@@ -52,6 +52,7 @@ import {
   Radio,
   ShieldCheck,
   TrendingUp,
+  UserCheck,
   Workflow,
 } from "lucide-react";
 
@@ -391,6 +392,18 @@ export function buildAdminNavGroups({
       items: [
         { to: "/admin/events", icon: CalendarDays, label: t("admin.nav.events") },
         { to: "/admin/events/types", icon: Shapes, label: t("admin.nav.eventTypes") },
+        // Dowiazania kont do kartotek uczestnikow (REG-01, D14): `event_people`
+        // nie ma `event_id`, wiec ekran nalezy do panelu. Tylko administrator -
+        // RPC stoja za `assert_event_admin_tenant()`.
+        ...(isAdmin
+          ? [
+              {
+                to: "/admin/events/account-bindings",
+                icon: UserCheck,
+                label: t("admin.nav.eventAccountBindings"),
+              },
+            ]
+          : []),
       ],
     },
   ];

@@ -20,6 +20,10 @@
 // marketingowej jest wyłącznie NADANIEM zgody: gdy zgoda już obowiązuje albo
 // osoba wycofała zgody, pola nie ma - jest zdanie o stanie, bo odznaczenie nie
 // wycofałoby zgody, a zaznaczenie nie przywróci wycofanych (baza tego nie robi).
+// Napis zgody marketingowej to TEN SAM wersjonowany tekst co w formularzu
+// zapisu (`eventRegistration.consents.marketing`, REG-14): baza zapisuje zgodę
+// w księdze z wersją i językiem tekstu, który osoba widziała - ładunek niesie
+// `consent_text_version` i `lang` (`cfpSubmissionSaveInput`).
 // Przy współprelegentach formularz przypomina, że zgłaszający ma ich
 // poinformować o przekazaniu danych.
 import { useId, useState } from "react";
@@ -44,6 +48,7 @@ import {
 } from "@/lib/events/cfpEnums";
 import { confirmCfpSubmissionEmail } from "@/lib/events/cfpNotify.functions";
 import { countsTowardsCfpLimit, isCfpEditable } from "@/lib/events/cfpRows";
+import { eventConsentTextKey } from "@/lib/events/consentTexts";
 import {
   cfpSubmissionDraftFromItem,
   cfpSubmissionSaveInput,
@@ -370,7 +375,7 @@ function CfpSubmitEditor({
                 checked={draft.consentMarketing}
                 onCheckedChange={(checked) => set("consentMarketing", checked === true)}
               />
-              <span>{t("eventCfp.submit.fields.marketingConsent")}</span>
+              <span>{t(eventConsentTextKey("marketing"))}</span>
             </label>
           )}
           <p className="text-xs text-muted-foreground">

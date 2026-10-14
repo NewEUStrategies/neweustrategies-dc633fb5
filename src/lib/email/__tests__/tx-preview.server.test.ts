@@ -96,14 +96,16 @@ describe("tx-preview.server - lista typów podglądu", () => {
     // 36 -> 47: jedenaście maili funkcji uczestnika (`PARTICIPANT_TX_EMAIL_TYPES`).
     // 47 -> 50: bilet odwołany (`event_ticket_revoked`) i wpłata bez miejsca
     // (`event_ticket_paid_waitlisted` / `_pending`).
-    expect(TX_EMAIL_TYPES).toHaveLength(50);
+    // 50 -> 52: zapis na zajęty adres (`event_registration_already_registered`)
+    // i double opt-in zgód (`event_consent_confirm`) - REG-04/REG-14.
+    expect(TX_EMAIL_TYPES).toHaveLength(52);
   });
 
   it("lista podglądu nie ma duplikatów - każdy mail jest w panelu raz", () => {
     const unikalne = new Set(TX_EMAIL_TYPES);
 
     expect(unikalne.size).toBe(TX_EMAIL_TYPES.length);
-    expect(unikalne.size).toBe(50);
+    expect(unikalne.size).toBe(52);
   });
 });
 
@@ -143,8 +145,8 @@ describe("tx-preview.server - komplet podglądów w obu językach", () => {
       .map((p) => `${p.type}/${p.lang}`);
 
     expect(skazone).toEqual([]);
-    // 50 typów razy dwa języki.
-    expect(wszystkie).toHaveLength(100);
+    // 52 typy razy dwa języki.
+    expect(wszystkie).toHaveLength(104);
   });
 
   it("każdy podgląd niesie preheader ze słownika - inaczej lista maili jest ślepa", async () => {

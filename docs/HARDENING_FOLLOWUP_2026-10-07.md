@@ -65,8 +65,20 @@ na starej wersji (sprawdzone mutacją).
 
 ## 4. Co zostaje (mapa z audytu)
 
-- Zapis na wydarzenie bez konta nie ma kubełka ADRESU (baza nie zna zaufanego
-  adresu klienta) - pełne domknięcie wymaga zapisu przez funkcję serwerową.
+- Zapis na wydarzenie bez konta ma kubełek ADRESU od serii REG (REG-04,
+  decyzja D2, `docs/NAPRAWA_ZAPISY_WYDARZEN_REG_2026-10-12.md`). Przeglądarka
+  nie woła już `event_register` (EXECUTE tylko `service_role`): funkcja
+  serwerowa `submitEventRegistration` podaje bazie najemcę z hosta, konto
+  z sesji i solony skrót adresu, a `event_register_for_client` liczy kubełek
+  adresu (12 / 10 min gość, 120 / 10 min zalogowany) i konta (12 / 10 min)
+  przed rdzeniem i oddaje odmowy wartością, więc licznik się nie cofa.
+  Niezweryfikowany wołający dostaje jedną odpowiedź `check_email`, a wynik
+  idzie do skrzynki. Goście grupy idą tą samą drogą
+  (`event_register_group_guests_for_client`, wspólny kubełek adresu). Zostaje:
+  wspólny NAT dzieli kubełek adresu, a przyjęcie i podgląd zaproszenia
+  z pakietu (`event_package_invite_accept`, `event_package_invite_preview`)
+  nadal nie mają kubełka adresu - 300 pudeł tokenu w 10 minut z jednego
+  klienta blokuje zaproszenia całego najemcy.
 - Okna limitów są stałe (podwójny wybuch na granicy okna) - kubełek przesuwny
   w `rate_limit_hit`.
 - Kontrakt TS <-> SQL v2: markowane typy klientów (`ServiceClient`,

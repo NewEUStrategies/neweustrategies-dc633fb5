@@ -1125,6 +1125,29 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(result.tempPassword).toBeTypeOf("string");
   });
 
+  it("konto z potwierdzeniem nadanym przez administratora niesie znacznik w `app_metadata` (R12)", async () => {
+    // Potwierdzenie bez kliknięcia w skrzynce nie jest dowodem adresu: baza
+    // (`_event_uid_owns_email`) czyta `provisioned_by_admin` i adres, dla
+    // którego go nadano. Znacznik MUSI iść w `app_metadata` (zmienia go tylko
+    // klucz serwisowy) i w TYM SAMYM wywołaniu - nie w `user_metadata`, które
+    // posiadacz hasła tymczasowego nadpisuje sam.
+    withInvitation(invitationRow({ mode: "temp_password", email: "Nowa@Example.org" }));
+    await send();
+    const payload = h.authCalls[0].payload as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      email_confirm: true,
+      app_metadata: { provisioned_by_admin: true, provisioned_email: "nowa@example.org" },
+    });
+    expect(payload.user_metadata).not.toHaveProperty("provisioned_by_admin");
+  });
+
+  it("tryb odnośnika (adres potwierdza dopiero klik) NIE dostaje znacznika administratora", async () => {
+    withInvitation(invitationRow({ mode: "magic_link" }));
+    await send();
+    expect(h.authCalls[0].payload).toMatchObject({ email_confirm: false });
+    expect(h.authCalls[0].payload).not.toHaveProperty("app_metadata");
+  });
+
   it("hasło tymczasowe ma 16 znaków z alfabetu BEZ mylących glifów", async () => {
     // `0/O/1/l/I` odpada, bo hasło jest przepisywane z ekranu albo z e-maila.
     // Nie asertujemy WARTOŚCI (jest losowa z założenia) - tylko kontrakt.
@@ -2054,6 +2077,14 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     expect(h.authCalls[0].payload).toMatchObject({
       email_confirm: true,
       user_metadata: { must_change_password: true, provisioned: true, tenant_id: IDS.tenant },
+    });
+    // R12: potwierdzenie z importu zespołu też nie dowodzi skrzynki - znacznik
+    // w `app_metadata` (tylko klucz serwisowy), dla adresu z widgetu.
+    expect(h.authCalls[0].payload).toMatchObject({
+      app_metadata: {
+        provisioned_by_admin: true,
+        provisioned_email: (h.authCalls[0].payload as { email: string }).email,
+      },
     });
     expect(h.emails).toHaveLength(0);
     expect(h.adminWrites.map((write) => write.table)).toEqual([

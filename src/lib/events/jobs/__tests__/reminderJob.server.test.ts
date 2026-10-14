@@ -383,5 +383,27 @@ describe("runEventParticipantReminders", () => {
       expect(result).toMatchObject({ claimed: 5, sent: 1, skipped: 3, failed: 1 });
       expect(JSON.stringify(h.confirmed)).not.toContain("600");
     });
+
+    it("REG-11: `in_flight` i limit prób dziennika SMS to failed (ponowienie), nigdy sent", async () => {
+      // `in_flight` = ten sam SMS wysyła teraz inny proces; nie wiemy, czy
+      // wyjdzie, więc dziennik doręczeń NIE może zapisać „wysłane" - ponowi
+      // wpis (attempts < 3) i zastanie wtedy `duplicate` albo rezerwację.
+      notify.participantSmsEnabled.mockReturnValue(true);
+      const byDelivery: Record<string, unknown> = {
+        [id(1)]: { ok: true, skipped: "in_flight" },
+        [id(2)]: { ok: false, error: "sms_retry_exhausted" },
+      };
+      notify.sendParticipantSms.mockImplementation(
+        async (input: { idempotencyKey: string }) =>
+          byDelivery[input.idempotencyKey.split(":")[2] ?? ""],
+      );
+      const h = harness([[smsRow(1), smsRow(2)]]);
+      const result = await runEventParticipantReminders(h.admin, { deadlineAt: farFuture() });
+      expect(h.confirmed[0]).toEqual([
+        { id: id(1), status: "failed", detail: "sms_in_flight" },
+        { id: id(2), status: "failed", detail: "sms_retry_exhausted" },
+      ]);
+      expect(result).toMatchObject({ claimed: 2, sent: 0, failed: 2 });
+    });
   });
 });

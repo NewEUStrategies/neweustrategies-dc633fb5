@@ -72,9 +72,15 @@ export const eventRegistrationPl = {
       external: "Przejdź do zapisu",
       back: "Wróć do wydarzenia",
     },
+    // Podpowiedzi pod polami formularza (nie odmowy - te są w `validation`).
+    form: {
+      emailDiffersFromAccount:
+        "Ten adres różni się od adresu Twojego konta - zgłoszenie nie trafi do „Moich zgłoszeń”, a płatnej wejściówki na inny adres nie kupisz.",
+    },
     closed: {
       title: "Zapisy są zamknięte",
       event_cancelled: "Wydarzenie zostało odwołane.",
+      event_ended: "Wydarzenie już się odbyło.",
       registration_disabled: "To wydarzenie nie przyjmuje zapisów.",
       registration_external: "Zapis prowadzimy w zewnętrznym narzędziu.",
       registration_not_open: "Zapisy jeszcze się nie otworzyły.",
@@ -100,6 +106,20 @@ export const eventRegistrationPl = {
       manageTokenCopyFailed: "Nie udało się skopiować klucza - przepisz go z ekranu.",
       cancelled: "Rezygnacja przyjęta.",
       promoted: "Z listy oczekujących weszła kolejna osoba ({{count}}).",
+      // EKRAN „SPRAWDŹ SKRZYNKĘ" (REG-04, decyzja D3). To samo zdanie dla
+      // nowego zgłoszenia i dla adresu, który już je ma - inaczej formularz
+      // mówiłby każdemu, czy dany adres jest zapisany. Wynik jest w mailu.
+      checkEmailTitle: "Sprawdź skrzynkę",
+      checkEmail:
+        "Na adres {{email}} wysłaliśmy wiadomość z wynikiem zgłoszenia i dalszymi krokami. Zachowaj ją - jest w niej odnośnik do zarządzania zgłoszeniem.",
+      checkEmailHint:
+        "Wiadomość nie dotarła w ciągu kilku minut? Zajrzyj do folderu spam i sprawdź, czy adres jest poprawny.",
+      checkEmailConsent:
+        "Zaznaczone zgody na informacje i przekazanie danych partnerom zaczną obowiązywać po potwierdzeniu - przycisk potwierdzenia wyślemy osobną wiadomością na ten sam adres.",
+      accountNotLinked:
+        "Zgłoszenie jest zapisane, ale nie jest powiązane z Twoim kontem - nie zobaczysz go w „Moich zgłoszeniach”. Zarządzasz nim odnośnikiem z maila; aby powiązać kolejne zgłoszenia, zapisuj się potwierdzonym adresem e-mail konta.",
+      quoteValidUntil:
+        "Cena z chwili zapisu obowiązuje do {{date}} - po tym terminie kasa policzy cenę aktualną.",
     },
     // DROGA DO KASY. Do migracji `20260830090000` ekran potwierdzenia mówił
     // „nie masz jeszcze wejściówki" i na tym kończył: nie było przycisku,
@@ -130,6 +150,14 @@ export const eventRegistrationPl = {
       sessionLost:
         "Sesja wygasła, a zapis gości wymaga konta. Zaloguj się ponownie albo usuń wpisanych gości i zapisz tylko siebie.",
       removeLostGuests: "Usuń wpisanych gości",
+      // Goście należą do zgłoszenia KONTA prowadzącego - baza dowiązuje je
+      // wyłącznie przez potwierdzony adres konta (REG-01).
+      leadEmailMismatch:
+        "Zapis z gośćmi wymaga adresu e-mail Twojego konta - wpisz go w polu e-mail albo usuń gości.",
+      // Odpowiedź neutralna (`check_email`): zgłoszenia nie da się wskazać,
+      // więc gości nie dopisaliśmy - mówimy to zamiast milczeć.
+      guestsNotAdded:
+        "Gości nie dopisaliśmy - zapis grupowy wymaga konta z potwierdzonym adresem e-mail zgłoszenia. Zapisz każdą z tych osób osobnym zgłoszeniem.",
       // Ekran potwierdzenia: kiedy goście dostaną WŁASNE bilety z kodem QR.
       ticketsAfterApproval:
         "Każdy gość dostanie bilet z kodem QR mailem, gdy zgłoszenie zostanie przyjęte.",
@@ -144,14 +172,19 @@ export const eventRegistrationPl = {
         name: "Podaj imię i nazwisko (do 80 znaków).",
         email: "Podaj poprawny adres e-mail.",
         duplicate: "Ten adres e-mail już jest na liście.",
+        control:
+          "Usuń niewidoczne znaki (np. tabulator albo nową linię) z imienia, nazwiska lub adresu.",
       },
       // Odmowy `event_register_group_guests`. Zgłoszenie kupującego w tym
       // momencie już STOI, więc zdania mówią o gościach, a nie o zapisie.
       errors: {
         accountRequired: "Zaloguj się, aby dopisać gości do swojego zgłoszenia.",
+        rateLimited:
+          "Zbyt wiele prób dopisania gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie za kilka minut.",
         invalidGuests: "Lista gości ma nieprawidłowy format. Sprawdź dane i spróbuj ponownie.",
         notFound:
           "Nie znaleźliśmy Twojego zgłoszenia na tym koncie. Gości dopisuje osoba, która złożyła zgłoszenie, z tego samego konta.",
+        eventEnded: "Wydarzenie już się odbyło - nie można dopisać do niego gości.",
         registrationClosed:
           "Twoje zgłoszenie zostało odwołane lub odrzucone - nie można już dopisać do niego gości.",
         alreadySettled:
@@ -165,8 +198,11 @@ export const eventRegistrationPl = {
         soldOut: "Nie ma już tylu wolnych miejsc na tym bilecie. Usuń część gości.",
         invalidName: "Każdy gość musi mieć imię i nazwisko (do 80 znaków).",
         invalidEmail: "Adres e-mail jednego z gości jest niepoprawny.",
-        alreadyRegistered:
-          "Osoba z adresem {{email}} ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
+        // Duplikat w liście albo adres kupującego - baza odmawia, zanim
+        // spojrzy, kto z gości ma już zapis (R38).
+        duplicateGuest:
+          "Ten sam adres e-mail jest na liście dwa razy albo to Twój adres. Każdy gość potrzebuje własnego adresu.",
+        // Odmowa starej bazy (okno wdrożenia): bez adresu - serwer go nie oddaje.
         alreadyRegisteredUnknown:
           "Jedna z osób ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
         unknown: "Nie udało się dopisać gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie.",
@@ -225,6 +261,9 @@ export const eventRegistrationPl = {
       quoteStaleCode:
         "Kod się zmienił - kliknij „Zastosuj”, żeby przeliczyć kwotę przed płatnością.",
       revealLabel: "Masz kod dostępu?",
+      // Bilety ukryte nie przychodzą z formularzem (REG-05) - pole kodu mówi,
+      // że jest co odsłaniać, nawet gdy lista biletów jest pusta.
+      revealHint: "Część biletów na to wydarzenie jest dostępna tylko z kodem od organizatora.",
       revealApply: "Pokaż bilety",
       revealFound: "Odsłonięto bilety: {{count}}.",
       revealNone: "Ten kod nie odsłania żadnych biletów.",
@@ -287,6 +326,38 @@ export const eventRegistrationPl = {
       qrTitle: "Kod wejścia",
       qrHint: "Zapisz go teraz - pokazujemy go tylko raz.",
       backToEvents: "Przejdź do listy wydarzeń",
+      // Podgląd zaproszenia, pola i regulaminy wydarzenia (REG-15).
+      loading: "Sprawdzamy zaproszenie...",
+      formFailed:
+        "Nie udało się wczytać pytań i regulaminów wydarzenia - bez nich nie możemy przyjąć zgłoszenia. Spróbuj ponownie.",
+      retry: "Spróbuj ponownie",
+      forEvent: "Wydarzenie: {{title}}",
+      addressedTo: "Zaproszenie wysłano na adres {{email}}.",
+      fieldsTitle: "Pytania organizatora",
+      termsTitle: "Regulaminy i zgody",
+      accountMatches:
+        "Jesteś zalogowany na konto z potwierdzonym adresem zaproszenia - zgłoszenie trafi do Twoich „Moich zgłoszeń”.",
+      accountOther:
+        "Zgłoszenie nie trafi do Twojego konta: zaproszenie wysłano na inny adres albo adres konta nie jest potwierdzony. Kod wejścia i link samoobsługi pokażemy po potwierdzeniu udziału.",
+      signInHint:
+        "Masz konto z adresem zaproszenia? Zaloguj się przed potwierdzeniem, a zgłoszenie trafi do Twojego panelu uczestnika.",
+      accountLinked: "Zgłoszenie jest w Twoich „Moich zgłoszeniach”.",
+      accountNotLinked:
+        "Zgłoszenie nie jest przypięte do Twojego konta - zachowaj kod wejścia i link samoobsługi poniżej.",
+      stateTitle: "Tego zaproszenia nie można przyjąć",
+      stateUsed: "To zaproszenie zostało już wykorzystane.",
+      stateExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
+      stateEventEnded: "Wydarzenie już się odbyło - zaproszenia nie można przyjąć.",
+      stateEventCancelled: "Wydarzenie zostało odwołane.",
+      stateOrderCancelled: "Zamówienie pakietu zostało anulowane - miejsce nie jest już dostępne.",
+      stateOrderRefunded: "Zamówienie pakietu zostało zwrócone - miejsce nie jest już dostępne.",
+      stateUnavailable: "Zaproszenie jest teraz niedostępne. Skontaktuj się z organizatorem.",
+      // Odmowy przyjęcia w tonie zaproszenia (reszta spada do `errors`).
+      errors: {
+        eventEnded: "Wydarzenie już się odbyło - zaproszenia nie można przyjąć.",
+        alreadyRegistered:
+          "Osoba z tego zaproszenia ma już aktywne zgłoszenie na to wydarzenie - nie trzeba nic robić.",
+      },
     },
     validation: {
       firstName: "Podaj imię.",
@@ -300,9 +371,139 @@ export const eventRegistrationPl = {
       requiredTerms: "Zaznacz zgody obowiązkowe.",
       dataProcessing: "Bez zgody na przetwarzanie danych nie możemy przyjąć zapisu.",
       number: "Podaj liczbę.",
+      // Sufity z `REGISTRATION_FIELD_LIMITS` - te same, co w bazie.
+      tooLong: "Za długie - najwyżej {{max}} znaków.",
+      // Tabulator, nowa linia i inne znaki sterujące - baza odrzuca je kodem
+      // pola (R38, `_event_text_has_control`).
+      controlChars: "Usuń niewidoczne znaki (np. tabulator albo nową linię).",
+      phoneLength: "Numer telefonu musi mieć od {{min}} do {{max}} znaków.",
+      ticketHiddenOnly:
+        "Bilety na to wydarzenie są dostępne z kodem od organizatora - wpisz go w polu powyżej.",
+    },
+    // POTWIERDZENIE ZGÓD LINKIEM Z MAILA (REG-02 / REG-14, strona
+    // /event-consent/confirm). Otwarcie linku tylko POKAZUJE, czego dotyczy
+    // zgoda - udziela jej dopiero przycisk (skanery poczty otwierają każdy link).
+    consentConfirm: {
+      title: "Potwierdź zgody",
+      subtitle:
+        "Ktoś - najpewniej Ty - zaznaczył te zgody przy zapisie na wydarzenie. Zaczną działać dopiero, gdy potwierdzisz je tutaj.",
+      loading: "Sprawdzamy link…",
+      eventLabel: "Wydarzenie",
+      textsIntro: "Potwierdzasz dokładnie te zgody:",
+      purposes: {
+        marketing: "Informacje o kolejnych wydarzeniach",
+        partnerSharing: "Przekazanie danych partnerom wydarzenia",
+      },
+      expiresAt: "Link jest ważny do {{date}}.",
+      confirm: "Potwierdzam zgody",
+      confirming: "Potwierdzamy…",
+      withdrawHint:
+        "Zgodę możesz wycofać w każdej chwili - na stronie zarządzania zgłoszeniem (link z maila), w ustawieniach konta albo linkiem wypisu w stopce wiadomości.",
+      confirmedTitle: "Zgody potwierdzone",
+      confirmedBody: "Dziękujemy. Zapisaliśmy, kiedy i jakim kanałem je potwierdzono.",
+      alreadyTitle: "Zgody są już potwierdzone",
+      alreadyBody: "Ten link został już użyty - nic więcej nie trzeba robić.",
+      expiredTitle: "Link wygasł",
+      expiredBody:
+        "Link jest ważny 7 dni i przestaje działać, gdy zgody zostaną wycofane albo adres e-mail się zmieni. Zaznacz zgody przy kolejnym zapisie, a wyślemy nowy link.",
+      notFoundTitle: "Nie znaleźliśmy tego linku",
+      notFoundBody:
+        "Sprawdź, czy otwierasz pełny adres z wiadomości - link nie działa po skopiowaniu tylko części.",
+      errorTitle: "Nie udało się sprawdzić linku",
+      errorBody: "Spróbuj ponownie za chwilę.",
+      rateLimited: "Zbyt wiele prób w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
+      retry: "Spróbuj ponownie",
+      backHome: "Wróć na stronę główną",
+    },
+    // WYCOFANIE ZGÓD NA STRONIE SAMOOBSŁUGI (REG-14). Odpowiedź jest zawsze ta
+    // sama - strona nie mówi, czy jakaś zgoda była aktywna.
+    manage: {
+      consents: {
+        title: "Twoje zgody",
+        body: "Możesz w każdej chwili wycofać zgodę na informacje o kolejnych wydarzeniach i na przekazanie danych partnerom. Zgłoszenie zostaje bez zmian.",
+        withdrawMarketing: "Wycofaj informacje o wydarzeniach",
+        withdrawPartner: "Wycofaj przekazanie partnerom",
+        withdrawAll: "Wycofaj obie zgody",
+        confirmTitle: "Wycofać zgodę?",
+        confirmMarketing:
+          "Przestaniemy wysyłać informacje o kolejnych wydarzeniach organizatora. Zgodę możesz później udzielić ponownie przy zapisie.",
+        confirmPartner:
+          "Partnerzy wydarzeń przestaną otrzymywać Twoje dane kontaktowe. Zgodę możesz później udzielić ponownie przy zapisie.",
+        confirmAll:
+          "Wycofasz obie zgody: informacje o wydarzeniach i przekazanie danych partnerom. Zgody możesz później udzielić ponownie przy zapisie.",
+        confirm: "Wycofaj",
+        cancel: "Anuluj",
+        working: "Zapisujemy…",
+        done: "Zapisaliśmy Twoją decyzję. Jeśli zgoda była aktywna, przestała obowiązywać - także w naszym systemie kontaktów.",
+        rateLimited: "Zbyt wiele prób w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
+        failed: "Nie udało się zapisać decyzji. Spróbuj ponownie za chwilę.",
+      },
+    },
+    // SKUTEK FINANSOWY REZYGNACJI (REG-03, decyzja D9). Uczestnik widzi, co
+    // stanie się z wpłatą, ZANIM potwierdzi - a baza przyjmuje rezygnację
+    // opłaconego zgłoszenia dopiero z tym samym skutkiem (`acknowledged_effect`).
+    cancelRefund: {
+      title: "Co stanie się z wpłatą",
+      loading: "Sprawdzamy, co stanie się z wpłatą…",
+      loadError: "Nie udało się sprawdzić, co stanie się z wpłatą.",
+      retry: "Sprawdź ponownie",
+      fullRefund:
+        "Zwrot {{amount}} zlecimy automatycznie - pieniądze wrócą na kartę lub konto, z którego zapłacono, zwykle w ciągu kilku dni roboczych.",
+      fullRefundPlain:
+        "Zwrot wpłaty zlecimy automatycznie - pieniądze wrócą na kartę lub konto, z którego zapłacono.",
+      deadline: "Pełny zwrot przy rezygnacji przysługuje do {{date}}.",
+      noRefundWindow:
+        "Termin samodzielnego zwrotu minął {{date}}. Wpłata nie wróci automatycznie - o ewentualnym zwrocie zdecyduje organizator.",
+      noRefundWindowPlain:
+        "Termin samodzielnego zwrotu minął. Wpłata nie wróci automatycznie - o ewentualnym zwrocie zdecyduje organizator.",
+      noRefundDisabled:
+        "To wydarzenie nie przewiduje samodzielnych zwrotów. Wpłata nie wróci automatycznie - o ewentualnym zwrocie zdecyduje organizator.",
+      reviewShared:
+        "Ta wpłata obejmuje też inne zgłoszenia z Twojej grupy. O zwrocie Twojej części zdecyduje organizator - nie wróci ona automatycznie.",
+      reviewManual:
+        "Wpłata nie przeszła przez operatora płatności. O jej zwrocie zdecyduje organizator.",
+      reviewGeneric: "O zwrocie wpłaty zdecyduje organizator - nie wróci ona automatycznie.",
+      includedTicket:
+        "Bilet pochodzi z Twojego planu członkowskiego - wróci do puli planu, nie ma wpłaty do zwrotu.",
+      groupGuests_one: "Razem z Twoim zgłoszeniem odwołamy {{count}} gościa z grupy.",
+      groupGuests_few: "Razem z Twoim zgłoszeniem odwołamy {{count}} gości z grupy.",
+      groupGuests_many: "Razem z Twoim zgłoszeniem odwołamy {{count}} gości z grupy.",
+      groupGuests_other: "Razem z Twoim zgłoszeniem odwołamy {{count}} gości z grupy.",
+      termsChanged:
+        "Skutek rezygnacji dla wpłaty właśnie się zmienił - sprawdź go i potwierdź jeszcze raz.",
+      refundQueued: "Zwrot {{amount}} został zlecony operatorowi płatności.",
+      refundQueuedPlain: "Zwrot wpłaty został zlecony operatorowi płatności.",
+      reviewQueued: "Organizator dostał prośbę o decyzję w sprawie Twojej wpłaty.",
+      // Gniazdo zasad zwrotu na stronie samoobsługi (`ManageTicketActionsSlot`).
+      policyTitle: "Zasady zwrotu",
+      policyUntil: "Rezygnacja do {{date}} oznacza pełny zwrot wpłaty.",
+      policyWindow: "Rezygnacja w terminie zwrotu oznacza pełny zwrot wpłaty.",
+      policyNone:
+        "Samodzielna rezygnacja nie zwraca już wpłaty automatycznie - o zwrocie decyduje organizator.",
+      // Odmowy znane z góry (podgląd) i odmowy rezygnacji w jej własnym tonie.
+      refusals: {
+        alreadyClosed: "To zgłoszenie jest już zamknięte - nie ma czego odwoływać.",
+        eventFinished: "Obecność jest już zapisana - zgłoszenia nie da się odwołać.",
+        eventEnded:
+          "Wydarzenie już się zakończyło - zgłoszenia nie da się odwołać. W sprawie wpłaty napisz do organizatora.",
+      },
+      errors: {
+        eventEnded:
+          "Wydarzenie już się zakończyło - zgłoszenia nie da się odwołać. W sprawie wpłaty napisz do organizatora.",
+      },
     },
     errors: {
       unknown: "Nie udało się zapisać. Spróbuj ponownie.",
+      // Odmowy zapisu przez serwer (REG-04/05/13, B1a) - każda ma zdanie.
+      invalidPayload: "Zgłoszenie ma nieprawidłowy format. Odśwież stronę i spróbuj ponownie.",
+      invalidPhone: "Numer telefonu ma nieprawidłową długość - popraw go i spróbuj ponownie.",
+      invalidJobTitle: "Stanowisko jest za długie - skróć je i spróbuj ponownie.",
+      invalidCompany: "Nazwa instytucji lub firmy jest za długa - skróć ją i spróbuj ponownie.",
+      eventEnded: "Wydarzenie już się odbyło - zapisy są zamknięte.",
+      soldOut: "Brak wolnych miejsc na ten bilet.",
+      accountEmailRequired:
+        "Płatną wejściówkę kupujesz na potwierdzony adres e-mail swojego konta - wpisz go w formularzu albo najpierw potwierdź adres konta.",
+      consentTextUnknown: "Treść zgód właśnie się zmieniła - odśwież stronę i zapisz się ponownie.",
       notFound: "Nie znaleźliśmy tego wydarzenia.",
       invalidEvent: "Brak danych wydarzenia w zgłoszeniu.",
       invalidRequest: "Brak danych potrzebnych do wykonania operacji.",
@@ -335,10 +536,18 @@ export const eventRegistrationPl = {
       alreadyClosed: "Ten zapis jest już zamknięty.",
       eventFinished: "Wydarzenie się zakończyło - obecność jest już zapisana.",
       forbidden: "Ten zapis należy do innej osoby.",
+      // Rezygnacja opłaconego zgłoszenia (REG-03) i klucz po końcu (REG-17).
+      refundAckRequired:
+        "Przed rezygnacją sprawdź, co stanie się z wpłatą - odśwież stronę i potwierdź jeszcze raz.",
+      refundTermsChanged:
+        "Skutek rezygnacji dla wpłaty właśnie się zmienił - sprawdź go i potwierdź jeszcze raz.",
+      manageExpired:
+        "Ten odnośnik wygasł po zakończeniu wydarzenia. W sprawie zgłoszenia napisz do organizatora.",
       invalidToken: "Zaproszenie jest nieważne lub zostało cofnięte.",
       seatTaken: "To zaproszenie zostało już wykorzystane.",
       invitationExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
       orderCancelled: "Zamówienie pakietu zostało anulowane.",
+      orderRefunded: "Zamówienie pakietu zostało zwrócone - miejsce nie jest już dostępne.",
       // Wyscig przy zakladaniu osoby z zaproszenia (20261013112700): ponowienie
       // trafia juz w istniejaca kartoteke, wiec zdanie mowi „sprobuj ponownie".
       personConflict: "Nie udało się przypisać zaproszenia do Twoich danych. Spróbuj ponownie.",
@@ -535,9 +744,14 @@ export const eventRegistrationEn = {
       external: "Go to registration",
       back: "Back to the event",
     },
+    form: {
+      emailDiffersFromAccount:
+        "This address differs from your account address - the registration will not appear in “My registrations”, and a paid admission cannot be bought for another address.",
+    },
     closed: {
       title: "Registration is closed",
       event_cancelled: "The event has been cancelled.",
+      event_ended: "The event has already taken place.",
       registration_disabled: "This event does not take registrations.",
       registration_external: "Registration runs in an external tool.",
       registration_not_open: "Registration has not opened yet.",
@@ -559,6 +773,17 @@ export const eventRegistrationEn = {
       manageTokenCopyFailed: "Could not copy the key - write it down from the screen.",
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
+      checkEmailTitle: "Check your inbox",
+      checkEmail:
+        "We sent a message to {{email}} with the outcome of your registration and the next steps. Keep it - it contains the link to manage your registration.",
+      checkEmailHint:
+        "No message within a few minutes? Check your spam folder and whether the address is correct.",
+      checkEmailConsent:
+        "The ticked consents to updates and to sharing your data with partners take effect once confirmed - we will send the confirmation button in a separate message to the same address.",
+      accountNotLinked:
+        "Your registration is saved but not linked to your account - you will not see it in “My registrations”. Manage it with the link from the e-mail; to link future registrations, register with your account's confirmed e-mail address.",
+      quoteValidUntil:
+        "The price at registration is valid until {{date}} - after that the checkout charges the current price.",
     },
     // Ticket page with the QR code opened from the email (`/events/<slug>/ticket#t=…`).
     ticketPage: {
@@ -581,6 +806,10 @@ export const eventRegistrationEn = {
       sessionLost:
         "Your session has expired and registering guests requires an account. Sign in again, or remove the entered guests and register only yourself.",
       removeLostGuests: "Remove the entered guests",
+      leadEmailMismatch:
+        "Registering guests requires your account's e-mail address - enter it in the e-mail field or remove the guests.",
+      guestsNotAdded:
+        "Your guests were not added - group registration requires an account with a confirmed registration e-mail address. Register each of them separately.",
       ticketsAfterApproval:
         "Each guest will receive their own QR ticket by e-mail once the registration is accepted.",
       ticketsAfterPayment:
@@ -595,12 +824,17 @@ export const eventRegistrationEn = {
         name: "Enter first and last name (up to 80 characters).",
         email: "Enter a valid email address.",
         duplicate: "This email address is already on the list.",
+        control:
+          "Remove invisible characters (such as a tab or a line break) from the name or the address.",
       },
       errors: {
         accountRequired: "Sign in to add guests to your registration.",
+        rateLimited:
+          "Too many attempts to add guests. Your registration is saved - try again in a few minutes.",
         invalidGuests: "The guest list has an invalid format. Check the details and try again.",
         notFound:
           "We could not find your registration on this account. Guests are added by the person who registered, from the same account.",
+        eventEnded: "The event has already taken place - guests can no longer be added.",
         registrationClosed:
           "Your registration has been cancelled or rejected - guests can no longer be added to it.",
         alreadySettled:
@@ -614,8 +848,8 @@ export const eventRegistrationEn = {
         soldOut: "There are not that many seats left on this ticket. Remove some guests.",
         invalidName: "Every guest needs a first and last name (up to 80 characters).",
         invalidEmail: "The e-mail address of one of the guests is not valid.",
-        alreadyRegistered:
-          "The person with the address {{email}} already has an active registration for this event. Remove them from the guest list.",
+        duplicateGuest:
+          "The same e-mail address is on the list twice, or it is your own address. Each guest needs their own address.",
         alreadyRegisteredUnknown:
           "One of the people already has an active registration for this event. Remove them from the guest list.",
         unknown: "We could not add the guests. Your registration is saved - please try again.",
@@ -659,6 +893,7 @@ export const eventRegistrationEn = {
       quoteStaleCode:
         "The code has changed - click “Apply” to recalculate the amount before paying.",
       revealLabel: "Have an access code?",
+      revealHint: "Some tickets for this event are available only with a code from the organiser.",
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
       revealNone: "This code does not reveal any tickets.",
@@ -716,6 +951,36 @@ export const eventRegistrationEn = {
       qrTitle: "Entry code",
       qrHint: "Save it now - we show it only once.",
       backToEvents: "Go to the event list",
+      loading: "Checking the invitation...",
+      formFailed:
+        "We could not load the event's questions and terms - we cannot accept the registration without them. Please try again.",
+      retry: "Try again",
+      forEvent: "Event: {{title}}",
+      addressedTo: "The invitation was sent to {{email}}.",
+      fieldsTitle: "Questions from the organiser",
+      termsTitle: "Terms and consents",
+      accountMatches:
+        "You are signed in to an account with the confirmed invitation address - the registration will appear under “My registrations”.",
+      accountOther:
+        "The registration will not be linked to your account: the invitation was sent to another address or your account address is not confirmed. We will show the entry code and the self-service link after you confirm attendance.",
+      signInHint:
+        "Do you have an account with the invitation address? Sign in before confirming and the registration will appear in your participant panel.",
+      accountLinked: "The registration is under “My registrations”.",
+      accountNotLinked:
+        "The registration is not linked to your account - keep the entry code and the self-service link below.",
+      stateTitle: "This invitation cannot be accepted",
+      stateUsed: "This invitation has already been used.",
+      stateExpired: "The invitation has expired - ask the organiser for a new one.",
+      stateEventEnded: "The event is over - the invitation can no longer be accepted.",
+      stateEventCancelled: "The event has been cancelled.",
+      stateOrderCancelled: "The package order was cancelled - the seat is no longer available.",
+      stateOrderRefunded: "The package order was refunded - the seat is no longer available.",
+      stateUnavailable: "The invitation is not available right now. Please contact the organiser.",
+      errors: {
+        eventEnded: "The event is over - the invitation can no longer be accepted.",
+        alreadyRegistered:
+          "The invited person already has an active registration for this event - nothing else to do.",
+      },
     },
     validation: {
       firstName: "Enter your first name.",
@@ -729,9 +994,130 @@ export const eventRegistrationEn = {
       requiredTerms: "Tick the required consents.",
       dataProcessing: "Without consent to data processing we cannot accept the registration.",
       number: "Enter a number.",
+      tooLong: "Too long - at most {{max}} characters.",
+      controlChars: "Remove invisible characters (such as a tab or a line break).",
+      phoneLength: "The phone number must have between {{min}} and {{max}} characters.",
+      ticketHiddenOnly:
+        "Tickets for this event are available with a code from the organiser - enter it in the field above.",
+    },
+    // CONFIRMING CONSENTS WITH THE E-MAIL LINK (REG-02 / REG-14).
+    consentConfirm: {
+      title: "Confirm your consents",
+      subtitle:
+        "Someone - most likely you - ticked these consents when registering for an event. They take effect only once you confirm them here.",
+      loading: "Checking the link…",
+      eventLabel: "Event",
+      textsIntro: "You are confirming exactly these consents:",
+      purposes: {
+        marketing: "News about upcoming events",
+        partnerSharing: "Sharing your data with the event partners",
+      },
+      expiresAt: "The link is valid until {{date}}.",
+      confirm: "Confirm consents",
+      confirming: "Confirming…",
+      withdrawHint:
+        "You can withdraw consent at any time - on your registration management page (link in the e-mail), in your account settings or with the unsubscribe link in the e-mail footer.",
+      confirmedTitle: "Consents confirmed",
+      confirmedBody: "Thank you. We recorded when and how they were confirmed.",
+      alreadyTitle: "Consents already confirmed",
+      alreadyBody: "This link has already been used - there is nothing else to do.",
+      expiredTitle: "The link has expired",
+      expiredBody:
+        "The link is valid for 7 days and stops working when the consents are withdrawn or the e-mail address changes. Tick the consents when you next register and we will send a new link.",
+      notFoundTitle: "We could not find this link",
+      notFoundBody:
+        "Make sure you open the full address from the e-mail - the link does not work if only part of it is copied.",
+      errorTitle: "We could not check the link",
+      errorBody: "Please try again in a moment.",
+      rateLimited: "Too many attempts in a short time. Wait a few minutes and try again.",
+      retry: "Try again",
+      backHome: "Back to the home page",
+    },
+    // WITHDRAWING CONSENTS ON THE SELF-SERVICE PAGE (REG-14).
+    manage: {
+      consents: {
+        title: "Your consents",
+        body: "You can withdraw your consent to news about upcoming events and to sharing your data with partners at any time. Your registration stays as it is.",
+        withdrawMarketing: "Withdraw event news",
+        withdrawPartner: "Withdraw partner sharing",
+        withdrawAll: "Withdraw both consents",
+        confirmTitle: "Withdraw consent?",
+        confirmMarketing:
+          "We will stop sending news about the organiser's upcoming events. You can give consent again when you next register.",
+        confirmPartner:
+          "Event partners will no longer receive your contact details. You can give consent again when you next register.",
+        confirmAll:
+          "You will withdraw both consents: event news and sharing your data with partners. You can give consent again when you next register.",
+        confirm: "Withdraw",
+        cancel: "Cancel",
+        working: "Saving…",
+        done: "We have recorded your decision. If the consent was active, it no longer applies - including in our contact system.",
+        rateLimited: "Too many attempts in a short time. Wait a few minutes and try again.",
+        failed: "We could not save your decision. Please try again in a moment.",
+      },
+    },
+    // FINANCIAL EFFECT OF CANCELLING (REG-03, decision D9).
+    cancelRefund: {
+      title: "What happens to your payment",
+      loading: "Checking what happens to your payment…",
+      loadError: "We could not check what happens to your payment.",
+      retry: "Check again",
+      fullRefund:
+        "We will refund {{amount}} automatically - the money returns to the card or account you paid with, usually within a few business days.",
+      fullRefundPlain:
+        "We will refund your payment automatically - the money returns to the card or account you paid with.",
+      deadline: "A full refund on cancellation is available until {{date}}.",
+      noRefundWindow:
+        "The self-service refund deadline passed on {{date}}. The payment will not be returned automatically - the organiser decides on any refund.",
+      noRefundWindowPlain:
+        "The self-service refund deadline has passed. The payment will not be returned automatically - the organiser decides on any refund.",
+      noRefundDisabled:
+        "This event has no self-service refunds. The payment will not be returned automatically - the organiser decides on any refund.",
+      reviewShared:
+        "This payment also covers other registrations in your group. The organiser decides on refunding your share - it is not returned automatically.",
+      reviewManual:
+        "This payment did not go through the payment provider. The organiser decides on refunding it.",
+      reviewGeneric:
+        "The organiser decides on refunding the payment - it is not returned automatically.",
+      includedTicket:
+        "This ticket comes from your membership plan - it returns to the plan pool, there is no payment to refund.",
+      groupGuests_one:
+        "Together with your registration we will cancel {{count}} guest of your group.",
+      groupGuests_other:
+        "Together with your registration we will cancel {{count}} guests of your group.",
+      termsChanged:
+        "The effect of cancelling on your payment has just changed - review it and confirm again.",
+      refundQueued: "A refund of {{amount}} has been sent to the payment provider.",
+      refundQueuedPlain: "Your refund has been sent to the payment provider.",
+      reviewQueued: "The organiser has been asked to decide about your payment.",
+      policyTitle: "Refund policy",
+      policyUntil: "Cancelling until {{date}} means a full refund.",
+      policyWindow: "Cancelling within the refund window means a full refund.",
+      policyNone:
+        "Cancelling yourself no longer returns the payment automatically - the organiser decides on any refund.",
+      refusals: {
+        alreadyClosed: "This registration is already closed - there is nothing to cancel.",
+        eventFinished: "Attendance is already recorded - the registration cannot be cancelled.",
+        eventEnded:
+          "The event has already ended - the registration cannot be cancelled. Please contact the organiser about your payment.",
+      },
+      errors: {
+        eventEnded:
+          "The event has already ended - the registration cannot be cancelled. Please contact the organiser about your payment.",
+      },
     },
     errors: {
       unknown: "Registration failed. Please try again.",
+      invalidPayload: "The request has an invalid format. Refresh the page and try again.",
+      invalidPhone: "The phone number has an invalid length - correct it and try again.",
+      invalidJobTitle: "The job title is too long - shorten it and try again.",
+      invalidCompany: "The institution or company name is too long - shorten it and try again.",
+      eventEnded: "The event has already taken place - registration is closed.",
+      soldOut: "There are no seats left for this ticket.",
+      accountEmailRequired:
+        "A paid admission is bought with your account's confirmed e-mail address - enter it in the form or confirm your account address first.",
+      consentTextUnknown:
+        "The consent wording has just changed - refresh the page and register again.",
       notFound: "We could not find this event.",
       invalidEvent: "The request is missing event data.",
       invalidRequest: "Required operation data is missing.",
@@ -761,10 +1147,17 @@ export const eventRegistrationEn = {
       alreadyClosed: "This registration is already closed.",
       eventFinished: "The event has ended - attendance is already recorded.",
       forbidden: "This registration belongs to somebody else.",
+      refundAckRequired:
+        "Before cancelling, review what happens to your payment - reload the page and confirm again.",
+      refundTermsChanged:
+        "The effect of cancelling on your payment has just changed - review it and confirm again.",
+      manageExpired:
+        "This link expired when the event ended. Please contact the organiser about your registration.",
       invalidToken: "The invitation is invalid or has been revoked.",
       seatTaken: "This invitation has already been used.",
       invitationExpired: "The invitation has expired - ask the organiser for a new one.",
       orderCancelled: "The order behind this seat has been cancelled.",
+      orderRefunded: "The package order was refunded - the seat is no longer available.",
       personConflict: "We could not match the invitation to your details. Please try again.",
     },
   },
