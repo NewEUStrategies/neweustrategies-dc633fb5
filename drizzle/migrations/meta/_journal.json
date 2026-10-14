@@ -1723,6 +1723,13 @@
       "when": 1791983725755,
       "tag": "0245_event_registration_quote_ticket_notify_lang",
       "breakpoints": true
+    },
+    {
+      "idx": 246,
+      "version": "7",
+      "when": 1791984116852,
+      "tag": "0246_event_register_owner_verified_address",
+      "breakpoints": true
     }
   ]
 }
