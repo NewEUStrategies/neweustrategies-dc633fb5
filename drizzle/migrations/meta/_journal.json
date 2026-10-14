@@ -1793,6 +1793,13 @@
       "when": 1791987539156,
       "tag": "0255_event_refund_jobs_shared_order",
       "breakpoints": true
+    },
+    {
+      "idx": 256,
+      "version": "7",
+      "when": 1791987677594,
+      "tag": "0256_event_registration_decide_refund_guards",
+      "breakpoints": true
     }
   ]
 }
