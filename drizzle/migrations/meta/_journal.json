@@ -1989,6 +1989,13 @@
       "when": 1791994675554,
       "tag": "0283_event_registrations_list_partner_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1791995009945,
+      "tag": "0284_event_partner_consent_withdraw",
+      "breakpoints": true
     }
   ]
 }
