@@ -1716,6 +1716,13 @@
       "when": 1791983328471,
       "tag": "0244_event_group_guests_validation_first",
       "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1791983725755,
+      "tag": "0245_event_registration_quote_ticket_notify_lang",
+      "breakpoints": true
     }
   ]
 }
