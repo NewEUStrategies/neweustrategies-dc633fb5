@@ -1730,6 +1730,13 @@
       "when": 1791984116852,
       "tag": "0246_event_register_owner_verified_address",
       "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1791984430708,
+      "tag": "0247_event_package_invite_accept_owner_verified",
+      "breakpoints": true
     }
   ]
 }
