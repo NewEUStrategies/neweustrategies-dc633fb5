@@ -1562,6 +1562,13 @@
       "when": 1791959391073,
       "tag": "0222_event_registration_sms_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 223,
+      "version": "7",
+      "when": 1791959886728,
+      "tag": "0223_event_reminder_channel_gates",
+      "breakpoints": true
     }
   ]
 }
