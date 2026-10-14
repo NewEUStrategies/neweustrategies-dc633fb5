@@ -1779,6 +1779,13 @@
       "when": 1791986804200,
       "tag": "0253_event_cancellation_closes_paid",
       "breakpoints": true
+    },
+    {
+      "idx": 254,
+      "version": "7",
+      "when": 1791987223448,
+      "tag": "0254_event_cancelled_event_no_seats",
+      "breakpoints": true
     }
   ]
 }
