@@ -1646,6 +1646,13 @@
       "when": 1791964096968,
       "tag": "0234_event_group_guests_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 235,
+      "version": "7",
+      "when": 1791977928864,
+      "tag": "0235_event_manage_token_hygiene",
+      "breakpoints": true
     }
   ]
 }
