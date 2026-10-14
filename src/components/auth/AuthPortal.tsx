@@ -16,12 +16,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAuthSettings } from "@/hooks/useAuthSettings";
 import { useTheme } from "@/components/ThemeProvider";
 import { Logo } from "@/components/atoms/Logo";
+import {
+  LangSwitcherDropdown,
+  ThemeToggleWidget,
+} from "@/components/builder/organisms/widget-view/chromeWidgets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, Loader2, Mail, Lock, LogIn } from "@/lib/lucide-shim";
-import { EyeOff, UserPlus, KeyRound, Sun, Moon } from "lucide-react";
+import { EyeOff, UserPlus, KeyRound } from "lucide-react";
 import { FieldBox } from "@/components/ui/field-box";
 import {
   buildSignupMetadata,
@@ -40,7 +44,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
   const navigate = useNavigate();
   const { session, loading } = useAuth();
   const settings = useAuthSettings();
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +64,6 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
     setExtra((prev) => ({ ...prev, [key]: v }));
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
-  const themeLabel = t(theme === "dark" ? "common.preview.lightMode" : "common.preview.darkMode");
 
   useEffect(() => {
     if (loading || !session || mfaPending) return;
@@ -267,34 +270,9 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
 
       {/* Top-right controls: theme + language */}
       <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={themeLabel}
-          title={themeLabel}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border bg-card/80 backdrop-blur text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-        </button>
+        <ThemeToggleWidget />
         {settings.show_language_switcher && (
-          <div className="inline-flex items-center gap-1 rounded-full border border-border bg-card/80 backdrop-blur px-2 py-1 text-xs">
-            <button
-              type="button"
-              onClick={() => i18n.changeLanguage("pl")}
-              aria-pressed={uiLanguage === "pl"}
-              className={`px-2 py-0.5 rounded-full transition ${uiLanguage === "pl" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              PL
-            </button>
-            <button
-              type="button"
-              onClick={() => i18n.changeLanguage("en")}
-              aria-pressed={uiLanguage !== "pl"}
-              className={`px-2 py-0.5 rounded-full transition ${uiLanguage !== "pl" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              EN
-            </button>
-          </div>
+          <LangSwitcherDropdown label={t("mobileDrawer.language")} />
         )}
       </div>
 
@@ -346,7 +324,9 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
               <h2 className="font-display text-3xl xl:text-4xl font-bold leading-tight mb-2 drop-shadow-md">
                 {heroTitle}
               </h2>
-              <p className="text-sm text-auth-image-foreground/90 max-w-xs drop-shadow">{heroSub}</p>
+              <p className="text-sm text-auth-image-foreground/90 max-w-xs drop-shadow">
+                {heroSub}
+              </p>
             </div>
             <div className="p-6 relative z-10 flex items-center justify-between text-[11px] uppercase tracking-wider text-auth-image-foreground/80">
               <span>© {new Date().getFullYear()} New European Strategies</span>

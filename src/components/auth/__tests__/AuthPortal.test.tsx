@@ -255,17 +255,17 @@ describe("AuthPortal - przełącznik języka", () => {
   it("show_language_switcher=false chowa przyciski PL/EN", () => {
     h.settings.show_language_switcher = false;
     renderPortal();
-    expect(screen.queryByRole("button", { name: "PL" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "EN" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("common.lang.pl") })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("common.lang.en") })).not.toBeInTheDocument();
   });
 
   it("show_language_switcher=true: klik EN zmienia język interfejsu, klik PL wraca", async () => {
     h.settings.show_language_switcher = true;
     renderPortal();
-    fireEvent.click(screen.getByRole("button", { name: "EN" }));
+    fireEvent.click(screen.getByRole("button", { name: t("common.lang.en") }));
     await waitFor(() => expect(i18n.language).toBe("en"));
 
-    fireEvent.click(screen.getByRole("button", { name: "PL" }));
+    fireEvent.click(screen.getByRole("button", { name: t("common.lang.pl") }));
     await waitFor(() => expect(i18n.language).toBe("pl"));
   });
 });
