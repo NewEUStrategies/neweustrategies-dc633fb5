@@ -1961,6 +1961,13 @@
       "when": 1791993131124,
       "tag": "0279_billing_probe_status",
       "breakpoints": true
+    },
+    {
+      "idx": 280,
+      "version": "7",
+      "when": 1791994126555,
+      "tag": "0280_event_registration_partner_consent",
+      "breakpoints": true
     }
   ]
 }
