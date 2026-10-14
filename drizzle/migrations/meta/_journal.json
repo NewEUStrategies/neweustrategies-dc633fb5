@@ -1555,6 +1555,13 @@
       "when": 1791959095021,
       "tag": "0221_sms_send_log",
       "breakpoints": true
+    },
+    {
+      "idx": 222,
+      "version": "7",
+      "when": 1791959391073,
+      "tag": "0222_event_registration_sms_consent",
+      "breakpoints": true
     }
   ]
 }

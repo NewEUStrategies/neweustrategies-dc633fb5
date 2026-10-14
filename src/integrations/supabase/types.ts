@@ -30853,6 +30853,10 @@ export type Database = {
         Args: { p_registration_id: string }
         Returns: Json
       }
+      event_registration_preferences: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
       event_registration_redeem_plan_ticket: {
         Args: { p_registration_id: string }
         Returns: Json
