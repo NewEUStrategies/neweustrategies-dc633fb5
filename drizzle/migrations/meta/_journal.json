@@ -1695,6 +1695,13 @@
       "when": 1791982500316,
       "tag": "0241_event_register_control_chars_race",
       "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1791982925100,
+      "tag": "0242_event_register_entry_unique_mapping",
+      "breakpoints": true
     }
   ]
 }
