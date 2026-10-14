@@ -1604,6 +1604,13 @@
       "when": 1791962333137,
       "tag": "0228_event_cfp_resolve_person_verified",
       "breakpoints": true
+    },
+    {
+      "idx": 229,
+      "version": "7",
+      "when": 1791962451255,
+      "tag": "0229_email_unsubscribe_withdraws_event_consent",
+      "breakpoints": true
     }
   ]
 }
