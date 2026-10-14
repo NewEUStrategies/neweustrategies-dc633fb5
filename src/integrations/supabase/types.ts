@@ -24291,6 +24291,10 @@ export type Database = {
         }
         Returns: string
       }
+      _event_person_email_edit_unbind: {
+        Args: { p_old_email_norm: string; p_person: string; p_tenant: string }
+        Returns: boolean
+      }
       _event_plan_seat_link_backfill: { Args: never; Returns: Json }
       _event_plan_seat_needed: {
         Args: {

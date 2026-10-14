@@ -1751,6 +1751,13 @@
       "when": 1791984795933,
       "tag": "0249_event_people_binding_takeover_review",
       "breakpoints": true
+    },
+    {
+      "idx": 250,
+      "version": "7",
+      "when": 1791985136382,
+      "tag": "0250_event_people_admin_email_edit_unbinds",
+      "breakpoints": true
     }
   ]
 }
