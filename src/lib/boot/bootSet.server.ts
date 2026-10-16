@@ -90,7 +90,7 @@ export interface BootMatch {
 
 /** Router w chwili dehydratacji - tylko to, czego potrzebuje wstrzyknięcie. */
 export interface BootRouterLike {
-  readonly serverSsr?: { injectHtml: (html: string) => void; [key: string]: unknown };
+  readonly serverSsr?: { injectHtml?: (html: string) => void; [key: string]: unknown };
   readonly state: { readonly matches: readonly BootMatch[] };
   isShell?: () => boolean;
 }
