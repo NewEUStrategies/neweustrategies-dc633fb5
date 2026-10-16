@@ -16,9 +16,10 @@
 //   5. niesie PRAWDZIWĄ definicję `@/lib/mcp/index` z bramką `auth`,
 //   6. ładuje pakiet i definicję w CZASIE ŻĄDANIA - dowód na źródle, bo atrapa
 //      odpowiada identycznie przy imporcie górnym i dynamicznym. Źródło czyta
-//      parser TypeScriptu: statyczny graf to KAŻDA deklaracja `import`/`export
-//      ... from` (także goły import dla efektu ubocznego), a `import(...)` liczy
-//      się tylko w ciele handlera `ANY`.
+//      parser TypeScriptu (`src/test/routeSourceImports.ts`, wspólny z
+//      `-mcpRouteHandlers.test.ts`): statyczny graf to KAŻDA deklaracja
+//      `import`/`export ... from` (także goły import dla efektu ubocznego),
+//      a `import(...)` liczy się tylko w ciele handlera `ANY`.
 //
 // DLACZEGO PUNKT 3 JEST TU NAJWAŻNIEJSZY. `/.well-known/oauth-protected-resource`
 // ogłasza adres zasobu, a `/mcp` w wyzwaniu 401 (`WWW-Authenticate:
@@ -33,9 +34,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import type { AnyRoute } from "@tanstack/react-router";
-import ts from "typescript";
 
 import { routeServerHandlers, type RouteServerHandler } from "@/test/routeHarness";
+import { zaleznosciTrasy } from "@/test/routeSourceImports";
 
 /** Opcje, z jakimi trasa woła fabrykę - pełny obiekt, żeby nadmiarowe pole też było widoczne. */
 interface StackHandlerOptions {
@@ -253,73 +254,6 @@ describe("źródło tras: adres publiczny i granica ładowania", () => {
       fabryka: "createTanStackOAuthProtectedResourceMetadataHandler",
     },
   ] as const;
-
-  /** Zależności pliku trasy pogrupowane według CHWILI, w której się ładują. */
-  interface ZaleznosciTrasy {
-    /** Statyczny graf modułu - ładuje się razem z drzewem tras SSR. */
-    readonly statyczne: string[];
-    /** `import(...)` wewnątrz handlera `ANY` - ładuje się dopiero w czasie żądania. */
-    readonly wHandlerze: string[];
-    /** `import(...)` poza handlerem (np. `await import` w zasięgu modułu) - też przy imporcie. */
-    readonly pozaHandlerem: string[];
-  }
-
-  /** Nazwa właściwości obiektu albo metody; `undefined` dla nazw liczonych. */
-  function nazwa(name: ts.PropertyName): string | undefined {
-    return ts.isIdentifier(name) || ts.isStringLiteral(name) ? name.text : undefined;
-  }
-
-  /** Czy węzeł leży w ciele handlera `ANY` (`ANY: async () => ...`, `ANY() {...}`). */
-  function wHandlerzeAny(node: ts.Node): boolean {
-    for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
-      if (ts.isMethodDeclaration(n) && nazwa(n.name) === "ANY") return true;
-      if (
-        ts.isFunctionLike(n) &&
-        ts.isPropertyAssignment(n.parent) &&
-        nazwa(n.parent.name) === "ANY"
-      )
-        return true;
-    }
-    return false;
-  }
-
-  // Parser TypeScriptu zamiast wyrażenia regularnego. Regex na `import ... from`
-  // nie widział gołego `import "pakiet";` (import dla efektu ubocznego) ani
-  // `export ... from` - oba wciągają pakiet do grafu SSR tak samo jak import
-  // z nazwami, a test i tak przechodził. AST widzi każdą deklarację wprost.
-  function zaleznosciTrasy(plik: string, source: string): ZaleznosciTrasy {
-    const sf = ts.createSourceFile(plik, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    // Specyfikator niebędący literałem (np. zmienna) zostaje widoczny w porażce.
-    const specyfikator = (node: ts.Node | undefined): string =>
-      node && ts.isStringLiteralLike(node) ? node.text : `<wyrażenie: ${node?.getText(sf)}>`;
-    const statyczne: string[] = [];
-    const wHandlerze: string[] = [];
-    const pozaHandlerem: string[] = [];
-
-    for (const st of sf.statements) {
-      // `import type` / `export type` kompilator wymazuje w całości - do grafu nie trafiają.
-      if (ts.isImportDeclaration(st)) {
-        if (!st.importClause?.isTypeOnly) statyczne.push(specyfikator(st.moduleSpecifier));
-      } else if (ts.isExportDeclaration(st)) {
-        if (st.moduleSpecifier && !st.isTypeOnly) statyczne.push(specyfikator(st.moduleSpecifier));
-      } else if (
-        ts.isImportEqualsDeclaration(st) &&
-        ts.isExternalModuleReference(st.moduleReference)
-      ) {
-        if (!st.isTypeOnly) statyczne.push(specyfikator(st.moduleReference.expression));
-      }
-    }
-
-    const odwiedz = (node: ts.Node): void => {
-      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-        (wHandlerzeAny(node) ? wHandlerze : pozaHandlerem).push(specyfikator(node.arguments[0]));
-      }
-      ts.forEachChild(node, odwiedz);
-    };
-    odwiedz(sf);
-
-    return { statyczne, wHandlerze, pozaHandlerem };
-  }
 
   for (const { plik, sciezka, fabryka } of zrodla) {
     // Adresu nie da się odczytać z obiektu `Route` - `id`/`path` doklepuje
