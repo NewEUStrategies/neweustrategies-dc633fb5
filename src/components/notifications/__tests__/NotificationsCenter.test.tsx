@@ -144,7 +144,7 @@ vi.mock("@/components/notifications/ConsentsPanel", () => ({
   ConsentsPanel: () => <div data-testid="consents-panel">panel zgód</div>,
 }));
 
-import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
+import { fail, ok, okCount, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { realtimeStub, type FakeChannel, type RealtimeStub } from "@/test/supabase/realtime";
 import { axeViolations, summarize } from "@/test/axe";
@@ -270,10 +270,19 @@ function numberArg(args: ReadonlyArray<unknown> | undefined, index: number): num
   return typeof value === "number" ? value : null;
 }
 
+/** Czy łańcuch jest zapytaniem LICZĄCYM (`select(cols, { head: true })`). */
+function isHeadCount(chain: { argsOf: (method: string) => ReadonlyArray<unknown> | undefined }) {
+  const options = chain.argsOf("select")?.[1];
+  return (
+    typeof options === "object" && options !== null && "head" in options && options.head === true
+  );
+}
+
 /**
  * Odpowiedź tabeli `notifications` odtwarzająca zachowanie PostgREST-a
  * w zakresie, którego dotyka warstwa danych: filtr `is("read_at", null)`,
- * `eq("kind", ...)` i stronicowanie przez `range(from, to)`.
+ * `eq("kind", ...)`, stronicowanie przez `range(from, to)` i zapytanie
+ * liczące (`head: true` oddaje sam `count`, bez wierszy).
  *
  * Wierność stronicowania jest tu warunkiem sensu: `getNextPageParam` uznaje
  * stronę za ostatnią po jej DŁUGOŚCI, więc responder oddający zawsze pełną
@@ -291,9 +300,27 @@ function notificationsResponder(chain: {
   const visible = rows.filter(
     (row) => (!onlyUnread || !row.read_at) && (kind === null || row.kind === kind),
   );
+  if (isHeadCount(chain)) return okCount(visible.length);
   const from = numberArg(chain.argsOf("range"), 0) ?? 0;
   const to = numberArg(chain.argsOf("range"), 1) ?? visible.length - 1;
   return ok(visible.slice(from, to + 1));
+}
+
+/**
+ * Zmaterializowany licznik konta (`user_pending_counters`, klucz
+ * `notifications_unread`) liczony z TYCH SAMYCH `rows` co lista - w bazie
+ * utrzymują go triggery na `notifications`, więc atrapa nie może mieć
+ * własnej, rozjeżdżającej się liczby. Inny klucz = brak wiersza, jak
+ * `maybeSingle()` w PostgREST.
+ */
+function unreadCounterResponder(chain: {
+  argsOf: (method: string) => ReadonlyArray<unknown> | undefined;
+}) {
+  const eq = chain.argsOf("eq");
+  if (stringArg(eq, 0) !== "counter_key" || stringArg(eq, 1) !== "notifications_unread") {
+    return ok(null);
+  }
+  return ok({ value: rows.filter((row) => !row.read_at).length });
 }
 
 beforeEach(() => {
@@ -328,6 +355,7 @@ beforeEach(() => {
 
   rows = [];
   db.setResponse("notifications", notificationsResponder);
+  db.setResponse("user_pending_counters", unreadCounterResponder);
   db.setResponse("notification_preferences", () => ok(DEFAULT_NOTIFICATION_PREFERENCES));
   db.setResponse("profiles", () => ok({ tenant_id: TENANT_ID }));
   rpc.setData("my_connections", []);
@@ -356,6 +384,7 @@ async function mountCenter(mode?: "full" | "inbox" | "preferences" | "consents")
 const searchBox = () => screen.getByLabelText(t("notifications.searchPlaceholder"));
 const kindCombobox = () => screen.getByRole("combobox");
 const listRows = () => screen.queryAllByRole("listitem");
+const markAllButton = () => screen.getByRole("button", { name: t("notifications.markAllRead") });
 
 /**
  * Wybór opcji w Radiksowym `Select`. Pod happy-dom warstwa rozwijana otwiera
@@ -1267,6 +1296,119 @@ describe("NotificationsCenter - akcje nagłówka i wiersza", () => {
       expect(update?.argsOf("eq")).toEqual(["user_id", USER_ID]);
       expect(update?.argsOf("is")).toEqual(["read_at", null]);
     });
+  });
+
+  // DOSTĘPNOŚĆ „OZNACZ WSZYSTKIE”. Akcja jest globalna (każdy nieprzeczytany
+  // wiersz konta), więc jej stan ma iść za licznikiem konta, a nie za
+  // wczytanymi stronami po filtrach. Wcześniej przycisk liczył nieprzeczytane
+  // w `filteredItems` i gasł, choć badge pokazywał zaległe.
+
+  it("pierwsza strona przeczytana, nieprzeczytane dopiero dalej - przycisk CZYNNY i wysyła JEDNĄ globalną aktualizację", async () => {
+    // Jedyny nieprzeczytany wiersz leży na DRUGIEJ, niepobranej stronie -
+    // sito po wczytanych wierszach widzi zero, prawdę zna tylko licznik konta.
+    rows = [
+      ...Array.from({ length: NOTIFICATIONS_PAGE_SIZE }, (_unused, index) =>
+        notif({
+          id: `n-read-${index}`,
+          title_pl: `Przeczytane ${index}`,
+          read_at: "2026-08-20T12:00:00.000Z",
+        }),
+      ),
+      notif({
+        id: "n-old-unread",
+        title_pl: "Starsze nieprzeczytane",
+        created_at: "2026-08-01T10:00:00.000Z",
+      }),
+    ];
+    await mountCenter();
+    await screen.findByText("Przeczytane 0");
+    expect(screen.queryByText("Starsze nieprzeczytane")).toBeNull();
+    expect(screen.queryByRole("button", { name: t("notifications.markRead") })).toBeNull();
+
+    await waitFor(() => expect(markAllButton()).toBeEnabled());
+    fireEvent.click(markAllButton());
+
+    await waitFor(() =>
+      expect(db.chainsFor("notifications").filter((chain) => chain.has("update"))).toHaveLength(1),
+    );
+    const update = db.chainsFor("notifications").find((chain) => chain.has("update"));
+    // Kształt łańcucha przypina zakres: bez `eq("kind")`, `in("id")` ani
+    // `range` - wszystkie nieprzeczytane użytkownika, nie tylko pobrane.
+    expect(update?.calls.map((call) => call.method)).toEqual(["update", "eq", "is"]);
+    expect(update?.argsOf("eq")).toEqual(["user_id", USER_ID]);
+    expect(update?.argsOf("is")).toEqual(["read_at", null]);
+  });
+
+  it("fraza chowająca WSZYSTKIE nieprzeczytane nie gasi przycisku - akcja zostaje globalna", async () => {
+    rows = [KOMENTARZ, DOSSIER];
+    await mountCenter();
+    await screen.findByText(DOSSIER.title_pl);
+
+    fireEvent.change(searchBox(), { target: { value: "pakiet-energetyczny" } });
+    expect(listRows()).toHaveLength(1);
+    expect(screen.queryByText(KOMENTARZ.title_pl)).toBeNull();
+
+    // Decyzja, nie przeoczenie: zawężony widok NIE zawęża akcji (fraza filtruje
+    // tylko wczytane strony), więc klik oznacza też ukryty KOMENTARZ.
+    await waitFor(() => expect(markAllButton()).toBeEnabled());
+    fireEvent.click(markAllButton());
+
+    await waitFor(() => {
+      const update = db.chainsFor("notifications").find((chain) => chain.has("update"));
+      expect(update?.calls.map((call) => call.method)).toEqual(["update", "eq", "is"]);
+    });
+  });
+
+  it("filtr rodzaju bez nieprzeczytanych nie gasi przycisku, gdy konto ma inne zaległe", async () => {
+    rows = [KOMENTARZ, DOSSIER];
+    await mountCenter();
+    await screen.findByText(DOSSIER.title_pl);
+
+    chooseKind(t("notifications.settings.kinds.tracker"));
+    await waitFor(() => expect(screen.queryByText(KOMENTARZ.title_pl)).toBeNull());
+
+    // Lista rodzaju `tracker` ma wyłącznie przeczytany DOSSIER - o zaległym
+    // KOMENTARZU wie tylko licznik konta.
+    await waitFor(() => expect(markAllButton()).toBeEnabled());
+  });
+
+  it("licznik konta 0 i brak nieprzeczytanych na liście - przycisk ZABLOKOWANY", async () => {
+    rows = [DOSSIER];
+    await mountCenter();
+    await screen.findByText(DOSSIER.title_pl);
+    await waitFor(() => expect(db.chainsFor("user_pending_counters").length).toBeGreaterThan(0));
+    await act(async () => {});
+
+    expect(markAllButton()).toBeDisabled();
+  });
+
+  it("nieświeży licznik (0) nie gasi przycisku, gdy na liście widać nieprzeczytany wiersz", async () => {
+    // Licznik może się spóźniać (optymistyczne „nieprzeczytane” łata tylko
+    // listy) albo zdryfować - wczytany nieprzeczytany wiersz to drugi świadek.
+    db.setResponse("user_pending_counters", () => ok({ value: 0 }));
+    rows = [KOMENTARZ];
+    await mountCenter();
+    await screen.findByText(KOMENTARZ.title_pl);
+    await waitFor(() => expect(db.chainsFor("user_pending_counters").length).toBeGreaterThan(0));
+    await act(async () => {});
+
+    expect(markAllButton()).toBeEnabled();
+  });
+
+  it("bez wiersza licznika stan przycisku idzie z fallbacku COUNT(*) na `notifications`", async () => {
+    db.setResponse("user_pending_counters", ok(null));
+    rows = [KOMENTARZ, DOSSIER];
+    await mountCenter();
+    await screen.findByText(DOSSIER.title_pl);
+
+    // Filtr rodzaju zostawia na liście tylko przeczytany wiersz, więc o stanie
+    // przycisku może przesądzić wyłącznie zapytanie liczące.
+    chooseKind(t("notifications.settings.kinds.tracker"));
+    await waitFor(() => expect(screen.queryByText(KOMENTARZ.title_pl)).toBeNull());
+
+    await waitFor(() => expect(markAllButton()).toBeEnabled());
+    const count = db.chainsFor("notifications").find(isHeadCount);
+    expect(count?.argsOf("is")).toEqual(["read_at", null]);
   });
 
   it("„oznacz jako nieprzeczytane” na pojedynczym wierszu przestawia go OPTYMISTYCZNIE", async () => {
