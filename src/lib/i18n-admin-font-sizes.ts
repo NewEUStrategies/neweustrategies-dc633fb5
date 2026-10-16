@@ -19,6 +19,9 @@ const pl = {
     reset: "Przywróć domyślne",
     resetRow: "Domyślny",
     loading: "Ładowanie…",
+    loadError:
+      "Nie udało się wczytać rozmiarów czcionek - zapis jest wstrzymany, żeby nie skasować nadpisań.",
+    retry: "Spróbuj ponownie",
     previewText: "Przykładowy tekst",
     range: "Zakres {{min}}–{{max}} px",
     tokens: {
@@ -62,6 +65,8 @@ const en = {
     reset: "Restore defaults",
     resetRow: "Default",
     loading: "Loading…",
+    loadError: "Could not load font sizes - saving is paused so existing overrides are not erased.",
+    retry: "Try again",
     previewText: "Sample text",
     range: "Range {{min}}–{{max}} px",
     tokens: {

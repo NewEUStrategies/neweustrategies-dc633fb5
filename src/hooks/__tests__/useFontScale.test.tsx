@@ -8,7 +8,11 @@
 //   * zapis PRZYCINA wartość do znanych tokenów i ich zakresów ZANIM pójdzie
 //     do bazy - śmieć z formularza nie dociera do CSS ani do `jsonb`;
 //   * zapis jest per najemca (`onConflict: tenant_id`), a po sukcesie cache
-//     dostaje wartość PRZYCIĘTĄ, więc podgląd od razu pokazuje to, co w bazie.
+//     dostaje wartość PRZYCIĘTĄ, więc podgląd od razu pokazuje to, co w bazie;
+//   * odczyt EDYTORA (`useAdminFontScale`) NIE degraduje: awaria bazy jest
+//     błędem, a pusta tabela znaczy wyłącznie „brak wiersza". Zapis wysyła
+//     `font_scale` w całości, więc edytor zbudowany na zdegradowanej pustej
+//     tabeli kasowałby nadpisania najemcy.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, waitFor } from "@testing-library/react";
 import type { SupabaseFromStub } from "@/test/supabaseChain";
@@ -37,8 +41,10 @@ vi.mock("@/lib/notify", () => ({
 import { fail, ok } from "@/test/supabaseChain";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 import {
+  adminFontScaleQueryOptions,
   fontScaleQueryOptions,
   fontScaleToCss,
+  useAdminFontScale,
   useFontScale,
   useSaveFontScale,
 } from "../useFontScale";
@@ -76,6 +82,39 @@ describe("useFontScale - odczyt", () => {
   });
 });
 
+describe("useAdminFontScale - odczyt edytora", () => {
+  it("klucz pod prefiksem odczytu prezentacyjnego i zawsze nieświeży", () => {
+    expect(adminFontScaleQueryOptions.queryKey).toEqual(["site_font_scale", "admin"]);
+    expect(adminFontScaleQueryOptions.staleTime).toBe(0);
+  });
+
+  it("czyta wyłącznie `font_scale` i przycina go jak odczyt prezentacyjny", async () => {
+    db().setResponse("site_design_tokens", ok({ font_scale: { label: 40, input: "14", obcy: 1 } }));
+    const { result } = renderHookWithQueryClient(() => useAdminFontScale());
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ label: 18, input: 14 });
+    expect(db().lastChain("site_design_tokens")?.argsOf("select")).toEqual(["font_scale"]);
+  });
+
+  it("brak wiersza to pusta tabela - pierwszy zapis najemcy", async () => {
+    db().setResponse("site_design_tokens", ok(null));
+    const { result } = renderHookWithQueryClient(() => useAdminFontScale());
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({});
+  });
+
+  it("awaria bazy jest BŁĘDEM, a nie pustą tabelą (w odróżnieniu od odczytu prezentacyjnego)", async () => {
+    db().setResponse("site_design_tokens", fail("JWT expired"));
+    const { result } = renderHookWithQueryClient(() => useAdminFontScale());
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error?.message).toBe("JWT expired");
+  });
+});
+
 describe("useSaveFontScale - zapis", () => {
   it("wysyła wartość PRZYCIĘTĄ, per najemca, i wkłada ją do cache", async () => {
     db().setResponse("site_design_tokens", ok(null));
@@ -91,6 +130,11 @@ describe("useSaveFontScale - zapis", () => {
       { onConflict: "tenant_id" },
     ]);
     expect(queryClient.getQueryData(["site_font_scale"])).toEqual({ label: 9, input: 15 });
+    // Odczyt edytora dostaje to samo - powrót na ekran nie pokaże stanu sprzed zapisu.
+    expect(queryClient.getQueryData(adminFontScaleQueryOptions.queryKey)).toEqual({
+      label: 9,
+      input: 15,
+    });
     expect(h.notifySuccess).toHaveBeenCalledTimes(1);
     expect(h.notifyError).not.toHaveBeenCalled();
   });
