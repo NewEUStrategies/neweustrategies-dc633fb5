@@ -403,7 +403,7 @@ function ConsentFlagSvg({ code }: { code: "pl" | "gb" }) {
   if (code === "pl") {
     return (
       <svg viewBox="0 0 30 20" aria-hidden="true">
-        <rect width="30" height="10" fill="#ffffff" />
+        <rect width="30" height="10" fill="#fff" />
         <rect y="10" width="30" height="10" fill="#dc143c" />
       </svg>
     );
@@ -411,7 +411,7 @@ function ConsentFlagSvg({ code }: { code: "pl" | "gb" }) {
   return (
     <svg viewBox="0 0 60 40" aria-hidden="true">
       <rect width="60" height="40" fill="#012169" />
-      <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#ffffff" strokeWidth="9" />
+      <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#fff" strokeWidth="9" />
       <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#C8102E" strokeWidth="5" />
     </svg>
   );
@@ -444,7 +444,6 @@ export function ConsentLangSwitcher({
       data-consent-action={action}
       onClick={onSelect ? () => onSelect(target) : undefined}
       aria-label="PL / EN"
-      title={target.toUpperCase()}
       className="lang-switch lang-switch--card"
     >
       <span className="lang-switch__window">
