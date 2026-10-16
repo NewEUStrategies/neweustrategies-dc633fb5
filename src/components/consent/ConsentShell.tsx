@@ -422,7 +422,8 @@ function ConsentFlagSvg({ code }: { code: "pl" | "gb" }) {
 /**
  * Przełącznik PL/EN w formie „taśmy" z headera (`LangReelSwitcher`): spoczynek
  * pokazuje język bieżący, a hover / focus / tap odsłania cel przesunięciem
- * pionowego toru (wspólne klasy `.lang-switch__*` ze `styles.css`). Jedno
+ * pionowego toru (klasy `.lang-switch__*` + wariant `--card` ze `styles.css` -
+ * krótkie klasy, bo powłoka wysyła ten markup w HTML-u każdej strony). Jedno
  * kliknięcie przełącza NA CEL. W powłoce bez `onSelect` - kliknięcie jest
  * intencją (`lang-pl`/`lang-en`), którą baner odtwarza po montażu; atrybut
  * akcji zostaje także w banerze, bo służy przeniesieniu fokusu z kontrolki
@@ -446,22 +447,16 @@ export function ConsentLangSwitcher({
       onClick={onSelect ? () => onSelect(target) : undefined}
       aria-label="PL / EN"
       title={target.toUpperCase()}
-      className={cn(
-        "lang-switch shrink-0 rounded-[6px] bg-[#f4f4f2] p-[2px] dark:bg-[#27272a]",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)]",
-      )}
+      className="lang-switch lang-switch--card"
     >
-      <span className="lang-switch__window block w-14 rounded-[4px]">
+      <span className="lang-switch__window">
         <span className="lang-switch__track">
           {[lang, target].map((l, i) => (
-            <span
-              key={`${l}-${i}`}
-              className="lang-switch__item inline-flex items-center justify-center gap-1.5 text-[11px] font-medium leading-none text-[#111] dark:text-[#f4f4f2]"
-            >
-              <span className="block h-3 w-[18px] overflow-hidden rounded-[2px] border border-black/10 dark:border-white/15">
+            <span key={`${l}-${i}`} className="lang-switch__item">
+              <span className="lang-switch__flag">
                 <ConsentFlagSvg code={flag[l]} />
               </span>
-              <span className="uppercase">{l}</span>
+              <span>{l}</span>
             </span>
           ))}
         </span>

@@ -6928,6 +6928,57 @@ html {
   }
 }
 
+/* Wariant banera zgód: taśma języka w kompaktowej karcie consent - ten sam
+   wygląd co w headerze, ale geometrię niesie KRÓTKA klasa zamiast łańcuchów
+   utility, bo powłoka SSR wysyła ten markup w HTML-u każdej strony
+   (budżet bajtów powłoki, P1.4). */
+.lang-switch--card {
+  flex: none;
+  border-radius: 6px;
+  padding: 2px;
+  background: #f4f4f2;
+}
+.dark .lang-switch--card {
+  background: #27272a;
+}
+.lang-switch--card:focus-visible {
+  outline: 2px solid var(--brand, #2563eb);
+  outline-offset: 2px;
+}
+.lang-switch--card .lang-switch__window {
+  display: block;
+  width: 3.5rem;
+  border-radius: 4px;
+}
+.lang-switch--card .lang-switch__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: #111;
+}
+.dark .lang-switch--card .lang-switch__item {
+  color: #f4f4f2;
+}
+.lang-switch--card .lang-switch__item > span:last-child {
+  text-transform: uppercase;
+}
+.lang-switch--card .lang-switch__flag {
+  display: block;
+  height: 12px;
+  width: 18px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+.dark .lang-switch--card .lang-switch__flag {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Delikatne pionowe kreski między kolumnami sekcji buildera.
    Wysokość ~65% kolumny, wyśrodkowane w pustej przestrzeni (gap).
