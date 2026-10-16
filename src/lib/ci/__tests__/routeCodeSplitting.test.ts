@@ -18,10 +18,17 @@ import { routeSplitBehavior } from "../../../../scripts/lib/routeCodeSplitting";
 const SPLIT_ALL = [["loader"], ["component"], ["errorComponent"], ["notFoundComponent"]];
 
 describe("routeSplitBehavior - zamknięta lista gorących ścieżek", () => {
-  it.each(["__root__", "/", "/$", "/en", "/en/", "/en/$"])(
-    "%s zostaje w całości w chunku wejściowym",
+  it("`__root__` zostaje przy `undefined` - wtyczka korzenia nie dzieli", () => {
+    expect(routeSplitBehavior({ routeId: "__root__" })).toBeUndefined();
+  });
+
+  it.each(["/", "/$", "/en", "/en/", "/en/$"])(
+    "%s: komponent, błąd i 404 w JEDNYM chunku podziału (jeden plik w serii bootu)",
     (routeId) => {
-      expect(routeSplitBehavior({ routeId })).toBeUndefined();
+      // Nie `undefined`: wtyczka zamieniłaby je na domyślny podział na trzy chunki.
+      expect(routeSplitBehavior({ routeId })).toEqual([
+        ["component", "errorComponent", "notFoundComponent"],
+      ]);
     },
   );
 
