@@ -186,6 +186,6 @@ describe("bramki chunków wobec wyjścia Oxc - korzeń bootu w artefakcie serwer
       { path: "_ssr/stripe.server-AAA.mjs", source: lazy },
       { path: "_ssr/router-BBB.mjs", source: eager },
     ];
-    expect(staticImportersOfChunk(chunks, "stripe.mjs")).toEqual(["_ssr/router-BBB.mjs"]);
+    expect(staticImportersOfChunk(chunks, "_libs/stripe.mjs")).toEqual(["_ssr/router-BBB.mjs"]);
   });
 });

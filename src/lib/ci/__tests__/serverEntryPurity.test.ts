@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeServerEntryPurity,
   renderServerEntryPurityReport,
+  resolveChunkPath,
   serverEntryPurityFailed,
+  startupChunks,
   staticImportersOfChunk,
   valueImportersOfPackage,
   FROZEN_STATIC_IMPORTERS,
@@ -60,8 +62,66 @@ function analiza(chunks: ServerChunk[], sources: SourceFile[] = ZRODLA) {
 
 describe("serverEntryPurity - ciężka paczka server-only tylko przez import()", () => {
   it("nie liczy `import(` jako krawędzi inicjalizacyjnej", () => {
-    expect(staticImportersOfChunk(CZYSTE, "stripe.mjs")).toEqual([]);
-    expect(staticImportersOfChunk(BRUDNE, "stripe.mjs")).toEqual(["_ssr/stripe.server-AAA.mjs"]);
+    expect(staticImportersOfChunk(CZYSTE, "_libs/stripe.mjs")).toEqual([]);
+    expect(staticImportersOfChunk(BRUDNE, "_libs/stripe.mjs")).toEqual([
+      "_ssr/stripe.server-AAA.mjs",
+    ]);
+  });
+
+  it("krawędź po ŚCIEŻCE: moduł aplikacji `_chunks/stripe.mjs` to nie SDK", () => {
+    // Nitro na Rolldownie: moduł aplikacji `lib/.../stripe.ts` dostaje `_chunks/stripe.mjs`,
+    // a jego importery w `_chunks/` piszą `from"./stripe.mjs"` - ta sama nazwa pliku co SDK.
+    const chunks: ServerChunk[] = [
+      ...CZYSTE,
+      { path: "_chunks/stripe.mjs", source: "const k=`pk`;export{k};" },
+      { path: "_chunks/router.mjs", source: 'import{k}from"./stripe.mjs";export{k};' },
+    ];
+    expect(resolveChunkPath("_chunks/router.mjs", "./stripe.mjs")).toBe("_chunks/stripe.mjs");
+    expect(resolveChunkPath("_ssr/a.mjs", "../_libs/stripe.mjs")).toBe("_libs/stripe.mjs");
+    expect(staticImportersOfChunk(chunks, "_libs/stripe.mjs")).toEqual([]);
+    expect(serverEntryPurityFailed(analiza(chunks))).toBe(false);
+  });
+
+  it("fasada `import()` (Nitro na Rolldownie) nie jest krawędzią startową", () => {
+    // `_libs/_13.mjs` reeksportuje SDK i jest ładowana WYŁĄCZNIE przez `import()` (backticki Oxc).
+    const facade: ServerChunk = {
+      path: "_libs/_13.mjs",
+      source: 'export{Stripe,s as default}from"./stripe.mjs";',
+    };
+    const lazy: ServerChunk[] = [
+      CZYSTE[0],
+      facade,
+      {
+        path: "_ssr/stripe.server-AAA.mjs",
+        source: "async function c(){return(await import(`../_libs/_13.mjs`)).default}export{c};",
+      },
+      CZYSTE[2],
+    ];
+    expect(staticImportersOfChunk(lazy, "_libs/stripe.mjs")).toEqual(["_libs/_13.mjs"]);
+    expect(startupChunks(lazy).has("_libs/_13.mjs")).toBe(false);
+    expect(serverEntryPurityFailed(analiza(lazy))).toBe(false);
+
+    // Ta sama fasada zaimportowana statycznie przez chunk startowy - SDK znów przy starcie.
+    const eager: ServerChunk[] = [
+      ...lazy.slice(0, 3),
+      { path: "_ssr/router-BBB.mjs", source: 'import"../_libs/_13.mjs";export{};' },
+    ];
+    const report = analiza(eager);
+    expect(serverEntryPurityFailed(report)).toBe(true);
+    expect(report.lazyOnly[0].importers).toEqual(["_libs/_13.mjs"]);
+  });
+
+  it("korzenie to pliki bez importerów; start = ich domknięcie statyczne", () => {
+    expect([...startupChunks(BRUDNE)].sort()).toEqual([
+      "_libs/stripe.mjs",
+      "_ssr/router-BBB.mjs",
+      "_ssr/stripe.server-AAA.mjs",
+    ]);
+    // `import()` zdejmuje plik z korzeni, a krawędź dynamiczna nie wciąga go do startu.
+    expect([...startupChunks(CZYSTE)].sort()).toEqual([
+      "_ssr/router-BBB.mjs",
+      "_ssr/stripe.server-AAA.mjs",
+    ]);
   });
 
   it("przechodzi na artefakcie z wyłącznie dynamiczną krawędzią", () => {

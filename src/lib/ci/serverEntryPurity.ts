@@ -11,12 +11,23 @@
 // `workerd` to czas ewaluacji płacony przez anonimowego czytelnika artykułu,
 // który nigdy nie zobaczy checkoutu (audyt CWV F04, §8.1, 2026-09-20).
 //
-// ── DLACZEGO „ZERO STATYCZNYCH IMPORTERÓW", A NIE „POZA CHUNKIEM STARTOWYM" ─
+// ── DLACZEGO „ZERO STATYCZNYCH IMPORTERÓW ŁADOWANYCH PRZY STARCIE", A NIE
+//    „POZA CHUNKIEM STARTOWYM" ─────────────────────────────────────────────
 // Nazwa chunku startowego serwera zależy od presetu Nitro i od hashy, więc
 // reguła po nazwie rozjeżdża się przy każdej zmianie adaptera i robi się CICHO
-// zielona. Niezmiennik „paczka X nie ma w artefakcie ANI JEDNEJ krawędzi
-// statycznej" jest mocniejszy (implikuje nieobecność w każdym domknięciu
-// startowym) i nie wymaga zgadywania, który plik jest korzeniem.
+// zielona. Korzeń wyznacza tu sam graf: plik, którego NIKT nie importuje (ani
+// statycznie, ani `import()`) - wejście Workera, wejście SSR, plik osierocony
+// (ten ostatni liczony na wyrost, w stronę czerwieni). Ładowany przy starcie
+// jest każdy plik statycznie osiągalny z korzenia; paczka X nie może mieć ANI
+// JEDNEGO statycznego importera z tego zbioru.
+//
+// Dlaczego nie „zero statycznych importerów w ogóle" (reguła do 2026-10-16):
+// Nitro na Rolldownie wystawia `import("stripe")` przez FASADĘ - plik
+// `_libs/_13.mjs` z samym `export{...}from"./stripe.mjs"`, ładowany wyłącznie
+// przez `import()` z `stripe.server`. Krawędź fasady jest statyczna, ale nie
+// startowa. Krawędzie liczymy też po ŚCIEŻCE, nie po nazwie pliku: ten sam
+// artefakt ma moduł aplikacji `_chunks/stripe.mjs` (1 KB), którego importery
+// (`from"./stripe.mjs"` w `_chunks/`) bramka po nazwie brała za importery SDK.
 //
 // ── DRUGA KLASA REGUŁ: DŁUG, KTÓREGO NIE DA SIĘ DZIŚ SPŁACIĆ ────────────────
 // `node-html-parser` trzymają na ścieżce żądania DWA synchroniczne API, których
@@ -47,7 +58,10 @@ export interface SourceFile {
 /** Paczka, która ma być w artefakcie serwera osiągalna wyłącznie przez `import()`. */
 export interface LazyOnlyPackage {
   readonly label: string;
-  /** Nazwa pliku chunku vendorowego w artefakcie, np. `stripe.mjs`. */
+  /**
+   * Ścieżka chunku vendorowego względem katalogu artefaktu, np. `_libs/stripe.mjs` - ścieżka,
+   * nie sama nazwa pliku (kolizja z modułem aplikacji `_chunks/stripe.mjs`, nagłówek pliku).
+   */
   readonly chunk: string;
   readonly remedy: string;
 }
@@ -74,35 +88,70 @@ export interface FrozenStaticImporters {
 const CHUNK_EDGE_RE =
   /(import\s*\(?\s*|from\s*|export\s*\*\s*from\s*)["'](\.{1,2}\/[^"']+\.mjs)["']/g;
 
-/** Ostatni segment ścieżki - chunki vendorowe rozpoznajemy po nazwie pliku. */
-function basename(path: string): string {
-  const i = path.lastIndexOf("/");
-  return i === -1 ? path : path.slice(i + 1);
+/** Dynamiczny `import()` - w cudzysłowie albo (po Oxc) w backtickach. */
+const DYNAMIC_EDGE_RE = /import\s*\(\s*["'`](\.{1,2}\/[^"'`]+\.mjs)["'`]\s*\)/g;
+
+/** Specyfikator względny rozwiązany od pliku importującego (ścieżki z `/`, bez `..` na brzegu). */
+export function resolveChunkPath(importer: string, specifier: string): string {
+  const parts = importer.split("/").slice(0, -1);
+  for (const segment of specifier.split("/")) {
+    if (segment === "..") parts.pop();
+    else if (segment !== ".") parts.push(segment);
+  }
+  return parts.join("/");
 }
 
-/** Chunki, które importują `chunkName` STATYCZNIE (bez samego siebie). */
+/** Cele krawędzi statycznych pliku (`import`, `export ... from`), już jako ścieżki. */
+function staticTargets(chunk: ServerChunk): string[] {
+  const out: string[] = [];
+  for (const match of chunk.source.matchAll(CHUNK_EDGE_RE)) {
+    if (match[1].trimEnd().endsWith("(")) continue;
+    out.push(resolveChunkPath(chunk.path, match[2]));
+  }
+  return out;
+}
+
+/** Chunki, które importują `chunkPath` STATYCZNIE (bez samego siebie). */
 export function staticImportersOfChunk(
   chunks: readonly ServerChunk[],
-  chunkName: string,
+  chunkPath: string,
 ): string[] {
-  const out: string[] = [];
+  return chunks
+    .filter((chunk) => chunk.path !== chunkPath && staticTargets(chunk).includes(chunkPath))
+    .map((chunk) => chunk.path)
+    .sort();
+}
+
+/**
+ * Pliki ładowane przy starcie: statycznie osiągalne z korzeni, czyli plików, których nikt
+ * nie importuje ani statycznie, ani przez `import()` (nagłówek pliku).
+ */
+export function startupChunks(chunks: readonly ServerChunk[]): Set<string> {
+  const known = new Set(chunks.map((chunk) => chunk.path));
+  const imported = new Set<string>();
+  const edges = new Map<string, string[]>();
   for (const chunk of chunks) {
-    if (basename(chunk.path) === chunkName) continue;
-    CHUNK_EDGE_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = CHUNK_EDGE_RE.exec(chunk.source)) !== null) {
-      if (match[1].trimEnd().endsWith("(")) continue;
-      if (basename(match[2]) !== chunkName) continue;
-      out.push(chunk.path);
-      break;
+    const targets = staticTargets(chunk).filter((target) => known.has(target));
+    edges.set(chunk.path, targets);
+    for (const target of targets) imported.add(target);
+    for (const match of chunk.source.matchAll(DYNAMIC_EDGE_RE)) {
+      imported.add(resolveChunkPath(chunk.path, match[1]));
     }
   }
-  return out.sort();
+  const out = new Set<string>();
+  const stack = chunks.map((chunk) => chunk.path).filter((path) => !imported.has(path));
+  while (stack.length > 0) {
+    const path = stack.pop()!;
+    if (out.has(path)) continue;
+    out.add(path);
+    stack.push(...(edges.get(path) ?? []));
+  }
+  return out;
 }
 
 /** Czy chunk paczki w ogóle jest w artefakcie (inaczej reguła nic nie mierzy). */
-export function hasChunk(chunks: readonly ServerChunk[], chunkName: string): boolean {
-  return chunks.some((chunk) => basename(chunk.path) === chunkName);
+export function hasChunk(chunks: readonly ServerChunk[], chunkPath: string): boolean {
+  return chunks.some((chunk) => chunk.path === chunkPath);
 }
 
 /**
@@ -161,13 +210,16 @@ export function analyzeServerEntryPurity(input: {
 }): ServerEntryPurityReport {
   const missingChunks: LazyOnlyPackage[] = [];
   const lazyOnly: LazyOnlyViolation[] = [];
+  const startup = startupChunks(input.chunks);
 
   for (const pkg of input.lazyOnlyPackages) {
     if (!hasChunk(input.chunks, pkg.chunk)) {
       missingChunks.push(pkg);
       continue;
     }
-    const importers = staticImportersOfChunk(input.chunks, pkg.chunk);
+    const importers = staticImportersOfChunk(input.chunks, pkg.chunk).filter((path) =>
+      startup.has(path),
+    );
     if (importers.length > 0) lazyOnly.push({ pkg, importers });
   }
 
@@ -213,7 +265,7 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
 
   for (const violation of report.lazyOnly) {
     lines.push(
-      `✗ [server-entry-purity] ${violation.pkg.label} ma ${violation.importers.length} statycznych importerów w artefakcie serwera:`,
+      `✗ [server-entry-purity] ${violation.pkg.label} ma ${violation.importers.length} statycznych importerów ładowanych przy starcie artefaktu serwera:`,
       ...violation.importers.slice(0, 10).map((path) => `    ${path}`),
       ...(violation.importers.length > 10
         ? [`    … i ${violation.importers.length - 10} więcej`]
@@ -268,7 +320,7 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
 export const LAZY_ONLY_PACKAGES: readonly LazyOnlyPackage[] = [
   {
     label: "stripe (SDK operatora płatności, 198 kB chunku serwera)",
-    chunk: "stripe.mjs",
+    chunk: "_libs/stripe.mjs",
     remedy:
       'SDK ładuj przez `await import("stripe")` w `lib/stripe.server.ts` ' +
       "(`getStripeClient`, leniwy singleton per środowisko); w modułach płatności " +
