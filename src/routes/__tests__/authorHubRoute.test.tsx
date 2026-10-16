@@ -935,6 +935,14 @@ describe("head - dane strukturalne", () => {
     expect(items[2].name).toBe("Anna Kowalska");
   });
 
+  it("KAŻDA pozycja okruszków niesie `item`, także profil (ostatnia)", () => {
+    // Search Console 2026-10: „Brakujące pole item (w itemListElement)" -
+    // ręczny graf trasy wysyłał nazwisko bez adresu.
+    const [, breadcrumb] = jsonLd(headFor(loaded()));
+    const items = breadcrumb.itemListElement as { item?: string }[];
+    expect(items.map((i) => i.item)).toEqual(["/", "/experts", "/author/anna-kowalska"]);
+  });
+
   it("okruszki są w języku ADRESU, nie instancji i18n", () => {
     h.requestUrl = "/en/author/anna-kowalska";
     const [, breadcrumb] = jsonLd(headFor(loaded()));
@@ -1475,11 +1483,18 @@ describe("head - adres absolutny w żądaniu", () => {
   it("okruszki dostają PEŁNE adresy, gdy kanoniczny jest absolutny", () => {
     // Względne `item` w BreadcrumbList jest dla Google poprawne, ale w
     // ładunku absolutnym niespójne - trasa trzyma jedną konwencję na raz.
+    // Adresy są w języku STRONY: wcześniej ręczny graf wskazywał z /en/...
+    // na polską stronę główną i polski katalog ekspertów.
     h.requestUrl = ABSOLUTE;
     const [, breadcrumb] = jsonLd(headFor(loaded()));
     const items = breadcrumb.itemListElement as { item?: string }[];
-    expect(items[0]?.item).toBe("https://neweuropeanstrategies.com");
-    expect(items[1]?.item).toBe("https://neweuropeanstrategies.com/experts");
+    expect(items.map((i) => i.item)).toEqual([
+      "https://neweuropeanstrategies.com/en",
+      "https://neweuropeanstrategies.com/en/experts",
+      // Search Console: „Brakujące pole item" - ostatnia pozycja to adres
+      // profilu BEZ parametrów eksploratora (`?page=3&kind=article`).
+      "https://neweuropeanstrategies.com/en/author/anna-kowalska",
+    ]);
   });
 });
 

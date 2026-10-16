@@ -1,0 +1,76 @@
+name: Structured data (live)
+
+# KONTROLA JSON-LD NA WDROŻONEJ STRONIE - te same reguły, którymi Search
+# Console ocenia wynik z okruszkami (`src/lib/seo/structuredDataAudit.ts`).
+#
+# Testy jednostkowe i e2e sprawdzają kod i SSR na danych zastępczych. Search
+# Console czyta produkcję: prawdziwe dane, adres absolutny w SSR, cache brzegu.
+# 2026-10-16 zgłosił „Brakujące pole item (w itemListElement)" na 10 adresach
+# /organization/*, których żaden test nie renderował w tym stanie. Ten workflow
+# przechodzi całą sitemapę (plus szablony linkowane z treści) i pada na
+# pierwszej stronie, której JSON-LD Google by odrzucił - zanim przyjdzie mail.
+#
+# PORA: 06:23 UTC - po nocnych publikacjach, przed porannym przeglądem.
+# Bez instalacji zależności: skrypt importuje wyłącznie moduły wbudowane node
+# i jeden plik .ts z repo (type stripping node 24), jak psi.yml.
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Sprawdzany origin"
+        required: false
+        default: "https://neweuropeanstrategies.com"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: structured-data-live
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.19.0"
+
+      # Origin idzie przez `env:`, nie przez `${{ inputs.* }}` wklejone w skrypt -
+      # wartość z formularza nie może stać się kodem powłoki. `pipefail`: bez
+      # niego kod wyjścia potoku to kod `tee`, a niezgodności kończyłyby krok
+      # na zielono.
+      - name: Check JSON-LD of every sitemap URL
+        env:
+          BASE_URL: ${{ inputs.base || 'https://neweuropeanstrategies.com' }}
+        run: |
+          set -o pipefail
+          node scripts/seo/check-structured-data.ts --base "$BASE_URL" \
+            --report reports/structured-data/latest.json 2>&1 | tee structured-data.log
+
+      - name: Write the result to the job summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### JSON-LD (reguły Search Console)"
+            echo
+            echo '```'
+            grep -E '^(kontrola JSON-LD|  \+|SPRAWDZONE|✗|    |!)' structured-data.log | head -200 || echo "(brak wyniku - patrz log kroku)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: structured-data-${{ github.run_id }}
+          path: |
+            reports/structured-data/latest.json
+            structured-data.log
+          if-no-files-found: warn
+          retention-days: 30

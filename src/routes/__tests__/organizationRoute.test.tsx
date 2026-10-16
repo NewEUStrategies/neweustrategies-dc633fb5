@@ -361,6 +361,29 @@ describe("trasa /organization/$slug - adresy w danych strukturalnych", () => {
     expect(subject.url).toBe(`${ORIGIN}/organization/nato`);
   });
 
+  it("ostatni okruszek (organizacja) niesie `item` z adresem profilu", () => {
+    // Search Console 2026-10-16: „Brakujące pole item (w itemListElement)" na
+    // wszystkich 10 adresach /organization/* (PL i EN) - pozycja 3 miała samą
+    // nazwę. Parametry listy nie wchodzą do adresu okruszka.
+    const crumbsFor = (url: string) =>
+      (
+        ldFor(url).find((n) => n["@type"] === "BreadcrumbList") as {
+          itemListElement: { position: number; name: string; item?: string }[];
+        }
+      ).itemListElement;
+
+    expect(crumbsFor(`${ORIGIN}/organization/nato?page=3`)).toEqual([
+      { "@type": "ListItem", position: 1, name: "Start", item: `${ORIGIN}/` },
+      { "@type": "ListItem", position: 2, name: "Organizacje", item: `${ORIGIN}/search` },
+      { "@type": "ListItem", position: 3, name: "NATO", item: `${ORIGIN}/organization/nato` },
+    ]);
+    expect(crumbsFor(`${ORIGIN}/en/organization/nato`).map((i) => i.item)).toEqual([
+      `${ORIGIN}/en`,
+      `${ORIGIN}/en/search`,
+      `${ORIGIN}/en/organization/nato`,
+    ]);
+  });
+
   it("identyfikator okruszków też jest pojedynczym adresem", () => {
     const nodes = ldFor(`${ORIGIN}/organization/nato`);
     const crumbs = nodes.find((n) => n["@type"] === "BreadcrumbList");

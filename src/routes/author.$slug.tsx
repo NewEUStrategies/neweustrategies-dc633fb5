@@ -51,8 +51,8 @@ import { podcastsByProfileQueryOptions } from "@/lib/queries/podcasts";
 import { PodcastEpisodeStrip } from "@/components/podcast/PodcastEpisodeStrip";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
-import { buildContentHead, SITE_CANONICAL_ORIGIN } from "@/lib/seo/meta";
-import { safeJsonLd } from "@/lib/seo/jsonld";
+import { buildContentHead, SITE_CANONICAL_ORIGIN, splitUrl } from "@/lib/seo/meta";
+import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { withOgVersion, ogVersionFromIso } from "@/lib/seo/ogImage";
 import { expertLayoutSettingsQueryOptions } from "@/hooks/useExpertLayoutSettings";
 import {
@@ -375,26 +375,16 @@ export const Route = createFileRoute("/author/$slug")({
     };
 
     // Breadcrumb - Home › Experts › <Name> (poprawia rich results w SERP).
-    const origin = url.startsWith("http") ? new URL(url).origin : "";
-    const breadcrumbLd = {
-      "@context": "https://schema.org",
-      "@type": "BreadcrumbList",
-      itemListElement: [
-        {
-          "@type": "ListItem",
-          position: 1,
-          name: isEn ? "Home" : "Strona główna",
-          item: origin || "/",
-        },
-        {
-          "@type": "ListItem",
-          position: 2,
-          name: isEn ? "Experts" : "Eksperci",
-          item: origin ? `${origin}/experts` : "/experts",
-        },
-        { "@type": "ListItem", position: 3, name },
-      ],
-    };
+    // Wspólny builder, nie ręczny graf: ręczna wersja wysyłała ostatnią pozycję
+    // bez `item` (Search Console: „Brakujące pole item") i adresy PL na
+    // stronie EN. Względny `url` (render klienta) zostaje przy ścieżkach.
+    const { origin } = splitUrl(url);
+    const breadcrumbLd = breadcrumbListJsonLd(
+      [{ label: isEn ? "Experts" : "Eksperci", href: "/experts" }, { label: name }],
+      origin,
+      lang,
+      url,
+    );
 
     // Indeksujemy tylko profile z publiczną obecnością (ekspert lub kurowany
     // dorobek). Zwykły członek bez zgody na katalog dostaje noindex - jego strona

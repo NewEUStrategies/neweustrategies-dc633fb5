@@ -138,6 +138,7 @@ export const Route = createFileRoute("/programs/$slug")({
       ],
       origin,
       lang,
+      url,
     );
     return {
       ...head,
