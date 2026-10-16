@@ -385,6 +385,7 @@ body {
 }
 
 @theme inline {
+  --color-reaction-glyph-ink: #ffffff;
   --breakpoint-xs: 30rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
