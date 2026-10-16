@@ -180,8 +180,7 @@ export function injectBootSet(
   manifest: BootManifest | null = BOOT_MANIFEST,
 ): void {
   const ssr = router.serverSsr as
-    | ({ injectHtml?: (html: string) => void } & Record<string, unknown>)
-    | undefined;
+    ({ injectHtml?: (html: string) => void } & Record<string, unknown>) | undefined;
   if (!ssr || !manifest || injectedInto.has(ssr)) return;
   injectedInto.add(ssr);
   const matches = router.state.matches;
