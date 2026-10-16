@@ -38,6 +38,9 @@ import {
   bootSetJson,
   composeBootSet,
   prepareBootSet,
+  BOOT_LINK_PRELOAD_BUDGET_BYTES,
+  bootPreloadLinkValue,
+  bootPreloadLinkValues,
   type BootSet,
 } from "../bootSet.server";
 import type { BootManifest } from "../bootManifest";
@@ -115,6 +118,39 @@ describe("composeBootSet - skład serii", () => {
       linkHeader: '<//cdn.evil/x.js>; rel="modulepreload"',
     });
     expect(set.u).toEqual([MANIFEST.entry]);
+  });
+});
+
+describe("bootPreloadLinkValues - seria `now` w nagłówku `Link`", () => {
+  const urls = Array.from(
+    { length: 400 },
+    (_, i) => `/assets/chunk-${String(i).padStart(3, "0")}-A1b2C3d4.js`,
+  );
+
+  it("cała seria, gdy się mieści; bez modułów podanych już przez loadery", () => {
+    const small = urls.slice(0, 5);
+    expect(bootPreloadLinkValues(small, new Set([small[2]]))).toEqual(
+      [small[0], small[1], small[3], small[4]].map(bootPreloadLinkValue),
+    );
+  });
+
+  it("długa seria: PREFIKS w kolejności zestawu, w budżecie bajtów (z separatorem)", () => {
+    const values = bootPreloadLinkValues(urls, new Set());
+    expect(values.length).toBeGreaterThan(50);
+    expect(values.length).toBeLessThan(urls.length);
+    expect(values).toEqual(urls.slice(0, values.length).map(bootPreloadLinkValue));
+    const bytes = values.reduce((sum, value) => sum + value.length + 2, 0);
+    expect(bytes).toBeLessThanOrEqual(BOOT_LINK_PRELOAD_BUDGET_BYTES);
+    // Następny wpis już by się nie zmieścił - budżet wykorzystany, nie przycięty na zapas.
+    expect(bytes + bootPreloadLinkValue(urls[values.length]).length + 2).toBeGreaterThan(
+      BOOT_LINK_PRELOAD_BUDGET_BYTES,
+    );
+  });
+
+  it("budżet po złączeniu: cały nagłówek serii mieści się w limicie klienta Node", () => {
+    const header = bootPreloadLinkValues(urls, new Set()).join(", ");
+    expect(header.length).toBeLessThan(BOOT_LINK_PRELOAD_BUDGET_BYTES);
+    expect(BOOT_LINK_PRELOAD_BUDGET_BYTES).toBeLessThan(16 * 1024);
   });
 });
 

@@ -30,9 +30,15 @@
 // nie trafia ani do klienta, ani do cache dokumentu:
 //   - `lcp`: z `Link` znika KAŻDY `modulepreload` (słownik, widgety) - żaden JS nie rusza przed
 //     wyzwalaczem loadera, zostają CSS, fonty i obraz kandydata;
-//   - `now`: `Link` dostaje `modulepreload` całej serii (jak dawniej preloady manifestu), więc
+//   - `now`: `Link` dostaje `modulepreload` serii (jak dawniej preloady manifestu), więc
 //     panel, konto i trasy bez SSR pobierają JS od nagłówków odpowiedzi, a nie dopiero po
-//     arkuszu stylów, na który czeka loader w `<head>`.
+//     arkuszu stylów, na który czeka loader w `<head>`. Seria w nagłówku ma budżet bajtów
+//     (`BOOT_LINK_PRELOAD_BUDGET_BYTES`), bo preloady manifestu to od start-plugin-core 1.171.53
+//     pełne domknięcie statyczne: na Rolldownie bez grupy `app-initial` `/cookies` dostawał
+//     ~330 wpisów i klient Node (llhttp, limit 16 KB na nagłówki) odrzucał odpowiedź
+//     („Header overflow" w boot-teście artefaktu); proxy z buforem nagłówków 4-8 KB (nginx) też.
+//     Ogon ponad budżet i tak pobiera loader bootu z `#nes-boot-set` - obcięcie zmienia tylko,
+//     jak wcześnie rusza; kolejność serii (wejście, korzeń, słownik, trasa) zostaje.
 // Na HIT `Link` pochodzi z wpisu cache (zapisanego już po tej decyzji), a render nie biegnie,
 // więc trybu nie ma.
 //
@@ -172,6 +178,37 @@ export function bootPreloadLinkValue(url: string): string {
 }
 
 /**
+ * Budżet serii `modulepreload` w nagłówku `Link` dokumentu `now`, w bajtach (z separatorem
+ * `", "` każdego wpisu). Zmierzone 2026-10-16 na artefakcie z grupą `app-initial`: 223 z 336 tras
+ * mieści się w 2 KB, najdłuższa (`/admin/posts/$slug`, 127 modułów) zajmuje 7,3 KB - ta i kilka
+ * podobnych tras adminowych tracą w nagłówku sam ogon serii. 6 KB serii obok CSS, fontów i obrazu
+ * kandydata trzyma cały blok nagłówków daleko od 16 KB klienta Node.
+ */
+export const BOOT_LINK_PRELOAD_BUDGET_BYTES = 6 * 1024;
+
+/**
+ * Wpisy `Link` serii trybu `now`: moduły zestawu w jego kolejności, bez tych, które loadery już
+ * podały w `Link` (`hinted`), dopóki mieszczą się w budżecie - pierwszy, który się nie mieści,
+ * kończy serię (prefiks, nie wybór „co się zmieści"). Funkcja czysta.
+ */
+export function bootPreloadLinkValues(
+  urls: readonly string[],
+  hinted: ReadonlySet<string>,
+  budget = BOOT_LINK_PRELOAD_BUDGET_BYTES,
+): string[] {
+  const out: string[] = [];
+  let left = budget;
+  for (const url of urls) {
+    if (hinted.has(url)) continue;
+    const value = bootPreloadLinkValue(url);
+    left -= value.length + 2;
+    if (left < 0) break;
+    out.push(value);
+  }
+  return out;
+}
+
+/**
  * Składa zestaw `#nes-boot-set` dla dokumentu tego żądania (render: `BootSetNode`), zapisuje
  * tryb i dokłada nagłówek `Link` trybu `now` (patrz „NAGŁÓWEK `Link`" wyżej). No-op bez
  * `serverSsr` (render poza żądaniem), bez mapy (`BOOT_MANIFEST === null`: vitest, dev, build bez
@@ -198,5 +235,5 @@ export function prepareBootSet(
   if (set.m !== "now") return;
   // Moduły, które loadery już podały w `Link` (słownik, widgety), zostają w swoim wpisie.
   const hinted = new Set(modulePreloadTargets(linkHeader));
-  for (const url of set.u) if (!hinted.has(url)) appendLinkHeader(bootPreloadLinkValue(url));
+  for (const value of bootPreloadLinkValues(set.u, hinted)) appendLinkHeader(value);
 }
