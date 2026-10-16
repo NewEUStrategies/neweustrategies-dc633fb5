@@ -27,6 +27,27 @@
 //   7. PODGLĄD LINKU NIE GUBI KOLORU PODKREŚLENIA po „Wyłącz" -> „Włącz".
 //   8. `head()` daje tytuł sekcji ze wspólnego `adminPageHead` (AGENTS.md)
 //      i trzyma ekran poza indeksem.
+//   9. JEDNA POWŁOKA PANELU. `AdminShell` rysuje layout `/admin`; własna
+//      `<AdminShell hideSidebar>` trasy dawała drugi `<main id="main-content">`
+//      i drugi przełącznik języka. Atrapa `AdminShell` niżej jest SONDĄ
+//      liczącą montaże. Spad lepkiego nagłówka równa się paddingowi kolumny
+//      powłoki (`adminContentPaddingClass`) - szerszy przewijał ją w poziomie.
+//  10. KAŻDA KONTROLKA MA NAZWĘ Z ETYKIETY POLA. Etykiety były gołymi `<span>`,
+//      więc pola liczbowe, listy i pola kolorów nie miały nazwy dostępnej.
+//  11. BŁĄD ODCZYTU TO NIE „NAJEMCA BEZ WIERSZA". Odczyt publiczny zamienia
+//      błąd w domyślne z `tenant_id: ""`; ekran brał je za brak wiersza
+//      i pierwszy zapis upsertował WSZYSTKIE kolumny (układy wpisu, odstęp
+//      akapitów, typografia) wartościami domyślnymi. Teraz: komunikat
+//      z ponowieniem i żadnego formularza - także gdy w cache'u leży wiersz
+//      z poprzedniej wizyty. W trakcie ponowienia widać wczytywanie, nie
+//      komunikat (z danymi w cache'u status zostaje „error" przez całe żądanie).
+//  12. SZKIC Z ODCZYTU PO MONTAŻU, NIE Z CACHE'U SPRZED MINUT. Wiersz
+//      rozgrzany na froncie (`ContentAreaStyle`, prefetch `$.tsx`) bywa sprzed
+//      zmiany w innej sesji; formularz pokazywał go jak stan bazy. To samo
+//      dotyczy wiersza klucza edytora z poprzedniej wizyty (żyje `gcTime`).
+//  13. PEŁNY ZAPIS TYLKO RAZ. Po pierwszym INSERT szkic nadal miał
+//      `tenant_id: ""`, więc każdy kolejny zapis znów niósł cały wiersz
+//      i cofał kolumny zmienione w międzyczasie przez inny panel.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
@@ -41,6 +62,10 @@ const h = vi.hoisted(() => ({
   selects: 0,
   /** Gdy ustawione, odczyt wiersza czeka na ręczne rozwiązanie. */
   holdSelect: null as Promise<void> | null,
+  /** Gdy ustawione, odczyt wiersza kończy się błędem PostgREST. */
+  selectError: null as { message: string; code: string } | null,
+  /** Ile razy zamontowano `AdminShell` - SONDA reguły 9. */
+  shellRenders: 0,
   rpcCalls: [] as string[],
   upserts: [] as { payload: Record<string, unknown>; opts: unknown }[],
   upsertError: null as { message: string; code: string } | null,
@@ -50,8 +75,13 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("sonner", () => ({ toast: h.toast }));
+// SONDA reguły 9, nie ozdoba: trasa nie importuje już powłoki, więc atrapa nie
+// powinna być wywołana ani razu (prawdziwa ciągnie sesję, nawigację i tenanta).
 vi.mock("@/components/admin/AdminShell", () => ({
-  AdminShell: ({ children }: { children: ReactNode }) => <>{children}</>,
+  AdminShell: ({ children }: { children: ReactNode }) => {
+    h.shellRenders += 1;
+    return <div data-testid="admin-shell">{children}</div>;
+  },
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -67,6 +97,7 @@ vi.mock("@/integrations/supabase/client", () => ({
             expect(cols).toBe("*");
             h.selects += 1;
             if (h.holdSelect) await h.holdSelect;
+            if (h.selectError) return { data: null, error: h.selectError };
             return { data: h.row, error: null };
           },
         }),
@@ -90,7 +121,16 @@ import "@/lib/i18n-admin-extras";
 import { Route } from "@/routes/admin.content-area";
 import { renderRoute, routeHead } from "@/test/routeHarness";
 import { defaultPostLayoutSettings } from "@/lib/postLayouts";
-import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
+import {
+  adminPostLayoutSettingsQueryOptions,
+  postLayoutSettingsQueryOptions,
+} from "@/hooks/usePostLayoutSettings";
+import { axeViolations, summarize } from "@/test/axe";
+import {
+  adminContentPaddingClass,
+  isAdminThemeOptionsRoute,
+} from "@/components/admin/adminShellGeometry";
+import { isCompactSidebarRoute } from "@/lib/admin/adminNav";
 
 /** Wiersz najemcy - świadomie RÓŻNY od domyślnych w każdym polu ekranu. */
 function tenantRow(overrides: Row = {}): Row {
@@ -171,6 +211,8 @@ beforeEach(() => {
   h.row = tenantRow();
   h.selects = 0;
   h.holdSelect = null;
+  h.selectError = null;
+  h.shellRenders = 0;
   h.rpcCalls.length = 0;
   h.upserts.length = 0;
   h.upsertError = null;
@@ -333,12 +375,15 @@ describe("/admin/content-area - szkic i zapis", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(h.toast.success).toHaveBeenCalledTimes(1));
-    // Inwalidacja dociągnęła wiersz z nowym `updated_at`...
+    // Inwalidacja dociągnęła wiersz z nowym `updated_at` (klucz edytora leży
+    // pod prefiksem klucza publicznego - patrz reguła 11)...
     await waitFor(() => expect(h.selects).toBe(2));
     await waitFor(() =>
-      expect(queryClient.getQueryData(postLayoutSettingsQueryOptions().queryKey)).toMatchObject({
-        updated_at: "2026-10-16T12:00:01Z",
-      }),
+      expect(
+        queryClient
+          .getQueriesData({ queryKey: postLayoutSettingsQueryOptions().queryKey })
+          .map(([, row]) => row),
+      ).toContainEqual(expect.objectContaining({ updated_at: "2026-10-16T12:00:01Z" })),
     );
     // ...a przycisk nie udaje, że zostały niezapisane zmiany.
     expect(saveButton()).toBeDisabled();
@@ -562,5 +607,213 @@ describe("/admin/content-area - pola szerokości", () => {
     expect(input).toHaveAttribute("min", "800");
     expect(input).toHaveAttribute("max", "2000");
     expect(input).toHaveAttribute("step", "20");
+  });
+});
+
+describe("/admin/content-area - sklejenie z layoutem /admin i dostępność", () => {
+  it("REGRESJA: NIE montuje własnej powłoki panelu - ani we wczytywaniu, ani w formularzu", async () => {
+    const gate = deferred();
+    h.holdSelect = gate.promise;
+    await mount();
+    expect(await screen.findByText("Ładowanie…")).toBeInTheDocument();
+    expect(h.shellRenders).toBe(0);
+
+    gate.resolve();
+    await screen.findByRole("heading", { level: 1, name: "Obszar treści wpisu" });
+    expect(h.shellRenders).toBe(0);
+    expect(screen.queryByTestId("admin-shell")).toBeNull();
+  });
+
+  it("REGRESJA: spad lepkiego nagłówka równa się paddingowi kolumny powłoki", async () => {
+    await mountLoaded();
+    const header = screen.getByRole("heading", { level: 1 }).closest("header") as HTMLElement;
+    const path = "/admin/content-area";
+    const padding = adminContentPaddingClass({
+      isEditRoute: isCompactSidebarRoute(path),
+      isThemeOptions: isAdminThemeOptionsRoute(path),
+    })
+      .split(/\s+/)
+      .filter((cls) => /^(lg:)?px-\d+$/.test(cls));
+    // `px-3` w kolumnie -> `-mx-3 px-3` w nagłówku (i tak samo od `lg:`).
+    expect(padding.length).toBeGreaterThan(0);
+    for (const cls of padding) expect(header).toHaveClass(cls.replace("px-", "-mx-"), cls);
+    expect(header.className.split(/\s+/).filter((cls) => /(^|:)-mx-/.test(cls))).toHaveLength(
+      padding.length,
+    );
+  });
+
+  it("REGRESJA: każda kontrolka ma nazwę z etykiety swojego pola (axe bez naruszeń)", async () => {
+    const view = await mountLoaded();
+    expect(screen.getByRole("spinbutton", { name: "Z sidebarem (px)" })).toHaveValue(700);
+    expect(screen.getByRole("spinbutton", { name: "Maks. szerokość obrazu (px)" })).toHaveValue(
+      1400,
+    );
+    expect(screen.getByRole("combobox", { name: "Styl list (ul)" })).toHaveValue("square");
+    expect(screen.getByRole("combobox", { name: "Podkreślenie" })).toHaveValue("1");
+    expect(screen.getByRole("textbox", { name: "Kolor linku (light)" })).toHaveValue("#ff0000");
+    expect(screen.getByRole("group", { name: "Kolor podkreślenia (dark)" })).toBeInTheDocument();
+    const violations = await axeViolations(view.container);
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("/admin/content-area - odczyt edytora", () => {
+  it("REGRESJA: błąd odczytu nie daje formularza z domyślnymi, tylko komunikat z ponowieniem", async () => {
+    // Odczyt publiczny podstawiał za błąd domyślne z `tenant_id: ""` - ekran
+    // brał je za najemcę bez wiersza, a pierwszy zapis wysyłał CAŁY wiersz
+    // domyślnych (`standard_layout: "layout-1"`, `paragraph_spacing_rem: 1.5`...).
+    h.selectError = { message: "permission denied for table post_layout_settings", code: "42501" };
+    await mount();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Nie udało się wczytać ustawień obszaru treści.");
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Zapisz|Ładowanie…)$/ })).toBeNull();
+    expect(h.upserts).toHaveLength(0);
+
+    // Ponowienie po ustąpieniu błędu daje wiersz NAJEMCY, nie domyślne.
+    h.selectError = null;
+    fireEvent.click(within(alert).getByRole("button", { name: "Spróbuj ponownie" }));
+    await screen.findByRole("heading", { level: 1, name: "Obszar treści wpisu" });
+    expect(numberIn("Z sidebarem (px)").value).toBe("700");
+    expect(selectIn("Styl list (ul)").value).toBe("square");
+    expect(saveButton()).toBeDisabled();
+    expect(h.selects).toBe(2);
+  });
+
+  it("błąd odświeżenia PO starcie szkicu nie zabiera formularza ani niezapisanych zmian", async () => {
+    await mountLoaded();
+    // Odświeżenie po zapisie (unieważnienie prefiksem) trafia na awarię.
+    h.selectError = { message: "JWT expired", code: "PGRST301" };
+    fireEvent.change(selectIn("Styl list (ul)"), { target: { value: "circle" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(h.selects).toBe(2));
+
+    fireEvent.change(selectIn("Styl"), { target: { value: "italic" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(selectIn("Styl list (ul)").value).toBe("circle");
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("REGRESJA: wiersz rozgrzany w cache minutę temu nie staje się szkicem - formularz czeka na bazę", async () => {
+    // Front (`ContentAreaStyle`, prefetch `$.tsx`) zostawił w cache wiersz
+    // świeży wg `staleTime`, a od tego czasu inna sesja zmieniła ustawienia.
+    queryClient.setQueryData(
+      postLayoutSettingsQueryOptions().queryKey,
+      {
+        ...defaultPostLayoutSettings(),
+        tenant_id: "tenant-1",
+        has_sidebar_max_width: 640,
+        list_style: "disc",
+      },
+      { updatedAt: Date.now() - 60_000 },
+    );
+    const gate = deferred();
+    h.holdSelect = gate.promise;
+    await mount();
+
+    expect(await screen.findByText("Ładowanie…")).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+
+    gate.resolve();
+    await screen.findByRole("heading", { level: 1, name: "Obszar treści wpisu" });
+    expect(numberIn("Z sidebarem (px)").value).toBe("700");
+    expect(selectIn("Styl list (ul)").value).toBe("square");
+    expect(h.selects).toBe(1);
+  });
+
+  it("REGRESJA: wiersz KLUCZA EDYTORA z poprzedniej wizyty nie staje się szkicem przed odczytem po montażu", async () => {
+    // Test wyżej zasiewa klucz publiczny, którego trasa już nie czyta - tu
+    // zasiew trafia w klucz edytora. Wpis z danymi ma od razu `isSuccess`,
+    // więc o starcie szkicu rozstrzyga dopiero `isFetchedAfterMount`.
+    queryClient.setQueryData(
+      adminPostLayoutSettingsQueryOptions().queryKey,
+      {
+        ...defaultPostLayoutSettings(),
+        tenant_id: "tenant-1",
+        has_sidebar_max_width: 640,
+        list_style: "disc",
+      },
+      { updatedAt: Date.now() - 60_000 },
+    );
+    const gate = deferred();
+    h.holdSelect = gate.promise;
+    await mount();
+
+    expect(await screen.findByText("Ładowanie…")).toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(h.selects).toBe(1);
+
+    gate.resolve();
+    await screen.findByRole("heading", { level: 1, name: "Obszar treści wpisu" });
+    // Szkic z bazy (700/square), a nie z cache'u (640/disc) zatrzaśniętego wcześniej.
+    expect(numberIn("Z sidebarem (px)").value).toBe("700");
+    expect(selectIn("Styl list (ul)").value).toBe("square");
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it("REGRESJA: nieudany odczyt przy wierszu klucza edytora w cache daje komunikat, a ponowienie - wczytywanie", async () => {
+    // Nieudane odświeżenie podnosi `isFetchedAfterMount` (licznik błędów),
+    // a `data` zostaje przy wierszu z poprzedniej wizyty: bez `isSuccess`
+    // formularz startowałby z niego, choć jest sprzed zmian z innych sesji.
+    queryClient.setQueryData(
+      adminPostLayoutSettingsQueryOptions().queryKey,
+      {
+        ...defaultPostLayoutSettings(),
+        tenant_id: "tenant-1",
+        has_sidebar_max_width: 640,
+        list_style: "disc",
+      },
+      { updatedAt: Date.now() - 60_000 },
+    );
+    h.selectError = { message: "JWT expired", code: "PGRST301" };
+    await mount();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Nie udało się wczytać ustawień obszaru treści.");
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Zapisz|Ładowanie…)$/ })).toBeNull();
+
+    // Z danymi w cache'u status zostaje „error" przez całe ponowienie - bez
+    // `!isFetching` komunikat wisiałby nad żądaniem, które właśnie trwa.
+    h.selectError = null;
+    const gate = deferred();
+    h.holdSelect = gate.promise;
+    fireEvent.click(within(alert).getByRole("button", { name: "Spróbuj ponownie" }));
+    expect(await screen.findByText("Ładowanie…")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(h.selects).toBe(2);
+
+    gate.resolve();
+    await screen.findByRole("heading", { level: 1, name: "Obszar treści wpisu" });
+    expect(numberIn("Z sidebarem (px)").value).toBe("700");
+    expect(selectIn("Styl list (ul)").value).toBe("square");
+    expect(saveButton()).toBeDisabled();
+    expect(h.upserts).toHaveLength(0);
+  });
+
+  it("REGRESJA: po pierwszym zapisie bez wiersza kolejne zapisy niosą już tylko zmienione pola", async () => {
+    h.row = null;
+    await mountLoaded();
+    fireEvent.change(selectIn("Styl list (ul)"), { target: { value: "square" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalledTimes(1));
+    // Pierwszy zapis to INSERT całości (reguła 3)...
+    expect(lastPayload()).toMatchObject({ standard_layout: "layout-1", list_style: "square" });
+
+    // ...potem inny panel zmienia kolumny w TYM SAMYM wierszu.
+    h.row = { ...(h.row as Row | null), standard_layout: "layout-7", paragraph_spacing_rem: 1.8 };
+    fireEvent.change(selectIn("Styl"), { target: { value: "italic" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalledTimes(2));
+
+    expect(lastPayload()).toEqual({ hyperlink_style: "italic", tenant_id: "tenant-1" });
+    expect(h.row).toMatchObject({
+      hyperlink_style: "italic",
+      list_style: "square",
+      standard_layout: "layout-7",
+      paragraph_spacing_rem: 1.8,
+    });
   });
 });

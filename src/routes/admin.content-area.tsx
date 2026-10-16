@@ -1,11 +1,13 @@
 import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AdminShell } from "@/components/admin/AdminShell";
-import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import {
+  useAdminPostLayoutSettings,
+  useSavePostLayoutSettings,
+} from "@/hooks/usePostLayoutSettings";
 import { clampNumber, draftDirty } from "@/lib/admin/panelDraft";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -39,6 +41,14 @@ function toHexOrKeep(v: string | null | undefined): string {
 
 // ---------- shared UI atoms ---------------------------------------------------
 
+/**
+ * Id etykiety pola. Etykiety były gołymi `<span>`, więc pola liczbowe, listy
+ * i pola kolorów nie miały nazwy dostępnej - czytnik ekranu ogłaszał „pole
+ * edycji, 760" bez słowa, czego dotyczy liczba. `<label>` nie wchodzi w grę:
+ * pole koloru to dwie kontrolki i przycisk.
+ */
+const FieldLabelContext = createContext<string | undefined>(undefined);
+
 function FieldShell({
   label,
   hint,
@@ -48,13 +58,16 @@ function FieldShell({
   hint?: string;
   children: React.ReactNode;
 }) {
+  const labelId = useId();
   return (
-    <div className="space-y-1.5">
+    <div role="group" aria-labelledby={labelId} className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-foreground">{label}</span>
+        <span id={labelId} className="text-xs font-medium text-foreground">
+          {label}
+        </span>
         {hint ? <span className="text-[10px] text-muted-foreground">{hint}</span> : null}
       </div>
-      {children}
+      <FieldLabelContext.Provider value={labelId}>{children}</FieldLabelContext.Provider>
     </div>
   );
 }
@@ -81,6 +94,7 @@ function NumberField({
   // liczba; przy opuszczeniu pola wartość wraca w granice `min`-`max`
   // i do całych pikseli (kolumny są `integer` - ułamek baza odrzuca).
   const [text, setText] = useState<string | null>(null);
+  const labelId = useContext(FieldLabelContext);
   return (
     <div className="relative flex items-center">
       <input
@@ -89,6 +103,7 @@ function NumberField({
         min={min}
         max={max}
         step={step}
+        aria-labelledby={labelId}
         onChange={(e) => {
           const raw = e.target.value;
           setText(raw);
@@ -120,9 +135,11 @@ function SelectField({
   onChange: (v: string) => void;
   options: Array<{ value: string; label: string }>;
 }) {
+  const labelId = useContext(FieldLabelContext);
   return (
     <AdminSelect
       value={value}
+      aria-labelledby={labelId}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
     >
@@ -145,6 +162,7 @@ function ColorField({
   placeholder?: string;
 }) {
   const swatch = toHexOrKeep(value);
+  const labelId = useContext(FieldLabelContext);
   return (
     <div className="flex items-stretch gap-2">
       <label
@@ -170,6 +188,7 @@ function ColorField({
       <input
         type="text"
         value={value ?? ""}
+        aria-labelledby={labelId}
         onChange={(e) => onChange(e.target.value.trim() ? e.target.value : null)}
         onBlur={() => {
           if (value && value !== value.trim()) onChange(value.trim());
@@ -255,34 +274,50 @@ function SectionCard({
 
 function Page() {
   const { t } = useTranslation();
-  const { data, dataUpdatedAt } = usePostLayoutSettings();
+  const settings = useAdminPostLayoutSettings();
   const save = useSavePostLayoutSettings();
   // Szkic i stan odniesienia brane w tej samej chwili (wzorzec
   // PostLayoutsSettingsPanel). Porównanie z żywym `data` zostawiało `dirty`
   // zapalone po udanym zapisie: trigger `pls_set_updated_at` zmienia
   // `updated_at`, więc odświeżony wiersz nigdy nie był równy szkicowi.
+  // `stored` - wiersz najemcy już jest w bazie (patrz `onSave`).
   const [draft, setDraft] = useState<{
     local: PostLayoutSettings;
     baseline: PostLayoutSettings;
+    stored: boolean;
   } | null>(null);
+  // Szkic startuje WYŁĄCZNIE z odczytu edytora zakończonego po montażu: nie
+  // z zasiewu korzenia (domyślne z `updatedAt: 0` na kluczu publicznym), nie
+  // z domyślnych podstawionych za błąd (odczyt edytora rzuca) i nie z wpisu
+  // w cache sprzed minut. Każde z nich pokazane jak stan najemcy trafiało
+  // zapisem do jego wiersza.
+  const fresh = settings.isSuccess && settings.isFetchedAfterMount ? settings.data : undefined;
   useEffect(() => {
-    // `dataUpdatedAt > 0`, nie samo `data`: loader korzenia ZASIEWA ten klucz
-    // domyślnymi z `updatedAt: 0`. Szkic z zasiewu pokazywał domyślne zamiast
-    // ustawień najemcy, a zapis nadpisywał nimi cały wiersz.
-    if (data && dataUpdatedAt > 0 && !draft) setDraft({ local: data, baseline: data });
-  }, [data, dataUpdatedAt, draft]);
+    if (fresh && !draft)
+      setDraft({ local: fresh, baseline: fresh, stored: Boolean(fresh.tenant_id) });
+  }, [fresh, draft]);
 
   const dirty = useMemo(() => (draft ? draftDirty(draft.local, draft.baseline) : false), [draft]);
 
-  if (!draft)
-    return (
-      <AdminShell hideSidebar>
-        <div className="p-6">{t("admin.loading")}</div>
-      </AdminShell>
-    );
+  if (!draft) {
+    if (settings.isError && !settings.isFetching)
+      return (
+        <div role="alert" className="flex flex-wrap items-center gap-3 p-6 text-sm">
+          <span className="text-destructive">{t("admin.contentArea.loadError")}</span>
+          <button
+            type="button"
+            onClick={() => void settings.refetch()}
+            className="rounded-md border border-input px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            {t("common.retry")}
+          </button>
+        </div>
+      );
+    return <div className="p-6">{t("admin.loading")}</div>;
+  }
 
   const { local, baseline } = draft;
-  const upd = (p: Partial<PostLayoutSettings>) => setDraft({ baseline, local: { ...local, ...p } });
+  const upd = (p: Partial<PostLayoutSettings>) => setDraft({ ...draft, local: { ...local, ...p } });
   const onSave = async () => {
     // Migawka wysłana do bazy staje się nowym odniesieniem - zmiany wpisane
     // w trakcie żądania zostają niezapisane.
@@ -292,11 +327,13 @@ function Page() {
     // wpisu i rozmiary czcionek (`paragraph_spacing_rem`, do których ten ekran
     // odsyła); pełny szkic cofał po cichu to, co tamten panel zapisał w innej
     // karcie. Bez wiersza w bazie (domyślne, `tenant_id: ""`) leci całość,
-    // żeby pierwszy INSERT utrwalił to, co administrator widział.
-    const patch = tenant_id ? changedFields(rest, baseline) : rest;
+    // żeby pierwszy INSERT utrwalił to, co administrator widział - ale tylko
+    // pierwszy: `tenant_id` szkicu zostaje pusty także po nim, a kolejne
+    // pełne zapisy cofały kolumny, które inny panel zmienił w międzyczasie.
+    const patch = draft.stored ? changedFields(rest, baseline) : rest;
     try {
       await save.mutateAsync(patch);
-      setDraft((d) => d && { ...d, baseline: snapshot });
+      setDraft((d) => d && { ...d, baseline: snapshot, stored: true });
       toast.success(t("admin.saved"));
     } catch {
       // Bez tego odrzucenie było nieobsłużoną obietnicą: administrator nie
@@ -305,188 +342,191 @@ function Page() {
     }
   };
 
+  // BEZ WŁASNEGO `<AdminShell>`: trasa jest dzieckiem layoutu `/admin`, który
+  // SAM owija `<Outlet/>` w powłokę panelu. Zagnieżdżona `<AdminShell hideSidebar>`
+  // dawała drugi `<main id="main-content">` i drugi przełącznik języka.
   return (
-    <AdminShell hideSidebar>
-      <div className="space-y-6">
-        <header className="sticky top-0 z-10 -mx-6 flex items-center justify-between gap-4 border-b border-border/60 bg-background/95 px-6 py-3 backdrop-blur">
-          <div>
-            <h1 className="font-display text-2xl leading-tight">{t("admin.contentArea.title")}</h1>
-            <p className="text-sm text-muted-foreground">{t("admin.contentArea.subtitle")}</p>
-          </div>
-          <button
-            onClick={onSave}
-            disabled={!dirty || save.isPending}
-            className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-foreground disabled:opacity-50"
-          >
-            {save.isPending ? t("admin.loading") : t("admin.save")}
-          </button>
-        </header>
-
-        <SectionCard
-          title={t("admin.contentArea.width")}
-          description="Maksymalna szerokość kontenera .single-post-content."
+    <div className="space-y-6">
+      {/* Spad nagłówka = padding kolumny treści powłoki (`adminContentPaddingClass`):
+          szerszy (`-mx-6`) dawał poziomy pasek przewijania kolumny. */}
+      <header className="sticky top-0 z-10 -mx-3 flex items-center justify-between gap-4 border-b border-border/60 bg-background/95 px-3 py-3 backdrop-blur lg:-mx-5 lg:px-5">
+        <div>
+          <h1 className="font-display text-2xl leading-tight">{t("admin.contentArea.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("admin.contentArea.subtitle")}</p>
+        </div>
+        <button
+          onClick={onSave}
+          disabled={!dirty || save.isPending}
+          className="inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-foreground disabled:opacity-50"
         >
-          <div className="grid gap-4 sm:grid-cols-3">
-            <FieldShell label={t("admin.contentArea.withSidebar")} hint="600 – 900">
-              <NumberField
-                value={local.has_sidebar_max_width}
-                onChange={(n) => upd({ has_sidebar_max_width: n })}
-                min={480}
-                max={1200}
-                step={10}
-                unit="px"
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.noSidebar")} hint="720 – 960">
-              <NumberField
-                value={local.no_sidebar_max_width}
-                onChange={(n) => upd({ no_sidebar_max_width: n })}
-                min={520}
-                max={1280}
-                step={10}
-                unit="px"
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.wideMax")} hint="1200 – 1800">
-              <NumberField
-                value={local.wide_align_max_width}
-                onChange={(n) => upd({ wide_align_max_width: n })}
-                min={800}
-                max={2000}
-                step={20}
-                unit="px"
-              />
-            </FieldShell>
-          </div>
-        </SectionCard>
+          {save.isPending ? t("admin.loading") : t("admin.save")}
+        </button>
+      </header>
 
-        <SectionCard title={t("admin.contentArea.paragraphs")}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <p className="text-xs text-muted-foreground sm:col-span-2">
-              <Link to="/admin/theme-options" className="underline underline-offset-2">
-                {t("admin.contentArea.spacingMovedLink")}
-              </Link>{" "}
-              {t("admin.contentArea.spacingMovedHint")}
-            </p>
-            <FieldShell label={t("admin.contentArea.listStyle")}>
-              <SelectField
-                value={local.list_style || "disc"}
-                onChange={(v) => upd({ list_style: v })}
-                options={[
-                  { value: "disc", label: "● Disc" },
-                  { value: "circle", label: "○ Circle" },
-                  { value: "square", label: "■ Square" },
-                  { value: "none", label: "— None" },
-                ]}
-              />
-            </FieldShell>
-          </div>
-        </SectionCard>
+      <SectionCard
+        title={t("admin.contentArea.width")}
+        description="Maksymalna szerokość kontenera .single-post-content."
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <FieldShell label={t("admin.contentArea.withSidebar")} hint="600 – 900">
+            <NumberField
+              value={local.has_sidebar_max_width}
+              onChange={(n) => upd({ has_sidebar_max_width: n })}
+              min={480}
+              max={1200}
+              step={10}
+              unit="px"
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.noSidebar")} hint="720 – 960">
+            <NumberField
+              value={local.no_sidebar_max_width}
+              onChange={(n) => upd({ no_sidebar_max_width: n })}
+              min={520}
+              max={1280}
+              step={10}
+              unit="px"
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.wideMax")} hint="1200 – 1800">
+            <NumberField
+              value={local.wide_align_max_width}
+              onChange={(n) => upd({ wide_align_max_width: n })}
+              min={800}
+              max={2000}
+              step={20}
+              unit="px"
+            />
+          </FieldShell>
+        </div>
+      </SectionCard>
 
-        <SectionCard title={t("admin.contentArea.hyperlinks")}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FieldShell label={t("admin.contentArea.style")}>
-              <SelectField
-                value={local.hyperlink_style || "normal"}
-                onChange={(v) => upd({ hyperlink_style: v })}
-                options={[
-                  { value: "normal", label: "Normal" },
-                  { value: "bold", label: "Bold" },
-                  { value: "italic", label: "Italic" },
-                  { value: "bold-italic", label: "Bold + Italic" },
-                ]}
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.underline")}>
-              <SelectField
-                value={local.hyperlink_underline ? "1" : "0"}
-                onChange={(v) => upd({ hyperlink_underline: v === "1" })}
-                options={[
-                  { value: "1", label: t("admin.contentArea.on") },
-                  { value: "0", label: t("admin.contentArea.off") },
-                ]}
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.linkColorLight")}>
-              <ColorField
-                value={local.hyperlink_color}
-                onChange={(v) => upd({ hyperlink_color: v })}
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.linkColorDark")}>
-              <ColorField
-                value={local.hyperlink_color_dark}
-                onChange={(v) => upd({ hyperlink_color_dark: v })}
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.underlineColorLight")}>
-              <ColorField
-                value={local.underline_color}
-                onChange={(v) => upd({ underline_color: v })}
-              />
-            </FieldShell>
-            <FieldShell label={t("admin.contentArea.underlineColorDark")}>
-              <ColorField
-                value={local.underline_color_dark}
-                onChange={(v) => upd({ underline_color_dark: v })}
-              />
-            </FieldShell>
-          </div>
+      <SectionCard title={t("admin.contentArea.paragraphs")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            <Link to="/admin/theme-options" className="underline underline-offset-2">
+              {t("admin.contentArea.spacingMovedLink")}
+            </Link>{" "}
+            {t("admin.contentArea.spacingMovedHint")}
+          </p>
+          <FieldShell label={t("admin.contentArea.listStyle")}>
+            <SelectField
+              value={local.list_style || "disc"}
+              onChange={(v) => upd({ list_style: v })}
+              options={[
+                { value: "disc", label: "● Disc" },
+                { value: "circle", label: "○ Circle" },
+                { value: "square", label: "■ Square" },
+                { value: "none", label: "— None" },
+              ]}
+            />
+          </FieldShell>
+        </div>
+      </SectionCard>
 
-          {/* Live preview */}
-          <div className="rounded-md border border-dashed border-border/70 bg-background p-4">
-            <span className="mb-2 block text-[10px] uppercase tracking-wider text-muted-foreground">
-              Preview
-            </span>
-            <p className="text-sm">
-              Ipsum sit{" "}
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                style={{
-                  color: local.hyperlink_color || undefined,
-                  // Longhand, nie skrót `textDecoration`: skrót zeruje
-                  // `text-decoration-color`, a React nie dopisuje go z powrotem
-                  // (wartość się nie zmieniła) - po „Wyłącz" -> „Włącz" podgląd
-                  // gubił skonfigurowany kolor podkreślenia.
-                  textDecorationLine: local.hyperlink_underline ? "underline" : "none",
-                  textDecorationColor: local.underline_color || undefined,
-                  textUnderlineOffset: 3,
-                  fontWeight:
-                    local.hyperlink_style === "bold" || local.hyperlink_style === "bold-italic"
-                      ? 600
-                      : undefined,
-                  fontStyle:
-                    local.hyperlink_style === "italic" || local.hyperlink_style === "bold-italic"
-                      ? "italic"
-                      : undefined,
-                }}
-              >
-                to jest link w treści
-              </a>{" "}
-              dolor amet consectetur.
-            </p>
-          </div>
-        </SectionCard>
+      <SectionCard title={t("admin.contentArea.hyperlinks")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FieldShell label={t("admin.contentArea.style")}>
+            <SelectField
+              value={local.hyperlink_style || "normal"}
+              onChange={(v) => upd({ hyperlink_style: v })}
+              options={[
+                { value: "normal", label: "Normal" },
+                { value: "bold", label: "Bold" },
+                { value: "italic", label: "Italic" },
+                { value: "bold-italic", label: "Bold + Italic" },
+              ]}
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.underline")}>
+            <SelectField
+              value={local.hyperlink_underline ? "1" : "0"}
+              onChange={(v) => upd({ hyperlink_underline: v === "1" })}
+              options={[
+                { value: "1", label: t("admin.contentArea.on") },
+                { value: "0", label: t("admin.contentArea.off") },
+              ]}
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.linkColorLight")}>
+            <ColorField
+              value={local.hyperlink_color}
+              onChange={(v) => upd({ hyperlink_color: v })}
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.linkColorDark")}>
+            <ColorField
+              value={local.hyperlink_color_dark}
+              onChange={(v) => upd({ hyperlink_color_dark: v })}
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.underlineColorLight")}>
+            <ColorField
+              value={local.underline_color}
+              onChange={(v) => upd({ underline_color: v })}
+            />
+          </FieldShell>
+          <FieldShell label={t("admin.contentArea.underlineColorDark")}>
+            <ColorField
+              value={local.underline_color_dark}
+              onChange={(v) => upd({ underline_color_dark: v })}
+            />
+          </FieldShell>
+        </div>
 
-        <SectionCard title={t("admin.contentArea.imageCaption")}>
-          <ToggleField
-            checked={local.image_caption_left_border}
-            onChange={(v) => upd({ image_caption_left_border: v })}
-            label={t("admin.contentArea.imageCaptionToggle")}
-            description="Cienki, kolorowy pasek po lewej stronie tekstu podpisu obrazu."
-          />
-        </SectionCard>
+        {/* Live preview */}
+        <div className="rounded-md border border-dashed border-border/70 bg-background p-4">
+          <span className="mb-2 block text-[10px] uppercase tracking-wider text-muted-foreground">
+            Preview
+          </span>
+          <p className="text-sm">
+            Ipsum sit{" "}
+            <a
+              href="#"
+              onClick={(e) => e.preventDefault()}
+              style={{
+                color: local.hyperlink_color || undefined,
+                // Longhand, nie skrót `textDecoration`: skrót zeruje
+                // `text-decoration-color`, a React nie dopisuje go z powrotem
+                // (wartość się nie zmieniła) - po „Wyłącz" -> „Włącz" podgląd
+                // gubił skonfigurowany kolor podkreślenia.
+                textDecorationLine: local.hyperlink_underline ? "underline" : "none",
+                textDecorationColor: local.underline_color || undefined,
+                textUnderlineOffset: 3,
+                fontWeight:
+                  local.hyperlink_style === "bold" || local.hyperlink_style === "bold-italic"
+                    ? 600
+                    : undefined,
+                fontStyle:
+                  local.hyperlink_style === "italic" || local.hyperlink_style === "bold-italic"
+                    ? "italic"
+                    : undefined,
+              }}
+            >
+              to jest link w treści
+            </a>{" "}
+            dolor amet consectetur.
+          </p>
+        </div>
+      </SectionCard>
 
-        <SectionCard title={t("admin.contentArea.quickView")}>
-          <ToggleField
-            checked={local.quick_view_info}
-            onChange={(v) => upd({ quick_view_info: v })}
-            label={t("admin.contentArea.quickViewToggle")}
-            description='Kompaktowy pasek: kategoria • czas czytania • data (badge „Aktualizacja" gdy updated_at > published_at).'
-          />
-        </SectionCard>
-      </div>
-    </AdminShell>
+      <SectionCard title={t("admin.contentArea.imageCaption")}>
+        <ToggleField
+          checked={local.image_caption_left_border}
+          onChange={(v) => upd({ image_caption_left_border: v })}
+          label={t("admin.contentArea.imageCaptionToggle")}
+          description="Cienki, kolorowy pasek po lewej stronie tekstu podpisu obrazu."
+        />
+      </SectionCard>
+
+      <SectionCard title={t("admin.contentArea.quickView")}>
+        <ToggleField
+          checked={local.quick_view_info}
+          onChange={(v) => upd({ quick_view_info: v })}
+          label={t("admin.contentArea.quickViewToggle")}
+          description='Kompaktowy pasek: kategoria • czas czytania • data (badge „Aktualizacja" gdy updated_at > published_at).'
+        />
+      </SectionCard>
+    </div>
   );
 }

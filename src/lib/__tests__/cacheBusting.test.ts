@@ -548,8 +548,9 @@ describe("nowy build -> MIĘKKIE odświeżenie", () => {
   });
 
   it("zmiana wersji odświeża dane w tle, nie przeładowuje strony", async () => {
-    // Twardy reload zostaje wyłącznie dla chunk-load errors - w podglądzie
-    // BUILD_ID zmienia się per-isolate, więc reload mrugałby po każdej nawigacji.
+    // Twardy reload zostaje wyłącznie dla chunk-load errors - identyfikator
+    // bywał różny per izolat (dawny fallback `rt-<Date.now()>`, dziś tylko poza
+    // buildem Vite), więc reload mrugałby po każdej nawigacji.
     respondVersions("build-1", "build-2");
     const router = fakeRouter();
     stop = startCacheBusting(router);

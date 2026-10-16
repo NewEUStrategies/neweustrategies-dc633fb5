@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-dashboard";
 import { DashboardPeriodTabs } from "@/components/admin/dashboard/DashboardPeriodTabs";
 import { DashboardSection } from "@/components/admin/dashboard/DashboardSection";
+import { SECTION_RESERVE_PX } from "@/components/admin/dashboard/sectionReserve";
 import { TrafficPanel } from "@/components/admin/dashboard/TrafficPanel";
 import { GeoPanel } from "@/components/admin/dashboard/GeoPanel";
 import {
@@ -51,6 +52,10 @@ export function TrafficGeoDashboard() {
         isError={traffic.isError}
         onRetry={() => void traffic.refetch()}
         unavailable={traffic.data?.available === false}
+        // Ta sama rezerwa, co na pulpicie: bez niej sekcja po wczytaniu chunku
+        // ma wiersz migotki (~56 px), a po odczycie kilkaset pikseli - i spycha
+        // w dół Web Vitals oraz resztę dashboardów BI.
+        pendingMinHeight={SECTION_RESERVE_PX.traffic}
       >
         {traffic.data ? <TrafficPanel report={traffic.data.report} range={range} /> : null}
       </DashboardSection>
@@ -61,6 +66,7 @@ export function TrafficGeoDashboard() {
         isPending={traffic.isPending || crm.isPending}
         isError={traffic.isError}
         onRetry={() => void traffic.refetch()}
+        pendingMinHeight={SECTION_RESERVE_PX.geo}
       >
         <GeoPanel
           traffic={traffic.data?.report.countries ?? []}

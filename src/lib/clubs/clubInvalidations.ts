@@ -107,6 +107,31 @@ export function clubMembershipsOnlyKeys(): readonly QueryKey[] {
 }
 
 /**
+ * Zgloszenie klubu przez czlonka. To TEZ zmiana wlasnego czlonkostwa -
+ * `club_propose` wpisuje zglaszajacego jako `lead` szkicu - plus wlasna lista
+ * zgloszen. `myProposals()` wisi POZA poddrzewem `club(clubId)` (szkic nie ma
+ * jeszcze widoku klubu), wiec musi byc wymienione jawnie.
+ */
+export function clubProposedKeys(clubId: string): readonly QueryKey[] {
+  return [...clubMembershipKeys(clubId), clubKeys.myProposals()];
+}
+
+/**
+ * Edycja danych klubu przez PROWADZACEGO - produkt, nie panel (dane klubu
+ * zapisane w panelu uniewaznia `clubUpsertedKeys`). Nazwa jest projekcja
+ * katalogu i karty po slugu, wiec idzie karta klubu z trzech stron, ORAZ
+ * „Moje zgloszenia": `club_my_proposals` zwraca `name_pl`, `name_en`
+ * i `policy_area` klubow zalozonych przez wolajacego we WSZYSTKICH
+ * statusach, a prowadzacy zatwierdzonego klubu jest
+ * zwykle jego zglaszajacym. Bez tego klucza /club pokazywalo nowa nazwe
+ * w „Moich klubach" i stara w sekcji zgloszen tuz nad nimi - az do
+ * wygasniecia staleTime.
+ */
+export function clubOwnerSettingsKeys(clubId: string): readonly QueryKey[] {
+  return [...clubCardKeys(clubId), clubKeys.myProposals()];
+}
+
+/**
  * Odpowiedz na zaproszenie i realizacja linku. Inwalidacja OD KORZENIA jest
  * tu tansza niz trzy klucze: zmienia sie lista zaproszen, lista klubow
  * i czlonkostwa naraz.
@@ -276,6 +301,8 @@ export function clubInvalidationsForTest(
     clubInviteLinksKeys: clubInviteLinksKeys(clubId),
     clubMembershipKeys: clubMembershipKeys(clubId),
     clubMembershipsOnlyKeys: clubMembershipsOnlyKeys(),
+    clubProposedKeys: clubProposedKeys(clubId),
+    clubOwnerSettingsKeys: clubOwnerSettingsKeys(clubId),
     clubTreeKeys: clubTreeKeys(),
     threadReplyKeys: threadReplyKeys(clubId, threadSlug, threadId),
     feedReplyKeys: feedReplyKeys(clubId, threadSlug, threadId),

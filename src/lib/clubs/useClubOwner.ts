@@ -7,8 +7,10 @@
 // Te dwie czynnosci sa produktowe - dzieja sie na /club i na stronie klubu,
 // przez zwyklego czlonka i przez prowadzacego, ktory panelu nie widzi.
 //
-// ZESTAWY UNIEWAZNIEN wychodza z `clubInvalidations.ts` - to regula produktowa
-// (czy naglowek klubu pokaze nowa nazwe), nie szczegol hooka.
+// ZESTAWY UNIEWAZNIEN wychodza z `clubInvalidations.ts` (`clubProposedKeys`,
+// `clubOwnerSettingsKeys`) - to regula produktowa (czy /club i naglowek klubu
+// pokaza nowa nazwe), nie szczegol hooka. Hook nie dokleja do skutku zadnego
+// klucza: zestaw skladany inline omija inwarianty `clubInvalidationsForTest`.
 import {
   useMutation,
   useQuery,
@@ -26,7 +28,12 @@ import {
   type ClubSettingsPatch,
 } from "./api";
 import { clubKeys } from "./queryKeys";
-import { CLUB_STALE_MS, clubCardKeys, invalidateKeys } from "./clubInvalidations";
+import {
+  CLUB_STALE_MS,
+  clubOwnerSettingsKeys,
+  clubProposedKeys,
+  invalidateKeys,
+} from "./clubInvalidations";
 
 /** Moje zgloszenia klubow. Wlaczane dopiero dla zalogowanego widza. */
 export function useMyClubProposals(enabled: boolean): UseQueryResult<ClubProposalRow[], Error> {
@@ -41,18 +48,14 @@ export function useMyClubProposals(enabled: boolean): UseQueryResult<ClubProposa
 /**
  * Zgloszenie klubu. Po zapisie uniewazniamy takze KATALOG i moje czlonkostwa:
  * zglaszajacy zostaje prowadzacym szkicu, wiec klub pojawia mu sie w „Moich
- * klubach" natychmiast, a nie po wygasnieciu staleTime.
+ * klubach" natychmiast, a nie po wygasnieciu staleTime. Id pochodzi
+ * z ODPOWIEDZI bazy - formularz go nie zna.
  */
 export function useProposeClub(): UseMutationResult<ClubProposalResult, Error, ClubProposalInput> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: proposeClub,
-    onSuccess: (result) =>
-      invalidateKeys(qc, [
-        ...clubCardKeys(result.id),
-        clubKeys.memberships(),
-        clubKeys.myProposals(),
-      ]),
+    onSuccess: (result) => invalidateKeys(qc, clubProposedKeys(result.id)),
   });
 }
 
@@ -60,13 +63,16 @@ export interface UpdateClubSettingsVars {
   patch: ClubSettingsPatch;
 }
 
-/** Edycja danych klubu przez prowadzacego. */
+/**
+ * Edycja danych klubu przez prowadzacego. Dlaczego poza karta klubu takze
+ * „Moje zgloszenia": `clubOwnerSettingsKeys`.
+ */
 export function useUpdateClubSettings(
   clubId: string,
 ): UseMutationResult<boolean, Error, UpdateClubSettingsVars> {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (vars) => updateClubSettings({ clubId, patch: vars.patch }),
-    onSuccess: () => invalidateKeys(qc, clubCardKeys(clubId)),
+    onSuccess: () => invalidateKeys(qc, clubOwnerSettingsKeys(clubId)),
   });
 }

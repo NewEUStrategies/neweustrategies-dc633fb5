@@ -24,7 +24,12 @@
 // awaria inicjalizacji pakietu położyłaby CAŁĄ witrynę, a nie tylko /mcp.
 // W RUNTIME TESTU TEJ ZMIANY NIE WIDAĆ - atrapa odpowiada identycznie przy
 // imporcie górnym i dynamicznym - dlatego granica jest sprawdzana na ŹRÓDLE
-// pliku, tą samą techniką co w `src/routes/api/public/-jobs-tick.test.ts`.
+// pliku, parserem TypeScriptu ze wspólnego `src/test/routeSourceImports.ts`
+// (ten sam pomiar co w `src/routes/__tests__/mcpEntryRoutes.test.ts`). Dawny
+// regex `^import\s[\s\S]*?from` przepuszczał goły `import "pakiet";`
+// i `export ... from`, a `await import` w zasięgu modułu przechodził przez
+// samo `toContain('import("...")')` - wszystkie trzy formy ładują pakiet przy
+// imporcie pliku, więc test był zielony przy złamanej granicy.
 //
 // GRANICE, KTÓRE ATRAPUJEMY, I DLACZEGO:
 //   * `@lovable.dev/mcp-js/stacks/tanstack` - fabryki handlerów. To pakiet
@@ -42,6 +47,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { routeServerHandlers, type RouteServerHandler } from "@/test/routeHarness";
+import { zaleznosciTrasy } from "@/test/routeSourceImports";
 
 // --- atrapa granicy: fabryki handlerów pakietu ------------------------------
 
@@ -347,25 +353,58 @@ describe("źródło tras: granica ładowania i adres publiczny", () => {
     // niezwiązanej z MCP. Atrapa odpowiada identycznie w obu wariantach, więc
     // runtime tej zmiany nie zobaczy: dowód musi patrzeć na źródło.
     it(`${plik} ładuje pakiet MCP TYLKO przez await import w handlerze`, () => {
-      const source = readFileSync(plik, "utf8");
-      const importyGorne = [...source.matchAll(/^import\s[\s\S]*?from\s+"([^"]+)";$/gm)].map(
-        (m) => m[1],
+      const { statyczne, wHandlerze, pozaHandlerem } = zaleznosciTrasy(
+        plik,
+        readFileSync(plik, "utf8"),
       );
 
-      expect(source).toContain('import("@lovable.dev/mcp-js/stacks/tanstack")');
-      expect(importyGorne).not.toContain("@lovable.dev/mcp-js/stacks/tanstack");
-      expect(importyGorne).toEqual(["@tanstack/react-router"]);
+      expect(statyczne).toEqual(["@tanstack/react-router"]);
+      // `await import` w zasięgu modułu ładuje pakiet przy imporcie pliku tak
+      // samo jak import statyczny - granica liczy się tylko wewnątrz handlera.
+      expect(pozaHandlerem).toEqual([]);
+      expect(wHandlerze).toContain("@lovable.dev/mcp-js/stacks/tanstack");
     });
 
     it(`${plik} ładuje definicję MCP TYLKO przez await import w handlerze`, () => {
       const source = readFileSync(plik, "utf8");
-      const importyGorne = [...source.matchAll(/^import\s[\s\S]*?from\s+"([^"]+)";$/gm)].map(
-        (m) => m[1],
-      );
+      const { statyczne, wHandlerze, pozaHandlerem } = zaleznosciTrasy(plik, source);
 
-      expect(source).toMatch(/import\("(\.\.\/)+lib\/mcp\/index"\)/);
-      expect(importyGorne.some((m) => m.includes("lib/mcp/index"))).toBe(false);
+      expect(statyczne.some((m) => m.includes("lib/mcp/index"))).toBe(false);
+      // Definicja w `await import` z zasięgu modułu też ładuje się przy imporcie
+      // pliku - bez tej asercji porażkę zgłaszał tylko test pakietu, pod
+      // cudzą nazwą, a ten zostawał zielony przy złamanej granicy.
+      expect(pozaHandlerem.filter((m) => m.includes("lib/mcp/index"))).toEqual([]);
+      expect(wHandlerze).toContainEqual(expect.stringMatching(/^(\.\.\/)+lib\/mcp\/index$/));
       expect(source).toContain(fabryka);
     });
   }
+
+  // Sanity POMIARU na prawdziwym źródle z dopisaną formą, którą przepuszczał
+  // dawny regex. Bez tego powrót do regexu w pomocniku znów dałby zielony test
+  // przy pakiecie wciągniętym do grafu tras SSR.
+  it.each([
+    {
+      forma: "goły import dla efektu ubocznego",
+      mutacja: (zrodlo: string) => `import "@lovable.dev/mcp-js/stacks/tanstack";\n${zrodlo}`,
+      grupa: "statyczne",
+    },
+    {
+      forma: "re-eksport z pakietu",
+      mutacja: (zrodlo: string) =>
+        `${zrodlo}export { createTanStackListToolsHandler } from "@lovable.dev/mcp-js/stacks/tanstack";\n`,
+      grupa: "statyczne",
+    },
+    {
+      forma: "await import w zasięgu modułu",
+      mutacja: (zrodlo: string) =>
+        `${zrodlo}await import("@lovable.dev/mcp-js/stacks/tanstack");\n`,
+      grupa: "pozaHandlerem",
+    },
+  ] as const)("pomiar widzi $forma jako ładowanie przy imporcie pliku", ({ mutacja, grupa }) => {
+    const zmutowane = mutacja(readFileSync(LIST_TOOLS_FILE, "utf8"));
+
+    expect(zaleznosciTrasy(LIST_TOOLS_FILE, zmutowane)[grupa]).toContain(
+      "@lovable.dev/mcp-js/stacks/tanstack",
+    );
+  });
 });

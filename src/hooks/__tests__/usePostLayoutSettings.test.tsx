@@ -2,7 +2,8 @@
 // grzeje ten wiersz na KAŻDEJ trasie publicznej, a panel /admin/post-layouts
 // jest jedynym miejscem, z którego da się go zmienić.
 //
-// Trzy reguły, których złamanie widzi CZYTELNIK, nie admin:
+// Cztery reguły. Złamanie 1-3 widzi CZYTELNIK, nie admin; złamanie 4 -
+// administrator, jako utratę danych przy zapisie:
 //
 //   1. BŁĄD ODCZYTU DEGRADUJE DO DOMYŚLNYCH, NIE RZUCA. Te ustawienia są w
 //      loaderze korzenia, więc jedno nieudane zapytanie rzucające wyjątkiem
@@ -11,6 +12,12 @@
 //   3. ZAPIS PRZYPINA `tenant_id` JAWNIE z `current_tenant_id()`. Domyślna
 //      wartość kolumny w bazie też by go dała, ale bez jawnego pola upsert nie
 //      jest idempotentny: pierwszy zapis nowego tenanta nie ma z czym kolidować.
+//   4. ODCZYT EDYTORA (`/admin/content-area`) MA ODWROTNY KONTRAKT NIŻ REGUŁA 1:
+//      błąd RZUCA. Domyślne podstawione za błąd mają `tenant_id: ""`, czyli
+//      udają najemcę bez wiersza, a pierwszy zapis takiego szkicu upsertuje
+//      CAŁY wiersz wartościami domyślnymi. Klucz leży pod prefiksem publicznego
+//      (unieważnienie zapisu obejmuje oba) i jest czytany z bazy przy każdym
+//      montażu - także wtedy, gdy polityka okna bootu odświeżania nie chce.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -34,7 +41,9 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 
 import {
+  adminPostLayoutSettingsQueryOptions,
   postLayoutSettingsQueryOptions,
+  useAdminPostLayoutSettings,
   usePostLayoutSettings,
   useSavePostLayoutSettings,
 } from "@/hooks/usePostLayoutSettings";
@@ -134,6 +143,87 @@ describe("postLayoutSettingsQueryOptions - odczyt", () => {
   });
 });
 
+const runAdminQuery = () => adminPostLayoutSettingsQueryOptions().queryFn!({} as never);
+
+describe("adminPostLayoutSettingsQueryOptions - odczyt edytora", () => {
+  it("zwraca wiersz najemcy jednym zapytaniem o pełny wiersz", async () => {
+    from().setResponse(
+      "post_layout_settings",
+      ok({ ...defaultPostLayoutSettings(), tenant_id: POST_IDS.tenant, list_style: "square" }),
+    );
+
+    const settings = await runAdminQuery();
+
+    expect(settings).toMatchObject({ tenant_id: POST_IDS.tenant, list_style: "square" });
+    const chain = from().lastChain("post_layout_settings");
+    expect(chain?.argsOf("select")).toEqual(["*"]);
+    expect(chain?.has("maybeSingle")).toBe(true);
+  });
+
+  it("BRAK WIERSZA (jedyny taki przypadek) daje domyślne z pustym `tenant_id`", async () => {
+    from().setResponse("post_layout_settings", ok(null));
+
+    await expect(runAdminQuery()).resolves.toEqual(defaultPostLayoutSettings());
+  });
+
+  it("BŁĄD ODCZYTU RZUCA zamiast udawać najemcę bez wiersza", async () => {
+    from().setResponse("post_layout_settings", fail("permission denied for table", "42501"));
+
+    await expect(runAdminQuery()).rejects.toThrow(/permission denied/);
+  });
+
+  it("`PGRST116` też rzuca: przy `maybeSingle()` to WIĘCEJ niż jeden wiersz, nie brak", async () => {
+    from().setResponse("post_layout_settings", {
+      data: null,
+      error: pgError("JSON object requested, multiple (or no) rows returned", "PGRST116"),
+    });
+
+    await expect(runAdminQuery()).rejects.toThrow(/multiple/);
+  });
+
+  it("wyjątek klienta (sieć) rzuca, bez degradacji do domyślnych", async () => {
+    from().setResponse("post_layout_settings", () => {
+      throw new Error("network down");
+    });
+
+    await expect(runAdminQuery()).rejects.toThrow(/network down/);
+  });
+
+  it("klucz leży pod prefiksem publicznego, ale go nie współdzieli (zasiew korzenia go omija)", () => {
+    const admin = adminPostLayoutSettingsQueryOptions().queryKey;
+    const pub = postLayoutSettingsQueryOptions().queryKey;
+
+    expect(admin.slice(0, pub.length)).toEqual([...pub]);
+    expect(admin).not.toEqual(pub);
+  });
+
+  it("hook czyta bazę przy montażu, choć cache ma wiersz, a polityka klienta odświeżania nie chce", async () => {
+    // Polityka okna bootu w `router.tsx` oddaje `false` dla wpisu z danymi -
+    // edytor zbudowany na takim wpisie pokazywałby stan sprzed minut.
+    from().setResponse(
+      "post_layout_settings",
+      ok({ ...defaultPostLayoutSettings(), tenant_id: POST_IDS.tenant, list_style: "square" }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnMount: false } },
+    });
+    queryClient.setQueryData(
+      adminPostLayoutSettingsQueryOptions().queryKey,
+      { ...defaultPostLayoutSettings(), tenant_id: POST_IDS.tenant, list_style: "disc" },
+      { updatedAt: Date.now() },
+    );
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useAdminPostLayoutSettings(), { wrapper });
+
+    await waitFor(() => expect(result.current.isFetchedAfterMount).toBe(true));
+    expect(result.current.data?.list_style).toBe("square");
+    expect(from().chainsFor("post_layout_settings")).toHaveLength(1);
+  });
+});
+
 describe("useSavePostLayoutSettings - zapis panelu", () => {
   it("przypina `tenant_id` z current_tenant_id() i upsertuje z konfliktem `tenant_id`", async () => {
     h.rpc.mockResolvedValue({ data: POST_IDS.tenant, error: null });
@@ -215,6 +305,19 @@ describe("useSavePostLayoutSettings - zapis panelu", () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["post-layout-settings"] }),
     );
     expect(invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sukces unieważnia też odczyt edytora (klucz pod prefiksem)", async () => {
+    h.rpc.mockResolvedValue({ data: POST_IDS.tenant, error: null });
+    from().setResponse("post_layout_settings", ok(null));
+    const { wrapper, queryClient } = harness();
+    const adminKey = adminPostLayoutSettingsQueryOptions().queryKey;
+    queryClient.setQueryData(adminKey, defaultPostLayoutSettings());
+    const { result } = renderHook(() => useSavePostLayoutSettings(), { wrapper });
+
+    await result.current.mutateAsync({ list_style: "none" });
+
+    await waitFor(() => expect(queryClient.getQueryState(adminKey)?.isInvalidated).toBe(true));
   });
 
   it("pusty patch nadal przypina tenanta (upsert bez pól nie ma czego dopasować)", async () => {

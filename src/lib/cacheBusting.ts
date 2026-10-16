@@ -242,10 +242,13 @@ export function startCacheBusting(router: SoftRefreshable): () => void {
   // (2) Polling wersji -> MIĘKKIE odświeżenie w tle (router.invalidate).
   // Wcześniej ustawialiśmy flagę i przy najbliższej nawigacji robiliśmy
   // window.location.replace(...) - efekt: header/UI "twardo" mrugały po
-  // każdej zmianie tras, bo w preview BUILD_ID zmienia się per-isolate
-  // (patrz api/public/version.ts fallback `rt-<Date.now()>`). Teraz nowy
-  // build sprząta wyłącznie cache React Query i re-runuje loadery w tle;
-  // hard reload zostaje wyłącznie awaryjnie dla chunk-load errors.
+  // każdej zmianie tras, bo w preview BUILD_ID zmieniał się per-isolate
+  // (dawny fallback `rt-<Date.now()>` w api/public/version.ts, liczony przy
+  // ładowaniu modułu; dziś izolaty jednego deployu dzielą stałą buildu
+  // `__NES_BUILD_ID__`, a leniwe `rt-<czas żądania>` zostaje tylko poza
+  // buildem Vite). Teraz nowy build sprząta wyłącznie cache React Query
+  // i re-runuje loadery w tle; hard reload zostaje wyłącznie awaryjnie dla
+  // chunk-load errors.
   let baseline: string | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
 

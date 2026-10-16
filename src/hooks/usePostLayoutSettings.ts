@@ -30,6 +30,40 @@ export function usePostLayoutSettings() {
   return useQuery(postLayoutSettingsQueryOptions());
 }
 
+/**
+ * Odczyt EDYTORA `/admin/content-area` - ten sam wiersz, odwrotny kontrakt niż
+ * odczyt prezentacyjny wyżej.
+ *
+ * DLACZEGO NIE `postLayoutSettingsQueryOptions`. Tamten zamienia KAŻDY błąd
+ * (sieć, RLS, wygasły JWT, wyjątek klienta) w `defaultPostLayoutSettings()`
+ * ze świeżym `dataUpdatedAt` - dla CSS czytelnika to właściwa degradacja, dla
+ * edytora utrata danych: domyślne mają `tenant_id: ""`, czyli wyglądają jak
+ * „najemca bez wiersza", a pierwszy zapis takiego szkicu upsertuje WSZYSTKIE
+ * kolumny wiersza (także układy wpisu, odstęp akapitów i typografię innych
+ * ekranów) wartościami domyślnymi. Tu błąd RZUCA; domyślne daje wyłącznie
+ * `null` z `maybeSingle()`, czyli naprawdę brak wiersza.
+ *
+ * Klucz pod prefiksem publicznego: unieważnienie prefiksem (zapis niżej,
+ * Theme Design) obejmuje oba, a zasiew korzenia i podgląd Theme Design piszą
+ * tylko klucz publiczny. `refetchOnMount: "always"`, bo szkic edytora startuje
+ * z bazy, nie z cache'u sprzed minut - a polityka okna bootu w `router.tsx`
+ * wpisu z danymi przy montażu nie odświeża.
+ */
+export const adminPostLayoutSettingsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["post-layout-settings", "admin"] as const,
+    queryFn: async (): Promise<PostLayoutSettings> => {
+      const { data, error } = await supabase.from("post_layout_settings").select("*").maybeSingle();
+      if (error) throw error;
+      return (data as PostLayoutSettings | null) ?? defaultPostLayoutSettings();
+    },
+    refetchOnMount: "always",
+  });
+
+export function useAdminPostLayoutSettings() {
+  return useQuery(adminPostLayoutSettingsQueryOptions());
+}
+
 export function useSavePostLayoutSettings() {
   const qc = useQueryClient();
   return useMutation({
@@ -46,6 +80,7 @@ export function useSavePostLayoutSettings() {
         .upsert(payload, { onConflict: "tenant_id" });
       if (error) throw error;
     },
+    // Prefiks obejmuje też odczyt edytora (`["post-layout-settings", "admin"]`).
     onSuccess: () => qc.invalidateQueries({ queryKey: ["post-layout-settings"] }),
   });
 }

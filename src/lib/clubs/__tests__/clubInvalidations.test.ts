@@ -15,6 +15,11 @@
 // Testy sprawdzaja RELACJE miedzy kluczami (czy A jest prefiksem B), a nie
 // tylko ich obecnosc - bo to prefiks decyduje o tym, co react-query naprawde
 // uniewazni.
+//
+// Skutki WLASCICIELSKIE (`useClubOwner.ts`) tez sa nazwane i stoja w rejestrze.
+// Wczesniej hooki skladaly je inline z `clubCardKeys` i dopisanych kluczy, wiec
+// inwarianty z dolu pliku ich nie widzialy, a test hooka musial trzymac ich
+// wlasna kopie.
 import { describe, expect, it, vi } from "vitest";
 import type { QueryKey } from "@tanstack/react-query";
 import { pendingCounterKeys } from "@/lib/counters/keys";
@@ -30,6 +35,8 @@ import {
   clubMembershipsOnlyKeys,
   clubModerationKeys,
   clubOnlyKeys,
+  clubOwnerSettingsKeys,
+  clubProposedKeys,
   clubReadKeys,
   clubSettingsKeys,
   clubTreeKeys,
@@ -155,6 +162,44 @@ describe("skutki zaproszen i czlonkostwa", () => {
     expect(covers(keys, clubKeys.list())).toBe(true);
     expect(covers(keys, clubKeys.memberships())).toBe(true);
     expect(covers(keys, clubKeys.invitations(CLUB))).toBe(true);
+  });
+});
+
+describe("skutki wlascicielskie (useClubOwner)", () => {
+  it("zgloszenie klubu to zmiana wlasnego czlonkostwa PLUS moje zgloszenia", () => {
+    // `club_propose` wpisuje zglaszajacego jako `lead` szkicu, wiec klub trafia
+    // naraz do katalogu, „Moich klubow" i sekcji zgloszen.
+    expect(clubProposedKeys(CLUB)).toEqual([
+      clubKeys.club(CLUB),
+      clubKeys.list(),
+      clubKeys.bySlugAll(),
+      clubKeys.memberships(),
+      clubKeys.myProposals(),
+    ]);
+  });
+
+  it("edycja danych przez prowadzacego: karta klubu z trzech stron PLUS moje zgloszenia", () => {
+    expect(clubOwnerSettingsKeys(CLUB)).toEqual([
+      clubKeys.club(CLUB),
+      clubKeys.list(),
+      clubKeys.bySlugAll(),
+      clubKeys.myProposals(),
+    ]);
+  });
+
+  it("REGRESJA: `myProposals` lezy POZA karta klubu - stad jawny klucz", () => {
+    // `club_my_proposals` zwraca nazwe klubu w KAZDYM statusie, a jego wpis nie
+    // wisi pod `club(clubId)`. Sama karta klubu zostawiala na /club stara nazwe
+    // w sekcji zgloszen.
+    expect(covers(clubCardKeys(CLUB), clubKeys.myProposals())).toBe(false);
+    expect(covers(clubOwnerSettingsKeys(CLUB), clubKeys.myProposals())).toBe(true);
+  });
+
+  it("oba skutki sa w rejestrze - inaczej omijalyby inwarianty nizej", () => {
+    const registry = clubInvalidationsForTest(CLUB, SLUG, THREAD);
+
+    expect(registry.clubProposedKeys).toEqual(clubProposedKeys(CLUB));
+    expect(registry.clubOwnerSettingsKeys).toEqual(clubOwnerSettingsKeys(CLUB));
   });
 });
 

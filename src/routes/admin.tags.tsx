@@ -64,14 +64,26 @@ function Tags() {
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
+    const submitted = name;
+    const tagName = submitted.trim();
     // Blokada w locie: pole trzyma nazwę do końca żądania, więc drugi Enter
     // wysyłał ją ponownie i serwer tworzył duplikat ze slugiem „-2”.
-    if (!name.trim() || adding) return;
+    if (!tagName || adding) return;
+    // Ta sama nazwa później też dawała duplikat: `createTag` dokleja sufiks do
+    // sluga, a drugi tag o tej nazwie jest nieodróżnialny w selektorach.
+    const existing = data?.find((tg) => tg.name.trim().toLowerCase() === tagName.toLowerCase());
+    if (existing) {
+      toast.error(t("admin.tags.duplicate", { name: existing.name }));
+      return;
+    }
     setAdding(true);
     try {
-      await create$({ data: { name: name.trim() } });
-      setName("");
-      qc.invalidateQueries({ queryKey: ["tags"] });
+      await create$({ data: { name: tagName } });
+      // Pole jest edytowalne w trakcie żądania - czyścimy tylko zapisaną
+      // nazwę, nie zaczęty już kolejny tag.
+      setName((current) => (current === submitted ? "" : current));
+      // Blokada trwa do odświeżenia listy, żeby kontrola duplikatu widziała nowy tag.
+      await qc.invalidateQueries({ queryKey: ["tags"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -93,6 +105,12 @@ function Tags() {
     try {
       await delete$({ data: { id: tg.id } });
       qc.invalidateQueries({ queryKey: ["tags"] });
+      // Kaskada opróżniła też `post_tags`. Edytor wpisu trzymałby w cache
+      // relację z usuniętym id, a jego zapis (`updatePost`: delete, potem
+      // insert) padałby na kluczu obcym już po skasowaniu WSZYSTKICH tagów wpisu.
+      // Usunięcie, nie unieważnienie: unieważnioną relację przemontowany edytor
+      // dostaje najpierw i uznaje za wczytaną, zanim wróci odczyt bazy.
+      qc.removeQueries({ queryKey: ["post-tags"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -154,7 +172,7 @@ function Tags() {
             <button
               onClick={() => del(tg)}
               type="button"
-              aria-label={t("admin.delete")}
+              aria-label={t("admin.tags.deleteAria", { name: tg.name })}
               className="w-5 h-5 rounded-full hover:bg-destructive/10 inline-flex items-center justify-center"
             >
               <X className="w-3 h-3 text-destructive" />

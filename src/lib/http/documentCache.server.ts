@@ -295,8 +295,9 @@ const stats = {
  * liczy się w zakresie globalnym workerd. Tam losowanie jest zabronione
  * (`crypto.randomUUID()` rzuca), a zegar stoi na 0 - dawny fallback
  * `nes-${Date.now().toString(36)}` dawał na produkcji przewidywalne `nes-0`
- * (ten sam mechanizm daje `rt-0` w `/api/public/version`). Każde żądanie
- * z zewnątrz z `x-nes-revalidate: nes-0` było traktowane jak odświeżenie
+ * (ten sam mechanizm dawał `rt-0` w `/api/public/version`, dziś liczonym
+ * leniwie w zakresie żądania). Każde żądanie z zewnątrz
+ * z `x-nes-revalidate: nes-0` było traktowane jak odświeżenie
  * z izolatu: omijało L1 i L2, wymuszało pełny render (CPU i zapytania do bazy),
  * a jego wynik - wyrenderowany z nagłówkami atakującego, np. wariant bota -
  * nadpisywał wpis L1 i L2 kolonii. Teraz losowanie jest w zakresie żądania

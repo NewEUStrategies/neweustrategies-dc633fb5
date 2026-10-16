@@ -18,11 +18,27 @@
 //   4. DODAWANIE. Nazwa idzie do `createTag` przycięta, pole się czyści, lista
 //      się odświeża; pusta nazwa nie wywołuje serwera; drugi Enter w trakcie
 //      żądania NIE tworzy duplikatu; błąd serwera zostawia nazwę w polu.
+//      Czyści się tylko nazwa, która poszła na serwer - pole jest edytowalne
+//      w trakcie żądania, więc zaczęty już kolejny tag nie może zniknąć.
 //   5. USUWANIE wymaga potwierdzenia (`confirmDialog({ destructive: true })`
 //      jak w kategoriach) z nazwą tagu w treści; anulowanie nie dotyka serwera.
+//   6. DUPLIKAT NAZWY NIE TRAFIA NA SERWER. `createTag` dokleja do sluga
+//      sufiks, więc drugi „NATO” stawał się osobnym tagiem `nato-2` o tej samej
+//      nazwie - nieodróżnialnym w selektorach tagów. Kontrola (przycięta nazwa,
+//      bez wielkości liter) patrzy na CAŁĄ wczytaną listę, nie na wynik
+//      szukajki, dlatego blokada dodawania trwa do jej ODŚWIEŻENIA, a nie
+//      tylko do odpowiedzi `createTag`.
+//   7. USUNIĘCIE ZDEJMUJE RELACJE WPISÓW Z CACHE. `post_tags` kasuje się
+//      kaskadowo, a edytor wpisu trzyma `["post-tags", wpis]` w cache
+//      (`staleTime` 5 min). Jego zapis (`updatePost`: delete relacji, potem
+//      insert) z usuniętym id padał na kluczu obcym - już PO skasowaniu
+//      wszystkich tagów wpisu. Samo unieważnienie nie wystarcza: przemontowany
+//      edytor dostaje unieważnioną relację NAJPIERW, zanim wróci odczyt bazy.
+//   8. KAŻDE × MA NAZWĘ Z TAGIEM. Rząd identycznych „Usuń” nie mówi
+//      czytnikowi ekranu, KTÓRY tag zniknie.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { AnyRoute } from "@tanstack/react-router";
 
@@ -113,7 +129,8 @@ const searchInput = () => screen.getByPlaceholderText("Szukaj tagów…") as HTM
 const addButton = () => screen.getByRole("button", { name: "Dodaj" });
 const counter = () => screen.getByRole("heading", { level: 1 }).nextElementSibling as HTMLElement;
 const chip = (name: string) => screen.getByText(name).closest("span") as HTMLElement;
-const deleteButtonOf = (name: string) => within(chip(name)).getByRole("button", { name: "Usuń" });
+// Chip ma jeden przycisk; jego dostępną nazwę sprawdza osobny test (reguła 8).
+const deleteButtonOf = (name: string) => within(chip(name)).getByRole("button");
 
 function submitName(value: string) {
   fireEvent.change(nameInput(), { target: { value } });
@@ -316,6 +333,65 @@ describe("/admin/tags - dodawanie", () => {
     expect(nameInput().value).toBe("");
   });
 
+  it("nazwa wpisana W TRAKCIE żądania nie znika po jego sukcesie", async () => {
+    // Reguła 4: pole zostaje edytowalne, więc redaktor zaczyna kolejny tag od
+    // razu - czyszczenie dotyczy wyłącznie nazwy, która właśnie poszła.
+    await setup();
+    const pending = deferred<unknown>();
+    h.createImpl = () => pending.promise;
+
+    submitName("Klimat");
+    fireEvent.change(nameInput(), { target: { value: "Energ" } });
+    pending.resolve({ id: "t9", slug: "klimat", name: "Klimat" });
+
+    await waitFor(() => expect(addButton()).not.toBeDisabled());
+    expect(h.creates).toEqual([{ data: { name: "Klimat" } }]);
+    expect(nameInput().value).toBe("Energ");
+  });
+
+  it("nazwa istniejącego tagu (inne litery, spacje) nie trafia na serwer", async () => {
+    // Reguła 6: serwer zrobiłby z tego osobny tag `nato-2` o nazwie „NATO”.
+    await setup([tag("t1", "Energetyka", "energetyka"), tag("t2", "NATO", "nato")]);
+    // Szukajka ukrywa „NATO”, ale kontrola patrzy na całą listę.
+    fireEvent.change(searchInput(), { target: { value: "energ" } });
+    expect(screen.queryByText("NATO")).toBeNull();
+
+    submitName("  nato ");
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("Tag „NATO” już istnieje."));
+    expect(h.creates).toEqual([]);
+    // Nazwa zostaje w polu do poprawki, przycisk nie wisi zablokowany.
+    expect(nameInput().value).toBe("  nato ");
+    expect(addButton()).not.toBeDisabled();
+  });
+
+  it("blokada trwa do ODŚWIEŻENIA listy, więc ta sama nazwa nie przejdzie drugi raz", async () => {
+    // Reguły 4 i 6 razem. Między sukcesem `createTag` a odświeżeniem listy
+    // kontrola duplikatu widzi starą listę - blokada zwolniona wcześniej
+    // przepuszczała ponowny Enter z tą samą nazwą (drugi „Klimat”, `klimat-2`).
+    await setup();
+    const refetch = deferred<void>();
+    h.loadGate = refetch.promise;
+    h.createImpl = async () => {
+      h.rows = [tag("t9", "Klimat", "klimat")];
+      return { id: "t9", slug: "klimat", name: "Klimat" };
+    };
+
+    submitName("Klimat");
+    await waitFor(() => expect(nameInput().value).toBe(""));
+    expect(addButton()).toBeDisabled();
+    submitName("Klimat");
+    expect(h.creates).toHaveLength(1);
+
+    refetch.resolve();
+    expect(await screen.findByText("Klimat")).toBeInTheDocument();
+    await waitFor(() => expect(addButton()).not.toBeDisabled());
+    fireEvent.submit(nameInput().closest("form") as HTMLFormElement);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("Tag „Klimat” już istnieje."));
+    expect(h.creates).toHaveLength(1);
+  });
+
   it("błąd serwera trafia do toastu, a nazwa zostaje w polu do poprawki", async () => {
     await setup();
     h.createImpl = async () => {
@@ -366,6 +442,39 @@ describe("/admin/tags - usuwanie", () => {
     expect(h.deletes).toEqual([{ data: { id: "t2" } }]);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["tags"] });
     expect(screen.getByText("Energetyka")).toBeInTheDocument();
+  });
+
+  it("każde × mówi, KTÓRY tag usuwa", async () => {
+    // Reguła 8: rząd identycznych „Usuń” jest dla czytnika ekranu bezużyteczny.
+    await setup(rows);
+    expect(deleteButtonOf("Energetyka")).toHaveAccessibleName("Usuń tag Energetyka");
+    expect(deleteButtonOf("NATO")).toHaveAccessibleName("Usuń tag NATO");
+  });
+
+  it("usunięcie zdejmuje relacje `post_tags` z cache edytora wpisu", async () => {
+    // Reguła 7. Klient ze `staleTime` aplikacji; edytor przy powrocie na wpis
+    // czyta `["post-tags", id]` przez `useQuery` (usePostEditorData).
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60_000 } },
+    });
+    queryClient.setQueryData(["post-tags", "p1"], [{ tag_id: "t2" }]);
+
+    await setup(rows);
+    h.rows = [rows[0]];
+    fireEvent.click(deleteButtonOf("NATO"));
+    await waitFor(() => expect(screen.queryByText("NATO")).toBeNull());
+    expect(queryClient.getQueryData(["post-tags", "p1"])).toBeUndefined();
+
+    // Powrót na wpis, odczyt bazy jeszcze w locie: edytor nie może dostać
+    // relacji z usuniętym id - uznałby ją za wczytaną i wysłał przy zapisie.
+    const editorRead = deferred<{ tag_id: string }[]>();
+    const editor = renderHook(
+      () => useQuery({ queryKey: ["post-tags", "p1"], queryFn: () => editorRead.promise }),
+      { wrapper },
+    );
+    expect(editor.result.current.data).toBeUndefined();
+    editorRead.resolve([]);
+    await waitFor(() => expect(editor.result.current.data).toEqual([]));
   });
 
   it("anulowanie potwierdzenia nie dotyka serwera i zostawia tag", async () => {

@@ -31,6 +31,38 @@ export function useFontScale() {
   return useQuery(fontScaleQueryOptions);
 }
 
+/**
+ * Odczyt EDYTORA tabeli (`/admin/appearance/font-sizes`) - świadomie inny niż
+ * prezentacyjny wyżej.
+ *
+ * DLACZEGO NIE `fontScaleQueryOptions`. Tamten zamienia KAŻDĄ awarię odczytu
+ * (`fetchSiteDesignTokensRow` łapie błąd i oddaje `null`) w pustą tabelę ze
+ * świeżym znacznikiem czasu - dla arkusza CSS to właściwa degradacja, dla
+ * edytora utrata danych: redaktor widzi same rozmiary domyślne, poprawia jeden
+ * wiersz, a zapis (`font_scale` idzie W CAŁOŚCI) kasuje pozostałe nadpisania
+ * najemcy. Tu błąd RZUCA, a pusta tabela znaczy wyłącznie „brak wiersza".
+ *
+ * Klucz pod prefiksem odczytu prezentacyjnego, poza zasięgiem rozgrzewki
+ * korzenia; `staleTime: 0`, bo szkic edytora startuje z bazy, nie z cache'u
+ * sprzed minut (zmianę mógł zrobić inny redaktor).
+ */
+export const adminFontScaleQueryOptions = queryOptions({
+  queryKey: [...QUERY_KEY, "admin"] as const,
+  queryFn: async (): Promise<FontScaleValue> => {
+    const { data, error } = await supabase
+      .from("site_design_tokens")
+      .select("font_scale")
+      .maybeSingle();
+    if (error) throw error;
+    return normalizeFontScale(data?.font_scale);
+  },
+  staleTime: 0,
+});
+
+export function useAdminFontScale() {
+  return useQuery(adminFontScaleQueryOptions);
+}
+
 export function useSaveFontScale() {
   const qc = useQueryClient();
   return useMutation({
@@ -44,6 +76,7 @@ export function useSaveFontScale() {
     },
     onSuccess: (next) => {
       qc.setQueryData(QUERY_KEY, next);
+      qc.setQueryData(adminFontScaleQueryOptions.queryKey, next);
       notifySuccess("Zapisano rozmiary czcionek");
     },
     onError: (e: Error) => notifyError(e.message || "Błąd zapisu rozmiarów czcionek"),
