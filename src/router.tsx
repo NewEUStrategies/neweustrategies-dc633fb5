@@ -8,6 +8,7 @@ import { isServer } from "@tanstack/router-core/isServer";
 import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
 import { currentLang } from "./lib/i18n/localeRuntime";
+import { installLanguageLinkRefresh } from "./lib/i18n/refreshRenderedLinks";
 // Ekrany błędu NIE należą do udanego pierwszego renderu - `React.lazy`
 // (wewnątrz wrappera) trzyma je poza chunkiem wejściowym; SSR strony błędu
 // nadal działa, bo lazy renderuje się w strumieniu (test: router.test.tsx).
@@ -258,6 +259,16 @@ export const getRouter = () => {
   }
 
   if (!isServer) {
+    // ODNOŚNIKI PO ZMIANIE JĘZYKA. router-core 1.171.37 pamięta zbudowaną lokalizację
+    // każdego `<Link>` (`staticLocations`), a język renderu (rewrite `output` czyta
+    // `currentLang()`) nie jest częścią adresu, który router widzi. Po nawigacji, która
+    // zmieniła język - przełącznik, ale też „wstecz"/„dalej" przez granicę języka i klik
+    // w odnośnik drugiej wersji - odnośniki chromu (nagłówek, stopka, menu) zostawały
+    // w starym języku. Jeden hak na `onResolved` obsługuje wszystkie te drogi
+    // (`lib/i18n/refreshRenderedLinks.ts`); router żyje tyle co strona, więc wypięcie
+    // słuchacza nie jest potrzebne.
+    installLanguageLinkRefresh(router, currentLang);
+
     // The integration hydrates the INITIAL dehydrated batch synchronously, but
     // pumps the render-phase query STREAM through an async reader loop. React
     // hydration otherwise starts before those buffered chunks land in the

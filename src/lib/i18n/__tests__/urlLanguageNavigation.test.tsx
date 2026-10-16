@@ -218,39 +218,33 @@ describe("język renderu na kliencie po nawigacji wstecz/dalej", () => {
     await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
   });
 
-  // REGRESJA router-core 1.171.37 - przypięta, NIE naprawiona tutaj. Router
+  // REGRESJA router-core 1.171.37, naprawiona w routerze aplikacji. Router
   // pamięta lokalizację odnośnika o bezwzględnym `to` (`staticLocations`,
   // `router.js`) i publikuje nową lokalizację na POCZĄTKU ładowania
   // (`load-client.js`, `loadClientRoute`), zanim `beforeLoad` korzenia
   // (`syncI18nToRequest` -> `syncClientLangToUrl`) wyprowadzi język z adresu.
-  // Odnośnik chromu korzenia (nagłówek, stopka) przelicza więc href jeszcze
-  // w starym języku i go zapamiętuje: po „wstecz" z /en/b na polskie /a dalej
-  // prowadzi na /en/c. Do 1.171.15 dawał tu "/c" (przeliczał href przy każdej
-  // zmianie adresu, bez pamięci). Odnośnik strony tej wady nie ma (nowa trasa to
-  // nowy odnośnik), a przełącznik odświeża odnośniki sam (`refreshRenderedLinks`).
-  // Naprawa należy do routera aplikacji, nie do przełącznika: to samo
-  // odświeżenie po `onResolved`, gdy zmienił się `currentLang()` - o
-  // mikrozadanie później, bo `onResolved` biegnie w `router.batch`, który
-  // scala zapis kopii lokalizacji z jej przywróceniem w jedno powiadomienie.
-  // Gdy ten test zacznie przechodzić, zdejmij `.fails`.
-  it.fails(
-    "wstecz przez granicę języka: odnośnik chromu korzenia też wraca do polskiego",
-    async () => {
-      state = await boot("/a");
-      const { router, i18n, switchUiLanguage } = state;
-      await go(router, "/b");
-      await settled(router, "/b");
-      switchUiLanguage("en", "pl", { i18n, router });
-      await settled(router, "/en/b");
-      await vi.waitFor(() => expect(rootHrefToC()).toBe("/en/c"));
+  // Odnośnik chromu korzenia (nagłówek, stopka) przeliczał więc href jeszcze
+  // w starym języku i go zapamiętywał: po „wstecz" z /en/b na polskie /a dalej
+  // prowadził na /en/c (do 1.171.15 dawał tu "/c" - przeliczał href przy każdej
+  // zmianie adresu, bez pamięci). Naprawa: `installLanguageLinkRefresh` w
+  // `src/router.tsx` odświeża odnośniki po `onResolved`, w którym zmienił się
+  // `currentLang()` - o mikrozadanie później, bo `onResolved` biegnie w
+  // `router.batch`, który scaliłby zapis kopii lokalizacji z jej przywróceniem.
+  it("wstecz przez granicę języka: odnośnik chromu korzenia też wraca do polskiego", async () => {
+    state = await boot("/a");
+    const { router, i18n, switchUiLanguage } = state;
+    await go(router, "/b");
+    await settled(router, "/b");
+    switchUiLanguage("en", "pl", { i18n, router });
+    await settled(router, "/en/b");
+    await vi.waitFor(() => expect(rootHrefToC()).toBe("/en/c"));
 
-      window.history.back();
-      await settled(router, "/a");
-      await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
-      expect(hrefFor(router, "/c")).toBe("/c");
-      await vi.waitFor(() => expect(rootHrefToC()).toBe("/c"));
-    },
-  );
+    window.history.back();
+    await settled(router, "/a");
+    await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
+    expect(hrefFor(router, "/c")).toBe("/c");
+    await vi.waitFor(() => expect(rootHrefToC()).toBe("/c"));
+  });
 
   // Zmiana języka, która NIE przesuwa adresu (baner zgody woła wprost
   // `i18n.changeLanguage`), a potem zwykły klik w odnośnik: historia zapisuje
