@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 
 // LISTWA PRAWNA STOPKI NA ARTEFAKCIE PRODUKCYJNYM.
 //
@@ -19,11 +19,12 @@ import { expect, test } from "@playwright/test";
 //      z wyspą stopki;
 //   3. po hydratacji wyspy listwa nadal tam jest, z tymi samymi adresami, i nie
 //      ma błędu hydratacji (rozjazd serwer/klient porzuciłby HTML wyspy);
-//   4. kodu listwy nie ma w chunku wejściowym (`index-*.js`) - na Rollupie
-//      wkleiło go tam łączenie małych chunków, na Rolldownie zrobiłaby to grupa
-//      o złym priorytecie, zawsze pod INNĄ nazwą pliku, więc sama nazwa w serii
-//      bootu nie wystarcza - a jej `import()` nie ciągnie listy preloadu
-//      (`modulePreload.resolveDependencies` w obu konfiguracjach Vite);
+//   4. kodu listwy nie ma w żadnym chunku domknięcia bootu (wejście `index-*.js`
+//      i jego statyczne importy, w tym `app-initial-*.js`) - na Rollupie wkleiło
+//      go tam łączenie małych chunków, na Rolldownie robi to grupa o złym
+//      priorytecie (martwy import SSR ze stopki czyni listwę `$initial`), zawsze
+//      pod INNĄ nazwą pliku, więc sama nazwa w serii bootu nie wystarcza; boot
+//      ma za to leniwy `import()` listwy, który prowadzi do chunku z jej kodem;
 //   5. na telefonie (412 px) pływający przycisk „Wróć na górę" nie zasłania
 //      żadnego linku listwy po przewinięciu do końca strony (recenzja 2, B2);
 //   6. awaria chunku listwy degraduje do braku listwy: jedno przeładowanie
@@ -66,6 +67,31 @@ function bootSetsIn(html: string): BootSet[] {
   return [
     ...html.matchAll(/<script type="application\/json" id="nes-boot-set">([^<]*)<\/script>/g),
   ].map((m) => JSON.parse(m[1]) as BootSet);
+}
+
+/** Statyczne importy chunku (`from"./x.js"`, `import"./x.js"`); dynamiczne `import(` pomija. */
+const STATIC_IMPORT_RE = /(?:\bfrom\s*|\bimport\s*)["'](\.\/[\w.-]+\.js)["']/g;
+
+/** Kod statycznego domknięcia chunku: ścieżka -> treść (tak boot pobiera serię modułów). */
+async function staticClosure(
+  request: APIRequestContext,
+  root: string,
+  skip: ReadonlySet<string> = new Set(),
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const queue = [root];
+  while (queue.length > 0) {
+    const path = queue.pop()!;
+    if (out.has(path) || skip.has(path)) continue;
+    const response = await request.get(path);
+    expect(response.status(), path).toBe(200);
+    const code = await response.text();
+    out.set(path, code);
+    for (const match of code.matchAll(STATIC_IMPORT_RE)) {
+      queue.push(new URL(match[1], `http://chunk${path}`).pathname);
+    }
+  }
+  return out;
 }
 
 /** Fragment `<footer data-site-footer>...</footer>` z dokumentu (bez JS-a). */
@@ -112,27 +138,30 @@ for (const { path, lang, label, prefix, terms } of CASES) {
       const sets = bootSetsIn(html);
       expect(sets).toHaveLength(1);
       expect(sets[0].u.filter((url) => /legal-links/i.test(url))).toEqual([]);
-      // ...i nie wkleił się do chunku wejściowego: tam jest tylko leniwy `import()`
-      // chunku listwy, bez wpisu w liście preloadu (`__vite__mapDeps`). Minifikator
-      // Oxc drukuje specyfikator dynamicznego importu w backtickach, a lista
-      // `__vite__mapDeps` to `JSON.stringify` (cudzysłowy).
-      const entry = await request.get(sets[0].e);
-      expect(entry.status()).toBe(200);
-      const entryCode = await entry.text();
-      // Wartości logiczne, nie napis: porażka nie wypisuje do logu ~0,9 MB wejścia.
+      // ...i nie wkleił się do żadnego chunku domknięcia bootu: tam jest tylko leniwy
+      // `import()` listwy - przez pustą fasadę `LegalLinks-*.js`, którą Rolldown daje
+      // dynamicznemu wejściu w chunku grupy `legal-links`. Minifikator Oxc drukuje
+      // specyfikator dynamicznego importu w backtickach.
+      const boot = await staticClosure(request, sets[0].e);
+      const bootCode = [...boot.values()].join("\n");
+      // Wartości logiczne, nie napis: porażka nie wypisuje do logu ~1,6 MB bootu.
+      expect(bootCode.includes("footer.legal_nav"), "klucz nazwy listwy w domknięciu bootu").toBe(
+        false,
+      );
       expect(
-        /import\(["'`]\.\/legal-links-[\w-]+\.js["'`]\)/.test(entryCode),
-        "wejście ładuje listwę leniwym import()",
-      ).toBe(true);
-      expect(entryCode.includes("footer.legal_nav"), "klucz nazwy listwy w wejściu").toBe(false);
-      expect(
-        entryCode.includes("min-h-6 items-center rounded-sm underline-offset-2"),
-        "klasy linków listwy w wejściu",
+        bootCode.includes("min-h-6 items-center rounded-sm underline-offset-2"),
+        "klasy linków listwy w domknięciu bootu",
       ).toBe(false);
-      expect(
-        /"assets\/legal-links-[\w-]+\.js"/.test(entryCode),
-        "chunk listwy na liście preloadu (__vite__mapDeps) wejścia",
-      ).toBe(false);
+      const lazy = /import\(["'`]\.\/((?:LegalLinks|legal-links)-[\w-]+\.js)["'`]\)/.exec(bootCode);
+      expect(lazy !== null, "boot ładuje listwę leniwym import()").toBe(true);
+      // Za `import()` (bez tego, co boot już ma) leży kod listwy - w chunku `legal-links`.
+      const listwa = await staticClosure(
+        request,
+        `/assets/${lazy?.[1] ?? "missing.js"}`,
+        new Set(boot.keys()),
+      );
+      expect([...listwa.keys()].some((path) => /\/legal-links-[\w-]+\.js$/.test(path))).toBe(true);
+      expect([...listwa.values()].join("\n").includes("footer.legal_nav")).toBe(true);
 
       // 3. Hydratacja wyspy stopki bez błędu i bez utraty linków.
       const errors: string[] = [];

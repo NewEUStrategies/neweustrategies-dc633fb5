@@ -34,10 +34,23 @@
 // ignorowana z ostrzeżeniem), więc nic nie wkleja już małych modułów leniwych do `index-*` -
 // znika cała klasa awarii, przy której przypinaliśmy LegalLinks, sonner, ClubThreadKindIcon
 // i listę `ENTRY_MERGED_LUCIDE_IMPORTERS`. Ceną jest więcej drobnych plików (zmierzone na
-// Rollupie dla progu 1 B: +59,6 KB gzip OVERALL - scripts/check-bundle-size.ts). Rolldown łączy
-// natomiast wspólne chunki AUTOMATYCZNE z chunkami wejściowymi, gdy to bezpieczne
-// (`experimental.chunkOptimization`, domyślnie włączone); chunk grupy temu nie podlega - dlatego
-// granice, na których stoją bramki, wyznaczają nazwane grupy, a nie heurystyka.
+// Rollupie dla progu 1 B: +59,6 KB gzip OVERALL - scripts/check-bundle-size.ts). Granice, na
+// których stoją bramki, wyznaczają nazwane grupy, a nie heurystyka.
+//
+// DOMKNIĘCIE BOOTU W JEDNYM CHUNKU (`app-initial`, 2026-10-16). Rollup kładł każdy moduł
+// statycznie osiągalny z wejścia do chunku wejściowego, także gdy importował go też chunk leniwy
+// (ten i tak ładuje się po wejściu). Rolldown tego nie robi: moduł osiągalny z wejścia I z chunku
+// leniwego dostaje chunk wspólny, a jego `chunkOptimization` (domyślnie włączone) nie wkleił ich
+// z powrotem. Ofiarą był każdy moduł opcji trasy (`src/routes/*.tsx` bez `?tsr-split`): drzewo
+// tras importuje go z wejścia, a chunk komponentu trasy - po `Route`. Zmierzone na artefakcie bez
+// tej grupy: 337 chunków w domknięciu bootu (Rollup: 10), 772,9 KB gzip (Rollup: 494,1 KB;
+// budżet 579 KB). Treści przybyło mało - narzut to ~330 plików kompresowanych osobno, każdy
+// z własną listą `__vite__mapDeps` (opcje trasy 0,6 KB, lista preloadu jej komponentu 6 KB),
+// a seria `modulepreload` trybu `now` przepełniała nagłówek `Link` (Node: 16 KB na nagłówki,
+// „Header overflow" w boot-teście artefaktu). Grupa z tagiem `$initial` i NAJNIŻSZYM priorytetem
+// wśród modułów bootu zbiera to, czego nie zabrały grupy vendorowe, w jeden chunk: domknięcie
+// 12 chunków, 480,7 KB gzip. Wejście zostaje w `index-*` (wyjątek w `group()`), który importuje
+// `app-initial`; to on niesie leniwe `import()` aplikacji, w tym listwy stopki.
 import type { Rolldown } from "vite";
 
 type Group = Rolldown.CodeSplittingGroup;
@@ -64,6 +77,13 @@ export const CHUNK_PRIORITY = {
   app: 40,
   /** `club-thread-kind-icon` importuje `DynamicIcon`. */
   appDependent: 30,
+  /**
+   * `app-initial`: reszta statycznego domknięcia wejścia (`$initial`) - importuje poziomy bootowe
+   * wyżej, nikt z grup go nie importuje. NAJNIŻSZY, bo `$initial` liczy Rolldown przed
+   * tree-shakingiem: `Footer.tsx` importuje `LegalLinks` statycznie dla gałęzi SSR, martwej
+   * w kliencie, więc listwa też jest `$initial` - grupa `legal-links` musi wybrać pierwsza.
+   */
+  initial: 20,
 } as const;
 
 /**
@@ -132,8 +152,9 @@ const endsWith =
 export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // React + `use-sync-external-store`: ten ostatni TUTAJ, nie przy radixie, tanstacku czy
   // react-i18next - rozdzielenie pakietu od jego zależności dało cykl z 2026-07-20. Moduł
-  // pomocniczy Rolldowna (`\0rolldown/runtime.js`, interop CJS) nie daje się złapać `test`-em;
-  // ląduje w pierwszej grupie, której moduły go potrzebują, czyli tutaj (React jest CJS).
+  // pomocniczy Rolldowna (`\0rolldown/runtime.js`, interop CJS) nie trafia do żadnej grupy:
+  // Rolldown 1.2 wydziela go do własnego chunku `rolldown-runtime` (zmierzone na artefakcie i na
+  // fiksturze `clientChunkGroups.test.ts`), który importują wejście i chunki z interopem.
   group(
     "vendor-react",
     CHUNK_PRIORITY.react,
@@ -213,9 +234,11 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // helper ląduje razem z nim, o ile nie zabrała go wcześniej grupa vendorowa.
   group("dynamic-icon", CHUNK_PRIORITY.appBoot, endsWith("/src/lib/icons/DynamicIcon.tsx")),
   // Listwa prawna stopki (~1 KB): leniwy chunk wyspy stopki, serwer renderuje ją statycznie.
-  // Importuje wyłącznie z vendor-react, vendor-tanstack i vendor-i18n. NAZWA jest kontraktem:
-  // reguła `modulePreload.resolveDependencies` obu presetów zdejmuje preload zależności
-  // DOKŁADNIE chunkowi `legal-links-*.js`, a e2e/legal-links.boot-home.spec.ts sprawdza graf.
+  // Importuje wyłącznie z vendor-react, vendor-tanstack i vendor-i18n. NAZWĘ sprawdza graf
+  // artefaktu w e2e/legal-links.boot-home.spec.ts. `import()` dostaje pustą fasadę
+  // `LegalLinks-*.js` (dynamiczne wejście w chunku grupy), która reeksportuje ten chunk. Statyczny
+  // import z `Footer.tsx` dla gałęzi SSR robi z listwy moduł `$initial`, więc ta grupa MUSI
+  // wybierać przed `app-initial` - inaczej kod listwy trafiłby do bootu (test na fiksturze).
   group("legal-links", CHUNK_PRIORITY.app, endsWith("/src/components/footer/LegalLinks.tsx")),
   // Leniwy toaster razem ze swoim SDK (biblioteka sonner importuje wyłącznie react/react-dom).
   // Opakowanie `ui/sonner.tsx` dokłada krawędź do vendor-i18n (etykieta regionu toastów) - też
@@ -234,6 +257,12 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
     CHUNK_PRIORITY.appDependent,
     endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx"),
   ),
+  // Statyczne domknięcie wejścia poza grupami wyżej (kod aplikacji, moduły opcji tras, runtime
+  // bootstrapu Start, drobne pakiety bez grupy) - w JEDEN chunk zamiast setek chunków wspólnych
+  // (nagłówek pliku, „DOMKNIĘCIE BOOTU W JEDNYM CHUNKU"). Test łapie każdy moduł, zawęża go tag
+  // `$initial`, a wyjątek `group()` zostawia moduł wejściowy w `index-*`. Ostatnia: wybiera
+  // dopiero po wszystkich grupach (priorytet przy `CHUNK_PRIORITY.initial`).
+  group("app-initial", CHUNK_PRIORITY.initial, () => true, ["$initial"]),
 ];
 
 /**

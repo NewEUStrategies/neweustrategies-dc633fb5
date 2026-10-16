@@ -353,18 +353,6 @@ export default defineConfig({
           minify: "oxc",
           // Składnia JS dla bazy przeglądarek Vite 7 (scripts/lib/browserBaseline.ts).
           target: browserBaselineTarget(),
-          // Listwa prawna stopki (`legal-links`, leniwy chunk wyspy stopki) BEZ
-          // preloadu zależności: importuje wyłącznie `vendor-react`,
-          // `vendor-tanstack` i `vendor-i18n`, które leżą w domknięciu bootu,
-          // więc ich preload przy `import()` listwy niczego nie przyspiesza, a jego
-          // lista (`__vite__mapDeps`) kosztowała bajty w chunku wejściowym
-          // (zmierzone na artefakcie). Dotyczy WYŁĄCZNIE tego chunku; każdy inny
-          // `import()` dostaje swoje zależności bez zmian. Obie konfiguracje
-          // identycznie (`viteChunkParity.test.ts`).
-          modulePreload: {
-            resolveDependencies: (file: string, deps: string[]) =>
-              /(?:^|\/)legal-links-[\w-]+\.js$/.test(file) ? [] : deps,
-          },
           rolldownOptions: {
             output: {
               // Bez hoistowania importów tranzytywnych: nagłówki chunków

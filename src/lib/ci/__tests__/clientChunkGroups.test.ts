@@ -43,6 +43,14 @@ const nameOf = (group: Group): string => {
   return group.debugName;
 };
 
+/**
+ * Grupa reszty bootu (`app-initial`): `test` łapie KAŻDY moduł, zawęża ją tag `$initial`, a wybiera
+ * ostatnia. Nie jest rodziną po ścieżce, więc reguły pakietów niżej jej nie liczą - własny test
+ * konstrukcji i build fikstury.
+ */
+const APP_INITIAL = "app-initial";
+const PATH_GROUPS = CLIENT_CHUNK_GROUPS.filter((group) => nameOf(group) !== APP_INITIAL);
+
 function matches(group: Group, id: string): boolean {
   const { test } = group;
   if (test instanceof RegExp) return test.test(id);
@@ -62,10 +70,10 @@ interface Family {
 }
 
 function familyOf(id: string): Family | undefined {
-  const hits = CLIENT_CHUNK_GROUPS.filter((group) => matches(group, id));
+  const hits = PATH_GROUPS.filter((group) => matches(group, id));
   if (hits.length === 0) return undefined;
   const test = hits[0]!.test;
-  const family = CLIENT_CHUNK_GROUPS.filter((group) => group.test === test);
+  const family = PATH_GROUPS.filter((group) => group.test === test);
   expect(
     hits.every((group) => group.test === test),
     `${id} pasuje do grup z RÓŻNYCH rodzin: ${hits.map(nameOf).join(", ")}`,
@@ -162,12 +170,25 @@ describe("clientChunkGroups - konstrukcja grup", () => {
   });
 
   it("tag `$initial` mają WYŁĄCZNIE części bootowe rodzin, wyżej niż reszta rodziny", () => {
-    const tagged = CLIENT_CHUNK_GROUPS.filter((group) => group.tags?.includes("$initial"));
+    const tagged = PATH_GROUPS.filter((group) => group.tags?.includes("$initial"));
     expect(tagged.map(nameOf)).toEqual(["vendor-lucide-boot", "vendor-radix-boot"]);
     for (const boot of tagged) {
-      const rest = CLIENT_CHUNK_GROUPS.filter((g) => g.test === boot.test && g !== boot);
+      const rest = PATH_GROUPS.filter((g) => g.test === boot.test && g !== boot);
       expect(rest.map(nameOf), nameOf(boot)).toEqual([nameOf(boot).replace(/-boot$/, "")]);
       expect(boot.priority!).toBeGreaterThan(rest[0]!.priority!);
+    }
+  });
+
+  it("`app-initial`: ostatnia, NAJNIŻSZY priorytet, łapie wszystko, zawężona tagiem `$initial`", () => {
+    const last = CLIENT_CHUNK_GROUPS.at(-1)!;
+    expect(nameOf(last)).toBe(APP_INITIAL);
+    expect(last.priority).toBe(CHUNK_PRIORITY.initial);
+    expect(Math.min(...Object.values(CHUNK_PRIORITY))).toBe(CHUNK_PRIORITY.initial);
+    for (const group of PATH_GROUPS)
+      expect(group.priority!, nameOf(group)).toBeGreaterThan(last.priority!);
+    expect(last.tags).toEqual(["$initial"]);
+    for (const id of [`${REPO}/src/routes/index.tsx`, packageModuleId("clsx")]) {
+      expect(matches(last, id), id).toBe(true);
     }
   });
 
@@ -243,7 +264,7 @@ describe("clientChunkGroups - zasada priorytetów na zainstalowanym grafie", () 
   it("moduły grup aplikacji importują wyłącznie grupy o WYŻSZYM priorytecie", () => {
     const byName = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group]));
     expect(Object.keys(APP_GROUP_MODULES).sort()).toEqual(
-      CLIENT_CHUNK_GROUPS.filter((group) => (group.priority ?? 0) <= CHUNK_PRIORITY.appBoot)
+      PATH_GROUPS.filter((group) => (group.priority ?? 0) <= CHUNK_PRIORITY.appBoot)
         .map(nameOf)
         .sort(),
     );
@@ -384,11 +405,16 @@ const FILES: Record<string, string> = {
     'import { useSyncExternalStore } from "use-sync-external-store/shim";\n' +
     'import { createElement } from "react";\n' +
     'export const Dialog = () => createElement(Slot, { dialog: "radix-dialog", v: useSyncExternalStore() });\n',
+  // `LegalLinksSsr`: statyczny import dla gałęzi SSR, martwej w kliencie (jak `Footer.tsx`) -
+  // Rolldown liczy `$initial` przed tree-shakingiem, więc listwa jest `$initial`.
   "src/app.js":
     'import { Check } from "lucide-react";\nimport { Slot } from "@radix-ui/react-slot";\n' +
     'import { DynamicIcon } from "./lib/icons/DynamicIcon.tsx";\n' +
+    'import LegalLinksSsr from "./components/footer/LegalLinks.tsx";\n' +
+    'import { routeOptions } from "./routes/options.js";\n' +
     "export function start(link) {\n" +
-    "  globalThis.__fixture = [link, Check, Slot, DynamicIcon,\n" +
+    "  if (import.meta.env.SSR) globalThis.__ssr = LegalLinksSsr;\n" +
+    "  globalThis.__fixture = [link, Check, Slot, DynamicIcon, routeOptions,\n" +
     '    () => import("./components/footer/LegalLinks.tsx"),\n' +
     '    () => import("./routes/lazy.js"),\n' +
     '    () => import("./components/ui/sonner.tsx")];\n' +
@@ -400,6 +426,12 @@ const FILES: Record<string, string> = {
   "src/components/footer/LegalLinks.tsx":
     'import { Link } from "@tanstack/react-router";\nimport { useTranslation } from "react-i18next";\n' +
     'export default function LegalLinks() { return [Link, useTranslation(), "legal-links-fixture"]; }\n',
+  // Moduł opcji trasy (`createFileRoute` bez `?tsr-split`): importuje go wejście (drzewo tras)
+  // i chunk komponentu trasy (po `Route`). Bez `app-initial` dostawał własny chunk wspólny.
+  "src/routes/options.js":
+    'export const routeOptions = { id: "route-options-fixture", component: () => import("./options.component.js") };\n',
+  "src/routes/options.component.js":
+    'import { routeOptions } from "./options.js";\nexport default () => [routeOptions.id, "route-component-fixture"];\n',
   "src/routes/lazy.js":
     'import { Trash2 } from "lucide-react";\nimport { Dialog } from "@radix-ui/react-dialog";\n' +
     'import { ClubThreadKindIcon } from "../components/clubs/atoms/ClubThreadKindIcon.tsx";\n' +
@@ -472,6 +504,34 @@ async function buildFixture(groups: Group[]): Promise<Built> {
 const nameOfFile = (built: Built, file: string) =>
   built.chunks.find((chunk) => chunk.fileName === file)?.name ?? file;
 
+/** Nazwy chunków statycznego domknięcia wejścia (to, co boot pobiera seria `modulepreload`). */
+function bootClosure(built: Built): string[] {
+  const seen = new Set<string>();
+  const stack = [built.entry];
+  while (stack.length > 0) {
+    const chunk = stack.pop()!;
+    if (seen.has(chunk.fileName)) continue;
+    seen.add(chunk.fileName);
+    for (const file of chunk.imports) {
+      const next = built.chunks.find((candidate) => candidate.fileName === file);
+      if (next) stack.push(next);
+    }
+  }
+  return [...seen].map((file) => nameOfFile(built, file));
+}
+
+/**
+ * Chunki z kodem za leniwymi `import()` chunku. Dynamiczne wejście złapane przez grupę Rolldown
+ * wystawia przez FASADĘ (pusty chunk reeksportujący grupę) - za nią liczy się chunk grupy.
+ */
+function lazyTargets(built: Built, chunk: Rolldown.OutputChunk): string[] {
+  return chunk.dynamicImports.flatMap((file) => {
+    const target = built.chunks.find((candidate) => candidate.fileName === file)!;
+    if (target.moduleIds.length > 0) return [target.name];
+    return target.imports.map((imported) => nameOfFile(built, imported));
+  });
+}
+
 describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
   let built: Built;
   const priority = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group.priority!]));
@@ -483,7 +543,8 @@ describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
   it("wejście pod ścieżką grupy zostaje w `index`, a grupa vendor-tanstack powstaje", () => {
     expect(built.entry.name).toBe("index");
     expect(built.ownerOf("/dist/fixture-entry.js")).toBe("index");
-    expect(built.ownerOf("/src/app.js")).toBe("index");
+    // Kod aplikacji bootu - w `app-initial`, który importuje wejście.
+    expect(built.ownerOf("/src/app.js")).toBe(APP_INITIAL);
     expect(built.ownerOf("/@tanstack/react-router/dist/index.js")).toBe("vendor-tanstack");
     expect(built.ownerOf("/@tanstack/router-core/dist/index.js")).toBe("vendor-tanstack");
     // Domknięcie: zależność routera spoza listy pakietów idzie za nim, nie do wejścia.
@@ -526,19 +587,48 @@ describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
     expect(built.ownerOf("/react-i18next/index.js")).toBe("vendor-i18n");
   });
 
-  it("wejście NIE importuje statycznie niczego spoza bootu, a listwę ładuje leniwie", () => {
-    const staticImports = built.entry.imports.map((file) => nameOfFile(built, file));
-    for (const lazy of ["vendor-lucide", "vendor-radix", "legal-links", "club-thread-kind-icon"]) {
-      expect(staticImports, lazy).not.toContain(lazy);
+  it("domknięcie bootu = wejście, `app-initial` i grupy bootowe - bez chunków wspólnych", () => {
+    const boot = bootClosure(built);
+    for (const lazy of [
+      "vendor-lucide",
+      "vendor-radix",
+      "legal-links",
+      "club-thread-kind-icon",
+      "vendor-sonner",
+    ]) {
+      expect(boot, lazy).not.toContain(lazy);
     }
-    expect(staticImports).toEqual(
-      expect.arrayContaining(["vendor-lucide-boot", "vendor-radix-boot", "dynamic-icon"]),
+    expect(boot).toEqual(
+      expect.arrayContaining([
+        "index",
+        APP_INITIAL,
+        "vendor-lucide-boot",
+        "vendor-radix-boot",
+        "dynamic-icon",
+      ]),
     );
-    const dynamicImports = built.entry.dynamicImports.map((file) => nameOfFile(built, file));
-    expect(dynamicImports).toContain("legal-links");
+    // Regresja z Rolldowna bez `app-initial`: moduł osiągalny z wejścia I z chunku leniwego
+    // (opcje trasy) dostawał własny chunk wspólny - na aplikacji 337 chunków w domknięciu.
+    // Poza grupami wyłącznie runtime Rolldowna (osobny chunk - komentarz grupy vendor-react).
+    expect(
+      boot.filter((name) => !["index", "rolldown-runtime"].includes(name) && !priority.has(name)),
+    ).toEqual([]);
+    expect(built.ownerOf("/src/routes/options.js")).toBe(APP_INITIAL);
+    expect(built.ownerOf("/src/routes/options.component.js")).not.toBe(APP_INITIAL);
+    // Wejście trzyma wyłącznie moduł wejściowy.
+    expect(built.byName.get("index")!.moduleIds.map((id) => id.slice(-30))).toEqual([
+      expect.stringMatching(/\/fixture-entry\.js$/),
+    ]);
+  });
+
+  it("listwa: `$initial` przez martwy import SSR, a i tak we własnym chunku, leniwie", () => {
+    // `legal-links` wybiera przed `app-initial`, więc martwy import gałęzi SSR (`$initial`
+    // przed tree-shakingiem) nie wciąga kodu listwy do bootu.
     expect(built.byName.get("legal-links")!.moduleIds.map((id) => id.slice(-30))).toEqual([
       expect.stringMatching(/\/LegalLinks\.tsx$/),
     ]);
+    expect(built.byName.get(APP_INITIAL)!.code).not.toContain("legal-links-fixture");
+    expect(lazyTargets(built, built.byName.get(APP_INITIAL)!)).toContain("legal-links");
   });
 
   it("krawędzie między grupami biegną WYŁĄCZNIE do wyższego priorytetu", () => {

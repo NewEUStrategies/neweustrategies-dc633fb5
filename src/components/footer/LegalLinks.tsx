@@ -19,7 +19,9 @@
 // i18next) i po typy. Moduł nie ma też efektów ubocznych: na serwerze
 // `Footer.tsx` importuje go statycznie, a w bundlu klienta ten import znika
 // (gałąź `import.meta.env.SSR`) tylko dlatego, że czysty moduł bez użytych wiązań
-// wolno pominąć.
+// wolno pominąć. Tag `$initial` Rolldown liczy jednak przed tree-shakingiem, więc
+// w grafie modułów listwa jest częścią bootu - od kodu bootu (`app-initial`)
+// oddziela ją priorytet grupy `legal-links` (wybiera wcześniej).
 //
 // `Link` routera, nie surowe `<a>`: przepisanie wyjścia routera dokłada prefiks
 // języka (`/en/regulamin`), więc ten sam rejestr daje poprawne adresy w PL i EN.
