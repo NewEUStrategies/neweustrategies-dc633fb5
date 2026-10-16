@@ -44,6 +44,10 @@ const RETRIES = 2;
 const MAX_DISCOVERY_HOPS = 3;
 const DISCOVERABLE =
   /^(?:\/en)?\/(?:author|people|organization|category|tag|programs|tracker|qa|events)\/[^/?#]+\/?$/;
+// Kanały i pliki pod tymi samymi prefiksami (`/tracker/rss.xml`, autodiscovery
+// RSS w `<link rel="alternate">`) nie są stronami z okruszkami - bez tego filtra
+// kontrola liczyła je jako NIEZBADANE i codzienny przebieg świecił na czerwono.
+const NOT_A_PAGE = /\.(?:xml|rss|atom|json|txt|ics|pdf)$/i;
 
 interface PageResult {
   url: string;
@@ -133,6 +137,7 @@ function discoverLinks(html: string): string[] {
       continue;
     }
     if (url.origin !== origin || !DISCOVERABLE.test(url.pathname)) continue;
+    if (NOT_A_PAGE.test(url.pathname)) continue;
     found.push(`${origin}${url.pathname}`);
   }
   return found;
