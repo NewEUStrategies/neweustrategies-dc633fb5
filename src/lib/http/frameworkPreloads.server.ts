@@ -1,8 +1,38 @@
 import type { Register } from "@tanstack/react-router";
+import { getRequest } from "@tanstack/react-start/server";
 import type { RequestHandler } from "@tanstack/react-start/server";
 
 /** `lcp` - boot po wpisie LCP kandydata; `now` - boot od razu. */
 export type BootMode = "lcp" | "now";
+
+/**
+ * Tryb dokumentu per ŻĄDANIE (kanał poza nagłówkami odpowiedzi). Klucz: obiekt `Request`
+ * z `getRequest()` - ten sam, który `fetchWithFrameworkPreloads` dostaje wprost
+ * (`createServerEntry` przechowuje `event.request = request`). WeakMap = zero wycieków.
+ */
+const bootModes = new WeakMap<Request, BootMode>();
+
+/**
+ * Zapisz tryb bootu dokumentu bieżącego żądania (render serwera, `lib/boot/bootSet.server.ts`).
+ * No-op poza zasięgiem żądania (test, prerender).
+ */
+export function recordBootMode(mode: BootMode, request?: Request): void {
+  let scoped = request;
+  if (!scoped) {
+    try {
+      scoped = getRequest();
+    } catch {
+      /* not inside a request scope - ignore */
+      return;
+    }
+  }
+  bootModes.set(scoped, mode);
+}
+
+/** Tryb bootu zapisany dla żądania, albo `null` (dokument bez zestawu bootu). */
+export function readBootMode(request: Request): BootMode | null {
+  return bootModes.get(request) ?? null;
+}
 
 /**
  * Wewnętrzny nagłówek trybu dokumentu: render serwera (`lib/boot/bootSet.server.ts`) -> ta

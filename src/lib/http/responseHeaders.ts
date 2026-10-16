@@ -270,3 +270,17 @@ export const appendLinkHeader = createIsomorphicFn()
     }
   })
   .client(() => {});
+
+/**
+ * Złączona wartość akumulatora `Link` tego żądania (kolejność pierwszego dołożenia), albo
+ * `null`, gdy loadery niczego nie dołożyły. Czyta ją skład zestawu bootu
+ * (`lib/boot/bootSet.server.ts`) w chwili dehydratacji. Na kliencie i poza zasięgiem
+ * żądania zwraca `null`.
+ */
+export const readLinkHeader = createIsomorphicFn()
+  .server((request?: Request): string | null => {
+    const scoped = scopedRequest(request);
+    const values = scoped ? linkHeaderValues.get(scoped) : undefined;
+    return values?.size ? Array.from(values).join(", ") : null;
+  })
+  .client((): string | null => null);
