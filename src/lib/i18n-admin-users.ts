@@ -149,6 +149,8 @@ const pl = {
       "Nie udało się zapisać danych konta, więc zaproszenie nie zostało wysłane. Spróbuj ponownie za chwilę.",
     invitationErrEmailFailed:
       "Konto jest gotowe, ale wiadomości nie udało się wysłać. Spróbuj ponownie za chwilę.",
+    invitationErrEmailSuppressed:
+      "Ten adres jest zablokowany po odbiciu albo zgłoszeniu wiadomości, więc zaproszenie nie zostało wysłane. Dopóki blokada trwa, ponowienie nie pomoże - poproś o inny adres.",
     invitationErrDirectoryUnavailable:
       "Nie udało się sprawdzić katalogu kont, więc zaproszenie nie zostało wysłane. Spróbuj ponownie za chwilę.",
     invitationErrGeneric:
@@ -314,6 +316,8 @@ const en = {
       "The account data couldn't be saved, so the invitation wasn't sent. Try again in a moment.",
     invitationErrEmailFailed:
       "The account is ready, but the message couldn't be sent. Try again in a moment.",
+    invitationErrEmailSuppressed:
+      "This address is blocked after a bounce or a complaint, so the invitation wasn't sent. Retrying won't help while the block lasts - ask for another address.",
     invitationErrDirectoryUnavailable:
       "The account directory couldn't be checked, so the invitation wasn't sent. Try again in a moment.",
     invitationErrGeneric:

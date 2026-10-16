@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCOUNT_CREATE_FAILED,
+  EMAIL_SUPPRESSED,
   INVITATION_ROLE_NOT_ALLOWED,
   INVITATION_TARGET_UNAVAILABLE,
 } from "../inviteTarget";
@@ -22,6 +23,7 @@ describe("invitationErrorKey", () => {
     [INVITATION_TARGET_UNAVAILABLE, "adminUsers.invitationErrTargetUnavailable"],
     [INVITATION_ROLE_NOT_ALLOWED, "adminUsers.invitationErrRoleNotAllowed"],
     [ACCOUNT_CREATE_FAILED, "adminUsers.invitationErrCreateFailed"],
+    [EMAIL_SUPPRESSED, "adminUsers.invitationErrEmailSuppressed"],
     ["activation_send_limit_reached", "adminUsers.activationSendLimitReached"],
     ["auth_directory_scan_exhausted", "adminUsers.invitationErrDirectoryUnavailable"],
   ])("kod %s -> %s", (code, key) => {

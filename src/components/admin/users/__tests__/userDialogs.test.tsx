@@ -1042,7 +1042,7 @@ describe("TeamImportDialog", () => {
       skipped: 1,
       linked: 1,
       errors: [
-        { email: "pierwsza@example.org", error: "duplicate" },
+        { email: "pierwsza@example.org", error: "account_in_other_tenant" },
         { email: "druga@example.org", error: "mailer" },
       ],
     };
@@ -1053,6 +1053,26 @@ describe("TeamImportDialog", () => {
     const message = String(h.toastError.mock.calls[0][0]);
     expect(message).toContain("count=2");
     expect(message).toContain("pierwsza@example.org");
+    // Błąd osoby idzie przez mapę kodów - zdanie, nie surowy kod serwera.
+    expect(message).toContain("error=adminUsers.invitationErrTargetUnavailable");
+    expect(message).not.toContain("error=account_in_other_tenant");
+  });
+
+  it("nieznany błąd osoby przy imporcie daje zdanie ogólne, nigdy surowy tekst", async () => {
+    h.previewResult = { candidates: [candidate()] };
+    h.provisionResult = {
+      created: 0,
+      skipped: 0,
+      linked: 0,
+      errors: [{ email: "pierwsza@example.org", error: "Database error saving new user" }],
+    };
+    mount();
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    fireEvent.click(buttonWith("adminTeamMedia.teamImport.provisionBtn"));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    const message = String(h.toastError.mock.calls[0][0]);
+    expect(message).toContain("error=adminUsers.invitationErrGeneric");
+    expect(message).not.toContain("Database error");
   });
 
   it("„utwórz konta od razu” BEZ błędów nie pokazuje komunikatu błędu", async () => {

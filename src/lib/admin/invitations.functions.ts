@@ -41,6 +41,7 @@ import {
 } from "@/lib/email-templates/invitationScope";
 import {
   ACCOUNT_CREATE_FAILED,
+  EMAIL_SUPPRESSED,
   INVITABLE_ROLES,
   INVITATION_ROLE_NOT_ALLOWED,
   INVITATION_TARGET_UNAVAILABLE,
@@ -395,8 +396,12 @@ type AuthDirectoryLookup = (email: string) => Promise<InviteAccount | null>;
  * już strony nie idzie do GoTrue wcale, a pytanie o dalszy adres zaczyna od
  * pierwszej nieprzeczytanej strony. Import zespołu z kilkoma zajętymi
  * adresami płaci więc najwyżej JEDNO przejście katalogu, a nie po jednym na
- * osobę. Pamięć nie przeżywa wywołania - konto założone w międzyczasie
- * w innym żądaniu zobaczy następne wywołanie.
+ * osobę. Pamięć nie przeżywa wywołania.
+ *
+ * Pamięć to migawka: konto założone w innym żądaniu PO przeczytaniu strony,
+ * na której by się znalazło, w niej nie istnieje. Pudło po wcześniejszych
+ * pytaniach czyta więc katalog jeszcze raz od pierwszej strony - „nie ma"
+ * zawsze pochodzi z przejścia zaczętego w tym pytaniu, jak przed pamięcią.
  */
 function createAuthDirectory(admin: AdminClient): AuthDirectoryLookup {
   const byEmail = new Map<string, InviteAccount>();
@@ -406,6 +411,15 @@ function createAuthDirectory(admin: AdminClient): AuthDirectoryLookup {
     const target = email.trim().toLowerCase();
     const known = byEmail.get(target);
     if (known) return known;
+    const scannedFromStart = nextPage === 1;
+    const hit = await scanDirectory(target);
+    if (hit || scannedFromStart) return hit;
+    nextPage = 1;
+    complete = false;
+    return scanDirectory(target);
+  };
+
+  async function scanDirectory(target: string): Promise<InviteAccount | null> {
     while (!complete) {
       // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
       // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
@@ -433,7 +447,7 @@ function createAuthDirectory(admin: AdminClient): AuthDirectoryLookup {
       if (hit) return hit;
     }
     return null;
-  };
+  }
 }
 
 /** Jednorazowe szukanie po adresie (`performSend` pyta o jeden adres). */
@@ -812,21 +826,32 @@ async function performSend(
     // zalogował: jego dotychczasowego hasła nie zna nikt poza zakładającym,
     // więc nic nie jest odbierane właścicielowi. Konto, które ma sesję
     // w historii, zachowuje swoje hasło.
-    if (
+    //
+    // NOWE HASŁO IDZIE WYŁĄCZNIE DO SKRZYNKI KONTA, nigdy do wołającego.
+    // Ponowić wysyłkę może każdy administrator najemcy, także dla konta, które
+    // założył ktoś inny - i które ma już wyższą rolę (super_admin). Hasło
+    // oddane w `SendResult.tempPassword` dawałoby mu zalogowanie się na to
+    // konto (bez MFA - nieużyte konto nie ma czynnika), czyli awans, którego
+    // `change_user_role` i podszywanie się (`startImpersonation`) mu odmawiają.
+    // Wołający dostaje hasło tylko wtedy, gdy SAM właśnie założył konto.
+    // Poświadczenie najemcy (`app_metadata.tenant_id`) zawęża nadanie do kont
+    // założonych dla tego najemcy.
+    //
+    // NADANIE DOPIERO PO PRZYJĘCIU MAILA (niżej). Hasło z wcześniejszej
+    // wysyłki mogło dotrzeć do odbiorcy albo zostać mu przekazane ręcznie -
+    // gdyby zmiana szła przed mailem, a mail padł (awaria dostawcy, blokada
+    // adresu), stare hasło przestałoby działać, a nowego nikt by nie dostał.
+    const reissuedPassword =
       inv.mode === "temp_password" &&
       tempPassword === undefined &&
       found !== null &&
       found.id === authUserId &&
       !found.everSignedIn &&
+      found.appTenantId === invitationTenantId &&
       found.provisionedEmail === email.trim().toLowerCase()
-    ) {
-      const reissued = generateTempPassword();
-      const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-        password: reissued,
-      });
-      if (passwordError) throw new Error(`password_reset_failed:${passwordError.message}`);
-      tempPassword = reissued;
-    }
+        ? generateTempPassword()
+        : undefined;
+    const mailedPassword = tempPassword ?? reissuedPassword;
 
     // E-mail zaproszenia wysyłamy ZAWSZE własną ścieżką: dla trybu
     // magic_link niesie link aktywacyjny (generateLink - Supabase go tylko
@@ -901,10 +926,10 @@ async function performSend(
             .join(" - "),
         });
       }
-      if (!actionLink && tempPassword) {
+      if (!actionLink && mailedPassword) {
         details.push({
           label: copy.temporaryPassword,
-          value: tempPassword,
+          value: mailedPassword,
         });
       }
 
@@ -922,7 +947,24 @@ async function performSend(
         tenantId: inv.tenant_id,
       });
       if (!res.ok) {
-        return { ok: false, email, error: `email_failed:${res.error}`, tempPassword };
+        // Adres na liście blokad (odbicie, skarga) to nie chwilowa awaria:
+        // dopóki blokada trwa, ponowienie też zostanie pominięte, więc panel
+        // nie może radzić „spróbuj za chwilę". Powód zostaje w `email_send_log`.
+        const error = res.skipped === "suppressed" ? EMAIL_SUPPRESSED : `email_failed:${res.error}`;
+        return { ok: false, email, error, tempPassword };
+      }
+      // Mail z nowym hasłem przyjęty - dopiero teraz hasło konta się zmienia.
+      // `duplicate` znaczy, że tę wysyłkę obsłużono już wcześniej z INNYM
+      // hasłem w treści; nadanie obecnego rozjechałoby konto z tamtym mailem.
+      if (reissuedPassword && res.skipped !== "duplicate") {
+        const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+          password: reissuedPassword,
+        });
+        if (passwordError) {
+          // Mail wyszedł z hasłem, które nie działa; poprzednie (jeśli było)
+          // działa dalej. Zaproszenie NIE jest `sent` - ponowienie wyśle nowe.
+          throw new Error(`password_reset_failed:${passwordError.message}`);
+        }
       }
     }
 

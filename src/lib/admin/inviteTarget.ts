@@ -52,6 +52,13 @@ export const INVITATION_ROLE_NOT_ALLOWED = "invitation_role_not_allowed";
  */
 export const ACCOUNT_CREATE_FAILED = "account_create_failed";
 
+/**
+ * Wiadomość pominięta, bo adres jest na liście blokad (odbicie, skarga).
+ * Osobny kod, bo dopóki blokada trwa, ponowienie nic nie zmieni - inaczej niż
+ * `email_failed:`.
+ */
+export const EMAIL_SUPPRESSED = "email_suppressed";
+
 /** Przyczyna odmowy - wyłącznie dla typów i testów; nigdy w odpowiedzi ani w `last_error`. */
 export type InviteRefusalReason =
   | "pinned_account_missing"

@@ -3228,20 +3228,22 @@ describe("member account recovery actions", () => {
     await waitFor(() => expect(h.sendCalls).toContain(IDS.other));
     expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
   });
-  it.each(["activation_send_limit_reached", "smtp unavailable", undefined])(
-    "shows activation failure (%s) and permits retry",
-    async (error) => {
-      h.sendResult = { ok: false, error };
-      await openActions();
-      const button = await screen.findByRole("button", {
-        name: /adminUsers.resendActivationEmail/,
-      });
-      await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
-      fireEvent.click(button);
-      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-      expect(button.hasAttribute("disabled")).toBe(false);
-    },
-  );
+  it.each([
+    ["activation_send_limit_reached", "adminUsers.activationSendLimitReached"],
+    ["smtp unavailable", "adminUsers.invitationErrGeneric"],
+    [undefined, "adminUsers.activationResendError"],
+  ])("shows activation failure (%s) and permits retry", async (error, message) => {
+    h.sendResult = { ok: false, error };
+    await openActions();
+    const button = await screen.findByRole("button", {
+      name: /adminUsers.resendActivationEmail/,
+    });
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(button);
+    // Kod serwera idzie przez mapę kodów - panel nigdy nie pokazuje surowego tekstu.
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(message));
+    expect(button.hasAttribute("disabled")).toBe(false);
+  });
   it.each([false, true])("requires matching email before deletion (failure %s)", async (fails) => {
     if (fails) h.deleteAccount.mockRejectedValue(new Error("ADMIN_ACCOUNT/DELETE_FAILED"));
     await openActions();
