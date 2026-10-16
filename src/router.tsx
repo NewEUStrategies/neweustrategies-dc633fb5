@@ -218,6 +218,16 @@ export const getRouter = () => {
       onServerSsrAttach: [
         ...(router.serverSsrLifecycle?.onServerSsrAttach ?? []),
         (serverSsr) => serverSsr.onCleanup(disposeSsrQueryTimeout),
+        // Polyfill: router-ssr-query-core 1.169.x calls
+        // `router.serverSsr.isDehydrated()` which was removed from
+        // router-core 1.171.34's ServerSsr interface. Provide a stub so
+        // the cache-remove listener doesn't throw.
+        (serverSsr) => {
+          const s = serverSsr as unknown as Record<string, unknown>;
+          if (typeof s.isDehydrated !== "function") {
+            s.isDehydrated = () => false;
+          }
+        },
       ],
     };
 
@@ -308,7 +318,7 @@ export const getRouter = () => {
     // zaciskania zagnieżdżonych timerów, czyli ~0 ms każde).
     const prewarmRouteChunks = () => {
       try {
-        const { matchedRoutes } = router.getMatchedRoutes(router.latestLocation.pathname);
+        const [matchedRoutes] = router.getMatchedRoutes(router.latestLocation.pathname);
         for (const route of matchedRoutes) {
           void Promise.resolve(router.loadRouteChunk(route)).catch(() => undefined);
         }

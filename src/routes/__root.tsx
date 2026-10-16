@@ -562,7 +562,7 @@ function NotFoundComponent() {
   return <PublicNotFound />;
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   useEffect(() => {
     reportPlatformError(error, { boundary: "tanstack_root_error_component" });

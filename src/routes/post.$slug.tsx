@@ -50,7 +50,7 @@ export const Route = createFileRoute("/post/$slug")({
   errorComponent: LegacyPostError,
 });
 
-function LegacyPostError({ error, reset }: { error: Error; reset: () => void }) {
+function LegacyPostError({ error, reset }: { error: unknown; reset: () => void }) {
   const router = useRouter();
   const copy = errorCopy();
   useEffect(() => {

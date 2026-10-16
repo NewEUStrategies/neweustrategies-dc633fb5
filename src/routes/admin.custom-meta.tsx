@@ -37,7 +37,7 @@ export const Route = createFileRoute("/admin/custom-meta")({
     ),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
-      {error.message}
+      {error instanceof Error ? error.message : String(error)}
     </div>
   ),
   notFoundComponent: () => <div className="p-6">404</div>,
