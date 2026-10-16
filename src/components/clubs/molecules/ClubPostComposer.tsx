@@ -464,10 +464,7 @@ export function ClubPostComposer({
             {uploading ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <Paperclip
-                className="h-4 w-4 text-brand dark:text-brand"
-                aria-hidden="true"
-              />
+              <Paperclip className="h-4 w-4 text-brand dark:text-brand" aria-hidden="true" />
             )}
             <span className="hidden sm:inline" aria-hidden="true">
               {t("club.post.media.file")}

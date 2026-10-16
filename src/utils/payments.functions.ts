@@ -150,9 +150,7 @@ export const createStripePortalSession = createServerFn({ method: "POST" })
  */
 export const cancelStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: { environment: StripeEnv }) =>
-    z.object({ environment: envSchema }).parse(data),
-  )
+  .validator((data: { environment: StripeEnv }) => z.object({ environment: envSchema }).parse(data))
   .handler(async ({ data, context }) => {
     const environment = resolveEnvironment(data.environment);
     const { data: sub, error } = await context.supabase
@@ -184,9 +182,7 @@ export const cancelStripeSubscription = createServerFn({ method: "POST" })
  */
 export const resumeStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: { environment: StripeEnv }) =>
-    z.object({ environment: envSchema }).parse(data),
-  )
+  .validator((data: { environment: StripeEnv }) => z.object({ environment: envSchema }).parse(data))
   .handler(async ({ data, context }) => {
     const environment = resolveEnvironment(data.environment);
     const { data: sub, error } = await context.supabase
@@ -378,9 +374,7 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
  */
 export const syncMyBillingFromProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: { environment: StripeEnv }) =>
-    z.object({ environment: envSchema }).parse(data),
-  )
+  .validator((data: { environment: StripeEnv }) => z.object({ environment: envSchema }).parse(data))
   .handler(async ({ data, context }) => {
     // Identyfikatory czytamy pod RLS wołającego - warstwa serwerowa nigdy nie
     // decyduje samodzielnie, czyje subskrypcje pobiera od operatora.
@@ -419,9 +413,7 @@ export const syncMyBillingFromProvider = createServerFn({ method: "POST" })
  */
 export const getMyPaymentMethod = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: { environment: StripeEnv }) =>
-    z.object({ environment: envSchema }).parse(data),
-  )
+  .validator((data: { environment: StripeEnv }) => z.object({ environment: envSchema }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("subscriptions")
