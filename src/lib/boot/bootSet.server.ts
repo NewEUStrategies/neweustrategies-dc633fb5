@@ -179,7 +179,9 @@ export function injectBootSet(
   router: BootRouterLike,
   manifest: BootManifest | null = BOOT_MANIFEST,
 ): void {
-  const ssr = router.serverSsr;
+  const ssr = router.serverSsr as
+    | ({ injectHtml?: (html: string) => void } & Record<string, unknown>)
+    | undefined;
   if (!ssr || !manifest || injectedInto.has(ssr)) return;
   injectedInto.add(ssr);
   const matches = router.state.matches;
@@ -191,7 +193,7 @@ export function injectBootSet(
     matches,
     linkHeader,
   });
-  ssr.injectHtml(bootSetHtml(set));
+  ssr.injectHtml?.(bootSetHtml(set));
   try {
     setResponseHeader(BOOT_MODE_HEADER, set.m);
   } catch {
