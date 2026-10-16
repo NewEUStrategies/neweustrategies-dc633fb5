@@ -113,8 +113,53 @@ const h = vi.hoisted(() => ({
   /** Awaria generatora linku aktywacyjnego. */
   linkError: null as Error | null,
   emailError: "smtp down",
-  /** Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`. */
-  existingAuthUsers: [] as { id: string; email: string | null }[],
+  /**
+   * Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`.
+   * `app_metadata` jak w GoTrue: pisze je wyłącznie klucz serwisowy, więc
+   * tylko `app_metadata.tenant_id` poświadcza najemcę, dla którego konto
+   * narodziło się z zaproszenia.
+   */
+  existingAuthUsers: [] as {
+    id: string;
+    email: string | null;
+    app_metadata?: Record<string, unknown>;
+    user_metadata?: Record<string, unknown>;
+  }[],
+  /**
+   * Awaria `getUserById` inna niż „brak konta". `AuthError` w auth-js dziedziczy
+   * po `Error` (z `status` i `code`) - atrapa też, inaczej komunikat w
+   * `last_error` czytałby się jako „[object Object]".
+   */
+  getUserByIdError: null as (Error & { status?: number; code?: string }) | null,
+  /** Identyfikatory, o które moduł pytał `getUserById`. */
+  getUserByIdCalls: [] as string[],
+  /**
+   * Najemca domyślny (`tenants.is_default`) - tam `handle_new_user` zakłada
+   * profil KAŻDEGO nowego konta. `null` = brak wiersza z flagą (wtedy moduł
+   * pyta o slug `nes`, jak `handle_new_user`).
+   */
+  defaultTenantId: null as string | null,
+  /** Najemca o slugu `nes` - drugi krok wyznaczania najemcy domyślnego. */
+  nesTenantId: null as string | null,
+  /** Awaria odczytu najemcy domyślnego. */
+  defaultTenantError: null as { message: string } | null,
+  /** Filtry `.eq()` odczytów `tenants` - dowód, o co moduł pytał. */
+  tenantLookups: [] as [string, unknown][],
+  /**
+   * Profil, który `handle_new_user` zakłada kontu utworzonemu przez
+   * `createUser` - w TEJ SAMEJ transakcji, w najemcy DOMYŚLNYM, bez względu na
+   * metadane konta (20260805083149). To jest dokładnie stan, który atrapa
+   * dawniej pomijała (nowe konto = „brak profilu"), i dlatego żaden test nie
+   * zobaczył, że granica najemcy odrzuca każde zaproszenie nowej osoby do
+   * organizacji innej niż domyślna. `tenant: undefined` = najemca domyślny;
+   * `slug: null` = profil bez sluga, więc hydracja policzy go z nazwy.
+   */
+  newAccountProfile: { tenant: undefined, slug: null } as {
+    tenant: string | null | undefined;
+    slug: string | null;
+  } | null,
+  /** Identyfikatory kont założonych przez `createUser` w tym teście. */
+  createdUserIds: [] as string[],
   /** Zapis stron, o które moduł poprosił katalog - dowód na stronicowanie. */
   listUsersPages: [] as { page: number; perPage: number }[],
   /** Awaria katalogu tożsamości (`listUsers`). */
@@ -161,6 +206,23 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           const all = h.existingAuthUsers ?? [];
           return { data: { users: all.slice((page - 1) * perPage, page * perPage) }, error: null };
         },
+        // Konto po identyfikatorze - przypięte `auth_user_id` zaproszenia.
+        // Brak konta GoTrue zgłasza błędem 404 `user_not_found`, nie `null`.
+        getUserById: async (id: string) => {
+          h.getUserByIdCalls.push(id);
+          if (h.getUserByIdError) return { data: { user: null }, error: h.getUserByIdError };
+          const user = h.existingAuthUsers.find((u) => u.id === id);
+          if (!user) {
+            return {
+              data: { user: null },
+              error: Object.assign(new Error("User not found"), {
+                status: 404,
+                code: "user_not_found",
+              }),
+            };
+          }
+          return { data: { user }, error: null };
+        },
         inviteUserByEmail: async (email: string, payload: unknown) => {
           h.authCalls.push({ kind: "invite", email, payload });
           if (h.authError) return { data: { user: null }, error: h.authError };
@@ -183,7 +245,11 @@ vi.mock("@/integrations/supabase/client.server", () => ({
             error: null,
           };
         },
-        createUser: async (payload: { email: string }) => {
+        createUser: async (payload: {
+          email: string;
+          app_metadata?: Record<string, unknown>;
+          user_metadata?: Record<string, unknown>;
+        }) => {
           h.authCalls.push({ kind: "create", email: payload.email, payload });
           if (h.authFailsFirstOnly) {
             const isFirst = h.authCalls.filter((call) => call.kind === "create").length === 1;
@@ -193,8 +259,19 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           } else if (h.authError) {
             return { data: { user: null }, error: h.authError };
           }
+          if (!h.authUserId) return { data: { user: null }, error: null };
+          // GoTrue oddaje pełne konto - z adresem i z `app_metadata`, które
+          // wołający ustawił (plus pola dostawcy, które GoTrue dokłada sam).
+          h.createdUserIds.push(h.authUserId);
           return {
-            data: { user: h.authUserId ? { id: h.authUserId } : null },
+            data: {
+              user: {
+                id: h.authUserId,
+                email: payload.email,
+                app_metadata: { provider: "email", ...(payload.app_metadata ?? {}) },
+                user_metadata: payload.user_metadata ?? {},
+              },
+            },
             error: null,
           };
         },
@@ -216,6 +293,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         // z którego wynika zakres obietnicy w treści maila. Każde ogniwo jest
         // jednocześnie obietnicą i łańcuchem, więc oba użycia działają.
         let emailBatch: string[] | null = null;
+        const filters: [string, unknown][] = [];
         const result = () => {
           if (h.adminProfilesError)
             return Promise.resolve({ data: null, error: h.adminProfilesError });
@@ -225,7 +303,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           return Promise.resolve({ data: rows, error: null });
         };
         const chain: Record<string, unknown> = {};
-        for (const method of ["eq", "order", "limit"]) {
+        chain["eq"] = (column: string, value: unknown) => {
+          filters.push([column, value]);
+          if (table === "tenants") h.tenantLookups.push([column, value]);
+          return Object.assign(result(), chain);
+        };
+        for (const method of ["order", "limit"]) {
           chain[method] = () => Object.assign(result(), chain);
         }
         chain["in"] = (column: string, values: string[]) => {
@@ -239,13 +322,38 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         // slug istniejącego profilu (hydracja czyta go, żeby NIE nadpisać
         // publicznego adresu) oraz wiersz subskrypcji zapraszanego.
         chain["maybeSingle"] = () => {
+          if (table === "tenants") {
+            if (h.defaultTenantError) {
+              return Promise.resolve({ data: null, error: h.defaultTenantError });
+            }
+            const byFlag = filters.some(([c, v]) => c === "is_default" && v === true);
+            const bySlug = filters.some(([c, v]) => c === "slug" && v === "nes");
+            const id = byFlag ? h.defaultTenantId : bySlug ? h.nesTenantId : null;
+            return Promise.resolve({ data: id ? { id } : null, error: null });
+          }
           if (table === "profiles" && h.existingProfileError) {
             return Promise.resolve({ data: null, error: h.existingProfileError });
           }
-          const hasProfile = h.existingProfileSlug !== null || h.existingProfileTenant !== null;
+          if (table !== "profiles") return Promise.resolve({ data: null, error: null });
+          // Konto założone w tym teście przez `createUser`: profil z
+          // `handle_new_user`, w najemcy domyślnym.
+          const profileId = filters.find(([c]) => c === "id")?.[1];
+          if (typeof profileId === "string" && h.createdUserIds.includes(profileId)) {
+            const born = h.newAccountProfile;
+            return Promise.resolve({
+              data: born
+                ? {
+                    slug: born.slug,
+                    tenant_id: born.tenant === undefined ? h.defaultTenantId : born.tenant,
+                  }
+                : null,
+              error: null,
+            });
+          }
+          // `profiles.tenant_id` jest NOT NULL - profil zawsze ma najemcę.
           return Promise.resolve({
             data:
-              table === "profiles" && hasProfile
+              h.existingProfileTenant !== null
                 ? { slug: h.existingProfileSlug, tenant_id: h.existingProfileTenant }
                 : null,
             error: null,
@@ -288,6 +396,12 @@ const IDS = {
   caller: "11111111-1111-4111-8111-111111111111",
   tenant: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   otherTenant: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  /**
+   * Najemca domyślny platformy - tam `handle_new_user` zakłada profil każdego
+   * nowego konta. RÓŻNY od najemcy zaproszeń (`tenant`), bo to jest przypadek
+   * każdej organizacji poza domyślną.
+   */
+  defaultTenant: "99999999-9999-4999-8999-999999999999",
   invitation: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
   invitationB: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   page: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -400,6 +514,14 @@ function invitationRow(overrides: Partial<InvitationRow> = {}): InvitationRow {
 
 beforeEach(() => {
   h.existingAuthUsers = [];
+  h.getUserByIdError = null;
+  h.getUserByIdCalls = [];
+  h.defaultTenantId = IDS.defaultTenant;
+  h.nesTenantId = null;
+  h.defaultTenantError = null;
+  h.tenantLookups = [];
+  h.newAccountProfile = { tenant: undefined, slug: null };
+  h.createdUserIds = [];
   h.listUsersPages = [];
   h.listUsersError = null;
   h.existingProfileSlug = null;
@@ -1145,7 +1267,10 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     withInvitation(invitationRow({ mode: "magic_link" }));
     await send();
     expect(h.authCalls[0].payload).toMatchObject({ email_confirm: false });
-    expect(h.authCalls[0].payload).not.toHaveProperty("app_metadata");
+    // `app_metadata` niesie WYŁĄCZNIE najemcę narodzin - bez znacznika
+    // potwierdzenia nadanego przez administratora.
+    const payload = h.authCalls[0].payload as { app_metadata?: Record<string, unknown> };
+    expect(payload.app_metadata).toEqual({ tenant_id: IDS.tenant });
   });
 
   it("hasło tymczasowe ma 16 znaków z alfabetu BEZ mylących glifów", async () => {
@@ -1166,10 +1291,16 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
 
   it("konto JUŻ POWIĄZANE (ponowna wysyłka) nie jest tworzone drugi raz", async () => {
     // To jest sens ponowienia: rekord zaproszenia ma `auth_user_id`, więc
-    // wysyłka pomija warstwę auth i tylko uzupełnia profil.
+    // wysyłka nie przechodzi katalogu i nie zakłada konta - pobiera konto po
+    // identyfikatorze (który niczego nie poświadcza, patrz `getUserById`
+    // niżej) i tylko uzupełnia profil.
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.tenant;
     const result = await send();
     expect(h.authCalls.every((call) => call.kind.startsWith("link:"))).toBe(true);
+    expect(h.listUsersPages).toEqual([]);
+    expect(h.getUserByIdCalls).toEqual([IDS.existingUser]);
     expect(result.ok).toBe(true);
     const profileWrite = h.adminWrites.find((write) => write.table === "profiles");
     expect(profileWrite?.row).toMatchObject({ id: IDS.existingUser });
@@ -1383,6 +1514,8 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     // Konto istnieje, więc nowe hasło nie powstaje - wiadomość przypomina
     // tylko adres logowania.
     withInvitation(invitationRow({ mode: "temp_password", auth_user_id: IDS.existingUser }));
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.tenant;
     const result = await send();
     expect(h.emails).toHaveLength(1);
     expect(result.tempPassword).toBeUndefined();
@@ -1555,11 +1688,15 @@ describe("sendInvitation - konto z obcego najemcy nie jest przepinane", () => {
     });
   });
 
-  it("profil BEZ najemcy (konto osierocone) wolno dowiązać", async () => {
+  // `profiles.tenant_id` jest NOT NULL, więc „profil bez najemcy" nie istnieje.
+  // Istnieje konto BEZ PROFILU (np. profil usunięty ręcznie) - i ono należy do
+  // kogoś: właściciela adresu z historią w innych tabelach. Dowiązać wolno je
+  // wyłącznie wtedy, gdy narodziło się z zaproszenia TEGO najemcy.
+  it("konto BEZ profilu, narodzone z zaproszenia tego najemcy (`app_metadata`) - dowiązywane", async () => {
     withInvitation(invitationRow());
-    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
-    h.existingProfileTenant = null;
-    h.existingProfileSlug = "sierota";
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { tenant_id: IDS.tenant } },
+    ];
     const result = await send();
     expect(result.ok).toBe(true);
     expect(h.adminWrites.map((write) => write.table)).toEqual([
@@ -1569,13 +1706,333 @@ describe("sendInvitation - konto z obcego najemcy nie jest przepinane", () => {
     ]);
   });
 
+  it("konto BEZ profilu i bez poświadczenia najemcy - odmowa bez żadnego zapisu", async () => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+  });
+
   it("awaria odczytu istniejącego profilu NIE czyta się jak „profilu nie ma” - nic nie jest zapisywane", async () => {
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
     h.existingProfileError = { message: "permission denied for table profiles" };
     const result = await send();
     expect(result).toMatchObject({ ok: false, error: "permission denied for table profiles" });
     expect(h.adminWrites).toEqual([]);
     expect(h.emails).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5a. NOWA OSOBA W ORGANIZACJI INNEJ NIŻ DOMYŚLNA - zgłoszony defekt.
+//
+// `handle_new_user` (20260805083149) zakłada profil KAŻDEGO nowego konta
+// w najemcy domyślnym, w tej samej transakcji co `createUser`. Pierwsza wersja
+// granicy najemcy porównywała ten profil z najemcą zaproszenia i rzucała
+// `account_in_other_tenant` zaraz po tym, jak sama założyła konto - więc
+// zaproszenie NOWEJ osoby do każdej organizacji poza domyślną odmawiało
+// zawsze, a konto zostawało osierocone w najemcy domyślnym. Atrapa udawała
+// wtedy, że nowe konto nie ma profilu, i żaden test tego nie zobaczył; teraz
+// modeluje `handle_new_user` (`h.newAccountProfile`). Kontrakt po stronie bazy
+// (profil rodzi się w najemcy domyślnym, a zapis kluczem serwisowym go
+// przenosi) przypina `supabase/tests/invitation_new_account_tenant_birth_test.sql`.
+// ---------------------------------------------------------------------------
+
+describe("sendInvitation - nowa osoba w organizacji innej niż domyślna", () => {
+  beforeEach(() => {
+    grantAdmin();
+  });
+
+  let auditExecutions: Record<string, unknown>[] = [];
+
+  function withInvitation(row: InvitationRow): void {
+    db.setResponse("user_invitations", (chain) => (chain.has("update") ? ok(null) : ok(row)));
+    // Odpowiedź liczy WYKONANIA (`then`), nie samo `insert`: `void insert()`
+    // nie wysyła żądania, a atrapa zapisuje ogniwo już przy wywołaniu.
+    auditExecutions = [];
+    db.setResponse("audit_log", (chain) => {
+      auditExecutions.push(chain.argsOf("insert")?.[0] as Record<string, unknown>);
+      return ok(null);
+    });
+  }
+
+  async function send(): Promise<{ ok: boolean; error?: string; tempPassword?: string }> {
+    return callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+  }
+
+  function invitationUpdates(): Record<string, unknown>[] {
+    return db
+      .chainsFor("user_invitations")
+      .filter((chain) => chain.has("update"))
+      .map((chain) => chain.argsOf("update")?.[0] as Record<string, unknown>);
+  }
+
+  it.each(["magic_link", "temp_password"] as const)(
+    "tryb %s: konto powstaje, profil z najemcy domyślnego przechodzi do najemcy zaproszenia, mail wychodzi",
+    async (mode) => {
+      withInvitation(invitationRow({ mode }));
+      const result = await send();
+      expect(result).toMatchObject({ ok: true });
+      expect(h.authCalls.filter((call) => call.kind === "create")).toHaveLength(1);
+      // Poświadczenie najemcy narodzin - jedyne, które odróżnia to konto od
+      // konta czytelnika z najemcy domyślnego.
+      expect(h.authCalls[0].payload).toMatchObject({ app_metadata: { tenant_id: IDS.tenant } });
+      expect(h.adminWrites.map((write) => write.table)).toEqual([
+        "profiles",
+        "author_profiles",
+        "user_roles",
+      ]);
+      for (const write of h.adminWrites) {
+        expect(write.row).toMatchObject({ tenant_id: IDS.tenant });
+      }
+      expect(h.emails).toHaveLength(1);
+      expect(invitationUpdates()).toEqual([
+        expect.objectContaining({ status: "sent", auth_user_id: h.authUserId }),
+      ]);
+      // Najemca domyślny wyznaczony jak w `handle_new_user`: flaga.
+      expect(h.tenantLookups).toContainEqual(["is_default", true]);
+    },
+  );
+
+  it("nowe konto zachowuje slug nadany przez `handle_new_user`", async () => {
+    // Slug z wyzwalacza jest już unikalny (sufiks przy imienniku); liczenie
+    // go drugi raz z nazwy mogłoby trafić w cudzy `profiles_slug_unique`.
+    withInvitation(invitationRow());
+    h.newAccountProfile = { tenant: undefined, slug: "nowa-osoba-7" };
+    expect((await send()).ok).toBe(true);
+    expect(h.adminWrites[0].row).toMatchObject({ slug: "nowa-osoba-7" });
+  });
+
+  it("zaproszenie do najemcy DOMYŚLNEGO nie pyta o najemcę domyślnego - profil już jest u zapraszającego", async () => {
+    withInvitation(invitationRow({ tenant_id: IDS.defaultTenant }));
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(h.tenantLookups).toEqual([]);
+    expect(h.adminWrites[0].row).toMatchObject({ tenant_id: IDS.defaultTenant });
+  });
+
+  it("PONOWIENIE po przerwanej pierwszej wysyłce dowiązuje konto narodzone z zaproszenia tego najemcy", async () => {
+    // Pierwsza wysyłka założyła konto i padła przed hydracją: profil stoi
+    // wciąż w najemcy domyślnym. „Spróbuj ponownie" ma to dokończyć, a nie
+    // zakładać drugie konto ani odmawiać.
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [
+      {
+        id: IDS.existingUser,
+        email: "nowa@example.org",
+        app_metadata: { provider: "email", tenant_id: IDS.tenant },
+      },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    h.existingProfileSlug = "nowa-osoba";
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(h.authCalls.some((call) => call.kind === "create")).toBe(false);
+    expect(h.adminWrites[0].row).toMatchObject({
+      id: IDS.existingUser,
+      tenant_id: IDS.tenant,
+      slug: "nowa-osoba",
+    });
+  });
+
+  it("najemca domyślny bez flagi rozstrzyga się slugiem `nes` - jak w `handle_new_user`", async () => {
+    withInvitation(invitationRow());
+    h.defaultTenantId = null;
+    h.nesTenantId = IDS.defaultTenant;
+    h.newAccountProfile = { tenant: IDS.defaultTenant, slug: null };
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(h.tenantLookups).toEqual([
+      ["is_default", true],
+      ["slug", "nes"],
+    ]);
+  });
+
+  // ---- odmowy: nic w koncie, żaden mail, jeden kod ------------------------
+
+  function expectRefusedWithoutSideEffects(result: { ok: boolean; error?: string }): void {
+    expect(result).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+    // Ani `createUser`, ani link logowania do cudzego konta.
+    expect(h.authCalls).toEqual([]);
+  }
+
+  it.each([
+    ["konto czytelnika zarejestrowanego samodzielnie (bez `app_metadata.tenant_id`)", {}],
+    [
+      "konto narodzone z zaproszenia INNEGO najemcy",
+      { tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+    ],
+    ["`app_metadata.tenant_id` nie jest tekstem", { tenant_id: 42 }],
+  ] as const)("profil w najemcy domyślnym, %s - odmowa", async (_label, appMetadata) => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { ...appMetadata } },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    expectRefusedWithoutSideEffects(await send());
+  });
+
+  it("`user_metadata.tenant_id` NIE poświadcza najemcy - ustawia je sam rejestrujący się klient", async () => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", user_metadata: { tenant_id: IDS.tenant } },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    expectRefusedWithoutSideEffects(await send());
+  });
+
+  it("konto narodzone dla TEGO najemcy, ale przeniesione do innego - odmowa", async () => {
+    // Poświadczenie narodzin otwiera wyłącznie wiersz najemcy DOMYŚLNEGO.
+    // Konto, które operator przeniósł do najemcy B, należy do B.
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { tenant_id: IDS.tenant } },
+    ];
+    h.existingProfileTenant = IDS.otherTenant;
+    expectRefusedWithoutSideEffects(await send());
+  });
+
+  it("brak wiersza najemcy domyślnego to odmowa, nie dowiązanie (fail closed)", async () => {
+    withInvitation(invitationRow());
+    h.defaultTenantId = null;
+    h.nesTenantId = null;
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { tenant_id: IDS.tenant } },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    expectRefusedWithoutSideEffects(await send());
+  });
+
+  it("awaria odczytu najemcy domyślnego to BŁĄD - ani odmowa, ani dowiązanie", async () => {
+    withInvitation(invitationRow());
+    h.defaultTenantError = { message: "connection reset" };
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { tenant_id: IDS.tenant } },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    const result = await send();
+    expect(result).toMatchObject({
+      ok: false,
+      error: "default_tenant_lookup_failed:connection reset",
+    });
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+  });
+
+  it("`handle_new_user` założyło profil w najemcy ani domyślnym, ani zaproszenia - odmowa przed hydracją", async () => {
+    // Nie zdarza się dziś (rejestracja `staff` nie idzie przez zaproszenie),
+    // ale reguła nie zgaduje: konto nowe czy stare, profil u obcego = odmowa.
+    withInvitation(invitationRow());
+    h.newAccountProfile = { tenant: IDS.otherTenant, slug: null };
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+  });
+
+  it("odmowa zapisuje `failed` z kodem, NIE przypina konta i zostawia ślad bez danych ofiary", async () => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.otherTenant;
+    await send();
+    expect(invitationUpdates()).toEqual([
+      { status: "failed", last_error: "account_in_other_tenant" },
+    ]);
+    expect(auditExecutions).toEqual([
+      {
+        actor_id: IDS.caller,
+        action: "user_invitation_refused",
+        entity_type: "user_invitation",
+        entity_id: IDS.invitation,
+        tenant_id: IDS.tenant,
+        metadata: { reason: "account_in_other_tenant" },
+      },
+    ]);
+    const trail = JSON.stringify(auditExecutions);
+    expect(trail).not.toContain(IDS.existingUser);
+    expect(trail).not.toContain(IDS.otherTenant);
+  });
+
+  // ---- przypięte `auth_user_id` nie jest dowodem tożsamości ---------------
+
+  it("przypięty identyfikator konta, którego nie ma - odmowa i zdjęcie przypięcia", async () => {
+    withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    const result = await send();
+    expectRefusedWithoutSideEffects(result);
+    // Bez przejścia katalogu - przypięty identyfikator nie degraduje się do
+    // szukania po adresie w tym samym przebiegu.
+    expect(h.listUsersPages).toEqual([]);
+    expect(invitationUpdates()).toEqual([
+      { status: "failed", last_error: "account_in_other_tenant", auth_user_id: null },
+    ]);
+  });
+
+  it("przypięty identyfikator konta z INNYM adresem niż zaproszenie - odmowa, nawet w tym samym najemcy", async () => {
+    // Administrator zapisuje `auth_user_id` wprost przez PostgREST: identyfikator
+    // osoby ze swojego najemcy plus własny adres w zaproszeniu dałyby link
+    // aktywacyjny na obcy adres i nadpisanie cudzego profilu.
+    withInvitation(invitationRow({ auth_user_id: IDS.existingUser, email: "obca@example.org" }));
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.tenant;
+    const result = await send();
+    expectRefusedWithoutSideEffects(result);
+    expect(invitationUpdates()).toEqual([
+      { status: "failed", last_error: "account_in_other_tenant", auth_user_id: null },
+    ]);
+  });
+
+  it("adres przypiętego konta porównywany bez wielkości liter i spacji", async () => {
+    withInvitation(invitationRow({ auth_user_id: IDS.existingUser, email: "nowa@example.org" }));
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: " Nowa@Example.ORG " }];
+    h.existingProfileTenant = IDS.tenant;
+    expect((await send()).ok).toBe(true);
+  });
+
+  it("awaria `getUserById` inna niż brak konta to BŁĄD - bez zapisu i bez zdjęcia przypięcia", async () => {
+    withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    h.getUserByIdError = Object.assign(new Error("upstream timeout"), { status: 504 });
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "upstream timeout" });
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+    expect(invitationUpdates()).toEqual([{ status: "failed", last_error: "upstream timeout" }]);
+  });
+
+  // ---- rola i ślad -------------------------------------------------------
+
+  it.each(["super_admin", "moderator", ""])(
+    "rola `%s` spoza zbioru zapraszalnych - odmowa PRZED claimem, bez konta i bez maila",
+    async (role) => {
+      // `user_invitations.role` to `app_role` bez ograniczenia, a administrator
+      // zapisuje ją wprost przez PostgREST.
+      withInvitation(invitationRow({ role }));
+      const result = await send();
+      expect(result).toMatchObject({ ok: false, error: "invitation_role_not_allowed" });
+      expect(rpcCalls.some((call) => call.name === "admin_claim_invitation_send")).toBe(false);
+      expect(h.authCalls).toEqual([]);
+      expect(h.listUsersPages).toEqual([]);
+      expect(h.adminWrites).toEqual([]);
+      expect(h.emails).toHaveLength(0);
+      expect(invitationUpdates()).toEqual([
+        { status: "failed", last_error: "invitation_role_not_allowed" },
+      ]);
+    },
+  );
+
+  it("ślad wysyłki WYKONUJE się (dawniej `void insert()` nie wysyłał żądania)", async () => {
+    withInvitation(invitationRow());
+    expect((await send()).ok).toBe(true);
+    expect(auditExecutions).toHaveLength(1);
+    expect(auditExecutions[0]).toMatchObject({
+      action: "user_invitation_sent",
+      tenant_id: IDS.tenant,
+      metadata: { auth_user_id: h.authUserId },
+    });
   });
 });
 
@@ -2080,10 +2537,14 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     });
     // R12: potwierdzenie z importu zespołu też nie dowodzi skrzynki - znacznik
     // w `app_metadata` (tylko klucz serwisowy), dla adresu z widgetu.
+    // `tenant_id` w `app_metadata` poświadcza najemcę narodzin: przerwany
+    // import zostawia profil w najemcy domyślnym, a `performSend` dowiąże takie
+    // konto tylko z tym znacznikiem (`resolveInviteTarget`).
     expect(h.authCalls[0].payload).toMatchObject({
       app_metadata: {
         provisioned_by_admin: true,
         provisioned_email: (h.authCalls[0].payload as { email: string }).email,
+        tenant_id: IDS.tenant,
       },
     });
     expect(h.emails).toHaveLength(0);
@@ -2891,6 +3352,8 @@ describe("system zaproszeń - slug profilu autora", () => {
     // opublikowane linki, a przy kolizji wywracając cały resend na
     // `profiles_slug_unique`.
     grantAdmin();
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.tenant;
     h.existingProfileSlug = "micha-kowalski";
     db.setResponse("user_invitations", (chain) =>
       chain.has("update") ? ok(null) : ok(invitationRow({ display_name: "Michał Kowalski" })),
@@ -3134,6 +3597,7 @@ describe("invitation delivery recovery branches", () => {
       { id: "invalid", email: null },
       { id: IDS.existingUser, email: "NOWA@example.org" },
     ];
+    h.existingProfileTenant = IDS.tenant;
     const result = await callServerFn(sendInvitation, {
       data: { id: IDS.invitation },
       context: context(),
@@ -3164,6 +3628,7 @@ describe("invitation delivery recovery branches", () => {
       })),
       { id: IDS.existingUser, email: "NOWA@example.org" },
     ];
+    h.existingProfileTenant = IDS.tenant;
 
     const result = await callServerFn(sendInvitation, {
       data: { id: IDS.invitation },

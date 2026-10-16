@@ -8,11 +8,17 @@
 //                                     informacją, czy istnieje już konto o
 //                                     danym e-mailu (dedup case-insensitive).
 //   - createInvitations(items)      - zbiorczo tworzy rekordy user_invitations.
-//   - sendInvitation(id)            - tworzy konto (auth.admin.createUser lub
-//                                     inviteUserByEmail), rekordy profiles /
+//   - sendInvitation(id)            - rozstrzyga adresata (`resolveInviteTarget`:
+//                                     nowe konto, dowiązanie konta tego najemcy
+//                                     albo odmowa), zakłada konto
+//                                     (auth.admin.createUser), zapisuje profiles /
 //                                     author_profiles / user_roles i wysyła
 //                                     e-mail przez domenową kolejkę pocztową.
-//   - resendInvitation(id)          - jak wyżej, jeśli konto istnieje pomija.
+//                                     Ponowna wysyłka idzie tą samą ścieżką:
+//                                     konto zastane jest dowiązywane, nie
+//                                     zakładane drugi raz.
+//   - sendInvitationsBulk(ids), resendInvitationsForEmails(emails),
+//     sendActivationEmailForUser(userId) - ta sama ścieżka (`performSend`).
 //   - revokeInvitation(id)          - miękkie oznaczenie statusu.
 //   - linkTeamWidgets(pageSlug)     - dopisuje authorSlug / authorUserId do
 //                                     widgetów team-member matchowanych po
@@ -26,13 +32,23 @@ import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import {
   invitationIntro,
   invitationScope,
   tierRankByPriceId,
 } from "@/lib/email-templates/invitationScope";
+import {
+  INVITABLE_ROLES,
+  INVITATION_ROLE_NOT_ALLOWED,
+  INVITATION_TARGET_UNAVAILABLE,
+  appMetadataTenantId,
+  isInvitableRole,
+  resolveInviteTarget,
+  type InviteAccount,
+  type InviteTarget,
+} from "@/lib/admin/inviteTarget";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type InviteMode = Database["public"]["Enums"]["invitation_mode"];
@@ -94,6 +110,18 @@ function adminProvisionedAppMetadata(email: string): {
   provisioned_email: string;
 } {
   return { provisioned_by_admin: true, provisioned_email: email.trim().toLowerCase() };
+}
+
+/**
+ * Konto z katalogu tożsamości w kształcie decyzji `resolveInviteTarget`.
+ * `fallbackEmail` wyłącznie dla konta założonego przed chwilą tym adresem.
+ */
+function toInviteAccount(user: User, fallbackEmail?: string): InviteAccount {
+  return {
+    id: user.id,
+    email: user.email ?? fallbackEmail ?? null,
+    appTenantId: appMetadataTenantId(user.app_metadata),
+  };
 }
 
 function generateTempPassword(): string {
@@ -250,7 +278,7 @@ const InviteItemSchema = z.object({
     .email()
     .transform((v) => v.trim().toLowerCase()),
   display_name: z.string().min(1).max(200),
-  role: z.enum(["admin", "editor", "author", "user"]),
+  role: z.enum(INVITABLE_ROLES),
   mode: z.enum(["magic_link", "temp_password"]),
   source: z.string().max(80).optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -316,6 +344,62 @@ async function performSend(
   const email = inv.email;
   const displayName = inv.display_name ?? email;
   const origin = process.env.PUBLIC_APP_URL ?? "https://neweuropeanstrategies.com";
+  const invitationTenantId = inv.tenant_id;
+  const pinnedAccountId = inv.auth_user_id;
+
+  // Wynik zapisu statusu jest czytany: zaproszenie, które zostaje w `pending`
+  // mimo odmowy, wygląda w panelu jak „jeszcze nie wysłane", a nie jak błąd.
+  async function markFailed(lastError: string, clearPin = false): Promise<void> {
+    const { error } = await supabase
+      .from("user_invitations")
+      .update({
+        status: "failed",
+        last_error: lastError,
+        ...(clearPin ? { auth_user_id: null } : {}),
+      })
+      .eq("id", invitationId);
+    if (error) {
+      console.error("[performSend] invitation status update failed", {
+        invitationId,
+        code: error.code,
+      });
+    }
+  }
+
+  // Ślad audytowy MUSI się wykonać: `void supabase.from(...).insert(...)` nie
+  // wysyła żądania, bo postgrest-js wykonuje zapytanie dopiero w `then()`.
+  // Błąd zapisu śladu logujemy i nie przerywamy nim wysyłki.
+  async function writeAudit(action: string, metadata: Record<string, unknown>): Promise<void> {
+    const { error } = await supabase.from("audit_log").insert({
+      actor_id: userId,
+      action,
+      entity_type: "user_invitation",
+      entity_id: invitationId,
+      tenant_id: invitationTenantId,
+      metadata: metadata as never,
+    });
+    if (error) {
+      console.error("[performSend] audit write failed", { invitationId, action, code: error.code });
+    }
+  }
+
+  // Odmowa: nic w koncie nie zostało zapisane, żaden mail nie wyszedł. Jeden
+  // kod dla każdej przyczyny - w odpowiedzi, w `last_error` i w śladzie - bez
+  // identyfikatora konta i bez jego najemcy.
+  async function refuse(code: string, clearPin = false): Promise<SendResult> {
+    await markFailed(code, clearPin);
+    await writeAudit("user_invitation_refused", { reason: code });
+    return { ok: false, email, error: code };
+  }
+
+  // Rola przed claimem i przed katalogiem kont: `user_invitations.role` to
+  // `app_role` bez ograniczenia, a administrator zapisuje ją wprost przez
+  // PostgREST. Bez tej bramki zaproszenie z `super_admin` nadałoby tę rolę
+  // kluczem serwisowym, z pominięciem reguły „tylko super_admin nadaje
+  // super_admin".
+  if (!isInvitableRole(inv.role)) {
+    return refuse(INVITATION_ROLE_NOT_ALLOWED);
+  }
 
   const { data: sendCount, error: claimError } = await supabase.rpc("admin_claim_invitation_send", {
     p_invitation_id: invitationId,
@@ -331,13 +415,13 @@ async function performSend(
     };
   }
 
-  let authUserId: string | null = inv.auth_user_id;
   let tempPassword: string | undefined;
 
   // Konto o tym adresie mogło już powstać (wcześniejsze zaproszenie, rejestracja
   // własna). `createUser` zwraca wtedy twardy błąd "already been registered" i
   // całe zaproszenie ląduje jako `failed` - mimo że jedyne, czego brakuje, to
-  // ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta.
+  // ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta,
+  // a o tym, czy wolno je dowiązać, rozstrzyga `resolveInviteTarget`.
   //
   // DLACZEGO PĘTLA, A NIE JEDNO ZAPYTANIE. `listUsers` w tej wersji SDK
   // (@supabase/auth-js 2.106) NIE MA filtru po adresie - przyjmuje wyłącznie
@@ -356,7 +440,7 @@ async function performSend(
   /** Twardy sufit: 200 * 100 = 20 000 kont. Po jego przekroczeniu ODMAWIAMY. */
   const AUTH_DIRECTORY_MAX_PAGES = 100;
 
-  async function findAuthUserIdByEmail(): Promise<string | null> {
+  async function findAuthAccountByEmail(): Promise<InviteAccount | null> {
     const target = email.toLowerCase();
     for (let page = 1; page <= AUTH_DIRECTORY_MAX_PAGES; page += 1) {
       const { data, error } = await supabaseAdmin.auth.admin.listUsers({
@@ -370,7 +454,7 @@ async function performSend(
       if (error) throw error;
       const users = data?.users ?? [];
       const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
-      if (hit) return hit.id;
+      if (hit) return toInviteAccount(hit);
       // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
       // przeszliśmy CAŁY katalog i konta w nim nie ma.
       if (users.length < AUTH_DIRECTORY_PAGE_SIZE) return null;
@@ -381,41 +465,145 @@ async function performSend(
     throw new Error("auth_directory_scan_exhausted");
   }
 
-  try {
-    if (!authUserId) {
-      authUserId = await findAuthUserIdByEmail();
+  // `auth_user_id` z wiersza zaproszenia NIE jest dowodem tożsamości:
+  // administrator najemcy zapisuje tę kolumnę wprost przez PostgREST. Konto
+  // pobieramy po identyfikatorze, a `resolveInviteTarget` sprawdza, że ma adres
+  // zaproszenia. Brak konta to `null` (odmowa), każdy inny błąd - błąd.
+  async function getPinnedAccount(id: string): Promise<InviteAccount | null> {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(id);
+    if (error) {
+      if (error.status === 404 || error.code === "user_not_found") return null;
+      throw error;
     }
-    if (!authUserId) {
+    return data?.user ? toInviteAccount(data.user) : null;
+  }
+
+  // Najemca domyślny wyznaczony DOKŁADNIE jak w `handle_new_user`
+  // (`tenants.is_default`, potem slug `nes`) - nie przez
+  // `email_default_tenant_id()`, która ma inny fallback. Indeks
+  // `tenants_single_default` gwarantuje najwyżej jeden wiersz domyślny.
+  async function readDefaultTenantId(): Promise<string | null> {
+    const { data: byFlag, error: flagError } = await supabaseAdmin
+      .from("tenants")
+      .select("id")
+      .eq("is_default", true)
+      .maybeSingle();
+    if (flagError) throw new Error(`default_tenant_lookup_failed:${flagError.message}`);
+    if (byFlag?.id) return byFlag.id;
+    const { data: bySlug, error: slugError } = await supabaseAdmin
+      .from("tenants")
+      .select("id")
+      .eq("slug", "nes")
+      .maybeSingle();
+    if (slugError) throw new Error(`default_tenant_lookup_failed:${slugError.message}`);
+    return bySlug?.id ?? null;
+  }
+
+  // Profil czytamy kluczem SERWISOWYM, celowo: przez RLS cudzy wiersz jest
+  // niewidoczny i „inny najemca" wyglądałby jak „brak profilu". Ten sam odczyt
+  // niesie slug - patrz „SLUG ISTNIEJĄCEGO KONTA" niżej.
+  async function decide(
+    account: InviteAccount | null,
+  ): Promise<{ target: InviteTarget; slug: string | null }> {
+    let profileTenantId: string | null = null;
+    let slug: string | null = null;
+    let defaultTenantId: string | null = null;
+    if (account) {
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .select("slug, tenant_id")
+        .eq("id", account.id)
+        .maybeSingle();
+      // Awaria odczytu NIE MOŻE czytać się jak „profilu nie ma": wtedy niżej
+      // zapisalibyśmy najemcę zaproszenia na konto, którego najemcy nie znamy.
+      if (profileError) throw new Error(profileError.message);
+      profileTenantId = profile?.tenant_id ?? null;
+      slug = profile?.slug ?? null;
+      // Najemcę domyślnego czytamy tylko wtedy, gdy profil stoi poza najemcą
+      // zaproszenia - zwykłe ponowienie do własnego użytkownika go nie płaci.
+      if (profileTenantId !== null && profileTenantId !== invitationTenantId) {
+        defaultTenantId = await readDefaultTenantId();
+      }
+    }
+    const target = resolveInviteTarget({
+      invitationTenantId,
+      invitationEmail: email,
+      pinnedAccountId,
+      account,
+      profileTenantId,
+      defaultTenantId,
+    });
+    return { target, slug };
+  }
+
+  try {
+    const found = pinnedAccountId
+      ? await getPinnedAccount(pinnedAccountId)
+      : await findAuthAccountByEmail();
+    let decision = await decide(found);
+
+    if (decision.target.kind === "create") {
+      // `app_metadata.tenant_id` jest JEDYNYM poświadczeniem, że konto narodziło
+      // się z zaproszenia tego najemcy: `handle_new_user` zakłada profil
+      // w najemcy DOMYŚLNYM, a gdy ta wysyłka przerwie się przed hydracją,
+      // ponowienie znajdzie konto z profilem w najemcy domyślnym i bez tego
+      // znacznika musiałoby odmówić. Ustawiany w TYM SAMYM wywołaniu
+      // `createUser`, więc nie ma chwili, w której konto istnieje bez niego.
+      // `user_metadata.tenant_id` zostaje dla UI, ale niczego nie poświadcza.
+      let created: User | null;
       if (inv.mode === "magic_link") {
         // Konto zakładamy bez hasła i BEZ maila Supabase - własny e-mail
         // (niżej) niesie link aktywacyjny wygenerowany przez generateLink.
-        const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
           email,
           email_confirm: false,
-          user_metadata: { display_name: displayName, tenant_id: inv.tenant_id },
+          app_metadata: { tenant_id: invitationTenantId },
+          user_metadata: { display_name: displayName, tenant_id: invitationTenantId },
         });
         if (error) throw error;
-        authUserId = created.user?.id ?? null;
+        created = data.user;
       } else {
         tempPassword = generateTempPassword();
-        const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
           email,
           password: tempPassword,
           email_confirm: true,
           // Potwierdzenie nadane przez administratora nie dowodzi skrzynki.
-          app_metadata: adminProvisionedAppMetadata(email),
+          app_metadata: { ...adminProvisionedAppMetadata(email), tenant_id: invitationTenantId },
           user_metadata: {
             display_name: displayName,
-            tenant_id: inv.tenant_id,
+            tenant_id: invitationTenantId,
             must_change_password: true,
           },
         });
         if (error) throw error;
-        authUserId = created.user?.id ?? null;
+        created = data.user;
       }
+      if (!created?.id) throw new Error("no_auth_user_id");
+      // Ta sama decyzja co dla konta zastanego: profil, który `handle_new_user`
+      // założył przed chwilą w najemcy domyślnym, przechodzi wierszem
+      // „narodzone z zaproszenia tego najemcy".
+      decision = await decide(toInviteAccount(created, email));
     }
 
-    if (!authUserId) throw new Error("no_auth_user_id");
+    // GRANICA NAJEMCY. `findAuthAccountByEmail` przeszukuje CAŁY katalog kont
+    // (nie ma w nim najemców), a hydracja niżej pisze kluczem serwisowym
+    // `profiles.tenant_id`, `author_profiles` i rolę w najemcy zapraszającego.
+    // Bez decyzji administrator obszaru A, który zaprosił adres osoby z obszaru
+    // B, PRZENOSIŁ jej konto do A (audyt pokrycia, wydanie 12, 16.8).
+    // Przeniesienie konta między obszarami jest osobną operacją, nie skutkiem
+    // ubocznym wysłania zaproszenia. Przypięty identyfikator, który nie przeszedł
+    // weryfikacji, schodzi z wiersza - inaczej każde ponowienie trafiałoby w to
+    // samo cudze konto zamiast szukać po adresie.
+    if (decision.target.kind === "refuse") {
+      const { reason } = decision.target;
+      return await refuse(
+        INVITATION_TARGET_UNAVAILABLE,
+        reason === "pinned_account_missing" || reason === "pinned_account_mismatch",
+      );
+    }
+    if (decision.target.kind !== "attach") throw new Error("no_auth_user_id");
+    const authUserId = decision.target.userId;
 
     // SLUG ISTNIEJĄCEGO KONTA ZOSTAJE NIETKNIĘTY.
     //
@@ -430,29 +618,9 @@ async function performSend(
     //
     // Slug liczymy zatem wyłącznie dla konta, które jeszcze go nie ma. Zmiana
     // adresu istniejącego profilu to osobna decyzja (mapowanie stary -> nowy
-    // plus przekierowania), nie skutek uboczny wysłania zaproszenia.
-    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
-      .from("profiles")
-      .select("slug, tenant_id")
-      .eq("id", authUserId)
-      .maybeSingle();
-    // Awaria odczytu NIE MOŻE czytać się jak „profilu nie ma": wtedy niżej
-    // zapisalibyśmy najemcę zaproszenia na konto, którego najemcy nie znamy.
-    if (existingProfileError) throw new Error(existingProfileError.message);
-
-    // GRANICA NAJEMCY. `findAuthUserIdByEmail` przeszukuje CAŁY katalog kont
-    // (nie ma w nim najemców), a hydracja niżej pisze kluczem serwisowym
-    // `profiles.tenant_id`, `author_profiles` i rolę w najemcy zapraszającego.
-    // Bez tego porównania administrator obszaru A, który zaprosił adres osoby
-    // z obszaru B, PRZENOSIŁ jej konto do A (audyt pokrycia, wydanie 12, 16.8:
-    // jedyny defekt krytyczny wydania). Konto z obcego najemcy to odmowa -
-    // przeniesienie konta między obszarami jest osobną operacją, nie skutkiem
-    // ubocznym wysłania zaproszenia. Profil bez najemcy (konto osierocone)
-    // wolno dowiązać - nie należy do nikogo, kogo dałoby się skrzywdzić.
-    if (existingProfile?.tenant_id && existingProfile.tenant_id !== inv.tenant_id) {
-      throw new Error("account_in_other_tenant");
-    }
-    const slug = existingProfile?.slug ?? slugify(displayName);
+    // plus przekierowania), nie skutek uboczny wysłania zaproszenia. Nowe
+    // konto ma już slug z `handle_new_user` - ten zostaje.
+    const slug = decision.slug ?? slugify(displayName);
 
     // Hydrate profile + author_profile + user_role. UPSERT nadpisuje wymienione
     // kolumny danymi z zaproszenia; wyjątkiem jest `slug` (wyżej), bo ten jest
@@ -628,7 +796,7 @@ async function performSend(
     // nigdy nie może oznaczać, że użytkownik kliknął link aktywacyjny.
     const autoAccept = meta.auto_accept === true;
     const nowIso = new Date().toISOString();
-    await supabase
+    const { error: sentUpdateError } = await supabase
       .from("user_invitations")
       .update({
         status: "sent",
@@ -638,20 +806,21 @@ async function performSend(
         last_error: null,
       })
       .eq("id", invitationId);
+    if (sentUpdateError) {
+      // Mail już wyszedł, więc wysyłka jest sukcesem - ale stan zaproszenia
+      // w panelu się z nim rozjechał i ktoś musi to zobaczyć w logu.
+      console.error("[performSend] invitation status update failed", {
+        invitationId,
+        code: sentUpdateError.code,
+      });
+    }
 
-    // Audit trail (best-effort, nie blokuje wysyłki)
-    void supabase.from("audit_log").insert({
-      actor_id: userId,
-      action: "user_invitation_sent",
-      entity_type: "user_invitation",
-      entity_id: invitationId,
-      tenant_id: inv.tenant_id,
-      metadata: {
-        mode: inv.mode,
-        email,
-        auth_user_id: authUserId,
-        auto_accept: autoAccept,
-      } as never,
+    // Ślad audytowy (nie blokuje wysyłki, ale się WYKONUJE - `writeAudit`).
+    await writeAudit("user_invitation_sent", {
+      mode: inv.mode,
+      email,
+      auth_user_id: authUserId,
+      auto_accept: autoAccept,
     });
 
     return {
@@ -663,10 +832,7 @@ async function performSend(
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await supabase
-      .from("user_invitations")
-      .update({ status: "failed", last_error: msg.slice(0, 500) })
-      .eq("id", invitationId);
+    await markFailed(msg.slice(0, 500));
     return { ok: false, email, error: msg };
   }
 }
@@ -950,7 +1116,7 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
     z
       .object({
         pageSlug: z.string().min(1),
-        role: z.enum(["admin", "editor", "author", "user"]).default("author"),
+        role: z.enum(INVITABLE_ROLES).default("author"),
         autoLink: z.boolean().default(true),
       })
       .parse(input),
@@ -1030,8 +1196,10 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
               password: tempPassword,
               email_confirm: true,
               // Jak w `performSend`: potwierdzenie z importu zespołu to nie
-              // dowód skrzynki (`adminProvisionedAppMetadata`).
-              app_metadata: adminProvisionedAppMetadata(d.email),
+              // dowód skrzynki (`adminProvisionedAppMetadata`), a
+              // `tenant_id` poświadcza, że konto narodziło się dla TEGO
+              // najemcy (`resolveInviteTarget`, wiersz najemcy domyślnego).
+              app_metadata: { ...adminProvisionedAppMetadata(d.email), tenant_id: tenantId },
               user_metadata: {
                 display_name: d.name,
                 tenant_id: tenantId,
