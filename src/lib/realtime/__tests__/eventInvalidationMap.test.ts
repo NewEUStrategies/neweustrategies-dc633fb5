@@ -234,3 +234,26 @@ describe("kluby - echo własnej mutacji i komentarze wpisu", () => {
     expect(invalidationKeysFor(comment("u1", {}), { userId: "u1" })).toEqual([]);
   });
 });
+
+describe("club workspace events", () => {
+  const types = ["club_thread.document_added.v1", "club_thread.milestone_set.v1"] as const;
+
+  for (const type of types) {
+    it(`${type} invalidates the workspace of the thread from aggregate_id`, () => {
+      const event = { ...eventOf(type), aggregate_id: "thread-1" };
+      expect(invalidationKeysFor(event, { userId: "u1" })).toContainEqual(
+        clubKeys.workspace("thread-1"),
+      );
+    });
+
+    it(`${type} with an empty or missing aggregate never builds workspace("")`, () => {
+      // `workspace("")` trafiałby w cudze zapytania - uszkodzony wiersz nie może
+      // unieważniać przestrzeni roboczych innych wątków.
+      for (const aggregate_id of ["", null as unknown as string]) {
+        const keys = invalidationKeysFor({ ...eventOf(type), aggregate_id }, { userId: "u1" });
+        expect(keys).not.toContainEqual(clubKeys.workspace(""));
+        expect(keys.length).toBeGreaterThan(0);
+      }
+    });
+  }
+});

@@ -38,6 +38,7 @@ import {
   type PushSubscriptionKeys,
   type VapidConfig,
 } from "../webpush.server";
+import { BlockedUrlError } from "@/lib/http/egressGuard.server";
 
 // Strażnica zostaje PRAWDZIWA (to jej zachowanie mierzymy), ale przez podmianę
 // modułu widzimy, CZY i z czym została zawołana - bez tego nie da się dowieść,
@@ -254,6 +255,21 @@ describe("sendWebPush - strażnica SSRF (fail-closed)", () => {
     expect(stub.calls).toHaveLength(0);
   });
 
+  // Awaria resolvera to "nie dało się sprawdzić", nie "wrogi adres". Jako
+  // `gone` jeden zryw DNS-u oznaczał `mark_push_subscription_failed` KAŻDE
+  // urządzenie z partii (wszystkie stoją na tych samych hostach FCM/Mozilli).
+  for (const reason of ["dns", "dns_empty"]) {
+    it(`awaria DNS (${reason}) leci wyżej jako błąd przechodni, bez fetch i bez 'gone'`, async () => {
+      const stub = installFetch({ status: 201 });
+      guard.failWith = new BlockedUrlError(reason);
+
+      await expect(sendWebPush(subscriber().sub, Buffer.from("{}"), VAPID)).rejects.toThrow(
+        `blocked_url:${reason}`,
+      );
+      expect(stub.calls).toHaveLength(0);
+    });
+  }
+
   it("przepuszcza publiczny endpoint - odmowy wyżej nie są efektem zepsutej atrapy", async () => {
     const stub = installFetch({ status: 201 });
 
@@ -262,6 +278,40 @@ describe("sendWebPush - strażnica SSRF (fail-closed)", () => {
     expect(result.ok).toBe(true);
     expect(stub.calls).toHaveLength(1);
   });
+});
+
+describe("sendWebPush - zepsute klucze subskrypcji", () => {
+  // Klucze przysyła przeglądarka, a CHECK w bazie pilnuje wyłącznie długości
+  // napisu. Klucz, którego nie da się użyć, nie przejdzie NIGDY - jako wyjątek
+  // przechodni przepalał osiem prób każdego zadania odbiorcy, a subskrypcja
+  // nie była oznaczana i łapała kolejne zadania.
+  const pointOffCurve = Buffer.alloc(65, 1);
+  pointOffCurve[0] = 4;
+  const broken: { label: string; patch: Partial<PushSubscriptionKeys> }[] = [
+    { label: "p256dh o złej długości", patch: { p256dh: b64urlEncode(randomBytes(33)) } },
+    { label: "p256dh spoza krzywej P-256", patch: { p256dh: b64urlEncode(pointOffCurve) } },
+    { label: "auth o złej długości", patch: { auth: b64urlEncode(randomBytes(8)) } },
+  ];
+
+  for (const { label, patch } of broken) {
+    it(`${label} -> urządzenie martwe, bez strażnicy i bez fetch`, async () => {
+      const stub = installFetch({ status: 201 });
+      const who = subscriber();
+
+      const result = await sendWebPush({ ...who.sub, ...patch }, Buffer.from("{}"), VAPID);
+
+      expect(result).toEqual({
+        ok: false,
+        gone: true,
+        permanent: false,
+        status: 0,
+        retryAfterSec: null,
+      });
+      // Odsiane przed DNS-em - zepsuty klucz nie kosztuje zapytania resolvera.
+      expect(guard.calls).toHaveLength(0);
+      expect(stub.calls).toHaveLength(0);
+    });
+  }
 });
 
 describe("sendWebPush - budżet payloadu", () => {
@@ -452,6 +502,33 @@ describe("sendWebPush - domknięcie strumienia i timer", () => {
     const result = await sendWebPush(subscriber().sub, Buffer.from("{}"), VAPID);
 
     expect(result.ok).toBe(true);
+  });
+
+  it("zawieszona usługa push jest przerywana po 10 s, a wyjątek leci wyżej", async () => {
+    // Bez twardego timeoutu jedna wisząca usługa zjadałaby cały 25-sekundowy
+    // budżet ticku. Atrapa odpowiada WYŁĄCZNIE na sygnał przerwania.
+    vi.useFakeTimers();
+    let aborted = false;
+    vi.stubGlobal(
+      "fetch",
+      (_url: string, init: FetchInit): Promise<never> =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }),
+    );
+
+    const pending = sendWebPush(subscriber().sub, Buffer.from("{}"), VAPID);
+    const settled = expect(pending).rejects.toThrow("The operation was aborted.");
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await settled;
+    expect(aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("nie zostawia wiszącego timera po powrocie", async () => {

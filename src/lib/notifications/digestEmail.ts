@@ -72,6 +72,19 @@ function hasOwnSection(kind: string): boolean {
   return DIGEST_SECTIONS.some((s) => s.kinds !== null && s.kinds.includes(kind));
 }
 
+/**
+ * Polska odmiana po liczebniku: 1 powiadomienie; 2-4, 22-24, 32-34...
+ * powiadomienia; reszta (w tym 12-14) powiadomień. Claim tnie dziś digest do
+ * 20 pozycji, ale ta granica żyje w SQL - temat nie może się psuć po jej
+ * przesunięciu ("22 powiadomień").
+ */
+function plNotificationsWord(count: number): string {
+  if (count === 1) return "powiadomienie";
+  const units = count % 10;
+  const tens = count % 100;
+  return units >= 2 && units <= 4 && (tens < 12 || tens > 14) ? "powiadomienia" : "powiadomień";
+}
+
 export function digestSubject(
   count: number,
   lang: DigestLang,
@@ -84,7 +97,26 @@ export function digestSubject(
       : `${count} updates ${period} - New European Strategies`;
   }
   const period = frequency === "daily" ? "z ostatniego dnia" : "z ostatniego tygodnia";
-  return `Masz ${count} ${count === 1 ? "powiadomienie" : count < 5 ? "powiadomienia" : "powiadomień"} ${period} - New European Strategies`;
+  return `Masz ${count} ${plNotificationsWord(count)} ${period} - New European Strategies`;
+}
+
+/**
+ * Absolutny link pozycji albo null (pozycja zostaje wtedy tekstem).
+ *
+ * Dwa powody, dla których to nie jest gołe `new URL(href, siteUrl)`. Href,
+ * którego nie da się sparsować (`http://[`, spacja w hoście), rzucał i
+ * wywracał CAŁY digest - po claimie, który już ostemplował okno odbiorcy.
+ * A schemat inny niż http(s) (`javascript:`, `data:`) nie ma czego szukać w
+ * linku maila: klient poczty może go nie zneutralizować.
+ */
+function absoluteHref(href: string | null, siteUrl: string): string | null {
+  if (!href) return null;
+  try {
+    const url = new URL(href, siteUrl);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -120,7 +152,7 @@ export function buildDigestHtml(opts: {
     if (!title) return "";
     const bodyRaw = lang === "en" ? (item.body_en ?? item.body_pl) : (item.body_pl ?? item.body_en);
     const body = (bodyRaw ?? "").trim();
-    const href = item.href ? new URL(item.href, siteUrl).toString() : null;
+    const href = absoluteHref(item.href, siteUrl);
     const titleHtml = href
       ? `<a href="${esc(href)}" style="color:#1a3c8b;text-decoration:none;font-weight:600">${esc(title)}</a>`
       : `<span style="font-weight:600">${esc(title)}</span>`;

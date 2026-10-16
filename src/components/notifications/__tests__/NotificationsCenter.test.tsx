@@ -16,7 +16,7 @@
 //   2. AKCJE GRUPOWE NA ZWINIĘTEJ ROZMOWIE. Grupa reprezentuje wiele wierszy
 //      jednym, więc do RPC musi pojechać KOMPLET identyfikatorów - osobno dla
 //      oznaczenia i dla kosza. Tu ten plik znalazł żywy defekt (patrz sekcja
-//      akcji grupowych i trzy `it.fails`).
+//      akcji grupowych - trzy testy były tam `it.fails` do poprawki).
 //   3. REFCOUNT KANAŁÓW REALTIME. Subskrypcje idą przez współdzielony
 //      `tableChannelHub` ze stanem MODUŁOWYM. Zgubiony `removeChannel` nie
 //      psuje widoku od razu - dopiero po kilku przejściach między trasami
@@ -406,6 +406,25 @@ describe("NotificationsCenter - lista, filtry i szukanie", () => {
     expect(listRows()).toHaveLength(1);
   });
 
+  it("szukanie przechodzi po wierszu BEZ treści i BEZ adresu (przeczytany, sam tytuł)", async () => {
+    const PRZERWA = notif({
+      id: "n-plain",
+      title_pl: "Przerwa techniczna",
+      read_at: "2026-08-20T11:00:00.000Z",
+    });
+    rows = [PRZERWA, KOMENTARZ];
+    await mountCenter();
+    await screen.findByText(PRZERWA.title_pl);
+
+    fireEvent.change(searchBox(), { target: { value: "przerwa" } });
+
+    expect(listRows()).toHaveLength(1);
+    // Wiersz bez odnośnika to zwykły tekst, a przeczytany - bez pogrubienia.
+    const title = screen.getByText(PRZERWA.title_pl);
+    expect(title.tagName).toBe("SPAN");
+    expect(title).toHaveClass("font-medium");
+  });
+
   it("szukanie po TREŚCI (a nie tylko tytule) zawęża listę", async () => {
     rows = [...ROZMOWA, KOMENTARZ, DOSSIER];
     await mountCenter();
@@ -507,102 +526,82 @@ describe("NotificationsCenter - lista, filtry i szukanie", () => {
 });
 
 // ---------------------------------------------------------------------------
-// AKCJE GRUPOWE - TU MIESZKA ŻYWY DEFEKT.
+// AKCJE GRUPOWE - REGRESJA NAPRAWIONEGO DEFEKTU.
 //
-// USTALENIE (zmierzone, nie domysł). Każda mutacja skrzynki zaczyna się od
-// `patchNotificationLists`, które bierze z cache WSZYSTKO, co przejdzie przez
-// `NOTIFICATION_LIST_FILTERS`, i robi `cached.pages.map(...)`. Predykat
-// `isNotificationListQuery` uznaje za listę każdy klucz trzyelementowy, którego
-// trzeci człon jest `object` i nie jest `null` - a TABLICA spełnia oba warunki.
-// Cache profili aktorów ma klucz `["notifications","actor-profiles", string[]]`
-// i trzyma TABLICĘ profili, więc:
-//
-//   * przechodzi przez filtr list,
-//   * `cached.pages` jest `undefined`,
-//   * `undefined.map` rzuca TypeError WEWNĄTRZ `onMutate`.
-//
-// Skutek jest dokładnie tym, przed czym ostrzega nagłówek
-// `notificationListKeys.ts`: MUTACJA NIGDY NIE DOBIEGA DO SERWERA. React Query
-// przerywa na `onMutate`, `mutationFn` się nie wykonuje, a `onError` dostaje
-// `context === undefined`, więc nie ma nawet czego cofnąć - listy, które pętla
-// zdążyła przerobić przed wyjątkiem, zostają z łatką bez pokrycia w bazie.
+// Każda mutacja skrzynki zaczyna się od `patchNotificationLists`, które bierze
+// z cache WSZYSTKO, co przejdzie przez `NOTIFICATION_LIST_FILTERS`, i robi
+// `cached.pages.map(...)`. Predykat `isNotificationListQuery` uznawał za listę
+// każdy klucz trzyelementowy, którego trzeci człon jest `object` i nie jest
+// `null` - a TABLICA spełnia oba warunki. Cache profili aktorów ma klucz
+// `["notifications","actor-profiles", string[]]` i trzyma TABLICĘ profili,
+// więc przechodził przez filtr list, `cached.pages` było `undefined`, a
+// `undefined.map` rzucało TypeError WEWNĄTRZ `onMutate`: mutacja nigdy nie
+// dobiegała do serwera, a `onError` dostawał `context === undefined`.
 //
 // WARUNEK WYSTĄPIENIA: w skrzynce jest co najmniej jedno powiadomienie
 // z adresem rozmowy (`/messages?c=<uuid>`), bo dopiero wtedy zapytanie
 // o profile aktorów jest włączone i ma dane. Czyli: zawsze, gdy ktoś dostaje
-// wiadomości na czacie. To nie jest przypadek brzegowy.
+// wiadomości na czacie. Trzy testy niżej były do poprawki `it.fails`.
 //
-// Test różnicowy niżej („to samo kliknięcie dobiega do serwera, gdy wpis cache
-// profili nie niesie tablicy") jest dowodem, że winowajcą jest kształt klucza,
-// a nie sama akcja - i strażnikiem dla trzech `it.fails`: gdyby przestały padać
-// z tego powodu, on zapali się pierwszy.
+// Test różnicowy („to samo kliknięcie dobiega do serwera, gdy wpis cache
+// profili nie niesie tablicy") zostaje: pilnuje, że akcja działa także bez
+// danych profili, czyli niezależnie od tego, co trzyma ten wpis cache.
 // ---------------------------------------------------------------------------
 
 describe("NotificationsCenter - akcje grupowe na zwiniętej rozmowie", () => {
-  it.fails(
-    "DEFEKT: „oznacz całą rozmowę” ma wysłać WSZYSTKIE nieprzeczytane id - nie wysyła niczego, bo onMutate wywraca się na cache profili aktorów",
-    async () => {
-      rows = [...ROZMOWA];
-      await mountCenter();
-      await screen.findByText(/Anna Testowa/);
+  it("„oznacz całą rozmowę” wysyła WSZYSTKIE nieprzeczytane id, mimo profili aktorów w cache", async () => {
+    rows = [...ROZMOWA];
+    await mountCenter();
+    await screen.findByText(/Anna Testowa/);
 
-      fireEvent.click(screen.getByRole("button", { name: t("notifications.markGroupRead") }));
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.markGroupRead") }));
 
-      // OCZEKIWANY KONTRAKT: komplet nieprzeczytanych id grupy (środkowy wiersz
-      // jest już przeczytany, więc jadą dwa). Wysłanie samego najnowszego
-      // zostawiłoby „n-msg-1" i rozmowa wróciłaby jako nowa grupa.
-      await waitFor(() => expect(rpc.lastCall("mark_notifications_read")).toBeDefined());
-      expect(rpc.lastCall("mark_notifications_read")?.arg("p_ids")).toEqual(["n-msg-3", "n-msg-1"]);
-    },
-  );
+    // OCZEKIWANY KONTRAKT: komplet nieprzeczytanych id grupy (środkowy wiersz
+    // jest już przeczytany, więc jadą dwa). Wysłanie samego najnowszego
+    // zostawiłoby „n-msg-1" i rozmowa wróciłaby jako nowa grupa.
+    await waitFor(() => expect(rpc.lastCall("mark_notifications_read")).toBeDefined());
+    expect(rpc.lastCall("mark_notifications_read")?.arg("p_ids")).toEqual(["n-msg-3", "n-msg-1"]);
+  });
 
-  it.fails(
-    "DEFEKT: „oznacz jako nieprzeczytane” ma wysłać WSZYSTKIE id grupy - nie wysyła niczego (ta sama przyczyna)",
-    async () => {
-      rows = ROZMOWA.map((row) => ({ ...row, read_at: "2026-08-20T14:00:00.000Z" }));
-      await mountCenter();
-      await screen.findByText(/Anna Testowa/);
+  it("„oznacz jako nieprzeczytane” wysyła WSZYSTKIE id grupy", async () => {
+    rows = ROZMOWA.map((row) => ({ ...row, read_at: "2026-08-20T14:00:00.000Z" }));
+    await mountCenter();
+    await screen.findByText(/Anna Testowa/);
 
-      fireEvent.click(screen.getByRole("button", { name: t("notifications.markGroupUnread") }));
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.markGroupUnread") }));
 
-      // OCZEKIWANY KONTRAKT: wszystkie trzy id - „przywróć rozmowę do
-      // nieprzeczytanych" dotyczy całej rozmowy, nie ostatniej wiadomości.
-      await waitFor(() => expect(rpc.lastCall("mark_notifications_unread")).toBeDefined());
-      expect(rpc.lastCall("mark_notifications_unread")?.arg("p_ids")).toEqual([
-        "n-msg-3",
-        "n-msg-2",
-        "n-msg-1",
-      ]);
-    },
-  );
+    // OCZEKIWANY KONTRAKT: wszystkie trzy id - „przywróć rozmowę do
+    // nieprzeczytanych" dotyczy całej rozmowy, nie ostatniej wiadomości.
+    await waitFor(() => expect(rpc.lastCall("mark_notifications_unread")).toBeDefined());
+    expect(rpc.lastCall("mark_notifications_unread")?.arg("p_ids")).toEqual([
+      "n-msg-3",
+      "n-msg-2",
+      "n-msg-1",
+    ]);
+  });
 
-  it.fails(
-    "DEFEKT: kosz ma skasować KAŻDE id grupy - nie kasuje niczego (ta sama przyczyna)",
-    async () => {
-      rows = [...ROZMOWA];
-      await mountCenter();
-      await screen.findByText(/Anna Testowa/);
+  it("kosz kasuje KAŻDE id grupy", async () => {
+    rows = [...ROZMOWA];
+    await mountCenter();
+    await screen.findByText(/Anna Testowa/);
 
-      fireEvent.click(screen.getByRole("button", { name: t("notifications.deleteGroup") }));
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.deleteGroup") }));
 
-      // OCZEKIWANY KONTRAKT: `delete().in("id", [wszystkie trzy])`. Skasowanie
-      // samego najnowszego wiersza zostawiałoby resztę rozmowy, która przy
-      // najbliższym odczycie wraca jako „nowa" grupa - użytkownik kasuje ten
-      // sam wątek w kółko. Dziś nie leci nawet to.
-      await waitFor(() => {
-        const usuniecie = db.chainsFor("notifications").find((chain) => chain.has("delete"));
-        expect(usuniecie?.argsOf("in")).toEqual(["id", ["n-msg-3", "n-msg-2", "n-msg-1"]]);
-      });
-    },
-  );
+    // OCZEKIWANY KONTRAKT: `delete().in("id", [wszystkie trzy])`. Skasowanie
+    // samego najnowszego wiersza zostawiałoby resztę rozmowy, która przy
+    // najbliższym odczycie wraca jako „nowa" grupa - użytkownik kasuje ten
+    // sam wątek w kółko.
+    await waitFor(() => {
+      const usuniecie = db.chainsFor("notifications").find((chain) => chain.has("delete"));
+      expect(usuniecie?.argsOf("in")).toEqual(["id", ["n-msg-3", "n-msg-2", "n-msg-1"]]);
+    });
+  });
 
   it("RÓŻNICOWO: gdy wpis cache profili aktorów nie niesie tablicy, to samo kliknięcie dobiega do serwera", async () => {
     // Ten sam ekran, ta sama grupa, ten sam przycisk. Różni się WYŁĄCZNIE to,
     // że zapytanie o profile aktorów kończy się błędem, więc jego wpis w cache
-    // ma `data === undefined` i pętla po listach go pomija (`if (!cached)
-    // continue`). Mutacja wtedy przechodzi w całości. To lokalizuje defekt
-    // w kształcie klucza cache, a nie w akcji grupowej - i pilnuje, żeby trzy
-    // `it.fails` wyżej nie zaczęły kiedyś „padać" z zupełnie innego powodu.
+    // ma `data === undefined`. Para z testem wyżej dowodzi, że wynik akcji nie
+    // zależy od zawartości wpisu profili.
     rpc.setError("my_connections", "brak dostępu do listy kontaktów");
     rows = [...ROZMOWA];
     await mountCenter();
@@ -631,10 +630,8 @@ describe("NotificationsCenter - akcje grupowe na zwiniętej rozmowie", () => {
 // OPTYMIZM I COFNIĘCIE.
 //
 // Fixture'y tej sekcji NIE zawierają powiadomień o rozmowie - świadomie.
-// Defekt opisany wyżej przerywa pętlę po cache w połowie, więc na danych
-// z rozmową „co się załatało" zależałoby od KOLEJNOŚCI wpisów w cache. Dowód
-// o optymizmie ma mierzyć warstwę optymizmu, a nie kolejność wstawek, więc
-// bierzemy dane, na których pętla przechodzi w całości.
+// Dowód o optymizmie ma mierzyć warstwę optymizmu, a nie współpracę z cache
+// profili aktorów (tę pilnuje sekcja akcji grupowych wyżej).
 // ---------------------------------------------------------------------------
 
 describe("NotificationsCenter - optymistyczna aktualizacja i cofnięcie", () => {
@@ -714,6 +711,32 @@ describe("NotificationsCenter - optymistyczna aktualizacja i cofnięcie", () => 
     expect(screen.getByText(DOSSIER.title_pl)).toBeInTheDocument();
   });
 
+  it("lista bez danych w cache (odczyt zakładki padł) nie blokuje łatki pozostałych", async () => {
+    rows = [KOMENTARZ, DOSSIER];
+    await mountCenter();
+    await screen.findByText(KOMENTARZ.title_pl);
+    // Zakładka „Nieprzeczytane" dostaje błąd odczytu, więc jej wpis w cache
+    // istnieje, ale nie ma danych - pętla łatki musi go przeskoczyć.
+    blockListReads();
+    switchTab(t("notifications.filters.unread"));
+    await waitFor(() =>
+      expect(db.chainsFor("notifications").some((chain) => chain.has("is"))).toBe(true),
+    );
+    switchTab(t("notifications.filters.all"));
+    await screen.findByText(KOMENTARZ.title_pl);
+
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.markRead") }));
+
+    await waitFor(() =>
+      expect(rpc.lastCall("mark_notifications_read")?.arg("p_ids")).toEqual([KOMENTARZ.id]),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: t("notifications.markUnread") })).toHaveLength(
+        2,
+      ),
+    );
+  });
+
   it("odmowa bazy PRZYWRACA skasowany wiersz", async () => {
     rows = [KOMENTARZ, DOSSIER];
     await mountCenter();
@@ -770,6 +793,30 @@ describe("NotificationsCenter - paginacja", () => {
     expect(
       await screen.findByText(`Powiadomienie ${NOTIFICATIONS_PAGE_SIZE + 2}`),
     ).toBeInTheDocument();
+  });
+
+  it("w trakcie dociągania przycisk jest zablokowany i mówi „ładowanie”", async () => {
+    rows = Array.from({ length: NOTIFICATIONS_PAGE_SIZE + 1 }, (_unused, index) =>
+      notif({ id: `n-${index}`, title_pl: `Powiadomienie ${index}` }),
+    );
+    await mountCenter();
+    await screen.findByText("Powiadomienie 0");
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    db.setResponse("notifications", async (chain) => {
+      await gate;
+      return notificationsResponder(chain);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.loadMore") }));
+
+    const busy = await screen.findByRole("button", { name: t("notifications.loadMore") });
+    await waitFor(() => expect(busy).toBeDisabled());
+    expect(busy).toHaveTextContent(t("common.loading"));
+    release?.();
+    expect(await screen.findByText(`Powiadomienie ${NOTIFICATIONS_PAGE_SIZE}`)).toBeInTheDocument();
   });
 });
 
@@ -912,6 +959,39 @@ describe("NotificationsCenter - zapis preferencji", () => {
     );
   });
 
+  for (const [labelKey, field] of [
+    ["notifications.settings.chatBell", "chat_bell_enabled"],
+    ["notifications.settings.autoMarkOnOpen", "auto_mark_on_open"],
+  ] as const) {
+    it(`przełącznik ${field} zapisuje odwróconą wartość`, async () => {
+      await mountCenter("preferences");
+
+      fireEvent.click(screen.getByLabelText(t(labelKey)));
+
+      await waitFor(() => {
+        const upsert = db
+          .chainsFor("notification_preferences")
+          .find((chain) => chain.has("upsert"));
+        expect(upsert?.argsOf("upsert")?.[0]).toMatchObject({
+          [field]: !DEFAULT_NOTIFICATION_PREFERENCES[field],
+        });
+      });
+    });
+  }
+
+  it("wybór częstotliwości digestu zapisuje email_digest", async () => {
+    await mountCenter("preferences");
+
+    const digest = screen.getByRole("combobox", { name: t("notifications.settings.digest") });
+    fireEvent.keyDown(digest, { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("option", { name: t("notifications.settings.digestWeekly") }));
+
+    await waitFor(() => {
+      const upsert = db.chainsFor("notification_preferences").find((chain) => chain.has("upsert"));
+      expect(upsert?.argsOf("upsert")?.[0]).toMatchObject({ email_digest: "weekly" });
+    });
+  });
+
   it("odmowa zapisu pokazuje toast błędu, nie ciszę", async () => {
     db.setResponse("notification_preferences", (chain) =>
       chain.has("upsert") ? fail("odmowa bazy", "42501") : ok(DEFAULT_NOTIFICATION_PREFERENCES),
@@ -1011,6 +1091,47 @@ describe("NotificationsCenter - kanał push", () => {
     );
   });
 
+  it("odrzucenie wartością nie-Error daje komunikat ogólny", async () => {
+    h.enablePush.mockRejectedValue("przerwane");
+    await mountCenter("preferences");
+    await waitFor(() => expect(pushSwitch()).toBeEnabled());
+
+    fireEvent.click(pushSwitch());
+
+    await waitFor(() =>
+      expect(h.toasts).toContainEqual({
+        kind: "error",
+        text: t("notifications.settings.pushError"),
+      }),
+    );
+  });
+
+  it("bez zalogowanego użytkownika przełącznik push niczego nie rejestruje", async () => {
+    // Bez użytkownika zapytanie o preferencje nie startuje, więc nie czekamy na
+    // nie (mountCenter), tylko na ustalenie klucza VAPID.
+    h.userId = null;
+    withClient(<NotificationsCenter mode="preferences" />);
+    await waitFor(() => expect(pushSwitch()).toBeEnabled());
+
+    fireEvent.click(pushSwitch());
+    await act(async () => {});
+
+    expect(h.enablePush).not.toHaveBeenCalled();
+    expect(h.toasts).toEqual([]);
+  });
+
+  it("odmontowanie przed odpowiedzią o klucz VAPID nie ustawia stanu martwego komponentu", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { unmount } = withClient(<NotificationsCenter mode="preferences" />);
+    unmount();
+    await act(async () => {});
+
+    expect(errors.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain(
+      "unmounted component",
+    );
+    errors.mockRestore();
+  });
+
   it("wyłączenie push usuwa subskrypcję TEJ przeglądarki i zapisuje flagę", async () => {
     db.setResponse("notification_preferences", (chain) =>
       chain.has("upsert")
@@ -1029,6 +1150,17 @@ describe("NotificationsCenter - kanał push", () => {
     });
   });
 });
+
+/**
+ * Blokuje DOMYŚLNĄ akcję kotwicy (happy-dom otwierałby adres naprawdę, z DNS-em)
+ * PO handlerach Reacta: nasłuch w fazie bąbelkowania na `window` biegnie za
+ * korzeniem aplikacji, więc komponent widzi niezmienione `defaultPrevented`.
+ */
+function blockAnchorNavigation(): () => void {
+  const stop = (event: Event) => event.preventDefault();
+  window.addEventListener("click", stop);
+  return () => window.removeEventListener("click", stop);
+}
 
 describe("NotificationsCenter - nawigacja z wiersza", () => {
   it("klik w odnośnik wewnętrzny nawiguje przez router i ZACHOWUJE query string", async () => {
@@ -1052,12 +1184,163 @@ describe("NotificationsCenter - nawigacja z wiersza", () => {
     await screen.findByText(/Anna Testowa/);
 
     // Brak `preventDefault` (zwrot true) ORAZ brak nawigacji SPA - dopiero oba
-    // naraz znaczą „otwórz w nowej karcie działa". Oznaczenie wiersza jako
-    // przeczytanego jest w tej ścieżce nieosiągalne przez defekt opisany
-    // w sekcji akcji grupowych, więc dowód dotyczy tu wyłącznie nawigacji.
+    // naraz znaczą „otwórz w nowej karcie działa". Rozmowa i tak zostaje
+    // oznaczona jako przeczytana: użytkownik ją otworzył, tylko gdzie indziej.
     const link = screen.getByRole("link", { name: /Anna Testowa/ });
     expect(fireEvent.click(link, { metaKey: true })).toBe(true);
     expect(h.navigate).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(rpc.lastCall("mark_notifications_read")?.arg("p_ids")).toEqual(["n-msg-3", "n-msg-1"]),
+    );
+  });
+
+  it("odnośnik zewnętrzny otwiera nową kartę bez routera i oznacza wiersz", async () => {
+    const zewnetrzny = notif({
+      id: "n-ext",
+      kind: "tracker",
+      href: "https://eur-lex.europa.eu/legal-content/PL/TXT/",
+      title_pl: "Publikacja w Dzienniku Urzędowym",
+    });
+    rows = [zewnetrzny];
+    await mountCenter();
+
+    const link = await screen.findByRole("link", { name: zewnetrzny.title_pl });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    const unblock = blockAnchorNavigation();
+    fireEvent.click(link);
+    unblock();
+
+    expect(h.navigate).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(rpc.lastCall("mark_notifications_read")?.arg("p_ids")).toEqual(["n-ext"]),
+    );
+  });
+
+  it("klik w PRZECZYTANY odnośnik nie woła oznaczania (nie ma czego oznaczać)", async () => {
+    rows = [
+      notif({
+        id: "n-ext-read",
+        href: "https://eur-lex.europa.eu/x",
+        read_at: "2026-08-20T11:00:00Z",
+      }),
+      { ...DOSSIER },
+    ];
+    await mountCenter();
+
+    const unblock = blockAnchorNavigation();
+    fireEvent.click(await screen.findByRole("link", { name: "Powiadomienie testowe" }));
+    fireEvent.click(screen.getByRole("link", { name: DOSSIER.title_pl }));
+    unblock();
+    await act(async () => {});
+
+    expect(rpc.callsFor("mark_notifications_read")).toHaveLength(0);
+    expect(h.navigate).toHaveBeenCalledWith({ href: DOSSIER.href });
+  });
+
+  it("odnośnik `/\\host` udający wewnętrzny jest traktowany jak zewnętrzny", async () => {
+    // Przeglądarka czyta `/\evil.example` jak `//evil.example`. Taki adres nie
+    // może trafić do router.navigate ani zgubić `rel="noopener"`.
+    rows = [notif({ id: "n-bs", href: "/\\evil.example/x", title_pl: "Podejrzany link" })];
+    await mountCenter();
+
+    const link = await screen.findByRole("link", { name: "Podejrzany link" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    const unblock = blockAnchorNavigation();
+    fireEvent.click(link);
+    unblock();
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("NotificationsCenter - akcje nagłówka i wiersza", () => {
+  it("„oznacz wszystkie” wysyła JEDNĄ aktualizację wierszy użytkownika", async () => {
+    rows = [KOMENTARZ, ZAPROSZENIE];
+    await mountCenter();
+    await screen.findByText(KOMENTARZ.title_pl);
+
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.markAllRead") }));
+
+    await waitFor(() => {
+      const update = db.chainsFor("notifications").find((chain) => chain.has("update"));
+      expect(update?.argsOf("eq")).toEqual(["user_id", USER_ID]);
+      expect(update?.argsOf("is")).toEqual(["read_at", null]);
+    });
+  });
+
+  it("„oznacz jako nieprzeczytane” na pojedynczym wierszu przestawia go OPTYMISTYCZNIE", async () => {
+    rows = [KOMENTARZ, DOSSIER];
+    await mountCenter();
+    await screen.findByText(DOSSIER.title_pl);
+    blockListReads();
+
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.markUnread") }));
+
+    await waitFor(() =>
+      expect(rpc.lastCall("mark_notifications_unread")?.arg("p_ids")).toEqual([DOSSIER.id]),
+    );
+    // Odczyt zablokowany - oba wiersze nieprzeczytane mogą pochodzić wyłącznie
+    // z łatki: DOSSIER przestawiony, KOMENTARZ (już nieprzeczytany) bez zmian.
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: t("notifications.markRead") })).toHaveLength(2),
+    );
+  });
+
+  it("odmowa „oznacz jako nieprzeczytane” cofa łatkę", async () => {
+    rows = [DOSSIER];
+    rpc.setError("mark_notifications_unread", "odmowa bazy", "42501");
+    await mountCenter();
+    await screen.findByText(DOSSIER.title_pl);
+    blockListReads();
+
+    fireEvent.click(screen.getByRole("button", { name: t("notifications.markUnread") }));
+
+    await waitFor(() => expect(rpc.callsFor("mark_notifications_unread")).toHaveLength(1));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: t("notifications.markUnread") }),
+      ).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("NotificationsCenter - profil aktora rozmowy", () => {
+  it("awatar rozmowy bierze inicjały z nazwy kontaktu", async () => {
+    rpc.setData("my_connections", [
+      {
+        connection_id: CONVERSATION_ID,
+        avatar_url: "https://cdn.example.org/anna.png",
+        display_name: "Anna Maria Testowa",
+      },
+    ]);
+    rows = [...ROZMOWA];
+    await mountCenter();
+
+    // Dwa pierwsze człony nazwy - trzeci nie mieści się w kwadracie 36 px.
+    expect(await screen.findByText("AM")).toBeInTheDocument();
+  });
+
+  it("pusta nazwa kontaktu i pusty tytuł dają znak zastępczy, nie pusty kwadrat", async () => {
+    rpc.setData("my_connections", [
+      { connection_id: CONVERSATION_ID, avatar_url: "", display_name: "" },
+    ]);
+    rows = [notif({ id: "n-msg-x", kind: "message", href: CONVERSATION_HREF, title_pl: " " })];
+    await mountCenter();
+
+    expect(await screen.findByText("•")).toBeInTheDocument();
+  });
+
+  it("pusta nazwa kontaktu spada na tytuł powiadomienia", async () => {
+    rpc.setData("my_connections", [
+      { connection_id: CONVERSATION_ID, avatar_url: "", display_name: "" },
+    ]);
+    rows = [
+      notif({ id: "n-msg-y", kind: "message", href: CONVERSATION_HREF, title_pl: "Jan Kowalski" }),
+    ];
+    await mountCenter();
+
+    expect(await screen.findByText("JK")).toBeInTheDocument();
   });
 });
 

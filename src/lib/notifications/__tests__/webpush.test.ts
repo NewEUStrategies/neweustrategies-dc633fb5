@@ -1,9 +1,18 @@
+// @vitest-environment node
 // Roundtrip RFC 8291: szyfrujemy jak serwer, odszyfrowujemy jak przeglądarka
 // (niezależna implementacja odbiorcy poniżej). Do tego weryfikacja podpisu
 // ES256 JWT-a VAPID, cache tokenów per audience, format nagłówka aes128gcm
 // i budżet 4096 B usługi push.
-import { beforeEach, describe, expect, it } from "vitest";
-import { createECDH, createDecipheriv, createHmac, randomBytes } from "node:crypto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createECDH,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+  type BinaryLike,
+  type CipherGCMTypes,
+  type CipherKey,
+} from "node:crypto";
 import {
   b64urlDecode,
   b64urlEncode,
@@ -12,13 +21,38 @@ import {
   encodePushPayload,
   encryptPushPayload,
   generateVapidKeys,
+  InvalidSubscriptionKeyError,
   pushTopic,
   resetVapidCaches,
+  sendWebPush,
   truncateUtf8,
   verifyVapidJwtSignature,
   MAX_PUSH_PAYLOAD_BYTES,
   type PushPayload,
 } from "../webpush.server";
+
+// `node:crypto` zostaje PRAWDZIWE; podmiana służy dwóm testom: inwariantowi
+// długości szyfrogramu (`cipher.shortBy` > 0 ucina wynik `final()`) i awarii
+// szyfru, która NIE jest zepsutym kluczem subskrypcji (`cipher.throwWith`).
+// Środowisko `node`, bo w happy-dom moduł źródłowy nie widzi podmiany builtinu.
+const cipher = vi.hoisted(() => ({ shortBy: 0, throwWith: null as Error | null }));
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:crypto")>();
+  return {
+    ...actual,
+    // Sygnatura przeciążenia GCM - webpush.server.ts woła wyłącznie aes-128-gcm.
+    createCipheriv: (algorithm: CipherGCMTypes, key: CipherKey, iv: BinaryLike) => {
+      if (cipher.throwWith) throw cipher.throwWith;
+      const real = actual.createCipheriv(algorithm, key, iv);
+      if (cipher.shortBy === 0) return real;
+      return {
+        update: (data: Buffer) => real.update(data),
+        final: () => real.final().subarray(cipher.shortBy),
+        getAuthTag: () => real.getAuthTag().subarray(cipher.shortBy),
+      };
+    },
+  };
+});
 
 /** Nagłówek aes128gcm: salt(16) | rs(4) | idlen(1) | keyid(65). */
 const HEADER_BYTES = 86;
@@ -132,6 +166,78 @@ describe("webpush aes128gcm", () => {
     expect(() => encryptPushPayload(tooBig, ua.getPublicKey(), auth)).toThrow(/payload too large/);
   });
 
+  it("klucz o poprawnym kształcie, ale spoza krzywej, to InvalidSubscriptionKeyError", () => {
+    // 65 B z prefiksem 0x04 przechodzi kontrolę kształtu; dopiero ECDH widzi,
+    // że punkt nie leży na P-256. Klasa błędu decyduje w sendWebPush o `gone`.
+    const offCurve = Buffer.alloc(65, 1);
+    offCurve[0] = 4;
+
+    expect(() => encryptPushPayload(Buffer.from("x"), offCurve, randomBytes(16))).toThrow(
+      InvalidSubscriptionKeyError,
+    );
+    expect(() => encryptPushPayload(Buffer.from("x"), Buffer.alloc(64), Buffer.alloc(16))).toThrow(
+      InvalidSubscriptionKeyError,
+    );
+  });
+
+  it("podana para kluczy i sól dają deterministyczne, odszyfrowywalne ciało", () => {
+    const { ua, auth } = subscriber();
+    const ecdh = createECDH("prime256v1");
+    ecdh.generateKeys();
+    const salt = randomBytes(16);
+    const payload = Buffer.from("deterministycznie");
+
+    const a = encryptPushPayload(payload, ua.getPublicKey(), auth, { ecdh }, salt);
+    const b = encryptPushPayload(payload, ua.getPublicKey(), auth, { ecdh }, salt);
+
+    // Ten sam klucz efemeryczny (nie generowany na nowo) i ta sama sól.
+    expect(a.equals(b)).toBe(true);
+    expect(a.subarray(0, 16).equals(salt)).toBe(true);
+    expect(a.subarray(21, 86).equals(ecdh.getPublicKey())).toBe(true);
+    expect(decryptAsBrowser(a, ua, auth).equals(payload)).toBe(true);
+  });
+
+  it("szyfrogram krótszy od zaalokowanego ciała rzuca, zamiast wysłać niezainicjowaną pamięć", () => {
+    // Ciało powstaje w Buffer.allocUnsafe - niedopełniony ogon to fragment
+    // sterty procesu wysłany do usługi push. Kontrola długości jest siatką.
+    const { ua, auth } = subscriber();
+    cipher.shortBy = 1;
+    try {
+      expect(() => encryptPushPayload(Buffer.from("x"), ua.getPublicKey(), auth)).toThrow(
+        "webpush: ciphertext length mismatch",
+      );
+    } finally {
+      cipher.shortBy = 0;
+    }
+  });
+
+  it("awaria szyfru inna niż zepsuty klucz leci z sendWebPush wyżej, a nie jako 'gone'", async () => {
+    // `gone` trwale oznacza subskrypcję (`failed_at`). Usterka po stronie
+    // serwera (OpenSSL, brak szyfru) nie może odcinać urządzeń odbiorców -
+    // ma wrócić do kolejki jako błąd przechodni.
+    const { ua, auth } = subscriber();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    cipher.throwWith = new Error("Unsupported cipher");
+    try {
+      await expect(
+        sendWebPush(
+          {
+            endpoint: "https://203.0.113.10/push/x",
+            p256dh: b64urlEncode(ua.getPublicKey()),
+            auth: b64urlEncode(auth),
+          },
+          Buffer.from("{}"),
+          { ...generateVapidKeys(), subject: "mailto:test@example.com" },
+        ),
+      ).rejects.toThrow("Unsupported cipher");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      cipher.throwWith = null;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("odrzuca sól o złej długości (nagłówek ma stałe 16 B)", () => {
     const { ua, auth } = subscriber();
     const ecdh = createECDH("prime256v1");
@@ -165,6 +271,23 @@ describe("budżet payloadu push", () => {
     expect(encodePushPayload(clamped).length).toBeLessThanOrEqual(MAX_PUSH_PAYLOAD_BYTES);
     expect(clamped.body).toBe("");
     expect(clamped.title.length).toBeLessThan(5000);
+  });
+
+  it("pusta treść: przycinany jest od razu tytuł", () => {
+    const clamped = clampPushPayload({ ...base, body: "", title: "ż".repeat(3000) });
+
+    expect(encodePushPayload(clamped).length).toBeLessThanOrEqual(MAX_PUSH_PAYLOAD_BYTES);
+    expect(clamped.body).toBe("");
+    expect(clamped.title.endsWith("…")).toBe(true);
+    expect(clamped.title.includes("�")).toBe(false);
+  });
+
+  it("href ponad budżet zostawia pusty tytuł (sendWebPush odrzuci to jako 413)", () => {
+    const clamped = clampPushPayload({ ...base, href: `/${"x".repeat(MAX_PUSH_PAYLOAD_BYTES)}` });
+
+    expect(clamped.title).toBe("");
+    expect(clamped.body).toBe("");
+    expect(encodePushPayload(clamped).length).toBeGreaterThan(MAX_PUSH_PAYLOAD_BYTES);
   });
 
   it("truncateUtf8 nie rozcina wielobajtowych znaków", () => {
@@ -309,6 +432,46 @@ describe("VAPID JWT", () => {
     const jwt = buildVapidJwt("https://fcm.googleapis.com", vapid, 1_700_000_000);
 
     expect(verifyVapidJwtSignature(jwt, vapid.publicKey)).toBe(true);
+  });
+
+  it("JWT bez trzech segmentów nie weryfikuje się (false, nie wyjątek)", () => {
+    const keys = generateVapidKeys();
+
+    expect(verifyVapidJwtSignature("tylko.dwa", keys.publicKey)).toBe(false);
+    expect(verifyVapidJwtSignature("", keys.publicKey)).toBe(false);
+    expect(verifyVapidJwtSignature("a..c", keys.publicKey)).toBe(false);
+  });
+
+  it("cache ma twardy limit 64 wpisów - nadmiar wypycha najstarszy", () => {
+    const vapid = { ...generateVapidKeys(), subject: "mailto:test@example.com" };
+    const now = 1_700_000_000;
+    const origin = (i: number): string => `https://push-${i}.example.com`;
+    const first = new Map<number, string>();
+    for (let i = 0; i < 64; i += 1) first.set(i, buildVapidJwt(origin(i), vapid, now));
+
+    // 65. audience wypycha najstarszy wpis; pozostałe zostają w cache.
+    buildVapidJwt(origin(64), vapid, now);
+
+    expect(buildVapidJwt(origin(1), vapid, now)).toBe(first.get(1));
+    expect(buildVapidJwt(origin(0), vapid, now)).not.toBe(first.get(0));
+  });
+
+  it("odświeżenie wygasającego tokenu przy pełnym cache nie wypycha cudzego wpisu", () => {
+    const vapid = { ...generateVapidKeys(), subject: "mailto:test@example.com" };
+    const now = 1_700_000_000;
+    const origin = (i: number): string => `https://push-${i}.example.com`;
+    const first = new Map<number, string>();
+    for (let i = 0; i < 64; i += 1) first.set(i, buildVapidJwt(origin(i), vapid, now));
+
+    // Ten sam klucz, nowy podpis: rozmiar cache się nie zmienia, więc nikt
+    // nie powinien wypaść - a odświeżony wpis staje się najmłodszy.
+    const refreshed = buildVapidJwt(origin(5), vapid, now + 12 * 3600 - 60);
+    expect(refreshed).not.toBe(first.get(5));
+    expect(buildVapidJwt(origin(0), vapid, now)).toBe(first.get(0));
+
+    // Kolejny nowy wpis wypycha najstarszy (origin 0), nie odświeżony origin 5.
+    buildVapidJwt(origin(64), vapid, now);
+    expect(buildVapidJwt(origin(5), vapid, now + 12 * 3600 - 60)).toBe(refreshed);
   });
 
   it("odrzuca klucze o niepoprawnym formacie", () => {
