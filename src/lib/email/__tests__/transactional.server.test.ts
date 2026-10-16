@@ -62,6 +62,7 @@ vi.mock("@/lib/email/suppression.server", async (importOriginal) => {
 });
 
 import {
+  __resetServiceClientForTests,
   enqueueRawEmail,
   formatDate,
   formatMoney,
@@ -170,6 +171,9 @@ beforeEach(() => {
   rpc.setData("email_filter_suppressed", []);
   rpc.setData("enqueue_email", null);
 
+  // Klient jest pamiętany na izolat, a każdy test buduje własne atrapy - bez
+  // resetu kolejne testy dostawałyby klienta z atrapami pierwszego.
+  __resetServiceClientForTests();
   h.createClient.mockReset();
   h.createClient.mockReturnValue({ from: db.from, rpc: rpc.rpc } as never);
 
@@ -188,16 +192,20 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // Konfiguracja dostępu do kolejki (serviceClient)
 // ---------------------------------------------------------------------------
+const SERVICE_CLIENT_OPTIONS = {
+  auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+};
+
 describe("dostęp do kolejki", () => {
   it("komplet zmiennych buduje klienta service-role bez trwałej sesji", async () => {
     await sendTxEmail(txInput());
 
+    // `autoRefreshToken: false` jest tu istotne: klient żyje tyle co izolat, a
+    // auth-js z domyślnym odświeżaniem uruchamia poza przeglądarką `setInterval`.
     expect(h.createClient).toHaveBeenCalledWith(
       "https://baza.example.test",
       "service-role-atrapa",
-      {
-        auth: { persistSession: false },
-      },
+      SERVICE_CLIENT_OPTIONS,
     );
     expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
   });
@@ -250,6 +258,99 @@ describe("dostęp do kolejki", () => {
       error: "supabase_unavailable",
     });
     expect(rpc.callsFor("enqueue_email")).toHaveLength(0);
+  });
+
+  // Digest powiadomień woła `enqueueRawEmail` raz na odbiorcę (do 50 na tick,
+  // po 4 naraz) - klient budowany przy każdej wysyłce to dziesiątki klientów
+  // i timerów auth-js na jeden tick.
+  it("kolejne wysyłki w tym samym izolacie używają JEDNEGO klienta", async () => {
+    await sendTxEmail(txInput());
+    await sendTxEmail(txInput({ idempotencyKey: "invoice_in_2026_08_2" }));
+    await enqueueRawEmail(rawInput());
+
+    expect(h.createClient).toHaveBeenCalledTimes(1);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(3);
+  });
+
+  it("równoległe wysyłki digestu nie budują osobnych klientów", async () => {
+    const results = await Promise.all(
+      ["anna", "jan", "ola", "piotr"].map((name) =>
+        enqueueRawEmail(
+          rawInput({ to: `${name}@example.test`, idempotencyKey: `digest_2026_08_22_${name}` }),
+        ),
+      ),
+    );
+
+    expect(results).toEqual(Array.from({ length: 4 }, () => ({ ok: true })));
+    expect(h.createClient).toHaveBeenCalledTimes(1);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(4);
+  });
+
+  it("nowy klucz service-role buduje nowego klienta - nie zostaje stary klucz", async () => {
+    await sendTxEmail(txInput());
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-po-rotacji";
+
+    await sendTxEmail(txInput({ idempotencyKey: "invoice_in_2026_08_2" }));
+
+    expect(h.createClient).toHaveBeenCalledTimes(2);
+    expect(h.createClient).toHaveBeenLastCalledWith(
+      "https://baza.example.test",
+      "service-role-po-rotacji",
+      SERVICE_CLIENT_OPTIONS,
+    );
+  });
+
+  it("nowy adres bazy buduje nowego klienta", async () => {
+    await enqueueRawEmail(rawInput());
+    process.env.SUPABASE_URL = "https://inna-baza.example.test";
+
+    await enqueueRawEmail(rawInput({ idempotencyKey: "digest_2026_08_22_jan" }));
+
+    expect(h.createClient).toHaveBeenCalledTimes(2);
+    expect(h.createClient).toHaveBeenLastCalledWith(
+      "https://inna-baza.example.test",
+      "service-role-atrapa",
+      SERVICE_CLIENT_OPTIONS,
+    );
+  });
+
+  it("brak konfiguracji nie jest zapamiętywany - po jej uzupełnieniu poczta rusza", async () => {
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    await expect(sendTxEmail(txInput())).resolves.toEqual({
+      ok: false,
+      error: "supabase_unavailable",
+    });
+    expect(h.createClient).not.toHaveBeenCalled();
+
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-atrapa";
+
+    await expect(sendTxEmail(txInput())).resolves.toEqual({ ok: true });
+    expect(h.createClient).toHaveBeenCalledTimes(1);
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
+  });
+
+  it("zapamiętany klient nie maskuje utraty konfiguracji", async () => {
+    await expect(sendTxEmail(txInput())).resolves.toEqual({ ok: true });
+    delete process.env.SUPABASE_URL;
+
+    await expect(sendTxEmail(txInput({ idempotencyKey: "invoice_in_2026_08_2" }))).resolves.toEqual(
+      { ok: false, error: "supabase_unavailable" },
+    );
+    expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
+  });
+
+  it("nieudana budowa klienta nie jest zapamiętywana", async () => {
+    h.createClient.mockImplementationOnce(() => {
+      throw new Error("Invalid supabaseUrl");
+    });
+    // Pierwsze wywołanie pada - tu liczy się wyłącznie to, że NASTĘPNE nie
+    // dostaje zapamiętanej porażki, tylko buduje klienta jeszcze raz.
+    await sendTxEmail(txInput()).catch(() => undefined);
+
+    await expect(sendTxEmail(txInput({ idempotencyKey: "invoice_in_2026_08_2" }))).resolves.toEqual(
+      { ok: true },
+    );
+    expect(h.createClient).toHaveBeenCalledTimes(2);
   });
 });
 
