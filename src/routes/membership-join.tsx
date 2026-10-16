@@ -106,7 +106,7 @@ export const Route = createFileRoute("/membership-join")({
   },
   errorComponent: ({ error }) => (
     <div role="alert" className="container mx-auto max-w-3xl px-4 py-16 text-sm text-destructive">
-      {error.message}
+      {error instanceof Error ? error.message : String(error)}
     </div>
   ),
 });

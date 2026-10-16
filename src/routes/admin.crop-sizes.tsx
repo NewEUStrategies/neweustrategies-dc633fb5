@@ -28,7 +28,7 @@ export const Route = createFileRoute("/admin/crop-sizes")({
   head: () => ({ meta: [{ title: "Crop sizes - Admin" }] }),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
-      {error.message}
+      {error instanceof Error ? error.message : String(error)}
     </div>
   ),
   notFoundComponent: () => <div className="p-6">404</div>,

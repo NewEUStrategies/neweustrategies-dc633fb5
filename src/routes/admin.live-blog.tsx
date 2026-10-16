@@ -54,7 +54,7 @@ export const Route = createFileRoute("/admin/live-blog")({
   head: () => ({ meta: [{ title: "Live Blog - Admin" }] }),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
-      {error.message}
+      {error instanceof Error ? error.message : String(error)}
     </div>
   ),
   // BEZ `notFoundComponent` - świadomie. Stał tu ekran „404", którego nic nie
