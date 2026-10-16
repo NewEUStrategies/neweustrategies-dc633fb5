@@ -1,6 +1,7 @@
 // Admin route: manage global "Custom Meta" definitions per tenant.
 // Each definition becomes a per-post field on the post editor.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { errorMessageOf } from "@/lib/errors/errorMessage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/admin/custom-meta")({
     ),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
-      {error.message}
+      {errorMessageOf(error)}
     </div>
   ),
   notFoundComponent: () => <div className="p-6">404</div>,

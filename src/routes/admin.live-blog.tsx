@@ -6,6 +6,7 @@
 // bloków typu "liveblog" w jego treści. Wpisy można też edytować, nie tylko
 // przypinać/usuwać.
 import { createFileRoute } from "@tanstack/react-router";
+import { errorMessageOf } from "@/lib/errors/errorMessage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -54,7 +55,7 @@ export const Route = createFileRoute("/admin/live-blog")({
   head: () => ({ meta: [{ title: "Live Blog - Admin" }] }),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
-      {error.message}
+      {errorMessageOf(error)}
     </div>
   ),
   // BEZ `notFoundComponent` - świadomie. Stał tu ekran „404", którego nic nie

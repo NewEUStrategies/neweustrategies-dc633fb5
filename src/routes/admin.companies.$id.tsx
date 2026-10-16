@@ -4,6 +4,7 @@
 //  - prawy sidebar: powiązania (Kontakty, Leady, Domena).
 // Widoczne dla staff (`requireStaff` w server-fn); RLS zawęża po tenancie.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { errorMessageOf } from "@/lib/errors/errorMessage";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -151,7 +152,7 @@ export const Route = createFileRoute("/admin/companies/$id")({
   }),
   errorComponent: ({ error }) => (
     <div className="mx-auto max-w-3xl p-6 text-sm text-destructive" role="alert">
-      {error.message}
+      {errorMessageOf(error)}
     </div>
   ),
   notFoundComponent: () => (

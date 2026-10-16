@@ -309,70 +309,100 @@ describe("switchUiLanguage - twardy fallback na window.location", () => {
   });
 });
 
-// Wyrenderowane `<Link>`-i TanStack przeliczają href dopiero, gdy magazyn
-// lokalizacji poda INNY wewnętrzny `href` - a przełączenie zmienia tylko
-// prefiks, którego router nie widzi. Dowód na prawdziwym routerze:
-// `urlLanguageNavigation.test.tsx`; tu kontrakt zapisów do magazynu.
+// Wyrenderowane `<Link>`-i TanStack trzymają zbudowaną lokalizację: router
+// pamięta ją pod opcjami odnośnika (czyści to tylko `update()`), a przeliczenie
+// rusza dopiero, gdy magazyn lokalizacji poda INNY obiekt. Przełączenie zmienia
+// tylko prefiks, którego router nie widzi. Dowód na prawdziwym routerze:
+// `urlLanguageNavigation.test.tsx`; tu kontrakt wywołań `update` i zapisów do
+// magazynu.
 describe("switchUiLanguage - odświeżenie wyrenderowanych odnośników", () => {
   type Loc = { href: string; pathname: string; publicHref: string };
 
   /** Magazyn lokalizacji jak w routerze: `get` zwraca ostatni zapis. */
-  function locationStore(initial: Loc, fail?: (next: Loc) => boolean) {
+  function locationStore(initial: Loc, log: string[], fail?: (next: Loc) => boolean) {
     let current = initial;
     const writes: Loc[] = [];
     const store = {
       get: () => current,
       set: (next: Loc) => {
+        log.push("set");
         writes.push(next);
         current = next;
-        if (fail?.(next)) throw new Error("render kopii rzucił");
+        if (fail?.(next)) throw new Error("subskrybent kopii rzucił");
       },
     };
     return { store, writes, current: () => current };
   }
 
   const blog: Loc = { href: "/blog?x=1", pathname: "/blog", publicHref: "/en/blog?x=1" };
+  const options = { defaultPreload: "intent" };
 
-  it("po udanej nawigacji: kopia z INNYM href, potem ta sama lokalizacja", async () => {
-    const { store, writes, current } = locationStore(blog);
+  it("po udanej nawigacji: `update` z tymi samymi opcjami, kopia, potem ta sama lokalizacja", async () => {
+    const log: string[] = [];
+    const { store, writes, current } = locationStore(blog, log);
     let finish!: () => void;
     const { router } = fakeRouter(
       { pathname: "/blog", searchStr: "?x=1" },
       () => new Promise<void>((resolve) => (finish = resolve)),
     );
+    const update = vi.fn((_next: object) => {
+      log.push("update");
+    });
     router.stores = { location: store };
+    router.options = options;
+    router.update = update;
 
     switchUiLanguage("en", "pl", { i18n, router });
     await flushMicrotasks();
-    // Przed rozstrzygnięciem nawigacji magazyn zostaje nietknięty.
+    // Przed rozstrzygnięciem nawigacji ani pamięć routera, ani magazyn.
+    expect(update).not.toHaveBeenCalled();
     expect(writes).toEqual([]);
 
     finish();
     await flushMicrotasks();
-    expect(writes).toHaveLength(2);
-    // Kopia różni się WYŁĄCZNIE wewnętrznym href.
-    const { href, ...rest } = writes[0]!;
-    expect(href).not.toBe(blog.href);
-    expect(rest).toEqual({ pathname: "/blog", publicHref: "/en/blog?x=1" });
+    // Pamięć lokalizacji czyszczona PRZED zapisem, który każe odnośnikom
+    // przeliczyć href - inaczej dostałyby z niej stary język.
+    expect(log).toEqual(["update", "set", "set"]);
+    // `update` dostaje bieżące opcje bez zmian (jak od `RouterProvider`).
+    expect(update).toHaveBeenCalledWith(options);
+    // Kopia to INNY obiekt o tych samych polach (odnośniki porównują
+    // tożsamość, a subskrybenci czytający pola nie widzą zmiany)...
+    expect(writes[0]).not.toBe(blog);
+    expect(writes[0]).toEqual(blog);
     // ...a router kończy z tym samym obiektem lokalizacji co przed odświeżeniem.
     expect(writes[1]).toBe(blog);
     expect(current()).toBe(blog);
   });
 
-  it("odrzucona nawigacja: twardy fallback, magazyn nietknięty", async () => {
-    const { store, writes } = locationStore(blog);
-    const { router } = fakeRouter({ pathname: "/blog" }, () => Promise.reject(new Error("x")));
+  it("router bez `update` (atrapa, inny router): samo odświeżenie magazynu", async () => {
+    const { store, writes, current } = locationStore(blog, []);
+    const { router } = fakeRouter({ pathname: "/blog" });
     router.stores = { location: store };
 
     switchUiLanguage("en", "pl", { i18n, router });
     await flushMicrotasks();
 
+    expect(writes).toHaveLength(2);
+    expect(current()).toBe(blog);
+  });
+
+  it("odrzucona nawigacja: twardy fallback, router i magazyn nietknięte", async () => {
+    const { store, writes } = locationStore(blog, []);
+    const { router } = fakeRouter({ pathname: "/blog" }, () => Promise.reject(new Error("x")));
+    const update = vi.fn();
+    router.stores = { location: store };
+    router.update = update;
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await flushMicrotasks();
+
+    expect(update).not.toHaveBeenCalled();
     expect(writes).toEqual([]);
     expect(window.location.pathname).toBe("/en/blog");
   });
 
-  it("błąd renderu kopii nie wywraca przełączenia i nie zostawia kopii w routerze", async () => {
-    const { store, writes, current } = locationStore(blog, (next) => next !== blog);
+  it("wyjątek subskrybenta przy zapisie kopii nie wywraca przełączenia i nie zostawia kopii w routerze", async () => {
+    const { store, writes, current } = locationStore(blog, [], (next) => next !== blog);
     const { router } = fakeRouter({ pathname: "/blog" });
     router.stores = { location: store };
 
@@ -385,14 +415,34 @@ describe("switchUiLanguage - odświeżenie wyrenderowanych odnośników", () => 
     expect(window.location.pathname).toBe("/");
   });
 
+  it("wyjątek `update` nie wywraca przełączenia; magazyn zostaje z tą samą lokalizacją", async () => {
+    const { store, current } = locationStore(blog, []);
+    const { router } = fakeRouter({ pathname: "/blog" });
+    router.stores = { location: store };
+    router.update = () => {
+      throw new Error("update padł");
+    };
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await flushMicrotasks();
+
+    expect(current()).toBe(blog);
+    expect(window.location.pathname).toBe("/");
+  });
+
   it("router bez magazynu lokalizacji (np. bez `location`) - nawigacja bez odświeżenia", async () => {
     const { router, navigate } = fakeRouter({ pathname: "/blog" });
+    const update = vi.fn();
     router.stores = {};
+    router.update = update;
 
     switchUiLanguage("en", "pl", { i18n, router });
     await flushMicrotasks();
 
     expect(navigate).toHaveBeenCalledTimes(1);
+    // Bez magazynu nie ma powiadomienia, którym odnośniki przeliczyłyby href -
+    // samo wyczyszczenie pamięci routera niczego by nie odświeżyło.
+    expect(update).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/");
   });
 });

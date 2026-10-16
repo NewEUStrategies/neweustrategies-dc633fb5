@@ -1,5 +1,5 @@
 import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { isServer } from "@tanstack/router-core/isServer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useEffect, useMemo } from "react";
@@ -87,7 +87,14 @@ import {
 // (`components/home/molecules/*Notice`), które czytają dwujęzyczny słownik
 // `lib/errorCopy.ts`. Tutaj zostaje wyłącznie to, co wymaga kontekstu trasy:
 // zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
-function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+//
+// Typ propsów to `ErrorComponentProps` frameworka, nie własne `{ error: Error }`:
+// od router-core 1.171.37 granica podaje `error: unknown` (rzucić można
+// cokolwiek), a komponent i tak tylko loguje wartość. Węższa adnotacja nie
+// jest niewinna - niezgodny `errorComponent` wywraca dopasowanie CAŁEGO obiektu
+// opcji `createFileRoute`, więc TS nie wnioskuje już typów z `loaderDeps`
+// i `loader` (`deps` spada do `{}`, `loaderData` w `head` do `never`).
+function HomeErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i DOMYŚLNY `<title>` strony
   // głównej (`homeSrHeadingText`; własny tytuł SEO strony zmienia tylko
@@ -258,9 +265,10 @@ export const Route = createFileRoute("/")({
     // natychmiast, a ich HTML dostrumieniowuje się wraz z danymi, więc ciało
     // zapisane w NES Edge Cache i widziane przez crawlery zostaje kompletne
     // (dla `isbot` framework czeka na `stream.allReady`). Dane rozstrzygnięte
-    // w fazie renderu jadą strumieniem zapytań, na który `router.options.hydrate`
-    // pompuje dane strumieniem. Samo withHydrateBudget nie dowodzi, że cały
-    // queryStream dotarł przed Reactem; zgodność sprawdzają testy artefaktu.
+    // w fazie renderu jadą strumieniem zapytań integracji (`query.stream`), który
+    // `router.options.hydrate` czyta na kliencie w tle, bez awaitowania. Samo
+    // `withHydrateBudget` nie dowodzi więc, że cały `query.stream` dotarł przed
+    // Reactem; zgodność sprawdzają testy artefaktu.
     // Prefetch jest wewnętrznie `allSettled` i nie potrafi rzucić.
     //
     // Na kliencie bramka jest tree-shaken (`import.meta.env.SSR`), więc widgety

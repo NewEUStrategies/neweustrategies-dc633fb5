@@ -1,11 +1,12 @@
 // AppLink - PRELOAD CELU ODNOŚNIKA, NIE BIEŻĄCEJ TRASY (prawdziwy router).
 //
-// Defekt: intencja wołała `router.preloadRoute({ href })`, ale `preloadRoute`
-// buduje lokalizację przez `buildLocation` (router-core), który opcji `href`
-// NIE ZNA - zna ją wyłącznie `navigate` (`buildAndCommitLocation`). Brak `to`
-// znaczył „bieżąca trasa": na /a najechanie na odnośnik do /b ponownie ładowało
-// dopasowania /a, a loader /b czekał na klik. Atrapa routera w
-// `AppLink.test.tsx` tego nie widzi - sprawdza tylko argument wywołania.
+// Defekt sprzed router-core 1.171.37: `buildLocation`, przez który
+// `preloadRoute` buduje lokalizację, pomijał opcję `href` (znał ją wyłącznie
+// `navigate`), a brak `to` znaczył „bieżąca trasa" - na /a najechanie na
+// odnośnik do /b ponownie ładowało dopasowania /a, a loader /b czekał na klik.
+// `AppLink` przekładał wtedy `href` na opcje sam; dziś router robi to natywnie
+// i odnośnik podaje mu sam `href`. Atrapa routera w `AppLink.test.tsx` widzi
+// tylko argument wywołania - CO preload ładuje, widać dopiero tutaj.
 //
 // HARNESS. Prawdziwy `getRouter()` z `src/router.tsx` (ten sam `rewrite`
 // zdejmujący i dokładający prefiks języka, te same domyślne progi preloadu),
@@ -16,6 +17,7 @@
 // i rozgrzewanie chunków widżetów (nie dotyczy routera).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { AnyRouter } from "@tanstack/react-router";
 
 const h = vi.hoisted(() => ({
   /** Drzewo tras budowane PO zresetowaniu modułów (patrz `boot`). */
@@ -152,16 +154,21 @@ afterEach(() => {
 });
 
 describe("AppLink - preload ładuje trasę CELU", () => {
-  // Przypięcie zachowania router-core, które wymusiło przekład `href` w
-  // `AppLink`. Gdy ta asercja padnie (router nauczy się `href` w preloadzie),
-  // przekład można uprościć - ale wtedy świadomie, a nie po cichu.
-  it("kontrakt router-core: `preloadRoute({ href })` pomija href i dopasowuje BIEŻĄCĄ trasę", async () => {
+  // Przypięcie zachowania router-core, na którym `AppLink` stoi bez własnego
+  // przekładu `href` -> opcje. Gdyby router znów zaczął pomijać `href` w
+  // preloadzie, ta asercja wskaże przyczynę wprost - testy niżej pokazałyby
+  // tylko skutek (loader złej trasy).
+  it("kontrakt router-core: `preloadRoute({ href })` dopasowuje trasę CELU", async () => {
     const { router, loaders } = await boot("/a", []);
 
-    const matches = await router.preloadRoute({ href: "/b" } as never);
+    // Przez `AnyRouter`, jak w `AppLink` (`preloadHref`): drzewo testu nie jest
+    // drzewem zarejestrowanym w aplikacji (`Register`).
+    const anyRouter: AnyRouter = router;
+    const matches = await anyRouter.preloadRoute<string, string>({ href: "/b" });
 
-    expect(matches?.map((match) => match.routeId)).toEqual(["__root__", "/a"]);
-    expect(loaders.b).not.toHaveBeenCalled();
+    expect(matches?.map((match) => match.routeId)).toEqual(["__root__", "/b"]);
+    expect(loaders.b).toHaveBeenCalledTimes(1);
+    expect(loaders.a).toHaveBeenCalledTimes(1);
   });
 
   it("na /a najechanie na /b odpala loader /b, a NIE ponownie /a; klik trafia w preloadowane dopasowanie", async () => {
@@ -192,11 +199,8 @@ describe("AppLink - preload ładuje trasę CELU", () => {
     const preload = vi.spyOn(router, "preloadRoute");
     hover("/search?q=sankcje#wyniki");
     await vi.waitFor(() => expect(loaders.search).toHaveBeenCalledWith("sankcje"));
-    expect(preload).toHaveBeenCalledWith({
-      to: "/search",
-      search: { q: "sankcje" },
-      hash: "wyniki",
-    });
+    // Sam `href`, jak przy kliku - query i hash rozkłada z niego router.
+    expect(preload).toHaveBeenCalledWith({ href: "/search?q=sankcje#wyniki" });
     await vi.waitFor(() => expect(router.state.status).toBe("idle"));
 
     fireEvent.click(screen.getByText("/search?q=sankcje#wyniki"), { button: 0 });
@@ -327,18 +331,20 @@ describe("AppLink - błąd preloadu nigdy nie dociera do UI", () => {
     }
   });
 
-  it("wyjątek przy przekładaniu adresu na opcje routera też nie ucieka z timera", async () => {
-    const { router } = await boot("/a", ["/b?x=1"]);
+  // Bez szpiega na `preloadRoute` - z tego samego powodu co wyżej: szpieg
+  // „obsłużyłby" odrzucenie, zanim zobaczy je `AppLink`.
+  it("wyjątek przy budowaniu lokalizacji celu (parser query) też nie ucieka z timera", async () => {
+    const { router, loaders } = await boot("/a", ["/b?x=1"]);
     const parse = vi.spyOn(router.options, "parseSearch").mockImplementationOnce(() => {
       throw new Error("parser query padł");
     });
-    const preload = vi.spyOn(router, "preloadRoute");
     const watch = watchEscapes();
     try {
       hover("/b?x=1");
       await vi.waitFor(() => expect(parse).toHaveBeenCalled());
       await pause(AFTER_DELAY_MS);
-      expect(preload).not.toHaveBeenCalled();
+      // Lokalizacji nie zbudowano, więc loader celu nie ruszył.
+      expect(loaders.b).not.toHaveBeenCalled();
       expect(watch.escapes).toEqual([]);
       expect(screen.getByTestId("page-a")).toBeTruthy();
     } finally {

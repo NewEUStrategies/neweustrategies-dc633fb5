@@ -4,6 +4,7 @@
 // utwardzonej funkcji serwerowej co formularz kontaktowy.
 import { useCallback, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { errorMessageOf } from "@/lib/errors/errorMessage";
 
 import {
   staticPageSeoQueryOptions,
@@ -73,7 +74,7 @@ export const Route = createFileRoute("/zatrudniamy")({
   },
   errorComponent: ({ error }) => (
     <div role="alert" className="container mx-auto max-w-3xl px-4 py-16 text-sm text-destructive">
-      {error.message}
+      {errorMessageOf(error)}
     </div>
   ),
 });

@@ -18,17 +18,16 @@
 //     z dławionego `history.replaceState` w Safari) zostawiała język klienta
 //     przestawiony bez nawigacji i nieobsłużone odrzucenie w konsoli.
 import { useRouter, type HistoryState } from "@tanstack/react-router";
-import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { uiLang } from "./format";
 import { localizedPath, stripLangPrefix, type AppLang } from "./localePath";
 import { setClientLang } from "./localeRuntime";
 
-/** Magazyn lokalizacji routera, z którego `<Link>`-i budują swój href. */
+/** Magazyn lokalizacji routera, który `<Link>`-i subskrybują. */
 interface UiLangLocationStore {
-  get(): { href: string };
-  set(location: { href: string }): void;
+  get(): object;
+  set(location: object): void;
 }
 
 /** Tyle routera TanStack, ile potrzeba do przełączenia. */
@@ -43,6 +42,14 @@ export interface UiLangRouter {
   }) => unknown;
   /** Bez magazynu (atrapa, inny router) odnośniki odświeży dopiero nawigacja. */
   stores?: { location?: UiLangLocationStore };
+  /** Bieżące opcje routera - `update` dostaje je z powrotem bez zmian. */
+  options?: object;
+  /**
+   * Bez `update` (atrapa, inny router) nie ma pamięci lokalizacji do czyszczenia.
+   * Składnia metody celowo: jej parametr porównywany jest biwariantnie, więc
+   * prawdziwy router (`UpdateFn` z pełnymi opcjami konstruktora) pasuje do typu.
+   */
+  update?(options: object): void;
 }
 
 /** Tyle i18next, ile potrzeba do przełączenia. */
@@ -86,39 +93,51 @@ function hardNavigate(href: string): void {
   if (typeof window !== "undefined") window.location.href = href;
 }
 
-/** Dopisek chwilowej kopii lokalizacji (patrz `refreshRenderedLinks`) - nie trafia do historii. */
-const LINK_REFRESH_MARK = "#__uiLangLinks";
-
 /**
  * Każe JUŻ wyrenderowanym `<Link>`-om zbudować href od nowa - w nowym języku.
  *
- * `<Link>` TanStack trzyma zbudowaną lokalizację, dopóki magazyn lokalizacji
- * routera nie poda lokalizacji o INNYM wewnętrznym `href` (`link.tsx`:
- * `useStore(router.stores.location, ..., (a, b) => a.href === b.href)`), a
- * przełączenie zmienia tylko prefiks, który rewrite `input` zdejmuje - "/en/b"
- * i "/b" to dla routera ten sam "/b". Odnośniki strony zostawały więc w starym
- * języku: nowa karta, skopiowany link i pasek statusu prowadziły do drugiej
- * wersji językowej (sam klik nie, bo `<Link>` buduje adres kliku od nowa).
+ * Przełączenie zmienia tylko prefiks, który rewrite `input` zdejmuje - "/en/b"
+ * i "/b" to dla routera ten sam "/b" - a jedynym, co zależy od języka, jest
+ * rewrite `output`, czytający `currentLang()`. Bez odświeżenia odnośniki strony
+ * zostawały w starym języku: nowa karta, skopiowany link i pasek statusu
+ * prowadziły do drugiej wersji językowej (sam klik nie, bo `navigate` buduje
+ * adres kliku od nowa). Dwa mechanizmy routera trzymają stary href:
  *
- * Kopia lokalizacji z innym `href` musi zostać WYRENDEROWANA (`flushSync`):
- * selektor `useStore` porównuje nową wartość z ostatnio wyrenderowaną, więc
- * zapis i natychmiastowy powrót w tym samym takcie React widziałby jako "bez
- * zmian". Kopia różni się wyłącznie `href` (ścieżka, query, hash, stan i
- * `publicHref` te same), więc reszta subskrybentów - czytających `pathname`
- * czy `search` - nie widzi różnicy. Zaraz potem wraca TA SAMA lokalizacja.
- * Żadnej nawigacji, zapisu historii ani ładowania tras.
+ *   1. Pamięć lokalizacji. router-core 1.171.37 zapamiętuje wynik
+ *      `buildLocation` każdego `<Link>`, który nie zależy od bieżącego adresu
+ *      (bezwzględne `to`, bez `search: true` itp.), pod obiektem opcji tego
+ *      odnośnika (`staticLocations`, `router.js`). Czyści ją wyłącznie
+ *      `update()` (albo `setRoutes`), a zależności od `currentLang()` pamięć nie
+ *      widzi. `update` z niezmienionymi opcjami - to samo, co robi
+ *      `RouterProvider` przy zmianie propsów - przy tym samym obiekcie
+ *      `rewrite` tylko ją czyści i ponownie parsuje `latestLocation`.
+ *   2. Przeliczenie na żądanie. `<Link>` buduje lokalizację ponownie dopiero,
+ *      gdy magazyn lokalizacji poda INNY obiekt niż ostatnio widziany
+ *      (porównanie tożsamości, `link.tsx`/`matchContext.tsx`). Zapis płytkiej
+ *      kopii i natychmiastowy powrót tej samej lokalizacji to dwa
+ *      powiadomienia; każdy odnośnik przelicza href synchronicznie, w chwili
+ *      powiadomienia (migawka `useSyncExternalStore`), więc kopii nie trzeba
+ *      renderować. Warunek: wywołanie POZA `router.batch` - w nim (np. ze
+ *      słuchacza `onResolved`) oba zapisy scalają się w jedno powiadomienie
+ *      z TĄ SAMĄ lokalizacją i żaden odnośnik nic nie przelicza; stąd
+ *      odświeżenie dopiero w `.then` nawigacji. Kopia ma te same pola, więc
+ *      subskrybenci czytający `pathname`, `href` czy `search` nie widzą
+ *      różnicy, a w routerze zostaje TA SAMA lokalizacja. Żadnej nawigacji,
+ *      zapisu historii ani ładowania tras.
  */
 function refreshRenderedLinks(router: UiLangRouter): void {
   const store = router.stores?.location;
   if (!store) return;
   const location = store.get();
   try {
-    flushSync(() => store.set({ ...location, href: `${location.href}${LINK_REFRESH_MARK}` }));
+    router.update?.({ ...router.options });
+    store.set({ ...location });
   } catch {
-    // Odświeżenie dotyczy samych href-ów - jego błąd nie może wywrócić
-    // udanego przełączenia (ani zostawić nieobsłużonego odrzucenia).
+    // Odświeżenie dotyczy samych href-ów - jego błąd (np. wyjątek subskrybenta
+    // magazynu) nie może wywrócić udanego przełączenia ani zostawić
+    // nieobsłużonego odrzucenia.
   }
-  // Kopia nie może zostać w routerze - nawet gdy render wyżej rzucił.
+  // Kopia nie może zostać w routerze - nawet gdy zapis wyżej rzucił.
   store.set(location);
 }
 
@@ -157,8 +176,9 @@ export function switchUiLanguage(
       // przeładowuje trasę i NIE zapisuje adresu. Przełączenie EN -> PL
       // zostawiało więc w pasku /en/a (przeładowanie i udostępniony link
       // wracały do angielskiego). Inny stan wymusza `history.replace`.
-      // Ten sam powód (adres bez prefiksu się nie zmienia) zostawiał
-      // wyrenderowane odnośniki w starym języku - po nawigacji odświeżamy je.
+      // Wyrenderowane odnośniki sama nawigacja nie przestawia na nowy język
+      // (router pamięta ich lokalizacje, a język nie jest częścią adresu, który
+      // widzi) - po nawigacji odświeżamy je (`refreshRenderedLinks`).
       void Promise.resolve(
         router.navigate({
           href,
