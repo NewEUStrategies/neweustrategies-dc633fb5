@@ -1366,6 +1366,9 @@ describe("NotificationsCenter - akcje nagłówka i wiersza", () => {
 
     chooseKind(t("notifications.settings.kinds.tracker"));
     await waitFor(() => expect(screen.queryByText(KOMENTARZ.title_pl)).toBeNull());
+    // Nowy klucz listy startuje bez danych (szkielet ładowania, `items = []`),
+    // więc asercja ma czekać na DOJŚCIE strony rodzaju, nie na jej brak.
+    await screen.findByText(DOSSIER.title_pl);
 
     // Lista rodzaju `tracker` ma wyłącznie przeczytany DOSSIER - o zaległym
     // KOMENTARZU wie tylko licznik konta.
@@ -1382,17 +1385,31 @@ describe("NotificationsCenter - akcje nagłówka i wiersza", () => {
     expect(markAllButton()).toBeDisabled();
   });
 
-  it("nieświeży licznik (0) nie gasi przycisku, gdy na liście widać nieprzeczytany wiersz", async () => {
+  it("nieświeży licznik (0) nie gasi przycisku, gdy wczytany jest nieprzeczytany wiersz - także ukryty frazą", async () => {
     // Licznik może się spóźniać (optymistyczne „nieprzeczytane” łata tylko
     // listy) albo zdryfować - wczytany nieprzeczytany wiersz to drugi świadek.
     db.setResponse("user_pending_counters", () => ok({ value: 0 }));
-    rows = [KOMENTARZ];
+    rows = [KOMENTARZ, DOSSIER];
     await mountCenter();
     await screen.findByText(KOMENTARZ.title_pl);
     await waitFor(() => expect(db.chainsFor("user_pending_counters").length).toBeGreaterThan(0));
     await act(async () => {});
 
     expect(markAllButton()).toBeEnabled();
+
+    // Świadkiem są wiersze PRZED wyszukiwaniem: fraza chowająca KOMENTARZ
+    // nie może przywrócić zgłoszonego błędu, gdy licznik akurat milczy.
+    fireEvent.change(searchBox(), { target: { value: "pakiet-energetyczny" } });
+    expect(screen.queryByText(KOMENTARZ.title_pl)).toBeNull();
+    expect(markAllButton()).toBeEnabled();
+  });
+
+  it("tryb `preferences` nie pyta o licznik konta - nie ma tam przycisku „oznacz wszystkie”", async () => {
+    rows = [KOMENTARZ];
+    await mountCenter("preferences");
+
+    expect(screen.queryByRole("button", { name: t("notifications.markAllRead") })).toBeNull();
+    expect(db.chainsFor("user_pending_counters")).toHaveLength(0);
   });
 
   it("bez wiersza licznika stan przycisku idzie z fallbacku COUNT(*) na `notifications`", async () => {
@@ -1405,6 +1422,7 @@ describe("NotificationsCenter - akcje nagłówka i wiersza", () => {
     // przycisku może przesądzić wyłącznie zapytanie liczące.
     chooseKind(t("notifications.settings.kinds.tracker"));
     await waitFor(() => expect(screen.queryByText(KOMENTARZ.title_pl)).toBeNull());
+    await screen.findByText(DOSSIER.title_pl);
 
     await waitFor(() => expect(markAllButton()).toBeEnabled());
     const count = db.chainsFor("notifications").find(isHeadCount);

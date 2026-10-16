@@ -135,11 +135,15 @@ export function useNotifications(
   } as unknown as UseQueryResult<NotificationRow[]>;
 }
 
-export function useUnreadCount(): UseQueryResult<number> {
+/** `enabled: false` wyłącza zapytanie u konsumenta, który licznika w danym
+ *  stanie nie pokazuje - wpis cache zostaje wspólny z pozostałymi. */
+export function useUnreadCount({
+  enabled = true,
+}: { enabled?: boolean } = {}): UseQueryResult<number> {
   const { user } = useAuth();
   return useQuery({
     queryKey: countKey(user?.id),
-    enabled: !!user,
+    enabled: !!user && enabled,
     queryFn: async (): Promise<number> => {
       // Zmaterializowany licznik (user_pending_counters, utrzymywany
       // triggerami) zamiast COUNT(*) po notifications przy każdym odświeżeniu
