@@ -73,7 +73,7 @@ export const Route = createFileRoute("/zatrudniamy")({
   },
   errorComponent: ({ error }) => (
     <div role="alert" className="container mx-auto max-w-3xl px-4 py-16 text-sm text-destructive">
-      {error instanceof Error ? error.message : String(error)}
+      {error.message}
     </div>
   ),
 });

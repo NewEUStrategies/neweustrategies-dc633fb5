@@ -27,6 +27,7 @@ thin layers that never re-implement logic:
 | `meta.ts`                             | `<head>` meta/links, hreflang, article JSON-LD (+ speakable, abstract, publisher logo), feed discovery links          |
 | `fields.ts`                           | Per-entity SEO override resolution (title/description/canonical/robots/og image chain)                                |
 | `jsonld.ts`                           | Organization (NewsMediaOrganization), WebSite + SearchAction, localized BreadcrumbList                                |
+| `structuredDataAudit.ts`              | Search Console rules for JSON-LD (BreadcrumbList `item`/positions, doubled origins) - unit, e2e and live check        |
 | `redirects.ts`                        | Path normalization, exact/query/wildcard matching, chain resolution, CSV import/export                                |
 | `rss.ts`, `newsSitemap.ts`, `llms.ts` | RSS 2.0, Google News sitemap and llms.txt document builders                                                           |
 | `sitemapIndex.ts`, `sitemapXml.ts`    | `<sitemapindex>` + shard naming/limits; `<urlset>` rendering, hreflang cluster, deterministic URL expansion           |
@@ -172,6 +173,35 @@ Podcast items carry a **language-neutral `<guid isPermaLink="false">`** (the
 un-prefixed episode URL). The PL and EN channels are two feeds of the same show;
 a localized guid gave the same episode two identities, so an aggregator that
 ingested both showed a duplicated catalogue.
+
+### Breadcrumbs (BreadcrumbList)
+
+Every breadcrumb graph comes from `breadcrumbListJsonLd` (`jsonld.ts`); a
+contract test (`structuredDataAudit.test.ts`) fails on a hand-built
+`"@type": "BreadcrumbList"` anywhere else and on routes re-attaching their own
+`@id`. The builder guarantees what Search Console checks:
+
+- **every `ListItem` carries an absolute `item`**, the last one too. Google's
+  docs allow omitting it on the last crumb, but Search Console still reported
+  "Missing field item (in itemListElement)" (category/tag archives in
+  2026-09, all `/organization/*` profiles in 2026-10). `selfPath` (the current
+  page; a path or the full SSR request URL) is therefore a **required**
+  argument; query and fragment are dropped;
+- an intermediate crumb without `href` is skipped and positions are renumbered
+  (one item-less position invalidates the whole trail);
+- the graph has `@id` = `<page URL>#breadcrumbs` - `CollectionPage.breadcrumb`
+  references `breadcrumbs["@id"]` instead of concatenating `origin + url`
+  (in SSR `url` is absolute, which produced `https://host/https://host/blog`);
+- fewer than two items (Home only) yields `null` - nothing is emitted.
+
+**Live check.** `bun run check:structured-data-live` (or
+`node scripts/seo/check-structured-data.ts --base <origin>`) crawls the
+sitemap index plus breadcrumb templates linked from content (e.g. `/author/*`,
+not in the sitemap) and runs every JSON-LD block through
+`structuredDataIssues`. Exit 1 lists each URL and graph path that Search
+Console would reject, and every URL that could not be audited (timeout,
+non-200, 200 without HTML) - an unaudited page never counts as clean. `.github/workflows/structured-data.yml` runs it daily
+against production and on demand.
 
 ## Per-entity SEO fields
 

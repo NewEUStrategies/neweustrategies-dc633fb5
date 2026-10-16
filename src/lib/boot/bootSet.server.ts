@@ -90,7 +90,7 @@ export interface BootMatch {
 
 /** Router w chwili dehydratacji - tylko to, czego potrzebuje wstrzyknięcie. */
 export interface BootRouterLike {
-  readonly serverSsr?: unknown;
+  readonly serverSsr?: { injectHtml: (html: string) => void };
   readonly state: { readonly matches: readonly BootMatch[] };
   isShell?: () => boolean;
 }
@@ -179,8 +179,7 @@ export function injectBootSet(
   router: BootRouterLike,
   manifest: BootManifest | null = BOOT_MANIFEST,
 ): void {
-  const ssr = router.serverSsr as
-    ({ injectHtml?: (html: string) => void } & Record<string, unknown>) | undefined;
+  const ssr = router.serverSsr;
   if (!ssr || !manifest || injectedInto.has(ssr)) return;
   injectedInto.add(ssr);
   const matches = router.state.matches;
@@ -192,7 +191,7 @@ export function injectBootSet(
     matches,
     linkHeader,
   });
-  ssr.injectHtml?.(bootSetHtml(set));
+  ssr.injectHtml(bootSetHtml(set));
   try {
     setResponseHeader(BOOT_MODE_HEADER, set.m);
   } catch {
