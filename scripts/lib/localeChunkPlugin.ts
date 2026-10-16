@@ -18,7 +18,7 @@
 //
 // DLACZEGO TYLKO NAGŁÓWEK HTTP `Link`, A NIE `<link>` W `<head>`.
 // To jest decyzja, nie oszczędność. Wartości są znane WYŁĄCZNIE w środowisku
-// serwerowym: gdy Rollup buduje bundel przeglądarki, plik z adresami jest
+// serwerowym: gdy bundler buduje bundel przeglądarki, plik z adresami jest
 // transformowany ZANIM chunki dostaną nazwy, więc bundel klienta nie ma skąd
 // wziąć tej samej wartości. Dodanie `<link rel="modulepreload">` do
 // `<head>` znaczyłoby więc, że SSR-owy HTML niesie węzeł, którego pierwszy
@@ -42,10 +42,12 @@
 // jest NAPRAWĄ, nie ostrożnością. Pierwsza wersja tej wtyczki nie miała
 // `enforce` i szukała literału `"{\n  pl: null,\n  en: null,\n}"` znak
 // w znak. Bez `enforce` wtyczka użytkownika trafia do koszyka „normal", czyli
-// ZA rdzeniowy `vite:esbuild`, więc do `transform` przychodził już kod PO
-// transpilacji TS - a esbuild USUWA PRZECINEK KOŃCOWY:
+// ZA rdzeniową transpilację TS (wtedy `vite:esbuild`, od Vite 8 natywne
+// `vite:oxc`), więc do `transform` przychodził już kod PO transpilacji - a ta
+// USUWA PRZECINEK KOŃCOWY (Oxc tak samo, do tego wcina tabulatorem):
 //   źródło:      `{\n  pl: null,\n  en: null,\n}`
 //   po esbuildzie: `{\n  pl: null,\n  en: null\n}`
+//   po Oxc:        `{\n\tpl: null,\n\ten: null\n}`
 // Literał nie pasował więc ANI RAZU. Zmierzone na buildzie 2026-09-01: wtyczka
 // wypisała swoje własne ostrzeżenie („nie znalazłem literału do podmiany"),
 // artefakt pojechał z `null` i hint słownika był MARTWY - dokładnie ta klasa
@@ -105,9 +107,9 @@ export function localeChunkPlugin(): Plugin {
   return {
     name: "nes:locale-chunks",
     apply: "build",
-    // PRZED rdzeniowym `vite:esbuild` - inaczej `transform` dostaje kod PO
-    // transpilacji TS, a nie treść pliku (patrz nagłówek: to był defekt, który
-    // unieważnił hint w całości).
+    // PRZED rdzeniową transpilacją TS (`vite:oxc`) - inaczej `transform` dostaje
+    // kod PO transpilacji, a nie treść pliku (patrz nagłówek: to był defekt,
+    // który unieważnił hint w całości).
     enforce: "pre",
 
     transform(code, id) {
@@ -128,7 +130,7 @@ export function localeChunkPlugin(): Plugin {
       return {
         // FUNKCJA zamiast łańcucha w drugim argumencie `replace`: w łańcuchu
         // `$` jest znakiem sterującym (`$&`, `$1`), a nazwa pliku pochodzi
-        // z Rollupa, nie od nas. Funkcja wstawia wartość dosłownie.
+        // z bundlera, nie od nas. Funkcja wstawia wartość dosłownie.
         code: code.replace(PLACEHOLDER_RE, () => JSON.stringify(discovered)),
         map: null,
       };

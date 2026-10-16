@@ -42,15 +42,18 @@ export function routeSplitBehavior({ routeId }: { routeId: string }): SplitNode[
  * Loader i komponent tej trasy dzielą `loadAdminDashboard` (dynamiczny import
  * pulpitu analityki: AdminDashboard, ChartCard, słowniki i18n-admin-*, ~190 KB
  * kodu). Przy osobnych grupach splitter wydziela go do mikromodułu
- * `admin.index.tsx?tsr-shared=1` (~140 B), a Rollup przy
- * `experimentalMinChunkSize` dokleja taki mikromoduł do chunku wybranego po
- * ROZMIARACH innych chunków. Na `531a2c5` trafiał do chunku trasy admina;
- * zmiana rozmiaru kilku niezwiązanych widgetów (2026-10-03) przerzuciła go do
- * `CalendarView` i do chunku wejściowego, a wtedy krawędź `import()` pulpitu
- * wychodziła z publicznego chunku - `check:bundle` liczył ~42 KB gz pulpitu do
- * budżetu PUBLICZNEGO. Wspólna grupa trzyma import w chunku `admin.index-*`,
- * czyli w korzeniu adminowym, niezależnie od rozmiarów reszty bundla. Koszt:
- * loader dociąga chunk komponentu, który i tak jest potrzebny zaraz po sesji.
+ * `admin.index.tsx?tsr-shared=1` (~140 B), a o tym, w którym chunku taki moduł
+ * współdzielony wyląduje, decyduje bundler. Rollup przy
+ * `experimentalMinChunkSize` doklejał go do chunku wybranego po ROZMIARACH
+ * innych chunków: na `531a2c5` trafiał do chunku trasy admina; zmiana rozmiaru
+ * kilku niezwiązanych widgetów (2026-10-03) przerzuciła go do `CalendarView`
+ * i do chunku wejściowego, a wtedy krawędź `import()` pulpitu wychodziła
+ * z publicznego chunku - `check:bundle` liczył ~42 KB gz pulpitu do budżetu
+ * PUBLICZNEGO. Rolldown nie skleja po rozmiarach, ale umieszczenie modułu
+ * współdzielonego nadal jest jego heurystyką. Wspólna grupa trzyma import
+ * w chunku `admin.index-*`, czyli w korzeniu adminowym, niezależnie od reszty
+ * bundla. Koszt: loader dociąga chunk komponentu, który i tak jest potrzebny
+ * zaraz po sesji.
  */
 const ADMIN_COCKPIT_SPLIT: SplitNode[][] = [
   ["loader", "component"],

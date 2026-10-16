@@ -14,17 +14,17 @@
 //
 // Dlatego ten plik sprawdza mapę wobec DWÓCH źródeł prawdy: unii `WidgetType`
 // w `src/lib/builder/types.ts` i plików na dysku. Hooki wtyczki testujemy
-// bezpośrednio, bez uruchamiania builda - to ten sam kod, który wykona Rollup.
+// bezpośrednio, bez uruchamiania builda - to ten sam kod, który wykona Rolldown.
 //
 // GRANICA TEGO DOWODU. Ręczne wołanie hooków nie mówi nic o tym, czy Vite
 // w ogóle przekaże serwerowi instancję, którą widział klient, w jakiej
-// kolejności zbuduje środowiska ani jakie nazwy wyemituje Rollup. To pokrywa
+// kolejności zbuduje środowiska ani jakie nazwy wyemituje Rolldown. To pokrywa
 // `widgetChunkPluginBuild.test.ts`: prawdziwy `createBuilder` klient -> serwer
 // i wykonany bundel serwera. Tu zostają przypadki, których fikstura buildu nie
 // odtworzy taniej: kształt bundla, kontekst środowiska, ostrzeżenia.
 import { existsSync, readFileSync } from "node:fs";
-import { transformSync } from "esbuild";
-import { describe, expect, it } from "vitest";
+import { transformWithOxc } from "vite";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { WIDGET_CHUNK_TARGETS, widgetChunkPlugin } from "../../../../scripts/lib/widgetChunkPlugin";
 
@@ -59,7 +59,7 @@ function plugin(): PluginWithHooks {
   return widgetChunkPlugin() as unknown as PluginWithHooks;
 }
 
-/** Kontekst hooka: `this.error` Rollupa przerywa build wyjątkiem. */
+/** Kontekst hooka: `this.error` bundlera przerywa build wyjątkiem. */
 const errCtx = {
   error: (m: string) => {
     throw new Error(m);
@@ -235,7 +235,7 @@ describe("nes:widget-chunks - odkrywanie nazw chunków", () => {
   });
 
   it("nazwa pliku z `$` nie jest interpretowana jako grupa wsteczna", () => {
-    // Nazwa chunku pochodzi z Rollupa, a `String.replace` z łańcuchem traktuje
+    // Nazwa chunku pochodzi z bundlera, a `String.replace` z łańcuchem traktuje
     // `$&` jako sterujące - dlatego wstawiamy wartość funkcją.
     const p = plugin();
     p.generateBundle(
@@ -253,22 +253,27 @@ describe("nes:widget-chunks - odkrywanie nazw chunków", () => {
 
 // ── WEJŚCIE, KTÓRE NAPRAWDĘ DOSTAJE BUILD ────────────────────────────────────
 //
-// Wzorzec podmiany wymaga ADNOTACJI TYPU (`WIDGET_CHUNK_URLS\s*:`), a esbuild
-// ją zdejmuje. Gdyby wtyczka nie deklarowała `enforce: "pre"`, trafiłaby do
-// koszyka „normal", czyli ZA rdzeniowy `vite:esbuild`, i zobaczyłaby kod PO
+// Wzorzec podmiany wymaga ADNOTACJI TYPU (`WIDGET_CHUNK_URLS\s*:`), a
+// transpilacja TS ją zdejmuje. Gdyby wtyczka nie deklarowała `enforce: "pre"`,
+// trafiłaby do koszyka „normal", czyli ZA rdzeniową transpilację (od Vite 8
+// natywne `vite:oxc`, wcześniej `vite:esbuild`), i zobaczyłaby kod PO
 // transpilacji - wzorzec nie pasowałby, a `this.error` ZATRZYMAŁBY BUILD.
 // To jest ta sama pułapka, która w `nes:locale-chunks` (2026-09-01) unieważniła
-// hint słownika; tutaj kosztowałaby nie hint, tylko całe wdrożenie.
+// hint słownika; tutaj kosztowałaby nie hint, tylko całe wdrożenie. Wejście
+// transpiluje PRAWDZIWY Oxc (`transformWithOxc` z Vite), nie ręczny napis.
 describe("nes:widget-chunks - sprzężenie z kolejnością wtyczek", () => {
-  const TRANSPILED = transformSync(SOURCE, { loader: "ts", target: "esnext" }).code;
+  let TRANSPILED = "";
+  beforeAll(async () => {
+    TRANSPILED = (await transformWithOxc(SOURCE, "src/lib/seo/widgetPreloads.ts")).code;
+  });
 
-  it("esbuild ZDEJMUJE adnotację typu - dowód przyczyny, nie domysł", () => {
+  it("transpilacja ZDEJMUJE adnotację typu - dowód przyczyny, nie domysł", () => {
     expect(SOURCE).toContain("WIDGET_CHUNK_URLS: Readonly<");
     expect(TRANSPILED).toContain("WIDGET_CHUNK_URLS = {}");
     expect(TRANSPILED).not.toContain("WIDGET_CHUNK_URLS: Readonly<");
   });
 
-  it('wtyczka deklaruje `enforce: "pre"`, więc widzi ŹRÓDŁO, nie wynik esbuilda', () => {
+  it('wtyczka deklaruje `enforce: "pre"`, więc widzi ŹRÓDŁO, nie wynik transpilacji', () => {
     expect(plugin().enforce).toBe("pre");
   });
 

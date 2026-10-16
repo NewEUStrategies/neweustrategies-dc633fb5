@@ -250,7 +250,7 @@ describe("dopasowanie przekierowań - wyłącznie para (specyfikator, importer)"
     ).toBeUndefined();
   });
 
-  it("toleruje sufiksy wirtualne Rollupa i ścieżki Windows", () => {
+  it("toleruje prefiks wirtualny, sufiks zapytania i ścieżki Windows", () => {
     expect(matchOfficeParserRedirect("xmlbuilder", `\0${writer}?commonjs-proxy`)).toBeDefined();
     expect(matchOfficeParserRedirect("./entities", domParser.replaceAll("/", "\\"))).toBeDefined();
   });

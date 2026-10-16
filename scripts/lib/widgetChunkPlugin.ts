@@ -82,7 +82,7 @@ type BuildEnvironmentLike = { config: { consumer?: string; base?: string } };
 
 /**
  * Środowisko builda z kontekstu hooka. W prawdziwym buildzie Vite 6+ wstrzykuje
- * `this.environment` do każdego hooka Rollupa; w teście jednostkowym hooki są
+ * `this.environment` do każdego hooka bundlera; w teście jednostkowym hooki są
  * wołane bez niego - wtedy zwracamy `undefined` i wtyczka wraca do heurystyki
  * po katalogu wyjściowym.
  */

@@ -4,8 +4,8 @@
 //
 // ── PRZYCZYNA ŹRÓDŁOWA ──────────────────────────────────────────────────────
 // `routeTree.gen.ts` importuje statycznie WSZYSTKIE pliki tras (393, w tym
-// `routes/api/public/payments/webhook.ts`), a Rollup wynosi moduł współdzielony
-// przez wiele chunków do ich wspólnego przodka. Skutkiem była krawędź
+// `routes/api/public/payments/webhook.ts`), a bundler (wtedy Rollup Nitro) wyniósł
+// moduł współdzielony przez wiele chunków do ich wspólnego przodka. Skutkiem była krawędź
 // `_ssr/router-*.mjs -> _libs/stripe.mjs`: chunk, od którego zaczyna się KAŻDY
 // render SSR, ciągnął 198 kB SDK operatora płatności. W zimnym izolacie
 // `workerd` to czas ewaluacji płacony przez anonimowego czytelnika artykułu,
@@ -65,7 +65,11 @@ export interface FrozenStaticImporters {
 
 /**
  * Krawędź statyczna w module ESM. `import(` NIE tworzy krawędzi
- * inicjalizacyjnej - ten sam filtr, co w `scripts/check-entry-purity.ts`.
+ * inicjalizacyjnej - ten sam filtr, co w `scripts/check-entry-purity.ts`. Worker
+ * minifikuje Oxc (Nitro, `minify: true`), który drukuje specyfikator dynamicznego
+ * importu w backtickach (``import(`../_libs/stripe.mjs`)``) - wzorzec (tylko
+ * cudzysłowy) w ogóle go nie widzi, a filtr `import(` zostaje dla kodu bez
+ * minifikacji. Statyczny `import`/`export ... from` gramatyka wymusza w cudzysłowie.
  */
 const CHUNK_EDGE_RE =
   /(import\s*\(?\s*|from\s*|export\s*\*\s*from\s*)["'](\.{1,2}\/[^"']+\.mjs)["']/g;
@@ -254,9 +258,12 @@ export function renderServerEntryPurityReport(report: ServerEntryPurityReport): 
 /**
  * Paczki server-only, które wolno wciągać WYŁĄCZNIE przez `import()`.
  *
- * Nazwy chunków biorą się z podziału vendorów w `vite.config.ts` (katalog
- * `_libs/` artefaktu Nitro) - jeden plik na paczkę, więc reguła jest czytelna
- * także w komunikacie bramki.
+ * Nazwy chunków nadaje podział vendorów Nitro (grupa `codeSplitting` na
+ * `node_modules` i `getChunkName`: katalog `_libs/` artefaktu) - jeden plik na
+ * paczkę, więc reguła jest czytelna także w komunikacie bramki. Chunk kilku paczek
+ * dostaje nazwę z ich złączenia (`_libs/a+b.mjs`; złączenie dłuższe niż 30 znaków -
+ * `<nazwa chunku>+[...].mjs` poza `_libs/`) - wtedy reguła zgłasza brak chunku
+ * zamiast milczeć.
  */
 export const LAZY_ONLY_PACKAGES: readonly LazyOnlyPackage[] = [
   {

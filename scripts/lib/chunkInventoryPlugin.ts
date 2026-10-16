@@ -5,7 +5,7 @@
 // entry) jako osobnej pracy - a ta praca nie miała żadnego przyrządu. Po
 // minifikacji chunk jest nieczytelny, więc jedyne, co dotąd było mierzalne, to
 // SUMA kilobajtów; odpowiedź na pytanie "co konkretnie siedzi w entry" zawsze
-// wymagała zgadywania. Rollup zna ten podział dokładnie (`chunk.modules`) -
+// wymagała zgadywania. Bundler zna ten podział dokładnie (`chunk.modules`) -
 // wystarczy go zapisać.
 //
 // Enabled by BUNDLE_INVENTORY=1 for diagnostics. The smoke preset enables
@@ -18,7 +18,7 @@ import { dirname } from "node:path";
 import type { Plugin } from "vite";
 
 export interface ChunkInventoryModule {
-  /** Ścieżka modułu (id z Rollupa), znormalizowana do repo/pakietu. */
+  /** Ścieżka modułu (id z bundlera), znormalizowana do repo/pakietu. */
   readonly id: string;
   /** Bajty PO transformacjach, przed minifikacją całego chunku. */
   readonly bytes: number;
@@ -51,7 +51,7 @@ export function chunkInventoryPlugin(enabled = process.env["BUNDLE_INVENTORY"] =
       if (!enabled) return;
       const outDir = options.dir ?? "";
       // Interesuje nas wyłącznie bundel przeglądarki; artefakt workera składa
-      // Nitro własnym rollupem i jego skład niczego tu nie tłumaczy.
+      // Nitro we własnym środowisku i jego skład niczego tu nie tłumaczy.
       if (!/client|public/.test(outDir)) return;
 
       const chunks: ChunkInventoryChunk[] = [];

@@ -19,9 +19,10 @@ import { expect, test } from "@playwright/test";
 //      z wyspą stopki;
 //   3. po hydratacji wyspy listwa nadal tam jest, z tymi samymi adresami, i nie
 //      ma błędu hydratacji (rozjazd serwer/klient porzuciłby HTML wyspy);
-//   4. kodu listwy nie ma w chunku wejściowym (`index-*.js`) - pułapka łączenia
-//      małych chunków wkleiłaby go tam pod INNĄ nazwą pliku, więc sama nazwa
-//      w serii bootu nie wystarcza - a jej `import()` nie ciągnie listy preloadu
+//   4. kodu listwy nie ma w chunku wejściowym (`index-*.js`) - na Rollupie
+//      wkleiło go tam łączenie małych chunków, na Rolldownie zrobiłaby to grupa
+//      o złym priorytecie, zawsze pod INNĄ nazwą pliku, więc sama nazwa w serii
+//      bootu nie wystarcza - a jej `import()` nie ciągnie listy preloadu
 //      (`modulePreload.resolveDependencies` w obu konfiguracjach Vite);
 //   5. na telefonie (412 px) pływający przycisk „Wróć na górę" nie zasłania
 //      żadnego linku listwy po przewinięciu do końca strony (recenzja 2, B2);
@@ -112,13 +113,15 @@ for (const { path, lang, label, prefix, terms } of CASES) {
       expect(sets).toHaveLength(1);
       expect(sets[0].u.filter((url) => /legal-links/i.test(url))).toEqual([]);
       // ...i nie wkleił się do chunku wejściowego: tam jest tylko leniwy `import()`
-      // chunku listwy, bez wpisu w liście preloadu (`__vite__mapDeps`).
+      // chunku listwy, bez wpisu w liście preloadu (`__vite__mapDeps`). Minifikator
+      // Oxc drukuje specyfikator dynamicznego importu w backtickach, a lista
+      // `__vite__mapDeps` to `JSON.stringify` (cudzysłowy).
       const entry = await request.get(sets[0].e);
       expect(entry.status()).toBe(200);
       const entryCode = await entry.text();
       // Wartości logiczne, nie napis: porażka nie wypisuje do logu ~0,9 MB wejścia.
       expect(
-        /import\("\.\/legal-links-[\w-]+\.js"\)/.test(entryCode),
+        /import\(["'`]\.\/legal-links-[\w-]+\.js["'`]\)/.test(entryCode),
         "wejście ładuje listwę leniwym import()",
       ).toBe(true);
       expect(entryCode.includes("footer.legal_nav"), "klucz nazwy listwy w wejściu").toBe(false);

@@ -1,0 +1,571 @@
+// @vitest-environment node
+//
+// Grupy `codeSplitting` bundla przeglądarki (scripts/lib/clientChunkGroups.ts) - dwie warstwy
+// dowodu, bo żadna z nich nie wystarcza sama.
+//
+// 1. ZASADA PRIORYTETÓW NA ZAINSTALOWANYCH PAKIETACH. Grupa o wyższym priorytecie wybiera moduły
+//    pierwsza i zabiera ich statyczne zależności, więc priorytet grupy musi być WYŻSZY niż
+//    priorytet każdej grupy, której moduły ją importują - inaczej grupa połknie cudzy pakiet,
+//    a krawędź pobiegnie w drugą stronę (droga do cyklu chunków z 2026-07-20). Ręczna lista
+//    zależności starzałaby się po cichu przy każdym bumpie, więc graf bierzemy z `package.json`
+//    pakietów w node_modules, a dla grup kodu aplikacji - z ich importów w źródle.
+// 2. PRAWDZIWY BUILD Vite 8 na fiksturze o kształcie aplikacji: wejście pod ścieżką, którą łapie
+//    test grupy (pułapka 2026-08-06), barrel w kształcie `lucide-react`, CJS-owy React
+//    z `use-sync-external-store`, leniwe moduły z przypiętymi nazwami. Tego testy jednostkowe
+//    z atrapami grafu (dawny `bootVendorSplit.test.ts`) dać nie mogły: `$initial` liczy Rolldown,
+//    a o tym, kto zabiera zależność, decyduje jego algorytm, nie nasz kod.
+//
+// Granica dowodu: fikstura ma po kilka modułów na pakiet. Skład chunków na pełnym grafie
+// aplikacji pokazuje `BUNDLE_INVENTORY=1 bun run build && bun run report:chunk-inventory`,
+// a bramki po buildzie (check:chunks, check:entry-purity) pilnują go w CI.
+//
+// i18n: brak treści dla użytkownika - narzędzie CI.
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+
+import { build, type Rolldown } from "vite";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import {
+  CHUNK_PRIORITY,
+  CLIENT_CHUNK_GROUPS,
+  clientCodeSplitting,
+} from "../../../../scripts/lib/clientChunkGroups";
+
+type Group = Rolldown.CodeSplittingGroup;
+
+const REPO = process.cwd();
+const NODE_MODULES = join(REPO, "node_modules");
+
+const nameOf = (group: Group): string => {
+  if (!group.debugName) throw new Error("grupa bez debugName");
+  return group.debugName;
+};
+
+function matches(group: Group, id: string): boolean {
+  const { test } = group;
+  if (test instanceof RegExp) return test.test(id);
+  if (typeof test === "function") return test(id) === true;
+  throw new Error(`${nameOf(group)}: nieobsługiwany kształt \`test\``);
+}
+
+/**
+ * RODZINA = grupy o tym samym `test` (część bootowa `$initial` i reszta). Zależność wewnątrz
+ * rodziny rozstrzyga `$initial` (domknięcie statyczne), więc reguła priorytetów dotyczy krawędzi
+ * MIĘDZY rodzinami: najwyższy priorytet importującej < najniższego priorytetu importowanej.
+ */
+interface Family {
+  readonly names: readonly string[];
+  readonly min: number;
+  readonly max: number;
+}
+
+function familyOf(id: string): Family | undefined {
+  const hits = CLIENT_CHUNK_GROUPS.filter((group) => matches(group, id));
+  if (hits.length === 0) return undefined;
+  const test = hits[0]!.test;
+  const family = CLIENT_CHUNK_GROUPS.filter((group) => group.test === test);
+  expect(
+    hits.every((group) => group.test === test),
+    `${id} pasuje do grup z RÓŻNYCH rodzin: ${hits.map(nameOf).join(", ")}`,
+  ).toBe(true);
+  const priorities = family.map((group) => group.priority ?? 0);
+  return {
+    names: family.map(nameOf),
+    min: Math.min(...priorities),
+    max: Math.max(...priorities),
+  };
+}
+
+/** Reprezentatywne id modułu pakietu - testy grup patrzą wyłącznie na ścieżkę. */
+const packageModuleId = (pkg: string) => `${NODE_MODULES}/${pkg}/dist/index.mjs`;
+
+/** Zainstalowane pakiety najwyższego poziomu -> zależności runtime (deps + peers). */
+function installedPackages(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const read = (name: string) => {
+    try {
+      const pkg = JSON.parse(readFileSync(join(NODE_MODULES, name, "package.json"), "utf8")) as {
+        dependencies?: Record<string, string>;
+        peerDependencies?: Record<string, string>;
+      };
+      out.set(name, [
+        ...Object.keys(pkg.dependencies ?? {}),
+        ...Object.keys(pkg.peerDependencies ?? {}),
+      ]);
+    } catch {
+      // Katalog bez package.json (np. `.bin`, `.cache`) - nie pakiet.
+    }
+  };
+  for (const entry of readdirSync(NODE_MODULES)) {
+    if (entry.startsWith(".")) continue;
+    if (entry.startsWith("@")) {
+      for (const scoped of readdirSync(join(NODE_MODULES, entry))) read(`${entry}/${scoped}`);
+    } else {
+      read(entry);
+    }
+  }
+  return out;
+}
+
+/** Grupy kodu aplikacji -> plik modułu (test grupy musi go łapać - sprawdzane niżej). */
+const APP_GROUP_MODULES: Readonly<Record<string, string>> = {
+  "dynamic-icon": "src/lib/icons/DynamicIcon.tsx",
+  "legal-links": "src/components/footer/LegalLinks.tsx",
+  "vendor-sonner": "src/components/ui/sonner.tsx",
+  "club-thread-kind-icon": "src/components/clubs/atoms/ClubThreadKindIcon.tsx",
+};
+
+/** Specyfikatory importów WARTOŚCIOWYCH (bez `import type`/`export type`) w źródle modułu. */
+function valueImports(source: string): string[] {
+  const out: string[] = [];
+  const re = /(?:^|[\n;])\s*(import|export)(\s+type\b)?[^;]*?from\s*["']([^"']+)["']/g;
+  for (const match of source.matchAll(re)) if (!match[2]) out.push(match[3]!);
+  for (const match of source.matchAll(/(?:^|[\n;])\s*import\s*["']([^"']+)["']/g)) {
+    out.push(match[1]!);
+  }
+  return out;
+}
+
+/** Id modułu, na który wskazuje specyfikator importu z `file` (dla testów grup). */
+function importedId(file: string, specifier: string): string {
+  if (specifier.startsWith("@/")) return join(REPO, "src", specifier.slice(2));
+  if (specifier.startsWith(".")) return resolve(REPO, dirname(file), specifier);
+  const parts = specifier.split("/");
+  const pkg = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]!;
+  return packageModuleId(pkg);
+}
+
+describe("clientChunkGroups - konstrukcja grup", () => {
+  it("każda grupa ma unikalną nazwę i priorytet z tabeli, w kolejności priorytetów", () => {
+    const names = CLIENT_CHUNK_GROUPS.map(nameOf);
+    expect(new Set(names).size).toBe(names.length);
+    const allowed = new Set<number>(Object.values(CHUNK_PRIORITY));
+    const priorities = CLIENT_CHUNK_GROUPS.map((group) => group.priority);
+    for (const [i, priority] of priorities.entries()) {
+      expect(allowed.has(priority ?? Number.NaN), names[i]).toBe(true);
+      if (i > 0) expect(priority!, names[i]).toBeLessThanOrEqual(priorities[i - 1]!);
+    }
+  });
+
+  it("`name` każdej grupy wyjmuje moduł WEJŚCIOWY (pułapka zapadania się grupy)", () => {
+    for (const group of CLIENT_CHUNK_GROUPS) {
+      expect(typeof group.name, nameOf(group)).toBe("function");
+      if (typeof group.name !== "function") continue;
+      const ctx = (isEntry: boolean): Rolldown.ChunkingContext => ({
+        getModuleInfo: () => ({ isEntry }) as Rolldown.ModuleInfo,
+      });
+      expect(group.name("/repo/x.js", ctx(true)), nameOf(group)).toBeNull();
+      expect(group.name("/repo/x.js", ctx(false)), nameOf(group)).toBe(nameOf(group));
+    }
+  });
+
+  it("tag `$initial` mają WYŁĄCZNIE części bootowe rodzin, wyżej niż reszta rodziny", () => {
+    const tagged = CLIENT_CHUNK_GROUPS.filter((group) => group.tags?.includes("$initial"));
+    expect(tagged.map(nameOf)).toEqual(["vendor-lucide-boot", "vendor-radix-boot"]);
+    for (const boot of tagged) {
+      const rest = CLIENT_CHUNK_GROUPS.filter((g) => g.test === boot.test && g !== boot);
+      expect(rest.map(nameOf), nameOf(boot)).toEqual([nameOf(boot).replace(/-boot$/, "")]);
+      expect(boot.priority!).toBeGreaterThan(rest[0]!.priority!);
+    }
+  });
+
+  it("`clientCodeSplitting()` daje świeżą tablicę tych samych grup", () => {
+    const first = clientCodeSplitting();
+    expect(first.groups).toEqual([...CLIENT_CHUNK_GROUPS]);
+    expect(first.groups).not.toBe(clientCodeSplitting().groups);
+  });
+
+  it("reguły pakietów: zagnieżdżona kopia prymitywu radixa i zagnieżdżony zod", () => {
+    // Ciężka kontrolka po OSTATNIM segmencie node_modules: prymityw zagnieżdżony pod pakietem
+    // `react-select` zostaje w rodzinie; tylko zod najwyższego poziomu ma własną grupę.
+    const nested = `${NODE_MODULES}/@radix-ui/react-select/node_modules/@radix-ui/react-primitive/dist/index.mjs`;
+    expect(familyOf(nested)?.names).toEqual(["vendor-radix-boot", "vendor-radix"]);
+    expect(familyOf(packageModuleId("@radix-ui/react-context-menu"))?.names).toEqual([
+      "vendor-radix-menu",
+    ]);
+    expect(familyOf(packageModuleId("zod"))?.names).toEqual(["vendor-zod"]);
+    expect(
+      familyOf(`${NODE_MODULES}/@tanstack/react-start/node_modules/zod/index.js`),
+    ).toBeUndefined();
+    // Bootstrap Start ŚWIADOMIE poza grupami (nagłówek grupy vendor-tanstack).
+    expect(familyOf(packageModuleId("@tanstack/react-start"))).toBeUndefined();
+    expect(familyOf(packageModuleId("@tanstack/start-client-core"))).toBeUndefined();
+  });
+});
+
+describe("clientChunkGroups - zasada priorytetów na zainstalowanym grafie", () => {
+  const packages = installedPackages();
+
+  it("pakiety grup importują wyłącznie grupy o WYŻSZYM priorytecie", () => {
+    const violations: string[] = [];
+    let edges = 0;
+    for (const [pkg, deps] of packages) {
+      const from = familyOf(packageModuleId(pkg));
+      if (!from) continue;
+      for (const dep of deps) {
+        if (!packages.has(dep)) continue;
+        const to = familyOf(packageModuleId(dep));
+        if (!to || to.names.join() === from.names.join()) continue;
+        edges++;
+        if (!(from.max < to.min)) {
+          violations.push(`${pkg} (${from.names.join("/")}) -> ${dep} (${to.names.join("/")})`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+    // Kontrola, że skan cokolwiek zmierzył (np. react-i18next -> react, radix -> react).
+    expect(edges).toBeGreaterThan(20);
+  });
+
+  it("pakiety, których wymaga reguła, są zainstalowane (inaczej test nic nie mierzy)", () => {
+    for (const pkg of [
+      "react",
+      "react-dom",
+      "use-sync-external-store",
+      "@tanstack/react-router",
+      "@tanstack/router-core",
+      "@supabase/supabase-js",
+      "react-i18next",
+      "lucide-react",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-context-menu",
+      "@radix-ui/react-menu",
+      "sonner",
+      "jszip",
+    ]) {
+      expect(packages.has(pkg), pkg).toBe(true);
+      expect(familyOf(packageModuleId(pkg)), pkg).toBeDefined();
+    }
+  });
+
+  it("moduły grup aplikacji importują wyłącznie grupy o WYŻSZYM priorytecie", () => {
+    const byName = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group]));
+    expect(Object.keys(APP_GROUP_MODULES).sort()).toEqual(
+      CLIENT_CHUNK_GROUPS.filter((group) => (group.priority ?? 0) <= CHUNK_PRIORITY.appBoot)
+        .map(nameOf)
+        .sort(),
+    );
+    const violations: string[] = [];
+    for (const [name, file] of Object.entries(APP_GROUP_MODULES)) {
+      const group = byName.get(name)!;
+      expect(matches(group, join(REPO, file)), `${name} nie łapie ${file}`).toBe(true);
+      const imports = valueImports(readFileSync(join(REPO, file), "utf8"));
+      expect(imports.length, file).toBeGreaterThan(0);
+      for (const specifier of imports) {
+        const id = importedId(file, specifier);
+        const target = familyOf(id) ?? familyOf(`${id}.tsx`) ?? familyOf(`${id}.ts`);
+        // Import spoza grup (moduł aplikacji) trafiłby DO TEJ grupy jako jej zależność -
+        // moduły przypięte mają importować tylko vendorów i inne grupy.
+        if (!target) {
+          violations.push(`${file}: "${specifier}" spoza grup`);
+          continue;
+        }
+        // Ta sama grupa (opakowanie `ui/sonner.tsx` -> biblioteka `sonner`) - jeden chunk.
+        if (target.names.includes(name)) continue;
+        if (!((group.priority ?? 0) < target.min)) {
+          violations.push(`${file} (${name}) -> "${specifier}" (${target.names.join("/")})`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+});
+
+// ── PRAWDZIWY BUILD ──────────────────────────────────────────────────────────────────────────
+
+/** Wejście pod `@tanstack/react-router/` - ścieżka, którą łapie test grupy vendor-tanstack. */
+const ENTRY = "node_modules/@tanstack/react-router/dist/fixture-entry.js";
+
+const pkgJson = (name: string, main: string, extra: object = {}) =>
+  JSON.stringify({ name, version: "0.0.0", main, module: main, ...extra });
+const esm = { type: "module", sideEffects: false };
+
+const icon = (name: string) =>
+  `import createLucideIcon from '../createLucideIcon.js';\n` +
+  `const Icon = createLucideIcon(${JSON.stringify(name)}, [["path", { d: "M0 0" }]]);\n` +
+  "export { Icon as default };\n";
+
+const FILES: Record<string, string> = {
+  // React jako CJS (jak prawdziwy) - interop wymaga modułu pomocniczego Rolldowna.
+  "node_modules/react/package.json": pkgJson("react", "index.js"),
+  "node_modules/react/index.js":
+    '"use strict";\nexports.createElement = function (t, p) { return { t, p }; };\n' +
+    'exports.version = "fixture-" + globalThis.__v;\n',
+  "node_modules/use-sync-external-store/package.json": pkgJson(
+    "use-sync-external-store",
+    "index.js",
+  ),
+  "node_modules/use-sync-external-store/shim/index.js":
+    '"use strict";\nvar React = require("react");\n' +
+    "exports.useSyncExternalStore = function () { return React.version; };\n",
+  [ENTRY]:
+    'import { start } from "../../../../src/app.js";\nimport { Link } from "./index.js";\n' +
+    "start(Link);\n",
+  "node_modules/@tanstack/react-router/package.json": pkgJson(
+    "@tanstack/react-router",
+    "dist/index.js",
+    esm,
+  ),
+  "node_modules/@tanstack/react-router/dist/index.js":
+    'import { coreValue } from "@tanstack/router-core";\nexport const Link = () => coreValue();\n',
+  "node_modules/@tanstack/router-core/package.json": pkgJson(
+    "@tanstack/router-core",
+    "dist/index.js",
+    esm,
+  ),
+  "node_modules/@tanstack/router-core/dist/index.js":
+    'import { serialize } from "seroval";\nexport const coreValue = () => serialize("router-core");\n',
+  "node_modules/seroval/package.json": pkgJson("seroval", "index.js", esm),
+  "node_modules/seroval/index.js":
+    "export const serialize = (v) => JSON.stringify(v) + globalThis.__seroval;\n",
+  "node_modules/react-i18next/package.json": pkgJson("react-i18next", "index.js", esm),
+  "node_modules/react-i18next/index.js":
+    'import { createElement } from "react";\n' +
+    'export const useTranslation = () => createElement("i18n-" + globalThis.__t);\n',
+  "node_modules/sonner/package.json": pkgJson("sonner", "index.js", esm),
+  "node_modules/sonner/index.js":
+    'import { createElement } from "react";\n' +
+    'export const Toaster = () => createElement("sonner-" + globalThis.__s);\n',
+  // Barrel w kształcie lucide-react 0.5xx: przestrzeń nazw `icons` + nazwane re-eksporty.
+  "node_modules/lucide-react/package.json": pkgJson(
+    "lucide-react",
+    "dist/esm/lucide-react.js",
+    esm,
+  ),
+  "node_modules/lucide-react/dist/esm/lucide-react.js":
+    "import * as index from './icons/index.js';\nexport { index as icons };\n" +
+    "export { default as Check, default as CheckIcon } from './icons/check.js';\n" +
+    "export { default as Trash2 } from './icons/trash-2.js';\n" +
+    "export { default as Unused } from './icons/unused.js';\n" +
+    "export { default as createLucideIcon } from './createLucideIcon.js';\n" +
+    "export { default as Icon } from './Icon.js';\n",
+  "node_modules/lucide-react/dist/esm/icons/index.js":
+    "export { default as Check } from './check.js';\n" +
+    "export { default as Trash2 } from './trash-2.js';\n" +
+    "export { default as Unused } from './unused.js';\n",
+  "node_modules/lucide-react/dist/esm/icons/check.js": icon("lucide-check"),
+  "node_modules/lucide-react/dist/esm/icons/trash-2.js": icon("lucide-trash-2"),
+  "node_modules/lucide-react/dist/esm/icons/unused.js": icon("lucide-unused"),
+  "node_modules/lucide-react/dist/esm/createLucideIcon.js":
+    "import { createElement } from 'react';\nimport Icon from './Icon.js';\n" +
+    "const createLucideIcon = (name, node) => () => createElement(Icon, { name, node });\n" +
+    "export { createLucideIcon as default };\n",
+  "node_modules/lucide-react/dist/esm/Icon.js":
+    "import { createElement } from 'react';\n" +
+    'const Icon = (props) => createElement("svg-" + globalThis.__i, props);\n' +
+    "export { Icon as default };\n",
+  "node_modules/@radix-ui/react-slot/package.json": pkgJson(
+    "@radix-ui/react-slot",
+    "dist/index.mjs",
+    esm,
+  ),
+  "node_modules/@radix-ui/react-slot/dist/index.mjs":
+    'import { composeRefs } from "@radix-ui/react-compose-refs";\n' +
+    'import { createElement } from "react";\n' +
+    'export const Slot = (p) => createElement("radix-slot", composeRefs(p));\n',
+  "node_modules/@radix-ui/react-compose-refs/package.json": pkgJson(
+    "@radix-ui/react-compose-refs",
+    "dist/index.mjs",
+    esm,
+  ),
+  "node_modules/@radix-ui/react-compose-refs/dist/index.mjs":
+    "export const composeRefs = (p) => [p, globalThis.__refs];\n",
+  // Niebootowy radix: zależy od części bootowej rodziny i od `use-sync-external-store`
+  // (incydent 2026-07-20 - shim rozdzielony od Reacta).
+  "node_modules/@radix-ui/react-dialog/package.json": pkgJson(
+    "@radix-ui/react-dialog",
+    "dist/index.mjs",
+    esm,
+  ),
+  "node_modules/@radix-ui/react-dialog/dist/index.mjs":
+    'import { Slot } from "@radix-ui/react-slot";\n' +
+    'import { useSyncExternalStore } from "use-sync-external-store/shim";\n' +
+    'import { createElement } from "react";\n' +
+    'export const Dialog = () => createElement(Slot, { dialog: "radix-dialog", v: useSyncExternalStore() });\n',
+  "src/app.js":
+    'import { Check } from "lucide-react";\nimport { Slot } from "@radix-ui/react-slot";\n' +
+    'import { DynamicIcon } from "./lib/icons/DynamicIcon.tsx";\n' +
+    "export function start(link) {\n" +
+    "  globalThis.__fixture = [link, Check, Slot, DynamicIcon,\n" +
+    '    () => import("./components/footer/LegalLinks.tsx"),\n' +
+    '    () => import("./routes/lazy.js"),\n' +
+    '    () => import("./components/ui/sonner.tsx")];\n' +
+    "}\n",
+  "src/lib/icons/DynamicIcon.tsx":
+    'import { Check } from "lucide-react";\n' +
+    'export const DynamicIcon = () => [Check, () => import("./DynamicIconChunk.js")];\n',
+  "src/lib/icons/DynamicIconChunk.js": 'export default () => "dynamic-icon-chunk";\n',
+  "src/components/footer/LegalLinks.tsx":
+    'import { Link } from "@tanstack/react-router";\nimport { useTranslation } from "react-i18next";\n' +
+    'export default function LegalLinks() { return [Link, useTranslation(), "legal-links-fixture"]; }\n',
+  "src/routes/lazy.js":
+    'import { Trash2 } from "lucide-react";\nimport { Dialog } from "@radix-ui/react-dialog";\n' +
+    'import { ClubThreadKindIcon } from "../components/clubs/atoms/ClubThreadKindIcon.tsx";\n' +
+    "export default () => [Trash2, Dialog, ClubThreadKindIcon];\n",
+  "src/components/clubs/atoms/ClubThreadKindIcon.tsx":
+    'import { Trash2 } from "lucide-react";\n' +
+    'import { DynamicIcon } from "../../../lib/icons/DynamicIcon.tsx";\n' +
+    "export const ClubThreadKindIcon = () => [Trash2, DynamicIcon];\n",
+  "src/components/ui/sonner.tsx":
+    'import { useTranslation } from "react-i18next";\nimport { Toaster } from "sonner";\n' +
+    "export default () => [Toaster, useTranslation()];\n",
+};
+
+let workspace = "";
+let runs = 0;
+
+beforeAll(() => {
+  workspace = mkdtempSync(join(tmpdir(), "nes-client-chunk-groups-"));
+});
+
+afterAll(() => {
+  if (workspace) rmSync(workspace, { recursive: true, force: true });
+});
+
+interface Built {
+  readonly chunks: Rolldown.OutputChunk[];
+  /** Nazwa chunku (`[name]`) -> chunk; nazwy w tej fiksturze są unikalne. */
+  readonly byName: Map<string, Rolldown.OutputChunk>;
+  /** Nazwa chunku, w którym jest moduł o danym sufiksie id. */
+  readonly ownerOf: (suffix: string) => string | undefined;
+  readonly entry: Rolldown.OutputChunk;
+}
+
+/** Buduje fiksturę jak bundel klienta produkcji: Oxc, bez hoistowania, wejście `index`. */
+async function buildFixture(groups: Group[]): Promise<Built> {
+  const root = join(workspace, `app-${++runs}`);
+  for (const [file, content] of Object.entries(FILES)) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), content);
+  }
+  const result = await build({
+    configFile: false,
+    envFile: false,
+    root,
+    publicDir: false,
+    logLevel: "silent",
+    build: {
+      write: false,
+      minify: "oxc",
+      modulePreload: { polyfill: false },
+      rolldownOptions: {
+        input: { index: join(root, ENTRY) },
+        output: { hoistTransitiveImports: false, codeSplitting: { groups } },
+      },
+    },
+  });
+  const outputs = (Array.isArray(result) ? result : [result]) as Rolldown.RolldownOutput[];
+  const chunks = outputs
+    .flatMap((o) => o.output)
+    .filter((o): o is Rolldown.OutputChunk => o.type === "chunk");
+  const byName = new Map(chunks.map((chunk) => [chunk.name, chunk]));
+  expect(byName.size, "nazwy chunków fikstury mają być unikalne").toBe(chunks.length);
+  const entry = chunks.find((chunk) => chunk.isEntry);
+  if (!entry) throw new Error("build bez chunku wejściowego");
+  const ownerOf = (suffix: string) =>
+    chunks.find((chunk) => chunk.moduleIds.some((id) => id.endsWith(suffix)))?.name;
+  return { chunks, byName, ownerOf, entry };
+}
+
+const nameOfFile = (built: Built, file: string) =>
+  built.chunks.find((chunk) => chunk.fileName === file)?.name ?? file;
+
+describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
+  let built: Built;
+  const priority = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group.priority!]));
+
+  beforeAll(async () => {
+    built = await buildFixture(clientCodeSplitting().groups ?? []);
+  });
+
+  it("wejście pod ścieżką grupy zostaje w `index`, a grupa vendor-tanstack powstaje", () => {
+    expect(built.entry.name).toBe("index");
+    expect(built.ownerOf("/dist/fixture-entry.js")).toBe("index");
+    expect(built.ownerOf("/src/app.js")).toBe("index");
+    expect(built.ownerOf("/@tanstack/react-router/dist/index.js")).toBe("vendor-tanstack");
+    expect(built.ownerOf("/@tanstack/router-core/dist/index.js")).toBe("vendor-tanstack");
+    // Domknięcie: zależność routera spoza listy pakietów idzie za nim, nie do wejścia.
+    expect(built.ownerOf("/seroval/index.js")).toBe("vendor-tanstack");
+  });
+
+  it("React i `use-sync-external-store` w vendor-react - także gdy pierwszy sięga po nie radix", () => {
+    expect(built.ownerOf("/react/index.js")).toBe("vendor-react");
+    expect(built.ownerOf("/use-sync-external-store/shim/index.js")).toBe("vendor-react");
+  });
+
+  it("`$initial` dzieli barrel lucide po FAKTYCZNIE użytych ikonach", () => {
+    expect(built.ownerOf("/icons/check.js")).toBe("vendor-lucide-boot");
+    expect(built.ownerOf("/createLucideIcon.js")).toBe("vendor-lucide-boot");
+    expect(built.ownerOf("/lucide-react/dist/esm/Icon.js")).toBe("vendor-lucide-boot");
+    // Ikona re-eksportowana przez barrel, ale importowana tylko leniwie - poza bootem.
+    expect(built.ownerOf("/icons/trash-2.js")).toBe("vendor-lucide");
+    // Ikony nieużytej nie ma w żadnym chunku.
+    for (const chunk of built.chunks) {
+      expect(chunk.code, chunk.fileName).not.toContain("lucide-unused");
+    }
+  });
+
+  it("radix: część bootowa = domknięcie statyczne z wejścia, reszta osobno", () => {
+    expect(built.ownerOf("/@radix-ui/react-slot/dist/index.mjs")).toBe("vendor-radix-boot");
+    expect(built.ownerOf("/@radix-ui/react-compose-refs/dist/index.mjs")).toBe("vendor-radix-boot");
+    expect(built.ownerOf("/@radix-ui/react-dialog/dist/index.mjs")).toBe("vendor-radix");
+  });
+
+  it("przypięte moduły aplikacji mają własne chunki o stałych nazwach", () => {
+    expect(built.ownerOf("/src/lib/icons/DynamicIcon.tsx")).toBe("dynamic-icon");
+    // Helper preloadu Vite (moduł ma `import()`) idzie za `DynamicIcon`, jak na Rollupie.
+    expect(built.ownerOf("vite/preload-helper.js")).toBe("dynamic-icon");
+    expect(built.ownerOf("/src/components/footer/LegalLinks.tsx")).toBe("legal-links");
+    expect(built.ownerOf("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")).toBe(
+      "club-thread-kind-icon",
+    );
+    expect(built.ownerOf("/src/components/ui/sonner.tsx")).toBe("vendor-sonner");
+    expect(built.ownerOf("/sonner/index.js")).toBe("vendor-sonner");
+    expect(built.ownerOf("/react-i18next/index.js")).toBe("vendor-i18n");
+  });
+
+  it("wejście NIE importuje statycznie niczego spoza bootu, a listwę ładuje leniwie", () => {
+    const staticImports = built.entry.imports.map((file) => nameOfFile(built, file));
+    for (const lazy of ["vendor-lucide", "vendor-radix", "legal-links", "club-thread-kind-icon"]) {
+      expect(staticImports, lazy).not.toContain(lazy);
+    }
+    expect(staticImports).toEqual(
+      expect.arrayContaining(["vendor-lucide-boot", "vendor-radix-boot", "dynamic-icon"]),
+    );
+    const dynamicImports = built.entry.dynamicImports.map((file) => nameOfFile(built, file));
+    expect(dynamicImports).toContain("legal-links");
+    expect(built.byName.get("legal-links")!.moduleIds.map((id) => id.slice(-30))).toEqual([
+      expect.stringMatching(/\/LegalLinks\.tsx$/),
+    ]);
+  });
+
+  it("krawędzie między grupami biegną WYŁĄCZNIE do wyższego priorytetu", () => {
+    const violations: string[] = [];
+    let edges = 0;
+    for (const chunk of built.chunks) {
+      const from = priority.get(chunk.name);
+      if (from === undefined) continue;
+      for (const file of chunk.imports) {
+        const target = nameOfFile(built, file);
+        expect(target, `${chunk.name} importuje chunk wejściowy`).not.toBe("index");
+        const to = priority.get(target);
+        if (to === undefined) continue;
+        edges++;
+        if (!(to > from)) violations.push(`${chunk.name} (${from}) -> ${target} (${to})`);
+      }
+    }
+    expect(violations).toEqual([]);
+    expect(edges).toBeGreaterThan(5);
+  });
+
+  it("dowód pułapki: grupa z nazwą-napisem zapada się w chunk wejściowy", async () => {
+    // Te same grupy, ale bez wyjątku dla modułu wejściowego. Gdyby Rolldown przestał zapadać
+    // grupę, ten przypadek się zapali - wtedy wyjątek w `name` można uprościć.
+    const naive = CLIENT_CHUNK_GROUPS.map((group) => ({ ...group, name: nameOf(group) }));
+    const trapped = await buildFixture(naive);
+    expect(trapped.byName.has("vendor-tanstack")).toBe(false);
+    expect(trapped.ownerOf("/@tanstack/router-core/dist/index.js")).toBe("index");
+  });
+});

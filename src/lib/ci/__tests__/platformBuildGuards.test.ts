@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { adminCssPlugin } from "../../../../scripts/lib/adminCssPlugin";
-import type { Plugin, ResolvedConfig } from "vite";
+import { minifySync, type Plugin, type ResolvedConfig } from "vite";
 const root = process.cwd();
 const scratch: string[] = [];
 function temp() {
@@ -84,24 +84,28 @@ function fixture() {
   put(dir, "assets/styles-AbCd1234.css", "body{color:black}");
   return dir;
 }
-function gate(dir: string, flags: string[] = [], env: Record<string, string> = {}) {
-  const result = spawnSync(
-    process.env.BUN_EXECUTABLE ?? "bun",
-    [resolve(root, "scripts/check-bundle-size.ts"), ...flags],
-    {
-      cwd: dir,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        CI: "false",
-        CLIENT_DIR: join(dir, "assets"),
-        ENTRY_CHUNKS: "index-ABCabc12.js",
-        ...env,
-      },
+function runGate(
+  script: string,
+  dir: string,
+  flags: string[] = [],
+  env: Record<string, string> = {},
+) {
+  const result = spawnSync(process.env.BUN_EXECUTABLE ?? "bun", [resolve(root, script), ...flags], {
+    cwd: dir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CI: "false",
+      CLIENT_DIR: join(dir, "assets"),
+      ENTRY_CHUNKS: "index-ABCabc12.js",
+      ...env,
     },
-  );
+  });
   if (result.error) throw result.error;
   return { status: result.status, output: result.stdout + result.stderr };
+}
+function gate(dir: string, flags: string[] = [], env: Record<string, string> = {}) {
+  return runGate("scripts/check-bundle-size.ts", dir, flags, env);
 }
 const entropy = () =>
   Array.from({ length: 1700 }, (_, i) => createHash("sha256").update(String(i)).digest("hex")).join(
@@ -138,11 +142,33 @@ describe("bundle gate on emitted artifact fixtures", () => {
     const result = gate(dir, ["--update-baseline"]);
     expect(result.status, result.output).toBe(0);
     const baseline = JSON.parse(readFileSync(join(dir, "reports/bundle-baseline.json"), "utf8"));
-    expect(baseline.bucketConvention).toBe(2);
+    expect(baseline.bucketConvention).toBe(3);
     expect(baseline.chunks).toHaveProperty("vendor-react");
     expect(baseline.chunks).toHaveProperty("vendor-tw-merge");
     expect(baseline.chunks).not.toHaveProperty("vendor");
     expect(baseline.totals.publicCss).toBeDefined();
+  });
+  it("reads a Rollup-era baseline (convention 2) with current bucket names plus a note", () => {
+    // Konwencja 3 (Vite 8 / Rolldown) nie zmienia `stableChunkName()`, tylko nazwy nadawane
+    // przez bundler - baseline 2 nie może więc wpaść w łapczywy tryb konwencji 1 (`vendor`).
+    const dir = fixture();
+    put(
+      dir,
+      "reports/bundle-baseline.json",
+      JSON.stringify({
+        measuredAt: "2026-10-01T00:00:00.000Z",
+        commit: "rollup",
+        bucketConvention: 2,
+        totals: { public: 0, overall: 0, chunk: 0 },
+        chunks: { index: 0.1, "vendor-react": 0.1, "vendor-tw-merge": 0.1, lazy: 0.1 },
+      }),
+    );
+    put(dir, "assets/vendor-react-AbCd1234.js", `export const data="${entropy()}";`);
+    const result = gate(dir, [], { MAX_BOOT_KB: "1" });
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("baseline z epoki Rollupa");
+    expect(result.output).not.toContain("STARĄ konwencją");
+    expect(result.output).toMatch(/ KB {2}vendor-react {2}\(/);
   });
   it("ignores attempts to relax frozen CI thresholds", () => {
     const dir = fixture();
@@ -164,5 +190,68 @@ describe("bundle gate on emitted artifact fixtures", () => {
       expect(frozen, `brak noty o zamrożonym progu ${name}`).not.toBeNull();
       expect(result.output).toContain(`budget ≤ ${frozen?.[1]} KB`);
     }
+  });
+});
+
+// Korzeń bootu bez `ENTRY_CHUNKS`, czyli tak, jak bramki pracują w CI: z mapy `nesBootManifest`
+// w artefakcie serwera. Na Vite 8 worker minifikuje Oxc (wartości w backtickach), a Nitro na
+// Rolldownie sam nadaje nazwy chunkom, więc moduł mapy nie musi leżeć w katalogu głównym
+// `.output/server`. `node_modules` artefaktu to kopie zależności runtime'u Nitro - skan ma je
+// pomijać. Same wzorce wobec wyjścia Oxc: chunkGateRegexes.test.ts; tu przebieg CAŁEJ bramki.
+describe("boot root from the server artifact (Oxc-minified, nested Nitro chunks)", () => {
+  /** Moduł mapy bootu (`scripts/lib/bootAfterLcpPlugin.ts`) po minifikacji Oxc. */
+  const bootManifestModule = (entry: string) =>
+    minifySync(
+      "manifest.mjs",
+      `export const nesBootManifest = ${JSON.stringify({
+        entry: `/assets/${entry}`,
+        rootPreloads: [`/assets/${entry}`],
+        routePreloads: {},
+      })};\n`,
+    ).code;
+  function serverFixture() {
+    const dir = fixture();
+    const manifest = bootManifestModule("index-ABCabc12.js");
+    expect(manifest).toContain("entry:`/assets/index-ABCabc12.js`");
+    put(dir, ".output/server/_ssr/start-manifest-AbCd1234.mjs", manifest);
+    // Wabik: gdyby skan wszedł do `node_modules`, korzeniem stałby się ciężki chunk spoza grafu
+    // wejścia.
+    put(dir, "assets/heavy-QwEr5678.js", `export const data="${entropy()}";`);
+    put(
+      dir,
+      ".output/server/node_modules/decoy/index.mjs",
+      bootManifestModule("heavy-QwEr5678.js"),
+    );
+    return dir;
+  }
+  const noOverride = { ENTRY_CHUNKS: "" };
+
+  it("check:bundle finds the nested manifest and skips the artifact's node_modules", () => {
+    const dir = serverFixture();
+    const found = gate(dir, [], { ...noOverride, MAX_BOOT_KB: "1" });
+    expect(found.status, found.output).toBe(0);
+    rmSync(join(dir, ".output/server/_ssr"), { recursive: true });
+    const missing = gate(dir, [], noOverride);
+    expect(missing.status).toBe(1);
+    expect(missing.output).toContain("Nie udalo sie ustalic chunku startowego");
+  });
+
+  it("check:entry-purity uses the same root and rejects a pinned lazy chunk in the boot closure", () => {
+    const dir = serverFixture();
+    const purity = () => runGate("scripts/check-entry-purity.ts", dir, [], noOverride);
+    const clean = purity();
+    expect(clean.status, clean.output).toBe(0);
+    expect(clean.output).toContain("Sciezka bootowania: index-ABCabc12.js -> 2 chunkow");
+    // `legal-links` jest leniwy z definicji (grupa w scripts/lib/clientChunkGroups.ts): statyczna
+    // krawędź z wejścia to błąd priorytetu grupy albo zgubiony `import()`.
+    put(dir, "assets/legal-links-LgLn1234.js", "export default 1;");
+    put(
+      dir,
+      "assets/index-ABCabc12.js",
+      'import "./vendor-react-AbCd1234.js";import"./legal-links-LgLn1234.js";import(`./lazy-ZyxW4321.js`);',
+    );
+    const dirty = purity();
+    expect(dirty.status).toBe(1);
+    expect(dirty.output).toContain("legal-links (chunk spoza bootu)");
   });
 });

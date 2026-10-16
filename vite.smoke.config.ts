@@ -1,5 +1,5 @@
-import { routeSplitBehavior } from "./scripts/lib/routeCodeSplitting";
-import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
+import { routeSplitBehavior } from "./scripts/lib/routeCodeSplitting.ts";
+import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin.ts";
 // Wariant SMOKE-TESTOWY builda: identyczna konfiguracja jak vite.config.ts,
 // ale nitro celuje w node-server zamiast cloudflare-module, więc produkcyjny
 // artefakt da się uruchomić lokalnie (node .output/server/index.mjs) i
@@ -21,14 +21,18 @@ import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 //     error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
-import type { Rollup } from "vite";
-import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
-import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
-import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
-import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
-import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
-import { staticCssPlugin } from "./scripts/lib/staticCssPlugin";
-import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
+import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin.ts";
+import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin.ts";
+import { adminCssPlugin } from "./scripts/lib/adminCssPlugin.ts";
+import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim.ts";
+import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
+import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
+import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
+import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
+import {
+  browserBaselineLightningcssTargets,
+  browserBaselineTarget,
+} from "./scripts/lib/browserBaseline.ts";
 
 // Identyfikator buildu dla kluczy L2 (P3.6a): segment kluczy dokumentów i migawek danych w
 // Cache API kolonii (`l2BuildId()` w src/lib/http/documentCacheL2.server.ts), więc HTML i dane
@@ -77,6 +81,8 @@ export default defineConfig({
       bootAfterLcpPlugin(),
       // Parytet z vite.config.ts: zminifikowane statyczne literały CSS (P3.7a).
       staticCssPlugin(),
+      // Parytet z vite.config.ts: `keepNames` dla buildu w trybie development.
+      devBuildKeepNamesPlugin(),
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
@@ -95,35 +101,39 @@ export default defineConfig({
         "@tanstack/router-core",
         "@tanstack/router-core/ssr/client",
         "@tanstack/router-core/ssr/server",
-        "h3-v2",
         "seroval",
       ],
     },
-    // Minifikacja wszystkich środowisk builda esbuildem - lustrzane odbicie
-    // vite.config.ts (2026-07-24; historia OOM i uzasadnienie tam).
+    // Minifikacja wszystkich środowisk builda Oxc-iem - lustrzane odbicie
+    // vite.config.ts (2026-07-24; historia OOM i uzasadnienie tam), z tym samym
+    // celem CSS i tą samą transformacją arkuszy (baza przeglądarek Vite 7,
+    // scripts/lib/browserBaseline.ts).
     //
     // `external: cloudflare:*` - waitUntil.server.ts robi dynamiczny import
     // `cloudflare:workers` (za try/catch); preset cloudflare stubuje ten
-    // specyfikator, ale node-server próbuje go rozwiązać rollupem (esbuild po
-    // minifikacji inline'uje zmienną specyfikatora, więc @vite-ignore znika)
-    // i cały build nitro pada. Externalizacja odtwarza kontrakt runtime'owy:
-    // na Node import rzuca, moduł łapie wyjątek i degraduje do
-    // fire-and-forget - dokładnie tak, jak opisuje to waitUntil.server.ts.
+    // specyfikator, ale node-server próbuje go rozwiązać bundlerem (minifikator -
+    // Oxc, wcześniej esbuild - inline'uje zmienną specyfikatora, więc @vite-ignore
+    // znika) i cały build nitro pada. Externalizacja odtwarza kontrakt runtime'owy:
+    // na Node import rzuca, moduł łapie wyjątek i degraduje do fire-and-forget -
+    // dokładnie tak, jak opisuje to waitUntil.server.ts.
     build: {
-      minify: "esbuild",
-      rollupOptions: {
+      minify: "oxc",
+      cssTarget: browserBaselineTarget(),
+      rolldownOptions: {
         external: [/^cloudflare:/],
       },
     },
-    // Do not set top-level Rollup `manualChunks` here. This config is shared by
-    // the browser and Cloudflare server environments; forcing vendor chunks at
-    // this level also splits the Worker entry into files that are not available
-    // to the deployed runtime, so module initialization fails and every route
-    // becomes an opaque h3 HTTPError 500. TanStack's route-level splitting and
-    // Vite's client defaults still provide safe browser code splitting.
+    css: { lightningcss: { targets: browserBaselineLightningcssTargets() } },
+    // Do not set top-level `codeSplitting` (formerly Rollup `manualChunks`) here.
+    // This config is shared by the browser and Cloudflare server environments;
+    // forcing vendor chunks at this level also splits the Worker entry into files
+    // that are not available to the deployed runtime, so module initialization
+    // fails and every route becomes an opaque h3 HTTPError 500. TanStack's
+    // route-level splitting and the bundler's client defaults still provide safe
+    // browser code splitting.
     //
-    // Vendor split ONLY for the browser bundle, scoped via the Vite 7
-    // environments API to the "client" environment (TanStack Start's
+    // Vendor split ONLY for the browser bundle, scoped via the Vite environments
+    // API to the "client" environment (TanStack Start's
     // VITE_ENVIRONMENT_NAMES.client) - the Worker/server build above stays a
     // single self-contained entry, so the 2026 h3-500 incident cannot recur.
     // Why: without it every shared dependency collapses into one giant entry
@@ -134,9 +144,9 @@ export default defineConfig({
     environments: {
       client: {
         build: {
-          // Przywraca minifikację bundla przeglądarki (patrz komentarz przy
-          // top-level `minify: false`, które jest dla SSR/workera).
-          minify: "esbuild",
+          // Ten sam minifikator i ta sama baza przeglądarek co vite.config.ts.
+          minify: "oxc",
+          target: browserBaselineTarget(),
           // Listwa prawna stopki (`legal-links`, leniwy chunk wyspy stopki) BEZ
           // preloadu zależności: importuje wyłącznie `vendor-react`,
           // `vendor-tanstack` i `vendor-i18n`, które leżą w domknięciu bootu,
@@ -149,193 +159,12 @@ export default defineConfig({
             resolveDependencies: (file: string, deps: string[]) =>
               /(?:^|\/)legal-links-[\w-]+\.js$/.test(file) ? [] : deps,
           },
-          rollupOptions: {
+          rolldownOptions: {
             output: {
-              // Bez hoistowania importów tranzytywnych: nagłówki chunków
-              // zawierają wtedy wyłącznie PRAWDZIWE krawędzie modułów, więc
-              // graf inicjalizacji jest deterministyczny i audytowalny
-              // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
-              // dynamic importach) pokrywa modulepreload z mapDeps.
+              // Kontrakt check:chunks i podział z JEDNEGO modułu - uzasadnienie
+              // w vite.config.ts i w scripts/lib/clientChunkGroups.ts.
               hoistTransitiveImports: false,
-              // Coalesce tiny automatic chunks when Rollup can preserve their
-              // loading/side-effect semantics. Keep both presets identical;
-              // startup size, graph and browser boot remain blocking gates.
-              experimentalMinChunkSize: 2048,
-              manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
-                // Keep the lazy toaster with its SDK: automatic merging of
-                // tiny chunks must not pull Sonner back into the boot entry.
-                if (id.endsWith("/src/components/ui/sonner.tsx")) return "vendor-sonner";
-                // Ta sama klasa (fala 2, 2026-10-05): 1,5-kilobajtowy atom ikon rodzaju
-                // wątku klubu po zmianie importów w main wpadł przez łączenie małych
-                // chunków do chunku wejściowego i pociągnął za sobą cały `vendor-lucide`
-                // (+18 KB gzip w domknięciu bootu każdej strony). Nazwany chunk nie
-                // podlega łączeniu, ale Rollup dokłada do niego każdą statyczną
-                // zależność spoza INNYCH nazwanych chunków - bez osobnego chunku
-                // `DynamicIcon` (zależność atomu, używana też przez chrome) zostałby
-                // wciągnięty do chunku atomu i wejście importowałoby go stamtąd.
-                // `dynamic-icon` jest w boocie jak dotąd `DynamicIcon` w `index-*`
-                // (wraz z helperem preloadu Vite, który ten moduł wnosi).
-                if (id.endsWith("/src/lib/icons/DynamicIcon.tsx")) return "dynamic-icon";
-                if (id.endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")) {
-                  return "club-thread-kind-icon";
-                }
-                // Listwa prawna stopki (`LegalLinks`, ~1 KB) jest leniwym chunkiem
-                // wyspy stopki, a serwer renderuje ją statycznie. Bez nazwy łączenie
-                // małych chunków wkleiło ją do chunku wejściowego (zmierzone na
-                // artefakcie: kod listwy w `index-*`), bo wejście jest zawsze już
-                // załadowane, gdy pada jej `import()`. Moduł importuje wyłącznie
-                // z nazwanych chunków vendorowych (React, router, i18next), więc
-                // nazwany chunk nie wciąga do siebie niczego z wejścia.
-                if (id.endsWith("/src/components/footer/LegalLinks.tsx")) return "legal-links";
-                if (!id.includes("/node_modules/")) return undefined;
-                // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
-                // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze
-                // entry do nazwy X, cały chunk X zapada się z powrotem w chunk
-                // wejściowy - razem z każdym innym modułem przypisanym do X.
-                // Dokładnie tak umarł `vendor-tanstack`: wejściem klienta jest
-                // `@tanstack/react-start/dist/plugin/default-entry/client.tsx`,
-                // czyli plik POD /node_modules/@tanstack/, więc reguła niżej
-                // przypisywała entry do "vendor-tanstack" i ~320 KB (surowo)
-                // routera, react-query i start-client-core jechało w
-                // `index-*.js` mimo pozornie poprawnej konfiguracji. Chunk po
-                // prostu nigdy nie powstawał - bez ostrzeżenia.
-                if (meta.getModuleInfo(id)?.isEntry) return undefined;
-                // Keep the archive engine isolated from tiny public modules.
-                // Automatic min-size merging otherwise packed a 312-byte auth
-                // server-function stub with JSZip, pulling the whole archive
-                // engine into the article's static dependency graph.
-                if (id.includes("/node_modules/jszip/")) return "vendor-jszip";
-                // ZASADA (incydent 2026-07-20, martwa hydratacja na KAŻDEJ
-                // stronie): chunk vendorowy musi zawierać DOMKNIĘCIE
-                // zależności swoich pakietów spoza vendor-react. Rozdzielenie
-                // pakietu od jego zależności (use-sync-external-store poza
-                // radixem, html-parse-stringify poza react-i18next) tworzy
-                // cykl chunków entry <-> vendor; przy CJS-interop kolejność
-                // inicjalizacji się wywraca ("Cannot set properties of
-                // undefined (setting 'useSyncExternalStore')") i boot klienta
-                // pada przed hydrateRoot - strona zostaje statycznym SSR-em,
-                // bez żadnego błędu widocznego dla użytkownika. Dev i testy
-                // jednostkowe tej klasy NIE ŁAPIĄ (w dev nie ma chunków);
-                // gate: scripts/check-chunk-graph.ts (cykle) + boot-test
-                // przeglądarkowy na buildzie vite.smoke.config.ts.
-                if (
-                  /\/node_modules\/(react|react-dom|scheduler|use-sync-external-store)\//.test(id)
-                ) {
-                  return "vendor-react";
-                }
-                if (id.includes("/node_modules/@supabase/")) return "vendor-supabase";
-                // Router + react-query + ich domknięcie spoza vendor-react:
-                // seroval / seroval-plugins (serializacja SSR w router-core),
-                // cookie-es (router-core), isbot (react-router). Bez tych
-                // czterech vendor-tanstack importowałby je z chunku
-                // wejściowego, a entry importuje vendor-tanstack - czyli CYKL,
-                // ta sama klasa awarii co 2026-07-20. `use-sync-external-store`
-                // zostaje w vendor-react (krawędź vendor-tanstack ->
-                // vendor-react jest jednokierunkowa).
-                //
-                // ŚWIADOMIE POZA CHUNKIEM: rodzina `@tanstack/*start*`
-                // (react-start, react-start-client, start-client-core,
-                // start-fn-stubs). To RUNTIME BOOTSTRAPU, przez który biegnie
-                // droga od modułu wejściowego do `src/router.tsx`. Przypisanie
-                // jej do nazwanego chunku sprawia, że Rollup barwi tym chunkiem
-                // cały osiągalny stąd graf APLIKACJI: zmierzone - entry spadał
-                // do 0,2 KB, a vendor-tanstack puchł do 1,59 MB (cały kod
-                // aplikacji + vendor w jednym pliku), czyli dokładnie odwrotnie
-                // do celu. Bootstrap zostaje więc w entry, a wydzielamy tylko
-                // biblioteki liściowe.
-                if (
-                  /\/node_modules\/(@tanstack\/(react-router|router-core|history|store|react-store|query-core|react-query|router-ssr-query-core|react-router-ssr-query)|seroval|seroval-plugins|cookie-es|isbot)\//.test(
-                    id,
-                  )
-                ) {
-                  return "vendor-tanstack";
-                }
-                // Ikony w DWÓCH chunkach vendorowych, nie w dziesiątkach plików.
-                // Bez reguły Rollup rozsypywał je na 300-400-bajtowe odpryski
-                // (każda ikona współdzielona przez >=2 leniwe chunki dostawała
-                // własny) - 45 takich plików kosztowało ~22 KB gzip samego
-                // narzutu nagłówków, bo pliki tej wielkości praktycznie się nie
-                // kompresują. Od 2026-10-02 podział wg osiągalności przy boocie
-                // (scripts/lib/bootVendorSplit.ts - tam pułapka barrela lucide):
-                // `vendor-lucide-boot` = ikony importowane PO NAZWIE przez
-                // bootowe moduły aplikacji (chrome, lucide-shim, powłoki tras)
-                // + runtime (createLucideIcon/Icon); `vendor-lucide` = reszta,
-                // ładowana dopiero z leniwymi trasami. Domknięcie: ikony
-                // niebootowe importują runtime z `-boot`, nigdy odwrotnie; poza
-                // tym oba chunki importują wyłącznie React. Do bootowych należą
-                // też ikony modułów, które łączenie małych chunków wkleja do
-                // `index-*` (`ENTRY_MERGED_LUCIDE_IMPORTERS`, ten sam plik).
-                if (id.includes("/node_modules/lucide-react/")) {
-                  return isBootLucideModule(id, meta) ? "vendor-lucide-boot" : "vendor-lucide";
-                }
-                // Heavy controls are not required by the public header. Keep
-                // their implementations out of the shared primitive chunk;
-                // dependencies still share vendor-radix and vendor-react.
-                const radixPackage = id
-                  .split("/node_modules/")
-                  .at(-1)
-                  ?.match(
-                    /^@radix-ui\/react-(select|slider|scroll-area|menu|context-menu|dropdown-menu)\//,
-                  )?.[1];
-                if (radixPackage) {
-                  const group = radixPackage.includes("menu") ? "menu" : radixPackage;
-                  return `vendor-radix-${group}`;
-                }
-                // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
-                // - patrz zasada domknięcia wyżej. Od 2026-10-02 rozcięte na
-                // część bootową i resztę: entry potrzebuje z tej rodziny TYLKO
-                // `react-slot` (components/ui/button.tsx) i jego zależność
-                // react-compose-refs, a płacił 38 KB gzip za dialogi, tooltipy
-                // i floating-ui na każdej stronie publicznej. Zbiór bootowy =
-                // domknięcie statyczne z entry (scripts/lib/bootVendorSplit.ts),
-                // więc `vendor-radix-boot` z definicji nie importuje z
-                // `vendor-radix`; krawędź biegnie wyłącznie reszta -> boot,
-                // cyklu nie ma (bramka check:chunks po buildzie).
-                if (
-                  /\/node_modules\/(@radix-ui|@floating-ui|aria-hidden|react-remove-scroll|react-remove-scroll-bar|react-style-singleton|use-callback-ref|use-sidecar|get-nonce)\//.test(
-                    id,
-                  )
-                ) {
-                  return isBootModule(id, meta) ? "vendor-radix-boot" : "vendor-radix";
-                }
-                if (
-                  /\/node_modules\/(i18next|react-i18next|html-parse-stringify|void-elements)\//.test(
-                    id,
-                  )
-                ) {
-                  return "vendor-i18n";
-                }
-                // Biblioteki bez zależności (zod / tailwind-merge / dompurify)
-                // i biblioteka sonner (zależna wyłącznie od react) - własne chunki
-                // vendorowe zamiast zapadania się w chunk wejściowy. Dla zod i
-                // tailwind-merge (nadal statycznie osiągalne z entry) nie
-                // zmniejsza to bajtów pierwszej wizyty, ale zdejmuje ~230 kB
-                // źródeł z NAJWIĘKSZEGO pliku (budżet largest-chunk) i daje
-                // trwały cache między deployami. dompurify i sonner są od
-                // 2026-08-18 poza grafem bootowania (patrz lib/sanitizePure.ts
-                // i lib/notify.ts) - nazwany chunk stabilizuje ich adres,
-                // a bramka check-entry-purity pilnuje, żeby nie wróciły.
-                // Domknięcie zależności (incydent 2026-07-20): zod,
-                // tailwind-merge i dompurify nie importują niczego; biblioteka
-                // sonner importuje wyłącznie react/react-dom (vendor-react,
-                // krawędź jednokierunkowa). Opakowanie `ui/sonner.tsx` w tym
-                // samym chunku dokłada krawędź do `vendor-i18n` (etykieta
-                // regionu toastów) - też jednokierunkową, bo vendor-i18n nie
-                // importuje sonnera.
-                // Tylko zod TOP-LEVEL: @tanstack/react-start wozi ZAGNIEŻDŻONĄ
-                // kopię zod 4 (node_modules/@tanstack/.../node_modules/zod) -
-                // mieszanie dwóch wersji w jednym cache-stabilnym chunku
-                // sprzęgałoby jego unieważnianie z bumpami frameworka.
-                if (
-                  /\/node_modules\/zod\//.test(id) &&
-                  !/\/node_modules\/[^]*?\/node_modules\/zod\//.test(id)
-                )
-                  return "vendor-zod";
-                if (id.includes("/node_modules/tailwind-merge/")) return "vendor-tw-merge";
-                if (id.includes("/node_modules/dompurify/")) return "vendor-dompurify";
-                if (id.includes("/node_modules/sonner/")) return "vendor-sonner";
-                return undefined;
-              },
+              codeSplitting: clientCodeSplitting(),
             },
           },
         },

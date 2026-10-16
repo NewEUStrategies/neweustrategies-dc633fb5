@@ -15,9 +15,9 @@
 // manifest bazowy, który (a) renderują `<HeadContent>`/`<Scripts>` na serwerze, (b) zbiera
 // kolektor `onEarlyHints` (`Link`) i (c) jedzie do klienta w odwodnionym `$_TSR.router.manifest`
 // (router-core `ssr-server.js` `dehydrate`), skąd klient renderuje te same komponenty
-// (`ssr-client.js`: `router.ssr = { manifest }`). Przepisanie modułu zmienia więc wszystkie trzy
-// drogi NARAZ - serwer i klient renderują to samo (nic), parytet hydratacji trzyma się
-// konstrukcyjnie, a nie dzięki dyscyplinie dwóch kopii.
+// (router-core `load-client.js`, `hydrate()`: `router.ssr = { manifest }`). Przepisanie modułu
+// zmienia więc wszystkie trzy drogi NARAZ - serwer i klient renderują to samo (nic), parytet
+// hydratacji trzyma się konstrukcyjnie, a nie dzięki dyscyplinie dwóch kopii.
 //
 // DLACZEGO NIE `transformAssets` FRAMEWORKA. Umie przepisać wyłącznie `href`/`crossOrigin`
 // (`start-server-core/transformAssetUrls.js`), nie usunie preloadów ani skryptu wejścia.
@@ -41,7 +41,7 @@
 // `/@id/...`), a dev-server nie ma chunków - przepisywać nie ma czego.
 import type { Plugin } from "vite";
 
-import type { BootManifest } from "../../src/lib/boot/bootManifest";
+import type { BootManifest } from "../../src/lib/boot/bootManifest.ts";
 
 export type { BootManifest };
 

@@ -2,7 +2,7 @@
  * Gate poprawności grafu chunków klienta: wykrywa CYKLE importów między
  * chunkami zbudowanego bundla przeglądarki.
  *
- * INCYDENT 2026-07-20: manualChunks (vendor-radix) stworzył cykl
+ * INCYDENT 2026-07-20: manualChunks Rollupa (vendor-radix) stworzył cykl
  * entry <-> vendor-radix; przy inicjalizacji CJS-interop shim
  * use-sync-external-store dostawał `undefined`, boot klienta padał przed
  * hydrateRoot i KAŻDA strona po SSR była martwa (pełne SSR-owe wizualia,
@@ -12,7 +12,7 @@
  * statyczne importy każdego chunka i failuje na jakimkolwiek cyklu.
  *
  * Cykle chunków są w ESM formalnie legalne (live bindings), ale w praktyce
- * przy CJS-interop (esbuild/rollup __commonJS wrappery) i side-effectach
+ * przy CJS-interop (wrappery `__commonJS` bundlera) i side-effectach
  * modułów kolejność inicjalizacji robi się loteryjna - a stawką jest boot
  * całej aplikacji. Zero cykli to jedyna bezpieczna polityka.
  *
@@ -38,11 +38,13 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-// Statyczne importy chunk->chunk. Rollup emituje je w nagłówku pliku w formie
-// `import{...}from"./nazwa-HASH.js"` / `import"./nazwa-HASH.js"`; wystarczy
-// zeskanować całość regexem po literałach względnych ścieżek .js (dynamiczne
-// importy mają tę samą składnię literału, ale nie tworzą krawędzi
-// inicjalizacyjnej - filtrujemy je po poprzedzającym `import(`).
+// Statyczne importy chunk->chunk. Rolldown emituje je w nagłówku pliku w formie
+// `import{...}from"./nazwa-HASH.js"` / `import"./nazwa-HASH.js"` (gramatyka
+// wymaga tu literału w cudzysłowie - minifikator Oxc go nie zmienia); wystarczy
+// zeskanować całość regexem po literałach względnych ścieżek .js. Dynamiczne
+// importy nie tworzą krawędzi inicjalizacyjnej: Oxc drukuje ich specyfikator
+// backtickiem (``import(`./x.js`)``), więc wzorzec ich nie łapie, a filtr po
+// poprzedzającym `import(` zostaje dla buildu bez minifikacji (cudzysłów).
 const IMPORT_RE = /(import\s*\(?\s*|from\s*)["'](\.\/[^"']+\.js)["']/g;
 
 const edges = new Map<string, Set<string>>();
@@ -105,7 +107,8 @@ if (cycles.length > 0) {
   }
   console.error(
     "  Cykl chunków = loteryjna kolejność inicjalizacji (patrz nagłówek skryptu). " +
-      "Najczęstsza przyczyna: manualChunks rozdzielił pakiet od jego zależności.",
+      "Najczęstsza przyczyna: grupa codeSplitting (scripts/lib/clientChunkGroups.ts) z priorytetem " +
+      "nie wyższym niż grupy, które ją importują - zabrała cudzy pakiet albo rozdzieliła pakiet od zależności.",
   );
   process.exit(1);
 }

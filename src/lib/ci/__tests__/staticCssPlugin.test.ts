@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
-import { createBuilder, createLogger, type Logger, type Rollup } from "vite";
+import { createBuilder, createLogger, type Logger, type Rolldown } from "vite";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -231,11 +231,11 @@ describe("prawdziwy build Vite (klient i SSR, wspólna instancja wtyczki)", () =
     };
   }
 
-  const entryOf = (output: unknown): Rollup.OutputChunk => {
-    const outputs = (Array.isArray(output) ? output : [output]) as Rollup.RollupOutput[];
+  const entryOf = (output: unknown): Rolldown.OutputChunk => {
+    const outputs = (Array.isArray(output) ? output : [output]) as Rolldown.RolldownOutput[];
     const entry = outputs
       .flatMap((o) => o.output)
-      .find((o): o is Rollup.OutputChunk => o.type === "chunk" && o.isEntry);
+      .find((o): o is Rolldown.OutputChunk => o.type === "chunk" && o.isEntry);
     if (!entry) throw new Error("bundel bez chunku wejściowego");
     return entry;
   };
@@ -260,14 +260,14 @@ describe("prawdziwy build Vite (klient i SSR, wspólna instancja wtyczki)", () =
           build: {
             outDir: join(workspace, ".output/public"),
             minify: false,
-            rollupOptions: { input: join(workspace, "src/client.ts") },
+            rolldownOptions: { input: join(workspace, "src/client.ts") },
           },
         },
         ssr: {
           build: {
             outDir: join(workspace, ".output/server"),
             minify: false,
-            rollupOptions: { input: join(workspace, "src/server.ts") },
+            rolldownOptions: { input: join(workspace, "src/server.ts") },
           },
         },
       },
