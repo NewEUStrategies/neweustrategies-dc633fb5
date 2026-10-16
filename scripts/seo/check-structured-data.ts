@@ -18,8 +18,11 @@
 //        [--concurrency 6] [--limit 2000] [--discover-limit 300] [--no-discover]
 //        [--path /author/jan-kowalski ...] [--report reports/structured-data.json]
 //
-// Kod wyjścia: 0 - brak niezgodności, 1 - są niezgodności, 2 - nie da się
-// przeprowadzić kontroli (sitemapa niedostępna, zero sprawdzonych stron).
+// Kod wyjścia: 0 - każdy adres zbadany i zgodny, 1 - są niezgodności ALBO
+// adresy, których nie dało się zbadać (timeout, HTTP != 200, odpowiedź bez
+// HTML-a), 2 - nie da się przeprowadzić kontroli (sitemapa niedostępna, zero
+// sprawdzonych stron). Niezbadany adres to nie „zgodny": szablon w awarii albo
+// strona serwisowa 200 nie może zostawić codziennej kontroli na zielono.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
@@ -138,8 +141,24 @@ function discoverLinks(html: string): string[] {
 async function checkPage(url: string, discovered: Set<string> | null): Promise<PageResult> {
   try {
     const res = await fetchText(url);
-    if (res.status !== 200 || !res.type.includes("html")) {
-      return { url, status: res.status, breadcrumbLists: 0, issues: [] };
+    if (res.status !== 200) {
+      return {
+        url,
+        status: res.status,
+        breadcrumbLists: 0,
+        issues: [],
+        error: `HTTP ${res.status}`,
+      };
+    }
+    if (!res.type.includes("html")) {
+      const type = res.type || "brak content-type";
+      return {
+        url,
+        status: res.status,
+        breadcrumbLists: 0,
+        issues: [],
+        error: `200 bez HTML (${type})`,
+      };
     }
     if (discovered) for (const link of discoverLinks(res.body)) discovered.add(link);
     const { graphs, issues: parseIssues } = extractJsonLd(res.body);
@@ -218,24 +237,22 @@ async function main(): Promise<number> {
 
   results.sort((a, b) => a.url.localeCompare(b.url));
   const failing = results.filter((r) => r.issues.length > 0);
-  const unreachable = results.filter((r) => r.error !== undefined);
-  const notOk = results.filter((r) => r.status !== null && r.status !== 200);
-  const checked = results.filter((r) => r.status === 200);
+  const unaudited = results.filter((r) => r.error !== undefined);
+  const checked = results.filter((r) => r.error === undefined);
   const withCrumbs = checked.filter((r) => r.breadcrumbLists > 0);
 
   for (const r of failing) {
     console.log(`✗ ${r.url}`);
     for (const issue of r.issues) console.log(`    ${issue.path}: ${issue.message}`);
   }
-  for (const r of unreachable) console.log(`! ${r.url}: ${r.error}`);
-  for (const r of notOk) console.log(`! ${r.url}: HTTP ${r.status}`);
+  for (const r of unaudited) console.log(`! ${r.url}: ${r.error}`);
 
   console.log(
     [
       `SPRAWDZONE ${checked.length}`,
       `Z OKRUSZKAMI ${withCrumbs.length}`,
       `NIEZGODNE ${failing.length}`,
-      `NIEDOSTĘPNE ${unreachable.length + notOk.length}`,
+      `NIEZBADANE ${unaudited.length}`,
     ].join(" | "),
   );
 
@@ -250,7 +267,7 @@ async function main(): Promise<number> {
     console.error("✗ Żadna strona nie została sprawdzona - wynik nie jest dowodem.");
     return 2;
   }
-  return failing.length > 0 ? 1 : 0;
+  return failing.length > 0 || unaudited.length > 0 ? 1 : 0;
 }
 
 process.exitCode = await main();

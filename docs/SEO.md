@@ -199,7 +199,8 @@ contract test (`structuredDataAudit.test.ts`) fails on a hand-built
 sitemap index plus breadcrumb templates linked from content (e.g. `/author/*`,
 not in the sitemap) and runs every JSON-LD block through
 `structuredDataIssues`. Exit 1 lists each URL and graph path that Search
-Console would reject. `.github/workflows/structured-data.yml` runs it daily
+Console would reject, and every URL that could not be audited (timeout,
+non-200, 200 without HTML) - an unaudited page never counts as clean. `.github/workflows/structured-data.yml` runs it daily
 against production and on demand.
 
 ## Per-entity SEO fields
