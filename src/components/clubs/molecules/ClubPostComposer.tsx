@@ -337,7 +337,7 @@ export function ClubPostComposer({
                           "absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5",
                           HUB_LABEL_TEXT,
                           "font-semibold",
-                          flagged ? "bg-amber-700 text-white" : "bg-background/90 text-foreground",
+                          flagged ? "bg-brand text-white" : "bg-background/90 text-foreground",
                         )}
                       >
                         {flagged ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : null}
@@ -363,7 +363,7 @@ export function ClubPostComposer({
               {advice.map(({ code, item }) => (
                 <li
                   key={`${item.path}:${code}`}
-                  className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400"
+                  className="flex items-start gap-1.5 text-xs text-brand dark:text-brand"
                 >
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>
@@ -465,7 +465,7 @@ export function ClubPostComposer({
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
               <Paperclip
-                className="h-4 w-4 text-orange-600 dark:text-orange-400"
+                className="h-4 w-4 text-brand dark:text-brand"
                 aria-hidden="true"
               />
             )}

@@ -166,7 +166,7 @@ export function PodcastArtworkField({
               <span className="text-destructive">{t("adminPodcasts.artwork.loadError")}</span>
             )}
             {check && measured && croppedInFeed && (
-              <span className="text-amber-700 dark:text-amber-400">
+              <span className="text-brand dark:text-brand">
                 {t("adminPodcasts.artwork.croppedInFeed", measured)}
               </span>
             )}

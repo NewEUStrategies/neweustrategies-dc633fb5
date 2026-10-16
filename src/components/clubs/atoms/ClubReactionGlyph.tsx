@@ -35,7 +35,7 @@ export const CLUB_REACTION_ICONS: Record<ClubReactionKind, LucideIcon> = {
 // z bielą - próg dla grafiki), więc wariant ciemny nie potrzebuje osobnych
 // odcieni.
 const FILL: Record<ClubReactionKind, string> = {
-  insightful: "bg-amber-600",
+  insightful: "bg-brand",
   evidence: "bg-teal-600",
   question: "bg-sky-600",
   thanks: "bg-rose-500",
@@ -46,7 +46,7 @@ const FILL: Record<ClubReactionKind, string> = {
 // Kolor TEKSTU akcji, gdy reakcja jest postawiona - akcja przejmuje barwę
 // wybranej reakcji, tak jak przejmuje jej piktogram.
 const INK: Record<ClubReactionKind, string> = {
-  insightful: "text-amber-700 dark:text-amber-400",
+  insightful: "text-brand",
   evidence: "text-teal-700 dark:text-teal-300",
   question: "text-sky-700 dark:text-sky-300",
   thanks: "text-rose-600 dark:text-rose-400",
@@ -84,13 +84,13 @@ export function ClubReactionGlyph({
       data-reaction-glyph={kind}
       style={style}
       className={cn(
-        "inline-grid shrink-0 place-items-center rounded-full text-white",
+        "inline-grid shrink-0 place-items-center rounded-full text-reaction-glyph-ink [&_svg]:!text-reaction-glyph-ink",
         FILL[kind],
         dims.box,
         className,
       )}
     >
-      <Icon className={dims.icon} strokeWidth={2.4} aria-hidden="true" />
+      <Icon className={dims.icon} color="currentColor" strokeWidth={2.4} aria-hidden="true" />
     </span>
   );
 }

@@ -163,7 +163,7 @@ export function ClubFeedDiscussionItem({
               <span
                 className={cn(
                   HUB_LABEL,
-                  "min-h-5 border-amber-500/40 bg-amber-500/10 py-0.5 text-amber-800 dark:text-amber-300",
+                  "min-h-5 border-amber-500/40 bg-amber-500/10 py-0.5 text-brand dark:text-brand",
                 )}
                 data-testid="club-feed-discussion-pending"
               >

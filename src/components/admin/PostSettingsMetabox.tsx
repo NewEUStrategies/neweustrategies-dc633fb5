@@ -768,7 +768,7 @@ function TakeawayRow({
     empty: "text-muted-foreground",
     short: "text-yellow-600 dark:text-yellow-400",
     ok: "text-green-600 dark:text-green-400",
-    long: "text-orange-600 dark:text-orange-400",
+    long: "text-brand dark:text-brand",
   }[status];
   const statusMsg = {
     empty: "",
