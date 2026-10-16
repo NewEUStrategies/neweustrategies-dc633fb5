@@ -111,7 +111,11 @@ function PagesList() {
     [authorsQ.data],
   );
 
-  const { data: pagesResult, isLoading } = useQuery({
+  const {
+    data: pagesResult,
+    isLoading,
+    error: listError,
+  } = useQuery({
     enabled: !!tenantId,
     placeholderData: keepPreviousData,
     queryKey: [
@@ -177,12 +181,14 @@ function PagesList() {
         for (const p of otherNotPatterns()) q = q.not("slug", "ilike", p);
       }
       if (isTrashView) {
-        if (trashFrom) q = q.gte("deleted_at", new Date(trashFrom).toISOString());
-        if (trashTo)
-          q = q.lte(
-            "deleted_at",
-            new Date(new Date(trashTo).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString(),
-          );
+        // DateInput oddaje LOKALNY dzień "YYYY-MM-DD". `new Date("YYYY-MM-DD")`
+        // czyta go jako północ UTC, więc w Warszawie zakres przesuwał się o 1-2 h:
+        // „od 5.08” gubiło strony skasowane 5.08 przed 2:00, a „do 5.08”
+        // łapało skasowane 6.08 po północy - choć kolumna „Usunięto” pokazuje
+        // czas lokalny. Granice liczymy od lokalnej północy do końca lokalnej
+        // doby (bez +24 h, które w dniu zmiany czasu mija koniec doby o godzinę).
+        if (trashFrom) q = q.gte("deleted_at", new Date(`${trashFrom}T00:00:00`).toISOString());
+        if (trashTo) q = q.lte("deleted_at", new Date(`${trashTo}T23:59:59.999`).toISOString());
       }
       q = q.order(isTrashView ? "deleted_at" : "updated_at", { ascending: false }).range(from, to);
       const { data, count, error } = await q;
@@ -206,31 +212,37 @@ function PagesList() {
   });
 
   // Unfiltered row count for the current view — distinguishes "view is empty"
-  // from "filters excluded everything".
-  const { data: viewCount } = useQuery({
-    enabled: !!tenantId,
-    queryKey: ["admin-pages-view-count", tenantId, view],
+  // from "filters excluded everything". W koszu to dokładnie zapytanie licznika
+  // zakładki (tenant + `deleted_at` nie-null), więc bierzemy `trashCount`
+  // zamiast drugiego, identycznego HEAD-a przy każdym wejściu i odświeżeniu.
+  const { data: activeCount } = useQuery({
+    enabled: !!tenantId && view === "active",
+    queryKey: ["admin-pages-view-count", tenantId, "active"],
     queryFn: async () => {
-      let q = supabase
+      const { count, error } = await supabase
         .from("pages")
         .select("id", { count: "exact", head: true })
-        .eq("tenant_id", tenantId!);
-      q = view === "trash" ? q.not("deleted_at", "is", null) : q.is("deleted_at", null);
-      const { count, error } = await q;
+        .eq("tenant_id", tenantId!)
+        .is("deleted_at", null);
       if (error) throw error;
       return count ?? 0;
     },
   });
+  const viewCount = view === "trash" ? trashCount : activeCount;
 
   const reading = useSettings<Reading>("reading", READING_DEFAULTS);
+  const readingData = reading.query.data;
   const currentHome =
-    reading.query.data?.homepage_mode === "static_page"
-      ? (reading.query.data?.homepage_page_slug ?? "")
-      : "";
+    readingData?.homepage_mode === "static_page" ? (readingData.homepage_page_slug ?? "") : "";
 
-  const setAsHome = async (slug: string, title: string) => {
+  // Zapis niesie CAŁĄ sekcję „reading”, scaloną na wierzchu wiersza w bazie.
+  // Bez wczytanych ustawień (w locie albo po błędzie zapytania) byłyby to
+  // wartości domyślne: klik nadpisywał liczbę wpisów na stronie i przywracał
+  // widoczność dla wyszukiwarek witrynie celowo ukrytej. Dlatego przycisk
+  // czeka na dane, a zapis startuje wyłącznie od wczytanego stanu.
+  const setAsHome = async (current: Reading, slug: string, title: string) => {
     const next: Reading = {
-      ...(reading.query.data ?? READING_DEFAULTS),
+      ...current,
       homepage_mode: "static_page",
       homepage_page_slug: slug,
     };
@@ -252,6 +264,15 @@ function PagesList() {
   const pagedPages = useMemo(() => pagesResult?.rows ?? [], [pagesResult]);
   const total = pagesResult?.count ?? 0;
   const allIds = useMemo(() => pagedPages.map((p) => p.id), [pagedPages]);
+  // Gdy kosz, przywrócenie albo trwałe usunięcie zabierze ostatnie wiersze
+  // ostatniej strony, lista dalej pytała o zakres poza zbiorem: pusta tabela,
+  // a paginacja (która sama przycina numer) pokazywała „51-100 z 100” przy
+  // wyłączonej strzałce „dalej” - bez drogi do wierszy. Cofamy na ostatnią
+  // istniejącą stronę, licząc ją z licznika serwera.
+  const lastPage = Math.max(1, Math.ceil(total / pageSize));
+  useEffect(() => {
+    if (pagesResult && page > lastPage) setPage(lastPage);
+  }, [pagesResult, page, lastPage]);
   useEffect(() => {
     setPage(1);
   }, [
@@ -278,11 +299,25 @@ function PagesList() {
   };
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(allIds));
   const clear = () => setSelected(new Set());
+  // Wiersz, który operacja pojedyncza zabrała z widoku, nie może zostać
+  // w zaznaczeniu: pasek dalej liczył go do „Zaznaczono: N”, a akcja zbiorcza
+  // wysyłała jego id. W koszu „przywróć jeden, potem usuń trwale zaznaczone”
+  // kasowało nieodwracalnie stronę, która właśnie wróciła na listę.
+  const unselect = (id: string) =>
+    setSelected((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin-pages"] });
     qc.invalidateQueries({ queryKey: ["admin-pages-trash-count"] });
     qc.invalidateQueries({ queryKey: ["admin-pages-view-count"] });
+    // Liczniki zakładek tematów (TopicTabs) to osobny klucz - bez niego
+    // „Wszystkie (10)” zostawało po przeniesieniu strony do kosza.
+    qc.invalidateQueries({ queryKey: ["admin-pages-topic-slugs"] });
   };
 
   const del = (id: string, title: string) => {
@@ -295,6 +330,7 @@ function PagesList() {
         try {
           await del$({ data: { id } });
           toast.success(t("admin.bulkResult.trashedOne"));
+          unselect(id);
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -349,7 +385,7 @@ function PagesList() {
       onConfirm: async () => {
         try {
           const res = await restore$({ data: { ids: [id] } });
-          toastBulkResult(t, res, "admin.bulkResult.restoredOne");
+          if (toastBulkResult(t, res, "admin.bulkResult.restoredOne")) unselect(id);
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -366,7 +402,7 @@ function PagesList() {
       onConfirm: async () => {
         try {
           const res = await purge$({ data: { ids: [id] } });
-          toastBulkResult(t, res, "admin.bulkResult.purgedOne");
+          if (toastBulkResult(t, res, "admin.bulkResult.purgedOne")) unselect(id);
           invalidate();
         } catch (e) {
           toast.error(e instanceof Error ? e.message : String(e));
@@ -553,6 +589,12 @@ function PagesList() {
         )}
         {isLoading ? (
           <div className="p-8 text-center text-muted-foreground text-xs">…</div>
+        ) : listError && !pagesResult ? (
+          // Błąd odczytu to nie pustka: „Brak stron” / „Brak wyników dla
+          // filtrów” mówiły redakcji, że stron nie ma albo filtr je wyciął.
+          <div role="alert" className="p-10 text-center text-destructive text-sm">
+            {listError.message}
+          </div>
         ) : !total ? (
           <div className="p-10 text-center text-muted-foreground text-sm">
             {isTrash
@@ -718,6 +760,7 @@ function PagesList() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0"
                                 disabled={
+                                  !readingData ||
                                   currentHome === p.slug ||
                                   reading.save.isPending ||
                                   p.status !== "published"
@@ -730,7 +773,9 @@ function PagesList() {
                                       : t("admin.list.setHome")
                                 }
                                 onClick={() =>
+                                  readingData &&
                                   setAsHome(
+                                    readingData,
                                     p.slug,
                                     (viewLang === "en" ? p.title_en : p.title_pl) ?? p.slug,
                                   )

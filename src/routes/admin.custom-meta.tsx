@@ -27,9 +27,14 @@ import { CUSTOM_META_ICON_NAMES } from "@/components/post/CustomMetaList";
 
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminToast } from "@/lib/adminToasts";
+import { adminPageHead } from "@/lib/adminPageHead";
 export const Route = createFileRoute("/admin/custom-meta")({
   component: CustomMetaAdmin,
-  head: () => ({ meta: [{ title: "Custom meta - Admin" }] }),
+  head: () =>
+    adminPageHead(
+      "Custom meta fields",
+      "Define global custom meta fields available on every post. New European Strategies administration.",
+    ),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
       {error.message}
@@ -38,7 +43,36 @@ export const Route = createFileRoute("/admin/custom-meta")({
   notFoundComponent: () => <div className="p-6">404</div>,
 });
 
-type Draft = Omit<CustomMetaDef, "id" | "tenant_id"> & { id?: string };
+// `position: null` = pozycja automatyczna, liczona przy KAŻDYM renderze z
+// aktualnej listy (koniec listy). Wcześniej domyślna pozycja była zamrażana
+// w inicjalizatorze `useState` (lista jeszcze się ładowała, więc zawsze 10)
+// i po zapisie z długości listy sprzed odświeżenia - nowe pole lądowało na
+// pozycji już zajętej.
+type Draft = Omit<CustomMetaDef, "id" | "tenant_id" | "position"> & {
+  id?: string;
+  position: number | null;
+};
+
+const EMPTY_DRAFT: Draft = {
+  key: "",
+  label_pl: "",
+  label_en: "",
+  icon: "Clock",
+  position: null,
+};
+
+// Limit klucza w `posts.custom_meta` (schemat zapisu wpisu w
+// `content.functions.ts`: `z.record(z.string().max(64), ...)`). Dłuższy klucz
+// dawał pole w edytorze wpisu, którego wartości serwer nigdy nie przyjmie.
+const KEY_MAX_LENGTH = 64;
+
+/** Klucz w postaci zapisywanej w bazie: a-z, 0-9, `_`. */
+function normalizeMetaKey(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_");
+}
 
 function CustomMetaAdmin() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
@@ -46,49 +80,59 @@ function CustomMetaAdmin() {
   const { t } = useTranslation();
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
-  const { data: defs = [], isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["customMetaDefs", tenantId] as const,
     queryFn: () => listCustomMetaDefs(tenantId),
   });
+  const defs = data ?? [];
+  // Koniec listy, nie jej długość: po usunięciu środkowej definicji
+  // `(length + 1) * 10` trafiało w pozycję ostatniej.
+  const nextPosition = defs.reduce((max, d) => Math.max(max, d.position), 0) + 10;
 
-  const [draft, setDraft] = useState<Draft>({
-    key: "",
-    label_pl: "",
-    label_en: "",
-    icon: "Clock",
-    position: (defs.length + 1) * 10,
-  });
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["customMetaDefs"] });
 
   const save = async (): Promise<void> => {
-    if (!draft.key.trim()) {
-      toast.error(adminToast.keyRequired());
-      return;
+    // W edycji klucz jest niezmienny (pole wyłączone) - wysyłamy zapisany
+    // klucz dosłownie: upsert po (tenant_id, key) musi trafić w TEN wiersz,
+    // a wartości we wpisach siedzą pod tym kluczem. Format i limit dotyczą
+    // tylko NOWYCH kluczy - starsza definicja z kluczem „_” albo dłuższym niż
+    // 64 znaki nadal musi dać się edytować (etykiety, ikona, pozycja).
+    const key = editingId ? draft.key : normalizeMetaKey(draft.key);
+    if (!editingId) {
+      if (!draft.key.trim()) {
+        toast.error(adminToast.keyRequired());
+        return;
+      }
+      // Walidujemy klucz PO normalizacji: „ąę” czy „!!!” dawały klucz „_”,
+      // który przechodził sprawdzenie niepustości.
+      if (!/[a-z0-9]/.test(key) || key.length > KEY_MAX_LENGTH) {
+        toast.error(t("adminMiscRoutes.customMeta.keyInvalid", { max: KEY_MAX_LENGTH }));
+        return;
+      }
     }
     if (!draft.label_pl.trim() && !draft.label_en.trim()) {
       toast.error(adminToast.labelRequired());
       return;
     }
+    // Upsert idzie po (tenant_id, key): „Dodaj” z istniejącym kluczem po
+    // cichu nadpisywał etykiety, ikonę i pozycję cudzej definicji.
+    if (!editingId && defs.some((d) => d.key === key)) {
+      toast.error(t("adminMiscRoutes.customMeta.keyTaken"));
+      return;
+    }
     try {
       await upsertCustomMetaDef({
         ...draft,
+        position: draft.position ?? nextPosition,
         id: editingId ?? undefined,
         tenant_id: tenantId,
-        key: draft.key
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9_]+/g, "_"),
+        key,
       });
       toast.success(adminToast.saved());
-      setDraft({
-        key: "",
-        label_pl: "",
-        label_en: "",
-        icon: "Clock",
-        position: (defs.length + 1) * 10,
-      });
+      setDraft(EMPTY_DRAFT);
       setEditingId(null);
       refresh();
     } catch (e) {
@@ -118,6 +162,12 @@ function CustomMetaAdmin() {
       return;
     try {
       await deleteCustomMetaDef(id);
+      // Formularz edytujący usuniętą definicję wskrzeszałby ją przy „Zapisz
+      // zmiany” (upsert z jej `id` robi INSERT).
+      if (editingId === id) {
+        setEditingId(null);
+        setDraft(EMPTY_DRAFT);
+      }
       refresh();
       toast.success(adminToast.deleted());
     } catch (e) {
@@ -149,6 +199,7 @@ function CustomMetaAdmin() {
               label={t("adminMiscRoutes.customMeta.keyLabel")}
               value={draft.key}
               onChange={(e) => setDraft({ ...draft, key: e.target.value })}
+              maxLength={KEY_MAX_LENGTH}
               disabled={!!editingId}
             />
           </div>
@@ -180,7 +231,7 @@ function CustomMetaAdmin() {
           <FloatingInput
             label={t("adminMiscRoutes.customMeta.position")}
             type="number"
-            value={draft.position}
+            value={draft.position ?? nextPosition}
             onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) || 0 })}
           />
         </div>
@@ -190,19 +241,15 @@ function CustomMetaAdmin() {
               variant="outline"
               onClick={() => {
                 setEditingId(null);
-                setDraft({
-                  key: "",
-                  label_pl: "",
-                  label_en: "",
-                  icon: "Clock",
-                  position: (defs.length + 1) * 10,
-                });
+                setDraft(EMPTY_DRAFT);
               }}
             >
               {t("common.cancel")}
             </Button>
           )}
-          <Button onClick={save}>
+          {/* Bez wczytanej listy nie da się sprawdzić zajętości klucza ani
+              policzyć końca listy. */}
+          <Button onClick={save} disabled={!data}>
             {editingId
               ? t("adminMiscRoutes.customMeta.saveChanges")
               : t("adminMiscRoutes.customMeta.add")}
@@ -216,6 +263,12 @@ function CustomMetaAdmin() {
         </h2>
         {isLoading ? (
           <div className="p-4 text-sm text-muted-foreground">...</div>
+        ) : error && !data ? (
+          // Nieudany odczyt to nie „Brak definicji.” - ten napis zachęcał do
+          // dodania klucza, który już istnieje.
+          <div role="alert" className="p-4 text-sm text-destructive">
+            {error.message || t("adminMiscRoutes.customMeta.genericError")}
+          </div>
         ) : defs.length === 0 ? (
           <div className="p-4 text-sm text-muted-foreground">
             {t("adminMiscRoutes.customMeta.empty")}

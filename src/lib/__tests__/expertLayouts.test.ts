@@ -170,3 +170,80 @@ describe("mergeExpertLayout + countExpertLayoutOverrides", () => {
     ).toBe(5);
   });
 });
+
+describe("defaultExpertLayoutSettings - stan tenanta bez wiersza", () => {
+  it("bez argumentu: pusty tenant, pełna kolejność i wszystkie sekcje widoczne", () => {
+    const settings = defaultExpertLayoutSettings();
+    expect(settings.tenant_id).toBe("");
+    expect(settings.default_preset).toBe("classic");
+    expect(new Set(settings.section_order)).toEqual(new Set(EXPERT_SECTIONS));
+    expect(settings.section_order).toHaveLength(EXPERT_SECTIONS.length);
+    for (const key of EXPERT_SECTIONS) expect(isSectionVisible(settings, key)).toBe(true);
+  });
+});
+
+describe("parseExpertLayoutOverrides - pozostałe pola", () => {
+  it("`false` jest świadomym nadpisaniem (nie znika), sam ciemny akcent też wystarcza", () => {
+    expect(
+      parseExpertLayoutOverrides({ center_details: false, accent_color_dark: " #0a0b0c " }, null),
+    ).toEqual({ center_details: false, accent_color_dark: "#0a0b0c" });
+  });
+
+  it("widoczność bez ani jednego poprawnego wpisu nie tworzy klucza - całość składa się do null", () => {
+    expect(parseExpertLayoutOverrides({ visibility: { junk: true, cv: "no" } }, null)).toBeNull();
+    expect(parseExpertLayoutOverrides({ visibility: [true, false] }, null)).toBeNull();
+    expect(parseExpertLayoutOverrides({ visibility: null }, null)).toBeNull();
+  });
+});
+
+describe("countExpertLayoutOverrides - badge inline-edytora", () => {
+  it("pusty obiekt nadpisań to 0, nie błąd", () => {
+    expect(countExpertLayoutOverrides({})).toBe(0);
+    expect(countExpertLayoutOverrides(undefined)).toBe(0);
+  });
+
+  it("liczy kolejność, oba wycentrowania i oba akcenty po jednym", () => {
+    expect(
+      countExpertLayoutOverrides({
+        section_order: ["cv"],
+        center_hero: true,
+        center_details: false,
+        accent_color: "#111111",
+        accent_color_dark: "#eeeeee",
+      }),
+    ).toBe(5);
+  });
+});
+
+describe("mergeExpertLayout - każde pole nadpisania trafia w swoją kolumnę", () => {
+  it("widoczność per sekcja, kolejność, wycentrowanie treści i ciemny akcent", () => {
+    const tenant = defaultExpertLayoutSettings("t1");
+    const hideAll = Object.fromEntries(EXPERT_SECTIONS.map((key) => [key, false]));
+    const order = normalizeExpertSectionOrder(["programs", "cv"]) ?? [];
+
+    const { settings } = mergeExpertLayout(tenant, {
+      visibility: hideAll,
+      section_order: order,
+      center_details: true,
+      accent_color_dark: "#fafafa",
+    });
+
+    for (const key of EXPERT_SECTIONS) expect(isSectionVisible(settings, key)).toBe(false);
+    expect(settings.section_order.slice(0, 2)).toEqual(["programs", "cv"]);
+    expect(settings.center_details).toBe(true);
+    expect(settings.accent_color_dark).toBe("#fafafa");
+    // Nienadpisane pola dziedziczą po tenancie.
+    expect(settings.center_hero).toBe(tenant.center_hero);
+    expect(settings.accent_color).toBe(tenant.accent_color);
+  });
+
+  it("legacy preset tenanta (DEFAULT kolumny 'portrait-left') renderuje się jako obecne id", () => {
+    const tenant = {
+      ...defaultExpertLayoutSettings("t1"),
+      default_preset: "portrait-left" as never,
+    };
+    const { preset, settings } = mergeExpertLayout(tenant, null);
+    expect(preset.id).toBe("classic");
+    expect(settings.default_preset).toBe("classic");
+  });
+});
