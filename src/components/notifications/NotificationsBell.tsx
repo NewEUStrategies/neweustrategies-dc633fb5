@@ -204,6 +204,9 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
           "origin-(--radix-popover-content-transform-origin)",
         ].join(" ")}
         style={panelStyle}
+        // Radix nadaje warstwie role="dialog" - bez nazwy czytnik ekranu
+        // ogłaszał "okno dialogowe" bez informacji, czyje (WCAG 4.1.2).
+        aria-label={t("notifications.title")}
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/60">
           <div className="flex items-center gap-2">
@@ -255,13 +258,20 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                         name: pickTitle(n, lang),
                       })
                     : pickTitle(n, lang);
-                const inner = (
-                  <div className="flex items-start gap-2.5 px-3 py-2.5">
+                // Treść wiersza (klikalna) i jego akcje są RODZEŃSTWEM, nie
+                // przodkiem i potomkiem: przycisk w przycisku (wiersz bez
+                // odnośnika) albo w kotwicy to zagnieżdżone kontrolki, których
+                // czytnik ekranu nie ogłasza (WCAG 4.1.2, axe
+                // `nested-interactive`), a nawigacja klawiaturą po nich jest
+                // nieprzewidywalna. Odstęp akcji (`pl-3.5`) = dawne `gap-2.5`
+                // + `ml-1`, więc układ wiersza się nie zmienia.
+                const content = (
+                  <>
                     <Avatar className="mt-0.5 h-8 w-8 rounded-[5px] border border-border/60 bg-muted">
                       {actor?.avatar_url ? (
                         <AvatarImage
                           src={actor.avatar_url}
-                          alt={actor.display_name ?? title}
+                          alt={actor.display_name || title}
                           className="rounded-[5px] object-cover"
                         />
                       ) : null}
@@ -316,52 +326,19 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                         )}
                       </div>
                     </div>
-                    <div
-                      className="ml-1 flex shrink-0 items-center gap-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {isUnread ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const ids = g.items.filter((it) => !it.read_at).map((it) => it.id);
-                            if (ids.length > 0) markMany.mutate(ids);
-                          }}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={t("notifications.markRead")}
-                          title={t("notifications.markRead")}
-                        >
-                          <Check className="h-3.5 w-3.5" aria-hidden />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            unreadOne.mutate(g.latest.id);
-                          }}
-                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={t("notifications.markUnread")}
-                          title={t("notifications.markUnread")}
-                        >
-                          <Mail className="h-3.5 w-3.5" aria-hidden />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  </>
                 );
+                const unreadIds = g.items.filter((it) => !it.read_at).map((it) => it.id);
                 const onClick = () => {
                   // Clicking the row navigates and marks all wrapped rows read.
-                  const ids = g.items.filter((it) => !it.read_at).map((it) => it.id);
-                  if (ids.length > 0) markMany.mutate(ids);
+                  if (unreadIds.length > 0) markMany.mutate(unreadIds);
                   setOpen(false);
                 };
                 const href = n.href;
+                const clickableClass =
+                  "flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 text-left";
                 return (
-                  <li key={g.key}>
+                  <li key={g.key} className="flex items-start hover:bg-muted/50 transition-colors">
                     {href && isInternalHref(href) ? (
                       // Wewnętrzna nawigacja SPA - router.navigate({ href })
                       // zachowuje query string (np. "/messages?c=<uuid>"),
@@ -374,9 +351,9 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                           e.preventDefault();
                           void router.navigate({ href });
                         }}
-                        className="block hover:bg-muted/50 transition-colors"
+                        className={clickableClass}
                       >
-                        {inner}
+                        {content}
                       </a>
                     ) : href ? (
                       <a
@@ -384,19 +361,38 @@ export function NotificationsBell({ panelWidth = 340 }: NotificationsBellProps) 
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={onClick}
-                        className="block hover:bg-muted/50 transition-colors"
+                        className={clickableClass}
                       >
-                        {inner}
+                        {content}
                       </a>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={onClick}
-                        className="block w-full text-left hover:bg-muted/50 transition-colors"
-                      >
-                        {inner}
+                      <button type="button" onClick={onClick} className={clickableClass}>
+                        {content}
                       </button>
                     )}
+                    <div className="flex shrink-0 items-center gap-0.5 py-2.5 pl-3.5 pr-3">
+                      {isUnread ? (
+                        <button
+                          type="button"
+                          onClick={() => markMany.mutate(unreadIds)}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={t("notifications.markRead")}
+                          title={t("notifications.markRead")}
+                        >
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => unreadOne.mutate(g.latest.id)}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={t("notifications.markUnread")}
+                          title={t("notifications.markUnread")}
+                        >
+                          <Mail className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      )}
+                    </div>
                   </li>
                 );
               })}

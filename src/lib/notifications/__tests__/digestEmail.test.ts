@@ -27,6 +27,77 @@ describe("digest e-mail", () => {
     expect(digestSubject(2, "en", "weekly")).toContain("2 updates this week");
   });
 
+  it("polska odmiana trzyma się reguły liczebnika także powyżej 20", () => {
+    // Claim tnie digest do 20 pozycji, ale ta granica żyje w SQL.
+    const word = (n: number): string => digestSubject(n, "pl", "daily").split(" ")[2];
+    expect([1, 2, 4, 5, 11, 12, 14, 20, 21, 22, 24, 25, 104, 112, 122].map(word)).toEqual([
+      "powiadomienie",
+      "powiadomienia",
+      "powiadomienia",
+      "powiadomień",
+      "powiadomień",
+      "powiadomień",
+      "powiadomień",
+      "powiadomień",
+      "powiadomień",
+      "powiadomienia",
+      "powiadomienia",
+      "powiadomień",
+      "powiadomienia",
+      "powiadomień",
+      "powiadomienia",
+    ]);
+    expect(digestSubject(1, "en", "daily")).toBe("1 update today - New European Strategies");
+  });
+
+  it("wstęp zależy od języka i częstotliwości", () => {
+    const intro = (lang: "pl" | "en", frequency: "daily" | "weekly"): string =>
+      buildDigestHtml({
+        displayName: "A",
+        items: [item()],
+        lang,
+        siteUrl: "https://x.example",
+        frequency,
+      });
+    expect(intro("en", "daily")).toContain("Your daily summary of unread notifications:");
+    expect(intro("en", "weekly")).toContain("Your weekly summary of unread notifications:");
+    expect(intro("pl", "daily")).toContain("Twoje dzienne podsumowanie");
+    expect(intro("pl", "weekly")).toContain("Twoje tygodniowe podsumowanie");
+  });
+
+  it("href, którego nie da się sparsować, zostawia pozycję tekstem zamiast wywracać digest", () => {
+    // `new URL` rzucał tu wyjątkiem - po claimie, który już ostemplował okno.
+    const html = buildDigestHtml({
+      displayName: "Test",
+      items: [item({ title_pl: "Zepsuty link", href: "http://[" }), item({ title_pl: "Dobry" })],
+      lang: "pl",
+      siteUrl: "https://neweuropeanstrategies.com",
+      frequency: "daily",
+    });
+
+    expect(html).toContain('<span style="font-weight:600">Zepsuty link</span>');
+    expect(html).toContain("https://neweuropeanstrategies.com/tracker/ai-act");
+  });
+
+  it("schemat inny niż http(s) nie trafia do linku maila", () => {
+    const html = buildDigestHtml({
+      displayName: "Test",
+      items: [
+        item({ title_pl: "Skrypt", href: "javascript:alert(1)" }),
+        item({ title_pl: "Dane", href: "data:text/html,<b>x</b>" }),
+        item({ title_pl: "Zewnętrzny", href: "https://eur-lex.europa.eu/x" }),
+      ],
+      lang: "pl",
+      siteUrl: "https://neweuropeanstrategies.com",
+      frequency: "daily",
+    });
+
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("data:text");
+    expect(html).toContain('<span style="font-weight:600">Skrypt</span>');
+    expect(html).toContain('href="https://eur-lex.europa.eu/x"');
+  });
+
   it("HTML zawiera absolutny link, escapuje treść i linkuje ustawienia", () => {
     const html = buildDigestHtml({
       displayName: 'Jan "PA" Kowalski',

@@ -178,10 +178,6 @@ export const DOMAIN_EVENT_TYPES = [
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
 
-export function isKnownDomainEventType(value: string): value is DomainEventType {
-  return (DOMAIN_EVENT_TYPES as readonly string[]).includes(value);
-}
-
 /** Payload zdarzenia jako obiekt (kolumna jsonb jest typowana jako Json). */
 export function eventPayload(event: DomainEventRow): Record<string, unknown> {
   const p = event.payload;

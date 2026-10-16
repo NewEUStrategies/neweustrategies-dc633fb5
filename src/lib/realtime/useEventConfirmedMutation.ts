@@ -8,10 +8,10 @@
 //
 // Correlation id wędruje nagłówkiem x-correlation-id (runWithCorrelation ->
 // correlation-fetch), a triggery DB zapisują go w domain_events.
-import { useRef } from "react";
 import {
   useMutation,
   useQueryClient,
+  type MutationFunctionContext,
   type QueryKey,
   type UseMutationResult,
 } from "@tanstack/react-query";
@@ -49,14 +49,23 @@ interface OptimisticSnapshot<TCache> {
   correlationId: string;
 }
 
+/**
+ * Correlation id per WYKONANIE mutacji. Id musi powstać w onMutate, a być
+ * widoczne w mutationFn TEJ SAMEJ mutacji - React Query nie przekazuje wyniku
+ * onMutate do mutationFn, ale obu podaje ten sam obiekt kontekstu funkcji,
+ * tworzony raz na `Mutation.execute` (@tanstack/query-core, wersja przypięta
+ * w package.json). Wcześniej id jechało przez jeden `useRef` na hook, więc
+ * dwie mutacje w locie przeplatały się: onMutate(B) nadpisywał id, zanim
+ * mutationFn(A) je odczytał - żądanie A szło ze stemplem B, a A po oknie
+ * potwierdzenia było wycofywane mimo poprawnego zapisu. WeakMap, bo klucz
+ * żyje dokładnie tyle, co wykonanie mutacji.
+ */
+const correlationByExecution = new WeakMap<MutationFunctionContext, string>();
+
 export function useEventConfirmedMutation<TData, TVariables, TCache>(
   options: EventConfirmedMutationOptions<TData, TVariables, TCache>,
 ): UseMutationResult<TData, Error, TVariables, OptimisticSnapshot<TCache>> {
   const qc = useQueryClient();
-  // Correlation id musi powstać w onMutate, a być widoczny w mutationFn -
-  // przekazujemy go przez ref (React Query nie daje wspólnego kontekstu
-  // między onMutate a mutationFn w tę stronę).
-  const correlationRef = useRef<string>("");
 
   const invalidateAll = (variables: TVariables) => {
     void variables;
@@ -67,9 +76,9 @@ export function useEventConfirmedMutation<TData, TVariables, TCache>(
   };
 
   return useMutation<TData, Error, TVariables, OptimisticSnapshot<TCache>>({
-    onMutate: async (variables) => {
+    onMutate: async (variables, execution) => {
       const correlationId = newCorrelationId();
-      correlationRef.current = correlationId;
+      correlationByExecution.set(execution, correlationId);
       await qc.cancelQueries({ queryKey: options.queryKey });
       const previous = qc.getQueryData<TCache>(options.queryKey);
       qc.setQueryData<TCache>(options.queryKey, (current) =>
@@ -77,8 +86,10 @@ export function useEventConfirmedMutation<TData, TVariables, TCache>(
       );
       return { previous, correlationId };
     },
-    mutationFn: (variables) => {
-      const correlationId = correlationRef.current || newCorrelationId();
+    mutationFn: (variables, execution) => {
+      // Brak wpisu = mutacja odtworzona z dehydracji (onMutate nie biegnie):
+      // świeże id, a onSuccess bez kontekstu i tak niczego nie potwierdza.
+      const correlationId = correlationByExecution.get(execution) ?? newCorrelationId();
       return runWithCorrelation(correlationId, () =>
         options.mutationFn(variables, { correlationId }),
       );

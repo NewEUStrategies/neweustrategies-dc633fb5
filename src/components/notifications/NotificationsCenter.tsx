@@ -121,7 +121,7 @@ type NotificationListSnapshot = Array<[QueryKey, NotificationInfiniteData | unde
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences" | "consents";
 
-export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode } = {}) {
+export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode }) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const initialTab: TabValue = mode === "preferences" || mode === "consents" ? "settings" : "all";
@@ -178,9 +178,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
   // Mark-read / mark-unread: optimistic variants of the shared hooks (same
   // RPCs), so rows flip state instantly instead of waiting for invalidation.
+  // Wołający podają zawsze niepustą listę (przycisk istnieje tylko dla grupy
+  // z nieprzeczytanymi, klik w wiersz sprawdza `unreadIds.length`).
   const markMany = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) return;
       const { error } = await supabase.rpc("mark_notifications_read", { p_ids: ids });
       if (error) throw error;
     },
@@ -201,7 +202,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   });
   const unreadMany = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) return;
       const { error } = await supabase.rpc("mark_notifications_unread", { p_ids: ids });
       if (error) throw error;
     },
@@ -220,7 +220,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   // with the rows optimistically removed from every cached list up front.
   const deleteGroup = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) return;
       const { error } = await supabase.from("notifications").delete().in("id", ids);
       if (error) throw error;
     },
@@ -444,12 +443,15 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       const href = n.href;
                       const actorId = notificationActorId(n.href);
                       const actor = actorId ? actorProfiles.get(actorId) : undefined;
+                      // `||`, nie `??`: pusta nazwa z profilu kontaktu to też
+                      // brak nazwy - inicjały i alt biorą wtedy tytuł.
+                      const actorName = actor?.display_name || pickTitle(n, lang);
                       const initials =
-                        (actor?.display_name ?? pickTitle(n, lang))
+                        actorName
                           .split(/\s+/)
                           .filter(Boolean)
                           .slice(0, 2)
-                          .map((w) => w[0]?.toUpperCase() ?? "")
+                          .map((w) => w.charAt(0).toUpperCase())
                           .join("") || "•";
                       return (
                         <li key={g.key} className="py-3 flex items-start gap-3">
@@ -462,7 +464,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                             {actor?.avatar_url ? (
                               <AvatarImage
                                 src={actor.avatar_url}
-                                alt={actor.display_name ?? pickTitle(n, lang)}
+                                alt={actorName}
                                 className="rounded-[6px] object-cover"
                               />
                             ) : null}

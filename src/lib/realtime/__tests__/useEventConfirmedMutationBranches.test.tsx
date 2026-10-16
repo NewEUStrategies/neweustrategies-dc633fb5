@@ -364,56 +364,41 @@ describe("rozstrzygnięcie BEZ kontekstu z onMutate", () => {
 });
 
 describe("dwie mutacje w locie z jednego hooka", () => {
-  // ZNANY DEFEKT PRODUKCYJNY - test jest celowo czerwony (`it.fails`) i NIE
-  // wolno go naprawiać zmianą asercji.
-  //
-  // CO JEST ZŁAMANE: correlation id powstaje w `onMutate` i wędruje do
-  // `mutationFn` przez POJEDYNCZY `useRef` wspólny dla całego hooka
-  // (`correlationRef`, linie 59 i 72 w useEventConfirmedMutation.ts). `onMutate`
-  // jest asynchroniczne (`await qc.cancelQueries`), więc dwie mutacje wypuszczone
-  // z tego samego hooka bez czekania na pierwszą przeplatają się tak:
+  // REGRESJA (naprawione). Correlation id powstaje w `onMutate`, a jechało do
+  // `mutationFn` przez POJEDYNCZY `useRef` wspólny dla całego hooka. `onMutate`
+  // jest asynchroniczne (`await qc.cancelQueries`), więc dwie mutacje
+  // wypuszczone z tego samego hooka przeplatały się tak:
   //
   //   onMutate(A): ref = idA -> await cancelQueries
   //   onMutate(B): ref = idB -> await cancelQueries
   //   mutationFn(A): czyta ref -> dostaje idB   <-- zły stempel
   //   mutationFn(B): czyta ref -> dostaje idB
   //
-  // Kontekst z `onMutate` jest już poprawny per mutacja, więc `onSuccess(A)`
-  // czeka na potwierdzenie idA - a żądanie A poszło do bazy z nagłówkiem idB
-  // i trigger zapisze w `domain_events.correlation_id` właśnie idB. Zdarzenie
-  // potwierdzające dla A nigdy nie nadejdzie.
+  // `onSuccess(A)` czekał na idA, a żądanie A poszło do bazy z idB - po oknie
+  // potwierdzenia PIERWSZA akcja była wycofywana z cache mimo poprawnego
+  // zapisu ("zniknęło po chwili"), bez śladu w konsoli i w sieci.
   //
-  // SKUTEK DLA UŻYTKOWNIKA: przy dwóch szybkich akcjach z jednego widoku
-  // (dwa kliknięcia „dodaj", przeciągnięcie dwóch kart naraz) PIERWSZA z nich
-  // po upływie okna potwierdzenia zostaje WYCOFANA z cache mimo poprawnego
-  // zapisu - czyli dokładnie objaw „zniknęło po chwili", któremu ten hook ma
-  // zapobiegać. Cichy, bo nie ma żadnego błędu ani w konsoli, ani w sieci.
-  //
-  // OCZEKIWANY KONTRAKT: identyfikator wygenerowany w `onMutate` danej mutacji
-  // musi dotrzeć do `mutationFn` TEJ SAMEJ mutacji - czyli zbiór stempli
-  // faktycznie wysłanych ma się pokrywać ze zbiorem oczekiwanych korelacji.
-  // Naprawa wymaga przeniesienia id ze wspólnego ref-a na kontekst mutacji
-  // (np. mapa `mutationId -> correlationId` albo przekazanie go przez zmienne),
-  // a nie zmiany testu.
-  it.fails(
-    "DEFEKT: równoległe mutacje dzielą jeden ref korelacji - pierwsze żądanie idzie ze stemplem drugiego",
-    async () => {
-      const { hook, correlationIds } = mountMutation();
+  // KONTRAKT: identyfikator wygenerowany w `onMutate` danej mutacji dociera do
+  // `mutationFn` TEJ SAMEJ mutacji - zbiór stempli faktycznie wysłanych pokrywa
+  // się ze zbiorem oczekiwanych korelacji. Id jedzie teraz przez obiekt
+  // kontekstu funkcji, tworzony przez React Query raz na wykonanie mutacji.
+  it("równoległe mutacje z jednego hooka wysyłają KAŻDA własny stempel korelacji", async () => {
+    const { hook, correlationIds } = mountMutation();
 
-      await act(async () => {
-        await Promise.all([
-          hook.result.current.mutateAsync("pierwszy"),
-          hook.result.current.mutateAsync("drugi"),
-        ]);
-      });
+    await act(async () => {
+      await Promise.all([
+        hook.result.current.mutateAsync("pierwszy"),
+        hook.result.current.mutateAsync("drugi"),
+      ]);
+    });
 
-      const awaited = h.awaitDomainEvent.mock.calls.map((call) => String(call[0]));
-      expect(correlationIds).toHaveLength(2);
-      expect(awaited).toHaveLength(2);
-      // Zmierzone na tym HEAD: `correlationIds` to DWA RAZY ten sam (drugi)
-      // identyfikator, a `awaited` - dwa różne. Pierwsza mutacja czeka więc na
-      // korelację, której nigdy nie wysłała.
-      expect([...correlationIds].sort()).toEqual([...awaited].sort());
-    },
-  );
+    const awaited = h.awaitDomainEvent.mock.calls.map((call) => String(call[0]));
+    expect(correlationIds).toHaveLength(2);
+    expect(awaited).toHaveLength(2);
+    // Przed poprawką `correlationIds` to były DWA RAZY ten sam (drugi)
+    // identyfikator, a `awaited` - dwa różne: pierwsza mutacja czekała na
+    // korelację, której nigdy nie wysłała.
+    expect(new Set(correlationIds).size).toBe(2);
+    expect([...correlationIds].sort()).toEqual([...awaited].sort());
+  });
 });
