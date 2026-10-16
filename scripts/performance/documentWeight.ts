@@ -911,7 +911,7 @@ export function medianWeights(
 /**
  * MODUŁY TYLKO SERWEROWE (P1.4, recenzja runda 3, m3). Kandydata LCP
  * (`lcpCandidate.ts`) i preload jego obrazu (`heroImage.ts`) liczy wyłącznie
- * serwer; kod klienta woła je pod `isServerRender()`, a bundler wycina tę gałąź,
+ * serwer; kod klienta woła je pod `isServer ?? isSsrRequest()`, a bundler wycina tę gałąź,
  * bo `isServer` router-core jest w buildzie przeglądarki literałem `false`.
  * Powrót do bundla klienta (wywołanie poza gałęzią, niestała flaga w paczce,
  * bundler, który przestał zwijać gałąź) nie przekracza żadnego progu bajtowego

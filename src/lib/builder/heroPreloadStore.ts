@@ -14,8 +14,10 @@
 // komponent czyta ją przez `useQueryClient()`. Nagłówek `Link` loader dalej
 // emituje sam (z tej samej listy).
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { isServer } from "@tanstack/router-core/isServer";
 
-import { isServerRender, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import type { LcpImagePreload } from "@/lib/builder/aboveFold";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 
 const heroPreloadsByRequest = new WeakMap<QueryClient, readonly LcpImagePreload[]>();
 
@@ -38,5 +40,5 @@ export function heroPreloadsFor(queryClient: QueryClient): readonly LcpImagePrel
  */
 export function useHeroPreloads(): readonly LcpImagePreload[] | undefined {
   const queryClient = useQueryClient();
-  return isServerRender() ? heroPreloadsByRequest.get(queryClient) : undefined;
+  return (isServer ?? isSsrRequest()) ? heroPreloadsByRequest.get(queryClient) : undefined;
 }

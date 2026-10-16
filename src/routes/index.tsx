@@ -42,7 +42,8 @@ import {
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
-import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 import { rememberHeroPreloads, useHeroPreloads } from "@/lib/builder/heroPreloadStore";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
@@ -201,7 +202,7 @@ export const Route = createFileRoute("/")({
     // do `preload()` z react-dom, który dzieli klucz zasobu z automatycznym
     // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
     // kandydata (dawniej: link z `head()` + preload Reacta = duplikat).
-    // `heroPreloads` liczy WYŁĄCZNIE serwer (`isServerRender()` wycina
+    // `heroPreloads` liczy WYŁĄCZNIE serwer (warunek `isServer ?? isSsrRequest()` wycina
     // `heroImage.ts` i `lcpCandidate.ts` z bundla klienta - PROVE P1.4,
     // `check:bundle`; w `bun run dev` serwer rozpoznaje brak `document`);
     // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
@@ -306,7 +307,7 @@ export const Route = createFileRoute("/")({
         // `builderHeroPreloads`), więc obraz kandydata pozostaje w pełni
         // wyznaczalny: komponent trasy wyemituje go przez `preload()` z
         // react-dom, a loader jako nagłówek `Link`.
-        if (isServerRender()) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
+        if (isServer ?? isSsrRequest()) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
@@ -352,7 +353,7 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    if (isServerRender()) {
+    if (isServer ?? isSsrRequest()) {
       rememberHeroPreloads(queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }

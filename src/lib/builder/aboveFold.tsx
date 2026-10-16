@@ -25,7 +25,7 @@
 // (`lcpRootAttributes`); klient przy hydratacji ODCZYTUJE te same identyfikatory
 // z DOM-u serwera (`readServerLcpCandidates`), więc renderuje identyczne
 // atrybuty i znaczniki - parytet bajtowy bez kodu `lcpCandidates` w bundlu
-// klienta (`isServerRender()` wycina go z grafu przeglądarki).
+// klienta (warunek `(isServer ?? isSsrRequest())` wycina go z grafu przeglądarki - niżej).
 //
 // RENDER CZYSTO KLIENCKI (nawigacja SPA, nowy dokument w tym samym rendererze;
 // recenzja P1.4 runda 3, M1) nie ma kandydata, znacznika ani preloadu, ale
@@ -39,18 +39,20 @@ import type { ImagePreloadInput } from "@/lib/seo/meta";
 import { useAccessContext } from "@/lib/builder/accessControl";
 import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 
-/**
- * Czy to render SERWEROWY. `isServer` z router-core jest stałą warunków
- * eksportu: w buildzie przeglądarki `false` - bundler zwija całe wyrażenie, więc
- * gałęzie serwerowe (`lcpCandidates`, `heroImage.ts`, `preload()`) wypadają
- * z bundla klienta - a w workerze `true`. W warunku `development` (`bun run dev`)
- * i pod `NODE_ENV=test` ma jednak wartość `undefined` (src/lib/ssr/isSsrRequest.ts):
- * wtedy rozstrzyga brak `document`, liczony przy każdym wywołaniu (recenzja P1.4
- * runda 3, m1 - inaczej serwer dev nie miał ani kandydata, ani preloadu).
- */
-export function isServerRender(): boolean {
-  return isServer ?? isSsrRequest();
-}
+// GAŁĄŹ TYLKO-SERWEROWA: warunek `(isServer ?? isSsrRequest())`, pisany WPROST w miejscu
+// użycia. `isServer` z router-core jest stałą warunków eksportu: w buildzie przeglądarki
+// `false`, w workerze `true`; w warunku `development` (`bun run dev`) i pod `NODE_ENV=test` ma
+// wartość `undefined` - wtedy rozstrzyga brak `document`, liczony przy każdym wywołaniu
+// (src/lib/ssr/isSsrRequest.ts; recenzja P1.4 runda 3, m1 - inaczej serwer dev nie miał ani
+// kandydata, ani preloadu). W buildzie przeglądarki Rolldown wkleja stałą do `??`
+// (`optimization.inlineConst`, tryb `smart`) i zwija warunek, więc gałąź z `lcpCandidates`,
+// `heroImage.ts` i `preload()` wypada z bundla klienta razem z importami.
+//
+// NIE ZAMYKAJ GO W FUNKCJI. Do 2026-10-16 był nim `isServerRender()`: Rollup propagował wartość
+// zwracaną przez funkcję do wywołań w innych modułach, Rolldown tego nie robi (zmierzone na
+// fiksturze: wywołanie zostawia gałąź, wyrażenie wprost ją wycina) - po przejściu na Vite 8
+// `lcpCandidate.ts` i `heroImage.ts` wróciły do chunku bootu (`check:document-weight`).
+// Kształt warunku pilnuje statyczny test `lcpCandidate.test.ts` (pkt 6).
 
 /** Stała tożsamość pustej listy kandydatów (kontekst i `memo` jej nie zmieniają). */
 export const NO_LCP_CANDIDATES: readonly string[] = Object.freeze([]);
@@ -204,7 +206,7 @@ export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | u
 
 /**
  * Hook trasy: preload kandydatów policzonych przez loader DLA GOŚCIA
- * (`builderHeroPreloads`). Działa WYŁĄCZNIE w SSR (`isServerRender`): loader liczy
+ * (`builderHeroPreloads`). Działa WYŁĄCZNIE w SSR (`isServer ?? isSsrRequest()`): loader liczy
  * preloady tylko na serwerze, a przy hydratacji link jest już w `<head>`, więc
  * kod preloadu nie trafia do bundla klienta. SSR jest anonimowy z konstrukcji
  * (`GUEST_ACCESS_CONTEXT`); warunek sesji pilnuje, żeby preload gościa nigdy
@@ -213,5 +215,5 @@ export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | u
  */
 export function usePreloadLcpImages(preloads: readonly LcpImagePreload[] | null | undefined): void {
   const { isAuthenticated } = useAccessContext();
-  if (isServerRender() && !isAuthenticated) preloadLcpImages(preloads);
+  if ((isServer ?? isSsrRequest()) && !isAuthenticated) preloadLcpImages(preloads);
 }

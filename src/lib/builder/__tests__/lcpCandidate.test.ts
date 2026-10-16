@@ -16,9 +16,11 @@
 //     której czytelnik nie spełnia, nie dają kandydata - ani nie zajmują okna,
 //     ani nie zmieniają podziału slotu rodzeństwa.
 //  6. MODUŁ (i heroImage.ts) JEST TYLKO SERWEROWY (recenzja P1.4 runda 3, m3):
-//     każde użycie w kodzie klienta stoi w gałęzi `isServerRender()`, a stała
-//     `isServer` router-core w buildzie przeglądarki to literał `false` - inaczej
-//     bundler nie wytnie gałęzi i moduły po cichu wrócą do chunku wejściowego.
+//     każde użycie w kodzie klienta stoi w gałęzi warunku `isServer ?? isSsrRequest()`
+//     pisanego WPROST (nie w funkcji - Rolldown nie propaguje wartości zwracanej,
+//     lib/builder/aboveFold.tsx), a stała `isServer` router-core w buildzie
+//     przeglądarki to literał `false` - inaczej bundler nie wytnie gałęzi i moduły
+//     po cichu wrócą do chunku bootu.
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
@@ -557,17 +559,24 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
     return SERVER_ONLY.find((file) => file === base || file === `${base}.ts`) ?? null;
   }
 
-  /** Warunek POTWIERDZA serwer: `isServerRender()` albo koniunkcja z nim. */
+  /**
+   * Warunek POTWIERDZA serwer: `isServer ?? isSsrRequest()` (wprost, w nawiasie albo bez)
+   * albo koniunkcja z nim. Wywołanie funkcji opakowującej NIE liczy się - Rolldown nie zwija
+   * go w buildzie przeglądarki (lib/builder/aboveFold.tsx).
+   */
   function assertsServer(expr: ts.Expression): boolean {
     const node = ts.isParenthesizedExpression(expr) ? expr.expression : expr;
-    if (ts.isCallExpression(node))
+    if (!ts.isBinaryExpression(node)) return false;
+    if (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
       return (
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === "isServerRender" &&
-        node.arguments.length === 0
+        ts.isIdentifier(node.left) &&
+        node.left.text === "isServer" &&
+        ts.isCallExpression(node.right) &&
+        ts.isIdentifier(node.right.expression) &&
+        node.right.expression.text === "isSsrRequest" &&
+        node.right.arguments.length === 0
       );
     return (
-      ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
       (assertsServer(node.left) || assertsServer(node.right))
     );
@@ -596,7 +605,7 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
     return false;
   }
 
-  /** Użycia modułów tylko-serwerowych w pliku: importer, nazwa, linia, czy pod `isServerRender()`. */
+  /** Użycia modułów tylko-serwerowych w pliku: importer, nazwa, linia, czy pod warunkiem serwera. */
   function serverOnlyUses(file: string) {
     const text = readFileSync(join(ROOT, file), "utf8");
     const uses: Array<{ file: string; name: string; line: number; guarded: boolean }> = [];
@@ -654,7 +663,7 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
 
   it("importują je wyłącznie renderer-właściciel i dwie trasy z preloadem", () => {
     // Nowy importer wymaga świadomej decyzji: kod klienta musi wołać te moduły
-    // pod `isServerRender()` (test niżej), inaczej wracają do bundla klienta.
+    // pod `isServer ?? isSsrRequest()` (test niżej), inaczej wracają do bundla klienta.
     expect([...new Set(uses.map((use) => use.file))].sort()).toEqual(
       [
         "src/components/builder/organisms/BuilderRenderer.tsx",
@@ -664,7 +673,7 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
     );
   });
 
-  it("każde użycie w kodzie klienta stoi w gałęzi `isServerRender()`", () => {
+  it("każde użycie w kodzie klienta stoi w gałęzi `isServer ?? isSsrRequest()`", () => {
     expect(uses.length).toBeGreaterThanOrEqual(5);
     expect(uses.filter((use) => !use.guarded)).toEqual([]);
   });
@@ -681,12 +690,17 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
       visit(sf);
       return guarded;
     };
-    expect(probe("const a = isServerRender() ? builderHeroPreloads(d) : [];")).toBe(true);
-    expect(probe("if (isServerRender() && x) builderHeroPreloads(d);")).toBe(true);
+    const server = "(isServer ?? isSsrRequest())";
+    expect(probe(`const a = ${server} ? builderHeroPreloads(d) : [];`)).toBe(true);
+    expect(probe(`if (${server} && x) builderHeroPreloads(d);`)).toBe(true);
+    expect(probe("if (isServer ?? isSsrRequest()) builderHeroPreloads(d);")).toBe(true);
     expect(probe("const a = builderHeroPreloads(d);")).toBe(false);
-    expect(probe("const a = !isServerRender() ? builderHeroPreloads(d) : [];")).toBe(false);
-    expect(probe("const a = isServerRender() || builderHeroPreloads(d);")).toBe(false);
-    expect(probe("const a = isServerRender() ? [] : builderHeroPreloads(d);")).toBe(false);
+    expect(probe(`const a = !${server} ? builderHeroPreloads(d) : [];`)).toBe(false);
+    expect(probe(`const a = ${server} || builderHeroPreloads(d);`)).toBe(false);
+    expect(probe(`const a = ${server} ? [] : builderHeroPreloads(d);`)).toBe(false);
+    // Funkcja opakowująca i `||` nie zwijają się w buildzie przeglądarki (Rolldown).
+    expect(probe("const a = isServerRender() ? builderHeroPreloads(d) : [];")).toBe(false);
+    expect(probe("if (isServer || isSsrRequest()) builderHeroPreloads(d);")).toBe(false);
   });
 
   it("`isServer` router-core w buildzie przeglądarki to literał `false` (bundler zwija gałąź)", () => {
