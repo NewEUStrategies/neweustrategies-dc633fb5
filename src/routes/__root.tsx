@@ -15,6 +15,7 @@ import {
   useRouterState,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import {
   Suspense,
@@ -75,6 +76,9 @@ import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 // `bootLoaderScript`): kompilator Start wycina je z bundla przeglądarki razem z tymi importami.
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
 import { BOOT_LOADER_SCRIPT } from "../lib/boot/bootLoaderScript";
+// Węzeł danych zestawu bootu - w drzewie po obu stronach (w przeglądarce renderuje `null`), więc
+// w bundlu klienta zostaje, ale bez danych i bez tekstu loadera (`lib/boot/bootSetNode.tsx`).
+import { BootSetNode } from "../lib/boot/bootSetNode";
 import { markAppReady } from "../lib/watchdog/appReady";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
@@ -562,7 +566,9 @@ function NotFoundComponent() {
   return <PublicNotFound />;
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+// `ErrorComponentProps`: od router-core 1.171.37 granica błędu podaje `error: unknown` (rzucić
+// można cokolwiek), a każdy odbiorca niżej przyjmuje `unknown`.
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   useEffect(() => {
     reportPlatformError(error, { boundary: "tanstack_root_error_component" });
@@ -1178,6 +1184,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     return { ga4: ssrGoogleTag(settings) };
   },
   shellComponent: RootShell,
+  // POWŁOKA BLOKUJĄCA, JAK PRZED PODBICIEM. Od `@tanstack/react-router` 1.170.44 korzeń
+  // z `shellComponent` dostaje WŁASNĄ granicę `Suspense` z fallbackiem
+  // `defaultPendingComponent` (`dist/esm/Match.js`: `canWrapInSuspense` i `wrapInSuspense`),
+  // a `src/router.tsx` ustawia tam `RouteLoadingSkeleton`; 1.170.18 korzenia nie owijał nigdy.
+  // Bez tej flagi zawieszenie czegokolwiek w treści korzenia poza własną granicą (dostawcy,
+  // style motywu, `SiteChrome`; `Header` ma swoją, z `HeaderSkeleton`) wypuściłoby na ścieżce
+  // strumieniowej SSR szkielet trasy jako CAŁĄ treść `<body>`, a prawdziwą stronę dopiero
+  // później, podmianą poza kolejnością - inny pierwszy bajt dokumentu i inne LCP. Każdy dokument
+  // niósłby też znaczniki granicy `<!--$-->` wokół całej treści. `false` przywraca dawną
+  // semantykę: powłoka dokumentu czeka na treść korzenia (`false ?? fallback` to `false`).
+  // Dowód na prawdziwym routerze serwerowym: `__tests__/rootRouterMount.test.tsx`.
+  wrapInSuspense: false,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
@@ -1257,18 +1275,22 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
-        {/* PIERWSZY skrypt w dokumencie - wszystko po nim jest obserwowalne.
-            Klasyczny, nie modułowy: musi przeżyć rzut w chunku vendorowym,
-            czyli awarię z 2026-07-20, której żaden handler zainstalowany
-            z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje
-            w pamięci strony - wysyłka jest w lib/observability, za bramką
-            zgody analitycznej. */}
+        {/* Zestaw bootu `#nes-boot-set` (P2.1): węzeł danych (nie skrypt wykonywalny), który
+            serwer renderuje PRZED sondą i loaderem, więc loader czyta go przy starcie i usuwa,
+            zanim wstawi wejście. Skład w haku dehydratacji (`lib/boot/bootSet.server.ts`),
+            render i tożsamość hydratacji (w przeglądarce `null`): `lib/boot/bootSetNode.tsx`. */}
+        <BootSetNode />
+        {/* PIERWSZY skrypt wykonywalny aplikacji (przed nim są wyłącznie znaczniki
+            `<HeadContent />`, w tym skrypty `head()` tras, i węzeł danych zestawu wyżej) -
+            wszystko po nim jest obserwowalne. Klasyczny, nie modułowy: musi przeżyć rzut
+            w chunku vendorowym, czyli awarię z 2026-07-20, której żaden handler zainstalowany
+            z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje w pamięci strony -
+            wysyłka jest w lib/observability, za bramką zgody analitycznej. */}
         <script data-nes-probe="" dangerouslySetInnerHTML={{ __html: bootProbeScript() }} />
         {/* Loader bootu (P2.1) zaraz po sondzie: manifest Start nie startuje już JS-a, więc to
             ten skrypt wstawia serię `modulepreload` i wejście - po wpisie LCP kandydata na
-            stronach z kandydatem, od razu wszędzie indziej (zestaw `#nes-boot-set` wstrzykuje
-            serwer poza drzewem Reacta, `lib/boot/bootSet.server.ts`). Klasyczny i inline,
-            bo musi działać przed każdym modułem. */}
+            stronach z kandydatem, od razu wszędzie indziej (listę bierze z `#nes-boot-set`
+            wyżej). Klasyczny i inline, bo musi działać przed każdym modułem. */}
         <script data-nes-boot="" dangerouslySetInnerHTML={{ __html: bootLoaderScript() }} />
         {supabaseConfigScript ? (
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />

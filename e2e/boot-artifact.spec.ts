@@ -41,37 +41,13 @@ const GRANTED = "Włączone";
 const CATEGORY_COUNT = 4;
 
 /**
- * JEDYNY TOLEROWANY `console.error` - DEFEKT BIBLIOTEKI, NIE TEJ APLIKACJI.
+ * JEDYNY WYJĄTEK: TRANSPORT DO OBCEGO HOSTA.
  *
- * `@tanstack/router-ssr-query-core` (dist/esm/index.js:93-95) czyta strumień
- * zapytań w pętli, w której `hydrate(queryClient, value)` stoi PRZED
- * `if (done) return`. Ostatni odczyt domkniętego strumienia to z definicji
- * `{done: true, value: undefined}`, a `hydrate(qc, undefined)` czyta
- * `dehydratedState.mutations` i rzuca `TypeError`. Rzut leci do `.catch`
- * biblioteki, który loguje ten komunikat - na KAŻDYM dokumencie.
- *
- * DLACZEGO TO WOLNO PRZEPUŚCIĆ, a nie jest to rozluźnienie bramki: rzut wypada
- * na odczycie TERMINALNYM, więc wszystkie prawdziwe porcje strumienia są już
- * zhydratowane i nie ginie ani jedno zapytanie. Wyjątek jest przy tym WĄSKI -
- * wymaga OBU fragmentów naraz - a każdy inny `console.error` nadal wywraca ten
- * test, bo po to on istnieje.
- *
- * WYJĄTEK NIE PRZEŻYJE DEFEKTU: przyczyna jest przypięta w
- * `src/__tests__/router.test.tsx` („integracja router<->query: terminalny odczyt
- * strumienia") asercją, że biblioteka NADAL woła `hydrate` przed sprawdzeniem
- * `done`. Gdy to się zmieni, tamten test zapali się sam i będzie sygnałem do
- * ZDJĘCIA tego wyjątku. Naprawa obejściem u nas (podstawiony czytnik, który
- * nigdy się nie rozstrzyga) to zmiana zachowania produkcyjnego dla zgaszenia
- * logu i DECYZJA NALEŻY DO CZŁOWIEKA - patrz komentarz w tamtym teście.
- */
-const TOLERATED_LIBRARY_ERROR = ["Error reading query stream:", "mutations"] as const;
-
-function isToleratedLibraryError(text: string): boolean {
-  return TOLERATED_LIBRARY_ERROR.every((fragment) => text.includes(fragment));
-}
-
-/**
- * DRUGI I OSTATNI WYJĄTEK: TRANSPORT DO OBCEGO HOSTA.
+ * (Do podbicia TanStack 1.169 był jeszcze drugi: „Error reading query stream: ...
+ * (reading 'mutations')" z pętli odczytu `@tanstack/router-ssr-query-core` 1.169.1, która
+ * wołała `hydrate` przed sprawdzeniem `done`. 1.169.3 sprawdza `done` najpierw, więc ten
+ * komunikat znów wywraca test - objaw pilnuje `src/__tests__/router.test.tsx`, „integracja
+ * router<->query: terminalny odczyt strumienia".)
  *
  * Ten test jedzie po artefakcie BEZ BACKENDU - i w CI, i tutaj `SUPABASE_URL`
  * to `https://placeholder.supabase.co`, host, który z konstrukcji nie istnieje.
@@ -109,7 +85,6 @@ test("zbudowany artefakt hydratuje się i ZOSTAJE interaktywny (/cookies)", asyn
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const text = m.text();
-    if (isToleratedLibraryError(text)) return;
     if (isForeignTransportError(text, m.location().url, appOrigin)) return;
     errors.push(`console.error: ${text}`);
   });

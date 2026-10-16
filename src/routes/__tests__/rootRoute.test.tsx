@@ -169,7 +169,11 @@ vi.mock("@tanstack/react-router", async (o) => ({
   HeadContent: () => null,
   Scripts: () => null,
 }));
-vi.mock("@tanstack/router-core/isServer", () => ({
+// Reszta podścieżki (`loadServerRoute`, router-core 1.171.37) zostaje prawdziwa: gdyby
+// router-core kiedyś wszedł do transformacji vitesta, gałąź serwera `router.load()` nie
+// trafiłaby na `undefined`.
+vi.mock("@tanstack/router-core/isServer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/router-core/isServer")>()),
   get isServer() {
     return h.server;
   },
@@ -1992,8 +1996,45 @@ describe("RootShell - loader bootu (P2.1)", () => {
     expect(loader?.hasAttribute(BOOT_LOADER_ATTR)).toBe(true);
     expect(loader?.textContent).toBe(BOOT_LOADER_SCRIPT);
     expect(doc.querySelectorAll(`script[${BOOT_LOADER_ATTR}]`)).toHaveLength(1);
-    // Spike P2.1 wstrzykiwał zestaw i loader w renderze powłoki - rusztowanie usunięte:
-    // zestaw wstrzykuje wyłącznie hak dehydratacji routera (`src/router.tsx`).
+    // Goły render powłoki (bez routera w kontekście) nie ma zestawu: `BootSetNode` renderuje
+    // wyłącznie zestaw złożony dla routera żądania w haku dehydratacji (`src/router.tsx`).
     expect(doc.getElementById("nes-boot-set")).toBeNull();
+  });
+
+  // ZESTAW BOOTU W `<head>` (podbicie TanStack 1.169): router-core nie ma już kanału HTML,
+  // więc węzeł `#nes-boot-set` renderuje powłoka - i MUSI stać przed loaderem, który czyta go
+  // przy starcie. Pierwsze podejście do podbicia zgubiło ten węzeł po cichu: dokument nie
+  // hydratował się nigdy (loader nie miał czego wystartować).
+  it("węzeł `#nes-boot-set` stoi zaraz po `HeadContent`: PRZED sondą, a loader zaraz po sondzie", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { BOOT_PROBE_SCRIPT } = await import("@/lib/observability/bootProbeScript");
+    const { BOOT_LOADER_ATTR } = await import("@/lib/boot/bootLoaderScript");
+    const { bootSetJson, bootSetHtml } = await import("@/lib/boot/bootSet.server");
+    const { setBootSetJson } = await import("@/lib/boot/bootSetRegistry");
+    const { RouterContextProvider, createRootRoute, createRouter } =
+      await import("@tanstack/react-router");
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
+      children: React.ReactNode;
+    }) => React.ReactElement;
+    // Render serwera: `BootSetNode` czyta `isServer ?? router.isServer`.
+    h.server = true;
+    const router = createRouter({ routeTree: createRootRoute(), isServer: true });
+    const set = { m: "lcp", e: "/assets/index-E.js", u: ["/assets/index-E.js"] } as const;
+    setBootSetJson(router, bootSetJson(set));
+    const html = renderToStaticMarkup(
+      <RouterContextProvider router={router}>
+        <Shell>{null}</Shell>
+      </RouterContextProvider>,
+    );
+    expect(html).toContain(bootSetHtml(set));
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const scripts = [...doc.head.querySelectorAll("script")];
+    const node = scripts.findIndex((el) => el.id === "nes-boot-set");
+    const probe = scripts.findIndex((el) => el.textContent === BOOT_PROBE_SCRIPT);
+    expect(node).toBe(0);
+    expect(probe).toBe(node + 1);
+    expect(scripts[probe + 1]?.hasAttribute(BOOT_LOADER_ATTR)).toBe(true);
+    expect(doc.querySelectorAll("#nes-boot-set")).toHaveLength(1);
   });
 });

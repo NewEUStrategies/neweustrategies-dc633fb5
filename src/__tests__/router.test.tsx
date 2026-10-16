@@ -13,10 +13,11 @@
 //     serializacji w tym repozytorium.
 //  2. ZAMIATANIE BIEGNIE PRZED SNAPSHOTEM cache'u integracji. Odwrotna
 //     kolejność znaczy, że seroval dostaje do serializacji martwe obietnice.
-//  3. Strumień zapytań jest owijany strażnikiem, który domykamy sami -
-//     integracja domyka swój tylko z `onRenderFinished`, a router-core po
-//     cichu gubi ten hak w niektórych stanach (wtedy dokument nigdy się nie
-//     kończy).
+//  3. Ładunek zapytań integracji (`query: { initial?, stream }`,
+//     router-ssr-query-core 1.169.3) wychodzi z serwera w KOMPAKTOWEJ kopercie
+//     (P3.7b), a klient rozwija porcję początkową i każdą porcję strumienia
+//     PRZED `hydrate` integracji - bez tego porcja po zamontowaniu `useQuery`
+//     gubi dane. Strumień domyka sama integracja (prawdziwa pętla odczytu niżej).
 //  4. Budżet hydratacji przerywa oczekiwanie: bez niego strona zostaje
 //     statycznym HTML-em, w którym nic nie reaguje na klik, i to BEZ żadnego
 //     błędu widocznego dla użytkownika.
@@ -43,13 +44,15 @@ const h = vi.hoisted(() => ({
   dehydrateImpl: undefined as undefined | (() => Promise<unknown>),
   /** Kolejność zdarzeń w gałęzi serwerowej - przedmiot dowodu nr 2. */
   order: [] as string[],
-  /** Routery, z którymi wstrzyknięto zestaw bootu (P2.1). */
+  /** Routery, dla których złożono zestaw bootu (P2.1). */
   bootRouters: [] as unknown[],
-  /** Strumienie, które dostał strażnik strumienia zapytań (P3.7b: kompaktowanie ZA nim). */
-  guardInputs: [] as unknown[],
 }));
 
-vi.mock("@tanstack/router-core/isServer", () => ({
+// Reszta podścieżki (`loadServerRoute`, router-core 1.171.37) zostaje prawdziwa: gdyby
+// router-core kiedyś wszedł do transformacji vitesta, gałąź serwera `router.load()` nie
+// trafiłaby na `undefined`.
+vi.mock("@tanstack/router-core/isServer", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/router-core/isServer")>()),
   get isServer() {
     return h.server;
   },
@@ -74,19 +77,6 @@ vi.mock("@tanstack/react-router-ssr-query", () => ({
   },
 }));
 
-// Strażnik strumienia: PRAWDZIWY, tylko z zapisem wejścia - kompaktowa koperta
-// (P3.7b, T1) ma iść ZA nim, więc strażnik musi dostać surowy strumień integracji.
-vi.mock("@/lib/ssr/queryStreamGuard", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/ssr/queryStreamGuard")>();
-  return {
-    ...actual,
-    guardQueryStream: (...args: Parameters<typeof actual.guardQueryStream>) => {
-      h.guardInputs.push(args[0]);
-      return actual.guardQueryStream(...args);
-    },
-  };
-});
-
 // Zamiatanie: atrapa CZĄSTKOWA, bo mierzymy KOLEJNOŚĆ, nie implementację.
 vi.mock("@/lib/ssr/postRenderSweep", () => ({
   sweepQueryCacheForSerialization: (_qc: unknown, opts: { reason: string }) => {
@@ -97,10 +87,10 @@ vi.mock("@/lib/ssr/postRenderSweep", () => ({
 vi.mock("@/lib/i18n/localeRuntime", () => ({ currentLang: () => h.lang }));
 
 // Zestaw bootu (P2.1): atrapa rejestruje wywołanie w tej samej osi kolejności, bo kontraktem
-// jest MIEJSCE wstrzyknięcia (hak dehydratacji, raz na dokument), a nie skład - ten ma własny
-// test (`lib/boot/__tests__/bootSet.server.test.ts`).
+// jest MIEJSCE składu (hak dehydratacji, raz na dokument), a nie skład - ten ma własny test
+// razem z węzłem w `<head>` (`lib/boot/__tests__/bootSet.server.test.ts`).
 vi.mock("@/lib/boot/bootSet.server", () => ({
-  injectBootSet: (router: unknown) => {
+  prepareBootSet: (router: unknown) => {
     h.order.push("boot-set");
     h.bootRouters.push(router);
   },
@@ -225,7 +215,7 @@ describe("getRouter - gałąź SERWERA", () => {
 
   it("wpina disposer watchdoga w cykl życia serverSsr, zachowując istniejące", async () => {
     h.server = true;
-    h.dehydrateImpl = async () => ({ dehydratedQueryClient: {} });
+    h.dehydrateImpl = async () => ({});
     const r = getRouter();
     expect(r.serverSsrLifecycle?.onServerSsrAttach).toHaveLength(1);
     const cleanups: unknown[] = [];
@@ -248,9 +238,10 @@ describe("getRouter - gałąź SERWERA", () => {
     h.server = false;
   });
 
-  it("ZESTAW BOOTU (P2.1): wstrzyknięcie w haku dehydratacji, z TYM routerem, raz na wywołanie", async () => {
-    // Hak biegnie po `router.load()` i przed renderem Reacta, tak samo na ścieżce strumieniowej
-    // i `allReady` botów - stąd ten punkt, a nie render powłoki ani `onRenderFinished`.
+  it("ZESTAW BOOTU (P2.1): skład w haku dehydratacji, z TYM routerem, raz na wywołanie", async () => {
+    // Hak biegnie po `router.load()` (dopasowania i hinty loaderów gotowe) i przed renderem
+    // Reacta, tak samo na ścieżce strumieniowej i `allReady` botów; węzeł renderuje potem
+    // `BootSetNode` w powłoce dokumentu, czytając zestaw zapisany dla TEGO routera.
     h.server = true;
     h.order = [];
     h.bootRouters = [];
@@ -261,68 +252,63 @@ describe("getRouter - gałąź SERWERA", () => {
     h.server = false;
   });
 
-  it("owija queryStream własnym strażnikiem", async () => {
+  it("ładunek BEZ `query` przechodzi tym samym obiektem", async () => {
     h.server = true;
-    const stream = new ReadableStream({ start: (c) => c.close() });
-    h.dehydrateImpl = async () => ({ queryStream: stream });
-    const out = (await getRouter().options.dehydrate!()) as { queryStream: unknown };
-    expect(out.queryStream).not.toBe(stream);
-    expect(out.queryStream).toBeInstanceOf(ReadableStream);
-    h.server = false;
-  });
-
-  it("payload BEZ queryStream i bez zapytań przechodzi bez zmian treści", async () => {
-    h.server = true;
-    const payload = { dehydratedQueryClient: { queries: [] } };
+    const payload = { manifest: { routes: {} } };
     h.dehydrateImpl = async () => payload;
-    expect(await getRouter().options.dehydrate!()).toEqual(payload);
-    h.server = false;
+    try {
+      expect(await getRouter().options.dehydrate!()).toBe(payload);
+    } finally {
+      h.server = false;
+      h.dehydrateImpl = undefined;
+    }
   });
 
-  // KOMPAKTOWA KOPERTA (P3.7b, T1; `lib/ssr/dehydratedQueryEnvelope.ts`): bariera
-  // i każda porcja strumienia bez `queryHash` i bez stałego ogona stanu. Strumień
-  // kompaktujemy ZA strażnikiem - strażnik dostaje surowy strumień integracji.
-  it("kompaktuje barierę i każdą porcję strumienia, ZA strażnikiem", async () => {
+  // KOMPAKTOWA KOPERTA (P3.7b, T1; `lib/ssr/dehydratedQueryEnvelope.ts`): porcja
+  // początkowa i każda porcja strumienia bez `queryHash` i bez stałego ogona stanu,
+  // na kopiach - oryginały integracji (ich hashe są w `sentQueries`) zostają nietknięte.
+  it("kompaktuje porcję początkową i każdą porcję strumienia `query`", async () => {
     const { dehydrate, QueryClient } = await import("@tanstack/react-query");
     h.server = true;
-    h.guardInputs = [];
-    const barrier = new QueryClient();
-    barrier.setQueryData(["site_settings_public", "all"], { seo: {} });
+    const initialSource = new QueryClient();
+    initialSource.setQueryData(["site_settings_public", "all"], { seo: {} });
     const streamed = new QueryClient();
     streamed.setQueryData(["builder-post-list", { lang: "pl" }], [{ id: "p" }]);
-    const chunk = dehydrate(streamed);
+    const chunk = dehydrate(streamed).queries;
     const stream = new ReadableStream({
       start: (c) => {
         c.enqueue(chunk);
         c.close();
       },
     });
-    const barrierState = dehydrate(barrier);
-    h.dehydrateImpl = async () => ({ dehydratedQueryClient: barrierState, queryStream: stream });
+    const initial = dehydrate(initialSource).queries;
+    h.dehydrateImpl = async () => ({ query: { initial, stream } });
     try {
       const out = (await getRouter().options.dehydrate!()) as {
-        dehydratedQueryClient: { queries: Array<Record<string, unknown>> };
-        queryStream: ReadableStream<{ queries: Array<Record<string, unknown>> }>;
+        query: {
+          initial: Array<Record<string, unknown>>;
+          stream: ReadableStream<Array<Record<string, unknown>>>;
+        };
       };
-      expect(h.guardInputs).toEqual([stream]);
-      expect(out.dehydratedQueryClient.queries).toHaveLength(1);
-      expect(out.dehydratedQueryClient.queries[0]).not.toHaveProperty("queryHash");
-      expect(out.dehydratedQueryClient.queries[0].state).toEqual({
+      expect(out.query.initial).toHaveLength(1);
+      expect(out.query.initial[0]).not.toHaveProperty("queryHash");
+      expect(out.query.initial[0].state).toEqual({
         data: { seo: {} },
-        dataUpdatedAt: barrierState.queries[0].state.dataUpdatedAt,
+        dataUpdatedAt: initial[0].state.dataUpdatedAt,
       });
-      const reader = out.queryStream.getReader();
+      expect(out.query.stream).not.toBe(stream);
+      const reader = out.query.stream.getReader();
       const first = await reader.read();
-      expect(first.value?.queries[0]).not.toHaveProperty("queryHash");
-      expect(first.value?.queries[0].state).not.toHaveProperty("status");
+      expect(first.value?.[0]).not.toHaveProperty("queryHash");
+      expect(first.value?.[0].state).not.toHaveProperty("status");
       expect((await reader.read()).done).toBe(true);
       // Oryginały integracji nietknięte (ich hashe siedzą w `sentQueries`).
-      expect(barrierState.queries[0].queryHash).toBe('["site_settings_public","all"]');
-      expect(chunk.queries[0].state.status).toBe("success");
+      expect(initial[0].queryHash).toBe('["site_settings_public","all"]');
+      expect(chunk[0].state.status).toBe("success");
     } finally {
       h.server = false;
       h.dehydrateImpl = undefined;
-      barrier.clear();
+      initialSource.clear();
       streamed.clear();
     }
   });
@@ -338,41 +324,36 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     expect(r.serverSsrLifecycle).toBeUndefined();
   });
 
-  it("rozwija kompaktową kopertę (bariera i porcje strumienia) PRZED hydratacją integracji", async () => {
+  it("rozwija kompaktową kopertę (porcja początkowa i porcje strumienia) PRZED hydratacją integracji", async () => {
     const { dehydrate, hashKey, QueryClient } = await import("@tanstack/react-query");
-    const { compactDehydratedState } = await import("@/lib/ssr/dehydratedQueryEnvelope");
-    const seen: Array<{ dehydratedQueryClient: unknown; chunks: unknown[] }> = [];
+    const { compactDehydratedQueries } = await import("@/lib/ssr/dehydratedQueryEnvelope");
+    const seen: Array<{ initial: unknown; chunks: unknown[] }> = [];
     h.server = false;
     h.hydrateImpl = async (d) => {
-      const payload = d as { dehydratedQueryClient: unknown; queryStream: ReadableStream };
+      const { query } = d as { query: { initial?: unknown; stream: ReadableStream } };
       const chunks: unknown[] = [];
-      const reader = payload.queryStream.getReader();
+      const reader = query.stream.getReader();
       for (let r = await reader.read(); !r.done; r = await reader.read()) chunks.push(r.value);
-      seen.push({ dehydratedQueryClient: payload.dehydratedQueryClient, chunks });
+      seen.push({ initial: query.initial, chunks });
     };
     const source = new QueryClient();
     source.setQueryData(["home-mode"], "static_page");
-    const full = dehydrate(source);
-    const queryStream = new ReadableStream({
+    const full = dehydrate(source).queries;
+    const stream = new ReadableStream({
       start: (c) => {
-        c.enqueue(compactDehydratedState(full));
+        c.enqueue(compactDehydratedQueries(full));
         c.close();
       },
     });
     try {
       await getRouter().options.hydrate!({
-        dehydratedQueryClient: compactDehydratedState(full),
-        queryStream,
+        query: { initial: compactDehydratedQueries(full), stream },
       } as never);
       expect(seen).toHaveLength(1);
-      // Integracja widzi PEŁNĄ kopertę: `queryHash` z klucza i pełny stan. Pustej
-      // listy mutacji klient nie odtwarza - `hydrate` query-core czyta
-      // `mutations || []`.
-      const { mutations, ...withoutMutations } = full;
-      expect(mutations).toEqual([]);
-      expect(seen[0].dehydratedQueryClient).toEqual(withoutMutations);
-      expect(seen[0].chunks).toEqual([withoutMutations]);
-      expect(full.queries[0].queryHash).toBe(hashKey(["home-mode"]));
+      // Integracja widzi PEŁNE zapytania: `queryHash` z klucza i pełny stan.
+      expect(seen[0].initial).toEqual(full);
+      expect(seen[0].chunks).toEqual([full]);
+      expect(full[0].queryHash).toBe(hashKey(["home-mode"]));
     } finally {
       h.hydrateImpl = undefined;
       source.clear();
@@ -518,7 +499,7 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     const source = new QueryClient();
     setupCoreRouterSsrQueryIntegration({ router: integrationRouter, queryClient: target } as never);
     let controller!: ReadableStreamDefaultController;
-    const queryStream = new ReadableStream({
+    const stream = new ReadableStream({
       start: (c) => {
         controller = c;
       },
@@ -527,16 +508,17 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     h.hydrateImpl = integrationRouter.options.hydrate as (data: unknown) => Promise<void>;
     try {
       let done = false;
-      const work = Promise.resolve(getRouter().options.hydrate!({ queryStream } as never)).then(
-        () => {
-          done = true;
-        },
-      );
+      const work = Promise.resolve(
+        getRouter().options.hydrate!({ query: { stream } } as never),
+      ).then(() => {
+        done = true;
+      });
       await vi.advanceTimersByTimeAsync(2);
       expect(done).toBe(true);
       await work;
       source.setQueryData(["late-stream-data"], { value: 42 });
-      controller.enqueue(dehydrate(source));
+      // Porcja strumienia to tablica zapytań (router-ssr-query-core 1.169.3).
+      controller.enqueue(dehydrate(source).queries);
       await vi.advanceTimersByTimeAsync(2);
       expect(target.getQueryData(["late-stream-data"])).toEqual({ value: 42 });
       await vi.advanceTimersByTimeAsync(2 * HYDRATE_BUDGET_MS);
@@ -553,48 +535,19 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
 
   // ── TERMINALNY ODCZYT STRUMIENIA ZAPYTAŃ: DLACZEGO LOGU NIE MA ───────────
   //
-  // `e2e/boot-artifact.spec.ts` toleruje na zbudowanym artefakcie jeden
-  // `console.error` na dokument:
-  //   Error reading query stream: TypeError: Cannot read properties of
-  //   undefined (reading 'mutations')
-  // Ta zgoda stoi na KONIUNKCJI dwóch warunków i bez OBU nie ma podstawy.
+  // Do podbicia TanStack 1.169 `e2e/boot-artifact.spec.ts` tolerował na zbudowanym
+  // artefakcie jeden `console.error` na dokument („Error reading query stream: ...
+  // (reading 'mutations')"): `@tanstack/router-ssr-query-core` 1.169.1 wołał
+  // `hydrate(queryClient, value)` PRZED sprawdzeniem `done`, więc odczyt terminalny
+  // (`{done: true, value: undefined}`) kończył się `hydrate(qc, undefined)`, a od
+  // query-core 5.102.1 (bez strażnika `typeof dehydratedState !== "object"`) - rzutem.
   //
-  // WARUNEK (A), KSZTAŁT PĘTLI - PRAWDZIWY DZIŚ. `@tanstack/router-ssr-query-core`
-  // 1.169.1 (dist/esm/index.js:93-96) woła `hydrate` PRZED sprawdzeniem `done`:
-  //   reader.read().then(async function handle({ done, value }) {
-  //     hydrate(queryClient, value, hydrateOptions);   // <- WOŁANE PRZED...
-  //     if (done) return;                              // <- ...sprawdzeniem `done`
-  // Odczyt terminalny domkniętego strumienia to z definicji
-  // `{done: true, value: undefined}`, więc `hydrate(qc, undefined)` PADA na
-  // każdym dokumencie. Warunku (A) pilnuje drugi test w tym bloku.
-  //
-  // WARUNEK (B), CZY `hydrate` TO PRZEŻYWA - FAŁSZYWY DZIŚ. Na PRZYPIĘTEJ
-  // `@tanstack/query-core` 5.101.2 (bun.lock:682) funkcja otwiera się strażnikiem
-  //   if (typeof dehydratedState !== "object" || dehydratedState === null) return;
-  // więc `undefined` wychodzi CICHO, nie dotykając `.mutations`. ZMIERZONE
-  // WYKONANIEM na czterech buildach pobranych z npm: 5.101.2 i 5.102.0 NIE
-  // rzucają, 5.102.1 i 5.102.8 rzucają `TypeError: Cannot read properties of
-  // undefined (reading 'mutations')`. Granica to 5.102.0 -> 5.102.1: tam strażnik
-  // ZNIKA, a typ parametru zmienia się z `unknown` na `Partial<DehydratedState>`.
-  //
-  // DLACZEGO POPRZEDNIA WERSJA TEGO TESTU ŚWIECIŁA NA CZERWONO W CI. Zakładała
-  // `toThrow(/mutations/)`, czyli warunek (B) prawdziwy - a powstała na drzewie,
-  // w którym `node_modules` STAŁO PONAD `bun.lock`: `package.json` dopuszcza
-  // `^5.101.2`, więc instalacja bez locka wciąga 5.102.x. Ślad jest w opisie
-  // commita b2e4f34: `tsc` odrzucił tam argument, bo parametr był typowany
-  // `Partial<DehydratedState>` - sygnatura istniejąca WYŁĄCZNIE od 5.102.1,
-  // podczas gdy przypięty build typuje go `unknown`. CI instaluje z locka, więc
-  // dostaje 5.101.2 i asercja o rzucie była tam niespełnialna z definicji:
-  // żadna zmiana w kodzie TEGO repozytorium nie mogła jej zazielenić.
-  //
-  // CO MIERZY TEN TEST TERAZ. Nie wnętrze biblioteki, tylko OBJAW na tej samej
-  // ścieżce, którą ogląda bramka bootu: prawdziwa integracja, prawdziwy
-  // `QueryClient`, prawdziwy strumień doprowadzony do odczytu TERMINALNEGO -
-  // i zero `console.error`. Zapali się dokładnie wtedy, gdy koniunkcja znów
-  // stanie się prawdziwa, czyli po podbiciu query-core do >= 5.102.1 - a więc
-  // wtedy, gdy zgoda w `e2e/boot-artifact.spec.ts` znów będzie miała podstawę.
-  // Dopóki jest zielony, tamta zgoda jest MARTWA i przepuszcza klasę
-  // komunikatów, której na przypiętym drzewie nikt nie produkuje.
+  // 1.169.3 sprawdza `done` NAJPIERW (`for (;;) { const { done, value } = await
+  // reader.read(); if (done) return; hydrate(...) }`, `dist/esm/index.js:117-130`),
+  // a w `finally` zwalnia czytnik. Tolerancja w e2e zniknęła razem z defektem; ten
+  // test pilnuje OBJAWU na tej samej ścieżce, którą ogląda bramka bootu: prawdziwa
+  // integracja, prawdziwy `QueryClient`, strumień doprowadzony do odczytu TERMINALNEGO
+  // - i zero `console.error`. Zapali się, gdy defekt wróci w górze rzeki.
   describe("integracja router<->query: terminalny odczyt strumienia", () => {
     it("PRAWDZIWA pętla odczytu hydratuje porcję i NIE loguje na odczycie terminalnym", async () => {
       // Tu jedzie PRAWDZIWA integracja, nie atrapa z góry pliku: atrapa podmienia
@@ -608,32 +561,23 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
       // `isServer` z `@tanstack/router-core/isServer` ma wartość `undefined`, bo
       // build serwerowy zwraca `void 0` przy `NODE_ENV === "test"` - a atrapa
       // z góry tego pliku NIE sięga do node_modules (paczka jest zewnętrzna).
-      // O gałęzi decyduje więc `router.isServer` i ustawiamy je JAWNIE, zamiast
-      // opierać test na tym, że pola nie ma; `h.server` ustawiamy dla porządku,
-      // gdyby paczka kiedyś została wciągnięta do transformacji vite.
+      // O gałęzi decyduje więc `router.isServer` i ustawiamy je JAWNIE.
       h.server = false;
       const router = { isServer: false, options: {} as Record<string, unknown> };
       const queryClient = new QueryClient();
       setupCoreRouterSsrQueryIntegration({ router, queryClient } as never);
 
-      // Ładunek o PRAWDZIWYM kształcie - dokładnie to, co serwer wysyła w porcji.
+      // Porcja o PRAWDZIWYM kształcie - dokładnie to, co serwer wysyła w strumieniu.
       const source = new QueryClient();
       source.setQueryData(["terminalny-odczyt"], { v: 42 });
-      const chunk = dehydrate(source);
+      const chunk = dehydrate(source).queries;
 
-      // Odczyt TERMINALNY mierzymy WPROST, opakowując czytnik - bo to on jest
-      // jedynym miejscem, w którym biblioteka woła `hydrate(qc, undefined)`
-      // (`router-ssr-query-core/dist/esm/index.js:93-98`: `hydrate` stoi PRZED
-      // `if (done) return`).
-      //
-      // NIE liczymy tu wywołań `pull`, i to jest poprawka błędu, nie stylu:
-      // `pull` numer 2 odpala się przy ZDJĘCIU porcji z kolejki podczas odczytu
-      // PIERWSZEGO, a nie przy wywołaniu drugiego `read()`. Zmierzone: przy
-      // urwanej pętli (`return;` zamiast `return handle(await reader.read())`)
-      // licznik `pull` i tak dochodził do 2, więc asercja o nim przechodziła
-      // w scenariuszu, który miała wykluczać. `reads` zbiera flagi `done`
-      // zwrócone przez KAŻDY `read()`, więc `[false, true]` znaczy dosłownie:
-      // była porcja, po niej był odczyt domykający.
+      // Odczyty mierzymy WPROST, opakowując czytnik: `reads` zbiera flagi `done`
+      // zwrócone przez KAŻDY `read()`, więc `[false, true]` znaczy dosłownie: była
+      // porcja, po niej był odczyt domykający. (Licznik `pull` źródła nie nadaje się
+      // do tego: drugi `pull` odpala się już przy zdjęciu porcji z kolejki podczas
+      // PIERWSZEGO odczytu.) Czytnik niesie też `releaseLock`/`cancel`, które pętla
+      // woła w `finally` i przy błędzie.
       const source$ = new ReadableStream({
         start: (c) => {
           c.enqueue(chunk);
@@ -641,7 +585,7 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
         },
       });
       const reads: boolean[] = [];
-      const queryStream = {
+      const stream = {
         getReader: () => {
           const reader = source$.getReader();
           return {
@@ -650,12 +594,15 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
               reads.push(result.done);
               return result;
             },
+            releaseLock: () => reader.releaseLock(),
+            cancel: (reason?: unknown) => reader.cancel(reason),
           };
         },
+        cancel: (reason?: unknown) => source$.cancel(reason),
       };
 
       const err = vi.spyOn(console, "error").mockImplementation(() => {});
-      await (router.options.hydrate as (d: unknown) => Promise<void>)({ queryStream });
+      await (router.options.hydrate as (d: unknown) => Promise<void>)({ query: { stream } });
       // Pętla jest FIRE-AND-FORGET (biblioteka jej nie awaituje), więc ustępujemy
       // makrozadanie - inaczej mierzylibyśmy stan sprzed obu odczytów.
       await new Promise((r) => setTimeout(r, 0));
@@ -668,36 +615,6 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
       expect(queryClient.getQueryData(["terminalny-odczyt"])).toEqual({ v: 42 });
       // Tyle logów na dokument widzi bramka bootu.
       expect(logged).toEqual([]);
-    });
-
-    it("biblioteka nadal woła `hydrate` PRZED sprawdzeniem `done`", async () => {
-      // Asercja po ŹRÓDLE paczki, a nie po zachowaniu, i to jest konieczne:
-      // to warunek (A) koniunkcji, a przy ŻYWYM strażniku w query-core
-      // kolejność tych dwóch instrukcji jest z zewnątrz NIEOBSERWOWALNA -
-      // `hydrate(qc, undefined)` wychodzi cicho, więc test wyżej przechodzi
-      // niezależnie od niej. Dopiero razem obie asercje pilnują całej
-      // koniunkcji: ta - że defekt w górze rzeki nadal tam jest, tamta - że
-      // przypięta wersja query-core nadal go znosi.
-      const { readFileSync } = await import("node:fs");
-      const source = readFileSync(
-        "node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js",
-        "utf8",
-      );
-      const readLoop = source.slice(source.indexOf("reader.read().then"));
-      const hydrateAt = readLoop.indexOf("hydrate(queryClient, value");
-      const doneAt = readLoop.indexOf("if (done)");
-      expect(
-        hydrateAt,
-        "kształt pętli odczytu się zmienił - przejrzyj defekt od nowa",
-      ).toBeGreaterThan(-1);
-      expect(
-        doneAt,
-        "kształt pętli odczytu się zmienił - przejrzyj defekt od nowa",
-      ).toBeGreaterThan(-1);
-      // GDY TO PRZESTANIE BYĆ PRAWDĄ, defekt jest naprawiony w górze rzeki:
-      // wtedy log nie wróci NAWET po podbiciu query-core ponad 5.102.0,
-      // a zgoda w `e2e/boot-artifact.spec.ts` traci ostatnią podstawę.
-      expect(hydrateAt).toBeLessThan(doneAt);
     });
   });
 });

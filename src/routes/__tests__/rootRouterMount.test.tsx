@@ -20,6 +20,7 @@ import { RouteLoadingSkeleton } from "@/lib/ssr/RouteLoadingSkeleton";
 // src/test/routeHarness.tsx), ale to zmiana harness'u testowego i osobna
 // praca". To jest ta praca. ZERO zmian w kodzie produkcyjnym.
 import { createRoute } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -282,5 +283,100 @@ describe("__root jako korzeń prawdziwego RouterProvider", () => {
     // A missing root pendingComponent would make this boundary render null.
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
     rendered.unmount();
+  });
+});
+
+// KORZEŃ BEZ WŁASNEJ GRANICY `Suspense` W SSR (`wrapInSuspense: false` w `__root.tsx`).
+//
+// Od `@tanstack/react-router` 1.170.44 `Match.js` owija treść korzenia z `shellComponent`
+// granicą `Suspense` z fallbackiem `defaultPendingComponent` - w aplikacji `RouteLoadingSkeleton`
+// (`src/router.tsx`). 1.170.18 korzenia nie owijał nigdy: zawieszenie treści korzenia
+// wstrzymywało powłokę dokumentu, a nie wypuszczało szkieletu trasy jako całego `<body>`.
+//
+// Dowód na PRAWDZIWYM routerze serwerowym (`isServer: true`, `router.load()`, `RouterProvider`)
+// i strumieniu Reacta czytanym zaraz po gotowości powłoki - tak jak ścieżka przeglądarki
+// `defaultStreamHandler`. Korzeń testu bierze z `__root` dokładnie te opcje, od których zależy
+// granica (`shellComponent`, czyli prawdziwy `RootShell`, i `wrapInSuspense`), a jego treść
+// zawiesza się raz. Zamiast pełnego `RootComponent` zawiesza się atrapa treści: o tym, czy
+// granica istnieje, decydują wyłącznie te dwie opcje i `defaultPendingComponent`, a nie to,
+// który komponent korzenia się zawiesił. Kontrola negatywna (ten sam korzeń bez flagi)
+// pokazuje, że asercje widzą regres.
+describe("SSR: zawieszenie treści korzenia nie wypuszcza szkieletu trasy", () => {
+  async function renderDocument(wrapInSuspense: boolean | undefined): Promise<string> {
+    const { renderToReadableStream } = await import("react-dom/server");
+    const { RouterProvider, createMemoryHistory, createRootRoute, createRouter } =
+      await import("@tanstack/react-router");
+    let released = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = () => {
+        released = true;
+        resolve();
+      };
+    });
+    function SuspendingRootContent() {
+      if (released) return <main data-testid="root-content">treść korzenia</main>;
+      // Zegar rusza przy PIERWSZYM zawieszeniu, czyli w renderze powłoki. Z granicą powłoka jest
+      // wtedy gotowa od razu, a jej odczyt (synchroniczny `pull`) wypada w mikrozadaniach - na
+      // długo przed zegarem. Bez granicy powłoka czeka właśnie na ten zegar.
+      timer ??= setTimeout(release, 20);
+      throw gate;
+    }
+    // `shellComponent` nie jest w publicznym typie `RouteOptions` korzenia (framework czyta je
+    // z opcji dynamicznie) - wzorzec `rootShellRender.test.tsx`.
+    const rootOptions = RootRoute.options as unknown as Record<string, unknown>;
+    const shellComponent = rootOptions["shellComponent"] as (p: {
+      children: ReactNode;
+    }) => ReactNode;
+    const rootRoute = createRootRoute({
+      shellComponent,
+      wrapInSuspense,
+      component: SuspendingRootContent,
+    });
+    const router = createRouter({
+      routeTree: rootRoute,
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+      isServer: true,
+      defaultPendingComponent: RouteLoadingSkeleton,
+    });
+    await router.load();
+    try {
+      const stream = await renderToReadableStream(<RouterProvider router={router} />);
+      // Czytnik, nie `Response.text()`: pierwszy `read()` woła `pull` Reacta synchronicznie,
+      // więc gotowa powłoka (z fallbackiem albo z treścią) wychodzi w tym samym mikrozadaniu.
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let html = "";
+      for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+        html += decoder.decode(chunk.value, { stream: true });
+      }
+      return html + decoder.decode();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  it("korzeń aplikacji: powłoka czeka na treść - bez szkieletu i bez znaczników granicy", async () => {
+    expect(RootRoute.options.wrapInSuspense).toBe(false);
+    const html = await renderDocument(RootRoute.options.wrapInSuspense);
+    // Dokument złożył prawdziwy `RootShell` (sonda bootu w `<head>`).
+    expect(html).toMatch(/<head>[\s\S]*<script data-nes-probe=""/);
+    expect(html).toContain('<main data-testid="root-content">treść korzenia</main>');
+    // `aria-busy="true"` to kontrakt dostępności szkieletu (patrz test wyżej).
+    expect(html).not.toContain('aria-busy="true"');
+    // Żadnej granicy `Suspense` w dokumencie: ani zakończonej (`<!--$-->`), ani czekającej
+    // (`<!--$?-->` z `<template id="B:0">` i podmianą `$RC` w ogonie).
+    expect(html).not.toMatch(/<!--\$\??-->/);
+    expect(html.indexOf("treść korzenia")).toBeGreaterThan(html.indexOf("<body"));
+  });
+
+  it("KONTROLA: bez `wrapInSuspense: false` powłoka wychodzi ze szkieletem zamiast treści", async () => {
+    const html = await renderDocument(undefined);
+    const skeletonAt = html.indexOf('aria-busy="true"');
+    expect(skeletonAt).toBeGreaterThan(html.indexOf("<body"));
+    expect(html).toMatch(/<!--\$\?-->/);
+    // Treść przyszła później, podmianą poza kolejnością - ZA szkieletem w strumieniu.
+    expect(html.indexOf("treść korzenia")).toBeGreaterThan(skeletonAt);
   });
 });

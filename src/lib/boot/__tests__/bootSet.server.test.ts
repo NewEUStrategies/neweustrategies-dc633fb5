@@ -1,30 +1,48 @@
 // @vitest-environment node
 //
-// ZESTAW BOOTU PER ŻĄDANIE (P2.1) - skład, tryb, wstrzyknięcie i droga przez cały potok dokumentu.
+// ZESTAW BOOTU PER ŻĄDANIE (P2.1) - skład, tryb, węzeł w `<head>` i droga przez cały potok
+// dokumentu.
 //
-// Dwie warstwy dowodu:
-//   1. czyste funkcje (`composeBootSet`, `bootModeFor`, `bootSetHtml`) - kolejność serii,
-//      deduplikacja, filtr URL-i, reguła trybu;
-//   2. PRAWDZIWY render routera TanStack (`createRequestHandler` + `defaultStreamHandler`, ta sama
-//      para, którą składa `createStartHandler`) w zasięgu żądania h3, przez PRAWDZIWE `src/server.ts`
+// Trzy warstwy dowodu:
+//   1. czyste funkcje (`composeBootSet`, `bootModeFor`, `bootSetJson`/`bootSetHtml`) - kolejność
+//      serii, deduplikacja, filtr URL-i, reguła trybu, escapowanie;
+//   2. `prepareBootSet` + `BootSetNode` - warunki składu (bez mapy, bez `serverSsr`, raz na router)
+//      i PARYTET BAJTÓW: węzeł renderowany przez Reacta to dokładnie `bootSetHtml(set)` (regexy e2e
+//      i `documentWeight.ts`), a w przeglądarce i bez routera - nic;
+//   3. PRAWDZIWY render routera TanStack (`createRequestHandler` + `defaultStreamHandler` albo
+//      `defaultRenderHandler`, te same handlery, które składa `createStartHandler`) w zasięgu żądania
+//      Start (`createServerEntry`, `src/test/startRequestScope.ts`), przez PRAWDZIWE `src/server.ts`
 //      (atrapą jest wyłącznie wirtualny moduł `server-entry`, którego build nie generuje w teście -
 //      wzorzec `src/__tests__/serverEntryRequestOptions.test.ts`). Dowodzi tego, czego wymaga bramka
-//      planu: `#nes-boot-set` jest DOKŁADNIE RAZ w dokumencie ze ścieżki `allReady` (UA bota
-//      `Chrome-Lighthouse`, czyli PSI na MISS) i strumieniowej (UA przeglądarki), ten sam węzeł jest
-//      w ciele odtworzonym z NES Edge Cache (HIT), `<` jest escapowane, a nagłówek `Link`
-//      dokumentu po LCP nie niesie żadnego `modulepreload`.
+//      planu - i czego zabrakło przy pierwszym podejściu do podbicia TanStack (zestaw po cichu nie
+//      trafiał do dokumentu, strona nie hydratowała się nigdy): `#nes-boot-set` stoi DOKŁADNIE RAZ
+//      w `<head>` dokumentu ze ścieżki `allReady` (UA bota `Chrome-Lighthouse`, czyli PSI na MISS),
+//      strumieniowej (UA przeglądarki) i `renderToString`, ten sam węzeł jest w ciele odtworzonym
+//      z NES Edge Cache (HIT), `<` jest escapowane, a nagłówek `Link` dokumentu po LCP nie niesie
+//      żadnego `modulepreload`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import type { AnyRouter } from "@tanstack/react-router";
+
+import { appendLinkHeader, readLinkHeader } from "@/lib/http/responseHeaders";
+import { readBootMode } from "@/lib/http/frameworkPreloads.server";
+import { startRequestScope } from "@/test/startRequestScope";
 
 import {
   AFTER_LCP_ROUTE_IDS,
   BOOT_SET_ELEMENT_ID,
   bootModeFor,
   bootSetHtml,
+  bootSetJson,
   composeBootSet,
-  injectBootSet,
+  prepareBootSet,
   type BootSet,
 } from "../bootSet.server";
 import type { BootManifest } from "../bootManifest";
+import { BootSetNode } from "../bootSetNode";
+import { getBootSetJson, setBootSetJson } from "../bootSetRegistry";
 
 const MANIFEST: BootManifest = {
   entry: "/assets/index-E1e1E1e1.js",
@@ -47,16 +65,16 @@ vi.mock("@/lib/seo/localeChunks", () => ({
   LOCALE_CHUNK_URLS: { pl: "/assets/pl-P1p1P1p1.js", en: "/assets/en-N1n1N1n1.js" },
 }));
 
+// Wirtualne entry: zasięg żądania Start jak w buildzie (`createServerEntry`); nagłówki trasy
+// (`Link`, `Cache-Control`) i tryb bootu nakłada granica odpowiedzi w PRAWDZIWYM `src/server.ts`.
 vi.mock("@tanstack/react-start/server-entry", async () => {
-  const { requestHandler } = await import("@tanstack/react-start/server");
-  const boundary = requestHandler(async (request: Request) => {
-    if (!hoisted.render) throw new Error("test nie ustawił renderu");
-    return await hoisted.render(request);
-  });
+  const { startRequestScope: scope } = await import("@/test/startRequestScope");
   return {
     default: {
-      fetch: (request: Request, opts?: unknown) =>
-        boundary(request, opts as Parameters<typeof boundary>[1]),
+      fetch: scope(async (request) => {
+        if (!hoisted.render) throw new Error("test nie ustawił renderu");
+        return await hoisted.render(request);
+      }),
     },
   };
 });
@@ -120,7 +138,7 @@ describe("bootModeFor - tryb dokumentu", () => {
   });
 });
 
-describe("bootSetHtml - węzeł danych", () => {
+describe("bootSetJson / bootSetHtml - węzeł danych", () => {
   it("`<` jako `\\u003c`: treść nie domknie `</script>`, a JSON.parse odtwarza wartość", () => {
     const set: BootSet = { m: "lcp", e: "/a.js", u: ["/a.js", "/x</script><script>.js"] };
     const html = bootSetHtml(set);
@@ -128,26 +146,94 @@ describe("bootSetHtml - węzeł danych", () => {
       true,
     );
     const body = html.slice(html.indexOf(">") + 1, html.lastIndexOf("</script>"));
+    expect(body).toBe(bootSetJson(set));
     expect(body).not.toContain("<");
     expect(JSON.parse(body)).toEqual(set);
   });
 });
 
-describe("injectBootSet - warunki", () => {
-  it("bez mapy (vitest, dev, build bez wtyczki) i bez `serverSsr` - nic", () => {
-    const injectHtml = vi.fn();
-    const state = { matches: [{ routeId: "/", status: "success" }] };
-    injectBootSet({ serverSsr: { injectHtml }, state }, null);
-    injectBootSet({ state }, MANIFEST);
-    expect(injectHtml).not.toHaveBeenCalled();
+/** Router testowy (bez drzewa aplikacji) - instancja jest kluczem rejestru zestawu. */
+async function bareRouter() {
+  const { createRootRoute, createRouter } = await import("@tanstack/react-router");
+  return createRouter({ routeTree: createRootRoute(), isServer: true });
+}
+
+/** `BootSetNode` w kontekście routera (bez `RouterProvider`, czyli bez dopasowań i powłoki). */
+async function renderNode(router: AnyRouter): Promise<string> {
+  const { RouterContextProvider } = await import("@tanstack/react-router");
+  return renderToStaticMarkup(
+    createElement(RouterContextProvider, { router, children: createElement(BootSetNode) }),
+  );
+}
+
+describe("BootSetNode - węzeł w `<head>`", () => {
+  const SET: BootSet = { m: "now", e: "/a.js", u: ["/a.js", "/b</c.js"] };
+
+  it("PARYTET BAJTÓW: na serwerze renderuje dokładnie `bootSetHtml(set)`", async () => {
+    const router = await bareRouter();
+    setBootSetJson(router, bootSetJson(SET));
+    expect(await renderNode(router)).toBe(bootSetHtml(SET));
   });
 
-  it("jeden węzeł na dokument, także przy powtórnym wywołaniu", () => {
-    const injectHtml = vi.fn();
-    const router = { serverSsr: { injectHtml }, state: { matches: [{ routeId: "/konto" }] } };
-    injectBootSet(router, MANIFEST);
-    injectBootSet(router, MANIFEST);
-    expect(injectHtml).toHaveBeenCalledTimes(1);
+  it("w przeglądarce, bez zestawu i bez routera - nic", async () => {
+    // Gałąź przeglądarki to `isServer ?? router.isServer` równe `false` (w bundlu klienta
+    // `isServer` jest stałą `false`; pod vitest `undefined`, więc decyduje pole routera).
+    // Routera przeglądarki nie zbudujemy w Node (konstruktor czyta `window`), więc ten sam
+    // router serwerowy dostaje flagę przeglądarki.
+    const browser = await bareRouter();
+    setBootSetJson(browser, bootSetJson(SET));
+    browser.isServer = false;
+    expect(await renderNode(browser)).toBe("");
+    expect(await renderNode(await bareRouter())).toBe("");
+    expect(renderToStaticMarkup(createElement(BootSetNode))).toBe("");
+  });
+});
+
+/** Wywołanie w PRAWDZIWYM zasięgu żądania Start: kanały trybu i `Link` są tu żywe. */
+async function inRequestScope(body: (request: Request) => void): Promise<void> {
+  const handler = startRequestScope(async (request) => {
+    body(request);
+    return new Response("ok");
+  });
+  const response = await handler(new Request("https://tenant-a.eu/"), {});
+  expect(response.status).toBe(200);
+}
+
+describe("prepareBootSet - warunki", () => {
+  it("bez mapy (vitest, dev, build bez wtyczki) i bez `serverSsr` - nic: bez zestawu, trybu i `Link`", async () => {
+    const state = { matches: [{ routeId: "/konto", status: "success" }] };
+    const noManifest = { serverSsr: {}, state };
+    const outsideSsr = { state };
+    await inRequestScope((request) => {
+      prepareBootSet(noManifest, null);
+      prepareBootSet(outsideSsr, MANIFEST);
+      expect(getBootSetJson(noManifest)).toBeUndefined();
+      expect(getBootSetJson(outsideSsr)).toBeUndefined();
+      expect(readBootMode(request)).toBeNull();
+      expect(readLinkHeader(request)).toBeNull();
+    });
+  });
+
+  it("jeden zestaw na router: drugie wywołanie niczego nie składa od nowa", async () => {
+    const router = { serverSsr: {}, state: { matches: [{ routeId: "/konto" }] } };
+    await inRequestScope((request) => {
+      prepareBootSet(router, MANIFEST);
+      const first = getBootSetJson(router);
+      const link = readLinkHeader(request);
+      expect(readBootMode(request)).toBe("now");
+      // Hint dołożony PO składzie - powtórny skład by go wciągnął do serii.
+      appendLinkHeader(WIDGET_HINT);
+      prepareBootSet(router, MANIFEST);
+      expect(getBootSetJson(router)).toBe(first);
+      expect(JSON.parse(first!).u).not.toContain("/assets/widget-hero-W1w1W1w1.js");
+      expect(readLinkHeader(request)).toBe(`${link}, ${WIDGET_HINT}`);
+    });
+  });
+
+  it("poza zasięgiem żądania (prerender) skład działa i nie rzuca (kanały trybu i `Link` - no-op)", () => {
+    const router = { serverSsr: {}, state: { matches: [{ routeId: "/", status: "success" }] } };
+    expect(() => prepareBootSet(router, MANIFEST)).not.toThrow();
+    expect(JSON.parse(getBootSetJson(router)!)).toMatchObject({ m: "lcp", e: MANIFEST.entry });
   });
 });
 
@@ -160,13 +246,14 @@ const BROWSER =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/136.0.0.0 Safari/537.36";
 
-async function routerRender(request: Request): Promise<Response> {
+type RenderHandler = "stream" | "string";
+
+async function routerRender(request: Request, handler: RenderHandler): Promise<Response> {
   const React = await import("react");
   const { HeadContent, Outlet, Scripts, createRootRoute, createRoute, createRouter } =
     await import("@tanstack/react-router");
-  const { createRequestHandler, defaultStreamHandler } =
+  const { createRequestHandler, defaultRenderHandler, defaultStreamHandler } =
     await import("@tanstack/react-router/ssr/server");
-  const { appendLinkHeader } = await import("@/lib/http/responseHeaders");
   const h = React.createElement;
 
   const rootRoute = createRootRoute({
@@ -176,11 +263,12 @@ async function routerRender(request: Request): Promise<Response> {
       appendLinkHeader(WIDGET_HINT);
       return null;
     },
+    // Ta sama kolejność co `RootShell` w `__root.tsx`: węzeł zestawu zaraz po `<HeadContent />`.
     shellComponent: ({ children }: { children: React.ReactNode }) =>
       h(
         "html",
         { lang: "pl" },
-        h("head", null, h(HeadContent)),
+        h("head", null, h(HeadContent), h(BootSetNode)),
         h("body", null, children, h(Scripts)),
       ),
     component: () => h(Outlet),
@@ -205,13 +293,13 @@ async function routerRender(request: Request): Promise<Response> {
     const router = createRouter({ routeTree, isServer: true });
     // Ten sam hak co owijka w `src/router.tsx` (tam przez `createIsomorphicFn`).
     router.options.dehydrate = async () => {
-      injectBootSet(router, MANIFEST);
+      prepareBootSet(router, MANIFEST);
       return undefined;
     };
     return router;
   };
   const response = await createRequestHandler({ createRouter: createAppRouter, request })(
-    defaultStreamHandler,
+    handler === "stream" ? defaultStreamHandler : defaultRenderHandler,
   );
   // Dyrektywa cache'owa jak z `defaultCacheControlMiddleware` (wprost na odpowiedzi, w łańcuchu).
   response.headers.set(
@@ -227,6 +315,13 @@ function bootSetsIn(html: string): unknown[] {
     "g",
   );
   return [...html.matchAll(re)].map((m) => JSON.parse(m[1]));
+}
+
+/** Węzeł zestawu stoi w `<head>` (loader bootu w `<head>` musi go zastać przy starcie). */
+function expectBootSetInHead(html: string): void {
+  const at = html.indexOf(`id="${BOOT_SET_ELEMENT_ID}"`);
+  expect(at).toBeGreaterThan(html.indexOf("<head>"));
+  expect(at).toBeLessThan(html.indexOf("</head>"));
 }
 
 function documentRequest(path: string, userAgent: string): Request {
@@ -246,7 +341,7 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
       await import("@/lib/http/documentCache.server");
     resetDocumentCacheForTests();
     hoisted.render = async (request) =>
-      (await handleDocumentRequest(request, () => routerRender(request))) as Response;
+      (await handleDocumentRequest(request, () => routerRender(request, "stream"))) as Response;
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
@@ -267,24 +362,32 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
   };
 
   it.each([
-    ["bot Chrome-Lighthouse (ścieżka allReady)", CHROME_LIGHTHOUSE],
-    ["przeglądarka (strumień)", BROWSER],
-  ])("%s: jeden `#nes-boot-set`, `Link` bez modulepreload", async (_label, userAgent) => {
-    const { default: serverEntry } = await import("@/server");
-    const response = await serverEntry.fetch(documentRequest("/", userAgent));
-    const html = await response.text();
-    expect(response.status).toBe(200);
-    expect(bootSetsIn(html)).toEqual([expectedHomeSet]);
-    // Bez skryptu wejścia i preloadów modułów w znacznikach dokumentu.
-    expect(html).not.toMatch(/<link[^>]+rel="modulepreload"/);
-    expect(html).not.toMatch(/<script[^>]+type="module"[^>]+src=/);
-    const link = response.headers.get("link") ?? "";
-    expect(link).not.toMatch(/modulepreload/);
-    expect(link).toContain(CSS_HINT);
-    expect(link).toContain(IMAGE_HINT);
-    // Znacznik trybu jest wewnętrzny - nie wychodzi do klienta.
-    expect(response.headers.get("x-nes-boot-mode")).toBeNull();
-  });
+    ["bot Chrome-Lighthouse (ścieżka allReady)", CHROME_LIGHTHOUSE, "stream"],
+    ["przeglądarka (strumień)", BROWSER, "stream"],
+    ["renderToString (`defaultRenderHandler`)", BROWSER, "string"],
+  ] as const)(
+    "%s: jeden `#nes-boot-set` w `<head>`, `Link` bez modulepreload",
+    async (_label, userAgent, handler) => {
+      if (handler === "string") {
+        const { handleDocumentRequest } = await import("@/lib/http/documentCache.server");
+        hoisted.render = async (request) =>
+          (await handleDocumentRequest(request, () => routerRender(request, "string"))) as Response;
+      }
+      const { default: serverEntry } = await import("@/server");
+      const response = await serverEntry.fetch(documentRequest("/", userAgent));
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(bootSetsIn(html)).toEqual([expectedHomeSet]);
+      expectBootSetInHead(html);
+      // Bez skryptu wejścia i preloadów modułów w znacznikach dokumentu.
+      expect(html).not.toMatch(/<link[^>]+rel="modulepreload"/);
+      expect(html).not.toMatch(/<script[^>]+type="module"[^>]+src=/);
+      const link = response.headers.get("link") ?? "";
+      expect(link).not.toMatch(/modulepreload/);
+      expect(link).toContain(CSS_HINT);
+      expect(link).toContain(IMAGE_HINT);
+    },
+  );
 
   it("HIT z NES Edge Cache niesie ten sam węzeł i ten sam `Link` co MISS", async () => {
     const { default: serverEntry } = await import("@/server");
@@ -312,6 +415,7 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
     const response = await serverEntry.fetch(documentRequest("/konto", BROWSER));
     const html = await response.text();
     const [set] = bootSetsIn(html) as BootSet[];
+    expectBootSetInHead(html);
     expect(set.m).toBe("now");
     expect(set.u).toEqual([
       "/assets/index-E1e1E1e1.js",
@@ -326,6 +430,5 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
     expect(link.split(", ").filter((entry) => entry.includes("widget-hero"))).toEqual([
       WIDGET_HINT,
     ]);
-    expect(response.headers.get("x-nes-boot-mode")).toBeNull();
   });
 });

@@ -240,8 +240,8 @@ describe("zamrożenie werdyktu przed sprzątaniem integracji router<->query", ()
     const qc = client();
     const check = trackSsrQueryCompleteness(qc);
     await qc.prefetchQuery({ queryKey: ["builder-post-list", 1], queryFn: async () => ["wpis"] });
-    // Kolejność `serverSsr.cleanup()`: anulowanie, potem czyszczenie.
-    await qc.cancelQueries();
+    // `serverSsr.cleanup()` integracji (router-ssr-query-core 1.169.3): domknięcie strumienia
+    // zapytań i od razu `clear()` - bez anulowania zapytań.
     qc.clear();
     expect(qc.getQueryCache().getAll()).toHaveLength(0);
     // Bez zamrożenia pobrane zapytanie „zniknęłoby" i wyglądało na zgubione.

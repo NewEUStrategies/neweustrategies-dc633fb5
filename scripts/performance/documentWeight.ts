@@ -2,9 +2,9 @@
 //
 // PO CO. EVIDENCE §3/§8 (2026-10-03): dokument `/` na produkcji ma 569 KB
 // (fixture: ~390 KB), z czego 133 KB to 51 bloków inline `<style>`, 107 KB
-// dehydratowany stan `$tsr-stream-barrier`, a `<head>` + nagłówek `Link`
-// niosą ~30 preloadów, w tym obraz LCP 4x i przypadkowe chunki tras. Na łączu
-// mobilnym PSI (1,6 Mb/s) każdy z tych bajtów konkuruje z CSS, fontami
+// dehydratowany stan routera (wtedy bariera `$tsr-stream-barrier`), a `<head>`
+// + nagłówek `Link` niosą ~30 preloadów, w tym obraz LCP 4x i przypadkowe
+// chunki tras. Na łączu mobilnym PSI (1,6 Mb/s) każdy z tych bajtów konkuruje z CSS, fontami
 // i obrazem LCP, a parsowanie 575 KB HTML to ~250 ms długich zadań przed
 // jakimkolwiek JS. Żadna bramka repo tego nie mierzyła: `check:bundle` liczy
 // chunki (i raportuje `bootRaw` bez progu), `check:ssr-budgets` czyta źródła.
@@ -233,7 +233,7 @@ export function manifestBootRoots(serverDir: string): string[] {
   return [...found];
 }
 
-/** Id węzła zestawu bootu (P2.1) - kontrakt z `src/lib/boot/bootLoaderScript.ts`. */
+/** Id węzła zestawu bootu (P2.1) - kontrakt z `src/lib/boot/bootSetId.ts`. */
 export const BOOT_SET_ELEMENT_ID = "nes-boot-set";
 
 /**
@@ -288,18 +288,23 @@ export interface DocumentWeight {
   readonly inlineScriptBytes: number;
   /** Inline skrypty wykonywalne (bez JSON-LD, speculationrules, importmap). */
   readonly inlineExecutableScriptBytes: number;
-  /** `<script id="$tsr-stream-barrier">` - dehydratowany stan routera/loaderów. */
+  /**
+   * Stan POCZĄTKOWY routera/loaderów: suma skryptów `<script data-tsr-stream-part>`, które
+   * `<Scripts>` wypisuje przed granicą `/*$tsr-stream-boundary*\/` (router-core 1.171.37,
+   * `ssr/hydrationScripts.js:36-72`; porcje po 16 384 jednostki kodu, więc tagów bywa kilka).
+   * Do 1.171.15 był to jeden `<script id="$tsr-stream-barrier">` („bariera").
+   */
   readonly dehydratedStateBytes: number;
   /**
-   * Strumieniowane skrypty stanu (P3.7b): inline `<script>` wykonywalne poza barierą,
-   * których treść odwołuje się do `$R["tsr"]` - porcje strumienia zapytań
-   * (`$R[n].next(...)`, `.return(...)`) i inne dostrumieniowane dane routera. Bariera
-   * (`dehydratedStateBytes`) ich nie widzi, a parsują się i ewaluują tak samo
+   * Strumieniowane skrypty stanu (P3.7b): inline `<script>` wykonywalne poza stanem
+   * początkowym, których treść odwołuje się do `$R["tsr"]` - porcje strumienia zapytań
+   * (`$R[n].next(...)`, `.return(...)`) i inne dostrumieniowane dane routera. Stan
+   * początkowy (`dehydratedStateBytes`) ich nie widzi, a parsują się i ewaluują tak samo
    * (diagnoza `faza3/diagnoza/waga-dokumentu.md` §2.2: ok. 10 KB na fixture `/`).
    */
   readonly streamedStateBytes: number;
   /**
-   * Wystąpienia `queryHash:` w barierze i strumieniu (P3.7b, T1). Kompaktowa koperta
+   * Wystąpienia `queryHash:` w stanie początkowym i strumieniu (P3.7b, T1). Kompaktowa koperta
    * zapytań (`src/lib/ssr/dehydratedQueryEnvelope.ts`) wysyła hash wyłącznie, gdy
    * różni się od `hashKey(queryKey)`, więc w aplikacji bez `queryKeyHashFn` - zero.
    */
@@ -532,10 +537,21 @@ function widthCandidateSets(html: string, links: readonly LinkEntry[]): string[]
   });
 }
 
+/**
+ * Atrybut skryptów stanu początkowego routera (`STREAM_PART_ATTRIBUTE`,
+ * `@tanstack/router-core/dist/esm/ssr/hydrationScripts.js`).
+ */
+const INITIAL_STATE_ATTR = "data-tsr-stream-part";
+
+/** Skrypt stanu początkowego routera (definicja: `DocumentWeight.dehydratedStateBytes`). */
+function isInitialStateScript(block: Block): boolean {
+  return INITIAL_STATE_ATTR in block.attrs;
+}
+
 /** Skrypt strumieniowanego stanu routera (definicja: `DocumentWeight.streamedStateBytes`). */
 function isStreamedStateScript(block: Block): boolean {
   return (
-    block.attrs["id"] !== "$tsr-stream-barrier" &&
+    !isInitialStateScript(block) &&
     !DATA_SCRIPT_TYPES.test(block.attrs["type"] ?? "") &&
     block.content.includes('$R["tsr"]')
   );
@@ -548,7 +564,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html);
   const scripts = blocks(html, "script");
   const inline = scripts.filter((s) => !s.attrs["src"]);
-  const barrier = inline.filter((b) => b.attrs["id"] === "$tsr-stream-barrier");
+  const initialState = inline.filter(isInitialStateScript);
   const streamed = inline.filter(isStreamedStateScript);
   const styles = blocks(html, "style");
   const links = [...linkEntries(html), ...parseLinkHeader(input.linkHeader)];
@@ -693,9 +709,9 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     inlineExecutableScriptBytes: inline
       .filter((b) => !DATA_SCRIPT_TYPES.test(b.attrs["type"] ?? ""))
       .reduce((s, b) => s + byteLength(b.content), 0),
-    dehydratedStateBytes: barrier.reduce((s, b) => s + byteLength(b.content), 0),
+    dehydratedStateBytes: initialState.reduce((s, b) => s + byteLength(b.content), 0),
     streamedStateBytes: streamed.reduce((s, b) => s + byteLength(b.content), 0),
-    dehydratedQueryHashCount: [...barrier, ...streamed].reduce(
+    dehydratedQueryHashCount: [...initialState, ...streamed].reduce(
       (s, b) => s + (b.content.match(QUERY_HASH_KEY) ?? []).length,
       0,
     ),

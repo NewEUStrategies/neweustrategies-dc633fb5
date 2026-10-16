@@ -160,7 +160,7 @@ function printWeight(w: DocumentWeight): void {
   );
   console.log(
     `  inline <script>: ${w.inlineScriptCount} / ${w.inlineScriptBytes} B ` +
-      `(wykonywalne ${w.inlineExecutableScriptBytes} B, $tsr-stream-barrier ${w.dehydratedStateBytes} B)`,
+      `(wykonywalne ${w.inlineExecutableScriptBytes} B, stan początkowy data-tsr-stream-part ${w.dehydratedStateBytes} B)`,
   );
   console.log(
     `  preloady: modulepreload ${w.modulepreloadCount} unikalnych (head ${w.modulepreloadInHead}, Link ${w.modulepreloadInHeader}), ` +

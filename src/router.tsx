@@ -14,15 +14,10 @@ import { currentLang } from "./lib/i18n/localeRuntime";
 import { LazyFriendlyErrorPage } from "./components/error/LazyFriendlyErrorPage";
 import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
-import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
-import {
-  compactDehydratedState,
-  expandRouterDehydrated,
-  mapQueryStream,
-} from "./lib/ssr/dehydratedQueryEnvelope";
+import { compactRouterDehydrated, expandRouterDehydrated } from "./lib/ssr/dehydratedQueryEnvelope";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
-import { injectBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
+import { prepareBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
 import {
   isInteractionOrQuietOpen,
   onInteractionOrQuiet,
@@ -43,13 +38,13 @@ import {
 // drzewa tras zostaje jednym zadaniem - jej podział należy do P5.2.
 if (!isServer) await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-// ZESTAW BOOTU (P2.1). Serwer wstrzykuje `#nes-boot-set` (lista modułów serii bootu i tryb)
-// poza drzewem Reacta - skład i uzasadnienie w `lib/boot/bootSet.server.ts`. Owijka
-// `createIsomorphicFn`, bo moduł `.server` nie może wejść do grafu przeglądarki (ochrona
-// importów TanStack Start): kompilator wycina gałąź serwerową z bundla klienta razem
-// z importem, a klient dostaje no-op.
-const injectBootSetOnServer = createIsomorphicFn()
-  .server((router: BootRouterLike): void => injectBootSet(router))
+// ZESTAW BOOTU (P2.1). Serwer składa zestaw `#nes-boot-set` (lista modułów serii bootu i tryb)
+// w haku dehydratacji, a węzeł renderuje `BootSetNode` w `<head>` (`routes/__root.tsx`) - skład
+// i uzasadnienie w `lib/boot/bootSet.server.ts`. Owijka `createIsomorphicFn`, bo moduł `.server`
+// nie może wejść do grafu przeglądarki (ochrona importów TanStack Start): kompilator wycina
+// gałąź serwerową z bundla klienta razem z importem, a klient dostaje no-op.
+const prepareBootSetOnServer = createIsomorphicFn()
+  .server((router: BootRouterLike): void => prepareBootSet(router))
   .client((): void => {});
 
 // World-class defaults for a content-heavy public site:
@@ -221,18 +216,19 @@ export const getRouter = () => {
       ],
     };
 
-    // The integration closes its `queryStream` only from an
-    // `onRenderFinished` listener, which router-core silently drops in some
-    // states - the stream then never closes and the SSR document never
-    // finishes. Wrap it in a stream we close deterministically.
-    // See lib/ssr/queryStreamGuard.
+    // Strumień zapytań integracji (`query.stream`) domyka sama integracja: router-core
+    // 1.171.37 woła spóźnionego słuchacza `onRenderFinished` od razu (`ssr-server.js:286-297`),
+    // a jej sprzątanie w `serverSsr.cleanup()` finalizuje strumień w każdym stanie
+    // (`router-ssr-query-core` 1.169.3, `index.js:21-28`). Dawny strażnik strumienia
+    // (`queryStreamGuard`, obejście defektu 1.171.15, w którym `onRenderFinished` gubił
+    // słuchacza) nie miał już czego pilnować i zniknął.
     const integrationDehydrate = router.options.dehydrate;
     router.options.dehydrate = async () => {
       // ZESTAW BOOTU (P2.1) - pierwszy, bo zależy wyłącznie od dopasowań i hintów loaderów
       // (oba gotowe po `router.load()`), a ten hak biegnie raz na dokument, przed renderem
-      // Reacta, tak samo na ścieżce strumieniowej i `allReady` botów. Wstrzyknięty HTML czeka
-      // w buforze routera na pierwszą granicę strumienia (`lib/boot/bootSet.server.ts`).
-      injectBootSetOnServer(router);
+      // Reacta, tak samo na ścieżce strumieniowej i `allReady` botów. Węzeł z zestawem
+      // renderuje potem `BootSetNode` w `<head>` (`lib/boot/bootSet.server.ts`).
+      prepareBootSetOnServer(router);
       // KOLEJNOŚĆ, SPROSTOWANA 2026-09-01. Stało tu „Render się zakończył",
       // a to jest odwrotnie: `createStartHandler` woła
       // `routerInstance.load()` (wszystkie loadery), potem
@@ -252,33 +248,18 @@ export const getRouter = () => {
         reason: "dehydrate",
       });
 
-      const dehydrated = (await integrationDehydrate?.()) as
-        (Record<string, unknown> & { queryStream?: ReadableStream<unknown> }) | undefined;
-      // KOMPAKTOWA KOPERTA (P3.7b, T1; `lib/ssr/dehydratedQueryEnvelope.ts`): bariera
-      // i każda porcja strumienia jadą bez `queryHash` i bez stałego ogona stanu,
-      // a klient odtwarza je przed `hydrate` (gałąź klienta niżej). Strumień
-      // kompaktujemy ZA strażnikiem - strażnik zostaje nietknięty i dalej domyka
-      // strumień integracji, a integracja zapisała już hashe oryginałów
-      // w `sentQueries` (kopie, nie mutacja).
-      if (dehydrated?.queryStream) {
-        dehydrated.queryStream = mapQueryStream(
-          guardQueryStream(dehydrated.queryStream, queryClient, {
-            label: router.state.location.pathname,
-          }),
-          compactDehydratedState,
-        );
-      }
-      if (dehydrated?.dehydratedQueryClient !== undefined) {
-        dehydrated.dehydratedQueryClient = compactDehydratedState(dehydrated.dehydratedQueryClient);
-      }
-
-      return dehydrated;
+      // KOMPAKTOWA KOPERTA (P3.7b, T1; `lib/ssr/dehydratedQueryEnvelope.ts`): porcja
+      // początkowa (`query.initial`) i każda porcja strumienia (`query.stream`) jadą bez
+      // `queryHash` i bez stałego ogona stanu, a klient odtwarza je przed `hydrate` (gałąź
+      // klienta niżej). Kopie, nie mutacja: integracja zapisała już hashe oryginałów
+      // w `sentQueries`.
+      return compactRouterDehydrated(await integrationDehydrate?.());
     };
   }
 
   if (!isServer) {
     // The integration hydrates the INITIAL dehydrated batch synchronously, but
-    // pumps the render-phase query STREAM through an async reader chain. React
+    // pumps the render-phase query STREAM through an async reader loop. React
     // hydration otherwise starts before those buffered chunks land in the
     // cache; widgets then render their pending/skeleton state against server
     // HTML that has real data, and React 19 treats that as a hydration
@@ -308,7 +289,8 @@ export const getRouter = () => {
     // zaciskania zagnieżdżonych timerów, czyli ~0 ms każde).
     const prewarmRouteChunks = () => {
       try {
-        const { matchedRoutes } = router.getMatchedRoutes(router.latestLocation.pathname);
+        // router-core 1.171.37: krotka `[matchedRoutes, rawParams, foundRoute]`.
+        const [matchedRoutes] = router.getMatchedRoutes(router.latestLocation.pathname);
         for (const route of matchedRoutes) {
           void Promise.resolve(router.loadRouteChunk(route)).catch(() => undefined);
         }
@@ -322,8 +304,8 @@ export const getRouter = () => {
       // Makrozadanie 1: hydratacja zapytań nie dokleja się do `createRouter`.
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
       // This bounds the hydration HOOK, including any upstream ogHydrate.
-      // The pinned integration reads queryStream in the background and does
-      // not await its completion. Actual application readiness is measured
+      // The pinned integration reads `query.stream` in a background loop and
+      // does not await its completion. Actual application readiness is measured
       // by the boot probe and the production-artifact browser tests.
       //
       // Mechanika mieszka w `lib/ssr/hydrateBudget.ts`: stała jest tam
@@ -333,8 +315,9 @@ export const getRouter = () => {
       // w obecnej wersji integracji NIE ŚCINA (zmierzone).
       //
       // Koperta zapytań przychodzi kompaktowa (P3.7b, T1): `expandRouterDehydrated`
-      // odtwarza `queryHash` i stały ogon stanu bariery oraz każdej porcji
-      // strumienia, zanim zobaczy je `hydrate` integracji.
+      // odtwarza `queryHash` i stały ogon stanu porcji początkowej (`query.initial`)
+      // oraz każdej porcji strumienia (`query.stream`), zanim zobaczy je `hydrate`
+      // integracji.
       await withHydrateBudget(integrationHydrate?.(expandRouterDehydrated(dehydrated)), {
         label: "router-hydrate",
       });

@@ -21,11 +21,19 @@
 // Obie klasy trzymają serializację (seroval czeka na promisy) i kończą się
 // uciętym HTML-em: "Serialization timeout after app render finished".
 //
-// SOLUTION: raz, w deterministycznym momencie (zamknięcie strażnika strumienia
-// i na wejściu w dehydratację), anulujemy to, co jeszcze leci (`revert: true`,
+// SOLUTION: raz, w deterministycznym momencie (na wejściu w dehydratację,
+// `src/router.tsx`), anulujemy to, co jeszcze leci (`revert: true`,
 // `silent: true`), a następnie usuwamy z cache wszystko, co nie może się już
 // rozstrzygnąć. Nic nie tracimy - takie zapytania nie mają danych, a klient
 // pobiera je ponownie po hydracji.
+//
+// PO PODBICIU (query-core 5.104.3, router-ssr-query-core 1.169.3) część tego
+// uzasadnienia przejęła biblioteka: zapytanie anulowane albo rozstrzygnięte nie
+// trzyma już obietnicy (`query.promise` czyta retryer zdejmowany w `finally`
+// fetchu, `query.js:466`), a integracja wysyła wyłącznie zapytania `success`
+// (`shouldDehydrateQuery` w `router.tsx`) i sama domyka swój strumień.
+// Zamiatanie zostaje: jest tanie i dalej zdejmuje z cache zapytania, które nie
+// mogą się rozstrzygnąć, zanim integracja zrobi snapshot porcji początkowej.
 
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -41,7 +49,7 @@ export interface PostRenderSweepResult {
 export interface PostRenderSweepOptions {
   /** Etykieta diagnostyczna - zwykle pathname. */
   label?: string;
-  /** Powód wywołania (idle / timeout / dehydrate). */
+  /** Powód wywołania (np. `dehydrate`) - wyłącznie do logu. */
   reason?: string;
   /** Loguj tylko wtedy, gdy faktycznie coś posprzątaliśmy. */
   quiet?: boolean;
