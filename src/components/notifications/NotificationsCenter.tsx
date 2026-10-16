@@ -126,6 +126,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const initialTab: TabValue = mode === "preferences" || mode === "consents" ? "settings" : "all";
+  const showInboxTabs = mode !== "preferences" && mode !== "consents";
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
@@ -147,8 +148,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   });
   const markAll = useMarkAllNotificationsRead();
   // Licznik nieprzeczytanych CAŁEGO konta - ten sam wpis cache co badge
-  // zakładki „Powiadomienia” na /messages, więc nie dokłada requestu.
-  const unreadTotal = useUnreadCount().data;
+  // zakładki „Powiadomienia” na /messages. Tylko w trybach z przyciskiem
+  // „Oznacz wszystkie”: w `preferences` (/profile/notifications) i `consents`
+  // zapytanie i jego odświeżanie po każdym zdarzeniu realtime byłyby zbędne.
+  const unreadTotal = useUnreadCount({ enabled: showInboxTabs }).data;
 
   // Optimistic-cache plumbing shared by the mutations below: cancel in-flight
   // list fetches (so a stale response cannot clobber the patch), snapshot every
@@ -320,7 +323,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     }
   };
 
-  const showInboxTabs = mode !== "preferences" && mode !== "consents";
   const showSettingsTab = mode !== "inbox" && mode !== "consents";
   const headerTitleKey =
     mode === "consents"
