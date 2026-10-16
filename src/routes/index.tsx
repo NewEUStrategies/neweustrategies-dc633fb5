@@ -87,7 +87,7 @@ import {
 // (`components/home/molecules/*Notice`), które czytają dwujęzyczny słownik
 // `lib/errorCopy.ts`. Tutaj zostaje wyłącznie to, co wymaga kontekstu trasy:
 // zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
-function HomeErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
+function HomeErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i DOMYŚLNY `<title>` strony
   // głównej (`homeSrHeadingText`; własny tytuł SEO strony zmienia tylko
