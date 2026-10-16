@@ -8,6 +8,7 @@ import {
   __resetFirstInteractionForTests,
   getFirstInteraction,
   onFirstInteraction,
+  type FirstInteraction,
 } from "../firstInteraction";
 
 const flushMicrotasks = () => Promise.resolve();
@@ -231,8 +232,10 @@ describe("onFirstInteraction", () => {
       const button = document.createElement("button");
       document.body.append(button);
       const event = new Event("pointerdown", { bubbles: true });
-      const callback = vi.fn();
-      onFirstInteraction(callback);
+      // Zwykła funkcja, nie `vi.fn()`: szpieg Vitest 5 sam tworzy `WeakRef` przy każdym
+      // wywołaniu (`markDirty`), więc bez `WeakRef` rzucałby on, a nie kod pod testem.
+      const received: FirstInteraction[] = [];
+      onFirstInteraction((interaction) => received.push(interaction));
 
       // happy-dom sam używa `WeakRef` (np. getter `body`), więc atrapę „starego
       // silnika" zakładamy wyłącznie na czas dyspozycji zdarzenia.
@@ -240,7 +243,8 @@ describe("onFirstInteraction", () => {
       button.dispatchEvent(event);
       vi.unstubAllGlobals();
 
-      expect(callback.mock.calls[0][0].target).toBe(button);
+      expect(received).toHaveLength(1);
+      expect(received[0]!.target).toBe(button);
       expect(getFirstInteraction()?.target).toBe(button);
       const late = vi.fn();
       onFirstInteraction(late);
