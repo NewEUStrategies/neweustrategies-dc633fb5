@@ -51,6 +51,15 @@
 // wśród modułów bootu zbiera to, czego nie zabrały grupy vendorowe, w jeden chunk: domknięcie
 // 12 chunków, 480,7 KB gzip. Wejście zostaje w `index-*` (wyjątek w `group()`), który importuje
 // `app-initial`; to on niesie leniwe `import()` aplikacji, w tym listwy stopki.
+//
+// PUŁAPKA `$initial` (przed tree-shakingiem). Moduł statycznie importowany przez moduł bootu
+// jest `$initial`, także gdy ten import jest martwy w kliencie albo dotyczy jednej stałej -
+// a wtedy `app-initial` zabiera go RAZEM z kodem, z którego korzystają tylko leniwe chunki
+// (importują go potem z bootu). Rollup taki kod wycinał. Typowe źródła: eksport komponentu
+// z pliku trasy (zostaje w module opcji trasy - `EventCatalogueCard.tsx`), stała z modułu
+// z ciężkimi zależnościami czytana w `head()` (`lib/tracker/feedPath.ts`), gałąź serwerowa
+// zamknięta w funkcji (`lib/builder/aboveFold.tsx`). Diagnoza: moduły `app-initial` spoza
+// chunku wejściowego bazy w `reports/chunk-inventory.json` (`BUNDLE_INVENTORY=1`).
 import type { Rolldown } from "vite";
 
 type Group = Rolldown.CodeSplittingGroup;
