@@ -95,7 +95,7 @@ vi.mock(
 // (serwer liczy, klient czyta nośnik z DOM-u) i hooka preloadu. Pod vitestem
 // moduł daje `undefined`; atrapa podaje `false` (klient), a `ssr()` niżej
 // przełącza na serwer na czas `renderToString`. `undefined` (dev, NODE_ENV=test)
-// sprawdza osobny test: wtedy rozstrzyga brak `document` (`isServer ?? isSsrRequest()`).
+// sprawdza osobny test: wtedy rozstrzyga brak `document` (warunek serwera (`aboveFold.tsx`)).
 const env = vi.hoisted(() => ({ server: false as boolean | undefined }));
 vi.mock("@tanstack/router-core/isServer", () => ({
   get isServer() {

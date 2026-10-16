@@ -40,5 +40,7 @@ export function heroPreloadsFor(queryClient: QueryClient): readonly LcpImagePrel
  */
 export function useHeroPreloads(): readonly LcpImagePreload[] | undefined {
   const queryClient = useQueryClient();
-  return (isServer ?? isSsrRequest()) ? heroPreloadsByRequest.get(queryClient) : undefined;
+  return (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
+    ? heroPreloadsByRequest.get(queryClient)
+    : undefined;
 }

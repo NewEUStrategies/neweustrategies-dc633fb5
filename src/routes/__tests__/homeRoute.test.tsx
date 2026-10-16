@@ -103,7 +103,7 @@ const h = vi.hoisted(() => ({
   heroPreloadCalls: 0,
 }));
 
-// `heroImage.ts` jest TYLKO SERWEROWY: loader woła go pod `isServer ?? isSsrRequest()`,
+// `heroImage.ts` jest TYLKO SERWEROWY: loader woła go pod warunek serwera (`aboveFold.tsx`),
 // więc bundler wycina go z grafu przeglądarki. Licznik dowodzi, że nawigacja
 // SPA (loader na kliencie) go nie wywołuje - sam brak preloadu i nagłówka
 // `Link` by tego nie wykazał, bo hook i nagłówek są bramkowane osobno.

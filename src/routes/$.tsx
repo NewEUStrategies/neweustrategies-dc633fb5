@@ -820,7 +820,7 @@ export const Route = createFileRoute("/$")({
     // treść maluje silnik buildera (`resolveContentEngine`, jak `ContentRenderer`)
     // - strona html/bloków z pozostałym `builder_data` nie preloaduje obrazu,
     // którego nikt nie namaluje. Preloady stron liczy WYŁĄCZNIE serwer
-    // (warunek `isServer ?? isSsrRequest()` wycina `heroImage.ts` i `lcpCandidate.ts` z bundla
+    // (warunek serwera (`aboveFold.tsx`) wycina `heroImage.ts` i `lcpCandidate.ts` z bundla
     // klienta - PROVE P1.4, `check:bundle`); nawigacja SPA dostaje pustą listę,
     // bo render czysto kliencki nie ma też kandydata ani preloadu
     // (lib/builder/aboveFold.tsx). Obrazy kandydatów LCP strony (P1.4) idą do
@@ -836,7 +836,9 @@ export const Route = createFileRoute("/$")({
           )
         : null;
     const heroPreloads =
-      (isServer ?? isSsrRequest()) && data.kind === "page"
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      (isServer ?? isSsrRequest()) &&
+      data.kind === "page"
         ? builderContentHeroPreloads(
             { editor: data.item.editor, builderDoc: doc },
             context.queryClient,
@@ -847,7 +849,7 @@ export const Route = createFileRoute("/$")({
     // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
     // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    if (isServer ?? isSsrRequest()) {
+    if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(context.queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }

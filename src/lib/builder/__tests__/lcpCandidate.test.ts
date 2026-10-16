@@ -16,11 +16,12 @@
 //     której czytelnik nie spełnia, nie dają kandydata - ani nie zajmują okna,
 //     ani nie zmieniają podziału slotu rodzeństwa.
 //  6. MODUŁ (i heroImage.ts) JEST TYLKO SERWEROWY (recenzja P1.4 runda 3, m3):
-//     każde użycie w kodzie klienta stoi w gałęzi warunku `isServer ?? isSsrRequest()`
-//     pisanego WPROST (nie w funkcji - Rolldown nie propaguje wartości zwracanej,
-//     lib/builder/aboveFold.tsx), a stała `isServer` router-core w buildzie
-//     przeglądarki to literał `false` - inaczej bundler nie wytnie gałęzi i moduły
-//     po cichu wrócą do chunku bootu.
+//     każde użycie w kodzie klienta stoi w gałęzi warunku serwera
+//     `(import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())`
+//     pisanego WPROST (lib/builder/aboveFold.tsx: funkcja i samo `isServer ?? ...`
+//     nie wycinają modułów z grafu Rolldowna), a stała `isServer` router-core
+//     w buildzie przeglądarki to literał `false` - inaczej moduły po cichu wrócą do
+//     chunku bootu.
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
@@ -559,27 +560,59 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
     return SERVER_ONLY.find((file) => file === base || file === `${base}.ts`) ?? null;
   }
 
+  const unparen = (expr: ts.Expression): ts.Expression =>
+    ts.isParenthesizedExpression(expr) ? unparen(expr.expression) : expr;
+
+  /** `import.meta.env.<key>`. */
+  function isImportMetaEnv(expr: ts.Expression, key: string): boolean {
+    const node = unparen(expr);
+    return (
+      ts.isPropertyAccessExpression(node) &&
+      node.name.text === key &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "env" &&
+      ts.isMetaProperty(node.expression.expression) &&
+      node.expression.expression.keywordToken === ts.SyntaxKind.ImportKeyword
+    );
+  }
+
+  /** `import.meta.env.SSR || import.meta.env.DEV` - połowa dla bundlera. */
+  function isBuildGate(expr: ts.Expression): boolean {
+    const node = unparen(expr);
+    return (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.BarBarToken &&
+      isImportMetaEnv(node.left, "SSR") &&
+      isImportMetaEnv(node.right, "DEV")
+    );
+  }
+
+  /** `isServer ?? isSsrRequest()` - połowa czasu wykonania. */
+  function isRuntimeServer(expr: ts.Expression): boolean {
+    const node = unparen(expr);
+    return (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken &&
+      ts.isIdentifier(node.left) &&
+      node.left.text === "isServer" &&
+      ts.isCallExpression(node.right) &&
+      ts.isIdentifier(node.right.expression) &&
+      node.right.expression.text === "isSsrRequest" &&
+      node.right.arguments.length === 0
+    );
+  }
+
   /**
-   * Warunek POTWIERDZA serwer: `isServer ?? isSsrRequest()` (wprost, w nawiasie albo bez)
-   * albo koniunkcja z nim. Wywołanie funkcji opakowującej NIE liczy się - Rolldown nie zwija
-   * go w buildzie przeglądarki (lib/builder/aboveFold.tsx).
+   * Warunek POTWIERDZA serwer: pełny warunek serwera (obie połowy, w tej kolejności) albo
+   * koniunkcja z nim. Funkcja opakowująca ani samo `isServer ?? isSsrRequest()` się NIE liczą
+   * - nie wycinają modułów z grafu Rolldowna (lib/builder/aboveFold.tsx).
    */
   function assertsServer(expr: ts.Expression): boolean {
-    const node = ts.isParenthesizedExpression(expr) ? expr.expression : expr;
+    const node = unparen(expr);
     if (!ts.isBinaryExpression(node)) return false;
-    if (node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
-      return (
-        ts.isIdentifier(node.left) &&
-        node.left.text === "isServer" &&
-        ts.isCallExpression(node.right) &&
-        ts.isIdentifier(node.right.expression) &&
-        node.right.expression.text === "isSsrRequest" &&
-        node.right.arguments.length === 0
-      );
-    return (
-      node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
-      (assertsServer(node.left) || assertsServer(node.right))
-    );
+    if (node.operatorToken.kind !== ts.SyntaxKind.AmpersandAmpersandToken) return false;
+    if (isBuildGate(node.left) && isRuntimeServer(node.right)) return true;
+    return assertsServer(node.left) || assertsServer(node.right);
   }
 
   /** Czy węzeł leży w gałęzi wykonywanej WYŁĄCZNIE na serwerze. */
@@ -663,7 +696,7 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
 
   it("importują je wyłącznie renderer-właściciel i dwie trasy z preloadem", () => {
     // Nowy importer wymaga świadomej decyzji: kod klienta musi wołać te moduły
-    // pod `isServer ?? isSsrRequest()` (test niżej), inaczej wracają do bundla klienta.
+    // pod warunkiem serwera (test niżej), inaczej wracają do bundla klienta.
     expect([...new Set(uses.map((use) => use.file))].sort()).toEqual(
       [
         "src/components/builder/organisms/BuilderRenderer.tsx",
@@ -673,7 +706,7 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
     );
   });
 
-  it("każde użycie w kodzie klienta stoi w gałęzi `isServer ?? isSsrRequest()`", () => {
+  it("każde użycie w kodzie klienta stoi w gałęzi warunku serwera (`aboveFold.tsx`)", () => {
     expect(uses.length).toBeGreaterThanOrEqual(5);
     expect(uses.filter((use) => !use.guarded)).toEqual([]);
   });
@@ -690,16 +723,25 @@ describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.
       visit(sf);
       return guarded;
     };
-    const server = "(isServer ?? isSsrRequest())";
+    const server = "((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest()))";
     expect(probe(`const a = ${server} ? builderHeroPreloads(d) : [];`)).toBe(true);
     expect(probe(`if (${server} && x) builderHeroPreloads(d);`)).toBe(true);
-    expect(probe("if (isServer ?? isSsrRequest()) builderHeroPreloads(d);")).toBe(true);
+    expect(
+      probe(
+        "if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest()) && x) builderHeroPreloads(d);",
+      ),
+    ).toBe(true);
     expect(probe("const a = builderHeroPreloads(d);")).toBe(false);
     expect(probe(`const a = !${server} ? builderHeroPreloads(d) : [];`)).toBe(false);
     expect(probe(`const a = ${server} || builderHeroPreloads(d);`)).toBe(false);
     expect(probe(`const a = ${server} ? [] : builderHeroPreloads(d);`)).toBe(false);
-    // Funkcja opakowująca i `||` nie zwijają się w buildzie przeglądarki (Rolldown).
+    // Funkcja opakowująca, samo `isServer ?? isSsrRequest()` (zwija się dopiero przy generowaniu
+    // kodu - moduły zostają w grafie), sama połowa dla bundlera i `||` - nie wystarczą.
     expect(probe("const a = isServerRender() ? builderHeroPreloads(d) : [];")).toBe(false);
+    expect(probe("if (isServer ?? isSsrRequest()) builderHeroPreloads(d);")).toBe(false);
+    expect(probe("if (import.meta.env.SSR || import.meta.env.DEV) builderHeroPreloads(d);")).toBe(
+      false,
+    );
     expect(probe("if (isServer || isSsrRequest()) builderHeroPreloads(d);")).toBe(false);
   });
 

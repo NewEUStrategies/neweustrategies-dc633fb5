@@ -328,7 +328,7 @@ export function BuilderRenderer({
   // węzły (recenzja P1.4, B1). Serwer zapisuje wynik na korzeniu
   // (`lcpRootAttributes`, także pustą listę), a pierwszy render kliencki
   // (hydratacja) odczytuje go z DOM-u serwera po `useId()` - bez kodu
-  // `lcpCandidates` w bundlu klienta (warunek `isServer ?? isSsrRequest()` wycina gałąź; PROVE
+  // `lcpCandidates` w bundlu klienta (warunek serwera (`aboveFold.tsx`) wycina gałąź; PROVE
   // P1.4: +1,1 KB gzip chunku wejściowego). `ids` = `null` to brak nośnika:
   // renderer bez `lcpOwner` albo render czysto kliencki (nawigacja SPA).
   // Lista jest utrwalona RAZEM Z DOKUMENTEM (recenzja P1.4 runda 3, m2): ta sama
@@ -348,7 +348,7 @@ export function BuilderRenderer({
     docKey: lcpDocKey,
     ids: !isLcpOwner
       ? null
-      : (isServer ?? isSsrRequest())
+      : (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
         ? lcpCandidateIds(safeDoc, {
             sections: aboveFoldCount,
             isAccessible: (rule) => evaluateAccess(rule, access),
@@ -357,7 +357,10 @@ export function BuilderRenderer({
     // Plan `content-visibility` z HTML-u serwera (P3.3) - tylko hydratacja;
     // serwer liczy go w `SectionsList`, render czysto kliencki nie ma go wcale.
     // Warunek serwera pierwszy - zwija się w buildzie klienta (KTO LICZY niżej).
-    cv: (isServer ?? isSsrRequest()) || !isLcpOwner ? null : readServerCvPlan(lcpRootId),
+    cv:
+      ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) || !isLcpOwner
+        ? null
+        : readServerCvPlan(lcpRootId),
   }));
   const ownsDoc = isLcpOwner && ownedLcp.docKey === lcpDocKey;
   const lcpIds = ownsDoc ? ownedLcp.ids : null;
@@ -544,7 +547,7 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
 // Sekcje w widoku i tak malują się w pierwszej klatce z treścią.
 //
 // KTO LICZY. Plan (indeks sekcji -> px) liczy WYŁĄCZNIE SERWER
-// (`isServer ?? isSsrRequest()`, gałąź znika z bundla klienta jak `lcpCandidateIds` -
+// (warunek serwera (`aboveFold.tsx`), gałąź znika z bundla klienta jak `lcpCandidateIds` -
 // budżet domknięcia bootu nie ma zapasu) i zapisuje go w opakowaniach
 // (`data-cv`, `data-cv-i`). Hydratacja odczytuje plan z opakowań serwera
 // w inicjalizatorze stanu renderera (`readServerCvPlan`, obok nośnika
@@ -882,7 +885,12 @@ const CvBlock = memo(function CvBlock() {
     <div
       hidden
       suppressHydrationWarning
-      dangerouslySetInnerHTML={{ __html: (isServer ?? isSsrRequest()) ? CV_BLOCK_HTML : "" }}
+      dangerouslySetInnerHTML={{
+        __html:
+          (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
+            ? CV_BLOCK_HTML
+            : "",
+      }}
     />
   );
 });
@@ -967,7 +975,7 @@ const SectionsList = memo(function SectionsList({
   // samego dokumentu - są tylko tam, gdzie serwer miał wyspy i nośnik, więc
   // klient nie sprawdza warunków drugi raz (krótsza ścieżka w bundlu bootu).
   const cvPlan =
-    (isServer ?? isSsrRequest())
+    (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
       ? islands && lcpIds
         ? planServerCv(visible, lcpIds)
         : null

@@ -325,8 +325,8 @@ async function main(): Promise<void> {
   const failed = results.filter((r) => !r.ok);
   if (gate && leaks?.length) {
     console.error(
-      "\n✗ Moduły tylko-serwerowe w bundlu klienta - wywołanie poza gałęzią `isServer ?? isSsrRequest()` " +
-        "(warunek wprost, nie w funkcji) albo flaga `isServer`, której bundler nie zwija " +
+      "\n✗ Moduły tylko-serwerowe w bundlu klienta - wywołanie poza warunkiem serwera " +
+        "(wprost, z `import.meta.env`, nie w funkcji) albo flaga `isServer`, której bundler nie zwija " +
         "(src/lib/builder/aboveFold.tsx).",
     );
     process.exitCode = 1;

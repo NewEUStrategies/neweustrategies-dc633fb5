@@ -46,7 +46,7 @@
 // (preload == obraz eager) pominięcie A dawało leniwy obraz pierwszego malowania.
 //
 // TYLKO SERWER (runda poprawek 9). Kandydatów liczy render SSR właściciela
-// (BuilderRenderer, gałąź `isServer ?? isSsrRequest()`) i loader trasy na serwerze
+// (BuilderRenderer, gałąź - warunek serwera (`aboveFold.tsx`)) i loader trasy na serwerze
 // (heroImage.ts); klient czyta wynik z atrybutów korzenia renderera
 // (aboveFold.tsx, `readServerLcpCandidates`). Bundel przeglądarki nie zawiera
 // tego modułu - w chunku wejściowym kosztował +1,1 KB gzip (PROVE P1.4).
