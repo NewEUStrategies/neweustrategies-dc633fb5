@@ -391,11 +391,41 @@ export function ConsentPolicySentence({
   );
 }
 
-// ---------- Przełącznik języka ----------
+// ---------- Przełącznik języka (taśma jak w headerze) ----------
 
 /**
- * Przełącznik PL/EN. W powłoce bez `onSelect` - kliknięcie jest intencją
- * (`lang-pl`/`lang-en`), którą baner odtwarza po montażu.
+ * Flagi inline (widok 18x12, te same kształty co `LangReelSwitcher`). Bez
+ * `clipPath` - powłoka żyje w HTML-u KAŻDEJ strony i nie może duplikować
+ * identyfikatora `uj-diag` z headerem; przycinanie diagonali załatwia
+ * `overflow-hidden` kontenera flagi (identyczny efekt wizualny).
+ */
+function ConsentFlagSvg({ code }: { code: "pl" | "gb" }) {
+  if (code === "pl") {
+    return (
+      <svg viewBox="0 0 30 20" aria-hidden="true">
+        <rect width="30" height="10" fill="#fff" />
+        <rect y="10" width="30" height="10" fill="#dc143c" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 60 40" aria-hidden="true">
+      <rect width="60" height="40" fill="#012169" />
+      <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#fff" strokeWidth="9" />
+      <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#C8102E" strokeWidth="5" />
+    </svg>
+  );
+}
+
+/**
+ * Przełącznik PL/EN w formie „taśmy" z headera (`LangReelSwitcher`): spoczynek
+ * pokazuje język bieżący, a hover / focus / tap odsłania cel przesunięciem
+ * pionowego toru (klasy `.lang-switch__*` + wariant `--card` ze `styles.css` -
+ * krótkie klasy, bo powłoka wysyła ten markup w HTML-u każdej strony). Jedno
+ * kliknięcie przełącza NA CEL. W powłoce bez `onSelect` - kliknięcie jest
+ * intencją (`lang-pl`/`lang-en`), którą baner odtwarza po montażu; atrybut
+ * akcji zostaje także w banerze, bo służy przeniesieniu fokusu z kontrolki
+ * powłoki (ten sam markup obu kart).
  */
 export function ConsentLangSwitcher({
   lang,
@@ -404,36 +434,31 @@ export function ConsentLangSwitcher({
   lang: AppLang;
   onSelect?: (lang: AppLang) => void;
 }) {
+  const target: AppLang = lang === "pl" ? "en" : "pl";
+  const action: ConsentShellAction = target === "pl" ? "lang-pl" : "lang-en";
+  const flag: Record<AppLang, "pl" | "gb"> = { pl: "pl", en: "gb" };
+
   return (
-    <div
-      role="group"
+    <button
+      type="button"
+      data-consent-action={action}
+      onClick={onSelect ? () => onSelect(target) : undefined}
       aria-label="PL / EN"
-      className={cn(
-        "inline-flex items-center rounded-full border p-0.5",
-        CB_BORDER,
-        "bg-[color:var(--cb-muted,var(--muted))]/40",
-      )}
+      className="lang-switch lang-switch--card"
     >
-      {(["pl", "en"] as const).map((l) => {
-        const active = lang === l;
-        const action: ConsentShellAction = l === "pl" ? "lang-pl" : "lang-en";
-        return (
-          <button
-            key={l}
-            type="button"
-            data-consent-action={action}
-            onClick={onSelect ? () => onSelect(l) : undefined}
-            aria-pressed={active}
-            className={cn(
-              "min-w-[1.75rem] cursor-pointer rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors",
-              active ? "bg-(--cba) text-(--cbo)" : "text-(--cbm)/70 hover:text-(--cbt)",
-            )}
-          >
-            {l.toUpperCase()}
-          </button>
-        );
-      })}
-    </div>
+      <span className="lang-switch__window">
+        <span className="lang-switch__track">
+          {[lang, target].map((l, i) => (
+            <span key={`${l}-${i}`} className="lang-switch__item">
+              <span className="lang-switch__flag">
+                <ConsentFlagSvg code={flag[l]} />
+              </span>
+              <span>{l}</span>
+            </span>
+          ))}
+        </span>
+      </span>
+    </button>
   );
 }
 
