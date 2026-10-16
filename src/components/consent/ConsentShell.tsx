@@ -391,11 +391,42 @@ export function ConsentPolicySentence({
   );
 }
 
-// ---------- Przełącznik języka ----------
+// ---------- Przełącznik języka (taśma jak w headerze) ----------
 
 /**
- * Przełącznik PL/EN. W powłoce bez `onSelect` - kliknięcie jest intencją
- * (`lang-pl`/`lang-en`), którą baner odtwarza po montażu.
+ * Flagi inline (widok 18x12, te same kształty co `LangReelSwitcher`). Bez
+ * `clipPath` - powłoka żyje w HTML-u KAŻDEJ strony i nie może duplikować
+ * identyfikatora `uj-diag` z headerem; przycinanie diagonali załatwia
+ * `overflow-hidden` kontenera flagi (identyczny efekt wizualny).
+ */
+function ConsentFlagSvg({ code }: { code: "pl" | "gb" }) {
+  if (code === "pl") {
+    return (
+      <svg viewBox="0 0 30 20" aria-hidden="true">
+        <rect width="30" height="10" fill="#ffffff" />
+        <rect y="10" width="30" height="10" fill="#dc143c" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 60 40" aria-hidden="true">
+      <rect width="60" height="40" fill="#012169" />
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#ffffff" strokeWidth="8" />
+      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="4" />
+      <path d="M30,0 v40 M0,20 h60" stroke="#ffffff" strokeWidth="10" />
+      <path d="M30,0 v40 M0,20 h60" stroke="#C8102E" strokeWidth="6" />
+    </svg>
+  );
+}
+
+/**
+ * Przełącznik PL/EN w formie „taśmy" z headera (`LangReelSwitcher`): spoczynek
+ * pokazuje język bieżący, a hover / focus / tap odsłania cel przesunięciem
+ * pionowego toru (wspólne klasy `.lang-switch__*` ze `styles.css`). Jedno
+ * kliknięcie przełącza NA CEL. W powłoce bez `onSelect` - kliknięcie jest
+ * intencją (`lang-pl`/`lang-en`), którą baner odtwarza po montażu; atrybut
+ * akcji zostaje także w banerze, bo służy przeniesieniu fokusu z kontrolki
+ * powłoki (ten sam markup obu kart).
  */
 export function ConsentLangSwitcher({
   lang,
@@ -404,36 +435,38 @@ export function ConsentLangSwitcher({
   lang: AppLang;
   onSelect?: (lang: AppLang) => void;
 }) {
+  const target: AppLang = lang === "pl" ? "en" : "pl";
+  const action: ConsentShellAction = target === "pl" ? "lang-pl" : "lang-en";
+  const flag: Record<AppLang, "pl" | "gb"> = { pl: "pl", en: "gb" };
+
   return (
-    <div
-      role="group"
+    <button
+      type="button"
+      data-consent-action={action}
+      onClick={onSelect ? () => onSelect(target) : undefined}
       aria-label="PL / EN"
+      title={target.toUpperCase()}
       className={cn(
-        "inline-flex items-center rounded-full border p-0.5",
-        CB_BORDER,
-        "bg-[color:var(--cb-muted,var(--muted))]/40",
+        "lang-switch shrink-0 rounded-[6px] bg-[#f4f4f2] p-[2px] dark:bg-[#27272a]",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--brand,#2563eb)]",
       )}
     >
-      {(["pl", "en"] as const).map((l) => {
-        const active = lang === l;
-        const action: ConsentShellAction = l === "pl" ? "lang-pl" : "lang-en";
-        return (
-          <button
-            key={l}
-            type="button"
-            data-consent-action={action}
-            onClick={onSelect ? () => onSelect(l) : undefined}
-            aria-pressed={active}
-            className={cn(
-              "min-w-[1.75rem] cursor-pointer rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors",
-              active ? "bg-(--cba) text-(--cbo)" : "text-(--cbm)/70 hover:text-(--cbt)",
-            )}
-          >
-            {l.toUpperCase()}
-          </button>
-        );
-      })}
-    </div>
+      <span className="lang-switch__window block w-14 rounded-[4px]">
+        <span className="lang-switch__track">
+          {[lang, target].map((l, i) => (
+            <span
+              key={`${l}-${i}`}
+              className="lang-switch__item inline-flex items-center justify-center gap-1.5 text-[11px] font-medium leading-none text-[#111] dark:text-[#f4f4f2]"
+            >
+              <span className="block h-3 w-[18px] overflow-hidden rounded-[2px] border border-black/10 dark:border-white/15">
+                <ConsentFlagSvg code={flag[l]} />
+              </span>
+              <span className="uppercase">{l}</span>
+            </span>
+          ))}
+        </span>
+      </span>
+    </button>
   );
 }
 

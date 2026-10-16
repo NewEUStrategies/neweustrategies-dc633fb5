@@ -466,17 +466,17 @@ describe("ConsentBanner - modal szczegółów: decyzje i podmioty", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("przełącznik języka w banerze zmienia język treści", async () => {
+  it("przełącznik języka w banerze (taśma jak w headerze) zmienia język treści", async () => {
     render(
       <ConsentBanner configOverride={{ ...COOKIE_BANNER_DEFAULTS, languageSwitcher: true }} />,
     );
-    const group = screen.getByRole("group", { name: "PL / EN" });
-    // Klik w język bieżący nic nie robi.
-    fireEvent.click(within(group).getByRole("button", { name: "PL" }));
+    // Taśma: spoczynek pokazuje język bieżący, jedno kliknięcie przełącza NA CEL.
+    const switcher = screen.getByRole("button", { name: "PL / EN" });
+    expect(switcher).toHaveAttribute("data-consent-action", "lang-en");
     expect(i18n.language).toBe("pl");
 
     await act(async () => {
-      fireEvent.click(within(group).getByRole("button", { name: "EN" }));
+      fireEvent.click(switcher);
     });
     expect(screen.getByRole("button", { name: EN.acceptAll })).toBeInTheDocument();
     await i18n.changeLanguage("pl");
