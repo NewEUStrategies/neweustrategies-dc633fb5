@@ -14,8 +14,6 @@
 //     czyli to, co widzi osoba ustawiająca kadr na swoim ekranie,
 //   * pod nią stoją miniatury pozostałych powierzchni (bramka i minisite na
 //     telefonie i komputerze, kafel katalogu) - ten sam kadr, ich proporcje.
-"use client";
-
 import { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 // Nakładka słownika klubów rejestruje klucze efektem ubocznym importu - bez
