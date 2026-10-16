@@ -191,10 +191,14 @@ export const getUserAccountStatus = createServerFn({ method: "GET" })
     let invitationAutoAccepted = false;
     let invitationSendCount = 0;
     if (u.email) {
+      // Dopasowanie DOKŁADNE po adresie znormalizowanym, nie `ilike`: `_` i `%`
+      // w adresie są we wzorcu symbolami wieloznacznymi, więc konto
+      // `a_b@…` dostawało zaproszenie, status i licznik wysyłek osoby `axb@…`.
+      // Adresy zaproszeń są zapisywane znormalizowane (`trim().toLowerCase()`).
       const { data: inv } = await context.supabase
         .from("user_invitations")
         .select("id, status, sent_at, metadata, send_count")
-        .ilike("email", u.email)
+        .eq("email", u.email.trim().toLowerCase())
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

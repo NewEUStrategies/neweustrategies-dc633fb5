@@ -122,6 +122,8 @@ const h = vi.hoisted(() => ({
   /** Awaria generatora linku aktywacyjnego. */
   linkError: null as Error | null,
   emailError: "smtp down",
+  /** Wysyłka pominięta przez bramkę poczty (`sendTxEmail` -> `skipped`). */
+  emailSkipped: null as "suppressed" | "duplicate" | null,
   /**
    * Konta istniejące w katalogu tożsamości - sprawdzane przed `createUser`.
    * `app_metadata` jak w GoTrue: pisze je wyłącznie klucz serwisowy, więc
@@ -144,6 +146,10 @@ const h = vi.hoisted(() => ({
   getUserByIdError: null as (Error & { status?: number; code?: string }) | null,
   /** Identyfikatory, o które moduł pytał `getUserById`. */
   getUserByIdCalls: [] as string[],
+  /** Wywołania `updateUserById` - nowe hasło tymczasowe przy ponowieniu. */
+  passwordUpdates: [] as { id: string; password: unknown }[],
+  /** Awaria `updateUserById`. */
+  updateUserByIdError: null as Error | null,
   /**
    * Najemca domyślny (`tenants.is_default`) - tam `handle_new_user` zakłada
    * profil KAŻDEGO nowego konta. `null` = brak wiersza z flagą (wtedy moduł
@@ -175,6 +181,8 @@ const h = vi.hoisted(() => ({
   listUsersPages: [] as { page: number; perPage: number }[],
   /** Awaria katalogu tożsamości (`listUsers`). */
   listUsersError: null as Error | null,
+  /** Po odpowiedzi `listUsers` - np. konto założone w tym czasie przez inne żądanie. */
+  afterListUsers: null as (() => void) | null,
   /**
    * Slug, który konto JUŻ MA w `profiles`. `null` = konto bez sluga (nowe),
    * więc hydracja policzy go z nazwy.
@@ -215,7 +223,14 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           h.listUsersPages.push({ page, perPage });
           if (h.listUsersError) return { data: { users: [] }, error: h.listUsersError };
           const all = h.existingAuthUsers ?? [];
-          return { data: { users: all.slice((page - 1) * perPage, page * perPage) }, error: null };
+          const users = all.slice((page - 1) * perPage, page * perPage);
+          h.afterListUsers?.();
+          return { data: { users }, error: null };
+        },
+        updateUserById: async (id: string, attributes: { password?: unknown }) => {
+          h.passwordUpdates.push({ id, password: attributes.password });
+          if (h.updateUserByIdError) return { data: { user: null }, error: h.updateUserByIdError };
+          return { data: { user: { id } }, error: null };
         },
         // Konto po identyfikatorze - przypięte `auth_user_id` zaproszenia.
         // Brak konta GoTrue zgłasza błędem 404 `user_not_found`, nie `null`.
@@ -394,6 +409,8 @@ vi.mock("@/lib/email/transactional.server", () => ({
     details?: { label: string; value: string }[];
   }) => {
     h.emails.push(input);
+    if (h.emailSkipped === "duplicate") return { ok: true, skipped: "duplicate" };
+    if (h.emailSkipped) return { ok: false, skipped: h.emailSkipped, reason: "suppressed:bounce" };
     return h.emailOk ? { ok: true } : { ok: false, error: h.emailError };
   },
 }));
@@ -537,6 +554,8 @@ beforeEach(() => {
   h.existingAuthUsers = [];
   h.getUserByIdError = null;
   h.getUserByIdCalls = [];
+  h.passwordUpdates = [];
+  h.updateUserByIdError = null;
   h.defaultTenantId = IDS.defaultTenant;
   h.nesTenantId = null;
   h.defaultTenantError = null;
@@ -545,6 +564,7 @@ beforeEach(() => {
   h.createdUserIds = [];
   h.listUsersPages = [];
   h.listUsersError = null;
+  h.afterListUsers = null;
   h.existingProfileSlug = null;
   h.existingProfileTenant = null;
   h.existingProfileError = null;
@@ -571,6 +591,7 @@ beforeEach(() => {
   h.emailOk = true;
   h.linkError = null;
   h.emailError = "smtp down";
+  h.emailSkipped = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -1543,6 +1564,16 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
     expect(result.ok).toBe(true);
   });
 
+  it("adres na liście blokad daje własny kod `email_suppressed`, nie `email_failed:undefined`", async () => {
+    // Pominięcie przez bramkę poczty nie niesie `error` - stary kod składał
+    // z niego `email_failed:undefined`, a panel radził „spróbuj za chwilę",
+    // choć ponowienie zostanie pominięte tak samo.
+    withInvitation(invitationRow({ mode: "temp_password" }));
+    h.emailSkipped = "suppressed";
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "email_suppressed" });
+  });
+
   it("ODMOWA BRAMKI POCZTY: konto powstało, ale zaproszenie NIE jest oznaczone jako wysłane", async () => {
     // TO JEST ZACHOWANIE, KTÓRE MUSI MIEĆ TEST. Konto w `auth.users` już
     // istnieje i profil jest zhydratowany, ale status zaproszenia zostaje
@@ -1867,6 +1898,150 @@ describe("sendInvitation - nowa osoba w organizacji innej niż domyślna", () =>
       tenant_id: IDS.tenant,
       slug: "nowa-osoba",
     });
+  });
+
+  // ---- hasło tymczasowe przy ponowieniu ------------------------------------
+
+  /** Konto założone przez administratora dla tego adresu, nigdy nieużyte. */
+  function provisionedAccount(overrides: Record<string, unknown> = {}): void {
+    h.existingAuthUsers = [
+      {
+        id: IDS.existingUser,
+        email: "nowa@example.org",
+        app_metadata: {
+          provisioned_by_admin: true,
+          provisioned_email: "nowa@example.org",
+          tenant_id: IDS.tenant,
+        },
+        ...overrides,
+      },
+    ];
+  }
+
+  it("ponowienie w trybie hasła nadaje NOWE hasło kontu założonemu przez administratora i nigdy nieużytemu", async () => {
+    // Hasło z pierwszej (przerwanej) wysyłki istniało tylko w pamięci tamtego
+    // wywołania - bez nowego mail niósłby sam adres logowania.
+    withInvitation(invitationRow({ mode: "temp_password" }));
+    provisionedAccount();
+    h.existingProfileTenant = IDS.defaultTenant;
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(h.passwordUpdates).toHaveLength(1);
+    const [{ id, password }] = h.passwordUpdates;
+    expect(id).toBe(IDS.existingUser);
+    expect(password).toMatch(/^[A-HJ-NP-Za-km-z2-9]{16}$/);
+    expect(JSON.stringify(h.emails[0].details)).toContain(String(password));
+    expect(h.authCalls.some((call) => call.kind === "create")).toBe(false);
+  });
+
+  it("nowe hasło idzie WYŁĄCZNIE do skrzynki konta - nigdy w wyniku dla wołającego", async () => {
+    // Ponowić może każdy administrator najemcy, także dla konta z wyższą rolą,
+    // które założył ktoś inny. Hasło w wyniku pozwoliłoby mu się na nie
+    // zalogować (nieużyte konto nie ma MFA) - awans, którego mu odmawiają
+    // `change_user_role` i `startImpersonation`.
+    withInvitation(invitationRow({ mode: "temp_password" }));
+    provisionedAccount();
+    h.existingProfileTenant = IDS.tenant;
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(h.passwordUpdates).toHaveLength(1);
+    expect(result.tempPassword).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain(String(h.passwordUpdates[0].password));
+  });
+
+  it.each([
+    ["awaria dostawcy poczty", { emailOk: false }, "email_failed:smtp down"],
+    ["adres na liście blokad", { emailSkipped: "suppressed" as const }, "email_suppressed"],
+  ])(
+    "mail nie wyszedł (%s) - stare hasło zostaje, nowe nie wraca do wołającego",
+    async (_label, mail, error) => {
+      // Hasło z wcześniejszej wysyłki mogło dotrzeć albo zostać przekazane
+      // ręcznie. Zmiana przed nieudanym mailem odebrałaby je, a nowego nikt
+      // by nie dostał - więc hasło zmienia się dopiero po przyjęciu maila.
+      withInvitation(invitationRow({ mode: "temp_password" }));
+      provisionedAccount();
+      h.existingProfileTenant = IDS.tenant;
+      Object.assign(h, mail);
+      const result = await send();
+      expect(result).toMatchObject({ ok: false, error });
+      expect(h.passwordUpdates).toEqual([]);
+      expect(result.tempPassword).toBeUndefined();
+    },
+  );
+
+  it("wysyłka obsłużona już wcześniej (`duplicate`) nie zmienia hasła - tamten mail niósł inne", async () => {
+    withInvitation(invitationRow({ mode: "temp_password" }));
+    provisionedAccount();
+    h.existingProfileTenant = IDS.tenant;
+    h.emailSkipped = "duplicate";
+    expect((await send()).ok).toBe(true);
+    expect(h.passwordUpdates).toEqual([]);
+  });
+
+  it.each([
+    ["konto, na które ktoś się już zalogował", { last_sign_in_at: OLDER_ISO }],
+    [
+      "konto bez znacznika założenia przez administratora",
+      { app_metadata: { tenant_id: IDS.tenant } },
+    ],
+    [
+      "konto założone przez administratora dla INNEGO adresu",
+      {
+        app_metadata: {
+          provisioned_by_admin: true,
+          provisioned_email: "ktos-inny@example.org",
+          tenant_id: IDS.tenant,
+        },
+      },
+    ],
+    [
+      "konto założone przez administratora bez poświadczenia najemcy",
+      { app_metadata: { provisioned_by_admin: true, provisioned_email: "nowa@example.org" } },
+    ],
+    [
+      "konto założone przez administratora dla INNEGO najemcy",
+      {
+        app_metadata: {
+          provisioned_by_admin: true,
+          provisioned_email: "nowa@example.org",
+          tenant_id: IDS.otherTenant,
+        },
+      },
+    ],
+  ] as const)("%s zachowuje swoje hasło", async (_label, overrides) => {
+    withInvitation(invitationRow({ mode: "temp_password" }));
+    provisionedAccount(overrides);
+    h.existingProfileTenant = IDS.tenant;
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(result.tempPassword).toBeUndefined();
+    expect(h.passwordUpdates).toEqual([]);
+  });
+
+  it("tryb odnośnika nie rusza hasła nawet kontu założonemu przez administratora", async () => {
+    withInvitation(invitationRow({ mode: "magic_link" }));
+    provisionedAccount();
+    h.existingProfileTenant = IDS.tenant;
+    expect((await send()).ok).toBe(true);
+    expect(h.passwordUpdates).toEqual([]);
+  });
+
+  it("awaria nadania hasła PO przyjętym mailu - błąd, zaproszenie NIE jest `sent`", async () => {
+    // Mail wyszedł z hasłem, które nie działa; poprzednie (jeśli było) działa
+    // dalej, a ponowienie wyśle nowe. Wysyłka nie może udawać sukcesu.
+    withInvitation(invitationRow({ mode: "temp_password" }));
+    provisionedAccount();
+    h.existingProfileTenant = IDS.tenant;
+    h.updateUserByIdError = new Error("weak password");
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "password_reset_failed:weak password" });
+    expect(h.emails).toHaveLength(1);
+    expect(JSON.stringify(h.emails[0].details)).toContain(String(h.passwordUpdates[0].password));
+    const updates = db
+      .chainsFor("user_invitations")
+      .filter((chain) => chain.has("update"))
+      .map((chain) => chain.argsOf("update")?.[0] as { status?: string });
+    expect(updates.some((update) => update.status === "sent")).toBe(false);
   });
 
   it("najemca domyślny bez flagi rozstrzyga się slugiem `nes` - jak w `handle_new_user`", async () => {
@@ -2748,12 +2923,23 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     expect(result.created).toBe(1);
   });
 
-  it("wyjątek NIE-`Error` w pętli osób ląduje w `errors` jako tekst", async () => {
+  it("błąd `createUser` bez komunikatu daje ogólny kod, a szczegół idzie do logu serwera", async () => {
     db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
     db.setResponse("user_invitations", () => ok(null));
     h.authError = { status: 429 };
-    const result = await provision({ pageSlug: "o-nas", autoLink: false });
-    expect(result.errors).toEqual([{ email: "nowa@example.org", error: "[object Object]" }]);
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await provision({ pageSlug: "o-nas", autoLink: false });
+      expect(result.errors).toEqual([
+        { email: "nowa@example.org", error: "account_create_failed" },
+      ]);
+      expect(log).toHaveBeenCalledWith("[provisionTeamMembers] createUser failed", {
+        code: null,
+        status: 429,
+      });
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it("odczyt profili do dowiązania zwracający `null` nie wywraca kroku", async () => {
@@ -2809,8 +2995,10 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     // Druga osoba MUSI przejść: jeden zajęty adres nie może zablokować importu
     // całego zespołu.
     expect(result.created).toBe(1);
+    // „Adres zajęty" bez konta w katalogu to ogólny kod - surowy komunikat
+    // GoTrue nie trafia do panelu.
     expect(result.errors).toEqual([
-      { email: "pierwsza@example.org", error: "User already registered" },
+      { email: "pierwsza@example.org", error: "account_create_failed" },
     ]);
     // Hydracja przeszła wyłącznie dla drugiej osoby.
     expect(h.adminWrites.map((write) => write.table)).toEqual([
@@ -2887,11 +3075,92 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
   it("błąd `createUser` inny niż „adres zajęty” nie przechodzi katalogu kont", async () => {
     db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
     db.setResponse("user_invitations", () => ok(null));
-    h.authError = new Error("rate limit exceeded");
-    const result = await provision({ pageSlug: "o-nas", autoLink: false });
-    expect(result.errors).toEqual([{ email: "nowa@example.org", error: "rate limit exceeded" }]);
+    h.authError = Object.assign(new Error("rate limit exceeded"), {
+      code: "over_request_rate_limit",
+      status: 429,
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const result = await provision({ pageSlug: "o-nas", autoLink: false });
+      // Ogólny kod dla panelu (B3), szczegół wyłącznie w logu serwera.
+      expect(result.errors).toEqual([
+        { email: "nowa@example.org", error: "account_create_failed" },
+      ]);
+      expect(log).toHaveBeenCalledWith("[provisionTeamMembers] createUser failed", {
+        code: "over_request_rate_limit",
+        status: 429,
+      });
+    } finally {
+      log.mockRestore();
+    }
     expect(h.listUsersPages).toEqual([]);
     expect(h.adminWrites).toEqual([]);
+  });
+
+  it("kilka zajętych adresów w jednym imporcie czyta katalog kont JEDEN raz", async () => {
+    // Bez pamięci na czas wywołania każda osoba przechodziła katalog od nowa.
+    db.setResponse(
+      "pages",
+      ok({
+        id: IDS.page,
+        builder_data: builderDoc([
+          teamWidget({ id: "w-1", email: "pierwsza@example.org", name: "Pierwsza" }),
+          teamWidget({ id: "w-2", email: "druga@example.org", name: "Druga" }),
+        ]),
+      }),
+    );
+    db.setResponse("user_invitations", () => ok(null));
+    h.authError = new Error("User already registered");
+    h.existingAuthUsers = [
+      { id: "aaaa0000-0000-4000-8000-000000000001", email: "pierwsza@example.org" },
+      { id: "aaaa0000-0000-4000-8000-000000000002", email: "druga@example.org" },
+    ];
+    h.existingProfileTenant = IDS.otherTenant;
+    const result = await provision({ pageSlug: "o-nas", autoLink: false });
+    expect(result.errors.map((entry) => entry.error)).toEqual([
+      "account_in_other_tenant",
+      "account_in_other_tenant",
+    ]);
+    expect(h.listUsersPages).toEqual([{ page: 1, perPage: 200 }]);
+  });
+
+  it("konto założone przez INNE żądanie po pierwszym odczycie katalogu nie ginie w migawce", async () => {
+    // `createUser` mówi „adres zajęty", a pamięć katalogu przeczytała już
+    // stronę, na której to konto dziś leży. Pudło z migawki czyta katalog
+    // jeszcze raz od pierwszej strony - inaczej import zgłosiłby
+    // `account_create_failed` dla konta, które istnieje.
+    db.setResponse(
+      "pages",
+      ok({
+        id: IDS.page,
+        builder_data: builderDoc([
+          teamWidget({ id: "w-1", email: "pierwsza@example.org", name: "Pierwsza" }),
+          teamWidget({ id: "w-2", email: "druga@example.org", name: "Druga" }),
+        ]),
+      }),
+    );
+    db.setResponse("user_invitations", () => ok(null));
+    h.authError = new Error("User already registered");
+    h.existingAuthUsers = [
+      { id: "aaaa0000-0000-4000-8000-000000000001", email: "pierwsza@example.org" },
+    ];
+    h.afterListUsers = () => {
+      h.afterListUsers = null;
+      h.existingAuthUsers.push({
+        id: "aaaa0000-0000-4000-8000-000000000002",
+        email: "druga@example.org",
+      });
+    };
+    h.existingProfileTenant = IDS.otherTenant;
+    const result = await provision({ pageSlug: "o-nas", autoLink: false });
+    expect(result.errors.map((entry) => entry.error)).toEqual([
+      "account_in_other_tenant",
+      "account_in_other_tenant",
+    ]);
+    expect(h.listUsersPages).toEqual([
+      { page: 1, perPage: 200 },
+      { page: 1, perPage: 200 },
+    ]);
   });
 
   it("dowiązanie bierze WYŁĄCZNIE profile tego najemcy - konto innej organizacji z tym adresem nie trafia na stronę", async () => {

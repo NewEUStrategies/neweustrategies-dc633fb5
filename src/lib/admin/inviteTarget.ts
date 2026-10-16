@@ -45,6 +45,20 @@ export const INVITATION_TARGET_UNAVAILABLE = "account_in_other_tenant";
  */
 export const INVITATION_ROLE_NOT_ALLOWED = "invitation_role_not_allowed";
 
+/**
+ * `createUser` odmówił z innej przyczyny niż zajęty adres (limit, polityka
+ * haseł, błąd bazy GoTrue). Panel dostaje ten kod, szczegół idzie do logu
+ * serwera - surowy komunikat dostawcy tożsamości nie trafia do UI.
+ */
+export const ACCOUNT_CREATE_FAILED = "account_create_failed";
+
+/**
+ * Wiadomość pominięta, bo adres jest na liście blokad (odbicie, skarga).
+ * Osobny kod, bo dopóki blokada trwa, ponowienie nic nie zmieni - inaczej niż
+ * `email_failed:`.
+ */
+export const EMAIL_SUPPRESSED = "email_suppressed";
+
 /** Przyczyna odmowy - wyłącznie dla typów i testów; nigdy w odpowiedzi ani w `last_error`. */
 export type InviteRefusalReason =
   | "pinned_account_missing"
@@ -71,6 +85,13 @@ export interface InviteAccount {
    * czytelnik najemcy domyślnego. Wtedy konto należy już do tamtego najemcy.
    */
   everSignedIn: boolean;
+  /**
+   * Adres, dla którego konto ZAŁOŻYŁ administrator z potwierdzeniem nadanym
+   * kluczem serwisowym (`app_metadata.provisioned_by_admin` +
+   * `provisioned_email`) - hasło tymczasowe takiego konta zna wyłącznie
+   * zakładający. `null` = konto nie z tej drogi.
+   */
+  provisionedEmail: string | null;
 }
 
 export interface InviteTargetInput {
@@ -98,6 +119,19 @@ export function appMetadataTenantId(appMetadata: unknown): string | null {
   if (!appMetadata || typeof appMetadata !== "object") return null;
   const value = (appMetadata as Record<string, unknown>).tenant_id;
   return typeof value === "string" && value !== "" ? value : null;
+}
+
+/**
+ * Adres ze znacznika `adminProvisionedAppMetadata` (`provisioned_by_admin`
+ * + `provisioned_email`), znormalizowany. Bez znacznika albo z adresem nie
+ * będącym tekstem - `null`.
+ */
+export function appMetadataProvisionedEmail(appMetadata: unknown): string | null {
+  if (!appMetadata || typeof appMetadata !== "object") return null;
+  const meta = appMetadata as Record<string, unknown>;
+  if (meta.provisioned_by_admin !== true) return null;
+  const value = meta.provisioned_email;
+  return typeof value === "string" && value.trim() !== "" ? value.trim().toLowerCase() : null;
 }
 
 /**

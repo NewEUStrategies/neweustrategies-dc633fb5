@@ -9,6 +9,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
+// Wynik wysyłki tłumaczy `invitationErrorKey` - klucze idą do `t()` dynamicznie,
+// więc nakładka `adminUsers` jest importowana wprost.
+import "@/lib/i18n-admin-users";
+import { invitationErrorKey } from "@/lib/admin/invitationErrors";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -201,7 +205,7 @@ export function InviteUserDialog({ open, onOpenChange, onDone }: Props) {
         if (s.tempPassword)
           toast.info(t("adminTeamMedia.inviteUser.tempPassword", { pw: s.tempPassword }));
       } else {
-        toast.error(s.error ?? "failed");
+        toast.error(t(invitationErrorKey(s.error)));
       }
       onDone?.();
       onOpenChange(false);
