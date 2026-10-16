@@ -4,7 +4,7 @@
 // The missing-post fallbacks stay temporary (302): the post may reappear
 // (trash restore, republish), so /blog must not be cached as its permanent
 // destination. The 301 itself is share-cacheable (see PERMANENT_REDIRECT).
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";

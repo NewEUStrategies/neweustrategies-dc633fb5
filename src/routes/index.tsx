@@ -1,5 +1,5 @@
 import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { isServer } from "@tanstack/router-core/isServer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useEffect, useMemo } from "react";
