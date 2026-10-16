@@ -29,11 +29,17 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { WIDGET_CHUNK_TARGETS, widgetChunkPlugin } from "../../../../scripts/lib/widgetChunkPlugin";
 
 /** Minimalny kształt chunku, od którego zależy decyzja wtyczki. */
-function chunk(fileName: string, modules: string[], isEntry = false) {
+function chunk(
+  fileName: string,
+  modules: string[],
+  isEntry = false,
+  facadeModuleId: string | null = null,
+) {
   return {
     type: "chunk" as const,
     fileName,
     isEntry,
+    facadeModuleId,
     modules: Object.fromEntries(modules.map((m) => [m, { renderedLength: 1 }])),
   };
 }
@@ -392,6 +398,35 @@ describe("nes:widget-chunks - kontekst środowiska Vite", () => {
     const { ctx, warnings } = envCtx("server");
     p.transform.call(ctx, SOURCE, TARGET);
     expect(warnings).toEqual([]);
+  });
+
+  it("fasada Rolldowna (pusty chunk z `facadeModuleId`) trafia do hintu obok chunku z kodem", () => {
+    // `lazy()` importuje fasadę; jej brak w hincie to jedno żądanie więcej przed hydratacją.
+    const widget = "/repo/src/components/builder/organisms/widget-view/AccountMenuWidget.tsx";
+    const p = plugin();
+    p.generateBundle.call(
+      envCtx("client").ctx,
+      { dir: "/repo/.output/public" },
+      {
+        "assets/AccountMenuWidget-Fac.js": chunk(
+          "assets/AccountMenuWidget-Fac.js",
+          [],
+          false,
+          widget,
+        ),
+        "assets/AccountMenuWidget-Code.js": chunk("assets/AccountMenuWidget-Code.js", [
+          widget,
+          "/repo/src/lib/headerProfile.ts",
+        ]),
+        // Fasada CUDZEGO modułu nie dokleja się do typu.
+        "assets/Other-Fac.js": chunk("assets/Other-Fac.js", [], false, "/repo/src/other.tsx"),
+      },
+    );
+    const out = p.transform.call(envCtx("server").ctx, SOURCE, TARGET);
+    expect(out!.code).toContain(
+      '"account-link":["/assets/AccountMenuWidget-Fac.js","/assets/AccountMenuWidget-Code.js"]',
+    );
+    expect(out!.code).not.toContain("Other-Fac");
   });
 
   it("dwa moduły typu w JEDNYM chunku dają jeden adres, w dwóch - oba w kolejności z mapy", () => {
