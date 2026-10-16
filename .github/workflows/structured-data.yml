@@ -53,14 +53,29 @@ jobs:
           node scripts/seo/check-structured-data.ts --base "$BASE_URL" \
             --report reports/structured-data/latest.json 2>&1 | tee structured-data.log
 
+      # Linia SPRAWDZONE idzie PRZED listą: przy regresji całego szablonu lista
+      # ma setki linii i `head` ucinałby właśnie podsumowanie. `|| true` zamiast
+      # `|| echo` w potoku: bez pipefail kod potoku to kod `head`, więc
+      # zastępczy komunikat nigdy by się nie wypisał - stąd jawny test pustki.
       - name: Write the result to the job summary
         if: ${{ !cancelled() }}
         run: |
+          totals=$(grep -E '^SPRAWDZONE' structured-data.log || true)
+          details=$(grep -E '^(kontrola JSON-LD|  [+(]|✗|    |!)' structured-data.log || true)
           {
             echo "### JSON-LD (reguły Search Console)"
             echo
             echo '```'
-            grep -E '^(kontrola JSON-LD|  \+|SPRAWDZONE|✗|    |!)' structured-data.log | head -200 || echo "(brak wyniku - patrz log kroku)"
+            if [ -z "$totals$details" ]; then
+              echo "(brak wyniku - skrypt nie doszedł do podsumowania, patrz log kroku)"
+            else
+              echo "${totals:-(brak linii SPRAWDZONE - przebieg przerwany)}"
+              printf '%s\n' "$details" | head -200
+              n=$(printf '%s\n' "$details" | wc -l)
+              if [ "$n" -gt 200 ]; then
+                echo "... (+$((n - 200)) linii - pełna lista w artefakcie)"
+              fi
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

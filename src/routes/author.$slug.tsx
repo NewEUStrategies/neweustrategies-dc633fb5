@@ -300,7 +300,9 @@ export const Route = createFileRoute("/author/$slug")({
         : request.toString();
     const lang = activeLang(url);
     const isEn = lang === "en";
-    const name = expert?.display_name ?? (isEn ? "Expert" : "Ekspert");
+    // `.trim() ||`, nie `??`: pusty albo biały `display_name` dawał pusty
+    // `name` w Person i w ostatnim okruszku (Search Console: brakujące `name`).
+    const name = expert?.display_name?.trim() || (isEn ? "Expert" : "Ekspert");
     const nameParts = (expert?.display_name ?? "").trim().split(/\s+/).filter(Boolean);
     const firstName = nameParts[0] ?? "";
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";

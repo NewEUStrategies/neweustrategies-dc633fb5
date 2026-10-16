@@ -294,10 +294,12 @@ export function breadcrumbListJsonLd(
   const crumbs = trail.flatMap((crumb, i) => {
     const href = crumb.href?.trim();
     if (i === last) {
-      return [{ name: crumb.label, url: href ? breadcrumbItemUrl(origin, href, lang) : selfUrl }];
+      return [
+        { name: crumb.label.trim(), url: href ? breadcrumbItemUrl(origin, href, lang) : selfUrl },
+      ];
     }
     if (!href || !crumb.label.trim()) return [];
-    return [{ name: crumb.label, url: breadcrumbItemUrl(origin, href, lang) }];
+    return [{ name: crumb.label.trim(), url: breadcrumbItemUrl(origin, href, lang) }];
   });
   if (crumbs.length < 2) return null;
   return {

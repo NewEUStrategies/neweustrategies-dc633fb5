@@ -35,7 +35,10 @@ const FETCH_TIMEOUT_MS = 30_000;
 const RETRIES = 2;
 
 // Szablony stron z okruszkami, do których linkuje treść, a których sitemapa
-// nie musi wymieniać. Odkrywane jednym skokiem z już pobranych stron.
+// nie musi wymieniać. Odkrywane z już pobranych stron - także przez
+// `<link rel="alternate" hreflang>`, więc /en/category/* (osiągalne dopiero
+// z /category/*, a te z treści) wymaga DRUGIEGO skoku.
+const MAX_DISCOVERY_HOPS = 3;
 const DISCOVERABLE =
   /^(?:\/en)?\/(?:author|people|organization|category|tag|programs|tracker|qa|events)\/[^/?#]+\/?$/;
 
@@ -182,19 +185,35 @@ async function main(): Promise<number> {
     console.error(`✗ Sitemapa niedostępna: ${error instanceof Error ? error.message : error}`);
     return 2;
   }
+  // Jawne `--path` idą PIERWSZE i nie podlegają `--limit` - punktowa kontrola
+  // znanego adresu nie może przepaść za to, że sitemapa jest dłuższa.
   const extra = (values.path ?? []).map((p) => new URL(p, origin).toString());
-  const planned = [...new Set([...seeds, ...extra])].slice(0, limit);
+  const all = [...new Set([...extra, ...seeds])];
+  const planned = all.slice(0, Math.max(limit, extra.length));
   console.log(`kontrola JSON-LD: ${origin} - ${planned.length} adresów z sitemapy i --path`);
+  if (planned.length < all.length) {
+    console.log(
+      `  (pominięto ${all.length - planned.length} adresów sitemapy ponad --limit ${limit})`,
+    );
+  }
 
+  const seen = new Set(planned);
   const discovered = discoverLimit > 0 ? new Set<string>() : null;
   const results = await runPool(planned, discovered);
-  if (discovered) {
-    const known = new Set(planned);
-    const more = [...discovered].filter((u) => !known.has(u)).slice(0, discoverLimit);
-    if (more.length > 0) {
-      console.log(`  + ${more.length} adresów odkrytych w treści (szablony spoza sitemapy)`);
-      results.push(...(await runPool(more, null)));
+  let budget = discoverLimit;
+  for (let hop = 1; discovered && hop <= MAX_DISCOVERY_HOPS; hop += 1) {
+    const fresh = [...discovered].filter((u) => !seen.has(u));
+    const more = fresh.slice(0, budget);
+    if (fresh.length > more.length) {
+      console.log(
+        `  (pominięto ${fresh.length - more.length} odkrytych adresów ponad --discover-limit)`,
+      );
     }
+    if (more.length === 0) break;
+    for (const u of more) seen.add(u);
+    budget -= more.length;
+    console.log(`  + ${more.length} adresów odkrytych w treści (skok ${hop})`);
+    results.push(...(await runPool(more, hop < MAX_DISCOVERY_HOPS ? discovered : null)));
   }
 
   results.sort((a, b) => a.url.localeCompare(b.url));

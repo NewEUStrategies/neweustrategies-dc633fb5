@@ -207,6 +207,18 @@ describe("breadcrumbListJsonLd", () => {
     expect(breadcrumbListJsonLd(empty, ORIGIN, "pl", "/")).toBeNull();
   });
 
+  it("trims crumb names so padded labels never reach the graph", () => {
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd(
+        [{ label: "  Analizy ", href: "/analizy" }, { label: "\tWpis\n" }],
+        ORIGIN,
+        "pl",
+        "/analizy/wpis",
+      ),
+    );
+    expect(ld.itemListElement.map((el) => el.name)).toEqual(["Start", "Analizy", "Wpis"]);
+  });
+
   it("gives every list a stable @id that CollectionPage can reference", () => {
     const ld = expectValidForGoogle(breadcrumbListJsonLd(items, ORIGIN, "pl", "/blog/wpis"));
     expect(ld["@id"]).toBe(`${ORIGIN}/blog/wpis#breadcrumbs`);

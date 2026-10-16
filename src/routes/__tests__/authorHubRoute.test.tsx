@@ -943,6 +943,15 @@ describe("head - dane strukturalne", () => {
     expect(items.map((i) => i.item)).toEqual(["/", "/experts", "/author/anna-kowalska"]);
   });
 
+  it("biały `display_name` nie daje pustej nazwy w Person ani w okruszkach", () => {
+    // `??` przepuszczał "   " - Search Console zgłosiłby brakujące `name`.
+    const payload = { ...loaded(), hub: hub({ expert: { display_name: "   " } }) };
+    const [person, breadcrumb] = jsonLd(headFor(payload));
+    const items = breadcrumb.itemListElement as { name: string }[];
+    expect(person.name).toBe("Ekspert");
+    expect(items[2]?.name).toBe("Ekspert");
+  });
+
   it("okruszki są w języku ADRESU, nie instancji i18n", () => {
     h.requestUrl = "/en/author/anna-kowalska";
     const [, breadcrumb] = jsonLd(headFor(loaded()));
