@@ -328,7 +328,10 @@ describe("źródło tras: adres publiczny i granica ładowania", () => {
     it(`${plik} rejestruje adres ${sciezka} i handler ANY`, () => {
       const source = readFileSync(plik, "utf8");
 
-      expect(source).toContain(`createFileRoute("${sciezka}")`);
+      // Bez literału `createFileRoute("…` w źródle TESTU: bramka
+      // `staticAssetShadowing` skanuje `src/routes/**` (poza plikami z `-`)
+      // i brała szablon `${sciezka}` za trasę przesłanianą przez `public/`.
+      expect(source).toContain(`createFileRoute(${JSON.stringify(sciezka)})`);
       expect(source).toContain("ANY:");
     });
 
