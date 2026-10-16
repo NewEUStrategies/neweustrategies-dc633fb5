@@ -1,5 +1,5 @@
 /** Display compatibility for saved brand accents; unrelated colors stay intact. */
-export const BRAND_ACCENT = "#FA9346";
+export const BRAND_ACCENT = "var(--brand)";
 const LEGACY = new Set([
   "#fa9346",
   "#a94e0b",

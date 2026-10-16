@@ -262,8 +262,8 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
   },
   readMoreButton: {
     bgColor: ["transparent"],
-    color: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#FA9346", "#FA9346"],
-    borderColor: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#FA9346", "#FA9346"],
+    color: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "var(--brand)", "var(--brand)"],
+    borderColor: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "var(--brand)", "var(--brand)"],
   },
   metaInfo: {
     color: [
@@ -282,7 +282,7 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
       "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
     ],
     hoverColor: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff"],
-    activeBgColor: ["var(--brand)", "var(--primary)", "#FA9346", "#FA9346"],
+    activeBgColor: ["var(--brand)", "var(--primary)", "var(--brand)", "var(--brand)"],
     activeColor: ["var(--primary-foreground)", "#ffffff", "#fff"],
   },
   modeSwitcher: {
@@ -299,17 +299,17 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
   },
   socialIcons: {
     color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff", "#6b7280"],
-    hoverColor: ["var(--brand)", "var(--primary)", "#FA9346", "#FA9346", "#FA9346"],
+    hoverColor: ["var(--brand)", "var(--primary)", "var(--brand)", "var(--brand)", "var(--brand)"],
     bgColor: ["transparent"],
     hoverBgColor: ["transparent"],
   },
   listIndex: {
     colorLight: ["#231f20", "#141414", "var(--foreground)", "hsl(var(--foreground))"],
-    colorDark: ["#FA9346", "#FA9346", "var(--brand)", "var(--primary)", "var(--gc-highlight)"],
+    colorDark: ["var(--brand)", "var(--brand)", "var(--brand)", "var(--primary)", "var(--gc-highlight)"],
   },
   postTitle: {
     color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#231f20", "#1f2937"],
-    hoverColor: ["var(--brand)", "var(--primary)", "#FA9346", "#FA9346", "#FA9346"],
+    hoverColor: ["var(--brand)", "var(--primary)", "var(--brand)", "var(--brand)", "var(--brand)"],
   },
   postExcerpt: {
     color: [
