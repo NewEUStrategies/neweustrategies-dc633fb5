@@ -385,6 +385,29 @@ describe("getUserAccountStatus - granica najemcy", () => {
     expect(status.state).toBe("active");
     expect(h.authCalls).toEqual([{ step: "getUserById", args: IDS.target }]);
   });
+
+  it("zaproszenie konta szuka DOKŁADNYM adresem znormalizowanym, nigdy wzorcem `ilike`", async () => {
+    // `_` we wzorcu `ilike` pasuje do dowolnego znaku: konto `a_b@…` dostawało
+    // status i licznik wysyłek zaproszenia osoby `axb@…`.
+    profiles();
+    authAccount(" A_B@Example.com ");
+    rls.setResponse("user_invitations", (chain) => {
+      const [, email] = chain.argsOf("eq") ?? [];
+      return email === "a_b@example.com"
+        ? ok({ id: IDS.caller, status: "sent", sent_at: null, metadata: {}, send_count: 2 })
+        : ok(null);
+    });
+
+    const status = await callServerFn<{ invitationSendCount: number }>(getUserAccountStatus, {
+      data: statusInput(),
+      context: context(),
+    });
+
+    const [invitationChain] = rls.chainsFor("user_invitations");
+    expect(invitationChain.argsOf("eq")).toEqual(["email", "a_b@example.com"]);
+    expect(invitationChain.has("ilike")).toBe(false);
+    expect(status.invitationSendCount).toBe(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

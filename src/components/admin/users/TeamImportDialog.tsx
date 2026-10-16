@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
+// Błędy osób z importu tłumaczy `invitationErrorKey` (klucze dynamiczne),
+// więc nakładka `adminUsers` jest importowana wprost.
+import "@/lib/i18n-admin-users";
+import { invitationErrorKey } from "@/lib/admin/invitationErrors";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Dialog,
@@ -278,7 +282,7 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
                     t("adminTeamMedia.teamImport.toastErrors", {
                       count: r.errors.length,
                       email: r.errors[0].email,
-                      error: r.errors[0].error,
+                      error: t(invitationErrorKey(r.errors[0].error)),
                     }),
                   );
                 }

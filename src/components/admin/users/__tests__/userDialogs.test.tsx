@@ -101,6 +101,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-admin-team-media", () => ({}));
+vi.mock("@/lib/i18n-admin-users", () => ({}));
 vi.mock("sonner", () => ({
   toast: { success: h.toastSuccess, error: h.toastError, info: h.toastInfo },
 }));
@@ -587,7 +588,10 @@ describe("InviteUserDialog", () => {
     mount();
     fill();
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("mailer_unavailable"));
+    // Kod z wyniku tłumaczy `invitationErrorKey` - nieznany kod daje zdanie ogólne.
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminUsers.invitationErrGeneric"),
+    );
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
@@ -596,7 +600,9 @@ describe("InviteUserDialog", () => {
     mount();
     fill();
     fireEvent.click(buttonWith("adminTeamMedia.inviteUser.send"));
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("failed"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminUsers.invitationErrGeneric"),
+    );
   });
 
   it("odmowa wysyłki JEDNAK zamyka modalkę - zaproszenie zostało utworzone", async () => {
