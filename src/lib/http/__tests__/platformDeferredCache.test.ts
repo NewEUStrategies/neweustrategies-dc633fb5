@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requestHandler } from "@tanstack/react-start/server";
 import {
   applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
@@ -10,6 +9,7 @@ import {
   setDocumentRevalidator,
 } from "../documentCache.server";
 import { setCacheControlHeader } from "../responseHeaders";
+import { startRequestScope } from "@/test/startRequestScope";
 const h = vi.hoisted(() => ({ put: vi.fn() }));
 vi.mock("../documentCacheL2.server", async (original) => ({
   ...(await original<typeof import("../documentCacheL2.server")>()),
@@ -62,7 +62,7 @@ describe("deferred write respects final and late stream policy", () => {
   });
   it("rejects a degradation discovered while Suspense is still streaming", async () => {
     let complete!: () => void;
-    const rendered = requestHandler(async (request) => {
+    const rendered = startRequestScope(async (request) => {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("<html>"));
@@ -73,7 +73,7 @@ describe("deferred write respects final and late stream policy", () => {
           };
         },
       });
-      // Keep the h3 request context across the deferred callback.
+      // Keep the Start request context across the deferred callback.
       const { AsyncResource } = await import("node:async_hooks");
       complete = AsyncResource.bind(complete);
       return (await handleDocumentRequest(

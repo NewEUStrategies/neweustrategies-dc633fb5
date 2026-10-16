@@ -735,7 +735,6 @@ interface DeferredDocumentStore {
   contentType: string;
   cacheControl: string;
   contentLanguage: string | null;
-  link: string | null;
   storedAt: number;
   freshMs: number;
   swrMs: number;
@@ -760,7 +759,12 @@ const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentS
  * seroval (guard `cleanupStarted`), `transformStreamWithRouter` czeka na niego
  * do twardego limitu 60 s i ubija strumień błędem - stąd ~61 s na KAŻDYM
  * renderze dokumentu. Tee wykonuje się teraz w src/server.ts, poza zasięgiem
- * porównania tożsamości (`applyDeferredDocumentStore`).
+ * porównania tożsamości (`applyDeferredDocumentStore`). Od TanStack Start 1.169
+ * (`start-server-core` 1.169.43; jeszcze nie 1.169.17) egzekutor dziedziczy
+ * własność ciała, które jest już czytane (tee, pipe -
+ * `inheritsResponseOwnership` w `createStartHandler.ts`), więc ten mechanizm
+ * sam by nie wrócił; tee za łańcuchem zostaje, bo dopiero tam widać nagłówki
+ * granicy odpowiedzi (`Link`, ostateczny `Cache-Control`).
  *
  * `refreshesEntry`: render odświeża ISTNIEJĄCY wpis (odświeżenie w tle albo
  * synchroniczny render po STALE bez drivera). Wtedy ostateczne 404/410/3xx
@@ -812,7 +816,6 @@ function decorateMissAndDeferStore(
       contentType: response.headers.get("content-type") ?? "text/html; charset=utf-8",
       cacheControl: response.headers.get("cache-control") ?? "",
       contentLanguage: response.headers.get("content-language"),
-      link: response.headers.get("link"),
       storedAt: now,
       freshMs: policy.freshMs,
       swrMs: policy.swrMs,
@@ -882,9 +885,10 @@ export function applyDeferredDocumentStore(
     }
   };
 
-  // A later middleware, h3 header merge, or a Suspense boundary may tighten
-  // cache policy after the write was registered. Recheck at BOTH boundaries:
-  // before teeing and after the document has finished streaming.
+  // A later middleware, the response boundary (`fetchWithFrameworkPreloads`
+  // applying the route directive) or a Suspense boundary may tighten cache
+  // policy after the write was registered. Recheck at BOTH points: before
+  // teeing and after the document has finished streaming.
   const canStillStore = () => {
     const directive = readRouteCacheDirective(record.request);
     return (
@@ -911,16 +915,18 @@ export function applyDeferredDocumentStore(
     });
   }
 
-  // Nagłówek `Link` czytamy TUTAJ, nie w middleware: loadery ustawiają go przez
-  // setResponseHeader na nagłówkach ZDARZENIA h3, a te scalają się z odpowiedzią
-  // dopiero w toResponse() na granicy requestHandlera - czyli ZA całym łańcuchem
-  // middleware. Wewnątrz decorateMissAndDeferStore `headers.get("link")` jest
-  // więc zawsze null (cache-control przeżywa tylko dlatego, że
+  // Nagłówek `Link` czytamy TUTAJ, nie w middleware: hinty loaderów żyją
+  // w akumulatorze per żądanie (`appendLinkHeader`), a na odpowiedź nakłada je
+  // dopiero granica odpowiedzi (`fetchWithFrameworkPreloads`) - czyli ZA całym
+  // łańcuchem middleware. Wewnątrz decorateMissAndDeferStore `headers.get("link")`
+  // jest więc null (cache-control przeżywa tylko dlatego, że
   // defaultCacheControlMiddleware dopisuje go wprost na Response w środku
-  // łańcucha). Ta funkcja działa w src/server.ts NA ZEWNĄTRZ handlera, gdzie
-  // scalone nagłówki już są; `record.link` zostaje fallbackiem dla wywołań,
-  // które dostały nagłówek bezpośrednio na odpowiedzi renderu.
-  const link = response.headers.get("link") ?? record.link;
+  // łańcucha). Ta funkcja działa w src/server.ts ZA granicą, więc widzi DOKŁADNIE
+  // ten `Link`, który dostał czytelnik MISS-a - także po przycięciu dokumentu
+  // `lcp` (P2.1: bez `modulepreload`). Bez odwrotu do wartości z łańcucha: wpis
+  // nie może przywracać tego, co granica świadomie zdjęła, bo każdy HIT
+  // odtwarzałby to dalej.
+  const link = response.headers.get("link");
   const [toClient, toCache] = response.body.tee();
   const work = collectStream(toCache, DOCUMENT_CACHE_MAX_ENTRY_BYTES).then(async (body) => {
     if (body === "oversize") {

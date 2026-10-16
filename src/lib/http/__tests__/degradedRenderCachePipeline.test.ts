@@ -5,11 +5,12 @@
 // opt-out `no-store` dla renderu ZDEGRADOWANEGO był w produkcji MARTWY. Powód
 // jest w kolejności, której syntetyczna Response nie ma:
 //
-//   loader --setResponseHeader--> nagłówki ZDARZENIA h3
-//                                   ↑ scalane dopiero w toResponse(),
-//                                     ZA CAŁYM łańcuchem middleware
+//   loader --setCacheControlHeader--> kanał per `Request` (`responseHeaders.ts`)
+//                                   ↑ na drut dopiero na granicy odpowiedzi
+//                                     (`fetchWithFrameworkPreloads`), ZA CAŁYM
+//                                     łańcuchem middleware (dawniej: h3 toResponse())
 //   łańcuch: ... documentCacheMiddleware -> defaultCacheControlMiddleware -> router
-//   droga powrotna:  router -> defaultCacheControl -> documentCache -> ... -> toResponse
+//   droga powrotna:  router -> defaultCacheControl -> documentCache -> ... -> granica
 //
 // Czyli w chwili, w której `documentStorePolicy` decyduje o ZAPISIE, nagłówka
 // trasy fizycznie nie ma na odpowiedzi. Skutek do 2026-09-01: czytelnik na MISS
@@ -18,16 +19,18 @@
 // powłoka archiwum zamarzała na brzegu na 24 h po JEDNEJ czkawce bazy.
 //
 // Ten plik odtwarza tę kolejność na PRAWDZIWYCH elementach potoku:
-//   * `requestHandler` z @tanstack/react-start/server - realny zasięg żądania
-//     (AsyncLocalStorage + zdarzenie h3 + scalenie nagłówków w toResponse),
+//   * `createServerEntry` z @tanstack/react-start/server (`startRequestScope`) -
+//     realny zasięg żądania (AsyncLocalStorage + zdarzenie Start),
 //   * prawdziwe `setCacheControlHeader` / `readRouteCacheDirective`,
 //   * prawdziwa `planDefaultCacheControl`,
-//   * prawdziwe `handleDocumentRequest` + `applyDeferredDocumentStore`
-//     (ten sam duet, który składa `src/server.ts`).
+//   * prawdziwe `handleDocumentRequest`, granica odpowiedzi
+//     (`fetchWithFrameworkPreloads`) i `applyDeferredDocumentStore`
+//     (ta sama kolejność, którą składa `src/server.ts`).
 //
 // Zero sieci, zero sekretów, zero atrap warstwy transportowej.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { requestHandler } from "@tanstack/react-start/server";
+
+import { startRequestScope } from "@/test/startRequestScope";
 
 import {
   applyDeferredDocumentStore,
@@ -37,6 +40,7 @@ import {
   resetDocumentCacheForTests,
 } from "../documentCache.server";
 import { liveCacheControl, planDefaultCacheControl } from "../defaultCacheControl";
+import { fetchWithFrameworkPreloads } from "../frameworkPreloads.server";
 import { readRouteCacheDirective, setCacheControlHeader } from "../responseHeaders";
 import { chromeDegradedCacheControl, contentCacheControl } from "../cachePolicy";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
@@ -64,8 +68,8 @@ function defaultCacheControlLayer(request: Request, response: Response): Respons
 
 /**
  * Jedno żądanie dokumentu przez PEŁNĄ kolejność produkcyjną: zasięg żądania →
- * (documentCache → defaultCacheControl → loader trasy) → scalenie nagłówków
- * zdarzenia w `toResponse()` → odroczony zapis z `src/server.ts`.
+ * (documentCache → defaultCacheControl → loader trasy) → granica odpowiedzi
+ * (`fetchWithFrameworkPreloads`) → odroczony zapis z `src/server.ts`.
  */
 async function documentRequest(
   path: string,
@@ -73,7 +77,7 @@ async function documentRequest(
   body = "<html><body>ok</body></html>",
   host = "tenant-a.eu",
 ): Promise<Response> {
-  const handler = requestHandler(async (request: Request) => {
+  const handler = startRequestScope(async (request) => {
     const routed = await handleDocumentRequest(request, () => {
       // Loader trasy: ustawia swoją intencję cache'ową tak jak produkcja.
       loader();
@@ -87,14 +91,14 @@ async function documentRequest(
     return routed as Response;
   });
 
-  const response = await handler(
+  const response = await fetchWithFrameworkPreloads(
+    handler,
     new Request(`https://${host}${path}`, {
       method: "GET",
       headers: { "x-forwarded-host": host },
     }),
-    {},
   );
-  // `src/server.ts` wykonuje tee do cache'a ZA egzekutorem middleware.
+  // `src/server.ts` wykonuje tee do cache'a ZA egzekutorem middleware i ZA granicą.
   return applyDeferredDocumentStore(response);
 }
 
@@ -125,7 +129,7 @@ describe("render zdegradowany a ZAPIS do NES Edge Cache (kolejność potoku)", (
     await response.text();
     await settle();
 
-    // Czytelnik: nagłówek zdarzenia h3 nadpisuje politykę domyślną w toResponse().
+    // Czytelnik: granica odpowiedzi nadaje dyrektywę trasy odpowiedzi `ok`.
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     // Brzeg: TO jest regresja, której ten plik pilnuje. Przed naprawą tu było 1.
     expect(storedEntries()).toBe(0);
@@ -253,8 +257,8 @@ describe("render zdegradowany a ZAPIS do NES Edge Cache (kolejność potoku)", (
     // Czysta dyrektywa ustępuje nagłówkowi, który trasa nadała wprost.
     expect(planDefaultCacheControl(request, response, contentCacheControl())).toBeNull();
     // OPT-OUT jednak wygrywa: `no-store` wyłącznie zawęża, a bez tej kolejności
-    // jest martwy na każdej odpowiedzi non-ok (h3 scala nagłówki zdarzenia tylko
-    // dla `val.ok`) - patrz defaultCacheControl.test.ts.
+    // jest martwy na każdej odpowiedzi non-ok (granica odpowiedzi nadaje
+    // nagłówki trasy tylko odpowiedziom `ok`) - patrz defaultCacheControl.test.ts.
     expect(planDefaultCacheControl(request, response, "private, no-store")).toBe(
       "private, no-store",
     );
@@ -302,7 +306,7 @@ describe("degradacja WYŁĄCZNIE chrome'u: krótka świeżość wspólna zamiast
 // dokument „krótki" żyłby w magazynie pełne 3 min i dobę STALE.
 describe("świeżość wpisu z dyrektywy na końcu strumienia (P3.6b)", () => {
   it("dyrektywa zawężona W TRAKCIE strumieniowania skraca świeżość zapisanego wpisu", async () => {
-    const handler = requestHandler(async (request: Request) => {
+    const handler = startRequestScope(async (request) => {
       const routed = await handleDocumentRequest(request, () => {
         setCacheControlHeader(resilientCacheControl(false));
         const body = new ReadableStream<Uint8Array>({
@@ -327,11 +331,11 @@ describe("świeżość wpisu z dyrektywy na końcu strumienia (P3.6b)", () => {
       return routed as Response;
     });
     const response = applyDeferredDocumentStore(
-      await handler(
+      await fetchWithFrameworkPreloads(
+        handler,
         new Request("https://tenant-a.eu/analiza", {
           headers: { "x-forwarded-host": "tenant-a.eu" },
         }),
-        {},
       ),
     );
     // Nagłówki wyszły przed zawężeniem - czytelnik widzi politykę z flushu.

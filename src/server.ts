@@ -6,10 +6,14 @@
 //      izolat Workera przy imporcie).
 //   2. Try/catch wokół fetch dla rzuconych błędów - łapie wyjątki, które
 //      wyszły PRZED dispatchem routera (middleware, request setup).
-//   3. Normalizacja odpowiedzi 500 zamienionej przez h3 na generyczne
-//      `{"unhandled":true,"message":"HTTPError"}`: gdy złapiemy taki
-//      kształt, konsumujemy ostatni globalThis-error (patrz error-capture)
-//      i renderujemy przyjazną stronę zamiast surowego JSON-a.
+//   3. Normalizacja odpowiedzi 500 zamienionej przez TanStack Start
+//      (`handleStartError` w `createServerEntry`, dawniej h3) na generyczne
+//      `{"status":500,"statusText":"","unhandled":true,"message":"HTTPError"}`:
+//      gdy złapiemy taki kształt, konsumujemy ostatni globalThis-error (patrz
+//      error-capture) i renderujemy przyjazną stronę zamiast surowego JSON-a.
+//      Tu wpada też zerwanie klienta: Start rzuca wtedy `signal.reason` (i sam
+//      loguje go raz), a `isClientAbort` zamienia odpowiedź na 499 - bez
+//      drugiego logu i bez strony błędu.
 //
 //   4. Strażnik strumienia DOKUMENTU (lib/http/documentStreamGuard.server):
 //      każda odpowiedź text/html ma zagwarantowane domknięcie body. Bez tego
@@ -89,7 +93,8 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
-function isH3SwallowedErrorBody(body: string): boolean {
+/** Ciało błędu, które Start składa z połkniętego wyjątku (`createErrorResponse`). */
+function isStartSwallowedErrorBody(body: string): boolean {
   try {
     const payload = JSON.parse(body) as { unhandled?: unknown; message?: unknown };
     return payload.unhandled === true && payload.message === "HTTPError";
@@ -126,9 +131,9 @@ async function normalizeCatastrophicSsrResponse(
   if (!contentType.includes("application/json")) return response;
 
   // clone(): body jest strumieniem, oryginał musimy zwrócić w cało¶ci jesli
-  // nie rozpoznamy sygnatury h3.
+  // nie rozpoznamy sygnatury Start.
   const body = await response.clone().text();
-  if (!isH3SwallowedErrorBody(body)) return response;
+  if (!isStartSwallowedErrorBody(body)) return response;
 
   const captured = consumeLastCapturedError();
   if (isClientAbort(request, captured)) {
@@ -136,7 +141,7 @@ async function normalizeCatastrophicSsrResponse(
   }
 
   // Raw Error (nie .message) - Server Logs potrzebują .stack.
-  console.error(captured ?? new Error(`h3 swallowed SSR error: ${body}`));
+  console.error(captured ?? new Error(`Start swallowed SSR error: ${body}`));
 
   return new Response(renderErrorPage(), {
     status: 500,
@@ -148,10 +153,12 @@ async function normalizeCatastrophicSsrResponse(
 }
 
 // Nitro's runtime arguments are not RequestOptions. Only our request-scoped
-// collector is passed in slot 2. It merges manifest modulepreloads AFTER h3's
-// header merge, before the deferred L1/L2 write, preserving font/image/locale
-// hints from loaders. Inline CSS stays disabled: the split public stylesheet
-// remains cacheable between routes instead of being copied into each document.
+// collector is passed in slot 2. `fetchWithFrameworkPreloads` is the response
+// boundary: after Start's response reconciliation it applies the route's
+// Cache-Control and Link (ok responses only) and merges manifest modulepreloads,
+// before the deferred L1/L2 write, preserving font/image/locale hints from
+// loaders. Inline CSS stays disabled: the split public stylesheet remains
+// cacheable between routes instead of being copied into each document.
 
 /**
  * User-agent KAŻDEGO odświeżenia w tle: stały, przeglądarkowy (fala 3, P3.6a,
@@ -229,11 +236,12 @@ const DOC_LOG_FUSE_MS = DOC_GUARD_MAX_MS + 2_000;
  * Odświeżanie wpisów NES Edge Cache ZA odpowiedzią (stale-while-revalidate).
  *
  * Dlaczego tutaj, a nie w middleware: rewalidacja musi przejść PEŁNY potok
- * (router → normalizacja 500 → odroczony zapis), a `documentCache.server.ts`
- * zna tylko swoje middleware. Zwrócenie z middleware innej odpowiedzi niż ta,
- * którą zwrócił render, złamałoby tożsamość body koperty SSR i uruchomiło
- * `serverSsr.cleanup()` w trakcie streamowania - dokładnie mechanizm incydentu
- * ~61 s. Dlatego odświeżenie to OSOBNY, pełnoprawny przebieg potoku na
+ * (router → granica odpowiedzi `fetchWithFrameworkPreloads` → normalizacja 500
+ * → odroczony zapis), a `documentCache.server.ts` zna tylko swoje middleware.
+ * Zwrócenie z middleware innej odpowiedzi niż ta, którą zwrócił render, porzuca
+ * render: egzekutor Start zamyka wtedy jego strumień (`serverSsr.cleanup()`
+ * w trakcie streamowania; przed Start 1.169 także przy samym tee kopii - incydent
+ * ~61 s). Dlatego odświeżenie to OSOBNY, pełnoprawny przebieg potoku na
  * syntetycznym żądaniu: własny cykl życia renderu, tożsamość body nienaruszona.
  */
 async function revalidateDocument(request: Request): Promise<boolean> {
@@ -541,12 +549,14 @@ export default {
       initializedAt = Date.now();
       const response = await fetchWithFrameworkPreloads(handler.fetch, request);
       const normalized = await normalizeCatastrophicSsrResponse(request, response);
-      // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
-      // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -
-      // tee w środku łańcucha łamie tożsamość body koperty SSR i egzekutor
-      // wołał serverSsr.cleanup() w trakcie streamowania (incydent ~61 s,
-      // patrz documentCache.server.ts). Praca zapisu jedzie pod `waitUntil`
-      // jak dotąd; przejmujemy ją tylko po to, żeby linia logu znała wynik.
+      // Odroczony zapis NES Edge Cache: tee strumienia dokumentu dzieje się
+      // dopiero tutaj, ZA egzekutorem middleware TanStack Start i ZA granicą
+      // odpowiedzi - dopiero tu odpowiedź niesie `Link` i ostateczny
+      // `Cache-Control` trasy. Historycznie tee w środku łańcucha łamało
+      // tożsamość body koperty SSR i egzekutor wołał serverSsr.cleanup()
+      // w trakcie streamowania (incydent ~61 s, patrz documentCache.server.ts).
+      // Praca zapisu jedzie pod `waitUntil` jak dotąd; przejmujemy ją tylko po
+      // to, żeby linia logu znała wynik.
       const { response: stored, store } = applyTrackedDocumentStore(normalized);
       if (store.work) runAfterResponse(store.work);
       // Dokumenty HTML wychodzą wyłącznie przez strażnika strumienia - body

@@ -96,10 +96,10 @@ function forbidsStorage(directive: string): boolean {
  *
  * Do 2026-10-02 każda odpowiedź nie-200 kończyła się tu `null`, więc
  * `PERMANENT_REDIRECT` z `post.$slug.tsx` (audyt CWV 2026-09-20, F13) nie
- * docierało na drut: h3 nie scala nagłówków zdarzenia dla odpowiedzi non-ok
- * (patrz opt-out wyżej), a ta funkcja była jedynym drugim kanałem. Skutek:
- * 301 z głównego adresu własnych listingów wychodziło bez `Cache-Control`
- * i każde wejście z listy płaciło dwa dokumenty.
+ * docierało na drut: granica odpowiedzi nadaje dyrektywę trasy wyłącznie
+ * odpowiedziom `ok` (patrz opt-out niżej), a ta funkcja jest jedynym drugim
+ * kanałem. Skutek: 301 z głównego adresu własnych listingów wychodziło bez
+ * `Cache-Control` i każde wejście z listy płaciło dwa dokumenty.
  *
  * Bez dyrektywy trasy nic nie nadajemy - polityki domyślnej treści NIE
  * rozciągamy na przekierowania. Tymczasowe 302/307 zostają nietknięte
@@ -126,10 +126,11 @@ function permanentRedirectDirective(
  * jest pokryta testami jednostkowymi.
  *
  * `routeDirective` to intencja ustawiona przez loader trasy
- * (`setCacheControlHeader` -> `readRouteCacheDirective`). Nagłówek zdarzenia h3
- * scala się z odpowiedzią dopiero ZA tym middleware, więc bez tego argumentu
- * decyzja trasy nie ma jak dotrzeć do polityki ZAPISU w NES Edge Cache -
- * szczegóły i dowód w `responseHeaders.ts` przy `routeCacheDirectives`.
+ * (`setCacheControlHeader` -> `readRouteCacheDirective`). Na odpowiedź trafia
+ * ona dopiero na granicy odpowiedzi (`fetchWithFrameworkPreloads`), ZA tym
+ * middleware, więc bez tego argumentu decyzja trasy nie ma jak dotrzeć do
+ * polityki ZAPISU w NES Edge Cache - szczegóły i dowód w `responseHeaders.ts`
+ * przy `routeCacheDirectives`.
  * Dyrektywa trasy jest NADRZĘDNA nad polityką domyślną; jej wartość powstaje
  * w czystych politykach (`cachePolicy.ts`, `liveCacheControl` niżej,
  * `resilientCacheControl`), więc warstwa wykonawcza nadal nie wymyśla polityk.
@@ -146,10 +147,11 @@ export function planDefaultCacheControl(
   // status i typ treści. `no-store`/`private` wyłącznie ZAWĘŻA uprawnienia
   // pośrednika, więc nie da się nim niczego zepsuć, a bez tej kolejności jest
   // MARTWY w dwóch niezależnych miejscach:
-  //   1. h3 scala nagłówki ZDARZENIA tylko dla `val.ok`
-  //      (`prepareResponse`: `if (!preparedHeaders || nested || !val.ok) return val`),
-  //      a `attachResponseHeaders` dla odpowiedzi non-ok scala WYŁĄCZNIE
-  //      `Set-Cookie`. ZMIERZONE: `setCacheControlHeader("private, no-store")`
+  //   1. granica odpowiedzi (`fetchWithFrameworkPreloads`) nadaje dyrektywę
+  //      trasy WYŁĄCZNIE odpowiedziom `ok` - świadomie tę samą regułę, którą
+  //      miał h3 (`prepareResponse`: `if (... || !val.ok) return val`), a nie
+  //      stan pomocników Start, który uzgadnia się dla każdego statusu (powód:
+  //      `responseHeaders.ts`). ZMIERZONE: `setCacheControlHeader("private, no-store")`
   //      w loaderze daje na drucie `null` przy 302 i przy 404, a poprawną
   //      wartość dopiero przy 200. Bez tej gałęzi intencja z `post.$slug.tsx`,
   //      `$.tsx` (cztery miejsca), `category.$slug.tsx` i `author.$slug.tsx`

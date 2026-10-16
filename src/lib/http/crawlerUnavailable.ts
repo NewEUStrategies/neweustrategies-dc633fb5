@@ -16,6 +16,9 @@
 //
 // Odpowiedź inna niż 200 nigdy nie trafia do NES Edge Cache
 // (`documentStorePolicy`), a `no-store` domyka to samo na każdym pośredniku.
+// Publiczna dyrektywa loadera strony głównej (`setCacheControlHeader`) go nie
+// nadpisze: granica odpowiedzi (`fetchWithFrameworkPreloads`) nadaje nagłówki
+// trasy wyłącznie odpowiedziom `ok`.
 export const CRAWLER_RETRY_AFTER_SECONDS = 120;
 
 /** Ta sama odpowiedź (body strumieniowane bez zmian) ze statusem 503. */
