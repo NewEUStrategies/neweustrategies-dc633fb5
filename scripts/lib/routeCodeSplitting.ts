@@ -38,8 +38,27 @@ export function routeSplitBehavior({ routeId }: { routeId: string }): SplitNode[
   if (routeId === "__root__") return undefined;
   if (routeId === "/" || routeId === "/$" || /^\/en(?:\/|$)/.test(routeId)) return HOT_PATH_SPLIT;
   if (routeId === "/admin/") return ADMIN_COCKPIT_SPLIT;
-  return [["loader"], ["component"], ["errorComponent"], ["notFoundComponent"]];
+  return DEFAULT_SPLIT;
 }
+
+/**
+ * `errorComponent` i `notFoundComponent` W JEDNEJ GRUPIE (2026-10-16). Kilkanaście tras podaje
+ * obu TEN SAM komponent (`errorComponent: XRouteError, notFoundComponent: XRouteError` - np.
+ * `scanner.tsx`, `events.$slug_.review.tsx`). Wiązanie wspólne dla dwóch grup podziału splitter
+ * TanStacka (router-plugin 1.168.46) przenosi do modułu `?tsr-shared` przez mapę
+ * `sharedBindingsMap` współdzieloną przez transformacje pliku trasy i plików podziału - i to
+ * niedeterministycznie się rozjeżdża: build padał losowo na
+ * `PARSE_ERROR Export 'SplitErrorComponent' is not defined` (raz 24 błędy, raz 5, za każdym
+ * razem inne trasy z tej dwunastki). Jedna grupa nie ma czego współdzielić między plikami
+ * podziału. Koszt: przy nawigacji, która kończy się błędem albo 404, jeden chunk zamiast
+ * jednego z dwóch - oba to po kilkaset bajtów. Pilnuje test reguły (żadna trasa nie dzieli
+ * komponentu między grupami).
+ */
+const DEFAULT_SPLIT: SplitNode[][] = [
+  ["loader"],
+  ["component"],
+  ["errorComponent", "notFoundComponent"],
+];
 
 /** Gorące ścieżki: komponenty trasy w jednym chunku podziału (opis przy `routeSplitBehavior`). */
 const HOT_PATH_SPLIT: SplitNode[][] = [["component", "errorComponent", "notFoundComponent"]];
@@ -65,6 +84,5 @@ const HOT_PATH_SPLIT: SplitNode[][] = [["component", "errorComponent", "notFound
  */
 const ADMIN_COCKPIT_SPLIT: SplitNode[][] = [
   ["loader", "component"],
-  ["errorComponent"],
-  ["notFoundComponent"],
+  ["errorComponent", "notFoundComponent"],
 ];
