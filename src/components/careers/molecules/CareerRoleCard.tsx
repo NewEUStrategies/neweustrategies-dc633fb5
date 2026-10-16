@@ -24,9 +24,7 @@ export function CareerRoleCard({
 
   return (
     <article
-      className={cn(
-        "group relative isolate overflow-visible rounded-[6px]",
-      )}
+      className={cn("group relative isolate overflow-visible rounded-[6px]")}
       aria-current={selected ? "true" : undefined}
     >
       <span
