@@ -164,7 +164,11 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
       return;
 
     event.preventDefault();
-    void router.navigate({ href: clientHref } as never);
+    // Bez rzutowania i bez jawnych generyków: `TTo` w `NavigateFn` (router-core 1.171.37,
+    // `RouterProvider.d.ts`) nie ma domyślnej wartości, więc bez `to` spada do ograniczenia
+    // `string | undefined` i `to` jest opcjonalne. `preloadRoute` ma domyślne `TTo = undefined`,
+    // stąd jawne `<string, string>` w `preloadHref`.
+    void router.navigate({ href: clientHref });
   };
 
   const handleMouseEnter = (event: MouseEvent<HTMLAnchorElement>) => {

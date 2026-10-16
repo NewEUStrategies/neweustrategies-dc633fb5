@@ -73,7 +73,7 @@ export default tseslint.config(
             {
               name: "i18n-iso-countries",
               message:
-                "The bare package resolves to its Node entry in the SSR Worker build, which registers every locale via a dynamic require that Rollup cannot bundle - the Worker then 500s at module init. Import 'i18n-iso-countries/index.js' and register the needed langs explicitly.",
+                "The bare package resolves to its Node entry in the SSR Worker build, which registers every locale via a dynamic require the bundler cannot follow - the Worker then 500s at module init. Import 'i18n-iso-countries/index.js' and register the needed langs explicitly.",
             },
           ],
         },

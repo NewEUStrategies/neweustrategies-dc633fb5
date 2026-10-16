@@ -6,7 +6,7 @@
 // dzięki temu plik komponentu eksportuje wyłącznie komponenty (Fast Refresh).
 //
 // To JEDYNE miejsce z `import()` ramki Stripe: `EmbeddedCheckoutFrame` bierze
-// `loadStripeFrame` stąd do swojego `React.lazy`, więc Rollup emituje dokładnie
+// `loadStripeFrame` stąd do swojego `React.lazy`, więc bundler emituje dokładnie
 // jeden leniwy chunk i nie ma drugiej ścieżki, którą SDK operatora mogłoby
 // wrócić na ścieżkę bootowania czytelnika (bramka: `check:entry-purity`).
 import { preloadStripeSdk } from "@/lib/stripe";

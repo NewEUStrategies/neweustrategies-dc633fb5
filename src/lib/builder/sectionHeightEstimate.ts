@@ -148,7 +148,7 @@ export const DATAVIZ_FRAME_PX = 190;
 export const DATAVIZ_NOTE_PX = 60;
 
 // KOPIE LICZB SILNIKA WYKRESÓW, NIE IMPORTY. Ten moduł leży na ścieżce
-// startowej (`HeaderSkeleton`, `sectionStreaming`), a rollup dzieli kod po
+// startowej (`HeaderSkeleton`, `sectionStreaming`), a bundler dzieli kod po
 // MODUŁACH: import jednej stałej z `parse.ts` albo `geoAspect.ts` wciągnąłby
 // cały moduł (używany przez chunk wykresu) do chunka ładowanego przy starcie.
 // Zgodność z oryginałami pilnuje `sectionHeightEstimate.test.ts`.

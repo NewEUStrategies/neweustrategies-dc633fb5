@@ -20,10 +20,12 @@
 //     ma w nagłówkach spisaną decyzję „animacja idzie w CSS, biblioteki nie
 //     ma w projekcie". Dok był jedynym plikiem, który ją wciągał. ZMIERZONE
 //     esbuildem (React jako external): sam `import { motion, AnimatePresence }`
-//     to 127 874 B po minifikacji / 42 402 B po gzipie - i nie ma reguły
-//     `manualChunks`, która by to gdziekolwiek przypięła, więc paczka jedzie
-//     w chunku doku. Gość nie płaci nic, ale KAŻDY zalogowany członek płacił
-//     ~42 kB gzip na pierwsze wejście, żeby przesunąć 4 px wcięcia.
+//     to 127 874 B po minifikacji / 42 402 B po gzipie - i nie było reguły
+//     `manualChunks` (dziś: grupy `codeSplitting` w
+//     scripts/lib/clientChunkGroups.ts), która by to gdziekolwiek przypięła,
+//     więc paczka jechała w chunku doku. Gość nie płacił nic, ale KAŻDY
+//     zalogowany członek płacił ~42 kB gzip na pierwsze wejście, żeby
+//     przesunąć 4 px wcięcia.
 //
 // Ruch robi teraz warstwa `.wd-tab*` w `styles.css`.
 //

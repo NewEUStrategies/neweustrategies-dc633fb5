@@ -74,10 +74,12 @@
 //   - niedostępnego chunku samego tego modułu: wtedy nie ma ani pętli, ani
 //     odzysku.
 //
-// Rozmiar: moduł siedzi w leniwym chunku poza zamknięciem bootu, ale
-// `experimentalMinChunkSize` Rollupa potrafi go przegrupować. Po każdej zmianie
-// kodu tutaj sprawdź host modułu w `reports/chunk-inventory.json`
-// (`BUNDLE_INVENTORY=1` przy buildzie).
+// Rozmiar: moduł siedzi w leniwym chunku poza zamknięciem bootu. Na Rollupie
+// `experimentalMinChunkSize` potrafił go przegrupować; Rolldown małych chunków
+// nie scala, ale łączy wspólne chunki automatyczne z wejściowymi
+// (`experimental.chunkOptimization`, nagłówek scripts/lib/clientChunkGroups.ts).
+// Po każdej zmianie kodu tutaj sprawdź host modułu w
+// `reports/chunk-inventory.json` (`BUNDLE_INVENTORY=1` przy buildzie).
 //
 // Wszystko jest opt-in i uruchamiane po hydratacji: żadnego wpływu na SSR
 // ani na FCP. Od P1.3 (TP-4) korzeń importuje ten moduł w punkcie ciszy P0.3

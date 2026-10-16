@@ -12,10 +12,10 @@ import { TTS_VOICES } from "@/lib/audio/ttsCanonical";
 // Nakładka i18n lektora jest importowana TYLKO tutaj, celowo: to jedyny moduł,
 // który renderują OBIE powierzchnie tych kluczy (panel Czytanie i sekcja Audio
 // edytora), więc jeden importer trzyma jej ciągi w chunku admin-only.
-// Dopisanie tego importu w kolejnym module sprawia, że Rollup wypycha nakładkę
-// do WSPÓLNEGO rodzica obu chunków - czyli do entry czytelnika (zmierzone:
-// +0,8 KB w `index.js`). Nowa powierzchnia tych kluczy powinna renderować ten
-// atom albo dostać własną nakładkę.
+// Dopisanie tego importu w kolejnym module sprawia, że bundler wypycha nakładkę
+// do WSPÓLNEGO rodzica obu chunków - czyli do entry czytelnika (zmierzone na
+// Rollupie: +0,8 KB w `index.js`). Nowa powierzchnia tych kluczy powinna
+// renderować ten atom albo dostać własną nakładkę.
 import "@/lib/i18n-admin-tts";
 
 interface TtsVoiceSelectBaseProps {

@@ -549,7 +549,7 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
 // w inicjalizatorze stanu renderera (`readServerCvPlan`, obok nośnika
 // kandydatów LCP) - opakowania leżą poza granicami Suspense, więc są w DOM-ie
 // od pierwszego bajtu powłoki. Ten sam bajt na serwerze i w kliencie.
-// `isServerRender()` stoi zawsze NA POCZĄTKU warunku: Rollup zwija tylko
+// `isServerRender()` stoi zawsze NA POCZĄTKU warunku: bundler zwija tylko
 // wyrażenie, którego lewa strona jest znana (`isServer` = fałsz w buildzie
 // przeglądarki); za nieznanym operandem (`!isLcpOwner || isServerRender()`)
 // wywołanie zostaje w bundlu razem z funkcją i importem `isServer`.

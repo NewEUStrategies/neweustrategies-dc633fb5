@@ -3,9 +3,12 @@
 // PO CO OSOBNY PLIK. `i18n-club.ts` wazyl 188 kB i ladowal w chunku WEJSCIOWYM -
 // tym, ktory sciaga kazdy anonimowy gosc, zeby przeczytac jeden artykul. Przyczyna
 // nie byla w importach side-effect (tych nie ma od poczatku, jest `ensureClubI18n()`),
-// a w HOISTOWANIU: Rollup przenosi modul dzielony przez wiele chunkow tras do chunku
-// wspolnego, a `manualChunks` obejmuje w tym repo tylko `/node_modules/` i dla kodu
-// aplikacji jest ZABRONIONY (incydent h3-500, patrz komentarz w vite.config.ts).
+// a w HOISTOWANIU: Rollup przenosil modul dzielony przez wiele chunkow tras do chunku
+// wspolnego (Rolldown robi to samo), a grupy `codeSplitting` klienta
+// (scripts/lib/clientChunkGroups.ts) obejmuja vendory i tylko kilka punktowo
+// przypietych modulow aplikacji - slownika zadna nie przypina. Podzial na poziomie
+// top-level, wspolnym z workerem, jest ZABRONIONY (incydent h3-500, patrz komentarz
+// w vite.config.ts).
 // `ensureI18n()` chroni przed eager WYKONANIEM w grafie bootowania - nie przed
 // hoistowaniem przez wspoldzielenie. To dwa rozne mechanizmy.
 //

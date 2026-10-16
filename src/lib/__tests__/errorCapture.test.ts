@@ -1,12 +1,14 @@
 // PRZECHWYTNIA BŁĘDÓW SSR (`src/lib/error-capture.ts`) - połowa ZAPISUJĄCA.
 //
-// PO CO TEN PLIK ISTNIEJE. Moduł istnieje wyłącznie dlatego, że h3 połyka
-// wyjątek renderu SSR i zwraca generyczną `Response` 500 z ciałem
-// `{"unhandled":true,"message":"HTTPError"}`. Normalizator w `src/server.ts`
-// dostaje więc już tylko tę wyplutą odpowiedź - bez `stack`, bez klasy
-// wyjątku, bez komunikatu. `error-capture.ts` jest jedynym miejscem, w którym
-// oryginalny obiekt błędu da się jeszcze zobaczyć: nasłuchy globalne łapią go
-// out-of-band, a `server.ts:97` konsumuje go przy składaniu logu.
+// PO CO TEN PLIK ISTNIEJE. Moduł istnieje wyłącznie dlatego, że TanStack Start
+// (`handleStartError` w `createServerEntry`, dawniej h3) połyka wyjątek renderu
+// SSR i zwraca generyczną `Response` 500 z ciałem
+// `{"status":500,"statusText":"","unhandled":true,"message":"HTTPError"}`.
+// Normalizator w `src/server.ts` dostaje więc już tylko tę wyplutą odpowiedź -
+// bez `stack`, bez klasy wyjątku, bez komunikatu. `error-capture.ts` jest
+// jedynym miejscem, w którym oryginalny obiekt błędu da się jeszcze zobaczyć:
+// nasłuchy globalne łapią go out-of-band, a `normalizeCatastrophicSsrResponse`
+// (`src/server.ts:125`) konsumuje go przy składaniu logu.
 //
 // Do 04.09.2026 pokryta była wyłącznie połowa ODCZYTUJĄCA
 // (`consumeLastCapturedError`, wykonywana ubocznie przez
@@ -117,9 +119,9 @@ describe("error-capture: nasłuch `error`", () => {
 describe("error-capture: nasłuch `unhandledrejection`", () => {
   it("zapisuje `reason` odrzuconej obietnicy", async () => {
     // Odrzucona obietnica jest w SSR częstsza niż wyjątek synchroniczny
-    // (każdy nieobsłużony `await` na zapytaniu do bazy), a h3 pakuje ją
-    // w tę samą generyczną 500. Bez tego nasłuchu połowa realnych awarii
-    // nie zostawiałaby żadnego śladu.
+    // (każdy nieobsłużony `await` na zapytaniu do bazy), a Start
+    // (`handleStartError`) pakuje ją w tę samą generyczną 500. Bez tego
+    // nasłuchu połowa realnych awarii nie zostawiałaby żadnego śladu.
     const capture = await importFreshCapture();
     const rejected = new Error("supabase: connection reset");
 
@@ -205,7 +207,7 @@ describe("error-capture: cykl życia stanu", () => {
 
 describe("error-capture: runtime bez nasłuchów globalnych", () => {
   it("brak `globalThis.addEventListener` NIE wywraca importu i nie rejestruje nasłuchów", async () => {
-    // Moduł jest importowany BEZWARUNKOWO przez `src/server.ts:21`, więc
+    // Moduł jest importowany BEZWARUNKOWO przez `src/server.ts:32`, więc
     // wyjątek przy jego wczytaniu położyłby CAŁY serwer - każdą trasę, nie
     // tylko diagnostykę. Straż `typeof ... === "function"` kupuje dokładnie
     // to: w runtime bez nasłuchów globalnych aplikacja startuje, a

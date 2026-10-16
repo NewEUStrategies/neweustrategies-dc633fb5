@@ -813,7 +813,7 @@ describe("stan cache dokumentu, colo i atrybucja INP (P0.6)", () => {
     it("trasa importuje słowniki reportera WYŁĄCZNIE jako typy", () => {
       // Import WARTOŚCI z `@/lib/webVitals` scaliłby leniwy reporter z chunkiem
       // routera Workera (moduł jest też celem `import()` z `__root.tsx`, więc
-      // Rollup go nie wytrząśnie). Typ daje to samo wiązanie za zero bajtów.
+      // bundler go nie wytrząśnie). Typ daje to samo wiązanie za zero bajtów.
       const source = readFileSync(ROUTE_FILE, "utf8");
       const imports = [
         ...source.matchAll(/import\s+(type\s+)?[^;]*?from\s+["']@\/lib\/webVitals["']/g),

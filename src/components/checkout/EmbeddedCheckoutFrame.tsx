@@ -3,11 +3,12 @@
 // PO CO (regresja 2026-08-06, bramka `check:bundle` czerwona na mainie):
 // `routes/$.tsx` -> `Paywall` -> `EmbeddedCheckoutDialog` -> `@stripe/react-stripe-js`
 // był łańcuchem STATYCZNYM, a `@/lib/stripe` (`loadStripe`) miał 17 statycznych
-// importerów rozsianych po całej aplikacji. Rollup hoistuje moduł współdzielony
-// przez wiele chunków tras do ich wspólnego przodka - czyli do ENTRY. Efekt:
-// każdy anonimowy czytelnik dowolnego artykułu pobierał i parsował SDK operatora
-// płatności (marker `js.stripe.com` w chunku entry), zanim jeszcze zobaczył
-// paywall - a zdecydowana większość czytelników nigdy nie wchodzi w checkout.
+// importerów rozsianych po całej aplikacji. Bundler (wtedy Rollup, dziś Rolldown)
+// hoistuje moduł współdzielony przez wiele chunków tras do ich wspólnego przodka
+// - czyli do ENTRY. Efekt: każdy anonimowy czytelnik dowolnego artykułu pobierał
+// i parsował SDK operatora płatności (marker `js.stripe.com` w chunku entry), zanim
+// jeszcze zobaczył paywall - a zdecydowana większość czytelników nigdy nie wchodzi
+// w checkout.
 //
 // Ten moduł jest jedyną drogą do `StripeEmbeddedFrame` (i tym samym do
 // `@stripe/react-stripe-js`), i prowadzi przez `React.lazy`, więc SDK schodzi z

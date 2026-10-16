@@ -30,7 +30,7 @@ export function warmCommonWidgetChunks(defer: Defer = idleDefer): void {
   scheduled = true;
   if (saveDataRequested()) return;
   defer(() => {
-    // Te same specyfikatory co w rejestrze lazyWidgets - Rollup rozwiązuje je
+    // Te same specyfikatory co w rejestrze lazyWidgets - bundler rozwiązuje je
     // do tych samych chunków, więc rozgrzanie == wypełnienie cache przeglądarki.
     // Warming is optional. Offline/stale chunks must not create unhandled
     // rejections; React.lazy will report a failure if the widget is needed.

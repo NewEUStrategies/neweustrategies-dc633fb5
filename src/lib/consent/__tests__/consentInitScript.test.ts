@@ -785,10 +785,10 @@ describe("po boocie decyzję zapisuje aplikacja, intencja nic nie zapisuje", () 
 
 describe("tekst skryptu powstaje w czystym wywołaniu (poza bundlem klienta)", () => {
   // W przeglądarce stałej nikt nie czyta (serwer bierze ją z gałęzi `.server()`
-  // korzenia), ale szablon z interpolacjami importów Rollup traktuje jak
+  // korzenia), ale szablon z interpolacjami importów Rollup traktował jak
   // wyrażenie z efektami: bez czystego wywołania martwy szablon trzymał
   // fragmenty `consent.ts` w chunku wejściowym (dowód P1.3, §2.2). Pilnujemy
-  // kształtu źródła, który pozwala Rollupowi go wyciąć.
+  // kształtu źródła, który pozwala bundlerowi go wyciąć.
   const source = readFileSync(resolve(__dirname, "../consentInitScript.ts"), "utf8");
   const builderStart = source.indexOf("function buildConsentInitScript(");
   const builderEnd = source.indexOf("\n}\n", builderStart);

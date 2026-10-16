@@ -41,7 +41,7 @@ import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 
 /**
  * Czy to render SERWEROWY. `isServer` z router-core jest stałą warunków
- * eksportu: w buildzie przeglądarki `false` - Rollup zwija całe wyrażenie, więc
+ * eksportu: w buildzie przeglądarki `false` - bundler zwija całe wyrażenie, więc
  * gałęzie serwerowe (`lcpCandidates`, `heroImage.ts`, `preload()`) wypadają
  * z bundla klienta - a w workerze `true`. W warunku `development` (`bun run dev`)
  * i pod `NODE_ENV=test` ma jednak wartość `undefined` (src/lib/ssr/isSsrRequest.ts):

@@ -6,7 +6,7 @@
 // kontaktowych przez `contact.functions.ts`) nie ciągnęło za sobą CAŁEGO
 // `recruitmentLayer.ts` - etapów procesu, stylów pipeline'u i parsowania
 // skrzynki, których używa wyłącznie panel admina. Moduł współdzielony przez
-// publiczne i adminowe poddrzewo Rollup hoistuje do wspólnego przodka, a chunk
+// publiczne i adminowe poddrzewo bundler hoistuje do wspólnego przodka, a chunk
 // bez adminowego prefiksu bramka rozlicza do PUBLIC - dokładnie ta mechanika
 // zapaliła wpisy o Stripe (08-06) i i18n-club (08-12).
 //

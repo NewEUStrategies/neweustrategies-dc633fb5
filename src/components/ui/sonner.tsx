@@ -21,10 +21,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
   // `vendor-i18n` i słownik rdzenia są już w domknięciu bootu, więc leniwy
   // chunk sonnera nie dokłada żądania - tylko krawędź `vendor-sonner` ->
   // `vendor-i18n` w listach preloadu wejścia (bajty zmierzone w raporcie).
-  // NIE `import i18n from "@/lib/i18n"`: ten plik ma nazwany chunk
-  // (`vite.config.ts`), a Rollup dokłada do nazwanego chunku każdą statyczną
-  // zależność spoza innych nazwanych chunków - wciągnąłby moduł startu i18n
-  // (i jego zależności) do `vendor-sonner`, a z nim sonnera do bootu.
+  // NIE `import i18n from "@/lib/i18n"`: ten plik ma nazwany chunk (grupa
+  // `vendor-sonner` w scripts/lib/clientChunkGroups.ts), a grupa zabiera każdą
+  // statyczną zależność, której nie wybrała wcześniej grupa o wyższym priorytecie
+  // - wciągnęłaby moduł startu i18n (i jego zależności) do `vendor-sonner`, a z nim
+  // sonnera do bootu.
   const { t } = useTranslation();
   // PL/EN are LTR. Automatic detection calls getComputedStyle(html) during
   // render, flushing pending page-wide styles even with no notifications.

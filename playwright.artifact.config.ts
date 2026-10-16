@@ -5,8 +5,9 @@
 // test zamyka (cykl chunków -> wywrócona kolejność inicjalizacji -> boot padnie
 // PRZED `hydrateRoot`, strona zostaje statycznym SSR-em bez żadnego objawu),
 // jest niewykrywalna zarówno w dev, jak i w testach jednostkowych. Dokładnie to
-// obiecuje komentarz w `vite.config.ts` przy `manualChunks`: „gate:
-// scripts/check-chunk-graph.ts (cykle) + boot-test przeglądarkowy na buildzie
+// obiecuje nagłówek `scripts/lib/clientChunkGroups.ts` (zasada priorytetów grup
+// `codeSplitting`; wcześniej komentarz w `vite.config.ts` przy `manualChunks`):
+// „bramki po buildzie: check:chunks (cykle) + boot-test przeglądarkowy na
 // vite.smoke.config.ts". Pierwsza połowa obietnicy była wdrożona od dawna,
 // druga nie istniała - żaden skrypt nie budował tego configu, żaden workflow go
 // nie wołał, żaden spec nie jechał po zbudowanym serwerze.

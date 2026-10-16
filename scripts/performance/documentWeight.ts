@@ -14,7 +14,7 @@
 // zasobów, a dokument fixture - prawie (strumieniowanie granic Suspense daje
 // rozrzut rzędu kilku KB między żądaniami; runner bierze medianę próbek).
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { type Dirent, existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
@@ -213,20 +213,48 @@ export function staticClosure(assetsDir: string, roots: readonly string[]): Clos
 }
 
 /**
+ * Pliki modułów artefaktu serwera, REKURENCYJNIE (bez `node_modules` - kopii zależności
+ * runtime'u Nitro). Nitro na Rolldownie sam nadaje nazwy chunkom (`_ssr/`, `_chunks/`,
+ * `_virtual/`...), więc moduł manifestu nie musi leżeć w katalogu głównym artefaktu. Ten sam
+ * zakres, co `serverModules()` w `check-bundle-size.ts` i `check-entry-purity.ts`.
+ */
+function serverModules(dir: string): string[] {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== "node_modules") out.push(...serverModules(full));
+    } else if (entry.name.endsWith(".mjs") || entry.name.endsWith(".js")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
  * Korzenie bootu z manifestu TanStack Start w `.output/server` - ta sama metoda
  * co `findBootChunks()` w scripts/check-bundle-size.ts (fallback, gdy dokument
  * nie ma ani `<script type="module" src>`, ani zestawu bootu). Dwa kształty:
  * skrypt wejścia w manifeście albo (P2.1) serwerowa mapa `nesBootManifest`.
+ * Te same wzorce i ten sam rekurencyjny przegląd (`serverModules()`), co w obu bramkach:
+ * wartości w cudzysłowie albo w backticku (minifikator Oxc drukuje napisy workera jako
+ * literały szablonowe: entry:`/assets/index-X.js`), moduł manifestu w podkatalogu chunków
+ * Nitro (`_ssr/...`). Zanim wzorce przyjęły backtick, a przegląd zszedł w głąb, fallback
+ * na artefakcie Vite 8 nie znajdował żadnego korzenia (domknięcie bootu = 0 B).
  */
 export function manifestBootRoots(serverDir: string): string[] {
-  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]/g;
   const bootManifestRe =
-    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
+    /["']?entry["']?\s*:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
-  if (!existsSync(serverDir)) return [];
-  for (const file of readdirSync(serverDir)) {
-    if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
-    const src = readFileSync(join(serverDir, file), "utf8");
+  for (const file of serverModules(serverDir)) {
+    const src = readFileSync(file, "utf8");
     for (const m of src.matchAll(scriptRe)) found.add(m[1]);
     for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
   }
@@ -883,7 +911,7 @@ export function medianWeights(
 /**
  * MODUŁY TYLKO SERWEROWE (P1.4, recenzja runda 3, m3). Kandydata LCP
  * (`lcpCandidate.ts`) i preload jego obrazu (`heroImage.ts`) liczy wyłącznie
- * serwer; kod klienta woła je pod `isServerRender()`, a Rollup wycina tę gałąź,
+ * serwer; kod klienta woła je pod `isServerRender()`, a bundler wycina tę gałąź,
  * bo `isServer` router-core jest w buildzie przeglądarki literałem `false`.
  * Powrót do bundla klienta (wywołanie poza gałęzią, niestała flaga w paczce,
  * bundler, który przestał zwijać gałąź) nie przekracza żadnego progu bajtowego

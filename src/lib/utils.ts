@@ -47,14 +47,15 @@ export function cn(...inputs: ClassValue[]) {
 // domyślne zachowanie biblioteki.
 //
 // DLACZEGO TUTAJ, A NIE W OSOBNYM MODULE ANI W `dialog.tsx` (2026-10-03):
-// - nowy moduł, choćby 0,6 KB, staje się małym chunkiem, który Rollup
-//   (`experimentalMinChunkSize`) dokleja według rozmiarów innych chunków;
+// - na Rollupie nowy moduł, choćby 0,6 KB, stawał się małym chunkiem, który
+//   `experimentalMinChunkSize` doklejał według rozmiarów innych chunków;
 //   to przestawiało kolejne scalenia i do domknięcia startowego KAŻDEJ strony
 //   wchodziły obce chunki (pomocnicy date-fns albo całe `vendor-lucide`,
-//   +5 do +18 KB gz, zmierzone `check:bundle`). Ten plik jest już w chunku
-//   wejściowym i importują go wszystkie trzy prymitywy, więc graf modułów
-//   zostaje taki jak bez hooka, a jedyny przyrost ląduje w chunku, którego
-//   rozmiar nie wpływa na decyzje scalania;
+//   +5 do +18 KB gz, zmierzone `check:bundle`). Rolldown małych chunków nie
+//   scala (scripts/lib/clientChunkGroups.ts), ale reguła zostaje: ten plik jest
+//   już w chunku wejściowym i importują go wszystkie trzy prymitywy, więc graf
+//   modułów zostaje taki jak bez hooka, a jedyny przyrost ląduje w wejściu,
+//   zamiast dokładać do grafu nowy chunk o położeniu zależnym od heurystyk;
 // - eksport z `dialog.tsx` wywracał 66 plików testowych, które zastępują
 //   `@/components/ui/dialog` atrapą (`Sheet` i `AlertDialog` importowały hook
 //   z atrapy); tego modułu nie atrapuje żaden test.

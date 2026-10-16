@@ -14,7 +14,7 @@
 //      formularza tak samo jak przed przeniesieniem parsowania.
 //
 // Ten test pilnuje grafu ŁADOWANIA modułów (krawędź statyczna = wykonanie
-// przy imporcie). Gdzie Rollup skleja chunki, rozstrzyga dopiero build
+// przy imporcie). Gdzie bundler układa chunki, rozstrzyga dopiero build
 // (inwentarz chunków, raport P3.9).
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";

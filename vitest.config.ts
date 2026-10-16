@@ -8,9 +8,9 @@ export default defineConfig({
     // alias zamiast wtyczki `vite-tsconfig-paths`: Vite 8 ostrzega przy każdym
     // starcie, że wtyczka jest zbędna, a alias - w przeciwieństwie do niej -
     // działa niezależnie od tego, który `tsconfig*.json` obejmuje importujący
-    // plik, więc test może wciągnąć także moduł z `scripts/` importujący
-    // `@/lib/...` (dziś robi tak `scripts/lib/i18nDictionaries.ts`, spoza
-    // `include` głównego tsconfiga). Nowy wpis w `paths` wymaga wpisu tutaj.
+    // plik, więc test może wciągnąć także moduł z `scripts/` (spoza `include`
+    // głównego tsconfiga) importujący `@/lib/...`. Nowy wpis w `paths` wymaga
+    // wpisu tutaj.
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
