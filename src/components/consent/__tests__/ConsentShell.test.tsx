@@ -181,12 +181,13 @@ describe("powłoka: widoczność, SEO i pokazanie bez animacji", () => {
     expect(root?.className).not.toMatch(/:not\(\[[^\]]+\]\[/);
   });
 
-  it("każda kontrolka niesie akcję dla delegowanego `click` i przeniesienia fokusu", () => {
+  it("każda kontrolka niesie akcję dla delegowanego `click` i przeniesienia fokusu (taśma języka: akcją jest CEL)", () => {
     const { container } = render(<ConsentShell />);
     const actions = [...container.querySelectorAll("[data-consent-action]")].map((el) =>
       el.getAttribute("data-consent-action"),
     );
-    expect(actions).toEqual(["close", "reject", "accept", "customize", "lang-pl", "lang-en"]);
+    // Taśma pokazuje PL, więc klik przekazuje intencję przełączenia na EN.
+    expect(actions).toEqual(["close", "reject", "accept", "customize", "lang-en"]);
     for (const button of container.querySelectorAll("button")) {
       expect(button.getAttribute("type")).toBe("button");
     }
