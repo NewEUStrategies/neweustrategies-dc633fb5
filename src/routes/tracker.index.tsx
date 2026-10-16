@@ -177,6 +177,7 @@ export const Route = createFileRoute("/tracker/")({
       ],
       origin,
       lang,
+      url,
     );
     // Autodiscovery kanału trackera: czytniki RSS i agregatory znajdują feed
     // bez znajomości konwencji URL - ten sam wzorzec, co feedy kategorii/tagu.

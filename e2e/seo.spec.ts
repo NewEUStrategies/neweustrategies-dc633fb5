@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { CANONICAL_SITE_ORIGIN } from "../src/lib/http/host";
+import {
+  extractJsonLd,
+  findJsonLdNodes,
+  structuredDataIssues,
+} from "../src/lib/seo/structuredDataAudit";
 
 // SEO surface smoke: pilnuje, ze publiczne powierzchnie GEO/SEO nadal odpowiadaja
 // i ze /admin/seo jest zamontowany za guardem auth. Backend-agnostyczne - CI
@@ -260,7 +265,39 @@ test.describe("SEO surfaces", () => {
       }
     });
     expect(types).toContain("BreadcrumbList");
+    // Obecność to za mało: Search Console odrzuca okruszki z pozycją bez `item`.
+    const { graphs } = extractJsonLd(
+      blocks.map((b) => `<script type="application/ld+json">${b}</script>`).join(""),
+    );
+    expect(structuredDataIssues(graphs)).toEqual([]);
   });
+
+  // Search Console 2026-10-16: „Brakujące pole item (w itemListElement)" na
+  // /organization/*, a archiwa wysyłały `https://host/https://host/blog`.
+  // Oba błędy siedziały w bajtach z SSR (adres żądania jest tam absolutny),
+  // więc sprawdzamy HTML z serwera, nie wynik funkcji. Trasy z `loadResilient`
+  // renderują okruszki także bez backendu (CI ma zastępcze dane Supabase).
+  for (const { path, crumbs } of [
+    { path: "/blog", crumbs: false },
+    { path: "/en/blog", crumbs: false },
+    { path: "/qa", crumbs: true },
+    { path: "/en/programs", crumbs: true },
+    { path: "/events", crumbs: true },
+    { path: "/tracker", crumbs: false },
+  ]) {
+    test(`${path}: JSON-LD spełnia wymagania Google dla okruszków`, async ({ request }) => {
+      const res = await request.get(path);
+      expect(res.status(), `${path} status`).toBe(200);
+      const { graphs, issues } = extractJsonLd(await res.text());
+      expect(issues, "bloki JSON-LD muszą się parsować").toEqual([]);
+      if (crumbs) {
+        expect(findJsonLdNodes(graphs, "BreadcrumbList").length, "BreadcrumbList").toBeGreaterThan(
+          0,
+        );
+      }
+      expect(structuredDataIssues(graphs)).toEqual([]);
+    });
+  }
 
   test("/admin/seo is auth-gated (redirects to /auth or /login)", async ({ page }) => {
     await page.goto("/admin/seo");

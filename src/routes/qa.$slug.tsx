@@ -205,6 +205,7 @@ export const Route = createFileRoute("/qa/$slug")({
       ],
       origin,
       lang,
+      url,
     );
     return {
       ...head,
