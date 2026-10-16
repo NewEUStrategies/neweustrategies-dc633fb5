@@ -839,7 +839,10 @@ describe("`setItem` / `removeItem`: kopia lokalna PRZED powiadomieniem brokera",
     expect(localStorage.getItem(KLUCZ)).toBe(TOKEN);
   });
 
-  it("`removeItem` czyści `localStorage` NAJPIERW, potem wysyła `:remove` bez pola `value`", async () => {
+  it("`removeItem` czyści `localStorage` NAJPIERW, potem wysyła `:remove` z usuniętą kopią", async () => {
+    // Protokół brokera (plik generowany przez Lovable, 2026-10-16): `:remove`
+    // niesie sesję, którą ta karta właśnie usunęła, żeby edytor mógł ją
+    // unieważnić także wtedy, gdy sam jej nigdy nie trzymał.
     localStorage.setItem(KLUCZ, TOKEN_LOKALNY);
     const b = broker();
 
@@ -849,11 +852,24 @@ describe("`setItem` / `removeItem`: kopia lokalna PRZED powiadomieniem brokera",
     expect(w.kopiaLokalna).toBeNull(); // kopia lokalna już usunięta
     expect(w.msg.type).toBe(REMOVE);
     expect(w.msg.key).toBe(KLUCZ);
-    expect(w.msg).not.toHaveProperty("value");
+    expect(w.msg.value).toBe(TOKEN_LOKALNY);
 
     odpowiedzNa(0, LOVABLE, { value: "" });
     await expect(p).resolves.toBeUndefined();
     expect(localStorage.getItem(KLUCZ)).toBeNull();
+  });
+
+  it("`removeItem` bez lokalnej kopii wysyła `:remove` BEZ pola `value`", async () => {
+    const b = broker();
+
+    const p = b.removeItem(KLUCZ);
+
+    const w = wysylka(0);
+    expect(w.msg.type).toBe(REMOVE);
+    expect(w.msg).not.toHaveProperty("value");
+
+    odpowiedzNa(0, LOVABLE, { value: "" });
+    await expect(p).resolves.toBeUndefined();
   });
 
   it("każde zapytanie ma WŁASNY `requestId`", async () => {

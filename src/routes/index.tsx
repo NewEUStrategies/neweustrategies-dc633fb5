@@ -1,5 +1,5 @@
 import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
-import { createFileRoute, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { isServer } from "@tanstack/router-core/isServer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useEffect, useMemo } from "react";
@@ -87,7 +87,7 @@ import {
 // (`components/home/molecules/*Notice`), które czytają dwujęzyczny słownik
 // `lib/errorCopy.ts`. Tutaj zostaje wyłącznie to, co wymaga kontekstu trasy:
 // zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
-function HomeErrorComponent({ error, reset }: ErrorComponentProps) {
+function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i DOMYŚLNY `<title>` strony
   // głównej (`homeSrHeadingText`; własny tytuł SEO strony zmienia tylko

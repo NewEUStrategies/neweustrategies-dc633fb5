@@ -15,7 +15,6 @@ import {
   useRouterState,
   HeadContent,
   Scripts,
-  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import {
   Suspense,
@@ -563,7 +562,7 @@ function NotFoundComponent() {
   return <PublicNotFound />;
 }
 
-function ErrorComponent({ error, reset }: ErrorComponentProps) {
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   useEffect(() => {
     reportPlatformError(error, { boundary: "tanstack_root_error_component" });
@@ -645,7 +644,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // Na serwerze to czysty odczyt (żadnej mutacji współdzielonego singletona).
   // PRZED `head()`: TypeScript wnioskuje typ `beforeLoad` z kolejnych funkcji
   // literału, a `head` czyta kontekst trasy, który od niego zależy.
-  beforeLoad: async ({ location }): Promise<void> => {
+  beforeLoad: async ({ location }) => {
     await syncI18nToRequest(location.publicHref).catch(() => undefined);
   },
   head: (ctx) => {
