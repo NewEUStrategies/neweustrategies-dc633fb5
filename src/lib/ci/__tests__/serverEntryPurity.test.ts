@@ -150,6 +150,69 @@ describe("serverEntryPurity - ciężka paczka server-only tylko przez import()",
   });
 });
 
+describe("serverEntryPurity - graf startu i raport", () => {
+  it("romb i cykl w grafie: każdy plik startu liczony raz, cykl nie zapętla przejścia", () => {
+    // Dwa korzenie importują ten sam chunk, a ten - przez cykl - sam siebie pośrednio.
+    const chunks: ServerChunk[] = [
+      { path: "index.mjs", source: 'import"./_chunks/a.mjs";import"./_chunks/b.mjs";' },
+      { path: "worker.mjs", source: 'import"./_chunks/a.mjs";' },
+      { path: "_chunks/a.mjs", source: 'import"./b.mjs";export{};' },
+      { path: "_chunks/b.mjs", source: 'import"./a.mjs";export{};' },
+      { path: "_chunks/lazy.mjs", source: "export{};" },
+      { path: "_chunks/loader.mjs", source: "const l=()=>import(`./lazy.mjs`);export{l};" },
+    ];
+    // `loader.mjs` nie ma importera, więc jest korzeniem; `lazy.mjs` ma tylko `import()`.
+    expect([...startupChunks(chunks)].sort()).toEqual([
+      "_chunks/a.mjs",
+      "_chunks/b.mjs",
+      "_chunks/loader.mjs",
+      "index.mjs",
+      "worker.mjs",
+    ]);
+  });
+
+  it("raport skraca listę importerów do 10 i podaje resztę liczbą", () => {
+    const importers: ServerChunk[] = Array.from({ length: 12 }, (_, i) => ({
+      path: `_ssr/r${String(i).padStart(2, "0")}.mjs`,
+      source: 'import{s}from"../_libs/stripe.mjs";export{s};',
+    }));
+    const report = analiza([CZYSTE[0], ...importers]);
+    expect(report.lazyOnly[0].importers).toHaveLength(12);
+    const text = renderServerEntryPurityReport(report);
+    expect(text).toContain("ma 12 statycznych importerów ładowanych przy starcie");
+    expect(text).toContain("_ssr/r09.mjs");
+    expect(text).not.toContain("_ssr/r10.mjs");
+    expect(text).toContain("… i 2 więcej");
+  });
+
+  it("raport zamrożonej listy: nowy importer i wpis do skrócenia, każdy z naprawą", () => {
+    const added = renderServerEntryPurityReport(
+      analiza(CZYSTE, [
+        ...ZRODLA,
+        {
+          path: "src/lib/wp-import/convert.ts",
+          source: 'import { parse } from "node-html-parser";',
+        },
+      ]),
+    );
+    expect(added).toContain("nowy statyczny importer `node-html-parser` poza zamrożoną listą");
+    expect(added).toContain("    src/lib/wp-import/convert.ts");
+    expect(added).toContain(`naprawa: ${FROZEN_STATIC_IMPORTERS[0].remedy}`);
+    const stale = renderServerEntryPurityReport(analiza(CZYSTE, [ZRODLA[0], ZRODLA[2]]));
+    expect(stale).toContain("wymienia moduły, które już nie importują tej paczki");
+    expect(stale).toContain("    src/lib/builder/normalizeRichHtml.ts");
+    expect(stale).toContain("Dług został spłacony");
+  });
+
+  it("raport brakującego chunku reguły nazywa ścieżkę i każe zaktualizować regułę", () => {
+    const text = renderServerEntryPurityReport(
+      analiza([{ path: "_ssr/router-BBB.mjs", source: "export{};" }]),
+    );
+    expect(text).toContain("nie znaleziono chunku `_libs/stripe.mjs`");
+    expect(text).toContain("Zaktualizuj regułę lub ją usuń");
+  });
+});
+
 describe("serverEntryPurity - zamrożone statyczne importy parsera HTML", () => {
   it("`import type` nie jest krawędzią i nie liczy się do długu", () => {
     expect(valueImportersOfPackage(ZRODLA, "stripe")).toEqual([]);
