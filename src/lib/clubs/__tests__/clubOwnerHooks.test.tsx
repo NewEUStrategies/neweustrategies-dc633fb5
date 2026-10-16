@@ -8,23 +8,21 @@
 //   1. ZAPYTANIE „MOJE ZGŁOSZENIA" leży pod `clubKeys.myProposals()` ze
 //      wspólnym `CLUB_STALE_MS` i NIE odpytuje bazy dla gościa (`enabled`):
 //      `club_my_proposals` bez sesji to round-trip po pustą listę.
-//   2. ZGŁOSZENIE unieważnia DOKŁADNIE kartę nowego klubu, „Moje członkostwa"
-//      i „Moje zgłoszenia" - zgłaszający zostaje prowadzącym szkicu
-//      (`club_propose` wpisuje go jako `lead`), więc te trzy widoki zmieniają
-//      się naraz. Odrzucony zapis nie unieważnia niczego.
-//   3. EDYCJA DANYCH KLUBU odświeża także „Moje zgłoszenia". To jest NAPRAWA:
-//      `club_my_proposals` zwraca `name_pl` klubów założonych przez wołającego
-//      we WSZYSTKICH statusach, a prowadzący, który zmienia nazwę już
-//      zatwierdzonego klubu, jest właśnie jego zgłaszającym. Hook unieważniał
-//      sam `clubCardKeys` - po powrocie na /club „Moje kluby" (lista,
-//      unieważniona) pokazywały nową nazwę, a sekcja „Moje zgłoszenia" tuż
-//      nad nimi starą, aż do wygaśnięcia 30-sekundowego `staleTime`.
-//   4. INWARIANTY REJESTRU dla obu zestawów. Hooki składają je inline, a nie
-//      z nazwanego skutku `clubInvalidations.ts`, więc `clubInvalidationsForTest`
-//      ich nie widzi. Sprawdzamy tu te same reguły (bez duplikatu, bez prefiksu
-//      obok potomka) na zestawach ZAOBSERWOWANYCH z hooka, nie przepisanych
-//      z ręki - szerszy klucz dopisany obok węższego oblewa ten test nawet
-//      wtedy, gdy ktoś poprawi oczekiwany zestaw w punktach 2-3.
+//   2. ZGŁOSZENIE unieważnia DOKŁADNIE skutek `clubProposedKeys` nowego klubu,
+//      liczony z id z ODPOWIEDZI bazy (wejście formularza go nie ma).
+//      Odrzucony zapis nie unieważnia niczego.
+//   3. EDYCJA DANYCH KLUBU unieważnia DOKŁADNIE `clubOwnerSettingsKeys`, a nowa
+//      nazwa dociera do „Moich zgłoszeń" na PRAWDZIWYM cache'u. To jest
+//      NAPRAWA: hook unieważniał sam `clubCardKeys` - po powrocie na /club
+//      „Moje kluby" (lista, unieważniona) pokazywały nową nazwę, a sekcja
+//      „Moje zgłoszenia" tuż nad nimi starą, aż do wygaśnięcia 30-sekundowego
+//      `staleTime`.
+//   4. HOOK WOŁA NAZWANY SKUTEK, a nie jego kopię inline - stąd szpieg na
+//      module reguł. Skład obu skutków i inwarianty rejestru (bez duplikatu,
+//      bez prefiksu obok potomka) dowodzi `clubInvalidations.test.ts`, bo oba
+//      stoją w `clubInvalidationsForTest`. Kopia inline przeszłaby asercję
+//      zestawu, ale omijałaby te inwarianty - to był stan sprzed wydzielenia
+//      skutków, kiedy ten plik trzymał ich własną kopię.
 //
 // GRANICA DOWODU. Warstwa danych jest atrapą (`@/test/clubs/apiMock`), a jej
 // kontrakt z bazą ma własne testy; `QueryClient` i hooki są PRAWDZIWE, bo
@@ -35,10 +33,24 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider, type QueryKey } from "@tanstack/react-query";
 
 vi.mock("@/lib/clubs/api", () => clubApiMock);
+// Moduł reguł zostaje PRAWDZIWY - szpieg tylko notuje, że hook sięgnął po
+// nazwany skutek, i oddaje jego prawdziwy wynik.
+vi.mock("@/lib/clubs/clubInvalidations", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/clubs/clubInvalidations")>();
+  return {
+    ...real,
+    clubProposedKeys: vi.fn(real.clubProposedKeys),
+    clubOwnerSettingsKeys: vi.fn(real.clubOwnerSettingsKeys),
+  };
+});
 
 import { clubApiMock, resetClubApiMock } from "@/test/clubs/apiMock";
 import { clubKeys } from "@/lib/clubs/queryKeys";
-import { CLUB_STALE_MS, clubCardKeys } from "@/lib/clubs/clubInvalidations";
+import {
+  CLUB_STALE_MS,
+  clubOwnerSettingsKeys,
+  clubProposedKeys,
+} from "@/lib/clubs/clubInvalidations";
 import type { ClubProposalRow } from "@/lib/clubs/api";
 import {
   useMyClubProposals,
@@ -87,27 +99,27 @@ function keySet(keys: readonly QueryKey[]): string[] {
   return keys.map((k) => JSON.stringify(k)).sort();
 }
 
-/** Czy `prefix` jest PREFIKSEM `key` - tak react-query dopasowuje zapytania. */
-function isPrefixOf(prefix: QueryKey, key: QueryKey): boolean {
-  const p = prefix as readonly unknown[];
-  const k = key as readonly unknown[];
-  return p.length <= k.length && p.every((seg, i) => Object.is(seg, k[i]));
+/**
+ * Hook zawołał nazwany skutek DOKŁADNIE raz, z tym argumentem, i unieważnił
+ * DOKŁADNIE jego wynik - ani klucza mniej, ani doklejonego obok.
+ */
+function expectNamedEffect(
+  effect: typeof clubProposedKeys,
+  arg: string,
+  invalidated: readonly QueryKey[],
+): void {
+  const spy = vi.mocked(effect);
+  expect(spy).toHaveBeenCalledTimes(1);
+  expect(spy).toHaveBeenCalledWith(arg);
+  const produced = spy.mock.results[0]?.value as readonly QueryKey[];
+  expect(keySet(invalidated)).toEqual(keySet(produced));
 }
 
-/** Te same trzy reguły, które `clubInvalidations.test.ts` stosuje do rejestru. */
-function expectRegistryInvariants(keys: readonly QueryKey[]): void {
-  expect(keys.length, "zestaw nie unieważnia niczego").toBeGreaterThan(0);
-  const serialized = keys.map((k) => JSON.stringify(k));
-  expect(new Set(serialized).size, `powtórzony klucz: ${serialized.join(" ")}`).toBe(keys.length);
-  keys.forEach((wide, i) =>
-    keys.forEach((narrow, j) => {
-      if (i === j) return;
-      expect(isPrefixOf(wide, narrow), `${serialized[i]} pochłania ${serialized[j]}`).toBe(false);
-    }),
-  );
-}
-
-beforeEach(() => resetClubApiMock());
+beforeEach(() => {
+  resetClubApiMock();
+  vi.mocked(clubProposedKeys).mockClear();
+  vi.mocked(clubOwnerSettingsKeys).mockClear();
+});
 
 describe("useMyClubProposals", () => {
   it("dla gościa (enabled=false) nie odpytuje bazy i nie zakłada wpisu w toku", async () => {
@@ -170,7 +182,7 @@ describe("useProposeClub", () => {
     );
   });
 
-  it("po zapisie unieważnia DOKŁADNIE kartę nowego klubu, członkostwa i zgłoszenia", async () => {
+  it("po zapisie unieważnia DOKŁADNIE skutek clubProposedKeys nowego klubu", async () => {
     const { wrapper, invalidated } = harness();
     clubApiMock.proposeClub.mockResolvedValue({ id: "c-new", slug: "nowy-klub", status: "draft" });
 
@@ -180,9 +192,7 @@ describe("useProposeClub", () => {
     });
 
     // Id pochodzi z ODPOWIEDZI bazy, nie z wejścia - wejście go nie ma.
-    expect(keySet(invalidated)).toEqual(
-      keySet([...clubCardKeys("c-new"), clubKeys.memberships(), clubKeys.myProposals()]),
-    );
+    expectNamedEffect(clubProposedKeys, "c-new", invalidated);
   });
 
   it("odrzucony zapis (limit dobowy) nie unieważnia niczego", async () => {
@@ -215,7 +225,7 @@ describe("useUpdateClubSettings", () => {
     await waitFor(() => expect(result.current.data).toBe(true));
   });
 
-  it("po zapisie unieważnia kartę klubu z trzech stron ORAZ moje zgłoszenia", async () => {
+  it("po zapisie unieważnia DOKŁADNIE skutek clubOwnerSettingsKeys tego klubu", async () => {
     const { wrapper, invalidated } = harness();
     clubApiMock.updateClubSettings.mockResolvedValue(true);
 
@@ -224,7 +234,7 @@ describe("useUpdateClubSettings", () => {
       await result.current.mutateAsync({ patch: { name_pl: "Nowa nazwa" } });
     });
 
-    expect(keySet(invalidated)).toEqual(keySet([...clubCardKeys(CLUB), clubKeys.myProposals()]));
+    expectNamedEffect(clubOwnerSettingsKeys, CLUB, invalidated);
   });
 
   // REGRESJA: przed naprawą lista „Moje zgłoszenia" na /club zostawała ze
@@ -262,31 +272,5 @@ describe("useUpdateClubSettings", () => {
     });
 
     expect(invalidated).toEqual([]);
-  });
-});
-
-describe("zestawy inline a inwarianty rejestru", () => {
-  it("zgłoszenie klubu: bez duplikatu i bez prefiksu obok potomka", async () => {
-    const { wrapper, invalidated } = harness();
-    clubApiMock.proposeClub.mockResolvedValue({ id: "c-new", slug: "nowy-klub", status: "draft" });
-
-    const { result } = renderHook(() => useProposeClub(), { wrapper });
-    await act(async () => {
-      await result.current.mutateAsync({ name_pl: "Nowy klub" });
-    });
-
-    expectRegistryInvariants(invalidated);
-  });
-
-  it("edycja danych klubu: bez duplikatu i bez prefiksu obok potomka", async () => {
-    const { wrapper, invalidated } = harness();
-    clubApiMock.updateClubSettings.mockResolvedValue(true);
-
-    const { result } = renderHook(() => useUpdateClubSettings(CLUB), { wrapper });
-    await act(async () => {
-      await result.current.mutateAsync({ patch: { name_pl: "Nowa nazwa" } });
-    });
-
-    expectRegistryInvariants(invalidated);
   });
 });

@@ -31,6 +31,19 @@ const DOMAIN_MODULES = {
   owner,
 } as const;
 
+// Pliki modułów domenowych dla strażników ŹRÓDŁA niżej - jedna lista dla obu.
+// Dwie ręczne kopie rozjechały się już raz: `useClubOwner` był w
+// `DOMAIN_MODULES`, a żaden strażnik źródła go nie sprawdzał.
+const HOOK_MODULE_FILES = [
+  "useClubCatalog",
+  "useClubAdmin",
+  "useClubInvites",
+  "useClubThreadsData",
+  "useClubReactions",
+  "useClubModeration",
+  "useClubOwner",
+] as const;
+
 function read(relative: string): string {
   return readFileSync(join(process.cwd(), relative), "utf8");
 }
@@ -68,14 +81,7 @@ describe("useClubs - moduł zgodności", () => {
   });
 
   it("żaden moduł domenowy nie importuje z bariery (brak cyklu)", () => {
-    for (const name of [
-      "useClubCatalog",
-      "useClubAdmin",
-      "useClubInvites",
-      "useClubThreadsData",
-      "useClubReactions",
-      "useClubModeration",
-    ]) {
+    for (const name of HOOK_MODULE_FILES) {
       const source = read(`src/lib/clubs/${name}.ts`);
       expect(source, `${name} importuje z bariery`).not.toMatch(/from "\.\/useClubs"/);
       expect(source, `${name} importuje z bariery`).not.toMatch(/from "@\/lib\/clubs\/useClubs"/);
@@ -98,14 +104,7 @@ describe("useClubs - moduł zgodności", () => {
 
 describe("clubInvalidations - jedyne źródło reguł unieważniania", () => {
   it("żaden moduł hooków nie woła invalidateQueries bezpośrednio", () => {
-    for (const name of [
-      "useClubCatalog",
-      "useClubAdmin",
-      "useClubInvites",
-      "useClubThreadsData",
-      "useClubReactions",
-      "useClubModeration",
-    ]) {
+    for (const name of HOOK_MODULE_FILES) {
       const source = read(`src/lib/clubs/${name}.ts`);
       // Wyjątek: `cancelQueries`/`setQueryData` w mutacji optymistycznej to co
       // innego niż unieważnianie - reguła zakresu ich nie dotyczy.
