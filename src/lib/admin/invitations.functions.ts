@@ -121,6 +121,7 @@ function toInviteAccount(user: User, fallbackEmail?: string): InviteAccount {
     id: user.id,
     email: user.email ?? fallbackEmail ?? null,
     appTenantId: appMetadataTenantId(user.app_metadata),
+    everSignedIn: Boolean(user.last_sign_in_at),
   };
 }
 
@@ -347,16 +348,26 @@ async function performSend(
   const invitationTenantId = inv.tenant_id;
   const pinnedAccountId = inv.auth_user_id;
 
+  // AKTYWACJA istniejącego konta (`sendActivationEmailForUser`): wiersz
+  // przypięty do konta, którego profil administrator przeczytał we własnym
+  // najemcy. Taka wysyłka niesie wyłącznie link - nie hydratuje profilu ani
+  // roli. Metadane aktywacji nie niosą zdjęcia, biogramu ani linków, więc
+  // upsert profilu WYZEROWAŁBY je kontu, które już je ma (np. osobie z importu
+  // zespołu), a rola już istnieje. Znacznik sam niczego nie otwiera: musi
+  // wskazywać przypięte konto, a decyzja musi dowiązać dokładnie je, z profilem
+  // w najemcy zaproszenia - inaczej wysyłka idzie zwykłą ścieżką.
+  const activationFor =
+    typeof meta.activation_for_user_id === "string" &&
+    meta.activation_for_user_id === pinnedAccountId
+      ? pinnedAccountId
+      : null;
+
   // Wynik zapisu statusu jest czytany: zaproszenie, które zostaje w `pending`
   // mimo odmowy, wygląda w panelu jak „jeszcze nie wysłane", a nie jak błąd.
-  async function markFailed(lastError: string, clearPin = false): Promise<void> {
+  async function markFailed(lastError: string): Promise<void> {
     const { error } = await supabase
       .from("user_invitations")
-      .update({
-        status: "failed",
-        last_error: lastError,
-        ...(clearPin ? { auth_user_id: null } : {}),
-      })
+      .update({ status: "failed", last_error: lastError })
       .eq("id", invitationId);
     if (error) {
       console.error("[performSend] invitation status update failed", {
@@ -386,8 +397,8 @@ async function performSend(
   // Odmowa: nic w koncie nie zostało zapisane, żaden mail nie wyszedł. Jeden
   // kod dla każdej przyczyny - w odpowiedzi, w `last_error` i w śladzie - bez
   // identyfikatora konta i bez jego najemcy.
-  async function refuse(code: string, clearPin = false): Promise<SendResult> {
-    await markFailed(code, clearPin);
+  async function refuse(code: string): Promise<SendResult> {
+    await markFailed(code);
     await writeAudit("user_invitation_refused", { reason: code });
     return { ok: false, email, error: code };
   }
@@ -502,9 +513,11 @@ async function performSend(
   // Profil czytamy kluczem SERWISOWYM, celowo: przez RLS cudzy wiersz jest
   // niewidoczny i „inny najemca" wyglądałby jak „brak profilu". Ten sam odczyt
   // niesie slug - patrz „SLUG ISTNIEJĄCEGO KONTA" niżej.
-  async function decide(
-    account: InviteAccount | null,
-  ): Promise<{ target: InviteTarget; slug: string | null }> {
+  async function decide(account: InviteAccount | null): Promise<{
+    target: InviteTarget;
+    slug: string | null;
+    profileTenantId: string | null;
+  }> {
     let profileTenantId: string | null = null;
     let slug: string | null = null;
     let defaultTenantId: string | null = null;
@@ -533,7 +546,7 @@ async function performSend(
       profileTenantId,
       defaultTenantId,
     });
-    return { target, slug };
+    return { target, slug, profileTenantId };
   }
 
   try {
@@ -592,106 +605,117 @@ async function performSend(
     // Bez decyzji administrator obszaru A, który zaprosił adres osoby z obszaru
     // B, PRZENOSIŁ jej konto do A (audyt pokrycia, wydanie 12, 16.8).
     // Przeniesienie konta między obszarami jest osobną operacją, nie skutkiem
-    // ubocznym wysłania zaproszenia. Przypięty identyfikator, który nie przeszedł
-    // weryfikacji, schodzi z wiersza - inaczej każde ponowienie trafiałoby w to
-    // samo cudze konto zamiast szukać po adresie.
+    // ubocznym wysłania zaproszenia.
+    //
+    // PRZYPIĘCIE ZOSTAJE także po odmowie - świadomie wbrew dosłownemu A1
+    // („ustawia je na null"), z zasady fail closed (rozdz. 1). Zdjęte
+    // przypięcie zamieniało przy następnym kliknięciu odmowę w szukanie po
+    // adresie z wiersza: przy rozjechanym `profiles.email` (nic go nie
+    // synchronizuje z `auth.users.email`) aktywacja zakładała NOWE konto na
+    // nieaktualny adres z rolą członka albo dowiązywała INNEGO członka, który
+    // ma ten adres, nadpisując mu profil. Przypięte zaproszenie odmawia więc
+    // za każdym razem tak samo; do innego adresata idzie nowe zaproszenie.
     if (decision.target.kind === "refuse") {
-      const { reason } = decision.target;
-      return await refuse(
-        INVITATION_TARGET_UNAVAILABLE,
-        reason === "pinned_account_missing" || reason === "pinned_account_mismatch",
-      );
+      return await refuse(INVITATION_TARGET_UNAVAILABLE);
     }
     if (decision.target.kind !== "attach") throw new Error("no_auth_user_id");
     const authUserId = decision.target.userId;
+    const activationOnly =
+      activationFor !== null &&
+      authUserId === activationFor &&
+      decision.profileTenantId === invitationTenantId;
 
-    // SLUG ISTNIEJĄCEGO KONTA ZOSTAJE NIETKNIĘTY.
-    //
-    // `upsert` niżej NADPISUJE wymienione kolumny także przy ponownym wysłaniu
-    // zaproszenia - liczenie sluga z nazwy przy KAŻDYM wysłaniu zmieniałoby
-    // więc publiczny adres profilu autora (`/author/<slug>`) kontu, które już
-    // działa. To nie jest teoria: transliteracja „ł" (ta zmiana) przesunęłaby
-    // przy najbliższym resendzie każdego „Michała" z `micha` na `michal`,
-    // zrywając opublikowane i zaindeksowane linki. Gorzej: `profiles_slug_unique`
-    // jest indeksem UNIKALNYM, więc kolizja z cudzym slugiem wywróciłaby CAŁY
-    // resend na błędzie zapisu, a nie tylko sam adres.
-    //
-    // Slug liczymy zatem wyłącznie dla konta, które jeszcze go nie ma. Zmiana
-    // adresu istniejącego profilu to osobna decyzja (mapowanie stary -> nowy
-    // plus przekierowania), nie skutek uboczny wysłania zaproszenia. Nowe
-    // konto ma już slug z `handle_new_user` - ten zostaje.
-    const slug = decision.slug ?? slugify(displayName);
+    // Aktywacja istniejącego konta niesie wyłącznie link - patrz
+    // `activationFor` wyżej. Każda inna wysyłka hydratuje konto.
+    if (!activationOnly) {
+      // SLUG ISTNIEJĄCEGO KONTA ZOSTAJE NIETKNIĘTY.
+      //
+      // `upsert` niżej NADPISUJE wymienione kolumny także przy ponownym wysłaniu
+      // zaproszenia - liczenie sluga z nazwy przy KAŻDYM wysłaniu zmieniałoby
+      // więc publiczny adres profilu autora (`/author/<slug>`) kontu, które już
+      // działa. To nie jest teoria: transliteracja „ł" (ta zmiana) przesunęłaby
+      // przy najbliższym resendzie każdego „Michała" z `micha` na `michal`,
+      // zrywając opublikowane i zaindeksowane linki. Gorzej: `profiles_slug_unique`
+      // jest indeksem UNIKALNYM, więc kolizja z cudzym slugiem wywróciłaby CAŁY
+      // resend na błędzie zapisu, a nie tylko sam adres.
+      //
+      // Slug liczymy zatem wyłącznie dla konta, które jeszcze go nie ma. Zmiana
+      // adresu istniejącego profilu to osobna decyzja (mapowanie stary -> nowy
+      // plus przekierowania), nie skutek uboczny wysłania zaproszenia. Nowe
+      // konto ma już slug z `handle_new_user` - ten zostaje.
+      const slug = decision.slug ?? slugify(displayName);
 
-    // Hydrate profile + author_profile + user_role. UPSERT nadpisuje wymienione
-    // kolumny danymi z zaproszenia; wyjątkiem jest `slug` (wyżej), bo ten jest
-    // publicznym adresem, a nie polem formularza.
-    //
-    // WYNIK KAŻDEGO ZAPISU JEST SPRAWDZANY. Wcześniej trzy `upsert` niżej
-    // szły bez odczytu `error`, więc odmowa bazy (RLS, kolizja sluga, brak
-    // kolumny) kończyła się mailem z linkiem do konta bez profilu albo bez
-    // roli - i zaproszeniem oznaczonym jako „wysłane".
-    const { error: profileWriteError } = await supabaseAdmin.from("profiles").upsert(
-      {
-        id: authUserId,
-        tenant_id: inv.tenant_id,
-        email,
-        display_name: displayName,
-        slug,
-        avatar_url: (meta.photo as string) ?? null,
-        bio_pl: (meta.bio_pl as string) ?? null,
-        bio_en: (meta.bio_en as string) ?? null,
-        phone: (meta.phone as string) ?? null,
-        job_title:
-          (meta.job_title as string) ??
-          (meta.position_pl as string) ??
-          (meta.position_en as string) ??
-          null,
-        current_company: (meta.company_name as string) ?? null,
-        current_company_id: (meta.company_id as string) ?? null,
-        linkedin_url: (meta.linkedin as string) ?? null,
-        facebook_url: (meta.facebook as string) ?? null,
-        instagram_url: (meta.instagram as string) ?? null,
-        website_url: (meta.website as string) ?? null,
-      },
-      { onConflict: "id", ignoreDuplicates: false },
-    );
-    if (profileWriteError) throw new Error(`profile_write_failed:${profileWriteError.message}`);
-
-    const orgFunctions: { pl: string; en: string }[] = [];
-    if (meta.programLabel_pl || meta.programLabel_en) {
-      orgFunctions.push({
-        pl: (meta.programLabel_pl as string) ?? "",
-        en: (meta.programLabel_en as string) ?? "",
-      });
-    }
-
-    const { error: authorWriteError } = await supabaseAdmin.from("author_profiles").upsert(
-      {
-        user_id: authUserId,
-        tenant_id: inv.tenant_id,
-        job_title: (meta.position_pl as string) ?? (meta.position_en as string) ?? null,
-        full_bio_pl: (meta.bio_pl as string) ?? null,
-        full_bio_en: (meta.bio_en as string) ?? null,
-        contact_email: email,
-        phone: (meta.phone as string) ?? null,
-        linkedin_url: (meta.linkedin as string) ?? null,
-        facebook_url: (meta.facebook as string) ?? null,
-        instagram_url: (meta.instagram as string) ?? null,
-        website_url: (meta.website as string) ?? null,
-        org_functions: orgFunctions,
-        is_public: true,
-      },
-      { onConflict: "user_id" },
-    );
-    if (authorWriteError) throw new Error(`author_write_failed:${authorWriteError.message}`);
-
-    const { error: roleWriteError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert(
-        { user_id: authUserId, role: inv.role, tenant_id: inv.tenant_id },
-        { onConflict: USER_ROLES_CONFLICT_TARGET, ignoreDuplicates: true },
+      // Hydrate profile + author_profile + user_role. UPSERT nadpisuje wymienione
+      // kolumny danymi z zaproszenia; wyjątkiem jest `slug` (wyżej), bo ten jest
+      // publicznym adresem, a nie polem formularza.
+      //
+      // WYNIK KAŻDEGO ZAPISU JEST SPRAWDZANY. Wcześniej trzy `upsert` niżej
+      // szły bez odczytu `error`, więc odmowa bazy (RLS, kolizja sluga, brak
+      // kolumny) kończyła się mailem z linkiem do konta bez profilu albo bez
+      // roli - i zaproszeniem oznaczonym jako „wysłane".
+      const { error: profileWriteError } = await supabaseAdmin.from("profiles").upsert(
+        {
+          id: authUserId,
+          tenant_id: inv.tenant_id,
+          email,
+          display_name: displayName,
+          slug,
+          avatar_url: (meta.photo as string) ?? null,
+          bio_pl: (meta.bio_pl as string) ?? null,
+          bio_en: (meta.bio_en as string) ?? null,
+          phone: (meta.phone as string) ?? null,
+          job_title:
+            (meta.job_title as string) ??
+            (meta.position_pl as string) ??
+            (meta.position_en as string) ??
+            null,
+          current_company: (meta.company_name as string) ?? null,
+          current_company_id: (meta.company_id as string) ?? null,
+          linkedin_url: (meta.linkedin as string) ?? null,
+          facebook_url: (meta.facebook as string) ?? null,
+          instagram_url: (meta.instagram as string) ?? null,
+          website_url: (meta.website as string) ?? null,
+        },
+        { onConflict: "id", ignoreDuplicates: false },
       );
-    if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
+      if (profileWriteError) throw new Error(`profile_write_failed:${profileWriteError.message}`);
+
+      const orgFunctions: { pl: string; en: string }[] = [];
+      if (meta.programLabel_pl || meta.programLabel_en) {
+        orgFunctions.push({
+          pl: (meta.programLabel_pl as string) ?? "",
+          en: (meta.programLabel_en as string) ?? "",
+        });
+      }
+
+      const { error: authorWriteError } = await supabaseAdmin.from("author_profiles").upsert(
+        {
+          user_id: authUserId,
+          tenant_id: inv.tenant_id,
+          job_title: (meta.position_pl as string) ?? (meta.position_en as string) ?? null,
+          full_bio_pl: (meta.bio_pl as string) ?? null,
+          full_bio_en: (meta.bio_en as string) ?? null,
+          contact_email: email,
+          phone: (meta.phone as string) ?? null,
+          linkedin_url: (meta.linkedin as string) ?? null,
+          facebook_url: (meta.facebook as string) ?? null,
+          instagram_url: (meta.instagram as string) ?? null,
+          website_url: (meta.website as string) ?? null,
+          org_functions: orgFunctions,
+          is_public: true,
+        },
+        { onConflict: "user_id" },
+      );
+      if (authorWriteError) throw new Error(`author_write_failed:${authorWriteError.message}`);
+
+      const { error: roleWriteError } = await supabaseAdmin
+        .from("user_roles")
+        .upsert(
+          { user_id: authUserId, role: inv.role, tenant_id: inv.tenant_id },
+          { onConflict: USER_ROLES_CONFLICT_TARGET, ignoreDuplicates: true },
+        );
+      if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
+    }
 
     // E-mail zaproszenia wysyłamy ZAWSZE własną ścieżką: dla trybu
     // magic_link niesie link aktywacyjny (generateLink - Supabase go tylko
@@ -870,7 +894,7 @@ export const sendActivationEmailForUser = createServerFn({ method: "POST" })
     const email = profile.email.trim().toLowerCase();
     const { data: existing, error: invitationError } = await context.supabase
       .from("user_invitations")
-      .select("id, status")
+      .select("id, status, auth_user_id, role")
       .eq("tenant_id", tenantId)
       .ilike("email", email)
       .order("created_at", { ascending: false })
@@ -878,16 +902,42 @@ export const sendActivationEmailForUser = createServerFn({ method: "POST" })
       .maybeSingle();
     if (invitationError) throw new Error(invitationError.message);
 
-    let invitationId = existing?.status === "accepted" ? null : (existing?.id ?? null);
+    // Istniejący wiersz wolno użyć ponownie tylko wtedy, gdy dotyczy TEGO
+    // konta: przypięty do niego albo jeszcze do nikogo (wtedy przypinamy go
+    // przed wysyłką). Wiersz przypięty do innego konta odmawiałby za każdym
+    // razem (`performSend` nie zdejmuje przypięcia), a wiersz z rolą spoza
+    // zapraszalnych - np. `super_admin` zapisany przed bramką ról - utknąłby na
+    // niej. W obu przypadkach zakładamy świeży wiersz aktywacji.
+    const reusable =
+      existing &&
+      existing.status !== "accepted" &&
+      (existing.auth_user_id === null || existing.auth_user_id === data.userId) &&
+      isInvitableRole(existing.role)
+        ? existing
+        : null;
+    let invitationId = reusable?.id ?? null;
+    if (reusable && reusable.auth_user_id === null) {
+      const { error: pinError } = await context.supabase
+        .from("user_invitations")
+        .update({ auth_user_id: data.userId })
+        .eq("id", reusable.id);
+      if (pinError) throw new Error(pinError.message);
+    }
     if (!invitationId) {
       const { data: roleRows, error: roleError } = await context.supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", data.userId)
-        .eq("tenant_id", tenantId)
-        .limit(1);
+        .eq("tenant_id", tenantId);
       if (roleError) throw new Error(roleError.message);
-      const role = roleRows?.[0]?.role ?? "user";
+      // Aktywacja nie zapisuje roli (`performSend`, `activationFor`) - rola
+      // wiersza jest tylko etykietą maila i musi przejść bramkę ról.
+      // Najwyższa rola zapraszalna, jaką konto ma; sam `super_admin` (po
+      // `change_user_role` to jedyny wiersz) dostaje etykietę `admin`.
+      const held = new Set<string>((roleRows ?? []).map((row) => row.role));
+      const role =
+        INVITABLE_ROLES.find((candidate) => held.has(candidate)) ??
+        (held.has("super_admin") ? "admin" : "user");
       const { data: created, error: createError } = await context.supabase
         .from("user_invitations")
         .insert({
@@ -1352,9 +1402,13 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
       const doc = JSON.parse(JSON.stringify(page.builder_data ?? {})) as unknown;
       const mapByEmail = new Map<string, { id: string; slug: string | null }>();
       for (let from = 0; from < draftEmails.length; from += INVITATION_LOOKUP_CHUNK_SIZE) {
+        // Tylko profile TEGO najemcy: klucz serwisowy omija RLS, a adres
+        // z widgetu może należeć do konta innej organizacji (`createUser`
+        // odmówił mu wyżej) - jego identyfikator i slug nie trafią do strony.
         const { data: profs, error: profsErr } = await supabaseAdmin
           .from("profiles")
           .select("id, email, slug")
+          .eq("tenant_id", tenantId)
           .in("email", draftEmails.slice(from, from + INVITATION_LOOKUP_CHUNK_SIZE));
         if (profsErr) throw new Error(`link_lookup_failed:${profsErr.message}`);
         for (const p of profs ?? []) {

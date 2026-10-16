@@ -9,6 +9,7 @@ import {
   appMetadataTenantId,
   isInvitableRole,
   resolveInviteTarget,
+  type InviteAccount,
   type InviteTargetInput,
 } from "@/lib/admin/inviteTarget";
 
@@ -17,12 +18,23 @@ const OTHER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const DEFAULT = "99999999-9999-4999-8999-999999999999";
 const USER = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
+/** Konto nigdy nieużyte (bez sesji w historii), o adresie zaproszenia. */
+function account(overrides: Partial<InviteAccount> = {}): InviteAccount {
+  return {
+    id: USER,
+    email: "nowa@example.org",
+    appTenantId: null,
+    everSignedIn: false,
+    ...overrides,
+  };
+}
+
 function input(overrides: Partial<InviteTargetInput> = {}): InviteTargetInput {
   return {
     invitationTenantId: TENANT,
     invitationEmail: "nowa@example.org",
     pinnedAccountId: null,
-    account: { id: USER, email: "nowa@example.org", appTenantId: null },
+    account: account(),
     profileTenantId: TENANT,
     defaultTenantId: DEFAULT,
     ...overrides,
@@ -56,7 +68,7 @@ describe("resolveInviteTarget - tabela A1", () => {
     ["brak adresu konta", null],
   ])("konto z adresem niezgodnym z zaproszeniem (%s) - odmowa", (_label, email) => {
     expect(
-      resolveInviteTarget(input({ account: { id: USER, email, appTenantId: TENANT } })),
+      resolveInviteTarget(input({ account: account({ email, appTenantId: TENANT }) })),
     ).toEqual({ kind: "refuse", reason: "pinned_account_mismatch" });
   });
 
@@ -65,7 +77,7 @@ describe("resolveInviteTarget - tabela A1", () => {
       resolveInviteTarget(
         input({
           invitationEmail: " Nowa@Example.org",
-          account: { id: USER, email: "NOWA@example.ORG ", appTenantId: null },
+          account: account({ email: "NOWA@example.ORG " }),
         }),
       ),
     ).toEqual({ kind: "attach", userId: USER });
@@ -86,11 +98,43 @@ describe("resolveInviteTarget - tabela A1", () => {
     expect(
       resolveInviteTarget(
         input({
-          account: { id: USER, email: "nowa@example.org", appTenantId: TENANT },
+          account: account({ appTenantId: TENANT }),
           profileTenantId: DEFAULT,
         }),
       ),
     ).toEqual({ kind: "attach", userId: USER });
+  });
+
+  it("profil w najemcy domyślnym, konto narodzone dla TEGO najemcy, ale JUŻ UŻYWANE - odmowa", () => {
+    // Przerwana wysyłka nie dała ani linku, ani hasła. Sesja w historii znaczy,
+    // że właściciel dostał się do konta inną drogą i używa go jako czytelnik
+    // najemcy domyślnego - konto należy już do tamtego najemcy.
+    expect(
+      resolveInviteTarget(
+        input({
+          account: account({ appTenantId: TENANT, everSignedIn: true }),
+          profileTenantId: DEFAULT,
+        }),
+      ),
+    ).toEqual({ kind: "refuse", reason: "profile_in_other_tenant" });
+  });
+
+  it("brak profilu, konto narodzone dla tego najemcy, ale już używane - odmowa", () => {
+    expect(
+      resolveInviteTarget(
+        input({
+          account: account({ appTenantId: TENANT, everSignedIn: true }),
+          profileTenantId: null,
+        }),
+      ),
+    ).toEqual({ kind: "refuse", reason: "profile_missing_unproven" });
+  });
+
+  it("używane konto z profilem w najemcy zaproszenia - dowiązanie (codzienne ponowienie)", () => {
+    expect(resolveInviteTarget(input({ account: account({ everSignedIn: true }) }))).toEqual({
+      kind: "attach",
+      userId: USER,
+    });
   });
 
   it.each([
@@ -100,7 +144,7 @@ describe("resolveInviteTarget - tabela A1", () => {
     expect(
       resolveInviteTarget(
         input({
-          account: { id: USER, email: "nowa@example.org", appTenantId },
+          account: account({ appTenantId }),
           profileTenantId: DEFAULT,
         }),
       ),
@@ -111,7 +155,7 @@ describe("resolveInviteTarget - tabela A1", () => {
     expect(
       resolveInviteTarget(
         input({
-          account: { id: USER, email: "nowa@example.org", appTenantId: TENANT },
+          account: account({ appTenantId: TENANT }),
           profileTenantId: DEFAULT,
           defaultTenantId: null,
         }),
@@ -123,7 +167,7 @@ describe("resolveInviteTarget - tabela A1", () => {
     expect(
       resolveInviteTarget(
         input({
-          account: { id: USER, email: "nowa@example.org", appTenantId: TENANT },
+          account: account({ appTenantId: TENANT }),
           profileTenantId: OTHER,
         }),
       ),
@@ -134,7 +178,7 @@ describe("resolveInviteTarget - tabela A1", () => {
     expect(
       resolveInviteTarget(
         input({
-          account: { id: USER, email: "nowa@example.org", appTenantId: TENANT },
+          account: account({ appTenantId: TENANT }),
           profileTenantId: null,
         }),
       ),
@@ -145,7 +189,7 @@ describe("resolveInviteTarget - tabela A1", () => {
     expect(
       resolveInviteTarget(
         input({
-          account: { id: USER, email: "nowa@example.org", appTenantId },
+          account: account({ appTenantId }),
           profileTenantId: null,
         }),
       ),

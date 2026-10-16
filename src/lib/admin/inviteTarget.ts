@@ -63,6 +63,14 @@ export interface InviteAccount {
   email: string | null;
   /** `app_metadata.tenant_id` - patrz `appMetadataTenantId`. */
   appTenantId: string | null;
+  /**
+   * Czy ktoś kiedykolwiek się na to konto zalogował (`last_sign_in_at`).
+   * Konto narodzone z zaproszenia, którego wysyłka się przerwała, nie dostało
+   * ani linku, ani hasła - jeśli mimo to ma sesję w historii, jego właściciel
+   * dostał się do niego inną drogą (np. „nie pamiętam hasła") i używa go jako
+   * czytelnik najemcy domyślnego. Wtedy konto należy już do tamtego najemcy.
+   */
+  everSignedIn: boolean;
 }
 
 export interface InviteTargetInput {
@@ -98,11 +106,11 @@ export function appMetadataTenantId(appMetadata: unknown): string | null {
  *   2. konto nie jest tym przypiętym albo ma inny adres niż zaproszenie -> odmowa;
  *   3. profil w najemcy zaproszenia -> `attach`;
  *   4. profil w najemcy domyślnym, a konto narodzone z zaproszenia TEGO najemcy
- *      (`app_metadata.tenant_id`) -> `attach` (nowa osoba, także ponowienie po
- *      przerwanej pierwszej wysyłce);
+ *      (`app_metadata.tenant_id`) i nigdy nieużyte (`everSignedIn`) ->
+ *      `attach` (nowa osoba, także ponowienie po przerwanej pierwszej wysyłce);
  *   5. profil w każdym innym najemcy -> odmowa;
- *   6. brak profilu: konto narodzone z zaproszenia tego najemcy -> `attach`,
- *      inaczej odmowa.
+ *   6. brak profilu: konto narodzone z zaproszenia tego najemcy i nigdy
+ *      nieużyte -> `attach`, inaczej odmowa.
  * Błędy odczytu (katalog, profil, najemca domyślny) nie wchodzą tutaj - są
  * błędem po stronie wołającego, nigdy „brakiem".
  */
@@ -120,7 +128,7 @@ export function resolveInviteTarget(input: InviteTargetInput): InviteTarget {
     return { kind: "refuse", reason: "pinned_account_mismatch" };
   }
 
-  const bornForThisTenant = account.appTenantId === invitationTenantId;
+  const bornForThisTenant = account.appTenantId === invitationTenantId && !account.everSignedIn;
   if (input.profileTenantId === null) {
     return bornForThisTenant
       ? { kind: "attach", userId: account.id }

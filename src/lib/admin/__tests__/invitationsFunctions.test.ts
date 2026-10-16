@@ -80,7 +80,16 @@ const h = vi.hoisted(() => ({
   /** Zapisy przez `supabaseAdmin` (omijające RLS) - tabela + wiersz + opcje. */
   adminWrites: [] as { table: string; row: unknown; options?: unknown }[],
   /** Wiersze, jakie `supabaseAdmin` oddaje przy odczycie profili do dowiązania. */
-  adminProfiles: [] as { id: string; email: string | null; slug: string | null }[],
+  /**
+   * `tenant_id` opcjonalne: odczyt dowiązania filtruje po najemcy, a atrapa
+   * honoruje `.eq("tenant_id", …)` tylko dla wierszy, które go niosą.
+   */
+  adminProfiles: [] as {
+    id: string;
+    email: string | null;
+    slug: string | null;
+    tenant_id?: string;
+  }[],
   /** Gdy `true`, odczyt profili oddaje `data: null` (kształt realnie możliwy). */
   adminProfilesNull: false,
   /**
@@ -124,6 +133,8 @@ const h = vi.hoisted(() => ({
     email: string | null;
     app_metadata?: Record<string, unknown>;
     user_metadata?: Record<string, unknown>;
+    /** Ostatnie logowanie - konto bez tego pola nigdy nie miało sesji. */
+    last_sign_in_at?: string;
   }[],
   /**
    * Awaria `getUserById` inna niż „brak konta". `AuthError` w auth-js dziedziczy
@@ -300,7 +311,17 @@ vi.mock("@/integrations/supabase/client.server", () => ({
           if (h.adminProfilesNull) return Promise.resolve({ data: null, error: null });
           const rows =
             h.adminProfilesFor && emailBatch ? h.adminProfilesFor(emailBatch) : h.adminProfiles;
-          return Promise.resolve({ data: rows, error: null });
+          const tenantFilter = filters.find(([c]) => c === "tenant_id")?.[1];
+          const scoped =
+            tenantFilter === undefined
+              ? rows
+              : rows.filter(
+                  (row) =>
+                    !("tenant_id" in row) ||
+                    row.tenant_id === undefined ||
+                    row.tenant_id === tenantFilter,
+                );
+          return Promise.resolve({ data: scoped, error: null });
         };
         const chain: Record<string, unknown> = {};
         chain["eq"] = (column: string, value: unknown) => {
@@ -1666,11 +1687,21 @@ describe("sendInvitation - konto z obcego najemcy nie jest przepinane", () => {
   });
 
   it("ponowna wysyłka zaproszenia powiązanego z kontem, które PRZESZŁO do innego najemcy - też odmowa", async () => {
+    // Konto istnieje i ma adres zaproszenia - przypięcie przechodzi
+    // weryfikację, a odmawia dopiero granica najemcy (także przy poświadczeniu
+    // narodzin dla TEGO najemcy: ono otwiera wyłącznie najemcę domyślnego).
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { tenant_id: IDS.tenant } },
+    ];
     h.existingProfileTenant = IDS.otherTenant;
     const result = await send();
     expect(result.error).toBe("account_in_other_tenant");
+    expect(h.getUserByIdCalls).toEqual([IDS.existingUser]);
     expect(h.adminWrites).toEqual([]);
+    expect(h.authCalls).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+    expect(failedUpdate()).toEqual({ status: "failed", last_error: "account_in_other_tenant" });
   });
 
   it("konto w TYM SAMYM najemcy jest dowiązywane jak dotąd (kontrola dodatnia)", async () => {
@@ -1877,6 +1908,23 @@ describe("sendInvitation - nowa osoba w organizacji innej niż domyślna", () =>
     expectRefusedWithoutSideEffects(await send());
   });
 
+  it("konto narodzone dla TEGO najemcy, ale już używane jako czytelnik najemcy domyślnego - odmowa", async () => {
+    // Przerwana wysyłka nie dała ani linku, ani hasła; sesja w historii znaczy,
+    // że właściciel dostał się do konta inną drogą („nie pamiętam hasła")
+    // i zbudował w najemcy domyślnym swoje dane.
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [
+      {
+        id: IDS.existingUser,
+        email: "nowa@example.org",
+        app_metadata: { tenant_id: IDS.tenant },
+        last_sign_in_at: OLDER_ISO,
+      },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    expectRefusedWithoutSideEffects(await send());
+  });
+
   it("`user_metadata.tenant_id` NIE poświadcza najemcy - ustawia je sam rejestrujący się klient", async () => {
     withInvitation(invitationRow());
     h.existingAuthUsers = [
@@ -1960,15 +2008,16 @@ describe("sendInvitation - nowa osoba w organizacji innej niż domyślna", () =>
 
   // ---- przypięte `auth_user_id` nie jest dowodem tożsamości ---------------
 
-  it("przypięty identyfikator konta, którego nie ma - odmowa i zdjęcie przypięcia", async () => {
+  it("przypięty identyfikator konta, którego nie ma - odmowa, przypięcie ZOSTAJE", async () => {
     withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
     const result = await send();
     expectRefusedWithoutSideEffects(result);
     // Bez przejścia katalogu - przypięty identyfikator nie degraduje się do
-    // szukania po adresie w tym samym przebiegu.
+    // szukania po adresie ani w tym przebiegu, ani w następnym (zapis statusu
+    // nie dotyka `auth_user_id`).
     expect(h.listUsersPages).toEqual([]);
     expect(invitationUpdates()).toEqual([
-      { status: "failed", last_error: "account_in_other_tenant", auth_user_id: null },
+      { status: "failed", last_error: "account_in_other_tenant" },
     ]);
   });
 
@@ -1982,8 +2031,39 @@ describe("sendInvitation - nowa osoba w organizacji innej niż domyślna", () =>
     const result = await send();
     expectRefusedWithoutSideEffects(result);
     expect(invitationUpdates()).toEqual([
-      { status: "failed", last_error: "account_in_other_tenant", auth_user_id: null },
+      { status: "failed", last_error: "account_in_other_tenant" },
     ]);
+  });
+
+  it("PONOWNE kliknięcie po odmowie przypiętego konta odmawia tak samo - bez nowego konta i bez cudzego profilu", async () => {
+    // Zdjęte przypięcie zamieniało drugie kliknięcie w szukanie po adresie
+    // z wiersza: przy `profiles.email` rozjechanym z adresem konta (zmiana
+    // adresu logowania nie synchronizuje profilu) aktywacja zakładała nowe
+    // konto na nieaktualny adres z rolą członka albo dowiązywała INNEGO
+    // członka z tym adresem. Wiersz jest stanowy: druga wysyłka widzi to, co
+    // zapisała pierwsza.
+    let row = invitationRow({ auth_user_id: IDS.existingUser, email: "stary@example.org" });
+    db.setResponse("user_invitations", (chain) => {
+      if (chain.has("update")) {
+        row = { ...row, ...(chain.argsOf("update")?.[0] as Partial<InvitationRow>) };
+        return ok(null);
+      }
+      return ok(row);
+    });
+    db.setResponse("audit_log", ok(null));
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowy@example.org" },
+      { id: "eeee1111-2222-4333-8444-555566667777", email: "stary@example.org" },
+    ];
+    h.existingProfileTenant = IDS.tenant;
+    const first = await send();
+    const second = await send();
+    expect(first).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    expect(second).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    expect(row.auth_user_id).toBe(IDS.existingUser);
+    expect(h.authCalls).toEqual([]);
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
   });
 
   it("adres przypiętego konta porównywany bez wielkości liter i spacji", async () => {
@@ -2021,6 +2101,41 @@ describe("sendInvitation - nowa osoba w organizacji innej niż domyślna", () =>
       expect(invitationUpdates()).toEqual([
         { status: "failed", last_error: "invitation_role_not_allowed" },
       ]);
+    },
+  );
+
+  it.each(["user_invitation_sent", "user_invitation_refused"])(
+    "ślad `%s` jest ZAKOŃCZONY, zanim wysyłka odda wynik (await, nie `void`)",
+    async (action) => {
+      // Odpowiedź rozstrzyga się dopiero w następnym makrozadaniu: zapis
+      // odpalony bez `await` nie zdąży się zakończyć przed powrotem z
+      // `send()`, a na środowisku bez `waitUntil` mógłby nie zakończyć się wcale.
+      withInvitation(invitationRow());
+      if (action === "user_invitation_refused") {
+        h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+        h.existingProfileTenant = IDS.otherTenant;
+      }
+      const settled: string[] = [];
+      db.setResponse("audit_log", (chain): SupabaseResult => {
+        const row = chain.argsOf("insert")?.[0] as { action: string };
+        settled.push(row.action);
+        return ok(null);
+      });
+      const originalFrom = db.from;
+      db.from = (table: string) => {
+        const builder = originalFrom(table) as Record<string, unknown>;
+        if (table !== "audit_log") return builder;
+        const then = builder.then as PromiseLike<unknown>["then"];
+        builder.then = (onOk: (value: unknown) => unknown, onKo?: (reason: unknown) => unknown) =>
+          new Promise((resolve) => setTimeout(resolve, 0)).then(() => then(onOk, onKo));
+        return builder;
+      };
+      try {
+        await send();
+      } finally {
+        db.from = originalFrom;
+      }
+      expect(settled).toEqual([action]);
     },
   );
 
@@ -2730,6 +2845,28 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     const doc = (updateChain?.argsOf("update")?.[0] as { builder_data: unknown }).builder_data;
     expect(JSON.stringify(doc)).toContain(IDS.existingUser);
     expect(JSON.stringify(doc)).toContain("nowa-osoba");
+  });
+
+  it("dowiązanie bierze WYŁĄCZNIE profile tego najemcy - konto innej organizacji z tym adresem nie trafia na stronę", async () => {
+    // Klucz serwisowy omija RLS, a `createUser` odmówił temu adresowi wyżej
+    // („already registered"), bo konto należy do innego najemcy.
+    db.setResponse("pages", (chain) =>
+      chain.has("update")
+        ? ok(null)
+        : ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }),
+    );
+    db.setResponse("user_invitations", () => ok(null));
+    h.adminProfiles = [
+      {
+        id: IDS.existingUser,
+        email: "nowa@example.org",
+        slug: "obca-osoba",
+        tenant_id: IDS.otherTenant,
+      },
+    ];
+    const result = await provision({ pageSlug: "o-nas", autoLink: true });
+    expect(result.linked).toBe(0);
+    expect(db.chainsFor("pages").some((chain) => chain.has("update"))).toBe(false);
   });
 
   it("profil BEZ sluga dostaje tylko identyfikator - pustego sluga nie wpisujemy", async () => {
@@ -3543,17 +3680,50 @@ describe("activation from the member directory", () => {
       }),
     ).rejects.toThrow("lookup unavailable");
   });
-  it.each([null, { id: IDS.invitation, status: "accepted" }])(
-    "creates a new activation record when no reusable invitation exists",
+  /** Wiersz aktywacji w kształcie, jaki wstawia `sendActivationEmailForUser`. */
+  function activationRow(overrides: Partial<InvitationRow> = {}): InvitationRow {
+    return invitationRow({
+      id: IDS.invitationB,
+      email: "member@example.org",
+      role: "editor",
+      metadata: { activation_for_user_id: IDS.existingUser },
+      auth_user_id: IDS.existingUser,
+      ...overrides,
+    });
+  }
+
+  /** Członek tego najemcy: konto z adresem profilu, profil u wołającego. */
+  function memberAccount(authEmail = "member@example.org"): void {
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: authEmail }];
+    h.existingProfileTenant = IDS.tenant;
+  }
+
+  const LOOKUP = "id, status, auth_user_id, role";
+
+  it.each([
+    null,
+    { id: IDS.invitation, status: "accepted", auth_user_id: IDS.existingUser, role: "editor" },
+    // Wiersz przypięty do INNEGO konta (np. usuniętego) odmawiałby za każdym
+    // razem - aktywacja zakłada świeży.
+    { id: IDS.invitation, status: "failed", auth_user_id: IDS.otherTenant, role: "editor" },
+    // `super_admin` zapisany przed bramką ról utknąłby na niej.
+    { id: IDS.invitation, status: "failed", auth_user_id: IDS.existingUser, role: "super_admin" },
+  ])(
+    "creates a new activation record when no reusable invitation exists (%j)",
     async (existing) => {
       profile(ok({ email: " MEMBER@example.org ", display_name: null }));
+      memberAccount();
+      db.setResponse("user_roles", (chain) =>
+        chain.has("in") ? ok([{ role: "admin" }]) : ok([{ role: "editor" }]),
+      );
       db.setResponse("user_invitations", (chain) =>
         chain.has("insert")
           ? ok({ id: IDS.invitationB })
-          : chain.argsOf("select")?.[0] === "id, status"
+          : chain.argsOf("select")?.[0] === LOOKUP
             ? ok(existing)
-            : ok(invitationRow({ id: IDS.invitationB, email: "member@example.org" })),
+            : ok(activationRow()),
       );
+      db.setResponse("audit_log", ok(null));
       const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
         data: { userId: IDS.existingUser },
         context: context(),
@@ -3563,11 +3733,125 @@ describe("activation from the member directory", () => {
       expect(inserted?.argsOf("insert")?.[0]).toMatchObject({
         tenant_id: IDS.tenant,
         email: "member@example.org",
+        role: "editor",
         source: "admin_user_actions",
         auth_user_id: IDS.existingUser,
+        metadata: { activation_for_user_id: IDS.existingUser },
       });
     },
   );
+
+  it("aktywacja wysyła link, ale NIE nadpisuje profilu, profilu autora ani roli członka", async () => {
+    // Metadane aktywacji nie niosą zdjęcia ani biogramu - upsert hydracji
+    // wyzerowałby je osobie, która je ma (np. z importu zespołu), i wymusił
+    // publiczny profil autora.
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    memberAccount();
+    db.setResponse("user_invitations", (chain) =>
+      chain.argsOf("select")?.[0] === LOOKUP
+        ? ok({
+            id: IDS.invitationB,
+            status: "sent",
+            auth_user_id: IDS.existingUser,
+            role: "editor",
+          })
+        : chain.has("update")
+          ? ok(null)
+          : ok(activationRow()),
+    );
+    db.setResponse("audit_log", ok(null));
+    const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
+      data: { userId: IDS.existingUser },
+      context: context(),
+    });
+    expect(result.ok).toBe(true);
+    expect(h.adminWrites).toEqual([]);
+    expect(h.authCalls.some((call) => call.kind === "create")).toBe(false);
+    expect(h.emails.map((mail) => mail.to)).toEqual(["member@example.org"]);
+    expect(db.chainsFor("user_invitations").some((c) => c.has("insert"))).toBe(false);
+  });
+
+  it("aktywacja członka, który ma wyłącznie `super_admin`, przechodzi z etykietą `admin` i bez zapisu roli", async () => {
+    // `change_user_role` usuwa role członka i wstawia jedną - po awansie jedynym
+    // wierszem jest `super_admin`, a ta rola nie przechodzi bramki ról.
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    memberAccount();
+    db.setResponse("user_roles", (chain) =>
+      chain.has("in") ? ok([{ role: "admin" }]) : ok([{ role: "super_admin" }]),
+    );
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("insert")
+        ? ok({ id: IDS.invitationB })
+        : chain.argsOf("select")?.[0] === LOOKUP
+          ? ok(null)
+          : ok(activationRow({ role: "admin" })),
+    );
+    db.setResponse("audit_log", ok(null));
+    const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
+      data: { userId: IDS.existingUser },
+      context: context(),
+    });
+    expect(result.ok).toBe(true);
+    expect(
+      db
+        .chainsFor("user_invitations")
+        .find((c) => c.has("insert"))
+        ?.argsOf("insert")?.[0],
+    ).toMatchObject({ role: "admin" });
+    expect(h.adminWrites).toEqual([]);
+  });
+
+  it("niepięty wiersz zaproszenia na ten adres jest PRZYPINANY do członka przed wysyłką", async () => {
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    memberAccount();
+    db.setResponse("user_invitations", (chain) =>
+      chain.argsOf("select")?.[0] === LOOKUP
+        ? ok({ id: IDS.invitation, status: "pending", auth_user_id: null, role: "author" })
+        : chain.has("update")
+          ? ok(null)
+          : ok(invitationRow({ email: "member@example.org", auth_user_id: IDS.existingUser })),
+    );
+    db.setResponse("audit_log", ok(null));
+    const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
+      data: { userId: IDS.existingUser },
+      context: context(),
+    });
+    expect(result.ok).toBe(true);
+    const updates = db
+      .chainsFor("user_invitations")
+      .filter((c) => c.has("update"))
+      .map((c) => c.argsOf("update")?.[0]);
+    expect(updates[0]).toEqual({ auth_user_id: IDS.existingUser });
+    expect(db.chainsFor("user_invitations").some((c) => c.has("insert"))).toBe(false);
+    expect(h.getUserByIdCalls).toEqual([IDS.existingUser]);
+  });
+
+  it("aktywacja konta, którego adres logowania rozjechał się z `profiles.email` - odmowa bez maila (A2)", async () => {
+    // Link logowania nie może pójść na adres, którego konto nie poświadcza.
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    memberAccount("nowy-adres@example.org");
+    db.setResponse("user_invitations", (chain) =>
+      chain.argsOf("select")?.[0] === LOOKUP
+        ? ok({
+            id: IDS.invitationB,
+            status: "failed",
+            auth_user_id: IDS.existingUser,
+            role: "editor",
+          })
+        : chain.has("update")
+          ? ok(null)
+          : ok(activationRow()),
+    );
+    db.setResponse("audit_log", ok(null));
+    const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
+      data: { userId: IDS.existingUser },
+      context: context(),
+    });
+    expect(result).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    expect(h.emails).toHaveLength(0);
+    expect(h.authCalls).toEqual([]);
+    expect(h.adminWrites).toEqual([]);
+  });
 });
 
 describe("invitation delivery recovery branches", () => {
@@ -3714,8 +3998,10 @@ describe("activation record persistence failures", () => {
   it("propagates role lookup failure before creating an activation record", async () => {
     profileReady();
     db.setResponse("user_invitations", ok(null));
+    // `assertAdmin` pyta o role administracyjne (`.in`), aktywacja o role
+    // członka (bez `.in`).
     db.setResponse("user_roles", (chain) =>
-      chain.has("limit") ? fail("roles unavailable") : ok([{ role: "admin" }]),
+      chain.has("in") ? ok([{ role: "admin" }]) : fail("roles unavailable"),
     );
     await expect(
       callServerFn(sendActivationEmailForUser, {
@@ -3730,7 +4016,7 @@ describe("activation record persistence failures", () => {
     async (insertion) => {
       profileReady();
       db.setResponse("user_roles", (chain) =>
-        chain.has("limit") ? ok(null) : ok([{ role: "admin" }]),
+        chain.has("in") ? ok([{ role: "admin" }]) : ok(null),
       );
       db.setResponse("user_invitations", (chain) => (chain.has("insert") ? insertion : ok(null)));
       await expect(
@@ -3751,12 +4037,19 @@ describe("activation record persistence failures", () => {
   it("reuses a pending invitation and reports a failed activation-link fallback", async () => {
     profileReady();
     h.linkError = new Error("link service unavailable");
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "member@example.org" }];
+    h.existingProfileTenant = IDS.tenant;
     db.setResponse("user_invitations", (chain) =>
-      chain.argsOf("select")?.[0] === "id, status"
-        ? ok({ id: IDS.invitation, status: "pending" })
+      chain.argsOf("select")?.[0] === "id, status, auth_user_id, role"
+        ? ok({
+            id: IDS.invitation,
+            status: "pending",
+            auth_user_id: IDS.existingUser,
+            role: "user",
+          })
         : chain.has("update")
           ? ok(null)
-          : ok(invitationRow()),
+          : ok(invitationRow({ email: "member@example.org", auth_user_id: IDS.existingUser })),
     );
     const result = await callServerFn(sendActivationEmailForUser, {
       data: { userId: IDS.existingUser },
