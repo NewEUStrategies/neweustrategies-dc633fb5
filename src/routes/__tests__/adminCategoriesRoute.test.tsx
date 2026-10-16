@@ -15,18 +15,46 @@
 //   3. FILTR POKRYCIA JĘZYKOWEGO to jedyne narzędzie do znalezienia kategorii
 //      bez tłumaczenia - a kategoria bez nazwy EN renderuje się na
 //      anglojęzycznej stronie jako pustka.
+//
+// Dopisane 16.10.2026 (audyt pokrycia „Taksonomie, pola meta i układy
+// eksperta”) - cztery defekty naprawione w trasie, każdy z testem, który na
+// starym kodzie jest czerwony:
+//
+//   4. WŁASNY KLUCZ ZAPYTANIA. Pod gołym ["categories", tenantId] edytor wpisu
+//      trzyma wiersze `id, name_pl, name_en`. Przy staleTime 5 min (router)
+//      ekran kategorii brał je z cache bez pobrania: puste slugi i wymiary,
+//      a zapis edycji kasował opisy i logo i generował slug od nowa.
+//   5. POTOMEK NIE JEST KANDYDATEM NA RODZICA. Serwer pilnuje tylko „rodzic ≠
+//      ja”; wybór własnego dziecka zamykał pętlę A → B → A, w której publiczne
+//      drzewo tematów (formularz newslettera) wędruje w górę bez końca.
+//   6. ZAPIS JEST BLOKOWANY W LOCIE. Drugie kliknięcie „Zapisz” wysyłało ten
+//      sam formularz - dla nowej kategorii duplikat ze slugiem „-2”.
+//   7. ŁADOWANIE I BŁĄD NIE UDAJĄ PUSTKI. „Brak elementów” w trakcie ładowania
+//      i po błędzie zapytania mówiło redakcji, że kategorii nie ma.
+//
+// Do tego `head()` ze wspólnego `adminPageHead` (AGENTS.md): karta nosiła
+// ogólny tytuł panelu zamiast nazwy sekcji.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { AnyRoute } from "@tanstack/react-router";
 
 const h = vi.hoisted(() => ({
   rows: [] as Record<string, unknown>[],
+  selectError: null as { message: string } | null,
+  /** PostgREST bez błędu i bez danych (`data: null`). */
+  nullData: false,
+  /** Gdy ustawione, odczyt listy czeka na tę obietnicę (stan „ładowanie”). */
+  selectGate: null as Promise<void> | null,
+  queries: [] as { table: string; calls: [string, unknown[]][] }[],
   upserts: [] as unknown[],
-  upsertError: null as Error | null,
+  upsertCalls: 0,
+  /** Gdy ustawione, zapis wisi do jej rozwiązania (stan „w locie”). */
+  upsertGate: null as Promise<void> | null,
+  upsertError: null as unknown,
   deletes: [] as unknown[],
-  deleteError: null as Error | null,
+  deleteError: null as unknown,
   confirmAnswer: true,
   confirmCalls: [] as Record<string, unknown>[],
   toast: { success: vi.fn(), error: vi.fn() },
@@ -48,6 +76,8 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: unknown) => async (payload: unknown) => {
     if (fn === "upsert") {
+      h.upsertCalls += 1;
+      if (h.upsertGate) await h.upsertGate;
       if (h.upsertError) throw h.upsertError;
       h.upserts.push(payload);
       return { ok: true };
@@ -59,9 +89,28 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({ eq: () => ({ order: async () => ({ data: h.rows, error: null }) }) }),
-    }),
+    from: (table: string) => {
+      const entry = { table, calls: [] as [string, unknown[]][] };
+      h.queries.push(entry);
+      return {
+        select: (...a: unknown[]) => {
+          entry.calls.push(["select", a]);
+          return {
+            eq: (...b: unknown[]) => {
+              entry.calls.push(["eq", b]);
+              return {
+                order: async (...c: unknown[]) => {
+                  entry.calls.push(["order", c]);
+                  if (h.selectGate) await h.selectGate;
+                  if (h.selectError) return { data: null, error: h.selectError };
+                  return { data: h.nullData ? null : h.rows, error: null };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
   },
 }));
 
@@ -69,6 +118,7 @@ import "@/test/i18nReal";
 // Etykiety filtra pokrycia językowego („Tylko PL”, „Komplet”…) mieszkają w
 // nakładce, której sama trasa nie importuje - bez tego testy asertowałyby klucze.
 import "@/lib/i18n-admin-extras";
+import { routeHead } from "@/test/routeHarness";
 import { Route } from "@/routes/admin.categories";
 
 let queryClient: QueryClient;
@@ -135,7 +185,13 @@ const lastUpsert = () =>
 beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   h.rows = [];
+  h.selectError = null;
+  h.nullData = false;
+  h.selectGate = null;
+  h.queries.length = 0;
   h.upserts.length = 0;
+  h.upsertCalls = 0;
+  h.upsertGate = null;
   h.deletes.length = 0;
   h.confirmCalls.length = 0;
   h.upsertError = null;
@@ -466,5 +522,264 @@ describe("kategorie - usuwanie", () => {
     await waitFor(() =>
       expect(h.toast.error).toHaveBeenCalledWith("kategoria używana przez wpisy"),
     );
+  });
+});
+
+/** Obietnica rozwiązywana ręcznie - stan „w locie” bez uśpień. */
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+/** Render bez czekania na wiersze - do stanów ładowania i błędu. */
+function renderRoute() {
+  const Component = (Route as AnyRoute).options.component as () => ReactNode;
+  return render(<Component />, { wrapper });
+}
+
+/** Etykiety opcji listy „Rodzic” w otwartym oknie, w kolejności wyświetlania. */
+function parentOptionNames(): (string | null)[] {
+  fireEvent.keyDown(dialogSelect("Rodzic"), { key: "ArrowDown" });
+  return screen.getAllByRole("option").map((o) => o.textContent);
+}
+
+const editRow = (slug: string) =>
+  fireEvent.click(within(rowBySlug(slug)).getAllByRole("button")[0]);
+
+describe("kategorie - nagłówek sekcji", () => {
+  it("head() daje tytuł karty z nazwą sekcji i trzyma ekran poza indeksem", () => {
+    // Bez `head()` karta nosiła ogólny tytuł panelu - przy kilku otwartych
+    // ekranach administracji nie dało się odróżnić kart (AGENTS.md).
+    const { meta } = routeHead(Route as AnyRoute);
+    expect(meta).toEqual(
+      expect.arrayContaining([
+        { title: "Categories | New European Strategies" },
+        { property: "og:title", content: "Categories | New European Strategies" },
+        { name: "robots", content: "noindex, nofollow" },
+      ]),
+    );
+    const description = meta?.find((m) => (m as { name?: string }).name === "description") as {
+      content: string;
+    };
+    expect(description.content).toMatch(/categor/i);
+  });
+});
+
+describe("kategorie - odczyt listy", () => {
+  it("pyta tylko o kolumny ekranu, w obrębie dzierżawy, alfabetycznie po nazwie PL", async () => {
+    await setup2([cat()]);
+
+    expect(h.queries).toEqual([
+      {
+        table: "categories",
+        calls: [
+          [
+            "select",
+            [
+              "id, slug, name_pl, name_en, description_pl, description_en, logo_url, kind, parent_id",
+            ],
+          ],
+          ["eq", ["tenant_id", "tenant-1"]],
+          ["order", ["name_pl"]],
+        ],
+      },
+    ]);
+  });
+
+  it("okrojone wiersze edytora wpisu w cache NIE zastępują pełnych wierszy ekranu", async () => {
+    // Router trzyma zapytania świeże przez 5 min. Edytor wpisu kładzie pod
+    // ["categories", tenantId] same `id, name_pl, name_en`; wspólny klucz dawał
+    // tu wiersze bez sluga i wymiaru, a zapis edycji z nich wysyłał opisy i logo
+    // jako NULL i pusty slug (serwer generował nowy adres archiwum).
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60_000 } },
+    });
+    queryClient.setQueryData(
+      ["categories", "tenant-1"],
+      [{ id: "c1", name_pl: "Geopolityka", name_en: "Geopolitics" }],
+    );
+    h.rows = [
+      cat({
+        description_pl: "Opis PL",
+        description_en: "Desc EN",
+        logo_url: "https://cdn.example/logo.png",
+      }),
+    ];
+    renderRoute();
+
+    expect(await screen.findByTitle("geopolityka")).toBeInTheDocument();
+    expect(rowBySlug("geopolityka").textContent).toContain("Specjalizacja");
+
+    editRow("geopolityka");
+    fireEvent.click(saveInDialog());
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastUpsert()).toEqual({
+      id: "c1",
+      fields: {
+        name_pl: "Geopolityka",
+        name_en: "Geopolitics",
+        slug: "geopolityka",
+        description_pl: "Opis PL",
+        description_en: "Desc EN",
+        logo_url: "https://cdn.example/logo.png",
+        kind: "category",
+        parent_id: null,
+      },
+    });
+  });
+
+  it("unieważnienie prefiksu z edytora wpisu odświeża także ten ekran", async () => {
+    // Szybkie dodanie kategorii w edytorze wpisu unieważnia ["categories",
+    // tenantId]. Własny klucz ekranu musi leżeć POD tym prefiksem, inaczej nowa
+    // kategoria nie pojawiłaby się tu do upływu staleTime.
+    await setup2([cat()]);
+    h.rows = [cat(), cat({ id: "c2", slug: "nowa-z-edytora", name_pl: "Nowa" })];
+    await act(() => queryClient.invalidateQueries({ queryKey: ["categories", "tenant-1"] }));
+
+    expect(await screen.findByTitle("nowa-z-edytora")).toBeInTheDocument();
+  });
+
+  it("w trakcie ładowania mówi „Ładowanie…”, a nie „Brak elementów”", async () => {
+    const gate = deferred();
+    h.selectGate = gate.promise;
+    h.rows = [cat()];
+    renderRoute();
+
+    expect(await screen.findByText("Ładowanie…")).toBeInTheDocument();
+    expect(screen.queryByText("Brak elementów")).toBeNull();
+
+    await act(async () => gate.resolve());
+    expect(await screen.findByTitle("geopolityka")).toBeInTheDocument();
+  });
+
+  it("błąd zapytania pokazuje POWÓD, a nie pustą bazę", async () => {
+    // „Brak elementów” po błędzie RLS/sieci zapraszało do zakładania kategorii,
+    // które już istnieją.
+    h.selectError = { message: "permission denied for table categories" };
+    renderRoute();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "permission denied for table categories",
+    );
+    expect(screen.queryByText("Brak elementów")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("odpowiedź bez danych (`null`) to pusta lista, a nie awaria ekranu", async () => {
+    h.nullData = true;
+    renderRoute();
+
+    expect(await screen.findByText("Brak elementów")).toBeInTheDocument();
+  });
+});
+
+describe("kategorie - hierarchia bez pętli", () => {
+  const regiony = () => [
+    cat({ id: "eu", slug: "europa", kind: "region", name_pl: "Europa" }),
+    cat({ id: "pl", slug: "polska", kind: "region", name_pl: "Polska", parent_id: "eu" }),
+    cat({ id: "maz", slug: "mazowsze", kind: "region", name_pl: "Mazowsze", parent_id: "pl" }),
+    cat({ id: "as", slug: "azja", kind: "region", name_pl: "Azja" }),
+  ];
+
+  it("dziecko ani wnuk edytowanej kategorii NIE są kandydatami na rodzica", async () => {
+    // Europa → Polska → Mazowsze: „Polska” jako rodzic Europy zamyka pętlę,
+    // w której publiczne drzewo tematów wędruje w górę bez końca.
+    await setup2(regiony());
+    editRow("europa");
+
+    expect(parentOptionNames()).toEqual(["— brak —", "Azja"]);
+  });
+
+  it("pozycja w środku drzewa widzi przodka i gałąź obok, ale nie własne dziecko", async () => {
+    await setup2(regiony());
+    editRow("polska");
+
+    expect(parentOptionNames()).toEqual(["— brak —", "Europa", "Azja"]);
+  });
+
+  it("NOWA kategoria widzi wszystkie kategorie wymiaru", async () => {
+    // Blokada potomków dotyczy wyłącznie edycji - nowa pozycja nie ma dzieci.
+    await setup2(regiony());
+    fireEvent.click(newButton());
+    chooseInSelect(dialogSelect("Wymiar"), "Region / państwo");
+
+    expect(parentOptionNames()).toEqual(["— brak —", "Europa", "Polska", "Mazowsze", "Azja"]);
+  });
+
+  it("pętla zastana w danych NIE zawiesza formularza", async () => {
+    // A ↔ B sprzed tej blokady: liczenie potomków musi się zatrzymać.
+    await setup2([
+      cat({ id: "a", slug: "a", name_pl: "A", parent_id: "b" }),
+      cat({ id: "b", slug: "b", name_pl: "B", parent_id: "a" }),
+      cat({ id: "c", slug: "c", name_pl: "C" }),
+    ]);
+    editRow("a");
+
+    expect(parentOptionNames()).toEqual(["— brak —", "C"]);
+  });
+});
+
+describe("kategorie - zapis w locie", () => {
+  it("drugie kliknięcie „Zapisz” w trakcie zapisu NIE wysyła formularza ponownie", async () => {
+    // Okno zostaje otwarte do odpowiedzi serwera; drugi zapis nowej kategorii
+    // tworzył duplikat ze slugiem „-2”.
+    const gate = deferred();
+    h.upsertGate = gate.promise;
+    await setup2([]);
+    fireEvent.click(newButton());
+    fireEvent.change(formField("Nazwa (PL)"), { target: { value: "Nowa" } });
+    fireEvent.click(saveInDialog());
+    fireEvent.click(saveInDialog());
+
+    expect(h.upsertCalls).toBe(1);
+    expect(saveInDialog()).toBeDisabled();
+
+    await act(async () => gate.resolve());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(h.upserts).toHaveLength(1);
+  });
+
+  it("po PORAŻCE przycisk zapisu wraca do użytku, a odrzucenie nie-Errorem mówi swoją treść", async () => {
+    // Zablokowany na stałe przycisk po błędzie zmuszałby do zamknięcia okna
+    // i utraty wpisanych danych.
+    h.upsertError = "limit zapytań";
+    await setup2([]);
+    fireEvent.click(newButton());
+    fireEvent.change(formField("Nazwa (PL)"), { target: { value: "Nowa" } });
+    fireEvent.click(saveInDialog());
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("limit zapytań"));
+    expect(saveInDialog()).not.toBeDisabled();
+  });
+});
+
+describe("kategorie - etykiety awaryjne", () => {
+  it("rodzic bez nazwy PL ma etykietę EN, a bez obu nazw - slug, nigdy pustkę", async () => {
+    await setup2([
+      cat({ id: "x", slug: "x", name_pl: "Edytowana" }),
+      cat({ id: "p1", slug: "tylko-en", name_pl: "", name_en: "Only EN parent" }),
+      cat({ id: "p2", slug: "bez-nazwy", name_pl: "", name_en: "" }),
+    ]);
+    editRow("x");
+
+    expect(parentOptionNames()).toEqual(["— brak —", "Only EN parent", "bez-nazwy"]);
+  });
+
+  it("wymiar spoza katalogu ekranu pokazuje surową wartość, nie pustą plakietkę", async () => {
+    // Wymiar dodany migracją przed etykietą w panelu musi być rozpoznawalny.
+    await setup2([cat({ kind: "legacy_dimension" })]);
+
+    expect(rowBySlug("geopolityka").textContent).toContain("legacy_dimension");
+  });
+
+  it("odrzucenie usuwania nie-Errorem pokazuje jego treść", async () => {
+    h.deleteError = "kategoria zablokowana";
+    await setup2([cat()]);
+    fireEvent.click(within(rowBySlug("geopolityka")).getAllByRole("button")[1]);
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("kategoria zablokowana"));
   });
 });
