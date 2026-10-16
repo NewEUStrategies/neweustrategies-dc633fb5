@@ -28,6 +28,10 @@ const pl = {
       genericError: "Błąd",
       keyTaken: "Definicja o tym kluczu już istnieje - edytuj ją na liście.",
       keyInvalid: "Klucz musi zawierać literę a-z lub cyfrę i mieć najwyżej {{max}} znaki.",
+      deletedMeanwhile:
+        "Ta definicja została w międzyczasie usunięta - dodaj ją ponownie, jeśli jest potrzebna.",
+      noPermission:
+        "Nie masz uprawnień do zmiany tej definicji - może to zrobić administrator lub redaktor.",
     },
     invitations: {
       pageTitle: "Zaproszenia",
@@ -165,6 +169,10 @@ const en = {
       genericError: "Error",
       keyTaken: "A definition with this key already exists - edit it in the list.",
       keyInvalid: "The key must contain a letter a-z or a digit and be at most {{max}} characters.",
+      deletedMeanwhile:
+        "This definition was deleted in the meantime - add it again if you need it.",
+      noPermission:
+        "You don't have permission to change this definition - an administrator or editor can.",
     },
     invitations: {
       pageTitle: "Invitations",

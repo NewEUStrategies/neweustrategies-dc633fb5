@@ -233,6 +233,10 @@ export const adminExtrasPl = {
     },
     cancelHint: "Odrzuć niezapisane zmiany i przywróć wersję z serwera",
     contentArea: {
+      // Nieudany odczyt edytora: formularz czeka na wiersz najemcy, zamiast
+      // pokazywać domyślne jak jego stan.
+      loadError:
+        "Nie udało się wczytać ustawień obszaru treści. Formularz pojawi się po udanym odczycie.",
       spacingMovedHint:
         "- tam ustawiasz odstępy akapitów, nagłówków, list i cytatów (jedno źródło prawdy dla frontu i Gutenberga).",
       spacingMovedLink: "Opcje motywu → Rozmiary czcionek",
@@ -788,6 +792,13 @@ export const adminExtrasPl = {
         "Obrazek, który widzą odbiorcy po wklejeniu linku w Messengerze, WhatsAppie, LinkedIn, X czy Slacku. Zalecany format: 1200x630 px, JPG/PNG, poniżej 1 MB.",
       title: "Podgląd linków (og:image)",
     },
+    // Ekran `/admin/tags` (rdzeń ma tu tylko `placeholder`). Nazwa tagu siedzi
+    // w etykiecie ×, bo chipy stoją rzędem: samo „Usuń” nie mówi czytnikowi
+    // ekranu, KTÓRY tag zniknie.
+    tags: {
+      deleteAria: "Usuń tag {{name}}",
+      duplicate: "Tag „{{name}}” już istnieje.",
+    },
     themeOptions: {
       // Dialog historii zmian ustawień. Dziewięć kluczy niżej stało wcześniej
       // w kodzie jako pozycyjny `defaultValue` po polsku - czyli angielski
@@ -1133,6 +1144,8 @@ export const adminExtrasEn = {
     },
     cancelHint: "Discard unsaved changes and restore the version from the server",
     contentArea: {
+      loadError:
+        "Could not load the content area settings. The form will appear after a successful read.",
       spacingMovedHint:
         "- that is where you set the spacing of paragraphs, headings, lists and quotes (a single source of truth for the public site and for Gutenberg).",
       spacingMovedLink: "Theme options → Font sizes",
@@ -1656,6 +1669,10 @@ export const adminExtrasEn = {
       subtitle:
         "The image people see when your link is pasted into Messenger, WhatsApp, LinkedIn, X or Slack. Recommended: 1200x630 px, JPG/PNG, under 1 MB.",
       title: "Link preview (og:image)",
+    },
+    tags: {
+      deleteAria: "Delete tag {{name}}",
+      duplicate: "The tag “{{name}}” already exists.",
     },
     themeOptions: {
       history: {

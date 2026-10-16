@@ -2,7 +2,7 @@
 // Each definition becomes a per-post field on the post editor.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ensureI18n as ensureAdminMiscRoutesI18n } from "@/lib/i18n-admin-misc-routes";
@@ -19,7 +19,8 @@ import {
 import { useRequiredTenant } from "@/hooks/useAuth";
 import {
   listCustomMetaDefs,
-  upsertCustomMetaDef,
+  addCustomMetaDef,
+  updateCustomMetaDef,
   deleteCustomMetaDef,
   type CustomMetaDef,
 } from "@/lib/customMeta";
@@ -47,7 +48,8 @@ export const Route = createFileRoute("/admin/custom-meta")({
 // aktualnej listy (koniec listy). Wcześniej domyślna pozycja była zamrażana
 // w inicjalizatorze `useState` (lista jeszcze się ładowała, więc zawsze 10)
 // i po zapisie z długości listy sprzed odświeżenia - nowe pole lądowało na
-// pozycji już zajętej.
+// pozycji już zajętej. `id` obecne = edycja istniejącej definicji - w tym samym
+// obiekcie co pola, bo reset po zapisie porównuje formularz z wysłaną migawką.
 type Draft = Omit<CustomMetaDef, "id" | "tenant_id" | "position"> & {
   id?: string;
   position: number | null;
@@ -90,19 +92,27 @@ function CustomMetaAdmin() {
   const nextPosition = defs.reduce((max, d) => Math.max(max, d.position), 0) + 10;
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingId = draft.id ?? null;
+  // Wysłana migawka w trakcie zapisu (`null` = brak zapisu). Podwójne kliknięcie
+  // dawało dwa zapisy i dwa toasty, a drugi INSERT tego samego klucza kończy się
+  // już komunikatem o zajętym kluczu.
+  const [saving, setSaving] = useState<Draft | null>(null);
+  const iconFieldId = useId();
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["customMetaDefs"] });
 
   const save = async (): Promise<void> => {
-    // W edycji klucz jest niezmienny (pole wyłączone) - wysyłamy zapisany
-    // klucz dosłownie: upsert po (tenant_id, key) musi trafić w TEN wiersz,
-    // a wartości we wpisach siedzą pod tym kluczem. Format i limit dotyczą
-    // tylko NOWYCH kluczy - starsza definicja z kluczem „_” albo dłuższym niż
-    // 64 znaki nadal musi dać się edytować (etykiety, ikona, pozycja).
-    const key = editingId ? draft.key : normalizeMetaKey(draft.key);
-    if (!editingId) {
-      if (!draft.key.trim()) {
+    // Migawka z chwili kliknięcia: pola i „Edytuj” przy pozostałych wierszach
+    // zostają czynne w trakcie zapisu, więc po nim formularz czyścimy tylko, jeśli
+    // redaktor nie zaczął w nim czegoś innego (każda zmiana i „Edytuj” dają nowy obiekt).
+    const submitted = draft;
+    // W edycji klucz jest niezmienny (pole wyłączone, UPDATE go nie wysyła), bo
+    // wartości we wpisach siedzą pod tym kluczem. Format i limit dotyczą tylko
+    // NOWYCH kluczy - starsza definicja z kluczem „_” albo dłuższym niż 64 znaki
+    // nadal musi dać się edytować (etykiety, ikona, pozycja).
+    const key = normalizeMetaKey(submitted.key);
+    if (!submitted.id) {
+      if (!submitted.key.trim()) {
         toast.error(adminToast.keyRequired());
         return;
       }
@@ -113,36 +123,58 @@ function CustomMetaAdmin() {
         return;
       }
     }
-    if (!draft.label_pl.trim() && !draft.label_en.trim()) {
+    if (!submitted.label_pl.trim() && !submitted.label_en.trim()) {
       toast.error(adminToast.labelRequired());
       return;
     }
-    // Upsert idzie po (tenant_id, key): „Dodaj” z istniejącym kluczem po
-    // cichu nadpisywał etykiety, ikonę i pozycję cudzej definicji.
-    if (!editingId && defs.some((d) => d.key === key)) {
+    // Natychmiastowa podpowiedź z listy na ekranie. Rozstrzyga jednak baza
+    // (INSERT na `UNIQUE (tenant_id, key)`) - lista w cache bywa sprzed minut.
+    if (!submitted.id && defs.some((d) => d.key === key)) {
       toast.error(t("adminMiscRoutes.customMeta.keyTaken"));
       return;
     }
+    setSaving(submitted);
     try {
-      await upsertCustomMetaDef({
-        ...draft,
-        position: draft.position ?? nextPosition,
-        id: editingId ?? undefined,
-        tenant_id: tenantId,
-        key,
-      });
+      const fields = {
+        label_pl: submitted.label_pl,
+        label_en: submitted.label_en,
+        icon: submitted.icon,
+        position: submitted.position ?? nextPosition,
+      };
+      const result = submitted.id
+        ? await updateCustomMetaDef(submitted.id, fields)
+        : await addCustomMetaDef({ ...fields, tenant_id: tenantId, key });
+      if (!result.ok) {
+        if (result.reason === "key_taken") {
+          // Wpis zostaje w formularzu - redaktor poprawia klucz, nie przepisuje danych.
+          toast.error(t("adminMiscRoutes.customMeta.keyTaken"));
+        } else if (result.reason === "forbidden") {
+          // Wiersz stoi, tylko RLS nie pozwala go zmienić (np. autorowi) - to nie
+          // „usunięta”, a formularz zostaje przy wierszu, który dalej istnieje.
+          toast.error(t("adminMiscRoutes.customMeta.noPermission"));
+        } else {
+          toast.error(t("adminMiscRoutes.customMeta.deletedMeanwhile"));
+          // Formularz nie może dalej wskazywać nieistniejącego wiersza; edycja
+          // innego wiersza zaczęta w trakcie zapisu zostaje.
+          setDraft((d) => (d.id === submitted.id ? EMPTY_DRAFT : d));
+        }
+        // Lista pokazuje stan, o który zapis się rozbił: cudzą definicję albo jej brak.
+        refresh();
+        return;
+      }
       toast.success(adminToast.saved());
-      setDraft(EMPTY_DRAFT);
-      setEditingId(null);
+      setDraft((d) => (d === submitted ? EMPTY_DRAFT : d));
       refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("adminMiscRoutes.customMeta.saveError"));
+    } finally {
+      setSaving(null);
     }
   };
 
   const edit = (d: CustomMetaDef): void => {
-    setEditingId(d.id);
     setDraft({
+      id: d.id,
       key: d.key,
       label_pl: d.label_pl,
       label_en: d.label_en,
@@ -162,12 +194,11 @@ function CustomMetaAdmin() {
       return;
     try {
       await deleteCustomMetaDef(id);
-      // Formularz edytujący usuniętą definicję wskrzeszałby ją przy „Zapisz
-      // zmiany” (upsert z jej `id` robi INSERT).
-      if (editingId === id) {
-        setEditingId(null);
-        setDraft(EMPTY_DRAFT);
-      }
+      // Formularz nie zostaje przy usuniętej definicji - „Zapisz zmiany”
+      // meldowałby usunięcie „w międzyczasie”, choć usunął ją sam redaktor.
+      // Stan bieżący, nie z chwili kliknięcia „Usuń”: „Edytuj” tego wiersza
+      // kliknięte w trakcie usuwania też ma zostać zamknięte.
+      setDraft((d) => (d.id === id ? EMPTY_DRAFT : d));
       refresh();
       toast.success(adminToast.deleted());
     } catch (e) {
@@ -204,9 +235,10 @@ function CustomMetaAdmin() {
             />
           </div>
           <div>
-            <Label>{t("adminMiscRoutes.customMeta.icon")}</Label>
+            {/* Bez powiązania etykiety lista ikon nie ma nazwy dla czytnika ekranu. */}
+            <Label htmlFor={iconFieldId}>{t("adminMiscRoutes.customMeta.icon")}</Label>
             <Select value={draft.icon} onValueChange={(v) => setDraft({ ...draft, icon: v })}>
-              <SelectTrigger>
+              <SelectTrigger id={iconFieldId}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -237,19 +269,13 @@ function CustomMetaAdmin() {
         </div>
         <div className="flex gap-2 justify-end">
           {editingId && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditingId(null);
-                setDraft(EMPTY_DRAFT);
-              }}
-            >
+            <Button variant="outline" onClick={() => setDraft(EMPTY_DRAFT)}>
               {t("common.cancel")}
             </Button>
           )}
           {/* Bez wczytanej listy nie da się sprawdzić zajętości klucza ani
               policzyć końca listy. */}
-          <Button onClick={save} disabled={!data}>
+          <Button onClick={save} disabled={saving !== null || !data}>
             {editingId
               ? t("adminMiscRoutes.customMeta.saveChanges")
               : t("adminMiscRoutes.customMeta.add")}
@@ -288,7 +314,14 @@ function CustomMetaAdmin() {
                     {t("adminMiscRoutes.customMeta.iconMeta", { key: d.key, icon: d.icon })}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => edit(d)}>
+                {/* Lista trzyma ten wiersz sprzed trwającego zapisu: wczytany teraz
+                    formularz przeżyłby zapis, a kolejne „Zapisz zmiany” cofało go. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => edit(d)}
+                  disabled={saving?.id === d.id}
+                >
                   {t("adminMiscRoutes.customMeta.edit")}
                 </Button>
                 <Button
