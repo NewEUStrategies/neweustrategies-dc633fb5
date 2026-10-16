@@ -16,7 +16,7 @@
     "build:dev": "node scripts/clean-build-output.mjs && NODE_OPTIONS=\"--max-old-space-size=8192\" vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck:tsc && npm run typecheck:scripts && npm run typecheck:e2e",
+    "typecheck": "bun run typecheck:tsc && bun run typecheck:scripts && bun run typecheck:e2e",
     "typecheck:tsc": "tsgo --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

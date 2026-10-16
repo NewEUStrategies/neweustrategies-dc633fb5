@@ -10,8 +10,9 @@ import base from "./vitest.config";
  * `CLOCK_SHIFT`. Progi, zakres pomiaru, pool i kolekcja testów zostają
  * nietknięte - to ten sam obiekt konfiguracji, rozszerzony o jedną pozycję.
  *
- * Powód istnienia osobnego pliku: vitest 4 nie ma już flagi `--setupFiles`
- * (jest tylko `-c/--config`), a zlecenie słusznie zabrania wpinania zamrożenia
+ * Powód istnienia osobnego pliku: ani vitest 4, ani vitest 5 nie mają flagi
+ * `--setupFiles` (opcja jest jawnie wyłączona z CLI; jest tylko
+ * `-c/--config`), a zlecenie słusznie zabrania wpinania zamrożenia
  * czy przesunięcia zegara na stałe w `vitest.config.ts`. Wrapper trzyma obie
  * te rzeczy naraz: konfiguracja produkcyjna zostaje bez zmian, a przesunięcie
  * podaje się doraźnie:

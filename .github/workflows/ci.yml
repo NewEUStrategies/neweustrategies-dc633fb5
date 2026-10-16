@@ -40,13 +40,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Wersje Node i Buna mają JEDNO źródło dla wszystkich workflowów:
+      # `.node-version` i `.bun-version` w korzeniu repo. Podbicie to zmiana
+      # jednego pliku, a nie kilkunastu kroków, które trzeba było podbijać
+      # równo. `bun.lock` zostaje przy `lockfileVersion: 1` - Bun 1.4 pisze v2
+      # wyłącznie przy świeżym lockfile'u, więc lockfile'a nie usuwamy.
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: .bun-version
 
       - name: Install dependencies
         id: install
@@ -143,11 +148,11 @@ jobs:
       # Keep tests and artifact measurements on the same Node runtime.
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: .bun-version
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -166,11 +171,11 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: .bun-version
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -242,7 +247,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: supabase/setup-cli@v1
+      # Wersja CLI jest przypięta, bo to ONA wybiera obrazy lokalnego stosu
+      # (Postgres i usługi), a `supabase/config.toml` nie ma `[db] major_version`
+      # - pływające `latest` po cichu zmieniłoby bazę, na której jadą testy.
+      # Pin trzymamy w parze z e2e.yml (job `e2e-seeded`); podbicie CLI dopiero
+      # razem z przypięciem `[db] major_version` do wersji produkcji.
+      #
+      # KOLEJNOŚĆ: setup-cli PRZED setup-bun. Akcja v3 instaluje CLI z npm
+      # skryptem uruchamianym na własnym Bunie (1.3.10 z `.bun-version` akcji)
+      # i kładzie tego Buna w `~/.bun/bin/bun` - w tym samym miejscu, którego
+      # używa setup-bun repo. Wygrywa instalacja późniejsza, więc dopiero
+      # setup-bun poniżej zostawia na PATH wersję z `.bun-version` repo.
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: "2.111.0"
 
@@ -252,7 +268,7 @@ jobs:
       # z bieżącego kodu, więc nie może się zestarzeć.
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: .bun-version
 
       - name: Install dependencies (generator kontraktu TS ⇄ SQL)
         run: bun install --frozen-lockfile
@@ -313,11 +329,11 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: .bun-version
 
       - name: Install PostgreSQL 16
         run: |
@@ -380,12 +396,12 @@ jobs:
       - uses: actions/setup-node@v7
         if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       - uses: oven-sh/setup-bun@v2
         if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
-          bun-version: "1.2.23"
+          bun-version-file: .bun-version
 
       - name: Install dependencies
         if: ${{ steps.creds.outputs.ready == 'true' }}

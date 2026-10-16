@@ -2,10 +2,11 @@
  * PRZESTAWIENIE ZEGARA PROCESU NA POTRZEBY POMIARU DŁUGU BOMB ZEGAROWYCH.
  *
  * Ten plik NIE jest wpięty w `vitest.config.ts` i nie może być. Podaje się go
- * doraźnie, obok stałego setupu repozytorium:
+ * doraźnie, obok stałego setupu repozytorium, przez konfigurację pomiarową
+ * `vitest.clockshift.config.ts` (CLI vitesta nie ma flagi `--setupFiles` -
+ * uzasadnienie w nagłówku tamtego pliku):
  *
- *   CLOCK_SHIFT=1y ./node_modules/.bin/vitest run \
- *     --setupFiles ./vitest.setup.ts --setupFiles ./scripts/vitest/clockShiftSetup.ts
+ *   CLOCK_SHIFT=1y ./node_modules/.bin/vitest run -c vitest.clockshift.config.ts
  *
  * PO CO. Bomba zegarowa w teście to literał daty, którego odległość od „teraz"
  * rośnie z każdą dobą, aż przekroczy okno czytane przez produkcję z prawdziwego

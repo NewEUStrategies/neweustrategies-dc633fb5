@@ -66,12 +66,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Ten sam runtime co pozostałe workflowy pomiarowe. Bez instalacji
+      # Ten sam runtime co pozostałe workflowy pomiarowe (`.node-version`
+      # w korzeniu repo, wspólne źródło wszystkich workflowów). Bez instalacji
       # zależności: próbnik importuje wyłącznie moduły wbudowane node i dwa
       # pliki .ts z repo (type stripping node 24).
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       - name: Check that the PSI_API_KEY secret is set
         id: key

@@ -49,13 +49,14 @@ jobs:
       #
       # ZAKRES (wejścia `build:smoke`, które zmieniają dokument albo graf chunków):
       #   - `src/` - kod aplikacji;
-      #   - `scripts/lib/` - wtyczki Vite i podział chunków, które importują
-      #     `vite.config.ts` i `vite.smoke.config.ts` (bootVendorSplit,
-      #     routeCodeSplitting, widgetChunkPlugin, localeChunkPlugin,
-      #     chunkInventoryPlugin, adminCssPlugin, officeParserTrim);
+      #   - `scripts/lib/` - wtyczki Vite 8 i reguły podziału chunków dla
+      #     Rolldowna (bundler) i Oxc (transformacja, minifikacja JS), które
+      #     importują `vite.config.ts` i `vite.smoke.config.ts`; ich lista to
+      #     importy obu konfiguracji - celowo nie powielamy jej tutaj, bo
+      #     wyliczanka rozjeżdżała się z nimi przy każdej nowej wtyczce;
       #   - `public/` - pliki kopiowane do artefaktu;
       #   - `vite*.config.ts` (także nowy albo usunięty), `tsconfig.json`
-      #     (aliasy ścieżek, JSX);
+      #     (aliasy ścieżek, ustawienia JSX czytane przez transformację Oxc);
       #   - `package.json` i `bun.lock` - zakresy i zamrożone wersje zależności.
       # Poza zakresem zostają m.in. `scripts/` poza `lib/` (narzędzia CI
       # i pomiaru), docs/, testy e2e i workflowy. Niezależnie od filtru bramka
@@ -94,12 +95,18 @@ jobs:
             echo "A/B Lighthouse'a pominiete - brak zmian w src/, scripts/lib/, public/, vite*.config.ts, tsconfig.json, package.json ani bun.lock"
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
+      # Wersje Node i Buna z `candidate/` (`.node-version`, `.bun-version` -
+      # wspólne źródło wszystkich workflowów). Baseline buduje i mierzy ten sam
+      # runtime w tym samym jobie, więc podbicie toolchainu nie jest różnicą A/B
+      # i nie wchodzi do filtru wyżej. Ścieżka MUSI wskazywać checkout:
+      # setup-bun przy brakującym pliku tylko ostrzega i instaluje najnowszego
+      # Buna.
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: candidate/.node-version
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: candidate/.bun-version
       - name: Install candidate dependencies and the common browser
         run: |
           cd candidate
@@ -153,7 +160,8 @@ jobs:
       # Osobne `--json`: domyślna ścieżka raportu jest wspólna i drugie
       # wywołanie nadpisałoby pierwsze.
       #
-      # Progi to ratchet z pomiaru node 22 w sandboksie; runner ma node 24.19.
+      # Progi to ratchet z pomiaru node 22 w sandboksie; runner ma node 24
+      # z `.node-version`.
       # `--ratchet` progów NIE podnosi (Math.min) - gdyby pierwszy przebieg na
       # runnerze wyszedł ponad próg na bazie, ponowne ustalenie progów jest
       # ręcznym commitem z pomiarem z logu runnera i uzasadnieniem w `_comment`.
