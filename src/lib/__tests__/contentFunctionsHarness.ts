@@ -39,7 +39,6 @@ export interface ServerFnSpec {
 export interface ServerFnChain {
   middleware: (middleware: unknown) => ServerFnChain;
   validator: (validator: Validator) => ServerFnChain;
-  inputValidator: (validator: Validator) => ServerFnChain;
   handler: (handler: Handler) => ServerFnSpec;
 }
 
@@ -53,10 +52,6 @@ export function createServerFnStub(): ServerFnChain {
   const chain: ServerFnChain = {
     middleware: () => chain,
     validator: (validator) => {
-      spec.validator = validator;
-      return chain;
-    },
-    inputValidator: (validator) => {
       spec.validator = validator;
       return chain;
     },

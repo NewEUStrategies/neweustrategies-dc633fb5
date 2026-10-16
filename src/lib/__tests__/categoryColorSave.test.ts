@@ -28,7 +28,6 @@ interface ServerFnSpec {
 interface ServerFnChain {
   middleware: (middleware: unknown) => ServerFnChain;
   validator: (validator: Validator) => ServerFnChain;
-  inputValidator: (validator: Validator) => ServerFnChain;
   handler: (handler: Handler) => ServerFnSpec;
 }
 
@@ -40,10 +39,6 @@ vi.mock("@tanstack/react-start", () => {
     const chain: ServerFnChain = {
       middleware: () => chain,
       validator: (validator) => {
-        spec.validator = validator;
-        return chain;
-      },
-      inputValidator: (validator) => {
         spec.validator = validator;
         return chain;
       },

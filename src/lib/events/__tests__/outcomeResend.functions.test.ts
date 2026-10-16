@@ -37,7 +37,7 @@ vi.mock("@tanstack/react-start", () => ({
     let validate: ((data: unknown) => unknown) | undefined;
     const api = {
       middleware: () => api,
-      inputValidator: (fn: (data: unknown) => unknown) => {
+      validator: (fn: (data: unknown) => unknown) => {
         validate = fn;
         return api;
       },

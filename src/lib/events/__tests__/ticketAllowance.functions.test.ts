@@ -43,7 +43,7 @@ vi.mock("@tanstack/react-start", () => ({
         spec.middleware = chain;
         return api;
       },
-      inputValidator: () => {
+      validator: () => {
         spec.validators += 1;
         return api;
       },
@@ -96,7 +96,7 @@ describe("wystawienie funkcji serwerowej", () => {
   });
 
   it("nie deklaruje ŻADNEGO wejścia - wołający nie ma czym sterować odczytem", () => {
-    // Brak `inputValidator` to nie zaniedbanie, tylko cały kontrakt tej trasy:
+    // Brak `validator` to nie zaniedbanie, tylko cały kontrakt tej trasy:
     // pulę wyznacza sesja (`auth.uid()` w RPC), więc nie istnieje pole, które
     // klient mógłby podać. Dopisanie tu walidatora - choćby po to, żeby
     // „przyjąć opcjonalny `orgId`" - otwiera pierwszą szczelinę, przez którą

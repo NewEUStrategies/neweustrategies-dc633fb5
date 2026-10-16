@@ -23,14 +23,12 @@ vi.mock("@tanstack/react-start", () => {
   interface Chain {
     middleware: () => Chain;
     validator: () => Chain;
-    inputValidator: () => Chain;
     handler: (h: unknown) => { handler: unknown };
   }
   const createServerFn = (): Chain => {
     const chain: Chain = {
       middleware: () => chain,
       validator: () => chain,
-      inputValidator: () => chain,
       handler: (h: unknown) => ({ handler: h }),
     };
     return chain;
