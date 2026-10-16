@@ -411,10 +411,8 @@ function ConsentFlagSvg({ code }: { code: "pl" | "gb" }) {
   return (
     <svg viewBox="0 0 60 40" aria-hidden="true">
       <rect width="60" height="40" fill="#012169" />
-      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#ffffff" strokeWidth="8" />
-      <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="4" />
-      <path d="M30,0 v40 M0,20 h60" stroke="#ffffff" strokeWidth="10" />
-      <path d="M30,0 v40 M0,20 h60" stroke="#C8102E" strokeWidth="6" />
+      <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#ffffff" strokeWidth="9" />
+      <path d="M0,0 60,40M60,0 0,40M30,0v40M0,20h60" stroke="#C8102E" strokeWidth="5" />
     </svg>
   );
 }
