@@ -645,7 +645,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // Na serwerze to czysty odczyt (żadnej mutacji współdzielonego singletona).
   // PRZED `head()`: TypeScript wnioskuje typ `beforeLoad` z kolejnych funkcji
   // literału, a `head` czyta kontekst trasy, który od niego zależy.
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location }): Promise<void> => {
     await syncI18nToRequest(location.publicHref).catch(() => undefined);
   },
   head: (ctx) => {
