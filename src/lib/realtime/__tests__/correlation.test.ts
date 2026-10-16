@@ -79,6 +79,71 @@ describe("correlation tracker", () => {
     await assertion;
   });
 
+  it("two waiters on one id: the first timeout keeps the second waiting", async () => {
+    rpcMock.mockResolvedValue({ data: [], error: null });
+    const short = awaitDomainEvent(CID, { timeoutMs: 100 });
+    const long = awaitDomainEvent(CID, { timeoutMs: 5000 });
+    const shortRejected = expect(short).rejects.toBeInstanceOf(CorrelationTimeoutError);
+    expect(pendingCorrelationCount()).toBe(2);
+
+    await vi.advanceTimersByTimeAsync(150);
+    await shortRejected;
+    // Wygasł tylko krótszy - drugi waiter wciąż czeka na strumień.
+    expect(pendingCorrelationCount()).toBe(1);
+
+    feedCorrelationTracker(eventOf(CID));
+    await expect(long).resolves.toMatchObject({ correlation_id: CID });
+    expect(pendingCorrelationCount()).toBe(0);
+  });
+
+  it("the database fallback honours the event-type filter", async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: [eventOf(CID, "comment.created.v1"), eventOf(CID, "crm_lead.stage_changed.v1")],
+      error: null,
+    });
+    const promise = awaitDomainEvent(CID, {
+      timeoutMs: 100,
+      eventTypes: ["crm_lead.stage_changed.v1"],
+    });
+    await vi.advanceTimersByTimeAsync(150);
+    await expect(promise).resolves.toMatchObject({ event_type: "crm_lead.stage_changed.v1" });
+  });
+
+  it("a fallback with only other event types still rejects", async () => {
+    rpcMock.mockResolvedValueOnce({ data: [eventOf(CID, "comment.created.v1")], error: null });
+    const promise = awaitDomainEvent(CID, {
+      timeoutMs: 100,
+      eventTypes: ["crm_lead.stage_changed.v1"],
+    });
+    const assertion = expect(promise).rejects.toBeInstanceOf(CorrelationTimeoutError);
+    await vi.advanceTimersByTimeAsync(150);
+    await assertion;
+  });
+
+  it("a failing fallback RPC rejects with CorrelationTimeoutError, not the RPC error", async () => {
+    // Wołający (useEventConfirmedMutation) rozróżnia wyłącznie "potwierdzone"
+    // i "brak potwierdzenia" - błąd bazy nie może wyciec jako trzeci stan.
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "permission denied" } });
+    const promise = awaitDomainEvent(CID, { timeoutMs: 100 });
+    const assertion = expect(promise).rejects.toBeInstanceOf(CorrelationTimeoutError);
+    await vi.advanceTimersByTimeAsync(150);
+    await assertion;
+  });
+
+  it("a fallback RPC with null data counts as no trace", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: null });
+    const promise = awaitDomainEvent(CID, { timeoutMs: 100 });
+    const assertion = expect(promise).rejects.toBeInstanceOf(CorrelationTimeoutError);
+    await vi.advanceTimersByTimeAsync(150);
+    await assertion;
+  });
+
+  it("feeding an event without correlation id is a no-op", () => {
+    const pending = pendingCorrelationCount();
+    feedCorrelationTracker(eventOf(null));
+    expect(pendingCorrelationCount()).toBe(pending);
+  });
+
   it("runWithCorrelation exposes the id only for the duration of fn", async () => {
     expect(currentCorrelationId()).toBeNull();
     await runWithCorrelation(CID, async () => {

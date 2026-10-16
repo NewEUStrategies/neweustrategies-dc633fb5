@@ -132,7 +132,7 @@ export const Route = createFileRoute("/qa")({
         title: (lang === "en" ? s.titleEn : s.titlePl) || s.slug,
       })),
     });
-    const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/qa" }], origin, lang);
+    const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/qa" }], origin, lang, url);
     return {
       ...head,
       scripts: [

@@ -178,6 +178,7 @@ export const Route = createFileRoute("/tracker/$slug")({
       ],
       origin,
       lang,
+      url,
     );
     // Autodiscovery kanału trackera także ze strony dossier: czytnik dodany z
     // konkretnego dossier subskrybuje strumień zmian całego trackera (kanał

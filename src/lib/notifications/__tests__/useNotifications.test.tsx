@@ -86,6 +86,7 @@ import {
   useNotificationsInfinite,
   useNotificationsRealtime,
   useUnreadCount,
+  useUnreadCountExcluding,
   useUpdateNotificationPreferences,
 } from "../useNotifications";
 
@@ -432,6 +433,38 @@ describe("useUnreadCount", () => {
   });
 });
 
+describe("useUnreadCountExcluding", () => {
+  // Dzwonek nie pokazuje czatu, więc nie może czytać zmaterializowanego
+  // licznika (liczy WSZYSTKO) - liczy własne wiersze zapytaniem `head: true`.
+  it("liczy nieprzeczytane BEZ wskazanych rodzajów jednym zapytaniem bez wierszy", async () => {
+    db().setResponse("notifications", okCount(4));
+    const { result } = renderHookWithQueryClient(() => useUnreadCountExcluding(["message"]));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(4);
+    const chain = db().lastChain("notifications");
+    expect(chain?.argsOf("select")).toEqual(["id", { count: "exact", head: true }]);
+    expect(chain?.argsOf("is")).toEqual(["read_at", null]);
+    expect(chain?.argsOf("not")).toEqual(["kind", "in", "(message)"]);
+    expect(db().chainsFor("user_pending_counters")).toHaveLength(0);
+  });
+
+  it("brak licznika w odpowiedzi to zero, nie undefined", async () => {
+    db().setResponse("notifications", ok(null));
+    const { result } = renderHookWithQueryClient(() => useUnreadCountExcluding(["message"]));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(0);
+  });
+
+  it("błąd zapytania RZUCA - badge dzwonka nie pokazuje wyssanego zera", async () => {
+    db().setResponse("notifications", fail("permission denied", "42501"));
+    const { result } = renderHookWithQueryClient(() => useUnreadCountExcluding(["message"]));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+
 describe("useMarkNotificationRead", () => {
   it("aktualizuje TYLKO wskazany, jeszcze nieprzeczytany wiersz", async () => {
     // `.is("read_at", null)` w warunku jest istotne: bez niego ponowne
@@ -547,6 +580,15 @@ describe("useMarkNotificationsRead / useMarkNotificationsUnread (wsad)", () => {
       p_ids: ["n-1", "n-2", "n-3"],
     });
     expect(invalidatedKeys(spy)).toEqual([["notifications"], COUNT_KEY]);
+  });
+
+  it("RPC odznaczania bez liczby w odpowiedzi daje 0", async () => {
+    rpc().setData("mark_notifications_unread", null);
+    const { result } = renderHookWithQueryClient(() => useMarkNotificationsUnread());
+
+    await act(async () => {
+      await expect(result.current.mutateAsync(["n-1"])).resolves.toBe(0);
+    });
   });
 
   it("PUSTA lista nie woła RPC odznaczania", async () => {

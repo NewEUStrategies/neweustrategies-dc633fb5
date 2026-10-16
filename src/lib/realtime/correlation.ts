@@ -77,11 +77,11 @@ export async function awaitDomainEvent(
       reject,
       eventTypes,
       timer: setTimeout(() => {
+        // Timer odpala tylko waiter, którego strumień nie rozwiązał (tamta
+        // ścieżka czyści timer), więc jego zbiór nadal istnieje.
         const set = waiters.get(correlationId);
-        if (set) {
-          set.delete(waiter);
-          if (set.size === 0) waiters.delete(correlationId);
-        }
+        set?.delete(waiter);
+        if (set?.size === 0) waiters.delete(correlationId);
         // Ostatnia szansa: realtime mógł zgubić ramkę - spytaj bazę wprost.
         void fetchCorrelatedEvents(correlationId)
           .then((events) => {

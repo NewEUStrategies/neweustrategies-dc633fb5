@@ -96,6 +96,27 @@ describe("isInternalHref", () => {
     // prowadziłby gdzie indziej z każdego ekranu - to nie jest adres.
     expect(isInternalHref("messages")).toBe(false);
   });
+
+  // Przeglądarka czyta `\` w adresie http(s) jak `/`, a tab i nową linię
+  // wycina przed parsowaniem - każdy z tych zapisów to w praktyce `//evil...`.
+  // Kontrola: ten sam zapis rozwinięty przez parser URL trafia na obcy host.
+  for (const href of [
+    "/\\evil.example/x",
+    "/\t/evil.example/x",
+    "/\n/evil.example/x",
+    "\t//evil.example/x",
+    "/\r\n/evil.example/x",
+  ]) {
+    it(`ODRZUCA ${JSON.stringify(href)}, który parser URL rozwija na obcy host`, () => {
+      expect(new URL(href, "https://app.example").host).toBe("evil.example");
+      expect(isInternalHref(href)).toBe(false);
+    });
+  }
+
+  it("ścieżka z tabem w środku nadal jest wewnętrzna (host się nie zmienia)", () => {
+    expect(isInternalHref("/mess\tages")).toBe(true);
+    expect(isInternalHref("/")).toBe(true);
+  });
 });
 
 describe("isPlainLeftClick", () => {
@@ -178,6 +199,21 @@ describe("notificationActorId", () => {
     // ręczne cięcie po `&` i `=`, id wróciłoby zakodowane i nie trafiłoby
     // w żaden `connection_id` z RPC.
     expect(notificationActorId("/messages?c=id%20ze%20spacja")).toBe("id ze spacja");
+  });
+
+  it("ignoruje `c` we fragmencie (#) - to nie jest parametr zapytania", () => {
+    expect(notificationActorId(`/messages#c=${ACTOR_ID}`)).toBeNull();
+    expect(notificationActorId(`/messages?tab=x#c=${ACTOR_ID}`)).toBeNull();
+    expect(notificationActorId(`/messages?c=${ACTOR_ID}#c=inny`)).toBe(ACTOR_ID);
+  });
+
+  it("czyta `c` tak jak parser URL: znak `+` to spacja, tab jest wycinany", () => {
+    expect(notificationActorId("/messages?c=a+b")).toBe("a b");
+    expect(notificationActorId(`/messages?\tc=${ACTOR_ID}`)).toBe(ACTOR_ID);
+  });
+
+  it("zwraca null dla odwrotnego ukośnika udającego ścieżkę wewnętrzną", () => {
+    expect(notificationActorId(`/\\evil.example/messages?c=${ACTOR_ID}`)).toBeNull();
   });
 
   it("zwraca pusty napis dla `c=` bez wartości, a nie null", () => {

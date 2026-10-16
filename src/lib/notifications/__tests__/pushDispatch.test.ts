@@ -44,6 +44,16 @@ const h = vi.hoisted(() => {
     tableErrors: new Map<string, unknown>(),
     /** nazwa RPC -> błąd wywołania (brak wpisu = sukces). */
     rpcErrors: new Map<string, unknown>(),
+    /** Błąd dla KONKRETNEGO wywołania (np. jednego zadania w raporcie per zadanie). */
+    rpcErrorFor: null as ((name: string, args: Record<string, unknown>) => unknown) | null,
+    /** endpoint -> wyjątek `sendWebPush` (timeout, błąd sieci). */
+    sendThrows: new Map<string, Error>(),
+    /** Konfiguracja VAPID z env; null = push wyłączony. */
+    vapid: {
+      publicKey: "test-public-key",
+      privateKey: "test-private-key",
+      subject: "mailto:test@example.com",
+    } as { publicKey: string; privateKey: string; subject: string } | null,
   };
   return { state };
 });
@@ -82,7 +92,7 @@ vi.mock("@/integrations/supabase/client.server", () => {
       from: (table: string) => chainFor(table),
       rpc: (name: string, args: Record<string, unknown>) => {
         h.state.rpcCalls.push({ name, args });
-        const error = h.state.rpcErrors.get(name);
+        const error = h.state.rpcErrors.get(name) ?? h.state.rpcErrorFor?.(name, args);
         if (error) return Promise.resolve({ data: null, error });
         if (name === "claim_push_jobs") return Promise.resolve({ data: h.state.jobs, error: null });
         return Promise.resolve({ data: null, error: null });
@@ -95,11 +105,7 @@ vi.mock("@/lib/notifications/webpush.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/notifications/webpush.server")>();
   return {
     ...actual,
-    vapidFromEnv: () => ({
-      publicKey: "test-public-key",
-      privateKey: "test-private-key",
-      subject: "mailto:test@example.com",
-    }),
+    vapidFromEnv: () => h.state.vapid,
     sendWebPush: vi.fn(
       async (
         sub: PushSubscriptionKeys,
@@ -114,6 +120,8 @@ vi.mock("@/lib/notifications/webpush.server", async (importOriginal) => {
           ttlSec: options?.ttlSec,
           urgency: options?.urgency,
         });
+        const thrown = h.state.sendThrows.get(sub.endpoint);
+        if (thrown) throw thrown;
         const queue = h.state.responses.get(sub.endpoint);
         const next = queue && queue.length > 1 ? queue.shift() : queue?.[0];
         return {
@@ -130,6 +138,7 @@ vi.mock("@/lib/notifications/webpush.server", async (importOriginal) => {
 });
 
 const { processPushJobs } = await import("@/lib/notifications/dispatch.server");
+const { pushTopic } = await import("@/lib/notifications/webpush.server");
 
 const TENANT_A = "11111111-1111-1111-1111-111111111111";
 const TENANT_B = "22222222-2222-2222-2222-222222222222";
@@ -192,6 +201,14 @@ describe("processPushJobs", () => {
     h.state.responses = new Map();
     h.state.tableErrors = new Map();
     h.state.rpcErrors = new Map();
+    h.state.rpcErrorFor = null;
+    h.state.sendThrows = new Map();
+    h.state.vapid = {
+      publicKey: "test-public-key",
+      privateKey: "test-private-key",
+      subject: "mailto:test@example.com",
+    };
+    vi.restoreAllMocks();
   });
 
   it("wysyła na wszystkie urządzenia odbiorcy i raportuje sukces raz na zadanie", async () => {
@@ -493,5 +510,211 @@ describe("processPushJobs", () => {
       { p_id: 2, p_ok: false, p_dead: true },
     ]);
     error.mockRestore();
+  });
+  // Brak kluczy VAPID wygląda w logu identycznie jak pusta kolejka, więc
+  // pominięcie ma nazwę - i NIE zajmuje partii, bo nic by jej nie wysłało.
+  it("bez kluczy VAPID nie zajmuje partii i nazywa pominięcie", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.state.vapid = null;
+    h.state.jobs = [job(1)];
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 0, sent: 0, skipped: "vapid_not_configured" });
+    expect(rpcs("claim_push_jobs")).toHaveLength(0);
+    expect(String(warn.mock.calls[0]?.[0])).toContain("brak VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY");
+  });
+
+  it("błąd claimu rzuca - scheduler widzi przyczynę zamiast pustej kolejki", async () => {
+    const claimError = { code: "57014", message: "statement timeout" };
+    h.state.rpcErrors.set("claim_push_jobs", claimError);
+
+    await expect(processPushJobs(25)).rejects.toBe(claimError);
+    expect(rpcs("claim_push_jobs")).toEqual([{ name: "claim_push_jobs", args: { p_limit: 25 } }]);
+    expect(h.state.tableFilters).toHaveLength(0);
+  });
+
+  it("claim zwracający null to pusta partia", async () => {
+    h.state.jobs = null as unknown as unknown[];
+
+    expect(await processPushJobs()).toEqual({ claimed: 0, sent: 0 });
+  });
+
+  it("payload bez pól dostaje markę, pustą treść, href '/' i temat 'notification'", async () => {
+    h.state.jobs = [job(1, { payload: null as unknown as Record<string, unknown> })];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+
+    await processPushJobs();
+
+    const [sent] = sends();
+    expect(sent.payload).toMatchObject({
+      title: "New European Strategies",
+      body: "",
+      href: "/",
+      lang: "pl",
+    });
+    expect(sent.topic).toBe(pushTopic("notification", "/"));
+    expect(reported()).toEqual([{ id: 1, ok: true, dead: false }]);
+  });
+
+  it("odbiorca EN bez treści EN dostaje treść PL, a odbiorca PL bez PL - EN", async () => {
+    const OTHER = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    h.state.jobs = [
+      job(1, { payload: { kind: "message", title_pl: "Tytuł", body_pl: "Tylko PL" } }),
+      job(2, {
+        user_id: OTHER,
+        payload: { kind: "message", title_en: "Title", body_en: "Only EN" },
+      }),
+    ];
+    h.state.subscriptions = [
+      device("https://fcm.example/en"),
+      device("https://fcm.example/pl", TENANT_A, OTHER),
+    ];
+    // prefs: null to profil bez ustawień - język domyślny, nie wyjątek.
+    h.state.profiles = [
+      { id: USER, prefs: { locale: "en" }, tenant_id: TENANT_A },
+      { id: OTHER, prefs: null, tenant_id: TENANT_A },
+    ];
+
+    await processPushJobs();
+
+    const byEndpoint = new Map(sends().map((s) => [s.endpoint, s.payload]));
+    expect(byEndpoint.get("https://fcm.example/en")).toMatchObject({
+      lang: "en",
+      title: "Tytuł",
+      body: "Tylko PL",
+    });
+    expect(byEndpoint.get("https://fcm.example/pl")).toMatchObject({
+      lang: "pl",
+      title: "Title",
+      body: "Only EN",
+    });
+  });
+
+  // Timeout 10 s albo błąd sieci na jednym urządzeniu: każde następne zadanie
+  // tej kolejki czekałoby kolejne 10 s z 25-sekundowego budżetu ticku. Reszta
+  // kolejki wraca do kolejki bez ruchu sieciowego, inne urządzenia jadą dalej.
+  it("wyjątek wysyłki ucina kolejkę urządzenia jako błąd przechodni", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1), job(2), job(3)];
+    h.state.subscriptions = [device("https://fcm.example/hung"), device("https://fcm.example/ok")];
+    h.state.sendThrows.set("https://fcm.example/hung", new Error("The operation was aborted"));
+
+    const result = await processPushJobs();
+
+    // Jedna próba (ta, która rzuciła), dwie pozostałe bez ruchu sieciowego.
+    expect(sends().filter((s) => s.endpoint === "https://fcm.example/hung")).toHaveLength(1);
+    expect(sends().filter((s) => s.endpoint === "https://fcm.example/ok")).toHaveLength(3);
+    // Drugie urządzenie dostarczyło - wygrywa; endpoint z wyjątkiem NIE jest
+    // oznaczany jako martwy (to nie 410).
+    expect(result).toEqual({ claimed: 3, sent: 3 });
+    expect(rpcs("mark_push_subscription_failed")).toHaveLength(0);
+    expect(String(error.mock.calls[0]?.[0])).toContain("3 zadań urządzenia wraca do kolejki");
+  });
+
+  it("wyjątek wysyłki na jedynym urządzeniu zostawia zadania do retry, nie w dead", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1), job(2)];
+    h.state.subscriptions = [device("https://fcm.example/hung")];
+    h.state.sendThrows.set("https://fcm.example/hung", new Error("fetch failed"));
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 2, sent: 0 });
+    expect(reported()).toEqual([
+      { id: 1, ok: false, dead: false },
+      { id: 2, ok: false, dead: false },
+    ]);
+  });
+
+  // RFC 8030 sek. 8.4: 429/503 z Retry-After każe odczekać. Kolejne żądania na
+  // to samo urządzenie w tym ticku tylko przedłużają dławienie.
+  it("odmowa z Retry-After ucina resztę kolejki urządzenia do retry", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.state.jobs = [job(1), job(2), job(3)];
+    h.state.subscriptions = [device("https://fcm.example/busy")];
+    h.state.responses.set("https://fcm.example/busy", [
+      { ok: false, status: 429, retryAfterSec: 30 },
+    ]);
+
+    const result = await processPushJobs();
+
+    expect(sends()).toHaveLength(1);
+    expect(result).toEqual({ claimed: 3, sent: 0 });
+    expect(reported()).toEqual([
+      { id: 1, ok: false, dead: false },
+      { id: 2, ok: false, dead: false },
+      { id: 3, ok: false, dead: false },
+    ]);
+    expect(rpcs("mark_push_subscription_failed")).toHaveLength(0);
+    const logged = warn.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logged).toContain("push throttled (429), retry-after 30s - 2 zadań urządzenia");
+  });
+
+  it("Retry-After przy sukcesie nie ucina kolejki", async () => {
+    h.state.jobs = [job(1), job(2)];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+    h.state.responses.set("https://fcm.example/a", [{ ok: true, status: 201, retryAfterSec: 5 }]);
+
+    expect(await processPushJobs()).toEqual({ claimed: 2, sent: 2 });
+    expect(sends()).toHaveLength(2);
+  });
+
+  it("błąd raportu jednego zadania w trybie per zadanie nie zabiera raportu reszcie", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1), job(2), job(3)];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+    h.state.rpcErrors.set("report_push_jobs", { message: "deadlock detected", code: "40P01" });
+    h.state.rpcErrorFor = (name, args) =>
+      name === "report_push_job" && args.p_id === 2 ? { message: "row lock timeout" } : null;
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 3, sent: 3 });
+    expect(rpcs("report_push_job").map((call) => call.args.p_id)).toEqual([1, 2, 3]);
+    const logged = error.mock.calls.map((call) => String(call[0]));
+    expect(logged).toContain("[community] report_push_jobs - przejście na raport per zadanie");
+    expect(logged.filter((line) => line === "[community] report_push_job")).toHaveLength(1);
+  });
+
+  it("błąd oznaczania martwego endpointu jest logowany, a partia i tak raportowana", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1)];
+    h.state.subscriptions = [device("https://fcm.example/dead")];
+    h.state.responses.set("https://fcm.example/dead", [{ ok: false, gone: true, status: 404 }]);
+    h.state.rpcErrors.set("mark_push_subscription_failed", { message: "permission denied" });
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 1, sent: 0 });
+    expect(reported()).toEqual([{ id: 1, ok: false, dead: true }]);
+    expect(error.mock.calls.map((call) => String(call[0]))).toContain(
+      "[community] mark_push_subscription_failed",
+    );
+  });
+
+  it("odczyt subskrypcji bez błędu i bez danych to odbiorcy bez urządzeń", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    h.state.jobs = [job(1)];
+    h.state.subscriptions = null as unknown as unknown[];
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 1, sent: 0 });
+    expect(sends()).toHaveLength(0);
+    expect(reported()).toEqual([{ id: 1, ok: false, dead: true }]);
+  });
+
+  it("dwa urządzenia martwe: zadanie dead dopiero, gdy odpadły WSZYSTKIE", async () => {
+    h.state.jobs = [job(1)];
+    h.state.subscriptions = [device("https://fcm.example/x"), device("https://fcm.example/y")];
+    h.state.responses.set("https://fcm.example/x", [{ ok: false, gone: true, status: 410 }]);
+    h.state.responses.set("https://fcm.example/y", [{ ok: false, status: 500 }]);
+
+    await processPushJobs();
+
+    // Jedno urządzenie odpadło, drugie miało błąd przechodni - retry, nie dead.
+    expect(reported()).toEqual([{ id: 1, ok: false, dead: false }]);
+    expect(rpcs("mark_push_subscription_failed")).toHaveLength(1);
   });
 });

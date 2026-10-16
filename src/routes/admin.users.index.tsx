@@ -65,6 +65,7 @@ import {
   resendInvitationsForEmails,
   sendActivationEmailForUser,
 } from "@/lib/admin/invitations.functions";
+import { invitationErrorKey } from "@/lib/admin/invitationErrors";
 import { deleteUserAccount, getUserAccountStatus } from "@/lib/admin/accountAdmin.functions";
 import { accountAdminErrorKey } from "@/lib/admin/accountAdminErrors";
 import { adminUsersQueryOptions, type AdminUserRow } from "@/lib/admin/users-query";
@@ -947,9 +948,9 @@ function UserActionsMenu({
       const result = await sendActivation({ data: { userId: account.id } });
       if (!result.ok) {
         throw new Error(
-          result.error === "activation_send_limit_reached"
-            ? t("adminUsers.activationSendLimitReached")
-            : (result.error ?? t("adminUsers.activationResendError")),
+          result.error
+            ? t(invitationErrorKey(result.error))
+            : t("adminUsers.activationResendError"),
         );
       }
       toast.success(t("adminUsers.activationResent"));

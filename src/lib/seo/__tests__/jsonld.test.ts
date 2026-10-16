@@ -8,6 +8,8 @@ import {
   safeJsonLd,
   siteNavigationJsonLd,
   webSiteJsonLd,
+  type BreadcrumbListJsonLd,
+  type BreadcrumbTrail,
   type ContactPointInput,
   type QaJsonLdQuestion,
   type SiteNavigationItem,
@@ -79,11 +81,31 @@ describe("webSiteJsonLd", () => {
 });
 
 describe("breadcrumbListJsonLd", () => {
-  const items: BreadcrumbItem[] = [{ label: "Blog", href: "/blog" }, { label: "Tytuł wpisu" }];
+  const items: BreadcrumbTrail = [{ label: "Blog", href: "/blog" }, { label: "Tytuł wpisu" }];
+
+  /**
+   * Wymagania Google dla wyniku z okruszkami, sprawdzane na KAŻDYM grafie
+   * z tego bloku: co najmniej dwie pozycje, pozycje 1..n bez dziur, każda
+   * z niepustą nazwą i absolutnym `item`. Brak `item` to dokładnie błąd
+   * „Brakujące pole item (w itemListElement)" z Search Console.
+   */
+  function expectValidForGoogle(ld: BreadcrumbListJsonLd | null): BreadcrumbListJsonLd {
+    expect(ld).not.toBeNull();
+    const graph = ld as BreadcrumbListJsonLd;
+    expect(graph["@type"]).toBe("BreadcrumbList");
+    expect(graph.itemListElement.length).toBeGreaterThanOrEqual(2);
+    graph.itemListElement.forEach((el, i) => {
+      expect(el["@type"]).toBe("ListItem");
+      expect(el.position).toBe(i + 1);
+      expect(el.name.trim()).not.toBe("");
+      expect(el.item).toMatch(/^https?:\/\/[^/]+(\/|$)/);
+      expect(el.item).not.toMatch(/https?:\/\/.*https?:\/\//);
+    });
+    return graph;
+  }
+
   it("prepends Home and localizes hrefs", () => {
-    const ld = breadcrumbListJsonLd(items, ORIGIN, "en") as {
-      itemListElement: Array<{ position: number; name: string; item?: string }>;
-    };
+    const ld = expectValidForGoogle(breadcrumbListJsonLd(items, ORIGIN, "en", "/blog/wpis"));
     expect(ld.itemListElement).toHaveLength(3);
     expect(ld.itemListElement[0]).toEqual({
       "@type": "ListItem",
@@ -93,26 +115,113 @@ describe("breadcrumbListJsonLd", () => {
     });
     expect(ld.itemListElement[1]?.item).toBe(`${ORIGIN}/en/blog`);
   });
+
   it("uses bare paths for the default language", () => {
-    const ld = breadcrumbListJsonLd(items, ORIGIN, "pl") as {
-      itemListElement: Array<{ name: string; item?: string }>;
-    };
+    const ld = expectValidForGoogle(breadcrumbListJsonLd(items, ORIGIN, "pl", "/blog/wpis"));
     expect(ld.itemListElement[0]?.name).toBe("Start");
     expect(ld.itemListElement[1]?.item).toBe(`${ORIGIN}/blog`);
   });
+
   // Search Console zgłaszał „Brakujące pole item (w itemListElement)" na
-  // archiwach: ostatni ListItem nie nosił adresu. `selfPath` domyka kontrakt.
+  // archiwach (wrzesień 2026), a potem na profilach organizacji (październik
+  // 2026): ostatni ListItem nie nosił adresu. `selfPath` jest teraz wymagany.
   it("gives the last crumb an item from selfPath", () => {
-    const ld = breadcrumbListJsonLd(items, ORIGIN, "pl", "/analizy/atom") as {
-      itemListElement: Array<{ item?: string }>;
-    };
+    const ld = expectValidForGoogle(breadcrumbListJsonLd(items, ORIGIN, "pl", "/analizy/atom"));
     expect(ld.itemListElement[2]?.item).toBe(`${ORIGIN}/analizy/atom`);
   });
+
   it("does not double the language prefix when selfPath is already localized", () => {
-    const ld = breadcrumbListJsonLd(items, ORIGIN, "en", "/en/analizy/atom") as {
-      itemListElement: Array<{ item?: string }>;
-    };
+    const ld = expectValidForGoogle(breadcrumbListJsonLd(items, ORIGIN, "en", "/en/analizy/atom"));
     expect(ld.itemListElement[2]?.item).toBe(`${ORIGIN}/en/analizy/atom`);
+  });
+
+  it("accepts the full SSR request URL as selfPath (no doubled origin)", () => {
+    // `getRequestUrl()` w SSR zwraca adres absolutny. Sklejanie go z originem
+    // dawało w produkcji `https://host/https://host/blog` i `@id`
+    // `https://hosthttps://host/blog#breadcrumbs`.
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd(
+        [{ label: "Organizacje", href: "/search" }, { label: "NATO" }],
+        ORIGIN,
+        "en",
+        `${ORIGIN}/en/organization/nato?page=2#ludzie`,
+      ),
+    );
+    expect(ld.itemListElement[2]?.item).toBe(`${ORIGIN}/en/organization/nato`);
+    expect(ld["@id"]).toBe(`${ORIGIN}/en/organization/nato#breadcrumbs`);
+  });
+
+  it("drops query and fragment from a relative selfPath too", () => {
+    // Render klienta dostaje sam path z query - musi dać ten sam adres co SSR.
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd([{ label: "Tag" }], ORIGIN, "pl", "/tag/nato?page=3&sort=old#top"),
+    );
+    expect(ld.itemListElement[1]?.item).toBe(`${ORIGIN}/tag/nato`);
+  });
+
+  it("prefers the last crumb's own href over selfPath", () => {
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd([{ label: "Q&A", href: "/qa" }], ORIGIN, "pl", "/qa?sort=new"),
+    );
+    expect(ld.itemListElement[1]?.item).toBe(`${ORIGIN}/qa`);
+  });
+
+  it("skips an intermediate crumb without a page and renumbers positions", () => {
+    // Jedna pozycja pośrednia bez `item` unieważnia cały wynik z okruszkami.
+    // Lepiej opisać krótszą, poprawną ścieżkę niż żadną.
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd(
+        [
+          { label: "Sekcja bez strony" },
+          { label: "   ", href: "/pusta-etykieta" },
+          { label: "Analizy", href: "/analizy" },
+          { label: "Wpis" },
+        ],
+        ORIGIN,
+        "pl",
+        "/analizy/wpis",
+      ),
+    );
+    expect(ld.itemListElement.map((el) => [el.position, el.name, el.item])).toEqual([
+      [1, "Start", `${ORIGIN}/`],
+      [2, "Analizy", `${ORIGIN}/analizy`],
+      [3, "Wpis", `${ORIGIN}/analizy/wpis`],
+    ]);
+  });
+
+  it("keeps external absolute hrefs untouched", () => {
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd(
+        [{ label: "Partner", href: "https://partner.example/hub" }, { label: "Strona" }],
+        ORIGIN,
+        "en",
+        "/strona",
+      ),
+    );
+    expect(ld.itemListElement[1]?.item).toBe("https://partner.example/hub");
+    expect(ld.itemListElement[2]?.item).toBe(`${ORIGIN}/en/strona`);
+  });
+
+  it("returns null when there is nothing beyond Home (Google needs two items)", () => {
+    const empty: BreadcrumbItem[] = [];
+    expect(breadcrumbListJsonLd(empty, ORIGIN, "pl", "/")).toBeNull();
+  });
+
+  it("trims crumb names so padded labels never reach the graph", () => {
+    const ld = expectValidForGoogle(
+      breadcrumbListJsonLd(
+        [{ label: "  Analizy ", href: "/analizy" }, { label: "\tWpis\n" }],
+        ORIGIN,
+        "pl",
+        "/analizy/wpis",
+      ),
+    );
+    expect(ld.itemListElement.map((el) => el.name)).toEqual(["Start", "Analizy", "Wpis"]);
+  });
+
+  it("gives every list a stable @id that CollectionPage can reference", () => {
+    const ld = expectValidForGoogle(breadcrumbListJsonLd(items, ORIGIN, "pl", "/blog/wpis"));
+    expect(ld["@id"]).toBe(`${ORIGIN}/blog/wpis#breadcrumbs`);
   });
 });
 

@@ -180,6 +180,20 @@ describe("isNotificationKindEnabled", () => {
     expect(isNotificationKindEnabled(prefs, "crm_task")).toBe(false);
   });
 
+  it("a missing or non-boolean flag fails OPEN, like enqueue_notification without a prefs row", () => {
+    // Wiersz preferencji starszy niż kolumna nowego rodzaju (albo kolumna
+    // spoza wygenerowanych typów) nie może po cichu wyciszyć rodzaju.
+    const legacy = { ...DEFAULT_NOTIFICATION_PREFERENCES } as Record<string, unknown>;
+    delete legacy.enabled_event;
+    legacy.enabled_comment = null;
+    expect(isNotificationKindEnabled(legacy as unknown as NotificationPreferences, "event")).toBe(
+      true,
+    );
+    expect(isNotificationKindEnabled(legacy as unknown as NotificationPreferences, "comment")).toBe(
+      true,
+    );
+  });
+
   it("reads the flag of every toggleable kind (no kind falls through)", () => {
     for (const kind of TOGGLEABLE_NOTIFICATION_KINDS) {
       const off: NotificationPreferences = { ...DEFAULT_NOTIFICATION_PREFERENCES };

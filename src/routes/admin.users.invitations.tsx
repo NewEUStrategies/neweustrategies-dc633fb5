@@ -6,6 +6,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+// Klucze wyników wysyłki idą do `t()` dynamicznie (`invitationErrorKey`), więc
+// bramka importów nakładek ich nie widzi - nakładka jest importowana wprost.
+import "@/lib/i18n-admin-users";
+import { invitationErrorKey } from "@/lib/admin/invitationErrors";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -60,7 +64,7 @@ function InvitationsPage() {
       toast.success(adminToast.sent());
       if (r.tempPassword)
         toast.info(t("adminMiscRoutes.invitations.passwordToast", { password: r.tempPassword }));
-    } else toast.error(r.error ?? "failed");
+    } else toast.error(t(invitationErrorKey(r.error)));
     qc.invalidateQueries({ queryKey: ["user-invitations"] });
   };
 
@@ -223,11 +227,15 @@ function InvitationsPage() {
                       {statusLabel(inv.status, activated)}
                     </Badge>
                     {inv.last_error && (
+                      // Widoczny tekst to zdanie dla administratora; surowy
+                      // szczegół (np. odpowiedź serwera poczty) zostaje
+                      // w podpowiedzi do diagnozy. Odmowa adresata ma tu
+                      // zawsze jeden kod, więc podpowiedź niczego nie zdradza.
                       <div
                         className="text-[10px] text-destructive mt-1 max-w-[200px] truncate"
                         title={inv.last_error}
                       >
-                        {inv.last_error}
+                        {t(invitationErrorKey(inv.last_error))}
                       </div>
                     )}
                   </td>

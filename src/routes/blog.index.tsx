@@ -142,10 +142,11 @@ export const Route = createFileRoute("/blog/")({
       // wpisów, ale indeks buduje wyłącznie strona pierwsza.
       robots: page > 1 ? "noindex, follow" : null,
     });
-    const { origin } = splitUrl(url);
+    // `url` bywa ABSOLUTNY (SSR) - sklejanie go z originem dawało w produkcji
+    // `https://host/https://host/blog`. Bierzemy sam pathname.
+    const { origin, path } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
-    // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
-    const breadcrumbs = breadcrumbListJsonLd([{ label: "Blog" }], originAbs, lang, "/blog");
+    const breadcrumbs = breadcrumbListJsonLd([{ label: "Blog" }], originAbs, lang, path);
     // CollectionPage - semantyka archiwum spójna z archiwami taksonomii.
     const collection = {
       "@context": "https://schema.org",
@@ -153,10 +154,10 @@ export const Route = createFileRoute("/blog/")({
       name: title,
       description,
       inLanguage: lang,
-      url: `${originAbs}${url.startsWith("/") ? url : `/${url}`}`,
+      url: `${originAbs}${path}`,
       ...(total > 0 ? { numberOfItems: total } : {}),
       isPartOf: { "@id": `${originAbs}/#website` },
-      breadcrumb: { "@id": `${originAbs}${url}#breadcrumbs` },
+      breadcrumb: { "@id": breadcrumbs["@id"] },
     };
     return {
       ...head,
@@ -166,7 +167,7 @@ export const Route = createFileRoute("/blog/")({
       scripts: [
         {
           type: "application/ld+json",
-          children: safeJsonLd({ ...breadcrumbs, "@id": `${originAbs}${url}#breadcrumbs` }),
+          children: safeJsonLd(breadcrumbs),
         },
         { type: "application/ld+json", children: safeJsonLd(collection) },
       ],

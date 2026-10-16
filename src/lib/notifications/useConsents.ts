@@ -122,7 +122,16 @@ export function useSetMyConsent() {
       return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["user-consents", user?.id ?? "anon"], ctx.prev);
+      const key = ["user-consents", user?.id ?? "anon"];
+      if (ctx?.prev) {
+        qc.setQueryData(key, ctx.prev);
+        return;
+      }
+      // Bez snapshotu (cache był pusty, np. pierwszy odczyt jeszcze w locie)
+      // optymistyczny wiersz NIE może zostać: to deklaracja zgody, której
+      // zapis właśnie się nie udał. Reset wraca do "nie wiadomo" i dociąga
+      // prawdę z bazy, zamiast pokazywać zgodę, której nie ma w rejestrze.
+      void qc.resetQueries({ queryKey: key, exact: true });
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["user-consents", user?.id ?? "anon"] });

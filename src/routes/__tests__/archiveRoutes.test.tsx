@@ -344,6 +344,97 @@ describe("nagłówek /publications", () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DANE STRUKTURALNE PRZY ABSOLUTNYM ADRESIE ŻĄDANIA (SSR).
+//
+// W SSR `getRequestUrl()` oddaje pełny adres. Produkcja (2026-10-16) wysyłała
+// z /blog i /category/* `CollectionPage.url` = `https://host/https://host/blog`
+// oraz `@id` okruszków `https://hosthttps://host/blog#breadcrumbs` - odwołanie
+// `breadcrumb` prowadziło donikąd. Testy wyżej liczą nagłówek przy pustym
+// adresie żądania, więc tego stanu nie widziały.
+// ═══════════════════════════════════════════════════════════════════════════
+describe("JSON-LD archiwów przy absolutnym adresie żądania", () => {
+  const HOST = "https://neweuropeanstrategies.com";
+  const taxonomy = {
+    id: "tax-1",
+    slug: "gospodarka",
+    name_pl: "Gospodarka",
+    name_en: "Economy",
+    description_pl: null,
+    description_en: null,
+  };
+
+  afterEach(() => {
+    zadanie.url = "";
+  });
+
+  type Crumbs = { "@id": string; itemListElement: { position: number; item?: string }[] };
+
+  function graphs(result: ReturnType<HeadFn>) {
+    const nodes = jsonLd(result);
+    const crumbs = nodes.find((n) => n["@type"] === "BreadcrumbList") as Crumbs | undefined;
+    const collection = nodes.find((n) => n["@type"] === "CollectionPage");
+    if (!crumbs || !collection) throw new Error("test: brak BreadcrumbList lub CollectionPage");
+    return { crumbs, collection };
+  }
+
+  const cases = [
+    {
+      name: "/blog (strona 2)",
+      url: `${HOST}/blog?page=2`,
+      run: () => head(BlogRoute, { loaderData: { page: 2, total: 42, coverPreload: null } }),
+      self: `${HOST}/blog`,
+    },
+    {
+      name: "/en/category/gospodarka",
+      url: `${HOST}/en/category/gospodarka`,
+      run: () =>
+        head(CategoryRoute, {
+          params: { slug: "gospodarka" },
+          loaderData: { taxonomy, total: 12, page: 1 },
+        }),
+      self: `${HOST}/en/category/gospodarka`,
+    },
+    {
+      name: "/tag/nato?sort=oldest",
+      url: `${HOST}/tag/nato?sort=oldest`,
+      run: () =>
+        head(TagRoute, {
+          params: { slug: "nato" },
+          loaderData: {
+            taxonomy: { ...taxonomy, slug: "nato", name_pl: "NATO" },
+            total: 3,
+            page: 1,
+          },
+        }),
+      self: `${HOST}/tag/nato`,
+    },
+  ];
+
+  it.each(cases)("$name: każda pozycja okruszków ma absolutny `item`", ({ url, run, self }) => {
+    zadanie.url = url;
+    const { crumbs } = graphs(run());
+    const items = crumbs.itemListElement;
+    expect(items.map((i) => i.position)).toEqual(items.map((_, i) => i + 1));
+    for (const el of items) {
+      expect(el.item).toMatch(/^https:\/\/neweuropeanstrategies\.com(\/|$)/);
+      expect(el.item).not.toContain(`${HOST}${HOST}`);
+    }
+    expect(items[items.length - 1]?.item).toBe(self);
+  });
+
+  it.each(cases)(
+    "$name: CollectionPage wskazuje ISTNIEJĄCY węzeł okruszków",
+    ({ url, run, self }) => {
+      zadanie.url = url;
+      const { crumbs, collection } = graphs(run());
+      expect(collection.url).toBe(self);
+      expect(crumbs["@id"]).toBe(`${self}#breadcrumbs`);
+      expect(collection.breadcrumb).toEqual({ "@id": crumbs["@id"] });
+    },
+  );
+});
+
 describe("spięcie tras", () => {
   it("każda trasa archiwum ma szkielet ładowania i obsługę błędu", () => {
     for (const route of [BlogRoute, CategoryRoute, TagRoute]) {

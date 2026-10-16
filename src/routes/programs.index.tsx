@@ -59,6 +59,7 @@ export const Route = createFileRoute("/programs/")({
       [{ label: lang === "en" ? "Research programs" : "Programy badawcze", href: "/programs" }],
       origin,
       lang,
+      url,
     );
     return {
       ...head,

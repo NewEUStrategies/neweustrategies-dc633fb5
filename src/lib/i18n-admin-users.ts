@@ -138,6 +138,23 @@ const pl = {
     moreActions: "Więcej działań",
     activationResent: "E-mail aktywacyjny został wysłany ponownie.",
     activationResendError: "Nie udało się ponownie wysłać e-maila aktywacyjnego.",
+    // Wyniki wysyłki zaproszeń (`invitationErrorKey`). Treść bez nazwy
+    // organizacji, bez identyfikatora i bez rozróżniania przyczyn odmowy.
+    invitationErrTargetUnavailable:
+      "Tego adresu nie można zaprosić do Twojej organizacji. Jeśli ta osoba ma już konto na platformie, przeniesienie go wymaga jej zgody i udziału administratora platformy.",
+    invitationErrRoleNotAllowed: "Tej roli nie można nadać zaproszeniem. Wybierz rolę z listy.",
+    invitationErrCreateFailed:
+      "Nie udało się założyć konta dla tego adresu. Spróbuj ponownie za chwilę.",
+    invitationErrWriteFailed:
+      "Nie udało się zapisać danych konta, więc zaproszenie nie zostało wysłane. Spróbuj ponownie za chwilę.",
+    invitationErrEmailFailed:
+      "Konto jest gotowe, ale wiadomości nie udało się wysłać. Spróbuj ponownie za chwilę.",
+    invitationErrEmailSuppressed:
+      "Ten adres jest zablokowany po odbiciu albo zgłoszeniu wiadomości, więc zaproszenie nie zostało wysłane. Dopóki blokada trwa, ponowienie nie pomoże - poproś o inny adres.",
+    invitationErrDirectoryUnavailable:
+      "Nie udało się sprawdzić katalogu kont, więc zaproszenie nie zostało wysłane. Spróbuj ponownie za chwilę.",
+    invitationErrGeneric:
+      "Nie udało się wysłać zaproszenia. Spróbuj ponownie albo skontaktuj się z administratorem platformy.",
     yes: "Tak",
     no: "Nie",
     never: "Nigdy",
@@ -289,6 +306,22 @@ const en = {
     moreActions: "More actions",
     activationResent: "The activation e-mail has been sent again.",
     activationResendError: "The activation e-mail could not be sent again.",
+    invitationErrTargetUnavailable:
+      "This address can't be invited to your organisation. If the person already has an account on the platform, moving it requires their consent and a platform administrator.",
+    invitationErrRoleNotAllowed:
+      "This role can't be granted with an invitation. Choose a role from the list.",
+    invitationErrCreateFailed:
+      "The account for this address couldn't be created. Try again in a moment.",
+    invitationErrWriteFailed:
+      "The account data couldn't be saved, so the invitation wasn't sent. Try again in a moment.",
+    invitationErrEmailFailed:
+      "The account is ready, but the message couldn't be sent. Try again in a moment.",
+    invitationErrEmailSuppressed:
+      "This address is blocked after a bounce or a complaint, so the invitation wasn't sent. Retrying won't help while the block lasts - ask for another address.",
+    invitationErrDirectoryUnavailable:
+      "The account directory couldn't be checked, so the invitation wasn't sent. Try again in a moment.",
+    invitationErrGeneric:
+      "The invitation couldn't be sent. Try again or contact a platform administrator.",
     yes: "Yes",
     no: "No",
     never: "Never",

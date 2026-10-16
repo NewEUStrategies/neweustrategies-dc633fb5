@@ -59,9 +59,18 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 }
 
 export class BlockedUrlError extends Error {
+  /**
+   * Powód odmowy. `dns` i `dns_empty` znaczą "nie dało się sprawdzić", a nie
+   * "adres jest wrogi" - wołający, który trwale odcina cel po odmowie (web
+   * push), musi je odróżnić od reszty, żeby chwilowa awaria resolvera nie
+   * zachowała się jak wykryty atak.
+   */
+  readonly reason: string;
+
   constructor(reason: string) {
     super(`blocked_url:${reason}`);
     this.name = "BlockedUrlError";
+    this.reason = reason;
   }
 }
 

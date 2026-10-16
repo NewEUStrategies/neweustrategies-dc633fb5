@@ -25,6 +25,7 @@ function account(overrides: Partial<InviteAccount> = {}): InviteAccount {
     email: "nowa@example.org",
     appTenantId: null,
     everSignedIn: false,
+    provisionedEmail: null,
     ...overrides,
   };
 }

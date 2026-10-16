@@ -106,10 +106,10 @@ export function ConsentsPanel({
       arr.push(v);
       map.set(cat, arr);
     }
-    return CATEGORY_ORDER.filter((c) => map.has(c)).map((c) => ({
-      category: c,
-      items: map.get(c) ?? [],
-    }));
+    return CATEGORY_ORDER.flatMap((category) => {
+      const items = map.get(category);
+      return items ? [{ category, items }] : [];
+    });
   }, [views]);
 
   const onToggle = (view: ConsentView, next: boolean) => {

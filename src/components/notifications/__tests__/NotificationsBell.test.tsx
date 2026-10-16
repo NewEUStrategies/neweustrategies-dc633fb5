@@ -136,6 +136,7 @@ import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { realtimeStub, type FakeChannel, type RealtimeStub } from "@/test/supabase/realtime";
 import { axeViolations, summarize } from "@/test/axe";
 import { realT } from "@/test/i18nReal";
+import i18n from "@/lib/i18n";
 import { activeChannelCount } from "@/lib/realtime/tableChannelHub";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/notifications/preferences";
 import { NotificationsBell } from "../NotificationsBell";
@@ -461,7 +462,7 @@ describe("NotificationsBell - nawigacja z wiersza", () => {
   });
 });
 
-describe("NotificationsBell - akcje wiersza zatrzymują propagację", () => {
+describe("NotificationsBell - akcje wiersza są poza elementem klikalnym", () => {
   it("„oznacz przeczytane” nie nawiguje i nie zamyka panelu", async () => {
     unreadCount = 2;
     rows = CONVERSATION_ROWS;
@@ -470,9 +471,9 @@ describe("NotificationsBell - akcje wiersza zatrzymują propagację", () => {
 
     fireEvent.click(screen.getByRole("button", { name: t("notifications.markRead") }));
 
-    // Bez `stopPropagation` klik w ikonę „przeczytane" wypłynąłby na kotwicę
-    // wiersza i przeniósł użytkownika do rozmowy - czyli akcja „zostaw na
-    // później" robiłaby dokładnie to, czego użytkownik uniknął.
+    // Akcja jest RODZEŃSTWEM kotwicy wiersza, nie jej potomkiem: klik w ikonę
+    // „przeczytane" nie może przenieść użytkownika do rozmowy - akcja „zostaw
+    // na później" robiłaby wtedy dokładnie to, czego użytkownik uniknął.
     await waitFor(() => expect(rpc.callsFor("mark_notifications_read")).toHaveLength(1));
     expect(h.navigate).not.toHaveBeenCalled();
     expect(screen.getByText(t("notifications.openInbox"))).toBeInTheDocument();
@@ -497,6 +498,87 @@ describe("NotificationsBell - akcje wiersza zatrzymują propagację", () => {
     expect(rpc.lastCall("mark_notification_unread")?.arg("p_id")).toBe("n-read");
     expect(h.navigate).not.toHaveBeenCalled();
     expect(screen.getByText(t("notifications.openInbox"))).toBeInTheDocument();
+  });
+});
+
+describe("NotificationsBell - wygląd wiersza", () => {
+  it("rodzaj spoza katalogu ikon dostaje kółko zapasowe", async () => {
+    rows = [notif({ id: "n-x", kind: "nieznany_rodzaj", title_pl: "Wiersz nieznany" })];
+    await mountBell();
+    await openBell();
+
+    const row = (await screen.findByText("Wiersz nieznany")).closest("li");
+    expect(row?.querySelector("svg.lucide-circle")).not.toBeNull();
+  });
+
+  it("ikona z bazy wygrywa z ikoną rodzaju", async () => {
+    rows = [notif({ id: "n-i", kind: "event", icon: "bell", title_pl: "Wiersz z ikoną" })];
+    await mountBell();
+    await openBell();
+
+    const row = (await screen.findByText("Wiersz z ikoną")).closest("li");
+    expect(row?.querySelector("svg.lucide-calendar-clock")).toBeNull();
+    expect(row?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("rozmowa z kontaktem z sieci dostaje awatar kontaktu zamiast ikony", async () => {
+    rpc.setData("my_connections", [
+      {
+        connection_id: CONVERSATION_ID,
+        avatar_url: "https://cdn.example.org/anna.png",
+        display_name: "",
+      },
+    ]);
+    unreadCount = 2;
+    rows = CONVERSATION_ROWS;
+    await mountBell();
+    await openBell();
+
+    await waitFor(() => expect(rpc.callsFor("my_connections").length).toBeGreaterThan(0));
+    expect(
+      screen.getByRole("link", {
+        name: new RegExp(t("notifications.grouped.messagesFrom", { name: "Anna Testowa" })),
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("po angielsku pokazuje tytuł EN", async () => {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    try {
+      rows = [notif({ id: "n-en", title_pl: "Tytuł PL", title_en: "English title" })];
+      await mountBell();
+      const en = realT("en");
+      fireEvent.click(screen.getByRole("button", { name: en("notifications.title") }));
+      expect(await screen.findByText("English title")).toBeInTheDocument();
+      expect(screen.queryByText("Tytuł PL")).toBeNull();
+    } finally {
+      await act(async () => {
+        await i18n.changeLanguage("pl");
+      });
+    }
+  });
+
+  it("klik w PRZECZYTANY wiersz bez odnośnika zamyka panel bez oznaczania", async () => {
+    rows = [notif({ id: "n-r", title_pl: "Już przeczytane", read_at: "2026-08-20T11:00:00Z" })];
+    await mountBell();
+    await openBell();
+
+    fireEvent.click(screen.getByRole("button", { name: /Już przeczytane/ }));
+
+    await waitFor(() => expect(screen.queryByText(t("notifications.openInbox"))).toBeNull());
+    expect(rpc.callsFor("mark_notifications_read")).toHaveLength(0);
+  });
+
+  it("„Zobacz wszystkie” zamyka panel", async () => {
+    rows = [notif()];
+    await mountBell();
+    await openBell();
+
+    clickWithoutNavigation(screen.getByText(t("notifications.openInbox")));
+
+    await waitFor(() => expect(screen.queryByText(t("notifications.openInbox"))).toBeNull());
   });
 });
 
@@ -562,61 +644,46 @@ describe("NotificationsBell - realtime", () => {
 // wyzwalacz i „przechodziłby" na dwóch węzłach.
 // ---------------------------------------------------------------------------
 
-/** Znane, ZGŁOSZONE niżej defekty - lista zamknięta, żeby nowe nie wsiąkły. */
-const ZNANE_DEFEKTY_A11Y = ["aria-dialog-name", "nested-interactive"];
-
 async function panelViolationIds(): Promise<string[]> {
   const violations = await axeViolations(document.body);
   return violations.map((v) => v.id);
 }
 
 describe("NotificationsBell - dostępność", () => {
-  it.fails(
-    "DEFEKT: otwarty panel jest dialogiem BEZ nazwy - oczekiwany kontrakt: role=dialog ma aria-label (np. notifications.title)",
-    async () => {
-      // `PopoverContent` Radiksa nadaje warstwie `role="dialog"`, a dzwonek nie
-      // podaje jej ani `aria-label`, ani `aria-labelledby`. Czytnik ekranu
-      // ogłasza „okno dialogowe" bez informacji, CZYJE - a to jedyna warstwa
-      // powiadomień w chrome aplikacji. Naprawa jest jednolinijkowa
-      // (`aria-label={t("notifications.title")}` na `PopoverContent`), ale
-      // mieszka w kodzie produkcyjnym, którego ten plik nie zmienia.
-      rows = CONVERSATION_ROWS;
-      await mountBell();
-      await openBell();
-      expect(await panelViolationIds()).not.toContain("aria-dialog-name");
-    },
-  );
+  // Dwa testy niżej były `it.fails` (przypięte defekty) do poprawki w
+  // NotificationsBell.tsx - zostają jako regresja konkretnych reguł axe.
+  it("otwarty panel jest dialogiem Z nazwą (aria-label = notifications.title)", async () => {
+    // `PopoverContent` Radiksa nadaje warstwie `role="dialog"`. Bez nazwy
+    // czytnik ekranu ogłaszał „okno dialogowe" bez informacji, CZYJE - a to
+    // jedyna warstwa powiadomień w chrome aplikacji.
+    rows = CONVERSATION_ROWS;
+    await mountBell();
+    await openBell();
+    expect(await panelViolationIds()).not.toContain("aria-dialog-name");
+    expect(screen.getByRole("dialog", { name: t("notifications.title") })).toBeInTheDocument();
+  });
 
-  it.fails(
-    "DEFEKT: wiersz BEZ odnośnika zagnieżdża przycisk w przycisku - oczekiwany kontrakt: akcje wiersza poza elementem klikalnym",
-    async () => {
-      // Wiersz bez `href` renderuje się jako `<button>` obejmujący CAŁY wiersz,
-      // a w środku siedzą przyciski „oznacz przeczytane"/„oznacz
-      // nieprzeczytane". WCAG 4.1.2: zagnieżdżonych kontrolek czytniki ekranu
-      // nie ogłaszają, a nawigacja klawiaturą po nich jest nieprzewidywalna.
-      // Wiersze z `href` (kotwica) tego naruszenia NIE wywołują - dlatego
-      // fixture ma tu wyłącznie wiersz bezodnośnikowy, żeby dowód wskazywał
-      // konkretną gałąź renderu.
-      rows = [notif({ id: "n-sys", title_pl: "Przerwa techniczna", href: null })];
-      await mountBell();
-      await openBell();
-      expect(await panelViolationIds()).not.toContain("nested-interactive");
-    },
-  );
+  it("wiersz BEZ odnośnika nie zagnieżdża przycisku w przycisku - akcje są poza elementem klikalnym", async () => {
+    // Wiersz bez `href` renderował się jako `<button>` obejmujący CAŁY wiersz,
+    // z przyciskami „oznacz przeczytane"/„oznacz nieprzeczytane" w środku.
+    // WCAG 4.1.2: zagnieżdżonych kontrolek czytniki ekranu nie ogłaszają.
+    rows = [notif({ id: "n-sys", title_pl: "Przerwa techniczna", href: null })];
+    await mountBell();
+    await openBell();
+    expect(await panelViolationIds()).not.toContain("nested-interactive");
+    const action = screen.getByRole("button", { name: t("notifications.markRead") });
+    expect(action.parentElement?.closest("button, a")).toBeNull();
+  });
 
-  it("poza dwoma zgłoszonymi defektami otwarty panel nie ma naruszeń axe", async () => {
-    // Ta asercja jest dopełnieniem dwóch `it.fails` powyżej: tamte pilnują, że
-    // znane defekty NADAL istnieją (a więc opis ich nie przeżył naprawy), ta -
-    // że nie doszło żadne nowe. Bez niej `it.fails` byłby workiem, w którym
-    // zniknęłaby każda kolejna regresja dostępności tego panelu.
+  it("otwarty panel nie ma naruszeń axe", async () => {
+    // Pełna lista reguł, bez wyjątków: oba znane defekty są naprawione, więc
+    // każde naruszenie jest nowe.
     unreadCount = 2;
     rows = [...CONVERSATION_ROWS, notif({ id: "n-sys", title_pl: "Przerwa techniczna" })];
     await mountBell();
     await openBell();
 
-    const nowe = (await axeViolations(document.body)).filter(
-      (violation) => !ZNANE_DEFEKTY_A11Y.includes(violation.id),
-    );
-    expect(nowe, summarize(nowe)).toEqual([]);
+    const violations = await axeViolations(document.body);
+    expect(violations, summarize(violations)).toEqual([]);
   });
 });

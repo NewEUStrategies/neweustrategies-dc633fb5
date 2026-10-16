@@ -2502,10 +2502,23 @@ describe("admin.users.invitations - lista zaproszeń", () => {
   it("ostatni błąd wysyłki jest widoczny i dostępny w podpowiedzi", async () => {
     // Bez tego administrator widzi tylko „failed" i nie ma jak zdiagnozować,
     // czy to zły adres, czy padła bramka poczty.
+    // Widoczny tekst to zdanie z mapy kodów (`invitationErrorKey`), a surowy
+    // szczegół zostaje w podpowiedzi do diagnozy.
     h.invitations = [invitation({ status: "failed", last_error: "smtp: 550 mailbox unavailable" })];
     await mountInvitations();
-    await waitFor(() => expect(document.body.textContent).toContain("550 mailbox unavailable"));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("adminUsers.invitationErrGeneric"),
+    );
+    expect(document.body.textContent).not.toContain("550 mailbox unavailable");
     expect(document.querySelector('[title="smtp: 550 mailbox unavailable"]')).toBeTruthy();
+  });
+
+  it("kod odmowy adresata pod odznaką czyta się zdaniem, nie surowym kodem", async () => {
+    h.invitations = [invitation({ status: "failed", last_error: "account_in_other_tenant" })];
+    await mountInvitations();
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("adminUsers.invitationErrTargetUnavailable"),
+    );
   });
 
   it("data wysłania renderuje się dla wysłanych, `-` dla niewysłanych", async () => {
@@ -2571,7 +2584,7 @@ describe("admin.users.invitations - lista zaproszeń", () => {
 
   it("odmowa wysyłki pokazuje powód z wyniku, a nie zdanie o sukcesie", async () => {
     h.invitations = [invitation()];
-    h.sendResult = { ok: false, error: "mailer_unavailable" };
+    h.sendResult = { ok: false, error: "account_in_other_tenant" };
     await mountInvitations();
     await waitFor(() => expect(document.body.textContent).toContain("trzecia@example.org"));
     const send = Array.from(document.querySelectorAll("tbody button")).find((button) =>
@@ -2579,7 +2592,10 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     );
     if (!send) throw new Error("test: brak przycisku wysłania");
     fireEvent.click(send);
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("mailer_unavailable"));
+    // Kod z wyniku tłumaczy mapa - panel nie pokazuje surowego kodu.
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminUsers.invitationErrTargetUnavailable"),
+    );
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
@@ -2593,7 +2609,9 @@ describe("admin.users.invitations - lista zaproszeń", () => {
     );
     if (!send) throw new Error("test: brak przycisku wysłania");
     fireEvent.click(send);
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("failed"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminUsers.invitationErrGeneric"),
+    );
   });
 
   it("wycofanie zaproszenia woła serwer i unieważnia listę", async () => {
@@ -3210,20 +3228,22 @@ describe("member account recovery actions", () => {
     await waitFor(() => expect(h.sendCalls).toContain(IDS.other));
     expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
   });
-  it.each(["activation_send_limit_reached", "smtp unavailable", undefined])(
-    "shows activation failure (%s) and permits retry",
-    async (error) => {
-      h.sendResult = { ok: false, error };
-      await openActions();
-      const button = await screen.findByRole("button", {
-        name: /adminUsers.resendActivationEmail/,
-      });
-      await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
-      fireEvent.click(button);
-      await waitFor(() => expect(h.toastError).toHaveBeenCalled());
-      expect(button.hasAttribute("disabled")).toBe(false);
-    },
-  );
+  it.each([
+    ["activation_send_limit_reached", "adminUsers.activationSendLimitReached"],
+    ["smtp unavailable", "adminUsers.invitationErrGeneric"],
+    [undefined, "adminUsers.activationResendError"],
+  ])("shows activation failure (%s) and permits retry", async (error, message) => {
+    h.sendResult = { ok: false, error };
+    await openActions();
+    const button = await screen.findByRole("button", {
+      name: /adminUsers.resendActivationEmail/,
+    });
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    fireEvent.click(button);
+    // Kod serwera idzie przez mapę kodów - panel nigdy nie pokazuje surowego tekstu.
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(message));
+    expect(button.hasAttribute("disabled")).toBe(false);
+  });
   it.each([false, true])("requires matching email before deletion (failure %s)", async (fails) => {
     if (fails) h.deleteAccount.mockRejectedValue(new Error("ADMIN_ACCOUNT/DELETE_FAILED"));
     await openActions();
@@ -3244,10 +3264,12 @@ describe("member account recovery actions", () => {
     await waitFor(() => expect(fails ? h.toastError : h.toastSuccess).toHaveBeenCalled());
   });
   it("resends activation from the account detail", async () => {
+    // Aktywacja (`sendActivationEmailForUser` po identyfikatorze konta), nie
+    // ponowienie najnowszego zaproszenia: tamto szło pełną hydracją profilu.
     await mountDetail();
     const button = await screen.findByRole("button", { name: /adminUsers.resendActivationEmail/ });
     fireEvent.click(button);
-    await waitFor(() => expect(h.sendCalls).toContain("invite-1"));
+    await waitFor(() => expect(h.sendCalls).toEqual([IDS.other]));
     expect(h.toastSuccess).toHaveBeenCalledWith("adminUsers.activationResent");
   });
 });
@@ -3292,7 +3314,7 @@ it.each(["error", "missing-error"])(
     );
     await waitFor(() =>
       expect(h.toastError).toHaveBeenCalledWith(
-        kind === "error" ? "smtp unavailable" : "adminUsers.activationResendError",
+        kind === "error" ? "adminUsers.invitationErrGeneric" : "adminUsers.activationResendError",
       ),
     );
   },

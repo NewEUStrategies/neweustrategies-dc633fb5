@@ -3,6 +3,7 @@ import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
+import { clampNumber, draftDirty } from "@/lib/admin/panelDraft";
 import type { PostLayoutSettings } from "@/lib/postLayouts";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +21,15 @@ export const Route = createFileRoute("/admin/content-area")({
 // ---------- helpers -----------------------------------------------------------
 
 const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/** Pola `next`, których wartość różni się od `base` (porównanie jak `draftDirty`). */
+function changedFields<T extends object>(next: T, base: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const key of Object.keys(next) as Array<keyof T>) {
+    if (JSON.stringify(next[key]) !== JSON.stringify(base[key])) out[key] = next[key];
+  }
+  return out;
+}
 
 function toHexOrKeep(v: string | null | undefined): string {
   if (!v) return "#000000";
@@ -59,20 +69,37 @@ function NumberField({
 }: {
   value: number;
   onChange: (n: number) => void;
-  min?: number;
-  max?: number;
+  min: number;
+  max: number;
   step?: number;
   unit?: string;
 }) {
+  // Tekst pola w trakcie edycji. Puste pole to stan przejściowy (Backspace
+  // przed wpisaniem nowej liczby), a nie zero: dawne `Number("") === 0`
+  // wkładało do szkicu 0 px, który po zapisie zwijał kolumnę treści KAŻDEGO
+  // wpisu (`maxWidth: 0px` w PostLayoutRenderer). Do szkicu trafia tylko
+  // liczba; przy opuszczeniu pola wartość wraca w granice `min`-`max`
+  // i do całych pikseli (kolumny są `integer` - ułamek baza odrzuca).
+  const [text, setText] = useState<string | null>(null);
   return (
     <div className="relative flex items-center">
       <input
         type="number"
-        value={Number.isFinite(value) ? value : 0}
+        value={text ?? (Number.isFinite(value) ? value : 0)}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setText(raw);
+          if (raw.trim() !== "" && Number.isFinite(Number(raw))) onChange(Number(raw));
+        }}
+        onBlur={() => {
+          if (text === null) return;
+          setText(null);
+          const next = clampNumber(value, { min, max });
+          if (next !== value) onChange(next);
+        }}
         className="w-full rounded-md border border-input bg-background px-3 py-2 pr-12 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand/40"
       />
       {unit ? (
@@ -137,10 +164,16 @@ function ColorField({
           </span>
         )}
       </label>
+      {/* Bez `trim()` w trakcie pisania: przycinanie każdego znaku zjadało
+          spację na końcu, więc formatu `hsl(210 50% 40%)` z placeholdera nie
+          dało się wpisać. Puste -> `null` od razu, przycięcie przy wyjściu. */}
       <input
         type="text"
         value={value ?? ""}
-        onChange={(e) => onChange(e.target.value.trim() || null)}
+        onChange={(e) => onChange(e.target.value.trim() ? e.target.value : null)}
+        onBlur={() => {
+          if (value && value !== value.trim()) onChange(value.trim());
+        }}
         placeholder={placeholder ?? "#… lub hsl(…)"}
         className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand/40"
       />
@@ -222,31 +255,54 @@ function SectionCard({
 
 function Page() {
   const { t } = useTranslation();
-  const { data } = usePostLayoutSettings();
+  const { data, dataUpdatedAt } = usePostLayoutSettings();
   const save = useSavePostLayoutSettings();
-  const [local, setLocal] = useState<PostLayoutSettings | null>(null);
+  // Szkic i stan odniesienia brane w tej samej chwili (wzorzec
+  // PostLayoutsSettingsPanel). Porównanie z żywym `data` zostawiało `dirty`
+  // zapalone po udanym zapisie: trigger `pls_set_updated_at` zmienia
+  // `updated_at`, więc odświeżony wiersz nigdy nie był równy szkicowi.
+  const [draft, setDraft] = useState<{
+    local: PostLayoutSettings;
+    baseline: PostLayoutSettings;
+  } | null>(null);
   useEffect(() => {
-    if (data && !local) setLocal(data);
-  }, [data, local]);
+    // `dataUpdatedAt > 0`, nie samo `data`: loader korzenia ZASIEWA ten klucz
+    // domyślnymi z `updatedAt: 0`. Szkic z zasiewu pokazywał domyślne zamiast
+    // ustawień najemcy, a zapis nadpisywał nimi cały wiersz.
+    if (data && dataUpdatedAt > 0 && !draft) setDraft({ local: data, baseline: data });
+  }, [data, dataUpdatedAt, draft]);
 
-  const dirty = useMemo(() => {
-    if (!local || !data) return false;
-    return JSON.stringify(local) !== JSON.stringify(data);
-  }, [local, data]);
+  const dirty = useMemo(() => (draft ? draftDirty(draft.local, draft.baseline) : false), [draft]);
 
-  if (!local)
+  if (!draft)
     return (
       <AdminShell hideSidebar>
         <div className="p-6">{t("admin.loading")}</div>
       </AdminShell>
     );
 
-  const upd = (p: Partial<PostLayoutSettings>) => setLocal({ ...local, ...p });
+  const { local, baseline } = draft;
+  const upd = (p: Partial<PostLayoutSettings>) => setDraft({ baseline, local: { ...local, ...p } });
   const onSave = async () => {
-    const { tenant_id, ...rest } = local;
-    void tenant_id;
-    await save.mutateAsync(rest);
-    toast.success(t("admin.saved"));
+    // Migawka wysłana do bazy staje się nowym odniesieniem - zmiany wpisane
+    // w trakcie żądania zostają niezapisane.
+    const snapshot = local;
+    const { tenant_id, ...rest } = snapshot;
+    // Tylko pola zmienione na tym ekranie. Ten sam wiersz zapisują też układy
+    // wpisu i rozmiary czcionek (`paragraph_spacing_rem`, do których ten ekran
+    // odsyła); pełny szkic cofał po cichu to, co tamten panel zapisał w innej
+    // karcie. Bez wiersza w bazie (domyślne, `tenant_id: ""`) leci całość,
+    // żeby pierwszy INSERT utrwalił to, co administrator widział.
+    const patch = tenant_id ? changedFields(rest, baseline) : rest;
+    try {
+      await save.mutateAsync(patch);
+      setDraft((d) => d && { ...d, baseline: snapshot });
+      toast.success(t("admin.saved"));
+    } catch {
+      // Bez tego odrzucenie było nieobsłużoną obietnicą: administrator nie
+      // dostawał żadnego sygnału, że zapis się nie udał.
+      toast.error(t("admin.saveError"));
+    }
   };
 
   return (
@@ -389,7 +445,11 @@ function Page() {
                 onClick={(e) => e.preventDefault()}
                 style={{
                   color: local.hyperlink_color || undefined,
-                  textDecoration: local.hyperlink_underline ? "underline" : "none",
+                  // Longhand, nie skrót `textDecoration`: skrót zeruje
+                  // `text-decoration-color`, a React nie dopisuje go z powrotem
+                  // (wartość się nie zmieniła) - po „Wyłącz" -> „Włącz" podgląd
+                  // gubił skonfigurowany kolor podkreślenia.
+                  textDecorationLine: local.hyperlink_underline ? "underline" : "none",
                   textDecorationColor: local.underline_color || undefined,
                   textUnderlineOffset: 3,
                   fontWeight:

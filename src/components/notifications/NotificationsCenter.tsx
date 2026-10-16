@@ -38,6 +38,7 @@ import {
   useNotificationPreferences,
   useNotificationPreferencesRealtime,
   useNotificationsRealtime,
+  useUnreadCount,
   useUpdateNotificationPreferences,
   DEFAULT_NOTIFICATION_PREFERENCES,
   NOTIFICATIONS_PAGE_SIZE,
@@ -121,7 +122,7 @@ type NotificationListSnapshot = Array<[QueryKey, NotificationInfiniteData | unde
 
 export type NotificationsCenterMode = "full" | "inbox" | "preferences" | "consents";
 
-export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode } = {}) {
+export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCenterMode }) {
   const { t, i18n } = useTranslation();
   const lang: Lang = i18n.language === "en" ? "en" : "pl";
   const initialTab: TabValue = mode === "preferences" || mode === "consents" ? "settings" : "all";
@@ -145,6 +146,9 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     kind: kindFilter === "all" ? null : kindFilter,
   });
   const markAll = useMarkAllNotificationsRead();
+  // Licznik nieprzeczytanych CAŁEGO konta - ten sam wpis cache co badge
+  // zakładki „Powiadomienia” na /messages, więc nie dokłada requestu.
+  const unreadTotal = useUnreadCount().data;
 
   // Optimistic-cache plumbing shared by the mutations below: cancel in-flight
   // list fetches (so a stale response cannot clobber the patch), snapshot every
@@ -178,9 +182,10 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
 
   // Mark-read / mark-unread: optimistic variants of the shared hooks (same
   // RPCs), so rows flip state instantly instead of waiting for invalidation.
+  // Wołający podają zawsze niepustą listę (przycisk istnieje tylko dla grupy
+  // z nieprzeczytanymi, klik w wiersz sprawdza `unreadIds.length`).
   const markMany = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) return;
       const { error } = await supabase.rpc("mark_notifications_read", { p_ids: ids });
       if (error) throw error;
     },
@@ -201,7 +206,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   });
   const unreadMany = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) return;
       const { error } = await supabase.rpc("mark_notifications_unread", { p_ids: ids });
       if (error) throw error;
     },
@@ -220,7 +224,6 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
   // with the rows optimistically removed from every cached list up front.
   const deleteGroup = useMutation({
     mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) return;
       const { error } = await supabase.from("notifications").delete().in("id", ids);
       if (error) throw error;
     },
@@ -248,7 +251,23 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
     });
   }, [items, query, lang]);
 
-  const unreadCount = filteredItems.filter((n) => !n.read_at).length;
+  // „Oznacz wszystkie” to akcja CAŁEJ skrzynki, nie bieżącego widoku:
+  // `useMarkAllNotificationsRead` aktualizuje każdy nieprzeczytany wiersz
+  // użytkownika niezależnie od zakładki, filtra rodzaju i wyszukiwarki - tak
+  // samo jak w dzwonku. Dostępność liczymy więc z licznika konta, a nie
+  // z wczytanych stron: przeczytana pierwsza strona albo fraza/rodzaj chowające
+  // nieprzeczytane gasiły przycisk, choć badge pokazywał zaległe.
+  // Przy zawężonym widoku przycisk CELOWO zostaje czynny i globalny. Zawęzić
+  // akcji do widoku nie da się uczciwie: wyszukiwarka filtruje tylko wczytane
+  // strony, więc „oznacz widoczne” pomijałoby starsze dopasowania (ten sam
+  // błąd w nowym miejscu). Do oznaczania tego, co widać, służą akcje wiersza
+  // i grupy.
+  // Wczytane wiersze (`items`, PRZED wyszukiwaniem) są drugim świadkiem:
+  // licznik może się jeszcze ładować, być nieświeży (optymistyczne
+  // markMany/unreadMany łatają tylko listy) albo zdryfować. Fałszywie czynny
+  // przycisk jest nieszkodliwy (update z `is("read_at", null)` niczego nie
+  // zmienia), fałszywie zablokowany - to właśnie zgłoszony błąd.
+  const hasUnread = (unreadTotal ?? 0) > 0 || items.some((n) => !n.read_at);
   const groups = groupNotifications(filteredItems, {
     groupByConversation: prefs.group_by_conversation && tab !== "unread",
   });
@@ -343,7 +362,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
           <Button
             variant="outline"
             size="sm"
-            disabled={unreadCount === 0 || markAll.isPending}
+            disabled={!hasUnread || markAll.isPending}
             onClick={() => markAll.mutate()}
           >
             <CheckCheck className="h-4 w-4 mr-1.5" />
@@ -444,12 +463,15 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                       const href = n.href;
                       const actorId = notificationActorId(n.href);
                       const actor = actorId ? actorProfiles.get(actorId) : undefined;
+                      // `||`, nie `??`: pusta nazwa z profilu kontaktu to też
+                      // brak nazwy - inicjały i alt biorą wtedy tytuł.
+                      const actorName = actor?.display_name || pickTitle(n, lang);
                       const initials =
-                        (actor?.display_name ?? pickTitle(n, lang))
+                        actorName
                           .split(/\s+/)
                           .filter(Boolean)
                           .slice(0, 2)
-                          .map((w) => w[0]?.toUpperCase() ?? "")
+                          .map((w) => w.charAt(0).toUpperCase())
                           .join("") || "•";
                       return (
                         <li key={g.key} className="py-3 flex items-start gap-3">
@@ -462,7 +484,7 @@ export function NotificationsCenter({ mode = "full" }: { mode?: NotificationsCen
                             {actor?.avatar_url ? (
                               <AvatarImage
                                 src={actor.avatar_url}
-                                alt={actor.display_name ?? pickTitle(n, lang)}
+                                alt={actorName}
                                 className="rounded-[6px] object-cover"
                               />
                             ) : null}

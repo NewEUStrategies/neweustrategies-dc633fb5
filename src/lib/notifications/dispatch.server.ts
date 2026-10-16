@@ -12,6 +12,7 @@ import {
   sendWebPush,
   vapidFromEnv,
   type PushSendOptions,
+  type PushSendResult,
   type VapidConfig,
 } from "./webpush.server";
 import {
@@ -45,7 +46,6 @@ interface RecipientProfile {
  */
 async function recipientsFor(userIds: string[]): Promise<Map<string, RecipientProfile>> {
   const map = new Map<string, RecipientProfile>();
-  if (userIds.length === 0) return map;
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("id, prefs, tenant_id")
@@ -136,6 +136,12 @@ const PUSH_TITLE_FALLBACK = "New European Strategies";
 const PUSH_CONCURRENCY = 8;
 /** Równoległość raportów do DB (tanie RPC, ale nie 200 na raz). */
 const REPORT_CONCURRENCY = 12;
+/**
+ * Ile digestów składamy naraz. Jeden digest to kilka round-tripów kolejki
+ * e-mail (bramka wykluczeń, log dostarczalności, token wypisu, enqueue), więc
+ * partia 50 odbiorców po kolei zjadała sekundy z 25-sekundowego budżetu ticku.
+ */
+const DIGEST_CONCURRENCY = 4;
 
 /**
  * Buduje kolejki wysyłek per urządzenie. Grupowanie po endpoincie (nie po
@@ -146,18 +152,16 @@ const REPORT_CONCURRENCY = 12;
 function buildPushLanes(
   jobs: readonly { id: number; user_id: string; tenant_id: string; payload: unknown }[],
   devicesByRecipient: ReadonlyMap<string, PushDevice[]>,
-  locales: ReadonlyMap<string, DigestLang>,
-): { lanes: PushLane[]; deviceCountByJob: Map<number, number> } {
+  recipients: ReadonlyMap<string, RecipientProfile>,
+): PushLane[] {
   const lanes = new Map<string, PushLane>();
-  const deviceCountByJob = new Map<number, number>();
 
   for (const job of jobs) {
-    const devices = devicesByRecipient.get(recipientKey(job.tenant_id, job.user_id)) ?? [];
-    deviceCountByJob.set(job.id, devices.length);
-    if (devices.length === 0) continue;
+    const devices = devicesByRecipient.get(recipientKey(job.tenant_id, job.user_id));
+    if (!devices) continue;
 
     const payload = (job.payload ?? {}) as PushJobPayload;
-    const lang = locales.get(job.user_id) ?? "pl";
+    const lang = recipients.get(job.user_id)?.lang ?? "pl";
     const title =
       pickDigestText(
         { title_pl: payload.title_pl ?? null, title_en: payload.title_en ?? null },
@@ -185,45 +189,65 @@ function buildPushLanes(
     }
   }
 
-  return { lanes: [...lanes.values()], deviceCountByJob };
+  return [...lanes.values()];
 }
 
-/** Wysyła kolejkę jednego urządzenia po kolei; 404/410 ucina resztę kolejki. */
+/**
+ * Wysyła kolejkę jednego urządzenia po kolei. Resztę kolejki w tym ticku
+ * ucinają trzy sygnały:
+ *  - 404/410: urządzenie odsubskrybowało, reszta dostałaby to samo 410, więc
+ *    odhaczamy ją jako `gone` bez ruchu sieciowego;
+ *  - odmowa z `Retry-After` (429/503): usługa każe odczekać, a każde kolejne
+ *    żądanie tylko przedłuża dławienie (RFC 8030 sek. 8.4);
+ *  - wyjątek wysyłki (timeout 10 s, błąd sieci, awaria DNS): przy zawieszonej
+ *    usłudze każde następne zadanie czekałoby kolejne 10 s z 25-sekundowego
+ *    budżetu ticku, blokując jeden z PUSH_CONCURRENCY torów.
+ * W dwóch ostatnich przypadkach odcięte zadania są porażką przechodnią: wracają
+ * do kolejki z backoffem ustawionym przy claimie, jak każdy błąd 5xx.
+ */
 async function drainPushLane(lane: PushLane, vapid: VapidConfig): Promise<LaneResult> {
   const attempts: PushAttempt[] = [];
-  let gone = false;
+  const endpoint = lane.device.endpoint;
+  const skipFrom = (start: number, gone: boolean): void => {
+    for (const skipped of lane.tasks.slice(start)) {
+      attempts.push({ jobId: skipped.jobId, ok: false, gone, permanent: false });
+    }
+  };
 
   for (let i = 0; i < lane.tasks.length; i += 1) {
     const task = lane.tasks[i];
+    let result: PushSendResult;
     try {
-      const result = await sendWebPush(lane.device, task.body, vapid, task.options);
-      attempts.push({
-        jobId: task.jobId,
-        ok: result.ok,
-        gone: result.gone,
-        permanent: result.permanent,
-      });
-      if (result.retryAfterSec !== null) {
-        console.warn(
-          `[community] push throttled (${result.status}), retry-after ${result.retryAfterSec}s`,
-        );
-      }
-      if (result.gone) {
-        gone = true;
-        // Urządzenie odsubskrybowało - reszta kolejki dostałaby to samo 410,
-        // więc odhaczamy ją bez ruchu sieciowego.
-        for (const skipped of lane.tasks.slice(i + 1)) {
-          attempts.push({ jobId: skipped.jobId, ok: false, gone: true, permanent: false });
-        }
-        break;
-      }
+      result = await sendWebPush(lane.device, task.body, vapid, task.options);
     } catch (err) {
-      console.error("[community] push send error", err);
-      attempts.push({ jobId: task.jobId, ok: false, gone: false, permanent: false });
+      console.error(
+        `[community] push send error - ${lane.tasks.length - i} zadań urządzenia wraca do kolejki`,
+        err,
+      );
+      skipFrom(i, false);
+      break;
+    }
+    attempts.push({
+      jobId: task.jobId,
+      ok: result.ok,
+      gone: result.gone,
+      permanent: result.permanent,
+    });
+    if (result.gone) {
+      skipFrom(i + 1, true);
+      return { endpoint, gone: true, attempts };
+    }
+    if (!result.ok && result.retryAfterSec !== null) {
+      console.warn(
+        `[community] push throttled (${result.status}), retry-after ${result.retryAfterSec}s - ` +
+          `${lane.tasks.length - i - 1} zadań urządzenia wraca do kolejki`,
+      );
+      skipFrom(i + 1, false);
+      break;
     }
   }
 
-  return { endpoint: lane.device.endpoint, gone, attempts };
+  return { endpoint, gone: false, attempts };
 }
 
 /** Klucz adresata: powiadomienie tenanta A nigdy nie idzie na urządzenie tenanta B. */
@@ -253,7 +277,6 @@ interface PushJobReport {
  * odpowiedź), jest nieszkodliwe: ten sam raport daje ten sam status.
  */
 async function reportPushJobs(reports: readonly PushJobReport[]): Promise<void> {
-  if (reports.length === 0) return;
   try {
     const { error } = await supabaseAdmin.rpc("report_push_jobs", {
       // Kopia literałem, nie `reports` wprost: interfejs nie ma niejawnej
@@ -355,37 +378,35 @@ export async function processPushJobs(
     devicesByRecipient.set(key, list);
   }
 
-  const locales = new Map<string, DigestLang>();
-  for (const [uid, prof] of recipients) locales.set(uid, prof.lang);
-
-  const { lanes, deviceCountByJob } = buildPushLanes(jobs, devicesByRecipient, locales);
+  const lanes = buildPushLanes(jobs, devicesByRecipient, recipients);
   const laneResults = await mapWithConcurrency(lanes, PUSH_CONCURRENCY, (lane) =>
     drainPushLane(lane, vapid),
   );
 
-  // Agregacja per zadanie: dostarczenie na jakiekolwiek urządzenie wygrywa;
-  // dead tylko gdy nic nie doszło i (payload nieprzechodzący albo wszystkie
-  // urządzenia odpadły).
-  const tally = new Map<number, { ok: boolean; gone: number; permanent: boolean }>();
+  // Agregacja per zadanie. Każde urządzenie zadania daje DOKŁADNIE jedną próbę
+  // (wysłaną albo odciętą w drainPushLane), więc liczba prób to liczba urządzeń,
+  // a zadanie bez wpisu to zadanie bez urządzeń. Dostarczenie na jakiekolwiek
+  // urządzenie wygrywa; dead tylko gdy nic nie doszło i (payload nieprzechodzący
+  // albo wszystkie urządzenia odpadły albo nie było ani jednego).
+  const tally = new Map<number, { ok: boolean; permanent: boolean; gone: number; tries: number }>();
   for (const lane of laneResults) {
     for (const attempt of lane.attempts) {
-      const entry = tally.get(attempt.jobId) ?? { ok: false, gone: 0, permanent: false };
+      const entry = tally.get(attempt.jobId) ?? { ok: false, permanent: false, gone: 0, tries: 0 };
       entry.ok = entry.ok || attempt.ok;
-      entry.gone += attempt.gone ? 1 : 0;
       entry.permanent = entry.permanent || attempt.permanent;
+      entry.gone += attempt.gone ? 1 : 0;
+      entry.tries += 1;
       tally.set(attempt.jobId, entry);
     }
   }
 
   const reports = jobs.map((job): PushJobReport => {
     const entry = tally.get(job.id);
-    const devices = deviceCountByJob.get(job.id) ?? 0;
-    const allGone = devices > 0 && (entry?.gone ?? 0) >= devices;
-    const ok = entry?.ok ?? false;
+    if (!entry) return { id: job.id, ok: false, dead: true };
     return {
       id: job.id,
-      ok,
-      dead: !ok && (devices === 0 || allGone || !!entry?.permanent),
+      ok: entry.ok,
+      dead: !entry.ok && (entry.permanent || entry.gone === entry.tries),
     };
   });
 
@@ -396,7 +417,7 @@ export async function processPushJobs(
   // (tenant_id, user_id). Taki wiersz idzie w 'dead' bez ani jednej próby
   // wysyłki, czyli w logu wygląda identycznie jak pusta kolejka - dokładnie ten
   // sam rodzaj niemej awarii, co brak kluczy VAPID wyżej. Nazywamy go wprost.
-  const orphaned = jobs.filter((job) => (deviceCountByJob.get(job.id) ?? 0) === 0);
+  const orphaned = jobs.filter((job) => !tally.has(job.id));
   if (orphaned.length > 0) {
     const keys = [...new Set(orphaned.map((job) => recipientKey(job.tenant_id, job.user_id)))];
     console.warn(
@@ -443,41 +464,61 @@ export async function processDigests(
 
   const recipients = await recipientsFor(due.map((d) => d.user_id));
   const base = siteUrl();
+  // Okno klucza idempotencji liczone RAZ na partię: partia złożona tuż przed
+  // północą UTC nie rozjeżdża się na dwa okna.
+  const window = new Date().toISOString().slice(0, 10);
 
-  let sent = 0;
-  for (const row of due) {
-    const claimedItems = (Array.isArray(row.items) ? row.items : []) as unknown as DigestItem[];
-    // Rodzaj `event` NIE trafia do digestu (D8): przypomnienie o sesji
-    // w zbiorczym mailu następnego dnia jest po czasie z definicji. Digest,
-    // w którym zostały same przypomnienia, nie wychodzi wcale.
-    const items = claimedItems.filter((item) => item.kind !== "event");
-    if (items.length === 0) continue;
-    const recipient = recipients.get(row.user_id);
-    const lang = recipient?.lang ?? "pl";
-    const html = buildDigestHtml({
-      displayName: row.display_name,
-      items,
-      lang,
-      siteUrl: base,
-      frequency,
-    });
-    // Digest idzie tą samą kolejką NES co maile transakcyjne/autoryzacyjne:
-    // jeden nadawca (noreply@neweuropeanstrategies.com), jedna lista wykluczeń
-    // i jeden log dostarczalności (email_send_log) zamiast osobnej ścieżki.
-    const window = new Date().toISOString().slice(0, 10);
-    const result = await enqueueRawEmail({
-      to: row.email,
-      subject: digestSubject(items.length, lang, frequency),
-      html,
-      label: `digest_${frequency}`,
-      idempotencyKey: `digest:${frequency}:${row.user_id}:${window}`,
-    });
-    if (!result.ok) {
-      console.error("[community] digest send failed", result.error);
+  const delivered = await mapWithConcurrency(due, DIGEST_CONCURRENCY, async (row) => {
+    // Wyjątek jednego wiersza nie może zabrać partii - CAŁE ciało jest w try,
+    // bo pozycje przychodzą z jsonb (tytuł bywa czymś innym niż napis):
+    // claim_due_digests już przestawił digest_last_sent_at WSZYSTKIM, więc
+    // przerwanie oznaczałoby, że reszta odbiorców nie dostanie tego digestu
+    // nigdy (a nie "później").
+    try {
+      const recipient = recipients.get(row.user_id);
+      const lang = recipient?.lang ?? "pl";
+      const claimedItems = (Array.isArray(row.items) ? row.items : []) as unknown as DigestItem[];
+      // Rodzaj `event` NIE trafia do digestu (D8): przypomnienie o sesji
+      // w zbiorczym mailu następnego dnia jest po czasie z definicji. Pozycja
+      // bez tytułu w żadnym języku też nie (buildDigestHtml i tak by ją
+      // pominął, a temat liczyłby ją jako aktualizację). Digest, w którym nic
+      // nie zostało, nie wychodzi wcale.
+      const items = claimedItems.filter(
+        (item) => item.kind !== "event" && pickDigestText(item, lang) !== "",
+      );
+      if (items.length === 0) return false;
+      // Digest idzie tą samą kolejką NES co maile transakcyjne/autoryzacyjne:
+      // jeden nadawca (noreply@neweuropeanstrategies.com), jedna lista
+      // wykluczeń i jeden log dostarczalności (email_send_log).
+      const result = await enqueueRawEmail({
+        to: row.email,
+        subject: digestSubject(items.length, lang, frequency),
+        html: buildDigestHtml({
+          displayName: row.display_name,
+          items,
+          lang,
+          siteUrl: base,
+          frequency,
+        }),
+        label: `digest_${frequency}`,
+        idempotencyKey: `digest:${frequency}:${row.user_id}:${window}`,
+        // Tenant z profilu odbiorcy. Bez niego bramka listy wykluczeń zgaduje
+        // najemcę z adresu (subskrypcja newslettera wygrywa tam z kontem, a
+        // adres nierozstrzygnięty dostaje tenanta domyślnego), czyli mogła
+        // sprawdzać CUDZĄ listę i przepuścić adres zablokowany u odbiorcy.
+        // Brak profilu = null = dotychczasowe rozstrzygnięcie z adresu.
+        tenantId: recipient?.tenantId ?? null,
+      });
+      // Pominięcie (lista wykluczeń, duplikat) jest świadomą decyzją zapisaną
+      // w email_send_log - do logu błędów idzie tylko prawdziwa awaria.
+      if (result.error) console.error("[community] digest send failed", result.error);
+      return result.ok;
+    } catch (err) {
+      console.error("[community] digest build/send error", err);
+      return false;
     }
-    if (result.ok) sent += 1;
-  }
-  return { claimed: due.length, sent };
+  });
+  return { claimed: due.length, sent: delivered.filter(Boolean).length };
 }
 
 /** Fallback dla środowisk bez pg_cron: przypomnienia o wydarzeniach. */

@@ -71,6 +71,7 @@
     "typecheck:e2e": "tsgo --noEmit -p tsconfig.e2e.json",
     "check:first-visit-regression": "node scripts/performance/compare-first-visit.mjs",
     "check:document-weight": "node scripts/performance/check-document-weight.ts",
+    "check:structured-data-live": "node scripts/seo/check-structured-data.ts",
     "test:e2e:cms-performance": "node scripts/performance/run-cms-widgets.mjs",
     "test:events:integration": "playwright test --config playwright.integration.config.ts",
     "typecheck:events:integration": "tsc --noEmit --project tsconfig.integration.json",
@@ -161,7 +162,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@lovable.dev/vite-tanstack-config": "2.25.3",
+    "@lovable.dev/vite-tanstack-config": "2.26.5",
     "@playwright/test": "^1.63.0",
     "@resvg/resvg-wasm": "^2.6.2",
     "@tailwindcss/oxide": "4.3.3",

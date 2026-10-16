@@ -9,16 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, X, Search } from "@/lib/lucide-shim";
 import { createTag, deleteTag } from "@/lib/content.functions";
-import { adminPageHead } from "@/lib/adminPageHead";
-import { adminToast } from "@/lib/adminToasts";
-import { confirmDialog } from "@/lib/appDialogs";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/appDialogs";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 export const Route = createFileRoute("/admin/tags")({
   head: () =>
     adminPageHead(
       "Tags",
-      "Add, search and delete post tags. New European Strategies administration.",
+      "Manage post tags and their slugs. New European Strategies administration.",
     ),
   component: Tags,
 });
@@ -29,8 +28,6 @@ interface TagRow {
   slug: string;
 }
 
-const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
 function Tags() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -40,10 +37,12 @@ function Tags() {
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
-  const { data, isError } = useQuery({
-    // Własny trzeci człon: edytor wpisu trzyma pod `["tags", tenant]` wiersze
-    // bez sluga, a przy globalnym `staleTime` ten ekran brał je za swoje.
-    // Inwalidacja prefiksem `["tags"]` (tu i w edytorze) obejmuje oba klucze.
+  const { data, error } = useQuery({
+    // Własny klucz, NIE gołe ["tags", tenantId]: pod tym kluczem edytor wpisu
+    // (usePostEditorData) trzyma wiersze `id, name` BEZ sluga, a przy
+    // staleTime 5 min ekran tagów dostawał je z cache bez pobrania - szukanie
+    // po slugu nie znajdowało wtedy nic. Prefiks ["tags", tenantId] zostaje,
+    // więc unieważnienia z edytora i z tego ekranu nadal obejmują oba zapytania.
     queryKey: ["tags", tenantId, "admin"],
     queryFn: async (): Promise<TagRow[]> => {
       const { data, error } = await supabase
@@ -65,52 +64,37 @@ function Tags() {
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
-    const submitted = name;
-    const tagName = submitted.trim();
-    // Drugi Enter w trakcie żądania dawał drugi `createTag`: duplikat `ai-2`
-    // albo błąd unikalności sluga.
-    if (!tagName || adding) return;
-    // Serwer dokleja do sluga sufiks, więc ta sama nazwa dałaby osobny tag,
-    // nieodróżnialny od istniejącego w każdym selektorze tagów.
-    const existing = data?.find((tg) => tg.name.trim().toLowerCase() === tagName.toLowerCase());
-    if (existing) {
-      toast.error(t("admin.tags.duplicate", { name: existing.name }));
-      return;
-    }
+    // Blokada w locie: pole trzyma nazwę do końca żądania, więc drugi Enter
+    // wysyłał ją ponownie i serwer tworzył duplikat ze slugiem „-2”.
+    if (!name.trim() || adding) return;
     setAdding(true);
     try {
-      await create$({ data: { name: tagName } });
-      toast.success(adminToast.added());
-      // Pole zostaje edytowalne w trakcie zapisu - czyścimy tylko nazwę,
-      // która właśnie trafiła do bazy, nie zaczęty już kolejny tag.
-      setName((current) => (current === submitted ? "" : current));
-      // Blokada trwa do odświeżenia listy, żeby kontrola duplikatu widziała nowy tag.
-      await qc.invalidateQueries({ queryKey: ["tags"] });
+      await create$({ data: { name: name.trim() } });
+      setName("");
+      qc.invalidateQueries({ queryKey: ["tags"] });
     } catch (err) {
-      toast.error(errorMessage(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setAdding(false);
     }
   };
-  const del = async (tag: TagRow) => {
-    // `post_tags` kasuje się kaskadowo - usunięcie odpina tag od wszystkich wpisów.
-    const confirmed = await confirmDialog({
-      title: t("admin.tags.confirmDeleteTitle", { name: tag.name }),
-      description: t("admin.tags.confirmDeleteDescription"),
-      destructive: true,
-      confirmLabel: t("admin.delete"),
-    });
-    if (!confirmed) return;
+  const del = async (tg: TagRow) => {
+    // Usunięcie tagu odpina go kaskadowo od WSZYSTKICH wpisów (post_tags
+    // ON DELETE CASCADE) - jak w kategoriach, bez potwierdzenia ani rusz.
+    if (
+      !(await confirmDialog({
+        title: t("admin.confirmDelete"),
+        description: tg.name,
+        destructive: true,
+        confirmLabel: t("admin.delete"),
+      }))
+    )
+      return;
     try {
-      await delete$({ data: { id: tag.id } });
-      toast.success(adminToast.deleted());
+      await delete$({ data: { id: tg.id } });
       qc.invalidateQueries({ queryKey: ["tags"] });
-      // Kaskada opróżniła też `post_tags`. Edytor wpisu trzymałby w cache
-      // relację z usuniętym id, a jego autozapis (`updatePost`: delete, potem
-      // insert) padałby na kluczu obcym po skasowaniu WSZYSTKICH tagów wpisu.
-      qc.invalidateQueries({ queryKey: ["post-tags"] });
     } catch (err) {
-      toast.error(errorMessage(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -119,12 +103,10 @@ function Tags() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="font-display text-2xl font-bold">{t("admin.nav.tags")}</h1>
-          {data && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {filtered.length}
-              {data.length !== filtered.length ? ` / ${data.length}` : ""}
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {filtered.length}
+            {data && data.length !== filtered.length ? ` / ${data.length}` : ""}
+          </p>
         </div>
       </div>
 
@@ -141,7 +123,7 @@ function Tags() {
             type="submit"
             className="h-8"
             disabled={adding}
-            aria-label={t("admin.tags.add")}
+            aria-label={t("admin.new")}
           >
             <Plus className="w-3.5 h-3.5" />
           </Button>
@@ -162,11 +144,6 @@ function Tags() {
         )}
       </div>
 
-      {isError && (
-        <p role="alert" className="text-xs text-destructive mb-2">
-          {t("admin.tags.loadError")}
-        </p>
-      )}
       <div className="flex flex-wrap gap-1.5">
         {filtered.map((tg) => (
           <span
@@ -177,21 +154,29 @@ function Tags() {
             <button
               onClick={() => del(tg)}
               type="button"
-              aria-label={t("admin.tags.deleteAria", { name: tg.name })}
+              aria-label={t("admin.delete")}
               className="w-5 h-5 rounded-full hover:bg-destructive/10 inline-flex items-center justify-center"
             >
               <X className="w-3 h-3 text-destructive" />
             </button>
           </span>
         ))}
-        {/* Wczytywanie i błąd odczytu to nie „pusto” - przed odpowiedzią bazy
-            nie wiadomo, czy tagi istnieją. */}
-        {!data && !isError && <p className="text-xs text-muted-foreground">{t("admin.loading")}</p>}
-        {data && !filtered.length && (
-          <p className="text-xs text-muted-foreground">
-            {data.length ? t("admin.list.noResults") : t("admin.empty")}
-          </p>
-        )}
+        {/* Pustka tylko po wczytaniu: w trakcie ładowania i po błędzie zapytania
+            „Brak elementów” kłamało, że baza nie ma tagów. */}
+        {!filtered.length &&
+          (error && !data ? (
+            <p role="alert" className="text-xs text-destructive">
+              {error.message}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {!data
+                ? t("admin.loading")
+                : data.length
+                  ? t("admin.list.noResults")
+                  : t("admin.empty")}
+            </p>
+          ))}
       </div>
     </div>
   );

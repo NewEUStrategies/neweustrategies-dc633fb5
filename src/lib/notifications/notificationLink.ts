@@ -14,16 +14,26 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 /**
+ * Tab i znaki nowej linii - parser URL (WHATWG) wycina je z KAŻDEGO miejsca
+ * adresu, zanim zacznie go czytać.
+ */
+const URL_STRIPPED_CHARS = /[\t\n\r]/g;
+
+/**
  * Czy href prowadzi do TEJ aplikacji.
  *
  * `//evil.example` jest w HTML adresem zewnętrznym (protocol-relative), a przy
  * naiwnym `startsWith("/")` przeszedłby jako wewnętrzny i trafił do
  * `router.navigate({ href })` - czyli treść z bazy sterowałaby nawigacją SPA
  * na obcy host. Stąd drugi warunek; on jest tu regułą bezpieczeństwa, nie
- * kosmetyką.
+ * kosmetyką. Ta sama reguła obejmuje dwa zapisy, które przeglądarka czyta
+ * jak `//`: odwrotny ukośnik (`/\evil.example` - dla schematów http(s) `\`
+ * znaczy `/`) i tab/nową linię między ukośnikami (`/\t/evil.example`), więc
+ * sprawdzamy adres po tej samej normalizacji, którą zrobi parser.
  */
 export function isInternalHref(href: string): boolean {
-  return href.startsWith("/") && !href.startsWith("//");
+  const normalized = href.replace(URL_STRIPPED_CHARS, "");
+  return normalized.startsWith("/") && normalized[1] !== "/" && normalized[1] !== "\\";
 }
 
 /**
@@ -41,17 +51,15 @@ export function isPlainLeftClick(e: ReactMouseEvent<HTMLAnchorElement>): boolean
 /**
  * Id rozmówcy z odnośnika powiadomienia (`/messages?c=<uuid>`), albo null.
  *
- * Baza `https://local.invalid` jest świadoma: `new URL()` wymaga bazy dla
- * ścieżki względnej, a host, który NIGDY nie istnieje (RFC 6761 sek. 6.4),
- * gwarantuje, że nawet gdyby ten URL kiedyś wyciekł do żądania, nie da się go
- * rozwiązać. Adresy zewnętrzne odrzucamy PRZED parsowaniem - profil aktora
- * czytamy wyłącznie dla własnych tras.
+ * Adresy zewnętrzne odrzucamy PRZED parsowaniem - profil aktora czytamy
+ * wyłącznie dla własnych tras. Dla ścieżki wewnętrznej wystarczy query string
+ * (do `#`): `URLSearchParams` dekoduje go tak samo jak `URL#searchParams`, ale
+ * nie potrzebuje bazy i nie ma czym rzucić, więc odczyt nie może wywrócić
+ * renderu dzwonka.
  */
 export function notificationActorId(href: string | null | undefined): string | null {
   if (!href || !isInternalHref(href)) return null;
-  try {
-    return new URL(href, "https://local.invalid").searchParams.get("c");
-  } catch {
-    return null;
-  }
+  const [path] = href.replace(URL_STRIPPED_CHARS, "").split("#", 1);
+  const queryAt = path.indexOf("?");
+  return queryAt === -1 ? null : new URLSearchParams(path.slice(queryAt + 1)).get("c");
 }

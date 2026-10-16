@@ -989,8 +989,10 @@ export const Route = createFileRoute("/$")({
       ),
       origin,
       lang,
-      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
-      splitUrl(url).path,
+      // Ostatni okruszek (bieżąca strona/wpis) dostaje z tego adresu `item`.
+      // `null`, gdy loader nie zwrócił hierarchii - Google wymaga co najmniej
+      // dwóch pozycji, a sama „Strona główna" nie jest ścieżką okruszków.
+      url,
     );
     // Preload the LCP image (post cover / builder-page hero) so its fetch
     // starts from <head>, before the <img> is parsed in the body. The
@@ -1025,7 +1027,9 @@ export const Route = createFileRoute("/$")({
       // the <script> element and inject markup (stored XSS).
       scripts: [
         { type: "application/ld+json", children: safeJsonLd(jsonLd) },
-        { type: "application/ld+json", children: safeJsonLd(breadcrumbLd) },
+        ...(breadcrumbLd
+          ? [{ type: "application/ld+json", children: safeJsonLd(breadcrumbLd) }]
+          : []),
       ],
     };
   },

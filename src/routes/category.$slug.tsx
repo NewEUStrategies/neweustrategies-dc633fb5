@@ -218,7 +218,7 @@ export const Route = createFileRoute("/category/$slug")({
         : lang === "en"
           ? `${name} - category`
           : `${name} - kategoria`;
-    const { origin } = splitUrl(url);
+    const { origin, path } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
     // TERM ORGANIZACJI MA WŁASNY, KANONICZNY ADRES. `/category/<slug>` renderuje
     // się dla niego dalej (zastane linki nie mogą paść), ale wskazuje profil
@@ -243,8 +243,7 @@ export const Route = createFileRoute("/category/$slug")({
       [{ label: crumbsLabel, href: "/blog" }, { label: name }],
       originAbs,
       lang,
-      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
-      splitUrl(url).path,
+      path,
     );
     // CollectionPage node for archive semantics.
     const collection = {
@@ -253,9 +252,11 @@ export const Route = createFileRoute("/category/$slug")({
       name: title,
       description: cleanedDesc,
       inLanguage: lang,
-      url: `${originAbs}${url.startsWith("/") ? url : `/${url}`}`,
+      // Sam pathname: `url` z SSR jest absolutny, a sklejanie go z originem
+      // dawało w produkcji `https://host/https://host/category/...`.
+      url: `${originAbs}${path}`,
       isPartOf: { "@id": `${originAbs}/#website` },
-      breadcrumb: { "@id": `${originAbs}${url}#breadcrumbs` },
+      breadcrumb: { "@id": breadcrumbs["@id"] },
     };
     // Autodiscovery feedu tematycznego - czytniki RSS i agregatory widzą
     // kanal kategorii/tagu bez znajomosci konwencji URL.
@@ -287,7 +288,7 @@ export const Route = createFileRoute("/category/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: safeJsonLd({ ...breadcrumbs, "@id": `${originAbs}${url}#breadcrumbs` }),
+          children: safeJsonLd(breadcrumbs),
         },
         { type: "application/ld+json", children: safeJsonLd(collection) },
       ],

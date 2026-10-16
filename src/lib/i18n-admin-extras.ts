@@ -551,6 +551,8 @@ export const adminExtrasPl = {
       editor: {
         builderLocked:
           "Strony używają wspólnej struktury dla PL i EN - przełącznik języka zmienia tylko teksty.",
+        loadError:
+          "Nie udało się wczytać strony - mogła zostać usunięta, zmienić adres albo nie masz do niej dostępu.",
       },
       importWp: "Import z WordPress",
       preview: "Podgląd strony w nowej karcie",
@@ -785,18 +787,6 @@ export const adminExtrasPl = {
       subtitle:
         "Obrazek, który widzą odbiorcy po wklejeniu linku w Messengerze, WhatsAppie, LinkedIn, X czy Slacku. Zalecany format: 1200x630 px, JPG/PNG, poniżej 1 MB.",
       title: "Podgląd linków (og:image)",
-    },
-    // Ekran `/admin/tags` (rdzeń ma tu tylko `placeholder`). Nazwa tagu siedzi
-    // w pytaniu i w etykiecie ×, bo chipy stoją rzędem: samo „Usuń” nie mówi
-    // czytnikowi ekranu, KTÓRY tag zniknie.
-    tags: {
-      add: "Dodaj tag",
-      confirmDeleteDescription:
-        "Tag zniknie ze wszystkich wpisów, do których jest przypięty. Tej operacji nie można cofnąć.",
-      confirmDeleteTitle: "Usunąć tag „{{name}}”?",
-      deleteAria: "Usuń tag {{name}}",
-      duplicate: "Tag „{{name}}” już istnieje.",
-      loadError: "Nie udało się wczytać tagów. Odśwież stronę.",
     },
     themeOptions: {
       // Dialog historii zmian ustawień. Dziewięć kluczy niżej stało wcześniej
@@ -1456,6 +1446,8 @@ export const adminExtrasEn = {
       editor: {
         builderLocked:
           "Pages use a shared structure for PL and EN - the language switcher changes only the text.",
+        loadError:
+          "Could not load this page - it may have been deleted, moved to another address, or you no longer have access to it.",
       },
       importWp: "Import from WordPress",
       preview: "Preview page in a new tab",
@@ -1664,15 +1656,6 @@ export const adminExtrasEn = {
       subtitle:
         "The image people see when your link is pasted into Messenger, WhatsApp, LinkedIn, X or Slack. Recommended: 1200x630 px, JPG/PNG, under 1 MB.",
       title: "Link preview (og:image)",
-    },
-    tags: {
-      add: "Add tag",
-      confirmDeleteDescription:
-        "The tag will be removed from every post it is attached to. This cannot be undone.",
-      confirmDeleteTitle: "Delete the tag “{{name}}”?",
-      deleteAria: "Delete tag {{name}}",
-      duplicate: "The tag “{{name}}” already exists.",
-      loadError: "Could not load tags. Refresh the page.",
     },
     themeOptions: {
       history: {

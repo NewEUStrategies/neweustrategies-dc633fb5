@@ -66,7 +66,8 @@ import {
   type AdminAccountStatus,
 } from "@/lib/admin/accountAdmin.functions";
 import { accountAdminErrorKey } from "@/lib/admin/accountAdminErrors";
-import { sendInvitation } from "@/lib/admin/invitations.functions";
+import { sendActivationEmailForUser } from "@/lib/admin/invitations.functions";
+import { invitationErrorKey } from "@/lib/admin/invitationErrors";
 import { impersonateUser } from "@/lib/admin/impersonation";
 import { BADGE_ORDER, badgeLabel, useUserBadges } from "@/lib/profile/badges";
 import { grantBadge, revokeUserBadge } from "@/lib/admin/badges";
@@ -912,7 +913,11 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
   const { t } = useTranslation();
   const qc = useQueryClient();
   const fetchStatus = useServerFn(getUserAccountStatus);
-  const resendInvitation = useServerFn(sendInvitation);
+  // Aktywacja, nie ponowienie dowolnego zaproszenia: `sendActivationEmailForUser`
+  // wysyła wyłącznie link na wierszu aktywacji tego konta. Ponowienie
+  // najnowszego zaproszenia (z dialogu, importu, klubu) szło pełną hydracją
+  // z jego metadanych i zerowało członkowi biogram, kontakt i linki.
+  const sendActivation = useServerFn(sendActivationEmailForUser);
   const [isResending, setIsResending] = useState(false);
   const {
     data,
@@ -951,8 +956,14 @@ function AccountStatusCard({ userId, locale }: { userId: string; locale: string 
     if (!data.invitationId || isResending) return;
     setIsResending(true);
     try {
-      const result = await resendInvitation({ data: { id: data.invitationId } });
-      if (!result.ok) throw new Error(result.error ?? t("adminUsers.activationResendError"));
+      const result = await sendActivation({ data: { userId } });
+      if (!result.ok) {
+        throw new Error(
+          result.error
+            ? t(invitationErrorKey(result.error))
+            : t("adminUsers.activationResendError"),
+        );
+      }
       toast.success(t("adminUsers.activationResent"));
       await qc.invalidateQueries({ queryKey: ["admin-user-account-status", userId] });
     } catch (error) {
