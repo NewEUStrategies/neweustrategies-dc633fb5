@@ -76,7 +76,7 @@ function FontSizesPage() {
       <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">
         <span className="text-destructive">{t("fontScale.loadError")}</span>
         <Button type="button" variant="outline" onClick={() => void query.refetch()}>
-          {t("fontScale.retry")}
+          {t("common.retry")}
         </Button>
       </div>
     );
