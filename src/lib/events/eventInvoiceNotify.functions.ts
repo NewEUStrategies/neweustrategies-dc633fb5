@@ -14,7 +14,7 @@ const Input = z.object({ invoiceIds: z.array(z.string().uuid()).min(1).max(200) 
 
 export const notifyEventInvoicesIssued = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }) => {
     const { notifyIssuedInvoices } = await import("@/lib/events/eventInvoiceNotify.server");
     return notifyIssuedInvoices(context.supabase, data.invoiceIds);

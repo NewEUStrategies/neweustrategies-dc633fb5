@@ -44,7 +44,7 @@ import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { cacheControlHeader } from "@/lib/http/cachePolicy";
 
 export const isNonAuthorMemberSlug = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ slug: z.string().min(1).max(200) }).parse(data))
+  .validator((data: unknown) => z.object({ slug: z.string().min(1).max(200) }).parse(data))
   .handler(async ({ data }): Promise<boolean> => {
     const url = process.env["SUPABASE_URL"];
     const key = process.env["SUPABASE_PUBLISHABLE_KEY"];

@@ -50,7 +50,7 @@ const Input = z
   .strict();
 
 export const registerEventGroupGuests = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data }): Promise<GroupGuestsClient> => {
     const { registerEventGroupGuestsForRequest } = await import("@/lib/events/groupGuests.server");
     return registerEventGroupGuestsForRequest(data);

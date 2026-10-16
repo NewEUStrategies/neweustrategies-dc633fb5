@@ -34,7 +34,7 @@ const repairSchema = z.object({
 /** Raport rozbieżności Stripe kontra baza (tylko odczyt). */
 export const getReconcileReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => reportSchema.parse(input))
+  .validator((input: unknown) => reportSchema.parse(input))
   .handler(async ({ data, context }): Promise<ReconcileReport> => {
     const { assertSuperAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertSuperAdmin(context.supabase, context.userId);
@@ -45,7 +45,7 @@ export const getReconcileReport = createServerFn({ method: "POST" })
 /** Naprawa pojedynczej rozbieżności - idempotentna, tą samą ścieżką co webhook. */
 export const repairReconcileEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => repairSchema.parse(input))
+  .validator((input: unknown) => repairSchema.parse(input))
   .handler(async ({ data, context }): Promise<RepairOutcome> => {
     const { assertSuperAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertSuperAdmin(context.supabase, context.userId);

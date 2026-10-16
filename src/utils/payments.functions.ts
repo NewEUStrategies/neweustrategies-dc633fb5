@@ -20,7 +20,7 @@ const envSchema = z.enum(["sandbox", "live"]);
 
 /** Zamiana czytelnego identyfikatora ceny (`lookup_key`) na `price_...` u Stripe. */
 export const resolveStripePrice = createServerFn({ method: "GET" })
-  .inputValidator((data: { priceId: string; environment: StripeEnv }) =>
+  .validator((data: { priceId: string; environment: StripeEnv }) =>
     z.object({ priceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data }) => {
@@ -69,7 +69,7 @@ async function assertOfferedTarget(
  */
 export const changeStripePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
+  .validator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -123,7 +123,7 @@ export const changeStripePlan = createServerFn({ method: "POST" })
  */
 export const createStripePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv; returnPath?: string }) =>
+  .validator((data: { environment: StripeEnv; returnPath?: string }) =>
     z.object({ environment: envSchema, returnPath: z.string().max(300).optional() }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -150,7 +150,7 @@ export const createStripePortalSession = createServerFn({ method: "POST" })
  */
 export const cancelStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) =>
+  .validator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -184,7 +184,7 @@ export const cancelStripeSubscription = createServerFn({ method: "POST" })
  */
 export const resumeStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) =>
+  .validator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -229,7 +229,7 @@ export const resumeStripeSubscription = createServerFn({ method: "POST" })
  */
 export const previewStripePlanChange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { targetPriceId: string; environment: StripeEnv }) =>
+  .validator((data: { targetPriceId: string; environment: StripeEnv }) =>
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -326,7 +326,7 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
  */
 export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { quantity: number; environment: StripeEnv }) =>
+  .validator((data: { quantity: number; environment: StripeEnv }) =>
     z.object({ quantity: z.number().int().min(1).max(500), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -378,7 +378,7 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
  */
 export const syncMyBillingFromProvider = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) =>
+  .validator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -419,7 +419,7 @@ export const syncMyBillingFromProvider = createServerFn({ method: "POST" })
  */
 export const getMyPaymentMethod = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) =>
+  .validator((data: { environment: StripeEnv }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {

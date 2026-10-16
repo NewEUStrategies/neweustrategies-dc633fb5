@@ -126,7 +126,22 @@ export const SINGLETON_PACKAGES: readonly SingletonRule[] = [
  * druga kopia nie jest dziś świadomie tolerowana". Nowy wpis wymaga powodu,
  * który tłumaczy, dlaczego ta kopia nigdy nie spotka obiektów z pierwszej.
  */
-export const DUPLICATE_ALLOWLIST: readonly AllowedDuplicate[] = [];
+export const DUPLICATE_ALLOWLIST: readonly AllowedDuplicate[] = [
+  // Vitest 5 instrumentuje pokrycie Babelem 8 (`@vitest/istanbul-lib-instrument` wymaga
+  // `@babel/core ^8`), a wtyczki TanStack (router-plugin, start-plugin-core,
+  // babel-dead-code-elimination) - Babelem 7, przypiętym na górze drzewa w package.json.
+  // Kopia 8 żyje wyłącznie w procesie `vitest --coverage` i instrumentuje źródła testów;
+  // konfiguracje vitest nie ładują wtyczek TanStack, więc jej AST nigdy nie spotyka kopii 7.
+  {
+    path: "@vitest/istanbul-lib-instrument/@babel/core",
+    reason:
+      "Babel 8 instrumentacji pokrycia vitest 5 - konfiguracje vitest nie ładują wtyczek TanStack (Babel 7)",
+  },
+  {
+    path: "@vitest/istanbul-lib-instrument/@babel/core/@babel/traverse",
+    reason: "traverse Babela 8 z tej samej izolowanej kopii instrumentacji pokrycia vitest 5",
+  },
+];
 
 /**
  * Parser JSON z przecinkami na końcu list i obiektów - w tym formacie bun

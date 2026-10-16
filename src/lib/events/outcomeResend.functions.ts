@@ -19,7 +19,7 @@ const schema = z.object({ registrationId: z.string().uuid() });
 /** Ponawia wysyłkę maila/SMS o statusie zgłoszenia - bez zmiany płatności. */
 export const resendRegistrationNotifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => schema.parse(input))
+  .validator((input: unknown) => schema.parse(input))
   .handler(async ({ data, context }): Promise<ResendOutcomeResult> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertAdmin(context.supabase, context.userId);

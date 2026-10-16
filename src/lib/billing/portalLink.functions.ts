@@ -33,7 +33,7 @@ const transactionSchema = z
 /** Mail ze stałym wejściem do portalu klienta - na własny adres. */
 export const sendMyPortalLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: "sandbox" | "live" }) =>
+  .validator((data: { environment: "sandbox" | "live" }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -60,7 +60,7 @@ export const sendMyPortalLink = createServerFn({ method: "POST" })
  */
 export const openMyBillingPortal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: "sandbox" | "live" }) =>
+  .validator((data: { environment: "sandbox" | "live" }) =>
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -73,7 +73,7 @@ export const openMyBillingPortal = createServerFn({ method: "POST" })
 /** Ponowna wysyłka wejścia do portalu z panelu administratora - własny najemca. */
 export const resendPortalLinkForUser = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])
-  .inputValidator((data: { userId: string; environment: "sandbox" | "live" }) =>
+  .validator((data: { userId: string; environment: "sandbox" | "live" }) =>
     z.object({ userId: z.string().uuid(), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -93,7 +93,7 @@ export const resendPortalLinkForUser = createServerFn({ method: "POST" })
 /** Faktura po numerze transakcji - użytkownik, tylko własne transakcje. */
 export const fetchMyInvoiceByTransaction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { transactionId: string; environment: "sandbox" | "live" }) =>
+  .validator((data: { transactionId: string; environment: "sandbox" | "live" }) =>
     z.object({ transactionId: transactionSchema, environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -111,7 +111,7 @@ export const fetchMyInvoiceByTransaction = createServerFn({ method: "POST" })
  */
 export const fetchInvoiceByTransactionAsAdmin = createServerFn({ method: "POST" })
   .middleware([requireAdminEditor])
-  .inputValidator((data: { transactionId: string; environment: "sandbox" | "live" }) =>
+  .validator((data: { transactionId: string; environment: "sandbox" | "live" }) =>
     z.object({ transactionId: transactionSchema, environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {

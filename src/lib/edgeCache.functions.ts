@@ -53,5 +53,5 @@ export const purgeEdgeCache = createServerFn({ method: "POST" })
  */
 export const probeEdgeCache = createServerFn({ method: "POST" })
   .middleware([requireStaff])
-  .inputValidator((data: unknown) => probeSchema.parse(data))
+  .validator((data: unknown) => probeSchema.parse(data))
   .handler(async ({ data }): Promise<DocumentCacheProbe> => probeDocumentCache(data.path));

@@ -30,7 +30,7 @@ const Input = z.object({
 });
 
 export const confirmEventRegistrationEmail = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data }): Promise<SelfNotifyResult> => {
     const { confirmRegistrationNoticeForRequest } =
       await import("@/lib/events/registrationSelfNotify.server");

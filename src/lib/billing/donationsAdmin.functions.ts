@@ -20,7 +20,7 @@ const syncSchema = z.object({
 /** Rejestr wpłat dla panelu administracyjnego. */
 export const listDonationRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => listSchema.parse(input))
+  .validator((input: unknown) => listSchema.parse(input))
   .handler(async ({ data, context }): Promise<AdminDonationRow[]> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
@@ -31,7 +31,7 @@ export const listDonationRecords = createServerFn({ method: "POST" })
 /** Synchronizacja rejestru darowizn ze Stripe (idempotentna). */
 export const syncDonationsWithStripe = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => syncSchema.parse(input))
+  .validator((input: unknown) => syncSchema.parse(input))
   .handler(async ({ data, context }): Promise<DonationsSyncReport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertAdmin(context.supabase, context.userId);

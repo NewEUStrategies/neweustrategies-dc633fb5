@@ -17,7 +17,7 @@ const InputSchema = z.object({
 
 export const setClubCoverPosition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => InputSchema.parse(data))
+  .validator((data: unknown) => InputSchema.parse(data))
   .handler(async ({ data, context }): Promise<number> => {
     const { data: result, error } = await context.supabase.rpc("club_set_cover_position", {
       p_club_id: data.clubId,

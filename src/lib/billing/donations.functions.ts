@@ -173,7 +173,7 @@ export interface DonationCheckoutInput {
  * profilu i status wspierającego, anonimowy - pełną anonimowość.
  */
 export const createDonationCheckout = createServerFn({ method: "POST" })
-  .inputValidator((data: DonationCheckoutInput) => {
+  .validator((data: DonationCheckoutInput) => {
     if (data.environment !== "sandbox" && data.environment !== "live") {
       throw new Error("invalid_environment");
     }

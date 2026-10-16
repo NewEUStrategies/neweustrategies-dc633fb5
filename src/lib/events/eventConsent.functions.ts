@@ -40,21 +40,21 @@ const WithdrawInput = z
   .strict();
 
 export const previewEventConsent = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => TokenInput.parse(data))
+  .validator((data: unknown) => TokenInput.parse(data))
   .handler(async ({ data }): Promise<EventConsentPreviewResult> => {
     const { previewEventConsentForRequest } = await import("@/lib/events/eventConsent.server");
     return previewEventConsentForRequest(data.token);
   });
 
 export const confirmEventConsent = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => TokenInput.parse(data))
+  .validator((data: unknown) => TokenInput.parse(data))
   .handler(async ({ data }): Promise<EventConsentConfirmResult> => {
     const { confirmEventConsentForRequest } = await import("@/lib/events/eventConsent.server");
     return confirmEventConsentForRequest(data.token);
   });
 
 export const withdrawEventConsents = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => WithdrawInput.parse(data))
+  .validator((data: unknown) => WithdrawInput.parse(data))
   .handler(async ({ data }): Promise<EventConsentWithdrawResult> => {
     const { withdrawEventConsentsForRequest } = await import("@/lib/events/eventConsent.server");
     return withdrawEventConsentsForRequest(data);

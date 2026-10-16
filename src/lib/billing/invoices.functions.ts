@@ -13,7 +13,7 @@ const localeSchema = z.enum(["pl", "en"]);
 
 export const generateMyInvoicePdf = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { documentId: string; locale: "pl" | "en" }) =>
+  .validator((data: { documentId: string; locale: "pl" | "en" }) =>
     z.object({ documentId: z.string().uuid(), locale: localeSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {

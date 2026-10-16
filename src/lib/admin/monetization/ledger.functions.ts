@@ -14,7 +14,7 @@ const ledgerSchema = z.object({
 
 export const listMonetizationLedger = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ledgerSchema.parse(input))
+  .validator((input: unknown) => ledgerSchema.parse(input))
   .handler(async ({ data, context }): Promise<MonetizationLedgerResult> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     // Najemca jest WYNIKIEM bramki, nie osobnym rozstrzygnięciem po hoście:

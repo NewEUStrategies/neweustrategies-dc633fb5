@@ -9,7 +9,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const getMyEventTicket = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { eventId: string }) => {
+  .validator((data: { eventId: string }) => {
     const eventId = typeof data?.eventId === "string" ? data.eventId.trim() : "";
     if (!UUID.test(eventId)) throw new Error("invalid_event_id");
     return { eventId };
@@ -21,7 +21,7 @@ export const getMyEventTicket = createServerFn({ method: "POST" })
 
 /** Aktualna dostępność miejsc - autorytatywnie z backendu, bez cache klienta. */
 export const getEventSeatState = createServerFn({ method: "POST" })
-  .inputValidator((data: { eventId: string }) => {
+  .validator((data: { eventId: string }) => {
     const eventId = typeof data?.eventId === "string" ? data.eventId.trim() : "";
     if (!UUID.test(eventId)) throw new Error("invalid_event_id");
     return { eventId };

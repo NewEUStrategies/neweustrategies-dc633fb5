@@ -114,7 +114,7 @@ const Input = z
   .strict();
 
 export const submitEventRegistration = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data }): Promise<EventRegisterClient> => {
     const { submitEventRegistrationForRequest } =
       await import("@/lib/events/eventRegistration.server");

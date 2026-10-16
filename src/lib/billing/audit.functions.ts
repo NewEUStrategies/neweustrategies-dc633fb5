@@ -27,7 +27,7 @@ const exportSchema = querySchema.extend({
 /** Materiał audytowy: zamówienia plus dziennik webhooków (tylko odczyt). */
 export const getBillingAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => querySchema.parse(input))
+  .validator((input: unknown) => querySchema.parse(input))
   .handler(async ({ data, context }): Promise<AuditReport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
@@ -43,7 +43,7 @@ export const getBillingAudit = createServerFn({ method: "POST" })
 /** Eksport księgowy tego samego zakresu - CSV albo XLSX, zawsze z bazy. */
 export const exportBillingAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => exportSchema.parse(input))
+  .validator((input: unknown) => exportSchema.parse(input))
   .handler(async ({ data, context }): Promise<AuditExport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
