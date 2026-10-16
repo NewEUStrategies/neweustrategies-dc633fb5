@@ -12,6 +12,7 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import { supabase } from "@/integrations/supabase/client";
 import {
   defaultExpertLayoutSettings,
+  findExpertPreset,
   type ExpertLayoutOverrides,
   type ExpertLayoutSettings,
 } from "@/lib/expertLayouts";
@@ -32,7 +33,16 @@ export const expertLayoutSettingsQueryOptions = (tenantId?: string | null) =>
         const { data, error } = await q.maybeSingle();
         if (error && error.code !== "PGRST116") throw error;
         if (!data) return defaultExpertLayoutSettings(tenantId ?? "");
-        return data as unknown as ExpertLayoutSettings;
+        const row = data as unknown as ExpertLayoutSettings;
+        // Kolumna `default_preset` ma w bazie DEFAULT 'portrait-left' (id
+        // sprzed remapu presetów), a remap 20260731210001 objął wyłącznie
+        // `author_profiles` - wiersze zasiane dla istniejących tenantów niosą
+        // więc legacy id. Renderer i tak rozwiązuje je aliasem, ale panel
+        // admina (aktywna karta, "Wybrany:") i edytor profilu porównują id
+        // wprost: bez normalizacji żadna karta nie była zaznaczona, a zapis
+        // odsyłał legacy id z powrotem do bazy. `findExpertPreset` to ta sama
+        // rezolucja (alias + fallback na pierwszy preset), której używa renderer.
+        return { ...row, default_preset: findExpertPreset(row.default_preset).id };
       }),
     staleTime: 5 * 60_000,
   });

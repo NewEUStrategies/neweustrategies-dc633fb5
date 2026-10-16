@@ -57,6 +57,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CONTENT_EXCERPT_MAX_CHARS } from "@/lib/seo/limits";
 import { useStaticHomepage } from "@/lib/seo/useStaticHomepage";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import {
   invalidateWidgetCaches,
   emitWidgetCacheInvalidate,
@@ -80,6 +81,15 @@ export const Route = createFileRoute("/admin/pages/$slug")({
 
 type PageStatus = "draft" | "published" | "scheduled" | "archived";
 type EditorType = "richtext" | "markdown" | "builder";
+
+// Zakres `menu_order` ze schematu serwera (`z.number().int().min(0).max(99999)`).
+// Wartość spoza niego (-1, 2.5) odrzucała walidacja - i to KAŻDY kolejny
+// autozapis strony, nie tylko to jedno pole.
+const MENU_ORDER_MAX = 99999;
+function clampMenuOrder(raw: string): number {
+  const n = Math.trunc(Number(raw) || 0);
+  return Math.min(MENU_ORDER_MAX, Math.max(0, n));
+}
 
 interface PageForm {
   id: string;
@@ -134,7 +144,12 @@ function EditPage() {
   const update$ = useServerFn(updatePage);
   const delete$ = useServerFn(deletePage);
 
-  const { data: page, isLoading } = useQuery({
+  const {
+    data: page,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["page-by-slug", tenantId, routeSlug],
     enabled: !!tenantId,
     // Never background-refetch the row being edited: a refetch (e.g. on network
@@ -178,14 +193,33 @@ function EditPage() {
   // zapisie. Czysty snapshot trzyma `useAutosave` (lastSaved) - jego pierwszy
   // przebieg przypina właśnie tę załadowaną wartość, bez zapisu.
   const loadedIdRef = useRef<string | null>(null);
+  // Pokolenie wczytania = klucz bazy autozapisu (`resetKey`). Rośnie przy KAŻDYM
+  // wczytaniu wiersza do formularza (otwarcie, przywrócenie rewizji), więc
+  // wczytany wiersz staje się czystą bazą - bez zapisu, a zaległy zapis
+  // poprzedniej wersji przepada.
+  const [loadGeneration, setLoadGeneration] = useState(0);
+  // To samo pokolenie dla `saveFn`: zapis, który był w drodze, gdy wiersz
+  // wczytano od nowa, nie może po powrocie odpowiedzi cofnąć bazy blokady ani
+  // cache na stan sprzed przywrócenia (fałszywy EDIT_CONFLICT przy kolejnej
+  // edycji).
+  const loadGenerationRef = useRef(0);
+  const resetForm = history.reset;
+  const loadForm = useCallback(
+    (row: PageForm) => {
+      loadedIdRef.current = row.id;
+      const normalized: PageForm = row.editor === "builder" ? row : { ...row, editor: "builder" };
+      resetForm(normalized);
+      baseUpdatedAtRef.current = normalized.updated_at ?? null;
+      loadGenerationRef.current += 1;
+      setLoadGeneration(loadGenerationRef.current);
+    },
+    [resetForm],
+  );
   useEffect(() => {
     if (!page) return;
     if (loadedIdRef.current === page.id) return;
-    loadedIdRef.current = page.id;
-    const normalized: PageForm = page.editor === "builder" ? page : { ...page, editor: "builder" };
-    history.reset(normalized);
-    baseUpdatedAtRef.current = normalized.updated_at ?? null;
-  }, [page, history.reset]);
+    loadForm(page);
+  }, [page, loadForm]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -207,6 +241,7 @@ function EditPage() {
   const saveFn = useCallback(
     async (snapshot: PageForm | null) => {
       if (!snapshot || !id) return;
+      const generation = loadGenerationRef.current;
       const result = await update$({
         data: {
           id,
@@ -251,6 +286,9 @@ function EditPage() {
         }
         throw err;
       });
+      // Wiersz wczytano od nowa w trakcie zapisu (przywrócenie rewizji): świeży
+      // odczyt jest nowszy od tej odpowiedzi - nie ruszamy bazy, cache ani pól.
+      if (generation !== loadGenerationRef.current) return;
       // Przesuń bazę optimistic-locka na updated_at faktycznie zapisany.
       baseUpdatedAtRef.current = result?.updatedAt ?? baseUpdatedAtRef.current;
       // Autosave is a real successful save: advance the clean snapshot and the
@@ -301,7 +339,14 @@ function EditPage() {
       // edytora - to zapewnia świeży stan przy następnej wizycie
       // użytkownika bez destabilizacji trwającej sesji edycji.
       void qc.invalidateQueries({ queryKey: ["admin-pages"], refetchType: "none" });
-      if (canonical !== snapshot.slug) {
+      // Kolizja = serwer zapisał INNY slug niż wysłany. Slug z pola jest już
+      // znormalizowany (`normalizeSlugInput`); serwer obcina z niego jeszcze
+      // tylko końcowy dywiz (autozapis w trakcie pisania „o-nas-…") - to nie
+      // „slug zajęty", a nadpisanie pola zjadałoby redaktorowi dywiz pod
+      // kursorem. Celowo NIE `slugifyTaxonomy`: tnie do 80 znaków, a serwer do
+      // 120 - strona ze slugiem 81-120 znaków (z tytułu, z importu WP) dostawała
+      // fałszywe ostrzeżenie przy KAŻDYM zapisie.
+      if (canonical !== snapshot.slug && canonical !== snapshot.slug.replace(/-+$/, "")) {
         // Kolizja sluga nie może być cicha - pokaz ostrzeżenie i zsynchronizuj
         // formularz z wartością faktycznie zapisaną.
         toast.warning(
@@ -333,6 +378,7 @@ function EditPage() {
   const autosave = useAutosave<PageForm | null>({
     value: form,
     enabled: form !== null,
+    resetKey: loadGeneration,
     save: saveFn,
   });
   const isDirty = autosave.isDirty;
@@ -355,6 +401,24 @@ function EditPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Wiersz się nie wczytał (nieaktualny slug, strona w koszu, brak dostępu,
+  // błąd sieci): komunikat i droga powrotu zamiast wiecznego „...".
+  if (isError && !form) {
+    return (
+      <div className="space-y-3">
+        <p role="alert" className="text-sm text-destructive">
+          {t("admin.pages.editor.loadError")}
+        </p>
+        <Link
+          to="/admin/pages"
+          className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+        >
+          <ArrowLeft className="w-4 h-4" /> {t("admin.back")}
+        </Link>
+      </div>
+    );
+  }
 
   if (isLoading || !form || !id) return <div className="text-sm text-muted-foreground">...</div>;
 
@@ -397,6 +461,20 @@ function EditPage() {
   const discardToSaved = () => {
     const target = autosave.lastSaved ?? page;
     if (target) history.reset(target);
+  };
+
+  // Przywrócenie rewizji nadpisuje wiersz w bazie i podbija jego `updated_at`.
+  // Formularz MUSI wczytać go od nowa (treść, baza blokady, baza autozapisu):
+  // inaczej pokazuje treść sprzed przywrócenia, a pierwsza edycja kończy się
+  // fałszywym EDIT_CONFLICT na własnym przywróceniu redaktora.
+  const onRevisionRestored = async () => {
+    void qc.invalidateQueries({ queryKey: ["page-by-slug"], refetchType: "none" });
+    const fresh = await refetch();
+    if (fresh.isSuccess) loadForm(fresh.data);
+    // Błąd z RPC to zwykły obiekt PostgREST, nie `Error` - wspólny mapper
+    // daje przyjazny komunikat zamiast „[object Object]".
+    else toastError(fresh.error, "load");
+    void router.invalidate();
   };
 
   const del = async () => {
@@ -482,8 +560,11 @@ function EditPage() {
       <FloatingInput
         label="Kolejność w menu"
         type="number"
+        min={0}
+        max={MENU_ORDER_MAX}
+        step={1}
         value={form.menu_order}
-        onChange={(e) => set("menu_order", Number(e.target.value) || 0)}
+        onChange={(e) => set("menu_order", clampMenuOrder(e.target.value))}
       />
       <div>
         <Label>Template strony</Label>
@@ -782,10 +863,7 @@ function EditPage() {
               <RevisionsCard
                 entityType="page"
                 entityId={id}
-                onRestored={() => {
-                  void qc.invalidateQueries({ queryKey: ["page-by-slug"] });
-                  void router.invalidate();
-                }}
+                onRestored={() => void onRevisionRestored()}
               />
             )}
           </aside>

@@ -10,8 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Plus, X, Search } from "@/lib/lucide-shim";
 import { createTag, deleteTag } from "@/lib/content.functions";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/appDialogs";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 export const Route = createFileRoute("/admin/tags")({
+  head: () =>
+    adminPageHead(
+      "Tags",
+      "Manage post tags and their slugs. New European Strategies administration.",
+    ),
   component: Tags,
 });
 
@@ -29,12 +36,18 @@ function Tags() {
   const delete$ = useServerFn(deleteTag);
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
-  const { data } = useQuery({
-    queryKey: ["tags", tenantId],
+  const [adding, setAdding] = useState(false);
+  const { data, error } = useQuery({
+    // Własny klucz, NIE gołe ["tags", tenantId]: pod tym kluczem edytor wpisu
+    // (usePostEditorData) trzyma wiersze `id, name` BEZ sluga, a przy
+    // staleTime 5 min ekran tagów dostawał je z cache bez pobrania - szukanie
+    // po slugu nie znajdowało wtedy nic. Prefiks ["tags", tenantId] zostaje,
+    // więc unieważnienia z edytora i z tego ekranu nadal obejmują oba zapytania.
+    queryKey: ["tags", tenantId, "admin"],
     queryFn: async (): Promise<TagRow[]> => {
       const { data, error } = await supabase
         .from("tags")
-        .select("*")
+        .select("id, name, slug")
         .eq("tenant_id", tenantId)
         .order("name");
       if (error) throw error;
@@ -51,18 +64,34 @@ function Tags() {
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    // Blokada w locie: pole trzyma nazwę do końca żądania, więc drugi Enter
+    // wysyłał ją ponownie i serwer tworzył duplikat ze slugiem „-2”.
+    if (!name.trim() || adding) return;
+    setAdding(true);
     try {
       await create$({ data: { name: name.trim() } });
       setName("");
       qc.invalidateQueries({ queryKey: ["tags"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAdding(false);
     }
   };
-  const del = async (id: string) => {
+  const del = async (tg: TagRow) => {
+    // Usunięcie tagu odpina go kaskadowo od WSZYSTKICH wpisów (post_tags
+    // ON DELETE CASCADE) - jak w kategoriach, bez potwierdzenia ani rusz.
+    if (
+      !(await confirmDialog({
+        title: t("admin.confirmDelete"),
+        description: tg.name,
+        destructive: true,
+        confirmLabel: t("admin.delete"),
+      }))
+    )
+      return;
     try {
-      await delete$({ data: { id } });
+      await delete$({ data: { id: tg.id } });
       qc.invalidateQueries({ queryKey: ["tags"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -89,7 +118,13 @@ function Tags() {
             placeholder={t("admin.tags.placeholder")}
             className="h-8 text-xs w-[240px]"
           />
-          <Button size="sm" type="submit" className="h-8">
+          <Button
+            size="sm"
+            type="submit"
+            className="h-8"
+            disabled={adding}
+            aria-label={t("admin.new")}
+          >
             <Plus className="w-3.5 h-3.5" />
           </Button>
         </form>
@@ -117,7 +152,7 @@ function Tags() {
           >
             {tg.name}
             <button
-              onClick={() => del(tg.id)}
+              onClick={() => del(tg)}
               type="button"
               aria-label={t("admin.delete")}
               className="w-5 h-5 rounded-full hover:bg-destructive/10 inline-flex items-center justify-center"
@@ -126,11 +161,22 @@ function Tags() {
             </button>
           </span>
         ))}
-        {!filtered.length && (
-          <p className="text-xs text-muted-foreground">
-            {data?.length ? t("admin.list.noResults") : t("admin.empty")}
-          </p>
-        )}
+        {/* Pustka tylko po wczytaniu: w trakcie ładowania i po błędzie zapytania
+            „Brak elementów” kłamało, że baza nie ma tagów. */}
+        {!filtered.length &&
+          (error && !data ? (
+            <p role="alert" className="text-xs text-destructive">
+              {error.message}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {!data
+                ? t("admin.loading")
+                : data.length
+                  ? t("admin.list.noResults")
+                  : t("admin.empty")}
+            </p>
+          ))}
       </div>
     </div>
   );

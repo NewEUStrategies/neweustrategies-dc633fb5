@@ -17,8 +17,14 @@ import { updateCategoryColor } from "@/lib/content.functions";
 import { Button } from "@/components/ui/button";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { CORE_CATEGORY_AREAS, type CoreCategoryArea } from "@/lib/categoryAreas";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 export const Route = createFileRoute("/admin/category-colors")({
+  head: () =>
+    adminPageHead(
+      "Category colors",
+      "Set the badge colors of topic categories shown on posts. New European Strategies administration.",
+    ),
   component: CategoryColorsPage,
 });
 
@@ -41,7 +47,11 @@ function CategoryColorsPage() {
   const [draft, setDraft] = useState<Draft>({});
   const [busy, setBusy] = useState(false);
 
-  const { data: rows = [] } = useQuery({
+  const {
+    data,
+    error: loadError,
+    isSuccess: loaded,
+  } = useQuery({
     queryKey: ["categories", tenantId, "with-color"],
     queryFn: async (): Promise<CategoryRow[]> => {
       const { data, error } = await supabase
@@ -53,6 +63,7 @@ function CategoryColorsPage() {
       return data ?? [];
     },
   });
+  const rows = useMemo(() => data ?? [], [data]);
 
   // Sortuj: najpierw core areas w podanej kolejności, potem reszta alfabetycznie.
   const ordered = useMemo(() => {
@@ -67,9 +78,13 @@ function CategoryColorsPage() {
     return [...core, ...rest];
   }, [rows]);
 
+  // Braki liczone WYŁĄCZNIE z wczytanej listy. Przed odpowiedzią (i po błędzie
+  // zapytania) `rows` jest puste, więc „brakowało” wszystkich dwunastu obszarów:
+  // przycisk uzupełniania wstawiał je wtedy ponownie i wpadał na unikalność
+  // (tenant_id, slug) na kategoriach, które już istnieją.
   const missing = useMemo(
-    () => CORE_CATEGORY_AREAS.filter((a) => !rows.some((r) => r.slug === a.slug)),
-    [rows],
+    () => (loaded ? CORE_CATEGORY_AREAS.filter((a) => !rows.some((r) => r.slug === a.slug)) : []),
+    [loaded, rows],
   );
 
   const colorFor = (r: CategoryRow) => draft[r.slug] ?? r.color ?? "#111827";
@@ -87,14 +102,27 @@ function CategoryColorsPage() {
       return;
     }
     setBusy(true);
+    const savedSlugs: string[] = [];
     try {
       for (const r of changed) {
         await saveColor$({ data: { id: r.id, color: draft[r.slug] } });
+        savedSlugs.push(r.slug);
       }
       toast.success(t("admin.categoryColors.saved"));
       setDraft({});
       qc.invalidateQueries({ queryKey: ["categories"] });
     } catch (e) {
+      // Zapis idzie wiersz po wierszu, więc porażka w środku zostawia wcześniejsze
+      // wiersze JUŻ zapisane w bazie. Schodzą ze szkicu (bez znacznika „●”) i
+      // lista się odświeża; w szkicu zostaje tylko to, czego nie zapisano.
+      if (savedSlugs.length) {
+        setDraft((d) => {
+          const next = { ...d };
+          for (const slug of savedSlugs) delete next[slug];
+          return next;
+        });
+        qc.invalidateQueries({ queryKey: ["categories"] });
+      }
       toast.error(
         `${t("admin.categoryColors.saveError")}: ${e instanceof Error ? e.message : String(e)}`,
       );
@@ -116,7 +144,9 @@ function CategoryColorsPage() {
           color: a.color,
         })),
       );
-      if (error) throw error;
+      // Błąd PostgREST to zwykły obiekt, nie `Error` - rzucony wprost dawał
+      // w komunikacie „[object Object]” zamiast powodu z bazy.
+      if (error) throw new Error(error.message);
       toast.success(t("admin.categoryColors.addedMissing"));
       qc.invalidateQueries({ queryKey: ["categories"] });
     } catch (e) {
@@ -148,8 +178,18 @@ function CategoryColorsPage() {
       </div>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {/* Pustka tylko po wczytaniu: w trakcie ładowania i po błędzie zapytania
+            „Brak elementów” kłamało, że dzierżawa nie ma kategorii. */}
         {!ordered.length ? (
-          <div className="p-10 text-center text-muted-foreground text-sm">{t("admin.empty")}</div>
+          loadError ? (
+            <div role="alert" className="p-10 text-center text-destructive text-sm">
+              {loadError.message}
+            </div>
+          ) : (
+            <div className="p-10 text-center text-muted-foreground text-sm">
+              {loaded ? t("admin.empty") : t("admin.loading")}
+            </div>
+          )
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">
