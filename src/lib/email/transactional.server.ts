@@ -127,16 +127,57 @@ export interface TxSendResult {
   error?: string;
 }
 
+/** Klient zbudowany dla tej pary (adres, klucz) - jeden na izolat. */
+let serviceClientMemo: { url: string; key: string; client: SupabaseClient<Database> } | null = null;
+
 /**
  * Klient service-role otypowany schematem (`Database`). Typ jest tu istotny, a
  * nie kosmetyczny: bez niego brama listy wykluczeń musiałaby przyjmować klienta
  * przez rzutowanie, a wtedy literówka w nazwie tabeli logu przeszłaby kompilację.
+ *
+ * JEDEN KLIENT NA IZOLAT. Każde `sendTxEmail`/`enqueueRawEmail` woła tę funkcję,
+ * a digest powiadomień (`processDigests`) robi to raz na odbiorcę - wcześniej
+ * każdy tick budował dziesiątki klientów (auth, realtime, postgrest), a każdy
+ * z domyślnym `autoRefreshToken` zostawiał poza przeglądarką własny,
+ * nigdy niezatrzymany `setInterval` auth-js. Pamięć jest kluczowana parą
+ * (adres, klucz), więc zmiana środowiska buduje klienta od nowa.
+ *
+ * KOLEJNOŚĆ JEST CZĘŚCIĄ KONTRAKTU:
+ *  - środowisko czytane PRZY KAŻDYM wywołaniu i PRZED pamięcią - brak zmiennej
+ *    daje `null` (wywołujący zwraca `supabase_unavailable`) także wtedy, gdy
+ *    klient jest już w pamięci,
+ *  - `null` nigdy nie trafia do pamięci: pierwsze wywołanie bez konfiguracji
+ *    nie może wyłączyć poczty na cały czas życia izolatu,
+ *  - pamięć ustawiana dopiero po udanym `createClient` - wyjątek też się nie
+ *    zapamiętuje,
+ *  - funkcja jest synchroniczna, więc równoległe wywołania (`DIGEST_CONCURRENCY`)
+ *    nie zbudują dwóch klientów.
+ *
+ * Dlaczego nie `supabaseAdmin`: przy braku zmiennych rzuca (a tu brak
+ * konfiguracji ma degradować się do `null`) i nigdy nie czyta środowiska
+ * ponownie.
+ *
+ * Klient jest WSPÓŁDZIELONY między żądaniami, więc wolno go używać wyłącznie do
+ * `.from()`/`.rpc()`. Metoda `.auth.*` ustawiająca sesję albo
+ * `.functions.setAuth` podmieniłaby tożsamość wszystkich kolejnych wysyłek.
  */
 function serviceClient(): SupabaseClient<Database> | null {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
-  return createClient<Database>(url, key, { auth: { persistSession: false } });
+  if (serviceClientMemo?.url === url && serviceClientMemo.key === key) {
+    return serviceClientMemo.client;
+  }
+  const client = createClient<Database>(url, key, {
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  });
+  serviceClientMemo = { url, key, client };
+  return client;
+}
+
+/** Tylko testy: kolejne wywołanie zbuduje klienta od nowa (świeża atrapa `createClient`). */
+export function __resetServiceClientForTests(): void {
+  serviceClientMemo = null;
 }
 
 /**
