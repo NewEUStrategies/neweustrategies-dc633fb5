@@ -31,16 +31,18 @@ export const CLUB_REACTION_ICONS: Record<ClubReactionKind, LucideIcon> = {
   disagree: ThumbsDown,
 };
 
-// Tło krążka: pełne nasycenie, biały znak (każde tło ma co najmniej 3:1
-// z bielą - próg dla grafiki), więc wariant ciemny nie potrzebuje osobnych
-// odcieni.
+// Tło krążka: JASNE wypełnienie, kolor niesie sam piktogram. Pełne,
+// ciemne kółka dominowały kartę i kłóciły się z neutralnym akcentem
+// platformy; pastelowa płytka z kolorowym znakiem czyta się tak samo
+// obwodowo, a nie krzyczy. Odcień piktogramu = kolor TEKSTU akcji (INK),
+// więc glif i postawiona reakcja zawsze mówią jedną barwą.
 const FILL: Record<ClubReactionKind, string> = {
-  insightful: "bg-amber-600",
-  evidence: "bg-teal-600",
-  question: "bg-sky-600",
-  thanks: "bg-rose-500",
-  agree: "bg-blue-600",
-  disagree: "bg-slate-500",
+  insightful: "bg-stone-200 dark:bg-stone-800",
+  evidence: "bg-teal-100 dark:bg-teal-950",
+  question: "bg-sky-100 dark:bg-sky-950",
+  thanks: "bg-rose-100 dark:bg-rose-950",
+  agree: "bg-blue-100 dark:bg-blue-950",
+  disagree: "bg-slate-200 dark:bg-slate-800",
 };
 
 // Kolor TEKSTU akcji, gdy reakcja jest postawiona - akcja przejmuje barwę

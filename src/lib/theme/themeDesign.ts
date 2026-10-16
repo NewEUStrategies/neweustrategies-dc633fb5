@@ -61,7 +61,7 @@ export const THEME_DESIGN_COLOR_INHERITANCE = {
       token: "var(--gc-body-text, var(--foreground))",
       hint: "Kolory pól tekstowych",
     },
-    activeBgColor: { token: "var(--gc-btn-bg, #FA9346)", hint: "Przyciski - tło" },
+    activeBgColor: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
     activeColor: { token: "var(--gc-btn-text, #ffffff)", hint: "Przyciski - tekst" },
   },
   modeSwitcher: {
@@ -85,7 +85,7 @@ export const THEME_DESIGN_COLOR_INHERITANCE = {
   },
   listIndex: {
     colorLight: { token: "var(--gc-body-text, #231f20)", hint: "Kolory pól tekstowych" },
-    colorDark: { token: "var(--gc-highlight, #FA9346)", hint: "Global kolory - highlight" },
+    colorDark: { token: "var(--gc-highlight, var(--brand))", hint: "Global kolory - highlight" },
   },
   postTitle: {
     color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
