@@ -500,8 +500,8 @@ body {
 
   /* Widget form-field interaction tokens - shared across every widget input.
      Override per-widget by setting these vars on the widget shell. */
-  --gc-input-hover-border: var(--brand); /* light-orange hover ring, per brand */
-  --gc-input-focus-border: var(--brand); /* focus uses the same orange for continuity */
+  --gc-input-hover-border: #fa9346; /* light-orange hover ring, per brand */
+  --gc-input-focus-border: #fa9346; /* focus uses the same orange for continuity */
   /* TABELA ROZMIARÓW CZCIONEK (admin → Wygląd → Rozmiary czcionek).
      Jedyne źródło prawdy dla globalnych reguł typografii UI - katalog tokenów
      żyje w `src/lib/theme/fontScale.ts`, nadpisania tenanta wstrzykuje
@@ -547,9 +547,9 @@ body {
   --border: oklch(0.9 0.005 80);
   --input: oklch(0.9 0.005 80);
   --ring: oklch(0.18 0 0);
-  --brand: #1c1917;
-  --brand-foreground: #fafaf9;
-  --widget-orange-accent: var(--brand);
+  --brand: #fa9346;
+  --brand-foreground: #141414;
+  --widget-orange-accent: #fa9346;
   /* Brand accents share one hue in both themes; orange surfaces use dark text. */
   --brand-ink: var(--brand);
   /* Krawędzie kontrolek odsłuchu w jasnym motywie. Pomarańczowy przycisk,
@@ -574,7 +574,7 @@ body {
   --cat-military: oklch(0.62 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: oklch(0.62 0.16 250);
+  --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.6 0.18 320);
 
   /* ---- Semantyczne gradienty marki (light) ----
@@ -620,7 +620,7 @@ body {
      tylko wtedy, gdy autor wybierze numer slotu wprost.
 
      CZĘŚĆ TOKENÓW NIE PRZECHODZI PROGU 3:1 SAMA, i to też jest decyzja, nie
-     przeoczenie: var(--brand) ma na białej płycie 2,25:1, a #ffdab3 1,32:1. To są
+     przeoczenie: #FA9346 ma na białej płycie 2,25:1, a #ffdab3 1,32:1. To są
      kolory marki, więc token zostaje dokładnie taki, jaki zadano, a kształt
      niesie z nich OBWÓDKA `--chart-N-edge`, którą `barFillOf` dociąga do
      progu niezależnie od tego, ile kroków jasności to wymaga (dla #ffdab3
@@ -753,7 +753,7 @@ body {
      Wyróżnia najważniejszy element (jeden słupek, jeden punkt) i NIGDY nie
      oznacza kategorii. Wartości są te same co pomarańcz marki (--brand).
 
-     NA JASNYM TLE AKCENT NIE PRZECHODZI ŻADNEGO PROGU WCAG: var(--brand) ma
+     NA JASNYM TLE AKCENT NIE PRZECHODZI ŻADNEGO PROGU WCAG: #FA9346 ma
      2,25:1, #ed751a ma 2,93:1 wobec wymaganych 3,0 dla grafiki i 4,5 dla
      tekstu. To nie znaczy, że nie wolno go używać - znaczy, że na jasnym tle
      akcent NIE MOŻE BYĆ JEDYNYM NOŚNIKIEM INFORMACJI. Wolno nim wypełnić
@@ -1196,7 +1196,7 @@ body {
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.98 0 0);
-  --brand: #ede9e7;
+  --brand: #fa9346;
   --brand-foreground: #141414;
   /* Na ciemnym tle oryginalny pomarańcz ma ~7.6:1 - atrament wraca do brandu. */
   --brand-ink: var(--brand);
@@ -1216,7 +1216,7 @@ body {
   --cat-military: oklch(0.68 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: oklch(0.68 0.15 250);
+  --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.65 0.18 320);
 
   /* ---- Semantyczne gradienty marki (dark) ----
@@ -1355,7 +1355,7 @@ body {
   --chart-ink-positive: #12161c;
   --chart-ink-negative: #12161c;
 
-  /* W TRYBIE CIEMNYM AKCENT DZIAŁA BEZ ZASTRZEŻEŃ: var(--brand) ma na płycie
+  /* W TRYBIE CIEMNYM AKCENT DZIAŁA BEZ ZASTRZEŻEŃ: #FA9346 ma na płycie
      8,51:1, #ed751a 6,54:1 - oba przechodzą próg tekstowy. Można nimi pisać
      liczby, rysować linie, obwodzić słupki. Podkład akcentu schodzi
      z ciepłego #fff4ed na PODNIESIONĄ POWIERZCHNIĘ, bo pomarańczowy podkład
@@ -2237,7 +2237,7 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 }
 .cms-social a:hover,
 .cms-social__btn:hover {
-  color: var(--td-si-hover-color, var(--brand));
+  color: var(--td-si-hover-color, #fa9346);
   background: var(--td-si-hover-bg, transparent);
 }
 
@@ -3825,10 +3825,10 @@ textarea::placeholder {
   opacity: 1 !important;
 }
 .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, var(--brand));
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, var(--brand));
+  border-color: var(--gc-input-focus-border, #fa9346);
   background: var(--gc-input-bg, var(--background));
 }
 .dark .cf-shell .cf-input {
@@ -3836,11 +3836,11 @@ textarea::placeholder {
   border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 .dark .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, var(--brand));
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 .dark .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, color-mix(in oklab, var(--background) 65%, var(--foreground) 14%));
-  border-color: var(--gc-input-focus-border, var(--brand));
+  border-color: var(--gc-input-focus-border, #fa9346);
 }
 
 /* Image background */
@@ -3980,7 +3980,7 @@ textarea::placeholder {
 /* Contact-form input focus: orange border only, no glow. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, var(--brand));
+  border-color: var(--gc-input-focus-border, #fa9346);
 }
 
 @layer components {
@@ -4022,10 +4022,10 @@ textarea::placeholder {
       ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     select
   ):hover {
-  border-color: var(--gc-input-hover-border, var(--brand));
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 :where([data-w-id]) :where(textarea):hover {
-  border-color: var(--gc-input-hover-border, var(--brand));
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 :where([data-w-id])
   :where(
@@ -4036,7 +4036,7 @@ textarea::placeholder {
     select
   ):is(:focus, :focus-visible) {
   outline: none;
-  border-color: var(--gc-input-focus-border, var(--brand));
+  border-color: var(--gc-input-focus-border, #fa9346);
   background: var(--gc-input-bg, var(--background));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
@@ -4586,11 +4586,11 @@ input.icon-input-with-action {
   border-color: var(--gc-input-border, var(--cf-border, var(--border)));
 }
 .light .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, var(--brand));
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 .light .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, var(--background));
-  border-color: var(--gc-input-focus-border, var(--brand));
+  border-color: var(--gc-input-focus-border, #fa9346);
 }
 .light
   :where([data-w-id])
@@ -4733,7 +4733,7 @@ input.icon-input-with-action {
 .key-takeaways__icon {
   width: 40px;
   height: 40px;
-  background: var(--kt-icon-bg, var(--brand));
+  background: var(--kt-icon-bg, #fa9346);
   color: var(--kt-icon, #ffffff);
 }
 .key-takeaways__title {
@@ -4750,17 +4750,17 @@ input.icon-input-with-action {
 }
 .key-takeaways__card .key-takeaways__list::marker,
 .key-takeaways__card .key-takeaways__list > li::marker {
-  color: var(--kt-accent, var(--brand));
+  color: var(--kt-accent, #fa9346);
 }
 .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text, #1f2937);
-  border-top-color: color-mix(in oklab, var(--kt-accent, var(--brand)) 30%, transparent);
+  border-top-color: color-mix(in oklab, var(--kt-accent, #fa9346) 30%, transparent);
 }
 .dark .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__bullet {
-  background: var(--kt-accent, var(--brand));
+  background: var(--kt-accent, #fa9346);
 }
 
 /* Wariant "ghost" - wielki, półprzezroczysty nagłówek renderowany ZA listą.
@@ -4804,7 +4804,7 @@ h2.key-takeaways__ghost-title > span {
 /* Podświetlone słowa - tylko kolor się zmienia, transparentność ta sama. */
 .key-takeaways .key-takeaways__ghost-title .key-takeaways__ghost-title-hl,
 h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
-  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, var(--brand))) 22%, transparent);
+  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #fa9346)) 22%, transparent);
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
@@ -4813,7 +4813,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__ghost-item + .key-takeaways__ghost-item {
-  border-top: 1px solid color-mix(in oklab, var(--kt-accent, var(--brand)) 22%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #fa9346) 22%, transparent);
 }
 
 /* -------------------------------------------------------------
@@ -8360,7 +8360,7 @@ html.dark.club-navy body {
 /* Clubs keep the same brand accent as the rest of the platform. */
 .dark.club-navy [data-club-neutral],
 .dark.club-navy {
-  --brand: #ede9e7;
+  --brand: #fa9346;
   --brand-foreground: #141414;
   --brand-ink: var(--brand);
   --gradient-brand: linear-gradient(90deg, var(--brand), var(--brand));
@@ -8705,7 +8705,7 @@ sup.fn-ref {
 .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
   --cms-list-marker-col: 1.65rem;
   --cms-list-lh: var(--lh-body, 1.65);
-  --cms-list-accent: var(--brand);
+  --cms-list-accent: #fa9346;
   margin-block: 0.85em;
   padding: 0 !important;
   list-style: none !important;
@@ -8763,7 +8763,7 @@ sup.fn-ref {
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--cms-list-accent, var(--brand)) 55%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
   transition:
     transform 180ms ease,
     background-color 180ms ease;
@@ -8774,7 +8774,7 @@ sup.fn-ref {
   )
   > .cms-list-bullet {
   transform: scale(1.3);
-  background: var(--cms-list-accent, var(--brand));
+  background: var(--cms-list-accent, #fa9346);
 }
 .cms-content-list--unordered .cms-content-list--unordered .cms-list-bullet,
 .cms-block-list-editor--unordered
@@ -8784,7 +8784,7 @@ sup.fn-ref {
   height: 5px;
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px;
-  background: color-mix(in oklab, var(--cms-list-accent, var(--brand)) 32%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent);
   transform: none;
 }
 .cms-list-number {
@@ -8799,8 +8799,8 @@ sup.fn-ref {
   /* wyśrodkowanie plakietki względem wysokości pierwszej linii tekstu */
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cms-list-accent, var(--brand)) 14%, transparent);
-  color: var(--cms-list-accent, var(--brand));
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
+  color: var(--cms-list-accent, #fa9346);
   font-family: var(--font-heading);
   font-weight: 800;
   line-height: 1;
@@ -8846,8 +8846,8 @@ sup.fn-ref {
   justify-content: center;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cms-list-accent, var(--brand)) 14%, transparent);
-  color: var(--cms-list-accent, var(--brand));
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
+  color: var(--cms-list-accent, #fa9346);
   font-family: var(--font-heading);
   font-size: 0.72rem;
   font-weight: 800;
@@ -8867,7 +8867,7 @@ sup.fn-ref {
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--cms-list-accent, var(--brand)) 55%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
   transition:
     transform 180ms ease,
     background-color 180ms ease;
@@ -8876,7 +8876,7 @@ sup.fn-ref {
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):hover::before {
   transform: scale(1.3);
-  background: var(--cms-list-accent, var(--brand));
+  background: var(--cms-list-accent, #fa9346);
 }
 .cms-rich-content li > :is(ul, ol):not(.task-list):not(.contains-task-list) {
   grid-column: 2;
@@ -8891,13 +8891,13 @@ sup.fn-ref {
   height: 5px !important;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px !important;
-  background: color-mix(in oklab, var(--cms-list-accent, var(--brand)) 32%, transparent) !important;
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent) !important;
   transform: none !important;
 }
 .cms-block-list-editor {
   --cms-list-marker-col: 1.65rem;
   --cms-list-lh: var(--lh-body, 1.65);
-  --cms-list-accent: var(--brand);
+  --cms-list-accent: #fa9346;
   margin: 0;
   padding: 0;
   list-style: none;

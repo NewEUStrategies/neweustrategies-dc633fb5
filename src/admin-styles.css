@@ -65,8 +65,8 @@
   input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
 .admin-compact .block-canvas textarea:focus {
   outline: none;
-  border-color: var(--brand);
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand) 30%, transparent);
+  border-color: #fa9346;
+  box-shadow: 0 0 0 2px color-mix(in oklab, #fa9346 30%, transparent);
 }
 .admin-compact .block-canvas select option {
   background: var(--popover);
@@ -480,20 +480,20 @@
    ========================================================================== */
 
 /* Admin calendar / date picker - soft hover token.
-   Zamiast intensywnego pomarańczowego (primary), używamy var(--brand) na hover
+   Zamiast intensywnego pomarańczowego (primary), używamy #FA9346 na hover
    we wszystkich kalendarzach i triggerach dat w adminie. */
 .admin-calendar [data-day]:hover:not([data-disabled="true"]),
 .admin-calendar button[role="gridcell"]:hover:not([disabled]),
 .admin-calendar .rdp-day:hover:not([disabled]),
 .admin-calendar [data-slot="calendar"] button:hover:not([disabled]) {
-  background-color: var(--brand) !important;
+  background-color: #fa9346 !important;
   color: var(--foreground) !important;
 }
 
 .admin-date-trigger:hover:not([disabled]) {
-  background-color: var(--brand) !important;
+  background-color: #fa9346 !important;
   color: var(--foreground) !important;
-  border-color: var(--brand) !important;
+  border-color: #fa9346 !important;
 }
 
 /* AdminColorPicker - kompaktowy popover z react-colorful. */
@@ -769,7 +769,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-tb-hover-color, var(--foreground));
 }
 .cms-tb-btn[data-active="true"] {
-  background: var(--td-tb-active-bg, var(--brand));
+  background: var(--td-tb-active-bg, #fa9346);
   color: var(--td-tb-active-color, #ffffff);
 }
 .cms-tb-btn:disabled {

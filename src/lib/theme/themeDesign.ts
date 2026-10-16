@@ -61,7 +61,7 @@ export const THEME_DESIGN_COLOR_INHERITANCE = {
       token: "var(--gc-body-text, var(--foreground))",
       hint: "Kolory pól tekstowych",
     },
-    activeBgColor: { token: "var(--gc-btn-bg, var(--brand))", hint: "Przyciski - tło" },
+    activeBgColor: { token: "var(--gc-btn-bg, #FA9346)", hint: "Przyciski - tło" },
     activeColor: { token: "var(--gc-btn-text, #ffffff)", hint: "Przyciski - tekst" },
   },
   modeSwitcher: {
@@ -85,7 +85,7 @@ export const THEME_DESIGN_COLOR_INHERITANCE = {
   },
   listIndex: {
     colorLight: { token: "var(--gc-body-text, #231f20)", hint: "Kolory pól tekstowych" },
-    colorDark: { token: "var(--gc-highlight, var(--brand))", hint: "Global kolory - highlight" },
+    colorDark: { token: "var(--gc-highlight, #FA9346)", hint: "Global kolory - highlight" },
   },
   postTitle: {
     color: { token: "var(--gc-body-text, var(--foreground))", hint: "Kolory pól tekstowych" },
@@ -262,8 +262,8 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
   },
   readMoreButton: {
     bgColor: ["transparent"],
-    color: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "var(--brand)", "var(--brand)"],
-    borderColor: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "var(--brand)", "var(--brand)"],
+    color: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#FA9346", "#FA9346"],
+    borderColor: ["var(--brand)", "var(--primary)", "hsl(var(--primary))", "#FA9346", "#FA9346"],
   },
   metaInfo: {
     color: [
@@ -282,7 +282,7 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
       "color-mix(in oklab, var(--gc-input-bg, var(--muted)) 70%, transparent)",
     ],
     hoverColor: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff"],
-    activeBgColor: ["var(--brand)", "var(--primary)", "var(--brand)", "var(--brand)"],
+    activeBgColor: ["var(--brand)", "var(--primary)", "#FA9346", "#FA9346"],
     activeColor: ["var(--primary-foreground)", "#ffffff", "#fff"],
   },
   modeSwitcher: {
@@ -299,17 +299,17 @@ const LEGACY_INHERIT_VALUES: Record<string, Record<string, readonly string[]>> =
   },
   socialIcons: {
     color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#ffffff", "#6b7280"],
-    hoverColor: ["var(--brand)", "var(--primary)", "var(--brand)", "var(--brand)", "var(--brand)"],
+    hoverColor: ["var(--brand)", "var(--primary)", "#FA9346", "#FA9346", "#FA9346"],
     bgColor: ["transparent"],
     hoverBgColor: ["transparent"],
   },
   listIndex: {
     colorLight: ["#231f20", "#141414", "var(--foreground)", "hsl(var(--foreground))"],
-    colorDark: ["var(--brand)", "var(--brand)", "var(--brand)", "var(--primary)", "var(--gc-highlight)"],
+    colorDark: ["#FA9346", "#FA9346", "var(--brand)", "var(--primary)", "var(--gc-highlight)"],
   },
   postTitle: {
     color: ["var(--foreground)", "hsl(var(--foreground))", "#141414", "#231f20", "#1f2937"],
-    hoverColor: ["var(--brand)", "var(--primary)", "var(--brand)", "var(--brand)", "var(--brand)"],
+    hoverColor: ["var(--brand)", "var(--primary)", "#FA9346", "#FA9346", "#FA9346"],
   },
   postExcerpt: {
     color: [
