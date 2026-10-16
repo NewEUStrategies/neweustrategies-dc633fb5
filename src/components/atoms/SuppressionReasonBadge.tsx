@@ -10,9 +10,9 @@ import "@/lib/i18n-newsletter-deliverability";
 
 const TONE: Record<SuppressionReason, string> = {
   complaint: "bg-destructive/10 text-destructive border-destructive/30",
-  hard_bounce: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
-  blocked: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
-  invalid: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
+  hard_bounce: "bg-orange-500/10 text-brand dark:text-brand border-orange-500/30",
+  blocked: "bg-orange-500/10 text-brand dark:text-brand border-orange-500/30",
+  invalid: "bg-orange-500/10 text-brand dark:text-brand border-orange-500/30",
   soft_bounce: "bg-brand/10 text-brand-ink dark:text-brand border-brand/30",
   unsubscribe: "bg-muted text-muted-foreground border-border",
   manual: "bg-muted text-muted-foreground border-border",

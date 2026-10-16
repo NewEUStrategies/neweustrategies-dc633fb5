@@ -59,7 +59,7 @@ const ICON_BOX: Record<ClubDossierTone, string> = {
   question: "border-brand/30 bg-brand/10 text-brand-ink dark:text-brand",
   position: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
   resource: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300",
-  announcement: "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300",
+  announcement: "border-orange-500/30 bg-orange-500/10 text-brand dark:text-brand",
   poll: "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300",
   post: "border-border/70 bg-muted/60 text-foreground",
   event: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
