@@ -26,6 +26,8 @@ const pl = {
       confirmLabel: "Usuń",
       saveError: "Błąd zapisu",
       genericError: "Błąd",
+      keyTaken: "Definicja o tym kluczu już istnieje - edytuj ją na liście.",
+      keyInvalid: "Klucz musi zawierać literę a-z lub cyfrę i mieć najwyżej {{max}} znaki.",
     },
     invitations: {
       pageTitle: "Zaproszenia",
@@ -161,6 +163,8 @@ const en = {
       confirmLabel: "Delete",
       saveError: "Save error",
       genericError: "Error",
+      keyTaken: "A definition with this key already exists - edit it in the list.",
+      keyInvalid: "The key must contain a letter a-z or a digit and be at most {{max}} characters.",
     },
     invitations: {
       pageTitle: "Invitations",

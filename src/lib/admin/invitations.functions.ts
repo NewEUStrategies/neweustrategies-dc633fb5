@@ -40,9 +40,12 @@ import {
   tierRankByPriceId,
 } from "@/lib/email-templates/invitationScope";
 import {
+  ACCOUNT_CREATE_FAILED,
+  EMAIL_SUPPRESSED,
   INVITABLE_ROLES,
   INVITATION_ROLE_NOT_ALLOWED,
   INVITATION_TARGET_UNAVAILABLE,
+  appMetadataProvisionedEmail,
   appMetadataTenantId,
   isInvitableRole,
   resolveInviteTarget,
@@ -122,6 +125,7 @@ function toInviteAccount(user: User, fallbackEmail?: string): InviteAccount {
     email: user.email ?? fallbackEmail ?? null,
     appTenantId: appMetadataTenantId(user.app_metadata),
     everSignedIn: Boolean(user.last_sign_in_at),
+    provisionedEmail: appMetadataProvisionedEmail(user.app_metadata),
   };
 }
 
@@ -334,6 +338,19 @@ type AdminClient = SupabaseClient<Database>;
  * publiczna rejestracja (`src/lib/auth/publicAuthError.ts`) plus brzmienie
  * GoTrue „already been registered".
  */
+/** Ogólny kod dla panelu, szczegół dostawcy tożsamości do logu serwera. */
+function accountCreateFailed(error: unknown): Error {
+  const { code, status } = (error && typeof error === "object" ? error : {}) as {
+    code?: unknown;
+    status?: unknown;
+  };
+  console.error("[provisionTeamMembers] createUser failed", {
+    code: typeof code === "string" ? code : null,
+    status: typeof status === "number" ? status : null,
+  });
+  return new Error(ACCOUNT_CREATE_FAILED);
+}
+
 function isEmailTakenError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const { code, message } = error as { code?: unknown; message?: unknown };
@@ -369,32 +386,73 @@ const AUTH_DIRECTORY_PAGE_SIZE = 200;
 /** Twardy sufit: 200 * 100 = 20 000 kont. Po jego przekroczeniu ODMAWIAMY. */
 const AUTH_DIRECTORY_MAX_PAGES = 100;
 
-async function findAuthAccountByEmail(
-  admin: AdminClient,
-  email: string,
-): Promise<InviteAccount | null> {
-  const target = email.trim().toLowerCase();
-  for (let page = 1; page <= AUTH_DIRECTORY_MAX_PAGES; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({
-      page,
-      perPage: AUTH_DIRECTORY_PAGE_SIZE,
-    });
-    // Błąd katalogu NIE MOŻE czytać się jak „konta nie ma": cicha odpowiedź
-    // przecząca prowadzi wprost do `createUser`, czyli do konfliktu i do
-    // zaproszenia w stanie `failed`. Wcześniej `error` było tu pomijane przy
-    // destrukturyzacji.
-    if (error) throw error;
-    const users = data?.users ?? [];
-    const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
-    if (hit) return toInviteAccount(hit);
-    // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
-    // przeszliśmy CAŁY katalog i konta w nim nie ma.
-    if (users.length < AUTH_DIRECTORY_PAGE_SIZE) return null;
+type AuthDirectoryLookup = (email: string) => Promise<InviteAccount | null>;
+
+/**
+ * Szukanie kont po adresie z pamięcią na czas JEDNEGO wywołania serwera.
+ *
+ * Strony katalogu czytamy po kolei i tylko tak daleko, jak trzeba, a każde
+ * przeczytane konto zostaje w mapie: drugie pytanie o adres z przeczytanej
+ * już strony nie idzie do GoTrue wcale, a pytanie o dalszy adres zaczyna od
+ * pierwszej nieprzeczytanej strony. Import zespołu z kilkoma zajętymi
+ * adresami płaci więc najwyżej JEDNO przejście katalogu, a nie po jednym na
+ * osobę. Pamięć nie przeżywa wywołania.
+ *
+ * Pamięć to migawka: konto założone w innym żądaniu PO przeczytaniu strony,
+ * na której by się znalazło, w niej nie istnieje. Pudło po wcześniejszych
+ * pytaniach czyta więc katalog jeszcze raz od pierwszej strony - „nie ma"
+ * zawsze pochodzi z przejścia zaczętego w tym pytaniu, jak przed pamięcią.
+ */
+function createAuthDirectory(admin: AdminClient): AuthDirectoryLookup {
+  const byEmail = new Map<string, InviteAccount>();
+  let nextPage = 1;
+  let complete = false;
+  return async (email) => {
+    const target = email.trim().toLowerCase();
+    const known = byEmail.get(target);
+    if (known) return known;
+    const scannedFromStart = nextPage === 1;
+    const hit = await scanDirectory(target);
+    if (hit || scannedFromStart) return hit;
+    nextPage = 1;
+    complete = false;
+    return scanDirectory(target);
+  };
+
+  async function scanDirectory(target: string): Promise<InviteAccount | null> {
+    while (!complete) {
+      // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
+      // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
+      // druga kazałaby wyżej założyć konto i wywrócić zaproszenie na konflikcie.
+      if (nextPage > AUTH_DIRECTORY_MAX_PAGES) throw new Error("auth_directory_scan_exhausted");
+      const { data, error } = await admin.auth.admin.listUsers({
+        page: nextPage,
+        perPage: AUTH_DIRECTORY_PAGE_SIZE,
+      });
+      // Błąd katalogu NIE MOŻE czytać się jak „konta nie ma": cicha odpowiedź
+      // przecząca prowadzi wprost do `createUser`, czyli do konfliktu i do
+      // zaproszenia w stanie `failed`. Strona, która padła, zostaje do
+      // przeczytania przy następnym pytaniu.
+      if (error) throw error;
+      nextPage += 1;
+      const users = data?.users ?? [];
+      for (const user of users) {
+        const key = (user.email ?? "").trim().toLowerCase();
+        if (key && !byEmail.has(key)) byEmail.set(key, toInviteAccount(user));
+      }
+      // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
+      // przeszliśmy CAŁY katalog.
+      if (users.length < AUTH_DIRECTORY_PAGE_SIZE) complete = true;
+      const hit = byEmail.get(target);
+      if (hit) return hit;
+    }
+    return null;
   }
-  // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
-  // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
-  // druga kazałaby wyżej założyć konto i wywrócić zaproszenie na konflikcie.
-  throw new Error("auth_directory_scan_exhausted");
+}
+
+/** Jednorazowe szukanie po adresie (`performSend` pyta o jeden adres). */
+function findAuthAccountByEmail(admin: AdminClient, email: string): Promise<InviteAccount | null> {
+  return createAuthDirectory(admin)(email);
 }
 
 // `auth_user_id` z wiersza zaproszenia NIE jest dowodem tożsamości:
@@ -759,6 +817,42 @@ async function performSend(
       if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
     }
 
+    // NOWE HASŁO TYMCZASOWE PRZY PONOWIENIU. Hasło istnieje tylko w pamięci
+    // wywołania, które założyło konto - jeśli tamta wysyłka się przerwała
+    // (albo konto założył import zespołu, który maili nie wysyła), ponowienie
+    // w trybie hasła mailowało sam adres logowania, bez hasła i bez linku.
+    // Nowe hasło nadajemy WYŁĄCZNIE kontu, które administrator założył dla
+    // tego adresu (`provisioned_email`) i na które nikt się jeszcze nie
+    // zalogował: jego dotychczasowego hasła nie zna nikt poza zakładającym,
+    // więc nic nie jest odbierane właścicielowi. Konto, które ma sesję
+    // w historii, zachowuje swoje hasło.
+    //
+    // NOWE HASŁO IDZIE WYŁĄCZNIE DO SKRZYNKI KONTA, nigdy do wołającego.
+    // Ponowić wysyłkę może każdy administrator najemcy, także dla konta, które
+    // założył ktoś inny - i które ma już wyższą rolę (super_admin). Hasło
+    // oddane w `SendResult.tempPassword` dawałoby mu zalogowanie się na to
+    // konto (bez MFA - nieużyte konto nie ma czynnika), czyli awans, którego
+    // `change_user_role` i podszywanie się (`startImpersonation`) mu odmawiają.
+    // Wołający dostaje hasło tylko wtedy, gdy SAM właśnie założył konto.
+    // Poświadczenie najemcy (`app_metadata.tenant_id`) zawęża nadanie do kont
+    // założonych dla tego najemcy.
+    //
+    // NADANIE DOPIERO PO PRZYJĘCIU MAILA (niżej). Hasło z wcześniejszej
+    // wysyłki mogło dotrzeć do odbiorcy albo zostać mu przekazane ręcznie -
+    // gdyby zmiana szła przed mailem, a mail padł (awaria dostawcy, blokada
+    // adresu), stare hasło przestałoby działać, a nowego nikt by nie dostał.
+    const reissuedPassword =
+      inv.mode === "temp_password" &&
+      tempPassword === undefined &&
+      found !== null &&
+      found.id === authUserId &&
+      !found.everSignedIn &&
+      found.appTenantId === invitationTenantId &&
+      found.provisionedEmail === email.trim().toLowerCase()
+        ? generateTempPassword()
+        : undefined;
+    const mailedPassword = tempPassword ?? reissuedPassword;
+
     // E-mail zaproszenia wysyłamy ZAWSZE własną ścieżką: dla trybu
     // magic_link niesie link aktywacyjny (generateLink - Supabase go tylko
     // generuje, nie wysyła), dla temp_password login + hasło tymczasowe.
@@ -832,10 +926,10 @@ async function performSend(
             .join(" - "),
         });
       }
-      if (!actionLink && tempPassword) {
+      if (!actionLink && mailedPassword) {
         details.push({
           label: copy.temporaryPassword,
-          value: tempPassword,
+          value: mailedPassword,
         });
       }
 
@@ -853,7 +947,24 @@ async function performSend(
         tenantId: inv.tenant_id,
       });
       if (!res.ok) {
-        return { ok: false, email, error: `email_failed:${res.error}`, tempPassword };
+        // Adres na liście blokad (odbicie, skarga) to nie chwilowa awaria:
+        // dopóki blokada trwa, ponowienie też zostanie pominięte, więc panel
+        // nie może radzić „spróbuj za chwilę". Powód zostaje w `email_send_log`.
+        const error = res.skipped === "suppressed" ? EMAIL_SUPPRESSED : `email_failed:${res.error}`;
+        return { ok: false, email, error, tempPassword };
+      }
+      // Mail z nowym hasłem przyjęty - dopiero teraz hasło konta się zmienia.
+      // `duplicate` znaczy, że tę wysyłkę obsłużono już wcześniej z INNYM
+      // hasłem w treści; nadanie obecnego rozjechałoby konto z tamtym mailem.
+      if (reissuedPassword && res.skipped !== "duplicate") {
+        const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+          password: reissuedPassword,
+        });
+        if (passwordError) {
+          // Mail wyszedł z hasłem, które nie działa; poprzednie (jeśli było)
+          // działa dalej. Zaproszenie NIE jest `sent` - ponowienie wyśle nowe.
+          throw new Error(`password_reset_failed:${passwordError.message}`);
+        }
       }
     }
 
@@ -1230,6 +1341,8 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
 
     const drafts = extractTeamMembers(page.builder_data);
     if (drafts.length === 0) return { created: 0, skipped: 0, linked: 0, errors: [] };
+    // Jeden katalog kont na całe wywołanie - patrz `createAuthDirectory`.
+    const lookupAccount = createAuthDirectory(supabaseAdmin);
 
     const { data: users } = await context.supabase.rpc("admin_list_users");
     const byEmail = new Map<string, string>();
@@ -1309,9 +1422,13 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
             // Konto odszukujemy jak `performSend` i stosujemy tę samą decyzję:
             // `attach` dokończy import (konto narodzone dla tego najemcy
             // i nigdy nieużyte), każdy inny wynik to neutralny kod odmowy.
-            if (!isEmailTakenError(createErr)) throw createErr;
-            const account = await findAuthAccountByEmail(supabaseAdmin, d.email);
-            if (!account) throw createErr;
+            //
+            // Każdy INNY błąd `createUser` (limit, polityka haseł, błąd bazy
+            // GoTrue) - a także „adres zajęty" bez konta w katalogu - daje
+            // ogólny kod; szczegół idzie wyłącznie do logu serwera (B3).
+            if (!isEmailTakenError(createErr)) throw accountCreateFailed(createErr);
+            const account = await lookupAccount(d.email);
+            if (!account) throw accountCreateFailed(createErr);
             const decision = await decideInviteTarget(supabaseAdmin, {
               invitationTenantId: tenantId,
               invitationEmail: d.email,

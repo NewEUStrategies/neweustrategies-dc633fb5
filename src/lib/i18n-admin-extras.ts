@@ -551,6 +551,8 @@ export const adminExtrasPl = {
       editor: {
         builderLocked:
           "Strony używają wspólnej struktury dla PL i EN - przełącznik języka zmienia tylko teksty.",
+        loadError:
+          "Nie udało się wczytać strony - mogła zostać usunięta, zmienić adres albo nie masz do niej dostępu.",
       },
       importWp: "Import z WordPress",
       preview: "Podgląd strony w nowej karcie",
@@ -1456,6 +1458,8 @@ export const adminExtrasEn = {
       editor: {
         builderLocked:
           "Pages use a shared structure for PL and EN - the language switcher changes only the text.",
+        loadError:
+          "Could not load this page - it may have been deleted, moved to another address, or you no longer have access to it.",
       },
       importWp: "Import from WordPress",
       preview: "Preview page in a new tab",

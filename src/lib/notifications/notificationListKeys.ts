@@ -29,15 +29,22 @@ export const NOTIFICATIONS_QUERY_PREFIX = "notifications" as const;
 /**
  * Czy ten wpis cache trzyma LISTĘ wierszy powiadomień.
  *
- * Rozpoznanie po kształcie klucza: trzy elementy, a trzeci to obiekt filtra.
+ * Rozpoznanie po kształcie klucza: trzy elementy, a trzeci to obiekt filtra -
+ * NIE tablica. Klucz profili aktorów też ma trzy elementy, a jego trzeci to
+ * tablica id, dla której `typeof` również daje "object": bez `Array.isArray`
+ * łatka wchodziła na `cached.pages` płaskiej tablicy profili, `onMutate`
+ * rzucał `TypeError` i akcje na zwiniętej rozmowie (oznacz całość, oznacz
+ * jako nieprzeczytane, kosz) nie dobiegały do serwera.
  */
 export function isNotificationListQuery(query: QueryKeyCarrier): boolean {
   const key = query.queryKey;
+  const filter = key[2];
   return (
     key[0] === NOTIFICATIONS_QUERY_PREFIX &&
     key.length === 3 &&
-    typeof key[2] === "object" &&
-    key[2] !== null
+    typeof filter === "object" &&
+    filter !== null &&
+    !Array.isArray(filter)
   );
 }
 

@@ -137,6 +137,18 @@ function toScalar(raw: Buffer, label: string): Buffer {
   return padded;
 }
 
+/**
+ * Klucz subskrypcji (p256dh/auth), którego nie da się użyć NIGDY. Osobna klasa,
+ * bo dla wysyłki to błąd URZĄDZENIA, nie przechodni: klucze przysyła
+ * przeglądarka, a CHECK w bazie pilnuje wyłącznie długości napisu.
+ */
+export class InvalidSubscriptionKeyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidSubscriptionKeyError";
+  }
+}
+
 function assertUncompressedP256(pub: Buffer, label: string): Buffer {
   if (pub.length !== P256_PUBLIC_BYTES || pub[0] !== 4) {
     throw new Error(`webpush: invalid ${label}`);
@@ -159,10 +171,10 @@ export function encryptPushPayload(
   saltOverride?: Buffer,
 ): Buffer {
   if (receiverP256dh.length !== P256_PUBLIC_BYTES || receiverP256dh[0] !== 4) {
-    throw new Error("webpush: invalid p256dh key");
+    throw new InvalidSubscriptionKeyError("webpush: invalid p256dh key");
   }
   if (receiverAuth.length !== AUTH_SECRET_BYTES) {
-    throw new Error("webpush: invalid auth secret");
+    throw new InvalidSubscriptionKeyError("webpush: invalid auth secret");
   }
   if (payload.length > MAX_PUSH_PAYLOAD_BYTES) {
     throw new Error(`webpush: payload too large (${payload.length} > ${MAX_PUSH_PAYLOAD_BYTES} B)`);
@@ -176,7 +188,14 @@ export function encryptPushPayload(
   // 65 B uncompressed - inwariant, na którym opiera się rozmiar nagłówka (86 B)
   // i jednorazowa alokacja ciała poniżej.
   const asPublic = assertUncompressedP256(ecdh.getPublicKey(), "server public key");
-  const sharedSecret = ecdh.computeSecret(receiverP256dh);
+  let sharedSecret: Buffer;
+  try {
+    sharedSecret = ecdh.computeSecret(receiverP256dh);
+  } catch {
+    // Poprawny kształt (65 B, 0x04), ale punkt spoza krzywej P-256
+    // (ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY) - klucz równie bezużyteczny.
+    throw new InvalidSubscriptionKeyError("webpush: invalid p256dh key (not on P-256)");
+  }
 
   // IKM = HKDF(auth, ecdh_secret, "WebPush: info" || ua_public || as_public)
   const keyInfo = Buffer.concat([KEY_INFO_PREFIX, receiverP256dh, asPublic]);
@@ -280,9 +299,14 @@ const vapidJwtCache = new Map<string, CachedJwt>();
 
 /** Wstawka z twardym limitem: najstarszy wpis wypada (Map trzyma kolejność). */
 function cachePut<K, V>(cache: Map<K, V>, key: K, value: V): V {
+  // Odświeżenie istniejącego klucza (JWT przed wygaśnięciem) nie może wyrzucać
+  // CUDZEGO wpisu, a po odświeżeniu klucz jest najmłodszy, nie najstarszy.
+  cache.delete(key);
   if (cache.size >= VAPID_CACHE_LIMIT) {
-    const oldest = cache.keys().next();
-    if (!oldest.done) cache.delete(oldest.value);
+    for (const oldest of cache.keys()) {
+      cache.delete(oldest);
+      break;
+    }
   }
   cache.set(key, value);
   return value;
@@ -364,6 +388,18 @@ export interface PushSendResult {
   retryAfterSec: number | null;
 }
 
+/**
+ * Urządzenie do odcięcia: `gone` zatrzymuje ponowienia i oznacza subskrypcję
+ * (`failed_at`), `permanent:false`, bo to błąd URZĄDZENIA, nie payloadu -
+ * pozostałe urządzenia odbiorcy nadal mogą dostać to powiadomienie.
+ */
+function deadDevice(): PushSendResult {
+  return { ok: false, gone: true, permanent: false, status: 0, retryAfterSec: null };
+}
+
+/** Powody odmowy strażnicy, które znaczą "nie dało się sprawdzić", a nie "wrogi adres". */
+const GUARD_UNVERIFIED_REASONS: ReadonlySet<string> = new Set(["dns", "dns_empty"]);
+
 /** `Retry-After` bywa liczbą sekund albo datą HTTP (RFC 9110 sek. 10.2.3). */
 function parseRetryAfter(header: string | null, nowMs: number): number | null {
   if (!header) return null;
@@ -395,6 +431,18 @@ export async function sendWebPush(
     return { ok: false, gone: false, permanent: true, status: 413, retryAfterSec: null };
   }
 
+  // Szyfrowanie PRZED strażnicą: zepsuty klucz subskrypcji odpada bez DNS-u.
+  // Taki klucz nie przejdzie nigdy, więc to błąd urządzenia (`gone`) - jako
+  // wyjątek przechodni przepalał osiem prób KAŻDEGO zadania odbiorcy, a
+  // subskrypcja nie była oznaczana i łapała kolejne zadania.
+  let body: Buffer;
+  try {
+    body = encryptPushPayload(plaintext, b64urlDecode(sub.p256dh), b64urlDecode(sub.auth));
+  } catch (err) {
+    if (err instanceof InvalidSubscriptionKeyError) return deadDevice();
+    throw err;
+  }
+
   // SSRF guard: refuse to POST to a user-controlled endpoint unless it is
   // https + resolves to a public IP (rejects localhost, private ranges, cloud
   // metadata, .internal / .local suffixes). Fail-closed: on any refusal we
@@ -404,15 +452,17 @@ export async function sendWebPush(
   try {
     endpoint = await assertPublicHttpUrl(sub.endpoint);
   } catch (err) {
-    if (err instanceof BlockedUrlError) {
-      // Błąd na poziomie URZĄDZENIA (nie payloadu): pozostałe urządzenia
-      // odbiorcy mogą dostać to powiadomienie, więc `permanent` zostaje false.
-      return { ok: false, gone: true, permanent: false, status: 0, retryAfterSec: null };
+    // Awaria resolvera (`dns`, `dns_empty`) to NIE odmowa: nazwy nie dało się
+    // sprawdzić, więc żądanie nie wychodzi (fail-closed), ale wyjątek leci
+    // wyżej jak każdy błąd przechodni. Jako `gone` jeden zryw DNS-u oznaczał
+    // `mark_push_subscription_failed` KAŻDE urządzenie z partii (FCM, Mozilla)
+    // i push umierał dla nich do ponownej subskrypcji w przeglądarce.
+    if (err instanceof BlockedUrlError && !GUARD_UNVERIFIED_REASONS.has(err.reason)) {
+      return deadDevice();
     }
     throw err;
   }
 
-  const body = encryptPushPayload(plaintext, b64urlDecode(sub.p256dh), b64urlDecode(sub.auth));
   const jwt = buildVapidJwt(endpoint.origin, vapid, Math.floor(Date.now() / 1000));
 
   const headers: Record<string, string> = {

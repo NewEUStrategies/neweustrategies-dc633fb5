@@ -70,7 +70,11 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 
 import { drainEmailQueues } from "../queueDrain.server";
-import { enqueueRawEmail, sendTxEmail } from "../transactional.server";
+import {
+  __resetServiceClientForTests,
+  enqueueRawEmail,
+  sendTxEmail,
+} from "../transactional.server";
 import { fetchSystemEmailReport } from "@/lib/email/system-log.server";
 
 freezeClock();
@@ -227,6 +231,9 @@ beforeEach(() => {
   rpc.setData("email_filter_suppressed", []);
   rpc.setData("enqueue_email", null);
 
+  // Klient producenta jest pamiętany na izolat - bez resetu kolejne testy
+  // pisałyby przez atrapy z pierwszego.
+  __resetServiceClientForTests();
   h.createClient.mockReset();
   h.createClient.mockReturnValue({ from: producent.from, rpc: rpc.rpc } as never);
   h.sendEmail.mockReset();

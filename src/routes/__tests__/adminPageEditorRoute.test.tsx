@@ -16,34 +16,57 @@
 //
 // Ciężkie dzieci (kanwa buildera, panel SEO, metabox, rewizje, dostęp) mają
 // własne testy i są tu podmienione - inaczej test mierzyłby cudze reguły.
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+//
+// Dołożone 16.10.2026 (naprawy w trasie):
+//   4. PRZYWRÓCENIE REWIZJI WCZYTUJE WIERSZ OD NOWA. Serwer nadpisuje wiersz
+//      i podbija `updated_at`; edytor pokazywał dalej treść sprzed
+//      przywrócenia, a pierwsza edycja kończyła się fałszywym konfliktem.
+//      Spóźniona odpowiedź zapisu sprzed przywrócenia nie może tej bazy cofnąć.
+//   5. KOŃCOWY DYWIZ TO NIE KOLIZJA. Autozapis w trakcie pisania „o-nas-…”
+//      wracał od serwera jako „o-nas” - edytor krzyczał „slug był zajęty”
+//      i zjadał redaktorowi dywiz pod kursorem. Długi slug (81-120 znaków,
+//      serwer tnie do 120) też nie jest kolizją.
+//   6. BRAK WIERSZA MA KOMUNIKAT. Nieaktualny slug dawał wieczne „...”.
+//   7. KOLEJNOŚĆ W MENU MIEŚCI SIĘ W SCHEMACIE SERWERA (liczba całkowita
+//      0-99999) - inaczej walidacja odrzucała KAŻDY autozapis strony.
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { AnyRoute } from "@tanstack/react-router";
+import type { CodePageDef } from "@/lib/admin/codePages";
 
 const h = vi.hoisted(() => ({
   routeSlug: "o-nas",
   row: null as Record<string, unknown> | null,
+  rpcError: null as unknown,
   rpcCalls: [] as { name: string; args: unknown }[],
   updates: [] as Record<string, unknown>[],
   updateResult: { slug: "o-nas", updatedAt: "2026-08-02T10:00:00.000Z" } as Record<string, unknown>,
   updateError: null as unknown,
+  /** Gdy ustawione - zapis czeka na tę obietnicę (odpowiedź serwera „w drodze”). */
+  updateGate: null as Promise<void> | null,
   deletes: [] as unknown[],
-  deleteError: null as Error | null,
+  deleteError: null as unknown,
   navigations: [] as Record<string, unknown>[],
+  routerInvalidations: 0,
   confirmAnswer: true,
   seoIssues: [] as { severity: string }[],
   staticHomepage: null as Record<string, unknown> | null,
   blocking: false,
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+  codePageOverride: undefined as CodePageDef | undefined,
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
   useNavigate: () => (opts: Record<string, unknown>) => h.navigations.push(opts),
-  useRouter: () => ({ invalidate: () => undefined }),
+  useRouter: () => ({
+    invalidate: () => {
+      h.routerInvalidations += 1;
+    },
+  }),
   // Strażnik niezapisanych zmian montuje blokadę routera; poza `RouterProvider`
   // nie ma czego blokować, a jego reguły mają własny test.
   useBlocker: () => undefined,
@@ -58,7 +81,9 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
     if (fn === "updatePage") {
       if (h.updateError) throw h.updateError;
       h.updates.push(payload.data as Record<string, unknown>);
-      return h.updateResult;
+      const result = h.updateResult;
+      if (h.updateGate) await h.updateGate;
+      return result;
     }
     if (h.deleteError) throw h.deleteError;
     h.deletes.push(payload);
@@ -69,10 +94,16 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (name: string, args: unknown) => {
       h.rpcCalls.push({ name, args });
-      return { maybeSingle: async () => ({ data: h.row, error: null }) };
+      return { maybeSingle: async () => ({ data: h.row, error: h.rpcError }) };
     },
   },
 }));
+// Rejestr stron z kodu jest prawdziwy; podmiana pozwala sprawdzić wpis BEZ
+// własnych etykiet odnośnika „zarządzaj” (zapasowa etykieta ogólna).
+vi.mock("@/lib/admin/codePages", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/admin/codePages")>();
+  return { ...actual, codePage: (slug: string) => h.codePageOverride ?? actual.codePage(slug) };
+});
 vi.mock("@/lib/seo/validation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/seo/validation")>()),
   hasBlockingSeoIssues: () => h.blocking,
@@ -158,14 +189,21 @@ vi.mock("@/components/admin/PageParentSelect", () => ({
 }));
 vi.mock("@/components/admin/ImageSlot", () => ({
   ImageSlot: ({ onChange }: { onChange: (v: string) => void }) => (
-    <button type="button" onClick={() => onChange("https://cdn.example/okladka.jpg")}>
-      wybierz okładkę
-    </button>
+    <>
+      <button type="button" onClick={() => onChange("https://cdn.example/okladka.jpg")}>
+        wybierz okładkę
+      </button>
+      <button type="button" onClick={() => onChange("")}>
+        usuń okładkę
+      </button>
+    </>
   ),
 }));
 
 import "@/test/i18nReal";
 import "@/lib/i18n-admin-extras";
+import i18n from "@/lib/i18n";
+import { routeHead } from "@/test/routeHarness";
 import { Route } from "@/routes/admin.pages.$slug";
 
 let queryClient: QueryClient;
@@ -231,20 +269,30 @@ beforeEach(() => {
   h.staticHomepage = null;
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   h.routeSlug = "o-nas";
+  h.rpcError = null;
   h.rpcCalls.length = 0;
   h.updates.length = 0;
   h.deletes.length = 0;
   h.navigations.length = 0;
+  h.routerInvalidations = 0;
   h.updateError = null;
+  h.updateGate = null;
   h.deleteError = null;
   h.confirmAnswer = true;
   h.blocking = false;
   h.seoIssues = [];
+  h.codePageOverride = undefined;
   h.updateResult = { slug: "o-nas", updatedAt: "2026-08-02T10:00:00.000Z" };
   h.toast.success.mockReset();
   h.toast.error.mockReset();
   h.toast.warning.mockReset();
+  h.toast.info.mockReset();
   vi.spyOn(Route, "useParams").mockReturnValue({ slug: h.routeSlug } as never);
+});
+
+afterEach(async () => {
+  // Test angielskiego panelu przełącza WSPÓLNĄ instancję i18next.
+  if (i18n.language !== "pl") await act(() => i18n.changeLanguage("pl"));
 });
 
 describe("edytor strony - wczytanie wiersza", () => {
@@ -594,6 +642,13 @@ describe("edytor strony - publikacja zaplanowana", () => {
     await setup(pageRow({ status: "scheduled", publish_at: "2020-01-01T10:00:00.000Z" }));
     expect(screen.getByText(/przeszł|past/i)).toBeInTheDocument();
   });
+
+  it("data z PRZYSZŁOŚCI zapowiada publikację automatyczną, bez ostrzeżeń", async () => {
+    await setup(pageRow({ status: "scheduled", publish_at: "2099-01-01T10:00:00.000Z" }));
+    expect(screen.getByText(/opublikuje się automatycznie|automatically/i)).toBeInTheDocument();
+    expect(screen.queryByText(/przeszł|past/i)).toBeNull();
+    expect(screen.queryByText(/wymaga daty|requires a publish date/i)).toBeNull();
+  });
 });
 
 describe("edytor strony - strona renderowana z kodu", () => {
@@ -759,6 +814,26 @@ describe("edytor strony - każda kontrolka pisze do WŁASNEGO pola", () => {
 
     expect(String(fields.publish_at)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(String(fields.publish_at)).not.toBe("2026-09-01T10:00:00.000Z");
+    // Dokładnie ten moment ZEGARA ŚCIENNEGO redaktora (konstruktor lokalny),
+    // nie 08:30 UTC - inaczej publikacja przesuwa się o strefę.
+    expect(fields.publish_at).toBe(new Date(2026, 8, 2, 8, 30).toISOString());
+  });
+
+  it("pole daty pokazuje zapisany moment w LOKALNYM czasie redaktora", async () => {
+    const iso = new Date(2026, 8, 1, 14, 5).toISOString();
+    await setup(pageRow({ status: "scheduled", publish_at: iso }));
+    const pole = document.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+
+    expect(pole.value).toBe("2026-09-01T14:05");
+  });
+
+  it("wyczyszczona data zapisuje się jako PUSTKA i wraca ostrzeżenie o wymaganej dacie", async () => {
+    await setup(pageRow({ status: "scheduled", publish_at: "2099-01-01T10:00:00.000Z" }));
+    const pole = document.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+    const fields = await zapiszPo(() => fireEvent.change(pole, { target: { value: "" } }));
+
+    expect(fields.publish_at).toBeNull();
+    expect(screen.getByText(/wymaga daty|requires a publish date/i)).toBeInTheDocument();
   });
 
   it("zmiana na KANWIE trafia do wersji roboczej", async () => {
@@ -781,9 +856,442 @@ describe("edytor strony - każda kontrolka pisze do WŁASNEGO pola", () => {
     expect(screen.queryByTestId("kanwa")).toBeNull();
   });
 
-  it("przywrócenie rewizji odświeża wczytany wiersz", async () => {
-    // Bez odświeżenia edytor pokazuje dalej wersję sprzed przywrócenia.
+  it("okładka usunięta w slocie zapisuje się jako PUSTKA, nie pusty napis", async () => {
+    // Pusty napis w `cover_image_url` daje `<img src="">` i og:image bez adresu.
+    await setup(pageRow({ cover_image_url: "https://cdn.example/stara.jpg" }));
+    const fields = await zapiszPo(() => fireEvent.click(screen.getByText("usuń okładkę")));
+
+    expect(fields.cover_image_url).toBeNull();
+  });
+
+  it("wyczyszczona zajawka EN też zapisuje się jako pustka", async () => {
+    await setup(pageRow({ excerpt_en: "Old excerpt" }));
+    const opisy = screen.getAllByRole("textbox").filter((el) => el.tagName === "TEXTAREA");
+    const fields = await zapiszPo(() => fireEvent.change(opisy[1], { target: { value: "   " } }));
+
+    expect(fields.excerpt_en).toBeNull();
+  });
+});
+
+describe("edytor strony - przywrócenie rewizji", () => {
+  // Serwer (`restoreRevision`) nadpisuje wiersz i podbija `updated_at`.
+  const przywrocony = () =>
+    pageRow({ title_pl: "Wersja z rewizji", updated_at: "2026-08-05T10:00:00.000Z" });
+
+  it("formularz pokazuje PRZYWRÓCONĄ treść, a nie wersję sprzed przywrócenia", async () => {
     await setup();
-    expect(() => fireEvent.click(screen.getByText("przywróć rewizję"))).not.toThrow();
+    h.row = przywrocony();
+    fireEvent.click(screen.getByText("przywróć rewizję"));
+
+    await waitFor(() => expect(titleField("PL").value).toBe("Wersja z rewizji"));
+    // Wiersz czytany ponownie tą samą funkcją serwerową, a trasy odświeżone.
+    expect(h.rpcCalls.filter((c) => c.name === "get_page_for_edit")).toHaveLength(2);
+    expect(h.routerInvalidations).toBe(1);
+  });
+
+  it("następny zapis niesie `updated_at` PRZYWRÓCONEGO wiersza - bez fałszywego konfliktu", async () => {
+    // Z bazą sprzed przywrócenia serwer odrzuca zapis jako EDIT_CONFLICT,
+    // choć jedyną „cudzą” zmianą było przywrócenie samego redaktora.
+    await setup();
+    h.row = przywrocony();
+    fireEvent.click(screen.getByText("przywróć rewizję"));
+    await waitFor(() => expect(titleField("PL").value).toBe("Wersja z rewizji"));
+
+    fireEvent.change(titleField("PL"), { target: { value: "Poprawka po przywróceniu" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    expect(lastUpdate().baseUpdatedAt).toBe("2026-08-05T10:00:00.000Z");
+    expect(lastUpdate().fields.title_pl).toBe("Poprawka po przywróceniu");
+  });
+
+  it("przywrócony wiersz jest CZYSTĄ bazą: niezapisany szkic przepada, nic nie czeka na zapis", async () => {
+    // Szkic sprzed przywrócenia nie może zostać „niezapisaną zmianą”, którą
+    // autozapis za chwilę wpisałby na przywróconą wersję.
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Niezapisany szkic" } });
+    expect(
+      await screen.findByRole("button", { name: /Anuluj zmiany|Discard changes/i }),
+    ).toBeInTheDocument();
+
+    h.row = przywrocony();
+    fireEvent.click(screen.getByText("przywróć rewizję"));
+
+    await waitFor(() => expect(titleField("PL").value).toBe("Wersja z rewizji"));
+    expect(screen.queryByRole("button", { name: /Anuluj zmiany|Discard changes/i })).toBeNull();
+    expect(h.updates).toHaveLength(0);
+  });
+
+  it("ODMOWA ponownego odczytu jest zgłoszona, a formularz zostaje nietknięty", async () => {
+    // Błąd z RPC to zwykły obiekt PostgREST - toast nie może brzmieć
+    // „[object Object]”, a formularz nie może się wyzerować.
+    await setup();
+    // Wyciszenie TYLKO na ten test - przeciek do kolejnych ukrywałby prawdziwe
+    // błędy Reacta (vitest.config nie przywraca podsłuchów sam).
+    const ciszaKonsoli = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      h.rpcError = { message: "Failed to fetch", code: "" };
+      fireEvent.click(screen.getByText("przywróć rewizję"));
+
+      await waitFor(() =>
+        expect(h.toast.error).toHaveBeenCalledWith(
+          "Problem z połączeniem. Sprawdź internet i spróbuj ponownie.",
+        ),
+      );
+      expect(titleField("PL").value).toBe("O nas");
+    } finally {
+      ciszaKonsoli.mockRestore();
+    }
+  });
+
+  it("SPÓŹNIONA odpowiedź zapisu sprzed przywrócenia nie cofa bazy blokady ani cache", async () => {
+    // Zapis jest w drodze, redaktor przywraca rewizję, odpowiedź przychodzi
+    // dopiero po ponownym odczycie. Jej `updated_at` jest STARSZY niż
+    // przywrócenie - wpisany jako baza dawał fałszywy konflikt przy następnej
+    // edycji, a wpisany do cache wracał po ponownym otwarciu edytora.
+    let odpowiedz: () => void = () => undefined;
+    h.updateGate = new Promise<void>((resolve) => {
+      odpowiedz = resolve;
+    });
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Szkic w drodze" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+
+    h.row = przywrocony();
+    fireEvent.click(screen.getByText("przywróć rewizję"));
+    await waitFor(() => expect(titleField("PL").value).toBe("Wersja z rewizji"));
+
+    h.updateGate = null;
+    odpowiedz();
+    // Ręczny zapis domknięty (przycisk znów aktywny) = `saveFn` skończył.
+    await waitFor(() => expect(saveButton()).not.toBeDisabled());
+    expect(titleField("PL").value).toBe("Wersja z rewizji");
+    expect(queryClient.getQueryData(["page-by-slug", "tenant-1", "o-nas"])).toMatchObject({
+      title_pl: "Wersja z rewizji",
+      updated_at: "2026-08-05T10:00:00.000Z",
+    });
+
+    fireEvent.change(titleField("PL"), { target: { value: "Poprawka po przywróceniu" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(2));
+    expect(lastUpdate().baseUpdatedAt).toBe("2026-08-05T10:00:00.000Z");
+  });
+});
+
+describe("edytor strony - nagłówek karty", () => {
+  it("head() nazywa SEKCJĘ i trzyma panel poza indeksem", () => {
+    // Ogólny tytuł „Admin” na kilkunastu kartach nie mówi, która to edycja.
+    const { meta } = routeHead(Route as AnyRoute);
+
+    expect(meta).toContainEqual({ title: "Page editor | New European Strategies" });
+    expect(meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+  });
+});
+
+describe("edytor strony - wiersz, którego nie ma", () => {
+  it("NIEAKTUALNY slug daje komunikat i drogę na listę zamiast wiecznego „...”", async () => {
+    // Zakładka sprzed zmiany adresu albo strona w koszu: RPC zwraca pustkę.
+    h.row = null;
+    const Component = (Route as AnyRoute).options.component as () => ReactNode;
+    render(<Component />, { wrapper });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Nie udało się wczytać strony/);
+    expect(screen.getByRole("link", { name: /Wstecz/ })).toHaveAttribute("href", "/admin/pages");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("BŁĄD odczytu też kończy się komunikatem, nie zawieszonym ekranem", async () => {
+    h.row = pageRow();
+    h.rpcError = { message: "permission denied", code: "42501" };
+    const Component = (Route as AnyRoute).options.component as () => ReactNode;
+    render(<Component />, { wrapper });
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Zapisz|Save)$/ })).toBeNull();
+  });
+});
+
+describe("edytor strony - slug w trakcie pisania", () => {
+  it("autozapis „o-nas-” (końcowy dywiz) to NIE kolizja: bez ostrzeżenia i bez zjadania dywizu", async () => {
+    // Redaktor pisze „o-nas-nowa” i robi pauzę po dywizie. Serwer obcina
+    // końcowy dywiz („o-nas”) - to normalizacja, nie zajęty adres.
+    await setup();
+    const slug = screen.getByLabelText(/^Slug/) as HTMLInputElement;
+    fireEvent.change(slug, { target: { value: "o nas " } });
+    expect(slug.value).toBe("o-nas-");
+
+    // Prawdziwy autozapis po bezczynności (bez klikania „Zapisz”, które
+    // zabrałoby fokus z pola).
+    await waitFor(() => expect(h.updates).toHaveLength(1), { timeout: 4000 });
+    expect(lastUpdate().fields.slug).toBe("o-nas-");
+    await screen.findByText("Zapisano");
+
+    expect(h.toast.warning).not.toHaveBeenCalled();
+    expect(slug.value).toBe("o-nas-");
+    expect(h.navigations).toHaveLength(0);
+  });
+
+  it("DŁUGI zapisany slug (81-120 znaków) to NIE kolizja: zapis samego tytułu nie ostrzega", async () => {
+    // Serwer tnie slug do 120 znaków (`createPage` z długiego tytułu, import
+    // WordPressa). Porównanie z normalizacją ucinającą do 80 brało każdy
+    // zapis takiej strony za „slug zajęty” - choć pola nikt nie ruszał.
+    const dlugi =
+      "polityka-prywatnosci-i-zasady-przetwarzania-danych-osobowych-czlonkow-klubu-new-european-strategies";
+    expect(dlugi.length).toBeGreaterThan(80);
+    expect(dlugi.length).toBeLessThanOrEqual(120);
+    h.routeSlug = dlugi;
+    vi.spyOn(Route, "useParams").mockReturnValue({ slug: dlugi } as never);
+    h.updateResult = { slug: dlugi, updatedAt: "2026-08-02T10:00:00.000Z" };
+    await setup(pageRow({ slug: dlugi }));
+
+    fireEvent.change(titleField("PL"), { target: { value: "Polityka prywatności" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalledWith("Zapisano"));
+    expect(lastUpdate().fields.slug).toBe(dlugi);
+    expect(h.toast.warning).not.toHaveBeenCalled();
+    expect((screen.getByLabelText(/^Slug/) as HTMLInputElement).value).toBe(dlugi);
+    expect(h.navigations).toHaveLength(0);
+  });
+
+  it("PRAWDZIWA kolizja nadal ostrzega i przepisuje pole na zapisany slug", async () => {
+    h.updateResult = { slug: "kontakt-2", updatedAt: "2026-08-02T10:00:00.000Z" };
+    await setup();
+    const slug = screen.getByLabelText(/^Slug/) as HTMLInputElement;
+    fireEvent.change(slug, { target: { value: "kontakt" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(h.toast.warning).toHaveBeenCalledWith('Slug był zajęty - zapisano jako "kontakt-2"'),
+    );
+    expect(slug.value).toBe("kontakt-2");
+  });
+
+  it("odpowiedź o kolizji NIE nadpisuje sluga, który redaktor zdążył dopisać", async () => {
+    // Zapis „kontakt” jest w drodze, redaktor pisze dalej. Spóźniona
+    // odpowiedź „kontakt-2” ostrzega, ale nie cofa pola - a dopisany slug
+    // trafia do bazy następnym zapisem.
+    let odpowiedz: () => void = () => undefined;
+    h.updateGate = new Promise<void>((resolve) => {
+      odpowiedz = resolve;
+    });
+    h.updateResult = { slug: "kontakt-2", updatedAt: "2026-08-02T10:00:00.000Z" };
+    await setup();
+    const slug = screen.getByLabelText(/^Slug/) as HTMLInputElement;
+    fireEvent.change(slug, { target: { value: "kontakt" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+
+    fireEvent.change(slug, { target: { value: "kontakt-nowy" } });
+    h.updateGate = null;
+    h.updateResult = { slug: "kontakt-nowy", updatedAt: "2026-08-03T10:00:00.000Z" };
+    odpowiedz();
+
+    await waitFor(() => expect(h.toast.warning).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(h.updates).toHaveLength(2));
+    expect(lastUpdate().fields.slug).toBe("kontakt-nowy");
+    expect(slug.value).toBe("kontakt-nowy");
+  });
+});
+
+describe("edytor strony - kolejność w menu w zakresie schematu serwera", () => {
+  async function zapiszKolejnosc(wpisane: string) {
+    await setup();
+    fireEvent.change(screen.getByLabelText(/Kolejność w menu/), { target: { value: wpisane } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    return lastUpdate().fields.menu_order;
+  }
+
+  it("pole deklaruje natywny zakres: liczby całkowite od zera", async () => {
+    await setup();
+    const pole = screen.getByLabelText(/Kolejność w menu/);
+    expect(pole).toHaveAttribute("min", "0");
+    expect(pole).toHaveAttribute("max", "99999");
+    expect(pole).toHaveAttribute("step", "1");
+  });
+
+  it.each([
+    ["-3", 0],
+    ["2.7", 2],
+    ["1000000", 99999],
+    ["1e400", 99999],
+  ])(
+    "wpisane „%s” zapisuje się jako %i (serwer przyjmuje tylko int 0-99999)",
+    async (wpisane, oczekiwane) => {
+      // `-3` albo `2.7` odrzucała walidacja serwera - a z nią CAŁY autozapis.
+      expect(await zapiszKolejnosc(wpisane)).toBe(oczekiwane);
+    },
+  );
+});
+
+describe("edytor strony - odpowiedź serwera po zapisie", () => {
+  it("strona TESTOWA wymuszona na noindex: komunikat i przełącznik zgodny z bazą", async () => {
+    // Serwer sam ustawia noindex stronom `test-*`; formularz z `false`
+    // odesłałby przy następnym zapisie stan sprzeczny z bazą.
+    h.updateResult = {
+      slug: "o-nas",
+      updatedAt: "2026-08-02T10:00:00.000Z",
+      noindexForced: true,
+    };
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Zmiana" } });
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(h.toast.info).toHaveBeenCalledWith(expect.stringMatching(/strona testowa/i), {
+        id: "test-page-noindex",
+      }),
+    );
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(2));
+    expect(lastUpdate().fields.seo_noindex).toBe(true);
+  });
+
+  it("odpowiedź BEZ `updatedAt` i sluga zostawia bazę blokady i adres bez zmian", async () => {
+    // Wyzerowanie bazy dawałoby fałszywy konflikt, a „brak sluga” nie jest
+    // powodem, żeby przenosić redaktora pod inny adres.
+    h.updateResult = { ok: true };
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Pierwsza" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    fireEvent.change(titleField("PL"), { target: { value: "Druga" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(2));
+
+    expect(lastUpdate().baseUpdatedAt).toBe("2026-08-01T10:00:00.000Z");
+    expect(h.navigations).toHaveLength(0);
+    expect(h.toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("wiersz BEZ `updated_at` nie wysyła bazy blokady (null odrzuciłby schemat)", async () => {
+    await setup(pageRow({ updated_at: null }));
+    fireEvent.change(titleField("PL"), { target: { value: "Zmiana" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    expect(lastUpdate()).not.toHaveProperty("baseUpdatedAt", null);
+    expect(lastUpdate().baseUpdatedAt).toBeUndefined();
+  });
+
+  it("historyczny wiersz z NULL-ami wysyła puste listy i fałsz, nie null", async () => {
+    // Schemat serwera przyjmuje tablicę wniosków i boolean noindex - null
+    // w którymkolwiek z tych pól odrzucałby każdy zapis starej strony.
+    await setup(
+      pageRow({
+        takeaways_pl: null,
+        takeaways_en: null,
+        takeaways_variant: undefined,
+        toc_override: undefined,
+        seo_noindex: null,
+      }),
+    );
+    fireEvent.change(titleField("PL"), { target: { value: "Zmiana" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    expect(lastUpdate().fields).toMatchObject({
+      takeaways_pl: [],
+      takeaways_en: [],
+      takeaways_variant: null,
+      toc_override: null,
+      seo_noindex: false,
+    });
+  });
+
+  it("odrzucenie zapisu bez obiektu Error nadal pokazuje jego treść", async () => {
+    h.updateError = "Rate limit exceeded - please slow down";
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Zmiana" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Rate limit exceeded - please slow down"),
+    );
+    expect(h.toast.success).not.toHaveBeenCalled();
+  });
+
+  it("odrzucenie usunięcia bez obiektu Error nadal pokazuje jego treść", async () => {
+    h.deleteError = "Save rejected";
+    await setup();
+    fireEvent.click(screen.getByRole("button", { name: /^(Usuń|Delete)$/ }));
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("Save rejected"));
+    expect(h.navigations).toHaveLength(0);
+  });
+});
+
+describe("edytor strony - okruszki i skróty", () => {
+  it.each([
+    [{ title_pl: "", title_en: "About us" }, "About us"],
+    [{ title_pl: "", title_en: "", slug: "o-nas" }, "o-nas"],
+  ])("okruszek nazywa stronę zapasowo (%o -> %s)", async (overrides, oczekiwane) => {
+    // Strona bez polskiego tytułu nie może wisieć w okruszkach jako pustka.
+    await setup(pageRow(overrides));
+    const okruszek = screen
+      .getAllByRole("link", { current: "page" })
+      .find((el) => el.textContent === oczekiwane);
+    expect(okruszek).toBeTruthy();
+  });
+
+  it("strona bez tytułów i z wyczyszczonym slugiem jest „bez tytułu”, nie pustką", async () => {
+    await setup(pageRow({ title_pl: "", title_en: "" }));
+    fireEvent.change(screen.getByLabelText(/^Slug/), { target: { value: "" } });
+
+    expect(screen.getAllByRole("link", { current: "page" }).map((el) => el.textContent)).toContain(
+      "bez tytułu",
+    );
+  });
+
+  it("zwykłe skróty z Ctrl (np. Ctrl+C) NIE są przechwytywane przez historię", async () => {
+    // `preventDefault` na Ctrl+C zabrałby redaktorowi kopiowanie.
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Zmieniony" } });
+
+    expect(fireEvent.keyDown(window, { key: "c", ctrlKey: true })).toBe(true);
+    expect(titleField("PL").value).toBe("Zmieniony");
+  });
+});
+
+describe("edytor strony - odnośnik „zarządzaj” strony z kodu", () => {
+  it("polski panel pokazuje etykietę PL z rejestru i adres zarządzania", async () => {
+    vi.spyOn(Route, "useParams").mockReturnValue({ slug: "club" } as never);
+    await setup(pageRow({ slug: "club" }));
+
+    expect(
+      screen.getByRole("link", { name: "Zarządzaj klubami: Kluby dyskusyjne" }),
+    ).toHaveAttribute("href", "/admin/community/clubs");
+  });
+
+  it("angielski panel pokazuje etykietę EN z rejestru", async () => {
+    await act(() => i18n.changeLanguage("en"));
+    vi.spyOn(Route, "useParams").mockReturnValue({ slug: "club" } as never);
+    await setup(pageRow({ slug: "club" }));
+
+    expect(
+      screen.getByRole("link", { name: "Manage clubs: Discussion clubs" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["pl", "Zarządzaj treścią"],
+    ["en", "Manage content"],
+  ])("wpis BEZ własnych etykiet dostaje ogólną (%s: „%s”)", async (lang, oczekiwane) => {
+    if (lang === "en") await act(() => i18n.changeLanguage("en"));
+    h.codePageOverride = {
+      slug: "o-nas",
+      path: "/o-nas",
+      label_pl: "O nas",
+      label_en: "About",
+      manage_path: "/admin/settings",
+    };
+    await setup();
+
+    expect(screen.getByRole("link", { name: oczekiwane })).toHaveAttribute(
+      "href",
+      "/admin/settings",
+    );
   });
 });

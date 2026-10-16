@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { isPrivateOrReservedIp, assertPublicHttpUrl } from "@/lib/http/egressGuard.server";
+import {
+  BlockedUrlError,
+  isPrivateOrReservedIp,
+  assertPublicHttpUrl,
+} from "@/lib/http/egressGuard.server";
 
 describe("isPrivateOrReservedIp", () => {
   it("flags private / loopback / link-local / metadata IPv4", () => {
@@ -69,5 +73,18 @@ describe("assertPublicHttpUrl (paths that never touch DNS)", () => {
   it("allows a literal public IP host without a DNS lookup", async () => {
     const url = await assertPublicHttpUrl("https://8.8.8.8/hook");
     expect(url.hostname).toBe("8.8.8.8");
+  });
+});
+
+describe("BlockedUrlError", () => {
+  // Wołający, który trwale odcina cel po odmowie (web push oznacza subskrypcję
+  // jako martwą), musi odróżnić "wrogi adres" od "nie dało się sprawdzić" bez
+  // parsowania komunikatu.
+  it("niesie powód odmowy jako pole, obok komunikatu", async () => {
+    const refusal = await assertPublicHttpUrl("https://localhost/").catch((err: unknown) => err);
+
+    expect(refusal).toBeInstanceOf(BlockedUrlError);
+    expect(refusal).toMatchObject({ reason: "host", message: "blocked_url:host" });
+    expect(new BlockedUrlError("dns")).toMatchObject({ reason: "dns", name: "BlockedUrlError" });
   });
 });

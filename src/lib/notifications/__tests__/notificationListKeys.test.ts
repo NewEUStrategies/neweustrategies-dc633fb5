@@ -101,22 +101,13 @@ describe("isNotificationListQuery - odrzucenia", () => {
     );
   });
 
-  // DEFEKT PRZYPIĘTY. Klucz profili aktorów ma DOKŁADNIE trzy elementy, a jego
-  // trzeci element to TABLICA - więc `typeof key[2] === "object" && key[2] !==
-  // null` jest PRAWDĄ i predykat kwalifikuje go jako listę wierszy.
-  //
-  // Co jest złamane: profil aktora nie jest listą wierszy powiadomień.
-  // `patchNotificationLists` w `NotificationsCenter` wchodzi na
-  // `cached.pages.map(...)`, a dane pod tym kluczem to PŁASKA TABLICA profili -
-  // `pages` jest `undefined`, więc `onMutate` rzuca `TypeError`, a mutacja
-  // oznaczania jako przeczytane NIGDY nie dobiega do serwera.
-  //
-  // Oczekiwany kontrakt: `isNotificationListQuery` zwraca `false` dla
-  // `["notifications", "actor-profiles", string[]]` - np. przez wymaganie, by
-  // trzeci element NIE był tablicą i miał kształt filtra (obecne
-  // `onlyUnread`/`kind`/`pageSize`), albo przez odsunięcie profili aktorów pod
-  // własny prefiks cache.
-  it.fails("ODRZUCA klucz profili aktorów - tablica NIE jest filtrem listy", () => {
+  // REGRESJA (naprawione). Klucz profili aktorów ma DOKŁADNIE trzy elementy,
+  // a jego trzeci element to TABLICA - `typeof key[2] === "object" && key[2]
+  // !== null` jest dla niej PRAWDĄ, więc predykat kwalifikował go jako listę
+  // wierszy. `patchNotificationLists` w `NotificationsCenter` wchodził wtedy na
+  // `cached.pages.map(...)` płaskiej tablicy profili, `onMutate` rzucał
+  // `TypeError`, a akcje na zwiniętej rozmowie NIGDY nie dobiegały do serwera.
+  it("ODRZUCA klucz profili aktorów - tablica NIE jest filtrem listy", () => {
     expect(isNotificationListQuery(carrier(actorProfilesKey))).toBe(false);
   });
 

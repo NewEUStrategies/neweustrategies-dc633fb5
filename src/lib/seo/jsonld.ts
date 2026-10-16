@@ -14,7 +14,7 @@ import {
   siteName,
   type Lang,
 } from "@/lib/seo/meta";
-import { localizedPath, stripLangPrefix } from "@/lib/i18n/localePath";
+import { localizedPath } from "@/lib/i18n/localePath";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { homeLabel } from "@/lib/i18n/commonLabels";
 import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
@@ -193,43 +193,125 @@ export function webSiteJsonLd(origin: string, lang: Lang): Record<string, unknow
   };
 }
 
+/** Okruszki z co najmniej jedną pozycją poza stroną główną. */
+export type BreadcrumbTrail = readonly [BreadcrumbItem, ...BreadcrumbItem[]];
+
+/** Jeden `ListItem` okruszków - `item` jest w typie WYMAGANY, nie opcjonalny. */
+export interface BreadcrumbListItemJsonLd {
+  "@type": "ListItem";
+  position: number;
+  name: string;
+  item: string;
+}
+
+export interface BreadcrumbListJsonLd {
+  "@context": "https://schema.org";
+  "@type": "BreadcrumbList";
+  "@id": string;
+  itemListElement: BreadcrumbListItemJsonLd[];
+}
+
+const ABSOLUTE_HTTP_URL = /^https?:\/\//i;
+
+/**
+ * Sama ścieżka adresu: bez originu, query i fragmentu. Okruszek wskazuje
+ * STRONĘ, a nie jej wariant - `?page=2` czy `#sekcja` nie są poziomem
+ * hierarchii, a ten sam adres musi wyjść z SSR (adres absolutny) i z renderu
+ * klienta (sama ścieżka).
+ */
+function breadcrumbPath(href: string): string {
+  if (ABSOLUTE_HTTP_URL.test(href)) {
+    try {
+      return new URL(href).pathname || "/";
+    } catch {
+      return "/";
+    }
+  }
+  const cut = href.search(/[?#]/);
+  const path = cut === -1 ? href : href.slice(0, cut);
+  return path || "/";
+}
+
+/**
+ * Adres okruszka w języku renderu. Zewnętrzny `http(s)://` zostaje bez zmian;
+ * ścieżka wewnętrzna jest lokalizowana idempotentnie (EN dostaje dokładnie
+ * jeden prefiks "/en", PL traci obcy) i doklejana do originu trasy.
+ */
+function breadcrumbItemUrl(origin: string, href: string, lang: Lang): string {
+  if (ABSOLUTE_HTTP_URL.test(href)) return href;
+  return absoluteUrl(origin, localizedPath(breadcrumbPath(href), lang));
+}
+
 /**
  * BreadcrumbList from the already-localized breadcrumb items. Hrefs are
  * canonical unprefixed paths - they are localized per the render language so
  * the EN page's breadcrumbs point at "/en/..." URLs.
  *
- * NAPRAWA 2026-09-21 (Search Console: „Brakujące pole item w itemListElement"):
- * KAŻDY `ListItem` musi nosić `item`, także ostatni (bieżąca strona). Wcześniej
- * ostatni okruszek celowo go nie miał - Google zgłaszał to jako błąd na 12
- * archiwach kategorii/tagów. Widoczny okruszek pozostaje bez linku; `selfPath`
- * pozwala trasie podać własny adres tam, gdzie ostatni okruszek nie ma `href`.
+ * KAŻDY `ListItem` NOSI `item` - GWARANTUJE TO TEN BUILDER, NIE TRASA.
+ * Search Console zgłasza „Brakujące pole item (w itemListElement)" i odrzuca
+ * cały wynik z okruszkami. Naprawa z 2026-09-21 dała trasom OPCJONALNY
+ * `selfPath`; profil organizacji (dodany później) i ręcznie składany graf
+ * profilu autora go nie podały i znów wysłały ostatni okruszek bez adresu
+ * (październik 2026: 10 adresów /organization/*). Dlatego teraz:
+ *
+ *  - `selfPath` jest WYMAGANY - kompilator nie przepuści trasy bez adresu
+ *    bieżącej strony. Może być ścieżką albo pełnym adresem żądania; query
+ *    i fragment są odcinane, prefiks języka normalizowany.
+ *  - ostatni okruszek dostaje własny `href` albo adres bieżącej strony;
+ *  - okruszek pośredni bez `href` (etykieta bez strony) jest pomijany,
+ *    a pozycje są numerowane od nowa - lista bez dziury jest poprawna,
+ *    lista z pozycją bez adresu jest odrzucana w całości;
+ *  - graf dostaje `@id` (`<adres strony>#breadcrumbs`), do którego
+ *    `CollectionPage.breadcrumb` odwołuje się zamiast sklejać adres sam.
+ *
+ * Google wymaga co najmniej dwóch `ListItem`. Trasa z niepustą listą
+ * okruszków (`BreadcrumbTrail`) zawsze ją dostaje (strona główna + bieżąca),
+ * a dla listy dowolnej długości builder zwraca `null`, gdy nie ma czego opisać.
  */
+export function breadcrumbListJsonLd(
+  items: BreadcrumbTrail,
+  origin: string,
+  lang: Lang,
+  selfPath: string,
+): BreadcrumbListJsonLd;
 export function breadcrumbListJsonLd(
   items: readonly BreadcrumbItem[],
   origin: string,
   lang: Lang,
-  selfPath?: string,
-): Record<string, unknown> {
-  const home: BreadcrumbItem = { label: homeLabel(lang), href: "/" };
-  const all = [home, ...items];
-  const last = all.length - 1;
+  selfPath: string,
+): BreadcrumbListJsonLd | null;
+export function breadcrumbListJsonLd(
+  items: readonly BreadcrumbItem[],
+  origin: string,
+  lang: Lang,
+  selfPath: string,
+): BreadcrumbListJsonLd | null {
+  // Pełny adres żądania i sama ścieżka dają ten sam wynik: origin zawsze
+  // pochodzi z trasy, tak jak dla pozostałych okruszków.
+  const selfUrl = absoluteUrl(origin, localizedPath(breadcrumbPath(selfPath), lang));
+  const trail: BreadcrumbItem[] = [{ label: homeLabel(lang), href: "/" }, ...items];
+  const last = trail.length - 1;
+  const crumbs = trail.flatMap((crumb, i) => {
+    const href = crumb.href?.trim();
+    if (i === last) {
+      return [
+        { name: crumb.label.trim(), url: href ? breadcrumbItemUrl(origin, href, lang) : selfUrl },
+      ];
+    }
+    if (!href || !crumb.label.trim()) return [];
+    return [{ name: crumb.label.trim(), url: breadcrumbItemUrl(origin, href, lang) }];
+  });
+  if (crumbs.length < 2) return null;
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
-    itemListElement: all.map((item, i) => {
-      const href = item.href ?? (i === last ? selfPath : undefined);
-      const url = href
-        ? /^https?:\/\//i.test(href)
-          ? href
-          : absoluteUrl(origin, localizedPath(stripLangPrefix(href).pathname, lang))
-        : null;
-      return {
-        "@type": "ListItem",
-        position: i + 1,
-        name: item.label,
-        ...(url ? { item: url } : {}),
-      };
-    }),
+    "@id": `${selfUrl}#breadcrumbs`,
+    itemListElement: crumbs.map((crumb, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: crumb.name,
+      item: crumb.url,
+    })),
   };
 }
 

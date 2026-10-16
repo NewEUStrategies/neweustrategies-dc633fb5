@@ -151,7 +151,12 @@ export const Route = createFileRoute("/events/")({
               image: ev.cover,
             })),
           });
-    const breadcrumbs = breadcrumbListJsonLd([{ label: title, href: "/events" }], origin, lang);
+    const breadcrumbs = breadcrumbListJsonLd(
+      [{ label: title, href: "/events" }],
+      origin,
+      lang,
+      url,
+    );
     return {
       ...head,
       scripts: [

@@ -193,10 +193,14 @@ export const Route = createFileRoute("/organization/$slug")({
     const { origin, path } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
     const absUrl = `${originAbs}${path}`;
+    // Ostatni okruszek (nazwa organizacji) nie ma widocznego linku, ale w danych
+    // strukturalnych MUSI nieść adres profilu - bez niego Search Console
+    // zgłaszał „Brakujące pole item" na wszystkich 10 adresach /organization/*.
     const breadcrumbs = breadcrumbListJsonLd(
       [{ label: copy.breadcrumb, href: "/search" }, { label: name }],
       originAbs,
       lang,
+      path,
     );
     // Adres WWW z kartoteki wchodzi jako `sameAs` - to jedyny zewnętrzny
     // identyfikator organizacji, jaki serwis o niej trzyma.
@@ -219,7 +223,7 @@ export const Route = createFileRoute("/organization/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: safeJsonLd({ ...breadcrumbs, "@id": `${absUrl}#breadcrumbs` }),
+          children: safeJsonLd(breadcrumbs),
         },
         { type: "application/ld+json", children: safeJsonLd(organizationLd) },
       ],

@@ -445,9 +445,10 @@ describe("useSetMyConsent - optymistyczny onMutate", () => {
   });
 
   // Brak snapshotu (pierwsze wejście, cache jeszcze pusty) NIE MOŻE wywalić
-  // `onError`: odczyt `ctx?.prev` jest jedynym miejscem, w którym ta gałąź się
-  // rozstrzyga, a wyjątek w niej zjadłby oryginalny błąd zapisu.
-  it("onError bez snapshotu nie wywraca obsługi błędu", async () => {
+  // `onError` - wyjątek w nim zjadłby oryginalny błąd zapisu. I nie może
+  // zostawić optymistycznego wiersza: przed poprawką cache po nieudanym
+  // zapisie pokazywał "zgoda udzielona", której w rejestrze nie było.
+  it("onError bez snapshotu nie wywraca obsługi błędu i nie zostawia zmyślonej zgody", async () => {
     h.setMyConsent.mockRejectedValue(new Error("rpc failed"));
     const { result, queryClient } = renderHookWithQueryClient(() => useSetMyConsent());
     await act(async () => {
@@ -455,8 +456,7 @@ describe("useSetMyConsent - optymistyczny onMutate", () => {
         result.current.mutateAsync({ key: "marketing_email", given: true, version: "1.0" }),
       ).rejects.toThrow("rpc failed");
     });
-    const next = queryClient.getQueryData<ConsentStateRow[]>(["user-consents", "u-1"]);
-    expect(next?.map((r) => r.consent_key)).toEqual(["marketing_email"]);
+    expect(queryClient.getQueryData<ConsentStateRow[]>(["user-consents", "u-1"])).toBeUndefined();
   });
 
   // OBA klucze, nie jeden: stan bez historii pokazałby świeży przełącznik nad
@@ -517,6 +517,20 @@ describe("useSetMyConsent - kubełek cache bez sesji", () => {
     expect(anon?.map((r) => r.consent_key)).toEqual(["marketing_email"]);
     expect(queryClient.getQueryData(["user-consents", "u-1"])).toBeUndefined();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["user-consent-events", "anon"] });
+  });
+
+  it("nieudany zapis gościa cofa łatkę w kubełku „anon”", async () => {
+    h.user.current = null;
+    h.setMyConsent.mockRejectedValue(new Error("rpc failed"));
+    const snapshot = [row({ consent_key: "marketing_email", given: false })];
+    const { result, queryClient } = renderHookWithQueryClient(() => useSetMyConsent());
+    queryClient.setQueryData(["user-consents", "anon"], snapshot);
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ key: "marketing_email", given: true, version: "1.0" }),
+      ).rejects.toThrow("rpc failed");
+    });
+    expect(queryClient.getQueryData(["user-consents", "anon"])).toEqual(snapshot);
   });
 });
 

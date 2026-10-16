@@ -7,21 +7,32 @@
 //
 // Reguły: (1) każde wyjście prowadzi DALEJ - do edytora albo z powrotem na
 // listę, nigdy donikąd; (2) tworzenie nie startuje przed wczytaniem sesji ani
-// drugi raz w trakcie; (3) porażka nie zostawia redaktora na tym ekranie.
+// drugi raz w trakcie; (3) porażka nie zostawia redaktora na tym ekranie;
+// (4) wybór szablonu albo pustej strony to NIE jest „zamknięcie bez wyboru”.
+//
+// Reguła 4 dołożona 16.10.2026: PatternPicker zamyka okno W TYM SAMYM
+// handlerze, w którym zgłasza wybór (`onOpenChange(false)` PRZED `onSkip`,
+// PO `onApply`). Trasa czytała flagę „trwa tworzenie” ze stanu poprzedniego
+// renderu, więc każde zamknięcie po wyborze wysyłało redaktora na listę,
+// zanim strona powstała - a po utworzeniu historia przeglądarki prowadziła
+// „wstecz” z powrotem na śluzę.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { AnyRoute } from "@tanstack/react-router";
 
 const h = vi.hoisted(() => ({
   auth: { user: { id: "u1" }, loading: false, tenantId: "t1" } as Record<string, unknown>,
-  language: "pl",
+  language: "pl" as string | undefined,
   navigations: [] as Record<string, unknown>[],
   created: [] as unknown[],
   createResult: { slug: "nowa-strona" } as { slug: string },
-  createError: null as Error | null,
+  createError: null as unknown,
   toast: { success: vi.fn(), error: vi.fn() },
   pickerProps: null as Record<string, unknown> | null,
+  appliedTitles: { title_pl: "Tytuł PL", title_en: "Title EN" },
+  realPicker: false,
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
@@ -50,42 +61,66 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 vi.mock("sonner", () => ({ toast: h.toast }));
 
 // Wybór szablonu to osobny organizm z własnymi testami - tutaj wystawiamy jego
-// kontrakt (pomiń / zastosuj / zamknij) jako trzy przyciski.
-vi.mock("@/components/patterns/PatternPicker", () => ({
-  PatternPicker: (props: Record<string, unknown>) => {
-    h.pickerProps = props;
-    if (!props.open) return null;
-    return (
-      <div data-testid="wybor-szablonu">
-        <button type="button" onClick={() => (props.onSkip as () => void)()}>
-          pomiń szablon
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            (props.onApply as (a: unknown) => void)({
-              kind: "page",
-              title_pl: "Tytuł PL",
-              title_en: "Title EN",
-              builder: { blocks: [] },
-            })
-          }
-        >
-          zastosuj szablon
-        </button>
-        <button type="button" onClick={() => (props.onOpenChange as (v: boolean) => void)(false)}>
-          zamknij wybór
-        </button>
-      </div>
-    );
-  },
-}));
+// kontrakt (pomiń / zastosuj / zamknij) jako trzy przyciski. KOLEJNOŚĆ wywołań
+// jest skopiowana z PatternPicker.tsx: „Pusta strona” woła `onOpenChange(false)`
+// i DOPIERO POTEM `onSkip()`, a zatwierdzenie szablonu `onApply(...)` i zaraz
+// po nim `onOpenChange(false)` - w jednym handlerze kliknięcia. Atrapa wołająca
+// samo `onSkip` ukrywała błąd trasy. `h.realPicker` montuje prawdziwy organizm.
+vi.mock("@/components/patterns/PatternPicker", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/patterns/PatternPicker")>();
+  type PickerProps = Parameters<typeof actual.PatternPicker>[0];
+  return {
+    PatternPicker: (props: PickerProps) => {
+      h.pickerProps = { ...props };
+      if (h.realPicker) return <actual.PatternPicker {...props} />;
+      if (!props.open) return null;
+      const close = () => props.onOpenChange(false);
+      return (
+        <div data-testid="wybor-szablonu">
+          <button
+            type="button"
+            onClick={() => {
+              close();
+              props.onSkip?.();
+            }}
+          >
+            pomiń szablon
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              props.onApply({
+                kind: "page",
+                ...h.appliedTitles,
+                builder: { blocks: [] },
+              } as unknown as Parameters<PickerProps["onApply"]>[0]);
+              close();
+            }}
+          >
+            zastosuj szablon
+          </button>
+          <button type="button" onClick={close}>
+            zamknij wybór
+          </button>
+        </div>
+      );
+    },
+  };
+});
 
+import { routeHead } from "@/test/routeHarness";
 import { Route } from "@/routes/admin.pages.new";
 
 function setup() {
   const Component = (Route as AnyRoute).options.component as () => ReactNode;
-  return render(<Component />);
+  // Świeży klient na test: podgląd PRAWDZIWEGO wyboru szablonu renderuje
+  // widżety, które czytają dane przez react-query.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <Component />
+    </QueryClientProvider>,
+  );
 }
 
 const lastNav = () => h.navigations.at(-1);
@@ -98,6 +133,8 @@ beforeEach(() => {
   h.createResult = { slug: "nowa-strona" };
   h.createError = null;
   h.pickerProps = null;
+  h.appliedTitles = { title_pl: "Tytuł PL", title_en: "Title EN" };
+  h.realPicker = false;
   h.toast.success.mockReset();
   h.toast.error.mockReset();
 });
@@ -175,9 +212,11 @@ describe("nowa strona - tworzenie", () => {
 
   it("drugie kliknięcie w trakcie tworzenia NIE tworzy drugiej strony", async () => {
     // Podwójne kliknięcie zostawiłoby w bazie osierocony wiersz bez treści.
+    // Drugie kliknięcie trafia w okno, które jeszcze znika (animacja), więc
+    // przychodzi z NOWEGO renderu - wołamy `onSkip` z aktualnych propsów.
     setup();
     fireEvent.click(screen.getByText("pomiń szablon"));
-    fireEvent.click(screen.getByText("pomiń szablon"));
+    act(() => (h.pickerProps?.onSkip as () => void)());
 
     await waitFor(() => expect(h.navigations).toHaveLength(1));
     expect(h.created).toHaveLength(1);
@@ -222,5 +261,98 @@ describe("nowa strona - język", () => {
     setup();
 
     expect(h.pickerProps).toMatchObject({ kind: "page", lang: "en" });
+  });
+});
+
+describe("nowa strona - nagłówek karty", () => {
+  it("head() nazywa SEKCJĘ i trzyma panel poza indeksem", () => {
+    // Bez własnego `head()` karta dziedziczyła ogólny tytuł listy stron.
+    const { meta } = routeHead(Route as AnyRoute);
+
+    expect(meta).toContainEqual({ title: "New page | New European Strategies" });
+    expect(meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+  });
+});
+
+describe("nowa strona - wybór to nie jest zamknięcie bez wyboru", () => {
+  it("„pusta strona” (okno zamyka się PRZED zgłoszeniem) prowadzi WYŁĄCZNIE do edytora", async () => {
+    // Wcześniej: najpierw skok na listę, potem `replace` na edytor - wpis
+    // śluzy zostawał w historii, a lista mignęła w trakcie tworzenia.
+    setup();
+    fireEvent.click(screen.getByText("pomiń szablon"));
+
+    await waitFor(() => expect(h.created).toHaveLength(1));
+    await waitFor(() => expect(h.navigations).toHaveLength(1));
+    expect(h.navigations).toEqual([
+      { to: "/admin/pages/$slug", params: { slug: "nowa-strona" }, replace: true },
+    ]);
+  });
+
+  it("zatwierdzony szablon (okno zamyka się PO zgłoszeniu) też nie wraca na listę", async () => {
+    setup();
+    fireEvent.click(screen.getByText("zastosuj szablon"));
+
+    await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
+    expect(h.navigations).toEqual([
+      { to: "/admin/pages/$slug", params: { slug: "nowa-strona" }, replace: true },
+    ]);
+  });
+
+  it("PRAWDZIWY wybór szablonu: „Pusta strona” tworzy stronę i otwiera jej edytor", async () => {
+    // Ten sam kontrakt na żywym organizmie - dowód, że atrapa wyżej odwzorowuje
+    // jego kolejność wywołań, a nie wygodne założenie.
+    h.realPicker = true;
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: /Pusta strona/ }));
+
+    await waitFor(() => expect(h.created).toEqual([{ data: {} }]));
+    await waitFor(() => expect(h.navigations).toHaveLength(1));
+    expect(h.navigations[0]).toMatchObject({ to: "/admin/pages/$slug", replace: true });
+  });
+
+  it("bez sesji „pusta strona” nic nie tworzy, ale też nie zostawia na śluzie", async () => {
+    // Zamknięte okno bez tworzenia = pusta strona bez wyjścia.
+    h.auth = { user: null, loading: false, tenantId: "t1" };
+    setup();
+    fireEvent.click(screen.getByText("pomiń szablon"));
+
+    await waitFor(() => expect(lastNav()).toMatchObject({ to: "/admin/pages" }));
+    expect(h.created).toHaveLength(0);
+  });
+});
+
+describe("nowa strona - dane i błędy", () => {
+  it("PUSTE tytuły szablonu nie lecą jako pusty napis - serwer nada zapasowy slug", async () => {
+    // `createPage` buduje slug z `title_pl || title_en || page-…`; pusty napis
+    // zamiast braku pola dawałby tytuł „” zamiast domyślnego.
+    h.appliedTitles = { title_pl: "", title_en: "" };
+    setup();
+    fireEvent.click(screen.getByText("zastosuj szablon"));
+
+    await waitFor(() => expect(h.created).toHaveLength(1));
+    const { data } = h.created[0] as { data: Record<string, unknown> };
+    expect(data.title_pl).toBeUndefined();
+    expect(data.title_en).toBeUndefined();
+    expect(data.builder_data).toEqual({ blocks: [] });
+  });
+
+  it("odrzucenie bez obiektu Error nadal pokazuje jego treść i wyprowadza na listę", async () => {
+    h.createError = "Rate limit exceeded - please slow down";
+    setup();
+    fireEvent.click(screen.getByText("pomiń szablon"));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith("Rate limit exceeded - please slow down"),
+    );
+    expect(lastNav()).toMatchObject({ to: "/admin/pages" });
+  });
+
+  it("brak wykrytego języka panelu daje POLSKI wybór szablonu", () => {
+    // i18next przed inicjalizacją nie ma `language` - polski jest domyślny.
+    h.language = undefined;
+    setup();
+
+    expect(h.pickerProps).toMatchObject({ lang: "pl" });
+    expect(screen.getByText("Wybierz szablon, aby kontynuować…")).toBeInTheDocument();
   });
 });

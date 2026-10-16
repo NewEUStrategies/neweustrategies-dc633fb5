@@ -31,7 +31,14 @@ import { LangCoverageBadges } from "@/components/admin/atoms/LangCoverageBadges"
 import type { LangFilter } from "@/components/admin/molecules/AdminListToolbar";
 
 import { confirmDialog } from "@/lib/appDialogs";
+import { adminPageHead } from "@/lib/adminPageHead";
+
 export const Route = createFileRoute("/admin/categories")({
+  head: () =>
+    adminPageHead(
+      "Categories",
+      "Manage taxonomy categories, their dimensions and hierarchy. New European Strategies administration.",
+    ),
   component: Categories,
 });
 
@@ -103,13 +110,22 @@ function Categories() {
   const [form, setForm] = useState<CategoryForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [langFilter, setLangFilter] = useState<LangFilter>("all");
+  const [saving, setSaving] = useState(false);
 
-  const { data } = useQuery({
-    queryKey: ["categories", tenantId],
+  const { data, error } = useQuery({
+    // Własny klucz, NIE gołe ["categories", tenantId]: pod tym kluczem edytor
+    // wpisu (usePostEditorData) trzyma wiersze `id, name_pl, name_en` - bez
+    // sluga, wymiaru, rodzica, opisów i logo. Przy staleTime 5 min ten ekran
+    // dostawał je z cache bez pobrania, a zapis edycji z takiego wiersza kasował
+    // opisy i logo NULL-ami i generował slug od nowa. Prefiks zostaje, więc
+    // unieważnienia ["categories", tenantId] z edytora nadal obejmują ten ekran.
+    queryKey: ["categories", tenantId, "admin"],
     queryFn: async (): Promise<CategoryRow[]> => {
       const { data, error } = await supabase
         .from("categories")
-        .select("*")
+        .select(
+          "id, slug, name_pl, name_en, description_pl, description_en, logo_url, kind, parent_id",
+        )
         .eq("tenant_id", tenantId)
         .order("name_pl");
       if (error) throw error;
@@ -138,11 +154,29 @@ function Categories() {
   }, [data, search, langFilter]);
 
   // Możliwi rodzice: kategorie tego samego wymiaru (hierarchia w obrębie kind),
-  // z wykluczeniem samej edytowanej pozycji.
-  const parentOptions = useMemo(
-    () => (data ?? []).filter((c) => c.kind === form.kind && c.id !== editing?.id),
-    [data, form.kind, editing?.id],
-  );
+  // z wykluczeniem samej edytowanej pozycji ORAZ jej potomków. Dziecko (wnuk…)
+  // wybrane na rodzica zamyka pętlę A → B → A, której serwer nie łapie (pilnuje
+  // tylko „rodzic ≠ ja”), a publiczne drzewa wędrujące w górę po `parent_id`
+  // (lista tematów w formularzu newslettera) kręcą się w niej bez końca.
+  const editingId = editing?.id;
+  const parentOptions = useMemo(() => {
+    const rows = data ?? [];
+    const blocked = new Set<string>();
+    if (editingId) {
+      blocked.add(editingId);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const c of rows) {
+          if (c.parent_id && blocked.has(c.parent_id) && !blocked.has(c.id)) {
+            blocked.add(c.id);
+            grew = true;
+          }
+        }
+      }
+    }
+    return rows.filter((c) => c.kind === form.kind && !blocked.has(c.id));
+  }, [data, form.kind, editingId]);
 
   const openNew = () => {
     setEditing(null);
@@ -165,6 +199,11 @@ function Categories() {
   };
 
   const save = async () => {
+    // Blokada w locie: okno zostaje otwarte do końca żądania, więc drugie
+    // kliknięcie „Zapisz” wysyłało ten sam formularz ponownie - dla nowej
+    // kategorii serwer tworzył wtedy duplikat ze slugiem „-2”.
+    if (saving) return;
+    setSaving(true);
     try {
       await upsert$({
         data: {
@@ -186,6 +225,8 @@ function Categories() {
       qc.invalidateQueries({ queryKey: ["categories"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -307,7 +348,9 @@ function Categories() {
               />
             </div>
             <DialogFooter>
-              <Button onClick={save}>{t("admin.save")}</Button>
+              <Button onClick={save} disabled={saving}>
+                {t("admin.save")}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -351,10 +394,22 @@ function Categories() {
       </div>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {/* Pustka tylko po wczytaniu: w trakcie ładowania i po błędzie zapytania
+            „Brak elementów” kłamało, że dzierżawa nie ma żadnej kategorii. */}
         {!filtered.length ? (
-          <div className="p-10 text-center text-muted-foreground text-sm">
-            {data?.length ? t("admin.list.noResults") : t("admin.empty")}
-          </div>
+          error && !data ? (
+            <div role="alert" className="p-10 text-center text-destructive text-sm">
+              {error.message}
+            </div>
+          ) : (
+            <div className="p-10 text-center text-muted-foreground text-sm">
+              {!data
+                ? t("admin.loading")
+                : data.length
+                  ? t("admin.list.noResults")
+                  : t("admin.empty")}
+            </div>
+          )
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-muted/30 text-[10px] uppercase text-muted-foreground tracking-wide">

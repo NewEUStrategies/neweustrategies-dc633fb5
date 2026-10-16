@@ -41,6 +41,8 @@ const h = vi.hoisted(() => {
     emails: [] as RawEmailInput[],
     /** Kolejne wyniki `enqueueRawEmail`; po wyczerpaniu - sukces. */
     emailResults: [] as TxSendResult[],
+    /** Własna implementacja kolejki (wyjątek, odpowiedź odroczona); null = `emailResults`. */
+    emailImpl: null as ((input: RawEmailInput) => Promise<TxSendResult>) | null,
   };
   return { state };
 });
@@ -80,6 +82,7 @@ vi.mock("@/integrations/supabase/client.server", () => {
 vi.mock("@/lib/email/transactional.server", () => ({
   enqueueRawEmail: (input: RawEmailInput): Promise<TxSendResult> => {
     h.state.emails.push(input);
+    if (h.state.emailImpl) return h.state.emailImpl(input);
     return Promise.resolve(h.state.emailResults.shift() ?? { ok: true });
   },
 }));
@@ -142,6 +145,7 @@ beforeEach(() => {
   h.state.fromTables = [];
   h.state.emails = [];
   h.state.emailResults = [];
+  h.state.emailImpl = null;
   for (const key of SITE_ENV) {
     savedEnv.set(key, process.env[key]);
     delete process.env[key];
@@ -315,7 +319,146 @@ describe("processDigests - język odbiorcy", () => {
   });
 });
 
+describe("processDigests - lista wykluczeń w tenancie odbiorcy", () => {
+  const TENANT = "33333333-3333-4333-8333-333333333333";
+
+  // Bez tenanta bramka zgaduje najemcę z adresu: subskrypcja newslettera
+  // wygrywa tam z kontem, a adres nierozstrzygnięty dostaje tenanta
+  // domyślnego - czyli mogła sprawdzać CUDZĄ listę wykluczeń.
+  it("przekazuje tenant z profilu odbiorcy do bramki wykluczeń", async () => {
+    claimReturns([row()]);
+    h.state.profiles = [{ id: ALICE, prefs: { locale: "pl" }, tenant_id: TENANT }];
+
+    await processDigests("daily");
+
+    expect(emails()[0].tenantId).toBe(TENANT);
+  });
+
+  it("bez profilu tenant jest null - bramka rozstrzyga go z adresu jak dotąd", async () => {
+    claimReturns([row()]);
+    h.state.profiles = [];
+
+    await processDigests("daily");
+
+    expect(emails()[0].tenantId).toBeNull();
+  });
+
+  it("profil bez prefs dostaje polski, a tenant i tak przechodzi", async () => {
+    claimReturns([row()]);
+    h.state.profiles = [{ id: ALICE, prefs: null, tenant_id: TENANT }];
+
+    await processDigests("daily");
+
+    expect(emails()[0]).toMatchObject({ tenantId: TENANT });
+    expect(emails()[0].html).toContain("Cześć Alice");
+  });
+});
+
+describe("processDigests - pozycje bez tytułu", () => {
+  it("pozycje bez tytułu w obu językach nie liczą się do tematu ani nie zostawiają pustego maila", async () => {
+    claimReturns([
+      row({
+        items: [item({ title_pl: "  ", title_en: null }), item({ title_pl: null, title_en: "" })],
+      }),
+      row({
+        user_id: BOB,
+        email: "bob@example.com",
+        items: [item({ title_pl: "", title_en: null }), item({ title_pl: "Jedyna" })],
+      }),
+    ]);
+
+    const result = await processDigests("daily");
+
+    expect(result).toEqual({ claimed: 2, sent: 1 });
+    expect(emails().map((e) => e.to)).toEqual(["bob@example.com"]);
+    expect(emails()[0].subject).toContain("Masz 1 powiadomienie");
+  });
+});
+
 describe("processDigests - odporność partii", () => {
+  it("wyjątek kolejki dla jednego odbiorcy nie przerywa partii", async () => {
+    // claim przestawił digest_last_sent_at WSZYSTKIM - wyjątek, który przerwałby
+    // pętlę, oznaczałby, że Bob nie dostanie tego digestu NIGDY.
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    claimReturns([row(), row({ user_id: BOB, email: "bob@example.com" })]);
+    h.state.emailImpl = (input) =>
+      input.to === "alice@example.com"
+        ? Promise.reject(new Error("socket hang up"))
+        : Promise.resolve({ ok: true });
+
+    const result = await processDigests("daily");
+
+    expect(result).toEqual({ claimed: 2, sent: 1 });
+    expect(emails().map((e) => e.to)).toEqual(["alice@example.com", "bob@example.com"]);
+    expect(String(logged.mock.calls[0]?.[0])).toContain("digest build/send error");
+  });
+
+  it("pozycja z tytułem innym niż napis (jsonb) psuje tylko SWÓJ wiersz", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    claimReturns([
+      row({ items: [{ ...item(), title_pl: 42 }] }),
+      row({ user_id: BOB, email: "bob@example.com" }),
+    ]);
+
+    const result = await processDigests("daily");
+
+    expect(result).toEqual({ claimed: 2, sent: 1 });
+    expect(emails().map((e) => e.to)).toEqual(["bob@example.com"]);
+    expect(String(logged.mock.calls[0]?.[0])).toContain("digest build/send error");
+  });
+
+  it("pominięcie przez listę wykluczeń nie trafia do logu błędów", async () => {
+    // Pominięcie jest decyzją zapisaną w email_send_log ('suppressed'), a nie
+    // awarią - log błędów z `undefined` przy każdym zablokowanym adresie był
+    // szumem, który zagłuszał prawdziwe porażki.
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    claimReturns([row()]);
+    h.state.emailResults = [{ ok: false, skipped: "suppressed", reason: "suppressed:bounce" }];
+
+    expect(await processDigests("daily")).toEqual({ claimed: 1, sent: 0 });
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it("składa digesty równolegle, ale najwyżej czterema torami", async () => {
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      row({ user_id: `user-${i}`, email: `user${i}@example.com` }),
+    );
+    claimReturns(rows);
+    let inFlight = 0;
+    let peak = 0;
+    h.state.emailImpl = async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+      return { ok: true };
+    };
+
+    const result = await processDigests("daily");
+
+    expect(result).toEqual({ claimed: 10, sent: 10 });
+    expect(peak).toBe(4);
+    // Kolejność wysyłek jak w claimie - tor bierze następny wiersz po zwolnieniu.
+    expect(emails().map((e) => e.to)).toEqual(rows.map((r) => r.email));
+  });
+
+  it("okno klucza idempotencji jest jedno dla całej partii, nawet przez północ", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-01T23:59:59.900Z"));
+    claimReturns([row(), row({ user_id: BOB, email: "bob@example.com" })]);
+    h.state.emailImpl = () => {
+      vi.setSystemTime(new Date("2026-09-02T00:00:00.100Z"));
+      return Promise.resolve({ ok: true });
+    };
+
+    await processDigests("daily");
+
+    expect(emails().map((e) => e.idempotencyKey)).toEqual([
+      `digest:daily:${ALICE}:2026-09-01`,
+      `digest:daily:${BOB}:2026-09-01`,
+    ]);
+  });
+
   it("błąd wysyłki jednego odbiorcy nie zabiera maila kolejnemu", async () => {
     // SEDNO ODPORNOŚCI TICKU: claim w DB jest atomowy i JUŻ przestawił
     // `digest_last_sent_at` obu odbiorcom. Gdyby pętla przerwała się na

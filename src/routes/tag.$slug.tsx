@@ -170,15 +170,14 @@ export const Route = createFileRoute("/tag/$slug")({
       description,
       robots: page > 1 ? "noindex, follow" : null,
     });
-    const { origin } = splitUrl(url);
+    const { origin, path } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
     const crumbsLabel = lang === "en" ? "Tags" : "Tagi";
     const breadcrumbs = breadcrumbListJsonLd(
       [{ label: crumbsLabel, href: "/blog" }, { label: `#${name}` }],
       originAbs,
       lang,
-      // Ostatni okruszek MUSI mieć `item` (Search Console: brakujące pole item).
-      splitUrl(url).path,
+      path,
     );
     const collection = {
       "@context": "https://schema.org",
@@ -186,9 +185,11 @@ export const Route = createFileRoute("/tag/$slug")({
       name: title,
       description,
       inLanguage: lang,
-      url: `${originAbs}${url.startsWith("/") ? url : `/${url}`}`,
+      // Sam pathname: `url` z SSR jest absolutny, a sklejanie go z originem
+      // dawało w produkcji `https://host/https://host/tag/...`.
+      url: `${originAbs}${path}`,
       isPartOf: { "@id": `${originAbs}/#website` },
-      breadcrumb: { "@id": `${originAbs}${url}#breadcrumbs` },
+      breadcrumb: { "@id": breadcrumbs["@id"] },
     };
     // Autodiscovery feedu tematycznego - czytniki RSS i agregatory widzą
     // kanal kategorii/tagu bez znajomosci konwencji URL.
@@ -216,7 +217,7 @@ export const Route = createFileRoute("/tag/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: safeJsonLd({ ...breadcrumbs, "@id": `${originAbs}${url}#breadcrumbs` }),
+          children: safeJsonLd(breadcrumbs),
         },
         { type: "application/ld+json", children: safeJsonLd(collection) },
       ],
