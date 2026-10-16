@@ -326,6 +326,161 @@ interface SendResult {
 
 const ACTIVATION_SEND_LIMIT = 5;
 
+/** Klient z kluczem serwisowym (`supabaseAdmin`) - przekazywany jawnie. */
+type AdminClient = SupabaseClient<Database>;
+
+/**
+ * „Adres zajęty" z `createUser` - ten sam zbiór kodów i komunikatów co
+ * publiczna rejestracja (`src/lib/auth/publicAuthError.ts`) plus brzmienie
+ * GoTrue „already been registered".
+ */
+function isEmailTakenError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  const text = `${typeof code === "string" ? code : ""} ${typeof message === "string" ? message : ""}`;
+  return /user_already_exists|email_exists|already been registered|user already registered/i.test(
+    text,
+  );
+}
+
+// ---------- adresat zaproszenia: katalog kont i decyzja ----------------------
+//
+// Wspólne dla `performSend` i `provisionTeamMembers`. Konto o adresie
+// zaproszenia mogło już powstać (wcześniejsze zaproszenie, rejestracja
+// własna, przerwany import). `createUser` zwraca wtedy twardy błąd "already been registered" i
+// całe zaproszenie ląduje jako `failed` - mimo że jedyne, czego brakuje, to
+// ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta,
+// a o tym, czy wolno je dowiązać, rozstrzyga `resolveInviteTarget`.
+//
+// DLACZEGO PĘTLA, A NIE JEDNO ZAPYTANIE. `listUsers` w tej wersji SDK
+// (@supabase/auth-js 2.106) NIE MA filtru po adresie - przyjmuje wyłącznie
+// `PageParams` (`page`, `perPage`). Wcześniej czytaliśmy stąd JEDNĄ stronę
+// (`perPage: 200`), więc od 201. konta w katalogu funkcja odpowiadała „nie ma
+// takiego konta" dla kont, które są - czyli przestawała działać dokładnie
+// wtedy, kiedy zaczynała być potrzebna, i kierowała ścieżkę prosto
+// w `createUser` i w konflikt.
+//
+// DLACZEGO NIE `nextPage` Z ODPOWIEDZI. Paginacja SDK parsuje nagłówek `link`
+// przez `.substring(0, 1)`, więc numer strony jest OBCINANY DO PIERWSZEJ
+// CYFRY (strona 10 czyta się jako 1, strona 25 jako 2). Pętla sterowana tym
+// polem zapętla się albo kończy za wcześnie, gdy katalog przekroczy dziesięć
+// stron. Liczymy więc strony sami, a kończymy na stronie krótszej niż pełna.
+const AUTH_DIRECTORY_PAGE_SIZE = 200;
+/** Twardy sufit: 200 * 100 = 20 000 kont. Po jego przekroczeniu ODMAWIAMY. */
+const AUTH_DIRECTORY_MAX_PAGES = 100;
+
+async function findAuthAccountByEmail(
+  admin: AdminClient,
+  email: string,
+): Promise<InviteAccount | null> {
+  const target = email.trim().toLowerCase();
+  for (let page = 1; page <= AUTH_DIRECTORY_MAX_PAGES; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: AUTH_DIRECTORY_PAGE_SIZE,
+    });
+    // Błąd katalogu NIE MOŻE czytać się jak „konta nie ma": cicha odpowiedź
+    // przecząca prowadzi wprost do `createUser`, czyli do konfliktu i do
+    // zaproszenia w stanie `failed`. Wcześniej `error` było tu pomijane przy
+    // destrukturyzacji.
+    if (error) throw error;
+    const users = data?.users ?? [];
+    const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
+    if (hit) return toInviteAccount(hit);
+    // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
+    // przeszliśmy CAŁY katalog i konta w nim nie ma.
+    if (users.length < AUTH_DIRECTORY_PAGE_SIZE) return null;
+  }
+  // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
+  // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
+  // druga kazałaby wyżej założyć konto i wywrócić zaproszenie na konflikcie.
+  throw new Error("auth_directory_scan_exhausted");
+}
+
+// `auth_user_id` z wiersza zaproszenia NIE jest dowodem tożsamości:
+// administrator najemcy zapisuje tę kolumnę wprost przez PostgREST. Konto
+// pobieramy po identyfikatorze, a `resolveInviteTarget` sprawdza, że ma adres
+// zaproszenia. Brak konta to `null` (odmowa), każdy inny błąd - błąd.
+async function getPinnedAccount(admin: AdminClient, id: string): Promise<InviteAccount | null> {
+  const { data, error } = await admin.auth.admin.getUserById(id);
+  if (error) {
+    if (error.status === 404 || error.code === "user_not_found") return null;
+    throw error;
+  }
+  return data?.user ? toInviteAccount(data.user) : null;
+}
+
+// Najemca domyślny wyznaczony DOKŁADNIE jak w `handle_new_user`
+// (`tenants.is_default`, potem slug `nes`) - nie przez
+// `email_default_tenant_id()`, która ma inny fallback. Indeks
+// `tenants_single_default` gwarantuje najwyżej jeden wiersz domyślny.
+async function readDefaultTenantId(admin: AdminClient): Promise<string | null> {
+  const { data: byFlag, error: flagError } = await admin
+    .from("tenants")
+    .select("id")
+    .eq("is_default", true)
+    .maybeSingle();
+  if (flagError) throw new Error(`default_tenant_lookup_failed:${flagError.message}`);
+  if (byFlag?.id) return byFlag.id;
+  const { data: bySlug, error: slugError } = await admin
+    .from("tenants")
+    .select("id")
+    .eq("slug", "nes")
+    .maybeSingle();
+  if (slugError) throw new Error(`default_tenant_lookup_failed:${slugError.message}`);
+  return bySlug?.id ?? null;
+}
+
+// Profil czytamy kluczem SERWISOWYM, celowo: przez RLS cudzy wiersz jest
+// niewidoczny i „inny najemca" wyglądałby jak „brak profilu". Ten sam odczyt
+// niesie slug - patrz „SLUG ISTNIEJĄCEGO KONTA" niżej.
+interface InviteDecision {
+  target: InviteTarget;
+  slug: string | null;
+  profileTenantId: string | null;
+}
+
+async function decideInviteTarget(
+  admin: AdminClient,
+  input: {
+    invitationTenantId: string;
+    invitationEmail: string;
+    pinnedAccountId: string | null;
+    account: InviteAccount | null;
+  },
+): Promise<InviteDecision> {
+  const { invitationTenantId, account } = input;
+  let profileTenantId: string | null = null;
+  let slug: string | null = null;
+  let defaultTenantId: string | null = null;
+  if (account) {
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("slug, tenant_id")
+      .eq("id", account.id)
+      .maybeSingle();
+    // Awaria odczytu NIE MOŻE czytać się jak „profilu nie ma": wtedy niżej
+    // zapisalibyśmy najemcę zaproszenia na konto, którego najemcy nie znamy.
+    if (profileError) throw new Error(profileError.message);
+    profileTenantId = profile?.tenant_id ?? null;
+    slug = profile?.slug ?? null;
+    // Najemcę domyślnego czytamy tylko wtedy, gdy profil stoi poza najemcą
+    // zaproszenia - zwykłe ponowienie do własnego użytkownika go nie płaci.
+    if (profileTenantId !== null && profileTenantId !== invitationTenantId) {
+      defaultTenantId = await readDefaultTenantId(admin);
+    }
+  }
+  const target = resolveInviteTarget({
+    invitationTenantId,
+    invitationEmail: input.invitationEmail,
+    pinnedAccountId: input.pinnedAccountId,
+    account,
+    profileTenantId,
+    defaultTenantId,
+  });
+  return { target, slug, profileTenantId };
+}
+
 async function performSend(
   supabase: SupabaseClient<Database>,
   userId: string,
@@ -428,131 +583,18 @@ async function performSend(
 
   let tempPassword: string | undefined;
 
-  // Konto o tym adresie mogło już powstać (wcześniejsze zaproszenie, rejestracja
-  // własna). `createUser` zwraca wtedy twardy błąd "already been registered" i
-  // całe zaproszenie ląduje jako `failed` - mimo że jedyne, czego brakuje, to
-  // ponowny link aktywacyjny. Dlatego najpierw szukamy istniejącego konta,
-  // a o tym, czy wolno je dowiązać, rozstrzyga `resolveInviteTarget`.
-  //
-  // DLACZEGO PĘTLA, A NIE JEDNO ZAPYTANIE. `listUsers` w tej wersji SDK
-  // (@supabase/auth-js 2.106) NIE MA filtru po adresie - przyjmuje wyłącznie
-  // `PageParams` (`page`, `perPage`). Wcześniej czytaliśmy stąd JEDNĄ stronę
-  // (`perPage: 200`), więc od 201. konta w katalogu funkcja odpowiadała „nie ma
-  // takiego konta" dla kont, które są - czyli przestawała działać dokładnie
-  // wtedy, kiedy zaczynała być potrzebna, i kierowała ścieżkę prosto
-  // w `createUser` i w konflikt.
-  //
-  // DLACZEGO NIE `nextPage` Z ODPOWIEDZI. Paginacja SDK parsuje nagłówek `link`
-  // przez `.substring(0, 1)`, więc numer strony jest OBCINANY DO PIERWSZEJ
-  // CYFRY (strona 10 czyta się jako 1, strona 25 jako 2). Pętla sterowana tym
-  // polem zapętla się albo kończy za wcześnie, gdy katalog przekroczy dziesięć
-  // stron. Liczymy więc strony sami, a kończymy na stronie krótszej niż pełna.
-  const AUTH_DIRECTORY_PAGE_SIZE = 200;
-  /** Twardy sufit: 200 * 100 = 20 000 kont. Po jego przekroczeniu ODMAWIAMY. */
-  const AUTH_DIRECTORY_MAX_PAGES = 100;
-
-  async function findAuthAccountByEmail(): Promise<InviteAccount | null> {
-    const target = email.toLowerCase();
-    for (let page = 1; page <= AUTH_DIRECTORY_MAX_PAGES; page += 1) {
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-        page,
-        perPage: AUTH_DIRECTORY_PAGE_SIZE,
-      });
-      // Błąd katalogu NIE MOŻE czytać się jak „konta nie ma": cicha odpowiedź
-      // przecząca prowadzi wprost do `createUser`, czyli do konfliktu i do
-      // zaproszenia w stanie `failed`. Wcześniej `error` było tu pomijane przy
-      // destrukturyzacji.
-      if (error) throw error;
-      const users = data?.users ?? [];
-      const hit = users.find((u) => (u.email ?? "").toLowerCase() === target);
-      if (hit) return toInviteAccount(hit);
-      // Strona krótsza niż pełna jest ostatnia - w tym miejscu wiemy, że
-      // przeszliśmy CAŁY katalog i konta w nim nie ma.
-      if (users.length < AUTH_DIRECTORY_PAGE_SIZE) return null;
-    }
-    // Sufit wyczerpany, a katalog się nie skończył: nie wiemy, czy konto
-    // istnieje. „Nie wiem" musi być błędem, a nie odpowiedzią „nie ma" - ta
-    // druga kazałaby wyżej założyć konto i wywrócić zaproszenie na konflikcie.
-    throw new Error("auth_directory_scan_exhausted");
-  }
-
-  // `auth_user_id` z wiersza zaproszenia NIE jest dowodem tożsamości:
-  // administrator najemcy zapisuje tę kolumnę wprost przez PostgREST. Konto
-  // pobieramy po identyfikatorze, a `resolveInviteTarget` sprawdza, że ma adres
-  // zaproszenia. Brak konta to `null` (odmowa), każdy inny błąd - błąd.
-  async function getPinnedAccount(id: string): Promise<InviteAccount | null> {
-    const { data, error } = await supabaseAdmin.auth.admin.getUserById(id);
-    if (error) {
-      if (error.status === 404 || error.code === "user_not_found") return null;
-      throw error;
-    }
-    return data?.user ? toInviteAccount(data.user) : null;
-  }
-
-  // Najemca domyślny wyznaczony DOKŁADNIE jak w `handle_new_user`
-  // (`tenants.is_default`, potem slug `nes`) - nie przez
-  // `email_default_tenant_id()`, która ma inny fallback. Indeks
-  // `tenants_single_default` gwarantuje najwyżej jeden wiersz domyślny.
-  async function readDefaultTenantId(): Promise<string | null> {
-    const { data: byFlag, error: flagError } = await supabaseAdmin
-      .from("tenants")
-      .select("id")
-      .eq("is_default", true)
-      .maybeSingle();
-    if (flagError) throw new Error(`default_tenant_lookup_failed:${flagError.message}`);
-    if (byFlag?.id) return byFlag.id;
-    const { data: bySlug, error: slugError } = await supabaseAdmin
-      .from("tenants")
-      .select("id")
-      .eq("slug", "nes")
-      .maybeSingle();
-    if (slugError) throw new Error(`default_tenant_lookup_failed:${slugError.message}`);
-    return bySlug?.id ?? null;
-  }
-
-  // Profil czytamy kluczem SERWISOWYM, celowo: przez RLS cudzy wiersz jest
-  // niewidoczny i „inny najemca" wyglądałby jak „brak profilu". Ten sam odczyt
-  // niesie slug - patrz „SLUG ISTNIEJĄCEGO KONTA" niżej.
-  async function decide(account: InviteAccount | null): Promise<{
-    target: InviteTarget;
-    slug: string | null;
-    profileTenantId: string | null;
-  }> {
-    let profileTenantId: string | null = null;
-    let slug: string | null = null;
-    let defaultTenantId: string | null = null;
-    if (account) {
-      const { data: profile, error: profileError } = await supabaseAdmin
-        .from("profiles")
-        .select("slug, tenant_id")
-        .eq("id", account.id)
-        .maybeSingle();
-      // Awaria odczytu NIE MOŻE czytać się jak „profilu nie ma": wtedy niżej
-      // zapisalibyśmy najemcę zaproszenia na konto, którego najemcy nie znamy.
-      if (profileError) throw new Error(profileError.message);
-      profileTenantId = profile?.tenant_id ?? null;
-      slug = profile?.slug ?? null;
-      // Najemcę domyślnego czytamy tylko wtedy, gdy profil stoi poza najemcą
-      // zaproszenia - zwykłe ponowienie do własnego użytkownika go nie płaci.
-      if (profileTenantId !== null && profileTenantId !== invitationTenantId) {
-        defaultTenantId = await readDefaultTenantId();
-      }
-    }
-    const target = resolveInviteTarget({
+  const decide = (account: InviteAccount | null): Promise<InviteDecision> =>
+    decideInviteTarget(supabaseAdmin, {
       invitationTenantId,
       invitationEmail: email,
       pinnedAccountId,
       account,
-      profileTenantId,
-      defaultTenantId,
     });
-    return { target, slug, profileTenantId };
-  }
 
   try {
     const found = pinnedAccountId
-      ? await getPinnedAccount(pinnedAccountId)
-      : await findAuthAccountByEmail();
+      ? await getPinnedAccount(supabaseAdmin, pinnedAccountId)
+      : await findAuthAccountByEmail(supabaseAdmin, email);
     let decision = await decide(found);
 
     if (decision.target.kind === "create") {
@@ -892,37 +934,38 @@ export const sendActivationEmailForUser = createServerFn({ method: "POST" })
     if (!profile?.email) throw new Error("activation_email_missing");
 
     const email = profile.email.trim().toLowerCase();
+    // Dopasowanie DOKŁADNE, nie `ilike`: `_` i `%` w adresie działają we wzorcu
+    // jak symbole wieloznaczne, więc aktywacja `a_b@…` wybierała zaproszenie
+    // `axb@…`. Adresy są zapisywane znormalizowane (`trim().toLowerCase()`
+    // w `createInvitations` i niżej).
     const { data: existing, error: invitationError } = await context.supabase
       .from("user_invitations")
-      .select("id, status, auth_user_id, role")
+      .select("id, status, auth_user_id, role, metadata")
       .eq("tenant_id", tenantId)
-      .ilike("email", email)
+      .eq("email", email)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (invitationError) throw new Error(invitationError.message);
 
-    // Istniejący wiersz wolno użyć ponownie tylko wtedy, gdy dotyczy TEGO
-    // konta: przypięty do niego albo jeszcze do nikogo (wtedy przypinamy go
-    // przed wysyłką). Wiersz przypięty do innego konta odmawiałby za każdym
-    // razem (`performSend` nie zdejmuje przypięcia), a wiersz z rolą spoza
-    // zapraszalnych - np. `super_admin` zapisany przed bramką ról - utknąłby na
-    // niej. W obu przypadkach zakładamy świeży wiersz aktywacji.
+    // Ponownie używamy WYŁĄCZNIE wiersza aktywacji TEGO konta: przypiętego do
+    // niego i niosącego `activation_for_user_id`. Zwykłe zaproszenie (z dialogu
+    // albo importu) poszłoby w `performSend` pełną hydracją z własnych
+    // metadanych i wyzerowało członkowi biogram, kontakt i linki - a ta akcja
+    // ma tylko wysłać link. Wiersz przypięty do innego konta odmawiałby za
+    // każdym razem (`performSend` nie zdejmuje przypięcia), a wiersz z rolą
+    // spoza zapraszalnych utknąłby na bramce ról. W każdym z tych przypadków
+    // zakładamy świeży wiersz aktywacji; następne kliknięcie znajdzie już jego.
+    const existingMeta = (existing?.metadata ?? {}) as Record<string, unknown>;
     const reusable =
       existing &&
       existing.status !== "accepted" &&
-      (existing.auth_user_id === null || existing.auth_user_id === data.userId) &&
+      existing.auth_user_id === data.userId &&
+      existingMeta.activation_for_user_id === data.userId &&
       isInvitableRole(existing.role)
         ? existing
         : null;
     let invitationId = reusable?.id ?? null;
-    if (reusable && reusable.auth_user_id === null) {
-      const { error: pinError } = await context.supabase
-        .from("user_invitations")
-        .update({ auth_user_id: data.userId })
-        .eq("id", reusable.id);
-      if (pinError) throw new Error(pinError.message);
-    }
     if (!invitationId) {
       const { data: roleRows, error: roleError } = await context.supabase
         .from("user_roles")
@@ -1258,10 +1301,31 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
               },
             },
           );
-          if (createErr) throw createErr;
-          authUserId = createdUser.user?.id ?? null;
-          if (!authUserId) throw new Error("no_auth_user_id");
-          created++;
+          if (createErr) {
+            // PRZERWANY IMPORT. `admin_list_users` widzi tylko profile tego
+            // najemcy, a konto założone przez wcześniejszy przebieg, którego
+            // zapis profilu padł, ma profil w najemcy domyślnym - więc
+            // `createUser` odpowiada „adres zajęty" przy KAŻDYM ponowieniu.
+            // Konto odszukujemy jak `performSend` i stosujemy tę samą decyzję:
+            // `attach` dokończy import (konto narodzone dla tego najemcy
+            // i nigdy nieużyte), każdy inny wynik to neutralny kod odmowy.
+            if (!isEmailTakenError(createErr)) throw createErr;
+            const account = await findAuthAccountByEmail(supabaseAdmin, d.email);
+            if (!account) throw createErr;
+            const decision = await decideInviteTarget(supabaseAdmin, {
+              invitationTenantId: tenantId,
+              invitationEmail: d.email,
+              pinnedAccountId: null,
+              account,
+            });
+            if (decision.target.kind !== "attach") throw new Error(INVITATION_TARGET_UNAVAILABLE);
+            authUserId = decision.target.userId;
+            skipped++;
+          } else {
+            authUserId = createdUser.user?.id ?? null;
+            if (!authUserId) throw new Error("no_auth_user_id");
+            created++;
+          }
         } else {
           skipped++;
         }

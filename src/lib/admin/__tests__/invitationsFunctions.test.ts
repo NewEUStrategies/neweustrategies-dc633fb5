@@ -2847,6 +2847,53 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     expect(JSON.stringify(doc)).toContain("nowa-osoba");
   });
 
+  // PRZERWANY IMPORT: konto z poprzedniego przebiegu, którego zapis profilu
+  // padł, ma profil w najemcy domyślnym - `admin_list_users` go nie widzi,
+  // a `createUser` odpowiada „adres zajęty" przy każdym ponowieniu.
+  it("ponowiony import DOKAŃCZA konto narodzone dla tego najemcy zamiast padać na „adres zajęty”", async () => {
+    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+    db.setResponse("user_invitations", () => ok(null));
+    h.authError = new Error("A user with this email address has already been registered");
+    h.existingAuthUsers = [
+      { id: IDS.existingUser, email: "nowa@example.org", app_metadata: { tenant_id: IDS.tenant } },
+    ];
+    h.existingProfileTenant = IDS.defaultTenant;
+    const result = await provision({ pageSlug: "o-nas", autoLink: false });
+    expect(result).toEqual({ created: 0, skipped: 1, linked: 0, errors: [] });
+    expect(h.adminWrites.map((write) => write.table)).toEqual([
+      "profiles",
+      "author_profiles",
+      "user_roles",
+    ]);
+    for (const write of h.adminWrites) {
+      expect(write.row).toMatchObject({ tenant_id: IDS.tenant });
+    }
+    expect(h.adminWrites[0].row).toMatchObject({ id: IDS.existingUser });
+  });
+
+  it("„adres zajęty” przez konto innej organizacji - neutralny kod odmowy, bez zapisów", async () => {
+    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+    db.setResponse("user_invitations", () => ok(null));
+    h.authError = new Error("User already registered");
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.otherTenant;
+    const result = await provision({ pageSlug: "o-nas", autoLink: false });
+    expect(result.errors).toEqual([
+      { email: "nowa@example.org", error: "account_in_other_tenant" },
+    ]);
+    expect(h.adminWrites).toEqual([]);
+  });
+
+  it("błąd `createUser` inny niż „adres zajęty” nie przechodzi katalogu kont", async () => {
+    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+    db.setResponse("user_invitations", () => ok(null));
+    h.authError = new Error("rate limit exceeded");
+    const result = await provision({ pageSlug: "o-nas", autoLink: false });
+    expect(result.errors).toEqual([{ email: "nowa@example.org", error: "rate limit exceeded" }]);
+    expect(h.listUsersPages).toEqual([]);
+    expect(h.adminWrites).toEqual([]);
+  });
+
   it("dowiązanie bierze WYŁĄCZNIE profile tego najemcy - konto innej organizacji z tym adresem nie trafia na stronę", async () => {
     // Klucz serwisowy omija RLS, a `createUser` odmówił temu adresowi wyżej
     // („already registered"), bo konto należy do innego najemcy.
@@ -3698,16 +3745,47 @@ describe("activation from the member directory", () => {
     h.existingProfileTenant = IDS.tenant;
   }
 
-  const LOOKUP = "id, status, auth_user_id, role";
+  const LOOKUP = "id, status, auth_user_id, role, metadata";
+  /** Znacznik wiersza aktywacji TEGO członka. */
+  const ACTIVATION_META = { activation_for_user_id: IDS.existingUser };
 
   it.each([
     null,
-    { id: IDS.invitation, status: "accepted", auth_user_id: IDS.existingUser, role: "editor" },
+    {
+      id: IDS.invitation,
+      status: "accepted",
+      auth_user_id: IDS.existingUser,
+      role: "editor",
+      metadata: { activation_for_user_id: IDS.existingUser },
+    },
     // Wiersz przypięty do INNEGO konta (np. usuniętego) odmawiałby za każdym
     // razem - aktywacja zakłada świeży.
-    { id: IDS.invitation, status: "failed", auth_user_id: IDS.otherTenant, role: "editor" },
+    {
+      id: IDS.invitation,
+      status: "failed",
+      auth_user_id: IDS.otherTenant,
+      role: "editor",
+      metadata: { activation_for_user_id: IDS.otherTenant },
+    },
     // `super_admin` zapisany przed bramką ról utknąłby na niej.
-    { id: IDS.invitation, status: "failed", auth_user_id: IDS.existingUser, role: "super_admin" },
+    {
+      id: IDS.invitation,
+      status: "failed",
+      auth_user_id: IDS.existingUser,
+      role: "super_admin",
+      metadata: { activation_for_user_id: IDS.existingUser },
+    },
+    // ZWYKŁE zaproszenie tego członka (z dialogu albo importu) - przypięte, ale
+    // bez znacznika aktywacji: `performSend` zhydratowałby nim profil.
+    {
+      id: IDS.invitation,
+      status: "sent",
+      auth_user_id: IDS.existingUser,
+      role: "editor",
+      metadata: { photo: "https://cdn.example/a.png" },
+    },
+    // Zwykłe zaproszenie na ten adres, jeszcze nieprzypięte.
+    { id: IDS.invitation, status: "pending", auth_user_id: null, role: "author", metadata: {} },
   ])(
     "creates a new activation record when no reusable invitation exists (%j)",
     async (existing) => {
@@ -3754,6 +3832,7 @@ describe("activation from the member directory", () => {
             status: "sent",
             auth_user_id: IDS.existingUser,
             role: "editor",
+            metadata: ACTIVATION_META,
           })
         : chain.has("update")
           ? ok(null)
@@ -3801,15 +3880,26 @@ describe("activation from the member directory", () => {
     expect(h.adminWrites).toEqual([]);
   });
 
-  it("niepięty wiersz zaproszenia na ten adres jest PRZYPINANY do członka przed wysyłką", async () => {
+  it("zwykłe zaproszenie członka NIE jest używane ponownie - aktywacja zakłada własny wiersz i niczego nie hydratuje", async () => {
+    // Ponowne użycie zwykłego zaproszenia puszczało w `performSend` pełną
+    // hydrację z JEGO metadanych - przy aktywacji zerowało członkowi biogram,
+    // kontakt i linki.
     profile(ok({ email: "member@example.org", display_name: "Member" }));
     memberAccount();
     db.setResponse("user_invitations", (chain) =>
-      chain.argsOf("select")?.[0] === LOOKUP
-        ? ok({ id: IDS.invitation, status: "pending", auth_user_id: null, role: "author" })
-        : chain.has("update")
-          ? ok(null)
-          : ok(invitationRow({ email: "member@example.org", auth_user_id: IDS.existingUser })),
+      chain.has("insert")
+        ? ok({ id: IDS.invitationB })
+        : chain.argsOf("select")?.[0] === LOOKUP
+          ? ok({
+              id: IDS.invitation,
+              status: "sent",
+              auth_user_id: IDS.existingUser,
+              role: "author",
+              metadata: { photo: "https://cdn.example/a.png" },
+            })
+          : chain.has("update")
+            ? ok(null)
+            : ok(activationRow()),
     );
     db.setResponse("audit_log", ok(null));
     const result = await callServerFn<{ ok: boolean }>(sendActivationEmailForUser, {
@@ -3817,13 +3907,33 @@ describe("activation from the member directory", () => {
       context: context(),
     });
     expect(result.ok).toBe(true);
-    const updates = db
+    expect(db.chainsFor("user_invitations").some((c) => c.has("insert"))).toBe(true);
+    // Żaden zapis nie dotknął cudzego (zwykłego) wiersza zaproszenia ani konta.
+    const touched = db
       .chainsFor("user_invitations")
       .filter((c) => c.has("update"))
-      .map((c) => c.argsOf("update")?.[0]);
-    expect(updates[0]).toEqual({ auth_user_id: IDS.existingUser });
-    expect(db.chainsFor("user_invitations").some((c) => c.has("insert"))).toBe(false);
-    expect(h.getUserByIdCalls).toEqual([IDS.existingUser]);
+      .map((c) => c.argsOf("eq")?.[1]);
+    expect(touched).not.toContain(IDS.invitation);
+    expect(h.adminWrites).toEqual([]);
+  });
+
+  it("wiersz zaproszenia szukany DOKŁADNIE po adresie, nie wzorcem `ilike`", async () => {
+    // `_` i `%` w adresie są we wzorcu symbolami wieloznacznymi: `a_b@…`
+    // wybierało zaproszenie `axb@…`.
+    profile(ok({ email: "a_b@example.org", display_name: "A B" }));
+    db.setResponse("user_invitations", fail("stop after lookup"));
+    await expect(
+      callServerFn(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      }),
+    ).rejects.toThrow("stop after lookup");
+    const lookup = db.chainsFor("user_invitations")[0];
+    expect(lookup.has("ilike")).toBe(false);
+    expect(lookup.calls.filter((c) => c.method === "eq").map((c) => c.args)).toContainEqual([
+      "email",
+      "a_b@example.org",
+    ]);
   });
 
   it("aktywacja konta, którego adres logowania rozjechał się z `profiles.email` - odmowa bez maila (A2)", async () => {
@@ -3837,6 +3947,7 @@ describe("activation from the member directory", () => {
             status: "failed",
             auth_user_id: IDS.existingUser,
             role: "editor",
+            metadata: ACTIVATION_META,
           })
         : chain.has("update")
           ? ok(null)
@@ -4040,12 +4151,13 @@ describe("activation record persistence failures", () => {
     h.existingAuthUsers = [{ id: IDS.existingUser, email: "member@example.org" }];
     h.existingProfileTenant = IDS.tenant;
     db.setResponse("user_invitations", (chain) =>
-      chain.argsOf("select")?.[0] === "id, status, auth_user_id, role"
+      chain.argsOf("select")?.[0] === "id, status, auth_user_id, role, metadata"
         ? ok({
             id: IDS.invitation,
             status: "pending",
             auth_user_id: IDS.existingUser,
             role: "user",
+            metadata: { activation_for_user_id: IDS.existingUser },
           })
         : chain.has("update")
           ? ok(null)
