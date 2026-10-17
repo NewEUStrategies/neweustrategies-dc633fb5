@@ -60,7 +60,9 @@ export interface AuthorDisplayContent {
 
 /** Domyślny rozmiar czcionki imienia i nazwiska autora (px). */
 export const AUTHOR_NAME_SIZE_PX_DEFAULT = 12;
-export function authorSizeFromTitle(px: number): number { return px - 2; }
+export function authorSizeFromTitle(px: number): number {
+  return px - 2;
+}
 /** Domyślny rozmiar zdjęcia profilowego eksperta (px). */
 export const AUTHOR_AVATAR_SIZE_PX_DEFAULT = 20;
 /** Domyślne zaokrąglenie awatara (px). Kwadrat z lekkim promieniem. */

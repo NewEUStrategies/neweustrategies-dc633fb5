@@ -8,7 +8,10 @@ describe("CMS author title sizing", () => {
     expect(authorSizeFromTitle(18.5)).toBe(16.5);
   });
   it("persists fixed-size mode from the CMS", () => {
-    const value = resolveAuthorDisplay({ authorSizeRelativeToTitle: false, authorSizePx: 13 }, "pl");
+    const value = resolveAuthorDisplay(
+      { authorSizeRelativeToTitle: false, authorSizePx: 13 },
+      "pl",
+    );
     expect(value.relativeToTitle).toBe(false);
     expect(value.nameSizePx).toBe(13);
   });

@@ -97,7 +97,10 @@ export function AuthorDisplayControl({
       {display.showName && (
         <label className="flex cursor-pointer items-center justify-between gap-2 py-1">
           <span className="text-xs">{t("builder.authorDisplay.relativeToTitle")}</span>
-          <Switch checked={display.relativeToTitle ?? true} onCheckedChange={(value) => setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, value)} />
+          <Switch
+            checked={display.relativeToTitle ?? true}
+            onCheckedChange={(value) => setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, value)}
+          />
         </label>
       )}
 

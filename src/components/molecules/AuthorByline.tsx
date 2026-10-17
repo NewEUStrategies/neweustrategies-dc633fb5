@@ -130,7 +130,14 @@ export function AuthorByline({
   // komentarz wyżej) i pilnują go testy kontraktu bylinu.
   const textStyle: CSSProperties & Record<string, string | number> = {
     fontSize: `${titleSize.size ?? display.nameSizePx}px`,
-    ...(relativeToTitle ? { "--abl-title-relative-size": titleSize.size === undefined ? "calc(var(--td-pt-size, 16px) - 2px)" : `${titleSize.size}px` } : null),
+    ...(relativeToTitle
+      ? {
+          "--abl-title-relative-size":
+            titleSize.size === undefined
+              ? "calc(var(--td-pt-size, 16px) - 2px)"
+              : `${titleSize.size}px`,
+        }
+      : null),
     lineHeight: 1.35,
     ...(display.nameSizePx === AUTHOR_NAME_SIZE_PX_DEFAULT
       ? null
@@ -235,7 +242,9 @@ export function AuthorByline({
   if (href) {
     return (
       <AppLink
-        ref={(node) => { titleSize.ref.current = node; }}
+        ref={(node) => {
+          titleSize.ref.current = node;
+        }}
         href={href}
         className={baseCls}
         style={textStyle}
@@ -251,12 +260,14 @@ export function AuthorByline({
 
   return (
     <span
-      ref={(node) => { titleSize.ref.current = node; }}
+      ref={(node) => {
+        titleSize.ref.current = node;
+      }}
       className={baseCls}
       style={textStyle}
       onClick={onClick}
       data-author-byline={display.mode}
-        data-author-title-relative={relativeToTitle ? "" : undefined}
+      data-author-title-relative={relativeToTitle ? "" : undefined}
       data-typography-exempt
     >
       {inner}

@@ -14,8 +14,10 @@ export function useAuthorTitleSize(enabled: boolean) {
       let parent = byline.parentElement;
       title = null;
       while (parent && parent !== document.body) {
-        title = Array.from(parent.querySelectorAll(".cms-post-title, [data-title-root], h1, h2, h3"))
-          .find((el) => !el.closest("[data-author-byline]")) ?? null;
+        title =
+          Array.from(
+            parent.querySelectorAll(".cms-post-title, [data-title-root], h1, h2, h3"),
+          ).find((el) => !el.closest("[data-author-byline]")) ?? null;
         if (title) break;
         parent = parent.parentElement;
       }
@@ -32,7 +34,13 @@ export function useAuthorTitleSize(enabled: boolean) {
     if (title) observer.observe(title);
     const widget = byline.closest("[data-w-id]") ?? byline.parentElement;
     const changes = new MutationObserver(schedule);
-    if (widget) changes.observe(widget, { attributes: true, attributeFilter: ["class", "style"], childList: true, subtree: true });
+    if (widget)
+      changes.observe(widget, {
+        attributes: true,
+        attributeFilter: ["class", "style"],
+        childList: true,
+        subtree: true,
+      });
     window.addEventListener("resize", schedule, { passive: true });
     void document.fonts?.ready.then(schedule);
     return () => {
