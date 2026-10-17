@@ -31,6 +31,11 @@ vi.mock("@/lib/clubs/api", () => clubApiMock);
 // Karta klubu zalezy od tozsamosci widza (patrz `clubKeys.bySlugViewer`),
 // wiec hooki potrzebuja rozstrzygnietej sesji - inaczej zapytanie czeka.
 const authState = { user: { id: "user-1" } as { id: string } | null, loading: false };
+const hydrationState = vi.hoisted(() => ({ hydrated: true }));
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useHydrated: () => hydrationState.hydrated,
+}));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => authState,
 }));
@@ -321,6 +326,26 @@ describe("useClubList - katalog porcjami po offsecie", () => {
 });
 
 describe("useClubBySlug / useClubGroups", () => {
+  it("keeps the SSR anonymous card until hydration, then reads the member card", async () => {
+    const { queryClient, wrapper } = harness();
+    queryClient.setQueryData(clubKeys.bySlugViewer("klub-x", null), null);
+    clubApiMock.fetchClubBySlug.mockResolvedValue({ can_read: true });
+    hydrationState.hydrated = false;
+    try {
+      const { result, rerender } = renderHook(() => useClubBySlug("klub-x"), { wrapper });
+      expect(result.current.data).toBeNull();
+      expect(result.current.isSuccess).toBe(true);
+      expect(clubApiMock.fetchClubBySlug).not.toHaveBeenCalled();
+      hydrationState.hydrated = true;
+      rerender();
+      await waitFor(() => expect(result.current.data).toEqual({ can_read: true }));
+      expect(clubApiMock.fetchClubBySlug).toHaveBeenCalledWith("klub-x");
+      expect(queryClient.getQueryData(clubKeys.bySlugViewer("klub-x", null))).toBeNull();
+    } finally {
+      hydrationState.hydrated = true;
+    }
+  });
+
   it("bez sluga NIE odpytuje - render przed dojechaniem trasy nie kosztuje rundy", async () => {
     const { wrapper } = harness();
 

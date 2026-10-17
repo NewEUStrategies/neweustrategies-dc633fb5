@@ -6,7 +6,7 @@
 - [x] Zweryfikować bazę i zastosować cztery brakujące migracje: 343 tabele z RLS, 15 widoków, 1585 funkcji; 1660 obiektów bez braków, 751 kolumn bez nowych braków (7 znanych rozbieżności). Końcowe ciała sześciu RPC i granty potwierdzone; rejestr uzupełniony dopiero po wdrożeniu, 368 migracji zgodnych. Dane użytkowników bez zmian.
 - [x] Testy PR: 82 pliki, 2589 przechodzi, 10 oczekiwanych błędów. Naprawiona hydratacja /club po wcześniejszym rozstrzygnięciu sesji: 60 testów katalogu, zalogowane /, /en i /club HTTP 200 bez błędów przeglądarki; build OK. Baza nie zawiera klubów, więc produkcyjne stronicowanie z realnymi kartami pozostaje niesprawdzone. Testy SQL nieuruchomione: brak lokalnego serwera PostgreSQL.
 - [x] Opublikować PR #518 po migracjach: identyfikator produkcji zmienił się z tmvcgxelv na tmvcwj3l3.
-- [ ] Potwierdzić publikację dodatkowej poprawki hydratacji /club: wymaga kolejnej publikacji, blokada to zewnętrzny proces wdrożenia.
+- [x] Zakończyć publikację i sprawdzić katalog oraz podstrony po odświeżeniu: produkcja tmvcxlrny; zalogowany katalog, rzeczywisty klub i 11 podstron przeszły 26 wejść/odświeżeń HTTP 200 z treścią, bez 404 i błędów przeglądarki. Rozjazd hydratacji wspólnej karty i minisite poprawiony; 193 testy poprawki przechodzą, dodatkowo 160 testów tras przechodzi (1 oczekiwany błąd); build OK. Dane bez zmian.
 
 ## Podpisy autorów względem tytułów
 
