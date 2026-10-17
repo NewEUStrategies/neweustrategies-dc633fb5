@@ -18,6 +18,9 @@
 //      kliknięciami) dają każdy klub RAZ.
 //   4. Nieudana porcja nie gasi huba: karty zostają, przycisk zostaje,
 //      a ponowne kliknięcie dociąga brakującą porcję.
+//   5. Refetch porcji po inwalidacji (dołączenie do klubu) nie daje się
+//      anulować kliknięciem: przycisk czeka na niego, dołączony klub trafia
+//      do „Moich", a dalsze porcje składają katalog bez dziury.
 //
 // CZEGO NIE DUBLUJE. Reguł offsetu i sklejania w izolacji
 // (`hubCatalog.test.ts`), kontraktu hooka z atrapą warstwy danych
@@ -117,6 +120,7 @@ import { fail } from "@/test/supabase/chain";
 import type { RecordedRpc } from "@/test/supabase/rpc";
 import { renderRoute } from "@/test/routeHarness";
 import { clubListRow, clubRpc, resetClubRpc } from "@/test/clubs/fixtures";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { Route as CatalogRoute } from "@/routes/club.index";
 
 /** Sufit strony `club_list` w SQL (A13, 20261017130000). */
@@ -286,6 +290,69 @@ describe("porcje nakładające się na styku - każdy klub RAZ", () => {
     await clickShowMoreAndWait(250);
     expect(listCalls().at(-1)).toEqual({ p_limit: 100, p_offset: 200 });
     expect(new Set(loadedIds()).size).toBe(250);
+    await waitFor(() => expect(showMoreButton()).toBeNull());
+  });
+});
+
+describe("„pokaż więcej” w trakcie refetchu po inwalidacji", () => {
+  it("przycisk czeka na refetch - dołączony klub trafia do „Moich”, katalog bez dziury", async () => {
+    // Scenariusz z przeglądu: 250 klubów, użytkownik dołącza do club-150
+    // (np. akceptuje zaproszenie na hubie), mutacja unieważnia `list()`,
+    // a w trakcie refetchu pada klik „pokaż więcej”. `fetchNextPage()`
+    // z domyślnym `cancelRefetch: true` anulował refetch: stare porcje + nowa
+    // porcja szły do cache'u jako świeże, znacznik inwalidacji znikał,
+    // club-150 nie trafiał do „Moich”, a offset liczony wobec starego
+    // porządku gubił klub (przycisk znikał przy 249 z 250).
+    let catalog: ClubListRow[] = Array.from({ length: 250 }, (_, i) => club(i));
+    let release: (() => void) | null = null;
+    let holdNextFirstPage = false;
+    clubRpc.setResponse("club_list", async (call: RecordedRpc) => {
+      const offset = Number(call.arg("p_offset"));
+      const limit = Math.min(Number(call.arg("p_limit")), SQL_PAGE_CAP);
+      // Migawka PRZED wstrzymaniem: refetch odpowiada stanem z chwili zapytania.
+      const snapshot = catalog;
+      if (offset === 0 && holdNextFirstPage) {
+        holdNextFirstPage = false;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      const rows = snapshot
+        .slice(offset, offset + limit)
+        .map((row) => ({ ...row, total_count: snapshot.length }));
+      return { data: rows, error: null };
+    });
+    const { queryClient } = await mount();
+    expect(h.organism.MyClubsTabs).toBeUndefined();
+
+    // Serwer ma club-150 teraz NA GÓRZE jako „mój” (`is_mine DESC`).
+    const joined: ClubListRow = { ...club(150), my_status: "active", my_role: "member" };
+    catalog = [joined, ...catalog.filter((row) => row.id !== joined.id)];
+    holdNextFirstPage = true;
+    void queryClient.invalidateQueries({ queryKey: clubKeys.list() });
+    await waitFor(() => expect(release).not.toBeNull());
+
+    // Refetch w locie: przycisk wyłączony i zajęty, klik niczego nie wysyła.
+    await waitFor(() => expect(showMoreButton()?.hasAttribute("disabled")).toBe(true));
+    expect(showMoreButton()?.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(showMoreButton() as HTMLElement);
+    (release as unknown as () => void)();
+
+    await waitFor(() => expect(h.organism.MyClubsTabs).toBeDefined());
+    const mine = h.organism.MyClubsTabs?.clubs as ClubListRow[];
+    expect(mine.map((row) => row.id)).toEqual(["club-150"]);
+    expect(queryClient.getQueryState(clubKeys.listPages(100))?.isInvalidated).toBe(false);
+    expect(listCalls()).toEqual([
+      { p_limit: 100, p_offset: 0 },
+      { p_limit: 100, p_offset: 0 },
+    ]);
+
+    // Po refetchu porcje idą od świeżego porządku: 250 klubów, każdy raz.
+    await waitFor(() => expect(showMoreButton()?.hasAttribute("disabled")).toBe(false));
+    await clickShowMoreAndWait(200);
+    await clickShowMoreAndWait(250);
+    expect(new Set(loadedIds()).size).toBe(250);
+    expect(loadedIds()[0]).toBe("club-150");
     await waitFor(() => expect(showMoreButton()).toBeNull());
   });
 });

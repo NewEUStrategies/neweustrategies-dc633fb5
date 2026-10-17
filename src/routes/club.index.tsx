@@ -150,10 +150,21 @@ function ClubHub() {
   // „Pokaż więcej" dociąga NASTĘPNĄ porcję (offset = wiersze już oddane przez
   // serwer). Nieudana porcja nie gasi huba: wczytane karty zostają,
   // przycisk też (`hasNextPage` się nie zmienia), więc ponowienie to
-  // kolejne kliknięcie - a toast mówi, że tym razem nic nie doszło. Podwójne
-  // kliknięcie w locie blokuje `disabled` przycisku, nie ten handler.
+  // kolejne kliknięcie - a toast mówi, że tym razem nic nie doszło.
+  //
+  // `cancelRefetch: false`, bo domyślne `true` ANULUJE fetch już w locie -
+  // także zwykły refetch wszystkich porcji po inwalidacji (dołączenie przez
+  // zaproszenie na hubie, zdarzenie realtime na `clubKeys.all`, powrót na hub
+  // po zmianie członkostwa). Anulowany refetch zostawiał STARE porcje + nową
+  // porcję jako świeże dane i zdejmował znacznik inwalidacji: dołączony klub
+  // nie trafiał do „Moich", a offset nowej porcji liczony wobec starego
+  // porządku zostawiał dziurę (przycisk znikał przy 249 z 250). Z `false`
+  // kliknięcie w trakcie refetchu dostaje obietnicę TEGO refetchu i nie
+  // dociąga nic - dlatego przycisk jest wyłączony przez cały `isFetching`
+  // (niżej), a nie tylko na czas własnej porcji. Podwójne kliknięcie w locie
+  // blokuje ta sama blokada.
   const showMore = () => {
-    void clubsQ.fetchNextPage().then((result) => {
+    void clubsQ.fetchNextPage({ cancelRefetch: false }).then((result) => {
       if (result.isFetchNextPageError) toast.error(t("club.loadError"));
     });
   };
@@ -289,14 +300,17 @@ function ClubHub() {
               stoi DOKŁADNIE wtedy, gdy kliknięcie może coś dowieźć
               (`hasNextPage` = serwer ma wiersze za ostatnim offsetem) - a nie
               z porównania widocznych kart z sumą, które po deduplikacji
-              potrafiło obiecywać porcję, której nie ma. */}
+              potrafiło obiecywać porcję, której nie ma. Wyłączony przez CAŁY
+              `isFetching` (porcja albo refetch porcji po inwalidacji), bo
+              kliknięcie w trakcie refetchu niczego by nie dociągnęło - patrz
+              `showMore`; `aria-busy` mówi, czemu nie reaguje. */}
           {signedIn && clubsQ.hasNextPage ? (
             <div className="-mt-2 mb-8 text-center">
               <Button
                 variant="outline"
                 size="sm"
-                disabled={clubsQ.isFetchingNextPage}
-                aria-busy={clubsQ.isFetchingNextPage}
+                disabled={clubsQ.isFetching}
+                aria-busy={clubsQ.isFetching}
                 onClick={showMore}
               >
                 {t("club.hub.showMore", { shown: clubs.length, total: clubsTotal })}

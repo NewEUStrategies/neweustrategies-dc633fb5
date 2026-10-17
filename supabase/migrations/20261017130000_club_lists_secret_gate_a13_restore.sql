@@ -64,17 +64,21 @@
 --     nietknięte (brak CREATE w tym pliku), komentarz 1:1 z A15.
 --
 -- LIMIT 200 A KLIENT. src/lib/clubs/api.ts i specializationsApi.ts proszą
---   domyślnie o 100 i 60 wierszy. „Pokaż więcej" na /club rośnie o 100
---   (src/routes/club.index.tsx), więc przy ponad 200 widocznych klubach
---   zatrzyma się na 200 - tak jak za A13; dalsze porcje to p_offset.
+--   domyślnie o 100 i 60 wierszy. „Pokaż więcej" na /club dociąga kolejne
+--   porcje po 100 przez p_offset (src/lib/clubs/useClubCatalog.ts), więc
+--   sufit 200 nie ucina katalogu. Ciała z TEGO pliku remisują jednak na
+--   styku stron (ORDER BY bez klucza unikatowego) - porządek całkowity
+--   (id na końcu) dopisuje 20261017150000.
 --
 -- DOWÓD: supabase/tests/club_list_visibility_test.sql (pgTAP, pełny schemat)
 --   i sekcja A13R w scripts/pg-harness/runtime_test.sql - czerwone na ciałach
 --   z 20260919220300 / 20260811110015, zielone po tej migracji.
 --
 -- DLA KOLEJNYCH MIGRACJI: każda, która musi zrobić DROP którejś z tych
---   funkcji (np. nowa kolumna karty), kopiuje ciało Z TEGO PLIKU i odtwarza
---   COMMENT oraz REVOKE/GRANT - DROP zdejmuje oba.
+--   funkcji (np. nowa kolumna karty), kopiuje ciało club_list
+--   / club_list_by_specialization z 20261017150000 (porządek całkowity),
+--   a club_specializations_public - Z TEGO PLIKU, i odtwarza COMMENT oraz
+--   REVOKE/GRANT - DROP zdejmuje oba.
 --
 -- KOLEJNOŚĆ: po 20261017120000. POWTÓRNE WYKONANIE BEZPIECZNE (CREATE OR
 --   REPLACE, COMMENT, REVOKE/GRANT są idempotentne). Bliźniak drizzle:

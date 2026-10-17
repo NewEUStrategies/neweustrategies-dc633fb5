@@ -1,7 +1,8 @@
 -- ============================================================================
 -- pgTAP: listy klubów - `club_list`, `club_list_by_specialization`,
 -- `club_specializations_public` (licznik) i `club_activity_feed`
--- (migracja 20261017130000, bliźniak drizzle 0298).
+-- (migracja 20261017130000, bliźniak drizzle 0298; porządek całkowity stron
+-- 20261017150000, bliźniak drizzle 0300).
 --
 -- Co przybija:
 --   * WYCIEK z 20260811110015: club_list_by_specialization nie miała bramki
@@ -14,6 +15,11 @@
 --     strony, nie dla każdego klubu tenantu przed LIMIT. Koszt mierzy
 --     licznik wywołań club_capabilities (atrapa w transakcji, sekcja 7) -
 --     wynik listy tego nie pokazuje.
+--   * Porządek CAŁKOWITY (20261017150000): bez `id` na końcu ORDER BY remis
+--     kluczy A13 na styku stron (kluby bez aktywności o tej samej nazwie)
+--     dawał przy stronicowaniu po p_offset jeden klub na dwóch stronach,
+--     a inny na żadnej - /club stronicuje tak od tej samej serii. Sekcja 7
+--     stawia remisy na obu stykach i skleja strony 0/100/200.
 --   * Metadane zdjęte przez DROP w 20260919220300: REVOKE ... FROM PUBLIC,
 --     GRANT anon/authenticated/service_role i COMMENT na club_list,
 --     club_list_by_specialization i club_activity_feed.
@@ -34,7 +40,7 @@
 -- A13R (`bun run check:pg-harness`).
 -- ============================================================================
 BEGIN;
-SELECT plan(25);
+SELECT plan(28);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -255,9 +261,20 @@ RESET ROLE;
 -- 7. Limit strony 200 i zdolności liczone tylko dla strony (A13)
 -- ----------------------------------------------------------------------------
 -- Ponad 200 klubów jednym INSERT-em zamiast dwustu wywołań admin_club_upsert.
+--
+-- Nazwy z REMISAMI: 20 grup po 10-11 klubów o tej samej lower(name_pl)
+-- (wielkość liter na zmianę), bez aktywności - remis na KAŻDYM kluczu A13
+-- poza id, jak realne kluby bez wątków o powtórzonej nazwie (name_pl nie
+-- jest unikatowe, last_activity_at bez DEFAULT). Obcy widzi tu clv-public
+-- (aktywność, pozycja 1), potem grupy 00..19 w kolejności nazw, potem
+-- clv-inna/members/private - styk 100/101 wypada w grupie 09, a 200/201
+-- w grupie 19 (warunek wstępny niżej to sprawdza, zamiast w to wierzyć).
+-- Bez id na końcu ORDER BY strona offset 0 (top-N heapsort) i strona
+-- offset 100 (quicksort) porządkują remis inaczej.
 INSERT INTO public.clubs (tenant_id, slug, name_pl, name_en, visibility, status, specialization_slug)
 SELECT 'cc1a0000-0000-0000-0000-00000000000a', format('clv-bulk-%s', lpad(i::text, 3, '0')),
-       format('CLV bulk %s', lpad(i::text, 3, '0')), format('CLV bulk %s', i), 'public', 'active', 'clv-bulk'
+       format(CASE WHEN i % 2 = 0 THEN 'CLV bulk %s' ELSE 'clv BULK %s' END, lpad((i % 20)::text, 2, '0')),
+       format('CLV bulk %s', i), 'public', 'active', 'clv-bulk'
   FROM generate_series(1, 205) i;
 
 -- Ta sekcja biegnie jako WŁAŚCICIEL z tożsamością obcego w claims: referencje
@@ -275,25 +292,64 @@ SELECT is(
   (SELECT count(*)::int || '/' || max(total_count) FROM public.club_list_by_specialization('clv-bulk', 10000, 0)),
   '200/205',
   'club_list_by_specialization(10000) oddaje najwyżej 200 wierszy, total_count dalej pełny');
--- Strony sklejone przez p_offset = pełna lista 0028: ten sam zbiór, a kolejność
--- porównana po KLUCZACH sortowania (remis kluczy = dowolna kolejność wierszy).
+-- Referencja: pełna lista widoczna dla obcego (zdolności dla KAŻDEGO klubu,
+-- jak 0028) w porządku A13 z id na końcu - jedyna kolejność, którą da się
+-- porównać wiersz w wiersz. Strony 0/100/200 po 100 wierszy sklejone
+-- w kolejności stron i wierszy (ORDINALITY = pozycja w zwrotce funkcji).
+CREATE FUNCTION pg_temp.clv_ref(_spec text)
+RETURNS TABLE(pos bigint, id uuid, sort_key text)
+LANGUAGE sql AS $$
+  SELECT row_number() OVER w, c.id, ((m.user_id IS NOT NULL), c.last_activity_at, lower(c.name_pl))::text
+    FROM public.clubs c
+    LEFT JOIN public.club_members m ON m.club_id = c.id AND m.user_id = auth.uid() AND m.status = 'active'
+    CROSS JOIN LATERAL public.club_capabilities(c.id, NULL, auth.uid()) k
+   WHERE c.tenant_id = 'cc1a0000-0000-0000-0000-00000000000a' AND c.status = 'active'
+     AND (_spec IS NULL OR c.specialization_slug = _spec)
+     AND (c.visibility IN ('public', 'members', 'private') OR k.can_read)
+  WINDOW w AS (ORDER BY (m.user_id IS NOT NULL) DESC, c.last_activity_at DESC NULLS LAST, lower(c.name_pl) ASC, c.id ASC)
+$$;
+CREATE FUNCTION pg_temp.clv_paged(_spec text)
+RETURNS TABLE(pos bigint, id uuid)
+LANGUAGE sql AS $$
+  SELECT row_number() OVER (ORDER BY pg.o, f.ordinality), f.id
+    FROM (VALUES (0), (100), (200)) pg(o)
+    CROSS JOIN LATERAL public.club_list(100, pg.o) WITH ORDINALITY f
+   WHERE _spec IS NULL
+  UNION ALL
+  SELECT row_number() OVER (ORDER BY pg.o, f.ordinality), f.id
+    FROM (VALUES (0), (100), (200)) pg(o)
+    CROSS JOIN LATERAL public.club_list_by_specialization(_spec, 100, pg.o) WITH ORDINALITY f
+   WHERE _spec IS NOT NULL
+$$;
+-- Warunek wstępny: remis kluczy A13 faktycznie stoi na obu stykach obu list.
+-- Bez niego asercje niżej przechodziłyby i na ciałach bez id.
 SELECT ok(
-  (SELECT array_agg(f.id ORDER BY f.id)
-     FROM (VALUES (0), (100), (200)) pg(o) CROSS JOIN LATERAL public.club_list(100, pg.o) f)
-  = (SELECT array_agg(c.id ORDER BY c.id) FROM public.clubs c
-       CROSS JOIN LATERAL public.club_capabilities(c.id, NULL, auth.uid()) k
-      WHERE c.tenant_id = 'cc1a0000-0000-0000-0000-00000000000a' AND c.status = 'active'
-        AND (c.visibility IN ('public', 'members', 'private') OR k.can_read))
-  AND (SELECT array_agg((f.my_status IS NOT NULL, f.last_activity_at, lower(f.name_pl))::text ORDER BY pg.o, f.ordinality)
-         FROM (VALUES (0), (100), (200)) pg(o) CROSS JOIN LATERAL public.club_list(100, pg.o) WITH ORDINALITY f)
-  = (SELECT array_agg((m.user_id IS NOT NULL, c.last_activity_at, lower(c.name_pl))::text
-                      ORDER BY (m.user_id IS NOT NULL) DESC, c.last_activity_at DESC NULLS LAST, lower(c.name_pl) ASC)
-       FROM public.clubs c
-       LEFT JOIN public.club_members m ON m.club_id = c.id AND m.user_id = auth.uid() AND m.status = 'active'
-       CROSS JOIN LATERAL public.club_capabilities(c.id, NULL, auth.uid()) k
-      WHERE c.tenant_id = 'cc1a0000-0000-0000-0000-00000000000a' AND c.status = 'active'
-        AND (c.visibility IN ('public', 'members', 'private') OR k.can_read)),
-  'strony 100+100+100 składają się w pełną listę 0028 - ten sam zbiór i ta sama kolejność');
+  (SELECT count(*) FROM pg_temp.clv_ref(NULL)) BETWEEN 201 AND 300
+  AND (SELECT bool_and(a.sort_key = b.sort_key)
+         FROM (VALUES (NULL::text), ('clv-bulk')) l(spec)
+         CROSS JOIN (VALUES (100), (200)) e(edge)
+         JOIN LATERAL pg_temp.clv_ref(l.spec) a ON a.pos = e.edge
+         JOIN LATERAL pg_temp.clv_ref(l.spec) b ON b.pos = e.edge + 1),
+  'warunek wstępny: remis kluczy A13 na stykach stron 100/101 i 200/201 obu list');
+-- Sedno dla klienta (/club stronicuje po p_offset): sklejone strony to KAŻDY
+-- widoczny klub dokładnie RAZ. Duplikat klient usuwa, dziury nie widzi.
+SELECT is(
+  (SELECT format('brakuje %s, powtórzonych %s',
+                 (SELECT count(*) FROM (SELECT id FROM pg_temp.clv_ref(NULL) EXCEPT SELECT id FROM pg_temp.clv_paged(NULL)) x),
+                 (SELECT count(*) - count(DISTINCT id) FROM pg_temp.clv_paged(NULL)))),
+  'brakuje 0, powtórzonych 0',
+  'strony 0/100/200 club_list - każdy widoczny klub dokładnie raz (remis na styku nie gubi klubu)');
+-- Porządek całkowity: sklejone strony = referencja wiersz w wiersz, w obu listach.
+SELECT is(
+  (SELECT count(*) FROM pg_temp.clv_ref(NULL) r FULL JOIN pg_temp.clv_paged(NULL) p ON p.pos = r.pos
+    WHERE r.id IS DISTINCT FROM p.id),
+  0::bigint,
+  'strony 0/100/200 club_list = pełna lista w porządku (członkostwo, aktywność, nazwa, id)');
+SELECT is(
+  (SELECT count(*) FROM pg_temp.clv_ref('clv-bulk') r FULL JOIN pg_temp.clv_paged('clv-bulk') p ON p.pos = r.pos
+    WHERE r.id IS DISTINCT FROM p.id),
+  0::bigint,
+  'strony 0/100/200 club_list_by_specialization = pełna lista specjalizacji w porządku z id');
 
 -- Ile razy club_capabilities() biegnie na jedno wywołanie listy. A13: strona
 -- (5) plus bramka sekretów tenantu - nie każdy z ponad 200 klubów.

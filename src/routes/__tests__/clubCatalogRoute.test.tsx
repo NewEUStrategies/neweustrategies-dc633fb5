@@ -31,7 +31,7 @@
 // - STRONICOWANIA NA ŻYWYM react-query: `clubCatalogPaging.test.tsx` (ta sama
 //   trasa, prawdziwy `useClubList`, atrapa RPC `club_list` z sufitem A13).
 //   Tu hook jest atrapą, więc dowodzimy wyłącznie tego, co trasa robi
-//   z `hasNextPage`/`fetchNextPage`/`isFetchNextPageError`.
+//   z `hasNextPage`/`fetchNextPage`/`isFetching`/`isFetchNextPageError`.
 // - DOSTĘPU: `hubAccess.test.ts` (`resolveClubHubAccess`). Tu dowodzimy, że
 //   trasa woła go z LICZBĄ aktywnych członkostw i liczbą zaproszeń, i że
 //   gościowi nie podaje stanu dostępu wcale.
@@ -79,6 +79,8 @@ const h = vi.hoisted(() => ({
   /** Stan doładowania porcji z atrapy `useClubList`. */
   hasNextPage: false,
   fetchingNext: false,
+  /** Refetch porcji w locie (np. po inwalidacji `list()`), bez własnej porcji. */
+  refetching: false,
   fetchNextPageError: false,
   /** Wynik, którym rozwiązuje się `fetchNextPage()`. */
   nextPageResult: { isFetchNextPageError: false },
@@ -123,6 +125,8 @@ vi.mock("@/lib/clubs/useClubs", () => ({
       isFetchNextPageError: h.fetchNextPageError,
       hasNextPage: h.hasNextPage,
       isFetchingNextPage: h.fetchingNext,
+      // Jak w react-query: `isFetching` obejmuje porcję i refetch.
+      isFetching: h.fetchingNext || h.refetching,
       fetchNextPage: h.fetchNextPage,
       refetch: h.refetch,
     };
@@ -286,6 +290,7 @@ beforeEach(() => {
   h.listArgs = [];
   h.hasNextPage = false;
   h.fetchingNext = false;
+  h.refetching = false;
   h.fetchNextPageError = false;
   h.nextPageResult = { isFetchNextPageError: false };
   h.fetchNextPage.mockReset();
@@ -542,6 +547,35 @@ describe("zalogowany - katalog ze sterowaniem", () => {
     expect(button.getAttribute("aria-busy")).toBe("true");
     fireEvent.click(button);
     expect(h.fetchNextPage).not.toHaveBeenCalled();
+  });
+
+  it("refetch porcji w locie (po inwalidacji) też wyłącza przycisk", async () => {
+    // `fetchNextPage()` z domyślnym `cancelRefetch: true` anulował taki
+    // refetch: stare porcje + nowa szły do cache'u jako świeże, a znacznik
+    // inwalidacji znikał (dołączony klub nie trafiał do „Moich”). Przycisk
+    // wyłączony tylko na `isFetchingNextPage` tego nie blokował.
+    h.clubs = { rows: [clubListRow()], total: 250 };
+    h.hasNextPage = true;
+    h.refetching = true;
+    await mount();
+    const button = screen.getByRole("button", { name: /club\.hub\.showMore/ });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(button);
+    expect(h.fetchNextPage).not.toHaveBeenCalled();
+  });
+
+  it("porcja idzie z `cancelRefetch: false` - kliknięcie nie anuluje fetchu w locie", async () => {
+    // Pas bezpieczeństwa na okno między startem refetchu a renderem, który
+    // wyłączy przycisk: z `false` react-query oddaje obietnicę fetchu w locie,
+    // zamiast go anulować.
+    h.clubs = { rows: [clubListRow()], total: 250 };
+    h.hasNextPage = true;
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: /club\.hub\.showMore/ }));
+    await waitFor(() => {
+      expect(h.fetchNextPage).toHaveBeenCalledWith({ cancelRefetch: false });
+    });
   });
 
   it("nieudana porcja NIE gasi huba - karty zostają, toast mówi o awarii", async () => {

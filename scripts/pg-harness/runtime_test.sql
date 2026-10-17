@@ -3054,7 +3054,7 @@ SELECT pg_temp.assert(
 
 -- ===========================================================================
 -- A13R: listy klubow - bramka sekretu, limit strony, zdolnosci dla strony
---       (20261017130000)
+--       (20261017130000) i porzadek calkowity stron (20261017150000)
 --
 -- club_list_by_specialization (od 20260811110015) nie miala bramki klubu
 -- 'secret': kazdy zalogowany z tenantu listowal sekrety specjalizacji (id,
@@ -3066,6 +3066,9 @@ SELECT pg_temp.assert(
 -- Sekcja 51 tego nie widziala: pyta o limit 1 i 100, nigdy o 10000, a koszt
 -- zdolnosci nie jest obserwowalny w wyniku. Tu liczymy wywolania
 -- club_capabilities (track_functions) - to jest wlasciwy dowod A13.
+-- 20261017150000 dopisuje id na koncu obu ORDER BY: remis kluczy A13 na
+-- styku stron (kluby bez aktywnosci o tej samej nazwie) dawal przy
+-- stronicowaniu po p_offset jeden klub dwa razy, a inny ani razu (A13R.6).
 -- ===========================================================================
 \echo '== A13R.1 Fixture: kluby jednej specjalizacji w kazdym stanie =='
 RESET ROLE;
@@ -3236,13 +3239,24 @@ SELECT pg_temp.assert(
     (SELECT count(*) FROM public.club_activity_feed(999, 'new', NULL, 1))));
 ROLLBACK;
 
-\echo '== A13R.6 Limit strony 200 i zdolnosci liczone tylko dla strony =='
+\echo '== A13R.6 Limit strony 200, porzadek calkowity stron i zdolnosci liczone tylko dla strony =='
 -- Ponad 200 klubow tylko na czas tej transakcji: generate_series zamiast
 -- dwustu wywolan admin_club_upsert.
+--
+-- Nazwy z REMISAMI (20261017150000): 20 grup po 10-11 klubow o tej samej
+-- lower(name_pl) - wielkosc liter na zmiane - i bez aktywnosci, czyli remis
+-- na KAZDYM kluczu A13 poza id. Tak wygladaja realne kluby bez watkow
+-- o powtorzonej nazwie (name_pl nie jest unikatowe, last_activity_at bez
+-- DEFAULT). Bez id na koncu ORDER BY strona offset 0 (top-N heapsort)
+-- i strona offset 100 (quicksort) porzadkuja remis inaczej: na styku jeden
+-- klub wraca dwa razy, a inny ani razu. Warunek wstepny nizej sprawdza, ze
+-- remis faktycznie stoi na obu stykach (100/101 i 200/201) - harness nie
+-- zna liczby klubow z innych sekcji, wiec pozycje nie sa stalymi.
 BEGIN;
 INSERT INTO public.clubs (tenant_id, slug, name_pl, name_en, visibility, status, specialization_slug)
 SELECT '11111111-1111-1111-1111-111111111111', format('cl-bulk-%s', lpad(i::text, 3, '0')),
-       format('CL bulk %s', lpad(i::text, 3, '0')), format('CL bulk %s', i), 'public', 'active', 'cl-bulk'
+       format(CASE WHEN i % 2 = 0 THEN 'CL bulk %s' ELSE 'cl BULK %s' END, lpad((i % 20)::text, 2, '0')),
+       format('CL bulk %s', i), 'public', 'active', 'cl-bulk'
   FROM generate_series(1, 205) i;
 SET request.jwt.claim.sub = 'd1000000-0000-0000-0000-000000000001';
 SELECT pg_temp.assert(
@@ -3255,28 +3269,66 @@ SELECT pg_temp.assert(
     AND (SELECT max(total_count) FROM public.club_list_by_specialization('cl-bulk', 10000, 0)) = 205,
   format('A13R: club_list_by_specialization(10000) oddaje najwyzej 200 wierszy (wierszy: %s)',
     (SELECT count(*) FROM public.club_list_by_specialization('cl-bulk', 10000, 0))));
--- Strony sklejone przez p_offset = pelna lista w kolejnosci A13 (czlonkostwo,
--- aktywnosc, nazwa). Referencja liczy zdolnosci dla KAZDEGO klubu - jak 0028.
+-- Referencja: pelna lista widoczna dla obcego (zdolnosci dla KAZDEGO klubu,
+-- jak 0028) w porzadku A13 z id na koncu - jedyna kolejnosc, ktora daje sie
+-- porownac wiersz w wiersz.
+CREATE OR REPLACE FUNCTION pg_temp.cl_ref(_spec text)
+RETURNS TABLE(pos bigint, id uuid, sort_key text)
+LANGUAGE sql AS $$
+  SELECT row_number() OVER w, c.id, ((m.user_id IS NOT NULL), c.last_activity_at, lower(c.name_pl))::text
+    FROM public.clubs c
+    LEFT JOIN public.club_members m ON m.club_id = c.id AND m.user_id = auth.uid() AND m.status = 'active'
+    CROSS JOIN LATERAL public.club_capabilities(c.id, NULL, auth.uid()) k
+   WHERE c.tenant_id = '11111111-1111-1111-1111-111111111111' AND c.status = 'active'
+     AND (_spec IS NULL OR c.specialization_slug = _spec)
+     AND (c.visibility IN ('public', 'members', 'private') OR k.can_read)
+  WINDOW w AS (ORDER BY (m.user_id IS NOT NULL) DESC, c.last_activity_at DESC NULLS LAST, lower(c.name_pl) ASC, c.id ASC)
+$$;
+-- Strony 0/100/200 po 100 wierszy, sklejone w kolejnosci stron i wierszy
+-- (ORDINALITY = pozycja w zwrotce funkcji).
+CREATE OR REPLACE FUNCTION pg_temp.cl_paged(_spec text)
+RETURNS TABLE(pos bigint, id uuid)
+LANGUAGE sql AS $$
+  SELECT row_number() OVER (ORDER BY pg.o, f.ordinality), f.id
+    FROM (VALUES (0), (100), (200)) pg(o)
+    CROSS JOIN LATERAL public.club_list(100, pg.o) WITH ORDINALITY f
+   WHERE _spec IS NULL
+  UNION ALL
+  SELECT row_number() OVER (ORDER BY pg.o, f.ordinality), f.id
+    FROM (VALUES (0), (100), (200)) pg(o)
+    CROSS JOIN LATERAL public.club_list_by_specialization(_spec, 100, pg.o) WITH ORDINALITY f
+   WHERE _spec IS NOT NULL
+$$;
 SELECT pg_temp.assert(
-  (SELECT array_agg(f.id ORDER BY f.id)
-     FROM (VALUES (0), (100), (200)) pg(o) CROSS JOIN LATERAL public.club_list(100, pg.o) f)
-  = (SELECT array_agg(c.id ORDER BY c.id) FROM public.clubs c
-       CROSS JOIN LATERAL public.club_capabilities(c.id, NULL, auth.uid()) k
-      WHERE c.tenant_id = '11111111-1111-1111-1111-111111111111' AND c.status = 'active'
-        AND (c.visibility IN ('public', 'members', 'private') OR k.can_read))
-  -- Kolejnosc porownana po KLUCZACH sortowania (remis kluczy = dowolna
-  -- kolejnosc wierszy, wiec porownanie id byloby losowe), pozycja z ORDINALITY.
-  AND (SELECT array_agg((f.my_status IS NOT NULL, f.last_activity_at, lower(f.name_pl))::text ORDER BY pg.o, f.ordinality)
-         FROM (VALUES (0), (100), (200)) pg(o)
-         CROSS JOIN LATERAL public.club_list(100, pg.o) WITH ORDINALITY f)
-  = (SELECT array_agg((m.user_id IS NOT NULL, c.last_activity_at, lower(c.name_pl))::text
-                      ORDER BY (m.user_id IS NOT NULL) DESC, c.last_activity_at DESC NULLS LAST, lower(c.name_pl) ASC)
-       FROM public.clubs c
-       LEFT JOIN public.club_members m ON m.club_id = c.id AND m.user_id = auth.uid() AND m.status = 'active'
-       CROSS JOIN LATERAL public.club_capabilities(c.id, NULL, auth.uid()) k
-      WHERE c.tenant_id = '11111111-1111-1111-1111-111111111111' AND c.status = 'active'
-        AND (c.visibility IN ('public', 'members', 'private') OR k.can_read)),
-  'A13R: strony 100+100+100 skladaja sie w pelna liste 0028 - ten sam zbior i ta sama kolejnosc');
+  (SELECT count(*) FROM pg_temp.cl_ref(NULL)) BETWEEN 201 AND 300
+    AND (SELECT a.sort_key = b.sort_key FROM pg_temp.cl_ref(NULL) a JOIN pg_temp.cl_ref(NULL) b ON b.pos = a.pos + 1 WHERE a.pos = 100)
+    AND (SELECT a.sort_key = b.sort_key FROM pg_temp.cl_ref(NULL) a JOIN pg_temp.cl_ref(NULL) b ON b.pos = a.pos + 1 WHERE a.pos = 200)
+    AND (SELECT a.sort_key = b.sort_key FROM pg_temp.cl_ref('cl-bulk') a JOIN pg_temp.cl_ref('cl-bulk') b ON b.pos = a.pos + 1 WHERE a.pos = 100)
+    AND (SELECT a.sort_key = b.sort_key FROM pg_temp.cl_ref('cl-bulk') a JOIN pg_temp.cl_ref('cl-bulk') b ON b.pos = a.pos + 1 WHERE a.pos = 200),
+  format('A13R: warunek wstepny - remis kluczy A13 na stykach stron 100/101 i 200/201 obu list (widocznych: %s)',
+    (SELECT count(*) FROM pg_temp.cl_ref(NULL))));
+-- Sedno dla klienta (/club stronicuje po p_offset): sklejone strony to KAZDY
+-- widoczny klub dokladnie RAZ. Duplikat klient usuwa, ale dziury nie widzi.
+SELECT pg_temp.assert(
+  (SELECT count(*) = count(DISTINCT id) FROM pg_temp.cl_paged(NULL))
+    AND NOT EXISTS (SELECT id FROM pg_temp.cl_ref(NULL) EXCEPT SELECT id FROM pg_temp.cl_paged(NULL))
+    AND NOT EXISTS (SELECT id FROM pg_temp.cl_paged(NULL) EXCEPT SELECT id FROM pg_temp.cl_ref(NULL)),
+  format('A13R: strony 0/100/200 club_list - kazdy widoczny klub dokladnie raz (brakuje: %s, powtorzonych: %s)',
+    (SELECT count(*) FROM (SELECT id FROM pg_temp.cl_ref(NULL) EXCEPT SELECT id FROM pg_temp.cl_paged(NULL)) x),
+    (SELECT count(*) - count(DISTINCT id) FROM pg_temp.cl_paged(NULL))));
+-- Porzadek calkowity: sklejone strony = referencja wiersz w wiersz, w obu listach.
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM pg_temp.cl_ref(NULL) r FULL JOIN pg_temp.cl_paged(NULL) p ON p.pos = r.pos
+               WHERE r.id IS DISTINCT FROM p.id),
+  format('A13R: strony 0/100/200 club_list = pelna lista w porzadku (czlonkostwo, aktywnosc, nazwa, id) (rozne pozycje: %s)',
+    (SELECT count(*) FROM pg_temp.cl_ref(NULL) r FULL JOIN pg_temp.cl_paged(NULL) p ON p.pos = r.pos
+      WHERE r.id IS DISTINCT FROM p.id)));
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM pg_temp.cl_ref('cl-bulk') r FULL JOIN pg_temp.cl_paged('cl-bulk') p ON p.pos = r.pos
+               WHERE r.id IS DISTINCT FROM p.id),
+  format('A13R: strony 0/100/200 club_list_by_specialization = pelna lista specjalizacji w porzadku z id (rozne pozycje: %s)',
+    (SELECT count(*) FROM pg_temp.cl_ref('cl-bulk') r FULL JOIN pg_temp.cl_paged('cl-bulk') p ON p.pos = r.pos
+      WHERE r.id IS DISTINCT FROM p.id)));
 -- Dowod A13 wprost: ile razy club_capabilities() biegnie na jedno wywolanie.
 -- Strona 5 wierszy + bramka sekretow tenantu, a nie ponad 200 klubow.
 SET LOCAL track_functions = 'all';

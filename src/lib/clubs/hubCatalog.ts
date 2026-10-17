@@ -194,12 +194,16 @@ export function nextClubCatalogOffset(
  * Sklejenie porcji w jeden katalog: kolejność serwera, każdy klub RAZ.
  *
  * DEDUPLIKACJA PO `id`. Porządek `club_list` (`is_mine DESC,
- * last_activity_at DESC NULLS LAST, lower(name_pl)`) żyje: nowy wątek
- * podnosi klub na początek, nowy klub wchodzi w porządek, a dołączenie
- * przenosi klub do „moich" na górze. Offset kolejnej porcji liczy się wtedy
- * od przesuniętej listy, więc wiersz z końca porcji N wraca na początku
- * porcji N+1. Bez deduplikacji ten sam klub stałby w katalogu dwa razy
- * (dwa takie same klucze Reacta, podwójne liczniki w `clubHubStats`).
+ * last_activity_at DESC NULLS LAST, lower(name_pl), id`) jest CAŁKOWITY
+ * (id na końcu od 20261017150000 - bez niego remis na styku porcji dawał
+ * duplikat i DZIURĘ już na statycznych danych, a dziury stąd nie widać), ale
+ * żyje: nowy wątek podnosi klub na początek, nowy klub wchodzi w porządek,
+ * a dołączenie przenosi klub do „moich" na górze. Offset kolejnej porcji
+ * liczy się wtedy od przesuniętej listy, więc wiersz z końca porcji N wraca
+ * na początku porcji N+1. Bez deduplikacji ten sam klub stałby w katalogu
+ * dwa razy (dwa takie same klucze Reacta, podwójne liczniki w
+ * `clubHubStats`). Klub, który wskoczył na porcję JUŻ wczytaną, ominie
+ * offset aż do refetchu - to wymagałoby kursora, nie deduplikacji.
  * Wygrywa PIERWSZE wystąpienie - ono stoi tam, gdzie użytkownik już je
  * widział, więc doładowanie nie przestawia kart nad przyciskiem.
  *
