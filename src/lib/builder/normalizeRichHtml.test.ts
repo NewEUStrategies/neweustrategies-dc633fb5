@@ -362,10 +362,12 @@ describe.each(ENGINES)("$name - defekty", ({ normalize }) => {
 // jest drzewo, które przeglądarka zbuduje z wyniku (`browserForm`), bo to ono
 // trafia na stronę - bajty różnią się z powodów opisanych na górze pliku.
 //
-// Korpus jest ZGODNY z HTML5 (żadnej listy w `<p>`, żadnego `<a>` w `<a>`,
-// wszystko domknięte) - tak wygląda HTML zapisany przez edytory buildera,
-// który zawsze jest serializacją DOM-u. Na wejściu niepoprawnym parsery
-// naprawiają drzewo różnie; te różnice są spisane w ostatnim teście.
+// Korpus jest ZGODNY z HTML5 (żadnej listy w `<p>`, żadnego `<a>` w `<a>`)
+// i WSZYSTKO w nim jest jawnie domknięte - tak wygląda HTML zapisany przez
+// edytory buildera, który zawsze jest serializacją DOM-u. Sama zgodność
+// z HTML5 nie wystarcza: na wejściu niepoprawnym ORAZ na poprawnym HTML5
+// z pominiętymi opcjonalnymi znacznikami końcowymi (`</p>`, `</li>`, `</td>`,
+// `</tr>`) parsery budują różne drzewa; te różnice są spisane w ostatnim teście.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Losowy, ale powtarzalny dokument z listami: LCG ze stałym ziarnem. */
@@ -441,7 +443,7 @@ describe("normalizeBuilderRichHtml - parytet serwera i przeglądarki", () => {
     ].forEach(sameTree);
   });
 
-  it("500 losowych dokumentów zgodnych z HTML5 daje to samo drzewo", () => {
+  it("500 losowych dokumentów zgodnych z HTML5, jawnie domkniętych, daje to samo drzewo", () => {
     conformingCorpus(500).forEach(sameTree);
   });
 
@@ -453,7 +455,7 @@ describe("normalizeBuilderRichHtml - parytet serwera i przeglądarki", () => {
     expect(normalizeBuilderRichHtmlDom(input)).toBe('<ul class="x"><li>&nbsp;"a" é</li></ul>');
   });
 
-  it("ZNANE RÓŻNICE na wejściu niepoprawnym: parsery naprawiają je inaczej", () => {
+  it("ZNANE RÓŻNICE: wejście niepoprawne i pominięte opcjonalne znaczniki końcowe", () => {
     // (1) Niedomknięta lista: node-html-parser rozpakowuje niedomknięte `<li>`
     //     (tekst zostaje luzem w `<ul>`), a krok 2 usuwa listę bez punktów
     //     razem z tym tekstem - serwer GUBI treść (defekt sprzed bliźniaka DOM).
@@ -476,5 +478,19 @@ describe("normalizeBuilderRichHtml - parytet serwera i przeglądarki", () => {
     const inPre = "<pre><ul><li>&nbsp;</li><li>Kod</li></ul></pre>";
     expect(normalizeBuilderRichHtml(inPre)).toBe(inPre);
     expect(normalizeBuilderRichHtmlDom(inPre)).toBe("<pre><ul><li>Kod</li></ul></pre>");
+    // (4) Poprawny HTML5 z pominiętym `</p>` przed listą: HTML5 zamyka akapit
+    //     przed `<ul>`, node-html-parser nie - po usunięciu pustej listy
+    //     serwer skleja tekst sprzed i zza niej w jeden akapit.
+    const omittedP = "<p>Intro<ul><li>&nbsp;</li></ul>Po";
+    expect(browserForm(normalizeBuilderRichHtml(omittedP))).toBe("<p>IntroPo</p>");
+    expect(normalizeBuilderRichHtmlDom(omittedP)).toBe("<p>Intro</p>Po");
+    // (5) Poprawny HTML5 z pominiętymi `</p>`/`</li>` przed `</ol>`: serwer
+    //     GUBI całą listę razem z tekstem (defekt sprzed bliźniaka DOM),
+    //     przeglądarka domyka znaczniki wg HTML5. Przypadek z tabelą
+    //     (`</td>`/`</tr>` pominięte) opisany w `normalizeRichHtmlDom.ts`
+    //     nie ma tu testu - happy-dom nie parsuje tabel wg specyfikacji.
+    const omittedLi = "<ol><li><p>A<p>B</ol>";
+    expect(normalizeBuilderRichHtml(omittedLi)).toBe("");
+    expect(normalizeBuilderRichHtmlDom(omittedLi)).toBe("<ol><li><p>A</p><p>B</p></li></ol>");
   });
 });

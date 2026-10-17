@@ -11,21 +11,36 @@
 // imporcie), więc moduł można bezpiecznie zaimportować w grafie SSR, ale wołać
 // wolno wyłącznie w efektach, handlerach albo w gałęzi `.client()`.
 //
-// RÓŻNICE WZGLĘDEM SERWERA - wyłącznie serializacja, to samo drzewo po
-// sparsowaniu przez przeglądarkę (dowód: test parytetu w
-// `normalizeRichHtml.test.ts`):
+// RÓŻNICE WZGLĘDEM SERWERA - dla HTML z jawnie domkniętymi elementami
+// wyłącznie serializacja, to samo drzewo po sparsowaniu przez przeglądarkę
+// (dowód: test parytetu w `normalizeRichHtml.test.ts`):
 //   * nazwy znaczników małymi literami (`<UL>` -> `<ul>`),
 //   * encje w postaci kanonicznej przeglądarki (`&#160;` -> `&nbsp;`,
 //     `&quot;` w tekście -> `"`, `&eacute;` -> `é`),
 //   * atrybuty zawsze w cudzysłowach `"`.
-// Na wejściu NIEPOPRAWNYM wg HTML5 przeglądarka naprawia drzewo inaczej niż
-// node-html-parser: niedomknięte `<ul><li>tekst` serwer gubi razem z tekstem,
-// a DOM zachowuje punkt; lista w `<p>` (HTML5 zamyka akapit przed `<ul>`)
-// po usunięciu zostawia tekst za nią na serwerze w akapicie, w DOM-ie poza
-// nim; listę w `<pre>` serwer czyta jako tekst. Edytory buildera zapisują
-// serializację DOM-u, więc takie wejście przychodzi tylko z importu albo
-// ręcznego kodu - a pierwsze wejście i tak pokazuje wersję serwera
-// (`RichHtmlListView.tsx`). Przypadki spisane w teście „ZNANE RÓŻNICE”.
+// Na wejściu niepoprawnym ORAZ przy pominiętych opcjonalnych znacznikach
+// końcowych (poprawny HTML5, ale node-html-parser nie zna reguł domykania
+// z parsera HTML5) przeglądarka buduje inne drzewo niż serwer:
+//   * niedomknięte `<ul><li>tekst` serwer gubi razem z tekstem, a DOM
+//     zachowuje punkt;
+//   * lista w `<p>` (HTML5 zamyka akapit przed `<ul>`) po usunięciu zostawia
+//     tekst za nią na serwerze w akapicie, w DOM-ie poza nim;
+//   * `<p>Intro<ul><li>&nbsp;</li></ul>Po` (poprawny HTML5, `</p>` pominięte):
+//     serwer skleja w `<p>IntroPo</p>`, DOM daje `<p>Intro</p>Po`;
+//   * `<ol><li><p>A<p>B</ol>` (poprawny HTML5, `</p>`/`</li>` pominięte):
+//     serwer zwraca "" - GUBI całą listę razem z tekstem (defekt sprzed
+//     bliźniaka DOM), DOM daje `<ol><li><p>A</p><p>B</p></li></ol>`;
+//   * `<table><tr><td>A<td>B</table><ul><li><ul><li>Z</li></ul></li></ul>`
+//     (`</td>`/`</tr>` pominięte): serwer wsuwa listę do tabeli, DOM daje
+//     tabelę, a za nią `<ul><li>Z</li></ul>`;
+//   * listę w `<pre>` serwer czyta jako tekst.
+// We wszystkich tych przypadkach myli się serwer. Edytory buildera zapisują
+// serializację DOM-u (wszystko jawnie domknięte), więc takie wejście
+// przychodzi tylko z importu albo ręcznego kodu - a pierwsze wejście i tak
+// pokazuje wersję serwera (`RichHtmlListView.tsx`); różnicę widać przy
+// nawigacji po kliencie i na kanwie edytora. Przypadki (bez tabeli -
+// happy-dom nie parsuje tabel wg specyfikacji) spisane w teście
+// „ZNANE RÓŻNICE”.
 import {
   isBlankListText,
   LIST_ITEM_KEEPERS,

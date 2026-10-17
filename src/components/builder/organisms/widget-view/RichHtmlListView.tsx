@@ -14,10 +14,13 @@ import { RichHtmlContent, type RichHtmlProps } from "./RichHtmlContent";
 // `html`, `className` albo `style` (nowy obiekt stylu o tej samej treści nic
 // nie zmienia), więc strona wczytana z serwera zostaje przy HTML-u
 // znormalizowanym na serwerze; wynik bliźniaka DOM widać dopiero przy
-// nawigacji po stronie klienta. Dla HTML poprawnego wg HTML5 oba silniki
-// dają to samo drzewo (test parytetu w `normalizeRichHtml.test.ts`); rozjazd
-// jest tylko na wejściu niepoprawnym, np. lista wewnątrz `<p>` albo
-// niedomknięty `<li>` - opis w `normalizeRichHtmlDom.ts`.
+// nawigacji po stronie klienta. Dla HTML z jawnie domkniętymi elementami
+// (tak zapisują edytory buildera) oba silniki dają to samo drzewo (test
+// parytetu w `normalizeRichHtml.test.ts`); rozjazd jest na wejściu
+// niepoprawnym ORAZ na poprawnym HTML5 z pominiętymi opcjonalnymi znacznikami
+// końcowymi (`</p>` przed listą, `</li>`/`</p>` przed `</ol>`, `</td>`/`</tr>`):
+// node-html-parser skleja akapity, gubi listę albo przestawia ją względem
+// tabeli - opis w `normalizeRichHtmlDom.ts`.
 const normalizeListHtml = createIsomorphicFn()
   .server((html: string) => normalizeBuilderRichHtml(html))
   .client((html: string) => normalizeBuilderRichHtmlDom(html));

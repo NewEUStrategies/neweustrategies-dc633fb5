@@ -29,8 +29,10 @@ function meaningfulChildren(element: HTMLElement) {
  * browser runs the same passes on its native parser in `normalizeRichHtmlDom.ts`
  * (rules shared through `normalizeRichHtmlRules.ts`), so node-html-parser
  * (~47 KB gzip) never ships to readers. `normalizeRichHtml.test.ts` runs every
- * case against both engines: on HTML5-conforming input they build the same
- * tree (only the serialisation differs); malformed input is listed there.
+ * case against both engines: on input with every element explicitly closed
+ * they build the same tree (only the serialisation differs); malformed input
+ * and omitted optional end tags (`</p>`, `</li>`, `</td>`, `</tr>`) are
+ * listed there and in `normalizeRichHtmlDom.ts`.
  */
 export function normalizeBuilderRichHtml(html: string): string {
   if (!html || !LIST_MARKUP.test(html)) return html;
