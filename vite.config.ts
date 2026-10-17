@@ -227,9 +227,10 @@ export default defineConfig({
         //
         // REACT-MARKDOWN TU JUŻ NIE MA (2026-10): podgląd Markdownu w edytorze
         // wpisu renderuje `marked` (post-editor/lib/markdownPreview.ts). Ten
-        // pakiet to czysty ESM bez zależności (`exports.import` ->
-        // lib/marked.esm.js), więc nie ma czego prebundlować - przy
-        // `noDiscovery: true` obowiązek wpisu dotyczy tylko grafów z CJS.
+        // pakiet (18.x) to czysty ESM bez zależności (`type: module`,
+        // `exports["."].default` -> lib/marked.esm.js), więc nie ma czego
+        // prebundlować - przy `noDiscovery: true` obowiązek wpisu dotyczy
+        // tylko grafów z CJS.
         //
         // WYKRESÓW TU JUŻ NIE MA. Pulpity rysowały przez `echarts-for-react`,
         // czyli moduł CJS wymagający prebundlingu; nasz silnik jest zwykłym

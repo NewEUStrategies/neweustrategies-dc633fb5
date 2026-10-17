@@ -55,8 +55,26 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
         rows={20}
         className="font-mono text-sm"
       />
+      {/* `[contain:paint]` TO GRANICA BEZPIECZEŃSTWA, nie kosmetyka. Polityka
+          `sanitizeMarkdownHtml` zostawia atrybut `style` (inline style we
+          wpisach mają działać po publikacji), a podgląd renderuje teraz surowy
+          HTML z Markdownu. Bez izolacji autor może zapisać
+          `<div style="position:fixed;inset:0;z-index:2147483647">` z fałszywym
+          „Sesja wygasła, zaloguj ponownie" i przykryć cały panel każdemu, kto
+          otworzy szkic - `overflow-auto` tego nie trzyma, bo element fixed
+          liczy się od viewportu. Paint containment czyni to pudełko blokiem
+          zawierającym dla fixed/absolute, przycina rysowanie do jego krawędzi
+          i zakłada kontekst warstw, więc z-index nie wydostanie się ponad
+          resztę panelu. Inline style wpisu nadal widać - w pudełku.
+          ZASIĘG: to zatrzymuje nakładki, które działają BEZ kliknięcia. Nie
+          zatrzymuje top layer: polityka zostawia `popover`/`popovertarget`,
+          więc po kliknięciu autorskiego `<button popovertarget>` popover
+          wychodzi ponad panel mimo containmentu. Ta sama luka jest na
+          `/preview/$token` i na stronach publicznych - domknięcie jej (te
+          atrybuty do FORBID_ATTR polityki) zmienia publikację, więc to osobna
+          zmiana, nie część podglądu. */}
       <div
-        className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto"
+        className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto [contain:paint]"
         dangerouslySetInnerHTML={{ __html: previewHtml }}
       />
     </div>

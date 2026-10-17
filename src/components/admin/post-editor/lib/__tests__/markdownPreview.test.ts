@@ -200,3 +200,102 @@ describe("podgląd PostEditora (sanityzacja PO parserze) - XSS", () => {
     expect(root.querySelector("b")?.textContent).toBe("pogrubiony");
   });
 });
+
+describe("markdownToUnsafeHtml - odporność: szkic autora nie zamraża ani nie wywraca edytora", () => {
+  // Podgląd parsuje SYNCHRONICZNIE przy otwarciu wpisu i na każdy znak, a szkic
+  // może zapisać inna osoba (rola `author`).
+  //
+  // Dowód działania strażnika akcentów jest DETERMINISTYCZNY: po wyczerpaniu
+  // budżetu akcent w kolejnym akapicie zostaje dosłownym tekstem (bez
+  // strażnika byłby `<em>`), a łańcuch zagnieżdżeń urywa się zamiast przepełnić
+  // stos. Progi czasowe są tylko drugą linią, z zapasem >= 10x na obciążone CI
+  // (zmierzone 10-300 ms; bez zabezpieczeń te wejścia to 5-30 s).
+  const timed = (md: string) => {
+    const t0 = performance.now();
+    const html = markdownToUnsafeHtml(md);
+    return { html, ms: performance.now() - t0 };
+  };
+  const TAIL = "\n\nKoniec *ostatni*";
+
+  it("niedomknięte `![a](`/`[a](` parsują się liniowo (marked 15.0.12: 5 KB ~ 8 s)", () => {
+    const img = timed("![a](".repeat(4000));
+    expect(img.ms).toBeLessThan(2000);
+    expect(dom(img.html).textContent?.trim()).toBe("![a](".repeat(4000));
+    expect(timed("[a](".repeat(16000)).ms).toBeLessThan(2000);
+  });
+
+  it.each([
+    ["`_a `", "_a ".repeat(8000)],
+    ["`**a `", "**a ".repeat(6000)],
+    ["`*(a `", "*(a ".repeat(8000)],
+    ["`[*a](`", "[*a](".repeat(6000)],
+    ["`*_ `", "*_ ".repeat(16000)],
+  ])(
+    "niedomknięte otwarcia akcentu %s wyczerpują budżet - tekst dosłownie, dalej bez akcentów",
+    (_, src) => {
+      const { html, ms } = timed(src + TAIL);
+      const root = dom(sanitizeMarkdownHtml(html));
+      expect(root.querySelector("em, strong")).toBeNull();
+      expect(root.textContent).toContain(src.trim());
+      // Deterministyczny dowód, że budżet zadziałał: bez niego tu byłby <em>.
+      expect(root.textContent).toContain("Koniec *ostatni*");
+      expect(ms).toBeLessThan(3000);
+    },
+  );
+
+  it("zagnieżdżone DOMKNIĘTE akcenty: łańcuch urywa się na budżecie, bez RangeError i <pre>", () => {
+    // Bez strażnika 3000 poziomów przepełnia stos (~2 s, potem <pre> ze
+    // źródłem), a 10 akapitów po 1500 poziomów to ~5 s kwadratowego skanu.
+    const chain = "*a ".repeat(3000) + "a* ".repeat(3000);
+    const deep = timed(chain + TAIL);
+    const root = dom(deep.html);
+    expect(root.querySelector("pre")).toBeNull();
+    const levels = root.querySelectorAll("em").length;
+    expect(levels).toBeGreaterThan(0);
+    expect(levels).toBeLessThan(3000);
+    expect(root.textContent).toContain("Koniec *ostatni*");
+    expect(deep.ms).toBeLessThan(3000);
+
+    const paras = Array.from({ length: 10 }, () => "*a ".repeat(1500) + "a* ".repeat(1500));
+    expect(timed(paras.join("\n\n")).ms).toBeLessThan(3000);
+  });
+
+  it("budżet akcentów jest per wywołanie - po patologicznym szkicu zwykły znowu ma akcenty", () => {
+    markdownToUnsafeHtml("*a ".repeat(8000));
+    const root = dom(preview("Zwykły *nacisk* i **mocno**."));
+    expect(root.querySelector("em")?.textContent).toBe("nacisk");
+    expect(root.querySelector("strong")?.textContent).toBe("mocno");
+  });
+
+  it("duży zwykły dokument nie wyczerpuje budżetu - akcent na samym końcu działa", () => {
+    const para = (i: number) =>
+      `Akapit ${i} z **pogrubieniem**, _kursywą_ i [linkiem](https://e.com/${i}).`;
+    const md = Array.from({ length: 2000 }, (_, i) => para(i)).join("\n\n") + TAIL;
+    const root = dom(markdownToUnsafeHtml(md));
+    expect(root.querySelectorAll("strong")).toHaveLength(2000);
+    expect([...root.querySelectorAll("em")].at(-1)?.textContent).toBe("ostatni");
+  });
+
+  it("`_` wewnątrz słowa i `*` przed spacją nic nie kosztują nawet w jednym długim akapicie", () => {
+    // Warunki wstępne skanu są przepisane z Tokenizer.emStrong: gdyby każde
+    // `snake_case` (tu 40 000, akapit ~320 KB) płaciło za resztę akapitu,
+    // budżet padłby po kilku słowach i końcowy akcent zostałby tekstem.
+    const md = "snake_case_name 5 * 3 ".repeat(20000) + "i *koniec*";
+    const root = dom(markdownToUnsafeHtml(md));
+    expect(root.querySelector("em")?.textContent).toBe("koniec");
+  });
+
+  it.each([
+    ["cytaty", "> "],
+    ["listy numerowane", "1. "],
+    ["cytat w liście", "- > "],
+  ])("głębokie zagnieżdżenie (%s) nie rzuca - podgląd pokazuje escapowane źródło", (_, unit) => {
+    const src = `${unit.repeat(5000)}<b>x</b>`;
+    let html = "";
+    expect(() => (html = markdownToUnsafeHtml(src))).not.toThrow();
+    const root = dom(sanitizeMarkdownHtml(html));
+    expect(root.querySelector("pre")?.textContent).toBe(src);
+    // Źródło jest TEKSTEM - znacznik z treści nie staje się elementem.
+    expect(root.querySelector("b")).toBeNull();
+  });
+});

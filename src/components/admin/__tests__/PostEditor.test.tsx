@@ -114,6 +114,35 @@ describe("PostEditor - tryb markdown", () => {
     expect(zeSkryptem.querySelector(".prose script")).toBeNull();
   });
 
+  it("podgląd izoluje rysowanie (contain:paint) - `position:fixed` ze szkicu nie przykryje panelu", () => {
+    // Sanitizer zostawia `style`, więc jedyną zaporą przed phishingową
+    // nakładką na cały panel (działającą bez kliknięcia; popover z
+    // `popovertarget` to osobna luka polityki - patrz komentarz w PostEditor)
+    // jest paint containment pudełka podglądu.
+    // happy-dom nie liczy layoutu - test przypina klasę, komentarz w
+    // PostEditor wyjaśnia mechanizm.
+    const { container } = render(
+      <PostEditor
+        mode="markdown"
+        value={'<div style="position:fixed;inset:0;z-index:2147483647">Sesja wygasła</div>'}
+        onChange={vi.fn()}
+      />,
+    );
+    const podglad = container.querySelector(".prose")!;
+    expect(podglad).toHaveClass("[contain:paint]");
+    expect(podglad.querySelector("div[style]")).not.toBeNull();
+  });
+
+  it("głęboko zagnieżdżony szkic nie wywraca edytora - podgląd pokazuje źródło", () => {
+    // react-markdown rzucał tu RangeError z renderu i zabierał cały edytor;
+    // marked też przepełnia stos, ale markdownToUnsafeHtml łapie to i oddaje
+    // źródło jako tekst.
+    const value = "> ".repeat(5000) + "x";
+    const { container } = render(<PostEditor mode="markdown" value={value} onChange={vi.fn()} />);
+    expect(screen.getByRole("textbox")).toHaveValue(value);
+    expect(container.querySelector(".prose pre")?.textContent).toBe(value);
+  });
+
   it("tryb markdown NIE renderuje paska narzędzi rich text", () => {
     // Pogrubienie przyciskiem w markdownie wstawiłoby HTML do dokumentu, który
     // ma być tekstem źródłowym.
