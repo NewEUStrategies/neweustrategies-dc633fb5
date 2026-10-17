@@ -1421,12 +1421,12 @@ function DeferredRootOverlays() {
  * Wczesny filtr chunk-load errors - NADZBIÓR `looksLikeChunkLoadError`
  * z `lib/cacheBusting.ts` dla błędów, jakie zgłaszają przeglądarki i Vite
  * (`Error` albo napis; dwa wzorce „…dynamically imported module" zwinięte
- * w jeden). Kopia, bo moduł cache-bustingu NIE może wejść do zamknięcia bootu,
+ * w jeden; „Unable to preload CSS" - arkusz chunku z pomocnika `import()` Vite). Kopia, bo moduł cache-bustingu NIE może wejść do zamknięcia bootu,
  * a filtr działa, zanim ten moduł się załaduje; moduł i tak sprawdza błąd
  * ponownie (`handleChunkLoadFailure`). Parytet: `rootRoute.test.tsx`.
  */
 const EARLY_CHUNK_LOAD_ERROR =
-  /ChunkLoadError|Loading chunk [\w-]+ failed|dynamically imported module|Importing a module script failed/i;
+  /ChunkLoadError|Loading chunk [\w-]+ failed|dynamically imported module|Importing a module script failed|Unable to preload CSS/i;
 
 type CacheBustingModule = Pick<
   typeof import("../lib/cacheBusting"),

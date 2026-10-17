@@ -126,7 +126,12 @@ export function looksLikeChunkLoadError(err: unknown): boolean {
     /Loading chunk [\w-]+ failed/i.test(msg) ||
     /Failed to fetch dynamically imported module/i.test(msg) ||
     /Importing a module script failed/i.test(msg) ||
-    /error loading dynamically imported module/i.test(msg)
+    /error loading dynamically imported module/i.test(msg) ||
+    // Pomocnik `import()` Vite: arkusz chunku (`.css` z listy zależności) nie wczytał się -
+    // po wdrożeniu stary plik znika tak samo jak stary chunk JS. Bez tego wzorca leniwy moduł
+    // z arkuszem (lightbox galerii) montowałby się przy kolejnej próbie BEZ stylów, bo pomocnik
+    // nie ponawia arkusza, który już raz próbował wczytać.
+    /Unable to preload CSS/i.test(msg)
   );
 }
 

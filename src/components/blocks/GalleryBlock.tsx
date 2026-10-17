@@ -11,42 +11,80 @@
 // pomocnik `import()` Vite czeka na arkusz, zanim moduł się wykona, więc lightbox nie
 // błyska bez stylów. Serwer i pierwszy render klienta nie renderują go wcale, więc
 // hydratacja się nie zmienia.
-import { lazy, Suspense, useState, type ComponentProps, type ComponentType } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+} from "react";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { buildScaledImageUrl, isSupabaseStorageUrl } from "@/lib/cropSizes";
+import { reportPlatformError } from "@/lib/platform-error-reporting";
 
 const loadLightbox = () => import("@/components/Lightbox");
+
+type LightboxProps = ComponentProps<typeof import("@/components/Lightbox").ImageLightbox>;
+
+/**
+ * Porażka rozgrzania (najechanie/fokus) przekazana pierwszemu otwarciu. Pomocnik `import()` Vite
+ * nie ponawia arkusza, który już raz próbował wczytać, więc ponowiony import po nieudanym
+ * rozgrzaniu zamontowałby lightbox bez stylów - kliknięcie ma zamiast tego dostać pierwotny błąd.
+ */
+let warmFailure: unknown;
 
 /**
  * Nieudane pobranie chunku (wdrożenie usunęło stary plik, zerwane łącze) NIE może zabrać galerii:
  * odrzucony `lazy` rzucałby w renderze do granicy błędu bloku, której fallback produkcyjny to
- * `null` - znikałyby też miniatury. Zamiast tego: pusty lightbox, błąd do siatki cache-bustingu
- * (jednorazowe przeładowanie przy chunk-load error) i świeży `lazy` dla następnego kliknięcia
- * (`React.lazy` zapamiętuje wynik, także porażkę).
+ * `null` - znikałyby też miniatury. Zamiast tego:
+ *  - chunk-load error idzie do siatki cache-bustingu (jednorazowe przeładowanie), każdy inny błąd
+ *    do raportu błędów platformy (tak jak dawniej z granicy błędu bloku);
+ *  - zastępczy komponent zamyka lightbox (`onClose`), więc kolejne kliknięcie - także w tę samą
+ *    miniaturę - jest prawdziwą zmianą stanu i renderuje już świeży `lazy` (`React.lazy` zapamiętuje
+ *    wynik, także porażkę). Zamknięty lightbox, który nigdy się nie wczytał, nie jest renderowany
+ *    (`lightboxLoaded`), więc porażka nie ponawia importu w tle - jedna próba na kliknięcie.
  */
-type LightboxProps = ComponentProps<typeof import("@/components/Lightbox").ImageLightbox>;
-
 function lazyLightbox() {
-  return lazy(() =>
-    loadLightbox().then(
-      (m): { default: ComponentType<LightboxProps> } => ({ default: m.ImageLightbox }),
+  return lazy(() => {
+    const failed = warmFailure;
+    warmFailure = undefined;
+    return (failed !== undefined ? Promise.reject(failed) : loadLightbox()).then(
+      (m): { default: ComponentType<LightboxProps> } => {
+        lightboxLoaded = true;
+        return { default: m.ImageLightbox };
+      },
       (error: unknown) => {
         ImageLightbox = lazyLightbox();
         void import("@/lib/cacheBusting").then(
-          (m) => m.handleChunkLoadFailure(error),
-          () => undefined,
+          (m) =>
+            m.looksLikeChunkLoadError(error)
+              ? m.handleChunkLoadFailure(error)
+              : reportPlatformError(error, { label: "block:gallery:lightbox" }),
+          () => reportPlatformError(error, { label: "block:gallery:lightbox" }),
         );
-        return { default: () => null };
+        return { default: LightboxLoadFailed };
       },
-    ),
-  );
+    );
+  });
 }
 let ImageLightbox = lazyLightbox();
+/** Moduł lightboxa wczytany: zamknięty zostaje zamontowany (animacja wyjścia). */
+let lightboxLoaded = false;
 
-/** Rozgrzanie chunku przed kliknięciem. Błąd sieci tu nie ma znaczenia: kliknięcie
- *  ponowi import, a nieudany chunk obsługuje siatka `cacheBusting`. */
+function LightboxLoadFailed({ onClose }: LightboxProps) {
+  useEffect(() => {
+    onClose();
+  }, [onClose]);
+  return null;
+}
+
+/** Rozgrzanie chunku przed kliknięciem. Porażka czeka na pierwsze otwarcie (`warmFailure`),
+ *  które oddaje ją siatce `cacheBusting` zamiast montować lightbox bez arkusza. */
 function warmLightbox(): void {
-  void loadLightbox().catch(() => undefined);
+  void loadLightbox().catch((error: unknown) => {
+    warmFailure ??= error;
+  });
 }
 
 /** Slajd lightboxa: przeskalowany wariant zamiast pełnego oryginału
@@ -68,8 +106,8 @@ interface Props {
 export function GalleryBlock({ images, className }: Props) {
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
-  // Raz zamontowany zostaje: zamknięcie przechodzi przez `open={false}`, żeby
-  // biblioteka odegrała animację wyjścia.
+  // Raz zamontowany i wczytany zostaje: zamknięcie przechodzi przez `open={false}`, żeby
+  // biblioteka odegrała animację wyjścia. Niewczytany (porażka chunku) znika po zamknięciu.
   const [mounted, setMounted] = useState(false);
 
   if (images.length === 0) return null;
@@ -101,7 +139,7 @@ export function GalleryBlock({ images, className }: Props) {
           </button>
         ))}
       </div>
-      {mounted && (
+      {mounted && (open || lightboxLoaded) && (
         <Suspense fallback={null}>
           <ImageLightbox
             open={open}

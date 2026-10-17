@@ -1940,6 +1940,7 @@ describe("__root - armCacheBusting (P1.3, TP-4)", () => {
       ["Chrome", new TypeError("Failed to fetch dynamically imported module: https://x/a.js")],
       ["Safari", new TypeError("Importing a module script failed.")],
       ["Firefox", new Error("error loading dynamically imported module: /b.js")],
+      ["Vite CSS", new Error("Unable to preload CSS for /assets/Lightbox-abc12345.css")],
       ["null", null],
       ["pusty napis", ""],
     ];
