@@ -69,6 +69,51 @@ describe("PostEditor - tryb markdown", () => {
     expect(screen.getByText("adminPanesMisc.postEditor.previewPlaceholder")).toBeInTheDocument();
   });
 
+  it("podgląd renderuje listy, linki i kod jako elementy", () => {
+    // Parser podglądu to `marked` (post-editor/lib/markdownPreview.ts) - ten
+    // test pilnuje, że PostEditor faktycznie go używa, a nie np. surowego tekstu.
+    const { container } = render(
+      <PostEditor
+        mode="markdown"
+        value={"- jeden\n- dwa\n\n[strona](https://example.com)\n\n```\nkod()\n```"}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["jeden", "dwa"]);
+    expect(screen.getByRole("link", { name: "strona" })).toHaveAttribute(
+      "href",
+      "https://example.com",
+    );
+    expect(container.querySelector("pre > code")?.textContent).toBe("kod()\n");
+  });
+
+  it("podgląd SANITYZUJE wynik parsera: bez <script>, on* i javascript:", () => {
+    // marked przepuszcza surowy HTML i `javascript:` - jedyną zaporą jest
+    // `sanitizeMarkdownHtml` przy sinku. Gdyby ktoś ją zdjął, redaktor
+    // otwierający cudzy szkic uruchomiłby skrypt w sesji panelu admina.
+    const { container } = render(
+      <PostEditor
+        mode="markdown"
+        value={
+          'ok\n\n<img src="https://e.com/a.png" onerror="alert(1)">\n\n[zły](javascript:alert(1))'
+        }
+        onChange={vi.fn()}
+      />,
+    );
+    const podglad = container.querySelector(".prose")!;
+    const img = podglad.querySelector("img")!;
+    expect(img).toHaveAttribute("src", "https://e.com/a.png");
+    expect(img).not.toHaveAttribute("onerror");
+    expect(screen.getByText("zły").closest("a")?.getAttribute("href") ?? "").not.toMatch(
+      /javascript:/i,
+    );
+
+    const { container: zeSkryptem } = render(
+      <PostEditor mode="markdown" value={"ok\n\n<script>alert(1)</script>"} onChange={vi.fn()} />,
+    );
+    expect(zeSkryptem.querySelector(".prose script")).toBeNull();
+  });
+
   it("tryb markdown NIE renderuje paska narzędzi rich text", () => {
     // Pogrubienie przyciskiem w markdownie wstawiłoby HTML do dokumentu, który
     // ma być tekstem źródłowym.

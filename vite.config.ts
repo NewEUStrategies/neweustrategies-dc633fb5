@@ -219,16 +219,21 @@ export default defineConfig({
         // którego graf zawiera zależności CJS-only. Przy `noDiscovery: true`
         // nieprebundlowany moduł CJS jest serwowany surowo i import defaulta
         // kończy się "does not provide an export named 'default'" - dokładnie
-        // tak wywalał się edytor wpisu (react-markdown -> style-to-js), a
+        // tak wywalał się kiedyś edytor wpisu (react-markdown -> style-to-js), a
         // pozostałe czekały w kolejce: kadrowanie okładki (react-easy-crop ->
         // normalize-wheel), bilety QR (qrcode), słownik krajów
         // (i18n-iso-countries) i normalizacja HTML buildera (node-html-parser
         // -> css-select -> boolbase).
         //
+        // REACT-MARKDOWN TU JUŻ NIE MA (2026-10): podgląd Markdownu w edytorze
+        // wpisu renderuje `marked` (post-editor/lib/markdownPreview.ts). Ten
+        // pakiet to czysty ESM bez zależności (`exports.import` ->
+        // lib/marked.esm.js), więc nie ma czego prebundlować - przy
+        // `noDiscovery: true` obowiązek wpisu dotyczy tylko grafów z CJS.
+        //
         // WYKRESÓW TU JUŻ NIE MA. Pulpity rysowały przez `echarts-for-react`,
         // czyli moduł CJS wymagający prebundlingu; nasz silnik jest zwykłym
         // komponentem Reacta w tym repozytorium, więc nie ma czego prebundlować.
-        "react-markdown",
         "react-easy-crop",
         "qrcode",
         "i18n-iso-countries",

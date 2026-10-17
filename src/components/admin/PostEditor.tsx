@@ -2,10 +2,11 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
-import { useEffect, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Textarea } from "@/components/ui/textarea";
+import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { markdownToUnsafeHtml } from "@/components/admin/post-editor/lib/markdownPreview";
 import "@/lib/i18n-admin-panes-misc";
 import {
   Bold,
@@ -36,6 +37,16 @@ export function PostEditor({ value, onChange, mode, onPickImage }: Props) {
 
 function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation();
+  // Podpowiedź jest zapisana Markdownem (`*Podgląd...*`), więc idzie przez ten
+  // sam parser co treść.
+  const source = value || t("adminPanesMisc.postEditor.previewPlaceholder");
+  // KOLEJNOŚĆ JEST WARUNKIEM BEZPIECZEŃSTWA: marked przepuszcza surowy HTML i
+  // `javascript:` w linkach, więc sanityzacja idzie PO parserze, na gotowym
+  // HTML-u, i stoi TU, przy sinku - inaczej `check:dangerous-html` jej nie
+  // widzi. Polityka `sanitizeMarkdownHtml` = ta, którą publiczny renderer
+  // stosuje do treści wpisów (ContentRenderer, silnik "html"). `useMemo`, bo
+  // parser + DOMPurify nie muszą biec przy renderach niezmieniających treści.
+  const previewHtml = useMemo(() => sanitizeMarkdownHtml(markdownToUnsafeHtml(source)), [source]);
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <Textarea
@@ -44,9 +55,10 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
         rows={20}
         className="font-mono text-sm"
       />
-      <div className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto">
-        <ReactMarkdown>{value || t("adminPanesMisc.postEditor.previewPlaceholder")}</ReactMarkdown>
-      </div>
+      <div
+        className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto"
+        dangerouslySetInnerHTML={{ __html: previewHtml }}
+      />
     </div>
   );
 }
