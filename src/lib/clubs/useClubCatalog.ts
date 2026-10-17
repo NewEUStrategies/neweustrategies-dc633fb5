@@ -14,6 +14,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useHydrated } from "@tanstack/react-router";
 import {
   fetchClubBySlug,
   fetchClubGroups,
@@ -121,11 +122,14 @@ export function useClubBySlug(slug: string | undefined): UseQueryResult<ClubView
   // i robotom), czyli dokladnie ta regresja TTFB/LCP, ktora F09 usuwa.
   // Po rozstrzygnieciu sesji klucz zmienia sie na widza i karta sie uscisla.
   const { user, loading } = useAuth();
+  // A lazy route can hydrate after auth has already settled. Its first
+  // render must still consume the anonymous card serialized by SSR.
+  const hydrated = useHydrated();
   return useQuery({
-    queryKey: clubKeys.bySlugViewer(slug ?? "", user?.id ?? null),
+    queryKey: clubKeys.bySlugViewer(slug ?? "", hydrated ? (user?.id ?? null) : null),
     queryFn: () => fetchClubBySlug(slug ?? ""),
     staleTime: CLUB_STALE_MS,
-    enabled: Boolean(slug) && !loading,
+    enabled: Boolean(slug) && hydrated && !loading,
   });
 }
 
