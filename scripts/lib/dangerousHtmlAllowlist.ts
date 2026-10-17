@@ -46,6 +46,13 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   {
     file: "src/routes/__root.tsx",
     sink: "script",
+    symbol: "fragmentLandingScript",
+    reason:
+      "Lądowanie na kotwicy przy wejściu: na serwerze stała FRAGMENT_LANDING_SCRIPT z lib/scroll/fragmentLandingScript - literał złożony wyłącznie ze stałych modułu (klucz magazynu przywracania TanStacka, odstęp i sufit prób), bez wstawek z bazy ani z żądania; fragment adresu czyta dopiero w przeglądarce jako dane (`getElementById`), nigdy jako HTML. W przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-fragment-landing]`. Musi być klasyczny i inline: działa także wtedy, gdy JS aplikacji jeszcze nie wystartował (boot po LCP).",
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "script",
     symbol: "supabaseConfigScript",
     reason:
       "Serializacja publicznej konfiguracji Supabase (lib/supabasePublicConfig.ts:65) ucieka `<`, więc treść nie domknie `</script>`. Bez tego skryptu klient Supabase rzuca przy pierwszym użyciu i błąd zastępuje całą stronę (incydent 2026-07-16).",

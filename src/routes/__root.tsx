@@ -76,6 +76,7 @@ import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 // `bootLoaderScript`): kompilator Start wycina je z bundla przeglądarki razem z tymi importami.
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
 import { BOOT_LOADER_SCRIPT } from "../lib/boot/bootLoaderScript";
+import { FRAGMENT_LANDING_SCRIPT } from "../lib/scroll/fragmentLandingScript";
 // Węzeł danych zestawu bootu - w drzewie po obu stronach (w przeglądarce renderuje `null`), więc
 // w bundlu klienta zostaje, ale bez danych i bez tekstu loadera (`lib/boot/bootSetNode.tsx`).
 import { BootSetNode } from "../lib/boot/bootSetNode";
@@ -1260,6 +1261,21 @@ function bootLoaderScript(): string {
   return document.querySelector("script[data-nes-boot]")?.textContent ?? "";
 }
 
+// Lądowanie na kotwicy przy wejściu (cel w późno odsłanianej granicy strumienia) - ta sama
+// doktryna co loader bootu wyżej: serwer ma stałą, przeglądarka przepisuje TEN SAM napis
+// z wykonanego już węzła, więc tekst skryptu nie jedzie w bundlu. Literał atrybutu, nie
+// `FRAGMENT_LANDING_ATTR`, z tego samego powodu. Kontrakt: `lib/scroll/fragmentLandingScript.ts`.
+const getServerFragmentLandingScript = createIsomorphicFn()
+  .server((): string | null => FRAGMENT_LANDING_SCRIPT)
+  .client((): string | null => null);
+const SERVER_FRAGMENT_LANDING_SCRIPT = getServerFragmentLandingScript();
+
+function fragmentLandingScript(): string {
+  if (SERVER_FRAGMENT_LANDING_SCRIPT !== null) return SERVER_FRAGMENT_LANDING_SCRIPT;
+  if (typeof document === "undefined") return "";
+  return document.querySelector("script[data-nes-fragment-landing]")?.textContent ?? "";
+}
+
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
   // SSR -> browser handoff of the PUBLIC Supabase config (anon key + URL).
@@ -1314,6 +1330,14 @@ function RootShell({ children }: { children: ReactNode }) {
             pikseli własnego paska; kontrakt, limity i czyszczenie przy
             wylogowaniu opisuje `lib/dock/reservedSpace.ts`. */}
         <script dangerouslySetInnerHTML={{ __html: DOCK_RESERVE_INIT_SCRIPT }} />
+        {/* Wejście pod adres z fragmentem, którego cel React odsłania partią granic strumienia
+            PO `load` i po hydratacji: ani przeglądarka, ani router już wtedy nie przewijają.
+            Skrypt czeka na odsłonięcie i ląduje na celu raz, ustępując użytkownikowi
+            i przywracaniu przewinięcia - `lib/scroll/fragmentLandingScript.ts`. */}
+        <script
+          data-nes-fragment-landing=""
+          dangerouslySetInnerHTML={{ __html: fragmentLandingScript() }}
+        />
       </head>
       <body>
         {children}

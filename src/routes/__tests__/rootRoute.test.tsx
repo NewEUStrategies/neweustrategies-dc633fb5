@@ -1442,6 +1442,27 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     expect(doc.body.querySelector("script[data-consent-init]")).toBeNull();
   });
 
+  it("skrypt lądowania na kotwicy stoi w `<head>` za rezerwacją doku, z literałem serwera", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { DOCK_RESERVE_INIT_SCRIPT } = await import("@/lib/dock/reservedSpace");
+    const { FRAGMENT_LANDING_ATTR, FRAGMENT_LANDING_SCRIPT } =
+      await import("@/lib/scroll/fragmentLandingScript");
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
+      children: React.ReactNode;
+    }) => React.ReactElement;
+    const html = renderToStaticMarkup(<Shell>{null}</Shell>);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const scripts = [...doc.head.querySelectorAll("script")];
+    const dock = scripts.findIndex((el) => el.textContent === DOCK_RESERVE_INIT_SCRIPT);
+    expect(dock).toBeGreaterThanOrEqual(0);
+    const landing = scripts[dock + 1];
+    // Atrybut, po którym przeglądarka przepisuje treść przy hydratacji (literał w `__root.tsx`).
+    expect(landing?.hasAttribute(FRAGMENT_LANDING_ATTR)).toBe(true);
+    expect(landing?.textContent).toBe(FRAGMENT_LANDING_SCRIPT);
+    expect(doc.body.querySelector(`script[${FRAGMENT_LANDING_ATTR}]`)).toBeNull();
+  });
+
   it("hydratacja gniazda: HTML serwera zostaje, bez błędu, te same węzły po re-renderze", async () => {
     const { renderToString } = await import("react-dom/server");
     const { hydrateRoot } = await import("react-dom/client");
