@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { adminCssPlugin } from "../../../../scripts/lib/adminCssPlugin";
+import { CHUNK_PRIORITY, CLIENT_CHUNK_GROUPS } from "../../../../scripts/lib/clientChunkGroups";
 import { minifySync, type Plugin, type ResolvedConfig } from "vite";
 const root = process.cwd();
 const scratch: string[] = [];
@@ -222,8 +223,14 @@ describe("boot root from the server artifact (Oxc-minified, nested Nitro chunks)
       ".output/server/node_modules/decoy/index.mjs",
       bootManifestModule("heavy-QwEr5678.js"),
     );
+    // Chunki rodzin leniwych pod `app-initial` - artefakt aplikacji ma je zawsze; ich BRAK
+    // znaczy, że `app-initial` wciągnął rodzinę do bootu (check:entry-purity).
+    for (const family of LAZY_FAMILIES) put(dir, `assets/${family}-Fam0001x.js`, "export {};");
     return dir;
   }
+  const LAZY_FAMILIES = CLIENT_CHUNK_GROUPS.filter(
+    (group) => (group.priority ?? 0) < CHUNK_PRIORITY.initial,
+  ).map((group) => group.debugName!);
   const noOverride = { ENTRY_CHUNKS: "" };
 
   it("check:bundle finds the nested manifest and skips the artifact's node_modules", () => {
@@ -253,5 +260,17 @@ describe("boot root from the server artifact (Oxc-minified, nested Nitro chunks)
     const dirty = purity();
     expect(dirty.status).toBe(1);
     expect(dirty.output).toContain("legal-links (chunk spoza bootu)");
+  });
+
+  it("check:entry-purity: brak chunku rodziny leniwej = rodzina wciągnięta do `app-initial`", () => {
+    // Rodzina pod `app-initial` nigdy nie wchodzi do domknięcia wejścia jako własny chunk -
+    // `app-initial` zabiera jej moduły wcześniej, a chunk rodziny znika.
+    const dir = serverFixture();
+    expect(LAZY_FAMILIES).toEqual(expect.arrayContaining(["post-card", "sanitize"]));
+    rmSync(join(dir, "assets/post-card-Fam0001x.js"));
+    const absorbed = runGate("scripts/check-entry-purity.ts", dir, [], noOverride);
+    expect(absorbed.status).toBe(1);
+    expect(absorbed.output).toContain("post-card (rodzina leniwa bez chunku)");
+    expect(absorbed.output).not.toContain("sanitize (rodzina leniwa bez chunku)");
   });
 });

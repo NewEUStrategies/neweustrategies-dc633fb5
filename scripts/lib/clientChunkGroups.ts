@@ -66,8 +66,10 @@
 // działa dalej: chunk leniwy importuje `app-initial` i vendorów (wyżej), a zależna rodzina
 // leniwa (siatka -> karta) ma priorytet niższy od tej, którą importuje. Żaden moduł tych grup
 // nie jest dziś `$initial`, nie jest dynamicznym wejściem i nie importuje CSS. Gdyby stał się
-// `$initial`, wybierze go `app-initial` (do bootu), a `check:entry-purity` zapali się na
-// chunku grupy w domknięciu wejścia.
+// `$initial`, wybierze go `app-initial` (do bootu) razem z zależnościami - chunk rodziny nigdy nie
+// trafi do domknięcia wejścia, tylko zniknie albo schudnie. `check:entry-purity` zapala się na
+// BRAKU chunku rodziny w artefakcie; wciągnięcie pojedynczego modułu łapie floor `boot`
+// w check:bundle.
 //
 // PUŁAPKA `$initial` (przed tree-shakingiem). Moduł statycznie importowany przez moduł bootu
 // jest `$initial`, także gdy ten import jest martwy w kliencie albo dotyczy jednej stałej -

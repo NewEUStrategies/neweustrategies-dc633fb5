@@ -42,6 +42,8 @@
 import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
+import { CHUNK_PRIORITY, CLIENT_CHUNK_GROUPS } from "./lib/clientChunkGroups";
+
 /** Pakiet zewnętrzny + literały, po których go rozpoznajemy w zminifikowanym chunku. */
 interface ForbiddenSdk {
   readonly label: string;
@@ -517,14 +519,6 @@ function main(): void {
     "vendor-sonner",
     "vendor-jszip",
     "legal-links",
-    "club-thread-kind-icon",
-    // Rodziny leniwe poniżej `app-initial` (clientChunkGroups.ts) - `sanitize` niesie dompurify.
-    "sanitize",
-    "conversions",
-    "post-content",
-    "post-card",
-    "overlay",
-    "archive-grid",
   ];
   for (const chunk of bootGraph) {
     const name = chunk.replace(/-[A-Za-z0-9_-]{8}\.js$/, "");
@@ -541,6 +535,25 @@ function main(): void {
           "      scripts/lib/clientChunkGroups.ts (inwarianty: clientChunkGroups.test.ts).",
       );
     }
+  }
+
+  // RODZINY LENIWE POD `app-initial` (scripts/lib/clientChunkGroups.ts, priorytet niższy niż
+  // `initial`) NIE MOGĄ trafić do domknięcia wejścia jako własny chunk: moduł, który stał się
+  // `$initial` (statyczny import z modułu bootu - pułapka opisana w clientChunkGroups.ts), zabiera
+  // wcześniej `app-initial` razem z zależnościami. Wciągnięcie rodziny do bootu widać więc jako
+  // BRAK jej chunku w artefakcie - nazwa w `LAZY_CHUNKS` wyżej nigdy by się nie zapaliła.
+  // Wciągnięcie pojedynczego modułu (rodzina zostaje, chudnie) łapie floor `boot` w check:bundle.
+  const present = new Set(files.map((f) => f.replace(/-[A-Za-z0-9_-]{8}\.js$/, "")));
+  for (const family of CLIENT_CHUNK_GROUPS) {
+    if ((family.priority ?? 0) >= CHUNK_PRIORITY.initial || !family.debugName) continue;
+    if (present.has(family.debugName)) continue;
+    violations.push(
+      `  • ${family.debugName} (rodzina leniwa bez chunku)\n` +
+        "      kod rodziny zabrał `app-initial`: moduł bootu importuje któryś z jej modułów\n" +
+        "      statycznie (moduł opcji trasy, stała w head()/loaderze, nagłówek). Znajdź krawędź\n" +
+        "      w reports/chunk-inventory.json (BUNDLE_INVENTORY=1) i zamień import na `import()`\n" +
+        "      albo przenieś stałą do modułu bez zależności (scripts/lib/clientChunkGroups.ts).",
+    );
   }
 
   console.log(
