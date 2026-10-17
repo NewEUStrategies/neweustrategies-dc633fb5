@@ -2058,30 +2058,6 @@ async function recordDocument(
   return outcome !== "skipped";
 }
 
-/** Typy zdarzeń obsługiwane przez integrację (jedno miejsce prawdy). */
-export const HANDLED_EVENT_TYPES = [
-  "subscription.created",
-  "subscription.updated",
-  "subscription.activated",
-  "subscription.trialing",
-  "subscription.past_due",
-  "subscription.paused",
-  "subscription.resumed",
-  "subscription.imported",
-  "subscription.canceled",
-  "subscription.pending_update_applied",
-  "transaction.completed",
-  "transaction.updated",
-  "transaction.payment_failed",
-  "transaction.past_due",
-  "transaction.expired",
-  "adjustment.created",
-  "adjustment.updated",
-  "customer.updated",
-  "address.updated",
-  "business.updated",
-] as const;
-
 export interface DispatchInput {
   /**
    * Identyfikator zdarzenia u operatora (`evt_...`, albo syntetyczny

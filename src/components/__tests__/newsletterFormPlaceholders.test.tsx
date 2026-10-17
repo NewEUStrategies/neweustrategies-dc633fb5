@@ -26,7 +26,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth:
 vi.mock("@tanstack/react-start", () => {
   const chain = () => ({
     middleware: () => chain(),
-    inputValidator: () => chain(),
+    validator: () => chain(),
     handler: () => ({}),
   });
   return {

@@ -160,7 +160,7 @@ function printWeight(w: DocumentWeight): void {
   );
   console.log(
     `  inline <script>: ${w.inlineScriptCount} / ${w.inlineScriptBytes} B ` +
-      `(wykonywalne ${w.inlineExecutableScriptBytes} B, $tsr-stream-barrier ${w.dehydratedStateBytes} B)`,
+      `(wykonywalne ${w.inlineExecutableScriptBytes} B, stan początkowy data-tsr-stream-part ${w.dehydratedStateBytes} B)`,
   );
   console.log(
     `  preloady: modulepreload ${w.modulepreloadCount} unikalnych (head ${w.modulepreloadInHead}, Link ${w.modulepreloadInHeader}), ` +
@@ -325,8 +325,9 @@ async function main(): Promise<void> {
   const failed = results.filter((r) => !r.ok);
   if (gate && leaks?.length) {
     console.error(
-      "\n✗ Moduły tylko-serwerowe w bundlu klienta - wywołanie poza gałęzią `isServerRender()` " +
-        "albo flaga `isServer`, której bundler nie zwija (src/lib/builder/aboveFold.tsx).",
+      "\n✗ Moduły tylko-serwerowe w bundlu klienta - wywołanie poza warunkiem serwera " +
+        "(wprost, z `import.meta.env`, nie w funkcji) albo flaga `isServer`, której bundler nie zwija " +
+        "(src/lib/builder/aboveFold.tsx).",
     );
     process.exitCode = 1;
   }

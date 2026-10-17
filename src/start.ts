@@ -17,13 +17,6 @@ import { renderErrorPage } from "@/lib/error-page";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 
 /**
- * Ostatnia linia obrony przed dispatchem routera: łapie synchronowe i
- * asynchronowe rzuty w middleware/loaderach, przepuszcza wyjątki niosące
- * `statusCode`/Response (redirecty, 401/302 rzucane celowo przez framework),
- * a resztę zamienia na przyjazną stronę 500 (bez wycieku stacka do usera;
- * pełny błąd trafia do Server Logs). Nie ingeruje w normalne odpowiedzi.
- */
-/**
  * Trasy platformowe (`/platform/*` - webhooki e-mail, kolejka, preview szablonów)
  * uwierzytelniają się same (podpis webhooka / klucz API), więc muszą omijać
  * redirecty SEO i kanonizację języka - inaczej dostawca dostaje 301/302 zamiast 200.
@@ -40,10 +33,29 @@ function isInternalPlatformPath(pathname: string): boolean {
   );
 }
 
-const errorMiddleware = createMiddleware().server(async ({ next }) => {
+/**
+ * Ostatnia linia obrony przed dispatchem routera: łapie synchronowe i
+ * asynchronowe rzuty w middleware/loaderach, przepuszcza wyjątki niosące
+ * `statusCode`/Response (redirecty, 401/302 rzucane celowo przez framework),
+ * a resztę zamienia na przyjazną stronę 500 (bez wycieku stacka do usera;
+ * pełny błąd trafia do Server Logs). Nie ingeruje w normalne odpowiedzi.
+ * Jej `no-store` zostaje na drucie: granica odpowiedzi
+ * (`fetchWithFrameworkPreloads`) nie nadaje dyrektywy loadera odpowiedziom
+ * innym niż `ok`.
+ *
+ * Zerwanie klienta NIE jest błędem aplikacji. Start (1.169) obserwuje
+ * `request.signal` i po zerwaniu sam rzuca `signal.reason` niezależnie od
+ * tego, co zwróci to middleware (`runNext` w `createStartHandler.ts`), a
+ * `src/server.ts` zamienia jego odpowiedź na 499 bez strony błędu
+ * (`isClientAbort`). Bez wczesnego przepuszczenia każde zerwanie lądowałoby
+ * tu w `console.error` jako fałszywy błąd 500 (obok wpisu, który Start robi
+ * sam) i płaciło render strony błędu, której nikt nie odbierze.
+ */
+const errorMiddleware = createMiddleware().server(async ({ request, next }) => {
   try {
     return await next();
   } catch (error) {
+    if (request.signal.aborted) throw error;
     // Rzuty niosące własną Response/statusCode to intencjonalne short-circuity
     // (np. redirect, notFound) - nie przykrywajmy ich stroną błędu.
     if (error instanceof Response) throw error;
@@ -431,12 +443,13 @@ const seo404Middleware = createMiddleware().server(async ({ request, next }) => 
  * odpowiedź i mógł ją zapisać. Trasa, która ustawiła własny nagłówek
  * (degradacja home -> no-store, preview, personalized), zawsze wygrywa.
  *
- * Intencja trasy dociera tu DRUGIM kanałem (`readRouteCacheDirective`), nie
- * nagłówkiem odpowiedzi: `setResponseHeader` z loadera pisze na nagłówkach
- * ZDARZENIA h3, a te scalają się z odpowiedzią dopiero w `toResponse()` na
- * granicy requestHandlera - czyli ZA tym middleware I ZA
- * `documentCacheMiddleware`. Do 2026-09-01 skutkiem był pełny rozjazd:
- * czytelnik dostawał `private, no-store`, a do L1/L2 wchodziło domyślne
+ * Intencja trasy dociera tu kanałem per żądanie (`readRouteCacheDirective`),
+ * nie nagłówkiem odpowiedzi: `setCacheControlHeader` z loadera nie dotyka
+ * odpowiedzi, a na drut dyrektywę nakłada dopiero granica odpowiedzi
+ * (`fetchWithFrameworkPreloads` w `src/server.ts`) - czyli ZA tym middleware
+ * I ZA `documentCacheMiddleware`. Do 2026-09-01 (gdy tę rolę pełniło scalenie
+ * nagłówków zdarzenia h3) skutkiem był pełny rozjazd: czytelnik dostawał
+ * `private, no-store`, a do L1/L2 wchodziło domyślne
  * `s-maxage=900, stale-while-revalidate=86400` - pusta powłoka zamarzała na
  * brzegu na 24 h. Dowód mechanizmu i pełny opis: `responseHeaders.ts`
  * (`routeCacheDirectives`).
@@ -468,7 +481,9 @@ const defaultCacheControlMiddleware = createMiddleware().server(async ({ request
  * łańcuchu, więc `defaultCacheControlMiddleware` i `documentCacheMiddleware`
  * widzą już 503 - a polityka zapisu NES Edge Cache przepuszcza wyłącznie 200.
  * Decyzję podejmuje loader (`markCrawlerUnavailable`), bo tylko on wie, że
- * treść nie zdążyła; tu jest wyłącznie przepisanie statusu.
+ * treść nie zdążyła; tu jest wyłącznie przepisanie statusu. `no-store` 503
+ * przeżywa granicę odpowiedzi: publiczną dyrektywę loadera strony głównej
+ * dostają wyłącznie odpowiedzi `ok`.
  */
 const crawlerUnavailableMiddleware = createMiddleware().server(async ({ next }) => {
   const result = await next();
@@ -483,7 +498,7 @@ const crawlerUnavailableMiddleware = createMiddleware().server(async ({ next }) 
  * Responses created by the Worker runtime (redirects and proxied fetches in
  * particular) can use the Web Platform `immutable` header guard. Calling
  * `response.headers.set()` on those responses throws after the route has
- * rendered, which h3 then hides behind its generic HTTPError 500. Rebuilding
+ * rendered, which Start then hides behind its generic HTTPError 500. Rebuilding
  * the Response gives us an owned, mutable header list while preserving the
  * original streaming body, status and existing headers.
  */

@@ -24,14 +24,16 @@ export type ServerFnHandler<I = unknown, O = unknown> = (ctx: {
 
 export interface ServerFnSpec<I = unknown, O = unknown> {
   validator?: ServerFnValidator<I>;
-  inputValidator?: ServerFnValidator<I>;
   handler?: ServerFnHandler<I, O>;
 }
 
+// Łańcuch wystawia WYŁĄCZNIE metody, które istnieją upstream. Starszy alias
+// walidatora zniknął z `createServerFn` w start-client-core 1.170.36 - atrapa,
+// która nadal by go przyjmowała, przepuściłaby powrót kodu produkcyjnego do
+// usuniętego API, a prawdziwy moduł wywróciłby się na imporcie.
 interface ServerFnChain<I, O> {
   middleware: (middleware: unknown) => ServerFnChain<I, O>;
   validator: (validator: ServerFnValidator<I>) => ServerFnChain<I, O>;
-  inputValidator: (validator: ServerFnValidator<I>) => ServerFnChain<I, O>;
   handler: (handler: ServerFnHandler<I, O>) => ServerFnSpec<I, O>;
 }
 
@@ -54,11 +56,6 @@ export function reactStartMock() {
     const chain: ServerFnChain<I, O> = {
       middleware: () => chain,
       validator: (validator) => {
-        spec.validator = validator;
-        return chain;
-      },
-      inputValidator: (validator) => {
-        spec.inputValidator = validator;
         spec.validator = validator;
         return chain;
       },

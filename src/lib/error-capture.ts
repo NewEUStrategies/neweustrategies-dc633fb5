@@ -1,7 +1,8 @@
-// Out-of-band capture błędów SSR, które h3 połyka do generycznej Response 500
-// z ciałem `{"unhandled":true,"message":"HTTPError"}`. Bez tego nie da się
-// odtworzyć oryginalnego stack trace'a (`server.ts` normalizator dostaje już
-// tylko wyplute Response). Krótkie TTL zapobiega korelacji między
+// Out-of-band capture błędów SSR, które TanStack Start połyka do generycznej
+// Response 500 (`handleStartError` w `createServerEntry`, dawniej h3) z ciałem
+// `{"status":500,"statusText":"","unhandled":true,"message":"HTTPError"}`. Bez
+// tego nie da się odtworzyć oryginalnego stack trace'a (`server.ts` normalizator
+// dostaje już tylko wyplute Response). Krótkie TTL zapobiega korelacji między
 // niepowiązanymi żądaniami na tym samym izolacie Workera.
 
 interface CapturedError {

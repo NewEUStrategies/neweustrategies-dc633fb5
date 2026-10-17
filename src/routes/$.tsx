@@ -84,7 +84,8 @@ import {
   SITE_NAME,
 } from "@/lib/seo/meta";
 import { builderContentHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
-import { isServerRender, usePreloadLcpImages } from "@/lib/builder/aboveFold";
+import { usePreloadLcpImages } from "@/lib/builder/aboveFold";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 import { rememberHeroPreloads, useHeroPreloads } from "@/lib/builder/heroPreloadStore";
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
@@ -819,7 +820,7 @@ export const Route = createFileRoute("/$")({
     // treść maluje silnik buildera (`resolveContentEngine`, jak `ContentRenderer`)
     // - strona html/bloków z pozostałym `builder_data` nie preloaduje obrazu,
     // którego nikt nie namaluje. Preloady stron liczy WYŁĄCZNIE serwer
-    // (`isServerRender()` wycina `heroImage.ts` i `lcpCandidate.ts` z bundla
+    // (warunek serwera (`aboveFold.tsx`) wycina `heroImage.ts` i `lcpCandidate.ts` z bundla
     // klienta - PROVE P1.4, `check:bundle`); nawigacja SPA dostaje pustą listę,
     // bo render czysto kliencki nie ma też kandydata ani preloadu
     // (lib/builder/aboveFold.tsx). Obrazy kandydatów LCP strony (P1.4) idą do
@@ -835,7 +836,9 @@ export const Route = createFileRoute("/$")({
           )
         : null;
     const heroPreloads =
-      isServerRender() && data.kind === "page"
+      (import.meta.env.SSR || import.meta.env.DEV) &&
+      (isServer ?? isSsrRequest()) &&
+      data.kind === "page"
         ? builderContentHeroPreloads(
             { editor: data.item.editor, builderDoc: doc },
             context.queryClient,
@@ -846,7 +849,7 @@ export const Route = createFileRoute("/$")({
     // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
     // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    if (isServerRender()) {
+    if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(context.queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }

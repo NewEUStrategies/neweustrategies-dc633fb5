@@ -653,11 +653,11 @@ test("zbudowany artefakt mieści się w budżecie czasu pierwszego wczytania (/c
   // Ten plik jest bramką BUDŻETU, sąsiedni jest bramką POPRAWNOŚCI. Gdyby oba
   // czytały `console.error`, każdy defekt poprawności zapalałby DWIE bramki na
   // czerwono, a druga wiadomość („nie mieścisz się w budżecie czasu") byłaby
-  // wtedy nieprawdziwa i myląca. ZMIERZONE 2026-09-01 na tym artefakcie:
-  // `boot-artifact.spec.ts` oblewa się na `console.error: Error reading query
-  // stream: TypeError: Cannot read properties of undefined (reading
-  // 'mutations')` - i to jest poprawne zachowanie TAMTEJ bramki, natomiast ta
-  // ma w tym samym przebiegu przejść i podać liczby. Rzut na stronie (`pageerror`)
+  // wtedy nieprawdziwa i myląca. Przykład z 2026-09-01 (przed podbiciem TanStack
+  // 1.169): `boot-artifact.spec.ts` oblewał się na `console.error: Error reading
+  // query stream: ... (reading 'mutations')` z biblioteki - i to było poprawne
+  // zachowanie TAMTEJ bramki, natomiast ta miała w tym samym przebiegu przejść
+  // i podać liczby. Rzut na stronie (`pageerror`)
   // to inna sprawa: on unieważnia sam POMIAR, bo mierzyłby boot, który
   // częściowo padł - dlatego jest tu zbierany i sprawdzany na końcu.
   const errors: string[] = [];

@@ -726,15 +726,12 @@ export function renderSimpleWidget(
         return resolveSocialHref(own, globalLinks, k, linksSource);
       };
 
-      // Ton ikon = dokładnie to, co renderuje strona publiczna:
-      // w stanie spoczynku ikona ma kolor tekstu (foreground - ciemny w light
-      // mode, jasny w dark mode), a nie odcień marki. Kolory marki pojawiają
-      // się tylko wtedy, gdy ustawiono je jawnie (tryb "official" lub kolor
-      // per platforma) oraz na hover (arkusz instancji, patrz socialHover.ts).
-      const ICON_TONE = [
-        "[--sb-icon:currentColor]",
-        "[--sb-off-tone:var(--sb-off,currentColor)]",
-      ].join(" ");
+      // Ton ikon = dokładnie to, co renderuje strona publiczna: w stanie spoczynku ikona
+      // ma kolor tekstu kontenera (`text-foreground`), a nie odcień marki. Kolory marki
+      // pojawiają się tylko wtedy, gdy ustawiono je jawnie (tryb "official" lub kolor per
+      // platforma) oraz na hover (arkusz instancji, patrz socialHover.ts). Dawne klasy
+      // `--sb-icon`/`--sb-off-tone` usunięte: po odejściu od `color-mix` nic ich nie czytało,
+      // a każda arbitralna właściwość to reguła w arkuszu blokującym render.
 
       // Ustawienia hovera czytamy BEZWARUNKOWO (tak jak `customColor`): działają
       // w obu układach, a bramka wierności widzi je w każdej próbce.
@@ -881,7 +878,7 @@ export function renderSimpleWidget(
           return (
             <>
               <div
-                className={`flex w-full flex-col text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+                className={`flex w-full flex-col text-foreground ${themeCls} ${hoverScope}`}
                 style={{ ...compactRowStyle, gap: `${gap}px` }}
               >
                 {rows}
@@ -919,7 +916,7 @@ export function renderSimpleWidget(
         return (
           <>
             <div
-              className={`flex flex-wrap items-center text-foreground ${ICON_TONE} ${themeCls} ${hoverScope}`}
+              className={`flex flex-wrap items-center text-foreground ${themeCls} ${hoverScope}`}
               style={{ ...compactRowStyle, gap: `${gap}px` }}
             >
               {rowItems.map(({ k, altKeys, Cmp, label, href: fixedHref, external }) => {

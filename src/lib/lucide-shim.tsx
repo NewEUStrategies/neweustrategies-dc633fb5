@@ -200,7 +200,7 @@ function makeIcon(faName: string, LucideComp: LucideIconImpl | undefined): Lucid
 }
 
 // Each factory only creates its returned component; it does not register icons.
-// Pure calls let Rollup remove unused wrappers and their Lucide imports.
+// Pure calls let the bundler remove unused wrappers and their Lucide imports.
 // Solid
 export const ArrowLeft = /* @__PURE__ */ makeIcon("ArrowLeft", LArrowLeft);
 export const ArrowRight = /* @__PURE__ */ makeIcon("ArrowRight", LArrowRight);

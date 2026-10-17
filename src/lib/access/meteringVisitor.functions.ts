@@ -23,7 +23,7 @@ const consumeSchema = z.object({
 
 /** Konsumpcja slotu gościa dla bytu (albo werdykt odmowy z pełnym stanem licznika). */
 export const consumeMeteredVisitorView = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => consumeSchema.parse(data))
+  .validator((data: unknown) => consumeSchema.parse(data))
   .handler(async ({ data }) => {
     const { consumeVisitorView } = await import("@/lib/access/meteringVisitor.server");
     return consumeVisitorView(data.entityType, data.entityId);

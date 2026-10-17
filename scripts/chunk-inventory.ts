@@ -10,7 +10,7 @@
  *   bun run report:chunk-inventory index        # rozbicie chunku po pakietach
  *   bun run report:chunk-inventory index --modules
  *
- * Bajty są sprzed minifikacji CAŁEGO chunku (Rollup zna tylko taki podział), więc
+ * Bajty są sprzed minifikacji CAŁEGO chunku (bundler zna tylko taki podział), więc
  * służą do porównań WZGLĘDNYCH - bezwzględne kilobajty gzip mierzy `check:bundle`.
  */
 import { readFileSync } from "node:fs";

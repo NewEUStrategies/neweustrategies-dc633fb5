@@ -452,7 +452,26 @@ function measurementOf(type: WidgetType): WidgetMeasurement {
 
 afterEach(cleanup);
 
+/**
+ * Moduły, które widgety ładują `import()` W RENDERZE (poza warstwą `lazyWidgets`, którą zastępuje
+ * `eagerWidgetChunks`): zestaw panelu konta zalogowanego (`AccountMenuWidget`, `loadAccountMenuKit`)
+ * i jego leniwe sekcje. `settleReads` kończy po kilku pustych obrotach pętli, a pierwsza transformacja
+ * modułu przez Vitest pod obciążeniem całej suity (z pokryciem: ~1,4 GB sterty) trwa dłużej - panel nie
+ * zdążał się wyrenderować i KAŻDE jego ustawienie wychodziło jako martwe (flaka `account-link`).
+ * Rozgrzane wcześniej moduły rozstrzygają `import()` w kilku mikrozadaniach.
+ */
+async function warmRenderTimeImports(): Promise<void> {
+  await Promise.all([
+    import("@/components/ui/popover"),
+    import("@/components/ui/avatar"),
+    import("@/lib/greetings/useGreeting"),
+    import("@/components/notifications/NotificationsBell"),
+    import("@/components/events/participant/molecules/AccountMenuEventsSection"),
+  ]);
+}
+
 beforeAll(async () => {
+  await warmRenderTimeImports();
   await measureAll();
   writeReports();
 }, 900_000);

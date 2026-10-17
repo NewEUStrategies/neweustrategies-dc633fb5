@@ -33,6 +33,17 @@ const highlighted = (root: HTMLElement) =>
   root.querySelector('span[style*="inline-block"] > span')?.textContent;
 const css = (root: HTMLElement) => root.querySelector("style")?.textContent ?? "";
 
+/**
+ * Otwarcie bramki i odczyt fazy: wznowienie pętli czyta `getAnimations` w zadaniu po pierwszej
+ * klatce od otwarcia (rAF + `setTimeout(0)`), nie w efekcie - czekamy dokładnie tyle.
+ */
+async function openGateAndSettle(): Promise<void> {
+  act(() => __openMotionGateForTests());
+  await act(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))),
+  );
+}
+
 describe("rotacja słów", () => {
   it("stoi przez 30 s przed otwarciem; pierwsza zmiana pełny interwał po otwarciu", () => {
     vi.useFakeTimers();
@@ -106,9 +117,9 @@ describe("pętla kształtu", () => {
     expect(css(container)).not.toContain("infinite");
   });
 
-  it("po otwarciu pętla z nową nazwą klatek, od stanu „narysowany” (ujemne opóźnienie)", () => {
+  it("po otwarciu pętla z nową nazwą klatek, od stanu „narysowany” (ujemne opóźnienie)", async () => {
     const { container } = render(<AnimatedHeadingRender config={config} />);
-    act(() => __openMotionGateForTests());
+    await openGateAndSettle();
     const sheet = css(container);
     expect(sheet).toContain("@keyframes aHead-loop-h-0");
     expect(sheet).toMatch(/animation: aHead-loop-h-0 \d+ms -1600ms infinite/);
@@ -138,21 +149,24 @@ describe("pętla kształtu", () => {
     [null, "200ms"], // animacja jeszcze nie wystartowała: rysowanie od zera
   ])(
     "wczesne otwarcie: pętla wznawia się w fazie gałęzi `forwards` (%s ms -> %s)",
-    (currentTime, delay) => {
+    async (currentTime, delay) => {
       const getAnimations = stubForwardsAt(currentTime);
       const { container } = render(<AnimatedHeadingRender config={config} />);
       act(() => __openMotionGateForTests());
+      // W zadaniu otwarcia (interakcja) nic nie wymusza przeliczenia stylu.
+      expect(getAnimations).not.toHaveBeenCalled();
+      await openGateAndSettle();
       expect(getAnimations).toHaveBeenCalledWith({ subtree: true });
       expect(css(container)).toContain(`animation: aHead-loop-h-0 4400ms ${delay} infinite`);
     },
   );
 
-  it("wczesne otwarcie przy `scribble`: faza przycięta do końca rysowania obu kresek", () => {
+  it("wczesne otwarcie przy `scribble`: faza przycięta do końca rysowania obu kresek", async () => {
     stubForwardsAt(700);
     const { container } = render(
       <AnimatedHeadingRender config={{ ...config, shape: "scribble" }} />,
     );
-    act(() => __openMotionGateForTests());
+    await openGateAndSettle();
     // Pół rysowania = round(1600 * 0,55) = 880 ms; 700 ms od startu = 500 ms rysowania.
     expect(css(container)).toMatch(/aHead-scribbleA-loop-h-0 \d+ms -500ms infinite/);
     cleanup();
@@ -160,7 +174,7 @@ describe("pętla kształtu", () => {
 
     stubForwardsAt(9000);
     const late = render(<AnimatedHeadingRender config={{ ...config, shape: "scribble" }} />);
-    act(() => __openMotionGateForTests());
+    await openGateAndSettle();
     expect(css(late.container)).toMatch(/aHead-scribbleB-loop-h-0 \d+ms -1760ms infinite/);
   });
 

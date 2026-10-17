@@ -2,6 +2,7 @@
 // Każdy preset (np. "card 4:3 - 800x600") jest dostępny w admin
 // editorach oraz wpływa na URL-e generowane przez buildTransformedImageUrl.
 import { createFileRoute } from "@tanstack/react-router";
+import { errorMessageOf } from "@/lib/errors/errorMessage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/admin/crop-sizes")({
   head: () => ({ meta: [{ title: "Crop sizes - Admin" }] }),
   errorComponent: ({ error }) => (
     <div role="alert" className="p-6">
-      {error.message}
+      {errorMessageOf(error)}
     </div>
   ),
   notFoundComponent: () => <div className="p-6">404</div>,

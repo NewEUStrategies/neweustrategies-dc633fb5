@@ -13,7 +13,7 @@ import type { Database } from "@/integrations/supabase/types";
 // dynamiczne. `enqueueRawEmail` dostaje gotowy HTML, więc React Email nie jest
 // mu potrzebny w ogóle.
 import type { TxDetail } from "@/lib/email-templates/transactional";
-import { txCopy, txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
+import { txSubject, type TxEmailType } from "@/lib/email-templates/tx-copy";
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 // `uiLocale` to jedyne miejsce, w ktorym jezyk zamienia sie na znacznik BCP-47.
 // Maile mialy wlasna kopie tej decyzji - ta sama para "pl-PL"/"en-GB", ale
@@ -527,5 +527,3 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
     return { ok: false, error: String(err) };
   }
 }
-
-export const __txCopyForTests = txCopy;

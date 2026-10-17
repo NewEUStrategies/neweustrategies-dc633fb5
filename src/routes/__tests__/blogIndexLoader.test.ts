@@ -90,7 +90,6 @@ const CONTENT = contentCacheControl();
 interface BlogLoaderData {
   readonly page: number;
   readonly total: number;
-  readonly coverPreload: unknown;
 }
 
 type Loader = (ctx: {

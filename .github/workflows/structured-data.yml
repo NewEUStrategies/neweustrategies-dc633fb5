@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: .node-version
 
       # Origin idzie przez `env:`, nie przez `${{ inputs.* }}` wklejone w skrypt -
       # wartość z formularza nie może stać się kodem powłoki. `pipefail`: bez

@@ -32,11 +32,14 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
 // `Skeleton` (fallback szuflady) z atomu UI, nie z własnego `<div>`: ten
 // moduł jest też w chunku trasy `/` (`HomeLoadingNotice`). Import z nagłówka
-// trzyma go w chunku wejściowym niezależnie od rozmiarów reszty bundla. Bez
-// tego (P2.3) dołączenie prymitywów wysp do wejścia przestawiło scalenia
+// trzyma go w chunku wejściowym niezależnie od heurystyk bundlera. Na Rollupie
+// bez tego (P2.3) dołączenie prymitywów wysp do wejścia przestawiło scalenia
 // mikrochunków `experimentalMinChunkSize` i `skeleton.tsx` trafił do chunku z
 // `seatingGeometry` - `/` dostawał przez to dodatkowy `modulepreload`
-// (`check:document-weight`, `modulepreloadCount` 26 > 25).
+// (`check:document-weight`, `modulepreloadCount` 26 > 25). Rolldown małych
+// chunków nie scala (scripts/lib/clientChunkGroups.ts, „MAŁE CHUNKI"), ale o
+// położeniu modułu współdzielonego nadal decyduje jego heurystyka - import
+// zostaje jako przypięcie.
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useRouterState } from "@tanstack/react-router";

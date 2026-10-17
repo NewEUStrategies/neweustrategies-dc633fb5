@@ -134,17 +134,17 @@ grupami tematycznymi wspólnych primitywów; panel buildera utrzymuje własny, k
 
 | Warstwa                 | Technologia                                                                         |
 | ----------------------- | ----------------------------------------------------------------------------------- |
-| Framework               | TanStack Start 1.168, TanStack Router 1.170                                         |
-| Interfejs               | React 19.2, TypeScript 5.8, Tailwind CSS 4.2                                        |
-| Dane po stronie klienta | TanStack Query 5.101 (485 plików na jednej dyscyplinie danych)                      |
+| Framework               | TanStack Start 1.169, TanStack Router 1.170                                         |
+| Interfejs               | React 19.2, TypeScript 5.9 i 7.0 (`tsgo`), Tailwind CSS 4.3                         |
+| Dane po stronie klienta | TanStack Query 5.104 (485 plików na jednej dyscyplinie danych)                      |
 | Granica serwera         | funkcje serwerowe (`createServerFn`) w 102 plikach                                  |
-| Baza danych             | PostgreSQL przez Supabase (`@supabase/supabase-js` 2.106), RLS jako granica najemcy |
+| Baza danych             | PostgreSQL przez Supabase (`@supabase/supabase-js` 2.116), RLS jako granica najemcy |
 | Płatności               | Stripe 22                                                                           |
 | Internacjonalizacja     | i18next 26, react-i18next 17                                                        |
 | Walidacja               | Zod 3                                                                               |
 | Wykresy                 | Własny silnik SVG (`src/components/charts` + `src/lib/charts`), bez zależności      |
-| Build                   | Vite 7.3                                                                            |
-| Testy                   | Vitest 4.1, Playwright 1.61, pgTAP                                                  |
+| Build                   | Vite 8.3 (Rolldown, Oxc)                                                            |
+| Testy                   | Vitest 5.0, Playwright 1.63, pgTAP                                                  |
 
 ## Jakość jako infrastruktura
 
@@ -160,7 +160,7 @@ Repozytorium traktuje kontrakty jakości jako kod wykonywalny, nie jako zaleceni
 - **Cztery uprzęże odtwarzające migracje** sprawdzają, że pełna historia 1 082 migracji wykonuje się na czystej bazie i że schemat po nich zachowuje się tak, jak deklaruje.
 - **Parytet polskiego i angielskiego jest bramką**, nie konwencją: kompletność obu słowników jest
   warunkiem przejścia potoku CI.
-- Pokrycie testami mierzone providerem `istanbul` (`vitest.config.ts:47`) na całym `src/`, z plikami
+- Pokrycie testami mierzone providerem `istanbul` (`coverage` w `vitest.config.ts`) na całym `src/`, z plikami
   bez testów w mianowniku: **98,84% linii i 98,32% funkcji** w pomiarze z 2026-10-04
   (przed ograniczeniem suity 2026-10-05), w którym wykonano 85 101 przypadków testowych
   na 3 253 plikach.
@@ -196,7 +196,7 @@ Praca z jakością:
 
 ```bash
 bun run test                 # suita jednostkowa i komponentowa (Vitest)
-bun run test:coverage        # pomiar pokrycia z progami per ścieżka
+bun run test:coverage        # pomiar pokrycia z jednym progiem globalnym
 bun run test:e2e             # ścieżki użytkownika (Playwright)
 bun run typecheck            # kontrola typów
 bun run lint                 # ESLint
@@ -204,6 +204,26 @@ bun run format               # Prettier
 ```
 
 Build produkcyjny: `bun run build`, podgląd artefaktu: `bun run preview`.
+
+### Wersje narzędzi
+
+- **Node i Bun** mają jedno źródło w korzeniu repozytorium: `.node-version` (Node 24.22.0)
+  i `.bun-version` (Bun 1.4.3). Czyta je każdy krok `setup-node` i `setup-bun` w workflowach CI
+  (`node-version-file`, `bun-version-file`), więc podbicie to zmiana jednego pliku. `bun.lock`
+  zostaje przy `lockfileVersion: 1`: Bun 1.4 zapisuje v2 tylko dla świeżego lockfile'a, dlatego
+  lockfile'a się nie usuwa ani nie generuje od zera.
+- **TypeScript występuje w dwóch wersjach, celowo.** `typescript` 5.9 to wydanie z JS API,
+  którego potrzebują typescript-eslint (peer `<6.1`), bramki `src/lib/ci/*`
+  (`import ts from "typescript"`) i `typecheck:scripts`. Polecenie `tsgo` (`typecheck:tsc`,
+  `typecheck:e2e`) to natywny TypeScript 7.0.2 przez shim `tools/tsgo` (`@nes-tools/tsgo`).
+  Stabilny TS 7 wystawia wyłącznie bin `tsc`, a dwa pakiety z binem `tsc` bun linkuje zależnie
+  od kolejności nazw - dlatego TS 7 siedzi zagnieżdżony pod shimem, który wystawia tylko `tsgo`.
+  Shim zastąpił `@typescript/native-preview`, którego ostatni build wyczerpywał ponad 14 GB
+  pamięci na typach TanStack.
+- **Vitest 5** działa z `clearMocks: false`, czyli z semantyką Vitesta 4 (uzasadnienie
+  w `vitest.config.ts`); raporty i załączniki trafiają do `.vitest/`, pokrycie do `coverage/`.
+- **Supabase CLI** w CI jest przypięte do 2.111.0 (`ci.yml`, `e2e.yml`), bo jego wersja wybiera
+  obrazy lokalnego Postgresa.
 
 ## Dokumentacja
 
@@ -342,17 +362,17 @@ groupings of shared primitives; the builder admin UI maintains its own consisten
 
 | Layer                | Technology                                                                          |
 | -------------------- | ----------------------------------------------------------------------------------- |
-| Framework            | TanStack Start 1.168, TanStack Router 1.170                                         |
-| Interface            | React 19.2, TypeScript 5.8, Tailwind CSS 4.2                                        |
-| Client-side data     | TanStack Query 5.101 (485 files on a single data discipline)                        |
+| Framework            | TanStack Start 1.169, TanStack Router 1.170                                         |
+| Interface            | React 19.2, TypeScript 5.9 and 7.0 (`tsgo`), Tailwind CSS 4.3                       |
+| Client-side data     | TanStack Query 5.104 (485 files on a single data discipline)                        |
 | Server boundary      | server functions (`createServerFn`) across 102 files                                |
-| Database             | PostgreSQL via Supabase (`@supabase/supabase-js` 2.106), RLS as the tenant boundary |
+| Database             | PostgreSQL via Supabase (`@supabase/supabase-js` 2.116), RLS as the tenant boundary |
 | Payments             | Stripe 22                                                                           |
 | Internationalisation | i18next 26, react-i18next 17                                                        |
 | Validation           | Zod 3                                                                               |
 | Charts               | In-house SVG engine (`src/components/charts` + `src/lib/charts`), no dependency     |
-| Build                | Vite 7.3                                                                            |
-| Testing              | Vitest 4.1, Playwright 1.61, pgTAP                                                  |
+| Build                | Vite 8.3 (Rolldown, Oxc)                                                            |
+| Testing              | Vitest 5.0, Playwright 1.63, pgTAP                                                  |
 
 ## Quality as infrastructure
 
@@ -368,7 +388,7 @@ The repository treats quality contracts as executable code rather than documente
 - **Four migration-replay harnesses** verify that the full history of 1,082 migrations executes on a clean database and that the resulting schema behaves as declared.
 - **Polish and English parity is a gate**, not a convention: completeness of both dictionaries is
   a condition for the pipeline to pass.
-- Test coverage is measured with the `istanbul` provider (`vitest.config.ts:47`) across all of `src/`,
+- Test coverage is measured with the `istanbul` provider (`coverage` in `vitest.config.ts`) across all of `src/`,
   with untested files included in the denominator: **98.84% of lines and 98.32% of functions**
   in the 2026-10-04 measurement (before the suite was trimmed on 2026-10-05), which ran 85,101
   test cases across 3,253 files.
@@ -405,7 +425,7 @@ Working with quality:
 
 ```bash
 bun run test                 # unit and component suite (Vitest)
-bun run test:coverage        # coverage measurement with per-path thresholds
+bun run test:coverage        # coverage measurement against a single global threshold
 bun run test:e2e             # user journeys (Playwright)
 bun run typecheck            # type checking
 bun run lint                 # ESLint
@@ -413,6 +433,26 @@ bun run format               # Prettier
 ```
 
 Production build: `bun run build`, artefact preview: `bun run preview`.
+
+### Toolchain versions
+
+- **Node and Bun** have a single source at the repository root: `.node-version` (Node 24.22.0)
+  and `.bun-version` (Bun 1.4.3). Every `setup-node` and `setup-bun` step in the CI workflows
+  reads them (`node-version-file`, `bun-version-file`), so a bump is a one-file change.
+  `bun.lock` stays at `lockfileVersion: 1`: Bun 1.4 writes v2 only for a fresh lockfile, so the
+  lockfile is never deleted or regenerated from scratch.
+- **TypeScript ships in two versions, on purpose.** `typescript` 5.9 is the release with a JS
+  API, which typescript-eslint (peer `<6.1`), the `src/lib/ci/*` gates
+  (`import ts from "typescript"`) and `typecheck:scripts` need. The `tsgo` command
+  (`typecheck:tsc`, `typecheck:e2e`) is native TypeScript 7.0.2 through the `tools/tsgo` shim
+  (`@nes-tools/tsgo`). Stable TS 7 exposes only a `tsc` bin, and bun links one of two `tsc` bins
+  depending on package-name order, so TS 7 is nested under the shim, which exposes only `tsgo`.
+  The shim replaced `@typescript/native-preview`, whose last build ran out of memory (over 14 GB)
+  on the TanStack types.
+- **Vitest 5** runs with `clearMocks: false`, i.e. Vitest 4 semantics (rationale in
+  `vitest.config.ts`); reports and attachments go to `.vitest/`, coverage to `coverage/`.
+- **Supabase CLI** is pinned to 2.111.0 in CI (`ci.yml`, `e2e.yml`) because its version selects
+  the local Postgres images.
 
 ## Documentation
 

@@ -23,7 +23,6 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   splitUrl,
   SITE_CANONICAL_ORIGIN,
@@ -96,17 +95,20 @@ export const Route = createFileRoute("/blog/")({
       // („Brak wpisów") - nagłówek `no-store` rozróżniał oba stany od początku,
       // warstwa treści nie. Flaga dotyczy WYŁĄCZNIE listy: blip samych ustawień
       // zdejmuje nagłówek wspólny niżej, ale wpisy są wtedy prawdziwe.
-      return { page: deps.page, total: 0, coverPreload: null, degraded: true };
+      return { page: deps.page, total: 0, degraded: true };
     }
     // Jw. - jedna droga do nagłówka renderu zdegradowanego, weryfikowalna
     // strukturalnie przez bramkę. Wartość bez zmian.
     setCacheControlHeader(resilientCacheControl(!hasSettings));
     // Preload LCP pierwszej karty siatki (PaginatedPostGrid oznacza ją
-    // priority) - deskryptor dla head() + nagłówek HTTP `Link` utrwalany
-    // przez NES Edge Cache na HIT/STALE.
+    // priority) - WYŁĄCZNIE nagłówek HTTP `Link` (utrwalany przez NES Edge
+    // Cache na HIT/STALE). Do `<head>` preload wstawia sam React 19: karta
+    // z `fetchPriority="high"` w powłoce dostaje automatyczny
+    // `<link rel="preload" as="image">` na początku `<head>`. Drugi, identyczny
+    // link z `head()` był duplikatem (`documentPreloadDuplicates` na `/blog`).
     const coverPreload = archiveFirstCardPreload(data.posts, false);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { page: data.page, total: data.total, coverPreload, degraded: false };
+    return { page: data.page, total: data.total, degraded: false };
   },
 
   head: ({ loaderData }) => {
@@ -161,9 +163,7 @@ export const Route = createFileRoute("/blog/")({
     };
     return {
       ...head,
-      links: loaderData?.coverPreload
-        ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
-        : head.links,
+      links: head.links,
       scripts: [
         {
           type: "application/ld+json",

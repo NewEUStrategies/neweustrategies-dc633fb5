@@ -15,6 +15,7 @@ import {
   useRouterState,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import {
   Suspense,
@@ -75,6 +76,10 @@ import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 // `bootLoaderScript`): kompilator Start wycina je z bundla przeglądarki razem z tymi importami.
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
 import { BOOT_LOADER_SCRIPT } from "../lib/boot/bootLoaderScript";
+import { FRAGMENT_LANDING_SCRIPT } from "../lib/scroll/fragmentLandingScript";
+// Węzeł danych zestawu bootu - w drzewie po obu stronach (w przeglądarce renderuje `null`), więc
+// w bundlu klienta zostaje, ale bez danych i bez tekstu loadera (`lib/boot/bootSetNode.tsx`).
+import { BootSetNode } from "../lib/boot/bootSetNode";
 import { markAppReady } from "../lib/watchdog/appReady";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
 import { afterPrerendering } from "../lib/prerender";
@@ -117,6 +122,14 @@ import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { fontScaleQueryOptions } from "../hooks/useFontScale";
 import { useInteractionOrQuiet } from "../lib/performance/interactionOrQuiet";
+// Trzy moduły, które leżą w bloku bootu niezależnie od tego pliku (`whenQuiescent`
+// importują statycznie `hydrationIsland` i `interactionOrQuiet`, `track` - m.in.
+// `conversions`/`footerTracking`, `menus/queries` - `SiteMenu` i `prefetch`).
+// Import statyczny kosztuje zero bajtów; `import()` dawał pod Rolldownem osobne
+// żądanie fasady (`export{…}from"./app-initial-*.js"`) zaraz po hydratacji.
+import { onQuiescent } from "../lib/performance/whenQuiescent";
+import { trackPageView } from "../lib/analytics/track";
+import { menuWithItemsQueryOptions } from "../lib/menus/queries";
 // Lekki moduł z pustym domyślnym - nie `globalColors.ts` (44 kB katalogu
 // slotów), który od 2026-10 dociera do przeglądarki wyłącznie leniwie.
 import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColorsValue";
@@ -562,7 +575,9 @@ function NotFoundComponent() {
   return <PublicNotFound />;
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+// `ErrorComponentProps`: od router-core 1.171.37 granica błędu podaje `error: unknown` (rzucić
+// można cokolwiek), a każdy odbiorca niżej przyjmuje `unknown`.
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   useEffect(() => {
     reportPlatformError(error, { boundary: "tanstack_root_error_component" });
@@ -781,7 +796,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
     // wywróciłoby proces renderu.
     const warmMenus = async () => {
-      const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
       await Promise.allSettled(
         ["main", "footer"].map((key) =>
           context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
@@ -1178,6 +1192,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     return { ga4: ssrGoogleTag(settings) };
   },
   shellComponent: RootShell,
+  // POWŁOKA BLOKUJĄCA, JAK PRZED PODBICIEM. Od `@tanstack/react-router` 1.170.44 korzeń
+  // z `shellComponent` dostaje WŁASNĄ granicę `Suspense` z fallbackiem
+  // `defaultPendingComponent` (`dist/esm/Match.js`: `canWrapInSuspense` i `wrapInSuspense`),
+  // a `src/router.tsx` ustawia tam `RouteLoadingSkeleton`; 1.170.18 korzenia nie owijał nigdy.
+  // Bez tej flagi zawieszenie czegokolwiek w treści korzenia poza własną granicą (dostawcy,
+  // style motywu, `SiteChrome`; `Header` ma swoją, z `HeaderSkeleton`) wypuściłoby na ścieżce
+  // strumieniowej SSR szkielet trasy jako CAŁĄ treść `<body>`, a prawdziwą stronę dopiero
+  // później, podmianą poza kolejnością - inny pierwszy bajt dokumentu i inne LCP. Każdy dokument
+  // niósłby też znaczniki granicy `<!--$-->` wokół całej treści. `false` przywraca dawną
+  // semantykę: powłoka dokumentu czeka na treść korzenia (`false ?? fallback` to `false`).
+  // Dowód na prawdziwym routerze serwerowym: `__tests__/rootRouterMount.test.tsx`.
+  wrapInSuspense: false,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
@@ -1242,6 +1268,21 @@ function bootLoaderScript(): string {
   return document.querySelector("script[data-nes-boot]")?.textContent ?? "";
 }
 
+// Lądowanie na kotwicy przy wejściu (cel w późno odsłanianej granicy strumienia) - ta sama
+// doktryna co loader bootu wyżej: serwer ma stałą, przeglądarka przepisuje TEN SAM napis
+// z wykonanego już węzła, więc tekst skryptu nie jedzie w bundlu. Literał atrybutu, nie
+// `FRAGMENT_LANDING_ATTR`, z tego samego powodu. Kontrakt: `lib/scroll/fragmentLandingScript.ts`.
+const getServerFragmentLandingScript = createIsomorphicFn()
+  .server((): string | null => FRAGMENT_LANDING_SCRIPT)
+  .client((): string | null => null);
+const SERVER_FRAGMENT_LANDING_SCRIPT = getServerFragmentLandingScript();
+
+function fragmentLandingScript(): string {
+  if (SERVER_FRAGMENT_LANDING_SCRIPT !== null) return SERVER_FRAGMENT_LANDING_SCRIPT;
+  if (typeof document === "undefined") return "";
+  return document.querySelector("script[data-nes-fragment-landing]")?.textContent ?? "";
+}
+
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
   // SSR -> browser handoff of the PUBLIC Supabase config (anon key + URL).
@@ -1257,18 +1298,22 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
-        {/* PIERWSZY skrypt w dokumencie - wszystko po nim jest obserwowalne.
-            Klasyczny, nie modułowy: musi przeżyć rzut w chunku vendorowym,
-            czyli awarię z 2026-07-20, której żaden handler zainstalowany
-            z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje
-            w pamięci strony - wysyłka jest w lib/observability, za bramką
-            zgody analitycznej. */}
+        {/* Zestaw bootu `#nes-boot-set` (P2.1): węzeł danych (nie skrypt wykonywalny), który
+            serwer renderuje PRZED sondą i loaderem, więc loader czyta go przy starcie i usuwa,
+            zanim wstawi wejście. Skład w haku dehydratacji (`lib/boot/bootSet.server.ts`),
+            render i tożsamość hydratacji (w przeglądarce `null`): `lib/boot/bootSetNode.tsx`. */}
+        <BootSetNode />
+        {/* PIERWSZY skrypt wykonywalny aplikacji (przed nim są wyłącznie znaczniki
+            `<HeadContent />`, w tym skrypty `head()` tras, i węzeł danych zestawu wyżej) -
+            wszystko po nim jest obserwowalne. Klasyczny, nie modułowy: musi przeżyć rzut
+            w chunku vendorowym, czyli awarię z 2026-07-20, której żaden handler zainstalowany
+            z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje w pamięci strony -
+            wysyłka jest w lib/observability, za bramką zgody analitycznej. */}
         <script data-nes-probe="" dangerouslySetInnerHTML={{ __html: bootProbeScript() }} />
         {/* Loader bootu (P2.1) zaraz po sondzie: manifest Start nie startuje już JS-a, więc to
             ten skrypt wstawia serię `modulepreload` i wejście - po wpisie LCP kandydata na
-            stronach z kandydatem, od razu wszędzie indziej (zestaw `#nes-boot-set` wstrzykuje
-            serwer poza drzewem Reacta, `lib/boot/bootSet.server.ts`). Klasyczny i inline,
-            bo musi działać przed każdym modułem. */}
+            stronach z kandydatem, od razu wszędzie indziej (listę bierze z `#nes-boot-set`
+            wyżej). Klasyczny i inline, bo musi działać przed każdym modułem. */}
         <script data-nes-boot="" dangerouslySetInnerHTML={{ __html: bootLoaderScript() }} />
         {supabaseConfigScript ? (
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
@@ -1292,6 +1337,14 @@ function RootShell({ children }: { children: ReactNode }) {
             pikseli własnego paska; kontrakt, limity i czyszczenie przy
             wylogowaniu opisuje `lib/dock/reservedSpace.ts`. */}
         <script dangerouslySetInnerHTML={{ __html: DOCK_RESERVE_INIT_SCRIPT }} />
+        {/* Wejście pod adres z fragmentem, którego cel React odsłania partią granic strumienia
+            PO `load` i po hydratacji: ani przeglądarka, ani router już wtedy nie przewijają.
+            Skrypt czeka na odsłonięcie i ląduje na celu raz, ustępując użytkownikowi
+            i przywracaniu przewinięcia - `lib/scroll/fragmentLandingScript.ts`. */}
+        <script
+          data-nes-fragment-landing=""
+          dangerouslySetInnerHTML={{ __html: fragmentLandingScript() }}
+        />
       </head>
       <body>
         {children}
@@ -1368,12 +1421,12 @@ function DeferredRootOverlays() {
  * Wczesny filtr chunk-load errors - NADZBIÓR `looksLikeChunkLoadError`
  * z `lib/cacheBusting.ts` dla błędów, jakie zgłaszają przeglądarki i Vite
  * (`Error` albo napis; dwa wzorce „…dynamically imported module" zwinięte
- * w jeden). Kopia, bo moduł cache-bustingu NIE może wejść do zamknięcia bootu,
+ * w jeden; „Unable to preload CSS" - arkusz chunku z pomocnika `import()` Vite). Kopia, bo moduł cache-bustingu NIE może wejść do zamknięcia bootu,
  * a filtr działa, zanim ten moduł się załaduje; moduł i tak sprawdza błąd
  * ponownie (`handleChunkLoadFailure`). Parytet: `rootRoute.test.tsx`.
  */
 const EARLY_CHUNK_LOAD_ERROR =
-  /ChunkLoadError|Loading chunk [\w-]+ failed|dynamically imported module|Importing a module script failed/i;
+  /ChunkLoadError|Loading chunk [\w-]+ failed|dynamically imported module|Importing a module script failed|Unable to preload CSS/i;
 
 type CacheBustingModule = Pick<
   typeof import("../lib/cacheBusting"),
@@ -1386,8 +1439,7 @@ type QuiescenceModule = Pick<typeof import("../lib/performance/whenQuiescent"), 
  * klasa `overlays`) - setup pollingu nie ma żadnej pilności, a jego chunk
  * i fetch lądowały w śladzie Lighthouse'a; poll `/api/public/version` jest na
  * liście ignorowanych detektora ciszy, więc nie przesuwa punktu innym
- * konsumentom. Prymityw ciszy też dociągamy `import()` - poza zamknięciem
- * bootu.
+ * konsumentom. Prymityw ciszy jest już w bloku bootu (import statyczny wyżej).
  *
  * SIATKA BEZPIECZEŃSTWA NIE CZEKA NA CISZĘ: chunk-load error przed punktem
  * ciszy (np. leniwy chunk usunięty przez wdrożenie przy dokumencie z cache
@@ -1397,14 +1449,15 @@ type QuiescenceModule = Pick<typeof import("../lib/performance/whenQuiescent"), 
  * fetch) jest pomijany: nie może wciągać chunku do śladu (recenzja P1.3, D1).
  * Moduł po starcie zakłada własny nasłuch, więc późniejsze błędy obsługuje sam.
  *
- * `load`/`loadQuiet` - wyłącznie dla testu (atrapy modułów); domyślnie dosłowne
- * `import()`, żeby bundler wydzielił oba moduły do leniwych chunków.
+ * `load`/`loadQuiet` - wyłącznie dla testu (atrapy modułów); domyślnie `load`
+ * to dosłowne `import()` (bundler wydziela cache-busting do leniwego chunku),
+ * a `loadQuiet` oddaje prymityw ciszy z bloku bootu.
  */
 export function armCacheBusting(
   background: { run: ReturnType<typeof createBackgroundScope>["run"] },
   router: Parameters<CacheBustingModule["startCacheBusting"]>[0],
   load: () => Promise<CacheBustingModule> = () => import("../lib/cacheBusting"),
-  loadQuiet: () => Promise<QuiescenceModule> = () => import("../lib/performance/whenQuiescent"),
+  loadQuiet: () => Promise<QuiescenceModule> = () => Promise.resolve({ onQuiescent }),
 ): () => void {
   const earlyErrors: unknown[] = [];
   let disposed = false;
@@ -1496,8 +1549,8 @@ function RootComponent() {
       });
       // Silnik analityki: page_view przy każdym rozwiązanym routingu
       // (SPA + first paint). Fire-and-forget, respektuje zgodę analytics.
-      void background.run(import("../lib/analytics/track"), (m) => {
-        m.trackPageView();
+      void background.run(Promise.resolve(), () => {
+        trackPageView();
       });
     });
 

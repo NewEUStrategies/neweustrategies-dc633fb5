@@ -1931,7 +1931,9 @@ const CLIENT_DIR =
 //   4. Zapas CSS wynosi 0,68 KB, a nie ~3 KB, jak zakłada bramka P2.4. P2.4
 //      i P2.6 (statyczne style -> klasy) mają go zmierzyć przed scaleniem.
 //   P9.1 (C10: `experimentalMinChunkSize` 2048 -> 1) usuwa przyczynę ogólnie;
-//   przypięcie z pkt 1 nie koliduje z tą zmianą.
+//   przypięcie z pkt 1 nie koliduje z tą zmianą. [Dopisek przy migracji na
+//   Vite 8: Rolldown nie ma `experimentalMinChunkSize` i nie skleja małych
+//   chunków, więc przyczyna znikła razem z Rollupem, a P9.1 jest bezprzedmiotowe.]
 //
 // 2026-10-08 XXIV  OVERALL WRACA POD 4772 CIĘCIAMI, BEZ ZMIANY PROGU. CSS i boot
 //             też wróciły pod progi cięciami w tym samym PR (#484).
@@ -2099,7 +2101,9 @@ const CLIENT_DIR =
 // tego PR) łączenie małych chunków wklejało do `index-*`, a jego ikony
 // ciągnęły cały `vendor-lucide` (18,5 KB gzip) do bootu każdej strony
 // (`check:entry-purity`, dług z bazy 940ef8b1). Mechanizm i lista:
-// `ENTRY_MERGED_LUCIDE_IMPORTERS` w `scripts/lib/bootVendorSplit.ts`. Floor
+// `ENTRY_MERGED_LUCIDE_IMPORTERS` w `scripts/lib/bootVendorSplit.ts` (oba
+// usunięte przy migracji na Vite 8: podział boot/reszta liczy tag `$initial`
+// Rolldowna, a sklejania małych chunków już nie ma). Floor
 // `boot` (579) zostaje - korektę w dół robi pierwszy log runnera na main
 // (zasada z wpisu V).
 //
@@ -2626,11 +2630,17 @@ const BASELINE_PATH = "reports/bundle-baseline.json";
  * wiadra niż w baseline'ie z 15.08. Porównanie nowych kluczy ze starym plikiem
  * daje szum zamiast diagnozy (sprawdzone: osiem z dwunastu wierszy to `(NOWY)`
  * po samym przemianowaniu), więc baseline nosi numer konwencji, a `movers()`
- * czyta plik bez numeru przez `legacyChunkName()`. Baseline zapisany
- * `--update-baseline` na zielonym runnerze dostaje numer 2 i tryb zgodności
- * przestaje się włączać.
+ * czyta plik bez numeru przez `legacyChunkName()`.
+ *
+ * KONWENCJA 3 (Vite 8 / Rolldown). `stableChunkName()` bez zmian, ale inaczej
+ * nazywa bundler: chunk, którego fasadą jest `.../<katalog>/index.<ext>`, dostaje
+ * nazwę KATALOGU (`routes`, `observability`, `dist`) zamiast `index`, a małe
+ * chunki nie są już sklejane. Baseline z epoki Rollupa (2) porównujemy tymi
+ * samymi kluczami, ale z adnotacją, że ruchy mieszają przemianowania z bajtami.
+ * Baseline zapisany `--update-baseline` na zielonym runnerze dostaje numer 3
+ * i adnotacja znika.
  */
-const BUCKET_CONVENTION = 2;
+const BUCKET_CONVENTION = 3;
 
 interface BaselineFile {
   readonly measuredAt: string;
@@ -2680,7 +2690,8 @@ function legacyChunkName(file: string): string {
 // emitted chunk basename: route chunks are named by route ("admin.*"); the
 // builder/editor organisms and admin-only drag-and-drop by component
 // ("Builder-", "PostBlockEditor", "ThemeOptionsPane", "AdminShell", "sidebar",
-// "vendor-dnd"). Keep this in sync with the manualChunks split in vite.config.ts.
+// "vendor-dnd"). Keep this in sync with the client chunk groups
+// (scripts/lib/clientChunkGroups.ts).
 // 2026-07-25: dochodzą chunki warstwy semantycznej analityki -
 // `SemanticReconciliationPanel` (lazy panel zakładki „Uzgodnienie"),
 // `MetricDictionary`, `WindowProvenance` (dzielony z dashboardem GA4) oraz
@@ -2690,7 +2701,8 @@ function legacyChunkName(file: string): string {
 // OVERALL jak pozostały kod CMS - inaczej kod adminowy obciążałby budżet
 // wydajności czytelników, którzy nigdy go nie pobiorą.
 //
-// Świadomie NIE wymuszamy dla nich `manualChunks` w vite.config.ts: nazwany chunk
+// Świadomie NIE wymuszamy dla nich nazwanego chunku (dziś: grupy `codeSplitting`
+// w scripts/lib/clientChunkGroups.ts, wtedy `manualChunks`): nazwany chunk
 // dla kodu aplikacji przyciągnął przy próbie inne współdzielone moduły (chunk
 // urósł 19 -> 37 KB i zaczęły go statycznie importować trasy publiczne
 // `profile.index`, `search`, `people`), czyli dokładnie odwrotnie do celu.
@@ -2797,6 +2809,31 @@ function gzipKb(file: string): number {
  */
 const SERVER_DIRS = [".output/server", "dist/server"] as const;
 
+/**
+ * Pliki modułów artefaktu serwera, REKURENCYJNIE (bez `node_modules` - kopii zależności
+ * runtime'u Nitro). Nitro na Rolldownie sam nadaje nazwy chunkom (`_ssr/`, `_chunks/`,
+ * `_virtual/`...), więc moduł manifestu nie musi leżeć w katalogu głównym artefaktu. Ten sam
+ * zakres, co w `check-entry-purity.ts` i `check-server-entry-purity.ts`.
+ */
+function serverModules(dir: string): string[] {
+  let out: string[] = [];
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name !== "node_modules") out = out.concat(serverModules(p));
+    } else if (e.name.endsWith(".mjs") || e.name.endsWith(".js")) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
 function findBootChunks(): string[] {
   const override = process.env["ENTRY_CHUNKS"];
   if (override) return override.split(",").map((s) => basename(s.trim()));
@@ -2805,20 +2842,15 @@ function findBootChunks(): string[] {
   // (`scripts:[{attrs:{src:"/assets/*.js"}}]`) albo - od boot po LCP (P2.1) - manifest bez
   // skryptu wejścia i serwerowa mapa bootu `nesBootManifest` (`scripts/lib/bootAfterLcpPlugin.ts`:
   // `{entry:"/assets/*.js",rootPreloads:[...]}`, klucze w cudzysłowach albo po minifikacji bez).
-  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  // Wartości: cudzysłów albo backtick - minifikator Oxc (Vite 8, także worker przez Nitro)
+  // drukuje napisy jako literały szablonowe: entry:`/assets/index-X.js`.
+  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]/g;
   const bootManifestRe =
-    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
+    /["']?entry["']?\s*:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
   for (const dir of SERVER_DIRS) {
-    let entries: string[];
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      continue;
-    }
-    for (const file of entries) {
-      if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
-      const src = readFileSync(join(dir, file), "utf8");
+    for (const file of serverModules(dir)) {
+      const src = readFileSync(file, "utf8");
       for (const m of src.matchAll(scriptRe)) found.add(m[1]);
       for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
     }
@@ -2832,7 +2864,9 @@ function findBootChunks(): string[] {
  * tamten wzorzec ŚWIADOMIE liczy `import(` jako krawędź, bo pyta o OSIĄGALNOŚĆ
  * (wpis VIII: „`lazy()` NIE ZDEJMUJE KRAWĘDZI"). Tu pytamy o INICJALIZACJĘ, więc
  * `import(` trzeba odfiltrować - identycznie jak w `check-entry-purity.ts`
- * i `check-chunk-graph.ts`.
+ * i `check-chunk-graph.ts`. Po minifikacji Oxc dynamiczny import ma specyfikator
+ * w backtickach (``import(`./x.js`)``), więc ten wzorzec (tylko cudzysłowy) go nie
+ * widzi wcale; filtr `import(` zostaje dla buildu bez minifikacji.
  */
 const STATIC_EDGE_RE = /(import\s*\(?\s*|from\s*)["'](\.\/[^"']+\.js)["']/g;
 
@@ -2848,7 +2882,7 @@ function bootClosure(paths: readonly string[]): Set<string> {
   if (roots.length === 0) {
     console.error(
       "✗ Nie udalo sie ustalic chunku startowego z manifestu TanStack Start.\n" +
-        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` i \`nesBootManifest\` ({entry:"/assets/*.js"}) w: ${SERVER_DIRS.join(", ")}.\n` +
+        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` i \`nesBootManifest\` ({entry:"/assets/*.js"}) w: ${SERVER_DIRS.join(", ")} (rekurencyjnie, bez node_modules).\n` +
         "  Jesli adapter zmienil uklad artefaktu, podaj chunk jawnie: ENTRY_CHUNKS=index-HASH.js",
     );
     process.exit(1);
@@ -2887,7 +2921,11 @@ function bootClosure(paths: readonly string[]): Set<string> {
  *     jest bezpieczny.
  *
  * Krawędzią jest wyłącznie literalny import w kodzie chunku - `from"./x.js"`,
- * `import"./x.js"`, `import("./x.js")`, `export...from"./x.js"`. Goły string
+ * `import"./x.js"`, `import("./x.js")`, `export...from"./x.js"`, a po
+ * minifikacji Oxc także ``import(`./x.js`)`` (specyfikator dynamicznego importu
+ * drukowany jako literał szablonowy - bez backticka wzorzec gubił WSZYSTKIE
+ * krawędzie `import()`, a chunk osiągalny tylko z tras /admin tracił importerów
+ * i spadał do PUBLIC). Goły string
  * `"assets/x.js"` w tablicy manifestu preloadu krawędzią NIE jest (pułapka
  * opisana przy `i18n-clubs-admin`, 08-13): preload tylko pobiera plik,
  * wykonanie wymaga importu.
@@ -2899,7 +2937,7 @@ function adminOnlyByGraph(paths: readonly string[]): Set<string> {
   // Odwrotny graf: plik -> zbiór plików, które go importują.
   const importersOf = new Map<string, Set<string>>();
   for (const p of paths) importersOf.set(p, new Set());
-  const EDGE_RE = /(?:\bfrom|\bimport)\s*\(?\s*["'][^"']*?([\w.$[\]-]+\.js)["']\)?/g;
+  const EDGE_RE = /(?:\bfrom|\bimport)\s*\(?\s*["'`][^"'`]*?([\w.$[\]-]+\.js)["'`]\)?/g;
   for (const p of paths) {
     const source = readFileSync(p, "utf8");
     for (const match of source.matchAll(EDGE_RE)) {
@@ -2908,6 +2946,8 @@ function adminOnlyByGraph(paths: readonly string[]): Set<string> {
     }
   }
 
+  // Rolldown nazywa chunk modułu `.../<katalog>/index.ts` od KATALOGU (`routes-*`,
+  // `observability-*`), więc `index-*` to już wyłącznie wejście (klucz `index` w input).
   const isEntryChunk = (p: string) => basename(p).startsWith("index-");
   const admin = new Set(paths.filter((p) => !isEntryChunk(p)));
   let changed = true;
@@ -3064,7 +3104,10 @@ function movers(): string[] {
   // plikiem dawałoby listę `(NOWY)`/`znikł` zamiast diagnozy. Dla takiego pliku
   // porównujemy po kluczach STAREJ konwencji: raport jest wtedy identyczny jak
   // przed naprawą (te same dwanaście wierszy), a nie pusty ani zaszumiony.
-  const legacyBaseline = (base.bucketConvention ?? 1) < BUCKET_CONVENTION;
+  const convention = base.bucketConvention ?? 1;
+  const legacyBaseline = convention < 2;
+  // Te same nazwy wiader, inny bundler (patrz `BUCKET_CONVENTION`, konwencja 3).
+  const rollupBaseline = convention === 2;
   const current = legacyBaseline ? perChunkLegacy : perChunk;
 
   const deltas: Array<{ name: string; delta: number; now: number; was: number }> = [];
@@ -3086,6 +3129,13 @@ function movers(): string[] {
       `  (baseline pisany STARĄ konwencją wiader - nazwy niżej są sklejone, np. jedno ` +
         `\`vendor\` na dziesięć plików. Przepisz go na zielonym buildzie runnera: ` +
         `bun run scripts/check-bundle-size.ts --update-baseline)`,
+    );
+  }
+  if (rollupBaseline) {
+    lines.push(
+      `  (baseline z epoki Rollupa - Rolldown nazywa chunki modułów \`.../index.ts\` od ` +
+        `katalogu i nie skleja małych chunków, więc część ruchów to przemianowania. Przepisz ` +
+        `go na zielonym buildzie runnera: bun run scripts/check-bundle-size.ts --update-baseline)`,
     );
   }
   for (const d of deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 12)) {

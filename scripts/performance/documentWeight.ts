@@ -2,9 +2,9 @@
 //
 // PO CO. EVIDENCE §3/§8 (2026-10-03): dokument `/` na produkcji ma 569 KB
 // (fixture: ~390 KB), z czego 133 KB to 51 bloków inline `<style>`, 107 KB
-// dehydratowany stan `$tsr-stream-barrier`, a `<head>` + nagłówek `Link`
-// niosą ~30 preloadów, w tym obraz LCP 4x i przypadkowe chunki tras. Na łączu
-// mobilnym PSI (1,6 Mb/s) każdy z tych bajtów konkuruje z CSS, fontami
+// dehydratowany stan routera (wtedy bariera `$tsr-stream-barrier`), a `<head>`
+// + nagłówek `Link` niosą ~30 preloadów, w tym obraz LCP 4x i przypadkowe
+// chunki tras. Na łączu mobilnym PSI (1,6 Mb/s) każdy z tych bajtów konkuruje z CSS, fontami
 // i obrazem LCP, a parsowanie 575 KB HTML to ~250 ms długich zadań przed
 // jakimkolwiek JS. Żadna bramka repo tego nie mierzyła: `check:bundle` liczy
 // chunki (i raportuje `bootRaw` bez progu), `check:ssr-budgets` czyta źródła.
@@ -14,7 +14,7 @@
 // zasobów, a dokument fixture - prawie (strumieniowanie granic Suspense daje
 // rozrzut rzędu kilku KB między żądaniami; runner bierze medianę próbek).
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { type Dirent, existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
@@ -213,27 +213,55 @@ export function staticClosure(assetsDir: string, roots: readonly string[]): Clos
 }
 
 /**
+ * Pliki modułów artefaktu serwera, REKURENCYJNIE (bez `node_modules` - kopii zależności
+ * runtime'u Nitro). Nitro na Rolldownie sam nadaje nazwy chunkom (`_ssr/`, `_chunks/`,
+ * `_virtual/`...), więc moduł manifestu nie musi leżeć w katalogu głównym artefaktu. Ten sam
+ * zakres, co `serverModules()` w `check-bundle-size.ts` i `check-entry-purity.ts`.
+ */
+function serverModules(dir: string): string[] {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== "node_modules") out.push(...serverModules(full));
+    } else if (entry.name.endsWith(".mjs") || entry.name.endsWith(".js")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
  * Korzenie bootu z manifestu TanStack Start w `.output/server` - ta sama metoda
  * co `findBootChunks()` w scripts/check-bundle-size.ts (fallback, gdy dokument
  * nie ma ani `<script type="module" src>`, ani zestawu bootu). Dwa kształty:
  * skrypt wejścia w manifeście albo (P2.1) serwerowa mapa `nesBootManifest`.
+ * Te same wzorce i ten sam rekurencyjny przegląd (`serverModules()`), co w obu bramkach:
+ * wartości w cudzysłowie albo w backticku (minifikator Oxc drukuje napisy workera jako
+ * literały szablonowe: entry:`/assets/index-X.js`), moduł manifestu w podkatalogu chunków
+ * Nitro (`_ssr/...`). Zanim wzorce przyjęły backtick, a przegląd zszedł w głąb, fallback
+ * na artefakcie Vite 8 nie znajdował żadnego korzenia (domknięcie bootu = 0 B).
  */
 export function manifestBootRoots(serverDir: string): string[] {
-  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]/g;
   const bootManifestRe =
-    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
+    /["']?entry["']?\s*:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
-  if (!existsSync(serverDir)) return [];
-  for (const file of readdirSync(serverDir)) {
-    if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
-    const src = readFileSync(join(serverDir, file), "utf8");
+  for (const file of serverModules(serverDir)) {
+    const src = readFileSync(file, "utf8");
     for (const m of src.matchAll(scriptRe)) found.add(m[1]);
     for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
   }
   return [...found];
 }
 
-/** Id węzła zestawu bootu (P2.1) - kontrakt z `src/lib/boot/bootLoaderScript.ts`. */
+/** Id węzła zestawu bootu (P2.1) - kontrakt z `src/lib/boot/bootSetId.ts`. */
 export const BOOT_SET_ELEMENT_ID = "nes-boot-set";
 
 /**
@@ -288,18 +316,23 @@ export interface DocumentWeight {
   readonly inlineScriptBytes: number;
   /** Inline skrypty wykonywalne (bez JSON-LD, speculationrules, importmap). */
   readonly inlineExecutableScriptBytes: number;
-  /** `<script id="$tsr-stream-barrier">` - dehydratowany stan routera/loaderów. */
+  /**
+   * Stan POCZĄTKOWY routera/loaderów: suma skryptów `<script data-tsr-stream-part>`, które
+   * `<Scripts>` wypisuje przed granicą `/*$tsr-stream-boundary*\/` (router-core 1.171.37,
+   * `ssr/hydrationScripts.js:36-72`; porcje po 16 384 jednostki kodu, więc tagów bywa kilka).
+   * Do 1.171.15 był to jeden `<script id="$tsr-stream-barrier">` („bariera").
+   */
   readonly dehydratedStateBytes: number;
   /**
-   * Strumieniowane skrypty stanu (P3.7b): inline `<script>` wykonywalne poza barierą,
-   * których treść odwołuje się do `$R["tsr"]` - porcje strumienia zapytań
-   * (`$R[n].next(...)`, `.return(...)`) i inne dostrumieniowane dane routera. Bariera
-   * (`dehydratedStateBytes`) ich nie widzi, a parsują się i ewaluują tak samo
+   * Strumieniowane skrypty stanu (P3.7b): inline `<script>` wykonywalne poza stanem
+   * początkowym, których treść odwołuje się do `$R["tsr"]` - porcje strumienia zapytań
+   * (`$R[n].next(...)`, `.return(...)`) i inne dostrumieniowane dane routera. Stan
+   * początkowy (`dehydratedStateBytes`) ich nie widzi, a parsują się i ewaluują tak samo
    * (diagnoza `faza3/diagnoza/waga-dokumentu.md` §2.2: ok. 10 KB na fixture `/`).
    */
   readonly streamedStateBytes: number;
   /**
-   * Wystąpienia `queryHash:` w barierze i strumieniu (P3.7b, T1). Kompaktowa koperta
+   * Wystąpienia `queryHash:` w stanie początkowym i strumieniu (P3.7b, T1). Kompaktowa koperta
    * zapytań (`src/lib/ssr/dehydratedQueryEnvelope.ts`) wysyła hash wyłącznie, gdy
    * różni się od `hashKey(queryKey)`, więc w aplikacji bez `queryKeyHashFn` - zero.
    */
@@ -532,10 +565,21 @@ function widthCandidateSets(html: string, links: readonly LinkEntry[]): string[]
   });
 }
 
+/**
+ * Atrybut skryptów stanu początkowego routera (`STREAM_PART_ATTRIBUTE`,
+ * `@tanstack/router-core/dist/esm/ssr/hydrationScripts.js`).
+ */
+const INITIAL_STATE_ATTR = "data-tsr-stream-part";
+
+/** Skrypt stanu początkowego routera (definicja: `DocumentWeight.dehydratedStateBytes`). */
+function isInitialStateScript(block: Block): boolean {
+  return INITIAL_STATE_ATTR in block.attrs;
+}
+
 /** Skrypt strumieniowanego stanu routera (definicja: `DocumentWeight.streamedStateBytes`). */
 function isStreamedStateScript(block: Block): boolean {
   return (
-    block.attrs["id"] !== "$tsr-stream-barrier" &&
+    !isInitialStateScript(block) &&
     !DATA_SCRIPT_TYPES.test(block.attrs["type"] ?? "") &&
     block.content.includes('$R["tsr"]')
   );
@@ -548,7 +592,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html);
   const scripts = blocks(html, "script");
   const inline = scripts.filter((s) => !s.attrs["src"]);
-  const barrier = inline.filter((b) => b.attrs["id"] === "$tsr-stream-barrier");
+  const initialState = inline.filter(isInitialStateScript);
   const streamed = inline.filter(isStreamedStateScript);
   const styles = blocks(html, "style");
   const links = [...linkEntries(html), ...parseLinkHeader(input.linkHeader)];
@@ -693,9 +737,9 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     inlineExecutableScriptBytes: inline
       .filter((b) => !DATA_SCRIPT_TYPES.test(b.attrs["type"] ?? ""))
       .reduce((s, b) => s + byteLength(b.content), 0),
-    dehydratedStateBytes: barrier.reduce((s, b) => s + byteLength(b.content), 0),
+    dehydratedStateBytes: initialState.reduce((s, b) => s + byteLength(b.content), 0),
     streamedStateBytes: streamed.reduce((s, b) => s + byteLength(b.content), 0),
-    dehydratedQueryHashCount: [...barrier, ...streamed].reduce(
+    dehydratedQueryHashCount: [...initialState, ...streamed].reduce(
       (s, b) => s + (b.content.match(QUERY_HASH_KEY) ?? []).length,
       0,
     ),
@@ -778,6 +822,10 @@ export const GATED_METRICS = [
   "preloadedJsCount",
   "preloadedJsGzipBytes",
   "renderBlockingCssGzipBytes",
+  // Liczba arkuszy blokujących render (PR #515): jeden arkusz korzenia. Drugi (CSS chunku trasy
+  // w `css` manifestu, jak dawny arkusz lightboxa na `/$`) to osobne żądanie w ścieżce
+  // krytycznej - bajty mogą się przy tym prawie nie zmienić, więc sam próg gzip go nie złapie.
+  "renderBlockingCssCount",
   // P1.4 - ścieżka krytyczna obrazu LCP (definicje: komentarze pól wyżej).
   "lcpCandidateCount",
   "lcpCandidateMissing",
@@ -825,8 +873,20 @@ export function checkBudgets(weight: DocumentWeight, budgets: Budgets): BudgetRe
 }
 
 /**
- * Ratchet: nowy próg = min(stary próg, ceil(pomiar x (1 + zapas))). Nigdy w górę -
- * ta sama reguła co FROZEN_BUDGET_KB w scripts/check-bundle-size.ts.
+ * PODŁOGI POLITYKI dla `--ratchet`. Te progi nie opisują stanu fixture, tylko regułę: drabina
+ * okładek ma 5 szerokości (fixture nie ma żadnego `srcset`, pomiar 0), strona może mieć dwóch
+ * kandydatów LCP - desktop i telefon (fixture `/` ma jednego). Ratchet do pomiaru zbiłby je do
+ * 0 / 1 / 1 i zapalił bramkę na poprawnej stronie produkcyjnej (komentarz P3.2a w pliku progów).
+ */
+export const RATCHET_FLOORS: Readonly<Partial<Record<GatedMetric, number>>> = {
+  srcsetCandidatesMax: 5,
+  imgFetchpriorityHigh: 2,
+  lcpCandidateCount: 2,
+};
+
+/**
+ * Ratchet: nowy próg = min(stary próg, max(ceil(pomiar x (1 + zapas)), podłoga polityki)).
+ * Nigdy w górę - ta sama reguła co FROZEN_BUDGET_KB w scripts/check-bundle-size.ts.
  */
 export function ratchetBudgets(
   budgets: Budgets,
@@ -837,7 +897,8 @@ export function ratchetBudgets(
   for (const metric of GATED_METRICS) {
     const value = measured[metric];
     // Liczniki (bloki, preloady, obrazy) są deterministyczne - zapas tylko dla bajtów.
-    const proposed = metric.endsWith("Bytes") ? Math.ceil(value * (1 + headroom)) : value;
+    const measuredLimit = metric.endsWith("Bytes") ? Math.ceil(value * (1 + headroom)) : value;
+    const proposed = Math.max(measuredLimit, RATCHET_FLOORS[metric] ?? 0);
     const previous = budgets[metric];
     const max = previous ? Math.min(previous.max, proposed) : proposed;
     out[metric] = {
@@ -867,8 +928,8 @@ export function medianWeights(
 /**
  * MODUŁY TYLKO SERWEROWE (P1.4, recenzja runda 3, m3). Kandydata LCP
  * (`lcpCandidate.ts`) i preload jego obrazu (`heroImage.ts`) liczy wyłącznie
- * serwer; kod klienta woła je pod `isServerRender()`, a Rollup wycina tę gałąź,
- * bo `isServer` router-core jest w buildzie przeglądarki literałem `false`.
+ * serwer; kod klienta woła je pod warunkiem serwera (`aboveFold.tsx`), a bundler wycina tę
+ * gałąź, bo `import.meta.env.SSR`/`DEV` są w buildzie przeglądarki literałami `false`.
  * Powrót do bundla klienta (wywołanie poza gałęzią, niestała flaga w paczce,
  * bundler, który przestał zwijać gałąź) nie przekracza żadnego progu bajtowego
  * (+1,1 KB gzip w zapasie kilkunastu KB), więc sprawdza go osobny test

@@ -89,9 +89,9 @@ const NOT_ON_LOAD: Record<string, string> = {
   ".chat-jump-flash": "czat członka - podświetlenie po kliknięciu skoku do wiadomości",
   ".animate-accordion-down": "rozwinięcie akordeonu po kliknięciu (Radix)",
   ".animate-accordion-up": "zwinięcie akordeonu po kliknięciu (Radix)",
-  ".mbb__item.active":
-    "pasek dolny doku - wyłącznie zalogowani (`SiteChrome`: `WorkspaceDock` tylko z `user`), " +
-    "poza śladem Lighthouse anonima",
+  // `.mbb__item.active` (rysowanie ikony paska dolnego) zniknął z tej listy razem z regułą:
+  // komponent paska renderuje już tylko podgląd w panelu, a jego arkusz żyje
+  // w `admin-styles.css`, którego strona publiczna nie ładuje.
   ".voice-eq-bar--active": "nagrywanie wiadomości głosowej - po kliknięciu mikrofonu",
 };
 

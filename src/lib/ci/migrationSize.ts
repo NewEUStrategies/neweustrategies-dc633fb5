@@ -28,14 +28,8 @@
 // bramka ich nie mierzy.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { DEPLOYED_OVERSIZE, MIGRATION_SIZE_BASELINE } from "./migrationDeployed";
-import type { LaneEntry } from "./migrationLaneParity";
-import { parseMigrationFile } from "./migrationLedger";
 import { DEFAULT_MAX_BYTES } from "./migrationSplit";
-import {
-  DRIZZLE_MIGRATIONS_DIR,
-  SUPABASE_MIGRATIONS_DIR,
-  continuationParts,
-} from "./migrationSplitPlan";
+import { continuationParts } from "./migrationSplitPlan";
 
 export const MIGRATION_MAX_BYTES = DEFAULT_MAX_BYTES;
 
@@ -74,97 +68,6 @@ export interface SizeReport {
   readonly violations: readonly SizeViolation[];
 }
 
-const splitHint = (file: string): string =>
-  `Pociac: bun run scripts/split-migration.ts ${SUPABASE_MIGRATIONS_DIR}/${file} (--dry-run najpierw).`;
-
-/** Zestawia rozmiary obu pasow z limitem, linia i lista wdrozonych wyjatkow. */
-export function analyzeMigrationSizes(
-  input: {
-    readonly supabase: readonly SizedFile[];
-    readonly drizzle: readonly SizedFile[];
-    readonly lanes: readonly LaneEntry[];
-  },
-  config: SizeConfig = SIZE_CONFIG,
-): SizeReport {
-  const violations: SizeViolation[] = [];
-  let exempt = 0;
-  const bySupabase = new Map(input.supabase.map((f) => [f.name, f.bytes]));
-
-  for (const file of input.supabase) {
-    if (file.bytes <= config.limit) continue;
-    const version = parseMigrationFile(file.name)?.version;
-    const aboveLine = version === undefined || version > config.baseline;
-    if (!aboveLine && config.deployed[file.name] === file.bytes) {
-      exempt += 1;
-      continue;
-    }
-    violations.push(
-      aboveLine
-        ? {
-            kind: "za-duza",
-            file: `${SUPABASE_MIGRATIONS_DIR}/${file.name}`,
-            detail: `${file.bytes} B > limit ${config.limit} B - Lovable tego pliku nie wdrozy. ${splitHint(file.name)}`,
-          }
-        : {
-            kind: "za-duza-pod-linia",
-            file: `${SUPABASE_MIGRATIONS_DIR}/${file.name}`,
-            detail: `${file.bytes} B > limit ${config.limit} B przy wersji <= ${config.baseline}, a pliku nie ma na liscie wdrozonych (DEPLOYED_OVERSIZE) w tym rozmiarze. Niewdrozona migracja ze stara wersja albo zmieniona wdrozona - nadaj nowa wersje i potnij. ${splitHint(file.name)}`,
-          },
-    );
-  }
-
-  for (const [name, bytes] of Object.entries(config.deployed)) {
-    const actual = bySupabase.get(name);
-    const version = parseMigrationFile(name)?.version;
-    if (actual === bytes && version !== undefined && version <= config.baseline) continue;
-    violations.push({
-      kind: "zwolnienie-nieaktualne",
-      file: `${SUPABASE_MIGRATIONS_DIR}/${name}`,
-      detail:
-        actual === undefined
-          ? `Wpis DEPLOYED_OVERSIZE bez pliku - martwe zwolnienie maskuje znikniecie migracji.`
-          : `Wpis DEPLOYED_OVERSIZE (${bytes} B) nie pasuje do pliku (${actual} B) albo lezy ponad linia ${config.baseline}. Wdrozonej migracji sie nie zmienia.`,
-    });
-  }
-
-  const twinOf = new Map<string, string>();
-  for (const entry of input.lanes) if ("twin" in entry) twinOf.set(`${entry.tag}.sql`, entry.twin);
-  for (const file of input.drizzle) {
-    const twin = twinOf.get(file.name);
-    if (twin === undefined || file.bytes <= config.limit) continue;
-    const version = parseMigrationFile(twin)?.version;
-    if (
-      version !== undefined &&
-      version <= config.baseline &&
-      config.deployed[twin] !== undefined
-    ) {
-      exempt += 1;
-      continue;
-    }
-    violations.push({
-      kind: "za-duzy-blizniak",
-      file: `${DRIZZLE_MIGRATIONS_DIR}/${file.name}`,
-      detail: `${file.bytes} B > limit ${config.limit} B (blizniak ${twin}). Skrypt tnie oba pasy naraz. ${splitHint(twin)}`,
-    });
-  }
-
-  return {
-    checked: input.supabase.length + input.drizzle.length,
-    exempt,
-    violations,
-  };
-}
-
-export function renderSizeReport(report: SizeReport): string {
-  const head = `Rozmiar migracji: ${report.checked} plikow, ${report.exempt} wdrozonych ponad limit zwolnionych.`;
-  if (report.violations.length === 0) return `${head} Zgodne.`;
-  return [
-    head,
-    `NARUSZENIA (${report.violations.length}):`,
-    ...report.violations.map((v) => `  [${v.kind}] ${v.file}: ${v.detail}`),
-  ].join("\n");
-}
-
 /** Dostep do dysku - wstrzykiwalny, zeby testy nie dotykaly repozytorium. */
 export interface MigrationFs {
   readonly list: (dir: string) => string[];
@@ -183,20 +86,6 @@ export const nodeMigrationFs: MigrationFs = {
     }
   },
 };
-
-/** Rozmiary plikow `.sql` obu pasow (bajty na dysku == bajty UTF-8). */
-export function collectMigrationSizes(fs: MigrationFs = nodeMigrationFs): {
-  supabase: SizedFile[];
-  drizzle: SizedFile[];
-} {
-  const sized = (dir: string): SizedFile[] =>
-    fs
-      .list(dir)
-      .filter((name) => name.endsWith(".sql"))
-      .sort()
-      .map((name) => ({ name, bytes: fs.size(`${dir}/${name}`) }));
-  return { supabase: sized(SUPABASE_MIGRATIONS_DIR), drizzle: sized(DRIZZLE_MIGRATIONS_DIR) };
-}
 
 /**
  * Cala LOGICZNA migracja: plik i jego czesci 2..n (po naglowku

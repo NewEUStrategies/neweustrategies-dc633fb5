@@ -21,13 +21,8 @@ import { areaLabel, stageLabel } from "@/lib/tracker/stages";
 /** Publiczna ścieżka huba trackera - siteUrl kanału i baza autodiscovery. */
 export const TRACKER_HUB_PATH = "/tracker";
 
-/**
- * Ścieżka kanału (atom:link rel="self", link autodiscovery, wejście dla ludzi).
- * Stała żyje w module CZYSTYM, bo czytają ją zarówno handler serwerowy, jak i
- * komponenty tras - import z `feed.server.ts` wciągnąłby kod serwerowy do
- * bundla klienta.
- */
-export const TRACKER_FEED_PATH = "/tracker/rss.xml";
+/** Ścieżka kanału - w `feedPath.ts` (moduł bez importów, czytany przez `head()` tras). */
+export { TRACKER_FEED_PATH } from "./feedPath";
 
 /** Wiersz dossier potrzebny do zbudowania pozycji kanału. */
 export interface TrackerFeedItemSource {

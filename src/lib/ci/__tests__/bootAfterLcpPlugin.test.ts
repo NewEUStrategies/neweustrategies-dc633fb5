@@ -11,6 +11,7 @@
 //
 // i18n: brak treści dla użytkownika - narzędzie builda.
 import { readFileSync } from "node:fs";
+import { transformWithOxc } from "vite";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -117,6 +118,16 @@ describe("nes:boot-after-lcp - podział manifestu", () => {
     );
     expect(() => evaluateStartManifestModule("export default {}")).toThrow(/tsrStartManifest/);
   });
+
+  it("arkusz w `css` korzenia przerywa build (blokowałby render każdej strony)", () => {
+    const script = { attrs: { type: "module", async: true, src: ENTRY } };
+    const withRootCss = (css: unknown) => ({ routes: { __root__: { scripts: [script], css } } });
+    expect(() => splitStartManifest(withRootCss(["/assets/Lightbox-Ab12Cd34.css"]))).toThrow(
+      /korzeń ma arkusze w manifeście \(\/assets\/Lightbox-Ab12Cd34\.css\)/,
+    );
+    // Pusta lista to brak arkuszy - framework pisze ją dla korzenia bez CSS.
+    expect(() => splitStartManifest(withRootCss([]))).not.toThrow();
+  });
 });
 
 type TransformResult = { code: string } | null | undefined;
@@ -182,10 +193,13 @@ describe("nes:boot-after-lcp - zaślepka BOOT_MANIFEST", () => {
     );
   });
 
-  it("deklaracja w źródle i w wejściu testu to ten sam kształt (bez cichego rozjazdu)", () => {
-    // Źródło ma adnotację typu, którą esbuild zdejmuje; wzorzec ma pasować do wyniku.
+  it("deklaracja w źródle i w wejściu testu to ten sam kształt (bez cichego rozjazdu)", async () => {
+    // Źródło ma adnotację typu, którą transpilacja TS zdejmuje (wtyczka biegnie z `enforce:
+    // "post"`); wejście testu to wynik PRAWDZIWEGO Oxc - transformatora TS Vite 8.
     const source = readFileSync("src/lib/boot/bootManifest.ts", "utf8");
     expect(source).toMatch(/export const BOOT_MANIFEST: BootManifest \| null = null;/);
+    const { code } = await transformWithOxc(source, "src/lib/boot/bootManifest.ts");
+    expect(code).toContain(TRANSPILED_PLACEHOLDER);
   });
 
   it("brak deklaracji to `null` (wołający przerywa build), nie cicha podmiana", () => {

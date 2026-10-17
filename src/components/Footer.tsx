@@ -50,8 +50,10 @@ import { SECTION_ISLAND_TRIGGER, sectionIslandInfo } from "@/lib/builder/section
  * literał, więc w bundlu klienta zostaje sam `lazy()`, a statyczny import
  * czystego modułu znika - domknięcie bootu strony głównej nie rośnie o kod
  * listwy, tylko o ten `lazy()` (nazwany chunk `legal-links` w obu
- * konfiguracjach Vite - bez nazwy łączenie małych chunków wkleja listwę
- * z powrotem do wejścia). Chunk jest podany wyspie w `chunks` (kontrakt
+ * konfiguracjach Vite - grupa w `scripts/lib/clientChunkGroups.ts`; Rolldown
+ * wystawia go temu `import()` przez pustą fasadę `LegalLinks-*.js`). Martwy
+ * w kliencie import wyżej robi z listwy moduł `$initial`, więc jej grupa
+ * wybiera przed `app-initial` (reszta bootu). Chunk jest podany wyspie w `chunks` (kontrakt
  * `hydrationIsland`: każdy `React.lazy` w wyspie jako komponent), więc wyspa
  * go gruntuje przed hydratacją i HTML serwera hydratuje bez zawieszenia. Własna granica
  * `Suspense` chroni dokument stopki przy świeżym montażu po nawigacji SPA
@@ -64,9 +66,10 @@ import { SECTION_ISLAND_TRIGGER, sectionIslandInfo } from "@/lib/builder/section
  * przewijania), poza ścieżką do LCP. Wyspa czeka na ten chunk przed
  * hydratacją stopki. Świadomie: kilkaset bajtów poza domknięciem bootu
  * zamiast kodu listwy w chunku wejściowym każdej strony. Danych listwa nie
- * czyta (rejestr w kodzie, język z `useLang`). Preloadu zależności chunk nie
- * ma (`modulePreload.resolveDependencies` w obu konfiguracjach Vite): importuje
- * wyłącznie chunki vendorowe, które boot już załadował.
+ * czyta (rejestr w kodzie, język z `useLang`). Importuje wyłącznie chunki
+ * vendorowe, które boot już załadował - lista preloadu tego `import()`
+ * (`__vite__mapDeps`) wymienia je obok fasady i chunku listwy, ale niczego
+ * drugi raz nie pobiera.
  *
  * AWARIA CHUNKU DEGRADUJE DO BRAKU LISTWY, NIE DO EKRANU BŁĘDU.
  * `RenderErrorBoundary` łapie odrzucony import (`React.lazy` rzuca nim przy

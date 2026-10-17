@@ -43,6 +43,13 @@ const data = vi.hoisted(() => ({
   // silnik wyszukiwania. Paginacja linkowa ma pytać o jedną stronę naraz
   // (tryb `page`), a nie o rosnące okno.
   searches: [] as Array<{ filters: Record<string, unknown>; page: number | undefined }>,
+  /** Wartości nagłówka `Link` dołożone przez loader (poza żądaniem kanał jest no-opem). */
+  linkHeaders: [] as string[],
+}));
+
+vi.mock("@/lib/http/responseHeaders", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/http/responseHeaders")>()),
+  appendLinkHeader: (value: string) => void data.linkHeaders.push(value),
 }));
 
 vi.mock("@/lib/queries/public", async (importOriginal) => ({
@@ -191,6 +198,21 @@ const coverPost = (id: string): BlogListItem => ({ ...post(id), cover_image_url:
 const imagePreload = (links: Record<string, unknown>[]) =>
   links.find((l) => l.rel === "preload" && l.as === "image");
 
+/**
+ * Preload LCP archiwum: nagłówek `Link` z loadera + obraz karty `fetchPriority="high"`, z którego
+ * React 19 sam wstawia `<link rel="preload" as="image">` do `<head>` (te same `srcSet`/`sizes`).
+ * `head()` trasy NIE dokłada drugiego, identycznego linku (`documentPreloadDuplicates`).
+ */
+function expectCoverPreload(view: Awaited<ReturnType<typeof mount>>, sizes: string): void {
+  expect(imagePreload(view.links())).toBeUndefined();
+  const header = data.linkHeaders.find((value) => value.startsWith(`<${COVER}>`));
+  expect(header, data.linkHeaders.join("\n")).toContain('as="image"');
+  expect(header).toContain(`imagesizes="${sizes}"`);
+  const img = view.container.querySelector<HTMLImageElement>('img[fetchpriority="high"]');
+  expect(img?.getAttribute("sizes")).toBe(sizes);
+  expect(img?.getAttribute("srcset")).toBeTruthy();
+}
+
 async function mount(
   route: unknown,
   path: string,
@@ -216,6 +238,7 @@ async function mount(
 // przez `findBy*`, a nie przez zgadywanie momentu.
 
 beforeEach(() => {
+  data.linkHeaders = [];
   data.blog = { posts: posts(2), total: 2, page: 1, pageSize: 2 };
   data.blogFailOnce = false;
   data.taxonomyFailOnce = false;
@@ -337,22 +360,19 @@ describe("/blog", () => {
     expect(screen.getByText(/Brak|No posts/i)).toBeTruthy();
   });
 
-  it("okładka pierwszej karty ląduje w preloadzie LCP nagłówka", async () => {
+  it("okładka pierwszej karty ląduje w preloadzie LCP (nagłówek `Link` + obraz high)", async () => {
     // Preload i render MUSZĄ brać ten sam wariant obrazu - inaczej przeglądarka
-    // pobiera plik dwa razy i LCP jest gorsze niż bez preloadu.
+    // pobiera plik dwa razy i LCP jest gorsze niż bez preloadu. Siatka bloga nie
+    // rysuje karty wyróżnionej, więc obowiązują `sizes` karty zwykłej.
     data.blog = { posts: [coverPost("p1"), post("p2")], total: 2, page: 1, pageSize: 2 };
     const view = await mount(BlogRoute, "/blog", "/blog");
-    expect(imagePreload(view.links())).toMatchObject({
-      href: COVER,
-      fetchPriority: "high",
-      // Siatka bloga nie rysuje karty wyróżnionej, więc obowiązują `sizes` karty zwykłej.
-      imageSizes: CARD_IMAGE_SIZES,
-    });
+    expectCoverPreload(view, CARD_IMAGE_SIZES);
   });
 
   it("wpis bez okładki nie dokłada pustego preloadu", async () => {
     const view = await mount(BlogRoute, "/blog", "/blog");
     expect(imagePreload(view.links())).toBeUndefined();
+    expect(data.linkHeaders.filter((value) => value.includes('as="image"'))).toEqual([]);
   });
 
   it("awaria ustawień czytania nie zabiera czytelnikowi listy wpisów", async () => {
@@ -462,10 +482,7 @@ describe("/category/$slug i /tag/$slug", () => {
     };
     data.taxonomy = { ...(data.taxonomy as Record<string, unknown>), posts: [coverPost("p1")] };
     const view = await mount(CategoryRoute, "/category/$slug", "/category/gospodarka");
-    expect(imagePreload(view.links())).toMatchObject({
-      href: COVER,
-      imageSizes: FEATURED_CARD_IMAGE_SIZES,
-    });
+    expectCoverPreload(view, FEATURED_CARD_IMAGE_SIZES);
   });
 
   it("bez karty wyróżnionej preload wraca do `sizes` karty siatki", async () => {
@@ -477,7 +494,7 @@ describe("/category/$slug i /tag/$slug", () => {
     };
     data.taxonomy = { ...(data.taxonomy as Record<string, unknown>), posts: [coverPost("p1")] };
     const view = await mount(TagRoute, "/tag/$slug", "/tag/nato");
-    expect(imagePreload(view.links())).toMatchObject({ imageSizes: CARD_IMAGE_SIZES });
+    expectCoverPreload(view, CARD_IMAGE_SIZES);
   });
 
   it("awaria bazy daje render ZDEGRADOWANY (200), a nie wyjątek ani 404", async () => {

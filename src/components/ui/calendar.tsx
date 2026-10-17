@@ -1,5 +1,3 @@
-"use client";
-
 // ETYKIETY ARIA KALENDARZA IDĄ ZA JĘZYKIEM INTERFEJSU.
 //
 // react-day-picker 9 bierze nazwy przycisków nawigacji, siatki i dni

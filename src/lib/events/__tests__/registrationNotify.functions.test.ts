@@ -17,7 +17,7 @@
 //      NIEUDANEJ wysyłce zamienia tę kolumnę w bezużyteczny licznik prób.
 //
 // PUŁAPKA HARNESSU: `createServerFn` buduje łańcuch
-// `.middleware().inputValidator().handler()`. Atrapa oddaje z `.handler(fn)`
+// `.middleware().validator().handler()`. Atrapa oddaje z `.handler(fn)`
 // samą funkcję z doklejonym `validate`, więc test wywołuje PRAWDZIWY walidator
 // i PRAWDZIWY handler, a nie własną imitację.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,7 +33,7 @@ vi.mock("@tanstack/react-start", () => ({
     let validate: ((data: unknown) => unknown) | undefined;
     const api = {
       middleware: () => api,
-      inputValidator: (fn: (data: unknown) => unknown) => {
+      validator: (fn: (data: unknown) => unknown) => {
         validate = fn;
         return api;
       },

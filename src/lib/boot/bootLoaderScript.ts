@@ -1,8 +1,8 @@
 // LOADER BOOTU (P2.1, krok 2; P3.4) - klasyczny, inline'owy skrypt w `<head>`, zaraz po sondzie
 // bootu (`lib/observability/bootProbeScript.ts`). Startuje aplikację: wstawia `<link
-// rel=modulepreload>` całej listy z `#nes-boot-set` (`bootSet.server.ts`) i `<script type="module"
-// src=wejście>` - to drugie NIGDY przed końcem parsowania dokumentu (niżej, „WEJŚCIE PO
-// PARSOWANIU”).
+// rel=modulepreload>` całej listy z `#nes-boot-set` (`bootSet.server.ts`, `bootSetNode.tsx`)
+// i `<script type="module" src=wejście>` - to drugie NIGDY przed końcem parsowania dokumentu
+// (niżej, „WEJŚCIE PO PARSOWANIU”).
 //
 // PO CO. Manifest TanStack Start nie startuje już JS-a (`scripts/lib/bootAfterLcpPlugin.ts`).
 // Lantern liczy do grafu FCP/LCP każdy skrypt zakończony przed OBSERWOWANYM LCP (PLAN §1.3,
@@ -59,16 +59,16 @@
 // semantyka `defer`. Przy dokumencie HIT nic się nie zmienia: DCL przychodzi przed obserwowanym
 // LCP + 50 ms.
 //
-// ZESTAW CZYTANY LENIWIE. `#nes-boot-set` przychodzi z buforem routera przy pierwszej granicy
-// strumienia. W zmierzonych dokumentach stoi PRZED loaderem (baza W3: offset 11 727 B wobec
-// 23 290 B loadera; spike P2.1: 498–11 497 B w 36/36; strażnik kolejności w e2e `boot-home`),
-// więc odczyt przy starcie skryptu go zastaje. Gdy go nie ma, ostatnia szansa to DOMContentLoaded
-// (P3.4: bez `MutationObserver` z `subtree` na całym dokumencie w trakcie parsowania - w śladach
-// bazy nie był ani razu uzbrojony, a jego rolę przejmuje odczyt przy DCL; dokument `now` i tak ma
-// serię w nagłówku `Link`). Brak przy DOMContentLoaded (dev: `<Scripts>` frameworka startuje
-// aplikację sam) - nic nie robimy. Węzeł jest USUWANY od razu po odczycie, czyli zawsze przed
-// wstawieniem wejścia: obcy węzeł w zwykłym (nie singletonowym) rodzicu byłby niedopasowaniem
-// hydratacji (React 19 pomija obce węzły tylko w `html`/`head`/`body`).
+// ZESTAW CZYTANY PRZY STARCIE. `#nes-boot-set` renderuje w `<head>` węzeł `BootSetNode`
+// (`bootSetNode.tsx`) zaraz po `<HeadContent />`, czyli zawsze PRZED sondą i tym skryptem, na
+// każdej ścieżce renderu (strumień, `allReady` botów, `renderToString`; strażnik kolejności:
+// `rootRoute.test.tsx` i e2e `boot-home`), więc odczyt przy starcie skryptu go zastaje. Odczyt
+// przy DOMContentLoaded zostaje jako tani zapas obronny (P3.4: bez `MutationObserver` z `subtree`
+// na całym dokumencie w trakcie parsowania; dokument `now` i tak ma serię w nagłówku `Link`).
+// Brak przy DOMContentLoaded (dev: `<Scripts>` frameworka startuje aplikację sam) - nic nie
+// robimy. Węzeł jest USUWANY od razu po odczycie, czyli zawsze przed wstawieniem wejścia - od tego
+// zależy hydratacja: w przeglądarce `BootSetNode` renderuje `null`, a React 19 w `<head>`
+// dopasowałby pozostawiony `<script>` bez `src` do następnego oczekiwanego skryptu (sondy).
 //
 // OBSERWOWALNOŚĆ. `window.__nesBootWhy` = `now` | `lcp` | `input` | `nocand` | `load` | `cap`
 // (co wyzwoliło boot - e2e i pomiar; ustawiane przy wyzwoleniu, przed DCL też), a
@@ -87,8 +87,10 @@
 // (pomiar po klatce opłacony usunięciem obserwatora mutacji).
 import { STORED_SESSION_EXPR } from "@/integrations/supabase/sessionHint";
 
-/** Id węzła zestawu bootu - kontrakt z `bootSet.server.ts`, e2e i `documentWeight.ts`. */
-export const BOOT_SET_ELEMENT_ID = "nes-boot-set";
+import { BOOT_SET_ELEMENT_ID } from "./bootSetId";
+
+export { BOOT_SET_ELEMENT_ID };
+
 /** Opóźnienie bootu po przyjętym wpisie LCP (prezentacja klatki + margines, werdykt C3). */
 export const BOOT_AFTER_LCP_DELAY_MS = 50;
 /** Ile `load` czeka jeszcze na przyjęty wpis LCP. */

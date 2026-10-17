@@ -1,11 +1,10 @@
 // Potwierdzenie zapisu („zgłoszenie przyjęte" / „zgłoszenie zaakceptowane")
 // kluczem samoobsługi - logika server-only.
 //
-// DWAJ WOŁAJĄCY, JEDNA REGUŁA. Od REG-04 potwierdzenie wysyła sam serwer po
-// zapisie (`eventRegistration.server.ts`, dostawa „utworzono"), a publiczna
-// funkcja `confirmEventRegistrationEmail` zostaje cienką obwódką dla starszych
-// wywołań. Obie drogi kończą się tutaj, więc rodzaj maila, adres i klucz
-// idempotencji nie mogą się rozjechać.
+// JEDEN WOŁAJĄCY. Od REG-04 potwierdzenie wysyła sam serwer po zapisie
+// (`eventRegistration.server.ts`, dostawa „utworzono"); przeglądarka gościa
+// bez konta nie dostaje klucza samoobsługi, więc publicznej server function
+// do tej wysyłki nie ma.
 //
 // NAJEMCA Z ARGUMENTU, NIE Z NAGŁÓWKA. `event_registration_notify_payload_for_
 // tenant` (A1, 20261012130500, tylko `service_role`) dostaje najemcę jawnie
@@ -137,26 +136,4 @@ export async function sendRegistrationNoticeForManageToken(
     console.error("[events] registration notice failed", err);
     return { ok: false, error: "send_failed" };
   }
-}
-
-/**
- * Obwódka publicznej funkcji `confirmEventRegistrationEmail`: najemca z
- * zaufanego hosta bieżącego żądania. Host bez najemcy to awaria hosta, nie
- * orzeczenie o kluczu - bez pytania bazy.
- */
-export async function confirmRegistrationNoticeForRequest(
-  manageToken: string,
-): Promise<SelfNotifyResult> {
-  let tenantId: string | null = null;
-  try {
-    const [{ currentTenantHost }, { resolveTenantIdForHost }] = await Promise.all([
-      import("@/lib/http/requestHost"),
-      import("@/lib/server/tenant.server"),
-    ]);
-    tenantId = await resolveTenantIdForHost(await currentTenantHost());
-  } catch {
-    tenantId = null;
-  }
-  if (!tenantId) return { ok: false, error: "tenant_unresolved" };
-  return sendRegistrationNoticeForManageToken(tenantId, manageToken);
 }

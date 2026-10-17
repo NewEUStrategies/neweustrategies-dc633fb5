@@ -22,9 +22,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { realT } from "@/test/i18nReal";
 
+type RouterStatus = "idle" | "pending";
+type RouterStateSlice = { status: RouterStatus; isLoading: boolean };
+
+/**
+ * Wycinek stanu routera w kształcie `__store` router-core 1.171.37: `isLoading` jest tam
+ * POCHODNĄ `status === "pending"` (`dist/esm/stores.js:31`), nie osobnym magazynem jak do
+ * 1.171.15. Stanu `{ isLoading: true, status: "idle" }` router już nie wytworzy, więc atrapa
+ * składa oba pola z jednego statusu.
+ */
+const routerState = (status: RouterStatus): RouterStateSlice => ({
+  status,
+  isLoading: status === "pending",
+});
+
 const h = vi.hoisted(() => ({
   /** Wycinek stanu routera, jaki widzi selektor komponentu. */
-  routerState: { isLoading: false, status: "pending" } as { isLoading: boolean; status: string },
+  routerState: { isLoading: true, status: "pending" } as RouterStateSlice,
   lang: "pl" as "pl" | "en",
   /** Prawdziwy `getFixedT`, wstrzyknięty pod importami - fabryka nic nie importuje. */
   fixedT: null as null | typeof realT,
@@ -33,13 +47,11 @@ const h = vi.hoisted(() => ({
 // Atrapa WYWOŁUJE selektor komponentu na podstawionym stanie, zamiast zwracać
 // gotowe `true`. Dzięki temu testowany jest także warunek „co znaczy zajęty" -
 // przy atrapie zwracającej stałą ta linia nigdy się nie wykonuje, a pomyłka
-// w niej (np. samo `isLoading`) przechodziłaby niezauważona.
+// w niej (np. odwrócone porównanie albo `status === "idle"`) przechodziłaby
+// niezauważona.
 vi.mock("@tanstack/react-router", () => ({
-  useRouterState: <T,>({
-    select,
-  }: {
-    select: (state: { isLoading: boolean; status: string }) => T;
-  }): T => select(h.routerState),
+  useRouterState: <T,>({ select }: { select: (state: RouterStateSlice) => T }): T =>
+    select(h.routerState),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -78,7 +90,7 @@ const TICK = 220;
 const FADE = 280;
 
 beforeEach(() => {
-  h.routerState = { isLoading: false, status: "pending" };
+  h.routerState = routerState("pending");
   h.lang = "pl";
   vi.useFakeTimers();
 });
@@ -110,25 +122,19 @@ describe("RouteProgress - kontrakt hydratacji", () => {
   });
 });
 
-describe("stan zajetosci ma DWA niezalezne zrodla w stanie routera", () => {
-  it("praca loadera trasy (`isLoading`) znaczy zajęty", () => {
-    h.routerState = { isLoading: true, status: "idle" };
-    render(<RouteProgress />);
-
-    expect(screen.getByRole("status").textContent).toBe(realT("pl")("common.loading"));
-  });
-
-  it("przejście w toku (`status === pending`) też znaczy zajęty", () => {
-    // Druga połowa warunku. Gdyby selektor patrzył tylko na `isLoading`,
-    // pasek milczałby przez cały czas rozstrzygania trasy.
-    h.routerState = { isLoading: false, status: "pending" };
+describe('stan zajetosci to `status === "pending"` routera', () => {
+  it("przejście w toku (`status === pending`, z nim `isLoading`) znaczy zajęty", () => {
+    // Do 1.171.15 `isLoading` (praca loaderów) i `status` miały osobne magazyny i selektor
+    // brał alternatywę. Dziś `isLoading` jest pochodną statusu, więc jest jeden warunek -
+    // i obie dawne połowy pokrywa ten sam stan.
+    h.routerState = routerState("pending");
     render(<RouteProgress />);
 
     expect(screen.getByRole("status").textContent).toBe(realT("pl")("common.loading"));
   });
 
   it("router bezczynny to cisza", () => {
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     render(<RouteProgress />);
 
     expect(screen.getByRole("status").textContent).toBe("");
@@ -144,7 +150,7 @@ describe("komunikat dla czytnika ekranu pojawia się dopiero po zamontowaniu", (
 
   it("po zakończeniu nawigacji region milczy, a nie powtarza komunikatu", () => {
     const { rerender } = render(<RouteProgress />);
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     rerender(<RouteProgress />);
 
     expect(screen.getByRole("status").textContent).toBe("");
@@ -175,7 +181,7 @@ describe("pasek zwleka, pełznie i gaśnie", () => {
     expect(opacity(container)).toBe("0");
 
     advance(SHOW_DELAY - 1);
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     rerender(<RouteProgress />);
     advance(SHOW_DELAY + TICK);
 
@@ -224,7 +230,7 @@ describe("pasek zwleka, pełznie i gaśnie", () => {
     const { container, rerender } = render(<RouteProgress />);
     advance(SHOW_DELAY + TICK);
 
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     rerender(<RouteProgress />);
 
     expect(width(container)).toBe(100);
@@ -239,12 +245,12 @@ describe("pasek zwleka, pełznie i gaśnie", () => {
   it("kolejna nawigacja po wygaszeniu zapala pasek od nowa", () => {
     const { container, rerender } = render(<RouteProgress />);
     advance(SHOW_DELAY);
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     rerender(<RouteProgress />);
     advance(FADE);
     expect(opacity(container)).toBe("0");
 
-    h.routerState = { isLoading: true, status: "idle" };
+    h.routerState = routerState("pending");
     rerender(<RouteProgress />);
     advance(SHOW_DELAY);
 
@@ -266,7 +272,7 @@ describe("pasek zwleka, pełznie i gaśnie", () => {
     expect(vi.getTimerCount()).toBe(0);
     const second = render(<RouteProgress />);
     advance(SHOW_DELAY);
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     second.rerender(<RouteProgress />);
     second.unmount();
     expect(vi.getTimerCount()).toBe(0);
@@ -275,10 +281,10 @@ describe("pasek zwleka, pełznie i gaśnie", () => {
   it("restarts crawling when navigation resumes during the completion fade", () => {
     const { container, rerender, unmount } = render(<RouteProgress />);
     advance(SHOW_DELAY);
-    h.routerState = { isLoading: false, status: "idle" };
+    h.routerState = routerState("idle");
     rerender(<RouteProgress />);
     advance(FADE - 1);
-    h.routerState = { isLoading: true, status: "pending" };
+    h.routerState = routerState("pending");
     rerender(<RouteProgress />);
     advance(TICK * 2);
     expect(opacity(container)).toBe("1");

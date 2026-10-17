@@ -43,24 +43,27 @@ const h = vi.hoisted(() => ({
   /** Callbacki `router.subscribe(...)` - test wywołuje je RĘCZNIE, patrz niżej. */
   handlers: new Map<string, () => void>(),
   /**
-   * Czy atrapa `Outlet` ma ZAWIESIĆ render. `RouteLoadingSkeleton` jest
-   * fallbackiem `<Suspense>` wokół `<Outlet/>` i NIE JEST eksportowany, więc
-   * jedyną drogą do jego wykonania jest zawieszenie dziecka tej granicy.
+   * Czy atrapa `Outlet` ma ZAWIESIĆ render. `RouteLoadingSkeleton`
+   * (`lib/ssr/RouteLoadingSkeleton.tsx`) jest fallbackiem `<Suspense>` wokół
+   * `<Outlet/>` w `RootComponent`, więc jedyną drogą do wykonania TEJ granicy
+   * jest zawieszenie jej dziecka.
    *
-   * SPROSTOWANIE WŁASNEGO KOMENTARZA (2026-09-03, jeszcze przed scaleniem).
-   * Stało tu, że jest to „dokładnie to, co w produkcji robi wolno
-   * rozwiązująca się trasa". TO NIEPRAWDA i różnica jest tu całą treścią:
-   * prawdziwy `<Outlet/>` zakłada WŁASNĄ granicę `Suspense` wokół dopasowania
-   * dziecka, z fallbackiem `null`
-   * (`@tanstack/react-router/dist/esm/Match.js:284-287` + `:71-72`, bo
-   * `src/router.tsx` nie ustawia `defaultPendingComponent`). React wybiera
-   * granicę NAJBLIŻSZĄ, więc w produkcji zawieszenie trasy NIE DOCHODZI do
-   * granicy korzenia i szkielet się NIE POKAZUJE.
+   * SPROSTOWANIE WŁASNEGO KOMENTARZA (2026-09-03, jeszcze przed scaleniem;
+   * poprawione przy podbiciu TanStack 1.169). Stało tu, że jest to „dokładnie
+   * to, co w produkcji robi wolno rozwiązująca się trasa". TO NIEPRAWDA:
+   * prawdziwy `<Outlet/>` korzenia zakłada WŁASNĄ granicę `Suspense` wokół
+   * dopasowania dziecka, a samo dopasowanie dziecka - drugą
+   * (`@tanstack/react-router` 1.170.44, `dist/esm/Match.js:160-163` oraz
+   * `:23`, `:37`, `:65-68`). Obie mają fallback `defaultPendingComponent`,
+   * który `src/router.tsx` USTAWIA (`RouteLoadingSkeleton`). React wybiera
+   * granicę NAJBLIŻSZĄ, więc w produkcji zawieszenie trasy łapie granica
+   * routera - z tym samym szkieletem - i NIE DOCHODZI do granicy wokół
+   * `<Outlet/>` w `RootComponent`.
    *
    * Ten blok dowodzi więc TYLKO tego, że szkielet renderuje się poprawnie, GDY
-   * zostanie osiągnięty - a nie że produkcja go osiąga. Nieosiągalność jest
-   * zarejestrowana jako `it.fails` w `rootRouterMount.test.tsx` („DEFEKT: wolna
-   * trasa NIE pokazuje RouteLoadingSkeleton"), na prawdziwym routerze.
+   * ta granica zostanie osiągnięta. Szkielet wolnej trasy na prawdziwym
+   * `<Outlet/>` dowodzi `rootRouterMount.test.tsx` („wolna trasa pokazuje
+   * RouteLoadingSkeleton przez prawdziwy Outlet").
    */
   outletSuspends: false,
   outletRenders: 0,

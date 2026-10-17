@@ -1,11 +1,30 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  resolve: {
+    // To samo mapowanie, które aplikacja dostaje z `@lovable.dev/vite-tanstack-config`
+    // (`@` -> `src`), i jedyny wpis `paths` w `tsconfig.json` (`@/*`). Jawny
+    // alias zamiast wtyczki `vite-tsconfig-paths`: Vite 8 ostrzega przy każdym
+    // starcie, że wtyczka jest zbędna, a alias - w przeciwieństwie do niej -
+    // działa niezależnie od tego, który `tsconfig*.json` obejmuje importujący
+    // plik, więc test może wciągnąć także moduł z `scripts/` (spoza `include`
+    // głównego tsconfiga) importujący `@/lib/...`. Nowy wpis w `paths` wymaga
+    // wpisu tutaj.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   test: {
     environment: "happy-dom",
     globals: true,
+    // Vitest 5 odwrócił domyślne `clearMocks` na `true` (przewodnik migracji
+    // 5.0, „clearMocks is Enabled by Default"). Wracamy jawnie do semantyki
+    // Vitesta 4: historia wywołań mocków NIE jest czyszczona przed każdym
+    // testem. Suita powstała przy tej semantyce - ~1400 plików sprawdza
+    // historię mocków, a część z nich (`beforeAll` + asercje na wywołaniach,
+    // `it.fails` zależne od historii z poprzedniego testu) mogłaby zmienić
+    // wynik bez jednej zmiany w kodzie. Przejście na `true` to osobna zmiana
+    // z pełnym przebiegiem suity, nie efekt uboczny podbicia wersji.
+    clearMocks: false,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     setupFiles: ["./vitest.setup.ts"],
     // Rachunek „ZEBRANE = ZARAPORTOWANE" obok domyślnego raportu. Bez tego

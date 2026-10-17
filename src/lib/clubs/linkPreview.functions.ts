@@ -105,7 +105,7 @@ function absolute(candidate: string | null, base: URL): string | null {
 
 export const fetchClubLinkPreview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => InputSchema.parse(data))
+  .validator((data: unknown) => InputSchema.parse(data))
   .handler(async ({ data, context }): Promise<ClubLinkPreview | null> => {
     const { rateLimit } = await import("@/lib/server/rate-limit.server");
     // FAIL-CLOSED, bo to bramka WYJŚCIA NA SIEĆ: awaria licznika nie może

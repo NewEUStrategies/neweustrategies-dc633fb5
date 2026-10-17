@@ -97,7 +97,7 @@ export const getMyNewsletterStatus = createServerFn({ method: "GET" })
  */
 export const updateMyNewsletterTopics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => TopicsInput.parse(data))
+  .validator((data: unknown) => TopicsInput.parse(data))
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
     const email = (context.claims?.email ?? "").toString().trim().toLowerCase();
     if (!email) return { ok: false, error: "no_email" };

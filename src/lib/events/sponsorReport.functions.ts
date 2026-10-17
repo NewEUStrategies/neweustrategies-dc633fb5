@@ -22,7 +22,7 @@ const Input = z.object({
 });
 
 export const getSponsorReportByToken = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data }): Promise<{ json: string }> => {
     const { loadSponsorReportByToken } = await import("@/lib/events/sponsorReport.server");
     return loadSponsorReportByToken(data.token);

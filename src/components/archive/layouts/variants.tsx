@@ -107,7 +107,10 @@ export function LayoutMagazine(props: ArchiveLayoutProps) {
             </div>
           </div>
         )}
-        <ArchiveBody {...props} posts={rest} hasCustomFeaturedTop />
+        {/* Lead magazynowy jest kandydatem LCP tylko wtedy, gdy się rysuje. Bez leadu
+            (wyłączony w ustawieniach albo brak wpisów) kandydatem jest pierwsza karta siatki -
+            stałe `hasCustomFeaturedTop` zostawiało archiwum bez żadnego obrazu priorytetowego. */}
+        <ArchiveBody {...props} posts={rest} hasCustomFeaturedTop={showFeatured} />
       </section>
     </div>
   );

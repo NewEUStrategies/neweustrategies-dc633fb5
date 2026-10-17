@@ -46,7 +46,7 @@ function stampOf(value: unknown): string {
 /** Mail o decyzji organizatora - przycisk „Wyślij mail o decyzji" w panelu. */
 export const notifyCfpDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }): Promise<CfpNotifyResult> => {
     const { data: payload, error } = await context.supabase.rpc("admin_event_cfp_notify_payload", {
       p_submission_id: data.submissionId,
@@ -95,7 +95,7 @@ export const notifyCfpDecision = createServerFn({ method: "POST" })
 /** Potwierdzenie wysłania zgłoszenia - woła je strona zgłoszenia po `submit`. */
 export const confirmCfpSubmissionEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }): Promise<CfpNotifyResult> => {
     const { data: payload, error } = await context.supabase.rpc("event_cfp_submission_notice", {
       p_submission_id: data.submissionId,

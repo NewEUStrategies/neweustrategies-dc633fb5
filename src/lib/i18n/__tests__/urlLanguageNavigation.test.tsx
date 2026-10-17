@@ -6,7 +6,8 @@
 // przełącznik (`setClientLang`). Loader korzenia, który woła
 // `syncI18nToRequest`, NIE biegnie ponownie przy zwykłej nawigacji klienta
 // (dopasowanie korzenia ma `cause: "stay"` i ten sam identyfikator, więc
-// router-core uznaje je za świeże - `load-matches.ts`, `staleMatchShouldReload`).
+// router-core uznaje je za świeże - `load-client.ts`, `createLoaderTask`;
+// do 1.171.15 `load-matches.ts`, `staleMatchShouldReload`).
 // Skutek: po „wstecz" z /en/b na /a strona o kanonicznym adresie POLSKIM
 // renderowała angielską kopię, a każdy nowo zbudowany odnośnik dostawał prefiks
 // "/en" - przeładowanie tej samej strony dawało zaś polszczyznę.
@@ -88,7 +89,17 @@ async function boot(initialPath: string) {
     loader: ({ location }) => {
       h.rootLoaderPathnames.push(location.pathname);
     },
-    component: () => <rr.Outlet />,
+    // Odnośnik w chromie korzenia (jak nagłówek i stopka): zostaje zamontowany
+    // przez wszystkie nawigacje, więc lokalizacja zapamiętana dla niego przez
+    // router przeżywa zmianę trasy (odnośnik strony dostaje nową z każdą trasą).
+    component: () => (
+      <>
+        <rr.Link<AnyRouter> to="/c" data-testid="root-to-c">
+          c
+        </rr.Link>
+        <rr.Outlet />
+      </>
+    ),
   });
   const child = (path: string) =>
     rr.createRoute({ getParentRoute: () => root, path, component: Page });
@@ -126,6 +137,10 @@ async function settled(router: AnyRouter, publicPath: string) {
 
 function hrefToC(): string | null {
   return screen.getByTestId("to-c").getAttribute("href");
+}
+
+function rootHrefToC(): string | null {
+  return screen.getByTestId("root-to-c").getAttribute("href");
 }
 
 let state: Awaited<ReturnType<typeof boot>> | undefined;
@@ -201,6 +216,34 @@ describe("język renderu na kliencie po nawigacji wstecz/dalej", () => {
     window.history.forward();
     await settled(router, "/en/b");
     await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+  });
+
+  // REGRESJA router-core 1.171.37, naprawiona w routerze aplikacji. Router
+  // pamięta lokalizację odnośnika o bezwzględnym `to` (`staticLocations`,
+  // `router.js`) i publikuje nową lokalizację na POCZĄTKU ładowania
+  // (`load-client.js`, `loadClientRoute`), zanim `beforeLoad` korzenia
+  // (`syncI18nToRequest` -> `syncClientLangToUrl`) wyprowadzi język z adresu.
+  // Odnośnik chromu korzenia (nagłówek, stopka) przeliczał więc href jeszcze
+  // w starym języku i go zapamiętywał: po „wstecz" z /en/b na polskie /a dalej
+  // prowadził na /en/c (do 1.171.15 dawał tu "/c" - przeliczał href przy każdej
+  // zmianie adresu, bez pamięci). Naprawa: `installLanguageLinkRefresh` w
+  // `src/router.tsx` odświeża odnośniki po `onResolved`, w którym zmienił się
+  // `currentLang()` - o mikrozadanie później, bo `onResolved` biegnie w
+  // `router.batch`, który scaliłby zapis kopii lokalizacji z jej przywróceniem.
+  it("wstecz przez granicę języka: odnośnik chromu korzenia też wraca do polskiego", async () => {
+    state = await boot("/a");
+    const { router, i18n, switchUiLanguage } = state;
+    await go(router, "/b");
+    await settled(router, "/b");
+    switchUiLanguage("en", "pl", { i18n, router });
+    await settled(router, "/en/b");
+    await vi.waitFor(() => expect(rootHrefToC()).toBe("/en/c"));
+
+    window.history.back();
+    await settled(router, "/a");
+    await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
+    expect(hrefFor(router, "/c")).toBe("/c");
+    await vi.waitFor(() => expect(rootHrefToC()).toBe("/c"));
   });
 
   // Zmiana języka, która NIE przesuwa adresu (baner zgody woła wprost
@@ -331,25 +374,29 @@ describe("kontrakt przełącznika po poprawce", () => {
   });
 });
 
-// ODNOŚNIKI WYRENDEROWANE PRZED PRZEŁĄCZENIEM. `<Link>` TanStack trzyma
-// zbudowaną lokalizację, dopóki magazyn lokalizacji routera nie poda INNEGO
-// wewnętrznego `href` (`react-router/src/link.tsx`: porównanie `a.href ===
-// b.href`), a rewrite `input` zdejmuje prefiks - "/en/b" i "/b" to dla routera
-// ten sam "/b". Bez odświeżenia odnośniki strony zostawały w starym języku:
-// nowa karta, skopiowany link i pasek statusu prowadziły do drugiej wersji.
+// ODNOŚNIKI WYRENDEROWANE PRZED PRZEŁĄCZENIEM. Router pamięta lokalizację
+// każdego `<Link>` o bezwzględnym `to` (router-core: `staticLocations`,
+// czyszczone tylko w `update()`), a język do niej dokłada wyłącznie rewrite
+// `output` - "/en/b" i "/b" to dla routera ten sam "/b". Bez odświeżenia
+// (`refreshRenderedLinks`) odnośniki strony zostawały w starym języku: nowa
+// karta, skopiowany link i pasek statusu prowadziły do drugiej wersji.
 describe("odnośniki wyrenderowane przed przełączeniem", () => {
   it("PL -> EN i z powrotem: href odnośnika idzie za językiem bez kolejnej nawigacji", async () => {
     state = await boot("/b");
     const { router, i18n, switchUiLanguage } = state;
     expect(hrefToC()).toBe("/c");
+    expect(rootHrefToC()).toBe("/c");
 
     switchUiLanguage("en", "pl", { i18n, router });
     await settled(router, "/en/b");
     await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+    // Chrom korzenia też - to on (nagłówek, stopka) widzi przełączenie najczęściej.
+    expect(rootHrefToC()).toBe("/en/c");
 
     switchUiLanguage("pl", "en", { i18n, router });
     await settled(router, "/b");
     await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
+    expect(rootHrefToC()).toBe("/c");
   });
 
   it("jedno przełączenie = jeden zapis historii (replace) i jedno ładowanie, bez pętli", async () => {
@@ -375,7 +422,9 @@ describe("odnośniki wyrenderowane przed przełączeniem", () => {
       expect(replace.mock.calls[0]![0]).toBe("/en/b");
       expect(loads).toEqual(["/en/b"]);
       expect(window.history.length).toBe(entries);
-      // Chwilowa kopia lokalizacji (inny wewnętrzny href) nie zostaje w routerze.
+      // Chwilowa kopia lokalizacji nie zostaje w routerze: magazyn trzyma TEN
+      // SAM obiekt, który router rozstrzygnął w nawigacji.
+      expect(router.state.location).toBe(router.state.resolvedLocation);
       expect(router.state.location.href).toBe("/b");
       expect(router.state.location.publicHref).toBe("/en/b");
     } finally {

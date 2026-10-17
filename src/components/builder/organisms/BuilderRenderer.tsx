@@ -78,11 +78,12 @@ import {
   LcpCandidatesProvider,
   LcpEagerSection,
   NO_LCP_CANDIDATES,
-  isServerRender,
   lcpRootAttributes,
   readServerLcpCandidates,
 } from "@/lib/builder/aboveFold";
+import { isServer } from "@tanstack/router-core/isServer";
 import { lcpCandidateIds } from "@/lib/builder/lcpCandidate";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
@@ -327,7 +328,7 @@ export function BuilderRenderer({
   // węzły (recenzja P1.4, B1). Serwer zapisuje wynik na korzeniu
   // (`lcpRootAttributes`, także pustą listę), a pierwszy render kliencki
   // (hydratacja) odczytuje go z DOM-u serwera po `useId()` - bez kodu
-  // `lcpCandidates` w bundlu klienta (`isServerRender()` wycina gałąź; PROVE
+  // `lcpCandidates` w bundlu klienta (warunek serwera (`aboveFold.tsx`) wycina gałąź; PROVE
   // P1.4: +1,1 KB gzip chunku wejściowego). `ids` = `null` to brak nośnika:
   // renderer bez `lcpOwner` albo render czysto kliencki (nawigacja SPA).
   // Lista jest utrwalona RAZEM Z DOKUMENTEM (recenzja P1.4 runda 3, m2): ta sama
@@ -347,7 +348,7 @@ export function BuilderRenderer({
     docKey: lcpDocKey,
     ids: !isLcpOwner
       ? null
-      : isServerRender()
+      : (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
         ? lcpCandidateIds(safeDoc, {
             sections: aboveFoldCount,
             isAccessible: (rule) => evaluateAccess(rule, access),
@@ -355,8 +356,11 @@ export function BuilderRenderer({
         : readServerLcpCandidates(lcpRootId),
     // Plan `content-visibility` z HTML-u serwera (P3.3) - tylko hydratacja;
     // serwer liczy go w `SectionsList`, render czysto kliencki nie ma go wcale.
-    // `isServerRender()` pierwsze - zwija się w buildzie klienta (KTO LICZY niżej).
-    cv: isServerRender() || !isLcpOwner ? null : readServerCvPlan(lcpRootId),
+    // Warunek serwera pierwszy - zwija się w buildzie klienta (KTO LICZY niżej).
+    cv:
+      ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) || !isLcpOwner
+        ? null
+        : readServerCvPlan(lcpRootId),
   }));
   const ownsDoc = isLcpOwner && ownedLcp.docKey === lcpDocKey;
   const lcpIds = ownsDoc ? ownedLcp.ids : null;
@@ -543,16 +547,16 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
 // Sekcje w widoku i tak malują się w pierwszej klatce z treścią.
 //
 // KTO LICZY. Plan (indeks sekcji -> px) liczy WYŁĄCZNIE SERWER
-// (`isServerRender()`, gałąź znika z bundla klienta jak `lcpCandidateIds` -
+// (warunek serwera (`aboveFold.tsx`), gałąź znika z bundla klienta jak `lcpCandidateIds` -
 // budżet domknięcia bootu nie ma zapasu) i zapisuje go w opakowaniach
 // (`data-cv`, `data-cv-i`). Hydratacja odczytuje plan z opakowań serwera
 // w inicjalizatorze stanu renderera (`readServerCvPlan`, obok nośnika
 // kandydatów LCP) - opakowania leżą poza granicami Suspense, więc są w DOM-ie
 // od pierwszego bajtu powłoki. Ten sam bajt na serwerze i w kliencie.
-// `isServerRender()` stoi zawsze NA POCZĄTKU warunku: Rollup zwija tylko
-// wyrażenie, którego lewa strona jest znana (`isServer` = fałsz w buildzie
-// przeglądarki); za nieznanym operandem (`!isLcpOwner || isServerRender()`)
-// wywołanie zostaje w bundlu razem z funkcją i importem `isServer`.
+// Warunek serwera stoi zawsze NA POCZĄTKU warunku i WPROST (nie w funkcji -
+// lib/builder/aboveFold.tsx): bundler zwija tylko wyrażenie, którego lewa strona
+// jest znana (`isServer` = fałsz w buildzie przeglądarki); za nieznanym operandem
+// (`!isLcpOwner || ...`) wywołanie zostaje w bundlu razem z importem `isServer`.
 //
 // GDZIE. Tylko renderer treści z HTML-em serwera (`lcpIds` różne od `null`:
 // SSR i hydratacja renderera-właściciela) - te same warunki co wyspy sekcji:
@@ -881,7 +885,12 @@ const CvBlock = memo(function CvBlock() {
     <div
       hidden
       suppressHydrationWarning
-      dangerouslySetInnerHTML={{ __html: isServerRender() ? CV_BLOCK_HTML : "" }}
+      dangerouslySetInnerHTML={{
+        __html:
+          (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
+            ? CV_BLOCK_HTML
+            : "",
+      }}
     />
   );
 });
@@ -965,11 +974,12 @@ const SectionsList = memo(function SectionsList({
   // LCP). Plan liczy serwer; hydratacja bierze go z opakowań serwera tego
   // samego dokumentu - są tylko tam, gdzie serwer miał wyspy i nośnik, więc
   // klient nie sprawdza warunków drugi raz (krótsza ścieżka w bundlu bootu).
-  const cvPlan = isServerRender()
-    ? islands && lcpIds
-      ? planServerCv(visible, lcpIds)
-      : null
-    : serverCvPlan;
+  const cvPlan =
+    (import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())
+      ? islands && lcpIds
+        ? planServerCv(visible, lcpIds)
+        : null
+      : serverCvPlan;
   return (
     <>
       {cvPlan && <CvBlock />}

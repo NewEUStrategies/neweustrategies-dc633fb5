@@ -15,9 +15,9 @@
 // manifest bazowy, który (a) renderują `<HeadContent>`/`<Scripts>` na serwerze, (b) zbiera
 // kolektor `onEarlyHints` (`Link`) i (c) jedzie do klienta w odwodnionym `$_TSR.router.manifest`
 // (router-core `ssr-server.js` `dehydrate`), skąd klient renderuje te same komponenty
-// (`ssr-client.js`: `router.ssr = { manifest }`). Przepisanie modułu zmienia więc wszystkie trzy
-// drogi NARAZ - serwer i klient renderują to samo (nic), parytet hydratacji trzyma się
-// konstrukcyjnie, a nie dzięki dyscyplinie dwóch kopii.
+// (router-core `load-client.js`, `hydrate()`: `router.ssr = { manifest }`). Przepisanie modułu
+// zmienia więc wszystkie trzy drogi NARAZ - serwer i klient renderują to samo (nic), parytet
+// hydratacji trzyma się konstrukcyjnie, a nie dzięki dyscyplinie dwóch kopii.
 //
 // DLACZEGO NIE `transformAssets` FRAMEWORKA. Umie przepisać wyłącznie `href`/`crossOrigin`
 // (`start-server-core/transformAssetUrls.js`), nie usunie preloadów ani skryptu wejścia.
@@ -41,7 +41,7 @@
 // `/@id/...`), a dev-server nie ma chunków - przepisywać nie ma czego.
 import type { Plugin } from "vite";
 
-import type { BootManifest } from "../../src/lib/boot/bootManifest";
+import type { BootManifest } from "../../src/lib/boot/bootManifest.ts";
 
 export type { BootManifest };
 
@@ -141,6 +141,17 @@ export function splitStartManifest(input: unknown): SplitStartManifest {
   }
   const root = input.routes[ROOT_ROUTE_ID];
   if (!isRecord(root)) throw new Error("manifest bez trasy korzenia");
+  // Arkusz w `css` KORZENIA blokowałby render KAŻDEJ strony obok `styles.css?url` z `head()`.
+  // Trafia tam boczny import CSS (`import "./x.css"`) z modułu domknięcia bootu - także z pliku
+  // trasy, którego moduł opcji jest `$initial` (`scripts/lib/clientChunkGroups.ts`, „PUŁAPKA
+  // `$initial`"). Arkusz funkcji ma żyć w leniwym chunku albo jako `<link precedence>` w renderze
+  // komponentu, który go używa (`components/maps/WorldMap.tsx`).
+  if (Array.isArray(root.css) && root.css.length > 0) {
+    throw new Error(
+      `korzeń ma arkusze w manifeście (${root.css.map(String).join(", ")}) - boczny import CSS ` +
+        "w domknięciu bootu blokowałby render każdej strony",
+    );
+  }
   const scripts = Array.isArray(root.scripts) ? root.scripts : [];
   const entryScripts = scripts.filter(isEntryScript);
   if (entryScripts.length !== 1) {

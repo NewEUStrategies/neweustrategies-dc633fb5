@@ -37,6 +37,20 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
       "Loader bootu (P2.1): na serwerze stała BOOT_LOADER_SCRIPT z lib/boot/bootLoaderScript - literał złożony wyłącznie ze stałych modułu (opóźnienia, id węzła zestawu, nazwy zdarzeń) i wyrażenia STORED_SESSION_EXPR z integrations/supabase/sessionHint (też stała), bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-boot]`. MUSI być klasyczny i stać w `<head>`: manifest TanStack Start nie startuje już JS-a, więc to on wstawia serię modulepreload i wejście (po wpisie LCP albo od razu). Listę URL-i czyta z węzła danych `#nes-boot-set`, którego treść serwer escapuje (`<` jako \\u003c).",
   },
   {
+    file: "src/lib/boot/bootSetNode.tsx",
+    sink: "script",
+    symbol: "bootSetJson",
+    reason:
+      'Węzeł danych zestawu bootu `#nes-boot-set` (P2.1): `<script type="application/json">`, którego przeglądarka NIE wykonuje (script-src go nie dotyczy). Treść składa serwer w haku dehydratacji (lib/boot/bootSet.server.ts: `bootSetJson`) wyłącznie z URL-i builda (manifest Start, mapa chunków słownika, hinty `modulepreload` loaderów), każdy przepuszczony przez wąski filtr ścieżki/adresu, a JSON ma `<` zamienione na \\u003c, więc nie domknie `</script>`. Węzeł musi stać w `<head>` przed loaderem bootu, który czyta go przy starcie i usuwa; w przeglądarce komponent renderuje `null`.',
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "script",
+    symbol: "fragmentLandingScript",
+    reason:
+      "Lądowanie na kotwicy przy wejściu: na serwerze stała FRAGMENT_LANDING_SCRIPT z lib/scroll/fragmentLandingScript - literał złożony wyłącznie ze stałych modułu (klucz magazynu przywracania TanStacka, odstęp i sufit prób), bez wstawek z bazy ani z żądania; fragment adresu czyta dopiero w przeglądarce jako dane (`getElementById`), nigdy jako HTML. W przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-fragment-landing]`. Musi być klasyczny i inline: działa także wtedy, gdy JS aplikacji jeszcze nie wystartował (boot po LCP).",
+  },
+  {
     file: "src/routes/__root.tsx",
     sink: "script",
     symbol: "supabaseConfigScript",

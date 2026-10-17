@@ -180,6 +180,25 @@ describe("dostępność: prefers-reduced-motion", () => {
   });
 });
 
+describe("własność fragmentu", () => {
+  it("przed pierwszą klatką ustawia `window.__nesAnchorOwned` dla skryptu lądowania", () => {
+    // Skrypt z `<head>` (`lib/scroll/fragmentLandingScript.ts`) czyta tę flagę i nie skacze
+    // natychmiast do celu, który właśnie płynnie przewija ta animacja.
+    const w = window as Window & { __nesAnchorOwned?: boolean };
+    delete w.__nesAnchorOwned;
+    anchor("cel", 900);
+    smoothScrollToAnchor("cel");
+    expect(w.__nesAnchorOwned).toBe(true);
+    expect(scrolled).toEqual([]);
+    delete w.__nesAnchorOwned;
+  });
+
+  it("nazwa flagi = stała, którą czyta skrypt lądowania", async () => {
+    const { FRAGMENT_OWNED_FLAG } = await import("@/lib/scroll/fragmentLandingScript");
+    expect(FRAGMENT_OWNED_FLAG).toBe("__nesAnchorOwned");
+  });
+});
+
 describe("wybór kotwicy", () => {
   it("nieistniejąca kotwica nie przewija i nie rusza adresu", () => {
     window.history.replaceState(null, "", "/artykul");

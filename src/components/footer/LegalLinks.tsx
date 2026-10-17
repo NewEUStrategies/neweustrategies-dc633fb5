@@ -6,19 +6,22 @@
 //
 // ── DLACZEGO TEN MODUŁ NIE IMPORTUJE NICZEGO Z APLIKACJI ──────────────────
 // Na kliencie listwa jest LENIWYM chunkiem wyspy stopki (`Footer.tsx`), żeby
-// nie dokładać ani bajtu do domknięcia bootu strony głównej. Łączenie małych
-// chunków (`experimentalMinChunkSize` w `vite.config.ts`) wkleiło ją jednak do
-// chunku wejściowego (zmierzone na artefakcie: wejście jest zawsze już
-// załadowane, gdy pada `import()` listwy), więc obie konfiguracje Vite dają jej
-// nazwany chunk `legal-links`, którego Rollup nie łączy. Nazwany chunk wciąga
-// do siebie każdą statyczną zależność spoza INNYCH nazwanych chunków - gdyby
-// ten moduł importował coś z aplikacji (np. rejestr linków), wejście
-// importowałoby to stamtąd i chunk listwy wróciłby do bootu. Dlatego rejestr
-// przychodzi w propsach, a moduł sięga wyłącznie po biblioteki z nazwanych
-// chunków vendorowych (React, router, i18next) i po typy. Moduł nie ma też
-// efektów ubocznych: na serwerze `Footer.tsx` importuje go statycznie, a w
-// bundlu klienta ten import znika (gałąź `import.meta.env.SSR`) tylko dlatego,
-// że czysty moduł bez użytych wiązań wolno pominąć.
+// nie dokładać ani bajtu do domknięcia bootu strony głównej. Na Rollupie łączenie
+// małych chunków (`experimentalMinChunkSize`) wkleiło ją jednak do chunku
+// wejściowego (zmierzone na artefakcie: wejście jest zawsze już załadowane, gdy
+// pada `import()` listwy), więc dostała nazwany chunk `legal-links` - dziś grupę
+// `codeSplitting` Rolldowna w `scripts/lib/clientChunkGroups.ts`, wspólną dla obu
+// konfiguracji Vite. Grupa wciąga do siebie każdą statyczną zależność, której nie
+// wybrała wcześniej grupa o wyższym priorytecie - gdyby ten moduł importował coś
+// z aplikacji (np. rejestr linków), wejście importowałoby to stamtąd i chunk
+// listwy wróciłby do bootu. Dlatego rejestr przychodzi w propsach, a moduł sięga
+// wyłącznie po biblioteki z nazwanych chunków vendorowych (React, router,
+// i18next) i po typy. Moduł nie ma też efektów ubocznych: na serwerze
+// `Footer.tsx` importuje go statycznie, a w bundlu klienta ten import znika
+// (gałąź `import.meta.env.SSR`) tylko dlatego, że czysty moduł bez użytych wiązań
+// wolno pominąć. Tag `$initial` Rolldown liczy jednak przed tree-shakingiem, więc
+// w grafie modułów listwa jest częścią bootu - od kodu bootu (`app-initial`)
+// oddziela ją priorytet grupy `legal-links` (wybiera wcześniej).
 //
 // `Link` routera, nie surowe `<a>`: przepisanie wyjścia routera dokłada prefiks
 // języka (`/en/regulamin`), więc ten sam rejestr daje poprawne adresy w PL i EN.

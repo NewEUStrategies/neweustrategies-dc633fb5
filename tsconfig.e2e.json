@@ -7,7 +7,6 @@
     "integration/**/*.ts",
     "playwright*.config.ts",
     "vite.smoke.config.ts",
-    "vite.measure.config.ts",
     "vitest*.config.ts"
   ],
   "compilerOptions": { "incremental": false, "types": ["node", "vite/client"] }

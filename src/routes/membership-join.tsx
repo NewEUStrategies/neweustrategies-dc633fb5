@@ -4,6 +4,7 @@
 // Dane oferty (warstwy i plany) pochodzą z tych samych zapytań co /pricing,
 // scope'owanych tenantem po stronie bazy - jedno źródło prawdy dla obu stron.
 import { createFileRoute } from "@tanstack/react-router";
+import { errorMessageOf } from "@/lib/errors/errorMessage";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/hooks/useAuth";
@@ -106,7 +107,7 @@ export const Route = createFileRoute("/membership-join")({
   },
   errorComponent: ({ error }) => (
     <div role="alert" className="container mx-auto max-w-3xl px-4 py-16 text-sm text-destructive">
-      {error.message}
+      {errorMessageOf(error)}
     </div>
   ),
 });

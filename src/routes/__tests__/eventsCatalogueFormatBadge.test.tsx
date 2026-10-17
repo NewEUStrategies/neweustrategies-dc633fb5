@@ -46,7 +46,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 
-const { EventCard } = await import("../events.index");
+const { EventCard } = await import("@/components/events/public/molecules/EventCatalogueCard");
 
 /** Napisy formatu ze słownika - jedno źródło dla asercji obu języków. */
 const LABEL = {

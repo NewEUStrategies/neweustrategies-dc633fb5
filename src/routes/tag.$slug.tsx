@@ -14,7 +14,6 @@ import { activeLang } from "@/lib/seo/head";
 import { localizedPath } from "@/lib/i18n/localePath";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   splitUrl,
   SITE_CANONICAL_ORIGIN,
@@ -119,20 +118,19 @@ export const Route = createFileRoute("/tag/$slug")({
         page: deps.page,
         pageSize: settings.data.posts_per_page,
         sort: deps.sort,
-        coverPreload: null,
         // „Nie wiemy, czy ten tag istnieje" - `notFoundIfClean` oddaje `null`
         // wyłącznie przy zdegradowanym odczycie treści.
         degraded: true,
         layoutDegraded: settings.degraded,
       };
     }
-    // Preload LCP pierwszej okładki (jak w category.$slug): deskryptor dla
-    // head() + nagłówek HTTP `Link` utrwalany przez NES Edge Cache.
+    // Preload LCP pierwszej okładki (jak w category.$slug): wyłącznie nagłówek
+    // HTTP `Link` utrwalany przez NES Edge Cache; `<head>` - preload Reacta 19.
     const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // Treść prawdziwa = strona renderuje się normalnie, także na domyślkach
     // layoutu (`layoutDegraded`).
-    return { ...data, coverPreload, degraded: false, layoutDegraded: settings.degraded };
+    return { ...data, degraded: false, layoutDegraded: settings.degraded };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -199,7 +197,6 @@ export const Route = createFileRoute("/tag/$slug")({
     // zdegradowany (`total: 0`) nie wie, czy kanał ma treść.
     const feedLinks = [
       ...head.links,
-      ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
       ...(total > 0
         ? [
             {

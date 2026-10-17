@@ -304,13 +304,14 @@ describe("PostSettingsMetabox - zakładka punktów", () => {
       "admin.metabox.takeaways.row.counter(len=260,max=500,min=90,rec=200)",
     );
     // Kolor jest częścią komunikatu redakcyjnego - inaczej „za długi" niczym
-    // się nie różni od „w normie".
+    // się nie różni od „w normie". „Za długi" to pomarańcz marki (`text-brand`,
+    // #fa9346): ciemne `orange-600` jest zakazane (`bannedDirtyOrange.gate.test.ts`).
     const rowClasses = [...view.container.querySelectorAll("li")].map(
       (row) => row.querySelector("div.mt-1")?.className ?? "",
     );
     expect(rowClasses[1]).toContain("text-yellow-600");
     expect(rowClasses[2]).toContain("text-green-600");
-    expect(rowClasses[3]).toContain("text-orange-600");
+    expect(rowClasses[3]).toContain("text-brand");
   });
 });
 

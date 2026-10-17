@@ -30,12 +30,16 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: candidate
+      # Wersje Node i Buna z `candidate/` (`.node-version`, `.bun-version` -
+      # wspólne źródło wszystkich workflowów); baseline buduje i mierzy ten sam
+      # runtime w tym samym jobie. Ścieżka MUSI wskazywać checkout: setup-bun
+      # przy brakującym pliku tylko ostrzega i instaluje najnowszego Buna.
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.19.0"
+          node-version-file: candidate/.node-version
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.2.23"
+          bun-version-file: candidate/.bun-version
       - name: Install dependencies and Chromium
         run: |
           cd candidate

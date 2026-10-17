@@ -14,7 +14,7 @@ import { authSubject, type AuthEmailType } from "@/lib/email-templates/copy";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyEmailTemplate = React.ComponentType<any>;
 
-/** Jeden szablon na żądanie - `switch` zostawia Rollupowi jawne krawędzie. */
+/** Jeden szablon na żądanie - `switch` zostawia bundlerowi jawne krawędzie. */
 async function loadEmailTemplate(type: string): Promise<AnyEmailTemplate | null> {
   switch (type) {
     case "signup":

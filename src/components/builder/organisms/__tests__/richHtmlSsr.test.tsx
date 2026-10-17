@@ -2,8 +2,18 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/router-core/isServer", () => ({ isServer: true }));
-import { RichHtmlView } from "../widget-view/RichHtmlView";
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  // Bez kompilatora Start: gałąź wybiera `import.meta.env.SSR`, jak w buildzie.
+  createIsomorphicFn: () => ({
+    server: (server: () => unknown) => ({
+      client: (client: () => unknown) => (import.meta.env.SSR ? server : client),
+    }),
+  }),
+}));
+
+vi.stubEnv("SSR", true);
+const { RichHtmlView } = await import("../widget-view/RichHtmlView");
 
 it("renders normalized lists synchronously in SSR, with footnotes and sanitization intact", () => {
   const html = renderToStaticMarkup(

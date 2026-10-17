@@ -3,7 +3,7 @@ export interface BootAssetChunk {
   imports: readonly string[];
 }
 
-/** Follow Rollup's actual static edges from scripts emitted by SSR. Resource
+/** Follow the bundler's actual static edges from scripts emitted by SSR. Resource
  * Timing's initiatorType describes the fetch mechanism, not the module graph:
  * modulepreload and browser versions can change it without changing the code.
  */

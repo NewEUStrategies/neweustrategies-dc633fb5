@@ -37,10 +37,6 @@ function currencyOf(items: Ga4Item[], fallback = "PLN"): string {
   return items[0]?.currency ?? fallback;
 }
 
-export function ga4ViewItem(item: Ga4Item): void {
-  ga4Event("view_item", { currency: item.currency, value: item.price ?? 0, items: [item] });
-}
-
 export function ga4AddToCart(item: Ga4Item): void {
   ga4Event("add_to_cart", { currency: item.currency, value: item.price ?? 0, items: [item] });
 }

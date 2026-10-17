@@ -41,10 +41,6 @@ export interface TickerPreviewSink {
   mounts: number;
 }
 
-export function tickerPreviewSink(): TickerPreviewSink {
-  return { renders: [], mounts: 0 };
-}
-
 /**
  * Atrapa podglądu paska. Zapisuje propy w renderze (React 18 bez StrictMode
  * renderuje raz, a panel i tak jest tu montowany bez StrictMode) i podbija
@@ -117,10 +113,6 @@ export function adminColorPickerStub(react: typeof import("react")): Record<stri
 export interface DatePickerSink {
   lang: string | undefined;
   value: string | null | undefined;
-}
-
-export function datePickerSink(): DatePickerSink {
-  return { lang: undefined, value: undefined };
 }
 
 /**

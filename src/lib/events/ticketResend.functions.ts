@@ -58,7 +58,7 @@ const Input = z.object({
 
 export const resendEventTicket = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }): Promise<TicketResendResult> => {
     const scope = await context.supabase.rpc("admin_event_ticket_resend_scope", {
       p_registration_id: data.registrationId,

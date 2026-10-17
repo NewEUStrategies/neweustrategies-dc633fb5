@@ -14,7 +14,7 @@ const Input = z.object({ invoiceId: z.string().uuid() });
 
 export const verifyEventInvoiceVies = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }) => {
     const { verifyInvoiceBuyerVies } = await import("@/lib/events/eventInvoiceVies.server");
     return verifyInvoiceBuyerVies(context.supabase, data.invoiceId);

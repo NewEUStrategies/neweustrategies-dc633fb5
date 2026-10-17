@@ -7,7 +7,8 @@
 // Teraz ten sam wpis dostaje `degradedAt` (`loader` / `handler` / `stream`) i wynik planowania
 // odświeżenia w tle, a czysty MISS zostaje bez tych pól.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requestHandler } from "@tanstack/react-start/server";
+
+import { startRequestScope } from "@/test/startRequestScope";
 
 import {
   applyDeferredDocumentStore,
@@ -96,7 +97,7 @@ describe("`degradedAt` w pierścieniu decyzji", () => {
 
   it("`stream`: degradacja odkryta w trakcie strumieniowania", async () => {
     let complete!: () => void;
-    const rendered = requestHandler(async (request) => {
+    const rendered = startRequestScope(async (request) => {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("<html>"));
@@ -107,7 +108,7 @@ describe("`degradedAt` w pierścieniu decyzji", () => {
           };
         },
       });
-      // Kontekst żądania h3 musi przeżyć odroczone domknięcie strumienia.
+      // Kontekst żądania Start musi przeżyć odroczone domknięcie strumienia.
       const { AsyncResource } = await import("node:async_hooks");
       complete = AsyncResource.bind(complete);
       return (await handleDocumentRequest(

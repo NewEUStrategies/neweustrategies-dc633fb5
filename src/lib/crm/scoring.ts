@@ -82,8 +82,6 @@ export const DEFAULT_SCORING_SETTINGS: ScoringSettings = {
   weights: {},
 };
 
-export const SCORE_BANDS: ScoreBand[] = ["hot", "warm", "cool", "cold"];
-
 export const SCORE_BAND_LABELS: Record<"pl" | "en", Record<ScoreBand, string>> = {
   pl: { hot: "Gorący", warm: "Ciepły", cool: "Chłodny", cold: "Zimny" },
   en: { hot: "Hot", warm: "Warm", cool: "Cool", cold: "Cold" },

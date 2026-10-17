@@ -71,16 +71,6 @@ export const SAMPLE_POST_TOKENS: ReadonlyArray<string> = (() => {
   return [...out].sort((a, b) => (a < b ? -1 : 1));
 })();
 
-/**
- * Liczby, które próbka wprowadzała do widgetów licznikowych. Ściganie samej
- * cyfry w HTML-u dawałoby fałszywe trafienia, więc bramka używa ich tylko tam,
- * gdzie widget renderuje wyłącznie licznik.
- */
-export const SAMPLE_POST_NUMBERS: ReadonlyArray<number> = [
-  PLACEHOLDER_POST_CTX.viewCount ?? 0,
-  PLACEHOLDER_POST_CTX.archive?.count ?? 0,
-].filter((n) => n > 0);
-
 /** Pierwszy napis próbki obecny w tekście, albo `null`. Do komunikatów błędów. */
 export function findSampleLeak(text: string): string | null {
   for (const token of SAMPLE_POST_TOKENS) {

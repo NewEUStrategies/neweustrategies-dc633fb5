@@ -50,7 +50,7 @@ vi.mock("@tanstack/react-start", () => ({
   createServerFn: (options?: { method?: string }) => {
     h.spec.method = options?.method;
     const api = {
-      inputValidator: (fn: (d: unknown) => unknown) => {
+      validator: (fn: (d: unknown) => unknown) => {
         h.spec.validate = fn;
         return api;
       },

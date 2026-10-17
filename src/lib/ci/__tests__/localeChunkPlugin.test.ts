@@ -8,10 +8,10 @@
 // straty, którą naprawia całe to zadanie. Ten test wiąże jedno z drugim.
 //
 // Testujemy hooki wtyczki bezpośrednio, bez uruchamiania builda: to ten sam kod,
-// który wykona Rollup, tylko bez pięciu minut kompilacji.
+// który wykona Rolldown, tylko bez pięciu minut kompilacji.
 import { readFileSync } from "node:fs";
-import { transformSync } from "esbuild";
-import { describe, expect, it, vi } from "vitest";
+import { transformWithOxc } from "vite";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { localeChunkPlugin } from "../../../../scripts/lib/localeChunkPlugin";
 
@@ -131,20 +131,25 @@ describe("nes:locale-chunks - sprzężenie kształtu literału", () => {
 //
 // TU BYŁA DZIURA I KOSZTOWAŁA CAŁY HINT. Przypadki wyżej karmią hook TREŚCIĄ
 // PLIKU ŹRÓDŁOWEGO. Build karmił go czymś innym: wtyczka nie deklarowała
-// `enforce`, więc trafiała do koszyka „normal", czyli ZA rdzeniowy
-// `vite:esbuild`, i widziała kod PO transpilacji TS - a esbuild usuwa PRZECINEK
-// KOŃCOWY, którego szukał literał. Skutek na buildzie 2026-09-01: ostrzeżenie
-// wtyczki, artefakt z `null`, hint MARTWY. Test był zielony przez cały ten czas,
-// bo mierzył WEJŚCIE, KTÓREGO NIE MA W PRODUKCJI.
+// `enforce`, więc trafiała do koszyka „normal", czyli ZA rdzeniową transpilację
+// TS (wtedy `vite:esbuild`, od Vite 8 natywne `vite:oxc`), i widziała kod PO
+// transpilacji - a transpilator usuwa PRZECINEK KOŃCOWY, którego szukał literał.
+// Skutek na buildzie 2026-09-01: ostrzeżenie wtyczki, artefakt z `null`, hint
+// MARTWY. Test był zielony przez cały ten czas, bo mierzył WEJŚCIE, KTÓREGO NIE
+// MA W PRODUKCJI.
 //
-// Dlatego niżej transpilujemy plik PRAWDZIWYM esbuildem (tym samym, którego
-// używa Vite), zamiast wpisywać oczekiwany kształt z ręki: gdyby esbuild
-// kiedykolwiek zmienił formatowanie, ten przypadek zapali się sam.
+// Dlatego niżej transpilujemy plik PRAWDZIWYM Oxc (`transformWithOxc` z Vite -
+// ten sam transformator, którym Vite 8 transpiluje TS), zamiast wpisywać
+// oczekiwany kształt z ręki: gdyby Oxc kiedykolwiek zmienił formatowanie, ten
+// przypadek zapali się sam.
 describe("nes:locale-chunks - wejście, które NAPRAWDĘ dostaje build", () => {
   /** Dokładnie to, co widziałaby wtyczka bez `enforce: "pre"`. */
-  const TRANSPILED = transformSync(SOURCE, { loader: "ts", target: "esnext" }).code;
+  let TRANSPILED = "";
+  beforeAll(async () => {
+    TRANSPILED = (await transformWithOxc(SOURCE, "src/lib/seo/localeChunks.ts")).code;
+  });
 
-  it("esbuild ZDEJMUJE przecinek końcowy - dowód przyczyny, nie domysł", () => {
+  it("transpilacja ZDEJMUJE przecinek końcowy - dowód przyczyny, nie domysł", () => {
     expect(SOURCE).toContain("en: null,");
     expect(TRANSPILED).toContain("en: null\n}");
     expect(TRANSPILED).not.toContain("en: null,");
@@ -159,7 +164,7 @@ describe("nes:locale-chunks - wejście, które NAPRAWDĘ dostaje build", () => {
     expect(out!.code).not.toContain("pl: null");
   });
 
-  it('wtyczka deklaruje `enforce: "pre"`, więc widzi ŹRÓDŁO, nie wynik esbuilda', () => {
+  it('wtyczka deklaruje `enforce: "pre"`, więc widzi ŹRÓDŁO, nie wynik transpilacji', () => {
     // Bez tego pola wejście testu i wejście builda znowu byłyby dwiema różnymi
     // rzeczami - a to jest dokładnie ta różnica, która unieważniła hint.
     expect(plugin().enforce).toBe("pre");
@@ -167,7 +172,7 @@ describe("nes:locale-chunks - wejście, które NAPRAWDĘ dostaje build", () => {
 
   it("nazwa pliku z `$` nie jest interpretowana jako grupa wsteczna", () => {
     // `String.prototype.replace` z łańcuchem traktuje `$&` i `$1` jako sterujące,
-    // a nazwa chunku pochodzi z Rollupa. Wstawiamy więc wartość funkcją.
+    // a nazwa chunku pochodzi z bundlera. Wstawiamy więc wartość funkcją.
     const p = plugin();
     p.generateBundle(
       { dir: "/repo/.output/public" },

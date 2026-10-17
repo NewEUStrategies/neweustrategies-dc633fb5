@@ -2,7 +2,7 @@
 // dopisaniu gości, bo nie ma płatności, po której zrobiłby to webhook.
 //
 // UWIERZYTELNIENIE KLUCZEM `manage_token` PROWADZĄCEGO, jak potwierdzenie
-// zapisu (`registrationSelfNotify.functions`). Najemca z zaufanego hosta,
+// zapisu (`registrationSelfNotify.server`). Najemca z zaufanego hosta,
 // klucz rozstrzyga baza jedną regułą (REG-17) - szczegóły w
 // `groupTicketCodes.server.ts`.
 //
@@ -21,7 +21,7 @@ const Input = z.object({
 });
 
 export const sendGroupTicketCodes = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data }): Promise<GroupTicketCodesResult> => {
     const { sendGroupTicketCodesForRequest } = await import("@/lib/events/groupTicketCodes.server");
     return sendGroupTicketCodesForRequest(data.manageToken);

@@ -45,7 +45,7 @@ import { redactUrl } from "@/lib/observability/redact";
 import type { TablesInsert } from "@/integrations/supabase/types";
 // Słowniki ładunku z reportera - WYŁĄCZNIE TYPY, wymazywane przy kompilacji.
 // Import WARTOŚCI wciągnąłby do statycznego grafu Workera cały leniwy reporter
-// (`webVitals.ts` jest też celem `import()` z `__root.tsx`, więc Rollup nie
+// (`webVitals.ts` jest też celem `import()` z `__root.tsx`, więc bundler nie
 // wytrząśnie z niego reszty, tylko scali jego chunk SSR, ~12 KB, z chunkiem
 // routera ładowanym przy każdym zimnym izolacie). Typ daje to samo wiązanie
 // bez ani jednego bajtu w artefakcie - patrz `dictionary`.

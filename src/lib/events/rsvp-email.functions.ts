@@ -12,7 +12,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const confirmFreeRsvpEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { eventId: string }) => {
+  .validator((data: { eventId: string }) => {
     const eventId = typeof data?.eventId === "string" ? data.eventId.trim() : "";
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId)) {
       throw new Error("invalid_event_id");

@@ -33,7 +33,7 @@
 //    metryka `inlineCssCommentBytes` w `check:document-weight` (próg 0).
 import type { Plugin } from "vite";
 
-import { minifyStaticCss } from "../../src/lib/css/minifyStaticCss";
+import { minifyStaticCss } from "../../src/lib/css/minifyStaticCss.ts";
 
 /** Znacznik stawiany w źródle tuż przed backtickiem literału. */
 export const STATIC_CSS_MARKER = "/* @nes-static-css */";
@@ -182,7 +182,7 @@ export function staticCssPlugin(): Plugin {
   return {
     name: "nes:static-css",
     apply: "build",
-    // PRZED rdzeniowym `vite:esbuild`: hook ma dostać surowy TS (patrz nagłówek).
+    // PRZED rdzeniową transpilacją TS (`vite:oxc`): hook ma dostać surowy TS (patrz nagłówek).
     enforce: "pre",
     transform(code, id) {
       if (!isStaticCssModule(id)) return null;

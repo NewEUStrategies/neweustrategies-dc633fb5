@@ -29,16 +29,13 @@ const h = vi.hoisted(() => ({
   navigate: vi.fn(() => Promise.resolve()),
 }));
 
-// Atrapa ma tyle routera, ile czyta przekład `href` -> opcje preloadu: parser
-// query. Bez `origin` i `rewrite` (jak router bez przepisywania adresów) -
-// baza adresu to wtedy origin okna.
+// Atrapa ma tyle routera, ile woła `AppLink`: `preloadRoute` i `navigate`.
+// Oba dostają sam `href` - lokalizację (rewrite języka, query, hash) buduje
+// z niego router, nie odnośnik.
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
     preloadRoute: h.preloadRoute,
     navigate: h.navigate,
-    options: {
-      parseSearch: (search: string) => Object.fromEntries(new URLSearchParams(search)),
-    },
   }),
 }));
 
@@ -140,8 +137,9 @@ describe("AppLink - opóźnienie intencji", () => {
 
     tick(1);
     expect(h.preloadRoute).toHaveBeenCalledTimes(1);
-    // Opcje NAWIGACJI, nie `href`: `preloadRoute` opcji `href` nie zna.
-    expect(h.preloadRoute).toHaveBeenCalledWith({ to: href, search: {}, hash: "" });
+    // Ten sam `href` co przy kliku (`navigate({ href })`) - router zbuduje z niego
+    // tę samą lokalizację.
+    expect(h.preloadRoute).toHaveBeenCalledWith({ href });
     expect(h.warmWidgets).toHaveBeenCalledTimes(1);
   });
 

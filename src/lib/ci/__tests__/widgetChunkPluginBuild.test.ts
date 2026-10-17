@@ -14,7 +14,7 @@
 //   - że klient buduje się PRZED serwerem (inaczej `transform` serwera
 //     przychodzi, zanim cokolwiek odkryto);
 //   - że nazwy w bundlu SERWERA to dokładnie pliki wyemitowane przez KLIENTA,
-//     z prawdziwymi hashami Rollupa, a nie łańcuchy z fikstury;
+//     z prawdziwymi hashami bundlera, a nie łańcuchy z fikstury;
 //   - że placeholder `{}` nie może po cichu pojechać na produkcję.
 //
 // Ten plik buduje maleńką aplikację `createBuilder`-em Vite z tymi samymi
@@ -31,14 +31,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createBuilder, createLogger, type Logger, type Rollup } from "vite";
+import { createBuilder, createLogger, type Logger, type Rolldown } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { widgetChunkPlugin } from "../../../../scripts/lib/widgetChunkPlugin";
 
 const WIDGET_DIR = "src/components/builder/organisms/widget-view";
 
-/** Moduł z treścią `default` - wystarczy, żeby Rollup dał mu własny chunk. */
+/** Moduł z treścią `default` - wystarczy, żeby bundler dał mu własny chunk. */
 const stub = (name: string) => `export default function ${name}() {\n  return "${name}";\n}\n`;
 
 /**
@@ -91,7 +91,7 @@ type ServerModule = {
 };
 
 type BuildResult = {
-  clientChunks: Rollup.OutputChunk[];
+  clientChunks: Rolldown.OutputChunk[];
   server: ServerModule;
   serverCode: string;
   warnings: string[];
@@ -118,11 +118,11 @@ function capturingLogger(warnings: string[]): Logger {
   };
 }
 
-function chunksOf(output: unknown): Rollup.OutputChunk[] {
-  const outputs = (Array.isArray(output) ? output : [output]) as Rollup.RollupOutput[];
+function chunksOf(output: unknown): Rolldown.OutputChunk[] {
+  const outputs = (Array.isArray(output) ? output : [output]) as Rolldown.RolldownOutput[];
   return outputs
     .flatMap((o) => o.output)
-    .filter((o): o is Rollup.OutputChunk => o.type === "chunk");
+    .filter((o): o is Rolldown.OutputChunk => o.type === "chunk");
 }
 
 /**
@@ -161,14 +161,14 @@ async function buildFixture(
           outDir: join(root, opts.clientOutDir ?? ".output/public"),
           write: false,
           minify: false,
-          rollupOptions: { input: join(root, "src/client.ts") },
+          rolldownOptions: { input: join(root, "src/client.ts") },
         },
       },
       ssr: {
         build: {
           outDir: join(root, ".output/server"),
           minify: false,
-          rollupOptions: { input: join(root, "src/server.ts") },
+          rolldownOptions: { input: join(root, "src/server.ts") },
         },
       },
     },
@@ -185,7 +185,7 @@ async function buildFixture(
 }
 
 /** Adres chunku KLIENTA, który zawiera moduł o danym sufiksie (poza wejściem). */
-function clientUrlsFor(chunks: Rollup.OutputChunk[], suffix: string, base = "/"): string[] {
+function clientUrlsFor(chunks: Rolldown.OutputChunk[], suffix: string, base = "/"): string[] {
   return chunks
     .filter((c) => !c.isEntry && Object.keys(c.modules).some((m) => m.endsWith(suffix)))
     .map((c) => `${base}${c.fileName}`);
@@ -220,7 +220,7 @@ describe("nes:widget-chunks - prawdziwy build klient -> serwer", () => {
     expect(events).toHaveLength(1);
     expect(server.WIDGET_CHUNK_URLS["news-ticker"]).toEqual(ticker);
     expect(server.WIDGET_CHUNK_URLS["event-list"]).toEqual(events);
-    // Nazwy z HASHEM Rollupa, nie łańcuchy z fikstury.
+    // Nazwy z HASHEM bundlera, nie łańcuchy z fikstury.
     expect(ticker[0]).toMatch(/^\/assets\/NewsTickerView-[\w-]{8}\.js$/);
   });
 

@@ -111,9 +111,10 @@ describe("planDefaultCacheControl", () => {
   });
 });
 
-// Trzeci argument: intencja cache'owa TRASY, przeniesiona poza nagłówkami
-// zdarzenia h3 (patrz `lib/http/responseHeaders.ts` - `routeCacheDirectives`).
-// Bez niej decyzja loadera nie docierała ani do polityki ZAPISU w NES Edge
+// Trzeci argument: intencja cache'owa TRASY z kanału per `Request` (patrz
+// `lib/http/responseHeaders.ts` - `routeCacheDirectives`); na drut nakłada ją
+// dopiero granica odpowiedzi (`fetchWithFrameworkPreloads`), i tylko odpowiedziom
+// `ok`. Bez niej decyzja loadera nie docierała ani do polityki ZAPISU w NES Edge
 // Cache (dokument zdegradowany zamarzał na brzegu na 24 h), ani - dla odpowiedzi
 // non-ok - do klienta.
 describe("planDefaultCacheControl - dyrektywa trasy", () => {
@@ -121,11 +122,12 @@ describe("planDefaultCacheControl - dyrektywa trasy", () => {
     expect(planDefaultCacheControl(req("/blog"), res(), NO_STORE)).toBe(NO_STORE);
   });
 
-  it("opt-out dociera także do 301/302/404, gdzie h3 nie scala nagłówków zdarzenia", () => {
+  it("opt-out dociera także do 301/302/404, gdzie granica nie nadaje nagłówków trasy", () => {
     // ZMIERZONE na prawdziwym potoku: `setCacheControlHeader` w loaderze daje
-    // na drucie `null` przy 302 i 404, bo `prepareResponse` scala nagłówki
-    // zdarzenia tylko dla `val.ok`. Trwałe 301 wychodziło więc BEZ ŻADNEJ
-    // dyrektywy cache - wbrew jawnej intencji czterech tras.
+    // na drucie `null` przy 302 i 404, bo granica odpowiedzi nadaje dyrektywę
+    // trasy tylko odpowiedziom `ok` (reguła h3 `prepareResponse`, zachowana
+    // świadomie - `platformPreloads.test.ts`). Trwałe 301 wychodziło więc BEZ
+    // ŻADNEJ dyrektywy cache - wbrew jawnej intencji czterech tras.
     const redirect = res(302, { location: "/blog" });
     expect(planDefaultCacheControl(req("/stary-adres"), redirect, NO_STORE)).toBe(NO_STORE);
     expect(planDefaultCacheControl(req("/nie-ma"), res(404), NO_STORE)).toBe(NO_STORE);

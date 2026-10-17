@@ -183,14 +183,14 @@ export async function loadResilient<
 // niewidocznego na tym urządzeniu (bramka go nie ponawia) wyglądałoby na
 // zgubione i blokowało zapis kompletnego dokumentu.
 //
-// KIEDY ODCZYTAĆ. Integracja router<->query (`@tanstack/router-ssr-query-core`)
-// w `serverSsr.cleanup()` woła `queryClient.cancelQueries()` i
-// `queryClient.clear()` ZARAZ po zamknięciu strumienia dokumentu - zanim
-// kolektor zapisu NES Edge Cache przeczyta ostatni fragment. W chwili decyzji
-// o zapisie cache zapytań jest więc pusty. Predykat zamraża werdykt w ostatnim
-// momencie, w którym cache opisuje wyrenderowany dokument: tuż przed
-// `QueryCache.clear()` tego żądania. Bez sprzątania (testy, przerwany potok)
-// werdykt liczy się na żywo.
+// KIEDY ODCZYTAĆ. Integracja router<->query (`@tanstack/router-ssr-query-core`
+// 1.169.3, `dist/esm/index.js:21-25`) w `serverSsr.cleanup()` domyka swój
+// strumień zapytań i woła `queryClient.clear()` (czyli `QueryCache.clear()`)
+// ZARAZ po zamknięciu strumienia dokumentu - zanim kolektor zapisu NES Edge
+// Cache przeczyta ostatni fragment. W chwili decyzji o zapisie cache zapytań
+// jest więc pusty. Predykat zamraża werdykt w ostatnim momencie, w którym cache
+// opisuje wyrenderowany dokument: tuż przed `QueryCache.clear()` tego żądania.
+// Bez sprzątania (testy, przerwany potok) werdykt liczy się na żywo.
 //
 // Konserwatywnie: każde odstępstwo = brak zapisu (dokument idzie `degraded`
 // i rusza odświeżenie w tle). Zbyt luźny predykat zamroziłby niekompletny

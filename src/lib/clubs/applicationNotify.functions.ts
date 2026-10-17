@@ -57,7 +57,7 @@ interface NotifyPayload {
 
 export const notifyClubApplicationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }): Promise<ClubApplicationNotifyResult> => {
     const { data: rows, error } = await context.supabase.rpc(
       "admin_club_application_notify_payload",

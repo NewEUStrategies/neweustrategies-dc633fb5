@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OutputBundle, NormalizedOutputOptions, PluginContext } from "rollup";
+import type { Rolldown } from "vite";
 const h = vi.hoisted(() => ({ write: vi.fn(), mkdir: vi.fn() }));
 vi.mock("node:fs", () => ({ writeFileSync: h.write, mkdirSync: h.mkdir }));
 import { chunkInventoryPlugin } from "../../../../scripts/lib/chunkInventoryPlugin";
@@ -27,10 +27,11 @@ function emit(enabled: boolean | undefined, outDir = "dist/client") {
       modules: { "vendor/b": { renderedLength: 10 }, "vendor/a": { renderedLength: 20 } },
     },
     "style.css": { type: "asset", source: "body{}" },
-  } as unknown as OutputBundle;
+  } as unknown as Rolldown.OutputBundle;
   hook.call(
-    { warn: vi.fn() } as unknown as PluginContext,
-    { dir: outDir } as NormalizedOutputOptions,
+    // Kontekst hooka w typach Vite: kontekst Rolldowna rozszerzony o `this.environment`.
+    { warn: vi.fn() } as unknown as ThisParameterType<typeof hook>,
+    { dir: outDir } as Rolldown.NormalizedOutputOptions,
     bundle,
     false,
   );

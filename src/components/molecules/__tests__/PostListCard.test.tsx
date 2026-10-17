@@ -32,9 +32,17 @@ vi.mock("@/components/atoms/AppLink", () => ({
   ),
 }));
 vi.mock("@/components/atoms/OptimizedImage", () => ({
-  OptimizedImage: ({ src, alt, style }: { src: string; alt: string; style?: object }) => (
-    <img src={src} alt={alt} style={style} />
-  ),
+  OptimizedImage: ({
+    src,
+    alt,
+    style,
+    "data-lcp-candidate": lcpCandidate,
+  }: {
+    src: string;
+    alt: string;
+    style?: object;
+    "data-lcp-candidate"?: string;
+  }) => <img src={src} alt={alt} style={style} data-lcp-candidate={lcpCandidate} />,
 }));
 vi.mock("@/lib/analytics/conversions", () => ({ trackStrategyConversion: h.track }));
 
@@ -106,6 +114,20 @@ describe("PostListCard - treść", () => {
     );
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByRole("link").querySelector("time")).toBeNull();
+  });
+});
+
+describe("PostListCard - kandydat LCP archiwum", () => {
+  // Loader bootu archiwów (`bootSet.server.ts`, tryb `lcp`) czeka na wpis LCP elementu
+  // z `data-lcp-candidate`; bez znacznika bootowałby po pierwszej klatce, przed okładką.
+  it("okładka z `priority` niesie `data-lcp-candidate`", () => {
+    render(<PostListCard post={POST} href="/unia-i-nato" lang="pl" priority />);
+    expect(screen.getByRole("img").getAttribute("data-lcp-candidate")).toBe("");
+  });
+
+  it("zwykła karta nie jest kandydatem (jeden kandydat na stronę)", () => {
+    render(<PostListCard post={POST} href="/unia-i-nato" lang="pl" />);
+    expect(screen.getByRole("img").hasAttribute("data-lcp-candidate")).toBe(false);
   });
 });
 

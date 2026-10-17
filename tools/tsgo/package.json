@@ -1,0 +1,13 @@
+{
+  "name": "@nes-tools/tsgo",
+  "version": "7.0.2",
+  "private": true,
+  "description": "Polecenie `tsgo` = natywny TypeScript 7 (typescript@7.0.2 wystawia tylko `tsc`).",
+  "type": "module",
+  "bin": {
+    "tsgo": "./tsgo.mjs"
+  },
+  "dependencies": {
+    "typescript": "7.0.2"
+  }
+}

@@ -19,7 +19,10 @@ import {
 } from "../documentCache.server";
 import { setColoCacheForTests, type ColoCache } from "../documentCacheL2.server";
 import { DOC_GUARD_MAX_MS } from "../documentStreamGuard.server";
+import { fetchWithFrameworkPreloads, recordBootMode } from "../frameworkPreloads.server";
+import { appendLinkHeader } from "../responseHeaders";
 import type { DocumentStoreOutcome } from "../ssrTiming";
+import { startRequestScope } from "@/test/startRequestScope";
 
 /**
  * Praca „za odpowiedzią" (`runAfterResponse`) przechwycona do asercji. Poza
@@ -159,29 +162,36 @@ describe("handleDocumentRequest", () => {
     expect(snapshot.entries).toBe(1);
   });
 
-  it("utrwala nagłówek Link scalony na GRANICY handlera i wiek wpisu na replay HIT", async () => {
-    // ŚCIEŻKA PRODUKCYJNA: loadery ustawiają Link przez setResponseHeader na
-    // nagłówkach ZDARZENIA h3, więc wewnątrz łańcucha middleware odpowiedź
-    // renderu nagłówka NIE MA - h3 scala go na Response dopiero w toResponse()
-    // na granicy requestHandlera. Odroczony zapis musi więc czytać nagłówek
-    // z odpowiedzi PO granicy (applyDeferredDocumentStore w src/server.ts),
+  it("utrwala nagłówek Link nałożony na GRANICY odpowiedzi i wiek wpisu na replay HIT", async () => {
+    // ŚCIEŻKA PRODUKCYJNA: loadery dokładają Link do akumulatora per żądanie
+    // (`appendLinkHeader`), więc wewnątrz łańcucha middleware odpowiedź renderu
+    // nagłówka NIE MA - nakłada go dopiero granica odpowiedzi
+    // (`fetchWithFrameworkPreloads` w src/server.ts). Odroczony zapis musi więc
+    // czytać nagłówek z odpowiedzi PO granicy (applyDeferredDocumentStore),
     // nie z tej widzianej w middleware. Bez tego wpisy trzymały link=null
     // i HIT/STALE (dominująca ścieżka czytelników, jedyna zdatna na 103 Early
     // Hints) wychodziły bez preloadów.
-    const LINK_VALUE =
-      '<https://cdn/cover.jpg>; rel="preload"; as="image"; fetchpriority=high, ' +
-      '</assets/font.woff2>; rel="preload"; as="font"; type="font/woff2"; crossorigin';
-    // Render BEZ nagłówka Link - tak wygląda odpowiedź wewnątrz łańcucha.
-    const next = vi.fn(async () => htmlResponse("<html>hero</html>"));
+    const COVER = '<https://cdn/cover.jpg>; rel="preload"; as="image"; fetchpriority=high';
+    const FONT = '</assets/font.woff2>; rel="preload"; as="font"; type="font/woff2"; crossorigin';
+    const LINK_VALUE = `${COVER}, ${FONT}`;
+    const next = vi.fn(async () => {
+      appendLinkHeader(COVER);
+      appendLinkHeader(FONT);
+      return htmlResponse("<html>hero</html>");
+    });
 
-    const inChain = (await handleDocumentRequest(docRequest("/z-preloadem"), next)) as Response;
-    expect(inChain.headers.get("link")).toBeNull();
-    // Granica handlera (h3 toResponse): scalone nagłówki zdarzenia lądują na
-    // odpowiedzi. Tożsamość strumienia body pozostaje nienaruszona - to ona
-    // jest kluczem WeakMap odroczonego zapisu.
-    const mergedHeaders = new Headers(inChain.headers);
-    mergedHeaders.set("link", LINK_VALUE);
-    const boundary = new Response(inChain.body, { status: inChain.status, headers: mergedHeaders });
+    let inChain: Response | null = null;
+    const handler = startRequestScope(async (request) => {
+      inChain = (await handleDocumentRequest(request, next)) as Response;
+      return inChain;
+    });
+    const boundary = await fetchWithFrameworkPreloads(handler, docRequest("/z-preloadem"));
+    // Tak wygląda odpowiedź wewnątrz łańcucha: bez nagłówka Link loaderów.
+    expect(inChain!.headers.get("link")).toBeNull();
+    // Granica nakłada akumulator, a tożsamość strumienia body pozostaje
+    // nienaruszona - to ona jest kluczem WeakMap odroczonego zapisu.
+    expect(boundary.headers.get("link")).toBe(LINK_VALUE);
+    expect(boundary.body).toBe(inChain!.body);
     const first = applyDeferredDocumentStore(boundary);
     expect(first.headers.get(NES_CACHE_HEADER)).toBe("MISS");
     await first.text();
@@ -192,6 +202,37 @@ describe("handleDocumentRequest", () => {
     expect(second.headers.get("link")).toBe(LINK_VALUE);
     // Wiek wpisu w Server-Timing (`nes-age;dur=<ms>`) - korelacja RUM.
     expect(second.headers.get("server-timing")).toMatch(/nes-age;dur=\d+/);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("dokument `lcp`: wpis trzyma `Link` PO przycięciu na granicy, HIT nie przywraca modulepreload", async () => {
+    // P2.1: granica odpowiedzi zdejmuje z `Link` dokumentu `lcp` każdy
+    // `modulepreload` - także ten nadany wprost na odpowiedzi renderu. Wpis
+    // MUSI zapamiętać nagłówek po tej decyzji: odwrót do wartości widzianej
+    // w łańcuchu odtwarzałby zdjęty preload modułu na każdym HIT-cie.
+    const MODULE = '</assets/widget-hero-1.js>; rel="modulepreload"';
+    const next = vi.fn(async () => {
+      recordBootMode("lcp");
+      return new Response("<html>lcp</html>", {
+        status: 200,
+        headers: { ...CACHEABLE_HEADERS, link: MODULE },
+      });
+    });
+    const handler = startRequestScope(
+      async (request) => (await handleDocumentRequest(request, next)) as Response,
+    );
+
+    const first = applyDeferredDocumentStore(
+      await fetchWithFrameworkPreloads(handler, docRequest("/lcp")),
+    );
+    expect(first.headers.get(NES_CACHE_HEADER)).toBe("MISS");
+    expect(first.headers.has("link")).toBe(false);
+    await first.text();
+    await settle();
+
+    const hit = await renderThroughEdge("/lcp", next);
+    expect(hit.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(hit.headers.has("link")).toBe(false);
     expect(next).toHaveBeenCalledTimes(1);
   });
 

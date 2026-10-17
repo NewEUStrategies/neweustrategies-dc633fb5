@@ -82,7 +82,7 @@ type BuildEnvironmentLike = { config: { consumer?: string; base?: string } };
 
 /**
  * Środowisko builda z kontekstu hooka. W prawdziwym buildzie Vite 6+ wstrzykuje
- * `this.environment` do każdego hooka Rollupa; w teście jednostkowym hooki są
+ * `this.environment` do każdego hooka bundlera; w teście jednostkowym hooki są
  * wołane bez niego - wtedy zwracamy `undefined` i wtyczka wraca do heurystyki
  * po katalogu wyjściowym.
  */
@@ -177,7 +177,15 @@ export function widgetChunkPlugin(): Plugin {
       for (const output of Object.values(bundle)) {
         if (output.type !== "chunk" || output.isEntry) continue;
         const url = `${prefix}${output.fileName}`;
-        for (const moduleId of Object.keys(output.modules)) {
+        // FASADA ROLLDOWNA: dynamiczne wejście, którego moduł siedzi w chunku wspólnym (albo
+        // grupy), Rolldown wystawia przez pusty chunk reeksportujący ten chunk - `modules` jest
+        // pusty, a moduł widgetu stoi w `facadeModuleId`. `lazy()` widgetu importuje FASADĘ, więc
+        // bez niej w hincie hydratacja widgetu nad zgięciem czekała o jedno żądanie dłużej
+        // (zmierzone 2026-10-16: 83 takie chunki, w tym konto, wyszukiwarka, etykiety sekcji,
+        // warianty slidera i nagłówka animowanego strony głównej).
+        const moduleIds = Object.keys(output.modules);
+        if (output.facadeModuleId) moduleIds.push(output.facadeModuleId);
+        for (const moduleId of moduleIds) {
           const normalized = moduleId.replaceAll("\\", "/");
           for (const [suffix, urls] of urlsBySuffix) {
             if (normalized.endsWith(suffix) && !urls.includes(url)) urls.push(url);

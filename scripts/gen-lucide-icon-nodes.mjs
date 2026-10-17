@@ -4,7 +4,7 @@
 //
 // Dlaczego własny plik danych zamiast importów z pakietu: KAŻDA forma
 // referencji do rejestru ikon (namespace-import barrela, deep-import
-// icons/index.js, mapa dynamicIconImports) kończy się umieszczeniem przez
+// icons/index.js, mapa dynamicIconImports) kończyła się umieszczeniem przez
 // Rollupa wszystkich ~1690 modułów ikon w bundlu WEJŚCIOWYM (zmierzone -
 // ~640 KB raw na każdej stronie). Czysty plik danych węzłów SVG nie ma tej
 // właściwości. Aplikacja nie importuje go zresztą wprost: na końcu tego

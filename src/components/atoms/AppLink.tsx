@@ -1,5 +1,4 @@
 import { useRouter, type AnyRouter } from "@tanstack/react-router";
-import { executeRewriteInput } from "@tanstack/router-core";
 import { warmCommonWidgetChunks } from "@/components/builder/organisms/widget-view/warmWidgetChunks";
 import {
   forwardRef,
@@ -55,30 +54,24 @@ function claimPreload(href: string, now: number): boolean {
 /**
  * Preload trasy, na którą prowadzi `href` odnośnika.
  *
- * `preloadRoute` NIE ZNA opcji `href` - zna ją wyłącznie `navigate`
- * (router-core: `buildAndCommitLocation`). `preloadRoute` buduje lokalizację
- * przez `buildLocation`, który `href` pomija, a brak `to` znaczy „bieżąca
- * trasa": `preloadRoute({ href })` preloadował stronę, NA KTÓREJ stoimy (na /a
- * najechanie na /b ponownie dopasowywało /a), a loader celu czekał na klik.
+ * Od router-core 1.171.37 `buildLocation` - a przez niego `preloadRoute` -
+ * rozumie `href` tak samo jak `navigate`: ścieżka przez `rewrite.input`
+ * routera (zdejmuje prefiks języka - "/en/b" to trasa kanoniczna "/b", patrz
+ * `src/router.tsx`), query przez parser routera, hash bez "#". Preload buduje
+ * więc te same dopasowania (ten sam identyfikator, te same `loaderDeps`), które
+ * za chwilę zbuduje klik. (Wcześniej `buildLocation` pomijał `href`, a brak
+ * `to` znaczył „bieżąca trasa" - stąd dawny ręczny przekład w tym miejscu.)
  *
- * Przekładamy więc `href` dokładnie tak, jak robi to `navigate({ href })`:
- * ścieżka przez `rewrite.input` routera (zdejmuje prefiks języka - "/en/b" to
- * trasa kanoniczna "/b", patrz `src/router.tsx`), query przez parser routera,
- * hash bez "#". Preload buduje wtedy te same dopasowania (ten sam identyfikator,
- * te same `loaderDeps`), które za chwilę zbuduje klik.
- *
- * `async` celowo: wyjątek przekładu staje się odrzuceniem, które wywołujący
- * połyka razem z błędem samego preloadu - nic nie ucieka z timera do UI.
+ * `async` celowo: wyjątek budowania lokalizacji (np. parsera query) router
+ * zamienia w odrzucenie sam, ale opakowanie gwarantuje to także dla
+ * `preloadRoute`, który rzuca synchronicznie (atrapa, inny router). Odrzucenie
+ * wywołujący połyka razem z błędem samego preloadu - nic nie ucieka z timera
+ * do UI.
  */
 async function preloadHref(router: AnyRouter, href: string): Promise<void> {
-  const url = new URL(href, router.origin ?? window.location.origin);
-  const search = router.options.parseSearch(url.search);
-  const hash = url.hash.slice(1);
-  await router.preloadRoute({
-    to: executeRewriteInput(router.rewrite, url).pathname,
-    search,
-    hash,
-  });
+  // Jawne `TTo = string`: przy domyślnym `undefined` typ opcji (`MakeToRequired`)
+  // wymaga `to`, choć lokalizację wyznacza tu sam `href`.
+  await router.preloadRoute<string, string>({ href });
 }
 
 function isModifiedEvent(event: MouseEvent<HTMLAnchorElement>): boolean {
@@ -171,7 +164,11 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
       return;
 
     event.preventDefault();
-    void router.navigate({ href: clientHref } as never);
+    // Bez rzutowania i bez jawnych generyków: `TTo` w `NavigateFn` (router-core 1.171.37,
+    // `RouterProvider.d.ts`) nie ma domyślnej wartości, więc bez `to` spada do ograniczenia
+    // `string | undefined` i `to` jest opcjonalne. `preloadRoute` ma domyślne `TTo = undefined`,
+    // stąd jawne `<string, string>` w `preloadHref`.
+    void router.navigate({ href: clientHref });
   };
 
   const handleMouseEnter = (event: MouseEvent<HTMLAnchorElement>) => {

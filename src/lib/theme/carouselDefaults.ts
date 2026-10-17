@@ -5,9 +5,12 @@ import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 // Toasty przez leniwy most `@/lib/notify`, nie `import { toast } from "sonner"`:
-// moduł jest mały (< `experimentalMinChunkSize`), więc łączenie małych chunków
-// potrafi go wkleić do chunku wejściowego (P3.8, Prove 2026-10-08) - a wtedy
-// statyczny import sonnera wciąga `vendor-sonner` do bootu każdej strony.
+// na Rollupie moduł był mniejszy niż `experimentalMinChunkSize`, więc łączenie
+// małych chunków wkleiło go do chunku wejściowego (P3.8, Prove 2026-10-08) -
+// a wtedy statyczny import sonnera wciągał `vendor-sonner` do bootu każdej
+// strony. Rolldown małych chunków nie scala (scripts/lib/clientChunkGroups.ts),
+// ale most zostaje: trzyma sonnera poza bootem niezależnie od tego, gdzie
+// bundler położy ten moduł.
 import { notifyError, notifySuccess } from "@/lib/notify";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 

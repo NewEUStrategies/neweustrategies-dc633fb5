@@ -11,24 +11,22 @@
 // SSR: loader rozgrzewa ["public-events"] przez ensureQueryData, więc HTML
 // listy i JSON-LD (CollectionPage z węzłami Event) schodzą z serwera zamiast
 // renderować się dopiero po hydratacji (audyt 2026-07-30: "Brak SSR listy").
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, Calendar, Lock, MapPin, Users, Video } from "lucide-react";
 import { publicEventsQueryOptions, type PublicEvent } from "@/lib/community/publicQueries";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { COMMUNITY_MODULES_DEFAULTS, COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
 import { breadcrumbListJsonLd, eventsCollectionJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { CommunityDisabled } from "@/components/community/CommunityDisabled";
 import { EventsListSkeleton } from "@/components/community/EventsListSkeleton";
-import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { EventCard } from "@/components/events/public/molecules/EventCatalogueCard";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { ensureI18n as ensureCommunityI18n } from "@/lib/i18n-community";
@@ -281,119 +279,5 @@ function Section({
         </ul>
       )}
     </section>
-  );
-}
-
-// Format wydarzenia -> klucz slownika. Mapa, nie sklejanie napisu z wartosci
-// kolumny: `t("community.events.format" + capitalize(ev.format))` dawaloby klucz
-// niewidoczny dla bramki parytetu PL/EN i cichy brak napisu przy nowej wartosci
-// w CHECK. Nieznana wartosc daje null, czyli BRAK plakietki - kafel bez plakietki
-// czyta sie jak brak informacji, a kafel z surowym „onsite” jak awaria.
-const EVENT_FORMAT_KEY: Record<string, string> = {
-  onsite: "community.events.formatOnsite",
-  online: "community.events.formatOnline",
-  hybrid: "community.events.formatHybrid",
-};
-
-// EKSPORT WYŁĄCZNIE DLA TESTU KAFLA. Trasa nie potrzebuje go na zewnątrz, ale
-// dowód „plakietka formatu bierze się z `events.format`" musi zamontować kafel
-// z prawdziwym wierszem `PublicEvent` - a nie porównywać kształt kodu. Bramka,
-// która czytała importy zamiast drzewa, była już w tym repozytorium zielona
-// wtedy, gdy pilnowana rzecz była zepsuta.
-export function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
-  const { t } = useTranslation();
-  // `events.format` (onsite/online/hybrid) - to jest kolumna, ktora zapisuje
-  // droplista „Format” w studiu. Poprzednio kafel czytal `events.kind`, ktorego
-  // studio nie rusza i ktorego CHECK nie dopuszcza wartosci „online” - warunek
-  // nie mial jak byc prawdziwy ani jednego razu.
-  const formatKey = EVENT_FORMAT_KEY[event.format] ?? null;
-  const title = lang === "en" ? event.title_en || event.title_pl : event.title_pl || event.title_en;
-  // FALLBACK JAK W TYTULE, i z tego samego powodu. Bez niego wydarzenie opisane
-  // tylko po polsku ma na kaflu sam tytul, a czytelnik z interfejsem EN nie
-  // dowie sie z katalogu, czego dotyczy - mimo ze redakcja opis wpisala.
-  const desc =
-    lang === "en"
-      ? event.description_en || event.description_pl
-      : event.description_pl || event.description_en;
-  // Godzina liczy sie w STREFIE WYDARZENIA, nie w strefie przegladarki, a obok
-  // niej stoi nazwa tej strefy. Bez jednego i drugiego uczestnik z Brukseli
-  // czytal godzine warszawska jako swoja i przychodzil o zlej godzinie - to jest
-  // zadanie EB-912 z projektu frontu, punkt "strefa czasowa: jedna funkcja,
-  // cztery miejsca do naprawy". Etykieta jest wyliczana ze strefy WYDARZENIA
-  // (deterministycznie), a nie ze strefy widza - strefa widza jest znana dopiero
-  // po montazu i rozjechalaby hydratacje.
-  const when = formatEventDateTime(event.starts_at, event.timezone, lang);
-  const zone = eventTimeZoneLabel(event.starts_at, event.timezone, lang);
-  return (
-    <li className="group relative overflow-hidden rounded-lg border border-border bg-card transition hover:border-primary/60">
-      {event.cover_url && (
-        <div className="aspect-video w-full overflow-hidden bg-muted">
-          {/* Karta maluje się na max ~576 px (md:grid-cols-2); responsywny
-              srcSet zdejmuje pobieranie pełnowymiarowego oryginału na kartę.
-              Układ rezerwuje rodzic (aspect-video). */}
-          <OptimizedImage
-            src={event.cover_url}
-            alt=""
-            responsive
-            sizes="(min-width: 768px) 45vw, 92vw"
-            className="h-full w-full object-cover"
-          />
-        </div>
-      )}
-      <div className="p-5">
-        {event.visibility === "members" && (
-          <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-            {event.kind === "briefing" ? (
-              <>
-                <BadgeCheck className="h-3 w-3" aria-hidden="true" />
-                {t("community.events.proBriefing")}
-              </>
-            ) : (
-              <>
-                <Lock className="h-3 w-3" aria-hidden="true" />
-                {t("community.events.membersOnly")}
-              </>
-            )}
-          </span>
-        )}
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
-            {zone === "" ? when : `${when} (${zone})`}
-          </span>
-          {event.location && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              {event.location}
-            </span>
-          )}
-          {formatKey === null ? null : (
-            <span className="inline-flex items-center gap-1">
-              <Video className="h-3.5 w-3.5" aria-hidden="true" />
-              {t(formatKey)}
-            </span>
-          )}
-          {event.capacity !== null && (
-            <span className="inline-flex items-center gap-1">
-              <Users className="h-3.5 w-3.5" aria-hidden="true" />
-              {event.capacity}
-            </span>
-          )}
-        </div>
-        <h3 className="mt-3 text-lg font-semibold leading-snug">
-          <Link
-            to="/events/$slug"
-            params={{ slug: event.slug }}
-            className="after:absolute after:inset-0"
-          >
-            {title}
-          </Link>
-        </h3>
-        {desc && <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{desc}</p>}
-        <span className="mt-4 inline-block text-sm font-medium text-primary">
-          {t("community.events.readMoreAbout", { title })} -&gt;
-        </span>
-      </div>
-    </li>
   );
 }

@@ -5,11 +5,12 @@
 // F04 (2026-09-20): `@react-email/render` i sześć szablonów ciągnących
 // `@react-email/components` były importowane STATYCZNIE, a ten moduł ma
 // kilkunastu importerów w grafie serwera (funkcje serwerowe podglądu, panel).
-// Rollup hoistuje moduł współdzielony do wspólnego przodka, więc cały
-// React Email był EWALUOWANY PRZY STARCIE IZOLATU Workera - także dla żądań,
-// które nigdy nie renderują maila. Krawędzie schodzą do `await import(...)`
-// WEWNĄTRZ funkcji renderującej: kontrakt eksportów bez zmian (obie funkcje
-// i tak były `async`), a graf startowy izolatu bez React Email.
+// Bundler (wtedy Rollup Nitro) hoistuje moduł współdzielony do wspólnego
+// przodka, więc cały React Email był EWALUOWANY PRZY STARCIE IZOLATU Workera -
+// także dla żądań, które nigdy nie renderują maila. Krawędzie schodzą do
+// `await import(...)` WEWNĄTRZ funkcji renderującej: kontrakt eksportów bez
+// zmian (obie funkcje i tak były `async`), a graf startowy izolatu - bez
+// React Email.
 import * as React from "react";
 
 import { authCopy, type AuthEmailType } from "@/lib/email-templates/copy";
@@ -60,7 +61,7 @@ type PreviewProps = {
 /**
  * Szablon ładowany DOPIERO przy renderowaniu - i tylko ten jeden, którego
  * dotyczy żądanie. `switch` ze statycznymi specyfikatorami (a nie `import()`
- * z wyliczaną ścieżką) zostawia Rollupowi sześć jawnych, analizowalnych
+ * z wyliczaną ścieżką) zostawia bundlerowi sześć jawnych, analizowalnych
  * krawędzi, więc podział na chunki jest deterministyczny.
  */
 async function componentFor(type: AuthEmailType): Promise<React.ComponentType<PreviewProps>> {

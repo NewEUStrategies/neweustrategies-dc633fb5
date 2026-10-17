@@ -1254,22 +1254,6 @@ export function analyzeMigrationLanes(
   return { checked: tags.length, twins, drizzleOnly, deployRecords, violations };
 }
 
-export function laneParityFailed(report: LaneReport): boolean {
-  return report.violations.length > 0;
-}
-
-export function renderLaneReport(report: LaneReport): string {
-  const records = report.deployRecords.length;
-  const head = `Pasy migracji: ${report.checked} plików drizzle (${report.twins} z bliźniakiem, ${report.drizzleOnly} świadomie bez${records > 0 ? `, ${records} zapisów wdrożenia rozpoznanych po treści` : ""}).`;
-  const recordLines = report.deployRecords.map(
-    (r) =>
-      `  [zapis-wdrozenia] ${r.tag}: SQL wykonywalny == ${SUPABASE_DIR}/${r.twin} (wpis drizzleOnly można dopisać przy okazji).`,
-  );
-  if (report.violations.length === 0) return [`${head} Zgodne.`, ...recordLines].join("\n");
-  const lines = report.violations.map((v) => `  [${v.kind}] ${v.tag}: ${v.detail}`);
-  return [head, `NARUSZENIA (${report.violations.length}):`, ...lines, ...recordLines].join("\n");
-}
-
 // ---------------------------------------------------------------------------
 // BRAMKA W CI (`bun run check:migration-lanes`).
 //

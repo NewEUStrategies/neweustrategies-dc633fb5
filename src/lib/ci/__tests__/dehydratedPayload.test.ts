@@ -8,7 +8,11 @@
 // zbudowany na fixture pomiarowym NIE niesie pól, których żaden odbiorca
 // pierwszego renderu nie czyta.
 //
-// PO CO. Stan `$tsr` jedzie w KAŻDYM dokumencie (bariera + strumień), a po
+// PO CO. Stan `$tsr` jedzie w KAŻDYM dokumencie - stan początkowy (`query.initial`)
+// w skryptach `<script data-tsr-stream-part>` przed granicą `/*$tsr-stream-boundary*/`,
+// reszta jako porcje `query.stream` (kształt `query`: router-ssr-query-core; skrypty:
+// router-core 1.171.37, `ssr/hydrationScripts.js`; do 1.171.15 stan początkowy niosła
+// bariera `$tsr-stream-barrier`) - a po
 // boocie po LCP (C3) jego parsowanie i ewaluacja wchodzą do okna TBT (księga
 // P0.5: K4 ParseHTML dokumentu). Projekcje żyją w funkcjach zapytań - nie w
 // `dehydrate`, bo `serializeData` nie zna klucza - więc ten test woła

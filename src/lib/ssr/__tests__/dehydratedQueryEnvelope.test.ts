@@ -1,19 +1,20 @@
 // @vitest-environment node
 //
 // KOMPAKTOWA KOPERTA ZAPYTAŃ (P3.7b, T1) - dowód na PRAWDZIWYM `dehydrate()`
-// i `hydrate()` przypiętego query-core, nie na ręcznie złożonych obiektach:
-//  1. ROUND-TRIP: `expand(compact(d))` równa się `d` (bez pustej listy mutacji,
-//     której klient nie odtwarza - `hydrate` czyta `mutations || []`) dla
-//     każdego kształtu, który może trafić do przesyłki (sukces, odświeżone dwa
-//     razy, `meta`, zapytanie nieskończone, błąd po danych, klucz z obiektem
-//     o innej kolejności pól);
+// i `hydrate()` przypiętego query-core, nie na ręcznie złożonych obiektach.
+// Jednostką jest tablica zapytań, tak jak w ładunku integracji router<->query
+// (`query.initial` i każda porcja `query.stream`, router-ssr-query-core 1.169.3):
+//  1. ROUND-TRIP: `expand(compact(q))` równa się `q` dla każdego kształtu, który
+//     może trafić do przesyłki (sukces, odświeżone dwa razy, `meta`, zapytanie
+//     nieskończone, błąd po danych, klucz z obiektem o innej kolejności pól);
 //  2. CACHE PO HYDRATACJI jest identyczny dla obu kopert (hash i stan);
 //  3. PORCJA STRUMIENIA po zamontowaniu obserwatora dostaje dane - to jest
 //     scenariusz, w którym brak `queryHash` gubiłby dane (kontrola negatywna);
 //  4. własny `queryKeyHashFn` i klucz z instancją klasy zachowują hash, `data`
 //     zostaje tą samą referencją;
-//  5. strumień i ładunek routera: prawdziwa integracja router<->query hydratuje
-//     kompaktową barierę i kompaktową porcję strumienia.
+//  5. strumień i ładunek routera: PRAWDZIWA integracja serwerowa -> kompaktowanie
+//     -> rozwinięcie -> PRAWDZIWA integracja kliencka hydratuje porcję początkową
+//     i porcję strumienia renderu.
 import { describe, expect, it } from "vitest";
 import {
   QueryClient,
@@ -26,11 +27,13 @@ import {
 
 import {
   DEFAULT_SUCCESS_STATE,
-  compactDehydratedState,
-  expandDehydratedState,
+  compactDehydratedQueries,
+  compactRouterDehydrated,
+  expandDehydratedQueries,
   expandRouterDehydrated,
   mapQueryStream,
-  type CompactDehydratedState,
+  type DehydratedQuery,
+  type RouterQueryPayload,
 } from "../dehydratedQueryEnvelope";
 
 function client(): QueryClient {
@@ -69,8 +72,10 @@ async function richClient(): Promise<QueryClient> {
   return qc;
 }
 
-function everything(qc: QueryClient): DehydratedState {
-  return dehydrate(qc, { shouldDehydrateQuery: () => true, shouldRedactErrors: () => false });
+/** Zapytania tak, jak integracja wysyła je w porcji (`dehydrateQuery` każdego zapytania). */
+function everything(qc: QueryClient): DehydratedQuery[] {
+  return dehydrate(qc, { shouldDehydrateQuery: () => true, shouldRedactErrors: () => false })
+    .queries;
 }
 
 function cacheSnapshot(qc: QueryClient) {
@@ -81,9 +86,9 @@ function cacheSnapshot(qc: QueryClient) {
 }
 
 describe("compact/expand na prawdziwym dehydrate()", () => {
-  it("round-trip: expand(compact(d)) równa się d dla każdego kształtu zapytania", async () => {
-    const d = everything(await richClient());
-    expect(d.queries.map((q) => q.queryKey[0])).toEqual([
+  it("round-trip: expand(compact(q)) równa się q dla każdego kształtu zapytania", async () => {
+    const queries = everything(await richClient());
+    expect(queries.map((q) => q.queryKey[0])).toEqual([
       "prosty",
       "dwa-razy",
       "z-meta",
@@ -91,17 +96,13 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
       "builder-post-list",
       "blad-po-danych",
     ]);
-    const { mutations, ...withoutMutations } = d;
-    expect(mutations).toEqual([]);
-    expect(expandDehydratedState(compactDehydratedState(d))).toEqual(withoutMutations);
+    expect(expandDehydratedQueries(compactDehydratedQueries(queries))).toEqual(queries);
   });
 
   it("koperta kompaktowa nie niesie `queryHash` ani pól równych stałej; reszta zostaje", async () => {
-    const d = everything(await richClient());
-    const c = compactDehydratedState(d) as CompactDehydratedState;
-    // Pusta lista mutacji też znika (`hydrate` czyta `mutations || []`).
-    expect(c).not.toHaveProperty("mutations");
-    for (const q of c.queries) {
+    const queries = everything(await richClient());
+    const c = compactDehydratedQueries(queries);
+    for (const q of c) {
       expect(q).not.toHaveProperty("queryHash");
       expect(q).toHaveProperty("dehydratedAt");
       expect(q.state).toHaveProperty("dataUpdatedAt");
@@ -111,38 +112,40 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
         }
       }
     }
-    const byKey = (key: string) => c.queries.find((q) => q.queryKey[0] === key)!;
+    const byKey = (key: string) => c.find((q) => q.queryKey[0] === key)!;
     // Zapytanie sukcesu w stanie domyślnym: zostają wyłącznie dane i znacznik czasu.
     expect(Object.keys(byKey("prosty").state).sort()).toEqual(["data", "dataUpdatedAt"]);
     expect(byKey("dwa-razy").state.dataUpdateCount).toBe(2);
     expect(byKey("z-meta").meta).toEqual({ zrodlo: "test" });
     expect(byKey("nieskonczone").queryType).toBe("infinite");
     expect(byKey("blad-po-danych").state).toMatchObject({ status: "error", data: "stare" });
-    expect(JSON.stringify(c).length).toBeLessThan(JSON.stringify(d).length);
+    expect(JSON.stringify(c).length).toBeLessThan(JSON.stringify(queries).length);
   });
 
   it("kompaktowanie jest idempotentne, a rozwinięcie pełnej koperty jej nie zmienia", async () => {
-    const d = everything(await richClient());
-    const c = compactDehydratedState(d);
-    expect(compactDehydratedState(c)).toEqual(c);
+    const queries = everything(await richClient());
+    const c = compactDehydratedQueries(queries);
+    const again = compactDehydratedQueries(c);
+    expect(again).toEqual(c);
+    // Bez pól `undefined`: druga kompaktacja nie dokłada `queryHash: undefined` do przesyłki.
+    expect(JSON.stringify(again)).toBe(JSON.stringify(c));
     // Dokument sprzed zmiany (pełna koperta) hydratuje się bez różnicy.
-    expect(expandDehydratedState(d)).toEqual(d);
+    expect(expandDehydratedQueries(queries)).toEqual(queries);
   });
 
   it("nie mutuje wejścia: integracja trzyma hashe oryginałów w `sentQueries`", async () => {
-    const d = everything(await richClient());
-    const before = structuredClone(d.queries.map((q) => [q.queryHash, q.state.status]));
-    compactDehydratedState(d);
-    expect(d.queries.map((q) => [q.queryHash, q.state.status])).toEqual(before);
-    expect(d.mutations).toEqual([]);
+    const queries = everything(await richClient());
+    const before = structuredClone(queries.map((q) => [q.queryHash, q.state.status]));
+    compactDehydratedQueries(queries);
+    expect(queries.map((q) => [q.queryHash, q.state.status])).toEqual(before);
   });
 
   it("cache po hydratacji: obie koperty dają identyczne hashe i stany", async () => {
-    const d = everything(await richClient());
+    const queries = everything(await richClient());
     const full = client();
     const compact = client();
-    hydrate(full, d);
-    hydrate(compact, expandDehydratedState(compactDehydratedState(d)));
+    hydrate(full, { queries });
+    hydrate(compact, { queries: expandDehydratedQueries(compactDehydratedQueries(queries)) });
     expect(cacheSnapshot(compact)).toEqual(cacheSnapshot(full));
   });
 
@@ -150,9 +153,9 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
     const qc = client();
     const shared = { builder_data: { sections: [] } };
     qc.setQueryData(["public", "home-page"], shared);
-    const c = compactDehydratedState(dehydrate(qc)) as CompactDehydratedState;
-    expect(c.queries[0].state.data).toBe(shared);
-    expect((expandDehydratedState(c) as DehydratedState).queries[0].state.data).toBe(shared);
+    const c = compactDehydratedQueries(dehydrate(qc).queries);
+    expect(c[0].state.data).toBe(shared);
+    expect(expandDehydratedQueries(c)[0].state.data).toBe(shared);
   });
 
   it("hash z własnej funkcji (`queryKeyHashFn`) zostaje w przesyłce", async () => {
@@ -162,10 +165,10 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
       queryFn: () => "x",
       queryKeyHashFn: () => "wlasny",
     });
-    const c = compactDehydratedState(dehydrate(qc)) as CompactDehydratedState;
-    expect(c.queries[0].queryHash).toBe("wlasny");
+    const c = compactDehydratedQueries(dehydrate(qc).queries);
+    expect(c[0].queryHash).toBe("wlasny");
     const target = client();
-    hydrate(target, expandDehydratedState(c));
+    hydrate(target, { queries: expandDehydratedQueries(c) });
     expect(target.getQueryCache().get("wlasny")?.state.data).toBe("x");
   });
 
@@ -182,8 +185,8 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
     const key = ["filtr", new Filtr("tydzien", "a1")];
     await qc.fetchQuery({ queryKey: key, queryFn: () => "x" });
     await qc.fetchQuery({ queryKey: ["prosty", { b: 1, a: 2 }], queryFn: () => "y" });
-    const c = compactDehydratedState(dehydrate(qc)) as CompactDehydratedState;
-    const byKey = (name: string) => c.queries.find((q) => q.queryKey[0] === name)!;
+    const c = compactDehydratedQueries(dehydrate(qc).queries);
+    const byKey = (name: string) => c.find((q) => q.queryKey[0] === name)!;
     expect(byKey("filtr").queryHash).toBe(hashKey(key));
     expect(byKey("prosty")).not.toHaveProperty("queryHash");
   });
@@ -203,9 +206,9 @@ describe("porcja strumienia po zamontowaniu obserwatora", () => {
     const source = client();
     const key = ["builder-post-list", { variant: "minimal", lang: "pl" }];
     source.setQueryData(key, [{ id: "p1" }]);
-    const chunk = compactDehydratedState(dehydrate(source));
+    const chunk = compactDehydratedQueries(dehydrate(source).queries);
     const target = mounted(key);
-    hydrate(target, expandDehydratedState(chunk));
+    hydrate(target, { queries: expandDehydratedQueries(chunk) });
     expect(target.getQueryData(key)).toEqual([{ id: "p1" }]);
     expect(target.getQueryCache().find({ queryKey: key })?.state.status).toBe("success");
   });
@@ -214,9 +217,12 @@ describe("porcja strumienia po zamontowaniu obserwatora", () => {
     const source = client();
     const key = ["builder-post-list", { variant: "list", lang: "pl" }];
     source.setQueryData(key, [{ id: "p2" }]);
-    const chunk = compactDehydratedState(dehydrate(source));
+    const chunk = compactDehydratedQueries(dehydrate(source).queries);
     const target = mounted(key);
-    hydrate(target, chunk);
+    // Rzutowanie jest tu przedmiotem testu: typ `hydrate` nie przyjmuje koperty kompaktowej,
+    // a podajemy ją celowo, żeby pokazać, co by się stało bez `expandDehydratedQueries` (tak
+    // wygląda porcja, którą klient dostaje z sieci).
+    hydrate(target, { queries: chunk as unknown as DehydratedState["queries"] });
     expect(target.getQueryData(key)).toBeUndefined();
   });
 });
@@ -232,15 +238,20 @@ describe("strumień i ładunek routera", () => {
     }
   }
 
-  it("mapQueryStream przepisuje każdą porcję i przenosi koniec strumienia", async () => {
-    const source = new ReadableStream<number>({
+  function streamOf<T>(...chunks: T[]): ReadableStream<T> {
+    return new ReadableStream<T>({
       start(c) {
-        c.enqueue(1);
-        c.enqueue(2);
+        for (const chunk of chunks) c.enqueue(chunk);
         c.close();
       },
     });
-    expect(await drain(mapQueryStream(source, (n) => n * 10))).toEqual([10, 20]);
+  }
+
+  it("mapQueryStream przepisuje każdą porcję i przenosi koniec strumienia", async () => {
+    expect(await drain(mapQueryStream(streamOf(1, 2), (n) => `#${n * 10}`))).toEqual([
+      "#10",
+      "#20",
+    ]);
   });
 
   it("mapQueryStream przenosi błąd źródła", async () => {
@@ -250,15 +261,6 @@ describe("strumień i ładunek routera", () => {
       },
     });
     await expect(drain(mapQueryStream(source, (n) => n))).rejects.toThrow("zerwany strumień");
-  });
-
-  it("ładunek bez koperty i strumienia wraca bez zmiany treści", () => {
-    const payload = { manifest: { a: 1 } };
-    const out = expandRouterDehydrated(payload) as Record<string, unknown>;
-    expect(out.manifest).toBe(payload.manifest);
-    expect(out.dehydratedQueryClient).toBeUndefined();
-    expect(out).not.toHaveProperty("queryStream");
-    expect(expandRouterDehydrated(undefined)).toBeUndefined();
   });
 
   it("anulowanie strumienia wynikowego anuluje źródło", async () => {
@@ -272,28 +274,84 @@ describe("strumień i ładunek routera", () => {
     expect(cancelled).toBe("koniec");
   });
 
-  it("PRAWDZIWA integracja hydratuje kompaktową barierę i kompaktową porcję strumienia", async () => {
-    const { setupCoreRouterSsrQueryIntegration } = await import("@tanstack/router-ssr-query-core");
-    const router = { isServer: false, options: {} as Record<string, unknown> };
-    const target = client();
-    setupCoreRouterSsrQueryIntegration({ router, queryClient: target } as never);
+  it("ładunek bez `query` (albo bez strumienia) wraca TYM SAMYM obiektem", () => {
+    const payload = { manifest: { a: 1 } };
+    expect(compactRouterDehydrated(payload)).toBe(payload);
+    expect(expandRouterDehydrated(payload)).toBe(payload);
+    const noStream = { query: { initial: [] } };
+    expect(compactRouterDehydrated(noStream)).toBe(noStream);
+    expect(expandRouterDehydrated(noStream)).toBe(noStream);
+    expect(compactRouterDehydrated(undefined)).toBeUndefined();
+    expect(expandRouterDehydrated(undefined)).toBeUndefined();
+  });
 
-    const barrierSource = client();
-    barrierSource.setQueryData(["site_settings_public", "all"], { seo: { a: 1 } });
-    const chunkSource = client();
-    chunkSource.setQueryData(["newsletter-settings", "inline"], { heading_pl: "Zapisz się" });
-    const queryStream = new ReadableStream({
-      start(c) {
-        c.enqueue(compactDehydratedState(dehydrate(chunkSource)));
-        c.close();
+  it("serwer: nowy ładunek z kompaktową porcją początkową i porcjami strumienia; oryginały nietknięte", async () => {
+    const queries = everything(await richClient());
+    const chunk = everything(await richClient()).slice(0, 2);
+    const manifest = { routes: {} };
+    const payload = { manifest, query: { initial: queries, stream: streamOf(chunk) } };
+    // Typ wyniku to typ wejścia (ładunek jest dla router-core nieprzezroczysty) - treść
+    // sprawdzają asercje.
+    const out = compactRouterDehydrated(payload);
+    expect(out).not.toBe(payload);
+    expect(out.manifest).toBe(manifest);
+    expect(out.query.initial).toEqual(compactDehydratedQueries(queries));
+    expect(await drain(out.query.stream)).toEqual([compactDehydratedQueries(chunk)]);
+    // Integracja zapisała hashe oryginałów w `sentQueries` - zostają nietknięte.
+    expect(payload.query.initial).toBe(queries);
+    expect(queries.every((q) => typeof q.queryHash === "string")).toBe(true);
+    // Bez porcji początkowej (integracja pomija pustą) - bez klucza `initial`.
+    const streamOnly = compactRouterDehydrated({
+      query: { stream: streamOf<DehydratedQuery[]>() },
+    });
+    expect(streamOnly.query).not.toHaveProperty("initial");
+  });
+
+  it("PRAWDZIWA integracja: serwer -> kompaktowanie -> rozwinięcie -> klient (porcja początkowa i strumień)", async () => {
+    const { setupCoreRouterSsrQueryIntegration } = await import("@tanstack/router-ssr-query-core");
+
+    // SERWER: ten sam predykat co `src/router.tsx` (wyłącznie `success`).
+    const serverClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        dehydrate: { shouldDehydrateQuery: (query) => query.state.status === "success" },
       },
     });
-    const dehydrated = {
-      dehydratedQueryClient: compactDehydratedState(dehydrate(barrierSource)),
-      queryStream,
+    serverClient.setQueryData(["site_settings_public", "all"], { seo: { a: 1 } });
+    const renderFinished: Array<() => void> = [];
+    const serverRouter = {
+      isServer: true,
+      options: {} as Record<string, unknown>,
+      serverSsr: { onRenderFinished: (listener: () => void) => renderFinished.push(listener) },
     };
-    await (router.options.hydrate as (d: unknown) => Promise<void>)(
-      expandRouterDehydrated(dehydrated),
+    setupCoreRouterSsrQueryIntegration({
+      router: serverRouter,
+      queryClient: serverClient,
+    } as never);
+    // Kształt wyniku haka - kontrakt integracji (`dehydratedQueryEnvelope.ts`, nagłówek).
+    const dehydrateHook = serverRouter.options.dehydrate as () => Promise<{
+      query: RouterQueryPayload<DehydratedQuery>;
+    }>;
+    const wire = compactRouterDehydrated(await dehydrateHook());
+    // Zapytanie fazy renderu - jedzie porcją strumienia, potem koniec renderu domyka strumień.
+    await serverClient.prefetchQuery({
+      queryKey: ["newsletter-settings", "inline"],
+      queryFn: async () => ({ heading_pl: "Zapisz się" }),
+    });
+    for (const listener of renderFinished) listener();
+
+    // Na drucie: ani jednego `queryHash` i żadnego pola ze stałego ogona stanu.
+    const initial = wire.query.initial ?? [];
+    expect(initial).toHaveLength(1);
+    expect(initial[0]).not.toHaveProperty("queryHash");
+    expect(initial[0].state).not.toHaveProperty("status");
+
+    // KLIENT
+    const target = client();
+    const clientRouter = { isServer: false, options: {} as Record<string, unknown> };
+    setupCoreRouterSsrQueryIntegration({ router: clientRouter, queryClient: target } as never);
+    await (clientRouter.options.hydrate as (d: unknown) => Promise<void>)(
+      expandRouterDehydrated(wire),
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(target.getQueryData(["site_settings_public", "all"])).toEqual({ seo: { a: 1 } });
@@ -308,5 +366,6 @@ describe("strumień i ładunek routera", () => {
         fetchStatus: "idle",
       });
     }
+    serverClient.clear();
   });
 });

@@ -28,7 +28,7 @@ const Input = z.object({
 
 export const previewPlanCoupon = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }) => {
     const { previewPlanCouponForUser } = await import("@/lib/billing/couponPreview.server");
     return previewPlanCouponForUser(context.supabase, context.userId, data);

@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requestHandler } from "@tanstack/react-start/server";
 import { startInstance, applySecurityHeaders } from "../start";
 import { markCrawlerUnavailable, setCacheControlHeader } from "../lib/http/responseHeaders";
+import { contentCacheControl } from "../lib/http/cachePolicy";
+import { fetchWithFrameworkPreloads } from "../lib/http/frameworkPreloads.server";
 import { getMiddlewareResponse } from "../lib/http/middlewareResult";
+import { startRequestScope } from "@/test/startRequestScope";
 
 const h = vi.hoisted(() => ({ redirect: vi.fn(), log404: vi.fn(), background: vi.fn() }));
 vi.mock("@/lib/seo/redirects.server", () => ({
@@ -60,6 +62,21 @@ describe("registered request middleware", () => {
       ).rejects.toBe(error);
     },
   );
+  it("rethrows a client abort without logging it or rendering the error page", async () => {
+    // Start (1.169) i tak rzuca `signal.reason` po zerwaniu, cokolwiek zwróci
+    // to middleware; `src/server.ts` robi z tego 499 bez strony błędu.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const controller = new AbortController();
+    const req = new Request("https://example.org/blog", { signal: controller.signal });
+    const reason = new DOMException("The operation was aborted.", "AbortError");
+    controller.abort(reason);
+    await expect(
+      run(0, req, async () => {
+        throw reason;
+      }),
+    ).rejects.toBe(reason);
+    expect(error).not.toHaveBeenCalled();
+  });
   it.each([new Error("private stack"), null, "failure", { status: "broken" }])(
     "normalizes unexpected errors without leaking details",
     async (error) => {
@@ -412,7 +429,7 @@ describe("registered request middleware", () => {
     expect(fromLegacy.headers.get("set-cookie")).toBeNull();
   });
   it("turns the loader's out-of-band no-store into an actual Response header", async () => {
-    const handler = requestHandler(async (req) =>
+    const handler = startRequestScope(async (req) =>
       response(
         await run(11, req, async () => {
           setCacheControlHeader("private, no-store");
@@ -420,6 +437,7 @@ describe("registered request middleware", () => {
         }),
       ),
     );
+    // Już W ŁAŃCUCHU (dla polityki zapisu NES Edge Cache), nie dopiero na granicy.
     const res = await handler(request(), {});
     expect(res.headers.get("cache-control")).toBe("private, no-store");
   });
@@ -438,29 +456,48 @@ describe("registered request middleware", () => {
 
 // Strona główna bez treści dla crawlera indeksującego -> 503 (zgłoszenie
 // 2026-10-09, `lib/http/crawlerUnavailable.ts`). Decyzję podejmuje loader;
-// ogniwo 11 tylko przepisuje status, i to WYŁĄCZNIE dla oznaczonego żądania.
-describe("crawler bez treści strony głównej (ogniwo 11)", () => {
-  it("żądanie oznaczone przez loader dostaje 503 z Retry-After i no-store", async () => {
-    const handler = requestHandler(async (req) =>
+// ogniwo 12 tylko przepisuje status, i to WYŁĄCZNIE dla oznaczonego żądania.
+describe("crawler bez treści strony głównej (ogniwo 12)", () => {
+  /** Ogniwo 12 w zasięgu żądania i ZA nim granica odpowiedzi z `src/server.ts`. */
+  const throughBoundary = (loader: () => void) => {
+    const req = request("/");
+    const handler = startRequestScope(async (scoped) =>
       response(
-        await run(12, req, async () => {
-          markCrawlerUnavailable();
+        await run(12, scoped, async () => {
+          loader();
           return document();
         }),
       ),
     );
-    const res = await handler(request("/"), {});
+    return fetchWithFrameworkPreloads(handler, req);
+  };
+
+  it("żądanie oznaczone przez loader dostaje 503 z Retry-After i no-store", async () => {
+    const res = await throughBoundary(() => markCrawlerUnavailable());
     expect(res.status).toBe(503);
     expect(res.headers.get("retry-after")).toBe("120");
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.text()).toContain("treść");
   });
 
-  it("żądanie NIEoznaczone przechodzi bez zmian (czytelnik dostaje 200)", async () => {
-    const handler = requestHandler(async (req) => response(await run(12, req)));
-    const res = await handler(request("/"), {});
+  it("publiczna dyrektywa loadera NIE nadpisuje no-store 503 na granicy odpowiedzi", async () => {
+    // Loader strony głównej deklaruje świeżość treści przy KAŻDYM renderze.
+    // Gdyby nagłówki trasy szły stanem pomocników Start (uzgadnianym dla
+    // każdego statusu), 503 wyszłoby z publicznym `s-maxage` - CDN trzymałby
+    // dokument bez treści dla crawlera.
+    const res = await throughBoundary(() => {
+      setCacheControlHeader(contentCacheControl());
+      markCrawlerUnavailable();
+    });
+    expect(res.status).toBe(503);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("żądanie NIEoznaczone przechodzi bez zmian (czytelnik dostaje 200 z dyrektywą loadera)", async () => {
+    const res = await throughBoundary(() => setCacheControlHeader(contentCacheControl()));
     expect(res.status).toBe(200);
     expect(res.headers.get("retry-after")).toBeNull();
+    expect(res.headers.get("cache-control")).toBe(contentCacheControl());
   });
 
   it("wynik bez Response (envelope innego typu) przechodzi bez zmian", async () => {

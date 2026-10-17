@@ -39,8 +39,9 @@
 // build PADA z nazwą tego importera (nowy klient mógłby parsować HTML).
 //
 // ZAKRES: tylko `vite build` i tylko środowisko przeglądarki (`client`).
-// Serwer, proces arkuszy i dev (esbuild prebundluje mammoth bez wtyczek Rollupa)
-// dostają nietknięte pakiety - zachowanie jest to samo, różni się tylko waga.
+// Serwer, proces arkuszy i dev (optymalizator zależności prebundluje mammoth bez
+// wtyczek użytkownika - od Vite 8 Rolldownem, wcześniej esbuildem) dostają
+// nietknięte pakiety - zachowanie jest to samo, różni się tylko waga.
 //
 // ZAŁOŻENIA SĄ PRZYPIĘTE TESTAMI: `src/lib/ci/__tests__/officeParserTrim.test.ts`
 // czyta źródła mammoth, xmldom i dingbat-to-unicode (aktualizacja pakietu, która
@@ -109,7 +110,11 @@ const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const XMLDOM_DIR = "/node_modules/@xmldom/xmldom/";
 const MAMMOTH_DIR = "/node_modules/mammoth/";
 
-/** Id modułu bez sufiksów wirtualnych (`?commonjs-proxy`, `\0`) i z ukośnikami POSIX. */
+/**
+ * Id modułu bez prefiksu wirtualnego `\0` i sufiksu zapytania (`?…`, np. `?commonjs-proxy`
+ * Rollupa z wtyczką commonjs; Rolldown podaje importera `require()` zwykłą ścieżką), z ukośnikami
+ * POSIX.
+ */
 function normalizeId(id: string): string {
   return id.replaceAll("\\", "/").replace(/^\0/, "").split("?")[0] ?? "";
 }
@@ -131,7 +136,7 @@ export function redirectTarget(redirect: OfficeParserRedirect): string {
   return join(REPO_ROOT, redirect.replacement);
 }
 
-/** Podzbiór `Rollup.ModuleInfo` potrzebny do kontroli grafu (testy podają atrapy). */
+/** Podzbiór `ModuleInfo` bundlera potrzebny do kontroli grafu (testy podają atrapy). */
 export interface TrimGraphModule {
   readonly importers: readonly string[];
 }

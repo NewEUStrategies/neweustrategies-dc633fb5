@@ -66,7 +66,7 @@ export interface WebhookRetryResult {
  */
 export const retryWebhookEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => retrySchema.parse(data))
+  .validator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }): Promise<WebhookRetryResult> => {
     const tenantId = await assertSuperAdminTenant(context.supabase, context.userId);
 
@@ -142,7 +142,7 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
 /** Ładunek pojedynczego zdarzenia - podgląd w panelu (tylko `super_admin`). */
 export const readWebhookEventPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => retrySchema.parse(data))
+  .validator((data: unknown) => retrySchema.parse(data))
   .handler(async ({ data, context }) => {
     const tenantId = await assertSuperAdminTenant(context.supabase, context.userId);
 

@@ -24,31 +24,3 @@ const SUFIKS = /_(?:zero|one|two|few|many|other)$/;
 export function bazaLiczebnika(nazwa: string): string {
   return nazwa.replace(SUFIKS, "");
 }
-
-/**
- * Czy ścieżka ma treść: wprost albo w formach liczebnika.
- *
- * Sam `_one` NIE WYSTARCZY i to jest tu najważniejsze sprawdzenie: dla dwóch
- * i więcej i18next nie znajdzie formy i wypisze na stronie surowy klucz.
- * Dlatego klucz liczebnikowy musi mieć formę pojedynczą ORAZ co najmniej
- * jedną mnogą - inaczej bramka przepuszczałaby połowę wdrożenia.
- */
-export function maTresc(istnieje: (klucz: string) => boolean, sciezka: string): boolean {
-  if (istnieje(sciezka)) return true;
-  if (!istnieje(`${sciezka}_one`)) return false;
-  return SUFIKSY_LICZEBNIKA.some((s) => s !== "one" && istnieje(`${sciezka}_${s}`));
-}
-
-/**
- * Konkretne klucze, pod którymi stoi treść tej ścieżki.
- *
- * Dla klucza zwykłego to ona sama, dla liczebnikowego - wszystkie formy, jakie
- * są w słowniku. Bramka czytająca TREŚĆ (na przykład po to, żeby sprawdzić
- * wstawki `{{...}}`) musi przejść po wszystkich: wstawka zgubiona w jednej
- * formie wychodzi surowymi klamrami dokładnie przy tej liczbie, która ją
- * wybiera, i przy żadnej innej.
- */
-export function kluczeFormy(istnieje: (klucz: string) => boolean, sciezka: string): string[] {
-  if (istnieje(sciezka)) return [sciezka];
-  return SUFIKSY_LICZEBNIKA.map((s) => `${sciezka}_${s}`).filter(istnieje);
-}

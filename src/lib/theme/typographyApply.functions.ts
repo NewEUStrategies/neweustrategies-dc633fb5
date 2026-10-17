@@ -48,7 +48,7 @@ const POST_COLUMNS =
 
 export const applyTypographyToPublished = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: Partial<ApplyTypographyInput> | undefined): ApplyTypographyInput => ({
+  .validator((input: Partial<ApplyTypographyInput> | undefined): ApplyTypographyInput => ({
     dryRun: input?.dryRun !== false,
   }))
   .handler(async ({ data, context }): Promise<ApplyTypographyResult> => {

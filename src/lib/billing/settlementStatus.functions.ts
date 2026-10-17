@@ -26,7 +26,7 @@ const LIMIT = 500;
 
 export const getSettlementReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => inputSchema.parse(input))
+  .validator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<SettlementReport> => {
     const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
     const { tenantId } = await assertAdmin(context.supabase, context.userId);

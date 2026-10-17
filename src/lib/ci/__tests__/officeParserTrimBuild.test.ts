@@ -4,13 +4,14 @@
 // `officeParserTrim.test.ts` z konstrukcji dać nie może.
 //
 // TAMTEN PLIK sprawdza założenia o źródłach mammoth i xmldom oraz dopasowanie
-// przekierowań. Nie mówi nic o tym, czy Rollup z wtyczką commonjs w ogóle
-// zapyta naszą wtyczkę o `require("./entities")` z wnętrza xmldom (importer
-// przychodzi wtedy jako id modułu CJS, nie jako zwykła ścieżka), ani o tym, czy
-// bundel z modułami zastępczymi DZIAŁA. Ten plik buduje mammoth dwa razy - z
-// wtyczką i bez - tym samym `vite build` co produkcja (środowisko przeglądarki,
-// esbuild), wykonuje oba bundle na prawdziwym pliku .docx złożonym w teście
-// i porównuje HTML z wynikiem nietkniętej biblioteki uruchomionej w Node.
+// przekierowań. Nie mówi nic o tym, czy bundler w ogóle zapyta naszą wtyczkę
+// o `require("./entities")` z wnętrza xmldom (CJS: Rolldown rozwiązuje
+// `require()` przez `resolveId` z importerem jako zwykłą ścieżką; Rollup z
+// wtyczką commonjs podawał id modułu-proxy), ani o tym, czy bundel z modułami
+// zastępczymi DZIAŁA. Ten plik buduje mammoth dwa razy - z wtyczką i bez - tym
+// samym `vite build` co produkcja (środowisko przeglądarki, minifikacja Oxc),
+// wykonuje oba bundle na prawdziwym pliku .docx złożonym w teście i porównuje
+// HTML z wynikiem nietkniętej biblioteki uruchomionej w Node.
 //
 // Plik testowy niesie wszystko, co przechodzi przez wycięte miejsca: pięć encji
 // XML (`&amp; &lt; &gt; &quot; &apos;`) i encję numeryczną - to jedyna droga,
@@ -112,7 +113,7 @@ afterAll(() => {
   if (workspace) rmSync(workspace, { recursive: true, force: true });
 });
 
-/** Buduje mammoth jak produkcja (przeglądarka, esbuild) i ładuje wynik. */
+/** Buduje mammoth jak produkcja (przeglądarka, minifikacja Oxc) i ładuje wynik. */
 async function bundle(
   name: string,
   plugins: Plugin[],
@@ -128,8 +129,8 @@ async function bundle(
     build: {
       outDir,
       emptyOutDir: true,
-      minify: "esbuild",
-      rollupOptions: {
+      minify: "oxc",
+      rolldownOptions: {
         input: "virtual:entry",
         preserveEntrySignatures: "strict",
         output: { format: "es", entryFileNames: "entry.mjs" },

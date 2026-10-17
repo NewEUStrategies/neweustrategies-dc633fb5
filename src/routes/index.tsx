@@ -1,5 +1,5 @@
 import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { isServer } from "@tanstack/router-core/isServer";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useEffect, useMemo } from "react";
@@ -34,7 +34,6 @@ import { getRequestUrl, isSearchCrawlerRequest } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   splitUrl,
   siteTitle,
@@ -42,7 +41,8 @@ import {
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
-import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 import { rememberHeroPreloads, useHeroPreloads } from "@/lib/builder/heroPreloadStore";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
@@ -87,7 +87,14 @@ import {
 // (`components/home/molecules/*Notice`), które czytają dwujęzyczny słownik
 // `lib/errorCopy.ts`. Tutaj zostaje wyłącznie to, co wymaga kontekstu trasy:
 // zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
-function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+//
+// Typ propsów to `ErrorComponentProps` frameworka, nie własne `{ error: Error }`:
+// od router-core 1.171.37 granica podaje `error: unknown` (rzucić można
+// cokolwiek), a komponent i tak tylko loguje wartość. Węższa adnotacja nie
+// jest niewinna - niezgodny `errorComponent` wywraca dopasowanie CAŁEGO obiektu
+// opcji `createFileRoute`, więc TS nie wnioskuje już typów z `loaderDeps`
+// i `loader` (`deps` spada do `{}`, `loaderData` w `head` do `never`).
+function HomeErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i DOMYŚLNY `<title>` strony
   // głównej (`homeSrHeadingText`; własny tytuł SEO strony zmienia tylko
@@ -188,13 +195,15 @@ export const Route = createFileRoute("/")({
     // dopiero po sparsowaniu body.
     //
     // DWA ŹRÓDŁA, DWIE DROGI (P1.4). `coverPreload` (tryb „najnowsze wpisy")
-    // idzie jak dotąd przez `head()` - pierwsza karta siatki nie jest
-    // dokumentem buildera i nie ma kandydata. `heroPreloads` (kanwa buildera)
+    // idzie WYŁĄCZNIE nagłówkiem HTTP `Link`: pierwsza karta siatki jest
+    // `fetchPriority="high"` w powłoce, więc preload w `<head>` wstawia sam
+    // React 19 (link z `head()` był jego duplikatem - jak w archiwach,
+    // `blog.index.tsx`). `heroPreloads` (kanwa buildera)
     // to obrazy kandydatów LCP z `lcpCandidates`; komponent trasy przekazuje je
     // do `preload()` z react-dom, który dzieli klucz zasobu z automatycznym
     // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
     // kandydata (dawniej: link z `head()` + preload Reacta = duplikat).
-    // `heroPreloads` liczy WYŁĄCZNIE serwer (`isServerRender()` wycina
+    // `heroPreloads` liczy WYŁĄCZNIE serwer (warunek serwera (`aboveFold.tsx`) wycina
     // `heroImage.ts` i `lcpCandidate.ts` z bundla klienta - PROVE P1.4,
     // `check:bundle`; w `bun run dev` serwer rozpoznaje brak `document`);
     // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
@@ -258,9 +267,10 @@ export const Route = createFileRoute("/")({
     // natychmiast, a ich HTML dostrumieniowuje się wraz z danymi, więc ciało
     // zapisane w NES Edge Cache i widziane przez crawlery zostaje kompletne
     // (dla `isbot` framework czeka na `stream.allReady`). Dane rozstrzygnięte
-    // w fazie renderu jadą strumieniem zapytań, na który `router.options.hydrate`
-    // pompuje dane strumieniem. Samo withHydrateBudget nie dowodzi, że cały
-    // queryStream dotarł przed Reactem; zgodność sprawdzają testy artefaktu.
+    // w fazie renderu jadą strumieniem zapytań integracji (`query.stream`), który
+    // `router.options.hydrate` czyta na kliencie w tle, bez awaitowania. Samo
+    // `withHydrateBudget` nie dowodzi więc, że cały `query.stream` dotarł przed
+    // Reactem; zgodność sprawdzają testy artefaktu.
     // Prefetch jest wewnętrznie `allSettled` i nie potrafi rzucić.
     //
     // Na kliencie bramka jest tree-shaken (`import.meta.env.SSR`), więc widgety
@@ -298,7 +308,8 @@ export const Route = createFileRoute("/")({
         // `builderHeroPreloads`), więc obraz kandydata pozostaje w pełni
         // wyznaczalny: komponent trasy wyemituje go przez `preload()` z
         // react-dom, a loader jako nagłówek `Link`.
-        if (isServerRender()) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
+        if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest()))
+          heroPreloads = builderHeroPreloads(doc, queryClient, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
@@ -344,7 +355,7 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    if (isServerRender()) {
+    if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
@@ -355,7 +366,6 @@ export const Route = createFileRoute("/")({
       seoSettings,
       homePage: contentDegraded ? null : homePage,
       page: deps.page,
-      coverPreload,
       degraded,
     };
   },
@@ -402,13 +412,10 @@ export const Route = createFileRoute("/")({
       robots: page > 1 ? "noindex, follow" : homePage ? resolveRobotsMeta(homePage) : null,
       canonicalOverride: homePage ? seoCanonicalOverride(homePage) : null,
     });
-    // Preload obrazu LCP pierwszej karty trybu "najnowsze wpisy" - deskryptor
-    // policzony w loaderze, bajtowo zgodny z malowanym <img> (wspólne moduły
-    // sizes + buildImageSrcSet). Hero kanwy buildera NIE idzie tędy: emituje go
-    // komponent trasy przez `preload()` (jedno źródło, patrz loader).
-    const head = loaderData?.coverPreload
-      ? { ...builtHead, links: [...builtHead.links, imagePreloadLink(loaderData.coverPreload)] }
-      : builtHead;
+    // Preload obrazu LCP NIE idzie przez `head()`: karta trybu „najnowsze wpisy"
+    // dostaje go od Reacta 19 (obraz `fetchPriority="high"` w powłoce) i z nagłówka
+    // `Link` loadera, hero kanwy buildera - z `preload()` komponentu trasy.
+    const head = builtHead;
     const { origin } = splitUrl(url);
     if (!origin) return head;
     // Entity layer (GEO/AEO): Organization + WebSite with SearchAction. Per

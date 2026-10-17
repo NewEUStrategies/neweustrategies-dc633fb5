@@ -129,7 +129,7 @@ describe("currentServerHost", () => {
 
   it("null, gdy NIE MA kontekstu żądania - `getRequest()` RZUCA", async () => {
     // Gałąź `catch` (`requestHost.server.ts:17-19`). Poza zasięgiem żądania
-    // h3 prawdziwy `getRequest` rzuca, a ten moduł nie ma prawa rzucić dalej:
+    // Start prawdziwy `getRequest` rzuca, a ten moduł nie ma prawa rzucić dalej:
     // wołają go scope'y cache'u i atrybucja `tenant_id`.
     const { currentServerHost } = await import("../requestHost.server");
     ctl.getRequestThrows = true;

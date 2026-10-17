@@ -1187,13 +1187,6 @@ export const CLUB_LOG_TARGETS = [
 ] as const;
 export type ClubLogTarget = (typeof CLUB_LOG_TARGETS)[number];
 
-export function isActionApplicable(
-  action: ClubModerationAction,
-  target: "thread" | "reply",
-): boolean {
-  return target === "thread" || !THREAD_ONLY_ACTIONS.includes(action);
-}
-
 /**
  * Etykieta wpisu wprowadzonego przez redakcje. Zwraca `null`, gdy autor
  * publikowal sam - komponent renderuje adnotacje TYLKO wtedy, gdy jest co

@@ -1347,6 +1347,33 @@ describe("sześć wariantów archiwum", () => {
     expect(screen.getAllByRole("link")).toHaveLength(6);
   });
 
+  it("wariant magazynowy: kandydat LCP to lead albo - bez leadu - pierwsza karta siatki", () => {
+    // Stałe `hasCustomFeaturedTop` zostawiało archiwum bez leadu bez żadnego obrazu
+    // priorytetowego: wszystkie karty `loading="lazy"`, brak `data-lcp-candidate`, a React nie
+    // wstawiał preloadu do `<head>`.
+    const withCovers = posts(6).map((p) => ({
+      ...p,
+      cover_image_url: `https://x.test/${p.id}.jpg`,
+    }));
+    for (const showFeatured of [true, false]) {
+      const { container, unmount } = renderWithQuery(
+        <variants.LayoutMagazine
+          {...bodyProps({
+            posts: withCovers,
+            total: 6,
+            settings: settings({ show_featured_top: showFeatured }),
+          })}
+        />,
+      );
+      const priority = container.querySelectorAll('img[fetchpriority="high"]');
+      expect(priority, `show_featured_top=${showFeatured}`).toHaveLength(1);
+      expect(priority[0]!.getAttribute("loading"), `show_featured_top=${showFeatured}`).not.toBe(
+        "lazy",
+      );
+      unmount();
+    }
+  });
+
   it("wariant ciemny buduje tło z tokenów motywu (bg-background, bez wymuszonej klasy dark)", () => {
     const { container } = renderWithQuery(
       <variants.LayoutDark {...bodyProps({ posts: posts(1), total: 1 })} />,

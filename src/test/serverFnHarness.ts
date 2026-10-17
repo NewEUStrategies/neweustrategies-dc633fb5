@@ -35,10 +35,13 @@ export interface ServerFnSpec<TData = unknown, TResult = unknown> {
   middleware: unknown[];
 }
 
+// Tylko `.validator()`: starszy alias walidatora upstream usunął w
+// start-client-core 1.170.36, więc atrapa, która by go przyjmowała,
+// przepuściłaby regresję do martwego API (prawdziwy `createServerFn` wywraca
+// na nim moduł już przy imporcie).
 interface ServerFnChain {
   middleware: (list: unknown[]) => ServerFnChain;
   validator: (fn: (input: unknown) => unknown) => ServerFnChain;
-  inputValidator: (fn: (input: unknown) => unknown) => ServerFnChain;
   handler: (fn: ServerFnSpec["handler"]) => ServerFnSpec;
 }
 
@@ -59,10 +62,6 @@ export function serverFnStubModule(): Record<string, unknown> {
         return chain;
       },
       validator: (fn) => {
-        spec.validator = fn;
-        return chain;
-      },
-      inputValidator: (fn) => {
         spec.validator = fn;
         return chain;
       },

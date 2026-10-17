@@ -139,12 +139,12 @@ const setAttr = (attr: string, value = ""): string =>
  * Składa treść skryptu (`CONSENT_INIT_SCRIPT` niżej). Funkcja, a nie literał na
  * poziomie modułu, bo w przeglądarce ten moduł jest leniwym partnerem skryptu
  * i stałej nikt tam nie czyta (serwer ma ją z gałęzi `.server()` korzenia).
- * Szablon z interpolacjami importów Rollup uznaje za wyrażenie z efektami
+ * Szablon z interpolacjami importów Rollup uznawał za wyrażenie z efektami
  * (`ToString`), więc nieużywana stała zostawała w bundlu klienta jako martwe
  * wyrażenie i trzymała przy życiu fragmenty `CONSENT_READ_JS`/
  * `CONSENT_DECIDED_JS`/`CONSENT_WRITE_JS` w chunku wejściowym (`consent.ts`
  * leży w zamknięciu bootu) - dowód P1.3, §2.2: ok. 268 B gzip bootu. Wywołanie
- * z adnotacją `@__PURE__` Rollup wycina razem z całym tekstem.
+ * z adnotacją `@__PURE__` bundler wycina razem z całym tekstem.
  */
 function buildConsentInitScript(): string {
   /**

@@ -31,7 +31,7 @@ const Input = z.object({
 });
 
 export const revealEventCodeTickets = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data }) => {
     const { revealTicketsForEventCode } = await import("@/lib/events/eventCodeReveal.server");
     return revealTicketsForEventCode(data.eventId, data.code);

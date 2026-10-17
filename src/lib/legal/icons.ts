@@ -104,9 +104,6 @@ export const LEGAL_ICONS: Record<string, LucideIcon> = {
   Wallet,
 };
 
-/** Lista nazw do wyboru w panelu (posortowana alfabetycznie). */
-export const LEGAL_ICON_NAMES = Object.keys(LEGAL_ICONS).sort();
-
 export function resolveLegalIcon(name: string): LucideIcon {
   return LEGAL_ICONS[name] ?? FileText;
 }

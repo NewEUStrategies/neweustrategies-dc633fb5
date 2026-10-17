@@ -731,7 +731,22 @@ export function AnimatedHeadingRender({
   const shapeHostRef = useRef<HTMLSpanElement | null>(null);
   const [resumeAtMs, setResumeAtMs] = useState<number | null>(null);
   useEffect(() => {
-    if (resumes && shapeLoops && motion) setResumeAtMs(shapeElapsedMs(shapeHostRef.current));
+    if (!(resumes && shapeLoops && motion)) return;
+    // ODCZYT PO KLATCE, nie w efekcie. Bramka otwiera się przy pierwszej interakcji (albo
+    // w punkcie ciszy), a efekt aktualizacji z dyskretnego zdarzenia React wykonuje jeszcze
+    // w zadaniu tej interakcji - `getAnimations({ subtree: true })` wymuszał tam pełne
+    // przeliczenie stylu dokumentu (63 ms przy CPU x4 na `/`, profil 2026-10-17), czyli
+    // wprost w INP pierwszej interakcji. W zadaniu po pierwszej klatce (rAF, potem
+    // `setTimeout(0)` - wzór z loadera bootu) styl jest już czysty i odczyt nic nie wymusza.
+    // Pętla czeka do odczytu na gałęzi `forwards` (jak dotąd), o jedną klatkę dłużej.
+    let timer = 0;
+    const frame = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => setResumeAtMs(shapeElapsedMs(shapeHostRef.current)), 0);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
   }, [resumes, shapeLoops, motion]);
   useEffect(() => {
     if (!rotates || !motion || prefersReducedMotion()) return;

@@ -4,7 +4,12 @@
 // The missing-post fallbacks stay temporary (302): the post may reappear
 // (trash restore, republish), so /blog must not be cached as its permanent
 // destination. The 301 itself is share-cacheable (see PERMANENT_REDIRECT).
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  redirect,
+  useRouter,
+  type ErrorComponentProps,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
@@ -50,7 +55,10 @@ export const Route = createFileRoute("/post/$slug")({
   errorComponent: LegacyPostError,
 });
 
-function LegacyPostError({ error, reset }: { error: Error; reset: () => void }) {
+// `ErrorComponentProps`: od router-core 1.171.37 granica błędu podaje
+// `error: unknown` (rzucić można cokolwiek); ten ekran wyłącznie loguje
+// wartość, a czytelnikowi pokazuje stały tekst `errorCopy`.
+function LegacyPostError({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   const copy = errorCopy();
   useEffect(() => {

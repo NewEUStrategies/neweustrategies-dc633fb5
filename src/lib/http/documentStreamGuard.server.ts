@@ -3,14 +3,18 @@
 //
 // PROBLEM (incydent "operator płatności widzi offline", 2026-07-30): produkcyjny potok
 // TanStack Start trzyma strumień odpowiedzi otwarty do rozstrzygnięcia
-// serializacji seroval (`transformStreamWithRouter` -> `tryFinish`). Gdy
+// serializacji seroval (`transformStreamWithRouter` wstrzymuje domykające
+// `</body></html>`, dopóki skrypty hydratacji nie skończą się wypisywać). Gdy
 // jakikolwiek asynchroniczny element payloadu się nie domyka, framework ubija
 // strumień DOPIERO swoim wewnętrznym limitem `DEFAULT_SERIALIZATION_TIMEOUT_MS`
-// = 60 000 ms - i to błędem (`controller.error`), nie zamknięciem. Efekt:
-// każda strona odpowiada "kompletnie" po ~61 s, a monitor/bot (operator płatności,
+// = 60 000 ms od końca renderu aplikacji - i to błędem (`controller.error`), nie
+// zamknięciem (router-core 1.171.37: `ssr/hydrationScripts.js:358-367`,
+// `ssr/transformStreamWithRouter.js:44, :377, :524-528`). Efekt: każda strona
+// odpowiada "kompletnie" po ~61 s, a monitor/bot (operator płatności,
 // health-check) rozłącza się dużo wcześniej i raportuje stronę jako offline.
-// Wewnętrzni strażnicy (queryTimeout 5 s, queryStreamGuard <=10 s) pilnują
-// WŁASNYCH strumieni, ale żaden nie pilnował samej odpowiedzi HTTP.
+// Strażnik zapytań renderu (queryTimeout 5 s) i integracja router<->query (sama
+// domyka swój strumień zapytań) pilnują WŁASNYCH warstw, ale żadna nie pilnowała
+// samej odpowiedzi HTTP.
 //
 // SOLUTION: opakowujemy body KAŻDEJ odpowiedzi text/html w strumień, który
 // jest naszą własnością i który zamykamy deterministycznie:
@@ -18,8 +22,8 @@
 //   * sentinel `</html>` widoczny w strumieniu -> dokument jest kompletny;
 //     dajemy źródłu krótką łaskę (grace) na naturalne domknięcie i zamykamy
 //     sami - to zamienia 61-sekundowy ogon w ~ćwierć sekundy,
-//   * cisza między chunkami (idle) -> wewnętrzne budżety (5-10 s) już dawno
-//     minęły, nic więcej nie przyjedzie; dosztukowujemy domykający ogon
+//   * cisza między chunkami (idle) -> wewnętrzny budżet (5 s) już dawno
+//     minął, nic więcej nie przyjedzie; dosztukowujemy domykający ogon
 //     `</body></html>` (dokument parsowalny dla crawlera) POPRZEDZONY sygnaturą
 //     `<!--ssr-doc-guard:truncated ...-->`, żeby ucięcie dało się rozpoznać
 //     w teście, w logu i w podglądzie źródła strony, i zamykamy,
@@ -33,8 +37,8 @@
 //   * skan sentinela jest strumieniowy, bajtowy i bez kopii chunków
 //     (case-insensitive, z 6-bajtowym przeniesieniem między chunkami),
 //   * drabinka budżetów SSR pozostaje spójna: queryTimeout (5 s)
-//     < queryStreamGuard.maxMs (10 s) < DOC_GUARD_IDLE_MS (12 s)
-//     < DOC_GUARD_MAX_MS (20 s) << framework (60 s) - strażnik dokumentu
+//     < DOC_GUARD_IDLE_MS (12 s) < DOC_GUARD_MAX_MS (20 s)
+//     << framework (60 s) - strażnik dokumentu
 //     zamyka odpowiedź dopiero, gdy warstwy wewnętrzne miały swoją szansę,
 //   * kill-switch środowiskowy: SSR_DOC_GUARD=off (+ nastawy przez env).
 //
@@ -85,9 +89,9 @@ function forcedCloseTail(
 /** Po sentinelu dokument jest kompletny - tyle łaski ma źródło na samodzielne domknięcie. */
 export const DOC_GUARD_SENTINEL_GRACE_MS = 250;
 /**
- * Cisza między chunkami po pierwszym bajcie. Musi być DŁUŻSZA niż wszystkie
- * wewnętrzne budżety potoku (queryTimeout 5 s, queryStreamGuard.maxMs 10 s),
- * żeby strażnik dokumentu był ostatnią deską ratunku, nie pierwszą.
+ * Cisza między chunkami po pierwszym bajcie. Musi być DŁUŻSZA niż wewnętrzne
+ * budżety potoku (queryTimeout 5 s), żeby strażnik dokumentu był ostatnią
+ * deską ratunku, nie pierwszą.
  */
 export const DOC_GUARD_IDLE_MS = 12_000;
 /** Twardy sufit życia strumienia odpowiedzi, liczony od utworzenia strażnika. */

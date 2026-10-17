@@ -2,17 +2,19 @@
 //
 // SMOKE W PROCESIE (fala 3, P3.6b): werdykt zapisu NA KOŃCU STRUMIENIA na
 // prawdziwych elementach potoku, bez sieci i bez builda:
-//   * `requestHandler` z @tanstack/react-start/server - realny zasięg żądania
-//     (AsyncLocalStorage, `getRequest()`), w którym loader ustawia dyrektywę
-//     i rejestruje predykat;
-//   * prawdziwe `handleDocumentRequest` + `applyDeferredDocumentStore` (ten sam
-//     duet, który składa `src/server.ts`);
+//   * `createServerEntry` z @tanstack/react-start/server (`startRequestScope`) -
+//     realny zasięg żądania (AsyncLocalStorage, `getRequest()`), w którym loader
+//     ustawia dyrektywę i rejestruje predykat;
+//   * prawdziwe `handleDocumentRequest`, granica odpowiedzi
+//     (`fetchWithFrameworkPreloads`) i `applyDeferredDocumentStore` - ta sama
+//     kolejność, którą składa `src/server.ts`;
 //   * prawdziwy render strumieniowy Reacta z PRAWDZIWĄ bramką sekcji
 //     (`ServerSectionGate`, budżet 2 s) - atrapą są wyłącznie opcje zapytań
 //     widgetu (`@/lib/builder/prefetch`), czyli „backend z opóźnieniem";
 //   * zamiatanie przed renderem (`sweepQueryCacheForSerialization`) i
 //     sprzątanie integracji router<->query PO zamknięciu strumienia
-//     (`cancelQueries()` + `clear()`), w tej samej kolejności co
+//     (`queryClient.clear()` z `teardown` w `@tanstack/router-ssr-query-core`;
+//     od 1.169.3 bez `cancelQueries()`), w tej samej kolejności co
 //     `transformStreamWithRouter` -> `serverSsr.cleanup()`.
 //
 // Dowodzi trzech zdań z planu:
@@ -25,8 +27,9 @@ import { PassThrough, Readable } from "node:stream";
 import { Suspense } from "react";
 import { renderToPipeableStream } from "react-dom/server";
 import { QueryClient, QueryClientProvider, type QueryKey } from "@tanstack/react-query";
-import { requestHandler } from "@tanstack/react-start/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { startRequestScope } from "@/test/startRequestScope";
 
 import type { SectionNode } from "@/lib/builder/types";
 
@@ -76,6 +79,7 @@ const {
   resetDocumentCacheForTests,
 } = await import("../documentCache.server");
 const { planDefaultCacheControl } = await import("../defaultCacheControl");
+const { fetchWithFrameworkPreloads } = await import("../frameworkPreloads.server");
 const { readRouteCacheDirective, registerDocumentCompletenessCheck, setCacheControlHeader } =
   await import("../responseHeaders");
 const { chromeDegradedCacheControl } = await import("../cachePolicy");
@@ -121,8 +125,8 @@ function Document({ qc }: { qc: QueryClient }) {
 
 /**
  * Render strumieniowy jak router: body wychodzi po gotowej powłoce, a PO jego
- * zamknięciu biegnie sprzątanie integracji (`cancelQueries()` + `clear()`) -
- * zanim kolektor zapisu przeczyta koniec strumienia.
+ * zamknięciu biegnie sprzątanie integracji (`queryClient.clear()`) - zanim
+ * kolektor zapisu przeczyta koniec strumienia.
  */
 function renderDocument(qc: QueryClient): Promise<ReadableStream<Uint8Array>> {
   return new Promise((resolve, reject) => {
@@ -134,7 +138,6 @@ function renderDocument(qc: QueryClient): Promise<ReadableStream<Uint8Array>> {
         const { done, value } = await reader.read();
         if (done) {
           controller.close();
-          void qc.cancelQueries();
           qc.clear();
           return;
         }
@@ -162,9 +165,12 @@ function defaultCacheControlLayer(request: Request, response: Response): Respons
 
 type Loader = (qc: QueryClient) => void;
 
-/** Jedno żądanie `/` przez potok: loader -> zamiatanie -> render -> zapis odroczony. */
+/**
+ * Jedno żądanie `/` przez potok: loader -> zamiatanie -> render -> granica odpowiedzi
+ * -> zapis odroczony.
+ */
 async function visit(loader: Loader): Promise<{ response: Response; html: string }> {
-  const handler = requestHandler(async (request: Request) => {
+  const handler = startRequestScope(async (request) => {
     const routed = await handleDocumentRequest(request, async () => {
       const qc = new QueryClient({
         defaultOptions: { queries: { retry: false, gcTime: Infinity } },
@@ -181,7 +187,10 @@ async function visit(loader: Loader): Promise<{ response: Response; html: string
     return routed as Response;
   });
   const response = applyDeferredDocumentStore(
-    await handler(new Request(`https://${HOST}/`, { headers: { "x-forwarded-host": HOST } }), {}),
+    await fetchWithFrameworkPreloads(
+      handler,
+      new Request(`https://${HOST}/`, { headers: { "x-forwarded-host": HOST } }),
+    ),
   );
   const html = await response.text();
   await new Promise((resolve) => setTimeout(resolve, 0));

@@ -7,8 +7,8 @@
  *     -> @stripe/react-stripe-js  +  lib/stripe.ts -> loadStripe (@stripe/stripe-js)
  * Wszystkie krawędzie były STATYCZNE, a `lib/stripe.ts` miało 17 importerów
  * rozsianych po aplikacji (większość tylko po helper środowiskowy do kluczy
- * zapytań). Rollup hoistuje moduł współdzielony przez wiele chunków do ich
- * wspólnego przodka - czyli do ENTRY. Skutek: KAŻDY anonimowy czytelnik
+ * zapytań). Bundler (wtedy Rollup) wyniósł moduł współdzielony przez wiele
+ * chunków do ich wspólnego przodka - czyli do ENTRY. Skutek: KAŻDY anonimowy czytelnik
  * dowolnego artykułu pobierał i parsował SDK bramki płatniczej (marker
  * `js.stripe.com` w chunku entry), choć nigdy nie zobaczy checkoutu.
  *
@@ -39,8 +39,10 @@
  *
  * Usage: bun run scripts/check-entry-purity.ts   (po `bun run build`)
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+
+import { CHUNK_PRIORITY, CLIENT_CHUNK_GROUPS } from "./lib/clientChunkGroups";
 
 /** Pakiet zewnętrzny + literały, po których go rozpoznajemy w zminifikowanym chunku. */
 interface ForbiddenSdk {
@@ -246,7 +248,7 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
 const HEAVY_MODULES: readonly HeavyDictionary[] = [
   {
     label: "dompurify (~82 kB źródeł)",
-    // Nazwy hooków DOMPurify - klucze obiektu, esbuild ich nie mangluje.
+    // Nazwy hooków DOMPurify - klucze obiektu, minifikator (Oxc, wcześniej esbuild) ich nie mangluje.
     markers: ["beforeSanitizeElements"],
     remedy:
       "czyste helpery sanityzacji importuj z `lib/sanitizePure` (bez DOMPurify); " +
@@ -345,6 +347,31 @@ function listJs(dir: string): string[] {
 }
 
 /**
+ * Pliki modułów artefaktu serwera, REKURENCYJNIE. Nitro na Rolldownie sam nadaje nazwy chunkom
+ * (`_ssr/`, `_chunks/`, `_virtual/`, `_libs/`...), więc moduł manifestu nie musi leżeć w katalogu
+ * głównym artefaktu. `node_modules` w artefakcie to kopia zależności runtime'u Nitro, nie nasze
+ * chunki - pomijamy (jak `scripts/check-server-entry-purity.ts`).
+ */
+function serverModules(dir: string): string[] {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== "node_modules") out.push(...serverModules(full));
+    } else if (entry.name.endsWith(".mjs") || entry.name.endsWith(".js")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
  * Chunki startowe: to, co serwer wstrzykuje jako `<script type="module">` przy
  * renderze SSR. Czytamy je z manifestu TanStack Start zamiast zgadywać po
  * nazwie/rozmiarze - manifest jest jedynym miejscem, które NAPRAWDĘ mówi, co
@@ -361,20 +388,15 @@ function findBootChunks(): string[] {
   // (`scripts:[{attrs:{src:"/assets/*.js"}}]`) albo - od boot po LCP (P2.1) - manifest bez
   // skryptu wejścia i serwerowa mapa bootu `nesBootManifest` (`scripts/lib/bootAfterLcpPlugin.ts`:
   // `{entry:"/assets/*.js",rootPreloads:[...]}`, klucze w cudzysłowach albo po minifikacji bez).
-  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  // Wartości: cudzysłów albo backtick - minifikator Oxc (Vite 8, także worker przez Nitro)
+  // drukuje napisy jako literały szablonowe: entry:`/assets/index-X.js`.
+  const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]/g;
   const bootManifestRe =
-    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
+    /["']?entry["']?\s*:\s*["'`]\/assets\/([A-Za-z0-9._$-]+\.js)["'`]\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
   for (const dir of SERVER_DIRS) {
-    let entries: string[];
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      continue;
-    }
-    for (const file of entries) {
-      if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
-      const src = readFileSync(join(dir, file), "utf8");
+    for (const file of serverModules(dir)) {
+      const src = readFileSync(file, "utf8");
       for (const m of src.matchAll(scriptRe)) found.add(m[1]);
       for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
     }
@@ -430,7 +452,7 @@ function main(): void {
   if (boot.length === 0) {
     console.error(
       "✗ Nie udalo sie ustalic chunku startowego z manifestu TanStack Start.\n" +
-        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` i \`nesBootManifest\` ({entry:"/assets/*.js"}) w: ${SERVER_DIRS.join(", ")}.\n` +
+        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` i \`nesBootManifest\` ({entry:"/assets/*.js"}) w: ${SERVER_DIRS.join(", ")} (rekurencyjnie, bez node_modules).\n` +
         "  Jesli adapter zmienil uklad artefaktu, podaj chunk jawnie: ENTRY_CHUNKS=index-HASH.js",
     );
     process.exit(1);
@@ -485,27 +507,53 @@ function main(): void {
     }
   }
 
-  // Chunki vendorowe, które z definicji NIE należą do bootu (scripts/lib/bootVendorSplit.ts:
-  // część bootowa ma przyrostek `-boot`). Łączenie małych chunków (`experimentalMinChunkSize`)
-  // potrafi dokleić do chunku wejściowego mały moduł aplikacji, który importuje taki chunk -
-  // fala 2: atom ikon klubu wciągnął w ten sposób cały `vendor-lucide` (+18 KB gzip);
-  // 2026-10-10 znów, przez atom znacznika dostępu (`ENTRY_MERGED_LUCIDE_IMPORTERS`).
+  // Chunki, które z definicji NIE należą do bootu: reszta rodzin lucide i radix (część bootowa
+  // ma przyrostek `-boot` - tag `$initial` w scripts/lib/clientChunkGroups.ts), ciężkie
+  // kontrolki radixa, leniwe SDK i przypięte leniwe moduły aplikacji. Na Rollupie wciągało je tu
+  // łączenie małych chunków (fala 2: atom ikon klubu wkleił do wejścia cały `vendor-lucide`,
+  // +18 KB gzip; 2026-10-10 znów, przez atom znacznika dostępu). Na Rolldownie zrobi to statyczny
+  // import z modułu bootowego albo moduł leniwy w chunku grupy, który chunk bootu importuje.
+  const LAZY_CHUNKS = [
+    "vendor-lucide",
+    "vendor-radix",
+    "vendor-sonner",
+    "vendor-jszip",
+    "legal-links",
+  ];
   for (const chunk of bootGraph) {
     const name = chunk.replace(/-[A-Za-z0-9_-]{8}\.js$/, "");
-    const lazyVendor =
-      ["vendor-lucide", "vendor-radix", "vendor-sonner", "vendor-jszip"].includes(name) ||
+    const lazyChunk =
+      LAZY_CHUNKS.includes(name) ||
       (name.startsWith("vendor-radix-") && name !== "vendor-radix-boot");
-    if (lazyVendor) {
+    if (lazyChunk) {
       violations.push(
-        `  • ${name} (chunk vendorowy spoza bootu)\n` +
+        `  • ${name} (chunk spoza bootu)\n` +
           `      w chunku startowym: ${chunk}\n` +
-          "      naprawa: znajdź moduł aplikacji w chunku wejściowym, który go importuje\n" +
-          "      (reports/chunk-inventory.json). Dla vendor-lucide dopisz go do\n" +
-          "      ENTRY_MERGED_LUCIDE_IMPORTERS (scripts/lib/bootVendorSplit.ts); inaczej\n" +
-          "      przypnij go w manualChunks obu presetów, pilnując, by nazwany chunk nie\n" +
-          "      wciągnął zależności, których wejście też potrzebuje.",
+          "      naprawa: znajdź chunk bootu, który go statycznie importuje, i moduł, który niesie\n" +
+          "      tę krawędź (reports/chunk-inventory.json). Moduł bootowy: zamień import na\n" +
+          "      `import()`. Moduł leniwy w chunku grupy: sprawdź priorytety grup w\n" +
+          "      scripts/lib/clientChunkGroups.ts (inwarianty: clientChunkGroups.test.ts).",
       );
     }
+  }
+
+  // RODZINY LENIWE POD `app-initial` (scripts/lib/clientChunkGroups.ts, priorytet niższy niż
+  // `initial`) NIE MOGĄ trafić do domknięcia wejścia jako własny chunk: moduł, który stał się
+  // `$initial` (statyczny import z modułu bootu - pułapka opisana w clientChunkGroups.ts), zabiera
+  // wcześniej `app-initial` razem z zależnościami. Wciągnięcie rodziny do bootu widać więc jako
+  // BRAK jej chunku w artefakcie - nazwa w `LAZY_CHUNKS` wyżej nigdy by się nie zapaliła.
+  // Wciągnięcie pojedynczego modułu (rodzina zostaje, chudnie) łapie floor `boot` w check:bundle.
+  const present = new Set(files.map((f) => f.replace(/-[A-Za-z0-9_-]{8}\.js$/, "")));
+  for (const family of CLIENT_CHUNK_GROUPS) {
+    if ((family.priority ?? 0) >= CHUNK_PRIORITY.initial || !family.debugName) continue;
+    if (present.has(family.debugName)) continue;
+    violations.push(
+      `  • ${family.debugName} (rodzina leniwa bez chunku)\n` +
+        "      kod rodziny zabrał `app-initial`: moduł bootu importuje któryś z jej modułów\n" +
+        "      statycznie (moduł opcji trasy, stała w head()/loaderze, nagłówek). Znajdź krawędź\n" +
+        "      w reports/chunk-inventory.json (BUNDLE_INVENTORY=1) i zamień import na `import()`\n" +
+        "      albo przenieś stałą do modułu bez zależności (scripts/lib/clientChunkGroups.ts).",
+    );
   }
 
   console.log(

@@ -14,7 +14,7 @@
 //      działać dla gościa przed zalogowaniem. Przepięcie jednego w drugie
 //      albo wystawia cudzy bilet, albo psuje stronę wydarzenia dla gości.
 //
-// PUŁAPKA HARNESSU: `createServerFn` buduje łańcuch `.middleware().inputValidator().handler()`.
+// PUŁAPKA HARNESSU: `createServerFn` buduje łańcuch `.middleware().validator().handler()`.
 // Atrapa oddaje z `.handler(fn)` samą funkcję z doklejonym `validate`, więc test
 // wywołuje PRAWDZIWY walidator i PRAWDZIWY handler, a nie własną imitację.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,7 +31,7 @@ vi.mock("@tanstack/react-start", () => ({
     let validate: ((data: unknown) => unknown) | undefined;
     const api = {
       middleware: () => api,
-      inputValidator: (fn: (data: unknown) => unknown) => {
+      validator: (fn: (data: unknown) => unknown) => {
         validate = fn;
         return api;
       },

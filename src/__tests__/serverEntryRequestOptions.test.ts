@@ -6,17 +6,19 @@
 //     (@tanstack/start-server-core/src/request-handler.ts:60-68), więc `env`
 //     workera było w nim KOLIZJĄ KONTRAKTU: binding albo zmienna o nazwie
 //     `inlineCss` czy `onEarlyHints` zostałaby wzięta za opcję renderu;
-//   * slotu nr 3 `requestHandler` nie ma w sygnaturze (tamże
-//     request-response.ts:124), więc `REVALIDATION_CTX` był kodem martwym.
+//   * slotu nr 3 `RequestHandler` nie ma w sygnaturze (tamże :79-88), więc
+//     `REVALIDATION_CTX` był kodem martwym.
 //
 // Test odtwarza PRODUKCYJNY łańcuch wywołania, nie jego atrapę:
-//   src/server.ts -> (atrapa `server-entry`, ale) -> PRAWDZIWY `requestHandler`
-//   z @tanstack/react-start/server, czyli realny zasięg żądania h3 i realne
-//   scalenie nagłówków zdarzenia w `toResponse()`.
+//   src/server.ts -> (atrapa `server-entry`, ale) -> PRAWDZIWY `createServerEntry`
+//   z @tanstack/react-start/server (`startRequestScope`), czyli realny zasięg
+//   żądania Start, nałożenie stanu pomocników na zwróconą odpowiedź i `catch`
+//   zamieniający rzut w JSON-owe 500 frameworka.
 // Atrapą jest wyłącznie moduł wirtualnego entry (`server-entry`), bo tylko on
-// w teście nie istnieje - build go nie generuje. Wszystko poniżej granicy
-// `requestHandler` jest prawdziwe: `appendLinkHeader`, `applyDeferredDocumentStore`,
-// strażnik strumienia dokumentu.
+// w teście nie istnieje - build go nie generuje. Wszystko poniżej i powyżej
+// granicy entry jest prawdziwe: `appendLinkHeader`, granica odpowiedzi
+// (`fetchWithFrameworkPreloads`), `applyDeferredDocumentStore`, strażnik
+// strumienia dokumentu.
 //
 // CZEGO TEN PLIK NIE MOŻE ZMIERZYĆ: `env` i `ExecutionContext` realnego workerd.
 // Pod presetem `cloudflare-module` nasze entry i tak dostaje jeden argument
@@ -25,6 +27,8 @@
 // Early Hints wymagałaby runtime'u Workers i nie jest przedmiotem tej naprawy.
 //
 // Zero sieci, zero sekretów.
+import type { Register } from "@tanstack/react-router";
+import type { RequestHandler } from "@tanstack/react-start/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import serverEntry from "../server";
@@ -43,7 +47,7 @@ const DOC = "<html><body>ok</body></html>";
 const hoisted = vi.hoisted(() => ({
   /** Każde wywołanie `handler.fetch` z `src/server.ts`, z zachowaną ARNOŚCIĄ. */
   calls: [] as Array<ReadonlyArray<unknown>>,
-  /** Render pojedynczego testu, wołany WEWNĄTRZ zasięgu żądania h3. */
+  /** Render pojedynczego testu, wołany WEWNĄTRZ zasięgu żądania Start. */
   render: null as null | ((request: Request) => Response | Promise<Response>),
   /** Driver rewalidacji w tle, przechwycony z `setDocumentRevalidator`. */
   revalidator: null as DocumentRevalidator | null,
@@ -52,24 +56,22 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-start/server-entry", async () => {
-  const { requestHandler } = await import("@tanstack/react-start/server");
-  // Ta sama granica, którą build wstawia w wirtualne entry.
-  const boundary = requestHandler(async (request: Request) => {
+  const { startRequestScope } = await import("@/test/startRequestScope");
+  // Ta sama granica, którą build wstawia w wirtualne entry (`createServerEntry`).
+  const boundary = startRequestScope(async (request) => {
     const render = hoisted.render;
     if (!render) throw new Error("test nie ustawił renderu");
     return await render(request);
   });
   return {
     default: {
-      // `createServerEntry` rozsypuje `...args` na granicę - odwzorowujemy to
-      // 1:1, żeby test mierzył ARNOŚĆ wywołania z `src/server.ts`, a nie naszą.
-      fetch: (...args: ReadonlyArray<unknown>) => {
+      // Kontrakt `handler.fetch` frameworka (`RequestHandler<Register>`), ale
+      // z resztą argumentów zebraną 1:1, żeby test mierzył ARNOŚĆ wywołania
+      // z `src/server.ts`, a nie naszą.
+      fetch: (...args: Parameters<RequestHandler<Register>>) => {
         hoisted.calls.push(args);
         if (hoisted.failBeforeDispatch !== undefined) throw hoisted.failBeforeDispatch;
         const [request, requestOpts] = args;
-        if (!(request instanceof Request)) {
-          throw new Error("pierwszym argumentem entry musi być Request");
-        }
         return boundary(request, requestOpts);
       },
     },
@@ -324,9 +326,10 @@ describe("entry SSR: nagłówek `Link` przeżywa całą drogę", () => {
     const response = await entryFetch(new Request("https://tenant-a.eu/"), HOSTILE_ENV);
     const body = await response.text();
 
-    // Nagłówek zdarzenia h3, scalony na odpowiedź w `toResponse()`, przeszedł
-    // dalej cały ogon entry: normalizator katastrofy (200 wychodzi z niego
-    // nietknięte), odroczony zapis i strażnika strumienia.
+    // Akumulator `Link`, nałożony na odpowiedź na granicy odpowiedzi
+    // (`fetchWithFrameworkPreloads`), przeszedł dalej cały ogon entry:
+    // normalizator katastrofy (200 wychodzi z niego nietknięte), odroczony
+    // zapis i strażnika strumienia.
     expect(response.headers.get("link")).toBe(hint);
     // Strażnik NAPRAWDĘ przepakował odpowiedź - asercja wyżej nie jest pozorna.
     expect(response.headers.get("x-ssr-doc-guard")).toBe("on");
@@ -357,6 +360,55 @@ describe("entry SSR: nagłówek `Link` przeżywa całą drogę", () => {
 
     expect(response.headers.get("link")).toBe(hint);
   });
+});
+
+// Nagłówki trasy nakłada granica odpowiedzi (`fetchWithFrameworkPreloads`) - z regułą
+// h3, nie stanu pomocników Start (ten od 1.169 uzgadnia się dla KAŻDEGO statusu):
+// wyłącznie odpowiedź `ok`, z nadpisaniem jej własnego nagłówka.
+describe("entry SSR: nagłówki trasy wyłącznie na odpowiedzi `ok`", () => {
+  const hint = "</assets/dict-pl.js>; rel=preload; as=script";
+
+  it("200: dyrektywa loadera nadpisuje własny nagłówek renderu, `Link` z akumulatora", async () => {
+    hoisted.render = (): Response => {
+      setCacheControlHeader("private, no-store");
+      appendLinkHeader(hint);
+      return new Response(DOC, {
+        status: 200,
+        headers: { ...HTML_HEADERS, "cache-control": "public, max-age=60" },
+      });
+    };
+
+    const response = await entryFetch(new Request("https://tenant-a.eu/"));
+    await response.text();
+
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("link")).toBe(hint);
+  });
+
+  it.each([302, 404, 500])(
+    "%i: odpowiedź zachowuje własne `no-store`, bez publicznej dyrektywy i hintów loadera",
+    async (status) => {
+      hoisted.render = (): Response => {
+        setCacheControlHeader("public, max-age=60, s-maxage=900");
+        appendLinkHeader(hint);
+        return new Response(status === 302 ? null : DOC, {
+          status,
+          headers: {
+            ...HTML_HEADERS,
+            "cache-control": "no-store",
+            ...(status === 302 ? { location: "/gdzie-indziej" } : {}),
+          },
+        });
+      };
+
+      const response = await entryFetch(new Request("https://tenant-a.eu/"));
+      await response.text();
+
+      expect(response.status).toBe(status);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("link")).toBeNull();
+    },
+  );
 });
 
 describe("entry SSR: driver rewalidacji w tle", () => {
@@ -403,13 +455,34 @@ describe("entry SSR: driver rewalidacji w tle", () => {
 });
 
 describe("entry SSR: potok awaryjny między zmienionymi liniami nie ucierpiał", () => {
-  it("połknięty przez h3 błąd 500 nadal zamienia się w przyjazny dokument", async () => {
+  it("rzut w renderze: JSON-owe 500 frameworka zamienia się w przyjazny dokument", async () => {
+    // Bez atrapy kształtu: rzut przechodzi przez PRAWDZIWY `catch` z
+    // `createServerEntry` (`handleStartError`), a normalizator w src/server.ts
+    // musi rozpoznać to, co framework naprawdę składa.
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    hoisted.render = (): Response => {
+      throw new Error("render padł");
+    };
+
+    const response = await entryFetch(new Request("https://tenant-a.eu/"), HOSTILE_ENV);
+    const body = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(body).not.toContain("HTTPError");
+    expect(body).not.toContain("render padł");
+    expect(errors).toHaveBeenCalled();
+  });
+
+  it("połknięty przez Start błąd 500 nadal zamienia się w przyjazny dokument", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Koperta `handleStartError` (`createErrorResponse`) zwrócona jako odpowiedź.
     hoisted.render = (): Response =>
-      new Response(JSON.stringify({ unhandled: true, message: "HTTPError" }), {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      });
+      new Response(
+        JSON.stringify({ status: 500, statusText: "", unhandled: true, message: "HTTPError" }),
+        { status: 500, headers: { "content-type": "application/json" } },
+      );
 
     const response = await entryFetch(new Request("https://tenant-a.eu/"), HOSTILE_ENV);
     const body = await response.text();
@@ -454,7 +527,7 @@ function cachedRender(render: () => Response): (request: Request) => Promise<Res
  * odkryta W TRAKCIE strumieniowania"): nagłówki wyszły jako publiczne,
  * a magazyn przy drugiej kontroli odmawia zapisu.
  *
- * Mechanika testu: `setCacheControlHeader` potrzebuje zasięgu żądania h3
+ * Mechanika testu: `setCacheControlHeader` potrzebuje zasięgu żądania Start
  * (AsyncLocalStorage), a odczyt strumienia biegnie już poza nim. Dlatego
  * kontynuacja zawężenia jest rejestrowana W zasięgu (w renderze), a odpala ją
  * drugi `pull` źródła - czyli chwila, w której pierwszy chunk przeszedł już
@@ -488,7 +561,7 @@ function narrowedAfterFirstChunk(): Response {
 
 // Recenzja P0.4, MAJOR 2: `degraded` w linii ma mówić, co magazyn ZROBIŁ, nie
 // co obiecywały nagłówki wysłane przed body. Potrzebny prawdziwy zasięg
-// żądania h3 (dyrektywa trasy), więc test żyje tutaj, nie w documentCache.
+// żądania Start (dyrektywa trasy), więc test żyje tutaj, nie w documentCache.
 describe("entry SSR: linia dokumentu niesie prawdziwy wynik zapisu", () => {
   beforeEach(() => {
     resetDocumentCacheForTests();

@@ -80,7 +80,7 @@ const Input = z.object({
 
 export const notifyEventRegistrationDecision = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => Input.parse(data))
+  .validator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }): Promise<RegistrationNotifyResult> => {
     const { data: payload, error } = await context.supabase.rpc(
       "admin_event_registration_notify_payload",

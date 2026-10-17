@@ -19,9 +19,11 @@ import { useHasMounted } from "@/hooks/useHasMounted";
  * navigation is pending and snaps to 100% + fades out on completion.
  */
 export function RouteProgress() {
-  const busy = useRouterState({
-    select: (s) => s.isLoading || s.status === "pending",
-  });
+  // Jedno zrodlo: `status`. W router-core 1.171.37 `isLoading` nie jest osobnym magazynem,
+  // tylko pochodna `status === "pending"` w `__store` (`dist/esm/stores.js:31`), wiec dawne
+  // `s.isLoading || s.status === "pending"` liczylo ten sam warunek dwa razy. Do 1.171.15
+  // oba pola mialy wlasne magazyny i alternatywa miala sens.
+  const busy = useRouterState({ select: (s) => s.status === "pending" });
   const { t } = useTranslation();
   // Router bywa `pending` w trakcie SSR, a po hydracji juz nie - komunikat
   // live region rozjezdzalby sie miedzy serwerem a klientem (React #418).

@@ -2,7 +2,7 @@
 // Podgląd to funkcjonalność OPCJONALNA: gdy `preview` = false, blok renderuje
 // zwykłe linki (bez hover-card i bez zewnętrznego zapytania o zrzut ekranu).
 
-import type { Block, Json } from "./types";
+import type { Json } from "./types";
 
 export type LinkPreviewLang = "pl" | "en";
 export type LinkPreviewLayout = "inline" | "list";
@@ -160,9 +160,4 @@ export function normalizeLinkPreviewData(data: Record<string, Json>): LinkPrevie
     width: clampPreviewSide(data.width, LINK_PREVIEW_DEFAULT_WIDTH),
     height: clampPreviewSide(data.height, LINK_PREVIEW_DEFAULT_HEIGHT),
   };
-}
-
-/** Blok jest pusty (nic do wyrenderowania publicznie). */
-export function isEmptyLinkPreview(block: Block): boolean {
-  return normalizeLinkPreviewData(block.data).items.length === 0;
 }

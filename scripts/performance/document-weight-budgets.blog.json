@@ -1,0 +1,152 @@
+{
+  "_comment": [
+    "PROGI WAGI DOKUMENTU ARCHIWUM `/blog` (PR #515, 2026-10-17). Bramka główna (document-weight-budgets.json) mierzy wyłącznie `/`; archiwa mają od PR #515 własny tryb bootu (`lcp`, `AFTER_LCP_ROUTE_IDS` w src/lib/boot/bootSet.server.ts) i kandydata LCP na pierwszej karcie (`data-lcp-candidate`, PostListCard). Ten plik pilnuje obu: utrata trybu `lcp` przywraca ~40 wpisów nagłówka `Link` (`linkHeaderEntries` <= 4, `bootBurst*`), utrata znacznika zapala `lcpCandidateMissing`, powrót preloadu okładki z `head()` - `documentPreloadDuplicates` i `imagePreloadCount`.",
+    "Pomiar: `BUNDLE_INVENTORY=1 build:smoke` głowy PR (92d6c7b), node 22, fixture, 5 próbek HIT, `--ratchet --path /blog` (zapas 2 % dla bajtów, liczniki = pomiar, podłogi polityki z `RATCHET_FLOORS`). Progi wspólne dla całej witryny przepisane z bramki `/`: domknięcie bootu (1 637 758 / 496 399 B) i CSS blokujący render (83 461 B) - ten sam arkusz i to samo wejście co na `/`, więc archiwum nie dostaje luźniejszego progu.",
+    "Te same zasady co w pliku głównym: progi wolno wyłącznie obniżać (`--ratchet --budgets scripts/performance/document-weight-budgets.blog.json --path /blog`); podniesienie to ręczny commit z pomiarem i uzasadnieniem tutaj."
+  ],
+  "path": "/blog",
+  "measuredAt": "2026-10-17",
+  "commit": "92d6c7b (PR #515)",
+  "budgets": {
+    "htmlRawBytes": {
+      "max": 183750,
+      "measured": 180147
+    },
+    "htmlGzipBytes": {
+      "max": 35224,
+      "measured": 34533
+    },
+    "headRawBytes": {
+      "max": 14048,
+      "measured": 13772
+    },
+    "inlineStyleCount": {
+      "max": 13,
+      "measured": 13
+    },
+    "inlineStyleBytes": {
+      "max": 55480,
+      "measured": 54392
+    },
+    "inlineCssCommentBytes": {
+      "max": 528,
+      "measured": 517
+    },
+    "fontPreloadCount": {
+      "max": 1,
+      "measured": 1
+    },
+    "inlineScriptBytes": {
+      "max": 47937,
+      "measured": 46997
+    },
+    "inlineExecutableScriptBytes": {
+      "max": 44857,
+      "measured": 43977
+    },
+    "dehydratedStateBytes": {
+      "max": 35047,
+      "measured": 34359
+    },
+    "streamedStateBytes": {
+      "max": 83,
+      "measured": 81
+    },
+    "dehydratedQueryHashCount": {
+      "max": 0,
+      "measured": 0
+    },
+    "modulepreloadCount": {
+      "max": 0,
+      "measured": 0
+    },
+    "linkHeaderEntries": {
+      "max": 4,
+      "measured": 4
+    },
+    "preloadDuplicates": {
+      "max": 2,
+      "measured": 2
+    },
+    "documentPreloadDuplicates": {
+      "max": 0,
+      "measured": 0
+    },
+    "imagePreloadCount": {
+      "max": 3,
+      "measured": 3
+    },
+    "imgFetchpriorityHigh": {
+      "max": 2,
+      "measured": 1
+    },
+    "bootClosureRawBytes": {
+      "max": 1637758,
+      "measured": 1630560
+    },
+    "bootClosureGzipBytes": {
+      "max": 496399,
+      "measured": 486665
+    },
+    "preloadedJsCount": {
+      "max": 0,
+      "measured": 0
+    },
+    "preloadedJsGzipBytes": {
+      "max": 0,
+      "measured": 0
+    },
+    "renderBlockingCssGzipBytes": {
+      "max": 83461,
+      "measured": 82775
+    },
+    "renderBlockingCssCount": {
+      "max": 1,
+      "measured": 1
+    },
+    "lcpCandidateCount": {
+      "max": 2,
+      "measured": 1
+    },
+    "lcpCandidateMissing": {
+      "max": 0,
+      "measured": 0
+    },
+    "imgEagerNonCandidate": {
+      "max": 0,
+      "measured": 0
+    },
+    "imagePreloadNonCandidate": {
+      "max": 0,
+      "measured": 0
+    },
+    "linkHeaderDisallowed": {
+      "max": 0,
+      "measured": 0
+    },
+    "preLcpTransferBytes": {
+      "max": 144514,
+      "measured": 141680
+    },
+    "srcsetCandidatesMax": {
+      "max": 5,
+      "measured": 0
+    },
+    "absoluteCanonicalMediaInRenderedSrcset": {
+      "max": 0,
+      "measured": 0
+    },
+    "bootEntryMissing": {
+      "max": 0,
+      "measured": 0
+    },
+    "bootBurstCount": {
+      "max": 31,
+      "measured": 31
+    },
+    "bootBurstGzipBytes": {
+      "max": 568418,
+      "measured": 557272
+    }
+  }
+}

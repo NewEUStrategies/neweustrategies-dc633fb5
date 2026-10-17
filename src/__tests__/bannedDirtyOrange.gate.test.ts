@@ -23,7 +23,8 @@ describe("zakaz brudnego pomarańczu", () => {
   });
 
   it("nie używa ciemnych odcieni orange/amber (600-900)", () => {
-    const re = /\b(?:text|bg|border|fill|stroke|ring|from|to|via)-(?:orange|amber)-(?:600|700|800|900)\b/;
+    const re =
+      /\b(?:text|bg|border|fill|stroke|ring|from|to|via)-(?:orange|amber)-(?:600|700|800|900)\b/;
     const hits = files.filter((f) => re.test(readFileSync(f, "utf8")));
     expect(hits).toEqual([]);
   });

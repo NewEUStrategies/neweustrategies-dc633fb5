@@ -76,11 +76,9 @@ export {
 };
 
 export const EVENT_GENERAL_MAX_TITLE = 200;
-export const EVENT_GENERAL_MAX_SLUG = 120;
 export const EVENT_GENERAL_MAX_DESCRIPTION = 4000;
 export const EVENT_GENERAL_MAX_ADDRESS = 200;
 export const EVENT_GENERAL_MAX_HASHTAG = 60;
-export const EVENT_GENERAL_MAX_URL = 2048;
 
 const VALIDATION = "adminEvents.general.errors.";
 
@@ -143,16 +141,6 @@ export const EVENT_GENERAL_TIME_FIELDS = ["startsAt", "endsAt"] as const;
 export type EventGeneralTimeField = (typeof EVENT_GENERAL_TIME_FIELDS)[number];
 
 export type EventGeneralField = Exclude<keyof EventGeneralDraft, "savedTimes">;
-
-/** Pola adresu - jeden zbior dla „Wyczysc lokalizacje" i dla walidacji. */
-export const EVENT_LOCATION_FIELDS = [
-  "location",
-  "streetAddress",
-  "city",
-  "region",
-  "postalCode",
-  "country",
-] as const satisfies readonly EventGeneralField[];
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";

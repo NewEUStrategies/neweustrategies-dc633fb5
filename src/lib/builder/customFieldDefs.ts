@@ -8,10 +8,12 @@
 // (reeksport), więc moduł ma te same wejścia co renderer i ląduje w chunku
 // formularza `JoinUsForm` bez scalania. Nie wolno go importować z modułów
 // chunku wejściowego ani z dyspozytora widgetów (`WidgetView`,
-// `ChromeWidgetView`, `widget-view/lazyWidgets`): Rollup z
-// `experimentalMinChunkSize` dokleja mały moduł współdzielony przez kilka
-// leniwych chunków do najtańszego wspólnego celu, a takim celem bywa chunk
-// wejściowy - parser jechałby wtedy w domknięciu bootu każdej strony.
+// `ChromeWidgetView`, `widget-view/lazyWidgets`): mały moduł współdzielony
+// przez kilka leniwych chunków ląduje we wspólnym celu, a takim celem bywa chunk
+// wejściowy (na Rollupie doklejał go tam `experimentalMinChunkSize`, Rolldown
+// łączy wspólne chunki z wejściowymi - `experimental.chunkOptimization`,
+// nagłówek scripts/lib/clientChunkGroups.ts) - parser jechałby wtedy
+// w domknięciu bootu każdej strony.
 // Konsument z trasy albo widgetu podaje SUROWĄ wartość `content.customFields`
 // (prop `customFieldsSource` w `JoinUsForm`), a parsuje ją leniwy chunk
 // formularza.

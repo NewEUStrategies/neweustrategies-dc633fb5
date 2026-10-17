@@ -28,7 +28,7 @@ import { PolicyPositionsMap } from "@/components/tracker/PolicyPositionsMap";
 import { TrackerFeedLink } from "@/components/tracker/TrackerFeedLink";
 import { DossierFollowers } from "@/components/network/DossierFollowers";
 import { POLICY_STAGES, areaLabel, isTerminal, stageIndex, stageLabel } from "@/lib/tracker/stages";
-import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
+import { TRACKER_FEED_PATH } from "@/lib/tracker/feedPath";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";

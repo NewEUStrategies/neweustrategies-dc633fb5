@@ -31,7 +31,7 @@ import {
   type PolicyItem,
 } from "@/lib/tracker/queries";
 import { trackerItemListJsonLd, type TrackerListEntry } from "@/lib/tracker/jsonld";
-import { TRACKER_FEED_PATH } from "@/lib/tracker/feed";
+import { TRACKER_FEED_PATH } from "@/lib/tracker/feedPath";
 import { localizedPath } from "@/lib/i18n/localePath";
 import { withSsrBudget } from "@/lib/asyncBudget";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";

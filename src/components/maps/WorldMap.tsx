@@ -1,4 +1,13 @@
-import "./world-map.css";
+// Arkusz mapy jako zasób React 19 (`<link precedence>` w renderze), NIE import CSS z boku.
+// Widget mapy jest leniwym chunkiem bez tras w manifeście Start, więc arkusz z importu
+// `import "./world-map.css"` dochodził wyłącznie pomocnikiem `import()` przy boocie:
+// mapa wyrenderowana na serwerze (granica strumienia odsłaniana przez `$RC`) stała do
+// tego czasu bez stylów - etykiety bez pozycji, skok układu. Link w renderze serwer
+// hoistuje do `<head>` (powłoka) albo wstrzymuje odsłonięcie granicy do `onload` (`$RR`);
+// po stronie klienta React wstrzymuje commit przejścia, aż arkusz się wczyta. `?url`
+// zostawia arkusz w potoku CSS Vite (lightningcss: fallbacki `color-mix`, prefiks
+// `backdrop-filter` dla `cssTarget`).
+import worldMapCssUrl from "./world-map.css?url";
 // Mapa świata z animowanymi łukami połączeń.
 //
 // WIERNE ODWZOROWANIE komponentu źródłowego (`WorldMap` z framer-motion +
@@ -231,6 +240,7 @@ export function WorldMap({
       }
       onMouseLeave={() => setHovered(null)}
     >
+      <link rel="stylesheet" href={worldMapCssUrl} precedence="default" />
       {keyframesCss && <style>{keyframesCss}</style>}
 
       <svg

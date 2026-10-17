@@ -363,14 +363,17 @@ describe("loadResilient - etykieta degradacji w rejestrze żądania", () => {
   });
 
   async function inRequest(work: (request: Request) => Promise<void>): Promise<string[]> {
-    const { requestHandler } = await import("@tanstack/react-start/server");
+    const { createServerEntry } = await import("@tanstack/react-start/server");
     const { readDocumentDegradations } = await import("@/lib/http/responseHeaders");
     let seen: Request | null = null;
-    const handler = requestHandler(async (request: Request) => {
-      seen = request;
-      await work(request);
-      return new Response("ok");
-    });
+    // Sam zasięg żądania Start (`getRequest()`), bez nakładania nagłówków.
+    const handler = createServerEntry({
+      fetch: async (request) => {
+        seen = request;
+        await work(request);
+        return new Response("ok");
+      },
+    }).fetch;
     await handler(new Request("https://tenant-a.eu/"), {});
     return seen ? readDocumentDegradations(seen) : [];
   }

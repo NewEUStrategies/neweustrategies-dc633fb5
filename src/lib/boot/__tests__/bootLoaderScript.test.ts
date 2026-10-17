@@ -8,12 +8,13 @@
 // kolejnych przypadków.
 //
 // Przedmiot dowodu (bootLoaderScript.ts, nagłówek): wyzwalacze `now`/`lcp` i zapasy, reguły
-// (i)/(ii) przyjęcia wpisu LCP, leniwy odczyt `#nes-boot-set` (po skrypcie - przy DCL, bez
-// obserwatora mutacji), usunięcie węzła przed wstawieniem wejścia, wejście NIGDY przed końcem
-// parsowania dokumentu (poprawka po Prove: moduł wstawiony skryptem jest `async`, a `hydrate()` bez
-// ogona dokumentu rzuca), idempotencja, watchdog sondy i doktryna skryptu inline. P3.4: pole
-// kandydata bez geometrii w handlerze DCL (K4i - pomiar w zadaniu po pierwszej klatce), seria
-// jednym zadaniem z wejściem za każdym `modulepreload` (grupy zmierzone i wycofane).
+// (i)/(ii) przyjęcia wpisu LCP, odczyt `#nes-boot-set` przy starcie (węzeł `BootSetNode` stoi
+// w `<head>` przed loaderem) i zapasowy przy DCL (bez obserwatora mutacji), usunięcie węzła przed
+// wstawieniem wejścia, wejście NIGDY przed końcem parsowania dokumentu (poprawka po Prove: moduł
+// wstawiony skryptem jest `async`, a `hydrate()` bez ogona dokumentu rzuca), idempotencja,
+// watchdog sondy i doktryna skryptu inline. P3.4: pole kandydata bez geometrii w handlerze DCL
+// (K4i - pomiar w zadaniu po pierwszej klatce), seria jednym zadaniem z wejściem za każdym
+// `modulepreload` (grupy zmierzone i wycofane).
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -232,7 +233,7 @@ describe("BOOT_LOADER_SCRIPT - tryb `now`", () => {
     expect(none.why()).toBe("now");
   });
 
-  it("zestaw PO skrypcie (bufor routera za loaderem) - odczyt przy DCL, bez obserwatora mutacji", () => {
+  it("zestaw PO skrypcie (zapas obronny: w SSR węzeł stoi przed loaderem) - odczyt przy DCL, bez obserwatora mutacji", () => {
     const h = runLoader();
     expect(h.preloads()).toEqual([]);
     h.doc.head.appendChild(bootSetNode(h.doc, { ...LCP_SET, m: "now" }));

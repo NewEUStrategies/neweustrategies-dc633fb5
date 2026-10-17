@@ -92,10 +92,13 @@ describe("outer SSR failure boundary", () => {
       expect(await response.text()).toBe(body);
     },
   );
-  it("recognizes a captured abort behind h3's swallowed-error envelope", async () => {
+  it("recognizes a captured abort behind Start's handleStartError envelope", async () => {
     h.captured = { cause: { code: "ECONNRESET" } };
     h.fetch.mockResolvedValueOnce(
-      Response.json({ unhandled: true, message: "HTTPError" }, { status: 500 }),
+      Response.json(
+        { status: 500, statusText: "", unhandled: true, message: "HTTPError" },
+        { status: 500 },
+      ),
     );
     expect((await entry.fetch(request())).status).toBe(499);
   });

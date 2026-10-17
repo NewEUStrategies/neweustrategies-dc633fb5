@@ -1136,21 +1136,6 @@ export type MatrixSlice = keyof typeof MATRIX_SLICES;
 export const ALL_EDITOR_NAMES: readonly string[] = ALL_EDITORS.map(([name]) => name);
 
 /**
- * Edytory jednego kawałka. Nieznana nazwa RZUCA - literówka w liście nie ma
- * prawa cicho wypisać edytora z przejazdu.
- */
-export function editorsOf(slice: MatrixSlice): readonly EditorEntry[] {
-  return MATRIX_SLICES[slice].map((name) => {
-    const entry = ALL_EDITORS.find(([n]) => n === name);
-    if (!entry)
-      throw new Error(
-        `blockEditMatrix: nieznany edytor \u201e${name}" w kawa\u0142ku \u201e${slice}"`,
-      );
-    return entry;
-  });
-}
-
-/**
  * Pełny przejazd czterech przypadków dla PODANEGO podzbioru edytorów. Wołane
  * z pliku kawałka.
  */

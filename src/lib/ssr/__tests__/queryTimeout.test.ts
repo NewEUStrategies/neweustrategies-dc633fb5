@@ -19,8 +19,9 @@
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. `isUnresolvableQuery` /
 // `pruneUnresolvedQueries` mają własne testy; tutaj sprawdzamy DECYZJĘ
-// strażnika i to, że sprzątanie jest w ogóle wołane. Zamykania samego
-// strumienia dowodzi `queryStreamGuard.test.ts` - to inny moduł i inna warstwa.
+// strażnika i to, że sprzątanie jest w ogóle wołane. Strumień zapytań domyka
+// sama integracja router<->query (`src/router.tsx`, test w `router.test.tsx`) -
+// to inna warstwa.
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

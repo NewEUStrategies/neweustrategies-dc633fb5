@@ -173,7 +173,7 @@ export interface DonationCheckoutInput {
  * profilu i status wspierającego, anonimowy - pełną anonimowość.
  */
 export const createDonationCheckout = createServerFn({ method: "POST" })
-  .inputValidator((data: DonationCheckoutInput) => {
+  .validator((data: DonationCheckoutInput) => {
     if (data.environment !== "sandbox" && data.environment !== "live") {
       throw new Error("invalid_environment");
     }
@@ -182,7 +182,6 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       throw new Error("invalid_return_url");
     }
     try {
-      // eslint-disable-next-line no-new
       new URL(data.returnUrl);
     } catch {
       throw new Error("invalid_return_url");

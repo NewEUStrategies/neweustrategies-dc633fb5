@@ -31,9 +31,19 @@ function chrome(over: Partial<FooterChrome> = {}): FooterChrome {
   return { ...defaultFooterChrome(), ...over };
 }
 
+// Pozycja przewinięcia NIE przez zwykłe przypisanie. Vitest 5 przekazuje każdy
+// zapis na `window` dalej do okna happy-dom, a tam `scrollY` jest akcesorem bez
+// settera - `window.scrollY = y` rzuca w module ESM (tryb ścisły) TypeError
+// „which has only a getter" i wywracał KAŻDY test tego pliku (hak `afterEach`
+// niżej). `defineProperty` zastępuje akcesor Vitesta zwykłą własnością, więc
+// nic nie płynie do happy-dom, a `BackToTop` czyta dokładnie podaną wartość.
+function setScrollY(y: number) {
+  Object.defineProperty(window, "scrollY", { configurable: true, writable: true, value: y });
+}
+
 afterEach(() => {
   cleanup();
-  window.scrollY = 0;
+  setScrollY(0);
 });
 
 describe("CopyrightBar", () => {
@@ -115,7 +125,7 @@ describe("CopyrightBar", () => {
 
 describe("BackToTop", () => {
   function scrollTo(y: number) {
-    window.scrollY = y;
+    setScrollY(y);
     fireEvent.scroll(window);
   }
 
