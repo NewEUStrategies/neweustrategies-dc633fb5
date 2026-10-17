@@ -4,9 +4,9 @@
 // (jak `dehydratedPayload.test.ts`).
 //
 // WPIS BRAMKI WAGI DOKUMENTU (`scripts/performance/homeFixture.ts`). Pomiar
-// `check-document-weight.ts --path /blog/fixture-2` potrzebuje strony wpisu, na której
-// React auto-preloaduje okładkę i logo `ReadingHeader`; bez `resolve_path` loader `/$`
-// oddawał render zdegradowany (bez wpisu). Odpowiedzi wpisu działają WYŁĄCZNIE
+// `check-document-weight.ts --path /blog/fixture-2` (progi:
+// `document-weight-budgets.post.json`) potrzebuje strony wpisu z okładką-kandydatem LCP;
+// bez `resolve_path` loader `/$` oddawał render zdegradowany (bez wpisu). Odpowiedzi wpisu działają WYŁĄCZNIE
 // w przypadku `NES_PERFORMANCE_CASE=document-weight` - dla każdego innego (specy
 // first-visit, backend klienta, ten proces bez zmiennej) fixture rzuca jak dotąd, więc
 // `/`, `/blog` i Playwright first-visit widzą ten sam backend co przed zmianą.

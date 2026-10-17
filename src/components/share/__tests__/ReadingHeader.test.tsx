@@ -1007,8 +1007,9 @@ describe("ReadingHeader - logo: centerLogo x hideLeftLogo", () => {
 
   it("kanoniczny `/media/...svg` trafia do OBU `<img>` jako ścieżka względna", () => {
     // Ten sam napis co w pasku mobilnym `Header.tsx` (wspólny `headerLogoSrc`):
-    // eager `<img>` bez `srcSet` React kluczuje surowym `src`, więc dawny adres
-    // absolutny stąd dokładał drugi preload logo do `<head>` każdego wpisu.
+    // jeden wpis cache'u dla obu pasków. Póki logo paska było eager, dawny adres
+    // absolutny dokładał drugi preload logo do `<head>` każdego wpisu (React
+    // kluczuje `<img>` bez `srcSet` surowym `src`).
     h.themeSettings = { logo: { mobile: `${PUBLIC_MEDIA_ORIGIN}/media/theme/logo/nes.svg` } };
     renderHeader({ pinned: true, centerLogo: true });
 
@@ -1017,6 +1018,23 @@ describe("ReadingHeader - logo: centerLogo x hideLeftLogo", () => {
       "src",
       "/media/theme/logo/nes.svg",
     );
+  });
+
+  // P1.4: na wpisie (pasek ukryty do przewinięcia) logo jest LENIWE - eager obraz
+  // poza `<header data-site-header>` łamał regułę bramki `imgEagerNonCandidate`
+  // i stał w kolejce przed okładką-kandydatem LCP. Pasek przypięty (/quiz) jest
+  // widoczny od pierwszej klatki, więc jego logo zostaje eager.
+  it.each([
+    [false, "lazy"],
+    [true, "eager"],
+  ] as const)("pinned=%s: oba logo paska mają loading=%s i decoding=async", (pinned, loading) => {
+    h.themeSettings = { logo: { mobile: "logo.svg" } };
+    renderHeader({ pinned, centerLogo: true });
+
+    for (const img of [leftLogo()?.querySelector("img"), centerLogoEl()?.querySelector("img")]) {
+      expect(img).toHaveAttribute("loading", loading);
+      expect(img).toHaveAttribute("decoding", "async");
+    }
   });
 });
 

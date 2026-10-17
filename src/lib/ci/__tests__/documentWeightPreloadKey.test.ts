@@ -13,6 +13,7 @@ import { renderedMediaUrl } from "@/lib/cropSizes";
 import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 import homeBudgets from "../../../../scripts/performance/document-weight-budgets.json";
 import blogBudgets from "../../../../scripts/performance/document-weight-budgets.blog.json";
+import postBudgets from "../../../../scripts/performance/document-weight-budgets.post.json";
 import {
   CANONICAL_MEDIA_ORIGIN,
   analyzeDocument,
@@ -102,9 +103,10 @@ describe("documentWeight: klucz duplikatu preloadu a origin kanoniczny mediów",
     expect(srcset.preloadDuplicates).toBe(0);
   });
 
-  it("fixture `/` i `/blog` (preloady 1:1 z artefaktu): pomiar i progi bez zmian", () => {
-    // Preloady dokumentu fixture `/blog` (`/` ma te same trzy) i jego nagłówek `Link`
-    // z artefaktu `build:smoke`: logo i okładka z `https://fixture.invalid`, font z `/assets`.
+  it("fixture `/`, `/blog` i wpisu (preloady 1:1 z artefaktu): pomiar i progi bez zmian", () => {
+    // Preloady dokumentu fixture `/blog` (`/` i wpis `/blog/fixture-2` mają te same trzy:
+    // logo nagłówka, okładka-kandydat, font) i jego nagłówek `Link` z artefaktu
+    // `build:smoke`: logo i okładka z `https://fixture.invalid`, font z `/assets`.
     const html = page(
       imagePreload("https://fixture.invalid/image.svg") +
         '<link rel="preload" as="image" href="https://fixture.invalid/cover.jpg" fetchPriority="high"/>' +
@@ -132,7 +134,7 @@ describe("documentWeight: klucz duplikatu preloadu a origin kanoniczny mediów",
       ],
     });
     const gated = ["preloadDuplicates", "documentPreloadDuplicates", "imagePreloadCount"];
-    for (const budgets of [homeBudgets, blogBudgets]) {
+    for (const budgets of [homeBudgets, blogBudgets, postBudgets]) {
       const results = checkBudgets(w, budgets.budgets as Budgets).filter((r) =>
         gated.includes(r.metric),
       );

@@ -1500,6 +1500,23 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // lazy-loadować (enhanceContentImages). Ta sama reguła co buildCoverPreload
   // w loaderze - preload i eager dotyczą dokładnie tego samego przypadku
   // (wyjątek: okładka `data:` jest malowana, ale nie ma czego preloadować).
+  //
+  // KANDYDAT LCP WPISU (P1.4: jeden `data-lcp-candidate` na stronę). Ta sama
+  // flaga wybiera właściciela: okładka nad treścią (`coverLcpCandidate` ->
+  // znacznik na jej `<img>`) ALBO dokument buildera w treści (`lcpOwner`),
+  // nigdy oba. Warunek jest dosłownie `showCover` z `PostLayoutRenderer` (ten
+  // sam preset z `findLayout`/`pickLayoutId` i ten sam adres okładki), więc
+  // znacznik dostaje dokładnie malowany obraz. Kopia, nie wspólna funkcja
+  // w `postLayouts.ts`: ten moduł jedzie w chunku bootu `app-initial` (loader
+  // trasy), więc nowy eksport dokładał bajty do bootu KAŻDEJ strony (zmierzone
+  // na buildzie), a warunek czytają wyłącznie komponenty wpisu. Zgodność kopii
+  // pilnują testy `platformPublicRender`, `PostLayoutRenderer.test`
+  // i `postCoverLcpOwnership.ssr`. Okładka `data:` też jest kandydatem: jest
+  // malowana i bywa elementem LCP (wpis LCP niesie element, więc loader bootu
+  // przyjmuje go regułą (i) bez preloadu), a dokument buildera nie jest wtedy
+  // właścicielem. Zapas `false` (strona albo ustawienia układu jeszcze bez
+  // danych - wtedy gałąź `PostLayoutRenderer` niżej się nie renderuje) zostawia
+  // własność treści, jak dotąd.
   const coverAboveBody = (() => {
     if (!isPost || !post || !globalLayoutSettings) return false;
     const fmt: PostFormat = (post.layout_overrides?.format ??
@@ -1572,9 +1589,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             stream
             eagerFirstImage={isPost && !coverAboveBody}
             // Okładka nad treścią jest wtedy JEDYNYM kandydatem LCP wpisu
-            // (preload: React z jej `<img fetchPriority="high">` + nagłówek
-            // `Link` z loadera), więc dokument buildera w treści nie wyznacza
-            // drugiego (P1.4: jeden `data-lcp-candidate` na stronę).
+            // (znacznik: `coverLcpCandidate` niżej; preload: React z jej
+            // `<img fetchPriority="high">` + nagłówek `Link` z loadera), więc
+            // dokument buildera w treści nie wyznacza drugiego (P1.4: jeden
+            // `data-lcp-candidate` na stronę).
             lcpOwner={!coverAboveBody}
           />
           <FootnotesList notes={notes} lang={lang} />
@@ -1658,6 +1676,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             coverViewTransitionId={it.id}
+            // Para z `lcpOwner={!coverAboveBody}` treści wyżej: dokładnie jeden
+            // właściciel znacznika `data-lcp-candidate` (komentarz `coverAboveBody`).
+            coverLcpCandidate={coverAboveBody}
             entityId={it.id}
             entityType="post"
             sidebarOverride={overrides?.has_sidebar ?? null}

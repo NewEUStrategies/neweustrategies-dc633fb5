@@ -76,9 +76,9 @@ const emptyTables = new Set([
  * WPIS POD STAŁYM ADRESEM - WYŁĄCZNIE DLA BRAMKI WAGI DOKUMENTU.
  *
  * `node scripts/performance/check-document-weight.ts --root . --path /blog/fixture-2`
- * mierzy stronę wpisu (`/$`): okładkę eager/high z `PostLayoutRenderer` i logo
- * `ReadingHeader`, czyli dokładnie te `<img>`, które React auto-preloaduje w `<head>` obok
- * preloadu z `head()` trasy - źródło duplikatów preloadów obrazów z produkcji. Bez tych
+ * mierzy stronę wpisu (`/$`): okładkę-kandydata LCP z `PostLayoutRenderer` (eager/high
+ * + `data-lcp-candidate`), logo `ReadingHeader` (leniwe od P1.4 na wpisie) i preloady
+ * obrazów w `<head>` oraz nagłówku `Link` - źródło duplikatów preloadów z produkcji. Bez tych
  * odpowiedzi `resolve_path` i `get_related_posts_config` rzucały „Unrecorded…”, loader
  * `/$` widział błąd zapytania i oddawał render ZDEGRADOWANY (200, bez wpisu i okładki),
  * więc pomiar wpisu niczego nie mierzył.
@@ -87,10 +87,10 @@ const emptyTables = new Set([
  * syntetyczną sekcją `blog`: `page_full_path` fixture odpowiada `/blog` dla każdej strony,
  * więc adres kanoniczny wpisu (pełna ścieżka rodzica + slug) to dokładnie mierzona
  * ścieżka. Żadnego nowego wiersza w `posts`/`pages` - `/` i `/blog` czytają te tabele,
- * a ich progi (`document-weight-budgets*.json`) liczono bez niego. Wpis nie ma pliku
- * progów ani kroku CI: progi `/` do niego nie pasują (okładka bez `data-lcp-candidate`,
- * logo `ReadingHeader` poza `<header data-site-header>`, inna seria bootu), więc wynik
- * czyta się po metrykach preloadów, nie po kodzie wyjścia.
+ * a ich progi (`document-weight-budgets.json`, `.blog.json`) liczono bez niego. Progi
+ * wpisu: `document-weight-budgets.post.json` (krok CI w `first-visit.yml`) - od `/` różni
+ * się wyłącznie seria bootu (domknięcie statyczne trasy `/$`; uzasadnienie w `_comment`
+ * tamtego pliku).
  *
  * ZAKRES: tylko `NES_PERFORMANCE_CASE=document-weight` (ustawia go wyłącznie
  * `check-document-weight.ts`). Specy first-visit (`lighthouse-local`, `slow-first-fold`,

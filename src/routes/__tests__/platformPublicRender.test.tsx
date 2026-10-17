@@ -241,7 +241,15 @@ vi.mock("@/components/ads/FooterSlideup", () => ({
 
 import { Route } from "@/routes/$";
 import { resolvedContentQueryOptions } from "@/lib/queries/public";
-import { defaultPostLayoutSettings } from "@/lib/postLayouts";
+import {
+  AUDIO_LAYOUTS,
+  GALLERY_LAYOUTS,
+  STANDARD_LAYOUTS,
+  VIDEO_LAYOUTS,
+  defaultPostLayoutSettings,
+  type LayoutOverrides,
+  type PostFormat,
+} from "@/lib/postLayouts";
 import { TOC_DEFAULTS } from "@/lib/toc/settings";
 import { DEFAULT_READING_TIME_SETTINGS } from "@/lib/readingTime";
 import { DEFAULT_METERING_SETTINGS } from "@/lib/access/metering";
@@ -782,5 +790,99 @@ describe("trasa łapiąca wszystko - wejścia brzegowe kompozycji", () => {
     // `rendersCover` policzone z formatu `standard` - ta sama decyzja, którą
     // w loaderze podejmuje `buildCoverPreload`.
     expect(prop("ContentRenderer").eagerFirstImage).toBe(false);
+  });
+});
+
+// P1.4: JEDEN `data-lcp-candidate` NA STRONĘ. Na wpisie kandydatem jest ALBO
+// okładka nad treścią (`coverLcpCandidate` dla `PostLayoutRenderer`, znacznik na
+// jej `<img>`), ALBO dokument buildera w treści (`lcpOwner` dla `ContentRenderer`)
+// - nigdy oba i nigdy żaden, gdy okładka jest malowana (loader bootu wpisu
+// w trybie `lcp` bez znacznika startował po pierwszej klatce, przed okładką).
+// Liście są tu atrapami z propsami, więc test czyta decyzję prawdziwej trasy;
+// znacznik na `<img>` sprawdza `PostLayoutRenderer.test.tsx`, a brak kandydata
+// treści przy `lcpOwner={false}` - testy renderera buildera.
+describe("kandydat LCP wpisu: okładka ALBO treść, nigdy oba", () => {
+  const STORAGE_COVER = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg";
+  const DATA_COVER = "data:image/png;base64,iVBORw0KGgo=";
+  const SETS: Record<PostFormat, readonly { id: string; cover: string; header: string }[]> = {
+    standard: STANDARD_LAYOUTS,
+    video: VIDEO_LAYOUTS,
+    audio: AUDIO_LAYOUTS,
+    gallery: GALLERY_LAYOUTS,
+  };
+  type Case = readonly [
+    name: string,
+    item: {
+      post_format: PostFormat;
+      layout_overrides: LayoutOverrides | null;
+      cover: string | null;
+    },
+    coverIsCandidate: boolean,
+  ];
+  const cases: Case[] = [
+    // Każdy preset każdego formatu wybrany override'em wpisu.
+    ...(Object.keys(SETS) as PostFormat[]).flatMap((format) =>
+      SETS[format].map((preset): Case => [
+        `${format}/${preset.id}`,
+        { post_format: format, layout_overrides: { layout: preset.id }, cover: STORAGE_COVER },
+        preset.cover !== "none" && preset.header !== "no-cover",
+      ]),
+    ),
+    // Domyślne układy z ustawień globalnych (bez override'u).
+    ...(Object.keys(SETS) as PostFormat[]).map((format): Case => [
+      `${format}/domyślny`,
+      { post_format: format, layout_overrides: null, cover: STORAGE_COVER },
+      true,
+    ]),
+    // `layout-9` istnieje wyłącznie w zestawie standardowym: w wideo/galerii
+    // `findLayout` spada na pierwszy preset (z okładką) - po obu stronach tak samo.
+    [
+      "video/layout-9 -> video-1",
+      { post_format: "video", layout_overrides: { layout: "layout-9" }, cover: STORAGE_COVER },
+      true,
+    ],
+    [
+      "gallery/layout-9 -> gallery-1",
+      { post_format: "gallery", layout_overrides: { layout: "layout-9" }, cover: STORAGE_COVER },
+      true,
+    ],
+    // Format z override'u wygrywa nad kolumną (ten sam łańcuch co renderer).
+    [
+      "override formatu standard -> layout-9",
+      {
+        post_format: "video",
+        layout_overrides: { format: "standard", layout: "layout-9" },
+        cover: STORAGE_COVER,
+      },
+      false,
+    ],
+    // Okładka `data:` jest malowana (bez preloadu), więc to ona jest kandydatem.
+    ["okładka data:", { post_format: "standard", layout_overrides: null, cover: DATA_COVER }, true],
+    ["bez okładki", { post_format: "standard", layout_overrides: null, cover: null }, false],
+    ["pusta okładka", { post_format: "standard", layout_overrides: null, cover: "" }, false],
+  ];
+
+  it.each(cases)("%s", (_name, item, coverIsCandidate) => {
+    mount(
+      resolvedPost({
+        item: postItem({
+          post_format: item.post_format,
+          layout_overrides: item.layout_overrides,
+          cover_image_url: item.cover,
+        }),
+      }),
+    );
+
+    expect(prop("PostLayoutRenderer").coverLcpCandidate).toBe(coverIsCandidate);
+    expect(prop("ContentRenderer").lcpOwner).toBe(!coverIsCandidate);
+    // Bez okładki pierwszy obraz treści nie może być leniwy (ten sam przypadek).
+    expect(prop("ContentRenderer").eagerFirstImage).toBe(!coverIsCandidate);
+  });
+
+  it("strona (nie wpis): kandydata wyznacza wyłącznie treść", () => {
+    mount(page());
+
+    expect(h.props.has("PostLayoutRenderer")).toBe(false);
+    expect(prop("ContentRenderer").lcpOwner).toBe(true);
   });
 });

@@ -12,14 +12,21 @@
 // miał w `<head>` dwa preloady jednego pliku. Oba paski biorą teraz `src` ze
 // wspólnego `headerLogoSrc` (`lib/brand/headerLogo`).
 //
+// OD P1.4 NA WPISIE (kandydat LCP = okładka) logo paska czytania jest LENIWE:
+// pasek startuje ukryty, a eager obraz poza `<header data-site-header>` łamał
+// regułę bramki `imgEagerNonCandidate`. React nie emituje dla niego preloadu,
+// więc jedyny preload logo pochodzi z paska mobilnego `Header`; wspólny `src`
+// zostaje, bo to jeden wpis cache'u przy odsłonięciu paska.
+//
 // CO TU MA DOWÓD (prawdziwe `Header` i `ReadingHeader`, wspólny cache ustawień,
 // `renderToReadableStream` pełnego dokumentu jak w workerze):
 //  1. kanoniczny `/media/...svg`: oba `<img>` logo mają TEN SAM względny `src`,
 //     a `<head>` ma dokładnie JEDEN preload tego pliku (po rozwiązaniu `href`
 //     względem originu kanonicznego - para względny/absolutny też się liczy);
 //  2. zdegradowany chrome (bramka danych nagłówka zawiesza, nagłówek dochodzi
-//     strumieniem później): preload pasków czytania jest w `<head>`, a
-//     dochodzący nagłówek NIE dokłada drugiego `<link>` nigdzie w dokumencie;
+//     strumieniem później): powłoka z leniwym paskiem czytania nie ma preloadu
+//     logo w `<head>`, a dochodzący nagłówek przynosi JEDYNY `<link>` (w treści,
+//     przed swoim segmentem) - nigdzie w dokumencie nie ma drugiego;
 //  3. KONTROLA NEGATYWNA: ten sam plik z surowym adresem absolutnym obok
 //     nagłówka (stan sprzed poprawki) daje DWA preloady - jedność zależy od
 //     identycznego napisu, a nie od szczęścia;
@@ -200,12 +207,20 @@ const logoImgSrcs = (html: string) =>
     .map((tag) => attr(tag, "src") ?? "")
     .filter((src) => src.endsWith(LOGO_PATH));
 
+/** `loading` każdego `<img>` z tym plikiem logo, w kolejności dokumentu. */
+const logoImgLoading = (html: string) =>
+  (html.match(/<img[^>]*>/g) ?? [])
+    .filter((tag) => (attr(tag, "src") ?? "").endsWith(LOGO_PATH))
+    .map((tag) => attr(tag, "loading"));
+
 describe("SSR wpisu: pasek mobilny + pasek czytania = jeden preload logo", () => {
   it("kanoniczny `/media/...svg`: oba `<img>` mają ten sam względny `src`, `<head>` ma jeden preload", async () => {
     const html = await ssrDocument(articleChrome, { mobile: CANONICAL_LOGO });
 
     // Pasek mobilny nagłówka i lewa kolumna paska czytania - jeden napis.
     expect(logoImgSrcs(html)).toEqual([LOGO_PATH, LOGO_PATH]);
+    // Eager (i z preloadem) jest wyłącznie logo nagłówka; pasek czytania leniwy.
+    expect(logoImgLoading(html)).toEqual(["eager", "lazy"]);
     const inHead = logoPreloads(headOf(html));
     expect(inHead).toHaveLength(1);
     expect(attr(inHead[0] ?? "", "href")).toBe(LOGO_PATH);
@@ -213,14 +228,14 @@ describe("SSR wpisu: pasek mobilny + pasek czytania = jeden preload logo", () =>
     expect(logoPreloads(html)).toHaveLength(1);
   });
 
-  it("zdegradowany chrome: nagłówek dochodzi strumieniem później i NIE dokłada drugiego preloadu", async () => {
+  it("zdegradowany chrome: nagłówek dochodzi strumieniem później z JEDYNYM preloadem logo", async () => {
     let release = () => {};
     h.chromeGate = new Promise<void>((resolve) => {
       release = resolve;
     });
     try {
       // Bramka puszcza dopiero po wysłaniu powłoki - w niej jest szkielet
-      // nagłówka i pasek czytania z preloadem logo w `<head>`.
+      // nagłówka i pasek czytania z leniwym logo.
       const html = await ssrDocument(articleChrome, { mobile: CANONICAL_LOGO }, () => release());
 
       // Granica nagłówka naprawdę doszła później (szablon granicy + segment).
@@ -228,8 +243,15 @@ describe("SSR wpisu: pasek mobilny + pasek czytania = jeden preload logo", () =>
       const headerImg = html.indexOf(`<img src="${LOGO_PATH}" alt="New European Strategies"`);
       expect(headerImg).toBeGreaterThan(html.indexOf("</main>"));
       expect(logoImgSrcs(html)).toEqual([LOGO_PATH, LOGO_PATH]);
-      expect(logoPreloads(headOf(html))).toHaveLength(1);
-      expect(logoPreloads(html)).toHaveLength(1);
+      // Powłoka ma tylko LENIWE logo paska czytania - bez preloadu w `<head>`.
+      // Jedyny preload przychodzi z dochodzącym nagłówkiem (jego logo jest
+      // eager): w treści, tuż przed segmentem granicy, i nigdzie drugi raz.
+      expect(logoPreloads(headOf(html))).toEqual([]);
+      const [preload, ...extra] = logoPreloads(html);
+      expect(extra).toEqual([]);
+      expect(attr(preload ?? "", "href")).toBe(LOGO_PATH);
+      expect(html.indexOf(preload ?? "")).toBeGreaterThan(html.indexOf("</main>"));
+      expect(html.indexOf(preload ?? "")).toBeLessThan(headerImg);
     } finally {
       h.chromeGate = null;
     }
