@@ -186,6 +186,6 @@ const en: typeof pl = {
   },
 };
 
-// overwrite=false -> nie ruszamy istniejących kluczy rdzenia, tylko dokładamy braki.
+// overwrite=false -> nie ruszamy istniejących kluczy właściciela (`i18n-admin-core`), tylko dokładamy braki.
 i18n.addResourceBundle("pl", "translation", pl, true, false);
 i18n.addResourceBundle("en", "translation", en, true, false);

@@ -796,7 +796,7 @@ export const adminExtrasPl = {
         "Obrazek, który widzą odbiorcy po wklejeniu linku w Messengerze, WhatsAppie, LinkedIn, X czy Slacku. Zalecany format: 1200x630 px, JPG/PNG, poniżej 1 MB.",
       title: "Podgląd linków (og:image)",
     },
-    // Ekran `/admin/tags` (rdzeń ma tu tylko `placeholder`). Nazwa tagu siedzi
+    // Ekran `/admin/tags` (słownik panelu `i18n-admin-core` ma tu tylko `placeholder`). Nazwa tagu siedzi
     // w etykiecie ×, bo chipy stoją rzędem: samo „Usuń” nie mówi czytnikowi
     // ekranu, KTÓRY tag zniknie.
     tags: {

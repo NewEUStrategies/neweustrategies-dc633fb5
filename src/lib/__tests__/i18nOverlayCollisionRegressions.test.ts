@@ -49,14 +49,54 @@ describe("admin-media: słownik panelu i drugi język dociągnięte PO nakładce
 
     // Nakładka rejestruje się z overwrite=false („nie ruszamy właściciela")...
     await import("@/lib/i18n-admin-media");
+    // Zdjęcie magazynu w oknie, w którym stoi WYŁĄCZNIE nakładka. Słownik
+    // panelu rejestruje się z overwrite=true, więc po jego imporcie końcowe
+    // `t()` zgadza się zawsze - sama asercja na końcu przeszłaby nawet wtedy,
+    // gdyby nakładka znów niosła „Potwierdź usunięcie". A ten tekst admin
+    // widział naprawdę: w oknie przed `AdminSession` i przy każdej przyszłej
+    // ścieżce, która zarejestruje nakładkę bez słownika panelu. Kopia
+    // głęboka, bo i18next scala kolejne paczki w ten sam obiekt magazynu.
+    const overlayOnly = {
+      pl: structuredClone(i18n.getResource("pl", "translation", "admin") as unknown),
+      en: structuredClone(i18n.getResource("en", "translation", "admin") as unknown),
+    } as const;
     // ...ale właściciel i rdzeń EN przychodzą DOPIERO TERAZ. Gdyby nakładka
     // niosła pod tymi kluczami INNE zdania niż właściciel, administrator
-    // widziałby napis zależny od kolejności chunków - tego pilnuje bramka
-    // `i18nOverlayIntegrity.gate.test.ts`, a ten test - skutku na ekranie.
+    // widziałby napis zależny od kolejności chunków - na danych pilnuje tego
+    // bramka `i18nOverlayIntegrity.gate.test.ts`, tu - skutku na ekranie.
     const { adminCorePl, adminCoreEn } = await import("@/lib/i18n-admin-core");
     await ensureCoreLanguage("en");
 
     const owner = { pl: adminCorePl, en: adminCoreEn } as const;
+    // Każdy liść `admin.*`, który nakładka zostawiła w magazynie, a który ma
+    // też właściciel, musi nieść zdanie właściciela - inaczej ekran mówi czym
+    // innym przed rejestracją słownika panelu i po niej.
+    const walk = (node: unknown, path: string, out: Array<[string, unknown]>): void => {
+      if (node !== null && typeof node === "object") {
+        for (const [k, v] of Object.entries(node)) walk(v, path ? `${path}.${k}` : k, out);
+      } else out.push([path, node]);
+    };
+    let compared = 0;
+    for (const lang of ["pl", "en"] as const) {
+      const leaves: Array<[string, unknown]> = [];
+      walk(overlayOnly[lang], "admin", leaves);
+      for (const [path, value] of leaves) {
+        const ownerLeaf = path
+          .split(".")
+          .reduce<unknown>(
+            (node, part) =>
+              node !== null && typeof node === "object" ? Reflect.get(node, part) : undefined,
+            owner[lang],
+          );
+        if (ownerLeaf === undefined) continue;
+        compared += 1;
+        expect(value, `${lang}:${path} (nakładka przed właścicielem)`).toBe(ownerLeaf);
+      }
+    }
+    // Bezpiecznik samego testu: nakładka mediów dzieli z właścicielem wspólne
+    // przyciski (`admin.save`, `admin.cancel`…), więc zero porównań znaczy, że
+    // zdjęcie wyżej nie widzi magazynu - a nie, że kolizji brak.
+    expect(compared).toBeGreaterThan(0);
     const ownerValue = (lang: "pl" | "en", path: string): unknown =>
       path
         .split(".")
