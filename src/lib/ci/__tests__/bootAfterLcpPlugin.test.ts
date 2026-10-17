@@ -118,6 +118,16 @@ describe("nes:boot-after-lcp - podział manifestu", () => {
     );
     expect(() => evaluateStartManifestModule("export default {}")).toThrow(/tsrStartManifest/);
   });
+
+  it("arkusz w `css` korzenia przerywa build (blokowałby render każdej strony)", () => {
+    const script = { attrs: { type: "module", async: true, src: ENTRY } };
+    const withRootCss = (css: unknown) => ({ routes: { __root__: { scripts: [script], css } } });
+    expect(() => splitStartManifest(withRootCss(["/assets/Lightbox-Ab12Cd34.css"]))).toThrow(
+      /korzeń ma arkusze w manifeście \(\/assets\/Lightbox-Ab12Cd34\.css\)/,
+    );
+    // Pusta lista to brak arkuszy - framework pisze ją dla korzenia bez CSS.
+    expect(() => splitStartManifest(withRootCss([]))).not.toThrow();
+  });
 });
 
 type TransformResult = { code: string } | null | undefined;

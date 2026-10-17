@@ -63,6 +63,12 @@ vi.mock("@/hooks/usePrefersReducedMotion", () => ({
   usePrefersReducedMotion: () => h.reduced,
 }));
 
+// Vitest nie przepuszcza CSS przez potok Vite, więc `?url` arkusza mapy nie ma tu adresu;
+// atrapa podaje adres w kształcie tego z builda.
+vi.mock("@/components/maps/world-map.css?url", () => ({
+  default: "/assets/world-map-T3st.css",
+}));
+
 import { WorldMap } from "@/components/maps/WorldMap";
 import { axeViolations, summarize } from "@/test/axe";
 
@@ -591,5 +597,24 @@ describe("WorldMap - punkt z odsyłaczem, ale BEZ nazwy", () => {
       violations.map((v) => v.id),
       summarize(violations),
     ).not.toContain("link-name");
+  });
+});
+
+describe("WorldMap - arkusz mapy razem z HTML-em serwera", () => {
+  // Arkusz z bocznego `import "./world-map.css"` znał tylko pomocnik `import()` klienta,
+  // więc mapa z HTML-a serwera stała bez stylów aż do bootu (etykiety bez pozycji, skok
+  // układu). Render musi sam nieść link zasobu, który React hoistuje do `<head>` albo
+  // którym wstrzymuje odsłonięcie granicy strumienia.
+  it("render serwera emituje `<link rel=stylesheet>` arkusza mapy z precedencją", () => {
+    const html = renderToString(<WorldMap dots={oneArc} />);
+
+    const link = /<link rel="stylesheet" href="([^"]+)" data-precedence="default"\/>/.exec(html);
+    expect(link?.[1]).toBe("/assets/world-map-T3st.css");
+  });
+
+  it("stan pusty nie ciągnie arkusza - nic go nie używa", () => {
+    const html = renderToString(<WorldMap dots={[]} />);
+
+    expect(html).not.toContain("world-map-T3st.css");
   });
 });

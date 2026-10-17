@@ -141,6 +141,17 @@ export function splitStartManifest(input: unknown): SplitStartManifest {
   }
   const root = input.routes[ROOT_ROUTE_ID];
   if (!isRecord(root)) throw new Error("manifest bez trasy korzenia");
+  // Arkusz w `css` KORZENIA blokowałby render KAŻDEJ strony obok `styles.css?url` z `head()`.
+  // Trafia tam boczny import CSS (`import "./x.css"`) z modułu domknięcia bootu - także z pliku
+  // trasy, którego moduł opcji jest `$initial` (`scripts/lib/clientChunkGroups.ts`, „PUŁAPKA
+  // `$initial`"). Arkusz funkcji ma żyć w leniwym chunku albo jako `<link precedence>` w renderze
+  // komponentu, który go używa (`components/maps/WorldMap.tsx`).
+  if (Array.isArray(root.css) && root.css.length > 0) {
+    throw new Error(
+      `korzeń ma arkusze w manifeście (${root.css.map(String).join(", ")}) - boczny import CSS ` +
+        "w domknięciu bootu blokowałby render każdej strony",
+    );
+  }
   const scripts = Array.isArray(root.scripts) ? root.scripts : [];
   const entryScripts = scripts.filter(isEntryScript);
   if (entryScripts.length !== 1) {

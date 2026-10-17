@@ -2,8 +2,12 @@
 // CSS pakietu bundlowany przez Vite (ekstrakcja do chunku CSS) zamiast
 // ładowania z cdn.jsdelivr.net przy pierwszym otwarciu - zero zależności od
 // zewnętrznego CDN, zero błysku niestylowanego lightboxa i działa offline/
-// za restrykcyjnym CSP. SSR-friendly: renderer tylko po stronie klienta.
-import { useEffect, useState } from "react";
+// za restrykcyjnym CSP.
+//
+// Moduł ładuje się WYŁĄCZNIE leniwie (`GalleryBlock`, przy pierwszym otwarciu), więc
+// i on, i jego arkusz są poza serią bootu i poza `css` manifestu tras. Statyczny import
+// tego pliku z modułu renderowanego na stronach publicznych przywróciłby blokujący
+// render arkusz na każdej stronie `/$`.
 import Lightbox, { type SlideImage } from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 
@@ -16,14 +20,6 @@ interface Props {
 }
 
 export function ImageLightbox({ open, index, slides, onClose, onIndexChange }: Props) {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    if (open) setReady(true);
-  }, [open]);
-
-  if (!ready) return null;
-
   return (
     <Lightbox
       open={open}
