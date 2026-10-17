@@ -182,7 +182,6 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       throw new Error("invalid_return_url");
     }
     try {
-      // eslint-disable-next-line no-new
       new URL(data.returnUrl);
     } catch {
       throw new Error("invalid_return_url");
