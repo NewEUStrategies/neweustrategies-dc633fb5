@@ -38,7 +38,7 @@ vi.mock("react-i18next", async () => {
   return fixtures.reactI18nextStub();
 });
 
-vi.mock("@/lib/i18n-admin-extras", () => ({ ensureI18n: () => {} }));
+vi.mock("@/lib/i18n-company", () => ({ ensureI18n: () => {} }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth.current }));
 

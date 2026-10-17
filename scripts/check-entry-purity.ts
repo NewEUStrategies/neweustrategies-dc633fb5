@@ -239,6 +239,18 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
     remedy:
       "`head()` czyta `MEMBER_PROFILE_HEAD` z `lib/profile/memberProfileHead.ts`; słownik importuje wyłącznie komponent trasy (`ensureI18n()`)",
   },
+  // 2026-10-17: ten sam wzorzec co wpis z 2026-08-18 wyżej - `import
+  // "@/lib/i18n-admin-users"` (bez referencji) w pliku trasy
+  // `admin.users.invitations` zostawał w niedzielonej części pliku, więc
+  // słownik karty użytkownika (15,3 kB źródeł) jechał w `app-initial`, czyli
+  // w bootcie KAŻDEJ strony publicznej. Znacznik: zdanie wyniku zaproszenia.
+  {
+    label: "i18n-admin-users (słownik karty i zaproszeń użytkowników, ~15 kB źródeł)",
+    markers: ["Tej roli nie można nadać zaproszeniem. Wybierz rolę z listy."],
+    remedy:
+      "w pliku trasy zamień side-effectowy import słownika na " +
+      "`import { ensureI18n } from …` wołane w komponencie trasy (wzorzec: admin.users.index)",
+  },
 ];
 
 /**

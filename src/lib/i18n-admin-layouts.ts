@@ -1,4 +1,10 @@
 // Zasoby i18n dla tras layoutów wpisów i stron ekspertów.
+//
+// TYLKO PANEL. Etykiety `adminLayouts.expertLayouts.*`, które czyta też
+// publiczny inline-edytor eksperta (sekcje, strzałki, wycentrowanie, akcent),
+// mają właściciela w `i18n-expert-layout-editor.ts` - /admin/expert-layouts
+// rejestruje oba słowniki. Import tego pliku z modułu osiągalnego z trasy
+// publicznej liczy go do sumy PUBLIC `check:bundle`.
 import i18n from "@/lib/i18n";
 
 const pl = {
@@ -79,14 +85,8 @@ const pl = {
       saving: "Zapisuję…",
       defaultPreset: "Domyślny preset",
       selectedPrefix: "Wybrany:",
-      sectionsHeading: "Sekcje strony eksperta",
       sectionsHint: "Włącz/wyłącz sekcje oraz ustal ich kolejność (strzałki).",
-      moveUp: "Przesuń w górę",
-      moveDown: "Przesuń w dół",
       restoreOrder: "Przywróć domyślną kolejność",
-      centeringHeading: "Wycentrowanie",
-      centerHero: "Wycentruj hero (tytuł, funkcja, socials)",
-      centerDetails: "Wycentruj sekcję bio/szczegółów",
       widthTypoHeading: "Szerokość i typografia",
       maxWidth: "Max szerokość (px)",
       nameMobile: "Nazwisko - mobile (px)",
@@ -97,25 +97,9 @@ const pl = {
       heroBgDark: "Tło hero (dark)",
       heroTextLight: "Tekst hero (light)",
       heroTextDark: "Tekst hero (dark)",
-      accentLight: "Akcent (light)",
-      accentDark: "Akcent (dark)",
       bioBulletLight: "Punktor BIO (light)",
       bioBulletDark: "Punktor BIO (dark)",
       clear: "Wyczyść",
-      clearTitle: "Wyczyść (użyj koloru motywu)",
-      colorAutoPlaceholder: "auto (motyw)",
-      sections: {
-        hero_cover: "Okładka hero",
-        expertise_bar: "Pasek obszarów ekspertyzy",
-        details: "Bio i szczegóły",
-        social_row: "Social media (WWW, LinkedIn, X)",
-        contact_card: "Karta kontaktowa",
-        media_mentions: "Wzmianki w mediach",
-        podcast_strip: "Podcasty",
-        materials: "Materiały (publikacje, raporty, wideo)",
-        cv: "CV (doświadczenie, edukacja, umiejętności)",
-        programs: "Programy i projekty",
-      },
     },
     expertPreview: {
       title: "Podgląd na żywo",
@@ -212,14 +196,8 @@ const en = {
       saving: "Saving…",
       defaultPreset: "Default preset",
       selectedPrefix: "Selected:",
-      sectionsHeading: "Expert page sections",
       sectionsHint: "Enable/disable sections and set their order (arrows).",
-      moveUp: "Move up",
-      moveDown: "Move down",
       restoreOrder: "Restore default order",
-      centeringHeading: "Centering",
-      centerHero: "Center the hero (title, role, socials)",
-      centerDetails: "Center the bio/details section",
       widthTypoHeading: "Width and typography",
       maxWidth: "Max width (px)",
       nameMobile: "Name - mobile (px)",
@@ -230,25 +208,9 @@ const en = {
       heroBgDark: "Hero background (dark)",
       heroTextLight: "Hero text (light)",
       heroTextDark: "Hero text (dark)",
-      accentLight: "Accent (light)",
-      accentDark: "Accent (dark)",
       bioBulletLight: "BIO bullet (light)",
       bioBulletDark: "BIO bullet (dark)",
       clear: "Clear",
-      clearTitle: "Clear (use theme color)",
-      colorAutoPlaceholder: "auto (theme)",
-      sections: {
-        hero_cover: "Hero cover",
-        expertise_bar: "Expertise areas bar",
-        details: "Bio and details",
-        social_row: "Social media (WWW, LinkedIn, X)",
-        contact_card: "Contact card",
-        media_mentions: "Media mentions",
-        podcast_strip: "Podcasts",
-        materials: "Materials (publications, reports, video)",
-        cv: "CV (experience, education, skills)",
-        programs: "Programs and projects",
-      },
     },
     expertPreview: {
       title: "Live preview",

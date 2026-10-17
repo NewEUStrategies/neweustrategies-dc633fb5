@@ -7,8 +7,12 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 // Klucze wyników wysyłki idą do `t()` dynamicznie (`invitationErrorKey`), więc
-// bramka importów nakładek ich nie widzi - nakładka jest importowana wprost.
-import "@/lib/i18n-admin-users";
+// bramka importów nakładek ich nie widzi - nakładka jest rejestrowana wprost,
+// ale NAZWANYM `ensureI18n()` w komponencie, nie importem side-effectowym:
+// splitter TanStacka zostawia import bez referencji w niedzielonej części
+// pliku trasy, a ta jedzie w chunku wejściowym każdej strony publicznej
+// (`i18n-admin-users`, 15 kB źródeł, siedział w `app-initial`).
+import { ensureI18n as ensureAdminUsersI18n } from "@/lib/i18n-admin-users";
 import { invitationErrorKey } from "@/lib/admin/invitationErrors";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +49,7 @@ export const Route = createFileRoute("/admin/users/invitations")({
 function InvitationsPage() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureAdminMiscRoutesI18n();
+  ensureAdminUsersI18n();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const list = useServerFn(listInvitations);
