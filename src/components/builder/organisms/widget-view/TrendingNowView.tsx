@@ -11,6 +11,8 @@ import { Flame } from "lucide-react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
@@ -146,24 +148,13 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
                   {String((i % rows.length) + 1).padStart(2, "0")}
                 </span>
               ) : null}
-              <span className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
+              <span data-title-root className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
                 {title(p)}
               </span>
               {showAuthor && (p.author_avatar_url || p.author_display_name) ? (
                 <span className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-                  {p.author_avatar_url ? (
-                    <img
-                      src={p.author_avatar_url}
-                      alt=""
-                      loading="lazy"
-                      className="h-6 w-6 rounded-full object-cover ring-1 ring-border"
-                    />
-                  ) : null}
-                  {p.author_display_name ? (
-                    <span className="hidden whitespace-nowrap text-[13px] font-semibold text-muted-foreground sm:inline">
-                      {p.author_display_name}
-                    </span>
-                  ) : null}
+                  <AuthorByline name={p.author_display_name || " "} avatarUrl={p.author_avatar_url}
+                    display={resolveAuthorDisplay(c, lang)} nameClassName="hidden whitespace-nowrap sm:inline" />
                 </span>
               ) : null}
             </AppLink>

@@ -31,7 +31,12 @@ function renderControl(
 ) {
   const setContent = vi.fn<(k: string, v: Json) => void>();
   const view = render(
-    <AuthorDisplayControl c={c} lang="pl" setContent={setContent} defaults={defaults} />,
+    <AuthorDisplayControl
+      c={{ authorSizeRelativeToTitle: false, ...c }}
+      lang="pl"
+      setContent={setContent}
+      defaults={defaults}
+    />,
   );
   const written = (): Record<string, Json> =>
     Object.fromEntries(setContent.mock.calls.map(([k, v]) => [k, v]));
@@ -39,6 +44,12 @@ function renderControl(
 }
 
 afterEach(cleanup);
+
+it("zapisuje powiązanie rozmiaru autora z tytułem przez kontrolkę CMS", () => {
+  const { written } = renderControl({ authorSizeRelativeToTitle: false });
+  fireEvent.click(screen.getByRole("switch", { name: "Rozmiar autora: tytuł minus 2 px" }));
+  expect(written().authorSizeRelativeToTitle).toBe(true);
+});
 
 describe("AuthorDisplayControl - zapis widoczności", () => {
   it("wyłączenie zdjęcia zostawia nazwisko i przechodzi w tryb etykiety", () => {

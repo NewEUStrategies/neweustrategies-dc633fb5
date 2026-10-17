@@ -188,6 +188,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     authorLabel_pl: asStr(c.authorLabel_pl),
     authorLabel_en: asStr(c.authorLabel_en),
     authorSizePx: author.nameSizePx,
+    authorSizeRelativeToTitle: author.relativeToTitle,
     authorAvatarSizePx: author.avatarSizePx,
 
     navSizePx,

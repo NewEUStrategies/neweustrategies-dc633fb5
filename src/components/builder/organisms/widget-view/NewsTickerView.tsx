@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { resolveAuthorDisplay, type AuthorDisplay } from "@/lib/builder/authorDisplay";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { WidgetStyleSheet, WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
 import { useMotionGate } from "@/lib/performance/motionGate";
@@ -102,7 +104,7 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   return (
     <NewsTickerVertical badge={badge} durationSec={speedSeconds} pauseOnHover={pauseOnHover}>
       {rows.map((p, i) => (
-        <NewsTickerVerticalItem key={p.id} post={p} index={i} title={title(p)} />
+        <NewsTickerVerticalItem key={p.id} post={p} index={i} title={title(p)} authorDisplay={resolveAuthorDisplay(c, lang)} />
       ))}
     </NewsTickerVertical>
   );
@@ -112,10 +114,12 @@ function NewsTickerVerticalItem({
   post,
   index,
   title,
+  authorDisplay,
 }: {
   post: TickerPost;
   index: number;
   title: string;
+  authorDisplay: AuthorDisplay;
 }) {
   const displayName = post.author_display_name || undefined;
 
@@ -128,24 +132,13 @@ function NewsTickerVerticalItem({
       <span className="shrink-0 text-[10px] font-bold text-[var(--brand)] opacity-60">
         {String(index + 1).padStart(2, "0")}
       </span>
-      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
+      <span data-title-root className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
         {title}
       </span>
       {post.author_avatar_url || displayName ? (
         <span className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-          {post.author_avatar_url ? (
-            <img
-              src={post.author_avatar_url}
-              alt=""
-              loading="lazy"
-              className="h-5 w-5 rounded-[5px] object-cover shadow-sm ring-1 ring-border"
-            />
-          ) : null}
-          {displayName ? (
-            <span className="hidden sm:inline whitespace-nowrap text-[10px] font-medium text-muted-foreground">
-              {displayName}
-            </span>
-          ) : null}
+          <AuthorByline name={displayName || " "} avatarUrl={post.author_avatar_url}
+            display={authorDisplay} nameClassName="hidden sm:inline whitespace-nowrap" />
         </span>
       ) : null}
     </AppLink>

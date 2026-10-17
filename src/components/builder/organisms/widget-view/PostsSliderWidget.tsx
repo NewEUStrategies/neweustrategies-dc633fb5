@@ -142,6 +142,7 @@ export function PostsSliderWidget({
     authorLabel_pl: asStr(c.authorLabel_pl),
     authorLabel_en: asStr(c.authorLabel_en),
     authorSizePx: author.nameSizePx,
+    authorSizeRelativeToTitle: author.relativeToTitle,
     authorAvatarSizePx: author.avatarSizePx,
     // Nie odfiltrowujemy slajdów po braku cover_image_url - inaczej wyłączenie
     // "Pokaż cover" (lub post bez okładki) trwale usuwałoby slajd z karuzeli

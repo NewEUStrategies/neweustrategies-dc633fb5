@@ -14,6 +14,7 @@ import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { safeImageUrl } from "@/lib/sanitizePure";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
+import { useAuthorTitleSize } from "./useAuthorTitleSize";
 import {
   AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
   AUTHOR_AVATAR_SIZE_PX_DEFAULT,
@@ -86,6 +87,8 @@ export function AuthorByline({
   onClick,
   children,
 }: AuthorBylineProps) {
+  const relativeToTitle = display.relativeToTitle ?? true;
+  const titleSize = useAuthorTitleSize(relativeToTitle);
   const safeName = name.trim();
   // Sam awatar bez nazwiska jest sensownym trybem, ale awatar bez ŻADNYCH danych
   // autora nie - taki byline byłby pustym kwadratem bez znaczenia.
@@ -126,7 +129,15 @@ export function AuthorByline({
   // inline: to ono wygrywa z globalnymi regułami obrazów buildera (patrz
   // komentarz wyżej) i pilnują go testy kontraktu bylinu.
   const textStyle: CSSProperties & Record<string, string | number> = {
-    fontSize: `${display.nameSizePx}px`,
+    fontSize: `${titleSize.size ?? display.nameSizePx}px`,
+    ...(relativeToTitle
+      ? {
+          "--abl-title-relative-size":
+            titleSize.size === undefined
+              ? "calc(var(--td-pt-size, 16px) - 2px)"
+              : `${titleSize.size}px`,
+        }
+      : null),
     lineHeight: 1.35,
     ...(display.nameSizePx === AUTHOR_NAME_SIZE_PX_DEFAULT
       ? null
@@ -231,11 +242,15 @@ export function AuthorByline({
   if (href) {
     return (
       <AppLink
+        ref={(node) => {
+          titleSize.ref.current = node;
+        }}
         href={href}
         className={baseCls}
         style={textStyle}
         onClick={onClick}
         data-author-byline={display.mode}
+        data-author-title-relative={relativeToTitle ? "" : undefined}
         data-typography-exempt
       >
         {inner}
@@ -245,10 +260,14 @@ export function AuthorByline({
 
   return (
     <span
+      ref={(node) => {
+        titleSize.ref.current = node;
+      }}
       className={baseCls}
       style={textStyle}
       onClick={onClick}
       data-author-byline={display.mode}
+      data-author-title-relative={relativeToTitle ? "" : undefined}
       data-typography-exempt
     >
       {inner}

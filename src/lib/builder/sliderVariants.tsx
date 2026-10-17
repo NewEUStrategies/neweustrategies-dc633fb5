@@ -131,6 +131,7 @@ export interface SliderConfig {
   authorLabel_en?: string;
   /** Rozmiar czcionki imienia i nazwiska autora (px). Domyślnie 12. */
   authorSizePx?: number;
+  authorSizeRelativeToTitle?: boolean;
   /** Rozmiar zdjęcia autora (px). Domyślnie 20, niezależny od czcionki. */
   authorAvatarSizePx?: number;
 

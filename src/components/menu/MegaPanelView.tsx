@@ -280,7 +280,7 @@ export function MegaPanelView({
                       <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
                         {authorLabel}
                       </span>
-                      <span className="truncate text-[12px] font-bold text-foreground">{name}</span>
+                      <span className="truncate text-[11px] font-bold text-foreground">{name}</span>
                     </span>
                   );
                   return href ? (
@@ -294,7 +294,7 @@ export function MegaPanelView({
                         <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
                           {authorLabel}
                         </span>
-                        <span className="truncate text-[12px] font-bold text-foreground transition-colors group-hover/author:text-brand">
+                        <span className="truncate text-[11px] font-bold text-foreground transition-colors group-hover/author:text-brand">
                           {name}
                         </span>
                       </span>

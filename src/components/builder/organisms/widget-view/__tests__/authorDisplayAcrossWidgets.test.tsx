@@ -191,7 +191,7 @@ afterEach(cleanup);
 describe("byline autora - domyślnie 12 px nazwiska i 20 px zdjęcia w KAŻDYM widgecie", () => {
   it.each(WIDGETS.map((w) => [w.label, w] as const))("%s", async (_label, widget) => {
     widget.prepare?.();
-    const { container } = wrap(widget.render({}));
+    const { container } = wrap(widget.render({ authorSizeRelativeToTitle: false }));
     await waitFor(() => expect(bylineAvatar(container)).not.toBeNull());
 
     expect(bylineAvatar(container)?.getAttribute("width")).toBe("20");
@@ -240,7 +240,9 @@ describe("byline autora - typografia sekcji nie ma jak przejąć rozmiaru", () =
 describe("byline autora - oba rozmiary zmieniane niezależnie w KAŻDYM widgecie", () => {
   it.each(WIDGETS.map((w) => [w.label, w] as const))("%s", async (_label, widget) => {
     widget.prepare?.();
-    const { container } = wrap(widget.render({ authorSizePx: 17, authorAvatarSizePx: 44 }));
+    const { container } = wrap(
+      widget.render({ authorSizeRelativeToTitle: false, authorSizePx: 17, authorAvatarSizePx: 44 }),
+    );
     await waitFor(() => expect(bylineAvatar(container)).not.toBeNull());
 
     expect(bylineAvatar(container)?.getAttribute("width")).toBe("44");

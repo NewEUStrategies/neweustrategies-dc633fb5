@@ -28,6 +28,7 @@ import {
   type AuthorDisplayDefaults,
 } from "@/lib/builder/authorDisplay";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { NumberInput, PropField } from "../atoms";
 
@@ -94,6 +95,16 @@ export function AuthorDisplayControl({
       )}
 
       {display.showName && (
+        <label className="flex cursor-pointer items-center justify-between gap-2 py-1">
+          <span className="text-xs">{t("builder.authorDisplay.relativeToTitle")}</span>
+          <Switch
+            checked={display.relativeToTitle ?? true}
+            onCheckedChange={(value) => setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, value)}
+          />
+        </label>
+      )}
+
+      {display.showName && !display.relativeToTitle && (
         <PropField label={nameSizeLabel}>
           <NumberInput
             ariaLabel={nameSizeLabel}
@@ -145,11 +156,13 @@ export function AuthorDisplayControl({
         </PropField>
       )}
 
-      <button
+      <Button
+        variant="ghost"
         type="button"
         className="inline-flex items-center gap-1 text-[10px] text-muted-foreground transition hover:text-foreground"
         onClick={() => {
           setVisibility(defaults?.showName ?? true, defaults?.showAvatar ?? true);
+          setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, true);
           setContent(
             AUTHOR_DISPLAY_KEYS.nameSizePx,
             defaults?.nameSizePx ?? AUTHOR_NAME_SIZE_PX_DEFAULT,
@@ -162,7 +175,7 @@ export function AuthorDisplayControl({
       >
         <RotateCcw className="h-3 w-3" />
         {t("builder.authorDisplay.reset")}
-      </button>
+      </Button>
     </div>
   );
 }
