@@ -41,35 +41,36 @@
     "",
     "P3.7b (fala 3, 2026-10-09) - DWIE NOWE METRYKI STANU (definicje: komentarze pól w documentWeight.ts). `streamedStateBytes`: inline `<script>` wykonywalne poza barierą `$tsr`, których treść odwołuje się do `$R[\"tsr\"]` (porcje strumienia zapytań `.next(...)`/`.return(...)`) - luka z diagnozy `faza3/diagnoza/waga-dokumentu.md` §2.2: `dehydratedStateBytes` liczy wyłącznie barierę. `dehydratedQueryHashCount`: wystąpienia `queryHash:` w barierze i strumieniu; kompaktowa koperta zapytań (`src/lib/ssr/dehydratedQueryEnvelope.ts`, T1) wysyła hash wyłącznie, gdy różni się od `hashKey(queryKey)`, więc próg = 0 bez zapasu (licznik deterministyczny). Pomiar bazy partii 4 (64dddffe, artefakt `base-w3g`, 3 próbki HIT, bajtowo identyczne): `streamedStateBytes` 10 351 B, `dehydratedQueryHashCount` 21. Próg `streamedStateBytes` TYMCZASOWO = ceil(10 351 x 1,02) = 10 559 (nie gorzej niż baza); zaciśnięcie do pomiaru artefaktu P3.7b (szac. ok. 6,9 KB: T1 bez `queryHash` i stałego ogona stanu, T2 bez zajawek w porcjach post-listy) robi orkiestrator ratchetem w commicie scalenia, razem z ratchetem progów bajtowych HTML-u, głowy i bariery. Istniejące progi bez zmian.",
     "",
-    "PODBICIE TANSTACK 1.169 (2026-10-16; router-core 1.171.37, router-ssr-query-core 1.169.3, start-plugin-core 1.171.53) - DEFINICJE I ŹRÓDŁA BEZ ZMIANY PROGÓW (liczby przepisuje orkiestrator ratchetem po buildzie artefaktu). `dehydratedStateBytes`: stan początkowy to teraz suma skryptów `<script data-tsr-stream-part>` przed granicą `/*$tsr-stream-boundary*/` (bariery `$tsr-stream-barrier` już nie ma; komentarz pola w documentWeight.ts). `streamedStateBytes`: porcje strumienia `query.stream` są tablicami zapytań (`.next([...])`), reguła `$R[\"tsr\"]` bez zmian. `dehydratedQueryHashCount`: kompaktowa koperta przeniesiona na nowy ładunek `query: { initial?, stream }` (src/lib/ssr/dehydratedQueryEnvelope.ts), więc próg 0 obowiązuje dalej. Zestaw `#nes-boot-set` renderuje `BootSetNode` (src/lib/boot/bootSetNode.tsx) w `<head>` zaraz po `<HeadContent />` - router-core nie ma już `injectHtml` - bajt w bajt tym samym znacznikiem co dawniej. Do zmierzenia: preloady manifestu Start są teraz pełnym statycznym domknięciem importów, nie jednym poziomem (src/lib/boot/bootManifest.ts), więc lista URL-i zestawu (`headRawBytes`) i seria bootu (`bootBurstCount`, `bootBurstGzipBytes`) mogą urosnąć."
+    "PODBICIE TANSTACK 1.169 (2026-10-16; router-core 1.171.37, router-ssr-query-core 1.169.3, start-plugin-core 1.171.53) - DEFINICJE I ŹRÓDŁA BEZ ZMIANY PROGÓW (liczby przepisuje orkiestrator ratchetem po buildzie artefaktu). `dehydratedStateBytes`: stan początkowy to teraz suma skryptów `<script data-tsr-stream-part>` przed granicą `/*$tsr-stream-boundary*/` (bariery `$tsr-stream-barrier` już nie ma; komentarz pola w documentWeight.ts). `streamedStateBytes`: porcje strumienia `query.stream` są tablicami zapytań (`.next([...])`), reguła `$R[\"tsr\"]` bez zmian. `dehydratedQueryHashCount`: kompaktowa koperta przeniesiona na nowy ładunek `query: { initial?, stream }` (src/lib/ssr/dehydratedQueryEnvelope.ts), więc próg 0 obowiązuje dalej. Zestaw `#nes-boot-set` renderuje `BootSetNode` (src/lib/boot/bootSetNode.tsx) w `<head>` zaraz po `<HeadContent />` - router-core nie ma już `injectHtml` - bajt w bajt tym samym znacznikiem co dawniej. Do zmierzenia: preloady manifestu Start są teraz pełnym statycznym domknięciem importów, nie jednym poziomem (src/lib/boot/bootManifest.ts), więc lista URL-i zestawu (`headRawBytes`) i seria bootu (`bootBurstCount`, `bootBurstGzipBytes`) mogą urosnąć.",
+    "PRZEJŚCIE NA VITE 8 / ROLLDOWN (PR #515, 2026-10-17) - PONOWNE USTALENIE PROGÓW NA PROŚBĘ WŁAŚCICIELA. Pomiar: `BUNDLE_INVENTORY=1 build:smoke` głowy PR (92d6c7b), node 22, fixture, 5 próbek HIT. Baza scalenia 8425858 (Vite 7/Rollup) zmierzona tym samym narzędziem była już czerwona na czterech progach: `renderBlockingCssGzipBytes` 83 461 > 81 399, `bootClosureRawBytes` 1 666 189 > 1 637 758, `bootClosureGzipBytes` 505 989 > 496 679, `bootBurstGzipBytes` 583 738 > 574 673 (bramka first-visit.yml biegnie wyłącznie na main). `bootBurstCount` 26 bazy był zaniżony: start-plugin-core sprzed 1.171.53 wpisywał do zestawu jeden poziom preloadów, a Chromium pobierał na `/` 32 pliki JS przed `__nesAppReadyAt` (`/$`: 106 przy zestawie 67). Od 1.171.53 zestaw to pełne domknięcie statyczne (src/lib/boot/bootManifest.ts). Pod Rolldownem zestaw `/` urósł do 43 plików (fasady `import()` przy `await` najwyższego poziomu, osobne chunki wspólne); rodziny leniwe pod `app-initial` (scripts/lib/clientChunkGroups.ts) i statyczne importy modułów bootu w `__root.tsx` zbiły go do 32. Głowa PR: CSS 82 775 B (-686 wobec bazy), seria bootu 32 pliki / 576 972 B (-6 766 B wobec bazy), domknięcie bootu zielone (486 665 B gzip). Progi PODNIESIONE ręcznie: CSS i bajty serii do wartości bazy (PR nie gorszy od main), licznik serii do pomiaru (deterministyczny). NOWA metryka `renderBlockingCssCount` <= 1 (jeden arkusz korzenia; drugi arkusz to osobne żądanie w ścieżce krytycznej, którego sam próg gzip nie złapie - dawny arkusz lightboxa na `/$`). Reszta: `--ratchet` (14 progów w dół, m.in. HTML 406 180 -> 337 708 B, stan 66 486 -> 53 980 B, preLcp 181 594 -> 160 014 B); podłogi polityki (`srcsetCandidatesMax` 5, `imgFetchpriorityHigh` 2, `lcpCandidateCount` 2) chroni od teraz `RATCHET_FLOORS` w documentWeight.ts - wcześniej `--ratchet` zbijał je do pomiaru fixture (0 / 1 / 1). Archiwa (`/blog`) mają osobny plik progów: document-weight-budgets.blog.json."
   ],
   "path": "/",
-  "measuredAt": "2026-10-03",
-  "commit": "fd94e61 (= origin/main 6a4215db + pakiet dowodowy)",
+  "measuredAt": "2026-10-17",
+  "commit": "92d6c7b (PR #515, Vite 8 / Rolldown; pomiar build:smoke, fixture, 5 próbek)",
   "budgets": {
     "htmlRawBytes": {
-      "max": 406180,
-      "measured": 391114,
+      "max": 337708,
+      "measured": 331086,
       "target": 204800
     },
     "htmlGzipBytes": {
-      "max": 57710,
-      "measured": 54696,
+      "max": 50724,
+      "measured": 49729,
       "target": 30720
     },
     "headRawBytes": {
-      "max": 29345,
-      "measured": 24118,
+      "max": 23921,
+      "measured": 23451,
       "target": 12288
     },
     "inlineStyleCount": {
-      "max": 50,
-      "measured": 50,
+      "max": 26,
+      "measured": 26,
       "target": 5
     },
     "inlineStyleBytes": {
-      "max": 135546,
-      "measured": 132888,
+      "max": 73811,
+      "measured": 72363,
       "target": 20480
     },
     "inlineCssCommentBytes": {
@@ -83,28 +84,28 @@
       "target": 1
     },
     "inlineScriptBytes": {
-      "max": 98103,
-      "measured": 94232,
+      "max": 76034,
+      "measured": 74543,
       "target": 40960
     },
     "inlineExecutableScriptBytes": {
-      "max": 91725,
-      "measured": 87979,
+      "max": 71866,
+      "measured": 70456,
       "target": 35840
     },
     "dehydratedStateBytes": {
-      "max": 66486,
-      "measured": 65182,
+      "max": 53980,
+      "measured": 52921,
       "target": 30720
     },
     "streamedStateBytes": {
-      "max": 10559,
-      "measured": 10351,
+      "max": 6943,
+      "measured": 6806,
       "target": 6144
     },
     "dehydratedQueryHashCount": {
       "max": 0,
-      "measured": 21,
+      "measured": 0,
       "target": 0
     },
     "modulepreloadCount": {
@@ -113,13 +114,13 @@
       "target": 12
     },
     "linkHeaderEntries": {
-      "max": 5,
-      "measured": 5,
+      "max": 4,
+      "measured": 4,
       "target": 16
     },
     "preloadDuplicates": {
-      "max": 3,
-      "measured": 3,
+      "max": 2,
+      "measured": 2,
       "target": 0
     },
     "documentPreloadDuplicates": {
@@ -139,12 +140,12 @@
     },
     "bootClosureRawBytes": {
       "max": 1637758,
-      "measured": 1605645,
+      "measured": 1630560,
       "target": 1153434
     },
     "bootClosureGzipBytes": {
-      "max": 496679,
-      "measured": 485279,
+      "max": 496399,
+      "measured": 486665,
       "target": 358400
     },
     "preloadedJsCount": {
@@ -158,9 +159,14 @@
       "target": 153600
     },
     "renderBlockingCssGzipBytes": {
-      "max": 81399,
-      "measured": 79802,
+      "max": 83461,
+      "measured": 82775,
       "target": 30720
+    },
+    "renderBlockingCssCount": {
+      "max": 1,
+      "measured": 1,
+      "target": 1
     },
     "lcpCandidateCount": {
       "max": 2,
@@ -188,8 +194,8 @@
       "target": 0
     },
     "preLcpTransferBytes": {
-      "max": 181594,
-      "measured": 178033,
+      "max": 160014,
+      "measured": 156876,
       "target": 307200
     },
     "srcsetCandidatesMax": {
@@ -208,13 +214,13 @@
       "target": 0
     },
     "bootBurstCount": {
-      "max": 26,
-      "measured": 26,
+      "max": 32,
+      "measured": 32,
       "target": 12
     },
     "bootBurstGzipBytes": {
-      "max": 574673,
-      "measured": 574362,
+      "max": 583738,
+      "measured": 576972,
       "target": 153600
     }
   }

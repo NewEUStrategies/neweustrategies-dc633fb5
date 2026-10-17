@@ -822,6 +822,10 @@ export const GATED_METRICS = [
   "preloadedJsCount",
   "preloadedJsGzipBytes",
   "renderBlockingCssGzipBytes",
+  // Liczba arkuszy blokujących render (PR #515): jeden arkusz korzenia. Drugi (CSS chunku trasy
+  // w `css` manifestu, jak dawny arkusz lightboxa na `/$`) to osobne żądanie w ścieżce
+  // krytycznej - bajty mogą się przy tym prawie nie zmienić, więc sam próg gzip go nie złapie.
+  "renderBlockingCssCount",
   // P1.4 - ścieżka krytyczna obrazu LCP (definicje: komentarze pól wyżej).
   "lcpCandidateCount",
   "lcpCandidateMissing",
@@ -869,8 +873,20 @@ export function checkBudgets(weight: DocumentWeight, budgets: Budgets): BudgetRe
 }
 
 /**
- * Ratchet: nowy próg = min(stary próg, ceil(pomiar x (1 + zapas))). Nigdy w górę -
- * ta sama reguła co FROZEN_BUDGET_KB w scripts/check-bundle-size.ts.
+ * PODŁOGI POLITYKI dla `--ratchet`. Te progi nie opisują stanu fixture, tylko regułę: drabina
+ * okładek ma 5 szerokości (fixture nie ma żadnego `srcset`, pomiar 0), strona może mieć dwóch
+ * kandydatów LCP - desktop i telefon (fixture `/` ma jednego). Ratchet do pomiaru zbiłby je do
+ * 0 / 1 / 1 i zapalił bramkę na poprawnej stronie produkcyjnej (komentarz P3.2a w pliku progów).
+ */
+export const RATCHET_FLOORS: Readonly<Partial<Record<GatedMetric, number>>> = {
+  srcsetCandidatesMax: 5,
+  imgFetchpriorityHigh: 2,
+  lcpCandidateCount: 2,
+};
+
+/**
+ * Ratchet: nowy próg = min(stary próg, max(ceil(pomiar x (1 + zapas)), podłoga polityki)).
+ * Nigdy w górę - ta sama reguła co FROZEN_BUDGET_KB w scripts/check-bundle-size.ts.
  */
 export function ratchetBudgets(
   budgets: Budgets,
@@ -881,7 +897,8 @@ export function ratchetBudgets(
   for (const metric of GATED_METRICS) {
     const value = measured[metric];
     // Liczniki (bloki, preloady, obrazy) są deterministyczne - zapas tylko dla bajtów.
-    const proposed = metric.endsWith("Bytes") ? Math.ceil(value * (1 + headroom)) : value;
+    const measuredLimit = metric.endsWith("Bytes") ? Math.ceil(value * (1 + headroom)) : value;
+    const proposed = Math.max(measuredLimit, RATCHET_FLOORS[metric] ?? 0);
     const previous = budgets[metric];
     const max = previous ? Math.min(previous.max, proposed) : proposed;
     out[metric] = {

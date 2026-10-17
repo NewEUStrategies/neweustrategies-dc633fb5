@@ -12,7 +12,13 @@
 // P3.7a obok, bez zmian).
 import { describe, expect, it } from "vitest";
 
-import { GATED_METRICS, analyzeDocument } from "../../../../scripts/performance/documentWeight";
+import {
+  GATED_METRICS,
+  RATCHET_FLOORS,
+  analyzeDocument,
+  ratchetBudgets,
+  type GatedMetric,
+} from "../../../../scripts/performance/documentWeight";
 
 const INITIAL_HEADER = `(self.$R=self.$R||{})["tsr"]=[];self.$_TSR={}`;
 const INITIAL_ROUTER = `$_TSR.router=($R=>$R[0]={dehydratedData:{query:{initial:[{queryKey:["a"],queryHash:"[\\"a\\"]",state:{data:1}}],stream:$R[2]={}}}})($R["tsr"]);{let s=document.currentScript,p;while((p=s.previousElementSibling)&&p.hasAttribute('data-tsr-stream-part'))p.remove();s.remove()}`;
@@ -74,5 +80,56 @@ describe("metryki stanu dokumentu (P3.7b)", () => {
     expect(GATED_METRICS).toContain("dehydratedStateBytes");
     expect(GATED_METRICS).toContain("streamedStateBytes");
     expect(GATED_METRICS).toContain("dehydratedQueryHashCount");
+  });
+});
+
+describe("ratchet progów (`--ratchet`)", () => {
+  const measured = Object.fromEntries(GATED_METRICS.map((metric) => [metric, 0])) as Record<
+    GatedMetric,
+    number
+  >;
+
+  it("nie zbija podłóg polityki poniżej reguły, choć fixture mierzy mniej", () => {
+    const out = ratchetBudgets(
+      {
+        srcsetCandidatesMax: { max: 5 },
+        imgFetchpriorityHigh: { max: 2 },
+        lcpCandidateCount: { max: 2 },
+      },
+      { ...measured, imgFetchpriorityHigh: 1, lcpCandidateCount: 1 },
+      0.02,
+    );
+    expect(out.srcsetCandidatesMax).toMatchObject({ max: 5, measured: 0 });
+    expect(out.imgFetchpriorityHigh).toMatchObject({ max: 2, measured: 1 });
+    expect(out.lcpCandidateCount).toMatchObject({ max: 2, measured: 1 });
+    expect(Object.keys(RATCHET_FLOORS).sort()).toEqual(
+      ["imgFetchpriorityHigh", "lcpCandidateCount", "srcsetCandidatesMax"].sort(),
+    );
+  });
+
+  it("podłoga nie podnosi progu, który właściciel już obniżył", () => {
+    const out = ratchetBudgets({ lcpCandidateCount: { max: 1 } }, measured, 0.02);
+    expect(out.lcpCandidateCount.max).toBe(1);
+  });
+
+  it("bajty dostają zapas, liczniki - pomiar; nigdy powyżej starego progu", () => {
+    const out = ratchetBudgets(
+      { htmlGzipBytes: { max: 60_000, target: 30_720 }, linkHeaderEntries: { max: 5 } },
+      { ...measured, htmlGzipBytes: 50_000, linkHeaderEntries: 4, renderBlockingCssCount: 1 },
+      0.02,
+    );
+    expect(out.htmlGzipBytes).toEqual({ max: 51_000, measured: 50_000, target: 30_720 });
+    expect(out.linkHeaderEntries.max).toBe(4);
+    expect(out.renderBlockingCssCount.max).toBe(1);
+    const higher = ratchetBudgets(
+      { htmlGzipBytes: { max: 40_000 } },
+      { ...measured, htmlGzipBytes: 50_000 },
+      0.02,
+    );
+    expect(higher.htmlGzipBytes.max).toBe(40_000);
+  });
+
+  it("liczba arkuszy blokujących render jest bramkowana", () => {
+    expect(GATED_METRICS).toContain("renderBlockingCssCount");
   });
 });

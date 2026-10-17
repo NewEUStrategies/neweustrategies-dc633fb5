@@ -173,6 +173,12 @@ jobs:
         if: ${{ !cancelled() && steps.build-candidate.outcome == 'success' }}
         working-directory: harness
         run: bun run check:document-weight -- --root ../candidate --json reports/document-weight.json
+      # Archiwum `/blog`: osobny tryb bootu (`lcp` z `AFTER_LCP_ROUTE_IDS`) i kandydat LCP na
+      # karcie - bramka `/` tego nie widzi. Progi i uzasadnienie: document-weight-budgets.blog.json.
+      - name: Gate document weight of the candidate archive (blocking)
+        if: ${{ !cancelled() && steps.build-candidate.outcome == 'success' }}
+        working-directory: harness
+        run: bun run check:document-weight -- --root ../candidate --path /blog --budgets scripts/performance/document-weight-budgets.blog.json --json reports/document-weight-blog.json
       # ---- A/B LIGHTHOUSE'A: WYŁĄCZNIE RAPORT ----
       # Bez blokady: bajtowe metryki LH (`highPriorityBytesBeforeLcpImage`,
       # `scriptTransferBytes`) dublują bramkę statyczną wyżej i `check:bundle`,
