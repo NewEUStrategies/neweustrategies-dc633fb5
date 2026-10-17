@@ -40,6 +40,7 @@ const display = (patch: Partial<AuthorDisplay> = {}): AuthorDisplay => ({
   showName: true,
   showAvatar: true,
   nameSizePx: AUTHOR_NAME_SIZE_PX_DEFAULT,
+  relativeToTitle: false,
   avatarSizePx: AUTHOR_AVATAR_SIZE_PX_DEFAULT,
   avatarRadiusPx: 6,
   labelPrefix: "",
