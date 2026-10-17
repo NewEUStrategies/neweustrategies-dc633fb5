@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #518
+
+- [ ] Potwierdzić pełny zakres i integrację wszystkich commitów PR #518.
+- [ ] Zweryfikować rzeczywisty katalog tabel, widoków, RPC, kolumn i rejestr migracji bez zmiany danych.
+- [ ] Uruchomić testy zakresowe i sprawdzić działanie podglądu.
+- [ ] Wdrożyć potwierdzone braki, opublikować i potwierdzić stan strony publicznej.
+
 ## Podpisy autorów względem tytułów
 
 - [x] Pomiar tytułu tylko w obrębie karty: `data-author-title-scope` (karta, slajd, wiersz) albo `[data-w-id]`, bez wychodzenia do `<body>`; brak tytułu = rozmiar z panelu CMS, nazwisko w karcie autora z `data-author-title-ignore`. Jeden wspólny harmonogram rAF (jeden MutationObserver, ResizeObserver i nasłuch `resize` zamiast ~40 kompletów, wynik w jednym commicie przed malowaniem), pierwszy pomiar w efekcie layoutowym, arkusze Theme Design w `<head>` i `<body>` przeliczają podpisy. Pełny przebieg testów (4 shardy): 85 109 testów przechodzi; przełączenie urządzenia renderera w Chromium (390/700 px): 0 klatek z rozjazdem podpisu i tytułu.
