@@ -31,15 +31,9 @@ import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { rafThrottle } from "@/lib/rafThrottle";
+import { headerLogoSrc, type HeaderLogoVariants } from "@/lib/brand/headerLogo";
 
-type ReadingHeaderThemeLogo = {
-  logo?: {
-    main?: string;
-    main_dark?: string;
-    mobile?: string;
-    mobile_dark?: string;
-  };
-};
+type ReadingHeaderThemeLogo = { logo?: HeaderLogoVariants };
 
 interface Props {
   title: string;
@@ -102,16 +96,16 @@ export function ReadingHeader({
     .toUpperCase();
   const isAuthed = mounted && !!session;
 
-  // Horizontal logo (mobile variant = horizontal wordmark) resolved from
-  // Branding → Logo settings, with dark-mode fallback chain identical to
-  // the main site header, so the reading bar matches theme + tenant.
+  // Logo poziome (wariant mobile = poziomy wordmark) z Branding → Logo, przez
+  // TEN SAM helper co pasek mobilny `Header.tsx`: ten sam łańcuch wariantów
+  // dla motywu i ten sam adres (względny `/media/...` dla kanonicznego
+  // originu). Na wpisie oba paski są w powłoce jako eager `<img>` bez
+  // `srcSet`, a React klucz auto-preloadu bierze z surowego `src` - dawny
+  // adres absolutny stąd dokładał drugi preload logo do `<head>` każdego
+  // wpisu (patrz `lib/brand/headerLogo`).
   const themeSettings = useSiteSetting<ReadingHeaderThemeLogo>("theme_options", {});
   const { theme: themeMode } = useTheme();
-  const isDark = themeMode === "dark";
-  const themeLogo = themeSettings.logo ?? {};
-  const horizontalLogo = isDark
-    ? themeLogo.mobile_dark || themeLogo.main_dark || themeLogo.mobile || themeLogo.main || ""
-    : themeLogo.mobile || themeLogo.main || themeLogo.mobile_dark || themeLogo.main_dark || "";
+  const horizontalLogo = headerLogoSrc(themeSettings.logo, themeMode === "dark");
 
   const [visible, setVisible] = useState(pinned);
   const [menuOpen, setMenuOpen] = useState(false);

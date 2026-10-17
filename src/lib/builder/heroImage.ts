@@ -7,9 +7,10 @@ import {
 } from "./lcpCandidate";
 // Preload LCP dla dokumentów buildera (strona główna, strony publiczne).
 //
-// Wpisy mają kontrakt loader->head() z preloadem okładki od dawna ($.tsx +
-// buildCoverPreload); dokumenty buildera były wykluczone, bo ich hero żyje
-// w drzewie sekcji. Ten moduł domyka lukę: po rozgrzaniu zapytań widgetów
+// Wpisy mają preload okładki od dawna ($.tsx + buildCoverPreload): loader
+// wysyła go nagłówkiem `Link`, a do `<head>` wstawia go sam React 19 z `<img
+// fetchPriority="high">` okładki w powłoce SSR; dokumenty buildera były
+// wykluczone, bo ich hero żyje w drzewie sekcji. Ten moduł domyka lukę: po rozgrzaniu zapytań widgetów
 // (prefetchCachedRouteQueries / prefetchAboveFoldQueries) pierwszy malowany
 // obraz sekcji nad zgięciem jest w pełni wyznaczalny na serwerze - z treści
 // widgetu albo z cache React Query.

@@ -21,7 +21,7 @@
 // wyglądała inaczej w bramce, minisite i katalogu niż tam, gdzie ją ustawiono.
 import { MessagesSquare } from "lucide-react";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
-import { clubCoverObjectPosition } from "@/lib/clubs/coverFrame";
+import { CLUB_COVER_BANNER_SIZES, clubCoverObjectPosition } from "@/lib/clubs/coverFrame";
 import { cn } from "@/lib/utils";
 
 export function ClubCover({
@@ -69,15 +69,20 @@ export function ClubCover({
           CoverImagePicker do Supabase Storage, czyli dokładnie ten kształt URL,
           dla którego atom generuje `srcSet` wariantów szerokości. Bez tego
           kafel 16:9 o szerokości ~380 px ściągał plik w pełnej rozdzielczości,
-          a siatka katalogu ma ich na ekranie kilkanaście. */}
+          a siatka katalogu ma ich na ekranie kilkanaście.
+
+          `src` przycięty i `sizes` banera ze wspólnej stałej: nagłówek `Link`
+          (`clubCoverPreload`) liczy deskryptor z przyciętego adresu, a React
+          preloaduje ten obraz po `srcSet + sizes` - każda różnica to drugi
+          klucz i drugie pobranie tej samej okładki. */}
       <OptimizedImage
-        key={url}
-        src={url}
+        key={url.trim()}
+        src={url.trim()}
         alt=""
         responsive
         sizes={
           variant === "banner"
-            ? "(min-width: 1024px) 64rem, 100vw"
+            ? CLUB_COVER_BANNER_SIZES
             : "(min-width: 1024px) 22rem, (min-width: 640px) 50vw, 100vw"
         }
         priority={variant === "banner"}

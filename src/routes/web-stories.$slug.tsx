@@ -15,7 +15,6 @@ import { getRequestUrl } from "@/lib/seo/request";
 import {
   SITE_NAME,
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
@@ -25,9 +24,9 @@ import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 
-// `sizes` okładki - JEDNA stała dla renderowanego <img> i preloadu LCP, żeby
-// przeglądarka preładowała dokładnie ten wariant responsywny, który maluje
-// (rozjazd = podwójne pobranie).
+// `sizes` okładki - JEDNA stała dla renderowanego <img> i nagłówka `Link`
+// z preloadem LCP, żeby przeglądarka preładowała dokładnie ten wariant
+// responsywny, który maluje (rozjazd = podwójne pobranie).
 const COVER_IMAGE_SIZES = "(max-width: 896px) 100vw, 896px";
 
 /**
@@ -60,10 +59,14 @@ export const Route = createFileRoute("/web-stories/$slug")({
     // 404 WYŁĄCZNIE z czystego odczytu - niewiedza nie ma prawa wypisać
     // historii z indeksu.
     const data = notFoundIfClean(identity);
-    if (data === null) return { story: null, coverPreload: null, degraded: true };
+    if (data === null) return { story: null, degraded: true };
     // Preload LCP okładki - te same kandydaty (buildImageSrcSet) i sizes co
-    // renderowany OptimizedImage `responsive`. Wartość idzie też jako nagłówek
-    // HTTP `Link`, więc fetch startuje przed parsowaniem HTML.
+    // renderowany OptimizedImage `responsive`. Idzie WYŁĄCZNIE nagłówkiem HTTP
+    // `Link` (fetch startuje przed parsowaniem HTML; NES Edge Cache utrwala go
+    // na HIT/STALE - droga do 103 Early Hints). `<head>` dostaje preload od
+    // Reacta 19 z `<img fetchPriority="high">` okładki w powłoce (ten sam klucz
+    // srcSet/sizes) - link z `head()` był jego duplikatem (jak w archiwach,
+    // `blog.index.tsx`), więc deskryptor nie wraca w danych loadera.
     const coverPreload: ImagePreloadInput | null = data.cover_url
       ? {
           href: data.cover_url,
@@ -72,7 +75,7 @@ export const Route = createFileRoute("/web-stories/$slug")({
         }
       : null;
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { story: data, coverPreload, degraded: false };
+    return { story: data, degraded: false };
   },
   // ── NAGŁÓWEK PRZEZ WSPÓLNY BUDOWNIK, NIE RĘCZNIE ──────────────────────────
   // Ta trasa była JEDYNĄ powierzchnią treściową modułu, która składała `meta`
@@ -132,12 +135,11 @@ export const Route = createFileRoute("/web-stories/$slug")({
       ...head,
       // Równoległy dokument <amp-story> (kwalifikacja do prezentacji Web
       // Stories w Google); URL względny rozwiązuje się do bieżącego hosta.
-      // Do tego preload okładki (LCP) - fetch rusza z <head>, zanim parser
-      // dojdzie do <img> w body.
+      // Preloadu okładki (LCP) tu NIE MA: niesie go nagłówek `Link` loadera,
+      // a w `<head>` wstawia go sam React 19 z obrazu okładki w powłoce.
       links: [
         ...head.links,
         ...(s.cover_url ? [{ rel: "amphtml", href: `/web-stories/${s.slug}/amp` }] : []),
-        ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
       ],
       scripts: [{ type: "application/ld+json", children: safeJsonLd(jsonLd) }],
     };

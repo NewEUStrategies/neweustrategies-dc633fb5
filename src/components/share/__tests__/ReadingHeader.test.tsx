@@ -31,8 +31,11 @@
 //   7. `centerLogo` x `hideLeftLogo` - wszystkie CZTERY kombinacje, bo te dwa
 //      propy istnieją wyłącznie po to, by landing (np. /quiz) nie miał
 //      podwójnego logo. Do tego cały łańcuch wyboru logotypu poziomego
-//      (jasny/ciemny, `mobile` -> `main` -> warianty przeciwnego motywu) i
-//      spadek na wordmark tekstowy przy braku ustawienia.
+//      (jasny/ciemny, `mobile` -> `main` -> warianty przeciwnego motywu),
+//      spadek na wordmark tekstowy przy braku ustawienia oraz adres względny
+//      `/media/...` dla kanonicznego originu (ten sam `src` co pasek mobilny
+//      `Header.tsx` = jeden auto-preload logo; dowód SSR obu pasków naraz:
+//      `chromeLogoPreload.test.tsx`).
 //   8. TYTUŁ: podany jedzie po kluczu `share.header.reading`; pusty NIE chowa
 //      wiersza „aktualnie czytasz" - to DEFEKT, przypięty `it.fails` obok
 //      zielonego testu stanu faktycznego.
@@ -67,7 +70,9 @@
 //     który należy do paska.
 //   * `useHasMounted`, `rafThrottle`, `useHeaderProfile`, `useSiteSetting`,
 //     `useAuth` są atrapami: tu liczy się REAKCJA paska na ich wynik, nie ich
-//     własne zachowanie (klient Supabase nie jest nawet ładowany).
+//     własne zachowanie (klient Supabase nie jest nawet tworzony: jego moduł
+//     wchodzi tylko przez `renderedMediaUrl` z `cropSizes` w `headerLogoSrc`,
+//     a eksport `supabase` to leniwy Proxy, którego nikt tu nie dotyka).
 //   * POSTĘP CZYTANIA (`Math.min(1, Math.max(0, pct))`) NIE jest powierzchnią
 //     tego komponentu - pasek czytania nie liczy żadnego postępu. Pierścień i
 //     paski postępu żyją w `src/components/share/FloatingShareBar.tsx`
@@ -78,6 +83,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
 import type { BookmarkEntityType } from "@/hooks/useBookmarks";
+import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 
 /** Wiersz profilu, jaki pasek czyta z `useHeaderProfile`. */
 interface HeaderProfileProbe {
@@ -355,7 +361,7 @@ function header(o: HeaderOverrides = {}) {
 /**
  * Render bez providera zapytań: wszystkie hooki danych paska
  * (`useAuth`, `useHeaderProfile`, `useSiteSetting`) są atrapami, więc żadne
- * `useQuery` nie wchodzi do drzewa - klient Supabase nie jest nawet ładowany.
+ * `useQuery` nie wchodzi do drzewa - klient Supabase nie jest nawet tworzony.
  */
 function renderHeader(o: HeaderOverrides = {}) {
   return render(header(o));
@@ -997,6 +1003,20 @@ describe("ReadingHeader - logo: centerLogo x hideLeftLogo", () => {
     renderHeader({ pinned: true });
 
     expect(leftLogo()?.querySelector("img")).toHaveAttribute("src", "M.png");
+  });
+
+  it("kanoniczny `/media/...svg` trafia do OBU `<img>` jako ścieżka względna", () => {
+    // Ten sam napis co w pasku mobilnym `Header.tsx` (wspólny `headerLogoSrc`):
+    // eager `<img>` bez `srcSet` React kluczuje surowym `src`, więc dawny adres
+    // absolutny stąd dokładał drugi preload logo do `<head>` każdego wpisu.
+    h.themeSettings = { logo: { mobile: `${PUBLIC_MEDIA_ORIGIN}/media/theme/logo/nes.svg` } };
+    renderHeader({ pinned: true, centerLogo: true });
+
+    expect(leftLogo()?.querySelector("img")).toHaveAttribute("src", "/media/theme/logo/nes.svg");
+    expect(centerLogoEl()?.querySelector("img")).toHaveAttribute(
+      "src",
+      "/media/theme/logo/nes.svg",
+    );
   });
 });
 

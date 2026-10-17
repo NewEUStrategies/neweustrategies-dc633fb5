@@ -264,6 +264,10 @@ function feedTitles(head: RouteHeadResult): string[] {
 const headFor = (loaderData: unknown) =>
   routeHead(ShowRoute, { loaderData, params: { show: SLUG } });
 
+/** Deskryptor preloadu obrazu z `head()` trasy (albo undefined, gdy go nie ma). */
+const imagePreload = (links: Record<string, unknown>[]) =>
+  links.find((l) => l.rel === "preload" && l.as === "image");
+
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   setClientLang("pl");
@@ -503,21 +507,48 @@ describe("trasa /podcasts/$show - trzy rozdzielone stany loadera", () => {
     );
   });
 
-  it("loader dopisuje nagłówek HTTP Link z preloadem okładki (LCP)", async () => {
+  it("okładka (LCP): nagłówek HTTP Link + obraz high w powłoce, bez duplikatu z head()", async () => {
     // Preload rusza z nagłówków odpowiedzi, zanim parser dojdzie do <img>,
-    // i musi wskazywać TEN SAM wariant, który strona maluje.
-    await mount();
+    // i musi wskazywać TEN SAM wariant, który strona maluje. `<head>` dostaje
+    // preload od Reacta 19 z `<img fetchPriority="high">` w powłoce (klucz
+    // `src`); link z `head()` był jego identycznym duplikatem
+    // (`documentPreloadDuplicates`).
+    const view = await mount();
 
-    expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(true);
+    expect(imagePreload(view.links())).toBeUndefined();
+    const img = view.container.querySelector<HTMLImageElement>('img[fetchpriority="high"]');
+    const src = img?.getAttribute("src");
+    expect(src).toBeTruthy();
+    // Bez srcset kluczem preloadu Reacta jest `src` - nagłówek niesie sam `href`.
+    expect(img?.getAttribute("srcset")).toBeNull();
+    const header = h.linkHeaders.find((value) => value.startsWith(`<${src}>`));
+    expect(header, h.linkHeaders.join("\n")).toContain('as="image"');
+    expect(header).toContain('rel="preload"');
+    expect(header).not.toContain("imagesrcset");
   });
 
   it("program bez okładki NIE dopisuje pustego preloadu", async () => {
     // Kontrola dodatnia dla poprzedniego przypadku: nagłówek `Link` z pustym
     // adresem to zmarnowane połączenie na ścieżce krytycznej.
     h.shows = [show({ cover_image_url: null })];
-    await mount();
+    const view = await mount();
 
     expect(h.linkHeaders).toEqual([]);
+    expect(imagePreload(view.links())).toBeUndefined();
+  });
+
+  it("dane loadera NIE niosą deskryptora preloadu - `head()` go nie czyta", async () => {
+    // Deskryptor jechałby w dehydrowanym ładunku SSR do każdego czytelnika,
+    // choć nikt go już nie konsumuje: preload okładki niesie wyłącznie
+    // nagłówek `Link` (+ automatyczny preload Reacta z `<img>`).
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const data = await showLoader()({ context: { queryClient }, params: { show: SLUG } });
+
+    // Kontrola dodatnia: ten bieg loadera NAPRAWDĘ miał okładkę do preloadu
+    // i zwrócił program - inaczej brak pola przechodziłby też na pustym wyniku.
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(data).toHaveProperty("show.slug", SLUG);
+    expect(data).not.toHaveProperty("coverPreload");
   });
 });
 
@@ -567,7 +598,7 @@ describe("trasa /podcasts/$show - izolacja obszarów roboczych", () => {
 
 describe("trasa /podcasts/$show - nagłówek dokumentu", () => {
   it("po polsku tytuł, opis i oba kanały RSS pochodzą z programu", async () => {
-    const head = headFor({ show: show(), degraded: false, coverPreload: null });
+    const head = headFor({ show: show(), degraded: false });
 
     expect(headTitle(head)).toBe("Europa o energii - podcast");
     expect(metaContent(head, "name", "description")).toBe("Cykl o polityce energetycznej Unii.");
@@ -585,7 +616,7 @@ describe("trasa /podcasts/$show - nagłówek dokumentu", () => {
     // `head()` biegnie POZA drzewem Reacta (SSR składa metadane przed
     // hydracją), więc o języku rozstrzyga wyłącznie prefiks adresu.
     h.requestUrl = `https://nes.example.org/en/podcasts/${SLUG}`;
-    const head = headFor({ show: show(), degraded: false, coverPreload: null });
+    const head = headFor({ show: show(), degraded: false });
 
     expect(headTitle(head)).toBe("Europe on energy - podcast");
     expect(metaContent(head, "name", "description")).toBe("A series on the Union's energy policy.");
@@ -601,26 +632,18 @@ describe("trasa /podcasts/$show - nagłówek dokumentu", () => {
     // decyduje o kliknięciu.
     const bare = show({ description_pl: "", description_en: "" });
 
-    expect(
-      metaContent(
-        headFor({ show: bare, degraded: false, coverPreload: null }),
-        "name",
-        "description",
-      ),
-    ).toBe("Program podcastowy: Europa o energii.");
+    expect(metaContent(headFor({ show: bare, degraded: false }), "name", "description")).toBe(
+      "Program podcastowy: Europa o energii.",
+    );
 
     h.requestUrl = `https://nes.example.org/en/podcasts/${SLUG}`;
-    expect(
-      metaContent(
-        headFor({ show: bare, degraded: false, coverPreload: null }),
-        "name",
-        "description",
-      ),
-    ).toBe("Europe on energy - podcast program.");
+    expect(metaContent(headFor({ show: bare, degraded: false }), "name", "description")).toBe(
+      "Europe on energy - podcast program.",
+    );
   });
 
   it("JSON-LD opisuje SERIĘ i wskazuje kanał programu", async () => {
-    const head = headFor({ show: show(), degraded: false, coverPreload: null });
+    const head = headFor({ show: show(), degraded: false });
     const jsonLd = (head.scripts ?? []).find((s) => s.type === "application/ld+json");
     const parsed: unknown = JSON.parse(jsonLd?.children ?? "null");
 
@@ -638,7 +661,7 @@ describe("trasa /podcasts/$show - nagłówek dokumentu", () => {
     // wypełnić tytułu ani opisu. Kontrakt: neutralny tytuł i ZERO danych
     // strukturalnych - węzeł `PodcastSeries` bez nazwy serii byłby kłamstwem
     // w grafie wiedzy, a nie brakiem danych.
-    const head = headFor({ show: null, degraded: true, coverPreload: null });
+    const head = headFor({ show: null, degraded: true });
 
     expect(headTitle(head)).toBe("Podcast");
     expect(head.scripts ?? []).toEqual([]);

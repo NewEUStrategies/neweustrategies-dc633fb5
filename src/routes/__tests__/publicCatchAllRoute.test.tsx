@@ -18,11 +18,12 @@
 //     komponentu, bo przedmiotem dowodu jest właśnie PODPIĘCIE (rozpięte
 //     `errorComponent` nie wywala żadnego typu, tylko cicho oddaje surowy
 //     ekran frameworka);
-//   * `head()` na wpisie - preload obrazu LCP, tagi Highwire i kolejność
-//     okruszków w JSON-LD;
-//   * `buildCoverPreload` przez LOADER - jedyna droga, bo funkcja nie jest
-//     eksportowana, a jest regułą wydajnościową (jeden pobrany kandydat
-//     obrazu, nie dwa).
+//   * `head()` na wpisie - BRAK preloadu obrazu LCP (wstawia go React 19
+//     z `<img fetchPriority="high">`), tagi Highwire i kolejność okruszków
+//     w JSON-LD;
+//   * `buildCoverPreload` przez LOADER (nagłówek HTTP `Link`) - jedyna droga,
+//     bo funkcja nie jest eksportowana, a jest regułą wydajnościową (jeden
+//     pobrany kandydat obrazu, nie dwa).
 //
 // CZEGO TEN PLIK ŚWIADOMIE NIE ROBI: nie renderuje `PublicPage`/`ResolvedPage`.
 // Uzasadnienie i pomiar - w komentarzu przy końcu pliku, nad blokiem
@@ -46,7 +47,7 @@ const h = vi.hoisted(() => ({
   invalidateCalls: 0,
   /** Wartości `setCacheControlHeader(...)` w kolejności wywołań. */
   cacheControl: [] as string[],
-  /** Wartości nagłówka HTTP `Link` - tu ląduje preload obrazu LCP. */
+  /** Wartości nagłówka HTTP `Link` - JEDYNE miejsce, gdzie loader oddaje preload okładki. */
   linkHeaders: [] as string[],
   /** Adres żądania widziany przez `getRequestUrl()` (SSR: nagłówki, klient: URL). */
   requestUrl: "",
@@ -402,7 +403,6 @@ function loader(): Loader {
 interface WynikLoadera {
   kind?: unknown;
   degraded?: unknown;
-  coverPreload?: { href?: unknown; imageSrcSet?: unknown; imageSizes?: unknown } | null;
   /** P3.7b, T6: lista NIE jedzie w danych loadera (magazyn żądania, `heroPreloadsFor`). */
   heroPreloads?: unknown;
   seoSettings?: unknown;
@@ -466,6 +466,13 @@ function jakoWynik(wynik: unknown): WynikLoadera {
   }
   return { ...wynik };
 }
+
+/**
+ * Nagłówki HTTP `Link` z preloadem OBRAZU (bez hintów widgetów i fontów).
+ * Preload okładki wpisu NIE jedzie w danych loadera - ten nagłówek jest jedynym
+ * śladem `buildCoverPreload`, więc to na nim stoją asercje deskryptora.
+ */
+const naglowkiObrazu = () => h.linkHeaders.filter((v) => v.includes('as="image"'));
 
 beforeEach(() => {
   stub.reset();
@@ -650,14 +657,15 @@ describe("Route.options - powierzchnie 404 i oczekiwania trasy `/$`", () => {
 });
 
 // ===========================================================================
-// `head()` NA WPISIE - preload LCP, cytowania, kolejność okruszków.
+// `head()` NA WPISIE - brak duplikatu preloadu LCP, cytowania, okruszki.
 // ===========================================================================
 //
 // `publicResolverRoute.test.tsx` sprawdza `head()` na STRONIE (kanoniczny adres
-// i gałąź bez danych loadera). Wpis to inne gałęzie tej samej funkcji: preload
-// okładki, tagi Highwire z listy autorów i sortowanie okruszków - i to one
-// decydują o LCP oraz o tym, jak wpis wygląda w Google Scholar i w okruszkach
-// wyniku wyszukiwania.
+// i gałąź bez danych loadera). Wpis to inne gałęzie tej samej funkcji: okładka
+// (której `head()` NIE preloaduje - robi to React 19 z obrazu w powłoce),
+// tagi Highwire z listy autorów i sortowanie okruszków - i to one decydują
+// o LCP oraz o tym, jak wpis wygląda w Google Scholar i w okruszkach wyniku
+// wyszukiwania.
 describe("head() trasy `/$` - wpis", () => {
   it.each(["pl", "en"] as const)(
     "keeps localized metadata and generated social-card dimensions in %s",
@@ -733,16 +741,12 @@ describe("head() trasy `/$` - wpis", () => {
     const wpis = { ...resolvedPost(), item: postItem({ slug: "test-rakietowy" }) };
     expect(robots(head(wpis))).toMatch(/^index, follow/);
   });
-  /** Ładunek loadera dla wpisu: treść + deskryptor preloadu, tak jak go oddaje loader. */
+  /**
+   * Ładunek loadera dla wpisu z okładką, tak jak go oddaje loader - BEZ
+   * deskryptora preloadu (ten idzie wyłącznie nagłówkiem HTTP `Link`).
+   */
   function ladunekWpisu(): Record<string, unknown> {
-    return {
-      ...resolvedPost(),
-      coverPreload: {
-        href: COVER_URL,
-        imageSrcSet: `${COVER_URL}?width=640 640w`,
-        imageSizes: "100vw",
-      },
-    };
+    return { ...resolvedPost() };
   }
 
   function head(loaderData: unknown, splat = "analizy/atom"): RouteHeadResult {
@@ -784,23 +788,25 @@ describe("head() trasy `/$` - wpis", () => {
       .filter((el) => el.position !== 1);
   }
 
-  it("emituje preload obrazu okładki z TYMI SAMYMI kandydatami, co render", () => {
-    // Reguła wydajnościowa, nie ozdoba: preload bez `imagesrcset`/`imagesizes`
-    // każe przeglądarce pobrać INNEGO kandydata niż ten, który finalnie maluje
-    // `<img>` - czyli dwa pobrania obrazu LCP zamiast jednego.
+  it("head() NIE dubluje preloadu okładki - wstawia go React 19 z obrazu w powłoce", () => {
+    // Reguła wydajnościowa, nie ozdoba: okładka `PostLayoutRenderer` to
+    // `<img fetchPriority="high">` w powłoce SSR, więc React 19 sam wstawia
+    // `<link rel="preload" as="image">` do `<head>` z TYMI SAMYMI `srcSet`/`sizes`.
+    // Link z `head()` trafia do `<head>` bez deduplikacji z tamtym - drugi,
+    // identyczny preload najcięższego zasobu strony (`documentPreloadDuplicates`).
+    // Drogę przez nagłówki trzyma nagłówek `Link` z loadera (testy loadera niżej).
     h.requestUrl = "https://przyklad.example.com/analizy/atom";
-    const links = head(ladunekWpisu()).links ?? [];
-    const preload = links.find((l) => l.rel === "preload" && l.as === "image");
-    expect(preload).toBeTruthy();
-    expect(preload?.href).toBe(COVER_URL);
-    expect(preload?.imageSrcSet).toBe(`${COVER_URL}?width=640 640w`);
-    expect(preload?.imageSizes).toBe("100vw");
-    expect(preload?.fetchPriority).toBe("high");
+    const ladunek = resolvedPost();
+    // Wejście MA okładkę - bez niej brak preloadu niczego by nie dowodził.
+    expect(ladunek.item.cover_image_url).toBe(COVER_URL);
+    const links = head(ladunek).links ?? [];
+    expect(links.filter((l) => l.rel === "preload")).toEqual([]);
+    // Kanoniczny adres zostaje - to nie jest gałąź „bez nagłówka".
+    expect(links.find((l) => l.rel === "canonical")).toBeTruthy();
   });
 
-  it("bez deskryptora okładki NIE emituje preloadu - pusty preload to zmarnowane pasmo", () => {
-    const ladunek = ladunekWpisu();
-    ladunek.coverPreload = null;
+  it("wpis BEZ okładki też nie dostaje preloadu z `head()` - pusty preload to zmarnowane pasmo", () => {
+    const ladunek = { ...ladunekWpisu(), item: postItem({ cover_image_url: null }) };
     const links = head(ladunek).links ?? [];
     expect(links.find((l) => l.rel === "preload" && l.as === "image")).toBeUndefined();
     // Kanoniczny adres zostaje - to nie jest gałąź „bez nagłówka".
@@ -842,7 +848,6 @@ describe("head() trasy `/$` - wpis", () => {
         kind: "page",
         item: postItem({ cover_image_url: null }),
         crumbs: [],
-        coverPreload: null,
       }).meta ?? [];
     expect(meta.filter((m) => m.name === "citation_author")).toEqual([]);
   });
@@ -889,29 +894,40 @@ describe("head() trasy `/$` - wpis", () => {
 // LOADER PO ROZSTRZYGNIĘCIU TREŚCI - `buildCoverPreload` i kontekst rozgrzewki.
 // ===========================================================================
 //
-// `buildCoverPreload` (`$.tsx:184`) NIE JEST eksportowana, więc jedyną drogą do
-// niej jest loader. Nie jest to obejście: funkcja istnieje po to, żeby preload
-// z `head()` opisywał DOKŁADNIE ten kandydat obrazu, który namaluje
-// `PostLayoutRenderer` - a to zależy od aktywnego layoutu, czyli od danych,
-// które loader dopiero czyta.
+// `buildCoverPreload` (`$.tsx`) NIE JEST eksportowana, więc jedyną drogą do
+// niej jest loader. Nie jest to obejście: funkcja istnieje po to, żeby nagłówek
+// HTTP `Link` opisywał DOKŁADNIE ten kandydat obrazu, który namaluje
+// `PostLayoutRenderer` (i który React 19 sam preloaduje w `<head>` z jego
+// `<img fetchPriority="high">`) - a to zależy od aktywnego layoutu, czyli od
+// danych, które loader dopiero czyta. Deskryptor NIE jedzie w danych loadera,
+// więc asercje stoją na nagłówku (`naglowkiObrazu`).
 describe("loader trasy `/$` - preload okładki wpisu", () => {
-  it("wpis z okładką dostaje deskryptor preloadu ORAZ nagłówek HTTP `Link`", async () => {
+  it("wpis z okładką dostaje DOKŁADNIE JEDEN nagłówek HTTP `Link` z kandydatami renderu", async () => {
     const { wynik } = await runLoader("analizy/atom", resolvedPost());
-    const preload = jakoWynik(wynik).coverPreload;
-    expect(preload).toBeTruthy();
-    expect(preload?.href).toBe(COVER_URL);
+    // Fetch obrazu startuje z NAGŁÓWKÓW, przed sparsowaniem pierwszego bajtu
+    // HTML (i to on odtwarza się jako 103 Early Hints na brzegu). Preload
+    // w `<head>` wstawia React 19 z `<img>` okładki - nie `head()` trasy.
+    expect(h.linkHeaders).toHaveLength(1);
+    const [naglowek] = naglowkiObrazu();
+    expect(naglowek).toContain(`<${COVER_URL}>`);
+    expect(naglowek).toContain('rel="preload"');
+    expect(naglowek).toContain("fetchpriority=high");
     // Kandydaty responsywne MUSZĄ być niepuste - inaczej przeglądarka
     // pobierze oryginał i drugi raz właściwy wariant.
-    expect(String(preload?.imageSrcSet)).toContain("640w");
-    expect(preload?.imageSizes).toBe("100vw");
-
-    // Nagłówek HTTP `Link` to druga połowa tej samej reguły: fetch obrazu
-    // startuje z NAGŁÓWKÓW, przed sparsowaniem pierwszego bajtu HTML (i to on
-    // odtwarza się jako 103 Early Hints na brzegu).
-    expect(h.linkHeaders).toHaveLength(1);
-    expect(h.linkHeaders[0]).toContain('rel="preload"');
-    expect(h.linkHeaders[0]).toContain('as="image"');
-    expect(h.linkHeaders[0]).toContain("imagesrcset=");
+    expect(naglowek).toMatch(/imagesrcset="[^"]*640w/);
+    expect(naglowek).toContain('imagesizes="100vw"');
+    // Deskryptor nie jedzie w `$tsr` - klient go nie czyta, a `head()` nie emituje.
+    expect(jakoWynik(wynik)).not.toHaveProperty("coverPreload");
+    // Koniec łańcucha: to, co loader NAPRAWDĘ oddaje, przepuszczone przez `head()`.
+    // Sam brak pola `coverPreload` nie wystarcza - deskryptor pod inną nazwą
+    // pola wróciłby jako duplikat preloadu, który React 19 i tak wstawia do
+    // `<head>` z `<img>` okładki. Kanoniczny adres pilnuje, że `head()` naprawdę
+    // zbudował nagłówek (pusta lista linków niczego by nie dowodziła).
+    const linkiHead =
+      routeHead(Route, { loaderData: wynik as never, params: { _splat: "analizy/atom" } }).links ??
+      [];
+    expect(linkiHead.find((l) => l.rel === "canonical")).toBeTruthy();
+    expect(linkiHead.filter((l) => l.rel === "preload")).toEqual([]);
 
     // Treść ROZSTRZYGNIĘTA znaczy cache brzegowy, a nie `no-store` (ten jest
     // zarezerwowany dla 404 i przekierowań - patrz `publicResolverRoute`).
@@ -919,14 +935,33 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
     expect(h.cacheControl.every((v) => v.includes("no-store"))).toBe(false);
   });
 
-  it("wpis BEZ okładki nie dostaje ani deskryptora, ani nagłówka `Link`", async () => {
+  it("wpis BEZ okładki nie dostaje nagłówka `Link` obrazu", async () => {
     const { wynik } = await runLoader(
       "analizy/atom",
       resolvedPost({ item: postItem({ cover_image_url: null }) }),
     );
-    expect(jakoWynik(wynik).coverPreload).toBeNull();
+    // Treść ROZSTRZYGNIĘTA - brak nagłówka wynika z braku okładki, nie z 404.
+    expect(jakoWynik(wynik).kind).toBe("post");
     expect(h.linkHeaders).toEqual([]);
   });
+
+  it.each([
+    ["małe litery", "data:image/png;base64,iVBORw0KGgo="],
+    ["wielkie litery", "DATA:image/svg+xml;utf8,<svg/>"],
+  ])(
+    "okładka `data:` (%s) nie trafia do nagłówka `Link` - nie ma czego preloadować",
+    async (_, cover) => {
+      // React 19 sam pomija obrazy `data:` (bez względu na wielkość liter), bo
+      // nie ma czego pobierać. W nagłówku `Link` cały URI tylko pompowałby
+      // nagłówki odpowiedzi (i ryzykował limit proxy) - zero zysku.
+      const { wynik } = await runLoader(
+        "analizy/atom",
+        resolvedPost({ item: postItem({ cover_image_url: cover }) }),
+      );
+      expect(jakoWynik(wynik).kind).toBe("post");
+      expect(naglowkiObrazu()).toEqual([]);
+    },
+  );
 
   it("layout BEZ obrazu wyróżniającego nie dostaje preloadu - preload czegoś, czego nie widać", async () => {
     // Layout 9 (`cover: "none"`, `header: "no-cover"`) nie maluje okładki.
@@ -939,7 +974,7 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
         item: postItem({ layout_overrides: { layout: "layout-9" } }),
       }),
     );
-    expect(jakoWynik(wynik).coverPreload).toBeNull();
+    expect(jakoWynik(wynik).kind).toBe("post");
     expect(h.linkHeaders).toEqual([]);
   });
 
@@ -955,7 +990,8 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
     // MA: obraz LCP strony wyznacza kandydat dokumentu buildera
     // (`builderContentHeroPreloads` -> `heroPreloads`, emitowane przez
     // `preload()` w komponencie trasy), nie okładka wiersza. Tu dokumentu brak.
-    expect(jakoWynik(wynik).coverPreload).toBeNull();
+    expect(jakoWynik(wynik).kind).toBe("page");
+    expect(naglowkiObrazu()).toEqual([]);
     expect(heroPreloadsFor(queryClient)).toEqual([]);
   });
 
@@ -985,18 +1021,16 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
       },
     ],
   };
-  const naglowkiObrazu = () => h.linkHeaders.filter((v) => v.includes('as="image"'));
 
   it("STRONA z obrazem w sekcji 0 (silnik buildera): jeden deskryptor kandydata i nagłówek `Link` z imagesizes", async () => {
     const { wynik, queryClient } = await runLoader("o-nas", {
       ...stronaZDokumentem(dokumentZHero),
       item: postItem({ editor: "builder", builder_data: dokumentZHero, cover_image_url: null }),
     });
-    const { coverPreload } = jakoWynik(wynik);
     // P3.7b, T6: deskryptor w magazynie żądania, NIE w danych loadera (`$tsr`).
     expect(jakoWynik(wynik)).not.toHaveProperty("heroPreloads");
+    expect(jakoWynik(wynik)).not.toHaveProperty("coverPreload");
     const heroPreloads = heroPreloadsFor(queryClient);
-    expect(coverPreload).toBeNull();
     expect(heroPreloads).toHaveLength(1);
     expect(heroPreloads?.[0]?.href).toBe(HERO_URL);
     expect(String(heroPreloads?.[0]?.imageSrcSet)).toContain("/storage/v1/render/image/public/");
@@ -1019,11 +1053,14 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
     expect(naglowkiObrazu()).toEqual([]);
   });
 
-  it("WPIS nie liczy kandydatów buildera - jego obrazem LCP jest okładka z `head()`", async () => {
+  it("WPIS nie liczy kandydatów buildera - jego obrazem LCP jest okładka (nagłówek `Link` + preload Reacta)", async () => {
     const { wynik, queryClient } = await runLoader("analizy/atom", resolvedPost());
     expect(heroPreloadsFor(queryClient)).toEqual([]);
     expect(jakoWynik(wynik)).not.toHaveProperty("heroPreloads");
-    expect(jakoWynik(wynik).coverPreload?.href).toBe(COVER_URL);
+    // Jedyny preload obrazu w nagłówkach to okładka - żadnego kandydata buildera.
+    const [naglowek, ...reszta] = naglowkiObrazu();
+    expect(reszta).toEqual([]);
+    expect(naglowek).toContain(`<${COVER_URL}>`);
   });
 
   it("T5 (P3.7b): `seoSettings` to surowe `seo` z cache ustawień - ta sama referencja, `head()` je parsuje", async () => {
@@ -1125,7 +1162,7 @@ describe("loader trasy `/$` - degradacja zapytań pobocznych", () => {
     stub.setResponse("site_settings", fail("site_settings unreachable"));
     const { wynik } = await runLoader("analizy/atom", resolvedPost());
     expect(jakoWynik(wynik).kind).toBe("post");
-    expect(jakoWynik(wynik).coverPreload).toBeTruthy();
+    expect(naglowkiObrazu()).toHaveLength(1);
   });
 
   // ------------------------------------------------------------------------
@@ -1293,7 +1330,7 @@ describe("loader trasy `/$` - degradacja zamiast fałszywego 404", () => {
     // serwis jako offline), więc `noindex` jest JEDYNĄ obroną indeksu przed
     // utrwaleniem „nie udało się załadować" pod adresem prawdziwego artykułu.
     const head = routeHead(Route, {
-      loaderData: { kind: "degraded", degraded: true, seoSettings: null, coverPreload: null },
+      loaderData: { kind: "degraded", degraded: true, seoSettings: null },
       params: { _splat: "analizy/atom" },
     });
     const robots = head.meta?.find((m) => m.name === "robots");
@@ -1495,21 +1532,18 @@ describe("loader trasy `/$` - wejście bez segmentu i wiersz z pustą kolumną",
     // `pickLayoutId` dostałby `undefined`, preload wyszedłby z innego zestawu
     // kandydatów niż ten, który maluje `PostLayoutRenderer`, i przeglądarka
     // pobrałaby okładkę DWA RAZY - na najcięższym zasobie strony. Dowód jest
-    // więc RÓWNOŚCIĄ obu deskryptorów, a nie samą prawdziwością jednego.
-    const jawny = jakoWynik((await runLoader("analizy/atom", resolvedPost())).wynik).coverPreload;
+    // więc RÓWNOŚCIĄ obu nagłówków `Link` (jedyny ślad deskryptora), a nie
+    // samą obecnością jednego.
+    await runLoader("analizy/atom", resolvedPost());
+    const jawny = naglowkiObrazu();
     h.linkHeaders = [];
-    const pusty = jakoWynik(
-      (
-        await runLoader(
-          "analizy/atom",
-          resolvedPost({ item: postItem({ post_format: undefined }) }),
-        )
-      ).wynik,
-    ).coverPreload;
+    await runLoader("analizy/atom", resolvedPost({ item: postItem({ post_format: undefined }) }));
+    const pusty = naglowkiObrazu();
 
     expect(pusty).toEqual(jawny);
-    expect(pusty?.href).toBe(COVER_URL);
-    expect(h.linkHeaders).toHaveLength(1);
+    expect(pusty).toHaveLength(1);
+    expect(pusty[0]).toContain(`<${COVER_URL}>`);
+    expect(pusty[0]).toContain("imagesrcset=");
   });
 });
 

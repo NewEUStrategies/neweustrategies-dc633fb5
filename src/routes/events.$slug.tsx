@@ -60,7 +60,6 @@ import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   SITE_NAME,
   type ImagePreloadInput,
@@ -92,8 +91,6 @@ interface EventShellLoaderData {
   readonly headEvent: EventHeadData | null;
   /** Wydarzenie nie dojechało w budżecie SSR - body pokazuje uczciwy komunikat. */
   readonly degraded: boolean;
-  /** Deskryptor preloadu okładki (LCP przeglądu) albo `null`. */
-  readonly coverPreload: ImagePreloadInput | null;
 }
 
 /** Fallbacki zdegradowanego renderu (patrz lib/ssr/resilientLoad). */
@@ -160,7 +157,7 @@ export const Route = createFileRoute("/events/$slug")({
     const modules = resolveSetting(settings, COMMUNITY_MODULES_KEY, COMMUNITY_MODULES_DEFAULTS);
     // Moduł wyłączony: `<Outlet />` się nie renderuje, więc nie ma po co grzać
     // ani wydarzenia, ani nagłówka.
-    if (!modules.events_enabled) return { headEvent: null, degraded: false, coverPreload: null };
+    if (!modules.events_enabled) return { headEvent: null, degraded: false };
 
     // RÓWNOLEGLE, nie sekwencyjnie: budżety biegną współbieżnie, więc dwa wolne
     // zapytania kosztują tyle co jedno (patrz komentarz przy `anyDegraded`).
@@ -252,11 +249,17 @@ export const Route = createFileRoute("/events/$slug")({
     // PARYTET: komponent maluje zwykłe `<img src>` BEZ `srcSet`, więc deskryptor
     // niesie sam `href`; para srcset/sizes wskazywałaby inny kandydat niż
     // malowany i podwoiłaby pobranie.
+    // DROGA: WYŁĄCZNIE nagłówek HTTP `Link` (utrwalany przez NES Edge Cache na
+    // HIT/STALE; droga do 103 Early Hints). Do `<head>` preload wstawia sam
+    // React 19: `<img fetchPriority="high">` okładki w powłoce dostaje
+    // automatyczny `<link rel="preload" as="image">` z kluczem `src` - tym samym
+    // surowym `cover_url`, więc działa też na dokumencie z cache'u bez nagłówków.
+    // Link z `head()` był jego duplikatem (`documentPreloadDuplicates`, jak
+    // w archiwach - `blog.index.tsx`), dlatego deskryptor NIE wraca w danych.
     const coverPreload = overviewCoverPreload(location.pathname, params.slug, event.data);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     return {
       degraded,
-      coverPreload,
       headEvent:
         h === null
           ? null
@@ -308,12 +311,11 @@ export const Route = createFileRoute("/events/$slug")({
       ...(ev?.cover ? { image: ev.cover } : {}),
       ...(ev?.publishedAt ? { publishedAt: ev.publishedAt } : {}),
     });
-    const preload = loaderData?.coverPreload ?? null;
-    if (!preload) return head;
-    // Ten sam deskryptor, co nagłówek HTTP `Link` z loadera: nagłówek startuje
-    // fetch przed parsowaniem HTML, a `<link>` w dokumencie działa też wtedy,
-    // gdy odpowiedź jedzie z cache'u dokumentów bez nagłówków.
-    return { ...head, links: [...head.links, imagePreloadLink(preload)] };
+    // Preload okładki NIE idzie przez `head()`: `<link>` w dokumencie wstawia
+    // React 19 z `<img fetchPriority="high">` w `EventVideoHeader` (ten sam
+    // klucz `src`), a nagłówek HTTP `Link` dokłada loader. Link stąd trafiał do
+    // `<head>` bez deduplikacji, czyli jako drugi, identyczny preload.
+    return head;
   },
 });
 

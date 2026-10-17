@@ -35,7 +35,6 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
@@ -77,30 +76,29 @@ export const Route = createFileRoute("/programs/$slug")({
     // z degradacji mógł jeszcze zamarznąć na brzegu dla kolejnych czytelników.
     setCacheControlHeader(resilientCacheControl(identity.degraded || identity.data === null));
     const landing = notFoundIfClean(identity);
-    if (landing === null) return { landing: null, heroPreload: null, degraded: true };
+    if (landing === null) return { landing: null, degraded: true };
     // Preload LCP hero programu - deskryptor odzwierciedla 1:1 render
     // OptimizedImage `responsive` (buildImageSrcSet + domyślne sizes "100vw"),
-    // więc przeglądarka nigdy nie pobiera drugiego wariantu. Ta sama wartość
-    // idzie też jako nagłówek HTTP `Link` (droga do 103 Early Hints).
+    // więc przeglądarka nigdy nie pobiera drugiego wariantu. Idzie WYŁĄCZNIE
+    // nagłówkiem HTTP `Link` (utrwalany przez NES Edge Cache na HIT/STALE;
+    // droga do 103 Early Hints). Do `<head>` preload wstawia sam React 19:
+    // hero `priority` (eager + `fetchPriority="high"`) w powłoce dostaje
+    // automatyczny `<link rel="preload" as="image">` z tym samym kluczem
+    // (`srcSet`+`sizes`; hero spoza magazynu nie ma `srcSet`, więc kluczem
+    // jest samo `src`) - link z `head()` był jego identycznym duplikatem
+    // (`documentPreloadDuplicates`; jak w archiwach, `blog.index.tsx`).
     const hero = landing.program.hero_image_url;
     const heroPreload: ImagePreloadInput | null = hero
       ? { href: hero, imageSrcSet: buildImageSrcSet(hero), imageSizes: "100vw" }
       : null;
     if (heroPreload) appendLinkHeader(imagePreloadLinkHeaderValue(heroPreload));
-    return { landing, heroPreload, degraded: false };
+    return { landing, degraded: false };
   },
   head: ({ loaderData, params }) => {
     const url = getRequestUrl() || `/programs/${params.slug}`;
     const lang = activeLang(url);
-    const data = loaderData as
-      | {
-          landing: ProgramLanding | null;
-          heroPreload: ImagePreloadInput | null;
-          degraded: boolean;
-        }
-      | undefined;
+    const data = loaderData as { landing: ProgramLanding | null; degraded: boolean } | undefined;
     const landing = data?.landing ?? null;
-    const heroPreload = data?.heroPreload ?? null;
     const program = landing?.program ?? null;
     if (!program) {
       return buildContentHead({
@@ -140,10 +138,11 @@ export const Route = createFileRoute("/programs/$slug")({
       lang,
       url,
     );
+    // Preload hero NIE idzie przez `head()`: `<head>` dostaje go od Reacta 19
+    // (obraz `fetchPriority="high"` w powłoce), a odpowiedź - nagłówkiem `Link`
+    // z loadera. Drugi link stąd byłby duplikatem w dokumencie.
     return {
       ...head,
-      // Preload hero z <head> - fetch startuje przed sparsowaniem <img> w body.
-      links: heroPreload ? [...head.links, imagePreloadLink(heroPreload)] : head.links,
       scripts: [{ type: "application/ld+json", children: safeJsonLd(breadcrumbs) }],
     };
   },
@@ -393,7 +392,9 @@ function ProgramDetail() {
         {program.hero_image_url && (
           <div className="absolute inset-0" aria-hidden="true">
             {/* priority: hero nad zgięciem to kandydat LCP - eager + wysoki
-                priorytet sieciowy, spójnie z preloadem z loadera. */}
+                priorytet sieciowy, spójnie z nagłówkiem `Link` z loadera
+                (te same `srcSet`/`sizes`). Z tego obrazu React 19 sam
+                wstawia preload do `<head>` - `head()` trasy go nie dubluje. */}
             <OptimizedImage
               src={program.hero_image_url}
               alt=""

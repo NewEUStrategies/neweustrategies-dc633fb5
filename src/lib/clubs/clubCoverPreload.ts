@@ -27,12 +27,13 @@
 // i `sizes` wariantu `banner`. Preload z INNYM zestawem kandydatów każe
 // przeglądarce pobrać plik, którego `<img>` i tak nie wybierze - czyli
 // podwaja transfer zamiast go przyspieszać.
+import { CLUB_COVER_BANNER_SIZES } from "@/lib/clubs/coverFrame";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { stripLangPrefix } from "@/lib/http/documentCache";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
 
-/** `sizes` wariantu `banner` z `components/clubs/atoms/ClubCover.tsx`. */
-export const CLUB_COVER_BANNER_SIZES = "(min-width: 1024px) 64rem, 100vw";
+/** `sizes` wariantu `banner` - stała żyje w `coverFrame`, którą czyta też `ClubCover`. */
+export { CLUB_COVER_BANNER_SIZES };
 
 /** Minimum karty klubu, od którego zależy ta decyzja. */
 export interface ClubCoverSource {

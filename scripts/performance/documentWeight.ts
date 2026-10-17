@@ -292,6 +292,7 @@ export function documentBootSet(html: string): DocumentBootSet | null {
 }
 
 export interface DuplicateEntry {
+  /** Klucz `preloadKey` (origin kanoniczny mediów zdjęty), nie surowy `href`. */
   readonly key: string;
   readonly count: number;
   readonly sources: readonly string[];
@@ -343,7 +344,10 @@ export interface DocumentWeight {
   readonly modulepreloadInHead: number;
   readonly modulepreloadInHeader: number;
   readonly linkHeaderEntries: number;
-  /** Wystąpienia preloadu ponad pierwsze (ten sam zasób: href albo imagesrcset). */
+  /**
+   * Wystąpienia preloadu ponad pierwsze (ten sam zasób: href albo imagesrcset; adres absolutny
+   * kanonicznego originu mediów = jego ścieżka względna `/media/...` - `preloadKey`).
+   */
   readonly preloadDuplicates: number;
   /**
    * Duplikaty WEWNĄTRZ dokumentu (head/body bez nagłówka `Link`) - np. obraz LCP
@@ -496,8 +500,6 @@ function linkEntries(html: string): LinkEntry[] {
 }
 
 const isPreload = (l: LinkEntry) => l.rel === "preload" || l.rel === "modulepreload";
-/** Ten sam zasób: dla obrazów responsywnych liczy się `imagesrcset`, nie `href`. */
-const preloadKey = (l: LinkEntry) => (l.imagesrcset ? `srcset:${l.imagesrcset}` : l.href);
 
 /**
  * Klucz zasobu obrazu - DOKŁADNIE ten, którym React łączy preload z `<img>`
@@ -547,6 +549,37 @@ function siteHeaderRanges(html: string): Array<[number, number]> {
  * - moduł czyta `import.meta.env`, więc skrypt node go nie importuje).
  */
 export const CANONICAL_MEDIA_ORIGIN = "https://neweuropeanstrategies.com";
+
+/**
+ * `https://neweuropeanstrategies.com/media/x` -> `/media/x`; każdy inny adres bez zmian.
+ * Zakres = `renderedMediaUrl` (`src/lib/cropSizes.ts`), który przepisuje na ścieżkę
+ * względną WYŁĄCZNIE `${PUBLIC_MEDIA_ORIGIN}/media/...`.
+ */
+function withoutCanonicalMediaOrigin(url: string): string {
+  return url.startsWith(`${CANONICAL_MEDIA_ORIGIN}/media/`)
+    ? url.slice(CANONICAL_MEDIA_ORIGIN.length)
+    : url;
+}
+
+/**
+ * Klucz grupowania preloadów (`preloadDuplicates`, `documentPreloadDuplicates`): dla obrazów
+ * responsywnych `imagesrcset`, inaczej `href` - z originem kanonicznym mediów zdjętym z `href`
+ * i z KAŻDEGO kandydata `imagesrcset` (kandydaci rozdzieleni przecinkiem ZE SPACJĄ, jak
+ * w `widthCandidateSets`). Dokument produkcji przychodzi z tego originu, więc `/media/logo.svg`
+ * i `https://neweuropeanstrategies.com/media/logo.svg` to JEDEN plik w dwóch `<link>`; React
+ * łączy preloady po surowym napisie, więc sam ich nie scali. Do 2026-10-17 bramka też grupowała
+ * po surowym napisie: para względny + absolutny (logo `Header` przez `renderedMediaUrl` obok
+ * surowego logo `ReadingHeader` na stronie wpisu - błąd z produkcji) dawała dwa klucze, czyli
+ * tylko +1 w `imagePreloadCount`, nigdy duplikat. Inne originy (CDN, `fixture.invalid`
+ * w fixture `/` i `/blog`) to inne zasoby i zostają osobnymi kluczami.
+ */
+const preloadKey = (l: LinkEntry) =>
+  l.imagesrcset
+    ? `srcset:${l.imagesrcset
+        .split(/(,\s+)/)
+        .map((part, i) => (i % 2 ? part : withoutCanonicalMediaOrigin(part.trimStart())))
+        .join("")}`
+    : withoutCanonicalMediaOrigin(l.href);
 
 /** Kandydaci `w` każdego `srcset` (`<img>`, `<source>`) i `imagesrcset` (preloady). */
 function widthCandidateSets(html: string, links: readonly LinkEntry[]): string[][] {
