@@ -13,16 +13,11 @@
 // coś innego, co przewinęłoby stronę po hydratacji.
 import { expect, test, type Page } from "@playwright/test";
 
+import { holdReveals } from "./helpers/streamReveals";
+
 const VIEWPORT = { width: 1350, height: 940 };
 
 test.use({ viewport: VIEWPORT });
-
-declare global {
-  interface Window {
-    __releaseReveals?: () => void;
-    __revealQueued?: number;
-  }
-}
 
 /** Element z `id` w segmencie strumienia HTML-u serwera `/`, najdalszy od góry (nagłówek). */
 async function streamedTargetId(page: Page): Promise<string> {
@@ -39,31 +34,6 @@ async function streamedTargetId(page: Page): Promise<string> {
   }, html);
   expect(id, "HTML `/` fixture ma nagłówek z id w segmencie strumienia").not.toBeNull();
   return id!;
-}
-
-/** Wstrzymuje odsłanianie partii granic do `window.__releaseReveals()`. */
-async function holdReveals(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const queue: Array<() => void> = [];
-    let released = false;
-    let reveal: unknown;
-    window.__revealQueued = 0;
-    window.__releaseReveals = () => {
-      released = true;
-      for (const run of queue.splice(0)) run();
-    };
-    Object.defineProperty(window, "$RV", {
-      configurable: true,
-      get: () => reveal,
-      set: (fn: (...args: unknown[]) => void) => {
-        reveal = (...args: unknown[]) => {
-          if (released) return fn(...args);
-          window.__revealQueued = (window.__revealQueued ?? 0) + 1;
-          queue.push(() => fn(...args));
-        };
-      },
-    });
-  });
 }
 
 /**
