@@ -132,7 +132,7 @@ describe("kontrakt adresu archiwum taksonomii", () => {
 
 describe("nagłówek /blog", () => {
   it("strona pierwsza jest indeksowalna i ma kanoniczny adres bez parametrów", () => {
-    const result = head(BlogRoute, { loaderData: { page: 1, total: 42, coverPreload: null } });
+    const result = head(BlogRoute, { loaderData: { page: 1, total: 42 } });
     expect(title(result)).toContain("Blog");
     expect(metaByName(result, "robots")).toBeUndefined();
     const canonical = linkByRel(result, "canonical")[0];
@@ -142,15 +142,13 @@ describe("nagłówek /blog", () => {
   it("strona druga i dalsze są NOINDEX, FOLLOW", () => {
     // Konsolidacja rankingu na stronie pierwszej: crawler ma iść za linkami
     // do wpisów, ale nie budować indeksu z kolejnych stron listy.
-    const result = head(BlogRoute, { loaderData: { page: 3, total: 42, coverPreload: null } });
+    const result = head(BlogRoute, { loaderData: { page: 3, total: 42 } });
     expect(metaByName(result, "robots")).toBe("noindex, follow");
     expect(title(result)).toContain("3");
   });
 
   it("wypisuje okruszki i CollectionPage z liczbą wyników", () => {
-    const nodes = jsonLd(
-      head(BlogRoute, { loaderData: { page: 1, total: 42, coverPreload: null } }),
-    );
+    const nodes = jsonLd(head(BlogRoute, { loaderData: { page: 1, total: 42 } }));
     const collection = nodes.find((n) => n["@type"] === "CollectionPage");
     expect(collection).toMatchObject({ numberOfItems: 42 });
     expect(nodes.some((n) => n["@type"] === "BreadcrumbList")).toBe(true);
@@ -159,27 +157,17 @@ describe("nagłówek /blog", () => {
   it("bez wyników nie deklaruje liczby elementów kolekcji", () => {
     // Zero to nie „nie wiem" - deklarowanie `numberOfItems: 0` byłoby
     // twierdzeniem o pustym archiwum przy zdegradowanym renderze.
-    const nodes = jsonLd(
-      head(BlogRoute, { loaderData: { page: 1, total: 0, coverPreload: null } }),
-    );
+    const nodes = jsonLd(head(BlogRoute, { loaderData: { page: 1, total: 0 } }));
     const collection = nodes.find((n) => n["@type"] === "CollectionPage")!;
     expect(collection.numberOfItems).toBeUndefined();
   });
 
-  it("deskryptor okładki zamienia się w preload LCP", () => {
-    const withCover = head(BlogRoute, {
-      loaderData: {
-        page: 1,
-        total: 3,
-        coverPreload: { href: "https://cdn.example/cover.avif", imageSrcSet: "", imageSizes: "" },
-      },
-    });
-    expect(linkByRel(withCover, "preload").length).toBe(1);
-
-    const withoutCover = head(BlogRoute, {
-      loaderData: { page: 1, total: 3, coverPreload: null },
-    });
-    expect(linkByRel(withoutCover, "preload").length).toBe(0);
+  it("head() nie dubluje preloadu okładki - wstawia go React 19 z obrazu w powłoce", () => {
+    // Preload LCP pierwszej karty idzie nagłówkiem `Link` (loader) i automatycznym
+    // `<link rel="preload" as="image">` Reacta dla `<img fetchPriority="high">`.
+    // Link z `head()` był identycznym duplikatem w `<head>`.
+    const result = head(BlogRoute, { loaderData: { page: 1, total: 3 } });
+    expect(linkByRel(result, "preload")).toEqual([]);
   });
 
   it("bez danych loadera nagłówek nadal się buduje", () => {
@@ -382,7 +370,7 @@ describe("JSON-LD archiwów przy absolutnym adresie żądania", () => {
     {
       name: "/blog (strona 2)",
       url: `${HOST}/blog?page=2`,
-      run: () => head(BlogRoute, { loaderData: { page: 2, total: 42, coverPreload: null } }),
+      run: () => head(BlogRoute, { loaderData: { page: 2, total: 42 } }),
       self: `${HOST}/blog`,
     },
     {

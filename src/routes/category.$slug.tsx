@@ -17,7 +17,6 @@ import { activeLang } from "@/lib/seo/head";
 import { localizedPath } from "@/lib/i18n/localePath";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   splitUrl,
   SITE_CANONICAL_ORIGIN,
@@ -159,7 +158,6 @@ export const Route = createFileRoute("/category/$slug")({
         page: deps.page,
         pageSize: settings.data.posts_per_page,
         sort: deps.sort,
-        coverPreload: null,
         // Tu `null` znaczy „nie wiemy, czy ta kategoria istnieje" - odczyt
         // treści był zdegradowany (`notFoundIfClean` oddaje `null` wyłącznie
         // wtedy), więc strona ma powiedzieć to wprost zamiast udawać 404.
@@ -168,14 +166,16 @@ export const Route = createFileRoute("/category/$slug")({
       };
     }
     // Preload LCP pierwszej okładki (karta wyróżniona albo pierwsza karta
-    // siatki) - deskryptor dla head() + nagłówek HTTP `Link` (utrwalany przez
-    // NES Edge Cache na HIT/STALE; droga do 103 Early Hints).
+    // siatki) - WYŁĄCZNIE nagłówek HTTP `Link` (utrwalany przez NES Edge Cache
+    // na HIT/STALE; droga do 103 Early Hints). `<head>` dostaje preload od
+    // Reacta 19 (obraz `fetchPriority="high"` w powłoce) - link z `head()`
+    // był jego duplikatem (`blog.index.tsx`).
     const coverPreload = archiveFirstCardPreload(data.posts, settings.data.show_featured_top);
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     // TREŚĆ jest prawdziwa, więc strona renderuje się normalnie - nawet gdy
     // layout przyjechał z fallbacku (`layoutDegraded`), bo domyślki z kodu są
     // pełnoprawną prezentacją, a nie brakiem danych.
-    return { ...data, coverPreload, degraded: false, layoutDegraded: settings.degraded };
+    return { ...data, degraded: false, layoutDegraded: settings.degraded };
   },
   head: ({ loaderData, params }) => {
     const tax = loaderData?.taxonomy;
@@ -270,7 +270,6 @@ export const Route = createFileRoute("/category/$slug")({
     // więc też go nie ogłaszamy.
     const feedLinks = [
       ...head.links,
-      ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
       ...(total > 0
         ? [
             {
