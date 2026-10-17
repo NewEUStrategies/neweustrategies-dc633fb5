@@ -25,7 +25,9 @@
 //    intencję (`defaultPreload: "intent"`, src/router.tsx: import rusza po 50 ms najechania,
 //    przed kliknięciem), kolejne ekrany dzielą większość chunków (już w pamięci modułów), a pełne
 //    wejście na URL /admin w ogóle tej listy nie używa - serwer daje dopasowanym trasom pełne
-//    domknięcie w zestawie bootu (`routePreloads`, src/lib/boot/bootManifest.ts).
+//    domknięcie w zestawie bootu (`routePreloads`, src/lib/boot/bootManifest.ts). Ta sama
+//    pułapka co niżej: cel /admin z WŁASNYM CSS dostałby listę z samym arkuszem (JS po arkuszu) -
+//    na 75d90e1 żaden cel /admin zależności CSS nie ma (skan list `m.f` artefaktu).
 //
 // 2. CHUNKI DOMKNIĘCIA BOOTU WYPADAJĄ Z KAŻDEJ LISTY. Wejście importuje je statycznie, a moduł nie
 //    wykona się, zanim przeglądarka nie pobierze i nie zlinkuje CAŁEGO jego statycznego grafu - więc
@@ -33,18 +35,21 @@
 //    pobiera (Vite i tak pomijał je w runtime, jeśli `<link>` już był). Nazwy z oznaczeń `boot(...)`
 //    przy definicjach grup (`BOOT_CHUNK_NAMES`, scripts/lib/clientChunkGroups.ts), nie z ręcznej
 //    listy; że każda z nich naprawdę jest w domknięciu wejścia artefaktu, sprawdza
-//    check:entry-purity (`isBootChunkFile` niżej - ten sam predykat). Lista, w której zostaje
-//    wyłącznie sam cel, staje się pusta - tak samo robi Vite, gdy cel nie ma zależności (preload
-//    celu rusza razem z jego importem i nic nie daje).
+//    check:entry-purity (`isBootChunkFile` niżej - ten sam predykat). Lista ZACHOWUJE cel, także
+//    gdy zostaje sam: Vite dokleja zależności CSS dopiero PO tej funkcji (tu ich nie widać), a
+//    runtime `__vitePreload` czeka na `load` każdego arkusza, zanim wywoła `import()`. Bez celu
+//    lista z CSS stałaby się samym arkuszem, więc JS celu ruszałby dopiero po nim (+1 runda; na
+//    75d90e1 Lightbox z GalleryBlock). Cena: 34 listy `[cel]` bez CSS (6 chunków dostaje przez
+//    nie cały helper `__vite__mapDeps`) = +0,7 KB gzip public, +0,9 KB overall.
 //
 // CZEGO NIE RUSZAMY. Zależności CSS: Vite wyjmuje je przed tą funkcją i dokleja po niej, więc
 // trasa z arkuszem dostaje go zawsze. Listy w chunkach leniwych (np. leniwe panele w chunkach
 // adminowych) - zdjęcie ich byłoby kaskadą także w panelu, za ~3,8 KB tylko w OVERALL.
 //
 // ZMIERZONE (`BUNDLE_INVENTORY=1 bun run build:smoke` + check:bundle, baza 75d90e1, Bun gzip):
-// public 2919,6 -> 2903,4 (-16,2), overall 4965,7 -> 4948,6 (-17,1), `app-initial` (największy
-// chunk) 265,3 -> 252,8, boot 479,1 -> 466,7 KB; moduły i podział chunków bez zmian. Tablice `m.f`:
-// 37 -> 31 chunków, 2219 -> 1442 nazw, 341 -> 0 nazw bootu, 211 celów /admin z `[]`.
+// public 2919,6 -> 2904,1 (-15,5), overall 4965,7 -> 4949,5 (-16,2), `app-initial` (największy
+// chunk) 265,3 -> 253,2, boot 479,1 -> 467,1 KB; moduły i podział chunków bez zmian. Tablice `m.f`:
+// 37 -> 37 chunków, 2219 -> 1476 nazw, 341 -> 0 nazw bootu, 211 celów /admin z `[]`.
 // PUŁAPKA: Vite wpisuje listy PO policzeniu hashy, więc sama zmiana tej polityki zmienia treść
 // plików bez zmiany ich nazw (stara kopia z cache ma po prostu dłuższe, nadal poprawne listy).
 import { posix } from "node:path";
@@ -86,8 +91,7 @@ export const resolveClientPreloadDependencies: ResolveModulePreloadDependenciesF
 ) => {
   if (context.hostType !== "js") return deps;
   if (isAdminRouteChunkFile(filename)) return [];
-  const kept = deps.filter((dep) => !isBootChunkFile(dep));
-  return kept.length === 1 && kept[0] === filename ? [] : kept;
+  return deps.filter((dep) => !isBootChunkFile(dep));
 };
 
 /**

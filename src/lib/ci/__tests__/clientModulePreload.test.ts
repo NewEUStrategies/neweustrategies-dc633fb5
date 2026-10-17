@@ -133,10 +133,11 @@ describe("resolveClientPreloadDependencies", () => {
     ]);
   });
 
-  it("sam cel bez zależności spoza bootu - pusta lista, jak Vite dla celu bez zależności", () => {
-    const target = "assets/LegalLinks-AbCd1234.js";
-    const deps = [target, "assets/vendor-react-4Olbrvfa.js", "assets/vendor-i18n-DVSn0mLG.js"];
-    expect(resolveClientPreloadDependencies(target, deps, js)).toEqual([]);
+  it("sam cel bez zależności spoza bootu - lista zachowuje cel (Vite dokleja CSS dopiero po niej)", () => {
+    // Pusta lista + doklejony arkusz = `__vitePreload` czeka na CSS, zanim zażąda JS celu.
+    const target = "assets/Lightbox-AbCd1234.js";
+    const deps = [target, "assets/rolldown-runtime-BCiCTKAo.js", "assets/vendor-react-4Olbrvfa.js"];
+    expect(resolveClientPreloadDependencies(target, deps, js)).toEqual([target]);
   });
 
   it("lista HTML-owa (preload wejścia) przechodzi bez zmian", () => {
@@ -172,7 +173,8 @@ const pkgJson = (name: string, main: string) =>
 /**
  * Wejście -> kod bootu (`app-initial`) -> React (CJS, więc też `rolldown-runtime`); kod bootu
  * importuje leniwie trasę publiczną i trasę /admin, obie zależne od Reacta i wspólnego modułu
- * leniwego.
+ * leniwego, oraz moduł z własnym arkuszem i bez zależności spoza bootu (kształt Lightboxa
+ * z GalleryBlock).
  */
 const FILES: Record<string, string> = {
   "node_modules/react/package.json": pkgJson("react", "index.js"),
@@ -191,13 +193,18 @@ const FILES: Record<string, string> = {
     "export function start() {\n" +
     '  globalThis.__fixture = [createElement("boot"),\n' +
     '    () => import("./routes/public.js"),\n' +
-    '    () => import("./routes/admin.secret.js")];\n' +
+    '    () => import("./routes/admin.secret.js"),\n' +
+    '    () => import("./lib/styled.js")];\n' +
     "}\n",
   "src/lib/shared.js":
     'import { legacy } from "legacy-lib";\nexport const shared = "shared-" + legacy();\n',
   "src/routes/public.js":
     'import { createElement } from "react";\nimport { shared } from "../lib/shared.js";\n' +
     'export default () => [createElement("public"), shared];\n',
+  "src/lib/styled.css": ".styled { color: red; }\n",
+  "src/lib/styled.js":
+    'import "./styled.css";\nimport { createElement } from "react";\n' +
+    'export default () => createElement("styled");\n',
   "src/routes/admin.secret.js":
     'import { createElement } from "react";\nimport { shared } from "../lib/shared.js";\n' +
     'export default () => [createElement("admin"), shared, "admin-secret"];\n',
@@ -300,7 +307,7 @@ describe("clientModulePreload - prawdziwy build Vite 8 / Rolldown z grupami klie
     expect(bootNames).toEqual(
       expect.arrayContaining(["index", "app-initial", "vendor-react", ROLLDOWN_RUNTIME_CHUNK]),
     );
-    expect(built.byName("app-initial").dynamicImports).toHaveLength(2);
+    expect(built.byName("app-initial").dynamicImports).toHaveLength(3);
     // Bez polityki lista trasy publicznej wymienia chunki bootu - to te bajty zdejmujemy.
     expect(mapDepsFiles(control.byName("app-initial")).filter(isBootChunkFile)).not.toEqual([]);
   });
@@ -330,10 +337,33 @@ describe("clientModulePreload - prawdziwy build Vite 8 / Rolldown z grupami klie
     const publicCall = built.calls.find((call) => call.filename === publicRoute.fileName);
     expect(publicCall?.result).toEqual([publicRoute.fileName, shared.fileName]);
     // Artefakt: tablica `m.f` chunku bootu nie zna ani chunków bootu, ani trasy /admin.
+    const styled = built.byName("styled");
+    const styledCss = [...styled.viteMetadata!.importedCss];
+    expect(styledCss).toHaveLength(1);
     const table = mapDepsFiles(built.byName("app-initial"));
-    expect(table.sort()).toEqual([publicRoute.fileName, shared.fileName].sort());
+    expect(table.sort()).toEqual(
+      [publicRoute.fileName, shared.fileName, styled.fileName, ...styledCss].sort(),
+    );
     expect(built.byName("app-initial").code).toContain(
       `import(\`./${admin.fileName.slice(7)}\`),[])`,
     );
+  });
+
+  it("cel z własnym CSS i samymi zależnościami bootu - lista ma JS celu obok arkusza", () => {
+    // `__vitePreload` czeka na `load` arkusza, zanim wywoła `import()`: lista z samym CSS
+    // oznaczałaby, że JS celu rusza dopiero po arkuszu (+1 runda), a nie równolegle z nim.
+    const styled = built.byName("styled");
+    const styledCall = built.calls.find((call) => call.filename === styled.fileName);
+    expect(styledCall?.deps.filter((dep) => dep !== styled.fileName).every(isBootChunkFile)).toBe(
+      true,
+    );
+    expect(styledCall?.result).toEqual([styled.fileName]);
+    const app = built.byName("app-initial");
+    const table = mapDepsFiles(app);
+    const call = new RegExp(
+      `import\\(\`\\./${styled.fileName.slice(7).replace(/[.]/g, "\\.")}\`\\),__vite__mapDeps\\(\\[([0-9,]+)\\]\\)`,
+    ).exec(app.code);
+    const listed = (call?.[1] ?? "").split(",").map((index) => table[Number(index)]);
+    expect(listed.sort()).toEqual([styled.fileName, ...styled.viteMetadata!.importedCss].sort());
   });
 });
