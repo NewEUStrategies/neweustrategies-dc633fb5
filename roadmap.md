@@ -2,8 +2,8 @@
 
 ## Podpisy autorów względem tytułów
 
-- [ ] Wdrożyć przez CMS wspólny rozmiar tytuł minus 2 px we wszystkich widżetach PL/EN i wyrównanie do środka awatara.
-- [ ] Sprawdzić ustawienia edytora, testy i rzeczywiste podpisy na stronie.
+- [x] Wdrożyć wspólną, domyślną opcję CMS tytuł minus 2 px we wszystkich widżetach PL/EN i wyrównanie do środka awatara; zapis ustawień strony głównej potwierdzony przez CMS.
+- [x] Sprawdzić ustawienia edytora, testy i rzeczywiste podpisy na stronie: 88 testów, pomiary PL/EN oraz /analizy w 1280 i 393 px - różnica 2 px, wspólny środek awatara i tekstu, brak błędów przeglądarki.
 
 ## Weryfikacja PR #515
 

@@ -45,6 +45,12 @@ function renderControl(
 
 afterEach(cleanup);
 
+it("zapisuje powiązanie rozmiaru autora z tytułem przez kontrolkę CMS", () => {
+  const { written } = renderControl({ authorSizeRelativeToTitle: false });
+  fireEvent.click(screen.getByRole("switch", { name: "Rozmiar autora: tytuł minus 2 px" }));
+  expect(written().authorSizeRelativeToTitle).toBe(true);
+});
+
 describe("AuthorDisplayControl - zapis widoczności", () => {
   it("wyłączenie zdjęcia zostawia nazwisko i przechodzi w tryb etykiety", () => {
     const { written } = renderControl();
