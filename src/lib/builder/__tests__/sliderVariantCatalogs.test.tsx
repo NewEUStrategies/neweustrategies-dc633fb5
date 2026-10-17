@@ -719,6 +719,20 @@ describe("SliderRender - reguły mobilne", () => {
     expect(css).toContain(".cms-post-excerpt{font-size:13px !important;}");
   });
 
+  it("przekazuje rozmiar tytułu bylinowi autora (desktop i telefon) przez --abl-title-size", () => {
+    const { container } = renderSlider({
+      typography: { fontSize: { desktop: "34px", mobile: "26px" } },
+    });
+    const css = instanceCss(container);
+    expect(css).toMatch(/\.eh-slider\.(eh-i-[A-Za-z0-9_-]+)\.\1\.\1\{--abl-title-size:34px;\}/);
+    expect(css).toMatch(
+      /@media \(max-width: 767px\)\{\.eh-slider\.[^{]+\{--abl-title-size:26px;\}\}/,
+    );
+    expect(css).toMatch(
+      /\[data-builder-renderer\]\[data-device="mobile"\] \.eh-slider\.[^{]+\{--abl-title-size:26px;\}/,
+    );
+  });
+
   it("odrzuca mobilny rozmiar spoza białej listy, nie psując reguły desktopowej", () => {
     const { container } = renderSlider({
       typography: { fontSize: { desktop: "34px", mobile: "26px}<style>" } },

@@ -87,8 +87,13 @@ export function AuthorByline({
   onClick,
   children,
 }: AuthorBylineProps) {
-  const relativeToTitle = display.relativeToTitle ?? true;
+  // Mierzymy tylko widoczne nazwisko - sam awatar nie ma rozmiaru czcionki.
+  const relativeToTitle = (display.relativeToTitle ?? true) && display.visible && display.showName;
   const titleSize = useAuthorTitleSize(relativeToTitle);
+  // `null` = w karcie nie ma tytułu (np. ukryty w panelu): wtedy obowiązuje
+  // rozmiar z panelu, a nie tytuł obcego widgetu.
+  const followsTitle = relativeToTitle && titleSize.size !== null;
+  const measuredSize = typeof titleSize.size === "number" ? titleSize.size : undefined;
   const safeName = name.trim();
   // Sam awatar bez nazwiska jest sensownym trybem, ale awatar bez ŻADNYCH danych
   // autora nie - taki byline byłby pustym kwadratem bez znaczenia.
@@ -128,21 +133,21 @@ export function AuthorByline({
   // Domknięcie pudełka (wymiary, `min-*`/`max-*`, `flex`, promień) zostaje
   // inline: to ono wygrywa z globalnymi regułami obrazów buildera (patrz
   // komentarz wyżej) i pilnują go testy kontraktu bylinu.
+  // „Tytuł - 2 px": przed pomiarem (SSR, pierwsza klatka) rozmiar liczy CSS z
+  // tych samych zmiennych co tytuł karty (`--abl-title-size` ustawiany przez
+  // widget, `--wt-tfs`, `--td-pt-size`) - patrz `styles.css`; pomiar w
+  // przeglądarce wpisuje tu dokładną wartość, więc po hydracji nic nie skacze.
   const textStyle: CSSProperties & Record<string, string | number> = {
-    fontSize: `${titleSize.size ?? display.nameSizePx}px`,
-    ...(relativeToTitle
-      ? {
-          "--abl-title-relative-size":
-            titleSize.size === undefined
-              ? "calc(var(--td-pt-size, 16px) - 2px)"
-              : `${titleSize.size}px`,
-        }
-      : null),
+    fontSize: `${measuredSize ?? display.nameSizePx}px`,
     lineHeight: 1.35,
     ...(display.nameSizePx === AUTHOR_NAME_SIZE_PX_DEFAULT
       ? null
       : { "--abl-fs-desktop": `${nameSizeDesktop}px` }),
   };
+  const rootStyle: CSSProperties & Record<string, string | number> =
+    followsTitle && measuredSize !== undefined
+      ? { ...textStyle, "--abl-title-relative-size": `${measuredSize}px` }
+      : textStyle;
   const avatarStyle: CSSProperties & Record<string, string | number> = {
     width: display.avatarSizePx,
     height: display.avatarSizePx,
@@ -245,10 +250,10 @@ export function AuthorByline({
         ref={titleSize.ref}
         href={href}
         className={baseCls}
-        style={textStyle}
+        style={rootStyle}
         onClick={onClick}
         data-author-byline={display.mode}
-        data-author-title-relative={relativeToTitle ? "" : undefined}
+        data-author-title-relative={followsTitle ? "" : undefined}
         data-typography-exempt
       >
         {inner}
@@ -260,10 +265,10 @@ export function AuthorByline({
     <span
       ref={titleSize.ref}
       className={baseCls}
-      style={textStyle}
+      style={rootStyle}
       onClick={onClick}
       data-author-byline={display.mode}
-      data-author-title-relative={relativeToTitle ? "" : undefined}
+      data-author-title-relative={followsTitle ? "" : undefined}
       data-typography-exempt
     >
       {inner}

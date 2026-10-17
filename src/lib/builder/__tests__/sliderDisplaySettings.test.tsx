@@ -238,8 +238,25 @@ describe("slider (tryb ręczny) - tryb prezentacji autora", () => {
 });
 
 describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
-  it("defaults to 12px text and a 20px avatar", () => {
+  it("follows the slide title by default (title - 2 px) with a 20px avatar", () => {
     const { container } = renderSlider({});
+    const title = container.querySelector<HTMLElement>(".cms-post-title");
+    const titlePx = Number.parseFloat(getComputedStyle(title!).fontSize);
+    const byline = container.querySelector<HTMLElement>("[data-author-byline]");
+    expect(avatarOf(container)?.getAttribute("width")).toBe("20");
+    expect(byline?.hasAttribute("data-author-title-relative")).toBe(true);
+    expect(byline?.style.fontSize).toBe(`${titlePx - 2}px`);
+  });
+
+  it("keeps the panel size when the slide title is hidden", () => {
+    const { container } = renderSlider({ showTitle: false, authorSizePx: 15 });
+    const byline = container.querySelector<HTMLElement>("[data-author-byline]");
+    expect(byline?.hasAttribute("data-author-title-relative")).toBe(false);
+    expect(byline?.style.fontSize).toBe("15px");
+  });
+
+  it("defaults to 12px text and a 20px avatar in fixed-size mode", () => {
+    const { container } = renderSlider({ authorSizeRelativeToTitle: false });
     const avatar = avatarOf(container);
     expect(avatar?.getAttribute("width")).toBe("20");
     expect(container.querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
@@ -248,7 +265,11 @@ describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
   });
 
   it("honours authorSizePx and authorAvatarSizePx in the rendered DOM", () => {
-    const { container } = renderSlider({ authorSizePx: 18, authorAvatarSizePx: 44 });
+    const { container } = renderSlider({
+      authorSizeRelativeToTitle: false,
+      authorSizePx: 18,
+      authorAvatarSizePx: 44,
+    });
     const avatar = avatarOf(container);
     expect(avatar?.getAttribute("width")).toBe("44");
     expect(avatar?.style.width).toBe("44px");
@@ -259,6 +280,7 @@ describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
 
   it("accepts numeric strings and clamps out-of-range values", () => {
     const { container } = renderSlider({
+      authorSizeRelativeToTitle: false,
       authorSizePx: "999" as unknown as number,
       authorAvatarSizePx: "16" as unknown as number,
     });

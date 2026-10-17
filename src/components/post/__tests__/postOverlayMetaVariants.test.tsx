@@ -55,6 +55,19 @@ describe("PostOverlayMeta - podpis autora", () => {
     expect(screen.queryByText("Anna Nowak")).toBeNull();
   });
 
+  it("nazwisko w pasku meta pod H1 trzyma rozmiar paska, nie „tytuł - 2 px” nagłówka", () => {
+    const { container } = render(
+      <article>
+        <h1 style={{ fontSize: 42 }}>Nagłówek wpisu</h1>
+        <PostOverlayMeta lang="pl" author={base} publishedAt={null} readMinutes={3} />
+      </article>,
+    );
+    expect(container.querySelector("[data-author-title-relative]")).toBeNull();
+    const name = screen.getByRole("link", { name: "Anna Nowak" });
+    expect(name.style.fontSize).toBe("");
+    expect(name.closest("span")?.className).toContain("items-center");
+  });
+
   it("profil BEZ żadnego imienia dostaje neutralny podpis w języku wpisu", () => {
     const anonymous = { ...base, slug: null, first_name: null, last_name: null };
     const { rerender } = render(

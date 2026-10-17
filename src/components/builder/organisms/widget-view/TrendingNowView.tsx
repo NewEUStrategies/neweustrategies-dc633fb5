@@ -4,7 +4,7 @@
 // szklana karta z inline'owym numerem, tytułem, awatarem i imieniem autora.
 // Dane pochodzą z tego samego zapytania co `news-ticker`, więc prefetch,
 // cache i de-duplikacja wpisów na stronie działają identycznie.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
@@ -56,6 +56,10 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const showAuthor = asBool(c.showAuthor, true);
   const showIndex = asBool(c.showIndex, true);
   const uniqueOnPage = asBool(c.uniqueOnPage, false);
+  // Przed wczesnym returnem: rezolwer czyta WSZYSTKIE klucze autora, więc
+  // pusty stan / ładowanie nie robi z ustawień panelu „martwych" (bramka
+  // wierności ustawień).
+  const authorDisplay = resolveAuthorDisplay(c, lang);
 
   const used = useUsedPostIds();
   const { data, isLoading } = useQuery(newsTickerQueryOptions(c, lang));
@@ -142,19 +146,29 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
               aria-hidden={i >= rows.length ? true : undefined}
               tabIndex={i >= rows.length ? -1 : undefined}
               className="group flex h-12 shrink-0 items-center gap-3 px-5 transition-colors hover:bg-muted/40"
+              // Wiersz = zakres tytułu bylinu (patrz `NewsTickerView`).
+              data-author-title-scope=""
+              style={{ "--abl-title-size": "var(--wt-tfs, 15px)" } as CSSProperties}
             >
               {showIndex ? (
                 <span className="shrink-0 text-[15px] font-bold tabular-nums text-[var(--brand)]">
                   {String((i % rows.length) + 1).padStart(2, "0")}
                 </span>
               ) : null}
-              <span data-title-root className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
+              <span
+                data-title-root
+                className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]"
+              >
                 {title(p)}
               </span>
-              {showAuthor && (p.author_avatar_url || p.author_display_name) ? (
+              {showAuthor && authorDisplay.visible && p.author_display_name?.trim() ? (
                 <span className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-                  <AuthorByline name={p.author_display_name || " "} avatarUrl={p.author_avatar_url}
-                    display={resolveAuthorDisplay(c, lang)} nameClassName="hidden whitespace-nowrap sm:inline" />
+                  <AuthorByline
+                    name={p.author_display_name}
+                    avatarUrl={p.author_avatar_url}
+                    display={authorDisplay}
+                    nameClassName="hidden whitespace-nowrap sm:inline"
+                  />
                 </span>
               ) : null}
             </AppLink>

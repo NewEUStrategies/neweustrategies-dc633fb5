@@ -133,11 +133,16 @@ export function PostListView({
   // Wczesniej widok mial wlasna kopie tej reguly (sztywne 20 px awatara, brak
   // rozmiaru czcionki), wiec ten sam autor renderowal sie inaczej niz w
   // sliderze, a redakcja nie miala jak tego zmienic.
-  const authorDisplay = resolveAuthorDisplay(c, lang);
-  const showAuthorAny = authorDisplay.visible;
   // Global display toggles - apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
+  // „Tytuł - 2 px" tylko przy widocznym tytule - bez niego byline od razu (już
+  // w HTML z serwera) bierze rozmiar z panelu, zamiast przeskoczyć po pomiarze.
+  const resolvedAuthor = resolveAuthorDisplay(c, lang);
+  const authorDisplay = showTitleGlobal
+    ? resolvedAuthor
+    : { ...resolvedAuthor, relativeToTitle: false };
+  const showAuthorAny = authorDisplay.visible;
   // Zajawka: JEDNO źródło z kluczem zapytania (P3.7b, T2) - wiersze widgetu, który
   // zajawki nie rysuje, przychodzą bez `excerpt_*` (`postListRendersExcerpt`).
   const showExcerptGlobal = postListExcerptToggle(c);
@@ -231,7 +236,10 @@ export function PostListView({
   // Byline NIE jest linkiem: karta/wiersz listy jest juz opakowana w <AppLink>,
   // a zagniezdzony <a> to nieprawidlowy HTML (przegladarka rozrywa DOM i psuje
   // nawigacje klawiatura).
-  const AuthorMeta = ({ p, tone = "default" }: { p: PostRow; tone?: "default" | "onDark" }) => {
+  // Zwykła funkcja, nie komponent: komponent zadeklarowany w renderze ma nową
+  // tożsamość przy każdym renderze listy, więc React montował od nowa każdy
+  // byline (i jego pomiar „tytuł - 2 px") przy każdym odświeżeniu zapytania.
+  const authorMeta = (p: PostRow, tone: "default" | "onDark" = "default") => {
     if (!showAuthorAny) return null;
     const name = authorName(p);
     if (!name) return null;
@@ -312,8 +320,8 @@ export function PostListView({
             titleStyle={tStyle}
             excerptStyle={eStyle}
             lcp={i === 0 && lcp}
-            authorNode={<AuthorMeta p={p} />}
-            authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
+            authorNode={authorMeta(p)}
+            authorOverlayNode={authorMeta(p, "onDark")}
           />
         ))}
       </PostListCarousel>
@@ -354,7 +362,7 @@ export function PostListView({
                   {excerpt(p)}
                 </p>
               )}
-              <AuthorMeta p={p} />
+              {authorMeta(p)}
             </div>
           </AppLink>
         ))}
@@ -432,7 +440,7 @@ export function PostListView({
                     <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h3>
                 )}
-                {<AuthorMeta p={p} />}
+                {authorMeta(p)}
               </div>
             </div>
           </AppLink>
@@ -528,7 +536,7 @@ export function PostListView({
                 {/* Byline: wariant numbered oferuje ustawienie "Autor" w
                     edytorze, wiec MUSI je tez rysowac. Wczesniej pole bylo
                     widoczne, zapisywalo sie i nie robilo nic. */}
-                <AuthorMeta p={p} />
+                {authorMeta(p)}
               </div>
             </div>
             {p.cover_image_url && (
@@ -575,7 +583,7 @@ export function PostListView({
                 {excerpt(p)}
               </p>
             )}
-            <AuthorMeta p={p} />
+            {authorMeta(p)}
           </AppLink>
         ))}
       </div>
@@ -614,7 +622,7 @@ export function PostListView({
               {excerpt(lead)}
             </p>
           )}
-          <AuthorMeta p={lead} />
+          {authorMeta(lead)}
         </AppLink>
         <ol className="flex flex-col">
           {rest.map((p, i) => (
@@ -691,7 +699,7 @@ export function PostListView({
                   {excerpt(p)}
                 </p>
               )}
-              <AuthorMeta p={p} />
+              {authorMeta(p)}
             </div>
           </AppLink>
         ))}
@@ -717,8 +725,8 @@ export function PostListView({
           titleStyle={tStyle}
           excerptStyle={eStyle}
           lcp={i === 0 && lcp}
-          authorNode={<AuthorMeta p={p} />}
-          authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
+          authorNode={authorMeta(p)}
+          authorOverlayNode={authorMeta(p, "onDark")}
         />
       ))}
     </div>

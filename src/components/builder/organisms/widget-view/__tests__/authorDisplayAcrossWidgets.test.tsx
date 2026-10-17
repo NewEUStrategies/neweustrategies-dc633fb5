@@ -313,3 +313,22 @@ describe("byline autora - etykieta redakcji i język", () => {
     expect(container.textContent).toContain(`By: ${AUTHOR}`);
   });
 });
+
+describe("byline autora - widget bez tytułu nie bierze rozmiaru z obcego nagłówka", () => {
+  const TITLELESS = ["post-meta", "post-author-card (inline)", "testimonial"];
+  it.each(WIDGETS.filter((w) => TITLELESS.includes(w.label)).map((w) => [w.label, w] as const))(
+    "%s: domyślnie rozmiar z panelu, nawet obok H1 42 px",
+    async (_label, widget) => {
+      widget.prepare?.();
+      const { container } = wrap(
+        <>
+          <h1 style={{ fontSize: 42 }}>Nagłówek wpisu</h1>
+          {widget.render({})}
+        </>,
+      );
+      await waitFor(() => expect(byline(container)).not.toBeNull());
+      expect(byline(container)?.hasAttribute("data-author-title-relative")).toBe(false);
+      expect(byline(container)?.style.fontSize).toBe("12px");
+    },
+  );
+});

@@ -1,8 +1,7 @@
 // Meta bar renderowany w overlayu / nagłówku wpisu:
 // autor · data publikacji · czas czytania (widget) · pola custom_meta.
 // Bilingual PL/EN; atomic-design "molecule".
-import type { CSSProperties, ReactNode } from "react";
-import { useAuthorTitleSize } from "@/components/molecules/useAuthorTitleSize";
+import type { ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ReadingTimeView } from "@/components/blocks/PostUtilityViews";
 import { Clock, User as UserIcon } from "@/lib/lucide-shim";
@@ -70,11 +69,6 @@ export function PostOverlayMeta({
   mobileActions,
   hideReadTimeOnMobile = false,
 }: Props) {
-  const titleSize = useAuthorTitleSize(true);
-  const authorStyle: CSSProperties & { "--abl-title-relative-size": string } = {
-    "--abl-title-relative-size":
-      titleSize.size === undefined ? "calc(var(--td-pt-size, 16px) - 2px)" : `${titleSize.size}px`,
-  };
   const t = L[lang];
   const name = author ? authorName(author, lang) : null;
   const authorHref = author?.slug ? `/${lang === "en" ? "en/" : ""}author/${author.slug}` : null;
@@ -85,13 +79,12 @@ export function PostOverlayMeta({
     <span className="inline-flex flex-col">
       <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
         {author && name && (
-          <span
-            ref={titleSize.ref}
-            data-author-title-relative
-            data-typography-exempt
-            style={authorStyle}
-            className="inline-flex items-center gap-2"
-          >
+          // Autor jest tu częścią paska meta (autor · data · czas czytania)
+          // pod nagłówkiem H1, więc trzyma rozmiar paska, a NIE „tytuł - 2 px"
+          // jak byline w kartach widgetów - przy H1 42 px dawałoby to 40 px
+          // nazwiska obok 13 px daty. `items-center` trzyma środek nazwiska
+          // na środku awatara.
+          <span className="inline-flex items-center gap-2">
             {author.avatar_url ? (
               authorHref ? (
                 <AppLink

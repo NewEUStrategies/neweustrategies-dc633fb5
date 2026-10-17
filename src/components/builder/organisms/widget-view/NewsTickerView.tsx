@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
@@ -101,10 +101,17 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     );
   }
 
+  const authorDisplay = resolveAuthorDisplay(c, lang);
   return (
     <NewsTickerVertical badge={badge} durationSec={speedSeconds} pauseOnHover={pauseOnHover}>
       {rows.map((p, i) => (
-        <NewsTickerVerticalItem key={p.id} post={p} index={i} title={title(p)} authorDisplay={resolveAuthorDisplay(c, lang)} />
+        <NewsTickerVerticalItem
+          key={p.id}
+          post={p}
+          index={i}
+          title={title(p)}
+          authorDisplay={authorDisplay}
+        />
       ))}
     </NewsTickerVertical>
   );
@@ -121,24 +128,36 @@ function NewsTickerVerticalItem({
   title: string;
   authorDisplay: AuthorDisplay;
 }) {
-  const displayName = post.author_display_name || undefined;
+  const displayName = post.author_display_name?.trim() ?? "";
 
   return (
     <AppLink
       href={`/post/${post.slug}`}
       className="group flex h-11 shrink-0 items-center gap-2.5 px-4 pr-5 transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       title={title}
+      // Wiersz = zakres tytułu bylinu; `--abl-title-size` to rozmiar tytułu
+      // wiersza (klasa 11 px albo typografia widgetu), z którego byline liczy
+      // „tytuł - 2 px" jeszcze przed pomiarem.
+      data-author-title-scope=""
+      style={{ "--abl-title-size": "var(--wt-tfs, 11px)" } as CSSProperties}
     >
       <span className="shrink-0 text-[10px] font-bold text-[var(--brand)] opacity-60">
         {String(index + 1).padStart(2, "0")}
       </span>
-      <span data-title-root className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
+      <span
+        data-title-root
+        className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]"
+      >
         {title}
       </span>
-      {post.author_avatar_url || displayName ? (
+      {authorDisplay.visible && displayName ? (
         <span className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-          <AuthorByline name={displayName || " "} avatarUrl={post.author_avatar_url}
-            display={authorDisplay} nameClassName="hidden sm:inline whitespace-nowrap" />
+          <AuthorByline
+            name={displayName}
+            avatarUrl={post.author_avatar_url}
+            display={authorDisplay}
+            nameClassName="hidden sm:inline whitespace-nowrap"
+          />
         </span>
       ) : null}
     </AppLink>

@@ -67,7 +67,14 @@ export function AuthorDisplayControl({
 
   // Etykiety wyciągnięte przed JSX: ta sama treść opisuje pole wizualnie
   // (PropField) i dla czytnika ekranu (aria-label), więc nie mogą się rozjechać.
-  const nameSizeLabel = t("builder.authorDisplay.nameSize");
+  // Przy „tytuł minus 2 px" pole px nie znika: renderer wraca do niego, gdy
+  // karta nie ma tytułu (np. tytuł schowany w panelu) - redakcja musi widzieć
+  // i móc zmienić rozmiar, który wtedy realnie widać.
+  const nameSizeLabel = t(
+    display.relativeToTitle
+      ? "builder.authorDisplay.nameSizeFallback"
+      : "builder.authorDisplay.nameSize",
+  );
   const avatarSizeLabel = t("builder.authorDisplay.avatarSize");
   const labelTextLabel = t("builder.authorDisplay.labelText");
 
@@ -94,7 +101,9 @@ export function AuthorDisplayControl({
         </label>
       )}
 
-      {display.showName && (
+      {/* Widget bez tytułu (cytat, meta wpisu, karta autora) nie ma czego
+          śledzić - przełącznik obiecywałby zmianę, której renderer nie zrobi. */}
+      {display.showName && defaults?.relativeToTitle !== false && (
         <label className="flex cursor-pointer items-center justify-between gap-2 py-1">
           <span className="text-xs">{t("builder.authorDisplay.relativeToTitle")}</span>
           <Switch
@@ -104,7 +113,7 @@ export function AuthorDisplayControl({
         </label>
       )}
 
-      {display.showName && !display.relativeToTitle && (
+      {display.showName && (
         <PropField label={nameSizeLabel}>
           <NumberInput
             ariaLabel={nameSizeLabel}
@@ -162,7 +171,7 @@ export function AuthorDisplayControl({
         className="inline-flex items-center gap-1 text-[10px] text-muted-foreground transition hover:text-foreground"
         onClick={() => {
           setVisibility(defaults?.showName ?? true, defaults?.showAvatar ?? true);
-          setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, true);
+          setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, defaults?.relativeToTitle ?? true);
           setContent(
             AUTHOR_DISPLAY_KEYS.nameSizePx,
             defaults?.nameSizePx ?? AUTHOR_NAME_SIZE_PX_DEFAULT,

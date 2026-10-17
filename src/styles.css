@@ -7589,15 +7589,34 @@ html[data-mbb="on"] [data-site-shell] {
   }
 }
 
-/* Shared CMS author sizing and avatar centering. */
+/* Byline „tytuł - 2 px" (przełącznik CMS `authorSizeRelativeToTitle`).
+   `--abl-title-relative-size` wpisuje pomiar tytułu karty w przeglądarce
+   (`useAuthorTitleSize`). Do tego czasu (SSR, pierwsza klatka) rozmiar liczy
+   się z tych samych zmiennych, które ustawiają tytuł: `--abl-title-size`
+   (widget z własnym rozmiarem tytułu - slider, ticker), `--wt-tfs` (typografia
+   widgetu z panelu), `--td-pt-size` / `--td-pt-size-sm` (Theme Design, jak
+   `.cms-post-title`) - więc po hydracji nazwisko nie zmienia rozmiaru. */
+[data-author-title-relative] {
+  --abl-title-fallback: var(--abl-title-size, var(--wt-tfs, var(--td-pt-size, 15px)));
+}
+@media (max-width: 640px) {
+  [data-author-title-relative] {
+    --abl-title-fallback: var(--abl-title-size, var(--wt-tfs, var(--td-pt-size-sm, 14px)));
+  }
+}
 [data-author-title-relative],
 [data-author-title-relative] [data-author-byline-name],
 [data-author-title-relative] [data-author-byline-name] span {
-  font-size: var(--abl-title-relative-size) !important;
+  font-size: var(--abl-title-relative-size, calc(var(--abl-title-fallback) - 2px)) !important;
   line-height: 1.35 !important;
 }
-[data-author-byline] { align-items: center !important; }
-[data-author-byline-name] { min-width: 0; align-self: center; }
+[data-author-byline] {
+  align-items: center !important;
+}
+[data-author-byline-name] {
+  min-width: 0;
+  align-self: center;
+}
 
 /* --- Menu konta w headerze (AccountMenuWidget) --------------------------- */
 /* Kaskadowe wejście pozycji + pasek akcentu na hover. Wyłączone dla osób

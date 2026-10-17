@@ -160,7 +160,9 @@ export function AuthorBusinessCard({
       className="rounded-[6px] border border-border/70 bg-background/95 p-4 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.18)] backdrop-blur-xl"
       aria-label={t.about}
     >
-      <div className="flex items-start gap-3">
+      {/* `items-center`: blok nazwiska (nazwisko, stanowisko, link) stoi na
+          środku wysokości awatara, jak w bylinach widgetów. */}
+      <div className="flex items-center gap-3">
         {avatarImg && href ? (
           <AppLink href={href} className="relative shrink-0" aria-label={displayName}>
             {avatarImg}

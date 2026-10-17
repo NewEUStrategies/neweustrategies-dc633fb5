@@ -27,6 +27,7 @@ import {
 import {
   AUTHOR_AVATAR_SIZE_PX_DEFAULT,
   AUTHOR_NAME_SIZE_PX_DEFAULT,
+  authorSizeFromTitle,
   type AuthorDisplay,
 } from "@/lib/builder/authorDisplay";
 import { parseCssRules, resolveCssVars } from "@/test/cssRules";
@@ -145,5 +146,67 @@ describe("byline - rozmiary desktopowe (HW-6)", () => {
     const avatar = container.querySelector<HTMLElement>("[data-author-byline-avatar]")!;
     expect(root.style.getPropertyValue("--abl-fs-desktop")).toBe(`${desktopName(15)}px`);
     expect(avatar.style.getPropertyValue("--abl-av-desktop")).toBe(`${desktopAvatar(30)}px`);
+  });
+});
+
+describe("byline „tytuł - 2 px” - wartość przed pomiarem liczona z tokenów tytułu", () => {
+  const relativeRules = STYLE_RULES.filter((rule) =>
+    rule.selectors.includes("[data-author-title-relative]"),
+  );
+  const fallbackFor = (context: string[]) =>
+    relativeRules
+      .find(
+        (rule) =>
+          rule.context.join("|") === context.join("|") &&
+          rule.declarations.has("--abl-title-fallback"),
+      )
+      ?.declarations.get("--abl-title-fallback");
+
+  it("desktop: rozmiar tytułu z widgetu, typografii panelu albo Theme Design (jak .cms-post-title)", () => {
+    expect(fallbackFor([])).toBe("var(--abl-title-size, var(--wt-tfs, var(--td-pt-size, 15px)))");
+  });
+
+  it("telefon (<= 640 px): mobilny token tytułu, jak .cms-post-title", () => {
+    expect(fallbackFor(["@media (max-width: 640px)"])).toBe(
+      "var(--abl-title-size, var(--wt-tfs, var(--td-pt-size-sm, 14px)))",
+    );
+  });
+
+  it("pomiar wygrywa, a bez niego obowiązuje tytuł - 2 px z wartości zastępczej", () => {
+    const sizing = relativeRules.find((rule) => rule.declarations.has("font-size"));
+    expect(sizing?.declarations.get("font-size")).toBe(
+      "var(--abl-title-relative-size, calc(var(--abl-title-fallback) - 2px)) !important",
+    );
+  });
+});
+
+describe("byline „tytuł - 2 px” wygrywa z desktopowym skalowaniem bylinu", () => {
+  it("reguła względna stoi w arkuszu PO bloku @media (min-width: 768px) przy równej specyficzności", () => {
+    const index = (predicate: (rule: (typeof STYLE_RULES)[number]) => boolean) =>
+      STYLE_RULES.findIndex(predicate);
+    const desktop = index(
+      (rule) =>
+        rule.context.includes("@media (min-width: 768px)") &&
+        rule.selectors.includes("[data-author-byline] [data-author-byline-name]"),
+    );
+    const relative = index(
+      (rule) =>
+        rule.context.length === 0 &&
+        rule.selectors.includes("[data-author-title-relative] [data-author-byline-name]") &&
+        rule.declarations.has("font-size"),
+    );
+    expect(desktop).toBeGreaterThanOrEqual(0);
+    expect(relative).toBeGreaterThan(desktop);
+  });
+
+  it("odstęp w CSS (- 2px) jest tym samym, który liczy pomiar w przeglądarce", () => {
+    const sizing = STYLE_RULES.find(
+      (rule) =>
+        rule.selectors.includes("[data-author-title-relative]") &&
+        rule.declarations.has("font-size"),
+    );
+    const offset = /- (\d+(?:\.\d+)?)px\)\)/.exec(sizing?.declarations.get("font-size") ?? "");
+    expect(offset).not.toBeNull();
+    expect(20 - Number(offset![1])).toBe(authorSizeFromTitle(20));
   });
 });

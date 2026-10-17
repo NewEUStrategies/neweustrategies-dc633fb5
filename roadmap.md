@@ -5,6 +5,9 @@
 - [x] Naprawić cofanie rozmiaru po opóźnionym wczytaniu autora, zmianie motywu i podmianie tytułu: stabilny ref reaguje na pojawienie się podpisu, obserwatory śledzą aktualny tytuł i Theme Design. 137 testów przechodzi; zalogowane /, /en i /analizy w 1280/393 px po odczekaniu i późnej zmianie CSS: wszystkie 36/36/18 podpisów mają różnicę 2 px i wspólny środek z awatarem, brak błędów przeglądarki.
 - [x] Wdrożyć wspólną, domyślną opcję CMS tytuł minus 2 px we wszystkich widżetach PL/EN i wyrównanie do środka awatara; zapis ustawień strony głównej potwierdzony przez CMS.
 - [x] Sprawdzić ustawienia edytora, testy i rzeczywiste podpisy na stronie: 88 testów, pomiary PL/EN oraz /analizy w 1280 i 393 px - różnica 2 px, wspólny środek awatara i tekstu, brak błędów przeglądarki.
+- [x] Ograniczyć szukanie tytułu do karty/slajdu/wiersza (`data-author-title-scope`) albo widgetu (`data-w-id`): cytat, meta wpisu, karta autora i karty z ukrytym tytułem nie biorą już rozmiaru z obcego nagłówka (H1 wpisu, etykiety sekcji); w CMS przełącznik „tytuł minus 2 px" ukryty dla widgetów bez tytułu, a pole px zostaje jako rozmiar dla karty bez tytułu.
+- [x] Cofnąć 40 px nazwiska w pasku meta pod H1 wpisu (zostaje rozmiar paska jak data), wyśrodkować blok nazwiska w karcie autora w sidebarze i nazwisko w polecanym wpisie mega menu.
+- [x] Wartość przed pomiarem z tokenów tytułu (`--abl-title-size`, `--wt-tfs`, `--td-pt-size[-sm]`): HTML z serwera = rozmiar po hydracji na / i /en (1280/393 px), bez skoku nazwisk w hero slidera; jeden wspólny obserwator zamiast ~40, arkusze Theme Design w `<body>` przeliczają podpisy.
 
 ## Weryfikacja PR #515
 

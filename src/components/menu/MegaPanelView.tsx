@@ -275,12 +275,21 @@ export function MegaPanelView({
                       {authorInitials(name)}
                     </span>
                   );
+                  // Etykieta i nazwisko w JEDNYM wierszu: środek nazwiska wypada
+                  // na środku awatara (etykieta nad nazwiskiem spychała je ~6 px
+                  // poniżej środka). 11 px nazwiska = 13 px tytułu (h4) - 2 px.
                   const textNode = (
-                    <span className="flex min-w-0 flex-col leading-tight">
-                      <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+                    <span className="flex min-w-0 items-baseline gap-1.5 leading-tight">
+                      <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
                         {authorLabel}
                       </span>
-                      <span className="truncate text-[11px] font-bold text-foreground">{name}</span>
+                      <span
+                        className={`truncate text-[11px] font-bold text-foreground${
+                          href ? " transition-colors group-hover/author:text-brand" : ""
+                        }`}
+                      >
+                        {name}
+                      </span>
                     </span>
                   );
                   return href ? (
@@ -290,14 +299,7 @@ export function MegaPanelView({
                       role="menuitem"
                     >
                       {avatarNode}
-                      <span className="flex min-w-0 flex-col leading-tight">
-                        <span className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground">
-                          {authorLabel}
-                        </span>
-                        <span className="truncate text-[11px] font-bold text-foreground transition-colors group-hover/author:text-brand">
-                          {name}
-                        </span>
-                      </span>
+                      {textNode}
                     </AppLink>
                   ) : (
                     <div className="mt-2.5 flex items-center gap-2">

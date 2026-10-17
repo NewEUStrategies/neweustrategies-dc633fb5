@@ -91,8 +91,18 @@ describe("SliderEditor - podgląd odzwierciedla sekcję Wyświetlanie", () => {
     expect(preview().querySelector("[data-author-byline]")).toBeNull();
   });
 
-  it("keeps author sizing identical to the canvas contract (12 / 20 by default)", async () => {
+  it("follows the slide title in the live preview by default (title - 2 px)", async () => {
     renderEditor({});
+    await waitFor(() => expect(preview().querySelector("[data-author-byline] img")).not.toBeNull());
+    const title = preview().querySelector<HTMLElement>(".cms-post-title");
+    const titlePx = Number.parseFloat(getComputedStyle(title!).fontSize);
+    const byline = preview().querySelector<HTMLElement>("[data-author-byline]");
+    expect(byline?.hasAttribute("data-author-title-relative")).toBe(true);
+    expect(byline?.style.fontSize).toBe(`${titlePx - 2}px`);
+  });
+
+  it("keeps author sizing identical to the canvas contract (12 / 20 in fixed-size mode)", async () => {
+    renderEditor({ authorSizeRelativeToTitle: false });
     await waitFor(() => expect(preview().querySelector("[data-author-byline] img")).not.toBeNull());
     const avatar = preview().querySelector<HTMLImageElement>("[data-author-byline] img");
     expect(avatar?.getAttribute("width")).toBe("20");
@@ -102,7 +112,7 @@ describe("SliderEditor - podgląd odzwierciedla sekcję Wyświetlanie", () => {
   });
 
   it("applies authorSizePx and authorAvatarSizePx in the live preview", async () => {
-    renderEditor({ authorSizePx: 17, authorAvatarSizePx: 36 });
+    renderEditor({ authorSizeRelativeToTitle: false, authorSizePx: 17, authorAvatarSizePx: 36 });
     await waitFor(() => expect(preview().querySelector("[data-author-byline] img")).not.toBeNull());
     const avatar = preview().querySelector<HTMLImageElement>("[data-author-byline] img");
     expect(avatar?.getAttribute("width")).toBe("36");

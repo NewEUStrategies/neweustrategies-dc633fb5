@@ -849,6 +849,34 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
       ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFsMobile} !important;}`
       : "",
   ].filter(Boolean);
+  // `--abl-title-size` niesie rozmiar tytułu do bylinu autora, który przed
+  // pomiarem w przeglądarce liczy z niego „tytuł - 2 px" (SSR bez skoku).
+  // Tylko jednostki niezależne od rodzica: `em`/`%` w bylinie liczyłyby się
+  // od innego elementu niż tytuł - wtedy zostaje sam pomiar.
+  const bylineTitleFs = (value: string | undefined) =>
+    value && !/^[\d.]+(?:em|%)$/.test(value) ? value : undefined;
+  const titleVarFs = bylineTitleFs(resolvedTitleFs);
+  const titleVarFsMobile = bylineTitleFs(resolvedTitleFsMobile);
+  const mobileVarRules =
+    titleVarFsMobile && resolvedTitleFsMobile !== resolvedTitleFs
+      ? [`${instanceSel}{--abl-title-size:${titleVarFsMobile};}`]
+      : [];
+  // Telefon: media query dla strony publicznej + kopia z prefiksem urządzenia,
+  // bo kanwa buildera symuluje szerokość atrybutem, nie viewportem.
+  const forMobile = (rules: string[]): string[] =>
+    rules.length
+      ? [
+          `@media (max-width: 767px){${rules.join("")}}`,
+          rules
+            .map((rule) =>
+              [
+                `[data-builder-renderer][data-device="mobile"] ${rule}`,
+                `[data-visual-canvas][data-device="mobile"] ${rule}`,
+              ].join(""),
+            )
+            .join(""),
+        ]
+      : [];
   const instanceCss = [
     resolvedTitleFs
       ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}`
@@ -857,18 +885,9 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
       ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFs} !important;}`
       : "",
     resolvedGap ? `${instanceSel} [data-eh-gap]{margin-top:${resolvedGap} !important;}` : "",
-    mobileRules.length ? `@media (max-width: 767px){${mobileRules.join("")}}` : "",
-    // Kanwa buildera symuluje szerokość urządzenia atrybutem, nie viewportem.
-    mobileRules.length
-      ? mobileRules
-          .map((rule) =>
-            [
-              `[data-builder-renderer][data-device="mobile"] ${rule}`,
-              `[data-visual-canvas][data-device="mobile"] ${rule}`,
-            ].join(""),
-          )
-          .join("")
-      : "",
+    ...forMobile(mobileRules),
+    titleVarFs ? `${instanceSel}{--abl-title-size:${titleVarFs};}` : "",
+    ...forMobile(mobileVarRules),
   ]
     .filter(Boolean)
     .join("\n");
@@ -1025,7 +1044,9 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   // Prezentacja autora: ten sam rezolwer, co w post-liście, liście z oceną i
   // metadanych wpisu. Slider miał wcześniej WŁASNĄ kopię tej reguły, więc
   // „schowaj samo zdjęcie" i domyślne 12/20 px żyły w dwóch miejscach naraz.
-  const author = resolveAuthorDisplay(config, lang);
+  const resolvedAuthor = resolveAuthorDisplay(config, lang);
+  // „Tytuł - 2 px" tylko przy widocznym tytule (patrz `PostListView`).
+  const author = showTitle ? resolvedAuthor : { ...resolvedAuthor, relativeToTitle: false };
   const showAuthor = author.visible;
   const authorStyle: CSSProperties = { fontSize: `${author.nameSizePx}px`, lineHeight: 1.35 };
 
@@ -1222,7 +1243,7 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <div className="px-4 pt-8 pb-2 text-center">
+      <div className="px-4 pt-8 pb-2 text-center" data-author-title-scope="">
         {p.showTitle &&
           (href ? (
             <AppLink href={href} className="inline-block w-full">
@@ -1376,7 +1397,11 @@ function MultiCardVariant(p: VariantProps) {
           {p.items.map((it, i) => {
             const { title, sub, cat, href, catColor } = pickSlideStrings(it, p.lang);
             return (
-              <article key={i} className="eh-card eh-multi-card-item group">
+              <article
+                key={i}
+                className="eh-card eh-multi-card-item group"
+                data-author-title-scope=""
+              >
                 {(() => {
                   const media = (
                     <div
@@ -1560,7 +1585,7 @@ function CinematicOverlayVariant(p: VariantProps) {
         />
         {/* Text */}
         <div className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl" data-author-title-scope="">
             {cat && (
               <span
                 className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider shadow"
@@ -1708,7 +1733,7 @@ function SplitFeatureVariant(p: VariantProps) {
           />
         )}
       </div>
-      <div className="px-1 md:px-2">
+      <div className="px-1 md:px-2" data-author-title-scope="">
         {cat && (
           <span
             className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"

@@ -431,7 +431,13 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
           {authorLabelText(c, lang) || defaultAuthorLabel(lang)}
         </div>
         {authorDisplay.showName && (
-          <div className="cms-post-title" style={{ fontSize: `${cardNamePx}px` }}>
+          // Typografia tytułu karty, ale NIE tytuł wpisu: `data-author-title-ignore`
+          // nie pozwala bylinom obok (meta wpisu) mierzyć się do tego nazwiska.
+          <div
+            className="cms-post-title"
+            style={{ fontSize: `${cardNamePx}px` }}
+            data-author-title-ignore=""
+          >
             {authorHref ? (
               <AppLink href={authorHref} className="hover:text-brand">
                 {a.name}

@@ -575,8 +575,13 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
       {name ? (
         <span
           data-typography-exempt
-          style={{ fontSize: titleSize.size === undefined ? undefined : `${titleSize.size}px` }}
-          className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold"
+          // Tytuł pozycji dziedziczy rozmiar pozycji (`.tt-item`), więc przed
+          // pomiarem `1em - 2px` daje już „tytuł - 2 px" bez skoku po hydracji.
+          style={{
+            fontSize:
+              typeof titleSize.size === "number" ? `${titleSize.size}px` : "calc(1em - 2px)",
+          }}
+          className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap font-semibold"
         >
           {name}
         </span>
@@ -693,6 +698,7 @@ function TickerGlassMarquee({
             <AppLink
               key={`${p.id}-${i}`}
               href={itemHref(p)}
+              data-author-title-scope=""
               className="tt-item tt-glass-pill inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
               style={{ color: "var(--tt-item)", maxWidth: pillMax }}
               title={itemTitle(p, lang)}
@@ -796,6 +802,7 @@ function TickerGlassCards({
               </span>
               <AppLink
                 href={itemHref(p)}
+                data-author-title-scope=""
                 className="tt-item flex min-w-0 items-center gap-2.5 text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}

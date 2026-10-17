@@ -51,6 +51,26 @@ it("zapisuje powiązanie rozmiaru autora z tytułem przez kontrolkę CMS", () =>
   expect(written().authorSizeRelativeToTitle).toBe(true);
 });
 
+it("nie oferuje przełącznika tytułu w widgecie bez tytułu i przywraca jego rozmiar z panelu", () => {
+  const { written } = renderControl(
+    { authorSizeRelativeToTitle: true },
+    { relativeToTitle: false },
+  );
+  expect(screen.queryByRole("switch", { name: "Rozmiar autora: tytuł minus 2 px" })).toBeNull();
+  expect(screen.getByLabelText("Rozmiar czcionki autora (px)")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Przywróć domyślne/ }));
+  expect(written().authorSizeRelativeToTitle).toBe(false);
+});
+
+it("przy „tytuł minus 2 px” pokazuje rozmiar używany, gdy karta nie ma tytułu", () => {
+  const { written } = renderControl({ authorSizeRelativeToTitle: true, authorSizePx: 13 });
+  expect(screen.getByRole("switch", { name: "Rozmiar autora: tytuł minus 2 px" })).toBeChecked();
+  const fallback = screen.getByLabelText("Rozmiar autora bez tytułu w karcie (px)");
+  expect(fallback).toHaveValue(13);
+  fireEvent.change(fallback, { target: { value: "15" } });
+  expect(written().authorSizePx).toBe(15);
+});
+
 describe("AuthorDisplayControl - zapis widoczności", () => {
   it("wyłączenie zdjęcia zostawia nazwisko i przechodzi w tryb etykiety", () => {
     const { written } = renderControl();

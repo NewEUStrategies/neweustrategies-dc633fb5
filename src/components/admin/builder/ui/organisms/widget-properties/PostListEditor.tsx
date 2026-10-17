@@ -1060,8 +1060,9 @@ function PerPostThumbnailsSection({ c, lang, setContent }: Props) {
                   <div className="text-xs font-semibold leading-snug line-clamp-2">
                     {titleOf(p)}
                   </div>
+                  {/* Autor = tytuł podglądu (12 px) - 2 px, jak byline na stronie. */}
                   {authorName && (
-                    <div className="mt-1.5 text-[11px] text-muted-foreground">
+                    <div className="mt-1.5 text-[10px] text-muted-foreground">
                       <span className="opacity-70">{byLabel}</span>{" "}
                       <span className="font-medium text-foreground">{authorName}</span>
                     </div>

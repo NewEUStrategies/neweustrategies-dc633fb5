@@ -123,6 +123,12 @@ export interface AuthorDisplayDefaults {
   readonly nameSizePx?: number;
   readonly avatarSizePx?: number;
   readonly avatarRadiusPx?: number;
+  /**
+   * `false` = widget nie ma tytułu, z którym byline tworzy parę (cytat, meta
+   * wpisu, karta autora): rozmiar nazwiska zawsze bierze się z panelu, a
+   * przełącznik „tytuł minus 2 px" nie jest oferowany.
+   */
+  readonly relativeToTitle?: boolean;
 }
 
 /** Rozstrzygnięta prezentacja autora - gotowa do przekazania do komponentu. */
@@ -272,7 +278,9 @@ export function resolveAuthorDisplay(
     showName,
     showAvatar,
     nameSizePx,
-    relativeToTitle: asBool(rawRelativeToTitle, true),
+    // Widget bez tytułu nie ma czego śledzić - także gdy dokument niesie
+    // zapisane `true` (np. z przycisku „Przywróć domyślne" starszego panelu).
+    relativeToTitle: defaults.relativeToTitle === false ? false : asBool(rawRelativeToTitle, true),
     avatarSizePx,
     avatarRadiusPx: defaults.avatarRadiusPx ?? AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
     labelPrefix,
@@ -354,8 +362,15 @@ export function widgetAuthorDisplayDefaults(
     case "post-author-card":
       // Historyczny przełącznik zdjęcia tego widgetu. Panel nie rysuje go już
       // osobno (zastąpiła go wspólna oś „Zdjęcie autora"), ale dokumenty sprzed
-      // ujednolicenia muszą dalej chować awatar.
-      return { showAvatar: asBool(content.showAvatar, true) };
+      // ujednolicenia muszą dalej chować awatar. Nazwisko jest tu nagłówkiem
+      // karty, nie podpisem pod tytułem - rozmiar bierze z panelu.
+      return { showAvatar: asBool(content.showAvatar, true), relativeToTitle: false };
+    case "post-meta":
+    case "testimonial":
+      // Widgety bez tytułu w parze z bylinem. Pasek meta wpisu (autor · data)
+      // trzyma rozmiar paska jak `PostOverlayMeta`, nie H1 wpisu (H1 42 px
+      // dałby 40 px nazwiska obok daty); cytat ma autora cytatu, nie artykułu.
+      return { relativeToTitle: false };
     default:
       // Reszta widgetów nie ma własnego baselineu - obowiązuje kontrakt
       // globalny: 12 px nazwiska, 20 px zdjęcia, 6 px zaokrąglenia.

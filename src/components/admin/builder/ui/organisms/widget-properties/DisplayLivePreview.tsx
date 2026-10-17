@@ -58,11 +58,14 @@ export function DisplayLivePreview({ c, lang }: Props) {
             aria-hidden
           />
         )}
-        <div className="min-w-0 flex-1">
+        {/* Zakres tytułu bylinu: „tytuł - 2 px" liczy się do tytułu próbnego,
+            a nie do pierwszego nagłówka panelu czy kanwy. */}
+        <div className="min-w-0 flex-1" data-author-title-scope="">
           {showTitle && (
             <div
               className="truncate text-xs font-semibold text-foreground"
               data-testid="preview-title"
+              data-title-root=""
             >
               {sampleTitle}
             </div>
