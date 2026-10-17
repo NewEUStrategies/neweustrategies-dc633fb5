@@ -7595,7 +7595,9 @@ html[data-mbb="on"] [data-site-shell] {
    się z tych samych zmiennych, które ustawiają tytuł: `--abl-title-size`
    (widget z własnym rozmiarem tytułu - slider, ticker), `--wt-tfs` (typografia
    widgetu z panelu), `--td-pt-size` / `--td-pt-size-sm` (Theme Design, jak
-   `.cms-post-title`) - więc po hydracji nazwisko nie zmienia rozmiaru. */
+   `.cms-post-title`) - więc po hydracji nazwisko nie zmienia rozmiaru.
+   Górna granica 16 px = `AUTHOR_NAME_TITLE_RELATIVE_MAX_PX`: przy tytule
+   wystawowym (hero slidera) nazwisko ma rozmiar podpisu z reszty strony. */
 [data-author-title-relative] {
   --abl-title-fallback: var(--abl-title-size, var(--wt-tfs, var(--td-pt-size, 15px)));
 }
@@ -7607,7 +7609,10 @@ html[data-mbb="on"] [data-site-shell] {
 [data-author-title-relative],
 [data-author-title-relative] [data-author-byline-name],
 [data-author-title-relative] [data-author-byline-name] span {
-  font-size: var(--abl-title-relative-size, calc(var(--abl-title-fallback) - 2px)) !important;
+  font-size: var(
+    --abl-title-relative-size,
+    min(calc(var(--abl-title-fallback) - 2px), 16px)
+  ) !important;
   line-height: 1.35 !important;
 }
 [data-author-byline] {

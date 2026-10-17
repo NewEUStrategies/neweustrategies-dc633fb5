@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTHOR_NAME_TITLE_RELATIVE_MAX_PX,
   authorSizeFromTitle,
   resolveAuthorDisplay,
   widgetAuthorDisplayDefaults,
@@ -8,8 +9,8 @@ describe("CMS author title sizing", () => {
   it.each(["pl", "en"] as const)("uses title minus 2 px in %s", (lang) => {
     expect(resolveAuthorDisplay({ authorSizePx: 16 }, lang).relativeToTitle).toBe(true);
     expect(authorSizeFromTitle(16)).toBe(14);
-    expect(authorSizeFromTitle(26)).toBe(24);
-    expect(authorSizeFromTitle(18.5)).toBe(16.5);
+    expect(authorSizeFromTitle(18)).toBe(16);
+    expect(authorSizeFromTitle(17.5)).toBe(15.5);
   });
   it("persists fixed-size mode from the CMS", () => {
     const value = resolveAuthorDisplay(
@@ -40,4 +41,11 @@ describe("widgets without a paired title keep the CMS size", () => {
       ).toBe(true);
     },
   );
+});
+
+describe("display-size titles do not inflate the author name", () => {
+  it.each([26, 24, 42])("a %ipx headline keeps the standard 16 px byline", (title) => {
+    expect(authorSizeFromTitle(title)).toBe(AUTHOR_NAME_TITLE_RELATIVE_MAX_PX);
+    expect(AUTHOR_NAME_TITLE_RELATIVE_MAX_PX).toBe(16);
+  });
 });

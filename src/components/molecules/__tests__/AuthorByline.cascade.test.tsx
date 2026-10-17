@@ -172,10 +172,10 @@ describe("byline „tytuł - 2 px” - wartość przed pomiarem liczona z token�
     );
   });
 
-  it("pomiar wygrywa, a bez niego obowiązuje tytuł - 2 px z wartości zastępczej", () => {
+  it("pomiar wygrywa, a bez niego obowiązuje tytuł - 2 px (najwyżej 16 px) z wartości zastępczej", () => {
     const sizing = relativeRules.find((rule) => rule.declarations.has("font-size"));
     expect(sizing?.declarations.get("font-size")).toBe(
-      "var(--abl-title-relative-size, calc(var(--abl-title-fallback) - 2px)) !important",
+      "var( --abl-title-relative-size, min(calc(var(--abl-title-fallback) - 2px), 16px) ) !important",
     );
   });
 });
@@ -199,14 +199,19 @@ describe("byline „tytuł - 2 px” wygrywa z desktopowym skalowaniem bylinu", 
     expect(relative).toBeGreaterThan(desktop);
   });
 
-  it("odstęp w CSS (- 2px) jest tym samym, który liczy pomiar w przeglądarce", () => {
+  it("odstęp (- 2px) i górna granica w CSS są tymi samymi, które liczy pomiar w przeglądarce", () => {
     const sizing = STYLE_RULES.find(
       (rule) =>
         rule.selectors.includes("[data-author-title-relative]") &&
         rule.declarations.has("font-size"),
     );
-    const offset = /- (\d+(?:\.\d+)?)px\)\)/.exec(sizing?.declarations.get("font-size") ?? "");
-    expect(offset).not.toBeNull();
-    expect(20 - Number(offset![1])).toBe(authorSizeFromTitle(20));
+    const rule = /- (\d+(?:\.\d+)?)px\), (\d+(?:\.\d+)?)px\)/.exec(
+      sizing?.declarations.get("font-size") ?? "",
+    );
+    expect(rule).not.toBeNull();
+    const [offset, cap] = [Number(rule![1]), Number(rule![2])];
+    for (const title of [11, 15, 18, 26, 42]) {
+      expect(Math.min(title - offset, cap)).toBe(authorSizeFromTitle(title));
+    }
   });
 });

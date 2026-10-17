@@ -30,8 +30,8 @@ describe("author follows material title after asynchronous updates", () => {
   it("updates after the CMS changes title sizing", async () => {
     const { container, rerender } = render(<Card name="Jan Kowalski" />);
     await waitFor(() => expect(measured(container)).toBe("16px"));
-    rerender(<Card name="Jan Kowalski" titlePx={26} />);
-    await waitFor(() => expect(measured(container)).toBe("24px"));
+    rerender(<Card name="Jan Kowalski" titlePx={17} />);
+    await waitFor(() => expect(measured(container)).toBe("15px"));
   });
 
   it("remeasures when Theme Design adds a stylesheet later", async () => {
@@ -42,10 +42,10 @@ describe("author follows material title after asynchronous updates", () => {
       </article>,
     );
     const style = document.createElement("style");
-    style.textContent = '[data-w-id="author-test"] .cms-post-title { font-size: 22px; }';
+    style.textContent = '[data-w-id="author-test"] .cms-post-title { font-size: 17px; }';
     document.head.appendChild(style);
     try {
-      await waitFor(() => expect(measured(container)).toBe("20px"));
+      await waitFor(() => expect(measured(container)).toBe("15px"));
       style.textContent = '[data-w-id="author-test"] .cms-post-title { font-size: 18px; }';
       await waitFor(() => expect(measured(container)).toBe("16px"));
     } finally {
@@ -81,17 +81,17 @@ describe("author title lookup stays inside the byline's own card or widget", () 
           <AuthorByline name="Bez Tytułu" />
         </div>
         <div data-author-title-scope="">
-          <h3 className="cms-post-title" style={{ fontSize: 30 }}>
+          <h3 className="cms-post-title" style={{ fontSize: 17 }}>
             Slide
           </h3>
           <AuthorByline name="Jan Kowalski" />
         </div>
       </section>,
     );
-    await waitFor(() => expect(byline(container, 1).style.fontSize).toBe("28px"));
+    await waitFor(() => expect(byline(container, 1).style.fontSize).toBe("15px"));
     expect(byline(container, 0).hasAttribute("data-author-title-relative")).toBe(false);
     expect(byline(container, 1).hasAttribute("data-author-title-relative")).toBe(true);
-    expect(byline(container, 1).style.getPropertyValue("--abl-title-relative-size")).toBe("28px");
+    expect(byline(container, 1).style.getPropertyValue("--abl-title-relative-size")).toBe("15px");
   });
 
   it("skips an author name styled as a title and screen-reader-only headings", async () => {
@@ -101,11 +101,11 @@ describe("author title lookup stays inside the byline's own card or widget", () 
         <div className="cms-post-title" data-author-title-ignore="" style={{ fontSize: 18 }}>
           Jan Kowalski
         </div>
-        <h3 style={{ fontSize: 22 }}>Real title</h3>
+        <h3 style={{ fontSize: 17 }}>Real title</h3>
         <AuthorByline name="Jan Kowalski" />
       </article>,
     );
-    await waitFor(() => expect(measured(container)).toBe("20px"));
+    await waitFor(() => expect(measured(container)).toBe("15px"));
   });
 
   it("starts following a title that mounts after the byline", async () => {
@@ -113,7 +113,7 @@ describe("author title lookup stays inside the byline's own card or widget", () 
       return (
         <article data-w-id="late">
           {withTitle ? (
-            <h3 className="cms-post-title" style={{ fontSize: 24 }}>
+            <h3 className="cms-post-title" style={{ fontSize: 17 }}>
               Title
             </h3>
           ) : null}
@@ -126,7 +126,7 @@ describe("author title lookup stays inside the byline's own card or widget", () 
       expect(byline(container).hasAttribute("data-author-title-relative")).toBe(false),
     );
     rerender(<Late withTitle />);
-    await waitFor(() => expect(measured(container)).toBe("22px"));
+    await waitFor(() => expect(measured(container)).toBe("15px"));
     expect(byline(container).hasAttribute("data-author-title-relative")).toBe(true);
   });
 
@@ -146,14 +146,37 @@ describe("author follows Theme Design sheets rendered in <body>", () => {
       </article>,
     );
     const style = document.createElement("style");
-    style.textContent = '[data-w-id="author-body-sheet"] .cms-post-title { font-size: 21px; }';
+    style.textContent = '[data-w-id="author-body-sheet"] .cms-post-title { font-size: 17px; }';
     document.body.appendChild(style);
     try {
-      await waitFor(() => expect(measured(container)).toBe("19px"));
-      style.textContent = '[data-w-id="author-body-sheet"] .cms-post-title { font-size: 17px; }';
       await waitFor(() => expect(measured(container)).toBe("15px"));
+      style.textContent = '[data-w-id="author-body-sheet"] .cms-post-title { font-size: 13px; }';
+      await waitFor(() => expect(measured(container)).toBe("11px"));
     } finally {
       style.remove();
     }
+  });
+});
+
+describe("hero-size titles keep the standard byline size", () => {
+  it("a 26 px slider headline gives the same 16 px name as an 18 px card title", async () => {
+    const { container } = render(
+      <section data-w-id="hero">
+        <div data-author-title-scope="">
+          <h3 className="cms-post-title" style={{ fontSize: 26 }}>
+            Hero
+          </h3>
+          <AuthorByline name="Jan Kowalski" />
+        </div>
+        <div data-author-title-scope="">
+          <h3 className="cms-post-title" style={{ fontSize: 18 }}>
+            Card
+          </h3>
+          <AuthorByline name="Jan Kowalski" />
+        </div>
+      </section>,
+    );
+    await waitFor(() => expect(byline(container, 0).style.fontSize).toBe("16px"));
+    expect(byline(container, 1).style.fontSize).toBe("16px");
   });
 });

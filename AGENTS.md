@@ -28,4 +28,4 @@
 
 - Share homepage/AuthPortal chrome for parity.
 - Share BrandIcon/brandTile in member profiles for expert parity.
-- Share AuthorByline sizing (title − 2 px, title looked up only inside `[data-author-title-scope]`/`[data-w-id]`, CSS fallback from the title tokens before measuring); observe async mounts, titles and theme CSS in head and body for CMS parity.
+- Share AuthorByline sizing (title − 2 px capped at 16 px so hero/headline titles keep the standard byline, title looked up only inside `[data-author-title-scope]`/`[data-w-id]`, CSS fallback from the title tokens before measuring); observe async mounts, titles and theme CSS in head and body for CMS parity.

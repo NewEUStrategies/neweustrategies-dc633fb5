@@ -8,6 +8,7 @@
 - [x] Ograniczyć szukanie tytułu do karty/slajdu/wiersza (`data-author-title-scope`) albo widgetu (`data-w-id`): cytat, meta wpisu, karta autora i karty z ukrytym tytułem nie biorą już rozmiaru z obcego nagłówka (H1 wpisu, etykiety sekcji); w CMS przełącznik „tytuł minus 2 px" ukryty dla widgetów bez tytułu, a pole px zostaje jako rozmiar dla karty bez tytułu.
 - [x] Cofnąć 40 px nazwiska w pasku meta pod H1 wpisu (zostaje rozmiar paska jak data), wyśrodkować blok nazwiska w karcie autora w sidebarze i nazwisko w polecanym wpisie mega menu.
 - [x] Wartość przed pomiarem z tokenów tytułu (`--abl-title-size`, `--wt-tfs`, `--td-pt-size[-sm]`): HTML z serwera = rozmiar po hydracji na / i /en (1280/393 px), bez skoku nazwisk w hero slidera; jeden wspólny obserwator zamiast ~40, arkusze Theme Design w `<body>` przeliczają podpisy.
+- [x] Hero slidera jak reszta strony: „tytuł - 2 px" z górną granicą 16 px (rozmiar podpisu kart z tytułem 18 px) - tytuł wystawowy 26 px nie robi już z nazwiska 24 px; hero 16 px nazwiska i ten sam awatar (24 px desktop / 20 px mobile) co listy, także w HTML z serwera; archiwum /analizy (tytuły 24 px) również 16 px.
 
 ## Weryfikacja PR #515
 

@@ -60,8 +60,17 @@ export interface AuthorDisplayContent {
 
 /** Domyślny rozmiar czcionki imienia i nazwiska autora (px). */
 export const AUTHOR_NAME_SIZE_PX_DEFAULT = 12;
+/**
+ * Górna granica nazwiska w trybie „tytuł - 2 px": desktopowy rozmiar bylinu
+ * kontraktu domyślnego, ten sam, który mają podpisy kart z tytułem 18 px.
+ * Nazwisko to metadane, nie nagłówek - przy tytule wystawowym (hero slidera
+ * 26 px, archiwum 24 px) zostaje rozmiarem podpisu z reszty strony zamiast
+ * rosnąć do 22-24 px.
+ */
+export const AUTHOR_NAME_TITLE_RELATIVE_MAX_PX = 16;
+/** Rozmiar nazwiska dla tytułu `px`: tytuł - 2 px, najwyżej 16 px. */
 export function authorSizeFromTitle(px: number): number {
-  return px - 2;
+  return Math.min(px - 2, AUTHOR_NAME_TITLE_RELATIVE_MAX_PX);
 }
 /** Domyślny rozmiar zdjęcia profilowego eksperta (px). */
 export const AUTHOR_AVATAR_SIZE_PX_DEFAULT = 20;
