@@ -242,9 +242,7 @@ export function AuthorByline({
   if (href) {
     return (
       <AppLink
-        ref={(node) => {
-          titleSize.ref.current = node;
-        }}
+        ref={titleSize.ref}
         href={href}
         className={baseCls}
         style={textStyle}
@@ -260,9 +258,7 @@ export function AuthorByline({
 
   return (
     <span
-      ref={(node) => {
-        titleSize.ref.current = node;
-      }}
+      ref={titleSize.ref}
       className={baseCls}
       style={textStyle}
       onClick={onClick}
