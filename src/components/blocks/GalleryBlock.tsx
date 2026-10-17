@@ -11,12 +11,37 @@
 // pomocnik `import()` Vite czeka na arkusz, zanim moduł się wykona, więc lightbox nie
 // błyska bez stylów. Serwer i pierwszy render klienta nie renderują go wcale, więc
 // hydratacja się nie zmienia.
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, type ComponentProps, type ComponentType } from "react";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { buildScaledImageUrl, isSupabaseStorageUrl } from "@/lib/cropSizes";
 
 const loadLightbox = () => import("@/components/Lightbox");
-const ImageLightbox = lazy(() => loadLightbox().then((m) => ({ default: m.ImageLightbox })));
+
+/**
+ * Nieudane pobranie chunku (wdrożenie usunęło stary plik, zerwane łącze) NIE może zabrać galerii:
+ * odrzucony `lazy` rzucałby w renderze do granicy błędu bloku, której fallback produkcyjny to
+ * `null` - znikałyby też miniatury. Zamiast tego: pusty lightbox, błąd do siatki cache-bustingu
+ * (jednorazowe przeładowanie przy chunk-load error) i świeży `lazy` dla następnego kliknięcia
+ * (`React.lazy` zapamiętuje wynik, także porażkę).
+ */
+type LightboxProps = ComponentProps<typeof import("@/components/Lightbox").ImageLightbox>;
+
+function lazyLightbox() {
+  return lazy(() =>
+    loadLightbox().then(
+      (m): { default: ComponentType<LightboxProps> } => ({ default: m.ImageLightbox }),
+      (error: unknown) => {
+        ImageLightbox = lazyLightbox();
+        void import("@/lib/cacheBusting").then(
+          (m) => m.handleChunkLoadFailure(error),
+          () => undefined,
+        );
+        return { default: () => null };
+      },
+    ),
+  );
+}
+let ImageLightbox = lazyLightbox();
 
 /** Rozgrzanie chunku przed kliknięciem. Błąd sieci tu nie ma znaczenia: kliknięcie
  *  ponowi import, a nieudany chunk obsługuje siatka `cacheBusting`. */
