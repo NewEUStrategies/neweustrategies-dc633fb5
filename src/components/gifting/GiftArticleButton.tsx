@@ -164,9 +164,12 @@ export function GiftArticleButton({ postId, title, url, lang, className, gated =
             // Geometria zsynchronizowana z badge „Preferowane zrodlo Google":
             // ta sama minimalna wysokosc, padding i skala typografii, a h-full
             // pozwala wyrownac sie do wyzszego, dwuwierszowego sasiada.
-            "inline-flex items-center justify-center gap-2 min-h-8 self-stretch px-3 py-1 rounded-[5px]",
+            // Mobile (393 px): polkolumna gridu jest wezsza niz etykieta PL,
+            // wiec tekst MUSI miec prawo lamac sie na dwie linie - ani on,
+            // ani ikona nie moga wychodzic poza ramke (min-w-0 + brak nowrap).
+            "inline-flex min-w-0 items-center justify-center gap-2 min-h-8 self-stretch px-3 py-1 rounded-[5px]",
             "border border-border bg-background text-foreground",
-            "text-[11.5px] font-semibold tracking-[-0.01em] whitespace-nowrap",
+            "text-[11.5px] font-semibold tracking-[-0.01em] whitespace-normal sm:whitespace-nowrap",
             "hover:bg-muted hover:text-brand transition-colors active:scale-[0.98]",
             className ?? "",
           ].join(" ")}
