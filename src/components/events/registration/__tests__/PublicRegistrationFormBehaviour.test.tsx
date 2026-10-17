@@ -87,7 +87,6 @@ const h = vi.hoisted(() => ({
   rpc: null as SupabaseRpcStub | null,
   user: null as TestUser | null,
   lang: "pl" as "pl" | "en",
-  sendConfirmation: vi.fn(),
   sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
   quote: vi.fn(),
@@ -147,12 +146,7 @@ vi.mock("@/lib/events/groupGuests.functions", async () => {
 
 // Moduly server fn ciagna middleware Supabase i SDK Stripe - w tescie
 // przegladarkowym potrzebna jest wylacznie ich TOZSAMOSC, po ktorej
-// `useServerFn` rozdziela wywolania. Potwierdzenie mailowe zostaje w atrapie
-// tylko po to, zeby udowodnic, ze formularz go JUZ nie wola (REG-04).
-vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
-  confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
-}));
-
+// `useServerFn` rozdziela wywolania.
 vi.mock("@/lib/events/groupTicketCodes.functions", () => ({
   sendGroupTicketCodes: { name: "sendGroupTicketCodes" },
 }));
@@ -172,15 +166,13 @@ vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "confirmEventRegistrationEmail"
-      ? h.sendConfirmation
-      : fn.name === "sendGroupTicketCodes"
-        ? h.sendTicketCodes
-        : fn.name === "quoteEventTicketCheckout"
-          ? h.quote
-          : fn.name === "revealEventCodeTickets"
-            ? h.reveal
-            : h.checkout,
+    fn.name === "sendGroupTicketCodes"
+      ? h.sendTicketCodes
+      : fn.name === "quoteEventTicketCheckout"
+        ? h.quote
+        : fn.name === "revealEventCodeTickets"
+          ? h.reveal
+          : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -428,8 +420,6 @@ beforeEach(() => {
   h.rpc.setData(CANCEL_PREVIEW_RPC, cancelPreviewPayload());
   h.user = null;
   h.lang = "pl";
-  h.sendConfirmation.mockReset();
-  h.sendConfirmation.mockResolvedValue({ ok: true });
   h.sendTicketCodes.mockReset();
   h.sendTicketCodes.mockResolvedValue({ ok: true, sent: 2 });
   h.checkout.mockReset();
@@ -1234,22 +1224,25 @@ describe("PublicRegistrationForm - po udanym zapisie", () => {
     expect(screen.queryByLabelText(label("firstName"))).not.toBeInTheDocument();
   });
 
-  it("przegladarka NIE wola potwierdzenia mailowego - wysyla je serwer po zapisie", async () => {
-    // REG-04: dawniej formularz wolal `confirmEventRegistrationEmail` z kluczem.
-    // Teraz poczte wysyla funkcja serwerowa po odpowiedzi, wiec ekran nie
-    // zalezy od poczty, a odpowiedz neutralna nie musi oddawac klucza.
+  it("przegladarka NIE wola zadnej dodatkowej funkcji - poczte wysyla serwer po zapisie", async () => {
+    // REG-04: dawniej formularz wolal publiczna funkcje potwierdzenia z kluczem
+    // (usunieta - nie bylo jej nawet w resolverze server fn). Teraz poczte wysyla
+    // serwer zapisu, wiec ekran nie zalezy od poczty, a odpowiedz neutralna nie
+    // musi oddawac klucza.
     await submitHappyPath();
 
     expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
     expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
-    expect(h.sendConfirmation).not.toHaveBeenCalled();
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
+    expect(h.reveal).not.toHaveBeenCalled();
+    expect(h.checkout).not.toHaveBeenCalled();
   });
 
   it("zapis bez klucza samoobslugi tez rysuje potwierdzenie i nie wola poczty", async () => {
     await submitHappyPath({ manage_token: null });
 
     expect(await screen.findByText("eventRegistration.result.approved")).toBeInTheDocument();
-    expect(h.sendConfirmation).not.toHaveBeenCalled();
+    expect(h.checkout).not.toHaveBeenCalled();
   });
 
   it("lista rezerwowa mowi POZYCJE, a nie „zapisano”", async () => {
@@ -1303,7 +1296,6 @@ describe("PublicRegistrationForm - odpowiedz neutralna „sprawdz skrzynke”", 
       "href",
       `/events/${SLUG}`,
     );
-    expect(h.sendConfirmation).not.toHaveBeenCalled();
     expect(h.quote).not.toHaveBeenCalled();
   });
 

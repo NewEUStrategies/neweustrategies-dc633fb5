@@ -1,28 +1,22 @@
 // Potwierdzenie zapisu wysyłane kluczem samoobsługi:
-// `registrationSelfNotify.server.ts` (logika, wołana też przez serwer zapisu)
-// i `registrationSelfNotify.functions.ts` (publiczna obwódka).
+// `registrationSelfNotify.server.ts`, wołany przez serwer zapisu
+// (`eventRegistration.server.ts`) po utworzeniu zgłoszenia gościa bez konta.
 //
-// Ta ścieżka jest BEZ ZALOGOWANIA, więc cała jej obrona mieści się w czterech
-// miejscach - i dokładnie te cztery pilnuje ten plik:
+// Gość nie jest zalogowany, więc obrona tej ścieżki mieści się w dwóch
+// miejscach - i dokładnie te dwa pilnuje ten plik:
 //
-//   1. KSZTAŁT SEKRETU. `manage_token` to 32 znaki base64url. Walidator jest
-//      jedyną barierą między publicznym `POST` a zapytaniem do bazy.
-//   2. NIC Z CIAŁA ŻĄDANIA POZA KLUCZEM. Adres, imię, język, najemca i rodzaj
+//   1. NIC POZA KLUCZEM. Adres, imię, język, najemca i rodzaj
 //      maila biorą się WYŁĄCZNIE z wiersza bazy. Gdyby rodzaj wybierał klient,
 //      wysłałby sobie „zgłoszenie zaakceptowane" na miejsce, którego nie ma.
-//   3. NAJEMCA Z ARGUMENTU (REG-17). `event_registration_notify_payload_for_
+//   2. NAJEMCA Z ARGUMENTU (REG-17). `event_registration_notify_payload_for_
 //      tenant` (A1, tylko `service_role`) dostaje najemcę jawnie i rozstrzyga
 //      klucz jedną regułą (wygasły / zamknięty nie oddaje adresu). Stara
 //      funkcja (`public_tenant_id()` z nagłówka hosta) jest wołana WYŁĄCZNIE
 //      w oknie wdrożenia, klientem anonimowym z nagłówkiem hosta.
-//   4. OBWÓDKA bierze najemcę z zaufanego hosta; host bez najemcy to odmowa
-//      bez pytania bazy.
 //
 // FAIL-SOFT: brak maila nie unieważnia zapisu, więc każda odmowa musi być
 // zwróconą wartością, a nie wyjątkiem lecącym w formularz.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import { callServerFn, validateServerFnInput } from "@/test/serverFnHarness";
 
 const h = vi.hoisted(() => {
   const anonRpc = vi.fn();
@@ -33,14 +27,9 @@ const h = vi.hoisted(() => {
     buildRegistrationNotice: vi.fn(),
     sendTxEmail: vi.fn(),
     tenantFetch: vi.fn(),
-    tenant: "tenant-host" as string | null,
-    hosts: [] as (string | null)[],
   };
 });
 
-vi.mock("@tanstack/react-start", async () =>
-  (await import("@/test/serverFnHarness")).serverFnStubModule(),
-);
 vi.mock("@supabase/supabase-js", () => ({ createClient: h.createClient }));
 vi.mock("@/integrations/supabase/tenant-host-fetch", () => ({
   fetchWithTenantHost: h.tenantFetch,
@@ -50,18 +39,9 @@ vi.mock("@/lib/events/registrationNotify.server", () => ({
   buildRegistrationNotice: h.buildRegistrationNotice,
 }));
 vi.mock("@/lib/email/transactional.server", () => ({ sendTxEmail: h.sendTxEmail }));
-vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: async () => "nes.example" }));
-vi.mock("@/lib/server/tenant.server", () => ({
-  resolveTenantIdForHost: async (host: string | null) => {
-    h.hosts.push(host);
-    return h.tenant;
-  },
-}));
 
 const { sendRegistrationNoticeForManageToken, hostAnonClient } =
   await import("@/lib/events/registrationSelfNotify.server");
-const { confirmEventRegistrationEmail } =
-  await import("@/lib/events/registrationSelfNotify.functions");
 
 /** 32 znaki base64url - dokładnie tyle, ile daje `_event_new_qr_token()`. */
 const TOKEN = "abcdefghijklmnopqrstuvwxyz012345";
@@ -93,33 +73,6 @@ beforeEach(() => {
   h.buildRegistrationNotice.mockReturnValue(CONTENT);
   h.sendTxEmail.mockReset();
   h.sendTxEmail.mockResolvedValue({ ok: true });
-  h.tenant = TENANT;
-  h.hosts = [];
-});
-
-describe("walidator klucza samoobsługi (obwódka publiczna)", () => {
-  const validate = (data: unknown) => validateServerFnInput(confirmEventRegistrationEmail, data);
-
-  it("przepuszcza dokładnie 32 znaki base64url", () => {
-    expect(validate({ manageToken: TOKEN })).toEqual({ manageToken: TOKEN });
-    expect(validate({ manageToken: "A-_0".repeat(8) })).toEqual({ manageToken: "A-_0".repeat(8) });
-  });
-
-  it("odrzuca klucz krótszy, dłuższy i spoza base64url", () => {
-    expect(() => validate({ manageToken: TOKEN.slice(0, 31) })).toThrow();
-    expect(() => validate({ manageToken: `${TOKEN}x` })).toThrow();
-    expect(() => validate({ manageToken: "" })).toThrow();
-    expect(() => validate({ manageToken: `${TOKEN.slice(0, 31)}+` })).toThrow();
-    expect(() => validate({ manageToken: `${TOKEN.slice(0, 31)}/` })).toThrow();
-    expect(() => validate({ manageToken: `${TOKEN.slice(0, 30)}'--` })).toThrow();
-  });
-
-  it("odrzuca wartość, która nie jest tekstem, oraz brak wejścia", () => {
-    expect(() => validate({ manageToken: 42 })).toThrow();
-    expect(() => validate({ manageToken: [TOKEN] })).toThrow();
-    expect(() => validate({})).toThrow();
-    expect(() => validate(null)).toThrow();
-  });
 });
 
 describe("najemca z argumentu - funkcja tylko dla roli serwisowej", () => {
@@ -311,35 +264,5 @@ describe("wynik wysyłki - odmowa jest wartością, nie awarią", () => {
     expect(await run(row)).toEqual({ ok: false, error: "supabase_unavailable" });
     h.sendTxEmail.mockResolvedValue({ ok: false, skipped: "no_recipient" });
     expect(await run(row)).toEqual({ ok: false, error: "send_failed" });
-  });
-});
-
-describe("obwódka publiczna - najemca z zaufanego hosta", () => {
-  it("rozstrzyga najemcę z hosta i przekazuje go jawnie", async () => {
-    h.adminRpc.mockResolvedValue({
-      data: { email: "a@b.pl", status: "pending", registration_id: REG },
-      error: null,
-    });
-    const result = await callServerFn(confirmEventRegistrationEmail, {
-      data: { manageToken: TOKEN },
-      context: { supabase: null },
-    });
-    expect(result).toEqual({ ok: true });
-    expect(h.hosts).toEqual(["nes.example"]);
-    expect(h.adminRpc.mock.calls[0]![1]).toEqual({
-      _tenant_id: TENANT,
-      p_payload: { manage_token: TOKEN },
-    });
-  });
-
-  it("host bez najemcy to odmowa bez pytania bazy", async () => {
-    h.tenant = null;
-    expect(
-      await callServerFn(confirmEventRegistrationEmail, {
-        data: { manageToken: TOKEN },
-        context: { supabase: null },
-      }),
-    ).toEqual({ ok: false, error: "tenant_unresolved" });
-    expect(h.adminRpc).not.toHaveBeenCalled();
   });
 });

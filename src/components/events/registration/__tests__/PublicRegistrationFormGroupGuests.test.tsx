@@ -78,7 +78,6 @@ const h = vi.hoisted(() => ({
   /** Przekształca wynik prawdziwego `submitRegistration` (punkt 9). */
   reshapeOutcome: null as
     ((outcome: RegistrationSubmitOutcome) => RegistrationSubmitOutcome) | null,
-  sendConfirmation: vi.fn(),
   sendTicketCodes: vi.fn(),
   checkout: vi.fn(),
   quote: vi.fn(),
@@ -112,10 +111,6 @@ vi.mock("@/lib/events/groupGuests.functions", async () =>
   (await import("@/test/events/groupGuestsServerFn")).groupGuestsServerFnStub(() => h.rpc),
 );
 
-vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
-  confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
-}));
-
 vi.mock("@/lib/events/groupTicketCodes.functions", () => ({
   sendGroupTicketCodes: { name: "sendGroupTicketCodes" },
 }));
@@ -131,13 +126,11 @@ vi.mock("@/lib/billing/eventTicketQuote.functions", () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "confirmEventRegistrationEmail"
-      ? h.sendConfirmation
-      : fn.name === "sendGroupTicketCodes"
-        ? h.sendTicketCodes
-        : fn.name === "quoteEventTicketCheckout"
-          ? h.quote
-          : h.checkout,
+    fn.name === "sendGroupTicketCodes"
+      ? h.sendTicketCodes
+      : fn.name === "quoteEventTicketCheckout"
+        ? h.quote
+        : h.checkout,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -346,8 +339,6 @@ beforeEach(() => {
   h.lang = "pl";
   h.formOverride = null;
   h.reshapeOutcome = null;
-  h.sendConfirmation.mockReset();
-  h.sendConfirmation.mockResolvedValue({ ok: true });
   h.sendTicketCodes.mockReset();
   h.checkout.mockReset();
   h.quote.mockReset();
@@ -509,8 +500,8 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
     expect(screen.getByDisplayValue("ewa.nowak@example.org")).toBeInTheDocument();
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(1);
     // Potwierdzenie prowadzącego wysłał serwer razem z zapisem (REG-04) -
-    // przeglądarka nie ma już własnej drogi do poczty.
-    expect(h.sendConfirmation).not.toHaveBeenCalled();
+    // przeglądarka nie ma własnej drogi do poczty, a bez gości nie ma biletów.
+    expect(h.sendTicketCodes).not.toHaveBeenCalled();
   });
 });
 

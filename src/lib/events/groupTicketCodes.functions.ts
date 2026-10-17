@@ -2,7 +2,7 @@
 // dopisaniu gości, bo nie ma płatności, po której zrobiłby to webhook.
 //
 // UWIERZYTELNIENIE KLUCZEM `manage_token` PROWADZĄCEGO, jak potwierdzenie
-// zapisu (`registrationSelfNotify.functions`). Najemca z zaufanego hosta,
+// zapisu (`registrationSelfNotify.server`). Najemca z zaufanego hosta,
 // klucz rozstrzyga baza jedną regułą (REG-17) - szczegóły w
 // `groupTicketCodes.server.ts`.
 //
