@@ -29,6 +29,7 @@ import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
 import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
+import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";
 import {
   browserBaselineLightningcssTargets,
   LIGHTNINGCSS_EXCLUDED_FEATURES,
@@ -51,6 +52,9 @@ const NES_BUILD_ID = (process.env.LOVABLE_BUILD_ID || `t${Date.now().toString(36
 // cloudflare-module, żeby dało się go odpalić lokalnie). Zmienna pośrednia:
 // typy pakietu deklarują podzbiór opcji nitro - patrz komentarz w vite.config.ts.
 const nitroOptions = { preset: "node-server", minify: true };
+
+// Parytet z vite.config.ts: reguły list preloadu `import()` i wtyczka z CSS celów - jeden obiekt.
+const clientPreload = clientModulePreload();
 
 export default defineConfig({
   nitro: nitroOptions,
@@ -84,6 +88,8 @@ export default defineConfig({
       staticCssPlugin(),
       // Parytet z vite.config.ts: `keepNames` dla buildu w trybie development.
       devBuildKeepNamesPlugin(),
+      // Parytet z vite.config.ts: CSS celów `import()` dla list preloadu.
+      clientPreload.plugin,
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
@@ -153,6 +159,8 @@ export default defineConfig({
           // Ten sam minifikator i ta sama baza przeglądarek co vite.config.ts.
           minify: "oxc",
           target: browserBaselineTarget(),
+          // Te same listy preloadu `import()` co vite.config.ts (scripts/lib/clientModulePreload.ts).
+          modulePreload: clientPreload.modulePreload,
           rolldownOptions: {
             output: {
               // Kontrakt check:chunks i podział z JEDNEGO modułu - uzasadnienie

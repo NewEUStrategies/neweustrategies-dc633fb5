@@ -281,6 +281,10 @@ function headTitle(head: RouteHeadResult): string {
   return found.title;
 }
 
+/** Deskryptor preloadu obrazu z `head()` trasy (albo undefined, gdy go nie ma). */
+const imagePreload = (links: Record<string, unknown>[]) =>
+  links.find((l) => l.rel === "preload" && l.as === "image");
+
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.episodes = [episode()];
@@ -840,16 +844,41 @@ describe("trasa /podcast/$slug - nagłówek dokumentu", () => {
     expect(headTitle(head)).toBe("Podcast");
   });
 
-  it("loader dopisuje nagłówek HTTP Link z preloadem okładki (LCP)", async () => {
-    // Preload rusza z <head>, zanim parser dojdzie do <img> - i musi wskazywać
-    // TEN SAM wariant, który strona maluje, inaczej przeglądarka pobiera dwa.
-    await mount();
+  it("okładka (LCP): nagłówek HTTP Link + obraz high w powłoce, bez duplikatu z head()", async () => {
+    // Preload rusza z nagłówków odpowiedzi, zanim parser dojdzie do <img> - i musi
+    // wskazywać TEN SAM wariant, który strona maluje, inaczej przeglądarka
+    // pobiera dwa. `<head>` dostaje preload od Reacta 19 z `<img
+    // fetchPriority="high">` w powłoce (klucz `src`); link z `head()` był jego
+    // identycznym duplikatem (`documentPreloadDuplicates`).
+    const view = await mount();
 
+    expect(imagePreload(view.links())).toBeUndefined();
+    const img = view.container.querySelector<HTMLImageElement>('img[fetchpriority="high"]');
+    const src = img?.getAttribute("src");
+    expect(src).toBeTruthy();
+    // Bez srcset kluczem preloadu Reacta jest `src` - nagłówek niesie sam `href`.
+    expect(img?.getAttribute("srcset")).toBeNull();
+    const header = h.linkHeaders.find((value) => value.startsWith(`<${src}>`));
     // ZMIERZONE, nie zgadnięte: `imagePreloadLinkHeaderValue` składa parametry
     // RFC 8288 z wartościami W CUDZYSŁOWACH (`as="image"`), więc asercja na
     // `as=image` przechodziłaby tylko przez przypadek - i nie przechodziła.
-    expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(true);
-    expect(h.linkHeaders.some((value) => value.includes('rel="preload"'))).toBe(true);
+    expect(header, h.linkHeaders.join("\n")).toContain('as="image"');
+    expect(header).toContain('rel="preload"');
+    expect(header).not.toContain("imagesrcset");
+  });
+
+  it("dane loadera NIE niosą deskryptora preloadu - `head()` go nie czyta", async () => {
+    // Deskryptor jechałby w dehydrowanym ładunku SSR do każdego czytelnika,
+    // choć nikt go już nie konsumuje: preload okładki niesie wyłącznie
+    // nagłówek `Link` (+ automatyczny preload Reacta z `<img>`).
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const data = await episodeLoader()({ context: { queryClient }, params: { slug: SLUG } });
+
+    // Kontrola dodatnia: ten bieg loadera NAPRAWDĘ miał okładkę do preloadu
+    // i zwrócił odcinek - inaczej brak pola przechodziłby też na pustym wyniku.
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(data).toHaveProperty("podcast.slug", SLUG);
+    expect(data).not.toHaveProperty("coverPreload");
   });
 });
 

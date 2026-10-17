@@ -41,7 +41,6 @@ import {
   SITE_CANONICAL_ORIGIN,
   buildContentHead,
   feedAlternateLink,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   siteDescription,
   splitUrl,
@@ -95,12 +94,18 @@ export const Route = createFileRoute("/podcast/$slug")({
     const data = notFoundIfClean(identity);
     if (data === null) {
       setCacheControlHeader(resilientCacheControl(true));
-      return { podcast: null, coverPreload: null, degraded: true };
+      return { podcast: null, degraded: true };
     }
-    // Preload LCP okładki odcinka - render to zwykłe <img src> bez srcSet,
-    // więc deskryptor niesie sam `href` (para srcset/sizes wskazywałaby inny
-    // wariant niż malowany i podwoiłaby pobranie). Wartość idzie też jako
-    // nagłówek HTTP `Link` (fetch przed parsowaniem HTML, 103 Early Hints).
+    // Preload LCP okładki odcinka - WYŁĄCZNIE nagłówek HTTP `Link` (fetch przed
+    // parsowaniem HTML, utrwalany przez NES Edge Cache na HIT/STALE; droga do
+    // 103 Early Hints). Do `<head>` preload wstawia sam React 19: okładka jest
+    // `<img fetchPriority="high">` w powłoce, więc dostaje automatyczny
+    // `<link rel="preload" as="image">` z kluczem `src`. Drugi, identyczny link
+    // z `head()` był jego duplikatem (`documentPreloadDuplicates`; jak
+    // w archiwach, `blog.index.tsx`), więc loader nie zwraca już deskryptora.
+    // Render to zwykłe <img src> bez srcSet, więc deskryptor niesie sam `href`
+    // (para srcset/sizes wskazywałaby inny wariant niż malowany i podwoiłaby
+    // pobranie).
     // PARYTET: ten sam buildAvatarSrc(…, 128) co w malowanym <img> - okładka
     // renderuje się w polu 128x128, więc preload/paint schodzą na ~256 px
     // wariant ze Storage zamiast pełnowymiarowego oryginału na wysokim
@@ -155,7 +160,7 @@ export const Route = createFileRoute("/podcast/$slug")({
     if (anyDegraded(settings, parentShow, people)) {
       setCacheControlHeader(resilientCacheControl(true));
     }
-    return { podcast: data, coverPreload, degraded: false };
+    return { podcast: data, degraded: false };
   },
   head: ({ loaderData }) => {
     const p = loaderData?.podcast;
@@ -207,13 +212,13 @@ export const Route = createFileRoute("/podcast/$slug")({
     // Autodiscovery kanału podcastu wprost ze strony odcinka - to najczęstszy
     // punkt wejścia z social mediów, a czytnik/Apple szuka <link rel="alternate">.
     // Strona odcinka zna show_id, nie slug programu, więc wskazujemy kanał
-    // sieciowy (zawiera ten odcinek), a nie per-program. Do tego preload
-    // okładki (LCP) - fetch rusza z <head>, zanim parser dojdzie do <img>.
+    // sieciowy (zawiera ten odcinek), a nie per-program. Preloadu okładki (LCP)
+    // tu NIE ma: niesie go nagłówek `Link` loadera, a `<head>` dostaje go od
+    // Reacta 19 z `<img fetchPriority="high">` (patrz loader).
     return {
       ...base,
       links: [
         ...base.links,
-        ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
         feedAlternateLink({
           origin,
           feedPath: "/podcast/rss.xml",

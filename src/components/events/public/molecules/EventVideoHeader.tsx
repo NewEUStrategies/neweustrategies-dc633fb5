@@ -16,6 +16,17 @@
 // BEZ AUTOPLAY. `allow` celowo nie wymienia `autoplay` - dźwięk startujący sam
 // na stronie wydarzenia jest wadą, nie funkcją. `referrerPolicy` obcina
 // ścieżkę adresu wychodzącą do platformy wideo.
+//
+// OKŁADKA TO KANDYDAT LCP PRZEGLĄDU: eager (bez `loading`), `fetchPriority="high"`
+// i `data-lcp-candidate`. Komponent stoi w obu miejscach JAKO baner na szczycie
+// głównej kolumny - przegląd `events.$slug.index.tsx` i podgląd studia
+// `EventPreviewCanvas` - więc wysoki priorytet nigdy nie trafia w obraz poboczny.
+// To z tego `<img>` React 19 wstawia JEDYNY preload okładki
+// (`<link rel="preload" as="image">`) w `<head>` (klucz: surowy `src`, bez
+// `srcSet`); trasa `events.$slug.tsx` NIE dokłada drugiego z `head()`, a ten
+// sam `cover_url` wysyła tylko nagłówkiem HTTP `Link`. `loading="lazy"`
+// zdjąłby ten preload i opóźnił baner, a `<picture>`/`srcSet` rozjechałyby
+// klucz z nagłówkiem `Link` (dwa pobrania).
 import { useTranslation } from "react-i18next";
 
 import { videoEmbedUrl, asEventVideoPlatform } from "@/lib/events/eventVideoHeader";
@@ -42,7 +53,13 @@ export function EventVideoHeader({
     if (coverUrl === null || coverUrl.trim() === "") return null;
     return (
       <div className="mb-8 aspect-video overflow-hidden rounded-lg bg-muted">
-        <img src={coverUrl} alt="" className="h-full w-full object-cover" />
+        <img
+          src={coverUrl}
+          alt=""
+          fetchPriority="high"
+          data-lcp-candidate=""
+          className="h-full w-full object-cover"
+        />
       </div>
     );
   }

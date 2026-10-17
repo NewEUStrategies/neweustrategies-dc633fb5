@@ -2753,6 +2753,8 @@ function legacyChunkName(file: string): string {
 // ThemeOptionsPane, slowniki i18n-admin-* itd. - ma status wyliczany z grafu
 // na kazdym buildzie; wzajemne importy (Builder <-> PostBlockEditor) przezywa
 // konstrukcja najwiekszego punktu stalego, patrz `adminOnlyByGraph`.
+// Ta sama granica wybiera cele `import()` bez listy preloadu (`ADMIN_ROUTE_CHUNK_RE`
+// w scripts/lib/clientModulePreload.ts); rownosc wyrazen pilnuje clientModulePreload.test.ts.
 const ADMIN_ROOT = /^admin[.-]/;
 function isAdminRoot(file: string): boolean {
   return ADMIN_ROOT.test(basename(file));

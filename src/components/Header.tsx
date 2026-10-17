@@ -7,7 +7,7 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
-import { renderedMediaUrl } from "@/lib/cropSizes";
+import { headerLogoSrc, type HeaderLogoVariants } from "@/lib/brand/headerLogo";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
@@ -51,14 +51,7 @@ import { HydrationIsland, type IslandTrigger } from "@/lib/performance/hydration
 import { onInteractionOrQuiet } from "@/lib/performance/interactionOrQuiet";
 import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
-type ThemeLogoCfg = {
-  logo?: {
-    main?: string;
-    main_dark?: string;
-    mobile?: string;
-    mobile_dark?: string;
-  };
-};
+type ThemeLogoCfg = { logo?: HeaderLogoVariants };
 
 // Shared with the root loader (SSR prefetch of the ticker) - keep in sync.
 export type HeaderSettings = {
@@ -159,13 +152,11 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
   const siteName = (general.site_name && general.site_name.trim()) || "Menu";
   const { theme: mode, toggle } = useTheme();
   const isDark = mode === "dark";
-  const themeLogo = theme.logo ?? {};
-  // Dark mode na mobile/tablecie ma pokazywać ten sam (jasny napis) wariant co
-  // desktop: dedykowane mobile_dark -> desktopowe main_dark -> dopiero potem
-  // warianty jasne jako awaryjny fallback.
-  const mobileLogo = isDark
-    ? themeLogo.mobile_dark || themeLogo.main_dark || themeLogo.mobile || themeLogo.main || ""
-    : themeLogo.mobile || themeLogo.main || themeLogo.mobile_dark || themeLogo.main_dark || "";
+  // Łańcuch wariantów (dark: mobile_dark -> main_dark -> jasne awaryjnie) i
+  // adres względny `/media/...` z JEDNEGO helpera, wspólnego z paskiem czytania
+  // wpisu: ten sam `src` = jeden auto-preload Reacta w `<head>` (patrz
+  // `lib/brand/headerLogo`).
+  const mobileLogo = headerLogoSrc(theme.logo, isDark);
 
   const [open, setOpen] = useState(false);
   // Jedno-tapowa szukajka na mobilnym pasku (audyt: szukanie było schowane za
@@ -305,7 +296,7 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
           >
             {mobileLogo ? (
               <img
-                src={renderedMediaUrl(mobileLogo)}
+                src={mobileLogo}
                 alt={siteName}
                 className="h-8 w-auto max-w-[180px] object-contain"
                 loading="eager"

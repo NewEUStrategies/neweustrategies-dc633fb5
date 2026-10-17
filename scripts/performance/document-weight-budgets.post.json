@@ -1,0 +1,154 @@
+{
+  "_comment": [
+    "PROGI WAGI DOKUMENTU WPISU `/blog/fixture-2` (trasa `/$`, PR #518, 2026-10-17). Wpis fixture istnieje wyłącznie w przypadku pomiaru `document-weight` (scripts/performance/homeFixture.ts, `DOCUMENT_WEIGHT_POST_PATH`): okładka `https://fixture.invalid/cover.jpg`, układ domyślny (layout-1, okładka nad treścią). Bramki `/` i `/blog` nie renderują trasy `/$`; ten plik pilnuje ścieżki LCP wpisu w trybie bootu `lcp` (`/$` w `AFTER_LCP_ROUTE_IDS`, src/lib/boot/bootSet.server.ts): okładka jest JEDYNYM `img[data-lcp-candidate]` (`coverLcpCandidate` w `PostLayoutRenderer`, ta sama flaga `coverAboveBody` w `$.tsx` odbiera wtedy kandydata treści - `lcpOwner`), więc loader bootu startuje serię po wpisie LCP okładki, a nie po pierwszej klatce (`nocand`); logo paska czytania `ReadingHeader` jest leniwe (`imgEagerNonCandidate`), preload okładki w `<head>` i nagłówku `Link` ma klucz kandydata (`imagePreloadNonCandidate`, `linkHeaderDisallowed`), a arkusz paska czytania nie niesie komentarzy CSS (`inlineCssCommentBytes` 517 B = ten sam szablon `ContentAreaStyle` co na `/`).",
+    "PRZED POPRAWKĄ (głowa 2e9196a, ten sam skrypt na `build:smoke`, pomiar zlecenia): `lcpCandidateMissing` 1, `imgEagerNonCandidate` 2 (okładka + logo `ReadingHeader`), `imagePreloadNonCandidate` 2 (auto-preload Reacta i `Link` okładki), `linkHeaderDisallowed` 1, `inlineCssCommentBytes` 1,5 KB (komentarze w `<style>` `ReadingHeader`). W Chromium na artefakcie (`/blog/fixture-2`, obrazy fixture z dysku, 3 + 3 przebiegi): `__nesBootWhy` = `lcp` z wpisem LCP na `<img data-lcp-candidate>` okładki; ten sam dokument ze zdjętym znacznikiem - `nocand` 3/3.",
+    "Pomiar: `BUNDLE_INVENTORY=1 build:smoke` gałęzi PR #518 (głowa 2e9196a + zmiana P1.4 okładki), node 22, fixture, 5 próbek HIT bajtowo identycznych, `--ratchet --budgets scripts/performance/document-weight-budgets.post.json --path /blog/fixture-2` (zapas 2 % dla bajtów, liczniki = pomiar, podłogi `RATCHET_FLOORS`). Progi wspólne dla całej witryny przepisane z bramki `/` jak w .blog.json: domknięcie bootu (1 637 758 / 496 399 B; wpis mierzy 1 635 317 / 488 491 B) i CSS blokujący render (83 461 B; wpis 83 032 B) - ten sam arkusz i to samo wejście, więc wpis nie dostaje luźniejszego progu. Ręcznie ZACIEŚNIONE poniżej wyniku ratchetu: `inlineCssCommentBytes` 528 -> 517 (reguła `/`: treść stała, szablon, próg bez zapasu), `lcpCandidateCount` i `imgFetchpriorityHigh` 2 -> 1 (podłoga 2 to dwa kandydaci strony buildera - desktop i telefon; wpis z okładką ma jednego kandydata dla obu urządzeń, więc drugi znacznik albo drugi obraz High na tym wpisie to okładka i dokument buildera w treści naraz - defekt własności).",
+    "SERIA BOOTU - JEDYNE METRYKI PONAD PROGAMI `/` (32 pliki / 583 738 B), ŚWIADOMIE INNE, NIE LUŹNIEJSZA POLITYKA. `bootBurstCount` 115 i `bootBurstGzipBytes` 799 293 B: zestaw bootu to pełne domknięcie statyczne dopasowanej trasy (src/lib/boot/bootManifest.ts), a dla `/$` jest ono większe niż dla `/` - bramka `/` notowała to przy ustaleniu progów (`/$`: 106 plików JS przed `__nesAppReadyAt`). W trybie `lcp` seria rusza PO wpisie LCP, więc nie wchodzi do puli przed LCP (`preloadedJs*` = 0, `preLcpTransferBytes` 149 403 B, mniej niż `/`). Rozkład wobec `/` (ten sam build): 22 pliki wspólne, 10 tylko na `/`, 93 pliki / 251 630 B gzip tylko na wpisie, z czego: chunk komponentu trasy `/$` 39 876 B (strona wpisu z CommentsSection, Paywall, GiftArticleButton, AutoLoadNextPost, ContactForm, CitationBox), vendor-radix 35 393 B (tooltip, floating-ui), BlocksRenderer 31 804 B (silnik bloków statycznie w ContentRenderer), vendor-lucide 17 668 B, vendor-sonner 9 537 B, sidebarLayouts 9 204 B, PostContextViews 6 881 B, vendor-radix-select 6 422 B, kompozytor i wzmianki komentarzy 13 362 B (8 plików), checkout/Stripe/formularz kontaktu 3 257 B (6 plików), ReadingHeader 3 315 B, reszta < 3,6 KB na plik. Próg = pomiar (licznik) i ceil(pomiar x 1,02) (bajty): seria wpisu nie urośnie bez ręcznego commitu z uzasadnieniem. Zejście (osobne zadanie, NIE przez ten plik): kompozytor/wzmianki komentarzy, checkout i ContactForm poza statycznym grafem trasy `/$`.",
+    "Te same zasady co w pliku głównym: progi wolno wyłącznie obniżać (`--ratchet --budgets scripts/performance/document-weight-budgets.post.json --path /blog/fixture-2`); podniesienie to ręczny commit z pomiarem i uzasadnieniem tutaj."
+  ],
+  "path": "/blog/fixture-2",
+  "measuredAt": "2026-10-17",
+  "commit": "PR #518 (głowa 2e9196a + okładka wpisu jako kandydat LCP; build:smoke, fixture, 5 próbek)",
+  "budgets": {
+    "htmlRawBytes": {
+      "max": 223623,
+      "measured": 219238
+    },
+    "htmlGzipBytes": {
+      "max": 42839,
+      "measured": 41999
+    },
+    "headRawBytes": {
+      "max": 19422,
+      "measured": 19041
+    },
+    "inlineStyleCount": {
+      "max": 15,
+      "measured": 15
+    },
+    "inlineStyleBytes": {
+      "max": 58899,
+      "measured": 57744
+    },
+    "inlineCssCommentBytes": {
+      "max": 517,
+      "measured": 517
+    },
+    "fontPreloadCount": {
+      "max": 1,
+      "measured": 1
+    },
+    "inlineScriptBytes": {
+      "max": 47550,
+      "measured": 46617
+    },
+    "inlineExecutableScriptBytes": {
+      "max": 40409,
+      "measured": 39616
+    },
+    "dehydratedStateBytes": {
+      "max": 30566,
+      "measured": 29966
+    },
+    "streamedStateBytes": {
+      "max": 83,
+      "measured": 81
+    },
+    "dehydratedQueryHashCount": {
+      "max": 0,
+      "measured": 0
+    },
+    "modulepreloadCount": {
+      "max": 0,
+      "measured": 0
+    },
+    "linkHeaderEntries": {
+      "max": 4,
+      "measured": 4
+    },
+    "preloadDuplicates": {
+      "max": 2,
+      "measured": 2
+    },
+    "documentPreloadDuplicates": {
+      "max": 0,
+      "measured": 0
+    },
+    "imagePreloadCount": {
+      "max": 3,
+      "measured": 3
+    },
+    "imgFetchpriorityHigh": {
+      "max": 1,
+      "measured": 1
+    },
+    "bootClosureRawBytes": {
+      "max": 1637758,
+      "measured": 1635317
+    },
+    "bootClosureGzipBytes": {
+      "max": 496399,
+      "measured": 488491
+    },
+    "preloadedJsCount": {
+      "max": 0,
+      "measured": 0
+    },
+    "preloadedJsGzipBytes": {
+      "max": 0,
+      "measured": 0
+    },
+    "renderBlockingCssGzipBytes": {
+      "max": 83461,
+      "measured": 83032
+    },
+    "renderBlockingCssCount": {
+      "max": 1,
+      "measured": 1
+    },
+    "lcpCandidateCount": {
+      "max": 1,
+      "measured": 1
+    },
+    "lcpCandidateMissing": {
+      "max": 0,
+      "measured": 0
+    },
+    "imgEagerNonCandidate": {
+      "max": 0,
+      "measured": 0
+    },
+    "imagePreloadNonCandidate": {
+      "max": 0,
+      "measured": 0
+    },
+    "linkHeaderDisallowed": {
+      "max": 0,
+      "measured": 0
+    },
+    "preLcpTransferBytes": {
+      "max": 152392,
+      "measured": 149403
+    },
+    "srcsetCandidatesMax": {
+      "max": 5,
+      "measured": 0
+    },
+    "absoluteCanonicalMediaInRenderedSrcset": {
+      "max": 0,
+      "measured": 0
+    },
+    "bootEntryMissing": {
+      "max": 0,
+      "measured": 0
+    },
+    "bootBurstCount": {
+      "max": 115,
+      "measured": 115
+    },
+    "bootBurstGzipBytes": {
+      "max": 815279,
+      "measured": 799293
+    }
+  }
+}

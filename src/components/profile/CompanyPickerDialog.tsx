@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
+import { ensureI18n as ensureCompanyI18n } from "@/lib/i18n-company";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { profileEditorKey } from "@/lib/profile/useProfileEditor";
@@ -85,9 +85,10 @@ export function CompanyPickerDialog({
   currentCompanyName,
   returnFocusRef,
 }: Props) {
-  // company.* dictionary lives in the admin/CRM overlay; this dialog is the one
-  // consumer outside /admin, so register it here too (see lib/i18n-admin-extras).
-  ensureAdminExtrasI18n();
+  // Własny słownik `company.*` (lib/i18n-company), NIE nakładka panelu/CRM:
+  // dialog jedzie na publicznym /profile, a import `i18n-admin-extras` stąd
+  // liczył cały słownik panelu (~19 KB gzip) do sumy PUBLIC `check:bundle`.
+  ensureCompanyI18n();
   const { t } = useTranslation();
   const { user, tenantId } = useAuth();
   const qc = useQueryClient();

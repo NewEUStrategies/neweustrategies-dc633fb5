@@ -85,6 +85,8 @@ import {
 } from "@/components/clubs/atoms/ClubWorkspaceSkeletons";
 import { CLUB_NAVY_CLASS, ClubNavyTheme } from "@/components/clubs/atoms/ClubNavyTheme";
 import { ClubCover } from "@/components/clubs/atoms/ClubCover";
+import { CLUB_COVER_BANNER_SIZES } from "@/lib/clubs/coverFrame";
+import { clubCoverPreload } from "@/lib/clubs/clubCoverPreload";
 import { CLUB_LAYOUTS, type ClubLayout } from "@/lib/clubs/types";
 
 /**
@@ -404,6 +406,23 @@ describe("ClubCover - wariant banner", () => {
     expect(image?.getAttribute("loading")).toBe("eager");
     expect(image?.getAttribute("sizes")).toBe("(min-width: 1024px) 64rem, 100vw");
     expect(container.firstElementChild?.getAttribute("class")).toContain("aspect-[3/1]");
+  });
+
+  // Parytet z nagłówkiem `Link` (`clubCoverPreload`): deskryptor liczy się
+  // z PRZYCIĘTEGO adresu i wspólnej stałej `sizes`. Adres z białymi znakami
+  // dawał `<img>` inny `src`/`srcset` niż preload - dwa klucze, dwa pobrania.
+  it("adres z białymi znakami: `src`, `srcset` i `sizes` jak w preloadzie z nagłówka `Link`", () => {
+    const preload = clubCoverPreload(
+      { can_read: false, cover_image_url: `  ${COVER_URL}\n` },
+      "/club/korytarz",
+    );
+    const { container } = render(<ClubCover url={`  ${COVER_URL}\n`} variant="banner" />);
+    const image = container.querySelector("img");
+    expect(preload?.imageSrcSet).toBeTruthy();
+    expect(image?.getAttribute("src")).toBe(COVER_URL);
+    expect(image?.getAttribute("srcset")).toBe(preload?.imageSrcSet);
+    expect(image?.getAttribute("sizes")).toBe(preload?.imageSizes);
+    expect(image?.getAttribute("sizes")).toBe(CLUB_COVER_BANNER_SIZES);
   });
 
   it("dokłada klasę wywołującego do pasa z okładką", () => {

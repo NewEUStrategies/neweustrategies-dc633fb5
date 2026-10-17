@@ -1,7 +1,9 @@
 // Pakiet i18n inline-edytora layoutu eksperta (ExpertLayoutInlineEditor na
 // /author/$slug). Rejestrowany w chunku edytora (lazy) - publiczni goście
-// nigdy go nie pobierają. Etykiety sekcji współdzielone z panelem admina
-// przez i18n-admin-layouts (adminLayouts.expertLayouts.sections.*).
+// nigdy go nie pobierają. Etykiety współdzielone z panelem admina
+// (`adminLayouts.expertLayouts.{sections.*,moveUp,…}`) mają właściciela TUTAJ,
+// a /admin/expert-layouts rejestruje ten słownik obok `i18n-admin-layouts` -
+// edytor nie importuje słownika panelu (wtedy ten liczyłby się do PUBLIC).
 import i18n from "./i18n";
 
 export const expertLayoutEditorPl = {
@@ -37,6 +39,39 @@ export const expertLayoutEditorPl = {
     discardConfirm: "Masz niezapisane zmiany layoutu - zamknąć bez zapisu?",
     close: "Zamknij edytor",
   },
+  // Etykiety WSPÓŁDZIELONE z /admin/expert-layouts - ten sam klucz, to samo
+  // brzmienie w panelu i w edytorze eksperta. Właścicielem jest TEN plik, nie
+  // `i18n-admin-layouts`: edytor jedzie na publicznym /author/<slug>, a import
+  // słownika panelu stąd czynił go publicznym w grafie chunków. Trasa panelu
+  // rejestruje ten słownik obok swojego (`ensureEditorI18n()`). Klucz sekcji
+  // jest składany w locie (`sections.${sectionKey}`), więc przenosi się CAŁA
+  // gałąź `sections.*` - pojedynczy brak to goły klucz na stronie eksperta.
+  adminLayouts: {
+    expertLayouts: {
+      sectionsHeading: "Sekcje strony eksperta",
+      moveUp: "Przesuń w górę",
+      moveDown: "Przesuń w dół",
+      centeringHeading: "Wycentrowanie",
+      centerHero: "Wycentruj hero (tytuł, funkcja, socials)",
+      centerDetails: "Wycentruj sekcję bio/szczegółów",
+      accentLight: "Akcent (light)",
+      accentDark: "Akcent (dark)",
+      clearTitle: "Wyczyść (użyj koloru motywu)",
+      colorAutoPlaceholder: "auto (motyw)",
+      sections: {
+        hero_cover: "Okładka hero",
+        expertise_bar: "Pasek obszarów ekspertyzy",
+        details: "Bio i szczegóły",
+        social_row: "Social media (WWW, LinkedIn, X)",
+        contact_card: "Karta kontaktowa",
+        media_mentions: "Wzmianki w mediach",
+        podcast_strip: "Podcasty",
+        materials: "Materiały (publikacje, raporty, wideo)",
+        cv: "CV (doświadczenie, edukacja, umiejętności)",
+        programs: "Programy i projekty",
+      },
+    },
+  },
 };
 
 export const expertLayoutEditorEn = {
@@ -71,6 +106,32 @@ export const expertLayoutEditorEn = {
     saveErrorToast: "Save error: {{msg}}",
     discardConfirm: "You have unsaved layout changes - close without saving?",
     close: "Close the editor",
+  },
+  adminLayouts: {
+    expertLayouts: {
+      sectionsHeading: "Expert page sections",
+      moveUp: "Move up",
+      moveDown: "Move down",
+      centeringHeading: "Centering",
+      centerHero: "Center the hero (title, role, socials)",
+      centerDetails: "Center the bio/details section",
+      accentLight: "Accent (light)",
+      accentDark: "Accent (dark)",
+      clearTitle: "Clear (use theme color)",
+      colorAutoPlaceholder: "auto (theme)",
+      sections: {
+        hero_cover: "Hero cover",
+        expertise_bar: "Expertise areas bar",
+        details: "Bio and details",
+        social_row: "Social media (WWW, LinkedIn, X)",
+        contact_card: "Contact card",
+        media_mentions: "Media mentions",
+        podcast_strip: "Podcasts",
+        materials: "Materials (publications, reports, video)",
+        cv: "CV (experience, education, skills)",
+        programs: "Programs and projects",
+      },
+    },
   },
 };
 

@@ -52,8 +52,12 @@ export const en = {
     darkMode: "Dark mode",
   },
   nav: {
+    account: "Account menu",
     newsletter: "Newsletter",
     skipToContent: "Skip to content",
+  },
+  builder: {
+    sectionLoading: "Loading the section…",
   },
   quiz: {
     share: {

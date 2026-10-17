@@ -58,6 +58,27 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety biorą listy preloadu `import()` z JEDNEGO obiektu, w środowisku `client`", () => {
+    // Reguły list (`__vite__mapDeps` bez celów /admin, bez chunków bootu, samotny cel tylko
+    // z CSS) żyją w scripts/lib/clientModulePreload.ts. Smoke z innymi listami mierzyłby inny
+    // `app-initial` i inną kaskadę `import()` niż produkcja; `modulePreload` na poziomie `build`
+    // dotyczyłby też innych środowisk. Reguły i wtyczka muszą pochodzić z TEGO SAMEGO obiektu:
+    // bez jego wtyczki reguła nie widzi CSS celów i zachowuje każdy samotny cel, także /admin.
+    const helperImport =
+      'import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";';
+    for (const [file, source] of presets) {
+      const code = bezKomentarzy(source);
+      expect(source, file).toContain(helperImport);
+      expect(code.match(/clientModulePreload\(\)/g), file).toEqual(["clientModulePreload()"]);
+      expect(code, file).toContain("const clientPreload = clientModulePreload();");
+      expect(code, file).toMatch(/plugins:\s*\[[^\]]*\bclientPreload\.plugin,\s*\]/);
+      expect(code, file).toMatch(
+        /environments:\s*\{\s*client:\s*\{\s*build:\s*\{[^}]*modulePreload:\s*clientPreload\.modulePreload,\s*rolldownOptions:/,
+      );
+      expect(code.match(/modulePreload:/g), file).toHaveLength(1);
+    }
+  });
+
   it("obie wyłączają hoistowanie importów tranzytywnych", () => {
     for (const [file, source] of presets) {
       expect(bezKomentarzy(source), file).toContain("hoistTransitiveImports: false");

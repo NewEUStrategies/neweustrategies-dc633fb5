@@ -65,8 +65,8 @@ import { pickI18n } from "@/lib/content-model/contentValue";
 type Lang = "pl" | "en";
 
 import { getWidgetFrameStyle, hiddenOnDevice, getStr, getNum } from "./widget-view/frame";
-// Editable przez rejestr leniwy: renderuje się tylko w kanwie (canEdit), a jego
-// normalizacja HTML ciągnie node-html-parser - nie może jechać w entry chrome.
+// Editable przez rejestr leniwy: renderuje się tylko w kanwie (canEdit), więc
+// pasek narzędzi i normalizacja list nie mogą jechać w entry chrome.
 import { Editable } from "./widget-view/lazyWidgets";
 import { CategoriesView } from "./widget-view/CategoriesView";
 import { TagsView } from "./widget-view/TagsView";

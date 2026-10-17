@@ -12,10 +12,16 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 
 import { PostLayoutRenderer } from "./PostLayoutRenderer";
 import {
+  AUDIO_LAYOUTS,
+  GALLERY_LAYOUTS,
   STANDARD_LAYOUTS,
+  VIDEO_LAYOUTS,
   defaultPostLayoutSettings,
   findLayout,
+  rendersCover,
   BOXED_COVER_MAX_WIDTH,
+  type LayoutPreset,
+  type PostFormat,
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
 
@@ -453,5 +459,86 @@ describe("PostLayoutRenderer - plakietki kategorii nad tytułem", () => {
     );
     expect(isBefore(getByTestId("badges"), getByRole("heading", { level: 1 }))).toBe(true);
     expect(getByTestId("badges").parentElement?.className).not.toContain("justify-center");
+  });
+});
+
+// P1.4: jeden `data-lcp-candidate` na stronę. Znacznik okładki NIE wynika z samego
+// malowania (okładka jest zawsze eager + high), tylko z decyzji trasy `$.tsx`
+// (`coverLcpCandidate` = `coverAboveBody`), która odbiera wtedy własność kandydata
+// treści. Tu: znacznik stoi dokładnie na malowanym `<img>` okładki, kiedy trasa go
+// podała, w każdym presecie każdego formatu - i nigdzie poza nim.
+describe("PostLayoutRenderer - znacznik kandydata LCP okładki", () => {
+  const DATA_COVER = "data:image/png;base64,iVBORw0KGgo=";
+  const SETS: Record<PostFormat, readonly LayoutPreset[]> = {
+    standard: STANDARD_LAYOUTS,
+    video: VIDEO_LAYOUTS,
+    audio: AUDIO_LAYOUTS,
+    gallery: GALLERY_LAYOUTS,
+  };
+  const layouts = (Object.keys(SETS) as PostFormat[]).flatMap((format) =>
+    SETS[format].map((preset) => [format, preset.id] as const),
+  );
+  // `layout-9` spoza zestawu formatu: `findLayout` spada na pierwszy preset.
+  const fallbacks = [
+    ["video", "layout-9"],
+    ["gallery", "layout-9"],
+  ] as const;
+  const covers = [
+    ["storage", COVER],
+    ["data:", DATA_COVER],
+    ["brak", null],
+  ] as const;
+  const cases = [...layouts, ...fallbacks].flatMap(([format, layoutId]) =>
+    covers.flatMap(([coverName, cover]) =>
+      [true, false].map((candidate) => [format, layoutId, coverName, cover, candidate] as const),
+    ),
+  );
+
+  const renderCover = (
+    format: PostFormat,
+    layoutId: string,
+    cover: string | null,
+    coverLcpCandidate?: boolean,
+  ) =>
+    renderWithQueryClient(
+      <PostLayoutRenderer
+        format={format}
+        layoutId={layoutId}
+        settings={defaultPostLayoutSettings()}
+        title="Tytuł wpisu"
+        coverImageUrl={cover}
+        coverLcpCandidate={coverLcpCandidate}
+        content={<div>Treść</div>}
+      />,
+    );
+
+  it.each(cases)(
+    "%s/%s, okładka %s (%s), coverLcpCandidate=%s",
+    (format, layoutId, _coverName, cover, candidate) => {
+      const { container } = renderCover(format, layoutId, cover, candidate);
+      const painted = rendersCover(findLayout(format, layoutId)) && !!cover;
+      const marked = container.querySelectorAll("img[data-lcp-candidate]");
+
+      expect(marked).toHaveLength(candidate && painted ? 1 : 0);
+      if (marked.length === 1) {
+        // Dokładnie ten `<img>`, który przeglądarka maluje jako okładkę i który
+        // React preloaduje z `fetchpriority=high`: pusty atrybut, jak w builderze.
+        const img = marked[0];
+        expect(img.getAttribute("data-lcp-candidate")).toBe("");
+        expect(img.getAttribute("src")).toBe(cover);
+        expect(img.getAttribute("loading")).toBe("eager");
+        expect(img.getAttribute("fetchpriority")).toBe("high");
+      }
+      // Okładka malowana = jedyny obraz układu (pasek czytania bez logo w ustawieniach).
+      expect(container.querySelectorAll("img")).toHaveLength(painted ? 1 : 0);
+    },
+  );
+
+  it("bez propsa okładka zostaje eager + high, ale BEZ znacznika (właściciel: treść)", () => {
+    const { container } = renderCover("standard", "layout-1", COVER);
+    const img = container.querySelector("img");
+
+    expect(img?.getAttribute("fetchpriority")).toBe("high");
+    expect(img?.hasAttribute("data-lcp-candidate")).toBe(false);
   });
 });

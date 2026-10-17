@@ -80,7 +80,7 @@ const SPLIT_WIDGETS = [
   "PricingPlansView",
   "DynamicTagWidget",
   "GalleryLightboxZone",
-  // Kanwowy click-to-edit (normalizeBuilderRichHtml -> node-html-parser)
+  // Kanwowy click-to-edit (pasek narzędzi + normalizacja list, tylko kanwa)
   "Editable",
   // Cięcie ścieżki bootowania (01253dc, chunk wejściowy 374 -> 253 KB gz)
   // zepchnęło te dwa widgety na leniwą krawędź:

@@ -31,15 +31,74 @@ import type { BookmarkEntityType } from "@/hooks/useBookmarks";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
 import { rafThrottle } from "@/lib/rafThrottle";
+import { headerLogoSrc, type HeaderLogoVariants } from "@/lib/brand/headerLogo";
 
-type ReadingHeaderThemeLogo = {
-  logo?: {
-    main?: string;
-    main_dark?: string;
-    mobile?: string;
-    mobile_dark?: string;
-  };
-};
+type ReadingHeaderThemeLogo = { logo?: HeaderLogoVariants };
+
+// Arkusz paska czytania, inline w powłoce wpisu. BEZ KOMENTARZY CSS w literale:
+// `<style>` jedzie w HTML-u każdego wpisu, a `check:document-weight` liczy bajty
+// komentarzy inline `<style>` (`inlineCssCommentBytes`) - objaśnienia reguł
+// stoją tutaj, w kodzie, a nie w dokumencie.
+//
+// Reguły bezpiecznej przestrzeni dla skondensowanego paska. Popover
+// mega-wyszukiwarki jest szerszy niż pole, więc każdy przodek widgetu musi
+// zostać `overflow: visible` - inaczej przycięłyby go kolumny albo sekcje
+// z `overflow: hidden` w opakowaniu buildera/strony publicznej.
+//
+// WYJĄTEK: sam wiersz paska (`data-reading-row`). Znacznik przodków
+// (`data-search-overflow`, ustawiany przez `SearchButtonWidget`) obejmuje też
+// jego, bo widget siedzi w środku - a zdjęcie poziomego clipa to dokładnie to
+// zabezpieczenie, które ma trzymać pasek w szerokości ekranu. Wiersz przycina
+// więc w poziomie, a w pionie zostaje widoczny, żeby popover nadal mógł wyjechać
+// w dół. Bez `:has()`: patrz `SearchButtonWidget` (koszt przeliczeń stylu).
+//
+// Tryb kompaktowy w poziomie (`max-height: 500px` + landscape): telefon trzymany
+// bokiem ma bardzo mało miejsca w pionie, więc pasek kurczy się dalej i chowa
+// nieistotny chrome, żeby elementy na siebie nie wchodziły.
+const READING_HEADER_CSS = `
+[data-reading-header] [data-search-overflow]:not([data-reading-row]) {
+  overflow: visible !important;
+}
+[data-reading-header] [data-reading-row] {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+[data-reading-header] .builder-search-widget {
+  position: relative;
+  z-index: 50;
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  [data-reading-header] {
+    height: 36px !important;
+    overflow: hidden !important;
+  }
+  [data-reading-header] > div {
+    height: 36px !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    gap: 0.375rem !important;
+  }
+  [data-reading-header] .builder-search-widget {
+    max-width: 130px !important;
+  }
+  [data-reading-header] [data-reading-title] {
+    font-size: 11px !important;
+  }
+  [data-reading-header] [data-reading-label],
+  [data-reading-header] [data-reading-auth] {
+    display: none !important;
+  }
+  [data-reading-header] button,
+  [data-reading-header] [data-reading-icon] {
+    height: 24px !important;
+    width: 24px !important;
+  }
+  [data-reading-header] svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+}
+`;
 
 interface Props {
   title: string;
@@ -102,16 +161,29 @@ export function ReadingHeader({
     .toUpperCase();
   const isAuthed = mounted && !!session;
 
-  // Horizontal logo (mobile variant = horizontal wordmark) resolved from
-  // Branding → Logo settings, with dark-mode fallback chain identical to
-  // the main site header, so the reading bar matches theme + tenant.
+  // Logo poziome (wariant mobile = poziomy wordmark) z Branding → Logo, przez
+  // TEN SAM helper co pasek mobilny `Header.tsx`: ten sam łańcuch wariantów
+  // dla motywu i ten sam adres (względny `/media/...` dla kanonicznego
+  // originu), czyli jeden wpis cache'u przeglądarki dla obu pasków. Dawny adres
+  // absolutny stąd był drugim kluczem tego samego pliku: drugi preload logo
+  // w `<head>` każdego wpisu, póki ten obraz był eager (patrz
+  // `lib/brand/headerLogo`), a dziś byłby drugim pobraniem przy odsłonięciu.
   const themeSettings = useSiteSetting<ReadingHeaderThemeLogo>("theme_options", {});
   const { theme: themeMode } = useTheme();
-  const isDark = themeMode === "dark";
-  const themeLogo = themeSettings.logo ?? {};
-  const horizontalLogo = isDark
-    ? themeLogo.mobile_dark || themeLogo.main_dark || themeLogo.mobile || themeLogo.main || ""
-    : themeLogo.mobile || themeLogo.main || themeLogo.mobile_dark || themeLogo.main_dark || "";
+  const horizontalLogo = headerLogoSrc(themeSettings.logo, themeMode === "dark");
+  // Logo paska LENIWE, gdy pasek startuje ukryty (wpis: `aria-hidden` + `inert`,
+  // przesunięty nad ekran do chwili, gdy pasek serwisu wyjedzie z kadru; lewa
+  // kolumna z logo na telefonie to w ogóle `display: none`). Eager nic tu nie
+  // kupował - to ten sam plik i ten sam napis `src` co logo paska mobilnego
+  // `Header.tsx`, które jest eager i ma preload Reacta, więc przy odsłonięciu
+  // paska plik leży w cache'u - a łamał regułę bramki P1.4
+  // (`imgEagerNonCandidate`: żaden obraz nie-leniwy poza kandydatem LCP i logo
+  // w `<header data-site-header>`) i stał w kolejce przed okładką-kandydatem.
+  // Leniwy obraz w kadrze i tak ładuje się zaraz po pierwszym układzie. Pasek
+  // PRZYPIĘTY (`pinned`, /quiz) jest widoczny od pierwszej klatki i jest tam
+  // jedynym chrome'em strony, więc jego logo zostaje eager jak logo nagłówka
+  // powłoki.
+  const logoLoading = pinned ? "eager" : "lazy";
 
   const [visible, setVisible] = useState(pinned);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -215,65 +287,7 @@ export function ReadingHeader({
         visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none",
       ].join(" ")}
     >
-      <style>{`
-        /* Safe-space rules for the condensed reading header.
-           The search mega-box popover is wider than the input; every ancestor
-           of the widget must stay visible so it is never clipped by columns or
-           sections with overflow:hidden in the builder/public wrapper.
-
-           WYJĄTEK: sam wiersz paska (data-reading-row). Znacznik przodków
-           (data-search-overflow, ustawiany przez SearchButtonWidget) obejmuje
-           też jego, bo widget siedzi w środku - a zdjęcie poziomego clipa to
-           dokładnie to zabezpieczenie, które ma trzymać pasek w szerokości
-           ekranu. Wiersz przycina więc w poziomie, a w pionie zostaje
-           widoczny, żeby popover nadal mógł wyjechać w dół. Bez ":has()":
-           patrz SearchButtonWidget (koszt przeliczeń stylu). */
-        [data-reading-header] [data-search-overflow]:not([data-reading-row]) {
-          overflow: visible !important;
-        }
-        [data-reading-header] [data-reading-row] {
-          overflow-x: clip;
-          overflow-y: visible;
-        }
-        [data-reading-header] .builder-search-widget {
-          position: relative;
-          z-index: 50;
-        }
-        /* Compact landscape mode: small phones held sideways have very little
-           vertical space, so we shrink the bar further and hide non-essential
-           chrome to prevent overlaps. */
-        @media (max-height: 500px) and (orientation: landscape) {
-          [data-reading-header] {
-            height: 36px !important;
-            overflow: hidden !important;
-          }
-          [data-reading-header] > div {
-            height: 36px !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            gap: 0.375rem !important;
-          }
-          [data-reading-header] .builder-search-widget {
-            max-width: 130px !important;
-          }
-          [data-reading-header] [data-reading-title] {
-            font-size: 11px !important;
-          }
-          [data-reading-header] [data-reading-label],
-          [data-reading-header] [data-reading-auth] {
-            display: none !important;
-          }
-          [data-reading-header] button,
-          [data-reading-header] [data-reading-icon] {
-            height: 24px !important;
-            width: 24px !important;
-          }
-          [data-reading-header] svg {
-            width: 14px !important;
-            height: 14px !important;
-          }
-        }
-      `}</style>
+      <style>{READING_HEADER_CSS}</style>
       <div
         data-reading-row
         className="mx-auto w-full px-2.5 sm:px-4 lg:px-6 h-10 sm:h-11 lg:h-12 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-5"
@@ -299,7 +313,7 @@ export function ReadingHeader({
                     src={horizontalLogo}
                     alt=""
                     className="h-6 lg:h-7 w-auto max-w-[140px] lg:max-w-[180px] object-contain"
-                    loading="eager"
+                    loading={logoLoading}
                     decoding="async"
                   />
                 ) : (
@@ -385,7 +399,7 @@ export function ReadingHeader({
                   src={horizontalLogo}
                   alt=""
                   className="h-6 sm:h-7 lg:h-8 w-auto max-w-[160px] sm:max-w-[200px] lg:max-w-[240px] object-contain"
-                  loading="eager"
+                  loading={logoLoading}
                   decoding="async"
                 />
               ) : (

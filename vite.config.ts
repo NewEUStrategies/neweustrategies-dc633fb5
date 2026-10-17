@@ -20,6 +20,7 @@ import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
 import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
+import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";
 import {
   browserBaselineLightningcssTargets,
   LIGHTNINGCSS_EXCLUDED_FEATURES,
@@ -90,6 +91,10 @@ const WORKER_FIRST_PATHS = MACHINE_SURFACES.map((surface) => surface.path);
 // Ten sam mechanizm co przy jawnym `preset` powyżej; runtime forwarduje CAŁY
 // obiekt `cloudflare` do nitro (w sandboxie przez spread), więc `wrangler`
 // dociera na miejsce bez żadnego rzutowania.
+// Listy preloadu `import()` klienta: reguły (`modulePreload` środowiska `client`) i wtyczka, która
+// daje im wgląd w CSS celów, dzielą stan jednego buildu - stąd JEDEN obiekt dla obu miejsc.
+const clientPreload = clientModulePreload();
+
 const nitroOptions = {
   preset: "cloudflare-module",
   minify: true,
@@ -140,6 +145,8 @@ export default defineConfig({
       // `keepNames` dla `build:dev` (Lovable ustawia go esbuildowi, którego Vite 8
       // już nie używa do minifikacji); ta sama wtyczka w vite.smoke.config.ts.
       devBuildKeepNamesPlugin(),
+      // CSS celów `import()` dla list preloadu (`modulePreload` środowiska `client` niżej).
+      clientPreload.plugin,
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
@@ -359,13 +366,19 @@ export default defineConfig({
           minify: "oxc",
           // Składnia JS dla bazy przeglądarek Vite 7 (scripts/lib/browserBaseline.ts).
           target: browserBaselineTarget(),
+          // Listy preloadu `import()` (`__vite__mapDeps`) bez celów w korzeniu /admin i bez
+          // chunków domknięcia bootu - reguły, zmierzony zysk i cena w nagłówku
+          // scripts/lib/clientModulePreload.ts.
+          modulePreload: clientPreload.modulePreload,
           rolldownOptions: {
             output: {
               // Bez hoistowania importów tranzytywnych: nagłówki chunków
               // zawierają wtedy wyłącznie PRAWDZIWE krawędzie modułów, więc
               // graf inicjalizacji jest deterministyczny i audytowalny
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
-              // dynamic importach) pokrywa modulepreload z mapDeps. Rolldown
+              // dynamic importach) pokrywa modulepreload z mapDeps - poza
+              // celami w korzeniu /admin (pierwsza nawigacja SPA do panelu
+              // idzie kaskadą; `modulePreload` wyżej). Rolldown
               // i tak nie hoistuje (opcja przyjmuje wyłącznie `false`) - jawna
               // wartość przypina kontrakt bramki na wypadek zmiany domyślnej.
               hoistTransitiveImports: false,

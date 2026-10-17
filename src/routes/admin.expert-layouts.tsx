@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { adminToast } from "@/lib/adminToasts";
 import { ensureI18n as ensureAdminLayoutsI18n } from "@/lib/i18n-admin-layouts";
+import { ensureI18n as ensureEditorI18n } from "@/lib/i18n-expert-layout-editor";
 import { ExpertLayoutPreview } from "@/components/admin/ExpertLayoutPreview";
 import { ExpertPresetThumb } from "@/components/experts/ExpertPresetThumb";
 import {
@@ -32,7 +33,10 @@ export const Route = createFileRoute("/admin/expert-layouts")({ component: Page 
 
 function Page() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  // Etykiety współdzielone z publicznym inline-edytorem eksperta (sekcje,
+  // strzałki, wycentrowanie, akcent) mają właściciela w słowniku edytora.
   ensureAdminLayoutsI18n();
+  ensureEditorI18n();
   const { t, i18n } = useTranslation();
   const { data } = useExpertLayoutSettings();
   const save = useSaveExpertLayoutSettings();

@@ -17,6 +17,14 @@
 export const CLUB_COVER_DEFAULT_POSITION_Y = 50;
 
 /**
+ * `sizes` okładki w wariancie `banner` - wspólne dla `ClubCover` i preloadu
+ * z nagłówka `Link` (`clubCoverPreload`). React dedupuje preload obrazu po
+ * kluczu `srcSet + sizes`, a przeglądarka wybiera kandydata po `sizes`, więc
+ * dwie kopie tego napisu rozjechane o jeden znak dają dwa pobrania.
+ */
+export const CLUB_COVER_BANNER_SIZES = "(min-width: 1024px) 64rem, 100vw";
+
+/**
  * Pozycja pionowa w zakresie 0-100, liczba całkowita. Wszystko, co nie jest
  * skończoną liczbą (brak kolumny w starym wierszu, `null`, NaN), schodzi do
  * środka - tak, jak wyglądała okładka przed wprowadzeniem kadrowania.

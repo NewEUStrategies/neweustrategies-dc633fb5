@@ -72,6 +72,60 @@ const emptyTables = new Set([
   "profile_badges",
 ]);
 
+/**
+ * WPIS POD STAŁYM ADRESEM - WYŁĄCZNIE DLA BRAMKI WAGI DOKUMENTU.
+ *
+ * `node scripts/performance/check-document-weight.ts --root . --path /blog/fixture-2`
+ * mierzy stronę wpisu (`/$`): okładkę-kandydata LCP z `PostLayoutRenderer` (eager/high
+ * + `data-lcp-candidate`), logo `ReadingHeader` (leniwe od P1.4 na wpisie) i preloady
+ * obrazów w `<head>` oraz nagłówku `Link` - źródło duplikatów preloadów z produkcji. Bez tych
+ * odpowiedzi `resolve_path` i `get_related_posts_config` rzucały „Unrecorded…”, loader
+ * `/$` widział błąd zapytania i oddawał render ZDEGRADOWANY (200, bez wpisu i okładki),
+ * więc pomiar wpisu niczego nie mierzył.
+ *
+ * Wpis to `posts[0]` (`fixture-2`, okładka `https://fixture.invalid/cover.jpg`) pod
+ * syntetyczną sekcją `blog`: `page_full_path` fixture odpowiada `/blog` dla każdej strony,
+ * więc adres kanoniczny wpisu (pełna ścieżka rodzica + slug) to dokładnie mierzona
+ * ścieżka. Żadnego nowego wiersza w `posts`/`pages` - `/` i `/blog` czytają te tabele,
+ * a ich progi (`document-weight-budgets.json`, `.blog.json`) liczono bez niego. Progi
+ * wpisu: `document-weight-budgets.post.json` (krok CI w `first-visit.yml`) - od `/` różni
+ * się wyłącznie seria bootu (domknięcie statyczne trasy `/$`; uzasadnienie w `_comment`
+ * tamtego pliku).
+ *
+ * ZAKRES: tylko `NES_PERFORMANCE_CASE=document-weight` (ustawia go wyłącznie
+ * `check-document-weight.ts`). Specy first-visit (`lighthouse-local`, `slow-first-fold`,
+ * `popup-first-render`, ...), backend klienta (`clientBackend.ts`) i testy na tym fixture
+ * widzą go bez zmian - te RPC i `post_authors` dalej rzucają „Unrecorded…”. `/` i `/blog`
+ * nie wołają żadnego z nich (ślad żądań fixture 2026-10-17), więc ich pomiar się nie zmienia.
+ */
+const DOCUMENT_WEIGHT_CASE = "document-weight";
+const documentWeightPost = homeFixture.posts[0];
+const documentWeightSection = {
+  id: "00000000-0000-0000-0000-0000000000b1",
+  slug: "blog",
+  title_pl: "Blog",
+  title_en: "Blog",
+  depth: 0,
+  full_path: "blog",
+};
+export const DOCUMENT_WEIGHT_POST_PATH = `/${documentWeightSection.full_path}/${String(documentWeightPost.slug)}`;
+
+/** Odpowiedź RPC strony wpisu bramki wagi; poza jej przypadkiem - `Unrecorded…`, jak dotąd. */
+function documentWeightPostRpc(name: string, input: Record<string, unknown>): unknown {
+  if (process.env.NES_PERFORMANCE_CASE !== DOCUMENT_WEIGHT_CASE)
+    throw new Error(`Unrecorded performance fixture RPC: ${name}`);
+  if (name === "rpc/resolve_path") {
+    // Jedyny adres treści `/$` w tym przypadku; każdy inny to czyste 404, nie degradacja.
+    const segments = input._segments;
+    const hit = Array.isArray(segments) && `/${segments.join("/")}` === DOCUMENT_WEIGHT_POST_PATH;
+    return hit ? [{ page_id: documentWeightSection.id, post_id: documentWeightPost.id }] : [];
+  }
+  if (name === "rpc/page_breadcrumbs")
+    return input._page_id === documentWeightSection.id ? [documentWeightSection] : [];
+  // `rpc/get_related_posts_config`: tenant bez własnych reguł powiązanych (jak `cmsFixture.ts`).
+  return [];
+}
+
 function selectRows(rows: Row[], search: URLSearchParams): Row[] {
   return rows
     .filter((row) =>
@@ -166,6 +220,11 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
           .filter((post) => Array.isArray(input._post_ids) && input._post_ids.includes(post.id))
           .map((post) => ({ ...post, author_name: null, author_avatar: null, author_slug: null }));
         break;
+      case "rpc/resolve_path":
+      case "rpc/page_breadcrumbs":
+      case "rpc/get_related_posts_config":
+        data = documentWeightPostRpc(name, input);
+        break;
       default:
         throw new Error(`Unrecorded performance fixture RPC: ${name}`);
     }
@@ -201,6 +260,12 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
         break;
       case "posts":
         rows = homeFixture.posts;
+        break;
+      case "post_authors":
+        // Wpis bramki wagi bez współautorów (`author_id` też null); poza nią - jak dotąd.
+        if (process.env.NES_PERFORMANCE_CASE !== DOCUMENT_WEIGHT_CASE)
+          throw new Error(`Unrecorded performance fixture table: ${name}`);
+        rows = [];
         break;
       case "menus":
         rows = homeFixture.menus;

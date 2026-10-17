@@ -77,11 +77,11 @@ import { publicFacingOrigin } from "@/lib/http/host";
 import {
   buildContentHead,
   buildArticleJsonLd,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   splitUrl,
   absoluteUrl,
   SITE_NAME,
+  type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { builderContentHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
 import { usePreloadLcpImages } from "@/lib/builder/aboveFold";
@@ -244,17 +244,6 @@ const LEGACY_FEED_REDIRECT = cacheControlHeader({
   sharedMaxAge: 86_400,
 });
 
-// Kształt preloadu okładki JEST kontraktem `ImagePreloadInput` z warstwy SEO -
-// nazwa zostaje (czyta ją deklaracja `ContentDocument`), ale pola opcjonalne
-// muszą być opcjonalne również tutaj, bo `builderHeroPreloads` (lista)
-// i `archivePreload` oddają dokładnie ten kształt (hero bez `srcSet` emituje
-// sam `href`).
-interface CoverPreload {
-  href: string;
-  imageSrcSet?: string;
-  imageSizes?: string;
-}
-
 /**
  * WYNIK LOADERA TEJ TRASY JAKO JAWNA UNIA Z DYSKRYMINATOREM `kind` - i to jest
  * naprawa realnego defektu typów, a nie porządkowanie dla ozdoby.
@@ -282,12 +271,13 @@ interface DegradedDocument {
   kind: "degraded";
   degraded: true;
   seoSettings: null;
-  coverPreload: null;
 }
 
 /**
  * Rozstrzygnięta treść (wpis albo strona) wzbogacona o to, czego potrzebuje
- * `head()`: ustawienia SEO serwisu i deskryptor preloadu obrazu LCP.
+ * `head()`: ustawienia SEO serwisu. Deskryptora preloadu okładki tu NIE MA -
+ * loader oddaje go wyłącznie nagłówkiem HTTP `Link` (do `<head>` preload
+ * wstawia sam React 19), a w `$tsr` byłby martwym ładunkiem.
  * `degraded?: undefined` jest DRUGIM dyskryminatorem obok `kind` - dokładnie
  * tym samym, który TypeScript dopisywał tu sam przy inferencji z literału.
  */
@@ -298,8 +288,6 @@ type ResolvedDocument = ResolvedContent & {
    * zamiast drugiej kopii (P3.7b, T5). Parsuje `head()` (`parseSeoSettings`).
    */
   seoSettings: unknown;
-  /** Okładka WPISU - emitowana przez `head()` (strony: zawsze null). */
-  coverPreload: CoverPreload | null;
   degraded?: undefined;
 };
 
@@ -312,10 +300,17 @@ type ContentDocument = DegradedDocument | ResolvedDocument;
  * one the browser renders, never a second download. Returns null when the
  * active layout shows no cover (`cover: "none"`, e.g. layout-9) or the post has
  * no cover image. Pages are excluded: their hero lives in the builder document.
+ *
+ * Feeds ONLY the HTTP `Link` header; `<head>` gets React 19's own preload of
+ * the cover `<img fetchPriority="high">` (why: the `links` comment in `head()`).
+ *
+ * A `data:` cover (any letter case, as React checks it) returns null too: React
+ * never preloads inline images, there is nothing to fetch, and the whole URI
+ * would otherwise land in the `Link` response header.
  */
-function buildCoverPreload(item: PostData, settings: PostLayoutSettings): CoverPreload | null {
+function buildCoverPreload(item: PostData, settings: PostLayoutSettings): ImagePreloadInput | null {
   const cover = item.cover_image_url;
-  if (!cover) return null;
+  if (!cover || /^data:/i.test(cover)) return null;
   const format: PostFormat = item.layout_overrides?.format ?? item.post_format ?? "standard";
   const layoutId = pickLayoutId(settings, format, item.layout_overrides?.layout);
   const preset = findLayout(format, layoutId);
@@ -488,7 +483,7 @@ export const Route = createFileRoute("/$")({
       // zostawiłoby go jako wiszące zapytanie bez danych).
       context.queryClient.removeQueries({ queryKey: contentOptions.queryKey, exact: true });
       setCacheControlHeader(resilientCacheControl(true));
-      return { kind: "degraded" as const, degraded: true, seoSettings: null, coverPreload: null };
+      return { kind: "degraded" as const, degraded: true, seoSettings: null };
     }
     const data = context.queryClient.getQueryData(contentOptions.queryKey) ?? null;
     if (!data) {
@@ -810,13 +805,17 @@ export const Route = createFileRoute("/$")({
     // renderu - po CAŁEJ pracy, która może zdegradować.
     setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
     const seoSettings: unknown = settingsMap["seo"];
-    // Posts: attach the LCP cover preload so head() can emit it. The layout
-    // settings were just warmed above, so this reads from cache (no extra
-    // round-trip) and falls back to defaults if that prefetch was rejected.
-    // Pages: hero żyje w dokumencie buildera - po rozgrzaniu zapytań sekcji
+    // Wpisy: deskryptor okładki WYŁĄCZNIE dla nagłówka HTTP `Link` (niżej) -
+    // do `<head>` preload wstawia sam React 19 (powód przy `links` w `head()`),
+    // a w danych loadera byłby martwym ładunkiem `$tsr` (klient go nie czyta).
+    // Ustawienia układu rozgrzane wyżej czytamy z cache'u (bez round-tripu);
+    // odrzucony prefetch spada do domyślnych.
+    // Strony: hero żyje w dokumencie buildera - po rozgrzaniu zapytań sekcji
     // nad zgięciem (wyżej) obraz kandydata LCP (`lcpCandidates`) wyznacza
     // builderContentHeroPreloads z tych samych modułów sizes/srcSet co renderery
-    // widgetów; emituje go komponent trasy przez `preload()` (P1.4). Tylko gdy
+    // widgetów; emituje go komponent trasy przez `preload()` (P1.4) - react-dom
+    // dzieli klucz tego wywołania z automatycznym preloadem `<img>`, więc
+    // w `<head>` zostaje jeden link. Tylko gdy
     // treść maluje silnik buildera (`resolveContentEngine`, jak `ContentRenderer`)
     // - strona html/bloków z pozostałym `builder_data` nie preloaduje obrazu,
     // którego nikt nie namaluje. Preloady stron liczy WYŁĄCZNIE serwer
@@ -845,15 +844,16 @@ export const Route = createFileRoute("/$")({
             lang,
           )
         : [];
-    // Preload także jako nagłówek HTTP `Link` - przeglądarka startuje fetch
-    // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
-    // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
+    // Preload także jako nagłówek HTTP `Link` (obok tego w `<head>` od Reacta) -
+    // przeglądarka startuje fetch okładki/hero z nagłówków (przed parsowaniem
+    // HTML), a NES Edge Cache odtwarza go na HIT/STALE (droga do 103 Early Hints
+    // na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if ((import.meta.env.SSR || import.meta.env.DEV) && (isServer ?? isSsrRequest())) {
       rememberHeroPreloads(context.queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
-    return { ...data, seoSettings, coverPreload };
+    return { ...data, seoSettings };
   },
   head: (ctx) => {
     // ŁADUNEK CZYTANY PRZEZ DEKLARACJĘ, NIE PRZEZ INFERENCJĘ ROUTERA - jedyne
@@ -997,13 +997,6 @@ export const Route = createFileRoute("/$")({
       // dwóch pozycji, a sama „Strona główna" nie jest ścieżką okruszków.
       url,
     );
-    // Preload the LCP image (post cover / builder-page hero) so its fetch
-    // starts from <head>, before the <img> is parsed in the body. The
-    // descriptor matches the rendered <img> srcSet/sizes 1:1, so no candidate
-    // is fetched twice.
-    const links = loaderData.coverPreload
-      ? [...head.links, imagePreloadLink(loaderData.coverPreload)]
-      : head.links;
     // Tagi Highwire (citation_*) dla wpisów - Google Scholar/Zotero czytają je
     // z <head>. Lista autorów przychodzi z loadera (author_id + post_authors),
     // URL to kanoniczny adres z uwzględnieniem override'u SEO.
@@ -1025,7 +1018,18 @@ export const Route = createFileRoute("/$")({
     return {
       ...head,
       meta: [...head.meta, ...citationMeta],
-      links,
+      // ŻADNEGO preloadu obrazu LCP z `head()`. Okładkę wpisu preloaduje sam
+      // React 19: `<img fetchPriority="high">` z `PostLayoutRenderer` stoi
+      // w powłoce SSR (nic nad nią nie zawiesza), więc Fizz wstawia
+      // `<link rel="preload" as="image">` na początku `<head>` (klucz
+      // `srcSet`+`sizes`). Link z `head()` szedł do `<head>` jako zwykły
+      // hoistable, BEZ deduplikacji z tamtym - był identycznym duplikatem
+      // (`documentPreloadDuplicates`; ten sam wzór co `blog.index.tsx`). Drogę
+      // przez nagłówki odpowiedzi (103 Early Hints, NES Edge Cache) trzyma
+      // nagłówek `Link` z loadera. Hero strony buildera idzie przez `preload()`
+      // komponentu trasy (`usePreloadLcpImages`), deduplikowany z `<img>` po
+      // tym samym kluczu.
+      links: head.links,
       // safeJsonLd - editor-authored titles/excerpts must not be able to close
       // the <script> element and inject markup (stored XSS).
       scripts: [
@@ -1494,7 +1498,25 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
   // Układ bez okładki nad treścią (cover: "none" / wpis bez okładki): pierwszy
   // obraz artykułu bywa elementem LCP, więc silnik legacy-HTML nie może go
   // lazy-loadować (enhanceContentImages). Ta sama reguła co buildCoverPreload
-  // w loaderze - preload i eager dotyczą dokładnie tego samego przypadku.
+  // w loaderze - preload i eager dotyczą dokładnie tego samego przypadku
+  // (wyjątek: okładka `data:` jest malowana, ale nie ma czego preloadować).
+  //
+  // KANDYDAT LCP WPISU (P1.4: jeden `data-lcp-candidate` na stronę). Ta sama
+  // flaga wybiera właściciela: okładka nad treścią (`coverLcpCandidate` ->
+  // znacznik na jej `<img>`) ALBO dokument buildera w treści (`lcpOwner`),
+  // nigdy oba. Warunek jest dosłownie `showCover` z `PostLayoutRenderer` (ten
+  // sam preset z `findLayout`/`pickLayoutId` i ten sam adres okładki), więc
+  // znacznik dostaje dokładnie malowany obraz. Kopia, nie wspólna funkcja
+  // w `postLayouts.ts`: ten moduł jedzie w chunku bootu `app-initial` (loader
+  // trasy), więc nowy eksport dokładał bajty do bootu KAŻDEJ strony (zmierzone
+  // na buildzie), a warunek czytają wyłącznie komponenty wpisu. Zgodność kopii
+  // pilnują testy `platformPublicRender`, `PostLayoutRenderer.test`
+  // i `postCoverLcpOwnership.ssr`. Okładka `data:` też jest kandydatem: jest
+  // malowana i bywa elementem LCP (wpis LCP niesie element, więc loader bootu
+  // przyjmuje go regułą (i) bez preloadu), a dokument buildera nie jest wtedy
+  // właścicielem. Zapas `false` (strona albo ustawienia układu jeszcze bez
+  // danych - wtedy gałąź `PostLayoutRenderer` niżej się nie renderuje) zostawia
+  // własność treści, jak dotąd.
   const coverAboveBody = (() => {
     if (!isPost || !post || !globalLayoutSettings) return false;
     const fmt: PostFormat = (post.layout_overrides?.format ??
@@ -1567,8 +1589,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             stream
             eagerFirstImage={isPost && !coverAboveBody}
             // Okładka nad treścią jest wtedy JEDYNYM kandydatem LCP wpisu
-            // (preload z `head()`), więc dokument buildera w treści nie
-            // wyznacza drugiego (P1.4: jeden `data-lcp-candidate` na stronę).
+            // (znacznik: `coverLcpCandidate` niżej; preload: React z jej
+            // `<img fetchPriority="high">` + nagłówek `Link` z loadera), więc
+            // dokument buildera w treści nie wyznacza drugiego (P1.4: jeden
+            // `data-lcp-candidate` na stronę).
             lcpOwner={!coverAboveBody}
           />
           <FootnotesList notes={notes} lang={lang} />
@@ -1652,6 +1676,9 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             excerpt={excerpt}
             coverImageUrl={it.cover_image_url}
             coverViewTransitionId={it.id}
+            // Para z `lcpOwner={!coverAboveBody}` treści wyżej: dokładnie jeden
+            // właściciel znacznika `data-lcp-candidate` (komentarz `coverAboveBody`).
+            coverLcpCandidate={coverAboveBody}
             entityId={it.id}
             entityType="post"
             sidebarOverride={overrides?.has_sidebar ?? null}

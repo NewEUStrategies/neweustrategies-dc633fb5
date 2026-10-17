@@ -1424,7 +1424,6 @@ const pl = {
       increase: "Zwiększ",
       decrease: "Zmniejsz",
     },
-    sectionLoading: "Wczytywanie sekcji…",
     textRotateEditor: {
       staticText: "Tekst statyczny",
       // `{{lang}}` = edytowana WERSJA JĘZYKOWA TREŚCI (przełącznik nad panelem),
@@ -1608,9 +1607,6 @@ const pl = {
     typeMin: "Wpisz min. 2 znaki, aby szukać",
     changeFile: "Zmień plik",
     chooseFromLibrary: "Wybierz z Biblioteki mediów",
-  },
-  nav: {
-    account: "Menu konta",
   },
 };
 
@@ -3024,7 +3020,6 @@ const en: typeof pl = {
       increase: "Increase",
       decrease: "Decrease",
     },
-    sectionLoading: "Loading the section…",
     textRotateEditor: {
       staticText: "Static text",
       before: "Before ({{lang}})",
@@ -3194,9 +3189,6 @@ const en: typeof pl = {
     typeMin: "Type at least 2 characters to search",
     changeFile: "Change file",
     chooseFromLibrary: "Choose from the Media Library",
-  },
-  nav: {
-    account: "Account menu",
   },
 };
 

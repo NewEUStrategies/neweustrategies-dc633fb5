@@ -52,8 +52,15 @@ export const pl = {
     darkMode: "Tryb ciemny",
   },
   nav: {
+    // `nav.account` i `builder.sectionLoading` czytają komponenty PUBLICZNE
+    // (`AccountMenuWidget`, `sectionStreaming`) bez własnej nakładki - stąd
+    // rdzeń, a nie słownik buildera/panelu, których czytelnik nie pobiera.
+    account: "Menu konta",
     newsletter: "Newsletter",
     skipToContent: "Przejdź do treści",
+  },
+  builder: {
+    sectionLoading: "Wczytywanie sekcji…",
   },
   quiz: {
     share: {

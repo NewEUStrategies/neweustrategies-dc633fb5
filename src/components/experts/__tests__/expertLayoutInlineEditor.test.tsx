@@ -22,7 +22,6 @@ import i18n from "@/lib/i18n";
 import { realT } from "@/test/i18nReal";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ensureI18n as ensureEditorI18n } from "@/lib/i18n-expert-layout-editor";
-import { ensureI18n as ensureAdminLayoutsI18n } from "@/lib/i18n-admin-layouts";
 import {
   DEFAULT_EXPERT_SECTION_ORDER,
   type ExpertLayoutDraft,
@@ -46,8 +45,10 @@ vi.mock("sonner", () => ({ toast: toasts }));
 const { default: ExpertLayoutInlineEditor } =
   await import("@/components/experts/ExpertLayoutInlineEditor");
 
+// Wyłącznie słownik edytora - ten sam zestaw, który rejestruje komponent na
+// publicznym /author/<slug>. Słownik panelu (`i18n-admin-layouts`) zasłaniałby
+// brak etykiety, której edytor nie dostaje w produkcji.
 ensureEditorI18n();
-ensureAdminLayoutsI18n();
 const t = realT("pl");
 const label = (key: string, opts?: Record<string, unknown>) => String(t(key, opts));
 
