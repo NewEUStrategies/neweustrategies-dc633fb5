@@ -28,4 +28,4 @@
 
 - Share homepage/AuthPortal chrome for parity.
 - Share BrandIcon/brandTile in member profiles for expert parity.
-- Share AuthorDisplay/AuthorByline title sizing for CMS parity.
+- Share AuthorByline sizing; observe async mounts, titles and theme CSS for CMS parity.

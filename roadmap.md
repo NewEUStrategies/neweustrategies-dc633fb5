@@ -2,6 +2,7 @@
 
 ## Podpisy autorów względem tytułów
 
+- [x] Naprawić cofanie rozmiaru po opóźnionym wczytaniu autora, zmianie motywu i podmianie tytułu: stabilny ref reaguje na pojawienie się podpisu, obserwatory śledzą aktualny tytuł i Theme Design. 137 testów przechodzi; zalogowane /, /en i /analizy w 1280/393 px po odczekaniu i późnej zmianie CSS: wszystkie 36/36/18 podpisów mają różnicę 2 px i wspólny środek z awatarem, brak błędów przeglądarki.
 - [x] Wdrożyć wspólną, domyślną opcję CMS tytuł minus 2 px we wszystkich widżetach PL/EN i wyrównanie do środka awatara; zapis ustawień strony głównej potwierdzony przez CMS.
 - [x] Sprawdzić ustawienia edytora, testy i rzeczywiste podpisy na stronie: 88 testów, pomiary PL/EN oraz /analizy w 1280 i 393 px - różnica 2 px, wspólny środek awatara i tekstu, brak błędów przeglądarki.
 

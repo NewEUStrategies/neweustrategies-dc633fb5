@@ -31,6 +31,7 @@ import {
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { StyleSink } from "@/components/theme/StyleSink";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { useAuthorTitleSize } from "@/components/molecules/useAuthorTitleSize";
 
 export type { TickerMode };
 
@@ -542,11 +543,16 @@ export function authorInitials(name: string): string {
 
 /** Inline'owy autor (awatar + nazwisko) - używany przez skin `live`. */
 function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
+  const titleSize = useAuthorTitleSize(true);
   const name = post.author_display_name?.trim() ?? "";
   const avatar = post.author_avatar_url?.trim() ?? "";
   if (!name && !avatar) return null;
   return (
-    <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
+    <span
+      ref={titleSize.ref}
+      data-typography-exempt
+      className="tt-live-author inline-flex shrink-0 items-center gap-[5px]"
+    >
       {avatar ? (
         <img
           src={buildAvatarSrc(avatar, 20)}
@@ -567,7 +573,11 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
         </span>
       ) : null}
       {name ? (
-        <span className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold">
+        <span
+          data-typography-exempt
+          style={{ fontSize: titleSize.size === undefined ? undefined : `${titleSize.size}px` }}
+          className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold"
+        >
           {name}
         </span>
       ) : null}
