@@ -5,11 +5,14 @@
 // 1. NAZWY BOOTU z oznaczeń `boot(...)` przy definicjach grup, rozłączne z chunkami, które
 //    check:entry-purity uznaje za leniwe z definicji;
 // 2. REGUŁY `resolveDependencies` na liście w kształcie, w jakim podaje ją Vite (cel + domknięcie
-//    statyczne, ścieżki `assets/…`), i równość granicy /admin z `ADMIN_ROOT` bramki check:bundle;
-// 3. PRAWDZIWY BUILD Vite 8 z grupami klienta: każdy chunk zdjęty z listy jest w statycznym
-//    domknięciu wejścia (ta sama definicja co `bootClosure()` bramki), cel /admin dostaje `[]`,
-//    a listy celów publicznych zachowują ich leniwe zależności. Na artefakcie aplikacji ten sam
-//    predykat sprawdza check:entry-purity (`isBootChunkFile`).
+//    statyczne, ścieżki `assets/…`), samotny cel rozstrzygany przez CSS, i równość granicy /admin
+//    z `ADMIN_ROOT` bramki check:bundle;
+// 3. PRAWDZIWY BUILD Vite 8 z grupami klienta i wtyczką `clientModulePreload().plugin`: każdy
+//    chunk zdjęty z listy jest w statycznym domknięciu wejścia (ta sama definicja co
+//    `bootClosure()` bramki), cel /admin dostaje `[]`, listy celów publicznych zachowują ich
+//    leniwe zależności, a samotny cel zostaje na liście wtedy i tylko wtedy, gdy Vite dokleja do
+//    niej CSS. Na artefakcie aplikacji ten sam predykat bootu sprawdza check:entry-purity
+//    (`isBootChunkFile`).
 //
 // i18n: brak treści dla użytkownika - narzędzie CI.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -28,6 +31,7 @@ import {
 } from "../../../../scripts/lib/clientChunkGroups";
 import {
   ADMIN_ROUTE_CHUNK_RE,
+  bundleCssProbe,
   chunkNameOf,
   clientModulePreload,
   isBootChunkFile,
@@ -36,6 +40,8 @@ import {
 
 const REPO = process.cwd();
 const js = { hostId: "assets/app-initial-AbCd1234.js", hostType: "js" } as const;
+const noCss = () => false;
+const withCss = () => true;
 
 describe("nazwy chunków bootu - z definicji grup, nie z ręcznej listy", () => {
   const groupNames = CLIENT_CHUNK_GROUPS.map((group) => group.debugName);
@@ -103,16 +109,19 @@ describe("resolveClientPreloadDependencies", () => {
 
   it("cel w korzeniu /admin (trasa i layout) - pusta lista; publiczny `admin*` bez kropki/myślnika - nie", () => {
     const deps = ["assets/admin.posts._slug-DV-GY-ku.js", "assets/Builder-AbCd1234.js"];
-    expect(resolveClientPreloadDependencies(deps[0]!, deps, js)).toEqual([]);
+    expect(resolveClientPreloadDependencies(deps[0]!, deps, js, noCss)).toEqual([]);
     expect(
       resolveClientPreloadDependencies(
         "assets/admin-CjLOw7lv.js",
         ["assets/admin-CjLOw7lv.js", "assets/AdminShellSkeleton-AbCd1234.js"],
         js,
+        noCss,
       ),
     ).toEqual([]);
     const pageHead = ["assets/adminPageHead-AbCd1234.js", "assets/shared-EfGh5678.js"];
-    expect(resolveClientPreloadDependencies(pageHead[0]!, pageHead, js)).toEqual(pageHead);
+    expect(resolveClientPreloadDependencies(pageHead[0]!, pageHead, js, noCss)).toEqual(pageHead);
+    // Import /admin z CSS: sam cel zostaje, inaczej jego JS czekałby na arkusz.
+    expect(resolveClientPreloadDependencies(deps[0]!, deps, js, withCss)).toEqual([deps[0]]);
   });
 
   it("zdejmuje chunki bootu, zachowuje cel i leniwe zależności w kolejności Vite", () => {
@@ -133,11 +142,21 @@ describe("resolveClientPreloadDependencies", () => {
     ]);
   });
 
-  it("sam cel bez zależności spoza bootu - lista zachowuje cel (Vite dokleja CSS dopiero po niej)", () => {
+  it("sam cel bez zależności spoza bootu - `[cel]` tylko z CSS (Vite dokleja go po tej funkcji)", () => {
     // Pusta lista + doklejony arkusz = `__vitePreload` czeka na CSS, zanim zażąda JS celu.
     const target = "assets/Lightbox-AbCd1234.js";
     const deps = [target, "assets/rolldown-runtime-BCiCTKAo.js", "assets/vendor-react-4Olbrvfa.js"];
+    const probed: (readonly string[])[] = [];
+    const probe = (files: readonly string[]) => (probed.push(files), true);
+    expect(resolveClientPreloadDependencies(target, deps, js, probe)).toEqual([target]);
+    // CSS całego domknięcia - Vite dokleja arkusze celu i każdego chunku, który on importuje.
+    expect(probed).toEqual([deps]);
+    // Bez CSS - pusta lista, jak u Vite dla celu bez zależności.
+    expect(resolveClientPreloadDependencies(target, deps, js, noCss)).toEqual([]);
+    // Bez wglądu w bundle (wtyczka niepodpięta) - bezpiecznie: cel zostaje.
     expect(resolveClientPreloadDependencies(target, deps, js)).toEqual([target]);
+    // Cel spoza listy Vite (chunk czysto-CSS-owy zastąpiony `Promise.resolve({})`) - nie wraca.
+    expect(resolveClientPreloadDependencies(target, [], js, withCss)).toEqual([]);
   });
 
   it("lista HTML-owa (preload wejścia) przechodzi bez zmian", () => {
@@ -157,11 +176,35 @@ describe("resolveClientPreloadDependencies", () => {
     expect(ADMIN_ROUTE_CHUNK_RE.flags).toBe("");
   });
 
-  it("`clientModulePreload()` - świeży obiekt, polyfill zostaje domyślny", () => {
-    expect(clientModulePreload()).not.toBe(clientModulePreload());
-    expect(clientModulePreload()).toEqual({
-      resolveDependencies: resolveClientPreloadDependencies,
-    });
+  it("`bundleCssProbe` czyta bundle w chwili wywołania; bez bundla zakłada CSS", () => {
+    const plugin: { bundle?: Rolldown.OutputBundle } = {};
+    const probe = bundleCssProbe(() => plugin.bundle);
+    expect(probe(["assets/a-AbCd1234.js"])).toBe(true);
+    const chunk = (importedCss: string[]) =>
+      ({ type: "chunk", viteMetadata: { importedCss: new Set(importedCss) } }) as never;
+    const bundle: Rolldown.OutputBundle = {
+      "assets/a-AbCd1234.js": chunk([]),
+      "assets/b-AbCd1234.js": chunk([]),
+    };
+    plugin.bundle = bundle;
+    expect(probe(["assets/a-AbCd1234.js", "assets/b-AbCd1234.js", "assets/x-AbCd1234.js"])).toBe(
+      false,
+    );
+    // Vite scala CSS chunków czysto-CSS-owych do importerów w swoim `generateBundle` - po
+    // wzięciu bundla przez wtyczkę; sonda widzi stan z chwili wywołania.
+    bundle["assets/b-AbCd1234.js"] = chunk(["assets/b-EfGh5678.css"]);
+    expect(probe(["assets/a-AbCd1234.js", "assets/b-AbCd1234.js"])).toBe(true);
+  });
+
+  it("`clientModulePreload()` - świeży obiekt; wtyczka tylko w buildzie klienta, przed Vite", () => {
+    const first = clientModulePreload();
+    expect(first).not.toBe(clientModulePreload());
+    expect(Object.keys(first.modulePreload)).toEqual(["resolveDependencies"]);
+    expect(first.plugin).toMatchObject({ name: "nes:client-module-preload", apply: "build" });
+    expect(first.plugin.generateBundle).toMatchObject({ order: "pre" });
+    const applies = first.plugin.applyToEnvironment as (env: unknown) => boolean;
+    expect(applies({ config: { consumer: "client" } })).toBe(true);
+    expect(applies({ config: { consumer: "server" } })).toBe(false);
   });
 });
 
@@ -173,8 +216,8 @@ const pkgJson = (name: string, main: string) =>
 /**
  * Wejście -> kod bootu (`app-initial`) -> React (CJS, więc też `rolldown-runtime`); kod bootu
  * importuje leniwie trasę publiczną i trasę /admin, obie zależne od Reacta i wspólnego modułu
- * leniwego, oraz moduł z własnym arkuszem i bez zależności spoza bootu (kształt Lightboxa
- * z GalleryBlock).
+ * leniwego, oraz dwa moduły bez zależności spoza bootu: z własnym arkuszem (kształt Lightboxa
+ * z GalleryBlock) i bez niego.
  */
 const FILES: Record<string, string> = {
   "node_modules/react/package.json": pkgJson("react", "index.js"),
@@ -194,7 +237,8 @@ const FILES: Record<string, string> = {
     '  globalThis.__fixture = [createElement("boot"),\n' +
     '    () => import("./routes/public.js"),\n' +
     '    () => import("./routes/admin.secret.js"),\n' +
-    '    () => import("./lib/styled.js")];\n' +
+    '    () => import("./lib/styled.js"),\n' +
+    '    () => import("./lib/plain.js")];\n' +
     "}\n",
   "src/lib/shared.js":
     'import { legacy } from "legacy-lib";\nexport const shared = "shared-" + legacy();\n',
@@ -205,6 +249,8 @@ const FILES: Record<string, string> = {
   "src/lib/styled.js":
     'import "./styled.css";\nimport { createElement } from "react";\n' +
     'export default () => createElement("styled");\n',
+  "src/lib/plain.js":
+    'import { createElement } from "react";\nexport default () => createElement("plain");\n',
   "src/routes/admin.secret.js":
     'import { createElement } from "react";\nimport { shared } from "../lib/shared.js";\n' +
     'export default () => [createElement("admin"), shared, "admin-secret"];\n',
@@ -242,19 +288,24 @@ async function buildFixture(withPolicy: boolean): Promise<Built> {
     writeFileSync(join(root, file), content);
   }
   const calls: Call[] = [];
+  // Ten sam obiekt co w presetach: wtyczka w `plugins`, reguły w `modulePreload` (tu z zapisem
+  // wywołań, żeby test widział wejście i wynik reguł).
+  const preload = clientModulePreload();
+  const resolve = preload.modulePreload.resolveDependencies!;
   const result = await build({
     configFile: false,
     envFile: false,
     root,
     publicDir: false,
     logLevel: "silent",
+    plugins: withPolicy ? [preload.plugin] : [],
     build: {
       write: false,
       minify: "oxc",
       modulePreload: withPolicy
         ? {
             resolveDependencies: (filename, deps, context) => {
-              const resolved = resolveClientPreloadDependencies(filename, deps, context);
+              const resolved = resolve(filename, deps, context);
               calls.push({ filename, deps: [...deps], result: [...resolved] });
               return resolved;
             },
@@ -307,7 +358,7 @@ describe("clientModulePreload - prawdziwy build Vite 8 / Rolldown z grupami klie
     expect(bootNames).toEqual(
       expect.arrayContaining(["index", "app-initial", "vendor-react", ROLLDOWN_RUNTIME_CHUNK]),
     );
-    expect(built.byName("app-initial").dynamicImports).toHaveLength(3);
+    expect(built.byName("app-initial").dynamicImports).toHaveLength(4);
     // Bez polityki lista trasy publicznej wymienia chunki bootu - to te bajty zdejmujemy.
     expect(mapDepsFiles(control.byName("app-initial")).filter(isBootChunkFile)).not.toEqual([]);
   });
@@ -365,5 +416,19 @@ describe("clientModulePreload - prawdziwy build Vite 8 / Rolldown z grupami klie
     ).exec(app.code);
     const listed = (call?.[1] ?? "").split(",").map((index) => table[Number(index)]);
     expect(listed.sort()).toEqual([styled.fileName, ...styled.viteMetadata!.importedCss].sort());
+  });
+
+  it("cel bez CSS i z samymi zależnościami bootu - pusta lista, jak u Vite", () => {
+    const plain = built.byName("plain");
+    expect(plain.viteMetadata!.importedCss.size).toBe(0);
+    const plainCall = built.calls.find((call) => call.filename === plain.fileName);
+    expect(plainCall?.deps).toContain(plain.fileName);
+    expect(plainCall?.deps.filter((dep) => dep !== plain.fileName).every(isBootChunkFile)).toBe(
+      true,
+    );
+    expect(plainCall?.result).toEqual([]);
+    expect(built.byName("app-initial").code).toContain(
+      `import(\`./${plain.fileName.slice(7)}\`),[])`,
+    );
   });
 });

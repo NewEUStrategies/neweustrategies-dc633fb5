@@ -91,6 +91,10 @@ const WORKER_FIRST_PATHS = MACHINE_SURFACES.map((surface) => surface.path);
 // Ten sam mechanizm co przy jawnym `preset` powyżej; runtime forwarduje CAŁY
 // obiekt `cloudflare` do nitro (w sandboxie przez spread), więc `wrangler`
 // dociera na miejsce bez żadnego rzutowania.
+// Listy preloadu `import()` klienta: reguły (`modulePreload` środowiska `client`) i wtyczka, która
+// daje im wgląd w CSS celów, dzielą stan jednego buildu - stąd JEDEN obiekt dla obu miejsc.
+const clientPreload = clientModulePreload();
+
 const nitroOptions = {
   preset: "cloudflare-module",
   minify: true,
@@ -141,6 +145,8 @@ export default defineConfig({
       // `keepNames` dla `build:dev` (Lovable ustawia go esbuildowi, którego Vite 8
       // już nie używa do minifikacji); ta sama wtyczka w vite.smoke.config.ts.
       devBuildKeepNamesPlugin(),
+      // CSS celów `import()` dla list preloadu (`modulePreload` środowiska `client` niżej).
+      clientPreload.plugin,
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
@@ -363,7 +369,7 @@ export default defineConfig({
           // Listy preloadu `import()` (`__vite__mapDeps`) bez celów w korzeniu /admin i bez
           // chunków domknięcia bootu - reguły, zmierzony zysk i cena w nagłówku
           // scripts/lib/clientModulePreload.ts.
-          modulePreload: clientModulePreload(),
+          modulePreload: clientPreload.modulePreload,
           rolldownOptions: {
             output: {
               // Bez hoistowania importów tranzytywnych: nagłówki chunków

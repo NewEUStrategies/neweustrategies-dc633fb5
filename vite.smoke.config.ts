@@ -53,6 +53,9 @@ const NES_BUILD_ID = (process.env.LOVABLE_BUILD_ID || `t${Date.now().toString(36
 // typy pakietu deklarują podzbiór opcji nitro - patrz komentarz w vite.config.ts.
 const nitroOptions = { preset: "node-server", minify: true };
 
+// Parytet z vite.config.ts: reguły list preloadu `import()` i wtyczka z CSS celów - jeden obiekt.
+const clientPreload = clientModulePreload();
+
 export default defineConfig({
   nitro: nitroOptions,
   // Parytet z vite.config.ts: produkcyjny wrapper SSR entry (src/server.ts -
@@ -85,6 +88,8 @@ export default defineConfig({
       staticCssPlugin(),
       // Parytet z vite.config.ts: `keepNames` dla buildu w trybie development.
       devBuildKeepNamesPlugin(),
+      // Parytet z vite.config.ts: CSS celów `import()` dla list preloadu.
+      clientPreload.plugin,
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
@@ -155,7 +160,7 @@ export default defineConfig({
           minify: "oxc",
           target: browserBaselineTarget(),
           // Te same listy preloadu `import()` co vite.config.ts (scripts/lib/clientModulePreload.ts).
-          modulePreload: clientModulePreload(),
+          modulePreload: clientPreload.modulePreload,
           rolldownOptions: {
             output: {
               // Kontrakt check:chunks i podział z JEDNEGO modułu - uzasadnienie

@@ -1,9 +1,10 @@
 // Listy preloadu `import()` bundla PRZEGLĄDARKI: `build.modulePreload.resolveDependencies`.
 //
-// JEDNO ŹRÓDŁO dla vite.config.ts i vite.smoke.config.ts (oba presety biorą `clientModulePreload()`
-// w środowisku `client` - parytet: src/lib/ci/__tests__/viteChunkParity.test.ts), więc boot-test
-// smoke bada te same listy, które jadą na produkcję. Worker i SSR list nie mają (Vite wstawia
-// `__vitePreload` wyłącznie konsumentowi `client`).
+// JEDNO ŹRÓDŁO dla vite.config.ts i vite.smoke.config.ts (oba presety biorą jeden obiekt
+// `clientModulePreload()`: `modulePreload` w środowisku `client` + `plugin` w `plugins` - parytet:
+// src/lib/ci/__tests__/viteChunkParity.test.ts), więc boot-test smoke bada te same listy, które
+// jadą na produkcję. Worker i SSR list nie mają (Vite wstawia `__vitePreload` wyłącznie
+// konsumentowi `client`).
 //
 // CO TO JEST. Vite przepisuje każdy `import()` klienta na `__vitePreload(() => import(x), deps)`.
 // `deps` to cel i CAŁE domknięcie jego statycznych importów: przy `hoistTransitiveImports: false`
@@ -25,9 +26,8 @@
 //    intencję (`defaultPreload: "intent"`, src/router.tsx: import rusza po 50 ms najechania,
 //    przed kliknięciem), kolejne ekrany dzielą większość chunków (już w pamięci modułów), a pełne
 //    wejście na URL /admin w ogóle tej listy nie używa - serwer daje dopasowanym trasom pełne
-//    domknięcie w zestawie bootu (`routePreloads`, src/lib/boot/bootManifest.ts). Ta sama
-//    pułapka co niżej: cel /admin z WŁASNYM CSS dostałby listę z samym arkuszem (JS po arkuszu) -
-//    na 75d90e1 żaden cel /admin zależności CSS nie ma (skan list `m.f` artefaktu).
+//    domknięcie w zestawie bootu (`routePreloads`, src/lib/boot/bootManifest.ts). Wyjątek jak
+//    niżej: import celu /admin, który niesie CSS, zachowuje `[cel]` (na 75d90e1 żaden).
 //
 // 2. CHUNKI DOMKNIĘCIA BOOTU WYPADAJĄ Z KAŻDEJ LISTY. Wejście importuje je statycznie, a moduł nie
 //    wykona się, zanim przeglądarka nie pobierze i nie zlinkuje CAŁEGO jego statycznego grafu - więc
@@ -35,26 +35,36 @@
 //    pobiera (Vite i tak pomijał je w runtime, jeśli `<link>` już był). Nazwy z oznaczeń `boot(...)`
 //    przy definicjach grup (`BOOT_CHUNK_NAMES`, scripts/lib/clientChunkGroups.ts), nie z ręcznej
 //    listy; że każda z nich naprawdę jest w domknięciu wejścia artefaktu, sprawdza
-//    check:entry-purity (`isBootChunkFile` niżej - ten sam predykat). Lista ZACHOWUJE cel, także
-//    gdy zostaje sam: Vite dokleja zależności CSS dopiero PO tej funkcji (tu ich nie widać), a
-//    runtime `__vitePreload` czeka na `load` każdego arkusza, zanim wywoła `import()`. Bez celu
-//    lista z CSS stałaby się samym arkuszem, więc JS celu ruszałby dopiero po nim (+1 runda; na
-//    75d90e1 Lightbox z GalleryBlock). Cena: 34 listy `[cel]` bez CSS (6 chunków dostaje przez
-//    nie cały helper `__vite__mapDeps`) = +0,7 KB gzip public, +0,9 KB overall.
+//    check:entry-purity (`isBootChunkFile` niżej - ten sam predykat).
+//
+// SAMOTNY CEL ROZSTRZYGA CSS. Gdy z listy zostaje najwyżej sam cel, Vite (bez tej funkcji) dałby
+// `[]` - preload celu rusza razem z jego `import()` i nic nie daje. ALE Vite wyjmuje zależności
+// CSS przed tą funkcją i dokleja je PO niej, a runtime `__vitePreload` czeka na `load` każdego
+// nowego arkusza, zanim wywoła `import()`: pusta lista + arkusz = JS celu żądany dopiero po CSS
+// (+1 runda; na 75d90e1 Lightbox z GalleryBlock). Import, który niesie CSS, zachowuje więc
+// `[cel]`; bez CSS lista jest pusta. Samo `resolveDependencies` CSS-u nie widzi - widzi go
+// `plugin` z tego samego obiektu: bierze bundle w `generateBundle` (`order: "pre"`, przed
+// vite:build-import-analysis, która woła tę funkcję), a reguła czyta `viteMetadata.importedCss`
+// plików listy w chwili wywołania, więc już po scaleniu chunków czysto-CSS-owych do importerów.
+// Bez bundla (wtyczka niepodpięta) reguła zakłada CSS i zachowuje KAŻDY samotny cel, także 211
+// celów /admin - bezpiecznie, ale drogo (same 34 publiczne listy `[cel]` bez CSS to +0,7 KB gzip
+// public: 6 chunków dostaje przez nie cały helper `m.f`); podpięcie wtyczki w obu presetach
+// pilnuje viteChunkParity.test.ts.
 //
 // CZEGO NIE RUSZAMY. Zależności CSS: Vite wyjmuje je przed tą funkcją i dokleja po niej, więc
 // trasa z arkuszem dostaje go zawsze. Listy w chunkach leniwych (np. leniwe panele w chunkach
 // adminowych) - zdjęcie ich byłoby kaskadą także w panelu, za ~3,8 KB tylko w OVERALL.
 //
 // ZMIERZONE (`BUNDLE_INVENTORY=1 bun run build:smoke` + check:bundle, baza 75d90e1, Bun gzip):
-// public 2919,6 -> 2904,1 (-15,5), overall 4965,7 -> 4949,5 (-16,2), `app-initial` (największy
-// chunk) 265,3 -> 253,2, boot 479,1 -> 467,1 KB; moduły i podział chunków bez zmian. Tablice `m.f`:
-// 37 -> 37 chunków, 2219 -> 1476 nazw, 341 -> 0 nazw bootu, 211 celów /admin z `[]`.
+// public 2919,6 -> 2903,4 (-16,2), overall 4965,7 -> 4948,6 (-17,1), `app-initial` (największy
+// chunk) 265,3 -> 252,8, boot 479,1 -> 466,7 KB; moduły i podział chunków bez zmian. Tablice `m.f`:
+// 37 -> 31 chunków, 2219 -> 1443 nazw, 341 -> 0 nazw bootu, 211 celów /admin z `[]`; jedyny
+// samotny cel z CSS (Lightbox w BlocksRenderer) ma `[Lightbox.js, Lightbox.css]` (+4 B gzip).
 // PUŁAPKA: Vite wpisuje listy PO policzeniu hashy, więc sama zmiana tej polityki zmienia treść
 // plików bez zmiany ich nazw (stara kopia z cache ma po prostu dłuższe, nadal poprawne listy).
 import { posix } from "node:path";
 
-import type { ModulePreloadOptions, ResolveModulePreloadDependenciesFn } from "vite";
+import type { ModulePreloadOptions, Plugin, Rolldown } from "vite";
 
 import { BOOT_CHUNK_NAMES } from "./clientChunkGroups.ts";
 
@@ -83,21 +93,68 @@ export function isAdminRouteChunkFile(file: string): boolean {
   return ADMIN_ROUTE_CHUNK_RE.test(posix.basename(file));
 }
 
-/** `resolveDependencies` klienta: obie reguły z nagłówka pliku. */
-export const resolveClientPreloadDependencies: ResolveModulePreloadDependenciesFn = (
-  filename,
-  deps,
-  context,
-) => {
+/** Czy któryś plik JS listy niesie CSS, który Vite dołoży do niej po `resolveDependencies`. */
+export type CssProbe = (files: readonly string[]) => boolean;
+
+/** Bez wglądu w bundle: zakładamy CSS (samotny cel zostaje - bezpiecznie, kosztuje bajty). */
+const ASSUME_CSS: CssProbe = () => true;
+
+/** `resolveDependencies` klienta: obie reguły i samotny cel z nagłówka pliku. */
+export function resolveClientPreloadDependencies(
+  filename: string,
+  deps: string[],
+  context: { hostId: string; hostType: "html" | "js" },
+  carriesCss: CssProbe = ASSUME_CSS,
+): string[] {
   if (context.hostType !== "js") return deps;
-  if (isAdminRouteChunkFile(filename)) return [];
-  return deps.filter((dep) => !isBootChunkFile(dep));
-};
+  const kept = isAdminRouteChunkFile(filename) ? [] : deps.filter((dep) => !isBootChunkFile(dep));
+  if (kept.some((dep) => dep !== filename)) return kept;
+  // Najwyżej sam cel. `deps.includes`: cel spoza bundla (chunk czysto-CSS-owy, który Vite zastąpił
+  // `Promise.resolve({})`) nie trafia na listę - jak u Vite.
+  return deps.includes(filename) && carriesCss(deps) ? [filename] : [];
+}
+
+/** CSS z metadanych chunków bundla w chwili wywołania (po scaleniu chunków czysto-CSS-owych). */
+export function bundleCssProbe(bundle: () => Rolldown.OutputBundle | undefined): CssProbe {
+  return (files) => {
+    const output = bundle();
+    if (!output) return true;
+    return files.some((file) => {
+      const chunk = output[file];
+      return chunk?.type === "chunk" && (chunk.viteMetadata?.importedCss.size ?? 0) > 0;
+    });
+  };
+}
+
+export interface ClientModulePreload {
+  /** `build.modulePreload` środowiska `client`. Bez `polyfill` - Vite zostawia domyślne `true`. */
+  readonly modulePreload: ModulePreloadOptions;
+  /** Daje regułom wgląd w CSS celów - w `plugins` TEGO SAMEGO presetu. */
+  readonly plugin: Plugin;
+}
 
 /**
- * `build.modulePreload` środowiska `client` obu presetów. Bez `polyfill` - Vite zostawia domyślne
- * `true`. Świeży obiekt przy każdym wywołaniu, jak `clientCodeSplitting()`.
+ * Listy preloadu `import()` klienta obu presetów: reguły i wtyczka dzielą stan jednego buildu
+ * (bundle klienta). Świeży obiekt przy każdym wywołaniu, jak `clientCodeSplitting()`.
  */
-export function clientModulePreload(): ModulePreloadOptions {
-  return { resolveDependencies: resolveClientPreloadDependencies };
+export function clientModulePreload(): ClientModulePreload {
+  let bundle: Rolldown.OutputBundle | undefined;
+  const carriesCss = bundleCssProbe(() => bundle);
+  return {
+    modulePreload: {
+      resolveDependencies: (filename, deps, context) =>
+        resolveClientPreloadDependencies(filename, deps, context, carriesCss),
+    },
+    plugin: {
+      name: "nes:client-module-preload",
+      apply: "build",
+      applyToEnvironment: (environment) => environment.config.consumer === "client",
+      generateBundle: {
+        order: "pre",
+        handler(_options, output) {
+          bundle = output;
+        },
+      },
+    },
+  };
 }
