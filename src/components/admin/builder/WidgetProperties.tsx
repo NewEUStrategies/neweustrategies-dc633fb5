@@ -1638,7 +1638,16 @@ function customContentEditor(
     case "section-label":
       return <SectionLabelEditor c={c} lang={lang} setContent={setContent} />;
     case "slider":
-      return <SliderEditor c={c} lang={lang} setContent={setContent} />;
+      return (
+        <SliderEditor
+          c={c}
+          lang={lang}
+          setContent={setContent}
+          typography={pickShared<WidgetTypography>(
+            widget.style?.typography as Themed<WidgetTypography> | undefined,
+          )}
+        />
+      );
     case "animated-heading":
       return <AnimatedHeadingEditor c={c} lang={lang} setContent={setContent} />;
     case "text-rotate":

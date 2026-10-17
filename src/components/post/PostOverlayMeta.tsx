@@ -1,8 +1,7 @@
 // Meta bar renderowany w overlayu / nagłówku wpisu:
 // autor · data publikacji · czas czytania (widget) · pola custom_meta.
 // Bilingual PL/EN; atomic-design "molecule".
-import type { CSSProperties, ReactNode } from "react";
-import { useAuthorTitleSize } from "@/components/molecules/useAuthorTitleSize";
+import type { ReactNode } from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ReadingTimeView } from "@/components/blocks/PostUtilityViews";
 import { Clock, User as UserIcon } from "@/lib/lucide-shim";
@@ -70,11 +69,6 @@ export function PostOverlayMeta({
   mobileActions,
   hideReadTimeOnMobile = false,
 }: Props) {
-  const titleSize = useAuthorTitleSize(true);
-  const authorStyle: CSSProperties & { "--abl-title-relative-size": string } = {
-    "--abl-title-relative-size":
-      titleSize.size === undefined ? "calc(var(--td-pt-size, 16px) - 2px)" : `${titleSize.size}px`,
-  };
   const t = L[lang];
   const name = author ? authorName(author, lang) : null;
   const authorHref = author?.slug ? `/${lang === "en" ? "en/" : ""}author/${author.slug}` : null;
@@ -85,13 +79,11 @@ export function PostOverlayMeta({
     <span className="inline-flex flex-col">
       <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
         {author && name && (
-          <span
-            ref={titleSize.ref}
-            data-author-title-relative
-            data-typography-exempt
-            style={authorStyle}
-            className="inline-flex items-center gap-2"
-          >
+          // Autor bierze typografię paska metadanych, NIE rozmiar H1 wpisu:
+          // nagłówek wpisu nie jest kartą ani widgetem (`data-author-title-scope`
+          // / `data-w-id`), więc tryb „tytuł minus 2 px” nie ma tu zakresu - a HTML
+          // z serwera jest z definicji tym samym, co strona po hydratacji.
+          <span className="inline-flex items-center gap-2">
             {author.avatar_url ? (
               authorHref ? (
                 <AppLink

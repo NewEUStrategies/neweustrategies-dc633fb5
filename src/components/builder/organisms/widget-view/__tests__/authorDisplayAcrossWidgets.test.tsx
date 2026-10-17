@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
+import { renderToString } from "react-dom/server";
 
 const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 
@@ -311,5 +312,74 @@ describe("byline autora - etykieta redakcji i język", () => {
     );
     await screen.findByText(AUTHOR);
     expect(container.textContent).toContain(`By: ${AUTHOR}`);
+  });
+});
+
+describe("byline autora - rozmiar względem tytułu SWOJEJ karty", () => {
+  it.each(
+    WIDGETS.filter((w) =>
+      ["post-meta", "post-author-card (inline)", "testimonial"].includes(w.label),
+    ).map((w) => [w.label, w] as const),
+  )("%s: widget bez tytułu ma rozmiar z panelu już w HTML-u z serwera", (_label, widget) => {
+    widget.prepare?.();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToString(
+      <QueryClientProvider client={qc}>{widget.render({})}</QueryClientProvider>,
+    );
+    expect(html).toContain("data-author-byline");
+    expect(html).not.toContain("data-author-title-relative");
+  });
+
+  it("post-lista: byline mierzy tytuł swojej karty i trzyma ten sam węzeł przy re-renderze", async () => {
+    db.tables.posts = [POST, { ...POST, id: "p2", slug: "drugi" }];
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ui = (c: WidgetContent) => (
+      <QueryClientProvider client={qc}>
+        <PostListView c={{ variant: "list", ...c }} lang="pl" />
+      </QueryClientProvider>
+    );
+    const { container, rerender } = render(ui({}));
+    await waitFor(() => expect(byline(container)).not.toBeNull());
+    const before = byline(container)!;
+    const scope = before.closest("[data-author-title-scope]");
+    expect(scope?.querySelector(".cms-post-title")).not.toBeNull();
+    expect(before.getAttribute("data-author-title-relative")).toBe("measured");
+
+    // Nowy obiekt treści = nowy render widoku (np. edycja w kanwie; klucz
+    // zapytania bez zmian). Byline zdefiniowany jako komponent w renderze byłby
+    // tu montowany od nowa.
+    rerender(ui({ titleWeight: "700" }));
+    await waitFor(() => expect(container.querySelector(".cms-post-title")).not.toBeNull());
+    expect(byline(container)).toBe(before);
+  });
+
+  it("post-lista z ukrytym tytułem: rozmiar z panelu od pierwszego renderu", async () => {
+    db.tables.posts = [POST];
+    const { container } = wrap(<PostListView c={{ variant: "card", showTitle: "0" }} lang="pl" />);
+    await waitFor(() => expect(byline(container)).not.toBeNull());
+    expect(byline(container)?.hasAttribute("data-author-title-relative")).toBe(false);
+    expect(byline(container)?.style.fontSize).toBe("12px");
+  });
+
+  it("karta autora: nazwisko wygląda jak tytuł, ale nie jest tytułem bylinu", async () => {
+    const { container } = wrap(
+      <CurrentPostProvider value={POST_CTX}>
+        <DynamicTagWidget
+          node={
+            {
+              id: "pac",
+              kind: "widget",
+              type: "post-author-card",
+              content: { variant: "card" },
+            } as WidgetNode
+          }
+          lang="pl"
+        />
+      </CurrentPostProvider>,
+    );
+    await waitFor(() => expect(container.textContent).toContain(AUTHOR));
+    const name = container.querySelector(".cms-post-title");
+    expect(name?.textContent).toContain(AUTHOR);
+    expect(name?.hasAttribute("data-author-title-ignore")).toBe(true);
   });
 });

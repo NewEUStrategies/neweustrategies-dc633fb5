@@ -258,6 +258,18 @@ describe("WidgetLivePreview", () => {
     expect(stage?.getAttributeNames().some((n) => n.includes("hover"))).toBe(true);
   });
 
+  it("scena niesie znacznik typografii motywu, jak renderer kanwy i strony", () => {
+    // Bez znacznika nagłówki bez własnej typografii widgetu dostawały w panelu
+    // `revert` z arkusza admina zamiast rozmiaru z kanwy.
+    const { container } = render(
+      <WidgetLivePreview widget={widget()} lang="pl" device="desktop" mode="light" />,
+    );
+    const stage = container.querySelector<HTMLElement>(
+      '[data-builder-renderer="widget-props-preview"]',
+    );
+    expect(stage?.hasAttribute("data-theme-typography")).toBe(true);
+  });
+
   it("tryb ciemny maluje scenę ciemnym tłem", () => {
     const { container } = render(
       <WidgetLivePreview widget={widget()} lang="pl" device="desktop" mode="dark" />,

@@ -3,7 +3,7 @@ import { toJson } from "@/lib/builder/types";
 import { Image as ImageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { WidgetNode, Json } from "@/lib/builder/types";
+import type { WidgetNode, Json, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import {
@@ -42,9 +42,15 @@ interface Props {
   c: WidgetNode["content"];
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
+  /**
+   * Typografia z zakładki „Styl” (rozmiary tytułu i opisu). Podgląd na żywo
+   * renderuje ją tak samo jak kanwa - bez niej pokazywał domyślne 15 px tytułu
+   * zamiast wpisanych w panelu wartości.
+   */
+  typography?: WidgetTypography;
 }
 
-export function SliderEditor({ c, lang, setContent }: Props) {
+export function SliderEditor({ c, lang, setContent, typography }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
   // Wszystkie odczyty przez contentValue - panel commituje raz boolean, raz
@@ -190,6 +196,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     authorSizePx: author.nameSizePx,
     authorSizeRelativeToTitle: author.relativeToTitle,
     authorAvatarSizePx: author.avatarSizePx,
+    authorAvatarSizeExact: author.avatarSizeExact,
 
     navSizePx,
     navRoundedPx,
@@ -199,6 +206,7 @@ export function SliderEditor({ c, lang, setContent }: Props) {
     navPosition,
     navArrowVariant,
     navArrowStroke,
+    typography,
     items: hasRealItems ? items : demoItems,
   };
 

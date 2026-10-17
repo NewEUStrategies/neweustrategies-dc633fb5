@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
+import type { WidgetContent } from "@/lib/builder/types";
 
 // Per-table dataset, mutated per test. Hoisted so the vi.mock factory can close
 // over it before the module graph is imported.
@@ -331,6 +332,58 @@ describe("TrendingNowView", () => {
     );
     expect(looping).toHaveLength(1);
     expect(looping[0].hasAttribute("data-motion-loop")).toBe(true);
+  });
+});
+
+// Ukryty (albo pusty) autor nie zostawia obramowanej ramki z odstępem: ramka
+// `border-l` istnieje wyłącznie razem z bylinem, a wiersz jest zakresem pomiaru
+// „tytuł minus 2 px” tylko wtedy, gdy autor jest.
+describe.each([
+  ["NewsTickerView", (c: WidgetContent) => <NewsTickerView c={c} lang="pl" />],
+  ["TrendingNowView", (c: WidgetContent) => <TrendingNowView c={c} lang="pl" />],
+] as const)("%s - ramka autora", (_name, view) => {
+  const frames = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>(".border-l"));
+  const seed = (profile: { display_name: string | null; avatar_url: string | null }) => {
+    db.tables.posts = [
+      { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+      { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a1" },
+    ];
+    db.tables.profiles = [{ id: "a1", ...profile }];
+  };
+
+  it("autor widoczny: ramka z bylinem, wiersz jest zakresem tytułu", async () => {
+    seed({ display_name: "Anna", avatar_url: null });
+    const { container } = wrap(view({ badge_pl: "Na czasie" }));
+    await screen.findAllByText("Alfa");
+    expect(frames(container).length).toBeGreaterThan(0);
+    for (const frame of frames(container)) {
+      expect(frame.querySelector("[data-author-byline]")).not.toBeNull();
+      expect(frame.closest("[data-author-title-scope]")).not.toBeNull();
+    }
+  });
+
+  it.each([
+    ["obie osie wyłączone w panelu", { showAuthorName: false, showAuthorAvatar: false }, "Anna"],
+    ["historyczne showAuthor=false", { showAuthor: false }, "Anna"],
+    ["samo zdjęcie bez nazwiska w danych", {}, null],
+    ["nazwisko z samych spacji", {}, "   "],
+  ] as const)("%s: brak pustej ramki", async (_label, c, name) => {
+    seed({ display_name: name, avatar_url: "https://cdn.x/a1.jpg" });
+    const { container } = wrap(view({ badge_pl: "Na czasie", ...c }));
+    await screen.findAllByText("Alfa");
+    expect(frames(container)).toEqual([]);
+    expect(container.querySelector("[data-author-title-scope]")).toBeNull();
+  });
+
+  it("bez zdjęcia ramka chowa się na mobile razem z nazwiskiem", async () => {
+    seed({ display_name: "Anna", avatar_url: null });
+    const { container } = wrap(view({ badge_pl: "Na czasie", showAuthorAvatar: false }));
+    await screen.findAllByText("Alfa");
+    for (const frame of frames(container)) {
+      expect(frame.classList.contains("hidden")).toBe(true);
+      expect(frame.classList.contains("sm:flex")).toBe(true);
+    }
   });
 });
 

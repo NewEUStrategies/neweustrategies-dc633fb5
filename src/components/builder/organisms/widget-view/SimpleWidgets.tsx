@@ -93,7 +93,12 @@ import type { AccountMenuConfig } from "./AccountMenuWidget";
 // Eager swiadomie - patrz nota "text-rotate" w ./lazyWidgets.
 import { TextRotate } from "@/components/ui/text-rotate";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
-import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
+import {
+  authorDisplayWithoutTitle,
+  hasAuthorByline,
+  resolveAuthorDisplay,
+  widgetAuthorDisplayDefaults,
+} from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import { siteYear } from "@/lib/i18n/format";
 import {
@@ -1664,6 +1669,12 @@ export function renderSimpleWidget(
       const avatar = safeImageUrl(getStr(c, "avatar"));
       const rating = getNum(c, "rating", 0);
       const variant = getStr(c, "variant") || "card";
+      // Cytat nie ma tytułu: autor bierze rozmiar z panelu (już w HTML-u
+      // z serwera), a nie z nagłówka sąsiedniego widgetu.
+      const authorDisplay = authorDisplayWithoutTitle(
+        resolveAuthorDisplay(c, lang, widgetAuthorDisplayDefaults("testimonial", c)),
+      );
+      const showAuthor = hasAuthorByline(author, authorDisplay);
       const containerCls =
         variant === "minimal"
           ? "space-y-3"
@@ -1688,16 +1699,16 @@ export function renderSimpleWidget(
           )}
           {stars}
           <blockquote className="cms-post-excerpt italic">"{quote}"</blockquote>
-          <figcaption
-            className={`flex flex-wrap items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
-          >
-            <AuthorByline
-              name={author}
-              avatarUrl={avatar}
-              display={resolveAuthorDisplay(c, lang, widgetAuthorDisplayDefaults("testimonial", c))}
-            />
-            {role && <div className="cms-meta text-muted-foreground">{role}</div>}
-          </figcaption>
+          {(showAuthor || role) && (
+            <figcaption
+              className={`flex flex-wrap items-center gap-3 ${variant === "centered" ? "justify-center" : ""}`}
+            >
+              {showAuthor && (
+                <AuthorByline name={author} avatarUrl={avatar} display={authorDisplay} />
+              )}
+              {role && <div className="cms-meta text-muted-foreground">{role}</div>}
+            </figcaption>
+          )}
         </figure>
       );
     }

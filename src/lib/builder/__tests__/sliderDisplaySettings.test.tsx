@@ -238,13 +238,24 @@ describe("slider (tryb ręczny) - tryb prezentacji autora", () => {
 });
 
 describe("slider (tryb ręczny) - rozmiary metadanych autora", () => {
-  it("defaults to 12px text and a 20px avatar", () => {
+  it("defaults to the slide title minus 2 px and a 20px avatar", () => {
+    // Domyślny tryb „tytuł minus 2 px”: byline mierzy tytuł SWOJEGO slajdu.
     const { container } = renderSlider({});
     const avatar = avatarOf(container);
     expect(avatar?.getAttribute("width")).toBe("20");
-    expect(container.querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
-      "12px",
+    const title = container.querySelector<HTMLElement>(".cms-post-title")!;
+    const byline = container.querySelector<HTMLElement>("[data-author-byline]")!;
+    expect(byline.getAttribute("data-author-title-relative")).toBe("measured");
+    expect(byline.style.fontSize).toBe(
+      `${Number.parseFloat(getComputedStyle(title).fontSize) - 2}px`,
     );
+  });
+
+  it("keeps 12px text in fixed mode (switch off, baseline size)", () => {
+    const { container } = renderSlider({ authorSizeRelativeToTitle: false });
+    const byline = container.querySelector<HTMLElement>("[data-author-byline]")!;
+    expect(byline.hasAttribute("data-author-title-relative")).toBe(false);
+    expect(byline.style.fontSize).toBe("12px");
   });
 
   it("honours authorSizePx and authorAvatarSizePx in the rendered DOM", () => {

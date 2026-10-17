@@ -48,6 +48,8 @@ export interface AuthorDisplayContent {
   readonly authorSizePx?: unknown;
   readonly authorSizeRelativeToTitle?: unknown;
   readonly authorAvatarSizePx?: unknown;
+  /** Rozmiar zdjęcia WPISANY w panelu (także równy bazowemu 20 px). */
+  readonly authorAvatarSizeExact?: unknown;
   readonly authorLabel_pl?: unknown;
   readonly authorLabel_en?: unknown;
   /** Historyczny przełącznik zdjęcia w karcie autora (`post-author-card`). */
@@ -90,6 +92,8 @@ export const AUTHOR_DISPLAY_KEYS = {
   nameSizePx: "authorSizePx",
   relativeToTitle: "authorSizeRelativeToTitle",
   avatarSizePx: "authorAvatarSizePx",
+  /** Znacznik „rozmiar zdjęcia wpisany ręcznie” - dosłowny także na desktopie. */
+  avatarSizeExact: "authorAvatarSizeExact",
   /** Baza pary i18n `authorLabel_pl` / `authorLabel_en`. */
   label: "authorLabel",
 } as const;
@@ -132,8 +136,19 @@ export interface AuthorDisplay {
   readonly showName: boolean;
   readonly showAvatar: boolean;
   readonly nameSizePx: number;
+  /**
+   * Tryb „tytuł minus 2 px”. Jawny przełącznik panelu wygrywa; bez niego tryb
+   * obowiązuje, dopóki redakcja nie wpisała WŁASNEGO rozmiaru nazwiska.
+   */
   readonly relativeToTitle?: boolean;
+  /**
+   * Rozmiar nazwiska wybrany w panelu - renderuje się DOSŁOWNIE na każdym
+   * urządzeniu (bez desktopowego skalowania 16/12 kontraktu domyślnego).
+   */
+  readonly nameSizeExact?: boolean;
   readonly avatarSizePx: number;
+  /** Rozmiar zdjęcia wybrany w panelu - jak `nameSizeExact`, bez skalowania 24/20. */
+  readonly avatarSizeExact?: boolean;
   readonly avatarRadiusPx: number;
   /**
    * Prefiks przed nazwiskiem, gdy zdjęcie jest schowane („Autor: ” / „By: ”).
@@ -204,6 +219,7 @@ export function resolveAuthorDisplay(
   const rawNameSize = content.authorSizePx;
   const rawRelativeToTitle = content.authorSizeRelativeToTitle;
   const rawAvatarSize = content.authorAvatarSizePx;
+  const rawAvatarSizeExact = content.authorAvatarSizeExact;
   const rawLabel = authorLabelText(content, lang);
 
   const baseName = defaults.showName ?? true;
@@ -249,18 +265,31 @@ export function resolveAuthorDisplay(
   if (isContentValueSet(rawShowAvatar)) showAvatar = asBool(rawShowAvatar, showAvatar);
   if (isContentValueSet(rawShowName)) showName = asBool(rawShowName, showName);
 
+  const baseNameSize = defaults.nameSizePx ?? AUTHOR_NAME_SIZE_PX_DEFAULT;
+  const baseAvatarSize = defaults.avatarSizePx ?? AUTHOR_AVATAR_SIZE_PX_DEFAULT;
   const nameSizePx = asNumInRange(
     rawNameSize,
-    defaults.nameSizePx ?? AUTHOR_NAME_SIZE_PX_DEFAULT,
+    baseNameSize,
     AUTHOR_NAME_SIZE_PX_MIN,
     AUTHOR_NAME_SIZE_PX_MAX,
   );
   const avatarSizePx = asNumInRange(
     rawAvatarSize,
-    defaults.avatarSizePx ?? AUTHOR_AVATAR_SIZE_PX_DEFAULT,
+    baseAvatarSize,
     AUTHOR_AVATAR_SIZE_PX_MIN,
     AUTHOR_AVATAR_SIZE_PX_MAX,
   );
+
+  // WPISANA WARTOŚĆ MA BYĆ WIDAĆ. Rozmiar różny od bazowego to wybór redakcji:
+  // wyłącza domyślny tryb „tytuł minus 2 px” i renderuje się dosłownie (11 px
+  // w panelu = 11 px w kanwie, podglądzie i na stronie, także na desktopie).
+  // Bazowe 12 px NIE jest wyborem - stempluje je migracja sliderów
+  // (2026-07-31) i reset panelu - więc dokument z 12 px zostaje przy tytule.
+  // Jawny przełącznik trybu wygrywa z tą regułą w obie strony.
+  const nameSizeChosen = isContentValueSet(rawNameSize) && nameSizePx !== baseNameSize;
+  const relativeToTitle = isContentValueSet(rawRelativeToTitle)
+    ? asBool(rawRelativeToTitle, true)
+    : !nameSizeChosen;
 
   // Prefiks „Autor: ” pojawia się DOKŁADNIE wtedy, gdy zdjęcie jest schowane,
   // a nazwisko zostaje - inaczej byline byłby gołym imieniem bez kontekstu.
@@ -272,12 +301,45 @@ export function resolveAuthorDisplay(
     showName,
     showAvatar,
     nameSizePx,
-    relativeToTitle: asBool(rawRelativeToTitle, true),
+    relativeToTitle,
+    nameSizeExact: nameSizeChosen || !relativeToTitle,
     avatarSizePx,
+    // Zdjęcie nie ma przełącznika trybu, więc wpisanie rozmiaru w panelu zapisuje
+    // jawny znacznik - inaczej wpisane 20 px (= bazowe) skalowałoby się do 24 px.
+    // Bez znacznika (dokumenty sprzed niego, migracja sliderów z 20 px, reset)
+    // wyborem jest tylko rozmiar różny od bazowego.
+    avatarSizeExact: isContentValueSet(rawAvatarSizeExact)
+      ? asBool(rawAvatarSizeExact, false)
+      : isContentValueSet(rawAvatarSize) && avatarSizePx !== baseAvatarSize,
     avatarRadiusPx: defaults.avatarRadiusPx ?? AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
     labelPrefix,
     mode: toMode(showName, showAvatar),
   };
+}
+
+/**
+ * Czy byline cokolwiek narysuje. Sam awatar bez nazwiska jest sensownym trybem,
+ * ale awatar bez ŻADNYCH danych autora nie - taki byline byłby pustym kwadratem
+ * bez znaczenia. Widgety z ramką wokół bylinu (separator, obramowanie) pytają
+ * o TO SAMO co `AuthorByline`, żeby przy ukrytym autorze nie zostawiać pustej
+ * ramki.
+ */
+export function hasAuthorByline(
+  name: string | null | undefined,
+  display: Pick<AuthorDisplay, "visible">,
+): name is string {
+  return display.visible && (name ?? "").trim() !== "";
+}
+
+/**
+ * Prezentacja autora w miejscu, które NIE MA tytułu: cytat, metadane wpisu,
+ * karta autora, karta z ukrytym tytułem, podgląd w panelu. Tryb „tytuł minus
+ * 2 px” nie ma tam czego mierzyć, więc obowiązuje rozmiar z panelu CMS - i to
+ * już w HTML-u z serwera, a nie dopiero po pomiarze w przeglądarce (pomiar
+ * doszedłby do tego samego wyniku, ale po pierwszym malowaniu).
+ */
+export function authorDisplayWithoutTitle(display: AuthorDisplay): AuthorDisplay {
+  return display.relativeToTitle === false ? display : { ...display, relativeToTitle: false };
 }
 
 /**

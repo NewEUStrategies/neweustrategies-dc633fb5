@@ -166,10 +166,21 @@ describe("PostsSliderWidget - tryb prezentacji autora", () => {
 });
 
 describe("PostsSliderWidget - rozmiary metadanych autora", () => {
-  it("keeps the 12px / 20px defaults", async () => {
+  it("defaults to a 20px avatar and the slide title minus 2 px", async () => {
     const { container } = await renderPostsSlider({});
     await waitFor(() => expect(authorAvatar(container)).not.toBeNull());
     expect(authorAvatar(container)?.getAttribute("width")).toBe("20");
+    const title = container.querySelector<HTMLElement>(".cms-post-title")!;
+    await waitFor(() =>
+      expect(authorBadge(container)?.style.fontSize).toBe(
+        `${Number.parseFloat(getComputedStyle(title).fontSize) - 2}px`,
+      ),
+    );
+  });
+
+  it("keeps 12px text with the title switch off", async () => {
+    const { container } = await renderPostsSlider({ authorSizeRelativeToTitle: false });
+    await waitFor(() => expect(authorAvatar(container)).not.toBeNull());
     expect(authorBadge(container)?.style.fontSize).toBe("12px");
   });
 
