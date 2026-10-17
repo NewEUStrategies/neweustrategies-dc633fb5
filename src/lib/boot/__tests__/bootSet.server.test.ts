@@ -155,10 +155,30 @@ describe("bootPreloadLinkValues - seria `now` w nagłówku `Link`", () => {
 });
 
 describe("bootModeFor - tryb dokumentu", () => {
-  it("`lcp` wyłącznie dla `/` i `/$` dopasowanych z sukcesem", () => {
-    expect([...AFTER_LCP_ROUTE_IDS]).toEqual(["/", "/$"]);
-    for (const routeId of ["/", "/$"]) {
+  it("`lcp` wyłącznie dla `/`, `/$` i archiwów dopasowanych z sukcesem", () => {
+    const afterLcp = ["/", "/$", "/blog/", "/category/$slug", "/tag/$slug", "/author/$slug"];
+    expect([...AFTER_LCP_ROUTE_IDS]).toEqual(afterLcp);
+    for (const routeId of afterLcp) {
       expect(bootModeFor([{ routeId: "__root__" }, { routeId, status: "success" }])).toBe("lcp");
+    }
+  });
+
+  it("archiwa: 404 i błąd dalej `now`; trasy o podobnych id nie łapią trybu", () => {
+    const root = { routeId: "__root__", status: "success" };
+    expect(bootModeFor([root, { routeId: "/category/$slug", status: "notFound" }])).toBe("now");
+    expect(bootModeFor([root, { routeId: "/tag/$slug", status: "error" }])).toBe("now");
+    // Dokładne id, nie prefiksy: pozostałe trasy z tymi segmentami nie mają kandydata okładki.
+    for (const routeId of ["/blog/$slug", "/author/", "/category/", "/search"]) {
+      expect(bootModeFor([root, { routeId, status: "success" }])).toBe("now");
+    }
+  });
+
+  it("każde id trasy `lcp` istnieje w drzewie tras (literówka nie wyłącza trybu po cichu)", async () => {
+    const tree = await import("node:fs").then((fs) =>
+      fs.readFileSync(`${process.cwd()}/src/routeTree.gen.ts`, "utf8"),
+    );
+    for (const routeId of AFTER_LCP_ROUTE_IDS) {
+      expect(tree, routeId).toContain(`id: '${routeId}'`);
     }
   });
 

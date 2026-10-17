@@ -43,9 +43,18 @@
 // więc trybu nie ma.
 //
 // TRYB. `lcp` (boot po wpisie LCP kandydata) wyłącznie dla publicznych tras SSR z kandydatem LCP:
-// strona główna (`/`, także `/en` po przepisaniu adresu) i strony treści (`/$`), dopasowane
+// strona główna (`/`, także `/en` po przepisaniu adresu), strony treści (`/$`) i archiwa
+// (`/blog/`, `/category/$slug`, `/tag/$slug`, `/author/$slug` - kandydatem jest okładka karty
+// z `priority` w `PostListCard`: pierwsza karta siatki albo karta wyróżniona), dopasowane
 // z sukcesem i renderowane na serwerze. Wszędzie indziej `now` - trasy `ssr: false`, panel,
-// konto, 404 i błędy nie mają kandydata, a odroczenie tylko opóźniłoby ich start. Decyzje per
+// konto, 404 i błędy nie mają kandydata, a odroczenie tylko opóźniłoby ich start.
+//
+// ARCHIWA (2026-10-17). Do tej pory były `now`: `/blog` niósł w `Link` 38 `modulepreload`-ów,
+// więc JS ruszał od nagłówków odpowiedzi i w modelu Lanterna dzielił jedno połączenie z CSS,
+// fontem i okładką - ta sama sytuacja co strona główna przed P2.1 (symulacja przeniesienia
+// skryptów przed LCP na śladzie `/`: LCP 2,0 s -> 2,2-4,9 s). Archiwum bez okładki (lista bez
+// obrazów, wpisy bez `cover_image_url`) nie ma kandydata - loader bootuje wtedy po pierwszej
+// klatce (`nocand`), czyli dalej przed LCP tekstu, ale nie przed FCP. Decyzje per
 // użytkownik (zapisana sesja, ramka edytora, `document.prerendering`) podejmuje loader
 // w przeglądarce: dokument jest anonimowy i trafia do NES Edge Cache razem z zestawem.
 //
@@ -89,7 +98,14 @@ export interface BootSet {
 }
 
 /** Trasy publiczne SSR z kandydatem LCP (id tras routera; `/en` przepisuje się na `/`). */
-export const AFTER_LCP_ROUTE_IDS: ReadonlySet<string> = new Set(["/", "/$"]);
+export const AFTER_LCP_ROUTE_IDS: ReadonlySet<string> = new Set([
+  "/",
+  "/$",
+  "/blog/",
+  "/category/$slug",
+  "/tag/$slug",
+  "/author/$slug",
+]);
 
 /** Dopasowanie trasy - tylko pola, które czyta skład zestawu. */
 export interface BootMatch {

@@ -169,6 +169,9 @@ export function PostListCard({
           responsive
           sizes={imageSizes}
           priority={priority}
+          // Okładka z `priority` to kandydat LCP archiwum (pierwsza karta albo wyróżniona) -
+          // loader bootu czeka na jej wpis `largest-contentful-paint` (`bootSet.server.ts`).
+          data-lcp-candidate={priority ? "" : undefined}
           style={
             morphArmed && viewTransitionId
               ? { viewTransitionName: `post-cover-${viewTransitionId}` }
