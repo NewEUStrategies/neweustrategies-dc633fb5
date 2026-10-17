@@ -33,6 +33,7 @@ vi.mock("@/integrations/supabase/client", () => {
 vi.mock("@/lib/builder/contentRefs", () => ({ useResolvedPostRefs: () => new Map() }));
 
 import { PostsSliderWidget } from "../PostsSliderWidget";
+import { authorSizeFromTitle } from "@/lib/builder/authorDisplay";
 
 const POSTS = [
   {
@@ -166,15 +167,29 @@ describe("PostsSliderWidget - tryb prezentacji autora", () => {
 });
 
 describe("PostsSliderWidget - rozmiary metadanych autora", () => {
-  it("keeps the 12px / 20px defaults", async () => {
+  it("follows the slide title by default (title - 2 px, at most 16 px) with a 20px avatar", async () => {
     const { container } = await renderPostsSlider({});
+    await waitFor(() => expect(authorAvatar(container)).not.toBeNull());
+    const title = container.querySelector<HTMLElement>(".cms-post-title");
+    const titlePx = Number.parseFloat(getComputedStyle(title!).fontSize);
+    expect(authorAvatar(container)?.getAttribute("width")).toBe("20");
+    expect(authorBadge(container)?.hasAttribute("data-author-title-relative")).toBe(true);
+    expect(authorBadge(container)?.style.fontSize).toBe(`${authorSizeFromTitle(titlePx)}px`);
+  });
+
+  it("keeps the 12px / 20px defaults in fixed-size mode", async () => {
+    const { container } = await renderPostsSlider({ authorSizeRelativeToTitle: false });
     await waitFor(() => expect(authorAvatar(container)).not.toBeNull());
     expect(authorAvatar(container)?.getAttribute("width")).toBe("20");
     expect(authorBadge(container)?.style.fontSize).toBe("12px");
   });
 
   it("applies authorSizePx and authorAvatarSizePx on the canvas / public page", async () => {
-    const { container } = await renderPostsSlider({ authorSizePx: 19, authorAvatarSizePx: 41 });
+    const { container } = await renderPostsSlider({
+      authorSizeRelativeToTitle: false,
+      authorSizePx: 19,
+      authorAvatarSizePx: 41,
+    });
     await waitFor(() => expect(authorAvatar(container)).not.toBeNull());
     expect(authorAvatar(container)?.getAttribute("width")).toBe("41");
     expect(authorAvatar(container)?.style.height).toBe("41px");
@@ -182,7 +197,11 @@ describe("PostsSliderWidget - rozmiary metadanych autora", () => {
   });
 
   it("accepts numeric strings and clamps them", async () => {
-    const { container } = await renderPostsSlider({ authorSizePx: "7", authorAvatarSizePx: "33" });
+    const { container } = await renderPostsSlider({
+      authorSizeRelativeToTitle: false,
+      authorSizePx: "7",
+      authorAvatarSizePx: "33",
+    });
     await waitFor(() => expect(authorAvatar(container)).not.toBeNull());
     expect(authorAvatar(container)?.getAttribute("width")).toBe("33");
     expect(authorBadge(container)?.style.fontSize).toBe("8px");
