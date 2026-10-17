@@ -111,6 +111,10 @@ export function WidgetLivePreview({ widget, lang, device, mode }: Props) {
           style={stageStyle}
           data-builder-renderer="widget-props-preview"
           data-device={device}
+          // Ten sam znacznik typografii motywu co renderer kanwy i strony:
+          // bez niego nagłówki bez własnej typografii widgetu dostawały tu
+          // `revert` z panelu (18,72 px) zamiast rozmiaru z kanwy (26 px).
+          data-theme-typography
           {...(canPreviewHover && hover ? { [SOCIAL_HOVER_PREVIEW_ATTR]: "1" } : null)}
         >
           <BuilderModeProvider mode={mode}>

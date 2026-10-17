@@ -7566,16 +7566,49 @@ html[data-mbb="on"] [data-site-shell] {
    Wartości zastępcze to kontrakt domyślny: byline z domyślnymi rozmiarami nie
    powtarza zmiennych desktopowych w stylu inline (HW-6, P2.4 - na stronie
    głównej 33 awatary i ich nazwiska). Zmienne ustawia wyłącznie sam byline,
-   więc nie ma ich skąd odziedziczyć. */
+   więc nie ma ich skąd odziedziczyć.
+   Kanwa buildera i „Podgląd na żywo” udają telefon atrybutem urządzenia przy
+   desktopowej szerokości okna, więc w ich ramce mobilnej skalowanie desktopowe
+   NIE obowiązuje (`:where()` - bez wagi; strona publiczna bez zmian). */
 @media (min-width: 768px) {
-  [data-author-byline],
-  [data-author-byline] [data-author-byline-name],
-  [data-author-byline] [data-author-byline-label],
-  [data-author-byline] [data-author-byline-name] span {
+  [data-author-byline]:where(
+    :not(
+      [data-visual-canvas][data-device="mobile"] *,
+      [data-builder-renderer="widget-props-preview"][data-device="mobile"] *
+    )
+  ),
+  [data-author-byline]
+    [data-author-byline-name]:where(
+      :not(
+        [data-visual-canvas][data-device="mobile"] *,
+        [data-builder-renderer="widget-props-preview"][data-device="mobile"] *
+      )
+    ),
+  [data-author-byline]
+    [data-author-byline-label]:where(
+      :not(
+        [data-visual-canvas][data-device="mobile"] *,
+        [data-builder-renderer="widget-props-preview"][data-device="mobile"] *
+      )
+    ),
+  [data-author-byline]
+    [data-author-byline-name]
+    span:where(
+      :not(
+        [data-visual-canvas][data-device="mobile"] *,
+        [data-builder-renderer="widget-props-preview"][data-device="mobile"] *
+      )
+    ) {
     font-size: var(--abl-fs-desktop, 16px) !important;
   }
 
-  [data-author-byline] [data-author-byline-avatar] {
+  [data-author-byline]
+    [data-author-byline-avatar]:where(
+      :not(
+        [data-visual-canvas][data-device="mobile"] *,
+        [data-builder-renderer="widget-props-preview"][data-device="mobile"] *
+      )
+    ) {
     width: var(--abl-av-desktop, 24px) !important;
     height: var(--abl-av-desktop, 24px) !important;
     min-width: var(--abl-av-desktop, 24px) !important;
@@ -7584,9 +7617,59 @@ html[data-mbb="on"] [data-site-shell] {
     max-height: var(--abl-av-desktop, 24px) !important;
   }
 
-  [data-author-byline] span[data-author-byline-avatar] {
+  [data-author-byline]
+    span[data-author-byline-avatar]:where(
+      :not(
+        [data-visual-canvas][data-device="mobile"] *,
+        [data-builder-renderer="widget-props-preview"][data-device="mobile"] *
+      )
+    ) {
     font-size: var(--abl-av-fs-desktop, 13px) !important;
   }
+}
+
+/* Byline „tytuł minus 2 px” (`useAuthorTitleSize`). Zmierzony rozmiar przychodzi
+   w `--abl-title-relative-size` (`data-author-title-relative="measured"`).
+   Do pomiaru (`="pending"`: HTML z serwera i render hydratacji) rozmiar SZACUJE
+   ten arkusz z TYCH SAMYCH tokenów, z których tytuł karty liczy swój rozmiar:
+   `.cms-post-title` (15 px, ≤ 640 px: 14 px), rozmiar tytułu z typografii
+   widgetu (`--wt-tfs`, token `tfs` - reguła na końcu arkusza, w szablonie
+   HW-2) albo `--abl-title-fs` ustawione przez kartę o stałym tytule (ticker,
+   slider). Dzięki temu HTML z serwera ma ten
+   sam rozmiar, który pomiar potwierdza po hydratacji. Bez `:has()` - koszt
+   przeliczenia stylu (pomiar 2026-10-02); karta bez tytułu wyłącza tryb już
+   w renderze (`authorDisplayWithoutTitle`), a pomiar zdejmuje atrybut, gdy
+   w zakresie karty tytułu nie ma - wtedy obowiązuje rozmiar z panelu. */
+[data-author-title-relative] {
+  --abl-title-estimate: calc(var(--abl-title-fs, var(--td-pt-size, 15px)) - 2px);
+}
+@media (max-width: 640px) {
+  [data-author-title-relative] {
+    --abl-title-estimate: calc(var(--abl-title-fs, var(--td-pt-size-sm, 14px)) - 2px);
+  }
+}
+/* Tytuł-nagłówek `h3` bez klasy `text-*` w zasięgu `data-theme-typography`
+   bierze skalę H3 z „Opcji motywu” (reguła nagłówków niżej w tym arkuszu), nie
+   token `.cms-post-title` - karta mówi o tym wartością zakresu. Typografia
+   widgetu (`tfs`, reguła na końcu arkusza) wygrywa specyficznością, jak przy
+   samym tytule. */
+:is([data-theme-typography], [data-club-typography])
+  [data-author-title-scope="h3"]
+  [data-author-title-relative] {
+  --abl-title-fs: var(--fs-h3, 26px);
+}
+[data-author-title-relative],
+[data-author-title-relative] [data-author-byline-name],
+[data-author-title-relative] [data-author-byline-name] span {
+  font-size: var(--abl-title-relative-size, var(--abl-title-estimate)) !important;
+  line-height: 1.35 !important;
+}
+[data-author-byline] {
+  align-items: center !important;
+}
+[data-author-byline-name] {
+  min-width: 0;
+  align-self: center;
 }
 
 /* --- Menu konta w headerze (AccountMenuWidget) --------------------------- */
@@ -9722,4 +9805,10 @@ html[data-event-tabs-active] {
 [data-wt~="g"][data-w-id][data-w-id] [data-typography-gap-target],
 [data-wt~="g"][data-w-id][data-w-id] a + .cms-post-excerpt {
   margin-top: var(--cms-title-description-gap) !important;
+}
+/* `tfs` dla bylinu „tytuł minus 2 px”: szacunek przed pomiarem bierze rozmiar
+   tytułu z tej samej zmiennej co reguła `tfs` wyżej (urządzenie wybiera ta
+   sama bramka), więc HTML z serwera ma rozmiar, który pomiar potwierdzi. */
+[data-wt~="tfs"][data-w-id][data-w-id] [data-author-title-relative] {
+  --abl-title-fs: var(--wt-tfs);
 }

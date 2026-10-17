@@ -31,6 +31,7 @@ import {
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { StyleSink } from "@/components/theme/StyleSink";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { useAuthorTitleSize } from "@/components/molecules/useAuthorTitleSize";
 
 export type { TickerMode };
 
@@ -540,38 +541,62 @@ export function authorInitials(name: string): string {
     .join("");
 }
 
-/** Inline'owy autor (awatar + nazwisko) - używany przez skin `live`. */
+/**
+ * Inline'owy autor (awatar + nazwisko) - używany przez skin `live`. Kreska
+ * oddzielająca go od tytułu jest częścią autora: wpis bez autora nie zostawia
+ * wiszącej kreski. Nazwisko idzie za tytułem SWOJEGO wpisu (`.tt-live-title`,
+ * zakres `data-author-title-scope` na `.tt-item`); sam autor jest
+ * `data-author-title-ignore`, więc nigdy nie uchodzi za tytuł.
+ */
 function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
   const name = post.author_display_name?.trim() ?? "";
   const avatar = post.author_avatar_url?.trim() ?? "";
+  const titleSize = useAuthorTitleSize(name !== "");
   if (!name && !avatar) return null;
   return (
-    <span className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
-      {avatar ? (
-        <img
-          src={buildAvatarSrc(avatar, 20)}
-          srcSet={buildAvatarSrcSet(avatar, 20)}
-          decoding="async"
-          alt=""
-          loading="lazy"
-          width={20}
-          height={20}
-          className="tt-live-avatar h-5 w-5 rounded-[5px] object-cover"
-        />
-      ) : name ? (
-        <span
-          className="tt-live-avatar inline-flex h-5 w-5 items-center justify-center rounded-[5px] text-[9px] font-bold"
-          aria-hidden
-        >
-          {authorInitials(name)}
-        </span>
-      ) : null}
-      {name ? (
-        <span className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold">
-          {name}
-        </span>
-      ) : null}
-    </span>
+    <>
+      <span
+        aria-hidden
+        className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
+      />
+      <span
+        ref={titleSize.ref}
+        data-typography-exempt
+        data-author-title-ignore
+        className="tt-live-author inline-flex shrink-0 items-center gap-[5px]"
+      >
+        {avatar ? (
+          <img
+            src={buildAvatarSrc(avatar, 20)}
+            srcSet={buildAvatarSrcSet(avatar, 20)}
+            decoding="async"
+            alt=""
+            loading="lazy"
+            width={20}
+            height={20}
+            className="tt-live-avatar h-5 w-5 rounded-[5px] object-cover"
+          />
+        ) : name ? (
+          <span
+            className="tt-live-avatar inline-flex h-5 w-5 items-center justify-center rounded-[5px] text-[9px] font-bold"
+            aria-hidden
+          >
+            {authorInitials(name)}
+          </span>
+        ) : null}
+        {name ? (
+          <span
+            data-typography-exempt
+            style={
+              typeof titleSize.size === "number" ? { fontSize: `${titleSize.size}px` } : undefined
+            }
+            className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold"
+          >
+            {name}
+          </span>
+        ) : null}
+      </span>
+    </>
   );
 }
 
@@ -683,6 +708,7 @@ function TickerGlassMarquee({
             <AppLink
               key={`${p.id}-${i}`}
               href={itemHref(p)}
+              data-author-title-scope={skin === "live" ? "" : undefined}
               className="tt-item tt-glass-pill inline-flex items-center gap-2 whitespace-nowrap text-[13px] leading-none font-medium shrink-0"
               style={{ color: "var(--tt-item)", maxWidth: pillMax }}
               title={itemTitle(p, lang)}
@@ -705,11 +731,14 @@ function TickerGlassMarquee({
                 />
               )}
               <span className="tt-live-title min-w-0 truncate">{itemTitle(p, lang)}</span>
-              <span
-                aria-hidden
-                className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
-              />
-              {skin === "live" ? <TickerAuthor post={p} /> : null}
+              {skin === "live" ? (
+                <TickerAuthor post={p} />
+              ) : (
+                <span
+                  aria-hidden
+                  className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
+                />
+              )}
             </AppLink>
           ))}
         </div>
@@ -786,17 +815,21 @@ function TickerGlassCards({
               </span>
               <AppLink
                 href={itemHref(p)}
+                data-author-title-scope={skin === "live" ? "" : undefined}
                 className="tt-item flex min-w-0 items-center gap-2.5 text-[13px] leading-none font-medium"
                 style={{ color: "var(--tt-item)" }}
                 title={itemTitle(p, lang)}
                 tabIndex={i >= posts.length ? -1 : undefined}
               >
                 <span className="tt-live-title min-w-0 truncate">{itemTitle(p, lang)}</span>
-                <span
-                  aria-hidden
-                  className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
-                />
-                {skin === "live" ? <TickerAuthor post={p} /> : null}
+                {skin === "live" ? (
+                  <TickerAuthor post={p} />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="tt-live-separator inline-block w-px h-3.5 shrink-0 self-center"
+                  />
+                )}
               </AppLink>
             </div>
           ))}

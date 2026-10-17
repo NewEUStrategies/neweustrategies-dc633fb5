@@ -1,5 +1,15 @@
 # Roadmap
 
+## Podpisy autorów względem tytułów
+
+- [x] Pomiar tytułu tylko w obrębie karty: `data-author-title-scope` (karta, slajd, wiersz) albo `[data-w-id]`, bez wychodzenia do `<body>`; brak tytułu = rozmiar z panelu CMS, nazwisko w karcie autora z `data-author-title-ignore`. Jeden wspólny harmonogram rAF (jeden MutationObserver, ResizeObserver i nasłuch `resize` zamiast ~40 kompletów, wynik w jednym commicie przed malowaniem), pierwszy pomiar w efekcie layoutowym, arkusze Theme Design w `<head>` i `<body>` przeliczają podpisy. Pełny przebieg testów (4 shardy): 85 109 testów przechodzi; przełączenie urządzenia renderera w Chromium (390/700 px): 0 klatek z rozjazdem podpisu i tytułu.
+- [x] HTML z serwera = strona po hydracji: przed pomiarem rozmiar szacuje CSS z tych samych tokenów co tytuł (`.cms-post-title`, H3 motywu, `tfs`, stałe tytuły tickera i slidera), miejsca bez tytułu (cytat, metadane wpisu, karta autora, karta z ukrytym tytułem) mają rozmiar z panelu od SSR, nagłówek wpisu wraca do własnej typografii. Chromium bez JS, 1440/390 px: podpis = tytuł − 2 px w 12 konfiguracjach renderowanych na serwerze (post-lista z H3 motywu i z `tfs`, boxed-list, ticker, trending-now, wszystkie warianty slidera z bylinem, z rozmiarem i bez).
+- [x] `PostListView` rysuje podpis zwykłą funkcją (bez ponownego montowania przy re-renderze); ticker, trending-now, pasek „Na czasie” i cytat nie zostawiają pustej ramki ani kreski przy ukrytym autorze.
+- [x] Podgląd w builderze pokazuje wpisane wartości: tytuł slidera 26 px ma 26 px także w kanwie i w obu podglądach (zwarta typografia panelu nie wchodzi do `[data-w-id]` ani `.cms-post-title`), rozmiar autora wpisany w panelu jest dosłowny (11 px w kanwie desktop/mobile, w podglądzie i na stronie), podgląd slidera w „Treści” bierze typografię ze „Stylu”, scena „Podgląd na żywo” ma typografię motywu.
+- [x] Naprawić cofanie rozmiaru po opóźnionym wczytaniu autora, zmianie motywu i podmianie tytułu: stabilny ref reaguje na pojawienie się podpisu, obserwatory śledzą aktualny tytuł i Theme Design. 137 testów przechodzi; zalogowane /, /en i /analizy w 1280/393 px po odczekaniu i późnej zmianie CSS: wszystkie 36/36/18 podpisów mają różnicę 2 px i wspólny środek z awatarem, brak błędów przeglądarki.
+- [x] Wdrożyć wspólną, domyślną opcję CMS tytuł minus 2 px we wszystkich widżetach PL/EN i wyrównanie do środka awatara; zapis ustawień strony głównej potwierdzony przez CMS.
+- [x] Sprawdzić ustawienia edytora, testy i rzeczywiste podpisy na stronie: 88 testów, pomiary PL/EN oraz /analizy w 1280 i 393 px - różnica 2 px, wspólny środek awatara i tekstu, brak błędów przeglądarki.
+
 ## Weryfikacja PR #515
 
 - [x] Potwierdzić wszystkie commity i zakres zmian PR #515: 46 commitów, 331 ścieżek, brak zmian schematu bazy.

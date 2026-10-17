@@ -91,13 +91,16 @@ describe("SliderEditor - podgląd odzwierciedla sekcję Wyświetlanie", () => {
     expect(preview().querySelector("[data-author-byline]")).toBeNull();
   });
 
-  it("keeps author sizing identical to the canvas contract (12 / 20 by default)", async () => {
+  it("keeps author sizing identical to the canvas contract (title - 2 / 20 by default)", async () => {
     renderEditor({});
     await waitFor(() => expect(preview().querySelector("[data-author-byline] img")).not.toBeNull());
     const avatar = preview().querySelector<HTMLImageElement>("[data-author-byline] img");
     expect(avatar?.getAttribute("width")).toBe("20");
-    expect(preview().querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
-      "12px",
+    const title = preview().querySelector<HTMLElement>(".cms-post-title")!;
+    await waitFor(() =>
+      expect(preview().querySelector<HTMLElement>("[data-author-byline]")?.style.fontSize).toBe(
+        `${Number.parseFloat(getComputedStyle(title).fontSize) - 2}px`,
+      ),
     );
   });
 

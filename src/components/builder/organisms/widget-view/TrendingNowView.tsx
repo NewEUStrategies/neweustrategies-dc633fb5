@@ -4,13 +4,15 @@
 // szklana karta z inline'owym numerem, tytułem, awatarem i imieniem autora.
 // Dane pochodzą z tego samego zapytania co `news-ticker`, więc prefetch,
 // cache i de-duplikacja wpisów na stronie działają identycznie.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { hasAuthorByline, resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
@@ -20,6 +22,9 @@ import {
   newsTickerDisplayLimit,
   type TickerPost,
 } from "@/lib/builder/newsTickerQuery";
+
+/** Rozmiar tytułu wiersza (`text-[15px]`) - szacunek bylinu przed pomiarem. */
+const TRENDING_TITLE_PX = 15;
 
 function readStr(c: WidgetContent, key: string, dflt = ""): string {
   return asStr(c[key]) || dflt;
@@ -51,7 +56,12 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   const displayLimit = newsTickerDisplayLimit(c);
   const intervalSec = Math.max(2, Math.min(60, asNum(c.intervalSec, 5)));
   const pauseOnHover = asBool(c.pauseOnHover, true);
+  // Historyczny select „Autor” tego widgetu: autor schowany nim w dokumencie
+  // zostaje schowany (wspólna kontrolka panelu zapisuje ten klucz spójnie).
   const showAuthor = asBool(c.showAuthor, true);
+  const authorDisplay = resolveAuthorDisplay(c, lang);
+  // Bez zdjęcia byline to samo nazwisko, schowane na mobile - ramka razem z nim.
+  const authorFrameVisibility = authorDisplay.showAvatar ? "flex" : "hidden sm:flex";
   const showIndex = asBool(c.showIndex, true);
   const uniqueOnPage = asBool(c.uniqueOnPage, false);
 
@@ -132,42 +142,52 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
             if (pauseOnHover) e.currentTarget.style.animationPlayState = "running";
           }}
         >
-          {track.map((p, i) => (
-            <AppLink
-              key={`${p.id}-${i}`}
-              href={`/post/${p.slug}`}
-              title={title(p)}
-              aria-hidden={i >= rows.length ? true : undefined}
-              tabIndex={i >= rows.length ? -1 : undefined}
-              className="group flex h-12 shrink-0 items-center gap-3 px-5 transition-colors hover:bg-muted/40"
-            >
-              {showIndex ? (
-                <span className="shrink-0 text-[15px] font-bold tabular-nums text-[var(--brand)]">
-                  {String((i % rows.length) + 1).padStart(2, "0")}
+          {track.map((p, i) => {
+            const authorName = p.author_display_name?.trim() ?? "";
+            // Obramowana ramka autora istnieje TYLKO razem z bylinem - ukryty
+            // autor nie zostawia pustej kreski z odstępem.
+            const withAuthor = showAuthor && hasAuthorByline(authorName, authorDisplay);
+            return (
+              <AppLink
+                key={`${p.id}-${i}`}
+                href={`/post/${p.slug}`}
+                title={title(p)}
+                aria-hidden={i >= rows.length ? true : undefined}
+                tabIndex={i >= rows.length ? -1 : undefined}
+                data-author-title-scope={withAuthor ? "" : undefined}
+                style={
+                  withAuthor
+                    ? ({ "--abl-title-fs": `${TRENDING_TITLE_PX}px` } as CSSProperties)
+                    : undefined
+                }
+                className="group flex h-12 shrink-0 items-center gap-3 px-5 transition-colors hover:bg-muted/40"
+              >
+                {showIndex ? (
+                  <span className="shrink-0 text-[15px] font-bold tabular-nums text-[var(--brand)]">
+                    {String((i % rows.length) + 1).padStart(2, "0")}
+                  </span>
+                ) : null}
+                <span
+                  data-title-root
+                  className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]"
+                >
+                  {title(p)}
                 </span>
-              ) : null}
-              <span className="min-w-0 flex-1 truncate text-[15px] font-bold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
-                {title(p)}
-              </span>
-              {showAuthor && (p.author_avatar_url || p.author_display_name) ? (
-                <span className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-                  {p.author_avatar_url ? (
-                    <img
-                      src={p.author_avatar_url}
-                      alt=""
-                      loading="lazy"
-                      className="h-6 w-6 rounded-full object-cover ring-1 ring-border"
+                {withAuthor ? (
+                  <span
+                    className={`${authorFrameVisibility} shrink-0 items-center gap-2 border-l border-border pl-3`}
+                  >
+                    <AuthorByline
+                      name={authorName}
+                      avatarUrl={p.author_avatar_url}
+                      display={authorDisplay}
+                      nameClassName="hidden whitespace-nowrap sm:inline"
                     />
-                  ) : null}
-                  {p.author_display_name ? (
-                    <span className="hidden whitespace-nowrap text-[13px] font-semibold text-muted-foreground sm:inline">
-                      {p.author_display_name}
-                    </span>
-                  ) : null}
-                </span>
-              ) : null}
-            </AppLink>
-          ))}
+                  </span>
+                ) : null}
+              </AppLink>
+            );
+          })}
         </div>
         {keyframes ? (
           <style

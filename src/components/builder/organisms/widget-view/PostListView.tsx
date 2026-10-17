@@ -21,7 +21,11 @@ import {
   type Lang,
   type PostRow,
 } from "@/lib/builder/postListQuery";
-import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import {
+  authorDisplayWithoutTitle,
+  hasAuthorByline,
+  resolveAuthorDisplay,
+} from "@/lib/builder/authorDisplay";
 import { postListExcerptToggle, postListRendersExcerpt } from "@/lib/builder/postListExcerpt";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import type { SponsoredDisclosureInput } from "@/lib/content/sponsored";
@@ -138,6 +142,17 @@ export function PostListView({
   // Global display toggles - apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
+  // Karta bez tytułu nie ma czego mierzyć - rozmiar z panelu już w HTML-u
+  // z serwera. Z tytułem byline mierzy go w obrębie SWOJEJ karty/wiersza
+  // (`data-author-title-scope`), a nie w całym widgecie.
+  const bylineDisplay = showTitleGlobal ? authorDisplay : authorDisplayWithoutTitle(authorDisplay);
+  // Wartość zakresu mówi szacunkowi CSS (HTML z serwera), skąd tytuł bierze
+  // rozmiar: `h3` bez klasy `text-*` dostaje skalę H3 z „Opcji motywu”
+  // (`data-theme-typography` w `styles.css`). Tytuł z JAKĄKOLWIEK klasą
+  // `text-*` (lead `flex-grid`: `text-[1.35em]`, `boxed-list`:
+  // `group-hover:text-brand`) zostaje przy tokenie `.cms-post-title`.
+  const titleScope = showAuthorAny ? "h3" : undefined;
+  const tokenTitleScope = showAuthorAny ? "" : undefined;
   // Zajawka: JEDNO źródło z kluczem zapytania (P3.7b, T2) - wiersze widgetu, który
   // zajawki nie rysuje, przychodzą bez `excerpt_*` (`postListRendersExcerpt`).
   const showExcerptGlobal = postListExcerptToggle(c);
@@ -231,16 +246,20 @@ export function PostListView({
   // Byline NIE jest linkiem: karta/wiersz listy jest juz opakowana w <AppLink>,
   // a zagniezdzony <a> to nieprawidlowy HTML (przegladarka rozrywa DOM i psuje
   // nawigacje klawiatura).
-  const AuthorMeta = ({ p, tone = "default" }: { p: PostRow; tone?: "default" | "onDark" }) => {
-    if (!showAuthorAny) return null;
-    const name = authorName(p);
-    if (!name) return null;
+  //
+  // ZWYKŁA FUNKCJA, nie komponent zdefiniowany w renderze: komponent z ciała
+  // `PostListView` byłby przy każdym renderze NOWYM typem, więc React
+  // odmontowywał i montował byline od nowa (zdjęcie, pomiar tytułu, stan).
+  // Ten sam warunek co w molekule: pustego `div.cms-meta` nie rysujemy.
+  const authorMeta = (p: PostRow, tone: "default" | "onDark" = "default") => {
+    const name = authorName(p).trim();
+    if (!hasAuthorByline(name, bylineDisplay)) return null;
     return (
       <div className="cms-meta mt-2 flex min-w-0 items-center">
         <AuthorByline
           name={name}
           avatarUrl={p.author_avatar_url}
-          display={authorDisplay}
+          display={bylineDisplay}
           tone={tone}
         />
       </div>
@@ -312,8 +331,8 @@ export function PostListView({
             titleStyle={tStyle}
             excerptStyle={eStyle}
             lcp={i === 0 && lcp}
-            authorNode={<AuthorMeta p={p} />}
-            authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
+            authorNode={authorMeta(p)}
+            authorOverlayNode={authorMeta(p, "onDark")}
           />
         ))}
       </PostListCarousel>
@@ -327,6 +346,7 @@ export function PostListView({
           <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
+            data-author-title-scope={titleScope}
             className={`grid ${p.cover_image_url ? "grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-3 sm:gap-4 py-3 group`}
           >
             {p.cover_image_url && (
@@ -354,7 +374,7 @@ export function PostListView({
                   {excerpt(p)}
                 </p>
               )}
-              <AuthorMeta p={p} />
+              {authorMeta(p)}
             </div>
           </AppLink>
         ))}
@@ -397,7 +417,12 @@ export function PostListView({
         }
       >
         {rows.map((p, i) => (
-          <AppLink key={p.id} href={`/post/${p.slug}`} className="block py-4 sm:py-5 group">
+          <AppLink
+            key={p.id}
+            href={`/post/${p.slug}`}
+            data-author-title-scope={titleScope}
+            className="block py-4 sm:py-5 group"
+          >
             {/* Title-anchored wrapper - the number is positioned relative to this
                 box so its top edge aligns exactly with the title's top edge and
                 never overflows the row. */}
@@ -432,7 +457,7 @@ export function PostListView({
                     <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h3>
                 )}
-                {<AuthorMeta p={p} />}
+                {authorMeta(p)}
               </div>
             </div>
           </AppLink>
@@ -486,6 +511,7 @@ export function PostListView({
           <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
+            data-author-title-scope={titleScope}
             className={`post-list-numbered-row grid items-start gap-3 sm:gap-4 py-4 sm:py-5 group ${
               p.cover_image_url
                 ? "grid-cols-[minmax(0,1fr)_minmax(90px,32%)] sm:grid-cols-[minmax(0,1fr)_minmax(120px,28%)]"
@@ -528,7 +554,7 @@ export function PostListView({
                 {/* Byline: wariant numbered oferuje ustawienie "Autor" w
                     edytorze, wiec MUSI je tez rysowac. Wczesniej pole bylo
                     widoczne, zapisywalo sie i nie robilo nic. */}
-                <AuthorMeta p={p} />
+                {authorMeta(p)}
               </div>
             </div>
             {p.cover_image_url && (
@@ -552,7 +578,12 @@ export function PostListView({
     return (
       <div className="w-full flex flex-col gap-8">
         {rows.map((p, i) => (
-          <AppLink key={p.id} href={`/post/${p.slug}`} className="block group">
+          <AppLink
+            key={p.id}
+            href={`/post/${p.slug}`}
+            data-author-title-scope={titleScope}
+            className="block group"
+          >
             {p.cover_image_url && (
               <WidgetMediaImage
                 src={p.cover_image_url}
@@ -575,7 +606,7 @@ export function PostListView({
                 {excerpt(p)}
               </p>
             )}
-            <AuthorMeta p={p} />
+            {authorMeta(p)}
           </AppLink>
         ))}
       </div>
@@ -587,7 +618,11 @@ export function PostListView({
     const [lead, ...rest] = rows;
     return (
       <div className="w-full grid gap-5 md:gap-8 grid-cols-1 md:grid-cols-[1.35fr_minmax(0,1fr)]">
-        <AppLink href={`/post/${lead.slug}`} className="group block">
+        <AppLink
+          href={`/post/${lead.slug}`}
+          data-author-title-scope={tokenTitleScope}
+          className="group block"
+        >
           {lead.cover_image_url && (
             <div className="relative mb-3 sm:mb-4 overflow-hidden rounded-md">
               <WidgetMediaImage
@@ -614,7 +649,7 @@ export function PostListView({
               {excerpt(lead)}
             </p>
           )}
-          <AuthorMeta p={lead} />
+          {authorMeta(lead)}
         </AppLink>
         <ol className="flex flex-col">
           {rest.map((p, i) => (
@@ -664,6 +699,7 @@ export function PostListView({
           <AppLink
             key={p.id}
             href={`/post/${p.slug}`}
+            data-author-title-scope={tokenTitleScope}
             className={`group grid ${p.cover_image_url ? "grid-cols-[96px_minmax(0,1fr)] sm:grid-cols-[128px_minmax(0,1fr)] lg:grid-cols-[144px_minmax(0,1fr)]" : "grid-cols-1"} items-stretch gap-3 sm:gap-4 p-2.5 sm:p-3.5 rounded-lg bg-card border border-border/70 hover:border-brand/60 hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.18)] transition-all`}
           >
             {p.cover_image_url && (
@@ -691,7 +727,7 @@ export function PostListView({
                   {excerpt(p)}
                 </p>
               )}
-              <AuthorMeta p={p} />
+              {authorMeta(p)}
             </div>
           </AppLink>
         ))}
@@ -717,8 +753,8 @@ export function PostListView({
           titleStyle={tStyle}
           excerptStyle={eStyle}
           lcp={i === 0 && lcp}
-          authorNode={<AuthorMeta p={p} />}
-          authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
+          authorNode={authorMeta(p)}
+          authorOverlayNode={authorMeta(p, "onDark")}
         />
       ))}
     </div>
@@ -898,12 +934,16 @@ function PostCard({
   authorOverlayNode?: React.ReactNode;
 }) {
   const isBoxed = variant === "boxed-grid";
+  // Karta z bylinem jest zakresem pomiaru „tytuł minus 2 px” (tytuł TEJ karty,
+  // `h3` bez klasy rozmiaru - patrz `titleScope` w `PostListView`).
+  const titleScope = authorNode != null || authorOverlayNode != null ? "h3" : undefined;
   const base = `${isBoxed ? "bg-card" : "bg-transparent"} border border-border rounded-md overflow-hidden transition ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`;
 
   if (variant === "overlay" && p.cover_image_url) {
     return (
       <AppLink
         href={`/post/${p.slug}`}
+        data-author-title-scope={titleScope}
         className={`group relative block overflow-hidden rounded-md ring-1 ring-black/5 shadow-[0_4px_18px_-8px_rgba(0,0,0,0.35)] hover:shadow-[0_10px_28px_-10px_rgba(0,0,0,0.55)] transition-shadow min-h-[180px] sm:min-h-[220px] ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
       >
         <WidgetMediaImage
@@ -936,6 +976,7 @@ function PostCard({
     return (
       <AppLink
         href={`/post/${p.slug}`}
+        data-author-title-scope={titleScope}
         className={`block group ${carousel ? "w-full basis-full shrink-0 snap-start" : ""}`}
       >
         {p.cover_image_url && (
@@ -967,7 +1008,7 @@ function PostCard({
 
   // default - card
   return (
-    <AppLink href={`/post/${p.slug}`} className={base}>
+    <AppLink href={`/post/${p.slug}`} data-author-title-scope={titleScope} className={base}>
       {p.cover_image_url && (
         <WidgetMediaImage
           src={p.cover_image_url}

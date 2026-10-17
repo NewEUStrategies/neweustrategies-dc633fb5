@@ -759,10 +759,13 @@ const pl = {
       showName: "Imię i nazwisko autora",
       showAvatar: "Zdjęcie autora (awatar)",
       nameSize: "Rozmiar czcionki autora (px)",
+      relativeToTitle: "Rozmiar autora: tytuł minus 2 px",
+      nameSizeHint:
+        "Tam, gdzie karta nie ma tytułu (cytat, metadane), obowiązuje rozmiar domyślny: 12 px, na desktopie 16 px. Wpisana wartość wyłącza „tytuł minus 2 px” i obowiązuje dosłownie na każdym urządzeniu.",
       avatarSize: "Rozmiar zdjęcia autora (px)",
       labelText: "Etykieta autora (i18n)",
       labelHint: "Puste = „Autor” (PL) / „By” (EN).",
-      reset: "Przywróć domyślne (12 px / 20 px)",
+      reset: "Przywróć domyślne",
     },
     sliderEditor: {
       showTitle: "Pokaż tytuł",
@@ -2362,10 +2365,13 @@ const en: typeof pl = {
       showName: "Author full name",
       showAvatar: "Author photo (avatar)",
       nameSize: "Author font size (px)",
+      relativeToTitle: "Author size: title minus 2 px",
+      nameSizeHint:
+        "Where a card has no title (quote, meta) the default applies: 12 px, 16 px on desktop. A typed value turns off “title minus 2 px” and applies as typed on every device.",
       avatarSize: "Author photo size (px)",
       labelText: "Author label (i18n)",
       labelHint: 'Empty = "Autor" (PL) / "By" (EN).',
-      reset: "Reset to defaults (12 px / 20 px)",
+      reset: "Reset to defaults",
     },
     sliderEditor: {
       showTitle: "Show title",

@@ -14,6 +14,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 // komponent), więc asercja mierzy teraz wartość ze słownika.
 import "@/lib/i18n";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { useState } from "react";
 import type { Json, WidgetContent } from "@/lib/builder/types";
 
 // BEZ atrapy `react-i18next`: prawdziwy hak na prawdziwym słowniku (import
@@ -31,7 +32,12 @@ function renderControl(
 ) {
   const setContent = vi.fn<(k: string, v: Json) => void>();
   const view = render(
-    <AuthorDisplayControl c={c} lang="pl" setContent={setContent} defaults={defaults} />,
+    <AuthorDisplayControl
+      c={{ authorSizeRelativeToTitle: false, ...c }}
+      lang="pl"
+      setContent={setContent}
+      defaults={defaults}
+    />,
   );
   const written = (): Record<string, Json> =>
     Object.fromEntries(setContent.mock.calls.map(([k, v]) => [k, v]));
@@ -39,6 +45,12 @@ function renderControl(
 }
 
 afterEach(cleanup);
+
+it("zapisuje powiązanie rozmiaru autora z tytułem przez kontrolkę CMS", () => {
+  const { written } = renderControl({ authorSizeRelativeToTitle: false });
+  fireEvent.click(screen.getByRole("switch", { name: "Rozmiar autora: tytuł minus 2 px" }));
+  expect(written().authorSizeRelativeToTitle).toBe(true);
+});
 
 describe("AuthorDisplayControl - zapis widoczności", () => {
   it("wyłączenie zdjęcia zostawia nazwisko i przechodzi w tryb etykiety", () => {
@@ -223,5 +235,72 @@ describe("AuthorDisplayControl - etykieta autora", () => {
     renderControl({ showAuthorName: false, showAuthorAvatar: false });
     expect(screen.queryByLabelText("Rozmiar czcionki autora (px)")).toBeNull();
     expect(screen.queryByLabelText("Etykieta autora (i18n)")).toBeNull();
+  });
+});
+
+describe("AuthorDisplayControl - wpisany rozmiar widać w kanwie i podglądzie", () => {
+  it("pole rozmiaru jest widoczne także w trybie „tytuł minus 2 px” (z podpowiedzią)", () => {
+    renderControl({ authorSizeRelativeToTitle: true });
+    expect(screen.getByLabelText("Rozmiar czcionki autora (px)")).toHaveValue(12);
+    expect(screen.getByText(/Wpisana wartość wyłącza/)).toBeInTheDocument();
+  });
+
+  it("wpisanie rozmiaru przełącza na rozmiar stały, wyczyszczenie wraca do tytułu", () => {
+    const { setContent } = renderControl({ authorSizeRelativeToTitle: true });
+    const field = screen.getByLabelText("Rozmiar czcionki autora (px)");
+
+    fireEvent.change(field, { target: { value: "11" } });
+    expect(setContent).toHaveBeenCalledWith("authorSizePx", 11);
+    expect(setContent).toHaveBeenLastCalledWith("authorSizeRelativeToTitle", false);
+
+    fireEvent.change(field, { target: { value: "" } });
+    expect(setContent).toHaveBeenCalledWith("authorSizePx", 12);
+    expect(setContent).toHaveBeenLastCalledWith("authorSizeRelativeToTitle", true);
+  });
+});
+
+describe("AuthorDisplayControl - pole nie przeskakuje pod palcami", () => {
+  // Pole było sterowane wartością PRZYCIĘTĄ do zakresu: pierwsza cyfra „1”
+  // zamieniała się na 8, druga dawała „81” -> 24 px zamiast 11 px.
+  function Stateful() {
+    const [c, setC] = useState<WidgetContent>({ authorSizeRelativeToTitle: true });
+    return (
+      <AuthorDisplayControl
+        c={c}
+        lang="pl"
+        setContent={(k, v) => setC((prev) => ({ ...prev, [k]: v }))}
+      />
+    );
+  }
+
+  it.each([
+    ["Rozmiar czcionki autora (px)", "11"],
+    ["Rozmiar zdjęcia autora (px)", "44"],
+  ])("%s: wpisanie „%s” cyfra po cyfrze daje dokładnie tę wartość", (label, value) => {
+    render(<Stateful />);
+    const field = screen.getByLabelText(label) as HTMLInputElement;
+    let typedSoFar = "";
+    for (const digit of value) {
+      typedSoFar += digit;
+      fireEvent.change(field, { target: { value: typedSoFar } });
+      expect(field.value).toBe(typedSoFar);
+    }
+    expect(field).toHaveValue(Number(value));
+  });
+
+  it("wpisany rozmiar zdjęcia (także bazowe 20 px) zapisuje znacznik dosłowności", () => {
+    const { setContent } = renderControl({ authorAvatarSizePx: 30 });
+    const field = screen.getByLabelText("Rozmiar zdjęcia autora (px)");
+    fireEvent.change(field, { target: { value: "20" } });
+    expect(setContent).toHaveBeenCalledWith("authorAvatarSizePx", 20);
+    expect(setContent).toHaveBeenLastCalledWith("authorAvatarSizeExact", true);
+    fireEvent.change(field, { target: { value: "" } });
+    expect(setContent).toHaveBeenLastCalledWith("authorAvatarSizeExact", false);
+  });
+
+  it("reset wraca do kontraktu domyślnego zdjęcia (bez znacznika dosłowności)", () => {
+    const { written } = renderControl({ authorAvatarSizePx: 30, authorAvatarSizeExact: true });
+    fireEvent.click(screen.getByRole("button", { name: /Przywróć domyślne/ }));
+    expect(written()).toMatchObject({ authorAvatarSizePx: 20, authorAvatarSizeExact: false });
   });
 });

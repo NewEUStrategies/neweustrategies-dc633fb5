@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
+import { AuthorByline } from "@/components/molecules/AuthorByline";
+import {
+  hasAuthorByline,
+  resolveAuthorDisplay,
+  type AuthorDisplay,
+} from "@/lib/builder/authorDisplay";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { WidgetStyleSheet, WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
 import { useMotionGate } from "@/lib/performance/motionGate";
@@ -11,6 +17,12 @@ import {
   newsTickerDisplayLimit,
   type TickerPost,
 } from "@/lib/builder/newsTickerQuery";
+
+/**
+ * Rozmiar tytułu wiersza pionowego tickera dla szacunku bylinu: `text-[11px]`,
+ * które skala „Opcji motywu” (`data-theme-typography`) zamienia na `--tt-fs-xs`.
+ */
+const TICKER_TITLE_FS = "var(--tt-fs-xs, 11px)";
 
 function bool(c: WidgetContent, key: string, dflt: boolean): boolean {
   const v = c[key];
@@ -60,6 +72,8 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
 
   const title = (p: TickerPost) =>
     (lang === "pl" ? p.title_pl : p.title_en) || p.title_pl || p.title_en || "-";
+  // Jedna prezentacja autora na widget, nie po jednej na wiersz.
+  const authorDisplay = resolveAuthorDisplay(c, lang);
 
   if (isLoading && !rows.length) {
     return (
@@ -102,7 +116,13 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
   return (
     <NewsTickerVertical badge={badge} durationSec={speedSeconds} pauseOnHover={pauseOnHover}>
       {rows.map((p, i) => (
-        <NewsTickerVerticalItem key={p.id} post={p} index={i} title={title(p)} />
+        <NewsTickerVerticalItem
+          key={p.id}
+          post={p}
+          index={i}
+          title={title(p)}
+          authorDisplay={authorDisplay}
+        />
       ))}
     </NewsTickerVertical>
   );
@@ -112,40 +132,50 @@ function NewsTickerVerticalItem({
   post,
   index,
   title,
+  authorDisplay,
 }: {
   post: TickerPost;
   index: number;
   title: string;
+  authorDisplay: AuthorDisplay;
 }) {
-  const displayName = post.author_display_name || undefined;
+  const displayName = post.author_display_name?.trim() ?? "";
+  // Obramowana ramka autora istnieje TYLKO razem z bylinem (ten sam warunek co
+  // w molekule) - ukryty autor nie zostawia pustej kreski z odstępem. Bez
+  // zdjęcia byline to samo nazwisko, które na mobile jest schowane, więc
+  // ramka chowa się razem z nim.
+  const showAuthor = hasAuthorByline(displayName, authorDisplay);
+  const frameVisibility = authorDisplay.showAvatar ? "flex" : "hidden sm:flex";
 
   return (
     <AppLink
       href={`/post/${post.slug}`}
+      data-author-title-scope={showAuthor ? "" : undefined}
+      // Rozmiar tytułu wiersza (klasa niżej) dla szacunku bylinu przed
+      // pomiarem - HTML z serwera ma ten sam rozmiar co strona po hydratacji.
+      style={showAuthor ? ({ "--abl-title-fs": TICKER_TITLE_FS } as CSSProperties) : undefined}
       className="group flex h-11 shrink-0 items-center gap-2.5 px-4 pr-5 transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       title={title}
     >
       <span className="shrink-0 text-[10px] font-bold text-[var(--brand)] opacity-60">
         {String(index + 1).padStart(2, "0")}
       </span>
-      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]">
+      <span
+        data-title-root
+        className="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-[var(--brand-ink)]"
+      >
         {title}
       </span>
-      {post.author_avatar_url || displayName ? (
-        <span className="flex shrink-0 items-center gap-2 border-l border-border pl-3">
-          {post.author_avatar_url ? (
-            <img
-              src={post.author_avatar_url}
-              alt=""
-              loading="lazy"
-              className="h-5 w-5 rounded-[5px] object-cover shadow-sm ring-1 ring-border"
-            />
-          ) : null}
-          {displayName ? (
-            <span className="hidden sm:inline whitespace-nowrap text-[10px] font-medium text-muted-foreground">
-              {displayName}
-            </span>
-          ) : null}
+      {showAuthor ? (
+        <span
+          className={`${frameVisibility} shrink-0 items-center gap-2 border-l border-border pl-3`}
+        >
+          <AuthorByline
+            name={displayName}
+            avatarUrl={post.author_avatar_url}
+            display={authorDisplay}
+            nameClassName="hidden sm:inline whitespace-nowrap"
+          />
         </span>
       ) : null}
     </AppLink>

@@ -79,6 +79,10 @@ export function PostOverlayMeta({
     <span className="inline-flex flex-col">
       <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
         {author && name && (
+          // Autor bierze typografię paska metadanych, NIE rozmiar H1 wpisu:
+          // nagłówek wpisu nie jest kartą ani widgetem (`data-author-title-scope`
+          // / `data-w-id`), więc tryb „tytuł minus 2 px” nie ma tu zakresu - a HTML
+          // z serwera jest z definicji tym samym, co strona po hydratacji.
           <span className="inline-flex items-center gap-2">
             {author.avatar_url ? (
               authorHref ? (

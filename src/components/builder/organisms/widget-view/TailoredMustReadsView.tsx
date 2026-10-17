@@ -231,7 +231,13 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
             const authorName = author?.display_name?.trim() || "";
             const authorHref = author?.slug ? localizedPath(`/author/${author.slug}`, lang) : null;
             return (
-              <li key={p.id} className="group flex flex-col gap-3">
+              // Karta jest zakresem pomiaru „tytuł minus 2 px” - bez niego byline
+              // trafiałby na nagłówek sekcji (`h2`) zamiast na tytuł karty.
+              <li
+                key={p.id}
+                className="group flex flex-col gap-3"
+                data-author-title-scope={authorDisplay.visible ? "" : undefined}
+              >
                 <AppLink href={href} className="relative block w-full overflow-hidden rounded-md">
                   <WidgetMediaImage
                     src={p.cover_image_url}
