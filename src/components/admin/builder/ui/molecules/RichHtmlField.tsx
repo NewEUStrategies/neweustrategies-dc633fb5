@@ -22,7 +22,7 @@ import {
   Undo2,
   Redo2,
 } from "lucide-react";
-import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
+import { normalizeBuilderRichHtmlDom } from "@/lib/builder/normalizeRichHtmlDom";
 import "@/lib/i18n-builder";
 
 interface Props {
@@ -56,7 +56,7 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
     const el = ref.current;
     if (!el) return;
     if (document.activeElement === el) return;
-    const normalized = normalizeBuilderRichHtml(value ?? "");
+    const normalized = normalizeBuilderRichHtmlDom(value ?? "");
     if (normalized !== el.innerHTML) {
       el.innerHTML = normalized;
       lastEmitted.current = normalized;
@@ -66,7 +66,7 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
   const emit = () => {
     const el = ref.current;
     if (!el) return;
-    const html = normalizeBuilderRichHtml(el.innerHTML);
+    const html = normalizeBuilderRichHtmlDom(el.innerHTML);
     if (html !== el.innerHTML) el.innerHTML = html;
     lastEmitted.current = html;
     onChange(html);

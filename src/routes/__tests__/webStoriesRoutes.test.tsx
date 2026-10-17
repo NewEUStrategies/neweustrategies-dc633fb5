@@ -126,6 +126,7 @@ import { renderRoute, routeHead } from "@/test/routeHarness";
 import type { RouteHeadResult } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { keyAction } from "@/lib/web-stories/viewerNav";
+import { buildImageSrcSet } from "@/lib/cropSizes";
 import { Route as WebStoriesIndexRoute } from "@/routes/web-stories.index";
 import { Route as WebStoryRoute } from "@/routes/web-stories.$slug";
 
@@ -616,6 +617,44 @@ describe("trasa /web-stories/$slug - treść historii", () => {
     expect(h.linkHeaders).toEqual([]);
   });
 
+  it("preload okładki: nagłówek `Link` + obraz high, bez duplikatu z head()", async () => {
+    // `<head>` dostaje preload od Reacta 19 z `<img fetchPriority="high">`
+    // okładki (klucz: srcSet + sizes); link z `head()` trafiał tam bez
+    // deduplikacji jako drugi, identyczny preload (`documentPreloadDuplicates`).
+    // Zostaje nagłówek `Link` loadera - i musi wskazywać DOKŁADNIE ten wariant
+    // responsywny, który maluje obraz, inaczej przeglądarka pobierze plik dwa razy.
+    // Adres w kształcie Supabase Storage - tylko dla takiego `buildImageSrcSet`
+    // generuje warianty, a bez wariantów `sizes` nie ma znaczenia.
+    const cover = "https://przyklad.supabase.co/storage/v1/object/public/media/historia/zima.jpg";
+    h.stories = [story({ cover_url: cover })];
+    const view = await mountStory();
+    await screen.findByRole("heading", { level: 1 });
+
+    const headImagePreloads = view
+      .links()
+      .filter((link) => link.rel === "preload" && link.as === "image");
+    expect(headImagePreloads).toEqual([]);
+    const images = view.container.querySelectorAll<HTMLImageElement>('img[fetchpriority="high"]');
+    expect(images).toHaveLength(1);
+    const srcset = images[0].getAttribute("srcset");
+    const sizes = images[0].getAttribute("sizes");
+    expect(srcset).toBe(buildImageSrcSet(cover));
+    expect(sizes).toBeTruthy();
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(h.linkHeaders[0]).toContain(`<${cover}>`);
+    expect(h.linkHeaders[0]).toContain(`imagesrcset="${srcset}"`);
+    expect(h.linkHeaders[0]).toContain(`imagesizes="${sizes}"`);
+  });
+
+  it("dane loadera NIE niosą deskryptora preloadu - `head()` go nie czyta", async () => {
+    // Deskryptor jechałby w dehydratowanym ładunku SSR do każdego czytelnika,
+    // choć nikt go już nie konsumuje.
+    const loaderData = await storyLoaderData();
+
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(loaderData).not.toHaveProperty("coverPreload");
+  });
+
   it("nie zostawia strony historii z wadami dostępności", async () => {
     const view = await mountStory();
     await screen.findByRole("heading", { level: 1 });
@@ -881,6 +920,17 @@ describe("trasa /web-stories/$slug - nagłówek dokumentu", () => {
 
     expect(metaContent(head, "name", "description")).toBe("This web story is unavailable.");
     expect(metaContent(head, "name", "robots")).toBe("noindex");
+  });
+
+  it("historia Z okładką GŁOSI AMP, ale `head()` NIE preloaduje okładki (robi to React 19)", async () => {
+    // Kontrola dodatnia do testu niżej: okładka jest, więc `amphtml` stoi -
+    // a mimo to w `links` nie ma preloadu obrazu. Ten wstawia do `<head>` sam
+    // React z obrazu okładki w powłoce; link z `head()` byłby jego duplikatem.
+    const loaderData = await storyLoaderData();
+    const head = routeHead(WebStoryRoute, { params: { slug: SLUG }, loaderData });
+
+    expect(linkHref(head, "amphtml")).toBe(`/web-stories/${SLUG}/amp`);
+    expect((head.links ?? []).some((l) => l.rel === "preload")).toBe(false);
   });
 
   it("historia BEZ okładki nie GŁOSI dokumentu AMP i nie preloaduje niczego", async () => {

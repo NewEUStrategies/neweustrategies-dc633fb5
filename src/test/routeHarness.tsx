@@ -112,7 +112,11 @@ export interface RenderedRoute extends RenderResult {
   searchStr: () => string;
   /** `meta` z `head()` dopasowanej trasy - to, co trafiłoby do `<HeadContent/>`. */
   meta: () => RouteMetaEntry[];
-  /** `links` z `head()` - m.in. kanoniczny adres i preload obrazu LCP. */
+  /**
+   * `links` z `head()` - m.in. kanoniczny adres. Preload obrazu LCP tu NIE
+   * trafia: wysyła go loader nagłówkiem `Link`, a do `<head>` wstawia React
+   * z `<img fetchPriority="high">` (tego render kliencki nie pokazuje).
+   */
   links: () => RouteMetaEntry[];
   /**
    * `scripts` z `head()` - m.in. warstwa encji JSON-LD strony głównej.

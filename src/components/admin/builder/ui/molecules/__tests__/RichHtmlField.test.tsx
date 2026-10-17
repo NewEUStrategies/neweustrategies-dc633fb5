@@ -5,7 +5,7 @@
 //  1. KTÓRE polecenie wysyła każdy przycisk paska (pomyłka „bold” <-> „italic”
 //     jest niewidoczna w kodzie i natychmiast widoczna dla redakcji);
 //  2. że wartość wychodząca z pola jest ZNORMALIZOWANA
-//     (`normalizeBuilderRichHtml`), a nie surowym HTML-em z przeglądarki;
+//     (`normalizeBuilderRichHtmlDom`), a nie surowym HTML-em z przeglądarki;
 //  3. że wklejanie z Worda/Google Docs idzie przez `parseWordInlineHtml`,
 //     a wklejanie tekstu - przez `insertText`, nigdy przez `insertHTML`;
 //  4. że synchronizacja z zewnątrz NIE nadpisuje pola w trakcie pisania

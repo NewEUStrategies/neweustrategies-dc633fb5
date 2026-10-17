@@ -226,8 +226,14 @@ describe("boot root from the server artifact (Oxc-minified, nested Nitro chunks)
     // Chunki rodzin leniwych pod `app-initial` - artefakt aplikacji ma je zawsze; ich BRAK
     // znaczy, że `app-initial` wciągnął rodzinę do bootu (check:entry-purity).
     for (const family of LAZY_FAMILIES) put(dir, `assets/${family}-Fam0001x.js`, "export {};");
+    // `vendor-tw-merge` to grupa `boot(...)`: listy preloadu `import()` ją pomijają, więc w
+    // artefakcie aplikacji wejście importuje ją statycznie (check:entry-purity pilnuje).
+    put(dir, "assets/index-ABCabc12.js", BOOT_ENTRY);
     return dir;
   }
+  const BOOT_ENTRY =
+    'import "./vendor-react-AbCd1234.js";import "./vendor-tw-merge-EfGh5678.js";' +
+    'import("./lazy-ZyxW4321.js");';
   const LAZY_FAMILIES = CLIENT_CHUNK_GROUPS.filter(
     (group) => (group.priority ?? 0) < CHUNK_PRIORITY.initial,
   ).map((group) => group.debugName!);
@@ -248,7 +254,8 @@ describe("boot root from the server artifact (Oxc-minified, nested Nitro chunks)
     const purity = () => runGate("scripts/check-entry-purity.ts", dir, [], noOverride);
     const clean = purity();
     expect(clean.status, clean.output).toBe(0);
-    expect(clean.output).toContain("Sciezka bootowania: index-ABCabc12.js -> 2 chunkow");
+    expect(clean.output).toContain("Sciezka bootowania: index-ABCabc12.js -> 3 chunkow");
+    expect(clean.output).toContain("listy preloadu:    2 chunkow bootu pominietych");
     // `legal-links` jest leniwy z definicji (grupa w scripts/lib/clientChunkGroups.ts): statyczna
     // krawędź z wejścia to błąd priorytetu grupy albo zgubiony `import()`.
     put(dir, "assets/legal-links-LgLn1234.js", "export default 1;");
@@ -272,5 +279,24 @@ describe("boot root from the server artifact (Oxc-minified, nested Nitro chunks)
     expect(absorbed.status).toBe(1);
     expect(absorbed.output).toContain("post-card (rodzina leniwa bez chunku)");
     expect(absorbed.output).not.toContain("sanitize (rodzina leniwa bez chunku)");
+  });
+
+  it("check:entry-purity: chunk pomijany w listach preloadu MUSI być w domknięciu wejścia", () => {
+    // Grupa `boot(...)` (scripts/lib/clientChunkGroups.ts), która przestała być statycznie
+    // osiągalna z wejścia: listy `import()` nadal by ją pomijały (scripts/lib/clientModulePreload.ts),
+    // więc leniwe chunki pobierałyby ją kaskadą. Sam wzrost bootu tego nie pokaże - to brak.
+    const dir = serverFixture();
+    put(
+      dir,
+      "assets/index-ABCabc12.js",
+      'import "./vendor-react-AbCd1234.js";import("./lazy-ZyxW4321.js");',
+    );
+    const drift = runGate("scripts/check-entry-purity.ts", dir, [], noOverride);
+    expect(drift.status).toBe(1);
+    expect(drift.output).toContain("pomijaja chunki, ktorych NIE MA w domknieciu wejscia");
+    expect(drift.output).toContain("• vendor-tw-merge-EfGh5678.js");
+    expect(drift.output).not.toContain("• vendor-react-");
+    // Chunk spoza grup `boot(...)` (np. leniwy `lazy`) poza domknięciem to norma, nie dryf.
+    expect(drift.output).not.toContain("• lazy-");
   });
 });

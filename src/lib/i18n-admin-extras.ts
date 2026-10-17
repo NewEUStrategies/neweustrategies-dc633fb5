@@ -3,9 +3,13 @@
 // rendered as raw keys or as a hardcoded, often Polish-only defaultValue.
 // Registered via addResourceBundle (deep-merge) so it only fills the missing
 // leaves without touching existing admin bundles. Loaded via the named
-// ensureI18n() binding from the /admin layout route (covers every admin page)
-// and from CompanyPickerDialog (the one company.* consumer outside /admin),
+// ensureI18n() binding from the /admin layout route (covers every admin page),
 // matching the lib/i18n-* overlay pattern.
+//
+// TYLKO PANEL. Żaden moduł osiągalny z trasy publicznej nie importuje tej
+// nakładki - inaczej cały słownik (~19 KB gzip) liczy się do sumy PUBLIC
+// `check:bundle`. Gałąź `company.*` (jedyny czytelnik: publiczny
+// `profile/CompanyPickerDialog`) wyjechała dlatego do `i18n-company.ts`.
 import i18n from "./i18n";
 
 export const adminExtrasPl = {
@@ -792,7 +796,7 @@ export const adminExtrasPl = {
         "Obrazek, który widzą odbiorcy po wklejeniu linku w Messengerze, WhatsAppie, LinkedIn, X czy Slacku. Zalecany format: 1200x630 px, JPG/PNG, poniżej 1 MB.",
       title: "Podgląd linków (og:image)",
     },
-    // Ekran `/admin/tags` (rdzeń ma tu tylko `placeholder`). Nazwa tagu siedzi
+    // Ekran `/admin/tags` (słownik panelu `i18n-admin-core` ma tu tylko `placeholder`). Nazwa tagu siedzi
     // w etykiecie ×, bo chipy stoją rzędem: samo „Usuń” nie mówi czytnikowi
     // ekranu, KTÓRY tag zniknie.
     tags: {
@@ -892,9 +896,6 @@ export const adminExtrasPl = {
       variant: "Wariant",
     },
   },
-  builder: {
-    sectionLoading: "Wczytywanie sekcji…",
-  },
   common: {
     creating: "Tworze…",
     deleting: "Usuwam…",
@@ -903,49 +904,13 @@ export const adminExtrasPl = {
     edit: "Edytuj",
     reset: "Przywróć domyślne",
   },
-  company: {
-    back: "Wróć do wyszukiwania",
-    createDesc: "Wymagana jest tylko nazwa. Pozostałe dane możesz uzupełnić później.",
-    createNamed: "Dodaj nową firmę:",
-    createTitle: "Dodaj nową firmę",
-    detach: "Odłącz firmę",
-    errors: {
-      createFailed: "Nie udało się dodać firmy",
-      linkFailed: "Nie udało się przypisać firmy",
-      nameRequired: "Nazwa jest wymagana",
-    },
-    fields: {
-      address: "Adres",
-      branch: "Oddział / dział",
-      city: "Miasto",
-      country: "Kraj",
-      name: "Nazwa",
-      phone: "Telefon",
-      postalCode: "Kod pocztowy",
-      website: "Strona WWW",
-    },
-    noMatches: "Brak dopasowań",
-    pickDesc: "Wpisz nazwę firmy - podpowiedzi zaciągają się z CRM.",
-    pickTitle: "Wybierz firmę",
-    save: "Dodaj firmę",
-    searchPh: "np. New European Strategies",
-    startTyping: "Zacznij pisać, aby zobaczyć firmy",
-    toast: {
-      created: "Firma dodana",
-      detached: "Firma odłączona",
-      linked: "Firma przypisana",
-    },
-  },
   // `linkPicker.*` NIE tutaj: jedyny czytelnik (`LinkPicker.tsx`) importuje
   // `i18n-builder` wprost, a druga kopia z overwrite=true podmieniała napis
   // buildera w całym panelu. `nav.account` i `builder.sectionLoading` czytają
   // komponenty PUBLICZNE bez własnej nakładki (`AccountMenuWidget`,
-  // `sectionStreaming`), więc zostają - ale w brzmieniu buildera. Wcześniej PL
-  // miało tu angielskie „Account menu", które po wizycie w panelu trafiało do
-  // czytnika ekranu na polskiej stronie publicznej.
-  nav: {
-    account: "Menu konta",
-  },
+  // `sectionStreaming`), więc należą do RDZENIA (`locale/*.ts`). Ta nakładka
+  // dawała je publicznemu /profile tylko przypadkiem (import z dialogu firmy),
+  // a każda inna strona publiczna czytała goły klucz.
   themeOptions: {
     sections: {
       fontSizes: "Rozmiary czcionek",
@@ -1763,50 +1728,11 @@ export const adminExtrasEn = {
       variant: "Variant",
     },
   },
-  builder: {
-    sectionLoading: "Loading the section…",
-  },
   common: {
     creating: "Creating…",
     deleting: "Deleting…",
     edit: "Edit",
     reset: "Restore defaults",
-  },
-  company: {
-    back: "Back to search",
-    createDesc: "Only the name is required. You can fill in the rest later.",
-    createNamed: "Add a new company:",
-    createTitle: "Add a new company",
-    detach: "Detach company",
-    errors: {
-      createFailed: "Failed to add company",
-      linkFailed: "Failed to link company",
-      nameRequired: "Name is required",
-    },
-    fields: {
-      address: "Address",
-      branch: "Branch / department",
-      city: "City",
-      country: "Country",
-      name: "Name",
-      phone: "Phone",
-      postalCode: "Postal code",
-      website: "Website",
-    },
-    noMatches: "No matches",
-    pickDesc: "Enter a company name - suggestions are pulled from the CRM.",
-    pickTitle: "Select a company",
-    save: "Add company",
-    searchPh: "e.g. New European Strategies",
-    startTyping: "Start typing to see companies",
-    toast: {
-      created: "Company added",
-      detached: "Company detached",
-      linked: "Company linked",
-    },
-  },
-  nav: {
-    account: "Account menu",
   },
   themeOptions: {
     sections: {

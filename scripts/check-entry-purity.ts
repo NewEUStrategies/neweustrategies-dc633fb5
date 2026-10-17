@@ -43,6 +43,7 @@ import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import { CHUNK_PRIORITY, CLIENT_CHUNK_GROUPS } from "./lib/clientChunkGroups";
+import { isBootChunkFile } from "./lib/clientModulePreload";
 
 /** Pakiet zewnętrzny + literały, po których go rozpoznajemy w zminifikowanym chunku. */
 interface ForbiddenSdk {
@@ -159,6 +160,26 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
       "(`AdminSession` w routes/admin.tsx) - nigdy z `beforeLoad`/`loader`/`head`, " +
       "bo te jadą w chunku wejściowym",
   },
+  // 2026-10-17: `admin.*` i `blocks.*` WYJĘTE Z RDZENIA JĘZYKA (`locale/pl.ts`,
+  // `locale/en.ts`) do nakładek panelu. Rdzeń nie jest w domknięciu bootu
+  // (dociąga go `import()` z top-level awaitu), ale te dwa słowniki NIE MOGĄ
+  // trafić do bootu w zamian - np. przez kotwicę w `beforeLoad` albo
+  // side-effectowy import w pliku trasy. Znacznikiem jest zdanie PL z każdej
+  // nakładki, którego nie ma nigdzie indziej w `src`.
+  {
+    label: "i18n-admin-core (słownik panelu `admin.*`, dawniej w rdzeniu języka)",
+    markers: ["Przypisz kolor tła pigułki dla każdej głównej kategorii"],
+    remedy:
+      "`ensureI18n()` z `lib/i18n-admin-core` wołaj wyłącznie w `AdminSession` " +
+      "(routes/admin.tsx, część po hydratacji) - jak `i18n-admin-extras` wyżej",
+  },
+  {
+    label: "i18n-admin-blocks (słownik edytora bloków `blocks.*`, dawniej w rdzeniu języka)",
+    markers: ["Szukaj bloku..."],
+    remedy:
+      "importuj `lib/i18n-admin-blocks` tylko z modułów edytora bloków " +
+      "(`components/admin/blocks/**`, `lib/blocks/i18n.ts`), nigdy z pliku trasy ani powłoki",
+  },
   // 2026-09-26: FUNKCJE UCZESTNIKA F1-F5 (spec B.11-5, B.14). Osiem nowych
   // nakładek, po jednym znaczniku na każdą - znacznikiem jest zdanie PL
   // z zasiewu nakładki (wartość przeżywa minifikację). Właściciel nakładki
@@ -237,6 +258,18 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
     markers: ["Profile członków społeczności widzą wyłącznie zalogowane osoby."],
     remedy:
       "`head()` czyta `MEMBER_PROFILE_HEAD` z `lib/profile/memberProfileHead.ts`; słownik importuje wyłącznie komponent trasy (`ensureI18n()`)",
+  },
+  // 2026-10-17: ten sam wzorzec co wpis z 2026-08-18 wyżej - `import
+  // "@/lib/i18n-admin-users"` (bez referencji) w pliku trasy
+  // `admin.users.invitations` zostawał w niedzielonej części pliku, więc
+  // słownik karty użytkownika (15,3 kB źródeł) jechał w `app-initial`, czyli
+  // w bootcie KAŻDEJ strony publicznej. Znacznik: zdanie wyniku zaproszenia.
+  {
+    label: "i18n-admin-users (słownik karty i zaproszeń użytkowników, ~15 kB źródeł)",
+    markers: ["Tej roli nie można nadać zaproszeniem. Wybierz rolę z listy."],
+    remedy:
+      "w pliku trasy zamień side-effectowy import słownika na " +
+      "`import { ensureI18n } from …` wołane w komponencie trasy (wzorzec: admin.users.index)",
   },
 ];
 
@@ -513,11 +546,19 @@ function main(): void {
   // łączenie małych chunków (fala 2: atom ikon klubu wkleił do wejścia cały `vendor-lucide`,
   // +18 KB gzip; 2026-10-10 znów, przez atom znacznika dostępu). Na Rolldownie zrobi to statyczny
   // import z modułu bootowego albo moduł leniwy w chunku grupy, który chunk bootu importuje.
+  //
+  // `officeZip`: czytnik archiwów podglądu .docx/.pptx z `fflate`
+  // (src/lib/files/vendor/officeZip.ts; ~4 KB gzip plus fasada 0,1 KB - obie
+  // nazwy po zdjęciu skrótu to `officeZip`). Od 2026-10-17 to on, nie jszip,
+  // czyta archiwa w przeglądarce (scripts/lib/officeParserTrim.ts), więc
+  // `vendor-jszip` w buildzie klienta już nie powstaje - zostaje na liście
+  // jako bezpiecznik na wypadek nowego klienckiego importera jszip.
   const LAZY_CHUNKS = [
     "vendor-lucide",
     "vendor-radix",
     "vendor-sonner",
     "vendor-jszip",
+    "officeZip",
     "legal-links",
   ];
   for (const chunk of bootGraph) {
@@ -556,10 +597,28 @@ function main(): void {
     );
   }
 
+  // ODWROTNY KIERUNEK: chunki, które listy preloadu `import()` POMIJAJĄ jako bootowe (grupy
+  // `boot(...)` i runtime Rolldowna - scripts/lib/clientModulePreload.ts, ten sam predykat), MUSZĄ
+  // leżeć w domknięciu wejścia. Tylko wtedy są pobrane, zanim ruszy jakikolwiek `import()`. Chunk
+  // oznaczonej grupy POZA domknięciem (grupa stała się leniwa - zysk, nie błąd) pobierałby się
+  // kaskadą za każdym leniwym chunkiem, który go importuje, bo z jego listy zniknął. Naprawa jest
+  // jedna: zdjąć oznaczenie `boot(...)` z grupy.
+  const preloadSkipped = files.filter((f) => isBootChunkFile(f));
+  const preloadDrift = preloadSkipped.filter((f) => !bootGraph.has(f));
+
   console.log(
     `Sciezka bootowania: ${boot.join(", ")} -> ${bootGraph.size} chunkow statycznie osiagalnych ` +
       `(z ${files.length}). Wage tego domkniecia bramkuje floor \`boot\` w check:bundle.`,
   );
+
+  if (preloadDrift.length > 0) {
+    console.error(
+      "\n✗ Listy preloadu `import()` pomijaja chunki, ktorych NIE MA w domknieciu wejscia:\n" +
+        preloadDrift.map((f) => `  • ${f}`).join("\n") +
+        "\n  Leniwe chunki zalezne od nich pobieralyby je kaskada. Zdejmij oznaczenie `boot(...)`\n" +
+        "  z ich grupy w scripts/lib/clientChunkGroups.ts (runtime Rolldowna: `BOOT_CHUNK_NAMES`).",
+    );
+  }
 
   if (violations.length > 0) {
     console.error(
@@ -572,12 +631,14 @@ function main(): void {
     );
     process.exit(1);
   }
+  if (preloadDrift.length > 0) process.exit(1);
 
   console.log(
     "✓ Sciezka bootowania czysta.\n" +
       `  SDK operatora:     ${FORBIDDEN_SDKS.map((s) => s.label).join(", ")}\n` +
       `  ciezkie slowniki:  ${HEAVY_DICTIONARIES.map((d) => d.label.split(" ")[0]).join(", ")}\n` +
-      `  ciezkie moduly:    ${HEAVY_MODULES.map((m) => m.label.split(" ")[0]).join(", ")}`,
+      `  ciezkie moduly:    ${HEAVY_MODULES.map((m) => m.label.split(" ")[0]).join(", ")}\n` +
+      `  listy preloadu:    ${preloadSkipped.length} chunkow bootu pominietych, wszystkie w domknieciu`,
   );
 }
 

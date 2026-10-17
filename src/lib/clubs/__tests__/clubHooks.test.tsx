@@ -7,8 +7,9 @@
 // rzeczy, których react-query za nas nie sprawdzi:
 //
 //   1. KLUCZ CACHE'U. Zapytanie o klub A nie może trafić w wpis klubu B,
-//      a zmiana rozmiaru strony ma dawać osobny wpis (bez tego „pokaż więcej"
-//      trafiało w ten sam wpis i katalog zostawał na setce).
+//      a katalog na hubie siedzi pod prefiksem `list()`, w który celują
+//      inwalidacje po dołączeniu/wyjściu (inaczej karty zostają ze starym
+//      stanem członkostwa).
 //   2. BRAMKA `enabled`. Hook wywołany bez identyfikatora NIE MOŻE odpytać
 //      bazy - inaczej każdy render przed dojechaniem trasy to round-trip
 //      po odpowiedź „nie ma takiego klubu".
@@ -163,20 +164,150 @@ beforeEach(() => resetClubApiMock());
 // Odczyt produktowy
 // ---------------------------------------------------------------------------
 
-describe("useClubList", () => {
-  it("LIMIT jest częścią klucza - inaczej 'pokaż więcej' trafia w stary wpis", async () => {
+describe("useClubList - katalog porcjami po offsecie", () => {
+  // „Pokaż więcej" rosło dotąd przez `p_limit`, a A13 tnie stronę `club_list`
+  // do 200 - powyżej 200 klubów lista stawała, licznik mówił o całości,
+  // a przycisk nie robił nic. Porcja ma teraz stały rozmiar, kolejne idą
+  // przez offset, a hook oddaje katalog już sklejony.
+
+  /**
+   * Hook czytany TAK, JAK CZYTA GO TRASA - pola wyciągnięte w renderze.
+   * react-query v5 śledzi, które pola wyniku ktoś przeczytał, i nie
+   * przerysowuje dla zmian pól nieczytanych; `result.current.data` sięgnięte
+   * dopiero po `fetchNextPage()` zostawałoby na pierwszej porcji, choć cache
+   * ma już dwie.
+   */
+  function renderCatalog(wrapper: ({ children }: { children: ReactNode }) => ReactNode) {
+    return renderHook(
+      () => {
+        const q = useClubList(true);
+        return {
+          isSuccess: q.isSuccess,
+          rows: q.data?.rows ?? [],
+          total: q.data?.total,
+          hasNextPage: q.hasNextPage,
+          fetchNextPage: q.fetchNextPage,
+        };
+      },
+      { wrapper },
+    );
+  }
+
+  /** Katalog `total` klubów w porządku serwera; odpowiada wycinkiem po offsecie. */
+  function serveCatalog(total: number, cap = 200) {
+    const all = Array.from({ length: total }, (_, i) => ({ id: `club-${i}`, total_count: total }));
+    clubApiMock.fetchClubList.mockImplementation(
+      async ({ limit, offset }: { limit: number; offset: number }) => {
+        const rows = all.slice(offset, offset + Math.min(limit, cap));
+        return { rows, total: rows.length > 0 ? total : 0 };
+      },
+    );
+  }
+
+  it("pierwsza porcja to { limit: 100, offset: 0 } - to samo zapytanie co przed zmianą", async () => {
     const { wrapper } = harness();
-    clubApiMock.fetchClubList.mockResolvedValue({ rows: [], total: 0 });
+    serveCatalog(250);
 
-    const a = renderHook(() => useClubList(true, 100), { wrapper });
-    await waitFor(() => expect(a.result.current.isSuccess).toBe(true));
-    const b = renderHook(() => useClubList(true, 200), { wrapper });
-    await waitFor(() => expect(b.result.current.isSuccess).toBe(true));
+    const { result } = renderCatalog(wrapper);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    // Dwa różne rozmiary strony = dwa wywołania. Gdyby limit nie był w kluczu,
-    // drugi hook czytałby z cache'u i katalog zostawałby na setce.
-    expect(clubApiMock.fetchClubList).toHaveBeenCalledTimes(2);
-    expect(clubApiMock.fetchClubList).toHaveBeenLastCalledWith({ limit: 200 });
+    expect(clubApiMock.fetchClubList).toHaveBeenCalledTimes(1);
+    expect(clubApiMock.fetchClubList).toHaveBeenLastCalledWith({ limit: 100, offset: 0 });
+    expect(result.current.rows).toHaveLength(100);
+    expect(result.current.total).toBe(250);
+    expect(result.current.hasNextPage).toBe(true);
+  });
+
+  it("następna porcja idzie z offsetem 100 i TYM SAMYM limitem 100", async () => {
+    const { wrapper } = harness();
+    serveCatalog(250);
+
+    const { result } = renderCatalog(wrapper);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await result.current.fetchNextPage();
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(200));
+    expect(clubApiMock.fetchClubList).toHaveBeenLastCalledWith({ limit: 100, offset: 100 });
+  });
+
+  it("250 klubów: trzy porcje dowożą komplet i doładowanie się kończy", async () => {
+    const { wrapper } = harness();
+    serveCatalog(250);
+
+    const { result } = renderCatalog(wrapper);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.rows).toHaveLength(200));
+    await result.current.fetchNextPage();
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(250));
+    expect(result.current.total).toBe(250);
+    expect(result.current.hasNextPage).toBe(false);
+    expect(clubApiMock.fetchClubList.mock.calls.map(([args]) => args)).toEqual([
+      { limit: 100, offset: 0 },
+      { limit: 100, offset: 100 },
+      { limit: 100, offset: 200 },
+    ]);
+  });
+
+  it("nakładające się porcje dają każdy klub RAZ", async () => {
+    // Między porcjami dwa kluby weszły na początek porządku (nowa aktywność),
+    // więc offset 100 zaczyna się od dwóch ostatnich klubów porcji 1.
+    const { wrapper } = harness();
+    const first = Array.from({ length: 100 }, (_, i) => ({ id: `club-${i}` }));
+    const second = Array.from({ length: 50 }, (_, i) => ({ id: `club-${98 + i}` }));
+    clubApiMock.fetchClubList
+      .mockResolvedValueOnce({ rows: first, total: 152 })
+      .mockResolvedValueOnce({ rows: second, total: 152 });
+
+    const { result } = renderCatalog(wrapper);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await result.current.fetchNextPage();
+
+    await waitFor(() => expect(clubApiMock.fetchClubList).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.rows).toHaveLength(148));
+    const ids = result.current.rows.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    // Offset liczy wiersze ODDANE (150), nie unikalne (148) - inaczej
+    // następna porcja pobrałaby te same dwa kluby po raz drugi.
+    expect(result.current.hasNextPage).toBe(true);
+  });
+
+  it("inwalidacja prefiksu `list()` (dołączenie/wyjście) odświeża WSZYSTKIE porcje od zera", async () => {
+    const { queryClient, wrapper } = harness();
+    serveCatalog(250);
+
+    const { result } = renderCatalog(wrapper);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.rows).toHaveLength(200));
+    clubApiMock.fetchClubList.mockClear();
+
+    // Dokładnie ten klucz niesie `clubCardKeys` - skutek dołączenia, wyjścia
+    // i akceptacji zasad.
+    expect(clubCardKeys(CLUB)).toContainEqual(clubKeys.list());
+    await queryClient.invalidateQueries({ queryKey: clubKeys.list() });
+
+    await waitFor(() => expect(clubApiMock.fetchClubList).toHaveBeenCalledTimes(2));
+    expect(clubApiMock.fetchClubList.mock.calls.map(([args]) => args)).toEqual([
+      { limit: 100, offset: 0 },
+      { limit: 100, offset: 100 },
+    ]);
+    expect(result.current.rows).toHaveLength(200);
+  });
+
+  it("katalog stoi pod prefiksem `list()`, z rozmiarem porcji w kluczu", async () => {
+    const { queryClient, wrapper } = harness();
+    serveCatalog(3);
+
+    const { result } = renderCatalog(wrapper);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const keys = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: clubKeys.list() })
+      .map((q) => q.queryKey);
+    expect(keys).toEqual([clubKeys.listPages(100)]);
   });
 
   it("enabled=false nie odpytuje bazy", async () => {

@@ -2,10 +2,11 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
-import { useEffect, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Textarea } from "@/components/ui/textarea";
+import { sanitizeMarkdownHtml } from "@/lib/sanitize";
+import { markdownToUnsafeHtml } from "@/components/admin/post-editor/lib/markdownPreview";
 import "@/lib/i18n-admin-panes-misc";
 import {
   Bold,
@@ -36,6 +37,16 @@ export function PostEditor({ value, onChange, mode, onPickImage }: Props) {
 
 function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { t } = useTranslation();
+  // Podpowiedź jest zapisana Markdownem (`*Podgląd...*`), więc idzie przez ten
+  // sam parser co treść.
+  const source = value || t("adminPanesMisc.postEditor.previewPlaceholder");
+  // KOLEJNOŚĆ JEST WARUNKIEM BEZPIECZEŃSTWA: marked przepuszcza surowy HTML i
+  // `javascript:` w linkach, więc sanityzacja idzie PO parserze, na gotowym
+  // HTML-u, i stoi TU, przy sinku - inaczej `check:dangerous-html` jej nie
+  // widzi. Polityka `sanitizeMarkdownHtml` = ta, którą publiczny renderer
+  // stosuje do treści wpisów (ContentRenderer, silnik "html"). `useMemo`, bo
+  // parser + DOMPurify nie muszą biec przy renderach niezmieniających treści.
+  const previewHtml = useMemo(() => sanitizeMarkdownHtml(markdownToUnsafeHtml(source)), [source]);
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <Textarea
@@ -44,9 +55,28 @@ function MarkdownEditor({ value, onChange }: { value: string; onChange: (v: stri
         rows={20}
         className="font-mono text-sm"
       />
-      <div className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto">
-        <ReactMarkdown>{value || t("adminPanesMisc.postEditor.previewPlaceholder")}</ReactMarkdown>
-      </div>
+      {/* `[contain:paint]` TO GRANICA BEZPIECZEŃSTWA, nie kosmetyka. Polityka
+          `sanitizeMarkdownHtml` zostawia atrybut `style` (inline style we
+          wpisach mają działać po publikacji), a podgląd renderuje teraz surowy
+          HTML z Markdownu. Bez izolacji autor może zapisać
+          `<div style="position:fixed;inset:0;z-index:2147483647">` z fałszywym
+          „Sesja wygasła, zaloguj ponownie" i przykryć cały panel każdemu, kto
+          otworzy szkic - `overflow-auto` tego nie trzyma, bo element fixed
+          liczy się od viewportu. Paint containment czyni to pudełko blokiem
+          zawierającym dla fixed/absolute, przycina rysowanie do jego krawędzi
+          i zakłada kontekst warstw, więc z-index nie wydostanie się ponad
+          resztę panelu. Inline style wpisu nadal widać - w pudełku.
+          ZASIĘG: to zatrzymuje nakładki, które działają BEZ kliknięcia. Nie
+          zatrzymuje top layer: polityka zostawia `popover`/`popovertarget`,
+          więc po kliknięciu autorskiego `<button popovertarget>` popover
+          wychodzi ponad panel mimo containmentu. Ta sama luka jest na
+          `/preview/$token` i na stronach publicznych - domknięcie jej (te
+          atrybuty do FORBID_ATTR polityki) zmienia publikację, więc to osobna
+          zmiana, nie część podglądu. */}
+      <div
+        className="prose dark:prose-invert max-w-none border border-border rounded-md p-4 bg-muted/20 overflow-auto [contain:paint]"
+        dangerouslySetInnerHTML={{ __html: previewHtml }}
+      />
     </div>
   );
 }

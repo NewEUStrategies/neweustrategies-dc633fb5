@@ -12,6 +12,15 @@ export const clubKeys = {
   /** Lista klubow widocznych dla wolajacego (produkt). */
   list: () => [...clubKeys.all, "list"] as const,
 
+  /** Katalog na hubie STRONICOWANY offsetem (`useInfiniteQuery`). Rozmiar
+   *  porcji jest w kluczu, bo od niego zależą offsety wszystkich porcji
+   *  w jednym wpisie. Osobny liść pod `list()`, a nie `[...list(), limit]`:
+   *  wpis nieskończony trzyma `{ pages, pageParams }`, nie `{ rows, total }`,
+   *  więc nie może dzielić klucza ze zwykłym zapytaniem. Prefiks `list()`
+   *  zostaje - `clubCardKeys`/`clubUpsertedKeys` trafiają też tutaj,
+   *  a inwalidacja odświeża WSZYSTKIE wczytane porcje po kolei od zera. */
+  listPages: (pageSize: number) => [...clubKeys.list(), "pages", pageSize] as const,
+
   /** Moje czlonkostwa - zasila nawigacje. */
   memberships: () => [...clubKeys.all, "memberships"] as const,
 
@@ -37,10 +46,11 @@ export const clubKeys = {
   /** Karta klubu W KONTEKSCIE WIDZA. Loader ukladu `/club/$clubSlug` dziala na
    *  SSR, czyli BEZ sesji - `club_view` zwraca wtedy odpowiedz dla anonima:
    *  karte klubu `public` + `active`, a dla klubow `members`/`private`/`secret`
-   *  ZERO wierszy (migracja A19, predykat pozytywny) - dlatego uklad nie ma
-   *  prawa czytac braku wiersza jako 404. Gdyby zalogowany czytal ten sam wpis
-   *  cache, czlonek klubu zamknietego zobaczylby bramke "Popros o dostep" mimo
-   *  aktywnego czlonkostwa. Tozsamosc widza jest wiec czescia klucza. */
+   *  ZERO wierszy (predykat pozytywny A19, przywrocony w 20261017120000) -
+   *  dlatego uklad nie ma prawa czytac braku wiersza jako 404. Gdyby zalogowany
+   *  czytal ten sam wpis cache, czlonek klubu zamknietego zobaczylby bramke
+   *  "Popros o dostep" mimo aktywnego czlonkostwa. Tozsamosc widza jest wiec
+   *  czescia klucza. */
   bySlugViewer: (slug: string, viewerId: string | null) =>
     [...clubKeys.bySlug(slug), "viewer", viewerId ?? "anon"] as const,
 

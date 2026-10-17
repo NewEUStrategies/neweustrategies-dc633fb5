@@ -27,7 +27,9 @@
 // anonima”. Twarde 404 wypisywałoby z indeksu (i z zakładek członków) każdy
 // klub `members`/`private`/`secret`. Rozstrzygnięcie „klub nie istnieje” należy
 // do komponentu, który po hydratacji czyta klucz Z WIDZEM (`ClubHubRoute` ma
-// już miękką gałąź `club === null`, HTTP 200).
+// już miękką gałąź `club === null`, HTTP 200). Predykat A19 był cofnięty
+// w 20260919220300 i wrócił w 20261017120000; pilnuje go
+// `supabase/tests/club_view_visibility_test.sql`.
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { fetchClubBySlug } from "@/lib/clubs/publicClub";
@@ -36,7 +38,7 @@ import { clubCoverPreload } from "@/lib/clubs/clubCoverPreload";
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { imagePreloadLink, imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
+import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
 
 /**
  * Budżet karty klubu przed pierwszym bajtem. Świadomie KRÓTKI: karta jest
@@ -86,19 +88,20 @@ export const Route = createFileRoute("/club/$clubSlug")({
     // regułę i jej dowód trzyma `clubCoverPreload` (hub klubu za bramką
     // dostępu). Bezwarunkowy preload byłby na klubie otwartym pobraniem pliku,
     // którego nikt nie maluje.
+    //
+    // JEDEN NOŚNIK: nagłówek HTTP `Link` (wyprzedza parsowanie dokumentu,
+    // NES Edge Cache utrwala go na HIT/STALE - droga do 103 Early Hints).
+    // `<link>` w `<head>` wstawia sam React 19 z `ClubCover variant="banner"`
+    // (`OptimizedImage priority` = `<img fetchPriority="high">` w powłoce, ten
+    // sam klucz srcSet/sizes). Dawny link z `head()` układu trafiał do `<head>`
+    // bez deduplikacji, czyli jako drugi, identyczny preload (jak w archiwach,
+    // `blog.index.tsx`) - dlatego układ nie ma już `head()`, a deskryptor nie
+    // wraca w danych loadera.
     const preload = clubCoverPreload(club, location.pathname);
     if (preload) appendLinkHeader(imagePreloadLinkHeaderValue(preload));
 
-    return { club: toClubHeadSource(club), coverPreload: preload };
+    return { club: toClubHeadSource(club) };
   },
-  // Nagłówek `Link` wyprzedza parsowanie dokumentu (i bywa odtworzony jako 103
-  // Early Hint), a `<link>` w dokumencie działa też przy nawigacji po stronie
-  // klienta i w podglądzie zapisanego HTML-a. Obie drogi niosą TĘ SAMĄ wartość,
-  // więc przeglądarka rozstrzyga jedno pobranie, nie dwa. Meta tras liściowych
-  // scalają się z tym nagłówkiem - `links` zbierane są ze WSZYSTKICH dopasowań.
-  head: ({ loaderData }) => ({
-    links: loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : [],
-  }),
   component: ClubSlugLayout,
 });
 

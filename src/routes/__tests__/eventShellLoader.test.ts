@@ -97,7 +97,6 @@ interface ShellLoaderData {
     readonly publishedAt: string | null;
   } | null;
   readonly degraded: boolean;
-  readonly coverPreload: { readonly href: string } | null;
 }
 
 type LoaderCtx = {
@@ -119,7 +118,7 @@ function runLoader(slug = "szczyt", pathname?: string): Promise<ShellLoaderData>
 async function runLoaderWithClient(
   slug = "szczyt",
   // Domyślnie PRZEGLĄD wydarzenia - to jedyna zakładka, która maluje okładkę,
-  // więc tylko na niej loader dokłada deskryptor preloadu LCP.
+  // więc tylko na niej loader dokłada preload LCP (nagłówek HTTP `Link`).
   pathname = `/events/${slug}`,
 ): Promise<{ data: ShellLoaderData; queryClient: QueryClient }> {
   const loader = (EventShellRoute as unknown as { options: { loader: Loader } }).options.loader;
@@ -272,8 +271,9 @@ describe("loader powłoki /events/$slug", () => {
     h.headerThrows = true;
     h.eventThrows = true;
     const data = await runLoader();
-    expect(data).toEqual({ headEvent: null, degraded: false, coverPreload: null });
+    expect(data).toEqual({ headEvent: null, degraded: false });
     expect(h.cacheControl).toEqual([]);
+    expect(h.linkHeaders).toEqual([]);
   });
 
   it("NAWIGACJA SPA: POWOLNE ustawienia NIE zamrażają domyślek bramki modułu", async () => {
@@ -324,6 +324,7 @@ describe("loader powłoki /events/$slug", () => {
 
 type HeadFn = (ctx: { params: { slug: string }; loaderData?: ShellLoaderData }) => {
   meta?: { title?: string; name?: string; property?: string; content?: string }[];
+  links?: { rel?: string; as?: string; href?: string }[];
 };
 
 function head(loaderData?: ShellLoaderData) {
@@ -351,7 +352,7 @@ describe("head() powłoki /events/$slug", () => {
   } as const;
 
   it("bierze tytuł, opis i obraz Z WYDARZENIA, nie ze stałej", async () => {
-    const out = head({ headEvent, degraded: false, coverPreload: null });
+    const out = head({ headEvent, degraded: false });
     // Do 2026-09-01 tu stało "Wydarzenie - New European Strategies" dla KAŻDEGO
     // wydarzenia w serwisie - jeden tytuł, jeden opis, jeden obraz karty.
     expect(titleOf(out)).toContain("Szczyt strategiczny");
@@ -361,9 +362,20 @@ describe("head() powłoki /events/$slug", () => {
   });
 
   it("bez danych loadera wraca do dwujęzycznej wartości domyślnej, nie do pustki", async () => {
-    const out = head({ headEvent: null, degraded: true, coverPreload: null });
+    const out = head({ headEvent: null, degraded: true });
     expect(titleOf(out)).toContain("Wydarzenie");
     expect(metaByProperty(out, "og:description")).not.toBe("");
+  });
+
+  it("head() nie dubluje preloadu okładki - wstawia go React 19 z obrazu w powłoce", async () => {
+    // Preload LCP okładki idzie nagłówkiem `Link` (loader) i automatycznym
+    // `<link rel="preload" as="image">` Reacta dla `<img fetchPriority="high">`
+    // w `EventVideoHeader` (klucz: ten sam surowy `cover_url`). Link z `head()`
+    // trafiał do `<head>` bez deduplikacji - drugi, identyczny preload.
+    const out = head({ headEvent, degraded: false });
+    expect(out.links?.filter((l) => l.rel === "preload" && l.as === "image")).toEqual([]);
+    // Obraz społecznościowy zostaje - to metadane karty, nie preload.
+    expect(metaByProperty(out, "og:image")).toBe("https://cdn.nes.eu/szczyt.jpg");
   });
 });
 
@@ -374,6 +386,11 @@ describe("head() powłoki /events/$slug", () => {
 // Każdy z trzech warunków odcina POBRANIE, którego nikt nie namaluje - preload
 // obrazu, który nie wchodzi do układu, to czysty koszt pasma konkurujący
 // z zasobami krytycznymi.
+//
+// Kontrakt sprawdzamy na nagłówku HTTP `Link` - to JEDYNA droga preloadu, którą
+// pisze trasa. Deskryptor nie wraca w danych loadera (`head()` go nie czyta),
+// a `<link>` w `<head>` wstawia React 19 z obrazu okładki - to pilnuje
+// `src/components/events/public/__tests__/eventVideoHeaderPreload.test.tsx`.
 describe("preload okładki przeglądu wydarzenia", () => {
   const PUBLIC_EVENT = {
     id: "e1",
@@ -383,39 +400,41 @@ describe("preload okładki przeglądu wydarzenia", () => {
     video_header_id: null,
   };
 
-  it("PRZEGLĄD bez nagłówka wideo: deskryptor i nagłówek HTTP `Link`", async () => {
+  it("PRZEGLĄD bez nagłówka wideo: nagłówek HTTP `Link`, bez deskryptora w danych", async () => {
     h.header = HEADER_ROW;
     h.event = PUBLIC_EVENT;
     const data = await runLoader();
-    // PARYTET: komponent maluje `<img src>` BEZ `srcSet`, więc deskryptor
-    // niesie sam `href` - inaczej przeglądarka pobrałaby dwa różne warianty.
-    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+    // PARYTET: komponent maluje `<img src>` BEZ `srcSet`, więc nagłówek niesie
+    // sam adres - inaczej przeglądarka pobrałaby dwa różne warianty.
     expect(h.linkHeaders).toHaveLength(1);
     expect(h.linkHeaders[0]).toContain("<https://cdn.nes.eu/szczyt.jpg>");
+    expect(h.linkHeaders[0]).toContain('as="image"');
     expect(h.linkHeaders[0]).toContain("fetchpriority=high");
     expect(h.linkHeaders[0]).not.toContain("imagesrcset");
+    // `head()` deskryptora nie czyta, więc nie jedzie on w dehydratowanych danych.
+    expect(data).not.toHaveProperty("coverPreload");
   });
 
   it("ZAKŁADKA (np. /agenda) nie preloaduje - okładki tam nie ma", async () => {
     h.header = HEADER_ROW;
     h.event = PUBLIC_EVENT;
-    const data = await runLoader("szczyt", "/events/szczyt/agenda");
-    expect(data.coverPreload).toBeNull();
+    await runLoader("szczyt", "/events/szczyt/agenda");
     expect(h.linkHeaders).toEqual([]);
   });
 
   it("prefiks języka NIE psuje rozpoznania przeglądu", async () => {
     h.header = HEADER_ROW;
     h.event = PUBLIC_EVENT;
-    const data = await runLoader("szczyt", "/en/events/szczyt");
-    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+    await runLoader("szczyt", "/en/events/szczyt");
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(h.linkHeaders[0]).toContain("<https://cdn.nes.eu/szczyt.jpg>");
   });
 
   it("NAGŁÓWEK WIDEO zastępuje okładkę, więc preloadu nie ma", async () => {
     h.header = HEADER_ROW;
     h.event = { ...PUBLIC_EVENT, video_header_platform: "youtube", video_header_id: "abc123" };
-    const data = await runLoader();
-    expect(data.coverPreload).toBeNull();
+    await runLoader();
+    expect(h.linkHeaders).toEqual([]);
   });
 
   it("BŁĘDNY identyfikator wideo wraca do okładki - i do preloadu", async () => {
@@ -423,22 +442,22 @@ describe("preload okładki przeglądu wydarzenia", () => {
     // wtedy okładkę. Decyzja jest JEDNA i wspólna, więc preload jedzie za nią.
     h.header = HEADER_ROW;
     h.event = { ...PUBLIC_EVENT, video_header_platform: "youtube", video_header_id: "a b/c" };
-    const data = await runLoader();
-    expect(data.coverPreload).toEqual({ href: "https://cdn.nes.eu/szczyt.jpg" });
+    await runLoader();
+    expect(h.linkHeaders).toHaveLength(1);
+    expect(h.linkHeaders[0]).toContain("<https://cdn.nes.eu/szczyt.jpg>");
   });
 
   it("WYDARZENIE ZA BRAMKĄ WARSTWY: body rysuje zaproszenie, nie baner", async () => {
     h.header = HEADER_ROW;
     h.event = null;
-    const data = await runLoader();
-    expect(data.coverPreload).toBeNull();
+    await runLoader();
     expect(h.linkHeaders).toEqual([]);
   });
 
   it("wydarzenie bez okładki nie generuje pustego preloadu", async () => {
     h.header = HEADER_ROW;
     h.event = { ...PUBLIC_EVENT, cover_url: "   " };
-    const data = await runLoader();
-    expect(data.coverPreload).toBeNull();
+    await runLoader();
+    expect(h.linkHeaders).toEqual([]);
   });
 });

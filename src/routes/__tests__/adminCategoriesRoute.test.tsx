@@ -118,6 +118,9 @@ import "@/test/i18nReal";
 // Etykiety filtra pokrycia językowego („Tylko PL”, „Komplet”…) mieszkają w
 // nakładce, której sama trasa nie importuje - bez tego testy asertowałyby klucze.
 import "@/lib/i18n-admin-extras";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { routeHead } from "@/test/routeHarness";
 import { Route } from "@/routes/admin.categories";
 

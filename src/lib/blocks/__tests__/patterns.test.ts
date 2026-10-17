@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { BLOCK_PATTERNS, instantiatePattern, filterPatterns } from "@/lib/blocks/patterns";
 import { BLOCK_SPECS } from "@/lib/blocks/registry";
-import { pl } from "@/lib/locale/pl";
-import { en } from "@/lib/locale/en";
+// `blocks.*` żyje w nakładce edytora bloków, nie w rdzeniu `locale/*.ts`.
+import { blocksCorePl as pl, blocksCoreEn as en } from "@/lib/i18n-admin-blocks";
 
 type Dict = Record<string, unknown>;
 const patternDict = (locale: Dict): Dict =>

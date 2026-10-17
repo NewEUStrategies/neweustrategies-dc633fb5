@@ -58,6 +58,27 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety biorą listy preloadu `import()` z JEDNEGO obiektu, w środowisku `client`", () => {
+    // Reguły list (`__vite__mapDeps` bez celów /admin, bez chunków bootu, samotny cel tylko
+    // z CSS) żyją w scripts/lib/clientModulePreload.ts. Smoke z innymi listami mierzyłby inny
+    // `app-initial` i inną kaskadę `import()` niż produkcja; `modulePreload` na poziomie `build`
+    // dotyczyłby też innych środowisk. Reguły i wtyczka muszą pochodzić z TEGO SAMEGO obiektu:
+    // bez jego wtyczki reguła nie widzi CSS celów i zachowuje każdy samotny cel, także /admin.
+    const helperImport =
+      'import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";';
+    for (const [file, source] of presets) {
+      const code = bezKomentarzy(source);
+      expect(source, file).toContain(helperImport);
+      expect(code.match(/clientModulePreload\(\)/g), file).toEqual(["clientModulePreload()"]);
+      expect(code, file).toContain("const clientPreload = clientModulePreload();");
+      expect(code, file).toMatch(/plugins:\s*\[[^\]]*\bclientPreload\.plugin,\s*\]/);
+      expect(code, file).toMatch(
+        /environments:\s*\{\s*client:\s*\{\s*build:\s*\{[^}]*modulePreload:\s*clientPreload\.modulePreload,\s*rolldownOptions:/,
+      );
+      expect(code.match(/modulePreload:/g), file).toHaveLength(1);
+    }
+  });
+
   it("obie wyłączają hoistowanie importów tranzytywnych", () => {
     for (const [file, source] of presets) {
       expect(bezKomentarzy(source), file).toContain("hoistTransitiveImports: false");
@@ -89,9 +110,10 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
   });
 
   it("oba presety tną martwy kod parsera .docx TĄ SAMĄ wtyczką", () => {
-    // `officeParserTrimPlugin` przekierowuje dwa moduły w bundlu przeglądarki
-    // (zapis XML mammoth, tablica encji HTML xmldom). Smoke bez niej
-    // budowałby inny chunk podglądu .docx niż produkcja.
+    // `officeParserTrimPlugin` przekierowuje zależności podglądu .docx
+    // w bundlu przeglądarki (zapis XML mammoth, xmldom, bluebird, underscore,
+    // jszip, tablica dingbatów). Smoke bez niej budowałby inny chunk podglądu
+    // .docx niż produkcja.
     const helperImport =
       'import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim.ts";';
     for (const [file, source] of presets) {

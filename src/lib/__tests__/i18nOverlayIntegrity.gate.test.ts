@@ -157,6 +157,9 @@ function overlayOnly(conflict: Conflict): boolean {
 //     wnosi tylko `super_admin`, którego rdzeń nie ma;
 //   * `blocks.editors.cover.title` - placeholder `Cover.tsx` ma własny klucz
 //     `cover.titlePh`, a nagłówek zostaje kluczem rdzenia.
+// Od 2026-10-17 „rdzeniem" `admin.*` i `blocks.*` są nakładki `i18n-admin-core`
+// i `i18n-admin-blocks` (gałęzie wyjęte z `locale/*.ts`), więc ich rozjazd
+// z inną nakładką to kolizja NAKŁADKA <-> NAKŁADKA - bez prawa do wyjątku.
 const KNOWN_CORE_CONFLICTS: ReadonlyMap<string, string> = new Map<string, string>([]);
 
 const LOADERS = import.meta.glob<Record<string, unknown>>("/src/lib/i18n-*.ts");

@@ -123,10 +123,13 @@ vi.mock("@/components/admin/blocks/AdminColorPicker", () => ({
   ),
 }));
 
-// Etykiety tego ekranu siedzą w RDZENIU słownika (`locale/pl.ts`), a nie w
-// nakładce - import poniżej dociąga oba rdzenie, żeby asercje mierzyły napisy,
-// które zobaczy redaktor, a nie klucze.
+// Etykiety tego ekranu siedzą w słowniku PANELU (`admin.*` w
+// `lib/i18n-admin-core.ts`, do 2026-10-17 w rdzeniu `locale/pl.ts`), który
+// w aplikacji rejestruje `AdminSession` - ten test montuje samą trasę, więc
+// importuje go sam. `i18nReal` dociąga oba rdzenie, żeby asercje mierzyły
+// napisy, które zobaczy redaktor, a nie klucze.
 import "@/test/i18nReal";
+import "@/lib/i18n-admin-core";
 import { routeHead } from "@/test/routeHarness";
 import { Route } from "@/routes/admin.category-colors";
 import { CORE_CATEGORY_AREAS } from "@/lib/categoryAreas";

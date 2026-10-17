@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { BUILDER_TOUR_STEPS, BLOCK_TOUR_STEPS } from "@/lib/onboarding/tours";
-import { pl } from "@/lib/locale/pl";
-import { en } from "@/lib/locale/en";
+// `admin.*` żyje w nakładce panelu, nie w rdzeniu `locale/*.ts` (rdzeń niesie
+// z tej gałęzi tylko cztery klucze dialogu niezapisanych zmian).
+import { adminCorePl as pl, adminCoreEn as en } from "@/lib/i18n-admin-core";
 
 // Walk a dotted key path ("admin.onboarding.builder.widgets.title") through a
 // nested dictionary object, returning the string leaf or undefined.

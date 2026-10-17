@@ -3,7 +3,7 @@
 // `Editable` to jedyne miejsce, w którym redaktor pisze BEZPOŚREDNIO w podglądzie
 // strony: polimorficzny element `contentEditable` (domyślnie `span`), w trybie
 // prostym operujący na `textContent`, a w trybie `html` na `innerHTML`
-// przepuszczonym przez `normalizeBuilderRichHtml`. Każde zatwierdzenie (blur albo
+// przepuszczonym przez `normalizeBuilderRichHtmlDom`. Każde zatwierdzenie (blur albo
 // mikrozadanie po poleceniu formatowania) oddaje wartość przez `onCommit`,
 // w trybie bogatym po `sanitizeHtml`. Do tej pory plik nie miał ANI JEDNEGO
 // własnego testu - był dotykany wyłącznie ubocznie, przez testy `WidgetView`,
@@ -638,8 +638,8 @@ describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
   //   (import WordPressa albo pole edytowalne przez redakcję), zawierającym
   //   `<img onerror="alert(1)">`.
   // CO PSUJE: `Editable.tsx:82-84` (efekt synchronizujący) i `:125` (gałąź
-  //   Escape) robią `el.innerHTML = normalizeBuilderRichHtml(value)`, a
-  //   `normalizeBuilderRichHtml` (src/lib/builder/normalizeRichHtml.ts:26) NIE
+  //   Escape) robią `el.innerHTML = normalizeBuilderRichHtmlDom(value)`, a
+  //   `normalizeBuilderRichHtmlDom` (src/lib/builder/normalizeRichHtmlDom.ts:62) NIE
   //   JEST sanitizerem - przy wejściu bez `<ul>`/`<ol>` zwraca je NIETKNIĘTE.
   //   Nagłówek modułu (linie 7-8) obiecuje sanityzację NA WYJŚCIU i tej
   //   obietnicy dotrzymuje; luka jest na WEJŚCIU i nikt jej nie zadeklarował.
@@ -647,7 +647,7 @@ describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
   //   `RichHtmlView`, który woła `sanitizeHtml` - czyli kanwa edytora jest DZIŚ
   //   mniej bezpieczna niż strona publiczna, a atakuje się w niej redaktora
   //   z sesją administracyjną.
-  // WYMAGANA POPRAWKA: `el.innerHTML = sanitizeHtml(normalizeBuilderRichHtml(value))`
+  // WYMAGANA POPRAWKA: `el.innerHTML = sanitizeHtml(normalizeBuilderRichHtmlDom(value))`
   //   w OBU miejscach; moduł importuje `sanitizeHtml` już dziś (linia 19), więc
   //   nie brakuje nawet zależności.
   it.fails("DEFEKT: wartość z bazy MUSI być sanityzowana, zanim trafi do DOM-u kanwy", () => {
@@ -673,7 +673,7 @@ describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
   //   Escape.
   // CO PSUJE: gałąź Escape (`Editable.tsx:121-130`) przywraca wartość do DOM-u
   //   i woła `blur()`, a `onBlur` (:169-172) woła `commit()` BEZWARUNKOWO.
-  //   `commit` porównuje `next` - czyli `sanitizeHtml(normalizeBuilderRichHtml(...))`
+  //   `commit` porównuje `next` - czyli `sanitizeHtml(normalizeBuilderRichHtmlDom(...))`
   //   - z SUROWYM propem `value`. Dla wartości nieznormalizowanej te dwa napisy
   //   nigdy się nie zrównają, więc `onCommit` leci.
   // KONSEKWENCJA: klawisz, którego jedynym sensem jest „nie zapisuj”, zapisuje.

@@ -1,7 +1,8 @@
 // Ciało podglądu dokumentu - ładowane leniwie z popupu.
 //
-// TU MIESZKA CAŁA WAGA: mammoth, xlsx i jszip wchodzą do grafu dopiero po
-// otwarciu podglądu, bo ten moduł jest jedynym miejscem, które ich dotyka.
+// TU MIESZKA CAŁA WAGA: mammoth, xlsx i czytnik archiwów (`fflate`) wchodzą
+// do grafu dopiero po otwarciu podglądu, bo ten moduł jest jedynym miejscem,
+// które ich dotyka.
 //
 // KAŻDY FORMAT MA WŁASNĄ ŚCIEŻKĘ, ale wspólny kontrakt: dostaje podpisany
 // adres i metadane, a zwraca gotowy widok albo komunikat. Nie ma tu żadnego

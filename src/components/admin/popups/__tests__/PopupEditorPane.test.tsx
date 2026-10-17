@@ -83,6 +83,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import i18n from "@/lib/i18n";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { toast } from "sonner";
 import { PopupEditorPane } from "@/components/admin/popups/PopupEditorPane";
 import { defaultPopupSettings } from "@/lib/builder/popups";

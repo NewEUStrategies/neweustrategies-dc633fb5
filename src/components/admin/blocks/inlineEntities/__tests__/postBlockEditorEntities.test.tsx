@@ -9,6 +9,9 @@ import type { LocalizedBlocks } from "@/lib/blocks/types";
 import { readInlineEntities } from "@/lib/blocks/inlineEntities/registry";
 import { company, docWith, paragraph, token } from "@/lib/blocks/inlineEntities/__tests__/fixtures";
 import { realT } from "@/test/i18nReal";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 
 realT("pl");
 

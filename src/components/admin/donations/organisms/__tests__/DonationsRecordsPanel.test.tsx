@@ -26,6 +26,9 @@ import { render, screen, within } from "@testing-library/react";
 import "@/test/i18nReal";
 import "@/lib/i18n-donate";
 import { realT } from "@/test/i18nReal";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { axeViolations, summarize } from "@/test/axe";
 import { formatDonationAmount } from "@/lib/billing/donationsConfig";
 import type { AdminDonationRow } from "@/lib/billing/donationsAdmin.server";

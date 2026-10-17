@@ -17,7 +17,6 @@ import { ArrowDown, ArrowUp, Check, Eye, EyeOff, Minus, Palette, RotateCcw, X } 
 import { SegmentedControl, type SegmentedControlOption } from "@/components/atoms/SegmentedControl";
 import { ExpertPresetThumb } from "@/components/experts/ExpertPresetThumb";
 import { useSaveExpertLayoutOverrides } from "@/hooks/useExpertLayoutSettings";
-import { ensureI18n as ensureAdminLayoutsI18n } from "@/lib/i18n-admin-layouts";
 import { ensureI18n as ensureEditorI18n } from "@/lib/i18n-expert-layout-editor";
 import {
   countExpertLayoutOverrides,
@@ -63,10 +62,12 @@ export default function ExpertLayoutInlineEditor({
   savedOverrides,
   onDraftChange,
 }: ExpertLayoutInlineEditorProps) {
-  // Rejestracja słowników w chunku edytora: własny + etykiety sekcji
-  // współdzielone z /admin/expert-layouts (adminLayouts.expertLayouts.*).
+  // Rejestracja słownika w chunku edytora. Niesie też etykiety współdzielone
+  // z /admin/expert-layouts (`adminLayouts.expertLayouts.*`, łącznie z całą
+  // gałęzią `sections.*`) - NIE importujemy stąd `i18n-admin-layouts`, bo
+  // edytor jedzie na publicznym /author/<slug> i słownik panelu liczyłby się
+  // do sumy PUBLIC `check:bundle`.
   ensureEditorI18n();
-  ensureAdminLayoutsI18n();
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
 

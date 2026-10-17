@@ -650,22 +650,57 @@ describe("trasa /programs/$slug - sklejenie i treść landingu", () => {
     expect(items.filter((text) => text === "")).toEqual([]);
   });
 
-  it("loader dopisuje nagłówek HTTP Link z preloadem hero (LCP)", async () => {
+  it("preload hero (LCP) idzie nagłówkiem HTTP `Link` + obrazem high, bez duplikatu z head()", async () => {
     // Hero nad zgięciem jest kandydatem LCP. Preload rusza z nagłówków
-    // odpowiedzi, zanim parser dojdzie do <img>, i niesie TEN SAM `srcset`,
-    // który maluje `OptimizedImage responsive` - inaczej przeglądarka pobiera
-    // dwa warianty tego samego obrazu.
-    await mountDetail();
+    // odpowiedzi, zanim parser dojdzie do <img>, i niesie TEN SAM `srcset`
+    // i `sizes`, które maluje `OptimizedImage responsive` - inaczej
+    // przeglądarka pobiera dwa warianty tego samego obrazu. `<head>` dostaje
+    // preload od Reacta 19 z `<img fetchPriority="high">` (ten sam klucz
+    // `srcSet`/`sizes`); link z `head()` był jego identycznym duplikatem
+    // (`documentPreloadDuplicates`).
+    const view = await mountDetail();
+    await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" });
 
-    expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(true);
-    expect(h.linkHeaders.some((value) => value.includes("imagesrcset="))).toBe(true);
+    expect(view.links().filter((l) => l.rel === "preload" && l.as === "image")).toEqual([]);
+    const imageHeaders = h.linkHeaders.filter((value) => value.includes('as="image"'));
+    expect(imageHeaders, h.linkHeaders.join("\n")).toHaveLength(1);
+    const [header] = imageHeaders;
+    expect(header).toContain("<https://db.example.org/storage/v1/object/public/media/hero.jpg>");
+    expect(header).toContain("fetchpriority=high");
+    const heroImages = view.container.querySelectorAll<HTMLImageElement>(
+      'img[fetchpriority="high"]',
+    );
+    expect(heroImages).toHaveLength(1);
+    const img = heroImages[0];
+    const srcset = img.getAttribute("srcset");
+    expect(srcset).toBeTruthy();
+    expect(header).toContain(`imagesrcset="${srcset}"`);
+    expect(img.getAttribute("sizes")).toBe("100vw");
+    expect(header).toContain('imagesizes="100vw"');
+    expect(img.getAttribute("loading")).toBe("eager");
   });
 
   it("program bez hero NIE dopisuje pustego preloadu", async () => {
     h.programs = [program({ hero_image_url: null })];
-    await mountDetail();
+    const view = await mountDetail();
+    await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" });
 
     expect(h.linkHeaders).toEqual([]);
+    expect(view.links().filter((l) => l.rel === "preload" && l.as === "image")).toEqual([]);
+    expect(view.container.querySelector('img[fetchpriority="high"]')).toBeNull();
+  });
+
+  it("dane loadera nie niosą deskryptora preloadu - jedzie tylko nagłówkiem `Link`", async () => {
+    // Deskryptor żył w danych loadera wyłącznie dla linku z `head()`. Po jego
+    // usunięciu byłby martwym balastem dehydrowanego ładunku SSR.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const data = await loaderOf(ProgramDetailRoute)({
+      context: { queryClient },
+      params: { slug: SLUG },
+    });
+
+    expect(data).not.toHaveProperty("heroPreload");
+    expect(h.linkHeaders.filter((value) => value.includes('as="image"'))).toHaveLength(1);
   });
 
   it("nie zostawia landingu z wadami dostępności", async () => {
@@ -960,7 +995,7 @@ describe("trasa /programs/$slug - awaria backendu kontra 404", () => {
 describe("trasa /programs/$slug - nagłówek dokumentu", () => {
   it("po polsku tytuł niesie nazwę programu, a opis jego tezę", async () => {
     const head = routeHead(ProgramDetailRoute, {
-      loaderData: { landing: { program: program() }, heroPreload: null },
+      loaderData: { landing: { program: program() } },
       params: { slug: SLUG },
     });
 
@@ -971,10 +1006,24 @@ describe("trasa /programs/$slug - nagłówek dokumentu", () => {
     );
   });
 
+  it("head() nie dubluje preloadu hero - wstawia go React 19 z obrazu w powłoce", async () => {
+    // Program Z hero: preload LCP idzie nagłówkiem `Link` (loader) i automatycznym
+    // `<link rel="preload" as="image">` Reacta dla `<img fetchPriority="high">`.
+    // Link z `head()` trafiał do `<head>` bez deduplikacji - identyczny duplikat.
+    const head = routeHead(ProgramDetailRoute, {
+      loaderData: { landing: { program: program() } },
+      params: { slug: SLUG },
+    });
+
+    expect((head.links ?? []).filter((l) => l.rel === "preload")).toEqual([]);
+    // Kontrola dodatnia: `head()` nadal niesie linki dokumentu (kanoniczny).
+    expect((head.links ?? []).some((l) => l.rel === "canonical")).toBe(true);
+  });
+
   it("na adresie /en tytuł i opis biorą kolumny angielskie", async () => {
     h.requestUrl = `https://nes.example.org/en/programs/${SLUG}`;
     const head = routeHead(ProgramDetailRoute, {
-      loaderData: { landing: { program: program() }, heroPreload: null },
+      loaderData: { landing: { program: program() } },
       params: { slug: SLUG },
     });
 
@@ -991,7 +1040,7 @@ describe("trasa /programs/$slug - nagłówek dokumentu", () => {
     expect(
       metaContent(
         routeHead(ProgramDetailRoute, {
-          loaderData: { landing: { program: noTagline }, heroPreload: null },
+          loaderData: { landing: { program: noTagline } },
           params: { slug: SLUG },
         }),
         "name",
@@ -1008,7 +1057,7 @@ describe("trasa /programs/$slug - nagłówek dokumentu", () => {
     expect(
       metaContent(
         routeHead(ProgramDetailRoute, {
-          loaderData: { landing: { program: bare }, heroPreload: null },
+          loaderData: { landing: { program: bare } },
           params: { slug: SLUG },
         }),
         "name",

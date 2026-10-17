@@ -54,6 +54,7 @@ const stubs = vi.hoisted(() => ({ from: null as unknown }));
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-admin-podcasts", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-extras", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/lib/i18n-admin-core", () => ({ ensureI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/adminToasts", () => ({
   adminToast: {

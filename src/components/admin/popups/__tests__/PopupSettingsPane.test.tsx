@@ -17,6 +17,9 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { render } from "@testing-library/react";
 
 import i18n from "@/lib/i18n";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { PopupSettingsPane } from "@/components/admin/popups/PopupSettingsPane";
 import { defaultPopupSettings, type PopupSettings } from "@/lib/builder/popups";
 

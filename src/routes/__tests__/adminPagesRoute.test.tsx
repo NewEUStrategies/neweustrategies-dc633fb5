@@ -165,6 +165,9 @@ vi.mock("@/integrations/supabase/client", async () => {
 
 import { realT } from "@/test/i18nReal";
 import "@/lib/i18n-admin-extras";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import i18n from "@/lib/i18n";
 import { routeHead } from "@/test/routeHarness";
 import { Route } from "@/routes/admin.pages";

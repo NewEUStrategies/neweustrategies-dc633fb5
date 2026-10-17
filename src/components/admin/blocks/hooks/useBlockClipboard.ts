@@ -23,6 +23,9 @@
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+// Toasty `blocks.clipboard.*` - klucze nakładki edytora bloków (od 2026-10-17
+// nie ma ich w rdzeniu języka); import trzyma je przy hooku, nie przy kanwie.
+import "@/lib/i18n-admin-blocks";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import {
   parseBlocksFromClipboard,

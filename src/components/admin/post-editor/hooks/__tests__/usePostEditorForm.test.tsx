@@ -119,6 +119,9 @@ vi.mock("@/lib/seo/invalidate", () => ({
 }));
 
 vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
+// Hook importuje też słownik edytora bloków (toast `blocks.clipboard.*`); jak
+// nakładka paneli - bez prawdziwego `@/lib/i18n`, którego ten test nie ładuje.
+vi.mock("@/lib/i18n-admin-blocks", () => ({}));
 // Ustawienia SEO (sufiks tytułu) - domyślne, bez bazy.
 vi.mock("@/lib/useSiteSetting", () => ({
   useSiteSetting: <T,>(_key: string, defaults: T) => defaults,

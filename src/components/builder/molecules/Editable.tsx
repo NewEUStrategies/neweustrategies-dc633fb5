@@ -17,7 +17,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { normalizeBuilderRichHtml } from "@/lib/builder/normalizeRichHtml";
+import { normalizeBuilderRichHtmlDom } from "@/lib/builder/normalizeRichHtmlDom";
 // i18n-overlay-imports: pomijamy @/lib/i18n-builder (waga chunka - powód niżej)
 // BEZ side-effectowego `import "@/lib/i18n-builder"` - ta sama zasada, co w
 // `widget-view/resizeWrappers.tsx`. Moduł leży w EAGER-owej ścieżce publicznego
@@ -80,7 +80,7 @@ export function Editable({
     if (!el) return;
     if (document.activeElement === el) return;
     if (html) {
-      const normalized = normalizeBuilderRichHtml(value);
+      const normalized = normalizeBuilderRichHtmlDom(value);
       if (el.innerHTML !== normalized) el.innerHTML = normalized;
     } else if (el.textContent !== value) {
       el.textContent = value;
@@ -91,7 +91,7 @@ export function Editable({
     const el = ref.current;
     if (!el) return;
     const next = html
-      ? sanitizeHtml(normalizeBuilderRichHtml(el.innerHTML))
+      ? sanitizeHtml(normalizeBuilderRichHtmlDom(el.innerHTML))
       : (el.textContent ?? "");
     if (next !== value) onCommit(next);
   };
@@ -122,7 +122,7 @@ export function Editable({
       e.preventDefault();
       const el = ref.current;
       if (el) {
-        if (html) el.innerHTML = normalizeBuilderRichHtml(value);
+        if (html) el.innerHTML = normalizeBuilderRichHtmlDom(value);
         else el.textContent = value;
       }
       (e.target as HTMLElement).blur();

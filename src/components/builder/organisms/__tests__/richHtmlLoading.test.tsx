@@ -18,6 +18,8 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 vi.stubEnv("SSR", false);
 const { RichHtmlView } = await import("../widget-view/RichHtmlView");
 const { RichHtmlListView } = await import("../widget-view/RichHtmlListView");
+const { RichHtmlContent } = await import("../widget-view/RichHtmlContent");
+const { normalizeBuilderRichHtml } = await import("@/lib/builder/normalizeRichHtml");
 
 beforeEach(() => vi.stubEnv("SSR", false));
 afterEach(() => {
@@ -50,6 +52,46 @@ it("hydrates the eager SSR list without replacing its DOM while the client chunk
   expect(errors).toEqual([]);
   expect(container.textContent).toBe("SSR item");
   expect(container.querySelector("li")).toBe(item);
+  await act(async () => root.unmount());
+});
+
+it("keeps the server-normalized list where the browser twin would normalize differently", async () => {
+  // Lista w `<p>` to jedna ze znanych klas rozjazdu silników na wejściu
+  // niepoprawnym (normalizeRichHtml.test.ts, „ZNANE RÓŻNICE”): serwer zostawia
+  // „Treść” w akapicie, bliźniak DOM wynosi ją poza akapit. React 19 nie łata
+  // `dangerouslySetInnerHTML` przy hydratacji, więc pierwsze wejście zostaje
+  // przy HTML-u serwera - bez błędu i bez podmiany.
+  const html = "<p><ul><li>&nbsp;</li></ul>Treść</p><ul><li><ul><li>Punkt</li></ul></li></ul>";
+  const container = document.createElement("div");
+  container.innerHTML = renderToString(
+    <Suspense fallback={<p>Loading list</p>}>
+      <RichHtmlContent
+        html={normalizeBuilderRichHtml(html)}
+        className="cms-rich-content"
+        style={{ color: "red" }}
+      />
+    </Suspense>,
+  );
+  const serverHtml = container.innerHTML;
+  const serverContent = container.querySelector(".cms-rich-content")?.innerHTML;
+  expect(serverContent).toContain("<p>Treść</p>");
+  const errors: unknown[] = [];
+  const root = hydrateRoot(container, view(html), {
+    onRecoverableError: (error) => errors.push(error),
+  });
+  await act(async () => {
+    await import("../widget-view/RichHtmlListView");
+  });
+  expect(errors).toEqual([]);
+  expect(container.innerHTML).toBe(serverHtml);
+  // Tekst wielokolumnowy dostaje NOWY obiekt `style` (o tej samej treści)
+  // z każdym renderem rodzica (`ChromeWidgetView`), tak jak `view()` tutaj.
+  // Taki re-render nie może przepisać treści na wersję bliźniaka DOM - inaczej
+  // akapit przeskakiwałby po pierwszym re-renderze po hydratacji.
+  await act(async () => root.render(view(html)));
+  const content = container.querySelector(".cms-rich-content");
+  expect(content?.getAttribute("style")).toContain("red");
+  expect(content?.innerHTML).toBe(serverContent);
   await act(async () => root.unmount());
 });
 

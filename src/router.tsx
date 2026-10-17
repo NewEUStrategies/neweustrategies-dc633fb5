@@ -9,6 +9,7 @@ import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
 import { currentLang } from "./lib/i18n/localeRuntime";
 import { installLanguageLinkRefresh } from "./lib/i18n/refreshRenderedLinks";
+import { installRestoreAfterReveal } from "./lib/scroll/restoreAfterReveal";
 // Ekrany błędu NIE należą do udanego pierwszego renderu - `React.lazy`
 // (wewnątrz wrappera) trzyma je poza chunkiem wejściowym; SSR strony błędu
 // nadal działa, bo lazy renderuje się w strumieniu (test: router.test.tsx).
@@ -268,6 +269,13 @@ export const getRouter = () => {
     // (`lib/i18n/refreshRenderedLinks.ts`); router żyje tyle co strona, więc wypięcie
     // słuchacza nie jest potrzebne.
     installLanguageLinkRefresh(router, currentLang);
+
+    // PRZYWRÓCENIE PO PÓŹNYM ODSŁONIĘCIU. Router przywraca okno raz, przy hydratacji, na
+    // układzie, na którym segmenty strumienia SSR mogą jeszcze stać szkieletami; po
+    // odsłonięciu ostatniego z nich moduł powtarza to samo przywrócenie
+    // (`lib/scroll/restoreAfterReveal.ts`). Słuchacz `onRendered` po słuchaczu router-core,
+    // bo ten zapisał się już w `createRouter`.
+    installRestoreAfterReveal(router);
 
     // The integration hydrates the INITIAL dehydrated batch synchronously, but
     // pumps the render-phase query STREAM through an async reader loop. React

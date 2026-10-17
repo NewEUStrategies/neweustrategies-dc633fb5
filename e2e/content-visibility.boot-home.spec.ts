@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { RESTORE_AFTER_REVEAL_MAX_MS } from "../src/lib/scroll/restoreAfterReveal";
+import { routeClientBackend, serveFixtureImages } from "./helpers/artifactFixture";
+import {
+  holdReveals,
+  PENDING_STREAM_SEGMENT,
+  pendingStreamSegments,
+} from "./helpers/streamReveals";
+
 // CONTENT-VISIBILITY SEKCJI NA ARTEFAKCIE (P3.3): `/` na fixture `first-visit` (ten sam
 // serwer i backend co `boot-home`, `playwright.artifact.config.ts`).
 //
@@ -26,9 +34,11 @@ import { expect, test, type Page } from "@playwright/test";
 //     jak bez P3.3 - także dla fragmentu tekstowego (`/#:~:text=…`, linki z wyszukiwarki,
 //     „Kopiuj link do wyróżnienia"), którego Chromium nie pokazuje w `location.hash`.
 //  4. Przeładowanie w połowie strony (przywrócenie przewinięcia TanStacka z
-//     `sessionStorage`): strażnik zdejmuje cv i pozycja wraca jak na bazie; powrót „wstecz"
-//     w SPA renderuje stronę po stronie klienta - bez cv, więc router liczy na prawdziwym
-//     układzie.
+//     `sessionStorage`): strażnik zdejmuje cv i pozycja wraca jak na bazie - także gdy
+//     segmenty strumienia SSR odsłaniają się PO hydratacji (kolejność wymuszona zapadką na
+//     `$RV`; `lib/scroll/restoreAfterReveal.ts`), a nawigacja przed tym odsłonięciem nie
+//     przenosi starej pozycji na nową stronę; powrót „wstecz" w SPA renderuje stronę po
+//     stronie klienta - bez cv, więc router liczy na prawdziwym układzie.
 //  5. Druk: reguła `@media print` zdejmuje cv (Chromium i tak drukuje pominięte sekcje).
 //
 // NAGŁÓWEK KURCZY SIĘ PRZY PIERWSZYM PRZEWINIĘCIU (tryb `sticky-shrink` strony głównej) i to
@@ -99,6 +109,25 @@ declare global {
     __cvShifts?: ShiftEntry[];
     __cvTrack?: { start: (id: string) => void; rendered: () => boolean; stop: () => TargetTrack };
     __cvEntryTrack?: EntrySample[];
+    /** Sonda wariantu „nawigacja przed odsłonięciem” (czasy z `performance.now()`). */
+    __e2eNav?: {
+      hydratedAt?: number;
+      held?: { y: number; queued: number; pending: number; marked: number };
+      committed?: {
+        at: number;
+        y: number;
+        maxY: number;
+        old: number;
+        pending: number;
+        queued: number;
+      };
+      releasedAt?: number;
+    };
+    /** Sonda wariantu „odsłonięcie PO hydratacji” (zwolnienie zaraz po hydratacji). */
+    __e2eReveal?: {
+      held?: { y: number; queued: number; pending: number };
+      atRelease?: { ms: number; queued: number; pending: number; waiting: number };
+    };
   }
 }
 
@@ -464,6 +493,56 @@ function expectLanded(
   );
 }
 
+/**
+ * Punkt czytania: pierwsza sekcja, której dół jest jeszcze w widoku (albo sekcja `id` po
+ * przeładowaniu), jej góra w widoku, `scrollY` i wyłącznik cv.
+ */
+const readingPoint = (id: string | null) => {
+  const sections = [...document.querySelectorAll<HTMLElement>("main [data-sec-id]")];
+  const anchor = id
+    ? document.querySelector<HTMLElement>(`main [data-sec-id="${id}"]`)!
+    : sections.find((s) => s.getBoundingClientRect().bottom > 0)!;
+  return {
+    id: anchor.getAttribute("data-sec-id"),
+    top: anchor.getBoundingClientRect().top,
+    y: scrollY,
+    cvOff: document.documentElement.hasAttribute("data-cv-off"),
+  };
+};
+
+/**
+ * Przeładowanie w połowie strony: sekcja, którą czytelnik miał u góry widoku, wraca na to samo
+ * miejsce w widoku.
+ *
+ * RESZTA ~17-29 px, cała w `scrollY` (zmierzone na artefakcie fixture: desktop 26-27 px, telefon
+ * 28-29 px, mniej, gdy przywrócenie trafi w trakcie animacji nagłówka; dawne „desktop co do
+ * piksela, telefon 26 px" jest nieaktualne). Sekcja stoi w dokumencie dokładnie tam, gdzie przed
+ * przeładowaniem - to NIE przywrócenie chybia, tylko nagłówek: `sticky-shrink` jest w przepływie
+ * (`sticky top-0`), pozycję zapisano przy zwiniętym (desktop 146 + 11,8 px marginesu = 157,8 px,
+ * telefon 78,3 px), a SSR przywraca ją na rozwiniętym (185,3 / 107 px). Nagłówek zwija się
+ * ~460 ms PO przywróceniu, jego ślad w układzie maleje o 27,5 / 28,7 px (pasek „na czasie” nie
+ * ma rekompensaty w marginesie), a zakotwiczenie przewijania trzyma treść w miejscu - więc
+ * `scrollY` kończy o tyle niżej. Ta sama klasa co spóźnione odsłonięcie segmentów (przywrócenie
+ * na układzie, który nie jest ostateczny), inne źródło - `lib/scroll/restoreAfterReveal.ts` go
+ * nie dotyczy.
+ * Pasy z szacunku bez strażnika cv dawały setki pikseli, odsłonięcie segmentów po hydratacji bez
+ * ponownego przywrócenia - 140-195 px; próg 40 px rozdziela oba od tej reszty.
+ * Reszta zakłada ten sam układ nad punktem czytania w obu dokumentach. Na telefonie psuło go
+ * odsłonięcie wstrzymane dłużej niż ~1/3 s po hydratacji: część granic sekcji przechodziła
+ * wtedy na render kliencki razem z obrazami (CI 844f86138: 42,4 px = 34,5 px zaślepek
+ * `OptimizedImage` + 7,9 px nagłówka; docblock `releaseRevealsAfterHydration`).
+ */
+function expectReadingPointKept(
+  before: ReturnType<typeof readingPoint>,
+  after: ReturnType<typeof readingPoint>,
+  held?: unknown,
+): void {
+  expect(
+    Math.abs(after.top - before.top),
+    JSON.stringify({ before, held, after }),
+  ).toBeLessThanOrEqual(40);
+}
+
 /** Link `#id` w rogu widoku (`position: fixed`), w który test klika jak użytkownik. */
 async function anchorLink(page: Page, id: string): Promise<void> {
   await page.evaluate((target) => {
@@ -783,46 +862,294 @@ for (const { name, viewport } of VIEWPORTS) {
       expect(entered.sectionCv).toBe("visible");
     });
 
+    /**
+     * Obce originy strony takie same w obu dokumentach przeładowania i w każdym środowisku
+     * (`helpers/artifactFixture.ts`): obrazy fixture się wczytują, a backend klienta jest martwy
+     * pod KAŻDYM originem, który wpiekł build (`replies` - wyjątki z pustą odpowiedzią). Bez
+     * tego układ nad punktem czytania zależał od tego, jak i kiedy runner odmówi
+     * `fixture.invalid` (zaślepka `OptimizedImage` zamiast zepsutego `<img>`, gdy błąd zobaczy
+     * React), a nawigacja SPA - od tego, czy build woła port 4199 (test nawigacji niżej).
+     */
+    async function stableOrigins(page: Page, replies?: Record<string, unknown>): Promise<void> {
+      await serveFixtureImages(page);
+      await routeClientBackend(page, replies);
+    }
+
     test("przeładowanie w połowie strony: strażnik zdejmuje cv, przywrócenie trafia w ten sam punkt", async ({
       page,
     }) => {
+      await stableOrigins(page);
       await openHome(page);
       // Głęboko w stronę, przez sekcje z cv (dorysowują się po drodze).
       await wheel(page, 400, 8, 80);
       await page.waitForTimeout(600);
-      const at = (id: string | null) => {
-        const sections = [...document.querySelectorAll<HTMLElement>("main [data-sec-id]")];
-        const anchor = id
-          ? document.querySelector<HTMLElement>(`main [data-sec-id="${id}"]`)!
-          : sections.find((s) => s.getBoundingClientRect().bottom > 0)!;
-        return {
-          id: anchor.getAttribute("data-sec-id"),
-          top: anchor.getBoundingClientRect().top,
-          y: scrollY,
-          cvOff: document.documentElement.hasAttribute("data-cv-off"),
-        };
-      };
-      const before = await page.evaluate(at, null);
+      const before = await page.evaluate(readingPoint, null);
       expect(before.y).toBeGreaterThan(1_000);
 
       // Skrypt TanStacka zapisuje pozycję przy `pagehide` i przywraca ją na końcu `<main>`.
       await page.reload();
       await expect.poll(() => page.evaluate(() => window.__nesAppReady === true)).toBe(true);
       await page.waitForTimeout(1_000);
-      const after = await page.evaluate(at, before.id);
+      const after = await page.evaluate(readingPoint, before.id);
       expect(after.cvOff).toBe(true);
-      // Baza fali bez P3.3: desktop co do piksela, telefon 26 px (nagłówek zmienia stan po
-      // przywróceniu). Pasy z szacunku bez strażnika dawały setki pikseli.
-      expect(
-        Math.abs(after.top - before.top),
-        JSON.stringify({ before, after }),
-      ).toBeLessThanOrEqual(40);
+      expectReadingPointKept(before, after);
+    });
+
+    // PRZEŁADOWANIE Z ODSŁONIĘCIEM SEGMENTÓW PO HYDRATACJI - wariant testu wyżej z kolejnością
+    // ustaloną przez test, nie przez wyścig. React 19.2 odsłania segmenty strumienia partiami
+    // (kolejna partia >= 300 ms po poprzedniej), więc na szybkim urządzeniu część z nich staje
+    // PO jedynym przywróceniu routera przy hydratacji - na szkieletach `estimateSectionHeight`.
+    // Bez ponownego przywrócenia po ostatnim odsłonięciu (`lib/scroll/restoreAfterReveal.ts`)
+    // zakotwiczenie przewijania zostawiało czytelnika 140-195 px wyżej (desktop: `scrollY`
+    // 2202 -> 2009; telefon 3185 -> 3018), a test wyżej migał ~2/20. Zapadka (`holdReveals`)
+    // obejmuje wyłącznie dokument przeładowania; wszystkie partie stoją do zwolnienia zaraz po
+    // hydratacji (`releaseRevealsAfterHydration`).
+    async function readDeepInPage(page: Page, replies?: Record<string, unknown>) {
+      await stableOrigins(page, replies);
+      await openHome(page);
+      await wheel(page, 400, 8, 80);
+      await page.waitForTimeout(600);
+      const before = await page.evaluate(readingPoint, null);
+      expect(before.y).toBeGreaterThan(1_000);
+      return before;
+    }
+
+    /**
+     * Warunki scenariusza: przy hydratacji segmenty czekały (`pending` - router przywrócił okno
+     * na układzie ze szkieletami), a runtime Fizz oddał je do `$RV`, więc zapadka je trzyma
+     * (`queued`). `queued` NIE z chwili hydratacji: `$RC` woła `$RV` przez
+     * `requestAnimationFrame`, a ta klatka potrafi przyjść dopiero po pierwszym `onRendered`
+     * (zmierzone: `queued` 0 przy `pending` 4 w 1 z ~80 przebiegów; 4 segmenty zamiast 13 ma
+     * dokument, który serwer zapisuje po rewalidacji L1, ~3 min od startu - 37 z 60 przebiegów
+     * sondy, wszystkie po rewalidacji).
+     */
+    function expectRevealsHeld(held: { queued: number; pending: number }): void {
+      expect(held.queued, "runtime Fizz odsłania przez `$RV`").toBeGreaterThan(0);
+      expect(held.pending, "segmenty czekają do zwolnienia").toBeGreaterThan(0);
+    }
+
+    /**
+     * Zwalnia wstrzymane odsłonięcia zaraz po PIERWSZYM `onRendered` routera (hydratacja) -
+     * tak jak test nawigacji niżej, bez rund Playwrighta po drodze: w pierwszym zadaniu, w którym
+     * partia jest już w zapadce (`$RV` przychodzi klatkę po `$RC`; bez niej po 2 s, a test oblewa
+     * na `queued`). Słuchacz zapisuje się w setterze `__TSR_ROUTER__`, czyli przed słuchaczem
+     * modułu z `getRouter`; zwolnienie biegnie w osobnym zadaniu, więc moduł zdążył zobaczyć
+     * czekające segmenty.
+     *
+     * DLACZEGO NIE Z TESTU. Na telefonie `BuilderRenderer` po hydratacji poprawia urządzenie
+     * (`ResizeObserver` -> `startTransition(setViewportDevice("mobile"))`; SSR renderuje
+     * „desktop"), a sekcje dostają nowy prop `device`. Granica, której odsłonięcie wciąż
+     * czeka (`<!--$~-->` z segmentem w `<div hidden id="S:…">`), nie może się zhydratować,
+     * więc React 19.2 odrzuca jej HTML serwera i renderuje ją po stronie klienta - 4 z 13
+     * wstrzymanych granic (sekcje `…002c`, `…0033`, `…003a`, `…0044`), z NOWYMI `<img>`.
+     * Zmierzone sondą na telefonie, na buildzie jak w CI: zwolnienie z testu (`__nesAppReady`
+     * i trzy rundy `evaluate`) wypadało 129-834 ms po hydratacji, a przejście dochodziło do
+     * czekających granic 334-1016 ms po niej - render kliencki w 9 z 17 przebiegów ze
+     * zwolnieniem >= 544 ms, w 0 z 63 wcześniejszych; zwolnienie wymuszone 1 s po hydratacji -
+     * 10/10 na telefonie, 0/10 na desktopie (bez zmiany urządzenia). Obrazy tych granic
+     * wczytują się albo padają PO przywróceniu modułu, więc układ nad punktem czytania był inny
+     * niż przed przeładowaniem: z niedostępnym `fixture.invalid` (CI) klient pokazuje zaślepkę
+     * `OptimizedImage` zamiast zepsutego `<img>` serwera (CI 844f86138: 42,4 px = 34,5 px
+     * zaślepek w pierwszej sekcji z cv + 7,9 px nagłówka), z obrazami fixture obrazy bez
+     * wymiarów rosną nad widokiem, a zakotwiczenie trzyma chybioną pozycję (-195 / -196 px).
+     * Zwolnienie przy hydratacji odsłania wszystkie segmenty przed przejściem: granice się
+     * hydratują, a przejście aktualizuje je jak każdy inny węzeł (20/20 bez renderu
+     * klienckiego, reszta 29 px - cała z nagłówka, docblock `expectReadingPointKept`).
+     */
+    async function releaseRevealsAfterHydration(page: Page): Promise<void> {
+      await page.addInitScript((selector) => {
+        type Router = { subscribe: (type: "onRendered", fn: () => void) => () => void };
+        /** Granice strumienia, które wciąż czekają (`$?` - na dane, `$~` - na odsłonięcie). */
+        const waitingBoundaries = () => {
+          let count = 0;
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
+          while (walker.nextNode()) {
+            const data = (walker.currentNode as Comment).data;
+            if (data === "$?" || data === "$~") count += 1;
+          }
+          return count;
+        };
+        const probe: NonNullable<Window["__e2eReveal"]> = {};
+        window.__e2eReveal = probe;
+        let router: Router | undefined;
+        Object.defineProperty(window, "__TSR_ROUTER__", {
+          configurable: true,
+          get: () => router,
+          set: (value: Router) => {
+            router = value;
+            const off = value.subscribe("onRendered", () => {
+              off();
+              const hydratedAt = performance.now();
+              probe.held = {
+                y: scrollY,
+                queued: window.__revealQueued ?? 0,
+                pending: document.querySelectorAll(selector).length,
+              };
+              const release = () => {
+                const queued = window.__revealQueued ?? 0;
+                const ms = performance.now() - hydratedAt;
+                if (queued === 0 && ms < 2_000) return void setTimeout(release, 5);
+                probe.atRelease = {
+                  ms: Math.round(ms),
+                  queued,
+                  pending: document.querySelectorAll(selector).length,
+                  waiting: waitingBoundaries(),
+                };
+                window.__releaseReveals!();
+              };
+              setTimeout(release);
+            });
+          },
+        });
+      }, PENDING_STREAM_SEGMENT);
+    }
+
+    test("przeładowanie w połowie strony, odsłonięcie segmentów PO hydratacji (kolejność wymuszona): przywrócenie trafia w ten sam punkt", async ({
+      page,
+    }) => {
+      const before = await readDeepInPage(page);
+      await holdReveals(page);
+      await releaseRevealsAfterHydration(page);
+      await page.reload();
+      await expect.poll(() => page.evaluate(() => window.__e2eReveal?.atRelease)).toBeDefined();
+      const { held, atRelease } = await page.evaluate(() => structuredClone(window.__e2eReveal!));
+      expectRevealsHeld({ queued: atRelease!.queued, pending: held!.pending });
+      // Każdy czekający segment ma jeszcze swoją granicę: nic nie przeszło na render kliencki
+      // przed odsłonięciem (docblock `releaseRevealsAfterHydration`).
+      expect(atRelease!.waiting, JSON.stringify({ held, atRelease })).toBeGreaterThanOrEqual(
+        atRelease!.pending,
+      );
+
+      await expect.poll(() => pendingStreamSegments(page)).toBe(0);
+      await page.waitForTimeout(1_000);
+      const after = await page.evaluate(readingPoint, before.id);
+      expect(after.cvOff).toBe(true);
+      expectReadingPointKept(before, after, held);
+    });
+
+    test("przeładowanie w połowie strony i nawigacja PRZED odsłonięciem segmentów: nowa strona nie dostaje pozycji starej", async ({
+      page,
+    }) => {
+      // Backend przeglądarki na fixture jest martwy (SSR dostaje dane z `replayFetch.mjs`).
+      // Loader `/regulamin` czeka w przeglądarce na zapytanie o nadpisania SEO bez terminu
+      // (`loadResilient`), a nieudany GET postgrest-js ponawia sam 3 razy (1 + 2 + 4 s),
+      // a react-query całość jeszcze raz po 1 s - z martwym backendem nawigacja trwała więc
+      // ~15 s ponowień (CI 844f86138: 8 prób `pages`, zatwierdzenie po 15,4 s), dłużej niż
+      // sufit czekania modułu, a gdy pod adresem backendu słuchał obcy proces (lokalnie 4199 -
+      // backend klienta lokalnego Lighthouse'a), zapytania wisiały 25-33 s (zmierzone). Pusta
+      // odpowiedź na to jedno zapytanie (brak nadpisań - treść strony jest w kodzie) i
+      // odrzucenie reszty robią z nawigacji stały, szybki warunek. Dopasowanie po ścieżce API
+      // na originie z builda, nie po porcie 4199: build CI woła `placeholder.supabase.co`
+      // (albo bazę z sekretu), więc trasa po porcie nie łapała tam niczego. Trasa stoi już
+      // przed pierwszym wejściem, bo nawigacja rusza zaraz po hydratacji przeładowania.
+      const before = await readDeepInPage(page, { "/rest/v1/pages": [] });
+
+      // Nawigacja routera bez żadnego zdarzenia na stronie (jak w teście „wstecz” niżej) między
+      // hydratacją a ostatnim odsłonięciem - tak wygląda przycisk „Wstecz” przeglądarki albo
+      // przekierowanie z kodu: ani kółka, ani klawisza, ani wciśnięcia wskaźnika, więc tylko
+      // strażnik nawigacji powstrzymuje powtórzenie przywrócenia na nowej stronie. Spóźniona
+      // partia odsłonięć starej strony przychodzi, gdy nowa jest już wyrenderowana i przewinięta
+      // przez router na górę.
+      await holdReveals(page);
+      // KOLEJNOŚĆ PROWADZI STRONA, NIE ODPYTYWANIE TESTU. Nawigacja rusza zadanie po hydratacji
+      // (pierwszy `onRendered`), a odsłonięcia zwalnia zadanie po `onRendered` nowej strony -
+      // żadnych rund Playwrighta po drodze. Wersja sterowana z testu (gotowość, `navigate`
+      // i zwolnienie przez rundy `expect.poll`) na hoście z obciążeniem ~13 na 4 rdzeniach
+      // dobijała do 3,1 s i oblewała warunek „przed sufitem” niżej, choć moduł działał; ta
+      // mieści się w 0,4-1,1 s przy tym samym obciążeniu (zmierzone). Słuchacze zapisują
+      // się w setterze `__TSR_ROUTER__` (konstruktor routera, PO słuchaczu przywracania
+      // router-core i PRZED słuchaczem modułu z `getRouter`): `hydratedAt` jest więc nie później
+      // niż start sufitu modułu, a pomiar „zwolnienie - hydratacja” - nie krótszy niż czas, który
+      // moduł odliczył.
+      await page.addInitScript(
+        ({ to, selector }) => {
+          type Location = { pathname: string };
+          type Router = {
+            subscribe: (
+              type: "onRendered",
+              fn: (event: { toLocation: Location }) => void,
+            ) => () => void;
+            navigate: (options: { to: string }) => Promise<void>;
+          };
+          const probe: NonNullable<Window["__e2eNav"]> = {};
+          window.__e2eNav = probe;
+          let router: Router | undefined;
+          Object.defineProperty(window, "__TSR_ROUTER__", {
+            configurable: true,
+            get: () => router,
+            set: (value: Router) => {
+              router = value;
+              const offHydrated = value.subscribe("onRendered", () => {
+                offHydrated();
+                probe.hydratedAt = performance.now();
+                document
+                  .querySelector("main [data-builder-renderer]")
+                  ?.setAttribute("data-e2e-stara", "");
+                probe.held = {
+                  y: scrollY,
+                  queued: window.__revealQueued ?? 0,
+                  pending: document.querySelectorAll(selector).length,
+                  marked: document.querySelectorAll("[data-e2e-stara]").length,
+                };
+                setTimeout(() => void value.navigate({ to }));
+              });
+              const offNext = value.subscribe("onRendered", (event) => {
+                if (event.toLocation.pathname !== to) return;
+                offNext();
+                probe.committed = {
+                  at: performance.now(),
+                  y: scrollY,
+                  maxY: document.documentElement.scrollHeight - innerHeight,
+                  old: document.querySelectorAll("[data-e2e-stara]").length,
+                  pending: document.querySelectorAll(selector).length,
+                  queued: window.__revealQueued ?? 0,
+                };
+                setTimeout(() => {
+                  window.__releaseReveals!();
+                  probe.releasedAt = performance.now();
+                });
+              });
+            },
+          });
+        },
+        { to: "/regulamin", selector: PENDING_STREAM_SEGMENT },
+      );
+      await page.reload();
+      await page.waitForURL(/\/regulamin$/);
+      await expect.poll(() => page.evaluate(() => window.__e2eNav?.releasedAt)).toBeDefined();
+      const nav = await page.evaluate(() => structuredClone(window.__e2eNav!));
+      const message = JSON.stringify({ before, nav });
+      expectRevealsHeld({ queued: nav.committed!.queued, pending: nav.held!.pending });
+      // Znacznik starej treści stał przy hydratacji - bez tego `old: 0` niżej przechodziłby na
+      // pusto, gdyby selektor przestał cokolwiek trafiać.
+      expect(nav.held!.marked, message).toBe(1);
+      // Nowa strona zatwierdzona: stara treść odmontowana, router przewinął nowy wpis na górę,
+      // strona jest dość długa, żeby przewinięcie do starej pozycji było widać (przycięte do jej
+      // końca - i tak ponad ekran), a segmenty starej strony nadal czekają.
+      expect(nav.committed, message).toMatchObject({ old: 0, y: 0 });
+      expect(nav.committed!.maxY, message).toBeGreaterThan(viewport.height);
+      expect(nav.committed!.pending, message).toBeGreaterThan(0);
+      // Zwolnienie wyraźnie przed sufitem czekania modułu - inaczej test mierzyłby sufit, a nie
+      // strażnika nawigacji (bez strażnika przechodziłby wtedy na pusto).
+      expect(nav.releasedAt! - nav.hydratedAt!, message).toBeLessThan(
+        RESTORE_AFTER_REVEAL_MAX_MS - 2_000,
+      );
+
+      await expect.poll(() => pendingStreamSegments(page)).toBe(0);
+      await page.waitForTimeout(600);
+      const after = await page.evaluate(() => ({ y: scrollY, path: location.pathname }));
+      expect(after.path).toBe("/regulamin");
+      expect(after.y, JSON.stringify({ before, nav, after })).toBe(nav.committed!.y);
     });
 
     test("powrót „wstecz” po nawigacji SPA: strona główna renderuje się po stronie klienta, bez cv", async ({
       page,
     }) => {
       test.setTimeout(90_000);
+      // Ten sam loader `/regulamin` co wyżej: z martwym backendem nawigacja czekała ~15 s
+      // ponowień zapytania `pages`, czyli większość domyślnego terminu `expect.poll` (20 s)
+      // na odmontowanie strony głównej (CI 844f86138: test 19,0 / 19,5 s).
+      await routeClientBackend(page, { "/rest/v1/pages": [] });
       await openHome(page);
       await wheel(page, 400, 8, 80);
       await page.waitForTimeout(600);

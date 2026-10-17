@@ -70,6 +70,8 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   /** Ile razy trasa zarejestrowała swój słownik (chunk trasy, nie entry). */
   ensureI18nCalls: 0,
+  /** Ile razy trasa zarejestrowała słownik edytora (właściciel etykiet sekcji). */
+  ensureEditorI18nCalls: 0,
   /** Ile razy zamontowano `AdminShell` - SONDA reguły 5. */
   shellRenders: 0,
 }));
@@ -78,6 +80,11 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 vi.mock("@/lib/i18n-admin-layouts", () => ({
   ensureI18n: () => {
     h.ensureI18nCalls += 1;
+  },
+}));
+vi.mock("@/lib/i18n-expert-layout-editor", () => ({
+  ensureI18n: () => {
+    h.ensureEditorI18nCalls += 1;
   },
 }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
@@ -188,6 +195,7 @@ beforeEach(() => {
   h.savePending = false;
   h.previewProps = [];
   h.ensureI18nCalls = 0;
+  h.ensureEditorI18nCalls = 0;
   h.shellRenders = 0;
 });
 
@@ -247,6 +255,10 @@ describe("admin.expert-layouts - sklejenie trasy i stan pusty", () => {
     await mount();
 
     expect(h.ensureI18nCalls).toBeGreaterThan(0);
+    // Etykiety sekcji, strzałek, wycentrowania i akcentu (`adminLayouts.
+    // expertLayouts.{sections.*,moveUp,…}`) należą do słownika PUBLICZNEGO
+    // inline-edytora eksperta - bez tej rejestracji panel pokazuje gołe klucze.
+    expect(h.ensureEditorI18nCalls).toBeGreaterThan(0);
   });
 
   it("NIE montuje własnej powłoki panelu - ani we wczytywaniu, ani w widoku głównym", async () => {

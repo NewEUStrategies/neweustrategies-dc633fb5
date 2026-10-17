@@ -51,6 +51,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 import { DesignSubNav } from "@/components/admin/DesignSubNav";
 import { realT } from "@/test/i18nReal";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 
 h.t = (lang) => realT(lang);
 

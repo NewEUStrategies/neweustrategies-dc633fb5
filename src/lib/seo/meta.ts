@@ -351,6 +351,12 @@ export interface ImagePreloadInput {
  * `imageSrcSet` + `imageSizes` are emitted so the preloaded candidate is exactly
  * the one the responsive `<img>` selects; otherwise a plain `href` preload is
  * emitted (matching a non-responsive `<img src>`). Pure - no framework deps.
+ *
+ * Not for a route `head()` whose `<img>` is already in the SSR shell: React 19
+ * emits that preload itself (keyed by `srcSet + sizes`) and a `head()` link is
+ * written to `<head>` without dedupe - two identical preloads (PR #515 for the
+ * archives, then `$.tsx`, events, programs, podcasts, web stories, clubs).
+ * Those routes send only the {@link imagePreloadLinkHeaderValue} header.
  */
 export function imagePreloadLink(input: ImagePreloadInput): Record<string, string> {
   const link: Record<string, string> = {
@@ -368,10 +374,13 @@ export function imagePreloadLink(input: ImagePreloadInput): Record<string, strin
 
 /**
  * The same LCP preload expressed as an HTTP `Link` response header value
- * (RFC 8288). Emitted alongside the in-document `<link rel="preload">` so the
- * browser can start the image fetch from the RESPONSE HEADERS - before the
- * first HTML byte is parsed - and so Cloudflare can surface it as a 103 Early
- * Hint on repeat visits. `imagesrcset` may contain commas; RFC 8288 allows
+ * (RFC 8288), so the browser can start the image fetch from the RESPONSE
+ * HEADERS - before the first HTML byte is parsed - and so Cloudflare can
+ * surface it as a 103 Early Hint on repeat visits. The in-document
+ * `<link rel="preload">` is NOT built from this descriptor in routes: React 19
+ * emits it itself from the shell `<img fetchPriority="high">` (same
+ * `srcSet + sizes` key), and a route `head()` link on top of it is a duplicate
+ * React cannot dedupe. `imagesrcset` may contain commas; RFC 8288 allows
  * them inside quoted parameter values, and quotes/backslashes are escaped so
  * editor-controlled URLs can never break out of the parameter context. Pure -
  * no framework deps, unit-testable.

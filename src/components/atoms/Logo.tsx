@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
+import { renderedMediaUrl } from "@/lib/cropSizes";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg" | "xl";
@@ -53,7 +54,16 @@ export function Logo({ size = "md", withWordmark = true, variant = "main" }: Log
     if (variant === "transparent") return (isDark ? l.transparent_dark : l.transparent) || main;
     return main;
   })();
-  const src = resolved;
+  // Eager `<img>` w powłoce (reset hasła - w chrome'ie serwisu obok paska
+  // mobilnego `Header`; AuthPortal na /login bez nagłówka, rejestracja
+  // `ssr: false`) dostaje od Reacta auto-preload kluczowany SUROWYM `src`.
+  // Adres względny `/media/...` jak w paskach chrome'u (`lib/brand/headerLogo`):
+  // gdy na resecie hasła to ten sam plik co logo paska mobilnego (motyw bez
+  // osobnego wariantu `mobile`), oba `<img>` mają jeden klucz i `<head>`
+  // dostaje jeden preload, a na hostach najemców i podglądu nie ma drugiego
+  // pobrania z kanonicznego originu. Wybór wariantu zostaje własny; napis-strażnik jak w helperze -
+  // wartość innego typu z wiersza ustawień nie wywraca SSR.
+  const src = typeof resolved === "string" && resolved ? renderedMediaUrl(resolved) : "";
   const showWordmark = withWordmark && !resolved;
 
   return (

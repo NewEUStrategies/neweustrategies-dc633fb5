@@ -37,6 +37,9 @@ import { useState } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { realT } from "@/test/i18nReal";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 

@@ -111,6 +111,9 @@ vi.mock("@/lib/iconLibrary", async (importOriginal) => {
 });
 
 import "@/test/i18nReal";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { Route } from "@/routes/admin.icons";
 
 let queryClient: QueryClient;

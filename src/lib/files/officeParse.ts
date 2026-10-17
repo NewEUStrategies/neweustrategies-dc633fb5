@@ -5,13 +5,13 @@
 // Wysłanie tam podpisanego URL-a oznaczałoby oddanie materiału członkowskiego
 // obcemu serwerowi - dlatego plik nigdy nie opuszcza sesji użytkownika.
 //
-// WSZYSTKIE BIBLIOTEKI SĄ ŁADOWANE LENIWIE. mammoth/xlsx/jszip to razem
-// kilkaset kilobajtów; ktoś, kto nigdy nie otworzy .docx, nie ma prawa ich
-// pobrać. Import żyje więc wewnątrz funkcji, nie na górze modułu.
+// WSZYSTKIE BIBLIOTEKI SĄ ŁADOWANE LENIWIE. mammoth/xlsx i czytnik archiwów
+// to razem kilkaset kilobajtów; ktoś, kto nigdy nie otworzy .docx, nie ma
+// prawa ich pobrać. Import żyje więc wewnątrz funkcji, nie na górze modułu.
 import { runSpreadsheetWorker } from "./spreadsheetWorker";
 import DOMPurify from "dompurify";
 import { assertSanitizerEngine, escapeHtmlToText } from "../sanitizeEngineGuard";
-import type JSZipType from "jszip";
+import type { ZipArchive } from "./vendor/officeZip";
 
 export interface DocxResult {
   /** Bezpieczny HTML (już po sanityzacji). */
@@ -67,12 +67,16 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<DocxResult> {
   // import wystarcza; obrazy osadzone w pliku zostają jako data URI, bo bez
   // nich podgląd raportu gubi wykresy i zrzuty.
   //
-  // TYLKO ODCZYT. Bundel przeglądarki nie niesie zapisu XML mammoth ani
-  // tablicy encji HTML xmldom (`scripts/lib/officeParserTrim.ts`, ~22 KB gzip
-  // martwego kodu): `embedStyleMap` i parsowanie HTML przez xmldom rzucą tu
-  // błędem zamiast zadziałać. `convertToHtml` niczego z tego nie używa.
-  // Bluebird i tablica dingbatów mammoth mają tam zastępców o tej samej
-  // semantyce (kolejne ~33 KB gzip mniej, ten sam HTML).
+  // TYLKO ODCZYT. Bundel przeglądarki nie niesie zapisu XML ani zapisu
+  // archiwum mammoth (`scripts/lib/officeParserTrim.ts`): `embedStyleMap`
+  // rzuci tu błędem zamiast zadziałać, a `convertToHtml` niczego z tego nie
+  // używa. Bluebird, underscore, jszip, xmldom i tablica dingbatów mammoth
+  // mają tam zastępców o tej samej semantyce (natywny `Promise`, port
+  // używanych funkcji, czytnik `vendor/officeZip.ts`, natywny `DOMParser`) -
+  // razem ~80 KB gzip mniej, ten sam HTML dla poprawnych plików. Wyjątek:
+  // XML niepoprawny składniowo i każda deklaracja DTD w części pakietu są
+  // teraz błędem (stan „nie udało się odczytać") zamiast częściowej treści -
+  // uzasadnienie w `vendor/mammothXmlDom.ts`.
   const mammoth = await import("mammoth");
   const result = await mammoth.convertToHtml(
     { arrayBuffer: buffer },
@@ -114,8 +118,11 @@ function textOf(node: Element, tagName: string): string[] {
  * ciągnięcia silnika układu prezentacji do przeglądarki.
  */
 export async function parsePptx(buffer: ArrayBuffer): Promise<SlideResult[]> {
-  const JSZip = (await import("jszip")).default;
-  const zip = await JSZip.loadAsync(buffer);
+  // Ten sam czytnik archiwów co mammoth w bundlu przeglądarki (zamiast całego
+  // jszip z zapisem i kompresją): `loadAsync`, `files`, `file()` i `async()`
+  // o semantyce jszip - dowód w `__tests__/officeZip.test.ts`.
+  const { loadAsync } = await import("./vendor/officeZip");
+  const zip = await loadAsync(buffer);
   const parser = new DOMParser();
 
   const slidePaths = Object.keys(zip.files)
@@ -154,7 +161,7 @@ function slideNumber(path: string): number {
 }
 
 async function slideNotes(
-  zip: JSZipType,
+  zip: ZipArchive,
   index: number,
   parser: DOMParser,
 ): Promise<string | null> {
@@ -169,7 +176,7 @@ async function slideNotes(
   return text === "" ? null : text;
 }
 
-async function slideImages(zip: JSZipType, slidePath: string, doc: Document): Promise<string[]> {
+async function slideImages(zip: ZipArchive, slidePath: string, doc: Document): Promise<string[]> {
   const relsPath = slidePath.replace(/slides\/(slide\d+)\.xml$/, "slides/_rels/$1.xml.rels");
   const relsFile = zip.file(relsPath);
   if (relsFile === null) return [];

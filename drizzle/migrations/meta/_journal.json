@@ -2080,6 +2080,34 @@
       "when": 1791998263498,
       "tag": "0296_reg_main_merge_unbind_rerun",
       "breakpoints": true
+    },
+    {
+      "idx": 297,
+      "version": "7",
+      "when": 1792227638470,
+      "tag": "0297_club_view_a19_positive_predicate_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 298,
+      "version": "7",
+      "when": 1792242000000,
+      "tag": "0298_club_lists_secret_gate_a13_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 299,
+      "version": "7",
+      "when": 1792245600000,
+      "tag": "0299_is_nes_staff_confirmed_auth_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1792249200000,
+      "tag": "0300_club_lists_total_order",
+      "breakpoints": true
     }
   ]
 }

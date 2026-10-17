@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { Plus } from "@/lib/lucide-shim";
 import { BlockInserter } from "../BlockInserter";

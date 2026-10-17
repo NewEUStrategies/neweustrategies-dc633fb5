@@ -40,6 +40,13 @@ export function RichHtmlContent({ html, className, style }: RichHtmlProps) {
   }, [html]);
   // Footnote discovery updates state after hydration. Reuse the content node
   // so that update does not replace an unchanged innerHTML subtree (and images).
+  // `style` liczy się po WARTOŚCI: React 19 przepisuje `innerHTML` przy każdym
+  // nowym obiekcie `dangerouslySetInnerHTML` (napisu nie porównuje), a tekst
+  // wielokolumnowy (`ChromeWidgetView`) dostaje nowy obiekt `style` z każdym
+  // renderem rodzica. Bez tego pierwszy re-render po hydratacji podmieniał treść
+  // z SSR (znormalizowaną i zsanityzowaną na serwerze) na wersję przeglądarki -
+  // patrz `RichHtmlListView.tsx`.
+  const styleKey = style ? JSON.stringify(style) : "";
   const body = useMemo(
     () => (
       <div
@@ -49,7 +56,8 @@ export function RichHtmlContent({ html, className, style }: RichHtmlProps) {
         dangerouslySetInnerHTML={{ __html: safe }}
       />
     ),
-    [safe, className, style],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [safe, className, styleKey],
   );
 
   useEffect(() => {

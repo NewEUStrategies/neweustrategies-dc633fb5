@@ -26,6 +26,7 @@ import {
   type PostLayoutSettings,
 } from "@/lib/postLayouts";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { lcpCandidateAttr } from "@/lib/builder/aboveFold";
 import { ReadingHeader } from "@/components/share/ReadingHeader";
 import { NoteContextBinder } from "@/components/dock/NoteContextBinder";
 import { cleanExcerpt } from "@/lib/text/cleanExcerpt";
@@ -53,6 +54,18 @@ interface Props {
    * `post-cover-<id>` po obu stronach nawigacji tworzy płynny morph okładki.
    */
   coverViewTransitionId?: string;
+  /**
+   * Okładka jest JEDYNYM kandydatem LCP strony (P1.4): jej `<img>` dostaje
+   * `data-lcp-candidate` (ten sam atrybut i helper co obraz widgetu-kandydata
+   * buildera, `lcpCandidateAttr`). Loader bootu (`bootLoaderScript.ts`) szuka
+   * kandydata selektorem `img[data-lcp-candidate]` i startuje aplikację po jego
+   * wpisie LCP; bez znacznika wpis w trybie `lcp` bootował po pierwszej klatce
+   * (`nocand`), czyli przed malowaniem okładki. Podaje go WYŁĄCZNIE trasa `$.tsx`
+   * (`coverAboveBody`) - ta sama decyzja odbiera wtedy własność kandydata
+   * dokumentowi buildera w treści (`lcpOwner`), więc znacznik nigdy nie stoi
+   * obok drugiego. Priorytet okładki (eager + high) nie zależy od tego propsa.
+   */
+  coverLcpCandidate?: boolean;
   /** Identyfikator encji dla akcji "zapisz na później" w pasku czytania. */
   entityId?: string;
   /** Rodzaj encji zapisywanej do zakładek (post lub page). */
@@ -86,6 +99,7 @@ export function PostLayoutRenderer({
   sidebar,
   footer,
   coverViewTransitionId,
+  coverLcpCandidate = false,
   entityId,
   entityType = "post",
   sidebarOverride,
@@ -104,8 +118,12 @@ export function PostLayoutRenderer({
 
   // Okładka pojawia się tylko wtedy, gdy preset jej chce ORAZ wpis ją ma.
   // Bez zdjęcia każdy układ degraduje się do klasycznego nagłówka - inaczej
-  // "below-cover" czy "overlay" renderowałyby pustą, czarną ramę.
+  // "below-cover" czy "overlay" renderowałyby pustą, czarną ramę. Ten sam
+  // warunek liczy `coverAboveBody` w `$.tsx` - od niego zależy właściciel
+  // kandydata LCP wpisu (okładka albo treść), więc obie kopie muszą być równe.
   const showCover = rendersCover(preset) && !!coverImageUrl;
+  // Znacznik kandydata na `<img>` okładki (patrz `coverLcpCandidate`).
+  const coverLcp = lcpCandidateAttr(coverLcpCandidate);
   const headerMode: LayoutHeaderMode = showCover ? preset.header : "no-cover";
   const showExcerpt = preset.showExcerpt !== false && !!excerpt;
   // Akcje w nagłówku tylko dla presetów redakcyjnych (Layout 13).
@@ -235,6 +253,7 @@ export function PostLayoutRenderer({
               priority
               responsive
               sizes={coverImageSizes(preset)}
+              data-lcp-candidate={coverLcp}
             />
             {overlay && (
               <>
@@ -291,6 +310,7 @@ export function PostLayoutRenderer({
               priority
               responsive
               sizes={coverImageSizes(preset)}
+              data-lcp-candidate={coverLcp}
             />
           </div>
         </div>

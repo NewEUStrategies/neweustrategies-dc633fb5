@@ -478,8 +478,8 @@ const ProgressCarouselViewLazy = lazy(() =>
 export const ProgressCarouselView = withSuspense(ProgressCarouselViewLazy);
 
 // Widget `text`: sam shell zostaje w WidgetView, ale renderer HTML idzie lazy,
-// bo normalizeBuilderRichHtml ciągnie node-html-parser (202 kB źródła) i silnik
-// przypisów - najcięższa pojedyncza pozycja entry z inwentarza 2026-08-06.
+// bo ciągnie silnik przypisów i normalizację list (do 2026-10 przez
+// node-html-parser, 202 kB źródła - najcięższa pozycja entry z 2026-08-06).
 // Text is the reading surface: cold server imports produced 24 px empty
 // sections that expanded to 88 px after the first shell (CLS > 0.23).
 // Only the server is eager; the browser keeps the same lazy chunk boundary.
@@ -668,9 +668,9 @@ const SectionLabelWidgetViewLazy = serverReadingWidgets
     ) as ComponentType<ComponentProps<typeof SectionLabelWidgetViewImpl>>);
 export const SectionLabelWidgetView = withSuspense(SectionLabelWidgetViewLazy);
 
-// Kanwowy click-to-edit: renderuje się WYŁĄCZNIE przy canEdit (kanwa buildera),
-// a przez normalizeBuilderRichHtml ciągnie node-html-parser - statyczny import
-// w WidgetView wciągał parser do chunku wejściowego każdej strony publicznej.
+// Kanwowy click-to-edit: renderuje się WYŁĄCZNIE przy canEdit (kanwa buildera);
+// statyczny import w WidgetView wciągał go (wtedy razem z node-html-parserem)
+// do chunku wejściowego każdej strony publicznej.
 const EditableLazy = lazy(() =>
   import("../../molecules/Editable").then((m) => ({ default: m.Editable })),
 ) as ComponentType<ComponentProps<typeof EditableImpl>>;

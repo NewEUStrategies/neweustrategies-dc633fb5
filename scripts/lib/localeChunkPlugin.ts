@@ -6,8 +6,13 @@
 // w `src/lib/i18n.ts`, w tym samym chunku, w którym stoi `hydrateRoot`.
 // Przeglądarka pobiera więc komplet preloadów manifestu korzenia, zaczyna
 // wykonywać chunk wejściowy, DOPIERO WTEDY odkrywa `import("@/lib/locale/pl")`
-// i płaci pełny, kolejny szeregowy hop (zmierzone: pl 26,0 KB gzip,
-// en 22,8 KB gzip) - w oknie, w którym cała reszta już czeka na hydratację.
+// i płaci pełny, kolejny szeregowy hop (zmierzone przy wprowadzeniu wtyczki:
+// pl 26,0 KB gzip, en 22,8 KB gzip) - w oknie, w którym cała reszta już czeka
+// na hydratację. Od 2026-10-17 rdzeń nie niesie `admin.*` ani `blocks.*`
+// (nakładki panelu `i18n-admin-core` / `i18n-admin-blocks`) i waży pl 5,7 KB,
+// en 4,8 KB gzip: hop jest krótszy, ale nadal szeregowy i nadal przed
+// `hydrateRoot` - powód hintu się nie zmienił, zmalała tylko jego stawka.
+// (Kronika `check-bundle-size.ts` cytuje stare liczby jako stan z dnia wpisu.)
 //
 // DLACZEGO NIE `?url`, JAK PRZY ARKUSZU STYLÓW. `assets.appCss` bierze się
 // z `import appCss from "../styles.css?url"` - to działa, bo arkusz jest ZASOBEM

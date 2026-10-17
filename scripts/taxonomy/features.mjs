@@ -297,8 +297,9 @@ export const FEATURES_3 = [
     // Czwarty to `builder/normalizeRichHtml.ts`: ta sama powierzchnia (HTML
     // wchodzący do treści, parsowany i normalizowany przed zapisem), zasila
     // `RichHtmlField` w panelu i `RichHtmlView` na stronie. Musi stać PRZED
-    // wierszami `lib/builder/**`, bo inaczej zabierze go któryś z nich.
-    patterns: [/^src\/lib\/sanitize/, /^src\/lib\/builder\/normalizeRichHtml\.ts$/],
+    // wierszami `lib/builder/**`, bo inaczej zabierze go któryś z nich. Razem
+    // z nim jego bliźniak przeglądarkowy (`…Dom.ts`) i wspólne reguły (`…Rules.ts`).
+    patterns: [/^src\/lib\/sanitize/, /^src\/lib\/builder\/normalizeRichHtml(?:Dom|Rules)?\.ts$/],
   },
   {
     key: "cms-wp-import",

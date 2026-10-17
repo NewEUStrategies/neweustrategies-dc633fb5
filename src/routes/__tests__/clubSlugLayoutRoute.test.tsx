@@ -25,10 +25,12 @@
 //      odpowiedziała i wiersza NIE MA (klub `secret` bez dostępu nie zdradza,
 //      że istnieje).
 //   4. HINT LCP TYLKO TAM, GDZIE OKŁADKA JEST ELEMENTEM LCP. Reguła mieszka
-//      w `clubCoverPreload` (hub za bramką dostępu) i ma tu dwa nośniki naraz:
-//      nagłówek `Link` odpowiedzi i `<link>` w `head().links`. Obie drogi
-//      muszą nieść TĘ SAMĄ wartość, bo inaczej przeglądarka pobierze plik
-//      dwa razy zamiast raz.
+//      w `clubCoverPreload` (hub za bramką dostępu) i ma tu JEDEN nośnik:
+//      nagłówek `Link` odpowiedzi. `<link>` w `<head>` wstawia sam React 19
+//      z `<img fetchPriority="high">` okładki (`ClubCover variant="banner"`,
+//      ten sam klucz srcSet/sizes) - dawny link z `head()` układu był jego
+//      drugim, identycznym egzemplarzem (`documentPreloadDuplicates`), więc
+//      układ nie ma już `head()`, a deskryptor nie wraca w danych loadera.
 //
 // JAK. Loader jest wołany JAKO FUNKCJA, bez montowania drzewa (ta sama
 // doktryna, co `archiveLoaderResilience.test.ts`): przedmiotem dowodu są
@@ -89,8 +91,7 @@ import { clubKeys } from "@/lib/clubs/queryKeys";
 import { toClubHeadSource } from "@/lib/clubs/clubHead";
 import { clubCoverPreload } from "@/lib/clubs/clubCoverPreload";
 import { contentCacheControl } from "@/lib/http/cachePolicy";
-import { imagePreloadLink, imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
-import { routeHead } from "@/test/routeHarness";
+import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
 import { clubViewRow } from "@/test/clubs/fixtures";
 import { Route as LayoutRoute } from "@/routes/club.$clubSlug";
 
@@ -99,10 +100,11 @@ const HUB = `/club/${SLUG}`;
 const NO_STORE = "private, no-store";
 const OKLADKA = "https://projekt.supabase.co/storage/v1/object/public/media/klub/okladka.jpg";
 
-/** Ładunek loadera układu - dokładnie to, co czyta `head()` i trasy liściowe. */
+/** Ładunek loadera układu. Kod produkcyjny go nie czyta (trasy liściowe biorą
+ *  kartę z cache zapytań przez `clubHeadLoader`), a preloadu okładki tu NIE MA:
+ *  jedzie wyłącznie nagłówkiem `Link`. */
 interface LayoutLoaderData {
   readonly club: ReturnType<typeof toClubHeadSource>;
-  readonly coverPreload: ReturnType<typeof clubCoverPreload>;
 }
 
 type Loader = (ctx: {
@@ -226,7 +228,7 @@ describe("układ klubu - czysty odczyt karty", () => {
     // Rozstrzygnięcie „klub nie istnieje" należy do `ClubHubRoute`, który
     // czyta klucz z widzem i ma już na to gałąź (`club.reason.not_found`).
     h.club = null;
-    await expect(uruchom(klient(), HUB)).resolves.toEqual({ club: null, coverPreload: null });
+    await expect(uruchom(klient(), HUB)).resolves.toEqual({ club: null });
   });
 
   it("404 NIE POWINIEN ZAMARZAĆ NA BRZEGU - należy mu się `no-store`", async () => {
@@ -254,12 +256,12 @@ describe("układ klubu - czysty odczyt karty", () => {
 describe("układ klubu - preload okładki tylko tam, gdzie jest elementem LCP", () => {
   const ZA_BRAMKA = { can_read: false, cover_image_url: OKLADKA };
 
-  it("hub za bramką dostępu dostaje hint NAGŁÓWKIEM i w `head().links`", async () => {
+  it("hub za bramką dostępu dostaje hint NAGŁÓWKIEM `Link` - i tylko nim", async () => {
     // Nagłówek `Link` wyprzedza parsowanie dokumentu (i bywa odtworzony jako
-    // 103 Early Hint), a `<link>` działa przy nawigacji po stronie klienta.
-    // Obie drogi muszą nieść TĘ SAMĄ wartość, żeby przeglądarka rozstrzygnęła
-    // JEDNO pobranie - dlatego asercja idzie przeciw tym samym funkcjom, z
-    // których korzysta trasa, a nie przeciw wymyślonym napisom.
+    // 103 Early Hint). Musi nieść TĘ SAMĄ wartość co `<img>` okładki, żeby
+    // przeglądarka rozstrzygnęła JEDNO pobranie - dlatego asercja idzie przeciw
+    // tym samym funkcjom, z których korzysta trasa, a nie przeciw wymyślonym
+    // napisom.
     h.club = clubViewRow(ZA_BRAMKA);
     // STRAŻNIK, nie asercja niepustości: gdyby reguła przestała uznawać hub za
     // miejsce preloadu, test ma paść TUTAJ, z czytelnym komunikatem.
@@ -268,21 +270,18 @@ describe("układ klubu - preload okładki tylko tam, gdzie jest elementem LCP", 
 
     const data = await uruchom(klient());
 
-    expect(data.coverPreload).toEqual(oczekiwany);
     expect(h.linkHeaders).toEqual([imagePreloadLinkHeaderValue(oczekiwany)]);
-    expect(routeHead(LayoutRoute, { loaderData: data }).links).toEqual([
-      imagePreloadLink(oczekiwany),
-    ]);
+    // Nikt deskryptora nie czyta (układ nie ma `head()`), więc nie jedzie on
+    // w dehydratowanych danych.
+    expect(data).not.toHaveProperty("coverPreload");
   });
 
   it("KLUB OTWARTY nie dostaje hintu - hub rysuje wtedy widok bez obrazu nad zgięciem", async () => {
     h.club = clubViewRow({ can_read: true, cover_image_url: OKLADKA });
 
-    const data = await uruchom(klient());
+    await uruchom(klient());
 
-    expect(data.coverPreload).toBeNull();
     expect(h.linkHeaders).toEqual([]);
-    expect(routeHead(LayoutRoute, { loaderData: data }).links).toEqual([]);
   });
 
   it("POWIERZCHNIA POD HUBEM nie dostaje hintu, choć karta jest ta sama", async () => {
@@ -290,16 +289,19 @@ describe("układ klubu - preload okładki tylko tam, gdzie jest elementem LCP", 
     // `ClubWorkspaceLayout`, ale to ślepy zaułek dla czytelnika bez dostępu.
     h.club = clubViewRow(ZA_BRAMKA);
 
-    const data = await uruchom(klient(), `${HUB}/members`);
+    await uruchom(klient(), `${HUB}/members`);
 
-    expect(data.coverPreload).toBeNull();
     expect(h.linkHeaders).toEqual([]);
   });
 
-  it("`head()` bez ładunku loadera oddaje PUSTE `links`, a nie wyjątek", async () => {
-    // Degradacja i nawigacja po stronie klienta potrafią zawołać `head()`
-    // zanim ładunek istnieje - pusta lista jest tu jedyną bezpieczną odpowiedzią.
-    expect(routeHead(LayoutRoute, {}).links).toEqual([]);
+  it("układ NIE ma `head()` - nie dubluje preloadu, który React 19 wstawia z obrazu w powłoce", () => {
+    // `<link rel="preload" as="image">` z `head()` trafiał do `<head>` BEZ
+    // deduplikacji z automatycznym preloadem Reacta dla `<img fetchPriority="high">`
+    // (`ClubCover variant="banner"`, bajtowo te same srcSet/sizes) - drugi,
+    // identyczny preload w dokumencie (`documentPreloadDuplicates`). Bez
+    // `head()` układ nie wnosi do `<head>` niczego, a meta tras liściowych
+    // zbierane są z ich własnych dopasowań.
+    expect(LayoutRoute.options.head).toBeUndefined();
   });
 });
 
@@ -347,6 +349,8 @@ describe("układ klubu - degradacja nie wypisuje klubu z indeksu ani z brzegu", 
     vi.stubGlobal("document", undefined);
     vi.useFakeTimers();
     try {
+      // Karta za bramką z okładką: gdyby odczyt zdążył, hint BY POWSTAŁ.
+      h.club = clubViewRow({ can_read: false, cover_image_url: OKLADKA });
       h.fetchHangs = true;
       const queryClient = klient();
       const bieg = uruchom(queryClient);
@@ -355,7 +359,7 @@ describe("układ klubu - degradacja nie wypisuje klubu z indeksu ani z brzegu", 
       const data = await bieg;
 
       expect(data.club).toBeNull();
-      expect(data.coverPreload).toBeNull();
+      expect(h.linkHeaders).toEqual([]);
       expect(h.cacheControl).toEqual([NO_STORE]);
       expect(wCache(queryClient)).toBeUndefined();
     } finally {
@@ -367,11 +371,13 @@ describe("układ klubu - degradacja nie wypisuje klubu z indeksu ani z brzegu", 
   it("zdegradowany odczyt NIE emituje hintu okładki", async () => {
     // Preload pliku, którego dokument i tak nie namaluje, to czysta strata
     // pasma na ścieżce krytycznej - a zdegradowany render nie zna okładki.
+    // Atrapa trzyma kartę za bramką Z okładką: gdyby odczyt się udał, hint BY
+    // POWSTAŁ - pusty nagłówek jest więc dowodem, a nie skutkiem braku okładki.
+    h.club = clubViewRow({ can_read: false, cover_image_url: OKLADKA });
     h.fetchThrows = true;
 
-    const data = await uruchom(klient());
+    await uruchom(klient());
 
-    expect(data.coverPreload).toBeNull();
     expect(h.linkHeaders).toEqual([]);
   });
 });

@@ -40,7 +40,11 @@ END $$;
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS auth.users (
   id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text
+  email text,
+  -- `is_nes_staff` (20261017140000) rozpoznaje domene NES wylacznie po
+  -- POTWIERDZONYM adresie logowania. Funkcja jest LANGUAGE sql, wiec CREATE
+  -- waliduje cialo - bez tej kolumny replay pada na 42703.
+  email_confirmed_at timestamptz
 );
 
 CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid

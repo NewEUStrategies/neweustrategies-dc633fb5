@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import i18n from "@/lib/i18n";
+// `admin.bulk.*` (BulkActionsBar) mieszka od 2026-10-17 w słowniku panelu, nie
+// w rdzeniu języka - w aplikacji rejestruje go `AdminSession`, tu import.
+import "@/lib/i18n-admin-core";
 
 // Guards the Polish plural forms: i18next must pick one/few/many by count so
 // count strings read grammatically ("1 zaznaczony", "2 zaznaczone",

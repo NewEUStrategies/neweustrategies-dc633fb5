@@ -6,6 +6,9 @@
 // przycisku nie wywala się na typach: po prostu znika ścieżka procesu.
 import "@/lib/i18n-admin-post-panes";
 import i18n from "@/lib/i18n";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";

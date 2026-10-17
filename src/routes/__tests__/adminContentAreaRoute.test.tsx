@@ -118,6 +118,9 @@ import "@/test/i18nReal";
 // `admin.saveError` i odnośnik do opcji motywu mieszkają w nakładce, którą
 // w aplikacji ładuje layout `/admin` - tu trasa jest montowana bez niego.
 import "@/lib/i18n-admin-extras";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { Route } from "@/routes/admin.content-area";
 import { renderRoute, routeHead } from "@/test/routeHarness";
 import { defaultPostLayoutSettings } from "@/lib/postLayouts";

@@ -149,6 +149,22 @@ function group(
   };
 }
 
+const BOOT_GROUPS = new WeakSet<Group>();
+
+/**
+ * Oznacza grupę DOMKNIĘCIA BOOTU: jej chunk wejście importuje statycznie (samo albo przez inny
+ * chunk bootu), więc przeglądarka ma go pobranego i zlinkowanego, zanim wykona się JAKIKOLWIEK
+ * `import()` aplikacji. Z tego oznaczenia (nie z ręcznej listy) bierze nazwy
+ * `BOOT_CHUNK_NAMES`, a z nich polityka list preloadu (scripts/lib/clientModulePreload.ts), która
+ * te chunki z `__vite__mapDeps` zdejmuje. Prawdziwość oznaczenia sprawdza check:entry-purity na
+ * artefakcie: chunk oznaczonej grupy POZA domknięciem wejścia zapala bramkę - wtedy zdejmij
+ * oznaczenie, a leniwe chunki zależne od tej grupy odzyskają ją na swoich listach.
+ */
+function boot(definition: Group): Group {
+  BOOT_GROUPS.add(definition);
+  return definition;
+}
+
 /** Ścieżka od OSTATNIEGO `/node_modules/` (pakiet, który naprawdę dostarcza moduł). */
 const lastPackagePath = (id: string): string => id.split("/node_modules/").at(-1) ?? "";
 
@@ -195,10 +211,12 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // pomocniczy Rolldowna (`\0rolldown/runtime.js`, interop CJS) nie trafia do żadnej grupy:
   // Rolldown 1.2 wydziela go do własnego chunku `rolldown-runtime` (zmierzone na artefakcie i na
   // fiksturze `clientChunkGroups.test.ts`), który importują wejście i chunki z interopem.
-  group(
-    "vendor-react",
-    CHUNK_PRIORITY.react,
-    /\/node_modules\/(react|react-dom|scheduler|use-sync-external-store)\//,
+  boot(
+    group(
+      "vendor-react",
+      CHUNK_PRIORITY.react,
+      /\/node_modules\/(react|react-dom|scheduler|use-sync-external-store)\//,
+    ),
   ),
   // Router + react-query + ich domknięcie spoza vendor-react: seroval / seroval-plugins
   // (serializacja SSR w router-core), cookie-es (router-core), isbot (react-router).
@@ -209,22 +227,33 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // objęłaby cały osiągalny stąd graf APLIKACJI (zmierzone na Rollupie, który robi to samo: entry
   // spadał do 0,2 KB, a vendor-tanstack puchł do 1,59 MB). Bootstrap zostaje w entry, wydzielamy
   // tylko biblioteki liściowe.
-  group(
-    "vendor-tanstack",
-    CHUNK_PRIORITY.leaf,
-    /\/node_modules\/(@tanstack\/(react-router|router-core|history|store|react-store|query-core|react-query|router-ssr-query-core|react-router-ssr-query)|seroval|seroval-plugins|cookie-es|isbot)\//,
+  boot(
+    group(
+      "vendor-tanstack",
+      CHUNK_PRIORITY.leaf,
+      /\/node_modules\/(@tanstack\/(react-router|router-core|history|store|react-store|query-core|react-query|router-ssr-query-core|react-router-ssr-query)|seroval|seroval-plugins|cookie-es|isbot)\//,
+    ),
   ),
   // tslib i iceberg-js (zależności supabase) zostają tu jak w Rollupie; vendor-radix importuje
   // stąd tslib (react-remove-scroll) - krawędź do wyższego priorytetu.
-  group("vendor-supabase", CHUNK_PRIORITY.leaf, /\/node_modules\/@supabase\//),
-  group(
-    "vendor-i18n",
-    CHUNK_PRIORITY.leaf,
-    /\/node_modules\/(i18next|react-i18next|html-parse-stringify|void-elements)\//,
+  boot(group("vendor-supabase", CHUNK_PRIORITY.leaf, /\/node_modules\/@supabase\//)),
+  boot(
+    group(
+      "vendor-i18n",
+      CHUNK_PRIORITY.leaf,
+      /\/node_modules\/(i18next|react-i18next|html-parse-stringify|void-elements)\//,
+    ),
   ),
   // Silnik archiwów odizolowany od drobnych modułów publicznych: Rollup łączył małe chunki
   // i spakował kiedyś 312-bajtowy stub funkcji serwerowej auth z JSZip, wciągając cały silnik
   // w statyczny graf artykułu. Własna grupa trzyma tę granicę niezależnie od heurystyk.
+  //
+  // Od 2026-10-17 jszip w przeglądarce NIE WYSTĘPUJE: podgląd .docx/.pptx czyta archiwa
+  // `src/lib/files/vendor/officeZip.ts` (fflate; przekierowanie mammoth w
+  // scripts/lib/officeParserTrim.ts), a jszip zostaje tylko serwerowi (mammoth) i testom. Grupa
+  // jest bezpiecznikiem na wypadek nowego klienckiego importera. fflate ŚWIADOMIE poza nią:
+  // dzieliłaby chunk `officeZip` na dwa żądania; granicę bootu dla niego trzyma `LAZY_CHUNKS`
+  // w scripts/check-entry-purity.ts.
   group("vendor-jszip", CHUNK_PRIORITY.leaf, /\/node_modules\/jszip\//),
   // Biblioteki bez zależności - własne chunki zamiast zapadania się w chunk wejściowy. zod
   // i tailwind-merge są nadal statycznie osiągalne z entry: bajtów pierwszej wizyty to nie
@@ -233,8 +262,8 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // kopię zod 4 - mieszanie dwóch wersji w jednym cache-stabilnym chunku sprzęgałoby jego
   // unieważnianie z bumpami frameworka. dompurify jedzie z modułem sanityzacji (grupa `sanitize`
   // niżej).
-  group("vendor-zod", CHUNK_PRIORITY.leaf, isTopLevelZod),
-  group("vendor-tw-merge", CHUNK_PRIORITY.leaf, /\/node_modules\/tailwind-merge\//),
+  boot(group("vendor-zod", CHUNK_PRIORITY.leaf, isTopLevelZod)),
+  boot(group("vendor-tw-merge", CHUNK_PRIORITY.leaf, /\/node_modules\/tailwind-merge\//)),
   // Ikony w DWÓCH chunkach vendorowych, nie w dziesiątkach plików: bez grupy bundler rozsypuje
   // je na 300-400-bajtowe odpryski (każda ikona współdzielona przez >=2 leniwe chunki dostaje
   // własny) - 45 takich plików kosztowało ~22 KB gzip samego narzutu, bo pliki tej wielkości
@@ -250,8 +279,8 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // `ENTRY_MERGED_LUCIDE_IMPORTERS` z dawnego `bootVendorSplit.ts`. Domknięcie: zależności modułu
   // `$initial` też są `$initial`, a grupa bootowa wybiera przed resztą, więc krawędzie biegną
   // wyłącznie reszta -> boot (ikony niebootowe importują `createLucideIcon` z `-boot`).
-  group("vendor-lucide-boot", CHUNK_PRIORITY.boot, LUCIDE_RE, ["$initial"]),
-  group("vendor-radix-boot", CHUNK_PRIORITY.boot, isRadixFamily, ["$initial"]),
+  boot(group("vendor-lucide-boot", CHUNK_PRIORITY.boot, LUCIDE_RE, ["$initial"])),
+  boot(group("vendor-radix-boot", CHUNK_PRIORITY.boot, isRadixFamily, ["$initial"])),
   group("vendor-lucide", CHUNK_PRIORITY.family, LUCIDE_RE),
   group("vendor-radix", CHUNK_PRIORITY.family, isRadixFamily),
   // Ciężkie kontrolki nie są potrzebne nagłówkowi publicznemu - poza wspólnym chunkiem
@@ -287,7 +316,7 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // `$initial`, a wyjątek `group()` zostawia moduł wejściowy w `index-*`. Wybiera po grupach
   // bootowych i vendorowych, a PRZED rodzinami leniwymi niżej. Tu trafia też `DynamicIcon`
   // (chrome nagłówka) razem z helperem preloadu Vite.
-  group("app-initial", CHUNK_PRIORITY.initial, () => true, ["$initial"]),
+  boot(group("app-initial", CHUNK_PRIORITY.initial, () => true, ["$initial"])),
   // ── RODZINY LENIWE (nagłówek pliku, „GRUPY LENIWE PONIŻEJ `app-initial`") ──
   // Sanityzacja HTML-u: dompurify + `sanitize.ts` + strażnik silnika - zawsze razem (treść
   // wpisu, karty z zajawką). Importuje ją rodzina treści wpisu, więc priorytet wyższy od niej.
@@ -350,6 +379,26 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
       "/src/components/ads/useInFeedAds.tsx",
     ),
   ),
+];
+
+/**
+ * Chunk modułu pomocniczego Rolldowna (`\0rolldown/runtime.js`, interop CJS). Nie jest grupą -
+ * Rolldown wydziela go sam (komentarz grupy vendor-react) - a importuje go `app-initial`, więc
+ * należy do domknięcia bootu na tych samych warunkach co grupy `boot(...)` (sprawdza
+ * check:entry-purity).
+ */
+export const ROLLDOWN_RUNTIME_CHUNK = "rolldown-runtime";
+
+/**
+ * Nazwy chunków (`[name]` bez hasha) STATYCZNEGO DOMKNIĘCIA WEJŚCIA: grupy oznaczone `boot(...)`
+ * i runtime Rolldowna. Wejście (`index-*`) pomijamy - żaden chunk go nie importuje, więc nie
+ * pojawia się w żadnej liście preloadu.
+ */
+export const BOOT_CHUNK_NAMES: readonly string[] = [
+  ...CLIENT_CHUNK_GROUPS.flatMap((definition) =>
+    BOOT_GROUPS.has(definition) && definition.debugName ? [definition.debugName] : [],
+  ),
+  ROLLDOWN_RUNTIME_CHUNK,
 ];
 
 /**
