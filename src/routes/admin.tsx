@@ -15,6 +15,7 @@ import { readRememberedSidebarStyle } from "@/lib/admin/sidebarStylePreference";
 import type { SidebarStyle } from "@/lib/builder/sidebarStyles";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { isEventStudioPath } from "@/lib/events/eventStudioNav";
+import { ensureI18n as ensureAdminCoreI18n } from "@/lib/i18n-admin-core";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 import { cacheControlHeader } from "@/lib/http/cachePolicy";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
@@ -59,9 +60,9 @@ export const Route = createFileRoute("/admin")({
     // zmiany dokument NIESIE HTML szkieletu, więc zakaz musi stać na drucie
     // niezależnie od tego, która warstwa go wypowie pierwsza.
     setCacheControlHeader(NO_STORE);
-    // KOTWICY SŁOWNIKA ADMINA TU NIE MA - I NIE WOLNO JEJ TU WRÓCIĆ.
-    // Powód i miejsce docelowe: `AdminSession` niżej. Bramka:
-    // `i18n-admin-extras` w `HEAVY_DICTIONARIES` (scripts/check-entry-purity.ts).
+    // KOTWIC SŁOWNIKÓW ADMINA TU NIE MA - I NIE WOLNO IM TU WRÓCIĆ.
+    // Powód i miejsce docelowe: `AdminSession` niżej. Bramka: `i18n-admin-core`
+    // i `i18n-admin-extras` w `HEAVY_DICTIONARIES` (scripts/check-entry-purity.ts).
   },
   head: () => ({
     meta: [{ name: "robots", content: "noindex, nofollow" }, { title: "Admin" }],
@@ -197,6 +198,14 @@ function AdminSession({
   // POMIAR (2026-09-21, pełny build obu stron na jednym hoście): chunk
   // wejściowy main 284,3 KB gzip -> gałąź 295,4 KB (próg 286, bramka czerwona)
   // -> po tej zmianie 275,4 KB; domknięcie bootu 575,0 -> 555,0 KB.
+  //
+  // DRUGA KOTWICA, TA SAMA ZASADA: `lib/i18n-admin-core` niesie `admin.*`, które
+  // do 2026-10-17 jechało w RDZENIU języka (`locale/pl.ts`, `locale/en.ts`) -
+  // chunku, na który każdy czytelnik czeka przed hydratacją. Tu jest jedyne
+  // miejsce, przez które przechodzi każda trasa /admin/*, więc jedna kotwica
+  // pokrywa cały panel; poza nim `admin.*` czyta wyłącznie dialog niezapisanych
+  // zmian, a jego cztery klucze zostały w rdzeniu.
+  ensureAdminCoreI18n();
   ensureAdminExtrasI18n();
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();

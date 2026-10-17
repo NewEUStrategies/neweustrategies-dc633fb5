@@ -108,11 +108,13 @@ export function Checkbox({
  * z kilkunastu paneli montujących ten pasek. Reszta tych ekranów jest w EN
  * kompletna, więc panel wyglądał na uszkodzony dokładnie na akcji końcowej.
  *
- * Klucze są RDZENNE (`src/lib/locale/pl.ts` / `en.ts`), a nie z nakładki
- * `i18n-*` - świadomie. Nakładka rejestruje się efektem ubocznym importu, więc
- * użycie jej klucza kazałoby dopisać ten import do pliku współdzielonego przez
- * kilkanaście paneli i wciągnąć słownik do ich chunków. Klucze rdzenia wnosi
- * sam `useTranslation()`, bez ani jednej nowej krawędzi w grafie modułów.
+ * Klucze należą do słownika PANELU (`admin.*` w `lib/i18n-admin-core.ts`,
+ * do 2026-10-17 w rdzeniu `locale/*.ts`), a nie do nakładki ekranu - świadomie.
+ * Nakładka ekranu rejestruje się efektem ubocznym importu, więc użycie jej
+ * klucza kazałoby dopisać ten import do pliku współdzielonego przez kilkanaście
+ * paneli i wciągnąć słownik do ich chunków. Słownik panelu rejestruje raz
+ * `AdminSession` (routes/admin.tsx), a każdy panel z tym paskiem renderuje się
+ * pod `/admin` - zero nowych krawędzi w grafie modułów.
  */
 export function SaveBar({
   saving,

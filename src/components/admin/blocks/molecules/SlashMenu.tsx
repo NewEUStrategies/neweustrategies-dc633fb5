@@ -5,6 +5,7 @@
 
 import { useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import type { BlockSpec } from "@/lib/blocks/registry";
 import type { BlockType } from "@/lib/blocks/types";
 

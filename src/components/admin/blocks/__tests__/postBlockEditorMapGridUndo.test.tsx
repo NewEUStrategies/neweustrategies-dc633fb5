@@ -9,6 +9,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { installWidgetGateFetch } from "@/test/widgetGateEnvironment";

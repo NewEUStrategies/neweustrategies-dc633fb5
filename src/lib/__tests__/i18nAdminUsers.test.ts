@@ -12,12 +12,16 @@
 // JEDNO ŹRÓDŁO PRAWDY: klucze, które rdzeń ma, należą do rdzenia; nakładka
 // DOKŁADA wyłącznie to, czego rdzeń nie ma (`super_admin`).
 //
-// Kolejność importów jest częścią testu: rdzeń (oba języki, przez `i18nReal`)
-// i odczyt etykiet PRZED nakładką, potem nakładka importem dynamicznym.
+// „Rdzeń" `admin.*` to od 2026-10-17 nakładka panelu `i18n-admin-core`
+// (gałąź wyjęta z `locale/*.ts`, rejestrowana przez `AdminSession`) - ona jest
+// właścicielem `admin.users.roles.*`, więc to ją porównujemy z nakładką ekranu.
+//
+// Kolejność importów jest częścią testu: rdzeń (oba języki, przez `i18nReal`,
+// plus słownik panelu importem statycznym) i odczyt etykiet PRZED nakładką,
+// potem nakładka importem dynamicznym.
 import { describe, expect, it, vi } from "vitest";
 import i18n from "@/lib/i18n";
-import { pl as corePl } from "@/lib/locale/pl";
-import { en as coreEn } from "@/lib/locale/en";
+import { adminCoreEn, adminCorePl } from "@/lib/i18n-admin-core";
 import { realT } from "@/test/i18nReal";
 import { APP_ROLES } from "@/lib/authz/roles";
 import { ROLE_LABEL_KEYS, roleLabel } from "@/lib/authz/roleLabels";
@@ -25,10 +29,10 @@ import { ROLE_LABEL_KEYS, roleLabel } from "@/lib/authz/roleLabels";
 const LANGS = ["pl", "en"] as const;
 
 /**
- * Zdjęcie rdzenia sprzed nakładki. Eksport jest nietykalny od `storeCopy`
- * w `i18n.ts` (`i18nCoreExportsPristine.test.ts`); zdjęcie to bezpiecznik.
+ * Zdjęcie właściciela `admin.*` sprzed nakładki ekranu. i18next kopiuje zasoby
+ * przed scaleniem, więc eksport zostaje nietknięty; zdjęcie to bezpiecznik.
  */
-const CORE = structuredClone({ pl: corePl, en: coreEn });
+const CORE = structuredClone({ pl: adminCorePl, en: adminCoreEn });
 
 const LABELS_BEFORE = LANGS.flatMap((lang) =>
   APP_ROLES.map((role) => ({ lang, role, label: roleLabel(realT(lang), role) })),
@@ -74,9 +78,10 @@ describe("i18n-admin-users - etykiety ról kontra rdzeń", () => {
         .filter((key) => core.has(key))
         .map((key) => `${lang}:${key}`);
     });
-    expect(duplicated, "klucz należy do rdzenia - zmiana brzmienia idzie do locale/*.ts").toEqual(
-      [],
-    );
+    expect(
+      duplicated,
+      "klucz należy do słownika panelu - zmiana brzmienia idzie do i18n-admin-core.ts",
+    ).toEqual([]);
   });
 
   it("etykieta roli jest ta sama przed i po załadowaniu nakładki", () => {

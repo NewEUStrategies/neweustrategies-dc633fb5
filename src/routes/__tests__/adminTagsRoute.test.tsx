@@ -103,6 +103,9 @@ import "@/test/i18nReal";
 // `admin.list.*` (szukajka, „Wyczyść”, „Brak wyników”) mieszka w nakładce,
 // którą w aplikacji rejestruje layout `/admin`, a nie sama trasa.
 import "@/lib/i18n-admin-extras";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { routeHead } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { Route } from "@/routes/admin.tags";

@@ -13,6 +13,9 @@
 // Martwe przekierowanie to 404 pod adresem, który redakcja ma w zakładkach.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 

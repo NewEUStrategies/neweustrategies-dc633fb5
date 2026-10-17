@@ -160,6 +160,26 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
       "(`AdminSession` w routes/admin.tsx) - nigdy z `beforeLoad`/`loader`/`head`, " +
       "bo te jadą w chunku wejściowym",
   },
+  // 2026-10-17: `admin.*` i `blocks.*` WYJĘTE Z RDZENIA JĘZYKA (`locale/pl.ts`,
+  // `locale/en.ts`) do nakładek panelu. Rdzeń nie jest w domknięciu bootu
+  // (dociąga go `import()` z top-level awaitu), ale te dwa słowniki NIE MOGĄ
+  // trafić do bootu w zamian - np. przez kotwicę w `beforeLoad` albo
+  // side-effectowy import w pliku trasy. Znacznikiem jest zdanie PL z każdej
+  // nakładki, którego nie ma nigdzie indziej w `src`.
+  {
+    label: "i18n-admin-core (słownik panelu `admin.*`, dawniej w rdzeniu języka)",
+    markers: ["Przypisz kolor tła pigułki dla każdej głównej kategorii"],
+    remedy:
+      "`ensureI18n()` z `lib/i18n-admin-core` wołaj wyłącznie w `AdminSession` " +
+      "(routes/admin.tsx, część po hydratacji) - jak `i18n-admin-extras` wyżej",
+  },
+  {
+    label: "i18n-admin-blocks (słownik edytora bloków `blocks.*`, dawniej w rdzeniu języka)",
+    markers: ["Szukaj bloku..."],
+    remedy:
+      "importuj `lib/i18n-admin-blocks` tylko z modułów edytora bloków " +
+      "(`components/admin/blocks/**`, `lib/blocks/i18n.ts`), nigdy z pliku trasy ani powłoki",
+  },
   // 2026-09-26: FUNKCJE UCZESTNIKA F1-F5 (spec B.11-5, B.14). Osiem nowych
   // nakładek, po jednym znaczniku na każdą - znacznikiem jest zdanie PL
   // z zasiewu nakładki (wartość przeżywa minifikację). Właściciel nakładki

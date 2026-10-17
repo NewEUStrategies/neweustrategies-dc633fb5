@@ -2,15 +2,18 @@
 // Wiele wywołań t("admin.media.*") miało tylko polski `defaultValue`, przez co
 // wersja EN spadała do polskiego tekstu. Dokładamy brakujące klucze PL/EN.
 //
-// UWAGA: rejestrujemy z overwrite=false, więc istniejące wartości w rdzeniowym
-// locale (pl.ts / en.ts) NIE są nadpisywane - dodajemy tylko brakujące klucze.
-// Dzięki temu polskie renderowanie pozostaje identyczne, a uzupełniamy luki EN.
+// UWAGA: rejestrujemy z overwrite=false, więc istniejące wartości właściciela
+// `admin.*` NIE są nadpisywane - dodajemy tylko brakujące klucze. Właścicielem
+// był rdzeń `locale/pl.ts` / `en.ts`; od 2026-10-17 jest nim słownik panelu
+// `i18n-admin-core.ts` (rejestruje go `AdminSession`).
 //
-// overwrite=false chroni rdzeń TYLKO wtedy, gdy rdzeń danego języka już stoi
-// w magazynie. Drugi język klient dociąga leniwie (`ensureCoreLanguage`), też
-// z overwrite=false - jeśli nakładka była pierwsza, zostaje JEJ kopia. Dlatego
-// klucz, który ma rdzeń, nie może mieć tu innej treści: `admin.confirmDelete`
-// i `admin.media.uploaded` miały („Potwierdź usunięcie", „Wgrano pliki"),
+// overwrite=false chroni właściciela TYLKO wtedy, gdy ten już stoi w magazynie.
+// Chunk ekranu mediów może zarejestrować tę nakładkę wcześniej niż słownik
+// panelu, a drugi język klient dociąga leniwie - jeśli nakładka była pierwsza,
+// zostaje JEJ kopia (słownik panelu ma overwrite=true, ale bywa i odwrotnie).
+// Dlatego klucz, który ma właściciel, nie może mieć tu innej treści:
+// `admin.confirmDelete` i `admin.media.uploaded` miały („Potwierdź usunięcie",
+// „Wgrano pliki"),
 // więc administrator zaczynający na stronie EN widział po przełączeniu na PL
 // inne zdania niż ten, który zaczął na PL. Pilnuje tego
 // `i18nOverlayIntegrity.gate.test.ts`.

@@ -7,6 +7,9 @@
 // wpływa na grid ani na responsywność kanwy.
 
 import { useTranslation } from "react-i18next";
+// `blocks.selection.*` jedzie w nakładce edytora bloków, nie w rdzeniu języka -
+// każdy czytelnik `blocks.*` importuje ją sam (bramka `coreScopeSurfaces.test`).
+import "@/lib/i18n-admin-blocks";
 
 interface Props {
   /** Liczba zaznaczonych bloków (0 = brak komunikatu). */

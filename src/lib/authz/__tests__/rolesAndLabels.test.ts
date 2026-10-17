@@ -36,6 +36,11 @@ import { describe, expect, it } from "vitest";
 // dowodzi, że klucz JEST w słowniku, i to w obu językach. Import nakładki
 // rejestruje jej zasoby efektem ubocznym (tak samo, jak robi to komponent).
 import { realT } from "@/test/i18nReal";
+// Słownik panelu (`admin.*`, w tym `admin.users.roles.*`) - od 2026-10-17 poza
+// rdzeniem języka; w aplikacji rejestruje go `AdminSession`, a oba ekrany
+// użytkowników renderują się wyłącznie pod nim. Test bez powłoki panelu
+// importuje go sam - tak jak nakładkę ekranu niżej.
+import "@/lib/i18n-admin-core";
 import "@/lib/i18n-admin-users";
 import {
   APP_ROLES,

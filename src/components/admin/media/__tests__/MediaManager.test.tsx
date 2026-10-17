@@ -85,6 +85,9 @@ vi.mock("../organisms/MediaPreviewDialog", () => ({
 }));
 
 import "@/lib/i18n-admin-media";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 import { MediaManager } from "../MediaManager";
 
 function file(id: string, overrides: Partial<MediaRow> = {}): MediaRow {

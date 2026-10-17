@@ -44,6 +44,9 @@ vi.mock("react-i18next", () => ({
 
 import { AdminLangBar } from "@/components/admin/AdminLangBar";
 import { realT } from "@/test/i18nReal";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 
 h.t = (lang) => realT(lang);
 

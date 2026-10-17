@@ -166,6 +166,9 @@ import { realT } from "@/test/i18nReal";
 // Nakładka słownika z kluczami `admin.nav.*` używanymi przez mapę nawigacji
 // (rejestruje się efektem ubocznym importu; panel ciąga ją przez trasę /admin).
 import "@/lib/i18n-admin-extras";
+// Słownik panelu `admin.*` (od 2026-10-17 poza rdzeniem języka) - w aplikacji
+// rejestruje go `AdminSession`, a ten test montuje ekran bez niej.
+import "@/lib/i18n-admin-core";
 
 h.t = (lang) => realT(lang);
 

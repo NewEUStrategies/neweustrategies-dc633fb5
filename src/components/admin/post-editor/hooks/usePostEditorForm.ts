@@ -28,6 +28,11 @@ import { disclosureGaps } from "@/lib/content/sponsored";
 // redaktor zobaczyłby w toaście goły klucz zamiast komunikatu - i to dokładnie
 // w momencie, w którym potrzebuje wiedzieć, czego brakuje.
 import "@/lib/i18n-admin-post-panes";
+// To samo dla `blocks.clipboard.imagePersistFailed` (toast zapisu wklejonych
+// grafik): klucz należy do nakładki edytora bloków, nie do rdzenia języka,
+// a zapis biegnie też dla dokumentu buildera, gdy edytor bloków nie był
+// zamontowany - więc hook nie może liczyć na to, że kanwa już ją dociągnęła.
+import "@/lib/i18n-admin-blocks";
 import { statusOptionsFor, type PostWorkflowStatus } from "@/lib/content/workflow";
 import { useAuth } from "@/hooks/useAuth";
 import { confirmDialog } from "@/lib/appDialogs";

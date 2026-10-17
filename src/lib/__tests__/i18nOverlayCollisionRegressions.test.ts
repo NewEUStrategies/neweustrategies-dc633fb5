@@ -32,23 +32,45 @@ function coreValue(lang: "pl" | "en", path: string): unknown {
     );
 }
 
-describe("admin-media: drugi język dociągnięty PO nakładce", () => {
-  it("dialog usuwania i toast wgrania mówią zdaniem rdzenia, nie kopią z nakładki", async () => {
-    // Warunek scenariusza: rdzeń EN jeszcze nie stoi w magazynie.
-    expect(i18n.getResource("en", "translation", "admin.confirmDelete")).toBeUndefined();
+describe("admin-media: słownik panelu i drugi język dociągnięte PO nakładce", () => {
+  it("dialog usuwania i toast wgrania mówią zdaniem właściciela, nie kopią z nakładki", async () => {
+    // Właścicielem `admin.*` był rdzeń języka; od 2026-10-17 jest nim słownik
+    // panelu `i18n-admin-core` (rejestruje go `AdminSession`), a w rdzeniu
+    // zostały tylko cztery klucze dialogu niezapisanych zmian. Scenariusz
+    // zostaje ten sam, tylko z nowym właścicielem: chunk ekranu mediów może
+    // zarejestrować swoją nakładkę ZANIM `AdminSession` zarejestruje słownik
+    // panelu, a drugi język (EN) i tak przychodzi jeszcze później.
+    //
+    // Warunek scenariusza: ani słownika panelu, ani rdzenia EN nie ma jeszcze
+    // w magazynie - a rdzeń PL nie niesie już tych kluczy wcale.
+    for (const lang of ["pl", "en"] as const) {
+      expect(i18n.getResource(lang, "translation", "admin.confirmDelete"), lang).toBeUndefined();
+    }
 
-    // Nakładka rejestruje się z overwrite=false („nie ruszamy rdzenia")...
+    // Nakładka rejestruje się z overwrite=false („nie ruszamy właściciela")...
     await import("@/lib/i18n-admin-media");
-    // ...ale rdzeń EN przychodzi DOPIERO TERAZ, też z overwrite=false, więc
-    // kopia z nakładki zostawała w magazynie zamiast zdania rdzenia - a ten
-    // sam administrator, który zaczął na stronie EN, widział inny napis.
+    // ...ale właściciel i rdzeń EN przychodzą DOPIERO TERAZ. Gdyby nakładka
+    // niosła pod tymi kluczami INNE zdania niż właściciel, administrator
+    // widziałby napis zależny od kolejności chunków - tego pilnuje bramka
+    // `i18nOverlayIntegrity.gate.test.ts`, a ten test - skutku na ekranie.
+    const { adminCorePl, adminCoreEn } = await import("@/lib/i18n-admin-core");
     await ensureCoreLanguage("en");
 
+    const owner = { pl: adminCorePl, en: adminCoreEn } as const;
+    const ownerValue = (lang: "pl" | "en", path: string): unknown =>
+      path
+        .split(".")
+        .reduce<unknown>(
+          (node, part) =>
+            node !== null && typeof node === "object" ? Reflect.get(node, part) : undefined,
+          owner[lang],
+        );
     const en = i18n.getFixedT("en");
     const pl = i18n.getFixedT("pl");
     for (const key of ["admin.confirmDelete", "admin.media.uploaded"]) {
-      expect(en(key), key).toBe(coreValue("en", key));
-      expect(pl(key), key).toBe(coreValue("pl", key));
+      expect(ownerValue("en", key), key).toEqual(expect.any(String));
+      expect(en(key), key).toBe(ownerValue("en", key));
+      expect(pl(key), key).toBe(ownerValue("pl", key));
     }
   });
 });

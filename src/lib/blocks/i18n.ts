@@ -2,8 +2,15 @@
 // Wszystkie klucze żyją w `blocks.{fields|ui|editors|viewers}.*`.
 // Dzięki temu w edytorach i statycznych etykietach widoków pisze się
 // `t.field("urlPh")` zamiast pełnego `t("blocks.fields.urlPh")`.
+//
+// `blocks.*` NIE JEST W RDZENIU języka: mieszka w nakładce
+// `lib/i18n-admin-blocks.ts` (chunk adminowy), którą ten moduł importuje
+// efektem ubocznym - każdy użytkownik haka dostaje klucze bez własnego importu.
+// Publiczny renderer bloków nie może więc sięgać po `viewer()`: jego chunk
+// nie ma tej nakładki i pokazałby czytelnikowi surowy klucz.
 
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 
 export interface BlocksI18n {
   /** Surowy t (dla rzadkich kluczy spoza namespace). */
@@ -14,7 +21,7 @@ export interface BlocksI18n {
   ui: (key: string, opts?: Record<string, unknown>) => string;
   /** blocks.editors.<group>.<key> */
   editor: (group: string, key: string, opts?: Record<string, unknown>) => string;
-  /** blocks.viewers.* (publiczne renderery) */
+  /** blocks.viewers.* (wyłącznie panel - patrz nagłówek) */
   viewer: (key: string, opts?: Record<string, unknown>) => string;
 }
 

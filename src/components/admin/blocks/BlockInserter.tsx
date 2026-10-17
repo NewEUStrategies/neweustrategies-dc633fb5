@@ -13,6 +13,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import { BLOCK_SPECS, type BlockSpec } from "@/lib/blocks/registry";
 import type { Block, BlockType } from "@/lib/blocks/types";
 import { searchBlockSpecs } from "@/lib/blocks/search";

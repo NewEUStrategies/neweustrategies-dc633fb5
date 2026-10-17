@@ -38,6 +38,8 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Ile razy zarejestrowano nakładkę słownika admina. */
   i18nCalls: 0,
+  /** Ile razy zarejestrowano słownik panelu `admin.*` (wyjęty z rdzenia). */
+  adminCoreCalls: 0,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -61,6 +63,13 @@ vi.mock("@/components/admin/AdminShell", async () => {
 vi.mock("@/lib/i18n-admin-extras", () => ({
   ensureI18n: () => {
     h.i18nCalls += 1;
+  },
+}));
+// Ten sam kontrakt dla słownika `admin.*`, który do 2026-10-17 jechał
+// w rdzeniu języka: kotwica wyłącznie w `AdminSession`.
+vi.mock("@/lib/i18n-admin-core", () => ({
+  ensureI18n: () => {
+    h.adminCoreCalls += 1;
   },
 }));
 
@@ -152,6 +161,7 @@ beforeEach(() => {
   h.storageReads = [];
   h.cacheControl = [];
   h.i18nCalls = 0;
+  h.adminCoreCalls = 0;
   window.localStorage.clear();
 });
 
@@ -218,6 +228,7 @@ describe("render serwerowy: szkielet i NIC POZA nim", () => {
   it("nie woła rejestracji słownika w renderze - to robi `beforeLoad`", () => {
     ssrHtml("/admin");
     expect(h.i18nCalls).toBe(0);
+    expect(h.adminCoreCalls).toBe(0);
   });
 
   it.each([
@@ -337,6 +348,7 @@ describe("po hydratacji: panel montuje się normalnie", () => {
     const Layout = adminLayout();
     render(withQuery(<Layout />));
     expect(h.i18nCalls).toBe(1);
+    expect(h.adminCoreCalls).toBe(1);
   });
 
   it("czekając na sesję dokłada do szkieletu wariant ZAPAMIĘTANY", () => {
@@ -396,6 +408,7 @@ describe("kontrakt dokumentu panelu", () => {
     // `check:bundle` na czerwono. Kotwica mieszka w `AdminSession` (niżej).
     adminBeforeLoad()();
     expect(h.i18nCalls).toBe(0);
+    expect(h.adminCoreCalls).toBe(0);
   });
 
   it("`head()` niesie arkusz panelu - dlatego SSR startuje jego pobranie", () => {

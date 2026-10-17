@@ -12,18 +12,22 @@
 //
 // Teraz placeholder ma własny klucz (`blocks.editors.cover.titlePh`), którego
 // rdzeń nie zna, więc kolejność ładowania niczego nie rozstrzyga.
+//
+// „Rdzeń" to tu RDZEŃ BLOKÓW (`blocksCorePl`/`blocksCoreEn`): od 2026-10-17
+// `blocks.*` nie jedzie już w `locale/*.ts`, tylko w tym samym pliku nakładki,
+// rejestrowany PRZED uzupełnieniami z overwrite=false. Umowa się nie zmienia:
+// nagłówek należy do rdzenia bloków, placeholder - wyłącznie do uzupełnień.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "@/lib/i18n";
-import { pl as corePl } from "@/lib/locale/pl";
-import { en as coreEn } from "@/lib/locale/en";
+import { blocksCoreEn, blocksCorePl } from "@/lib/i18n-admin-blocks";
 import { realT } from "@/test/i18nReal";
 import type { Block } from "@/lib/blocks/types";
 
-// Zdjęcie rdzenia ZANIM `Cover.tsx` wciągnie nakładkę (import dynamiczny niżej):
-// i18next scala nakładki w miejscu, w obiekt przekazany do `init`; eksport rdzenia
-// chroni przed tym kopia `storeCopy` w `i18n.ts` - zdjęcie to bezpiecznik.
-const CORE = structuredClone({ pl: corePl, en: coreEn });
+// Zdjęcie rdzenia bloków ZANIM `Cover.tsx` wciągnie resztę edytora (import
+// dynamiczny niżej) - bezpiecznik na wypadek scalania w miejscu (i18next kopiuje
+// zasoby przed `deepExtend`, więc eksport powinien zostać nietknięty).
+const CORE = structuredClone({ pl: blocksCorePl, en: blocksCoreEn });
 const { CoverBlock } = await import("../Cover");
 
 const IMAGE_URL = "https://example.com/tlo.jpg";

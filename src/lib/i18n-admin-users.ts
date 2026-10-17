@@ -16,8 +16,9 @@ const pl = {
   // Etykiety ról (`ROLE_LABEL_KEYS` w `authz/roleLabels.ts`) były kiedyś
   // `defaultValue` sklejanym z identyfikatora roli, czyli angielskim enumem
   // z wielkiej litery także po polsku. Dziś `admin.users.roles.{admin,editor,
-  // author,user}` należy do RDZENIA (`locale/*.ts`); tutaj jest wyłącznie rola,
-  // której rdzeń nie zna. Pełna kopia gałęzi z overwrite=true rozjechała się
+  // author,user}` należy do słownika panelu (`i18n-admin-core.ts`, do
+  // 2026-10-17 RDZEŃ `locale/*.ts`); tutaj jest wyłącznie rola, której
+  // właściciel nie zna. Pełna kopia gałęzi z overwrite=true rozjechała się
   // z rdzeniem („Admin" kontra „Administrator" w EN), więc napis roli zależał od
   // tego, czy ta nakładka zdążyła się zarejestrować - pilnuje tego
   // `i18nOverlayIntegrity.gate.test.ts`.

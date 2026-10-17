@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-blocks";
 import {
   DndContext,
   type DragEndEvent,
