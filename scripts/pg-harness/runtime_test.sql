@@ -2933,6 +2933,125 @@ SELECT pg_temp.assert(public.club_is_cover_moderator('a0000000-0000-0000-0000-00
 UPDATE public.clubs SET status = 'active' WHERE id = :'cover_club'::uuid;
 RESET request.jwt.claim.sub;
 
+-- ===========================================================================
+-- A19R: club_view - predykat POZYTYWNY (20261017120000)
+--
+-- A19 zamienila `WHERE cap.reason IS DISTINCT FROM 'not_found'` na predykat
+-- pozytywny, bo galaz anonimowa club_capabilities nie zwraca 'not_found'
+-- nigdy (anonim: NULL dla public+active, inaczej 'auth_required'). Migracja
+-- 20260919220300 (cover_position_y) odtworzyla ciale SPRZED A19 i anonim znow
+-- czytal pelna karte KAZDEGO klubu tenantu publicznego - sekretu i szkicu tez.
+-- Sekcja 8 tego nie widziala: pyta o sekret ZALOGOWANEGO obcego, a dla niego
+-- club_capabilities zwraca 'not_found', wiec stary filtr przechodzil.
+--
+-- Macierz liczona jednym zbiorem slugow na aktora: przy regresji asercja
+-- wypisuje, CO wycieklo, a nie tylko ze cos. Oczekiwania wynikaja wprost
+-- z predykatu A19: (a) cap.can_read, (b) zalogowany + active + nie-secret,
+-- (c) czlonkostwo w dowolnym stanie. Tenant A jest tu tenantem publicznym
+-- (public_tenant_id() harnessu = najstarszy tenant).
+-- ===========================================================================
+\echo '== A19R.1 Fixture: kluby w kazdym stanie widocznosci i statusu =='
+RESET ROLE;
+INSERT INTO auth.users (id, email) VALUES
+  ('e0000000-0000-0000-0000-000000000001','cv-outsider@t'),
+  ('e0000000-0000-0000-0000-000000000002','cv-secret-member@t'),
+  ('e0000000-0000-0000-0000-000000000003','cv-secret-banned@t'),
+  ('e0000000-0000-0000-0000-000000000004','cv-secret-invited@t');
+INSERT INTO public.profiles (id, tenant_id, display_name, discoverable) VALUES
+  ('e0000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Widok Obcy',true),
+  ('e0000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','Widok Czlonek Sekretu',true),
+  ('e0000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','Widok Zbanowany',true),
+  ('e0000000-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','Widok Zaproszony',true);
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_upsert('{"slug":"cv-public","name_pl":"CV public","name_en":"CV public","visibility":"public","status":"active"}'::jsonb) AS cv_public \gset
+SELECT public.admin_club_upsert('{"slug":"cv-members","name_pl":"CV members","name_en":"CV members","visibility":"members","status":"active"}'::jsonb) AS cv_members \gset
+SELECT public.admin_club_upsert('{"slug":"cv-private","name_pl":"CV private","name_en":"CV private","visibility":"private","status":"active"}'::jsonb) AS cv_private \gset
+SELECT public.admin_club_upsert('{"slug":"cv-secret","name_pl":"CV secret","name_en":"CV secret","visibility":"secret","status":"active","rules_pl":"Zasady tylko dla czlonkow"}'::jsonb) AS cv_secret \gset
+SELECT public.admin_club_upsert('{"slug":"cv-draft","name_pl":"CV draft","name_en":"CV draft","visibility":"public","status":"draft"}'::jsonb) AS cv_draft \gset
+SELECT public.admin_club_upsert('{"slug":"cv-archived","name_pl":"CV archived","name_en":"CV archived","visibility":"public","status":"archived"}'::jsonb) AS cv_archived \gset
+SELECT public.admin_club_member_upsert(:'cv_secret'::uuid,'e0000000-0000-0000-0000-000000000002','member','active',NULL);
+SELECT public.admin_club_member_upsert(:'cv_draft'::uuid,'e0000000-0000-0000-0000-000000000002','member','active',NULL);
+SELECT public.admin_club_member_upsert(:'cv_secret'::uuid,'e0000000-0000-0000-0000-000000000003','member','banned',NULL);
+SELECT public.admin_club_member_upsert(:'cv_secret'::uuid,'e0000000-0000-0000-0000-000000000004','member','invited',NULL);
+-- Klub publiczny i aktywny, ale w tenancie B: zalozony przez admina B.
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_upsert('{"slug":"cv-obcy","name_pl":"CV obcy","name_en":"CV foreign","visibility":"public","status":"active"}'::jsonb) AS cv_obcy \gset
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.clubs WHERE slug LIKE 'cv-%'
+     AND tenant_id = '11111111-1111-1111-1111-111111111111') = 6
+    AND (SELECT tenant_id FROM public.clubs WHERE id = :'cv_obcy'::uuid) = '22222222-2222-2222-2222-222222222222'
+    AND public.public_tenant_id() = '11111111-1111-1111-1111-111111111111',
+  'A19R: fixture - szesc klubow w tenancie publicznym A, jeden w B');
+
+-- Zbior slugow fixture'a, dla ktorych club_view oddaje wiersz biezacemu widzowi.
+CREATE OR REPLACE FUNCTION pg_temp.cv_visible() RETURNS text
+LANGUAGE sql AS $$
+  SELECT COALESCE(string_agg(s, ',' ORDER BY s), '-')
+    FROM unnest(ARRAY['cv-archived','cv-draft','cv-members','cv-obcy',
+                      'cv-private','cv-public','cv-secret']) s
+   WHERE EXISTS (SELECT 1 FROM public.club_view(s))
+$$;
+
+\echo '== A19R.2 Anonim: wylacznie public+active =='
+SELECT set_config('request.jwt.claim.sub', '', false);
+SELECT pg_temp.assert(pg_temp.cv_visible() = 'cv-public',
+  format('A19R: anonim widzi WYLACZNIE karte public+active (widzi: %s)', pg_temp.cv_visible()));
+SELECT pg_temp.assert((SELECT count(*) FROM public.club_view('cv-secret')) = 0,
+  'A19R: anonim NIE dostaje karty klubu secret (nazwa, zasady, okladka)');
+SELECT pg_temp.assert((SELECT count(*) FROM public.club_view('cv-draft')) = 0,
+  'A19R: anonim NIE dostaje szkicu (status draft)');
+SELECT pg_temp.assert(
+  (SELECT can_read AND cover_position_y = 50 FROM public.club_view('cv-public')),
+  'A19R: anonim czyta klub public+active, karta niesie cover_position_y');
+
+\echo '== A19R.3 Zalogowany spoza klubu: karta members/private, bez sekretu, szkicu i archiwum =='
+SET request.jwt.claim.sub = 'e0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(pg_temp.cv_visible() = 'cv-members,cv-private,cv-public',
+  format('A19R: zalogowany obcy widzi karty public/members/private (widzi: %s)', pg_temp.cv_visible()));
+SELECT pg_temp.assert(
+  (SELECT NOT can_read AND reason = 'not_member' FROM public.club_view('cv-private')),
+  'A19R: karta klubu private jest jawna dla zalogowanego, tresc nie (can_read=false)');
+
+\echo '== A19R.4 Czlonkostwo w dowolnym stanie odslania karte, nic wiecej =='
+SET request.jwt.claim.sub = 'e0000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert(pg_temp.cv_visible() = 'cv-draft,cv-members,cv-private,cv-public,cv-secret',
+  format('A19R: czlonek sekretu i szkicu widzi oba, archiwum nie (widzi: %s)', pg_temp.cv_visible()));
+SELECT pg_temp.assert(
+  (SELECT can_read AND my_status = 'active' FROM public.club_view('cv-secret')),
+  'A19R: czlonek czyta klub secret');
+SET request.jwt.claim.sub = 'e0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(pg_temp.cv_visible() = 'cv-members,cv-private,cv-public,cv-secret',
+  format('A19R: zbanowany widzi karte swojego sekretu (widzi: %s)', pg_temp.cv_visible()));
+SELECT pg_temp.assert(
+  (SELECT NOT can_read AND reason = 'banned' AND my_status = 'banned' FROM public.club_view('cv-secret')),
+  'A19R: zbanowany dostaje karte z reason=banned, bez tresci');
+SET request.jwt.claim.sub = 'e0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(pg_temp.cv_visible() = 'cv-members,cv-private,cv-public,cv-secret',
+  format('A19R: zaproszony widzi karte sekretu, do ktorego go zaproszono (widzi: %s)', pg_temp.cv_visible()));
+
+\echo '== A19R.5 Administracja tenanta widzi wszystko; obcy tenant nic =='
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  pg_temp.cv_visible() = 'cv-archived,cv-draft,cv-members,cv-private,cv-public,cv-secret',
+  format('A19R: admin tenanta A widzi kazdy klub A, klubu B nie (widzi: %s)', pg_temp.cv_visible()));
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(pg_temp.cv_visible() = 'cv-obcy',
+  format('A19R: admin tenanta B nie widzi zadnego klubu A po slugu (widzi: %s)', pg_temp.cv_visible()));
+
+\echo '== A19R.6 Granty: anon wola, PUBLIC nie =='
+RESET request.jwt.claim.sub;
+SELECT pg_temp.assert(
+  has_function_privilege('anon', 'public.club_view(text)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'public.club_view(text)', 'EXECUTE')
+    AND has_function_privilege('service_role', 'public.club_view(text)', 'EXECUTE'),
+  'A19R: anon, authenticated i service_role wykonaja club_view');
+SELECT pg_temp.assert(
+  NOT EXISTS (SELECT 1 FROM pg_proc p, aclexplode(p.proacl) a
+               WHERE p.oid = 'public.club_view(text)'::regprocedure AND a.grantee = 0)
+    AND (SELECT proacl IS NOT NULL FROM pg_proc WHERE oid = 'public.club_view(text)'::regprocedure),
+  'A19R: PUBLIC nie ma EXECUTE na club_view (REVOKE z A19 wrocil po DROP)');
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'
