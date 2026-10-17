@@ -2,10 +2,11 @@
 
 ## Weryfikacja PR #518
 
-- [ ] Potwierdzić pełny zakres i integrację wszystkich commitów PR #518.
-- [ ] Zweryfikować rzeczywisty katalog tabel, widoków, RPC, kolumn i rejestr migracji bez zmiany danych.
-- [ ] Uruchomić testy zakresowe i sprawdzić działanie podglądu.
-- [ ] Wdrożyć potwierdzone braki, opublikować i potwierdzić stan strony publicznej.
+- [x] Potwierdzić integrację wszystkich 24 commitów PR #518: merge 346012635, 192 pliki; drzewo scalenia identyczne z końcem gałęzi PR.
+- [x] Zweryfikować bazę i zastosować cztery brakujące migracje: 343 tabele z RLS, 15 widoków, 1585 funkcji; 1660 obiektów bez braków, 751 kolumn bez nowych braków (7 znanych rozbieżności). Końcowe ciała sześciu RPC i granty potwierdzone; rejestr uzupełniony dopiero po wdrożeniu, 368 migracji zgodnych. Dane użytkowników bez zmian.
+- [x] Testy PR: 82 pliki, 2589 przechodzi, 10 oczekiwanych błędów. Naprawiona hydratacja /club po wcześniejszym rozstrzygnięciu sesji: 60 testów katalogu, zalogowane /, /en i /club HTTP 200 bez błędów przeglądarki; build OK. Baza nie zawiera klubów, więc produkcyjne stronicowanie z realnymi kartami pozostaje niesprawdzone. Testy SQL nieuruchomione: brak lokalnego serwera PostgreSQL.
+- [x] Opublikować PR #518 po migracjach: identyfikator produkcji zmienił się z tmvcgxelv na tmvcwj3l3.
+- [ ] Potwierdzić publikację dodatkowej poprawki hydratacji /club: wymaga kolejnej publikacji, blokada to zewnętrzny proces wdrożenia.
 
 ## Podpisy autorów względem tytułów
 
