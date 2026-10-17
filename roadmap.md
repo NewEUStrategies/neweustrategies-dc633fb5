@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #515
+
+- [x] Potwierdzić wszystkie commity i zakres zmian PR #515: 46 commitów, 331 ścieżek, brak zmian schematu bazy.
+- [x] Sprawdzić rzeczywisty katalog tabel, widoków, RPC i kolumn: 343 tabele z RLS, 15 widoków, 1585 funkcji; kontrakt 1660 obiektów bez braków, 751 kolumn i 7 wcześniej znanych rozbieżności; rejestr zgodny. Nie zmieniono bazy ani rejestru.
+- [x] Uruchomić testy zmian i sprawdzić podgląd bez aktualizacji zależności: 728/728 testów zakresowych, build OK; /, /blog i /en HTTP 200 bez błędów przeglądarki. Pełna seria testów przerwana limitem 600 s, bez końcowego werdyktu.
+- [ ] Potwierdzić zakończenie zleconej publikacji PR #515: ostatni odczyt produkcji nadal zwraca starszy identyfikator tmvb6lfhz (podgląd tmvc1bpt0); blokada: zewnętrzny proces publikacji. Strona publiczna / i /blog HTTP 200 bez błędów przeglądarki, lecz nie jest to dowód wdrożenia PR #515.
+
 ## Pola formularzy platformy
 
 - [x] Ujednolicić listy wyboru, kalendarze i wysokości etykiet/pól w obu motywach.
