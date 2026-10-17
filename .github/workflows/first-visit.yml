@@ -229,5 +229,6 @@ jobs:
             harness/reports/first-visit-playwright/
             harness/test-results-performance/
             harness/reports/document-weight.json
+            harness/reports/document-weight-blog.json
             harness/reports/lighthouse-local/ci/
           retention-days: 14

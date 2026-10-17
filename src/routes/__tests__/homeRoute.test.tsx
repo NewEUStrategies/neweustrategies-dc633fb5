@@ -1029,15 +1029,16 @@ describe("/ - tryb „najnowsze wpisy”", () => {
     expect(view.search()).toMatchObject({ page: 2 });
   });
 
-  it("okładka pierwszej karty ląduje w preloadzie LCP - w dokumencie I w nagłówku HTTP", async () => {
+  it("okładka pierwszej karty ląduje w preloadzie LCP - nagłówek HTTP + obraz high, bez duplikatu z head()", async () => {
+    // `<head>` dostaje preload od Reacta 19 z `<img fetchPriority="high">` (te same srcSet/sizes);
+    // link z `head()` był identycznym duplikatem (`documentPreloadDuplicates`).
     h.archive = { posts: [post("p1", COVER), post("p2")], total: 2, page: 1, pageSize: 2 };
     const view = await mountHome();
-    expect(imagePreload(view.links())).toMatchObject({
-      href: COVER,
-      fetchPriority: "high",
-      imageSizes: CARD_IMAGE_SIZES,
-    });
+    expect(imagePreload(view.links())).toBeUndefined();
     expect(h.linkHeaders.at(-1)).toContain(COVER);
+    expect(h.linkHeaders.at(-1)).toContain(`imagesizes="${CARD_IMAGE_SIZES}"`);
+    const img = view.container.querySelector<HTMLImageElement>('img[fetchpriority="high"]');
+    expect(img?.getAttribute("sizes")).toBe(CARD_IMAGE_SIZES);
   });
 
   it("wpis bez okładki nie dokłada pustego preloadu ani nagłówka Link", async () => {
@@ -1136,7 +1137,6 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       }) => Promise<{
         degraded: boolean;
         homePage: PageData | null;
-        coverPreload: unknown;
       }>;
       const loader = HomeRoute.options.loader as unknown as Loader;
       const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
@@ -1149,7 +1149,7 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(HOME_CONTENT_BUDGET_MS - HOME_SSR_BUDGET_MS);
-      expect(await result).toMatchObject({ degraded: true, homePage: null, coverPreload: null });
+      expect(await result).toMatchObject({ degraded: true, homePage: null });
       expect(Date.now()).toBe(deadline);
       expect(qc.getQueryState(["public", "home-page"])).toMatchObject({
         status: "success",

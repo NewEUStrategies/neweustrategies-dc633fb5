@@ -34,7 +34,6 @@ import { getRequestUrl, isSearchCrawlerRequest } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
   buildContentHead,
-  imagePreloadLink,
   imagePreloadLinkHeaderValue,
   splitUrl,
   siteTitle,
@@ -196,8 +195,10 @@ export const Route = createFileRoute("/")({
     // dopiero po sparsowaniu body.
     //
     // DWA ŹRÓDŁA, DWIE DROGI (P1.4). `coverPreload` (tryb „najnowsze wpisy")
-    // idzie jak dotąd przez `head()` - pierwsza karta siatki nie jest
-    // dokumentem buildera i nie ma kandydata. `heroPreloads` (kanwa buildera)
+    // idzie WYŁĄCZNIE nagłówkiem HTTP `Link`: pierwsza karta siatki jest
+    // `fetchPriority="high"` w powłoce, więc preload w `<head>` wstawia sam
+    // React 19 (link z `head()` był jego duplikatem - jak w archiwach,
+    // `blog.index.tsx`). `heroPreloads` (kanwa buildera)
     // to obrazy kandydatów LCP z `lcpCandidates`; komponent trasy przekazuje je
     // do `preload()` z react-dom, który dzieli klucz zasobu z automatycznym
     // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
@@ -365,7 +366,6 @@ export const Route = createFileRoute("/")({
       seoSettings,
       homePage: contentDegraded ? null : homePage,
       page: deps.page,
-      coverPreload,
       degraded,
     };
   },
@@ -412,13 +412,10 @@ export const Route = createFileRoute("/")({
       robots: page > 1 ? "noindex, follow" : homePage ? resolveRobotsMeta(homePage) : null,
       canonicalOverride: homePage ? seoCanonicalOverride(homePage) : null,
     });
-    // Preload obrazu LCP pierwszej karty trybu "najnowsze wpisy" - deskryptor
-    // policzony w loaderze, bajtowo zgodny z malowanym <img> (wspólne moduły
-    // sizes + buildImageSrcSet). Hero kanwy buildera NIE idzie tędy: emituje go
-    // komponent trasy przez `preload()` (jedno źródło, patrz loader).
-    const head = loaderData?.coverPreload
-      ? { ...builtHead, links: [...builtHead.links, imagePreloadLink(loaderData.coverPreload)] }
-      : builtHead;
+    // Preload obrazu LCP NIE idzie przez `head()`: karta trybu „najnowsze wpisy"
+    // dostaje go od Reacta 19 (obraz `fetchPriority="high"` w powłoce) i z nagłówka
+    // `Link` loadera, hero kanwy buildera - z `preload()` komponentu trasy.
+    const head = builtHead;
     const { origin } = splitUrl(url);
     if (!origin) return head;
     // Entity layer (GEO/AEO): Organization + WebSite with SearchAction. Per
