@@ -1,9 +1,9 @@
-// Parser .docx w bundlu przeglądarki bez martwego i przewymiarowanego kodu:
-// przekierowania modułów ZAWĘŻONE DO IMPORTERA.
+// Parser .docx/.pptx w bundlu przeglądarki bez martwego i przewymiarowanego
+// kodu: przekierowania modułów ZAWĘŻONE DO IMPORTERA.
 //
 // PO CO. Podgląd .docx (`src/lib/files/officeParse.ts` -> `mammoth.convertToHtml`)
-// to chunk ~99 KB gzip. Dwie jego części nie wykonują się nigdy, bo żadna
-// ścieżka z `convertToHtml` do nich nie prowadzi:
+// to był chunk ~99 KB gzip plus ~28 KB jszip. Dwie jego części nie wykonują
+// się nigdy, bo żadna ścieżka z `convertToHtml` do nich nie prowadzi:
 //
 //   1. `xmlbuilder` (~9 KB gzip). W mammoth wymaga go tylko
 //      `lib/xml/writer.js` (`writeString`), a `writeString` woła wyłącznie
@@ -14,8 +14,9 @@
 //      (`isHTML ? HTML_ENTITIES : XML_ENTITIES`), a mammoth woła
 //      `parseFromString(string)` bez typu - zawsze XML.
 //
-// Dwie kolejne wykonują się, ale niosą wielokrotnie więcej kodu niż zadanie,
-// więc dostają zastępców o TEJ SAMEJ semantyce (wynik konwersji bez zmian):
+// Kolejne wykonują się, ale niosą wielokrotnie więcej kodu niż zadanie, więc
+// dostają zastępców o TEJ SAMEJ semantyce (wynik konwersji bez zmian; jedyny
+// wyjątek - XML niepoprawny składniowo w punkcie 5 - opisuje zastępca):
 //
 //   3. bluebird (~21 KB gzip) pod `mammoth/lib/promises.js`. Mammoth bierze
 //      z niego kilka funkcji i metod łańcucha; `vendor/mammothPromises.ts`
@@ -26,9 +27,26 @@
 //      polami tekstowymi), z której `docx/body-reader.js` czyta jedno: znak
 //      Unicode dla `<w:sym>`. `vendor/dingbatToUnicode.ts` niesie te same
 //      pary w zwięzłym zapisie; test porównuje z pakietem każde zapytanie.
+//   5. `@xmldom/xmldom` (~10 KB gzip) pod `mammoth/lib/xml/xmldom.js` - parser
+//      XML w JavaScripcie, choć przeglądarka ma własny. `vendor/mammothXmlDom.ts`
+//      oddaje `reader.js` natywny `DOMParser` (podgląd .pptx parsuje nim od
+//      zawsze) z tą samą normalizacją końców linii i z wyjątkiem przy
+//      `<parsererror>`. Od tej zmiany xmldom w bundlu przeglądarki nie ma
+//      wcale; para encji z punktu 2 i kontrola grafu zostają jako bezpiecznik
+//      na wypadek nowego klienta xmldom.
+//   6. `underscore` (~7,5 KB gzip, jeden moduł UMD - bez tree-shakingu) pod
+//      każdym `require("underscore")` mammoth i lop. Oba pakiety wołają 20
+//      funkcji; `vendor/mammothUnderscore.ts` to ich port 1.13.8 (test pilnuje
+//      listy nazw i porównuje wyniki z prawdziwym underscore).
+//   7. `jszip` (~28 KB gzip, cały `dist/jszip.min.js` z zapisem archiwów,
+//      strumieniami i własną kopią pako z kompresją) pod `lib/zipfile.js`.
+//      Podgląd tylko CZYTA archiwum: `vendor/officeZip.ts` to czytnik
+//      katalogu centralnego o semantyce `JSZip.loadAsync` z dekompresją
+//      `inflateSync` z `fflate`. Z tego samego czytnika korzysta wprost
+//      `officeParse.ts#parsePptx`, więc jszip znika z bundla przeglądarki.
 //
 // Bramka `overall` w `scripts/check-bundle-size.ts` liczy ten chunk przy każdym
-// buildzie (kronika, wpisy XXII i XXIV); razem to ~55 KB gzip kodu, który albo
+// buildzie (kronika, wpisy XXII i XXIV); razem to ~100 KB gzip kodu, który albo
 // nie ma prawa się wykonać, albo robi to samo co kilka kB zastępcy.
 //
 // ZASADA: PRZEKIEROWANIE WYŁĄCZNIE PO PARZE (specyfikator, importer). Ten sam
@@ -42,13 +60,17 @@
 // Serwer, proces arkuszy i dev (optymalizator zależności prebundluje mammoth bez
 // wtyczek użytkownika - od Vite 8 Rolldownem, wcześniej esbuildem) dostają
 // nietknięte pakiety - zachowanie jest to samo, różni się tylko waga.
+// Wyjątek bez wtyczki: `parsePptx` importuje `vendor/officeZip.ts` wprost, więc
+// .pptx czyta ten sam czytnik w dev, w testach i w produkcji.
 //
 // ZAŁOŻENIA SĄ PRZYPIĘTE TESTAMI: `src/lib/ci/__tests__/officeParserTrim.test.ts`
-// czyta źródła mammoth, xmldom i dingbat-to-unicode (aktualizacja pakietu, która
-// zmieni którąś ścieżkę, zapali test), a `officeParserTrimBuild.test.ts` buduje
-// mammoth z tą wtyczką i porównuje HTML i komunikaty z prawdziwych plików .docx
-// (własny plik testu i wszystkie pliki testowe mammoth) z wynikiem nietkniętej
-// biblioteki.
+// czyta źródła mammoth, lop, xmldom i dingbat-to-unicode (aktualizacja pakietu,
+// która zmieni którąś ścieżkę albo sięgnie po nową funkcję, zapali test)
+// i porównuje zastępców z oryginałami, `officeZip.test.ts` porównuje czytnik
+// archiwów z jszip na archiwach brzegowych, a `officeParserTrimBuild.test.ts`
+// buduje mammoth z tą wtyczką i porównuje HTML i komunikaty z prawdziwych
+// plików .docx (własne pliki testu, wszystkie pliki testowe mammoth i pliki
+// uszkodzone) z wynikiem nietkniętej biblioteki.
 //
 // Współdzielona przez vite.config.ts i vite.smoke.config.ts (parytet pilnuje
 // src/lib/ci/__tests__/viteChunkParity.test.ts).
@@ -83,6 +105,50 @@ export const OFFICE_PARSER_REDIRECTS: readonly OfficeParserRedirect[] = [
     importer: "/node_modules/mammoth/lib/docx/body-reader.js",
     replacement: "src/lib/files/vendor/dingbatToUnicode.ts",
   },
+  {
+    source: "./xmldom",
+    importer: "/node_modules/mammoth/lib/xml/reader.js",
+    replacement: "src/lib/files/vendor/mammothXmlDom.ts",
+  },
+  {
+    source: "jszip",
+    importer: "/node_modules/mammoth/lib/zipfile.js",
+    replacement: "src/lib/files/vendor/officeZip.ts",
+  },
+  // `require("underscore")` z każdego pliku mammoth i lop (parser map stylów),
+  // który go wymaga - także z tych, których bundel przeglądarki nie wczytuje
+  // (`lib/promises.js` ma zastępcę, `lop/lib/testing.js` nie ma importera):
+  // pełna lista jest prostsza do pilnowania niż wyjątki.
+  ...(
+    [
+      "mammoth/lib/document-to-html.js",
+      "mammoth/lib/documents.js",
+      "mammoth/lib/docx/body-reader.js",
+      "mammoth/lib/docx/numbering-xml.js",
+      "mammoth/lib/docx/office-xml-reader.js",
+      "mammoth/lib/docx/style-map.js",
+      "mammoth/lib/html/simplify.js",
+      "mammoth/lib/images.js",
+      "mammoth/lib/index.js",
+      "mammoth/lib/options-reader.js",
+      "mammoth/lib/promises.js",
+      "mammoth/lib/results.js",
+      "mammoth/lib/style-reader.js",
+      "mammoth/lib/styles/html-paths.js",
+      "mammoth/lib/transforms.js",
+      "mammoth/lib/writers/html-writer.js",
+      "mammoth/lib/writers/markdown-writer.js",
+      "mammoth/lib/xml/nodes.js",
+      "mammoth/lib/xml/reader.js",
+      "mammoth/lib/xml/writer.js",
+      "lop/lib/rules.js",
+      "lop/lib/testing.js",
+    ] as const
+  ).map((file) => ({
+    source: "underscore",
+    importer: `/node_modules/${file}`,
+    replacement: "src/lib/files/vendor/mammothUnderscore.ts",
+  })),
   // `require("…/promises")` z każdego pliku mammoth poza CLI (`lib/main.js`).
   // `lib/unzip.js` i `lib/docx/files.js` w przeglądarce podmienia pole
   // `browser` pakietu, ale para zostaje - gdyby mapa `browser` się zmieniła.

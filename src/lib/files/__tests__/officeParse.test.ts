@@ -13,8 +13,10 @@
 // PRAWDZIWY, nie zaatrapowany: atrapa dowiodłaby tylko, że wołamy funkcję
 // o właściwej nazwie.
 //
-// Parsery (mammoth/xlsx/jszip) są atrapowane NA GRANICY MODUŁU, bo test ma
-// sprawdzać nasz kod, a nie cudzy dekoder OOXML.
+// Parsery (mammoth/xlsx/czytnik archiwów) są atrapowane NA GRANICY MODUŁU, bo
+// test ma sprawdzać nasz kod, a nie cudzy dekoder OOXML. Czytnik archiwów na
+// prawdziwych plikach (także całe `parsePptx` bez atrap) sprawdza
+// `officeZip.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -53,20 +55,18 @@ vi.mock("xlsx", () => ({
   },
 }));
 
-vi.mock("jszip", () => ({
-  default: {
-    loadAsync: () =>
-      Promise.resolve({
-        files: Object.fromEntries(Object.keys(h.zipFiles).map((path) => [path, {}])),
-        file: (path: string) => {
-          if (h.zipFiles[path] === undefined) return null;
-          return {
-            async: (type: string) =>
-              Promise.resolve(type === "blob" ? new Blob([h.zipFiles[path]!]) : h.zipFiles[path]!),
-          };
-        },
-      }),
-  },
+vi.mock("../vendor/officeZip", () => ({
+  loadAsync: () =>
+    Promise.resolve({
+      files: Object.fromEntries(Object.keys(h.zipFiles).map((path) => [path, {}])),
+      file: (path: string) => {
+        if (h.zipFiles[path] === undefined) return null;
+        return {
+          async: (type: string) =>
+            Promise.resolve(type === "blob" ? new Blob([h.zipFiles[path]!]) : h.zipFiles[path]!),
+        };
+      },
+    }),
 }));
 
 const { parseDocx, parsePptx, parseSpreadsheet } = await import("@/lib/files/officeParse");
