@@ -265,8 +265,9 @@ vi.mock("@/lib/menus/queries", () => ({
   },
 }));
 // DRUGA ATRAPA MENU - na funkcji serwerowej POD `menus/queries`, nie zamiast
-// tamtej. Korzeń importuje `menus/queries` DYNAMICZNIE i DWA RAZY na loader
-// (`void warmMenus()` przed falą 1 i ta sama funkcja w fali chrome). Vitest
+// tamtej. Korzeń importował `menus/queries` DYNAMICZNIE i DWA RAZY na loader
+// (dziś statycznie; atrapa zostaje siatką dla każdego `import()` tego modułu
+// z drzewa korzenia). Vitest
 // dzieli jedną tablicę `callstack` między wszystkie importy modułu i na czas
 // rozwiązywania atrapy z fabryką dopisuje do niej id atrapy; drugi import,
 // który trafi w to okno, jest brany za „samo-import" atrapy i dostaje
@@ -731,17 +732,6 @@ describe("__root loader", () => {
     h.menusHang = false;
   });
 
-  it("ANULOWANE menu (pending + idle + bez danych) JEST usuwane - inaczej seroval czeka na martwą obietnicę", async () => {
-    h.menusHang = true;
-    h.cancelMenus = true;
-    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
-    await runLoader(qc);
-    expect(qc.getQueryState(["menu-with-items", "main"])).toBeUndefined();
-    expect(qc.getQueryState(["menu-with-items", "footer"])).toBeUndefined();
-    h.menusHang = false;
-    h.cancelMenus = false;
-  });
-
   // ── AWARIE, KTÓRYCH LOADER KORZENIA NIE MA PRAWA PODNIEŚĆ ───────────────
   //
   // Ten loader biegnie na KAŻDEJ trasie serwisu, więc każdy rzut, który z niego
@@ -863,11 +853,15 @@ describe("__root loader", () => {
     expect(h.cacheControl.at(-1)).toBe("private, no-store");
   });
 
-  it("ANULOWANE menu jest usuwane TAKŻE po serwerowym domknięciu fali chrome", async () => {
-    // Wariant serwerowy tej samej reguły co niżej: korzeń AWAITUJE falę chrome,
-    // więc strażnik ogląda stan PO anulowaniu, a nie przed jego powstaniem.
-    // Zapytanie `pending` + `idle` + bez danych w dehydratowanym payloadzie
-    // zawiesza klienta na strumieniu, który już nie wróci.
+  it("ANULOWANE menu (pending + idle + bez danych) jest usuwane po serwerowym domknięciu fali chrome", async () => {
+    // Korzeń AWAITUJE falę chrome na serwerze, więc strażnik ogląda stan PO
+    // anulowaniu, a nie przed jego powstaniem. Zapytanie `pending` + `idle` +
+    // bez danych w dehydratowanym payloadzie zawiesza klienta na strumieniu,
+    // który już nie wróci (seroval czeka na martwą obietnicę). Wariant
+    // kliencki tego testu był pusty: przy `import()` menu strażnik widział
+    // jeszcze `undefined`, a asercja padała przed anulowaniem; w kliencie fala
+    // nie jest awaitowana, a wpis `pending` + `idle` po prostu pobierze się
+    // ponownie przy montażu `useQuery` - nie ma czego dehydratować.
     h.server = true;
     h.menusHang = true;
     h.cancelMenus = true;

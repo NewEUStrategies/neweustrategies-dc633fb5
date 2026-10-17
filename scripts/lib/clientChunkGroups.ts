@@ -52,6 +52,23 @@
 // 12 chunków, 480,7 KB gzip. Wejście zostaje w `index-*` (wyjątek w `group()`), który importuje
 // `app-initial`; to on niesie leniwe `import()` aplikacji, w tym listwy stopki.
 //
+// GRUPY LENIWE PONIŻEJ `app-initial` (2026-10-17, seria bootu). Bez grup każdy współdzielony
+// moduł leniwy dostaje własny plik, a moduł ładowany przez `import()` z kodu bootu - fasadę
+// (`export{…}from"./app-initial-*.js"`): cały graf ma trzy `await` na najwyższym poziomie
+// (`lib/i18n.ts`, `router.tsx`), a jeden taki `await` gdziekolwiek wyłącza w Rolldownie
+// `chunkOptimization` (scalanie chunków wspólnych i sprzątanie pustych fasad) dla CAŁEGO bundla
+// - zmierzone na sondach Rolldowna 1.2. Seria `/` liczyła 43 pliki (Rollup: 26 w zestawie, 32
+// pobrane przed gotowością). Rodziny modułów, które trasy publiczne ładują zawsze razem (karta
+// wpisu, siatka archiwum, treść wpisu, sanityzacja, koordynator nakładek), dostają po jednym
+// chunku. Ich priorytet jest NIŻSZY niż `app-initial`: grupa leniwa zabiera statyczne zależności
+// swoich modułów, a kod bootu (`$initial`) musi już wtedy siedzieć w `app-initial` - inaczej
+// grupa wzięłaby go jako zależność i wejście importowałoby chunk leniwy. Zasada priorytetów
+// działa dalej: chunk leniwy importuje `app-initial` i vendorów (wyżej), a zależna rodzina
+// leniwa (siatka -> karta) ma priorytet niższy od tej, którą importuje. Żaden moduł tych grup
+// nie jest dziś `$initial`, nie jest dynamicznym wejściem i nie importuje CSS. Gdyby stał się
+// `$initial`, wybierze go `app-initial` (do bootu), a `check:entry-purity` zapali się na
+// chunku grupy w domknięciu wejścia.
+//
 // PUŁAPKA `$initial` (przed tree-shakingiem). Moduł statycznie importowany przez moduł bootu
 // jest `$initial`, także gdy ten import jest martwy w kliencie albo dotyczy jednej stałej -
 // a wtedy `app-initial` zabiera go RAZEM z kodem, z którego korzystają tylko leniwe chunki
@@ -80,19 +97,26 @@ export const CHUNK_PRIORITY = {
   family: 70,
   /** Ciężkie kontrolki radixa - zależą od vendor-radix(-boot). */
   heavyRadix: 60,
-  /** `dynamic-icon`: bootowy moduł aplikacji, importowany przez `club-thread-kind-icon`. */
-  appBoot: 50,
-  /** Leniwe moduły aplikacji zależne wyłącznie od vendorów. */
+  /** Leniwe moduły aplikacji zależne wyłącznie od vendorów (`$initial` przez martwy import SSR). */
   app: 40,
-  /** `club-thread-kind-icon` importuje `DynamicIcon`. */
-  appDependent: 30,
   /**
    * `app-initial`: reszta statycznego domknięcia wejścia (`$initial`) - importuje poziomy bootowe
-   * wyżej, nikt z grup go nie importuje. NAJNIŻSZY, bo `$initial` liczy Rolldown przed
+   * wyżej, z grup importują go wyłącznie rodziny leniwe niżej. NAJNIŻSZY z poziomów bootu, bo
+   * `$initial` liczy Rolldown przed
    * tree-shakingiem: `Footer.tsx` importuje `LegalLinks` statycznie dla gałęzi SSR, martwej
    * w kliencie, więc listwa też jest `$initial` - grupa `legal-links` musi wybrać pierwsza.
    */
   initial: 20,
+  /**
+   * Rodziny LENIWE: poniżej `app-initial`, który musi wcześniej zabrać kod bootu (nagłówek pliku,
+   * „GRUPY LENIWE PONIŻEJ `app-initial`"). Bazowe - importują je rodziny niżej (sanityzacja,
+   * konwersje).
+   */
+  lazyBase: 15,
+  /** Rodziny leniwe niezależne od siebie (treść wpisu, karta wpisu, nakładki, ikony wątku). */
+  lazy: 10,
+  /** Rodzina leniwa importująca inną (siatka archiwum -> karta wpisu). */
+  lazyDependent: 5,
 } as const;
 
 /**
@@ -157,6 +181,11 @@ const endsWith =
   (id) =>
     id.endsWith(suffix);
 
+const anyOf =
+  (...suffixes: readonly string[]): Test =>
+  (id) =>
+    suffixes.some((suffix) => id.endsWith(suffix));
+
 /** Grupy w kolejności priorytetów; przy równym priorytecie kolejność w tablicy jest remisem. */
 export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // React + `use-sync-external-store`: ten ostatni TUTAJ, nie przy radixie, tanstacku czy
@@ -200,12 +229,10 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // zmniejsza, ale zdejmuje ~230 kB źródeł z NAJWIĘKSZEGO pliku (budżet largest-chunk) i daje
   // trwały cache między deployami. Tylko zod TOP-LEVEL: @tanstack/react-start wozi ZAGNIEŻDŻONĄ
   // kopię zod 4 - mieszanie dwóch wersji w jednym cache-stabilnym chunku sprzęgałoby jego
-  // unieważnianie z bumpami frameworka. dompurify (jak sonner niżej) jest od 2026-08-18 poza
-  // grafem bootowania (lib/sanitizePure.ts, lib/notify.ts) - nazwany chunk stabilizuje adres,
-  // a check:entry-purity pilnuje, żeby nie wrócił.
+  // unieważnianie z bumpami frameworka. dompurify jedzie z modułem sanityzacji (grupa `sanitize`
+  // niżej).
   group("vendor-zod", CHUNK_PRIORITY.leaf, isTopLevelZod),
   group("vendor-tw-merge", CHUNK_PRIORITY.leaf, /\/node_modules\/tailwind-merge\//),
-  group("vendor-dompurify", CHUNK_PRIORITY.leaf, /\/node_modules\/dompurify\//),
   // Ikony w DWÓCH chunkach vendorowych, nie w dziesiątkach plików: bez grupy bundler rozsypuje
   // je na 300-400-bajtowe odpryski (każda ikona współdzielona przez >=2 leniwe chunki dostaje
   // własny) - 45 takich plików kosztowało ~22 KB gzip samego narzutu, bo pliki tej wielkości
@@ -237,11 +264,6 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
     (id) => heavyRadix(id) === "scroll-area",
   ),
   group("vendor-radix-menu", CHUNK_PRIORITY.heavyRadix, (id) => heavyRadix(id) === "menu"),
-  // `DynamicIcon` renderuje chrome nagłówka (boot) i importuje go `ClubThreadKindIcon`. Bez
-  // własnej grupy grupa atomu zabrałaby go jako zależność i wejście importowałoby go z chunku
-  // atomu. Moduł wnosi helper preloadu Vite (`\0vite/preload-helper.js`, ma `import()`), więc
-  // helper ląduje razem z nim, o ile nie zabrała go wcześniej grupa vendorowa.
-  group("dynamic-icon", CHUNK_PRIORITY.appBoot, endsWith("/src/lib/icons/DynamicIcon.tsx")),
   // Listwa prawna stopki (~1 KB): leniwy chunk wyspy stopki, serwer renderuje ją statycznie.
   // Importuje wyłącznie z vendor-react, vendor-tanstack i vendor-i18n. NAZWĘ sprawdza graf
   // artefaktu w e2e/legal-links.boot-home.spec.ts. `import()` dostaje pustą fasadę
@@ -257,21 +279,75 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
     CHUNK_PRIORITY.app,
     (id) => id.endsWith("/src/components/ui/sonner.tsx") || id.includes("/node_modules/sonner/"),
   ),
-  // Atom ikon rodzaju wątku klubu (~1,5 KB, fala 2, 2026-10-05): na Rollupie łączenie małych
-  // chunków wkleiło go do wejścia razem z całym `vendor-lucide` (+18 KB gzip w domknięciu bootu
-  // każdej strony). Leniwy - poza `$initial`, więc jego ikony spoza zestawu bootowego idą do
-  // `vendor-lucide`, który ładuje dopiero ten chunk.
-  group(
-    "club-thread-kind-icon",
-    CHUNK_PRIORITY.appDependent,
-    endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx"),
-  ),
   // Statyczne domknięcie wejścia poza grupami wyżej (kod aplikacji, moduły opcji tras, runtime
   // bootstrapu Start, drobne pakiety bez grupy) - w JEDEN chunk zamiast setek chunków wspólnych
   // (nagłówek pliku, „DOMKNIĘCIE BOOTU W JEDNYM CHUNKU"). Test łapie każdy moduł, zawęża go tag
-  // `$initial`, a wyjątek `group()` zostawia moduł wejściowy w `index-*`. Ostatnia: wybiera
-  // dopiero po wszystkich grupach (priorytet przy `CHUNK_PRIORITY.initial`).
+  // `$initial`, a wyjątek `group()` zostawia moduł wejściowy w `index-*`. Wybiera po grupach
+  // bootowych i vendorowych, a PRZED rodzinami leniwymi niżej. Tu trafia też `DynamicIcon`
+  // (chrome nagłówka) razem z helperem preloadu Vite.
   group("app-initial", CHUNK_PRIORITY.initial, () => true, ["$initial"]),
+  // ── RODZINY LENIWE (nagłówek pliku, „GRUPY LENIWE PONIŻEJ `app-initial`") ──
+  // Sanityzacja HTML-u: dompurify + `sanitize.ts` + strażnik silnika - zawsze razem (treść
+  // wpisu, karty z zajawką). Importuje ją rodzina treści wpisu, więc priorytet wyższy od niej.
+  group(
+    "sanitize",
+    CHUNK_PRIORITY.lazyBase,
+    (id) =>
+      id.includes("/node_modules/dompurify/") ||
+      anyOf("/src/lib/sanitize.ts", "/src/lib/sanitizeEngineGuard.ts")(id),
+  ),
+  // Konwersje analityki: importuje je karta wpisu ORAZ formularze kontaktowe. Osobno, bo jako
+  // zależność karty wciągnęłyby formularzom kod karty (+2,7 KB gzip na stronach z formularzem).
+  group("conversions", CHUNK_PRIORITY.lazyBase, endsWith("/src/lib/analytics/conversions.ts")),
+  // Treść wpisu i strony: przypisy, przygotowanie treści, ręczny spis treści, nagłówki.
+  group(
+    "post-content",
+    CHUNK_PRIORITY.lazy,
+    anyOf(
+      "/src/components/Footnotes.tsx",
+      "/src/lib/footnotes/navigation.ts",
+      "/src/lib/content/prepareContent.ts",
+      "/src/lib/manualToc.ts",
+      "/src/lib/content/contentEngine.ts",
+      "/src/lib/builder/headings.ts",
+    ),
+  ),
+  // Karta wpisu archiwów i strony głównej z odznaką sponsorowaną.
+  group(
+    "post-card",
+    CHUNK_PRIORITY.lazy,
+    anyOf(
+      "/src/components/molecules/PostListCard.tsx",
+      "/src/components/post/SponsoredBadge.tsx",
+      "/src/lib/i18n-sponsored.ts",
+    ),
+  ),
+  // Koordynator nakładek (baner zgód, popupy, slide-up stopki) i jego zegar od nawigacji.
+  group(
+    "overlay",
+    CHUNK_PRIORITY.lazy,
+    anyOf("/src/lib/overlayCoordinator.ts", "/src/components/popups/sinceNavigationStart.ts"),
+  ),
+  // Atom ikon rodzaju wątku klubu (~1,5 KB, fala 2, 2026-10-05): na Rollupie łączenie małych
+  // chunków wkleiło go do wejścia razem z całym `vendor-lucide` (+18 KB gzip w domknięciu bootu
+  // każdej strony). Leniwy - poza `$initial`, więc jego ikony spoza zestawu bootowego idą do
+  // `vendor-lucide`, który ładuje dopiero ten chunk; `DynamicIcon` importuje z `app-initial`.
+  group(
+    "club-thread-kind-icon",
+    CHUNK_PRIORITY.lazy,
+    endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx"),
+  ),
+  // Siatka archiwum ze stronicowaniem i reklamą w strumieniu - importuje kartę wpisu.
+  group(
+    "archive-grid",
+    CHUNK_PRIORITY.lazyDependent,
+    anyOf(
+      "/src/components/archive/PaginatedPostGrid.tsx",
+      "/src/components/archive/layouts/ArchivePagination.tsx",
+      "/src/components/archive/ArchivePostList.tsx",
+      "/src/components/ads/useInFeedAds.tsx",
+    ),
+  ),
 ];
 
 /**

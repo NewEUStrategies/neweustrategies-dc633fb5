@@ -20,7 +20,15 @@
 // a bramki po buildzie (check:chunks, check:entry-purity) pilnują go w CI.
 //
 // i18n: brak treści dla użytkownika - narzędzie CI.
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -117,12 +125,44 @@ function installedPackages(): Map<string, string[]> {
   return out;
 }
 
-/** Grupy kodu aplikacji -> plik modułu (test grupy musi go łapać - sprawdzane niżej). */
+/**
+ * Grupy kodu aplikacji NAD `app-initial` -> plik modułu (test grupy musi go łapać - sprawdzane
+ * niżej). Moduł takiej grupy może importować wyłącznie vendorów i grupy wyżej.
+ */
 const APP_GROUP_MODULES: Readonly<Record<string, string>> = {
-  "dynamic-icon": "src/lib/icons/DynamicIcon.tsx",
   "legal-links": "src/components/footer/LegalLinks.tsx",
   "vendor-sonner": "src/components/ui/sonner.tsx",
-  "club-thread-kind-icon": "src/components/clubs/atoms/ClubThreadKindIcon.tsx",
+};
+
+/**
+ * Rodziny leniwe POD `app-initial` -> ich pliki. Importują kod bootu (zabrany wcześniej przez
+ * `app-initial`), więc reguła importów wyżej ich nie dotyczy - pilnujemy, że każdy plik istnieje
+ * i łapie go dokładnie jego grupa (zmiana nazwy pliku cicho wyłączyłaby grupę).
+ */
+const LAZY_FAMILY_MODULES: Readonly<Record<string, readonly string[]>> = {
+  sanitize: ["src/lib/sanitize.ts", "src/lib/sanitizeEngineGuard.ts"],
+  "post-content": [
+    "src/components/Footnotes.tsx",
+    "src/lib/footnotes/navigation.ts",
+    "src/lib/content/prepareContent.ts",
+    "src/lib/manualToc.ts",
+    "src/lib/content/contentEngine.ts",
+    "src/lib/builder/headings.ts",
+  ],
+  conversions: ["src/lib/analytics/conversions.ts"],
+  "post-card": [
+    "src/components/molecules/PostListCard.tsx",
+    "src/components/post/SponsoredBadge.tsx",
+    "src/lib/i18n-sponsored.ts",
+  ],
+  overlay: ["src/lib/overlayCoordinator.ts", "src/components/popups/sinceNavigationStart.ts"],
+  "club-thread-kind-icon": ["src/components/clubs/atoms/ClubThreadKindIcon.tsx"],
+  "archive-grid": [
+    "src/components/archive/PaginatedPostGrid.tsx",
+    "src/components/archive/layouts/ArchivePagination.tsx",
+    "src/components/archive/ArchivePostList.tsx",
+    "src/components/ads/useInFeedAds.tsx",
+  ],
 };
 
 /** Specyfikatory importów WARTOŚCIOWYCH (bez `import type`/`export type`) w źródle modułu. */
@@ -179,17 +219,35 @@ describe("clientChunkGroups - konstrukcja grup", () => {
     }
   });
 
-  it("`app-initial`: ostatnia, NAJNIŻSZY priorytet, łapie wszystko, zawężona tagiem `$initial`", () => {
-    const last = CLIENT_CHUNK_GROUPS.at(-1)!;
-    expect(nameOf(last)).toBe(APP_INITIAL);
-    expect(last.priority).toBe(CHUNK_PRIORITY.initial);
-    expect(Math.min(...Object.values(CHUNK_PRIORITY))).toBe(CHUNK_PRIORITY.initial);
-    for (const group of PATH_GROUPS)
-      expect(group.priority!, nameOf(group)).toBeGreaterThan(last.priority!);
-    expect(last.tags).toEqual(["$initial"]);
+  it("`app-initial`: najniższy poziom bootu, łapie wszystko, zawężona tagiem `$initial`", () => {
+    const at = CLIENT_CHUNK_GROUPS.findIndex((group) => nameOf(group) === APP_INITIAL);
+    const appInitial = CLIENT_CHUNK_GROUPS[at]!;
+    expect(appInitial.priority).toBe(CHUNK_PRIORITY.initial);
+    expect(appInitial.tags).toEqual(["$initial"]);
     for (const id of [`${REPO}/src/routes/index.tsx`, packageModuleId("clsx")]) {
-      expect(matches(last, id), id).toBe(true);
+      expect(matches(appInitial, id), id).toBe(true);
     }
+    // Wyżej: grupy bootowe, vendorowe i przypięte (wybierają przed nią). Niżej: WYŁĄCZNIE
+    // rodziny leniwe - bez tagu, niższy priorytet, każda z listy `LAZY_FAMILY_MODULES`.
+    for (const group of CLIENT_CHUNK_GROUPS.slice(0, at))
+      expect(group.priority!, nameOf(group)).toBeGreaterThan(appInitial.priority!);
+    const lazy = CLIENT_CHUNK_GROUPS.slice(at + 1);
+    expect(lazy.map(nameOf).sort()).toEqual(Object.keys(LAZY_FAMILY_MODULES).sort());
+    for (const group of lazy) {
+      expect(group.priority!, nameOf(group)).toBeLessThan(appInitial.priority!);
+      expect(group.tags, nameOf(group)).toBeUndefined();
+    }
+  });
+
+  it("rodziny leniwe: każdy plik istnieje i łapie go dokładnie jego grupa", () => {
+    for (const [name, files] of Object.entries(LAZY_FAMILY_MODULES)) {
+      for (const file of files) {
+        expect(existsSync(join(REPO, file)), file).toBe(true);
+        expect(familyOf(join(REPO, file))?.names, file).toEqual([name]);
+      }
+    }
+    // Pakiet dompurify jedzie z modułem sanityzacji.
+    expect(familyOf(packageModuleId("dompurify"))?.names).toEqual(["sanitize"]);
   });
 
   it("`clientCodeSplitting()` daje świeżą tablicę tych samych grup", () => {
@@ -264,7 +322,11 @@ describe("clientChunkGroups - zasada priorytetów na zainstalowanym grafie", () 
   it("moduły grup aplikacji importują wyłącznie grupy o WYŻSZYM priorytecie", () => {
     const byName = new Map(CLIENT_CHUNK_GROUPS.map((group) => [nameOf(group), group]));
     expect(Object.keys(APP_GROUP_MODULES).sort()).toEqual(
-      PATH_GROUPS.filter((group) => (group.priority ?? 0) <= CHUNK_PRIORITY.appBoot)
+      PATH_GROUPS.filter(
+        (group) =>
+          (group.priority ?? 0) <= CHUNK_PRIORITY.app &&
+          (group.priority ?? 0) > CHUNK_PRIORITY.initial,
+      )
         .map(nameOf)
         .sort(),
     );
@@ -345,6 +407,9 @@ const FILES: Record<string, string> = {
   "node_modules/react-i18next/index.js":
     'import { createElement } from "react";\n' +
     'export const useTranslation = () => createElement("i18n-" + globalThis.__t);\n',
+  "node_modules/dompurify/package.json": pkgJson("dompurify", "index.js", esm),
+  "node_modules/dompurify/index.js":
+    'export const sanitize = (v) => String(v) + globalThis.__purify + "dompurify-fixture";\n',
   "node_modules/sonner/package.json": pkgJson("sonner", "index.js", esm),
   "node_modules/sonner/index.js":
     'import { createElement } from "react";\n' +
@@ -435,7 +500,14 @@ const FILES: Record<string, string> = {
   "src/routes/lazy.js":
     'import { Trash2 } from "lucide-react";\nimport { Dialog } from "@radix-ui/react-dialog";\n' +
     'import { ClubThreadKindIcon } from "../components/clubs/atoms/ClubThreadKindIcon.tsx";\n' +
-    "export default () => [Trash2, Dialog, ClubThreadKindIcon];\n",
+    'import { clean } from "../lib/sanitize.ts";\n' +
+    "export default () => [Trash2, Dialog, ClubThreadKindIcon, clean];\n",
+  // Rodzina leniwa POD `app-initial`: moduł grupy importuje kod bootu (`DynamicIcon`) i pakiet
+  // rodziny (dompurify) - kod bootu ma zostać w `app-initial`, pakiet jechać z grupą.
+  "src/lib/sanitize.ts":
+    'import { sanitize } from "dompurify";\n' +
+    'import { DynamicIcon } from "./icons/DynamicIcon.tsx";\n' +
+    'export const clean = (v) => [sanitize(v), DynamicIcon, "sanitize-fixture"];\n',
   "src/components/clubs/atoms/ClubThreadKindIcon.tsx":
     'import { Trash2 } from "lucide-react";\n' +
     'import { DynamicIcon } from "../../../lib/icons/DynamicIcon.tsx";\n' +
@@ -575,9 +647,10 @@ describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
   });
 
   it("przypięte moduły aplikacji mają własne chunki o stałych nazwach", () => {
-    expect(built.ownerOf("/src/lib/icons/DynamicIcon.tsx")).toBe("dynamic-icon");
-    // Helper preloadu Vite (moduł ma `import()`) idzie za `DynamicIcon`, jak na Rollupie.
-    expect(built.ownerOf("vite/preload-helper.js")).toBe("dynamic-icon");
+    // `DynamicIcon` (chrome nagłówka) jest kodem bootu - w `app-initial`, choć importują go też
+    // dwie rodziny leniwe (atom ikon klubu, sanityzacja); z nim helper preloadu Vite.
+    expect(built.ownerOf("/src/lib/icons/DynamicIcon.tsx")).toBe(APP_INITIAL);
+    expect(built.ownerOf("vite/preload-helper.js")).toBe(APP_INITIAL);
     expect(built.ownerOf("/src/components/footer/LegalLinks.tsx")).toBe("legal-links");
     expect(built.ownerOf("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")).toBe(
       "club-thread-kind-icon",
@@ -595,17 +668,12 @@ describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
       "legal-links",
       "club-thread-kind-icon",
       "vendor-sonner",
+      "sanitize",
     ]) {
       expect(boot, lazy).not.toContain(lazy);
     }
     expect(boot).toEqual(
-      expect.arrayContaining([
-        "index",
-        APP_INITIAL,
-        "vendor-lucide-boot",
-        "vendor-radix-boot",
-        "dynamic-icon",
-      ]),
+      expect.arrayContaining(["index", APP_INITIAL, "vendor-lucide-boot", "vendor-radix-boot"]),
     );
     // Regresja z Rolldowna bez `app-initial`: moduł osiągalny z wejścia I z chunku leniwego
     // (opcje trasy) dostawał własny chunk wspólny - na aplikacji 337 chunków w domknięciu.
@@ -629,6 +697,17 @@ describe("clientChunkGroups - prawdziwy build Vite 8 / Rolldown", () => {
     ]);
     expect(built.byName.get(APP_INITIAL)!.code).not.toContain("legal-links-fixture");
     expect(lazyTargets(built, built.byName.get(APP_INITIAL)!)).toContain("legal-links");
+  });
+
+  it("rodzina leniwa pod `app-initial`: pakiet z grupą, kod bootu zostaje w bocie", () => {
+    // Gdyby `sanitize` wybierała przed `app-initial`, zabrałaby `DynamicIcon` jako zależność,
+    // a `app-initial` importowałby chunk leniwy (cała rodzina w domknięciu wejścia).
+    expect(built.ownerOf("/src/lib/sanitize.ts")).toBe("sanitize");
+    expect(built.ownerOf("/dompurify/index.js")).toBe("sanitize");
+    expect(built.byName.get(APP_INITIAL)!.code).not.toContain("dompurify-fixture");
+    expect(built.byName.get("sanitize")!.imports.map((file) => nameOfFile(built, file))).toContain(
+      APP_INITIAL,
+    );
   });
 
   it("krawędzie między grupami biegną WYŁĄCZNIE do wyższego priorytetu", () => {

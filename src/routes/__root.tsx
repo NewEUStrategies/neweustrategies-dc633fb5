@@ -122,6 +122,14 @@ import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { fontScaleQueryOptions } from "../hooks/useFontScale";
 import { useInteractionOrQuiet } from "../lib/performance/interactionOrQuiet";
+// Trzy moduły, które leżą w bloku bootu niezależnie od tego pliku (`whenQuiescent`
+// importują statycznie `hydrationIsland` i `interactionOrQuiet`, `track` - m.in.
+// `conversions`/`footerTracking`, `menus/queries` - `SiteMenu` i `prefetch`).
+// Import statyczny kosztuje zero bajtów; `import()` dawał pod Rolldownem osobne
+// żądanie fasady (`export{…}from"./app-initial-*.js"`) zaraz po hydratacji.
+import { onQuiescent } from "../lib/performance/whenQuiescent";
+import { trackPageView } from "../lib/analytics/track";
+import { menuWithItemsQueryOptions } from "../lib/menus/queries";
 // Lekki moduł z pustym domyślnym - nie `globalColors.ts` (44 kB katalogu
 // slotów), który od 2026-10 dociera do przeglądarki wyłącznie leniwie.
 import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColorsValue";
@@ -788,7 +796,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // w tle przez całą pierwszą falę i nieobsłużone odrzucenie w tym oknie
     // wywróciłoby proces renderu.
     const warmMenus = async () => {
-      const { menuWithItemsQueryOptions } = await import("../lib/menus/queries");
       await Promise.allSettled(
         ["main", "footer"].map((key) =>
           context.queryClient.ensureQueryData(menuWithItemsQueryOptions(key)),
@@ -1432,8 +1439,7 @@ type QuiescenceModule = Pick<typeof import("../lib/performance/whenQuiescent"), 
  * klasa `overlays`) - setup pollingu nie ma żadnej pilności, a jego chunk
  * i fetch lądowały w śladzie Lighthouse'a; poll `/api/public/version` jest na
  * liście ignorowanych detektora ciszy, więc nie przesuwa punktu innym
- * konsumentom. Prymityw ciszy też dociągamy `import()` - poza zamknięciem
- * bootu.
+ * konsumentom. Prymityw ciszy jest już w bloku bootu (import statyczny wyżej).
  *
  * SIATKA BEZPIECZEŃSTWA NIE CZEKA NA CISZĘ: chunk-load error przed punktem
  * ciszy (np. leniwy chunk usunięty przez wdrożenie przy dokumencie z cache
@@ -1443,14 +1449,15 @@ type QuiescenceModule = Pick<typeof import("../lib/performance/whenQuiescent"), 
  * fetch) jest pomijany: nie może wciągać chunku do śladu (recenzja P1.3, D1).
  * Moduł po starcie zakłada własny nasłuch, więc późniejsze błędy obsługuje sam.
  *
- * `load`/`loadQuiet` - wyłącznie dla testu (atrapy modułów); domyślnie dosłowne
- * `import()`, żeby bundler wydzielił oba moduły do leniwych chunków.
+ * `load`/`loadQuiet` - wyłącznie dla testu (atrapy modułów); domyślnie `load`
+ * to dosłowne `import()` (bundler wydziela cache-busting do leniwego chunku),
+ * a `loadQuiet` oddaje prymityw ciszy z bloku bootu.
  */
 export function armCacheBusting(
   background: { run: ReturnType<typeof createBackgroundScope>["run"] },
   router: Parameters<CacheBustingModule["startCacheBusting"]>[0],
   load: () => Promise<CacheBustingModule> = () => import("../lib/cacheBusting"),
-  loadQuiet: () => Promise<QuiescenceModule> = () => import("../lib/performance/whenQuiescent"),
+  loadQuiet: () => Promise<QuiescenceModule> = () => Promise.resolve({ onQuiescent }),
 ): () => void {
   const earlyErrors: unknown[] = [];
   let disposed = false;
@@ -1542,8 +1549,8 @@ function RootComponent() {
       });
       // Silnik analityki: page_view przy każdym rozwiązanym routingu
       // (SPA + first paint). Fire-and-forget, respektuje zgodę analytics.
-      void background.run(import("../lib/analytics/track"), (m) => {
-        m.trackPageView();
+      void background.run(Promise.resolve(), () => {
+        trackPageView();
       });
     });
 

@@ -518,6 +518,13 @@ function main(): void {
     "vendor-jszip",
     "legal-links",
     "club-thread-kind-icon",
+    // Rodziny leniwe poniżej `app-initial` (clientChunkGroups.ts) - `sanitize` niesie dompurify.
+    "sanitize",
+    "conversions",
+    "post-content",
+    "post-card",
+    "overlay",
+    "archive-grid",
   ];
   for (const chunk of bootGraph) {
     const name = chunk.replace(/-[A-Za-z0-9_-]{8}\.js$/, "");

@@ -4,9 +4,20 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/router-core/isServer", () => ({ isServer: false }));
-import { RichHtmlView } from "../widget-view/RichHtmlView";
-import { RichHtmlListView } from "../widget-view/RichHtmlListView";
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  // Bez kompilatora Start: gałąź wybiera `import.meta.env.SSR`, jak w buildzie.
+  createIsomorphicFn: () => ({
+    server: (server: () => unknown) => ({
+      client: (client: () => unknown) => (import.meta.env.SSR ? server : client),
+    }),
+  }),
+}));
+
+// Moduł czyta gałąź przy imporcie - środowisko klienta ustawione przed nim.
+vi.stubEnv("SSR", false);
+const { RichHtmlView } = await import("../widget-view/RichHtmlView");
+const { RichHtmlListView } = await import("../widget-view/RichHtmlListView");
 
 beforeEach(() => vi.stubEnv("SSR", false));
 afterEach(() => {
