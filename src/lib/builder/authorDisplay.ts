@@ -48,6 +48,8 @@ export interface AuthorDisplayContent {
   readonly authorSizePx?: unknown;
   readonly authorSizeRelativeToTitle?: unknown;
   readonly authorAvatarSizePx?: unknown;
+  /** Rozmiar zdjęcia WPISANY w panelu (także równy bazowemu 20 px). */
+  readonly authorAvatarSizeExact?: unknown;
   readonly authorLabel_pl?: unknown;
   readonly authorLabel_en?: unknown;
   /** Historyczny przełącznik zdjęcia w karcie autora (`post-author-card`). */
@@ -90,6 +92,8 @@ export const AUTHOR_DISPLAY_KEYS = {
   nameSizePx: "authorSizePx",
   relativeToTitle: "authorSizeRelativeToTitle",
   avatarSizePx: "authorAvatarSizePx",
+  /** Znacznik „rozmiar zdjęcia wpisany ręcznie” - dosłowny także na desktopie. */
+  avatarSizeExact: "authorAvatarSizeExact",
   /** Baza pary i18n `authorLabel_pl` / `authorLabel_en`. */
   label: "authorLabel",
 } as const;
@@ -215,6 +219,7 @@ export function resolveAuthorDisplay(
   const rawNameSize = content.authorSizePx;
   const rawRelativeToTitle = content.authorSizeRelativeToTitle;
   const rawAvatarSize = content.authorAvatarSizePx;
+  const rawAvatarSizeExact = content.authorAvatarSizeExact;
   const rawLabel = authorLabelText(content, lang);
 
   const baseName = defaults.showName ?? true;
@@ -299,7 +304,13 @@ export function resolveAuthorDisplay(
     relativeToTitle,
     nameSizeExact: nameSizeChosen || !relativeToTitle,
     avatarSizePx,
-    avatarSizeExact: isContentValueSet(rawAvatarSize) && avatarSizePx !== baseAvatarSize,
+    // Zdjęcie nie ma przełącznika trybu, więc wpisanie rozmiaru w panelu zapisuje
+    // jawny znacznik - inaczej wpisane 20 px (= bazowe) skalowałoby się do 24 px.
+    // Bez znacznika (dokumenty sprzed niego, migracja sliderów z 20 px, reset)
+    // wyborem jest tylko rozmiar różny od bazowego.
+    avatarSizeExact: isContentValueSet(rawAvatarSizeExact)
+      ? asBool(rawAvatarSizeExact, false)
+      : isContentValueSet(rawAvatarSize) && avatarSizePx !== baseAvatarSize,
     avatarRadiusPx: defaults.avatarRadiusPx ?? AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
     labelPrefix,
     mode: toMode(showName, showAvatar),

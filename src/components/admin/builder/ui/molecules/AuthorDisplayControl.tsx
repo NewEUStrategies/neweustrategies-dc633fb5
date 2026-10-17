@@ -148,12 +148,16 @@ export function AuthorDisplayControl({
             max={AUTHOR_AVATAR_SIZE_PX_MAX}
             placeholder={String(AUTHOR_AVATAR_SIZE_PX_DEFAULT)}
             suffix="px"
-            onChange={(v) =>
+            onChange={(v) => {
+              // Wpisany rozmiar jest dosłowny (także 20 px); wyczyszczenie pola
+              // wraca do kontraktu domyślnego 20 / 24 px.
+              const typed = typeof v === "number";
               setContent(
                 AUTHOR_DISPLAY_KEYS.avatarSizePx,
-                typeof v === "number" ? v : AUTHOR_AVATAR_SIZE_PX_DEFAULT,
-              )
-            }
+                typed ? v : AUTHOR_AVATAR_SIZE_PX_DEFAULT,
+              );
+              setContent(AUTHOR_DISPLAY_KEYS.avatarSizeExact, typed);
+            }}
           />
         </PropField>
       )}
@@ -187,6 +191,7 @@ export function AuthorDisplayControl({
             AUTHOR_DISPLAY_KEYS.avatarSizePx,
             defaults?.avatarSizePx ?? AUTHOR_AVATAR_SIZE_PX_DEFAULT,
           );
+          setContent(AUTHOR_DISPLAY_KEYS.avatarSizeExact, false);
         }}
       >
         <RotateCcw className="h-3 w-3" />

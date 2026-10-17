@@ -139,6 +139,8 @@ export interface SliderConfig {
   authorSizeRelativeToTitle?: boolean;
   /** Rozmiar zdjęcia autora (px). Domyślnie 20, niezależny od czcionki. */
   authorAvatarSizePx?: number;
+  /** Rozmiar zdjęcia wpisany w panelu - dosłowny także na desktopie. */
+  authorAvatarSizeExact?: boolean;
 
   typography?: WidgetTypography;
   /** Number of cards visible per row (only multi-card variant). 1-4, default 3. */

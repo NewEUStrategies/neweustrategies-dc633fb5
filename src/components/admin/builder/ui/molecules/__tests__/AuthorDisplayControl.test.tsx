@@ -287,4 +287,20 @@ describe("AuthorDisplayControl - pole nie przeskakuje pod palcami", () => {
     }
     expect(field).toHaveValue(Number(value));
   });
+
+  it("wpisany rozmiar zdjęcia (także bazowe 20 px) zapisuje znacznik dosłowności", () => {
+    const { setContent } = renderControl({ authorAvatarSizePx: 30 });
+    const field = screen.getByLabelText("Rozmiar zdjęcia autora (px)");
+    fireEvent.change(field, { target: { value: "20" } });
+    expect(setContent).toHaveBeenCalledWith("authorAvatarSizePx", 20);
+    expect(setContent).toHaveBeenLastCalledWith("authorAvatarSizeExact", true);
+    fireEvent.change(field, { target: { value: "" } });
+    expect(setContent).toHaveBeenLastCalledWith("authorAvatarSizeExact", false);
+  });
+
+  it("reset wraca do kontraktu domyślnego zdjęcia (bez znacznika dosłowności)", () => {
+    const { written } = renderControl({ authorAvatarSizePx: 30, authorAvatarSizeExact: true });
+    fireEvent.click(screen.getByRole("button", { name: /Przywróć domyślne/ }));
+    expect(written()).toMatchObject({ authorAvatarSizePx: 20, authorAvatarSizeExact: false });
+  });
 });

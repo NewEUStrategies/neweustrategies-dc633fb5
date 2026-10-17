@@ -41,5 +41,15 @@ describe("CMS author title sizing", () => {
     });
     expect(resolveAuthorDisplay({ authorAvatarSizePx: 30 }, "pl").avatarSizeExact).toBe(true);
     expect(resolveAuthorDisplay({ authorAvatarSizePx: 20 }, "pl").avatarSizeExact).toBe(false);
+    // Wpisane w panelu 20 px (= bazowe) też jest dosłowne - panel zapisuje znacznik.
+    expect(
+      resolveAuthorDisplay({ authorAvatarSizePx: 20, authorAvatarSizeExact: true }, "pl")
+        .avatarSizeExact,
+    ).toBe(true);
+    // Reset zapisuje znacznik `false`: kontrakt domyślny ze skalowaniem.
+    expect(
+      resolveAuthorDisplay({ authorAvatarSizePx: 20, authorAvatarSizeExact: false }, "pl")
+        .avatarSizeExact,
+    ).toBe(false);
   });
 });
