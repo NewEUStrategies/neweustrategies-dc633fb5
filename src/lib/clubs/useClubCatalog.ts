@@ -6,7 +6,13 @@
 // `useClubs.ts` re-eksportuje calosc, wiec zaden z 29 konsumentow nie zmienia
 // importu - ten sam wzorzec, co przy podziale workspace klubu i watku
 // (bramka `workspaceModuleBoundary.test.ts`).
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import {
   fetchClubBySlug,
@@ -20,6 +26,7 @@ import {
 } from "./api";
 import { clubKeys } from "./queryKeys";
 import { CLUB_STALE_MS } from "./clubInvalidations";
+import { CLUB_CATALOG_PAGE_SIZE, mergeClubCatalogPages, nextClubCatalogOffset } from "./hubCatalog";
 import type {
   ClubActivityRow,
   ClubActivitySort,
@@ -33,12 +40,33 @@ import type {
 // Odczyt
 // ---------------------------------------------------------------------------
 
-export function useClubList(enabled = true, limit = 100): UseQueryResult<ClubListPage, Error> {
-  return useQuery({
-    // Limit JEST czescia klucza: "pokaz wiecej" zmienia rozmiar strony, a bez
-    // tego trafialoby w ten sam wpis cache i katalog zostawalby na setce.
-    queryKey: [...clubKeys.list(), limit] as const,
-    queryFn: () => fetchClubList({ limit }),
+/** Sklejenie porcji w `{ rows, total }` - stala referencja, wiec `select`
+ *  liczy sie od nowa tylko przy zmianie danych, nie przy kazdym renderze. */
+function selectClubCatalog(data: InfiniteData<ClubListPage, number>): ClubListPage {
+  return mergeClubCatalogPages(data.pages);
+}
+
+/**
+ * Katalog klubow STRONICOWANY offsetem. "Pokaz wiecej" to `fetchNextPage()`
+ * (kolejna porcja `p_offset`), a nie wiekszy `p_limit`: A13 tnie strone
+ * `club_list` do 200 wierszy, wiec rosnacy limit stawal na 200 przy liczniku
+ * mowiacym o calosci (patrz `lib/clubs/hubCatalog`, sekcja stronicowania).
+ *
+ * `data` to juz SKLEJONY katalog (`select`): wiersze w kolejnosci serwera,
+ * kazdy klub raz, `total` z najswiezszego okna - trasa czyta `data.rows`
+ * i `data.total` tak samo jak przed stronicowaniem. Pierwsza porcja to
+ * `{ limit: 100, offset: 0 }`, czyli dokladnie zapytanie sprzed zmiany.
+ */
+export function useClubList(
+  enabled = true,
+  pageSize = CLUB_CATALOG_PAGE_SIZE,
+): UseInfiniteQueryResult<ClubListPage, Error> {
+  return useInfiniteQuery({
+    queryKey: clubKeys.listPages(pageSize),
+    queryFn: ({ pageParam }) => fetchClubList({ limit: pageSize, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (_lastPage, pages) => nextClubCatalogOffset(pages),
+    select: selectClubCatalog,
     staleTime: CLUB_STALE_MS,
     enabled,
   });

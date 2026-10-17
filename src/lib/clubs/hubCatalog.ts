@@ -122,14 +122,107 @@ export function isClubSearchActive(query: string): boolean {
 }
 
 /**
- * Czy katalog został UCIĘTY przez limit porcji, czyli czy pokazać „pokaż
- * więcej". Porównanie idzie po liczbie WIDOCZNYCH wierszy wobec sumy z okna
- * RPC; wartości równe znaczą „to już wszystko", a `shown` większe od `total`
- * (rozjazd okna po odświeżeniu) traktujemy tak samo, zamiast obiecywać
- * doładowanie, które nie dowiezie ani jednego wiersza.
+ * Czy katalog został UCIĘTY, czyli czy za tym, co już przyszło, serwer ma
+ * jeszcze wiersze. Porównanie idzie po liczbie wierszy ODDANYCH PRZEZ RPC
+ * (offset następnej porcji) wobec sumy z okna `count(*) OVER ()`; wartości
+ * równe znaczą „to już wszystko", a `shown` większe od `total` (rozjazd okna
+ * po odświeżeniu) traktujemy tak samo, zamiast obiecywać doładowanie, które
+ * nie dowiezie ani jednego wiersza.
  */
 export function hasMoreClubs(shown: number, total: number): boolean {
   return total > shown;
+}
+
+// --- stronicowanie katalogu ------------------------------------------------
+//
+// DLACZEGO OFFSET, A NIE ROSNĄCY LIMIT. „Pokaż więcej" rosło dotąd przez
+// `p_limit` (100 -> 200 -> 300) i zawsze czytało od zera. A13 (przywrócone
+// w 20261017130000) tnie stronę serwerowo: `LIMIT LEAST(GREATEST(COALESCE(
+// p_limit, 100), 1), 200)`. Powyżej 200 widocznych klubów lista stawała więc
+// na 200, licznik w przycisku dalej mówił „200 z 250", a przycisk zostawał
+// i nie robił nic - prośba o 300 dostawała te same 200 wierszy. Porcja ma
+// teraz STAŁY rozmiar, a kolejne idą przez `p_offset` (wzorzec z `/network`
+// i `/network/mutual`: `useInfiniteQuery` + `total_count` z okna).
+
+/**
+ * Rozmiar porcji katalogu na hubie. Musi zostać `<= CLUB_LIST_SERVER_CAP` -
+ * większa prośba i tak wróci przycięta, a zysk z niej jest żaden.
+ */
+export const CLUB_CATALOG_PAGE_SIZE = 100;
+
+/**
+ * Sufit strony po stronie bazy (A13): `club_list` i
+ * `club_list_by_specialization` oddają najwyżej tyle wierszy na wywołanie,
+ * niezależnie od `p_limit`. Stała jest DOKUMENTACJĄ kontraktu dla testów
+ * i porcji klienta - autorytetem jest `LIMIT` w SQL.
+ */
+export const CLUB_LIST_SERVER_CAP = 200;
+
+/** Jedna porcja katalogu - to, co oddaje `fetchClubList` dla jednego offsetu. */
+export interface ClubCatalogPage<TRow> {
+  readonly rows: readonly TRow[];
+  /** `total_count` z okna RPC tej porcji (0 dla pustej odpowiedzi). */
+  readonly total: number;
+}
+
+/**
+ * Offset następnej porcji albo `undefined`, gdy doładowanie nie ma czego
+ * dowieźć (`getNextPageParam` katalogu).
+ *
+ * OFFSET = SUMA WIERSZY ODDANYCH PRZEZ SERWER, nie `liczba porcji * rozmiar`
+ * i nie liczba wierszy po deduplikacji. To pozycja w porządku SERWERA: gdyby
+ * baza przycięła porcję mocniej, niż prosiliśmy (sufit A13 niższy od
+ * `p_limit`), mnożenie przeskoczyłoby wiersze; a duplikat usunięty
+ * w `mergeClubCatalogPages` nadal zajmował miejsce w porządku serwera, więc
+ * odjęcie go cofnęłoby offset i pobrało ten sam wiersz po raz drugi.
+ *
+ * O „czy jeszcze" rozstrzyga `total` OSTATNIEJ porcji (najświeższe okno),
+ * a pusta porcja kończy doładowanie bezwarunkowo - inaczej nieaktualne
+ * `total` (kluby zarchiwizowane między porcjami) kręciłoby pętlę pustych
+ * odpowiedzi pod przyciskiem, który nic nie dokłada.
+ */
+export function nextClubCatalogOffset(
+  pages: readonly ClubCatalogPage<unknown>[],
+): number | undefined {
+  const last = pages.at(-1);
+  if (last === undefined || last.rows.length === 0) return undefined;
+  const consumed = pages.reduce((sum, page) => sum + page.rows.length, 0);
+  return hasMoreClubs(consumed, last.total) ? consumed : undefined;
+}
+
+/**
+ * Sklejenie porcji w jeden katalog: kolejność serwera, każdy klub RAZ.
+ *
+ * DEDUPLIKACJA PO `id`. Porządek `club_list` (`is_mine DESC,
+ * last_activity_at DESC NULLS LAST, lower(name_pl)`) żyje: nowy wątek
+ * podnosi klub na początek, nowy klub wchodzi w porządek, a dołączenie
+ * przenosi klub do „moich" na górze. Offset kolejnej porcji liczy się wtedy
+ * od przesuniętej listy, więc wiersz z końca porcji N wraca na początku
+ * porcji N+1. Bez deduplikacji ten sam klub stałby w katalogu dwa razy
+ * (dwa takie same klucze Reacta, podwójne liczniki w `clubHubStats`).
+ * Wygrywa PIERWSZE wystąpienie - ono stoi tam, gdzie użytkownik już je
+ * widział, więc doładowanie nie przestawia kart nad przyciskiem.
+ *
+ * `total` z OSTATNIEJ niepustej porcji (najświeższe okno). Pusta ostatnia
+ * porcja znaczy „za offsetem nic nie ma", więc wszystko jest już na ekranie:
+ * suma to liczba wierszy. I nigdy mniej niż widać - „250 z 249" po
+ * archiwizacji klubu między porcjami byłoby licznikiem, który kłamie.
+ */
+export function mergeClubCatalogPages<TRow extends { readonly id: string }>(
+  pages: readonly ClubCatalogPage<TRow>[],
+): { rows: TRow[]; total: number } {
+  const seen = new Set<string>();
+  const rows: TRow[] = [];
+  for (const page of pages) {
+    for (const row of page.rows) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      rows.push(row);
+    }
+  }
+  const last = pages.at(-1);
+  const total = last !== undefined && last.rows.length > 0 ? last.total : rows.length;
+  return { rows, total: Math.max(total, rows.length) };
 }
 
 /** Sanity: `ClubListRow` spełnia wąski kształt, na którym stoją te reguły. */

@@ -26,7 +26,12 @@
 //      komunikat z ponowieniem, a nie pustą siatkę.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
-// - REGUŁ KATALOGU: `hubCatalog.test.ts` (podział, liczniki, progi).
+// - REGUŁ KATALOGU: `hubCatalog.test.ts` (podział, liczniki, progi, offset
+//   i sklejanie porcji).
+// - STRONICOWANIA NA ŻYWYM react-query: `clubCatalogPaging.test.tsx` (ta sama
+//   trasa, prawdziwy `useClubList`, atrapa RPC `club_list` z sufitem A13).
+//   Tu hook jest atrapą, więc dowodzimy wyłącznie tego, co trasa robi
+//   z `hasNextPage`/`fetchNextPage`/`isFetchNextPageError`.
 // - DOSTĘPU: `hubAccess.test.ts` (`resolveClubHubAccess`). Tu dowodzimy, że
 //   trasa woła go z LICZBĄ aktywnych członkostw i liczbą zaproszeń, i że
 //   gościowi nie podaje stanu dostępu wcale.
@@ -68,8 +73,16 @@ const h = vi.hoisted(() => ({
   searchRefetch: vi.fn(),
   /** Argumenty, z jakimi trasa zawołała wyszukiwanie serwerowe. */
   searchArgs: null as Record<string, unknown> | null,
-  /** Limit, z jakim trasa zawołała katalog - rośnie po „pokaż więcej”. */
-  listArgs: [] as { enabled: boolean; limit: number }[],
+  /** Argumenty, z jakimi trasa zawołała katalog. Rozmiar porcji NIE rośnie
+   *  po „pokaż więcej” - kolejna porcja to `fetchNextPage()`. */
+  listArgs: [] as { enabled: boolean; pageSize: number | undefined }[],
+  /** Stan doładowania porcji z atrapy `useClubList`. */
+  hasNextPage: false,
+  fetchingNext: false,
+  fetchNextPageError: false,
+  /** Wynik, którym rozwiązuje się `fetchNextPage()`. */
+  nextPageResult: { isFetchNextPageError: false },
+  fetchNextPage: vi.fn(),
   respondError: null as unknown,
   respondCalls: [] as RespondVars[],
   respondPending: false,
@@ -101,12 +114,16 @@ vi.mock("@/lib/billing/tiers", () => ({
 vi.mock("@/hooks/useDebouncedValue", () => ({ useDebouncedValue: (value: string) => value }));
 vi.mock("@/lib/clubs/useClubTopics", () => ({ useClubTopics: () => ({ topics: [] }) }));
 vi.mock("@/lib/clubs/useClubs", () => ({
-  useClubList: (enabled: boolean, limit: number) => {
-    h.listArgs.push({ enabled, limit });
+  useClubList: (enabled: boolean, pageSize?: number) => {
+    h.listArgs.push({ enabled, pageSize });
     return {
       data: h.clubs,
       isPending: h.clubsPending,
       isError: h.clubsError,
+      isFetchNextPageError: h.fetchNextPageError,
+      hasNextPage: h.hasNextPage,
+      isFetchingNextPage: h.fetchingNext,
+      fetchNextPage: h.fetchNextPage,
       refetch: h.refetch,
     };
   },
@@ -267,6 +284,12 @@ beforeEach(() => {
   h.searchRefetch.mockReset();
   h.searchArgs = null;
   h.listArgs = [];
+  h.hasNextPage = false;
+  h.fetchingNext = false;
+  h.fetchNextPageError = false;
+  h.nextPageResult = { isFetchNextPageError: false };
+  h.fetchNextPage.mockReset();
+  h.fetchNextPage.mockImplementation(async () => h.nextPageResult);
   h.respondError = null;
   h.respondCalls = [];
   h.respondPending = false;
@@ -331,6 +354,7 @@ describe("gość - mapa specjalizacji zamiast katalogu", () => {
 
   it("nie widzi „pokaż więcej”, choćby okno RPC było ucięte", async () => {
     h.clubs = { rows: [clubListRow()], total: 500 };
+    h.hasNextPage = true;
     await mount();
     expect(screen.queryByRole("button", { name: /club\.hub\.showMore/ })).toBeNull();
   });
@@ -464,19 +488,24 @@ describe("zalogowany - katalog ze sterowaniem", () => {
     expect(Array.isArray(mine) ? mine.map((r) => (r as ClubListRow).id) : []).toEqual(["moj"]);
   });
 
-  it("„pokaż więcej” dokłada porcję do LIMITU zapytania, a nie stronę", async () => {
+  it("„pokaż więcej” dociąga NASTĘPNĄ porcję, a nie większy limit", async () => {
+    // Rosnący `p_limit` stawał na suficie A13 (200 wierszy na wywołanie):
+    // przycisk zostawał, a kliknięcie nie dokładało nic.
     h.clubs = { rows: [clubListRow()], total: 250 };
+    h.hasNextPage = true;
     await mount();
-    const przed = h.listArgs.at(-1)?.limit ?? 0;
-    expect(przed).toBe(100);
     fireEvent.click(screen.getByRole("button", { name: /club\.hub\.showMore/ }));
     await waitFor(() => {
-      expect(h.listArgs.at(-1)?.limit).toBe(200);
+      expect(h.fetchNextPage).toHaveBeenCalledTimes(1);
     });
+    // Rozmiar porcji zostaje domyślny przez cały czas - zero przebudowy klucza.
+    expect(h.listArgs.length).toBeGreaterThan(0);
+    expect(h.listArgs.every((args) => args.enabled && args.pageSize === undefined)).toBe(true);
   });
 
   it("„pokaż więcej” mówi, ILE z ILU widać - inaczej ucięcie jest niewidoczne", async () => {
     h.clubs = { rows: [clubListRow(), clubListRow({ id: "b" })], total: 250 };
+    h.hasNextPage = true;
     await mount();
     const button = screen.getByRole("button", { name: /club\.hub\.showMore/ });
     expect(button.textContent).toContain("shown=2");
@@ -485,8 +514,64 @@ describe("zalogowany - katalog ze sterowaniem", () => {
 
   it("nieucięty katalog NIE oferuje doładowania", async () => {
     h.clubs = { rows: [clubListRow()], total: 1 };
+    h.hasNextPage = false;
     await mount();
     expect(screen.queryByRole("button", { name: /club\.hub\.showMore/ })).toBeNull();
+  });
+
+  it("przycisk stoi według `hasNextPage`, nie porównania kart z sumą", async () => {
+    // Po deduplikacji nakładających się porcji kart bywa mniej niż `total`,
+    // choć serwer nie ma już nic za ostatnim offsetem. Porównanie „148 < 150”
+    // dawałoby przycisk, którego kliknięcie nie dowozi ani jednego wiersza.
+    h.clubs = {
+      rows: Array.from({ length: 148 }, (_, i) => clubListRow({ id: `c-${i}` })),
+      total: 150,
+    };
+    h.hasNextPage = false;
+    await mount();
+    expect(screen.queryByRole("button", { name: /club\.hub\.showMore/ })).toBeNull();
+  });
+
+  it("porcja w locie wyłącza przycisk - podwójne kliknięcie nie wysyła dwóch zapytań", async () => {
+    h.clubs = { rows: [clubListRow()], total: 250 };
+    h.hasNextPage = true;
+    h.fetchingNext = true;
+    await mount();
+    const button = screen.getByRole("button", { name: /club\.hub\.showMore/ });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    fireEvent.click(button);
+    expect(h.fetchNextPage).not.toHaveBeenCalled();
+  });
+
+  it("nieudana porcja NIE gasi huba - karty zostają, toast mówi o awarii", async () => {
+    // react-query ustawia przy nieudanym `fetchNextPage` także `isError`.
+    // Bez rozróżnienia pierwsze 100 kart znikałoby pod komunikatem awarii.
+    h.clubs = { rows: [clubListRow({ my_status: "active" })], total: 250 };
+    h.hasNextPage = true;
+    h.clubsError = true;
+    h.fetchNextPageError = true;
+    h.nextPageResult = { isFetchNextPageError: true };
+    await mount();
+    expect(screen.queryByTestId("ClubErrorNotice")).toBeNull();
+    expect(screen.getByTestId("MyClubsTabs")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /club\.hub\.showMore/ }));
+    await waitFor(() => {
+      expect(h.toastError).toHaveBeenCalledWith("club.loadError");
+    });
+  });
+
+  it("udana porcja nie wywołuje toastu awarii", async () => {
+    h.clubs = { rows: [clubListRow()], total: 250 };
+    h.hasNextPage = true;
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: /club\.hub\.showMore/ }));
+    await waitFor(() => {
+      expect(h.fetchNextPage).toHaveBeenCalledTimes(1);
+    });
+    await Promise.resolve();
+    expect(h.toastError).not.toHaveBeenCalled();
   });
 
   it("brak odpowiedzi katalogu (`undefined`) nie wywala huba", async () => {

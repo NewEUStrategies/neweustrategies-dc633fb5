@@ -53,20 +53,12 @@ import {
 } from "@/components/clubs/molecules/ClubHubLayoutSwitch";
 import { ClubTopicNav } from "@/components/clubs/molecules/ClubTopicNav";
 import { rankClubs } from "@/lib/clubs/clubMatch";
-import {
-  clubHubBuckets,
-  clubHubStats,
-  hasMoreClubs,
-  isClubSearchActive,
-} from "@/lib/clubs/hubCatalog";
+import { clubHubBuckets, clubHubStats, isClubSearchActive } from "@/lib/clubs/hubCatalog";
 import { topicLabel } from "@/lib/clubs/topicCatalog";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { uiLang } from "@/lib/i18n/format";
-
-/** Rozmiar porcji katalogu klubów na hubie. */
-const CATALOG_PAGE = 100;
 
 export const Route = createFileRoute("/club/")({
   head: () => buildClubHead({ fallbackPath: "/club", club: null, forceNoindex: true }),
@@ -89,8 +81,11 @@ function ClubHub() {
 
   // `club_list` jest nadane roli `anon` i samo odsiewa wiersze: dla wołającego
   // bez sesji zwraca WYŁĄCZNIE kluby `public` o statusie `active`.
-  const [catalogLimit, setCatalogLimit] = useState(CATALOG_PAGE);
-  const clubsQ = useClubList(true, catalogLimit);
+  //
+  // Katalog idzie PORCJAMI po `p_offset` (porcja 100, sufit A13 = 200 na
+  // wywołanie), a hook oddaje je już sklejone i bez duplikatów - patrz
+  // `useClubList` i sekcja stronicowania w `lib/clubs/hubCatalog`.
+  const clubsQ = useClubList(true);
   const invitationsQ = useMyClubInvitations(signedIn);
   // Zgloszenie klubu jest czynnoscia CZLONKA - stad brak tego wejscia dla gosci
   // i brak go w panelu administracyjnym.
@@ -152,9 +147,22 @@ function ClubHub() {
       },
     );
 
+  // „Pokaż więcej" dociąga NASTĘPNĄ porcję (offset = wiersze już oddane przez
+  // serwer). Nieudana porcja nie gasi huba: wczytane karty zostają,
+  // przycisk też (`hasNextPage` się nie zmienia), więc ponowienie to
+  // kolejne kliknięcie - a toast mówi, że tym razem nic nie doszło. Podwójne
+  // kliknięcie w locie blokuje `disabled` przycisku, nie ten handler.
+  const showMore = () => {
+    void clubsQ.fetchNextPage().then((result) => {
+      if (result.isFetchNextPageError) toast.error(t("club.loadError"));
+    });
+  };
+
   // Awaria listy klubów to jedyny stan, w którym hub nie ma z czego zbudować
-  // ŻADNEGO modułu - katalog JEST tą stroną.
-  if (clubsQ.isError) {
+  // ŻADNEGO modułu - katalog JEST tą stroną. Awaria DOŁADOWANIA kolejnej
+  // porcji to co innego: pierwsza porcja leży na ekranie i nie wolno jej
+  // zastąpić komunikatem (react-query ustawia wtedy `isError` także).
+  if (clubsQ.isError && !clubsQ.isFetchNextPageError) {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <ClubErrorNotice onRetry={() => void clubsQ.refetch()} />
@@ -277,13 +285,19 @@ function ClubHub() {
             <ClubSpecializationGrid />
           )}
 
-          {/* Ucięcie katalogu mówi się WPROST i daje następny krok. */}
-          {signedIn && hasMoreClubs(clubs.length, clubsTotal) ? (
+          {/* Ucięcie katalogu mówi się WPROST i daje następny krok. Przycisk
+              stoi DOKŁADNIE wtedy, gdy kliknięcie może coś dowieźć
+              (`hasNextPage` = serwer ma wiersze za ostatnim offsetem) - a nie
+              z porównania widocznych kart z sumą, które po deduplikacji
+              potrafiło obiecywać porcję, której nie ma. */}
+          {signedIn && clubsQ.hasNextPage ? (
             <div className="-mt-2 mb-8 text-center">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setCatalogLimit((n) => n + CATALOG_PAGE)}
+                disabled={clubsQ.isFetchingNextPage}
+                aria-busy={clubsQ.isFetchingNextPage}
+                onClick={showMore}
               >
                 {t("club.hub.showMore", { shown: clubs.length, total: clubsTotal })}
               </Button>

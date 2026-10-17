@@ -22,6 +22,12 @@
 // Plus dwa progi: fraza wyszukiwania (dwa znaki po przycięciu) i ucięcie
 // katalogu - oba trafiane DOKŁADNIE w granicę i o jeden po każdej stronie.
 //
+// I STRONICOWANIE: offset następnej porcji (`nextClubCatalogOffset`) oraz
+// sklejenie porcji bez duplikatów (`mergeClubCatalogPages`). „Pokaż więcej"
+// rosło dotąd przez `p_limit`, a A13 tnie stronę do 200 - powyżej 200 klubów
+// przycisk zostawał i nie robił nic. Ta warstwa decyduje, czy kliknięcie
+// w ogóle coś dowiezie i czy ten sam klub nie stanie w katalogu dwa razy.
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Nie odtwarza `resolveClubHubAccess`
 // (`hubAccess.test.ts`), rankingu dopasowania nazw (`clubMatch.test.ts`) ani
 // etykiet obszarów (`topics.test.ts`). Nie sprawdza też, czy RPC `club_list`
@@ -29,12 +35,17 @@
 // a te funkcje dostają wiersze JUŻ odsiane.
 import { describe, expect, it } from "vitest";
 import {
+  CLUB_CATALOG_PAGE_SIZE,
+  CLUB_LIST_SERVER_CAP,
   CLUB_SEARCH_MIN_CHARS,
   clubHubBuckets,
   clubHubStats,
   hasMoreClubs,
   isClubSearchActive,
   isMyClub,
+  mergeClubCatalogPages,
+  nextClubCatalogOffset,
+  type ClubCatalogPage,
   type ClubHubCatalogRow,
 } from "@/lib/clubs/hubCatalog";
 import { clubListRow } from "@/test/clubs/fixtures";
@@ -232,5 +243,158 @@ describe("hasMoreClubs - czy katalog został ucięty", () => {
     ["pusty katalog", 0, 0, false],
   ])("%s -> %s", (_label, shown, total, expected) => {
     expect(hasMoreClubs(shown, total)).toBe(expected);
+  });
+});
+
+// --- stronicowanie ---------------------------------------------------------
+
+/** Porcja `n` kolejnych klubów od pozycji `from` w porządku serwera. */
+function page(from: number, n: number, total: number): ClubCatalogPage<{ id: string }> {
+  return { rows: Array.from({ length: n }, (_, i) => ({ id: `club-${from + i}` })), total };
+}
+
+describe("rozmiar porcji a sufit A13", () => {
+  it("porcja klienta mieści się w suficie strony `club_list` (LIMIT ... 200)", () => {
+    // Prośba ponad sufit wraca przycięta - porcja 300 dałaby 200 wierszy
+    // i licznik, który obiecuje więcej, niż dowozi jedno kliknięcie.
+    expect(CLUB_LIST_SERVER_CAP).toBe(200);
+    expect(CLUB_CATALOG_PAGE_SIZE).toBe(100);
+    expect(CLUB_CATALOG_PAGE_SIZE).toBeLessThanOrEqual(CLUB_LIST_SERVER_CAP);
+  });
+});
+
+describe("nextClubCatalogOffset - offset następnej porcji", () => {
+  it("po pierwszej porcji 100 z 250 następna idzie od offsetu 100", () => {
+    expect(nextClubCatalogOffset([page(0, 100, 250)])).toBe(100);
+  });
+
+  it("po dwóch porcjach 100 z 250 następna idzie od offsetu 200 - PONAD sufit A13", () => {
+    // Dokładnie ten punkt, w którym rosnący `p_limit` stawał: prośba o 300
+    // wracała jako 200. Offset przechodzi przez sufit bez trudu.
+    expect(nextClubCatalogOffset([page(0, 100, 250), page(100, 100, 250)])).toBe(200);
+  });
+
+  it("komplet (100 + 100 + 50 = 250) kończy doładowanie", () => {
+    expect(
+      nextClubCatalogOffset([page(0, 100, 250), page(100, 100, 250), page(200, 50, 250)]),
+    ).toBeUndefined();
+  });
+
+  it("katalog mieszczący się w jednej porcji nie ma następnej", () => {
+    expect(nextClubCatalogOffset([page(0, 37, 37)])).toBeUndefined();
+  });
+
+  it("pusty katalog nie ma następnej porcji", () => {
+    expect(nextClubCatalogOffset([{ rows: [], total: 0 }])).toBeUndefined();
+  });
+
+  it("brak porcji (zapytanie w locie) nie ma następnej", () => {
+    expect(nextClubCatalogOffset([])).toBeUndefined();
+  });
+
+  it("serwer przyciął porcję mocniej, niż prosiliśmy - offset to wiersze ODDANE", () => {
+    // Prośba o 500, sufit oddał 200: `porcje * rozmiar` dałoby 500 i
+    // przeskoczyło 300 klubów. Offset liczy to, co faktycznie przyszło.
+    expect(nextClubCatalogOffset([page(0, CLUB_LIST_SERVER_CAP, 650)])).toBe(200);
+  });
+
+  it("duplikat na styku porcji NIE cofa offsetu - zajmuje miejsce w porządku serwera", () => {
+    // Porcja 2 zaczyna się od ostatniego klubu porcji 1 (klub przesunął się
+    // w porządku). Offset po wierszach unikalnych (199) pobrałby go po raz
+    // trzeci; po wierszach oddanych (200) idzie dalej.
+    const overlapping = [page(0, 100, 250), page(99, 100, 250)];
+    expect(nextClubCatalogOffset(overlapping)).toBe(200);
+  });
+
+  it("decyduje `total` NAJŚWIEŻSZEJ porcji - klub zarchiwizowany między porcjami", () => {
+    // Porcja 1 widziała 201 klubów, porcja 2 już 200: offset 200 = komplet.
+    expect(nextClubCatalogOffset([page(0, 100, 201), page(100, 100, 200)])).toBeUndefined();
+  });
+
+  it("pusta porcja kończy doładowanie mimo nieaktualnego `total`", () => {
+    // Bez tego nieaktualna suma kręciłaby pętlę pustych odpowiedzi pod
+    // przyciskiem, który nic nie dokłada.
+    expect(nextClubCatalogOffset([page(0, 100, 150), { rows: [], total: 0 }])).toBeUndefined();
+  });
+});
+
+describe("mergeClubCatalogPages - porcje w jeden katalog", () => {
+  it("skleja porcje w kolejności serwera", () => {
+    const merged = mergeClubCatalogPages([page(0, 2, 4), page(2, 2, 4)]);
+    expect(merged.rows.map((r) => r.id)).toEqual(["club-0", "club-1", "club-2", "club-3"]);
+    expect(merged.total).toBe(4);
+  });
+
+  it("250 klubów w trzech porcjach = 250 kart i suma 250", () => {
+    const merged = mergeClubCatalogPages([
+      page(0, 100, 250),
+      page(100, 100, 250),
+      page(200, 50, 250),
+    ]);
+    expect(merged.rows).toHaveLength(250);
+    expect(merged.total).toBe(250);
+    expect(new Set(merged.rows.map((r) => r.id)).size).toBe(250);
+  });
+
+  it("nakładające się porcje dają każdy klub RAZ", () => {
+    // Porcja 2 zaczyna się od dwóch ostatnich klubów porcji 1 - tak wygląda
+    // offset liczony od listy, na której początek weszły dwa kluby.
+    const merged = mergeClubCatalogPages([page(0, 100, 250), page(98, 100, 250)]);
+    const ids = merged.rows.map((r) => r.id);
+    expect(ids).toHaveLength(198);
+    expect(new Set(ids).size).toBe(198);
+    expect(ids.filter((id) => id === "club-98")).toHaveLength(1);
+    expect(ids.filter((id) => id === "club-99")).toHaveLength(1);
+  });
+
+  it("duplikat zostaje na PIERWSZYM miejscu - doładowanie nie przestawia kart nad przyciskiem", () => {
+    const merged = mergeClubCatalogPages([
+      { rows: [{ id: "a" }, { id: "b" }], total: 4 },
+      { rows: [{ id: "b" }, { id: "c" }], total: 4 },
+    ]);
+    expect(merged.rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("wygrywa WIERSZ z pierwszego wystąpienia, nie z późniejszej porcji", () => {
+    const first = { id: "a", n: 1 };
+    const later = { id: "a", n: 2 };
+    const merged = mergeClubCatalogPages([
+      { rows: [first], total: 2 },
+      { rows: [later], total: 2 },
+    ]);
+    expect(merged.rows).toEqual([first]);
+  });
+
+  it("suma pochodzi z NAJŚWIEŻSZEJ porcji", () => {
+    expect(mergeClubCatalogPages([page(0, 100, 260), page(100, 100, 255)]).total).toBe(255);
+  });
+
+  it("pusta ostatnia porcja: wszystko jest na ekranie, suma = liczba kart", () => {
+    // `fetchClubList` oddaje `total: 0` dla pustej odpowiedzi - wzięte
+    // wprost dałoby „100 z 0".
+    const merged = mergeClubCatalogPages([page(0, 100, 150), { rows: [], total: 0 }]);
+    expect(merged.total).toBe(100);
+  });
+
+  it("suma nigdy nie jest mniejsza niż liczba kart", () => {
+    // Kluby zarchiwizowane po wczytaniu porcji 1: okno porcji 2 mówi 120,
+    // a na ekranie jest ich już 150.
+    expect(mergeClubCatalogPages([page(0, 100, 250), page(100, 50, 120)]).total).toBe(150);
+  });
+
+  it("brak porcji to pusty katalog", () => {
+    expect(mergeClubCatalogPages([])).toEqual({ rows: [], total: 0 });
+  });
+
+  it("działa na wierszach `club_list` bez rzutowań", () => {
+    const merged = mergeClubCatalogPages([
+      { rows: [clubListRow({ id: "x", total_count: 2 })], total: 2 },
+      { rows: [clubListRow({ id: "x", total_count: 2 }), clubListRow({ id: "y" })], total: 2 },
+    ]);
+    // Typ wiersza przechodzi bez zmian - trasa czyta dalej `ClubListRow`.
+    expect(merged.rows.map((r) => [r.id, r.slug])).toEqual([
+      ["x", "klub-energetyczny"],
+      ["y", "klub-energetyczny"],
+    ]);
   });
 });

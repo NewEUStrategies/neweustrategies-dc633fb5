@@ -106,6 +106,11 @@ export interface ClubListPage {
  * Lista klubow. RPC ma teraz limit i offset, bo bez nich liczylo zdolnosci
  * dla KAZDEGO klubu tenantu - klucz lateralny rowny id klubu jest unikatowy,
  * wiec Memoize nie mial czego zapamietac.
+ *
+ * Jedno wywolanie oddaje NAJWYZEJ 200 wierszy (A13, `LIMIT LEAST(...,200)`),
+ * bez wzgledu na `limit` - wiecej to kolejne porcje przez `offset`
+ * (`useClubList`), nigdy wiekszy `limit`. `total` to pelna liczba widocznych
+ * klubow (okno liczone przed LIMIT), nie dlugosc tej porcji.
  */
 export async function fetchClubList(
   params: { limit?: number; offset?: number } = {},

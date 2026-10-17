@@ -12,6 +12,15 @@ export const clubKeys = {
   /** Lista klubow widocznych dla wolajacego (produkt). */
   list: () => [...clubKeys.all, "list"] as const,
 
+  /** Katalog na hubie STRONICOWANY offsetem (`useInfiniteQuery`). Rozmiar
+   *  porcji jest w kluczu, bo od niego zależą offsety wszystkich porcji
+   *  w jednym wpisie. Osobny liść pod `list()`, a nie `[...list(), limit]`:
+   *  wpis nieskończony trzyma `{ pages, pageParams }`, nie `{ rows, total }`,
+   *  więc nie może dzielić klucza ze zwykłym zapytaniem. Prefiks `list()`
+   *  zostaje - `clubCardKeys`/`clubUpsertedKeys` trafiają też tutaj,
+   *  a inwalidacja odświeża WSZYSTKIE wczytane porcje po kolei od zera. */
+  listPages: (pageSize: number) => [...clubKeys.list(), "pages", pageSize] as const,
+
   /** Moje czlonkostwa - zasila nawigacje. */
   memberships: () => [...clubKeys.all, "memberships"] as const,
 
