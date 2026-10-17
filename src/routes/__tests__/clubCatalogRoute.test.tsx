@@ -59,6 +59,7 @@ interface RespondVars {
 }
 
 const h = vi.hoisted(() => ({
+  hydrated: true,
   session: null as { user: { id: string } } | null,
   isStaff: false,
   tierRank: null as number | null,
@@ -98,6 +99,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useHydrated: () => h.hydrated,
+}));
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/hooks/useAuth", () => ({
@@ -274,6 +279,7 @@ function search(query: string): void {
 
 beforeEach(() => {
   cleanup();
+  h.hydrated = true;
   h.session = { user: { id: CLUB_IDS.me } };
   h.isStaff = false;
   h.tierRank = 20;
@@ -415,6 +421,20 @@ describe("zalogowany - zgłoszenie własnego klubu", () => {
 });
 
 describe("zalogowany - katalog ze sterowaniem", () => {
+  it("keeps guest presentation until hydration when auth settles early", async () => {
+    h.hydrated = false;
+    const initial = await mount();
+    expect(h.organism.ClubHubHero.signedIn).toBe(false);
+    expect(h.organism.ClubHubHero.access).toBeNull();
+    expect(screen.queryByTestId("ClubGlobalSearchInput")).toBeNull();
+    initial.unmount();
+    cleanup();
+    h.hydrated = true;
+    await mount();
+    expect(h.organism.ClubHubHero.signedIn).toBe(true);
+    expect(screen.getByTestId("ClubGlobalSearchInput")).toBeTruthy();
+  });
+
   it("dostaje wyszukiwarkę, pasek obszarów i przełącznik układu", async () => {
     await mount();
     expect(screen.getByTestId("ClubGlobalSearchInput")).toBeTruthy();

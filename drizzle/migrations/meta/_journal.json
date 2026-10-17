@@ -2108,6 +2108,34 @@
       "when": 1792249200000,
       "tag": "0300_club_lists_total_order",
       "breakpoints": true
+    },
+    {
+      "idx": 301,
+      "version": "7",
+      "when": 1792271949090,
+      "tag": "0301_club_view_a19_positive_predicate_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1792271994383,
+      "tag": "0302_club_lists_secret_gate_a13_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1792272015731,
+      "tag": "0303_is_nes_staff_confirmed_auth_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 304,
+      "version": "7",
+      "when": 1792272050281,
+      "tag": "0304_club_lists_total_order",
+      "breakpoints": true
     }
   ]
 }

@@ -19,7 +19,7 @@
 // zaindeksowanie wyciekałoby nazwy klubów zamkniętych. Indeksowalna jest
 // strona KLUBU (lib/clubs/clubHead) i to ona jest wejściem z wyszukiwarki.
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { LogIn, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -70,7 +70,9 @@ function ClubHub() {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const { session, isStaff } = useAuth();
-  const signedIn = Boolean(session);
+  // Auth can settle before this lazy route hydrates; preserve guest SSR markup.
+  const hydrated = useHydrated();
+  const signedIn = hydrated && Boolean(session);
 
   const [topic, setTopic] = useState<string | null>(null);
   const { topics: topicCatalog } = useClubTopics();
