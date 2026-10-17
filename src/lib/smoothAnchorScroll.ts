@@ -81,6 +81,11 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
   const maxDuration = options.maxDuration ?? 1100;
   const updateHash = options.updateHash ?? true;
   const offset = options.offset ?? getAnchorScrollOffset();
+  // Fragment przechodzi na własność tej animacji: skrypt lądowania na kotwicy z `<head>`
+  // (`lib/scroll/fragmentLandingScript.ts`) nie skoczy już do celu w tej samej klatce, co
+  // cofnęłoby animację do jej odcinka startowego. Literał nazwy zamiast importu stałej:
+  // moduł skryptu (z tekstem) nie ma wchodzić do bundla przeglądarki.
+  (window as Window & { __nesAnchorOwned?: boolean }).__nesAnchorOwned = true;
   disableRouterHashScrollForCurrentEntry();
   if (updateHash) replaceHashPreservingRouterState(id);
   const html = document.documentElement;
