@@ -85,6 +85,13 @@ function pendingSegment(id = "S:0"): HTMLElement {
   return seg;
 }
 
+/**
+ * Zamiar użytkownika, który ma przerwać czekanie - przepisany literalnie, nie wzięty z eksportu
+ * modułu: pętla po `RESTORE_AFTER_REVEAL_STOP_EVENTS` gubiła test razem ze zdarzeniem
+ * usuniętym z listy (mutanty bez `pointerdown`/`touchmove` przechodziły).
+ */
+const USER_INTENT = ["wheel", "touchmove", "keydown", "pointerdown"] as const;
+
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const owned = window as unknown as Record<string, unknown>;
 
@@ -132,7 +139,7 @@ describe("installRestoreAfterReveal", () => {
     });
     // Sprzątnięte: nawigacja i zamiar użytkownika już nic nie trzymają.
     expect(router.count("onBeforeNavigate")).toBe(0);
-    for (const type of RESTORE_AFTER_REVEAL_STOP_EVENTS) {
+    for (const type of USER_INTENT) {
       expect(removed).toHaveBeenCalledWith(type, expect.any(Function), true);
     }
 
@@ -198,12 +205,21 @@ describe("installRestoreAfterReveal", () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
-  for (const type of RESTORE_AFTER_REVEAL_STOP_EVENTS) {
-    it(`ustępuje użytkownikowi (\`${type}\` przed odsłonięciem)`, async () => {
+  it("lista zamiaru użytkownika to dokładnie kółko, palec, klawisz i wskaźnik", () => {
+    // `scroll` na liście byłby błędem: zdarzenie daje też przewinięcie samego routera.
+    expect(RESTORE_AFTER_REVEAL_STOP_EVENTS).toEqual(USER_INTENT);
+  });
+
+  for (const type of USER_INTENT) {
+    it(`ustępuje użytkownikowi (\`${type}\` przed odsłonięciem, także gdy strona zatrzyma propagację)`, async () => {
       const router = fakeRouter();
       const seg = pendingSegment();
       router.rendered();
-      document.body.dispatchEvent(new Event(type, { bubbles: true }));
+      // Komponent, który zatrzymuje propagację (menu, karuzela, pole formularza), nie może
+      // schować zamiaru: słuchacz okna jest w fazie przechwytywania, więc biegnie przed nim.
+      const main = document.querySelector("main")!;
+      main.addEventListener(type, (event) => event.stopPropagation());
+      main.dispatchEvent(new Event(type, { bubbles: true }));
       seg.remove();
       await flush();
       expect(scrollTo).not.toHaveBeenCalled();

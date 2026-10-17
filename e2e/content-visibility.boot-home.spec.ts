@@ -111,7 +111,7 @@ declare global {
     /** Sonda wariantu „nawigacja przed odsłonięciem” (czasy z `performance.now()`). */
     __e2eNav?: {
       hydratedAt?: number;
-      held?: { y: number; queued: number; pending: number };
+      held?: { y: number; queued: number; pending: number; marked: number };
       committed?: { at: number; y: number; maxY: number; old: number; pending: number };
       releasedAt?: number;
     };
@@ -976,14 +976,15 @@ for (const { name, viewport } of VIEWPORTS) {
               const offHydrated = value.subscribe("onRendered", () => {
                 offHydrated();
                 probe.hydratedAt = performance.now();
+                document
+                  .querySelector("main [data-builder-renderer]")
+                  ?.setAttribute("data-e2e-stara", "");
                 probe.held = {
                   y: scrollY,
                   queued: window.__revealQueued ?? 0,
                   pending: document.querySelectorAll(selector).length,
+                  marked: document.querySelectorAll("[data-e2e-stara]").length,
                 };
-                document
-                  .querySelector("main [data-builder-renderer]")
-                  ?.setAttribute("data-e2e-stara", "");
                 setTimeout(() => void value.navigate({ to }));
               });
               const offNext = value.subscribe("onRendered", (event) => {
@@ -1012,6 +1013,9 @@ for (const { name, viewport } of VIEWPORTS) {
       const nav = await page.evaluate(() => structuredClone(window.__e2eNav!));
       const message = JSON.stringify({ before, nav });
       expectRevealsHeld(nav.held!);
+      // Znacznik starej treści stał przy hydratacji - bez tego `old: 0` niżej przechodziłby na
+      // pusto, gdyby selektor przestał cokolwiek trafiać.
+      expect(nav.held!.marked, message).toBe(1);
       // Nowa strona zatwierdzona: stara treść odmontowana, router przewinął nowy wpis na górę,
       // strona jest dość długa, żeby przewinięcie do starej pozycji było widać (przycięte do jej
       // końca - i tak ponad ekran), a segmenty starej strony nadal czekają.
