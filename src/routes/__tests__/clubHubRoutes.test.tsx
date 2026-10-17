@@ -43,6 +43,7 @@ import type { ClubThreadListRow, ClubViewRow } from "@/lib/clubs/types";
 
 const h = vi.hoisted(() => ({
   club: null as unknown,
+  hydrated: true,
   clubPending: false,
   clubError: false,
   refetch: vi.fn(),
@@ -70,6 +71,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  useHydrated: () => h.hydrated,
+}));
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -431,6 +436,22 @@ describe("hub klubu - cztery stany karty klubu są ROZŁĄCZNE", () => {
 // --- minisite --------------------------------------------------------------
 
 describe("minisite - poziom dostępu liczony z czterech źródeł", () => {
+  it("does not resolve member access before hydration even with a settled session", async () => {
+    h.hydrated = false;
+    h.club = clubViewRow({ can_read: true });
+    try {
+      await mountMinisite();
+      expect(h.accessInput).toBeNull();
+      expect(screen.queryByTestId("ClubMinisite")).toBeNull();
+    } finally {
+      h.hydrated = true;
+    }
+    cleanup();
+    await mountMinisite();
+    expect(h.accessInput?.canRead).toBe(true);
+    expect(screen.getByTestId("ClubMinisite")).toBeTruthy();
+  });
+
   it("nagłówek WYMUSZA `noindex` także w klubie `public`", async () => {
     // Minisite pokazuje FRAGMENTY wypowiedzi, a nie katalog tytułów. W klubie
     // z regułą Chatham House to jest dokładnie ta treść, której nie wolno

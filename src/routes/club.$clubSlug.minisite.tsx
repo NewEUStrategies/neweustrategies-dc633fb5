@@ -3,7 +3,7 @@
 // `noindex` bez wyjątków, także dla klubu `public`: minisite pokazuje
 // FRAGMENTY wypowiedzi, a nie sam katalog tytułów. W klubie z regułą Chatham
 // House to jest dokładnie ta treść, której nie wolno wystawić robotowi.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { MessagesSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +39,7 @@ function ClubMinisiteRoute() {
   const { t } = useTranslation();
   const { clubSlug } = Route.useParams();
   const { session, isStaff } = useAuth();
+  const hydrated = useHydrated();
 
   const clubQ = useClubBySlug(clubSlug);
   const tierQ = useCurrentTier();
@@ -50,7 +51,7 @@ function ClubMinisiteRoute() {
   const threadsQ = useClubThreads({ clubId: club?.id, sort: "hot" });
   const threads = (threadsQ.data?.pages ?? []).flatMap((page) => page.rows).slice(0, 7);
 
-  if (!session) {
+  if (!hydrated || !session) {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-3 sm:px-5 lg:px-8 py-12">
         <Card>
