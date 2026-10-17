@@ -73,7 +73,10 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<DocxResult> {
   // używa. Bluebird, underscore, jszip, xmldom i tablica dingbatów mammoth
   // mają tam zastępców o tej samej semantyce (natywny `Promise`, port
   // używanych funkcji, czytnik `vendor/officeZip.ts`, natywny `DOMParser`) -
-  // razem ~80 KB gzip mniej, ten sam HTML.
+  // razem ~80 KB gzip mniej, ten sam HTML dla poprawnych plików. Wyjątek:
+  // XML niepoprawny składniowo i każda deklaracja DTD w części pakietu są
+  // teraz błędem (stan „nie udało się odczytać") zamiast częściowej treści -
+  // uzasadnienie w `vendor/mammothXmlDom.ts`.
   const mammoth = await import("mammoth");
   const result = await mammoth.convertToHtml(
     { arrayBuffer: buffer },

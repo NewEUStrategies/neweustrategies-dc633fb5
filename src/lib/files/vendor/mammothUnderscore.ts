@@ -2,8 +2,10 @@
 // przeglądarki. Przekierowanie robi `scripts/lib/officeParserTrim.ts`; tam jest
 // pełne uzasadnienie i bramka, która pilnuje założeń przy aktualizacji pakietu.
 //
-// DLACZEGO. underscore 1.13 to jeden moduł UMD (~74 kB źródła, ~7,5 KB gzip
-// w chunku podglądu .docx) - bundler nie wytnie z niego nieużywanych funkcji.
+// DLACZEGO. underscore 1.13 wchodził do chunku podglądu .docx jako wersja ESM
+// (`underscore/modules/index-all.js` plus plik na funkcję, ~7,5 KB gzip), ale
+// CAŁY: `require("underscore")` bierze obiekt-przestrzeń ze wszystkimi
+// funkcjami (`_` z mixinem), więc tree-shaking nie ma czego wyciąć.
 // mammoth i lop wołają 20 z nich, zawsze jako `_.nazwa(kolekcja, funkcja)`
 // albo `_.nazwa(kolekcja, "pole")` (test czyta źródła obu pakietów i pada przy
 // nowej nazwie albo nowym pliku).

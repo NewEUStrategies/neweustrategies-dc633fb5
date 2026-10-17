@@ -247,6 +247,13 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // Silnik archiwów odizolowany od drobnych modułów publicznych: Rollup łączył małe chunki
   // i spakował kiedyś 312-bajtowy stub funkcji serwerowej auth z JSZip, wciągając cały silnik
   // w statyczny graf artykułu. Własna grupa trzyma tę granicę niezależnie od heurystyk.
+  //
+  // Od 2026-10-17 jszip w przeglądarce NIE WYSTĘPUJE: podgląd .docx/.pptx czyta archiwa
+  // `src/lib/files/vendor/officeZip.ts` (fflate; przekierowanie mammoth w
+  // scripts/lib/officeParserTrim.ts), a jszip zostaje tylko serwerowi (mammoth) i testom. Grupa
+  // jest bezpiecznikiem na wypadek nowego klienckiego importera. fflate ŚWIADOMIE poza nią:
+  // dzieliłaby chunk `officeZip` na dwa żądania; granicę bootu dla niego trzyma `LAZY_CHUNKS`
+  // w scripts/check-entry-purity.ts.
   group("vendor-jszip", CHUNK_PRIORITY.leaf, /\/node_modules\/jszip\//),
   // Biblioteki bez zależności - własne chunki zamiast zapadania się w chunk wejściowy. zod
   // i tailwind-merge są nadal statycznie osiągalne z entry: bajtów pierwszej wizyty to nie

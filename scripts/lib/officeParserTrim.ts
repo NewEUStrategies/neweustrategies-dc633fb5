@@ -16,7 +16,8 @@
 //
 // Kolejne wykonują się, ale niosą wielokrotnie więcej kodu niż zadanie, więc
 // dostają zastępców o TEJ SAMEJ semantyce (wynik konwersji bez zmian; jedyny
-// wyjątek - XML niepoprawny składniowo w punkcie 5 - opisuje zastępca):
+// wyjątek - XML niepoprawny składniowo i każda deklaracja DTD w punkcie 5,
+// odrzucane zamiast czytane częściowo - opisuje zastępca):
 //
 //   3. bluebird (~21 KB gzip) pod `mammoth/lib/promises.js`. Mammoth bierze
 //      z niego kilka funkcji i metod łańcucha; `vendor/mammothPromises.ts`
@@ -34,10 +35,11 @@
 //      `<parsererror>`. Od tej zmiany xmldom w bundlu przeglądarki nie ma
 //      wcale; para encji z punktu 2 i kontrola grafu zostają jako bezpiecznik
 //      na wypadek nowego klienta xmldom.
-//   6. `underscore` (~7,5 KB gzip, jeden moduł UMD - bez tree-shakingu) pod
-//      każdym `require("underscore")` mammoth i lop. Oba pakiety wołają 20
-//      funkcji; `vendor/mammothUnderscore.ts` to ich port 1.13.8 (test pilnuje
-//      listy nazw i porównuje wyniki z prawdziwym underscore).
+//   6. `underscore` (~7,5 KB gzip; moduły ESM pakietu, ale w całości -
+//      `require()` bierze całą przestrzeń `_`, więc tree-shaking nic nie
+//      wycina) pod każdym `require("underscore")` mammoth i lop. Oba pakiety
+//      wołają 20 funkcji; `vendor/mammothUnderscore.ts` to ich port 1.13.8
+//      (test pilnuje listy nazw i porównuje wyniki z prawdziwym underscore).
 //   7. `jszip` (~28 KB gzip, cały `dist/jszip.min.js` z zapisem archiwów,
 //      strumieniami i własną kopią pako z kompresją) pod `lib/zipfile.js`.
 //      Podgląd tylko CZYTA archiwum: `vendor/officeZip.ts` to czytnik

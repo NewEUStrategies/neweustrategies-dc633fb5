@@ -546,11 +546,19 @@ function main(): void {
   // łączenie małych chunków (fala 2: atom ikon klubu wkleił do wejścia cały `vendor-lucide`,
   // +18 KB gzip; 2026-10-10 znów, przez atom znacznika dostępu). Na Rolldownie zrobi to statyczny
   // import z modułu bootowego albo moduł leniwy w chunku grupy, który chunk bootu importuje.
+  //
+  // `officeZip`: czytnik archiwów podglądu .docx/.pptx z `fflate`
+  // (src/lib/files/vendor/officeZip.ts; ~4 KB gzip plus fasada 0,1 KB - obie
+  // nazwy po zdjęciu skrótu to `officeZip`). Od 2026-10-17 to on, nie jszip,
+  // czyta archiwa w przeglądarce (scripts/lib/officeParserTrim.ts), więc
+  // `vendor-jszip` w buildzie klienta już nie powstaje - zostaje na liście
+  // jako bezpiecznik na wypadek nowego klienckiego importera jszip.
   const LAZY_CHUNKS = [
     "vendor-lucide",
     "vendor-radix",
     "vendor-sonner",
     "vendor-jszip",
+    "officeZip",
     "legal-links",
   ];
   for (const chunk of bootGraph) {

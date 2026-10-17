@@ -40,7 +40,9 @@
 // laughs" na karcie czytelnika, przed którym chronią ją tylko limity silnika).
 // OPC (ECMA-376 cz. 2) zabrania deklaracji DTD w częściach pakietu, więc
 // `<!DOCTYPE` w prologu (jedyne miejsce, gdzie wolno go postawić) to błąd
-// jeszcze przed parsowaniem; `doctype` po parsowaniu to drugi bezpiecznik.
+// jeszcze przed parsowaniem (sprawdzany na napisie PO normalizacji końców
+// linii, czyli tym, który widzi parser); `doctype` po parsowaniu to drugi
+// bezpiecznik.
 // Na encjach własnych oba parsery dają więc ten sam wynik: błąd.
 //
 // i18n: brak treści dla użytkownika - komunikat dla programisty.
@@ -70,10 +72,15 @@ const DOCTYPE_IN_PROLOG =
   /^\uFEFF?(?:\s|<\?(?:[^?]|\?(?!>))*\?>|<!--(?:[^-]|-(?!->))*-->)*<!DOCTYPE/;
 
 export function parseFromString(source: string): Document {
-  if (DOCTYPE_IN_PROLOG.test(source)) {
+  // Wyrażenie sprawdza DOKŁADNIE ten napis, który dostaje parser - po
+  // normalizacji. `\s` w JS nie obejmuje U+0085, a normalizacja robi z niego
+  // `\n`: test na surowym wejściu przepuszczał `\u0085<!DOCTYPE …` i parser
+  // rozwijał encje, zanim zadziałał bezpiecznik `doctype` niżej.
+  const normalized = normalizeLineEndings(source);
+  if (DOCTYPE_IN_PROLOG.test(normalized)) {
     throw new Error("fatalError: deklaracja DTD w części pakietu OOXML");
   }
-  const doc = new DOMParser().parseFromString(normalizeLineEndings(source), "text/xml");
+  const doc = new DOMParser().parseFromString(normalized, "text/xml");
   for (const namespace of PARSER_ERROR_NAMESPACES) {
     const error = doc.getElementsByTagNameNS(namespace, "parsererror")[0];
     if (error !== undefined) {

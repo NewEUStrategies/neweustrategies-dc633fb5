@@ -1093,6 +1093,19 @@ describe("zastępca xmldom: natywny DOMParser daje czytnikowi mammoth to samo dr
       expect(outcome(viaXmldom, source), source).not.toBe("ERROR");
       expect(() => xmlDomShim.parseFromString(source), source).toThrow(/DTD/);
     }
+    // NEL (U+0085) przed deklaracją: `\s` w JS go nie obejmuje, a normalizacja
+    // końców linii robi z niego `\n` - parser widzi poprawny prolog z DTD
+    // i rozwija encje (sprawdzone w Chromium: zagnieżdżone encje rozwinięte,
+    // bez `<parsererror>`, zanim zadziała bezpiecznik `doctype`). Wyrażenie musi więc
+    // sprawdzać napis PO normalizacji, ten sam, który dostaje parser.
+    for (const source of [
+      `\u0085${entity}`,
+      `\r\u0085${entity}`,
+      `<?xml version="1.0"?>\u0085${entity}`,
+      `\u2028${entity}`,
+    ]) {
+      expect(() => xmlDomShim.parseFromString(source), JSON.stringify(source)).toThrow(/DTD/);
+    }
     expect(parse).not.toHaveBeenCalled();
     vi.stubGlobal("DOMParser", new JSDOM("").window.DOMParser);
   });
