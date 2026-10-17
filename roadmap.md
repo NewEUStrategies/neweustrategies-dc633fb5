@@ -1,5 +1,11 @@
 # Roadmap
 
+## Weryfikacja PR #515
+
+- [ ] Potwierdzić wszystkie commity i zakres zmian PR #515.
+- [ ] Sprawdzić rzeczywisty katalog tabel, widoków, RPC i kolumn; nie zastępować wdrożenia wpisami rejestru.
+- [ ] Uruchomić testy zmian i sprawdzić działanie podglądu oraz wersję produkcyjną, bez aktualizacji zależności.
+
 ## Pola formularzy platformy
 
 - [x] Ujednolicić listy wyboru, kalendarze i wysokości etykiet/pól w obu motywach.
