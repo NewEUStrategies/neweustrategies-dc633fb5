@@ -20,6 +20,7 @@ import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
 import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
+import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";
 import {
   browserBaselineLightningcssTargets,
   LIGHTNINGCSS_EXCLUDED_FEATURES,
@@ -359,13 +360,19 @@ export default defineConfig({
           minify: "oxc",
           // Składnia JS dla bazy przeglądarek Vite 7 (scripts/lib/browserBaseline.ts).
           target: browserBaselineTarget(),
+          // Listy preloadu `import()` (`__vite__mapDeps`) bez celów w korzeniu /admin i bez
+          // chunków domknięcia bootu - reguły, zmierzony zysk i cena w nagłówku
+          // scripts/lib/clientModulePreload.ts.
+          modulePreload: clientModulePreload(),
           rolldownOptions: {
             output: {
               // Bez hoistowania importów tranzytywnych: nagłówki chunków
               // zawierają wtedy wyłącznie PRAWDZIWE krawędzie modułów, więc
               // graf inicjalizacji jest deterministyczny i audytowalny
               // (scripts/check-chunk-graph.ts). Koszt (głębszy waterfall przy
-              // dynamic importach) pokrywa modulepreload z mapDeps. Rolldown
+              // dynamic importach) pokrywa modulepreload z mapDeps - poza
+              // celami w korzeniu /admin (pierwsza nawigacja SPA do panelu
+              // idzie kaskadą; `modulePreload` wyżej). Rolldown
               // i tak nie hoistuje (opcja przyjmuje wyłącznie `false`) - jawna
               // wartość przypina kontrakt bramki na wypadek zmiany domyślnej.
               hoistTransitiveImports: false,

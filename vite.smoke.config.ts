@@ -29,6 +29,7 @@ import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin.ts";
 import { staticCssPlugin } from "./scripts/lib/staticCssPlugin.ts";
 import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
+import { clientModulePreload } from "./scripts/lib/clientModulePreload.ts";
 import {
   browserBaselineLightningcssTargets,
   LIGHTNINGCSS_EXCLUDED_FEATURES,
@@ -153,6 +154,8 @@ export default defineConfig({
           // Ten sam minifikator i ta sama baza przeglądarek co vite.config.ts.
           minify: "oxc",
           target: browserBaselineTarget(),
+          // Te same listy preloadu `import()` co vite.config.ts (scripts/lib/clientModulePreload.ts).
+          modulePreload: clientModulePreload(),
           rolldownOptions: {
             output: {
               // Kontrakt check:chunks i podział z JEDNEGO modułu - uzasadnienie

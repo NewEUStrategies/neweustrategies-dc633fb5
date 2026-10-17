@@ -43,6 +43,7 @@ import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import { CHUNK_PRIORITY, CLIENT_CHUNK_GROUPS } from "./lib/clientChunkGroups";
+import { isBootChunkFile } from "./lib/clientModulePreload";
 
 /** Pakiet zewnętrzny + literały, po których go rozpoznajemy w zminifikowanym chunku. */
 interface ForbiddenSdk {
@@ -556,10 +557,28 @@ function main(): void {
     );
   }
 
+  // ODWROTNY KIERUNEK: chunki, które listy preloadu `import()` POMIJAJĄ jako bootowe (grupy
+  // `boot(...)` i runtime Rolldowna - scripts/lib/clientModulePreload.ts, ten sam predykat), MUSZĄ
+  // leżeć w domknięciu wejścia. Tylko wtedy są pobrane, zanim ruszy jakikolwiek `import()`. Chunk
+  // oznaczonej grupy POZA domknięciem (grupa stała się leniwa - zysk, nie błąd) pobierałby się
+  // kaskadą za każdym leniwym chunkiem, który go importuje, bo z jego listy zniknął. Naprawa jest
+  // jedna: zdjąć oznaczenie `boot(...)` z grupy.
+  const preloadSkipped = files.filter((f) => isBootChunkFile(f));
+  const preloadDrift = preloadSkipped.filter((f) => !bootGraph.has(f));
+
   console.log(
     `Sciezka bootowania: ${boot.join(", ")} -> ${bootGraph.size} chunkow statycznie osiagalnych ` +
       `(z ${files.length}). Wage tego domkniecia bramkuje floor \`boot\` w check:bundle.`,
   );
+
+  if (preloadDrift.length > 0) {
+    console.error(
+      "\n✗ Listy preloadu `import()` pomijaja chunki, ktorych NIE MA w domknieciu wejscia:\n" +
+        preloadDrift.map((f) => `  • ${f}`).join("\n") +
+        "\n  Leniwe chunki zalezne od nich pobieralyby je kaskada. Zdejmij oznaczenie `boot(...)`\n" +
+        "  z ich grupy w scripts/lib/clientChunkGroups.ts (runtime Rolldowna: `BOOT_CHUNK_NAMES`).",
+    );
+  }
 
   if (violations.length > 0) {
     console.error(
@@ -572,12 +591,14 @@ function main(): void {
     );
     process.exit(1);
   }
+  if (preloadDrift.length > 0) process.exit(1);
 
   console.log(
     "✓ Sciezka bootowania czysta.\n" +
       `  SDK operatora:     ${FORBIDDEN_SDKS.map((s) => s.label).join(", ")}\n` +
       `  ciezkie slowniki:  ${HEAVY_DICTIONARIES.map((d) => d.label.split(" ")[0]).join(", ")}\n` +
-      `  ciezkie moduly:    ${HEAVY_MODULES.map((m) => m.label.split(" ")[0]).join(", ")}`,
+      `  ciezkie moduly:    ${HEAVY_MODULES.map((m) => m.label.split(" ")[0]).join(", ")}\n` +
+      `  listy preloadu:    ${preloadSkipped.length} chunkow bootu pominietych, wszystkie w domknieciu`,
   );
 }
 
