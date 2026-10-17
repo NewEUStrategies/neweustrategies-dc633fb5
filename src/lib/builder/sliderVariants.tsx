@@ -40,7 +40,12 @@ import {
 } from "./sliderOptions";
 import type { WidgetTypography } from "./types";
 import type { LcpImage } from "./aboveFold";
-import { resolveAuthorDisplay, type AuthorDisplay } from "./authorDisplay";
+import {
+  authorDisplayWithoutTitle,
+  hasAuthorByline,
+  resolveAuthorDisplay,
+  type AuthorDisplay,
+} from "./authorDisplay";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { Button } from "@/components/ui/button";
 
@@ -850,14 +855,24 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
       : "",
   ].filter(Boolean);
   const instanceCss = [
+    // Ten sam rozmiar dla szacunku bylinu „tytuł minus 2 px” przed pomiarem
+    // (`styles.css`): HTML z serwera ma rozmiar, który pomiar potwierdzi.
+    // `:where()` - bez wagi: gdy ramka niesie typografię widgetu (`tfs`), tytuł
+    // bierze rozmiar z niej, więc szacunek też (reguła `tfs` w `styles.css`).
     resolvedTitleFs
-      ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}`
+      ? `${instanceSel} .cms-post-title{font-size:${resolvedTitleFs} !important;}:where(${instanceSel}) [data-author-title-relative]{--abl-title-fs:${resolvedTitleFs};}`
       : "",
     resolvedDescFs
       ? `${instanceSel} .cms-post-excerpt{font-size:${resolvedDescFs} !important;}`
       : "",
     resolvedGap ? `${instanceSel} [data-eh-gap]{margin-top:${resolvedGap} !important;}` : "",
     mobileRules.length ? `@media (max-width: 767px){${mobileRules.join("")}}` : "",
+    // Szacunek bylinu na telefonie - osobny blok, bo dotyczy wyłącznie HTML-u
+    // sprzed pomiaru (kanwa mierzy przed malowaniem, więc kopii z atrybutem
+    // urządzenia nie potrzebuje).
+    resolvedTitleFsMobile && resolvedTitleFsMobile !== resolvedTitleFs
+      ? `@media (max-width: 767px){:where(${instanceSel}) [data-author-title-relative]{--abl-title-fs:${resolvedTitleFsMobile};}}`
+      : "",
     // Kanwa buildera symuluje szerokość urządzenia atrybutem, nie viewportem.
     mobileRules.length
       ? mobileRules
@@ -1025,7 +1040,10 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   // Prezentacja autora: ten sam rezolwer, co w post-liście, liście z oceną i
   // metadanych wpisu. Slider miał wcześniej WŁASNĄ kopię tej reguły, więc
   // „schowaj samo zdjęcie" i domyślne 12/20 px żyły w dwóch miejscach naraz.
-  const author = resolveAuthorDisplay(config, lang);
+  // Slajd bez tytułu nie ma czego mierzyć - rozmiar z panelu już w HTML-u
+  // z serwera (tryb „tytuł minus 2 px” działa tylko obok tytułu slajdu).
+  const resolvedAuthor = resolveAuthorDisplay(config, lang);
+  const author = showTitle ? resolvedAuthor : authorDisplayWithoutTitle(resolvedAuthor);
   const showAuthor = author.visible;
   const authorStyle: CSSProperties = { fontSize: `${author.nameSizePx}px`, lineHeight: 1.35 };
 
@@ -1222,7 +1240,10 @@ function EditorialHeroVariant(p: VariantProps) {
         )}
       </div>
 
-      <div className="px-4 pt-8 pb-2 text-center">
+      <div
+        className="px-4 pt-8 pb-2 text-center"
+        data-author-title-scope={p.showAuthor ? "" : undefined}
+      >
         {p.showTitle &&
           (href ? (
             <AppLink href={href} className="inline-block w-full">
@@ -1266,13 +1287,13 @@ function EditorialHeroVariant(p: VariantProps) {
               {sub || "\u00A0"}
             </p>
           ))}
-        {((p.showAuthor && p.items.some((it) => Boolean(it.author))) ||
+        {(p.items.some((it) => hasAuthorByline(it.author, p.author)) ||
           p.items.some((it) => Boolean(it.readTime))) && (
           <div
             className="mt-4 flex min-h-[20px] items-center justify-center gap-2 text-muted-foreground"
             style={p.authorStyle}
           >
-            {p.showAuthor && cur.author && (
+            {hasAuthorByline(cur.author, p.author) && (
               <AuthorByline
                 name={cur.author}
                 avatarUrl={cur.authorAvatar}
@@ -1282,7 +1303,9 @@ function EditorialHeroVariant(p: VariantProps) {
                 onClick={(e) => e.stopPropagation()}
               />
             )}
-            {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">|</span>}
+            {hasAuthorByline(cur.author, p.author) && cur.readTime && (
+              <span className="opacity-50">|</span>
+            )}
             {cur.readTime && (
               <span className="inline-flex items-center gap-1">⏱ {cur.readTime}</span>
             )}
@@ -1376,7 +1399,11 @@ function MultiCardVariant(p: VariantProps) {
           {p.items.map((it, i) => {
             const { title, sub, cat, href, catColor } = pickSlideStrings(it, p.lang);
             return (
-              <article key={i} className="eh-card eh-multi-card-item group">
+              <article
+                key={i}
+                className="eh-card eh-multi-card-item group"
+                data-author-title-scope={p.showAuthor ? "" : undefined}
+              >
                 {(() => {
                   const media = (
                     <div
@@ -1464,12 +1491,12 @@ function MultiCardVariant(p: VariantProps) {
                         {sub}
                       </p>
                     ))}
-                  {((p.showAuthor && it.author) || it.readTime) && (
+                  {(hasAuthorByline(it.author, p.author) || it.readTime) && (
                     <div
                       className="mt-2 flex items-center gap-2 text-muted-foreground"
                       style={p.authorStyle}
                     >
-                      {p.showAuthor && it.author && (
+                      {hasAuthorByline(it.author, p.author) && (
                         <AuthorByline
                           name={it.author}
                           avatarUrl={it.authorAvatar}
@@ -1479,7 +1506,7 @@ function MultiCardVariant(p: VariantProps) {
                           onClick={(e) => e.stopPropagation()}
                         />
                       )}
-                      {p.showAuthor && it.author && it.readTime && (
+                      {hasAuthorByline(it.author, p.author) && it.readTime && (
                         <span className="opacity-50">·</span>
                       )}
                       {it.readTime && <span>⏱ {it.readTime}</span>}
@@ -1560,7 +1587,15 @@ function CinematicOverlayVariant(p: VariantProps) {
         />
         {/* Text */}
         <div className="absolute inset-x-0 bottom-0 p-5 md:p-8 lg:p-10 text-white">
-          <div className="max-w-3xl">
+          {/* Tytuł tego wariantu nie ma klasy `text-*`: bez rozmiaru slidera
+              bierze skalę H3 motywu (`h3` - szacunek bylinu w `styles.css`),
+              z rozmiarem slidera - jego wartość (`--abl-title-fs` instancji). */}
+          <div
+            className="max-w-3xl"
+            data-author-title-scope={
+              p.showAuthor ? (p.titleStyle.fontSize === undefined ? "h3" : "") : undefined
+            }
+          >
             {cat && (
               <span
                 className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider shadow"
@@ -1586,9 +1621,9 @@ function CinematicOverlayVariant(p: VariantProps) {
                 {sub}
               </p>
             )}
-            {((p.showAuthor && cur.author) || cur.readTime) && (
+            {(hasAuthorByline(cur.author, p.author) || cur.readTime) && (
               <div className="mt-3 flex items-center gap-2 text-white/75" style={p.authorStyle}>
-                {p.showAuthor && cur.author && (
+                {hasAuthorByline(cur.author, p.author) && (
                   <AuthorByline
                     name={cur.author}
                     avatarUrl={cur.authorAvatar}
@@ -1598,7 +1633,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                     onClick={(e) => e.stopPropagation()}
                   />
                 )}
-                {p.showAuthor && cur.author && cur.readTime && (
+                {hasAuthorByline(cur.author, p.author) && cur.readTime && (
                   <span className="opacity-60">·</span>
                 )}
                 {cur.readTime && <span>⏱ {cur.readTime}</span>}
@@ -1708,7 +1743,7 @@ function SplitFeatureVariant(p: VariantProps) {
           />
         )}
       </div>
-      <div className="px-1 md:px-2">
+      <div className="px-1 md:px-2" data-author-title-scope={p.showAuthor ? "" : undefined}>
         {cat && (
           <span
             className="inline-block mb-3 px-2.5 py-1 text-[10px] md:text-xs font-bold uppercase tracking-wider text-white shadow"
@@ -1756,9 +1791,9 @@ function SplitFeatureVariant(p: VariantProps) {
               {sub}
             </p>
           ))}
-        {((p.showAuthor && cur.author) || cur.readTime) && (
+        {(hasAuthorByline(cur.author, p.author) || cur.readTime) && (
           <div className="mt-3 flex items-center gap-2 text-muted-foreground" style={p.authorStyle}>
-            {p.showAuthor && cur.author && (
+            {hasAuthorByline(cur.author, p.author) && (
               <AuthorByline
                 name={cur.author}
                 avatarUrl={cur.authorAvatar}
@@ -1768,7 +1803,9 @@ function SplitFeatureVariant(p: VariantProps) {
                 onClick={(e) => e.stopPropagation()}
               />
             )}
-            {p.showAuthor && cur.author && cur.readTime && <span className="opacity-50">·</span>}
+            {hasAuthorByline(cur.author, p.author) && cur.readTime && (
+              <span className="opacity-50">·</span>
+            )}
             {cur.readTime && <span>⏱ {cur.readTime}</span>}
           </div>
         )}

@@ -50,7 +50,11 @@ export function DisplayLivePreview({ c, lang }: Props) {
       <div className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
         {t("builder.postListEditor.livePreview")}
       </div>
-      <div className="flex gap-2.5">
+      {/* Miniatura karty jest zakresem pomiaru „tytuł minus 2 px”, a próbny
+          tytuł - jej tytułem w tokenie tytułu wpisu z Theme Design
+          (`.cms-post-title`): byline mierzy TEN tytuł (a nie nagłówek widgetu
+          nad zakładkami ani panelu), a rozmiar wpisany w panelu widać dosłownie. */}
+      <div className="flex gap-2.5" data-author-title-scope="">
         {showCover && (
           <div
             className="h-14 w-20 shrink-0 rounded-sm bg-gradient-to-br from-muted to-muted-foreground/20"
@@ -60,10 +64,7 @@ export function DisplayLivePreview({ c, lang }: Props) {
         )}
         <div className="min-w-0 flex-1">
           {showTitle && (
-            <div
-              className="truncate text-xs font-semibold text-foreground"
-              data-testid="preview-title"
-            >
+            <div className="cms-post-title truncate" data-testid="preview-title">
               {sampleTitle}
             </div>
           )}

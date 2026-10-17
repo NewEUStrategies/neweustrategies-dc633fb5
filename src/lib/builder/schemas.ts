@@ -2864,15 +2864,10 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
         { value: "false", label: "Ukryj" },
       ],
     },
-    {
-      key: "showAuthor",
-      type: "select",
-      label: "Autor (awatar + imię)",
-      options: [
-        { value: "true", label: "Pokaż" },
-        { value: "false", label: "Ukryj" },
-      ],
-    },
+    // `showAuthor` NIE jest polem schematu: widoczność autora ma wspólna
+    // kontrolka `AuthorDisplayControl` (jak `post-meta`). Osobny select był
+    // drugim źródłem prawdy - widok gasił autora, którego panel pokazywał.
+    // Rezolwer nadal czyta ten klucz z dokumentów sprzed ujednolicenia.
     {
       key: "categoriesCsv",
       type: "text",

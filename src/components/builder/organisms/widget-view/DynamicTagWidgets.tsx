@@ -40,8 +40,10 @@ import { formatDate } from "@/lib/i18n/format";
 import { useNowMs } from "@/lib/time/useNowMs";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import {
+  authorDisplayWithoutTitle,
   authorLabelText,
   defaultAuthorLabel,
+  hasAuthorByline,
   resolveAuthorDisplay,
   widgetAuthorDisplayDefaults,
 } from "@/lib/builder/authorDisplay";
@@ -148,20 +150,25 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
     enabled: wantsViews && ctxViews === null && !!ctx?.id,
   });
   // Prezentacja autora (widoczność nazwiska/zdjęcia + oba rozmiary) rozstrzygana
-  // wspólnym rezolwerem - ten sam kontrakt co w post-liście i sliderze.
-  const authorDisplay = resolveAuthorDisplay(c, lang, widgetAuthorDisplayDefaults("post-meta", c));
+  // wspólnym rezolwerem - ten sam kontrakt co w post-liście i sliderze. Pasek
+  // metadanych nie ma własnego tytułu (H1 wpisu to inny widget), więc autor
+  // trzyma rozmiar z panelu - już w HTML-u z serwera.
+  const authorDisplay = authorDisplayWithoutTitle(
+    resolveAuthorDisplay(c, lang, widgetAuthorDisplayDefaults("post-meta", c)),
+  );
   if (!ctx) return null;
   const sep = strOr(c.separator, " · ");
   const dateFmt = asOneOf(c.dateFormat, DATE_FORMATS, "long");
   const views = ctxViews ?? (typeof fetchedViews === "number" ? fetchedViews : null);
   const parts: ReactElement[] = [];
-  if (authorDisplay.visible && ctx.author?.name) {
-    const authorHref = ctx.author.slug ? `/author/${ctx.author.slug}` : null;
+  const author = ctx.author;
+  if (author && hasAuthorByline(author.name, authorDisplay)) {
+    const authorHref = author.slug ? `/author/${author.slug}` : null;
     parts.push(
       <AuthorByline
         key="a"
-        name={ctx.author.name}
-        avatarUrl={ctx.author.avatarUrl}
+        name={author.name}
+        avatarUrl={author.avatarUrl}
         href={authorHref}
         display={authorDisplay}
       />,
@@ -376,7 +383,8 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
   const authorHref = a.slug ? `/author/${a.slug}` : null;
 
   // Wariant "inline" to zwykły byline - rysuje go ta sama molekuła, co
-  // metadane wpisu i listy wpisów (domyślnie 12 px / 20 px).
+  // metadane wpisu i listy wpisów (domyślnie 12 px / 20 px). Karta autora nie
+  // ma tytułu wpisu, więc obowiązuje rozmiar z panelu.
   if (variant === "inline") {
     return (
       <aside className="flex items-start gap-3">
@@ -384,7 +392,7 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
           name={a.name}
           avatarUrl={a.avatarUrl}
           href={authorHref}
-          display={authorDisplay}
+          display={authorDisplayWithoutTitle(authorDisplay)}
         />
         {asBool(c.showBio, true) && bio && <p className="cms-post-excerpt mt-1.5">{bio}</p>}
       </aside>
@@ -431,7 +439,13 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
           {authorLabelText(c, lang) || defaultAuthorLabel(lang)}
         </div>
         {authorDisplay.showName && (
-          <div className="cms-post-title" style={{ fontSize: `${cardNamePx}px` }}>
+          // Nazwisko w karcie wygląda jak tytuł (`.cms-post-title`), ale nim nie
+          // jest: byline w tym samym zakresie nie może brać z niego rozmiaru.
+          <div
+            className="cms-post-title"
+            style={{ fontSize: `${cardNamePx}px` }}
+            data-author-title-ignore
+          >
             {authorHref ? (
               <AppLink href={authorHref} className="hover:text-brand">
                 {a.name}

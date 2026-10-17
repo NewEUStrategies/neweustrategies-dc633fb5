@@ -71,6 +71,15 @@ export function AuthorDisplayControl({
   const avatarSizeLabel = t("builder.authorDisplay.avatarSize");
   const labelTextLabel = t("builder.authorDisplay.labelText");
 
+  // Pole pokazuje WPISANĄ wartość, a nie przyciętą do zakresu: przy wpisywaniu
+  // „11” pierwsza cyfra (1) zamieniała się na 8, kolejna dawała „81” -> 24 px.
+  // Renderer i tak przycina (rezolwer), a pole nie przeskakuje pod palcami.
+  const typed = (key: string, resolved: number): number => {
+    const raw = c[key];
+    const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+    return Number.isFinite(n) && String(raw).trim() !== "" ? n : resolved;
+  };
+
   const labelKey = `${AUTHOR_DISPLAY_KEYS.label}_${lang}`;
   const labelValue = typeof c[labelKey] === "string" ? (c[labelKey] as string) : "";
 
@@ -104,21 +113,28 @@ export function AuthorDisplayControl({
         </label>
       )}
 
-      {display.showName && !display.relativeToTitle && (
-        <PropField label={nameSizeLabel}>
+      {/* Pole rozmiaru jest widoczne ZAWSZE: wpisana wartość ma być od razu
+          widać w kanwie i podglądzie, więc wpisanie jej przełącza byline na
+          rozmiar stały (dosłowny na każdym urządzeniu), a wyczyszczenie pola
+          wraca do „tytuł minus 2 px”. W trybie tytułu pole mówi, jaki rozmiar
+          obowiązuje tam, gdzie karta nie ma tytułu. */}
+      {display.showName && (
+        <PropField
+          label={nameSizeLabel}
+          hint={display.relativeToTitle ? t("builder.authorDisplay.nameSizeHint") : undefined}
+        >
           <NumberInput
             ariaLabel={nameSizeLabel}
-            value={display.nameSizePx}
+            value={typed(AUTHOR_DISPLAY_KEYS.nameSizePx, display.nameSizePx)}
             min={AUTHOR_NAME_SIZE_PX_MIN}
             max={AUTHOR_NAME_SIZE_PX_MAX}
             placeholder={String(AUTHOR_NAME_SIZE_PX_DEFAULT)}
             suffix="px"
-            onChange={(v) =>
-              setContent(
-                AUTHOR_DISPLAY_KEYS.nameSizePx,
-                typeof v === "number" ? v : AUTHOR_NAME_SIZE_PX_DEFAULT,
-              )
-            }
+            onChange={(v) => {
+              const typed = typeof v === "number";
+              setContent(AUTHOR_DISPLAY_KEYS.nameSizePx, typed ? v : AUTHOR_NAME_SIZE_PX_DEFAULT);
+              setContent(AUTHOR_DISPLAY_KEYS.relativeToTitle, !typed);
+            }}
           />
         </PropField>
       )}
@@ -127,7 +143,7 @@ export function AuthorDisplayControl({
         <PropField label={avatarSizeLabel}>
           <NumberInput
             ariaLabel={avatarSizeLabel}
-            value={display.avatarSizePx}
+            value={typed(AUTHOR_DISPLAY_KEYS.avatarSizePx, display.avatarSizePx)}
             min={AUTHOR_AVATAR_SIZE_PX_MIN}
             max={AUTHOR_AVATAR_SIZE_PX_MAX}
             placeholder={String(AUTHOR_AVATAR_SIZE_PX_DEFAULT)}

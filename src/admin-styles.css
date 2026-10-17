@@ -184,28 +184,46 @@
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) {
   font-size: initial;
 }
-.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-xs {
+/* W zasięgu skali „Opcji motywu” (`data-theme-typography`, renderer kanwy
+   i „Podgląd na żywo”) rozmiary klas `text-*` ustawia motyw - jak na stronie
+   publicznej - a nie przywrócone tu wartości Tailwinda. */
+.cms-builder-compact
+  :is([data-visual-canvas], [data-builder-renderer])
+  .text-xs:where(:not([data-theme-typography] *)) {
   font-size: 0.75rem;
   line-height: 1rem;
 }
-.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-sm {
+.cms-builder-compact
+  :is([data-visual-canvas], [data-builder-renderer])
+  .text-sm:where(:not([data-theme-typography] *)) {
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-base {
+.cms-builder-compact
+  :is([data-visual-canvas], [data-builder-renderer])
+  .text-base:where(:not([data-theme-typography] *)) {
   font-size: 1rem;
   line-height: 1.5rem;
 }
-.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[11px\] {
+.cms-builder-compact
+  :is([data-visual-canvas], [data-builder-renderer])
+  .text-\[11px\]:where(:not([data-theme-typography] *)) {
   font-size: 11px;
 }
-.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[10px\] {
+.cms-builder-compact
+  :is([data-visual-canvas], [data-builder-renderer])
+  .text-\[10px\]:where(:not([data-theme-typography] *)) {
   font-size: 10px;
 }
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .text-\[9px\] {
   font-size: 9px;
 }
-.cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) :is(h1, h2, h3, h4) {
+/* `revert` cofa do arkusza przeglądarki, a nie do reguły strony - tytuł wpisu
+   (`.cms-post-title`, 0,2,0) ma własny rozmiar z motywu i tej samej wagi reguła
+   (0,2,1) nie może go przykryć. `:where()` - bez zmiany wagi dla pozostałych. */
+.cms-builder-compact
+  :is([data-visual-canvas], [data-builder-renderer])
+  :is(h1, h2, h3, h4):where(:not(.cms-post-title)) {
   font-size: revert;
 }
 .cms-builder-compact :is([data-visual-canvas], [data-builder-renderer]) .p-3 {
@@ -310,35 +328,43 @@
   line-height: 1.35;
   font-weight: 600;
 }
-.admin-compact p,
-.admin-compact li,
-.admin-compact label,
-.admin-compact span:not([class*="text-"]) {
+/* Zwarta typografia panelu NIE wchodzi do ramki widgetu (`[data-w-id]`) ani do
+   tytułu wpisu (`.cms-post-title` - także w podglądach bez ramki, np. slider
+   w zakładce „Treść”): kanwa buildera i „Podgląd na żywo” mają pokazać widget
+   tak jak strona publiczna. Wcześniej `span` tytułu slajdu (`.cms-title-underline` w
+   `h3.cms-post-title` o rozmiarze z panelu, np. 26 px) dostawał tu 13 px -
+   litery małe, interlinia z 26 px - a klasy `.text-xs`…`.text-4xl` widgetu
+   przegrywały z `!important` poniżej (np. tytuł karty 13 zamiast 15 px). `:where()` nie zmienia specyficzności reguł
+   (`joinUsSizeCss.ts` liczy na nią). */
+.admin-compact p:where(:not([data-w-id] *, .cms-post-title *)),
+.admin-compact li:where(:not([data-w-id] *, .cms-post-title *)),
+.admin-compact label:where(:not([data-w-id] *, .cms-post-title *)),
+.admin-compact span:not([class*="text-"]):where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 13px;
 }
-.admin-compact small,
-.admin-compact .text-xs {
+.admin-compact small:where(:not([data-w-id] *, .cms-post-title *)),
+.admin-compact .text-xs:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 11px !important;
 }
-.admin-compact .text-sm {
+.admin-compact .text-sm:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 12px !important;
 }
-.admin-compact .text-base {
+.admin-compact .text-base:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 13px !important;
 }
-.admin-compact .text-lg {
+.admin-compact .text-lg:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 14px !important;
 }
-.admin-compact .text-xl {
+.admin-compact .text-xl:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 16px !important;
 }
-.admin-compact .text-2xl {
+.admin-compact .text-2xl:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 18px !important;
 }
-.admin-compact .text-3xl {
+.admin-compact .text-3xl:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 22px !important;
 }
-.admin-compact .text-4xl {
+.admin-compact .text-4xl:where(:not([data-w-id] *, .cms-post-title *)) {
   font-size: 26px !important;
 }
 .admin-compact input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),

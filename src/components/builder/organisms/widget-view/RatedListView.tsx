@@ -26,7 +26,7 @@ import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
 import { hardenStyleCss } from "@/lib/sanitize";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
-import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { hasAuthorByline, resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { uiLocale } from "@/lib/i18n/format";
 import { WidgetStyleSheet } from "./widgetStyleSheets";
 
@@ -359,6 +359,10 @@ export function RatedListView({
             <li
               key={i}
               className={`rl-item relative min-w-0 ${isLeft ? "flex items-start gap-3 sm:gap-4" : ""}`}
+              // Wiersz jest zakresem pomiaru „tytuł minus 2 px”: byline idzie za
+              // `h3` TEGO wiersza, nie za pierwszym tytułem listy. Wartość `h3`:
+              // tytuł bez klasy `text-*` bierze skalę H3 motywu (szacunek CSS).
+              data-author-title-scope={showAuthor ? "h3" : undefined}
               style={{ ...itemStyle, overflow: "visible" }}
             >
               {isLeft ? (
@@ -445,12 +449,12 @@ export function RatedListView({
                     </span>
                   </div>
                 )}
-                {(showAuthor && it.author) || (showDate && it.date) ? (
+                {hasAuthorByline(it.author, authorDisplay) || (showDate && it.date) ? (
                   <p
                     className="rl-meta cms-meta mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1"
                     style={{ fontSize: `${metaSize}px` }}
                   >
-                    {showAuthor && it.author && (
+                    {hasAuthorByline(it.author, authorDisplay) && (
                       <AuthorByline
                         name={it.author}
                         avatarUrl={it.authorAvatar}
@@ -458,7 +462,7 @@ export function RatedListView({
                         display={authorDisplay}
                       />
                     )}
-                    {showAuthor && it.author && showDate && it.date && (
+                    {hasAuthorByline(it.author, authorDisplay) && showDate && it.date && (
                       <span aria-hidden className="opacity-60">
                         ·
                       </span>

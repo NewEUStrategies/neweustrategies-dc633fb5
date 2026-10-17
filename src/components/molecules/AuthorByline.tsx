@@ -16,6 +16,7 @@ import { safeImageUrl } from "@/lib/sanitizePure";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import { useAuthorTitleSize } from "./useAuthorTitleSize";
 import {
+  hasAuthorByline,
   AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
   AUTHOR_AVATAR_SIZE_PX_DEFAULT,
   AUTHOR_NAME_SIZE_PX_DEFAULT,
@@ -87,12 +88,11 @@ export function AuthorByline({
   onClick,
   children,
 }: AuthorBylineProps) {
-  const relativeToTitle = display.relativeToTitle ?? true;
+  // Tryb „tytuł minus 2 px” dotyczy nazwiska - sam awatar niczego nie mierzy.
+  const relativeToTitle = (display.relativeToTitle ?? true) && display.showName;
   const titleSize = useAuthorTitleSize(relativeToTitle);
   const safeName = name.trim();
-  // Sam awatar bez nazwiska jest sensownym trybem, ale awatar bez ŻADNYCH danych
-  // autora nie - taki byline byłby pustym kwadratem bez znaczenia.
-  if (!display.visible || !safeName) return null;
+  if (!hasAuthorByline(safeName, display)) return null;
 
   const safeAvatar = safeImageUrl(avatarUrl ?? undefined);
 
@@ -114,13 +114,19 @@ export function AuthorByline({
   // (12 px / 20 px) daje to dokładnie 16 px czcionki i 24 px zdjęcia.
   // Wartości jadą jako custom properties, bo media query nie istnieje w stylu
   // inline - reguły `@media` żyją w `src/styles.css` i mają `!important`,
-  // żeby wygrać z warstwą typografii widgetu.
-  const nameSizeDesktop = Math.round(
-    (display.nameSizePx * AUTHOR_BYLINE_DESKTOP_NAME_PX) / AUTHOR_NAME_SIZE_PX_DEFAULT,
-  );
-  const avatarSizeDesktop = Math.round(
-    (display.avatarSizePx * AUTHOR_BYLINE_DESKTOP_AVATAR_PX) / AUTHOR_AVATAR_SIZE_PX_DEFAULT,
-  );
+  // żeby wygrać z warstwą typografii widgetu. Rozmiar WYBRANY w panelu
+  // (`nameSizeExact` / `avatarSizeExact`) nie jest skalowany: wpisane 11 px
+  // ma być 11 px także na desktopie, w kanwie i w podglądzie.
+  const nameSizeDesktop = display.nameSizeExact
+    ? display.nameSizePx
+    : Math.round(
+        (display.nameSizePx * AUTHOR_BYLINE_DESKTOP_NAME_PX) / AUTHOR_NAME_SIZE_PX_DEFAULT,
+      );
+  const avatarSizeDesktop = display.avatarSizeExact
+    ? display.avatarSizePx
+    : Math.round(
+        (display.avatarSizePx * AUTHOR_BYLINE_DESKTOP_AVATAR_PX) / AUTHOR_AVATAR_SIZE_PX_DEFAULT,
+      );
   // HW-6 (Wydajność PSI 85/95, fala 2, P2.4): kontrakt domyślny (12 / 20 px)
   // NIE powtarza zmiennych desktopowych w stylu inline - wartości 16 / 24 /
   // 13 px są wartościami zastępczymi reguł `@media` w `styles.css`. Na
@@ -128,18 +134,24 @@ export function AuthorByline({
   // Domknięcie pudełka (wymiary, `min-*`/`max-*`, `flex`, promień) zostaje
   // inline: to ono wygrywa z globalnymi regułami obrazów buildera (patrz
   // komentarz wyżej) i pilnują go testy kontraktu bylinu.
+  //
+  // TRYB „TYTUŁ MINUS 2 PX” ma trzy stany (`useAuthorTitleSize`):
+  //   * przed pomiarem (HTML z serwera = render hydratacji) - `pending`, rozmiar
+  //     szacuje CSS z tych samych tokenów co tytuł karty (`styles.css`),
+  //   * zmierzony tytuł - `measured` + `--abl-title-relative-size`,
+  //   * brak tytułu w zakresie karty - atrybut znika, obowiązuje rozmiar z panelu.
+  const measuredPx = typeof titleSize.size === "number" ? titleSize.size : undefined;
+  const titleRelativeState =
+    relativeToTitle && titleSize.size !== null
+      ? measuredPx === undefined
+        ? "pending"
+        : "measured"
+      : undefined;
   const textStyle: CSSProperties & Record<string, string | number> = {
-    fontSize: `${titleSize.size ?? display.nameSizePx}px`,
-    ...(relativeToTitle
-      ? {
-          "--abl-title-relative-size":
-            titleSize.size === undefined
-              ? "calc(var(--td-pt-size, 16px) - 2px)"
-              : `${titleSize.size}px`,
-        }
-      : null),
+    fontSize: `${measuredPx ?? display.nameSizePx}px`,
+    ...(measuredPx === undefined ? null : { "--abl-title-relative-size": `${measuredPx}px` }),
     lineHeight: 1.35,
-    ...(display.nameSizePx === AUTHOR_NAME_SIZE_PX_DEFAULT
+    ...(display.nameSizePx === AUTHOR_NAME_SIZE_PX_DEFAULT && !display.nameSizeExact
       ? null
       : { "--abl-fs-desktop": `${nameSizeDesktop}px` }),
   };
@@ -152,7 +164,7 @@ export function AuthorByline({
     maxHeight: display.avatarSizePx,
     borderRadius: display.avatarRadiusPx,
     flex: "0 0 auto",
-    ...(display.avatarSizePx === AUTHOR_AVATAR_SIZE_PX_DEFAULT
+    ...(display.avatarSizePx === AUTHOR_AVATAR_SIZE_PX_DEFAULT && !display.avatarSizeExact
       ? null
       : {
           "--abl-av-desktop": `${avatarSizeDesktop}px`,
@@ -248,7 +260,7 @@ export function AuthorByline({
         style={textStyle}
         onClick={onClick}
         data-author-byline={display.mode}
-        data-author-title-relative={relativeToTitle ? "" : undefined}
+        data-author-title-relative={titleRelativeState}
         data-typography-exempt
       >
         {inner}
@@ -263,7 +275,7 @@ export function AuthorByline({
       style={textStyle}
       onClick={onClick}
       data-author-byline={display.mode}
-      data-author-title-relative={relativeToTitle ? "" : undefined}
+      data-author-title-relative={titleRelativeState}
       data-typography-exempt
     >
       {inner}

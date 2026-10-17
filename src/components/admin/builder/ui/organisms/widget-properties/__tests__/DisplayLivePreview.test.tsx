@@ -120,3 +120,21 @@ describe("DisplayLivePreview - rozmiary autora są WIDOCZNE, nie deklaratywne", 
     expect(out).not.toContain("data-author-byline-name");
   });
 });
+
+describe("DisplayLivePreview - byline mierzy WŁASNY próbny tytuł", () => {
+  // Wcześniej szukanie tytułu wychodziło z podglądu aż do panelu i brało
+  // tytuł widgetu z „Podglądu na żywo” nad zakładkami (np. 26 px -> 24 px
+  // przy 12 px próbnym tytule). Miniatura jest teraz zakresem z tytułem.
+  it("miniatura karty jest zakresem, a próbny tytuł jej tytułem", () => {
+    const out = html({});
+    expect(out).toMatch(/<div class="flex gap-2\.5" data-author-title-scope="">/);
+    expect(out).toMatch(/<div class="cms-post-title truncate" data-testid="preview-title">/);
+  });
+
+  it("rozmiar wpisany w panelu jest dosłowny (bez skalowania desktopowego)", () => {
+    const out = html({ authorSizePx: "11" });
+    expect(out).toContain("font-size:11px");
+    expect(out).toContain("--abl-fs-desktop:11px");
+    expect(out).not.toContain("data-author-title-relative");
+  });
+});
