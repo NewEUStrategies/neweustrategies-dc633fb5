@@ -1,5 +1,10 @@
 # Roadmap
 
+## Podpisy autorów względem tytułów
+
+- [ ] Wdrożyć przez CMS wspólny rozmiar tytuł minus 2 px we wszystkich widżetach PL/EN i wyrównanie do środka awatara.
+- [ ] Sprawdzić ustawienia edytora, testy i rzeczywiste podpisy na stronie.
+
 ## Weryfikacja PR #515
 
 - [x] Potwierdzić wszystkie commity i zakres zmian PR #515: 46 commitów, 331 ścieżek, brak zmian schematu bazy.
