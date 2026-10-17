@@ -1,6 +1,12 @@
 import { parse, type HTMLElement } from "node-html-parser";
-
-const LIST_TAGS = new Set(["UL", "OL"]);
+import {
+  isBlankListText,
+  LIST_ITEM_KEEPERS,
+  LIST_MARKUP,
+  LIST_TAGS,
+  MAX_PASSES,
+  SOCIAL_LIST_CLASS,
+} from "./normalizeRichHtmlRules";
 
 function meaningfulChildren(element: HTMLElement) {
   return element.childNodes.filter((child) => {
@@ -17,17 +23,23 @@ function meaningfulChildren(element: HTMLElement) {
  *   -> <ul><li>Real item</li></ul>
  *
  * A genuine nested list is preserved because its parent `<li>` also contains
- * text or another element. The function is universal (browser + Worker SSR),
- * so the builder canvas and the published PL/EN pages receive identical HTML.
+ * text or another element.
+ *
+ * SERVER ENGINE (Worker SSR, `RichHtmlListView` via `createIsomorphicFn`). The
+ * browser runs the same passes on its native parser in `normalizeRichHtmlDom.ts`
+ * (rules shared through `normalizeRichHtmlRules.ts`), so node-html-parser
+ * (~47 KB gzip) never ships to readers. `normalizeRichHtml.test.ts` runs every
+ * case against both engines: on HTML5-conforming input they build the same
+ * tree (only the serialisation differs); malformed input is listed there.
  */
 export function normalizeBuilderRichHtml(html: string): string {
-  if (!html || !/<(?:ul|ol)\b/i.test(html)) return html;
+  if (!html || !LIST_MARKUP.test(html)) return html;
 
   const root = parse(html);
   let changed = true;
   let pass = 0;
 
-  while (changed && pass < 20) {
+  while (changed && pass < MAX_PASSES) {
     changed = false;
     pass += 1;
 
@@ -37,10 +49,8 @@ export function normalizeBuilderRichHtml(html: string): string {
     //    nested lists, embeds), even when their visible text is empty.
     const items = root.querySelectorAll("li");
     for (const item of items) {
-      const text = item.text.replace(/\u00a0/g, "").trim();
-      if (text.length > 0) continue;
-      const hasKeeper =
-        item.querySelectorAll("a[href], ul, ol, img, iframe, video, audio, button").length > 0;
+      if (!isBlankListText(item.text)) continue;
+      const hasKeeper = item.querySelectorAll(LIST_ITEM_KEEPERS).length > 0;
       if (hasKeeper) continue;
       item.remove();
       changed = true;
@@ -81,15 +91,15 @@ export function normalizeBuilderRichHtml(html: string): string {
     const anchorLists = root.querySelectorAll("ul, ol");
     for (const list of anchorLists) {
       const cls = list.getAttribute("class") ?? "";
-      if (cls.includes("cms-social-list")) continue;
+      if (cls.includes(SOCIAL_LIST_CLASS)) continue;
       const lis = list.querySelectorAll("li");
       if (lis.length === 0) continue;
       const allAnchorOnly = lis.every((li) => {
-        if (li.text.replace(/\u00a0/g, "").trim().length > 0) return false;
+        if (!isBlankListText(li.text)) return false;
         return li.querySelectorAll("a[href]").length > 0;
       });
       if (!allAnchorOnly) continue;
-      list.setAttribute("class", `${cls} cms-social-list`.trim());
+      list.setAttribute("class", `${cls} ${SOCIAL_LIST_CLASS}`.trim());
       changed = true;
     }
   }
