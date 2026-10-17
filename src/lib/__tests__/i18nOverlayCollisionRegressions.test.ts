@@ -100,8 +100,20 @@ describe("powiadomienia: nakładka nie podmienia polskiego rdzenia", () => {
   });
 });
 
-describe("admin-extras kontra builder: wspólne klucze", () => {
-  it("panel nie podmienia napisów, których właścicielem jest słownik buildera", async () => {
+describe("nav.account i builder.sectionLoading: właścicielem jest rdzeń", () => {
+  it("publiczni czytelnicy mają napis bez żadnej nakładki, a panel/builder go nie podmienia", async () => {
+    // `AccountMenuWidget` i `sectionStreaming` renderują się na stronach
+    // PUBLICZNYCH bez własnej nakładki. Gdy te dwa klucze żyły tylko
+    // w admin-extras/builderze, publiczne strony czytały goły klucz, a /profile
+    // dostawał napis przypadkiem (import słownika panelu z dialogu firmy).
+    // `coreValue` czyta zdjęcie rdzenia sprzed rejestracji nakładek, więc
+    // asercje padają, gdy klucz wyjdzie z `locale/*.ts` - samo załadowanie
+    // `i18n-builder` niżej by tego nie wykryło (stąd kolejność).
+    expect(coreValue("pl", "nav.account")).toBe("Menu konta");
+    expect(coreValue("en", "nav.account")).toBe("Account menu");
+    expect(coreValue("pl", "builder.sectionLoading")).toBe("Wczytywanie sekcji…");
+    expect(coreValue("en", "builder.sectionLoading")).toBe("Loading the section…");
+
     await import("@/lib/i18n-builder");
     const before = {
       pl: i18n.getFixedT("pl"),
