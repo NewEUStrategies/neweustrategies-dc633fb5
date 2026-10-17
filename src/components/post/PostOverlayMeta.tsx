@@ -72,9 +72,8 @@ export function PostOverlayMeta({
 }: Props) {
   const titleSize = useAuthorTitleSize(true);
   const authorStyle: CSSProperties & { "--abl-title-relative-size": string } = {
-    "--abl-title-relative-size": titleSize.size === undefined
-      ? "calc(var(--td-pt-size, 16px) - 2px)"
-      : `${titleSize.size}px`,
+    "--abl-title-relative-size":
+      titleSize.size === undefined ? "calc(var(--td-pt-size, 16px) - 2px)" : `${titleSize.size}px`,
   };
   const t = L[lang];
   const name = author ? authorName(author, lang) : null;
@@ -86,7 +85,13 @@ export function PostOverlayMeta({
     <span className="inline-flex flex-col">
       <span className="inline-flex flex-wrap items-center gap-x-4 gap-y-1">
         {author && name && (
-          <span ref={titleSize.ref} data-author-title-relative data-typography-exempt style={authorStyle} className="inline-flex items-center gap-2">
+          <span
+            ref={titleSize.ref}
+            data-author-title-relative
+            data-typography-exempt
+            style={authorStyle}
+            className="inline-flex items-center gap-2"
+          >
             {author.avatar_url ? (
               authorHref ? (
                 <AppLink

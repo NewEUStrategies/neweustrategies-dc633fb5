@@ -548,7 +548,11 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
   const avatar = post.author_avatar_url?.trim() ?? "";
   if (!name && !avatar) return null;
   return (
-    <span ref={titleSize.ref} data-typography-exempt className="tt-live-author inline-flex shrink-0 items-center gap-[5px]">
+    <span
+      ref={titleSize.ref}
+      data-typography-exempt
+      className="tt-live-author inline-flex shrink-0 items-center gap-[5px]"
+    >
       {avatar ? (
         <img
           src={buildAvatarSrc(avatar, 20)}
@@ -569,7 +573,11 @@ function TickerAuthor({ post }: { post: TickerItemProps["post"] }) {
         </span>
       ) : null}
       {name ? (
-        <span data-typography-exempt style={{ fontSize: titleSize.size === undefined ? undefined : `${titleSize.size}px` }} className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold">
+        <span
+          data-typography-exempt
+          style={{ fontSize: titleSize.size === undefined ? undefined : `${titleSize.size}px` }}
+          className="tt-live-name hidden sm:inline-flex items-center whitespace-nowrap text-[12px] font-semibold"
+        >
           {name}
         </span>
       ) : null}

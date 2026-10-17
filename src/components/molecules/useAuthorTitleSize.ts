@@ -15,7 +15,12 @@ export function useAuthorTitleSize(enabled: boolean) {
       let parent = byline.parentElement;
       let nextTitle: Element | null = null;
       while (parent && parent !== document.body) {
-        for (const selector of [".cms-post-title", "[data-title-root]", ".tt-live-title", "h1, h2, h3"]) {
+        for (const selector of [
+          ".cms-post-title",
+          "[data-title-root]",
+          ".tt-live-title",
+          "h1, h2, h3",
+        ]) {
           nextTitle =
             Array.from(parent.querySelectorAll(selector)).find(
               (el) => !el.closest("[data-author-byline]"),
