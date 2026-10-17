@@ -11,12 +11,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   FRAGMENT_LANDING_MAX_POLLS,
+  FRAGMENT_LANDING_MAX_TICKS,
   FRAGMENT_LANDING_POLL_MS,
   FRAGMENT_LANDING_SCRIPT,
   TSR_SCROLL_STORAGE_KEY,
 } from "../fragmentLandingScript";
 
 let readyState: DocumentReadyState = "loading";
+let hidden = false;
 
 function run(): void {
   new Function(FRAGMENT_LANDING_SCRIPT)();
@@ -58,7 +60,9 @@ beforeEach(() => {
     toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
   });
   readyState = "loading";
+  hidden = false;
   Object.defineProperty(document, "readyState", { configurable: true, get: () => readyState });
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
   history.replaceState(null, "", "/");
   sessionStorage.clear();
   document.body.innerHTML = "";
@@ -235,6 +239,88 @@ describe("FRAGMENT_LANDING_SCRIPT", () => {
     readyState = "complete";
     expect(run).not.toThrow();
     vi.advanceTimersByTime(FRAGMENT_LANDING_POLL_MS * (FRAGMENT_LANDING_MAX_POLLS + 5));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("karta otwarta w tle: czekanie nie przepada przed pokazaniem karty (React odsłania w rAF)", () => {
+    history.replaceState(null, "", "/#cel");
+    const { el, reveal } = hiddenTarget("cel");
+    hidden = true;
+    readyState = "complete";
+    run();
+    // Dłużej niż sufit prób czynnych - w ukrytej karcie się nie liczą.
+    step(FRAGMENT_LANDING_MAX_POLLS * 2);
+    expect(scrolls(el)).toBe(0);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    hidden = false;
+    reveal();
+    step();
+    expect(scrolls(el)).toBe(1);
+  });
+
+  it("cel odsłonięty, ale karta ukryta: skok dopiero po pokazaniu karty", () => {
+    history.replaceState(null, "", "/#cel");
+    const { el, reveal } = hiddenTarget("cel");
+    hidden = true;
+    readyState = "complete";
+    reveal();
+    run();
+    step(5);
+    expect(scrolls(el)).toBe(0);
+    hidden = false;
+    step();
+    expect(scrolls(el)).toBe(1);
+  });
+
+  it("wolne łącze: wczytywanie dłuższe niż 8 s nie wyczerpuje prób", () => {
+    history.replaceState(null, "", "/#cel");
+    const { el, reveal } = hiddenTarget("cel");
+    run();
+    step(FRAGMENT_LANDING_MAX_POLLS + 40);
+    readyState = "complete";
+    reveal();
+    step();
+    expect(scrolls(el)).toBe(1);
+  });
+
+  it("sufit wszystkich prób kończy pętlę, gdy karta nigdy się nie pokaże", () => {
+    history.replaceState(null, "", "/#cel");
+    hiddenTarget("cel");
+    hidden = true;
+    run();
+    vi.advanceTimersByTime(FRAGMENT_LANDING_POLL_MS * (FRAGMENT_LANDING_MAX_TICKS + 5));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("fragment przejęty przez aplikację (`smoothScrollToAnchor`) - skrypt ustępuje", () => {
+    history.replaceState(null, "", "/#cel");
+    const { el, reveal } = hiddenTarget("cel");
+    run();
+    // `disableRouterHashScrollForCurrentEntry()` przed pierwszą klatką płynnego przewinięcia.
+    history.replaceState({ __hashScrollIntoViewOptions: false }, "", "/#cel");
+    readyState = "complete";
+    reveal();
+    step(3);
+    expect(scrolls(el)).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("przejęcie między odsłonięciem a klatką odczytu też wygrywa", () => {
+    history.replaceState(null, "", "/#cel");
+    const { el, reveal } = hiddenTarget("cel");
+    readyState = "complete";
+    reveal();
+    run();
+    history.replaceState({ __hashScrollIntoViewOptions: false }, "", "/#cel");
+    step();
+    expect(scrolls(el)).toBe(0);
+  });
+
+  it("wpis z wyłączonym przewijaniem fragmentu już przy wejściu: nic nie planuje", () => {
+    history.replaceState({ __hashScrollIntoViewOptions: false }, "", "/#cel");
+    hiddenTarget("cel");
+    run();
     expect(vi.getTimerCount()).toBe(0);
   });
 

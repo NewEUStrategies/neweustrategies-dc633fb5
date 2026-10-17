@@ -35,7 +35,17 @@
 //     `hashScrollIntoViewOptions ?? true`), cel w widoku -> nic. Potem koniec.
 //  4. Ustępuje użytkownikowi: pierwsze `wheel`/`touchstart`/`keydown`/`pointerdown` kończy
 //     czekanie (nie skaczemy z miejsca, do którego ktoś już przewinął), zmiana fragmentu też.
-//     Sufit 80 prób (8 s) - cel, który się nie pojawi (literówka w adresie), nie trzyma pętli.
+//  5. Ustępuje aplikacji: `history.state.__hashScrollIntoViewOptions === false` znaczy, że
+//     fragment przejął kod strony (`smoothScrollToAnchor` ustawia to przed pierwszą klatką
+//     płynnego przewinięcia - np. kotwice powiadomień, których cel przychodzi z RPC po
+//     hydratacji) albo że router ma go nie przewijać; natychmiastowy skok cofałby wtedy
+//     animację do jej odcinka startowego. Sprawdzane przy każdej próbie i tuż przed skokiem.
+//  6. Sufity liczone uczciwie: 80 prób (8 s) liczy się WYŁĄCZNIE wtedy, gdy skrypt mógłby
+//     działać (karta widoczna, dokument wczytany) - w karcie otwartej w tle React nie odsłania
+//     segmentów (pierwsza partia czeka na `requestAnimationFrame`, którego ukryty dokument nie
+//     wykonuje), a wolne łącze potrafi trzymać `readyState` dłużej niż 8 s. Osobny sufit 600
+//     prób łącznie kończy pętlę, gdy wczytanie nie skończy się nigdy (ukryta karta: Chromium
+//     dławi timery do 1/s, więc to ~10 min, potem jeszcze rzadziej).
 // Koszt: kilkaset bajtów inline i jedno sprawdzenie DOM co 100 ms przez czas wczytywania,
 // wyłącznie na wejściach z fragmentem; zwykłe wejście kończy się na pierwszym warunku.
 //
@@ -49,21 +59,25 @@ export const FRAGMENT_LANDING_ATTR = "data-nes-fragment-landing";
 /** Klucz magazynu przywracania przewinięcia TanStacka (`storageKey` w `@tanstack/router-core`). */
 export const TSR_SCROLL_STORAGE_KEY = "tsr-scroll-restoration-v1_3";
 
-/** Odstęp i sufit prób (100 ms x 80 = 8 s; odsłonięcia React 19.2 kończą się do ~2,3 s). */
+/** Odstęp prób i sufit prób „czynnych" (karta widoczna, dokument wczytany): 100 ms x 80 = 8 s. */
 export const FRAGMENT_LANDING_POLL_MS = 100;
 export const FRAGMENT_LANDING_MAX_POLLS = 80;
+/** Sufit wszystkich prób (także w ukrytej karcie i przy niekończącym się wczytywaniu). */
+export const FRAGMENT_LANDING_MAX_TICKS = 600;
 
 export const FRAGMENT_LANDING_SCRIPT =
   "(function(d){try{var h=location.hash;if(h.length<2)return;" +
   "try{var k=(history.state||{}).__TSR_key;if(k&&(JSON.parse(sessionStorage.getItem(" +
   `"${TSR_SCROLL_STORAGE_KEY}")||"{}")[k]||{}).window)return}catch(x){}` +
-  'var r=h.slice(1),n=0,s=0,E=["wheel","touchstart","keydown","pointerdown"];' +
+  'var r=h.slice(1),n=0,m=0,s=0,E=["wheel","touchstart","keydown","pointerdown"];' +
   "function z(){s=1;for(var i=0;i<E.length;i++)removeEventListener(E[i],z,!0)}" +
   "for(var i=0;i<E.length;i++)addEventListener(E[i],z,{capture:!0,passive:!0});" +
+  "function a(){return(history.state||{}).__hashScrollIntoViewOptions===!1}" +
   "function g(){var e=d.getElementById(r);if(!e)try{e=d.getElementById(decodeURIComponent(r))}" +
   "catch(x){}return e}" +
-  `function t(){if(s)return;if(location.hash!==h||++n>${FRAGMENT_LANDING_MAX_POLLS})return z();` +
-  'var e=g();if(e&&d.readyState=="complete"&&!e.closest("[hidden]"))' +
-  "return requestAnimationFrame(function(){if(s)return;z();var y=e.getBoundingClientRect().top;" +
-  "(y<0||y>=innerHeight)&&e.scrollIntoView()});" +
+  `function t(){if(s)return;if(location.hash!==h||a()||++m>${FRAGMENT_LANDING_MAX_TICKS})return z();` +
+  'if(!d.hidden&&d.readyState=="complete"){var e=g();if(e&&!e.closest("[hidden]"))' +
+  "return requestAnimationFrame(function(){if(s)return;var o=a();z();if(o)return;" +
+  "var y=e.getBoundingClientRect().top;(y<0||y>=innerHeight)&&e.scrollIntoView()});" +
+  `if(++n>${FRAGMENT_LANDING_MAX_POLLS})return z()}` +
   `setTimeout(t,${FRAGMENT_LANDING_POLL_MS})}t()}catch(x){}})(document)`;
