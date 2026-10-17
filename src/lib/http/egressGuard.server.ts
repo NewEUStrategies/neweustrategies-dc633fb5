@@ -112,9 +112,3 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
   }
   return url;
 }
-
-/** Convenience: fetch a user-configured URL only after the egress guard passes. */
-export async function safeExternalFetch(raw: string, init?: RequestInit): Promise<Response> {
-  await assertPublicHttpUrl(raw);
-  return fetch(raw, { redirect: "manual", ...init });
-}

@@ -65,18 +65,6 @@ export interface ClientBackendStats {
   readonly unrecordedNames: readonly string[];
 }
 
-export function emptyClientBackendStats(): ClientBackendStats {
-  return {
-    preflight: 0,
-    requests: 0,
-    ok: 0,
-    unrecorded: 0,
-    errors: 0,
-    byPath: {},
-    unrecordedNames: [],
-  };
-}
-
 /** Różnica statystyk (przebieg = stan po - stan przed). */
 export function diffClientBackendStats(
   before: ClientBackendStats,

@@ -24,13 +24,6 @@ export const INTEGRATION_KINDS = [
 
 export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
-/** Rodzaje z dedykowanym adapterem payloadu (reszta idzie generyczną kopertą). */
-export const ADAPTER_KINDS: readonly IntegrationKind[] = [
-  "slack",
-  "hubspot",
-  "crm_partner",
-] as const;
-
 export function normalizeIntegrationKind(raw: string | null | undefined): IntegrationKind {
   const value = (raw ?? "").trim().toLowerCase();
   return (INTEGRATION_KINDS as readonly string[]).includes(value)

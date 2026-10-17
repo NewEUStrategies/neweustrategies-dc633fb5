@@ -5,12 +5,8 @@
 // rozpisane wprost w JSX - sześć wariantów układu, cztery źródła doboru i
 // siedem suwaków jako siedem osobnych wywołań z ręcznie sklejonymi kluczami.
 // Rozjazd nazwy pola z kluczem podpowiedzi nie miał jak być zauważony.
-import { RELATED_POSTS_LIMITS, type RelatedPostsSaveFailure } from "@/lib/relatedPosts/settings";
+import { type RelatedPostsSaveFailure } from "@/lib/relatedPosts/settings";
 import type { RelatedPostsConfig } from "@/lib/relatedPosts";
-import type { NumberBounds } from "@/lib/admin/panelDraft";
-
-/** Granice pól liczbowych panelu - te same, których pilnuje warstwa zapisu. */
-export const RELATED_POSTS_BOUNDS: Readonly<Record<string, NumberBounds>> = RELATED_POSTS_LIMITS;
 
 /** Krok pola interwału autoplaya - pół sekundy. */
 export const SLIDER_INTERVAL_STEP = 500;

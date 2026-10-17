@@ -383,11 +383,6 @@ export function gatedFeatureKeys(snapshot: AuthzSnapshot): string[] {
   return sortedUnique(snapshot.featureGates.map((gate) => gate.capability));
 }
 
-/** Bramki flagi (kolejność: funkcje przed politykami, potem po referencji). */
-export function featureGatesFor(snapshot: AuthzSnapshot, capability: string): FeatureGateEntry[] {
-  return snapshot.featureGates.filter((gate) => gate.capability === capability);
-}
-
 // ---------------------------------------------------------------------------
 // Renderowanie modułu snapshotu (lockfile dla macierzy uprawnień)
 // ---------------------------------------------------------------------------

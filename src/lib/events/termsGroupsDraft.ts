@@ -18,7 +18,6 @@ import {
 const VALIDATION = "adminEventTerms.validation.";
 
 export const TERMS_MAX_NAME = 160;
-export const TERMS_MAX_DESCRIPTION = 600;
 export const GROUP_MAX_NAME = 80;
 export const GROUP_MAX_DESCRIPTION = 500;
 export const TERMS_MAX_BODY = 8000;

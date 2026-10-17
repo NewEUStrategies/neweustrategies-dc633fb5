@@ -1121,19 +1121,6 @@ export function routesMissingWarmedLoader(report: PublicRouteLoaderReport): read
   );
 }
 
-/**
- * Trasy, w których nierozgrzane zostały WYŁĄCZNIE zapytania z tożsamością
- * czytelnika w kluczu. Liczone osobno od `routesMissingWarmedLoader`, bo
- * rozgrzewka anonimowa wpisze tam widok GOŚCIA - to decyzja produktowa per
- * powierzchnia (lista prelegentów: tak; własny RSVP: bez sensu), nie ten sam
- * dług SSR. Ten sam powód, dla którego bramka spisu widgetów
- * (`lib/builder/__tests__/widgetViewPrefetchCoverage.test.ts`) wyklucza
- * `AccountMenuWidget` i `MeetingBookingView`.
- */
-export function routesGuestViewOnly(report: PublicRouteLoaderReport): readonly RouteFacts[] {
-  return report.routes.filter((route) => route.verdict === "tylko-widok-goscia");
-}
-
 // ---------------------------------------------------------------------------
 // RATCHET PER TRASA
 // ---------------------------------------------------------------------------

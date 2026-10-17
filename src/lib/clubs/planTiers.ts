@@ -44,7 +44,6 @@ export const CLUB_PLAN_TIER_RANK: Record<ClubPlanTier, number> = {
 
 /** Domyślny próg planu dla nowego klubu. */
 export const DEFAULT_CLUB_PLAN_TIER: ClubPlanTier = "pro";
-export const DEFAULT_CLUB_MIN_TIER_RANK = CLUB_PLAN_TIER_RANK[DEFAULT_CLUB_PLAN_TIER];
 
 /**
  * Ranga -> plan. Ranga spoza słownika (np. 35 z ręcznego grantu) degraduje się

@@ -21,8 +21,6 @@
 // Świadomie BEZ JSX i bez importu komponentów: moduł jest wciągany także
 // z wnętrza fabryk `vi.mock`, więc musi być tani i wolny od side-effectów.
 import { vi, type Mock } from "vitest";
-
-import type { CatalogPriceEntry } from "@/lib/billing/catalog";
 import type { MembershipGrantRow } from "@/lib/billing/membership";
 import type { StripeSubscriptionRow } from "@/lib/billing/subscriptionQueries";
 import type {
@@ -176,18 +174,6 @@ export function planLadder(): AccessPlan[] {
       sort_order: 41,
     }),
   ];
-}
-
-/** Wpis katalogu cen operatora - do testów rangi i rozliczenia za miejsce. */
-export function catalogEntry(overrides: Partial<CatalogPriceEntry> = {}): CatalogPriceEntry {
-  return {
-    priceId: "plus_monthly",
-    productId: "plan_plus",
-    tierKey: "member",
-    interval: "month",
-    rank: 30,
-    ...overrides,
-  };
 }
 
 // --- subskrypcje ------------------------------------------------------------

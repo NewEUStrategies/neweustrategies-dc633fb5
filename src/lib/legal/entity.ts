@@ -35,8 +35,6 @@ export const PRIVACY_UPDATED = "2026-10-12";
 export const REFUND_WINDOW_DAYS = 30;
 /** Warunki kupującego operatora płatności (Stripe / Link). */
 export const PAYMENT_PROVIDER_BUYER_TERMS_URL = "https://stripe.com/legal/consumer";
-/** Kanał wsparcia dla płatności - prowadzony przez nas; spory i zwroty realizuje operator. */
-export const PAYMENT_PROVIDER_SUPPORT_URL = `mailto:${LEGAL_CONTACT_EMAIL}`;
 /** Nazwa operatora płatności widoczna w treściach prawnych. */
 export const PAYMENT_PROVIDER_NAME = "Stripe";
 /** Deskryptor widoczny na wyciągu bankowym kupującego obok naszej nazwy. */

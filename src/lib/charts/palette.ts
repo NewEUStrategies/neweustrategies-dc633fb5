@@ -1061,13 +1061,6 @@ export function seriesColors(theme: ChartThemeName, count = SLOT_SEQUENCE.length
   );
 }
 
-/** Warianty tekstowe serii dla motywu - w KOLEJNOŚCI PRZYPISANIA, nie numerów. */
-export function seriesTextColors(theme: ChartThemeName, count = SLOT_SEQUENCE.length): string[] {
-  return SLOT_SEQUENCE.slice(0, count).map((slot) =>
-    theme === "dark" ? slotAt(slot).textDark : slotAt(slot).textLight,
-  );
-}
-
 /** Slot po numerze; poza zakresem zawija się na paletę. */
 export function slotAt(slot: number): PaletteSlot {
   const index =

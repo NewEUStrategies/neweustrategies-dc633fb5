@@ -127,8 +127,6 @@ export interface AgendaTrackOption extends AgendaTrack {
   count: number;
 }
 
-export const EMPTY_AGENDA: readonly AgendaSession[] = [];
-
 /* -------------------------------------------------------------- parsowanie --- */
 
 function text(value: unknown): string | null {
@@ -447,8 +445,6 @@ export interface AgendaFilter {
   /** Fraza z pola „Wyszukiwanie”; brak albo pusta = bez filtra. */
   query?: string;
 }
-
-export const EMPTY_AGENDA_FILTER: AgendaFilter = { trackId: null, onlyMine: false, query: "" };
 
 export function filterAgenda(
   sessions: readonly AgendaSession[],

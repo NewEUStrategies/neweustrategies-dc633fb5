@@ -100,9 +100,6 @@ export const DEGREE_I18N_SUFFIX = {
 // się ich rozjechać.
 export type NetworkDegree = ConnectionDegree;
 
-/** Normalizacja stopnia z RPC pod nazwą używaną przez warstwę sieci. */
-export const toNetworkDegree = normalizeDegree;
-
 /** Klucz i18n skrótu („1°/2°/3°") dla stopnia widocznego. */
 export function networkDegreeShortKey(degree: 1 | 2 | 3): string {
   return `network.degree.short.${DEGREE_I18N_SUFFIX[degree]}`;

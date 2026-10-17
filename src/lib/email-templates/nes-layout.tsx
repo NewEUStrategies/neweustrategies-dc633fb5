@@ -17,9 +17,6 @@ import { EmailIcon, type EmailIconName } from "./icons";
 import { NES_CONTACT, NES_SOCIAL_LINKS } from "./social";
 
 export type EmailLang = "pl" | "en";
-
-export const NES_LOGO_LIGHT =
-  "https://unnltowbgszpdzwpawdu.supabase.co/storage/v1/object/public/media/theme%2Femail%2Fnes-logo-light.png";
 export const NES_LOGO_DARK =
   "https://unnltowbgszpdzwpawdu.supabase.co/storage/v1/object/public/media/theme%2Femail%2Fnes-logo-dark.png";
 

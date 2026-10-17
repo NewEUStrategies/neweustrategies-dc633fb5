@@ -52,9 +52,6 @@ const KIND_BY_TYPE: Readonly<Record<string, DeliveryEventKind>> = {
   "email.failed": "failed",
 };
 
-/** Zdarzenia, które zmieniają stan listy wykluczeń. */
-export const SUPPRESSING_KINDS: readonly DeliveryEventKind[] = ["bounced", "complained"];
-
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }

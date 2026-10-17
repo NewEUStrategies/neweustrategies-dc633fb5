@@ -40,11 +40,6 @@ export type ClubNoticeKind = (typeof CLUB_NOTICE_KINDS)[number];
 /** Limity z CHECK-ów `club_board_notices_*` - jedyne źródło prawdy dla pola. */
 export const CLUB_NOTICE_MIN_LENGTH = 8;
 export const CLUB_NOTICE_MAX_LENGTH = 280;
-/** Domyślna i maksymalna ważność ogłoszenia (RPC przycina do tego zakresu). */
-export const CLUB_NOTICE_DEFAULT_DAYS = 30;
-export const CLUB_NOTICE_MAX_DAYS = 90;
-/** Limit otwartych ogłoszeń na osobę - ten sam próg, co w RPC. */
-export const CLUB_NOTICE_MAX_OPEN = 5;
 
 export type ClubBoardNoticeRow = NullableCols<
   RowOf<Fn["club_board_notices_list"]["Returns"]>,

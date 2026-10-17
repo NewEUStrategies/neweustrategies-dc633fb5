@@ -1,26 +1,3 @@
-// DANE REJESTROWE WYDAWCY I STAŁE PAKIETU ZGODNOŚCI.
-//
-// PO CO OSOBNY MODUŁ, SKORO TO TEŻ "dane o podmiocie". Bo `lib/legal/entity.ts`
-// jest czytany przez `lib/legal/meta.ts`, a ten przez `head()` KAŻDEJ trasy
-// prawnej. `head()` jest funkcją EAGER w drzewie tras, więc `entity.ts` ląduje
-// w chunku WEJŚCIOWYM serwisu - i ciągnie tam ze sobą każdy swój eksport, który
-// jest używany gdziekolwiek indziej (bundler hoistuje moduł współdzielony
-// między chunkami do wspólnego przodka, nie wycina z niego eksportów "na
-// wyrost").
-//
-// Numer KRS, NIP, adres sądu rejestrowego i organy nadzoru są potrzebne
-// WYŁĄCZNIE w treści dokumentów (`content/statute.ts`, `content/rodo.ts`), czyli
-// w chunkach ładowanych leniwie przy wejściu na konkretną stronę prawną.
-// Trzymane w `entity.ts` płacił za nie każdy czytelnik każdej strony serwisu -
-// także tej, która z dokumentem prawnym nie ma nic wspólnego.
-//
-// REGUŁA DLA NASTĘPNEJ OSOBY: stała czytana przez `head()` albo przez `meta.ts`
-// -> `entity.ts`. Stała czytana wyłącznie przez treść dokumentu -> tutaj.
-//
-// Dane pochodzą z odpisu pełnego KRS nr 0001195512 (stan na 19.09.2025).
-
-/** Forma prawna wydawcy w obu językach. */
-export const LEGAL_ENTITY_FORM = { pl: "fundacja", en: "foundation" } as const;
 export const LEGAL_ENTITY_KRS = "0001195512";
 export const LEGAL_ENTITY_NIP = "7011278375";
 export const LEGAL_ENTITY_ADDRESS = "ul. Tytusa Chałubińskiego 8, 00-613 Warszawa, Polska";

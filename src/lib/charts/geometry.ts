@@ -118,10 +118,6 @@ export function axisFontSize(width: number): number {
 export const FONT_CHART = 12;
 export const FONT_CHART_COMPACT = 11;
 
-export function chartFontSize(width: number): number {
-  return isCompact(width) ? FONT_CHART_COMPACT : FONT_CHART;
-}
-
 /** Etykiety wartości nad słupkiem i etykieta pasma: 11 px. */
 export const FONT_VALUE = 11;
 

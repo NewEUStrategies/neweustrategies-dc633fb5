@@ -50,8 +50,6 @@ export function Shell({ label, children }: { label: string; children?: React.Rea
 export const inputCls = "w-full text-xs bg-background border border-border rounded px-2 py-2 h-9";
 export const areaCls =
   "w-full text-xs bg-background border border-border rounded px-2 py-2 min-h-[60px] resize-y";
-export const cellCls =
-  "w-full min-w-[72px] text-xs bg-background border border-border rounded px-2 py-1.5 h-8 tabular-nums";
 
 /** Sekcja formy z podpisem - grupuje pola, których autor inaczej nie znajdzie. */
 export function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
