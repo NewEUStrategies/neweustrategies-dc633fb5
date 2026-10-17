@@ -2115,6 +2115,13 @@
       "when": 1792271949090,
       "tag": "0301_club_view_a19_positive_predicate_restore",
       "breakpoints": true
+    },
+    {
+      "idx": 302,
+      "version": "7",
+      "when": 1792271994383,
+      "tag": "0302_club_lists_secret_gate_a13_restore",
+      "breakpoints": true
     }
   ]
 }
