@@ -46,6 +46,7 @@ export interface AuthorDisplayContent {
   readonly showAuthorName?: unknown;
   readonly showAuthorAvatar?: unknown;
   readonly authorSizePx?: unknown;
+  readonly authorSizeRelativeToTitle?: unknown;
   readonly authorAvatarSizePx?: unknown;
   readonly authorLabel_pl?: unknown;
   readonly authorLabel_en?: unknown;
@@ -59,6 +60,7 @@ export interface AuthorDisplayContent {
 
 /** Domyślny rozmiar czcionki imienia i nazwiska autora (px). */
 export const AUTHOR_NAME_SIZE_PX_DEFAULT = 12;
+export function authorSizeFromTitle(px: number): number { return px - 2; }
 /** Domyślny rozmiar zdjęcia profilowego eksperta (px). */
 export const AUTHOR_AVATAR_SIZE_PX_DEFAULT = 20;
 /** Domyślne zaokrąglenie awatara (px). Kwadrat z lekkim promieniem. */
@@ -84,6 +86,7 @@ export const AUTHOR_DISPLAY_KEYS = {
   showName: "showAuthorName",
   showAvatar: "showAuthorAvatar",
   nameSizePx: "authorSizePx",
+  relativeToTitle: "authorSizeRelativeToTitle",
   avatarSizePx: "authorAvatarSizePx",
   /** Baza pary i18n `authorLabel_pl` / `authorLabel_en`. */
   label: "authorLabel",
@@ -127,6 +130,7 @@ export interface AuthorDisplay {
   readonly showName: boolean;
   readonly showAvatar: boolean;
   readonly nameSizePx: number;
+  readonly relativeToTitle?: boolean;
   readonly avatarSizePx: number;
   readonly avatarRadiusPx: number;
   /**
@@ -196,6 +200,7 @@ export function resolveAuthorDisplay(
   const rawShowName = content.showAuthorName;
   const rawShowAvatar = content.showAuthorAvatar;
   const rawNameSize = content.authorSizePx;
+  const rawRelativeToTitle = content.authorSizeRelativeToTitle;
   const rawAvatarSize = content.authorAvatarSizePx;
   const rawLabel = authorLabelText(content, lang);
 
@@ -265,6 +270,7 @@ export function resolveAuthorDisplay(
     showName,
     showAvatar,
     nameSizePx,
+    relativeToTitle: asBool(rawRelativeToTitle, true),
     avatarSizePx,
     avatarRadiusPx: defaults.avatarRadiusPx ?? AUTHOR_AVATAR_RADIUS_PX_DEFAULT,
     labelPrefix,

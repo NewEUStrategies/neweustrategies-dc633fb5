@@ -7589,6 +7589,16 @@ html[data-mbb="on"] [data-site-shell] {
   }
 }
 
+/* Shared CMS author sizing and avatar centering. */
+[data-author-title-relative],
+[data-author-title-relative] [data-author-byline-name],
+[data-author-title-relative] [data-author-byline-name] span {
+  font-size: var(--abl-title-relative-size) !important;
+  line-height: 1.35 !important;
+}
+[data-author-byline] { align-items: center !important; }
+[data-author-byline-name] { min-width: 0; align-self: center; }
+
 /* --- Menu konta w headerze (AccountMenuWidget) --------------------------- */
 /* Kaskadowe wejście pozycji + pasek akcentu na hover. Wyłączone dla osób
    preferujących ograniczony ruch - panel pojawia się wtedy bez animacji. */
