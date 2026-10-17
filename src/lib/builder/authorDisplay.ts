@@ -317,6 +317,8 @@ const AUTHOR_DISPLAY_WIDGET_CATALOG: Readonly<Record<string, "panel" | "editor">
   slider: "editor",
   "rated-list": "editor",
   "tailored-must-reads": "panel",
+  "news-ticker": "panel",
+  "trending-now": "panel",
   "post-meta": "panel",
   "post-author-card": "panel",
   testimonial: "panel",
