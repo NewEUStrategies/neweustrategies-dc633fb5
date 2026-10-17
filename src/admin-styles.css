@@ -915,3 +915,270 @@ aside[data-sidebar="sidebar"],
 :where([data-sidebar="sidebar"]:hover) {
   color: var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;
 }
+
+/* =========================================================================
+   Reguły wyłącznie panelu przeniesione z `styles.css` (2026-10-17): arkusz blokujący
+   render KAŻDEJ strony publicznej niósł je bez użytkownika poza `/admin`. Kolejność
+   bloków jak w źródle; wszystkie bez warstwy, jak tam. Konsumenci: podgląd paska
+   dolnego (`MobileBottomBarView`, `BottomBarTab`), okna kreatora wydarzeń
+   (`components/admin/events/molecules/*Dialog.tsx`), edytor listy bloku
+   (`components/admin/blocks/edit/ListBlock.tsx`). Selektory współdzielone z treścią
+   publiczną (`.cms-content-list`, `.mbb__badge`) zostają w `styles.css`.
+   ========================================================================= */
+
+/* Pigułka paska. Obrys jest cieniem, a NIE `border`em: element garbu jest
+   pozycjonowany absolutnie, więc ramka przesuwałaby jego układ odniesienia
+   o 1 px względem prostokąta mierzonego w JS. */
+.mbb {
+  --mbb-bg: var(--mbb-bg-light, #ffffff);
+  --mbb-active: var(--mbb-active-light, var(--brand));
+  --mbb-icon: var(--mbb-icon-light, #6b7280);
+  /* Lekko zmniejszona baza (było 0.625rem) - skaluje cały pasek w dół,
+     w tym etykiety i ikony, bez psucia proporcji em. */
+  font-size: 0.575rem;
+  /* Jedna krzywa dla garbu, unoszenia pozycji i koła - inaczej elementy tej
+     samej animacji rozjeżdżają się w czasie i przejście wygląda na ucięte. */
+  --mbb-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  pointer-events: auto;
+  width: 100%;
+  max-width: 460px;
+  border-radius: var(--mbb-radius, 2em);
+  background-color: var(--mbb-bg);
+  box-shadow:
+    0 0.5em 1em rgb(0 0 0 / 0.12),
+    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
+}
+.dark .mbb {
+  --mbb-bg: var(--mbb-bg-dark, #111318);
+  --mbb-active: var(--mbb-active-dark, var(--brand));
+  --mbb-icon: var(--mbb-icon-dark, #9aa3b2);
+  box-shadow:
+    0 0.5em 1em rgb(0 0 0 / 0.45),
+    0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+/* .svg-container z referencji: sam nośnik <clipPath>, zero wymiarów. */
+.mbb__clip {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.mbb__list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0 1.6em;
+  list-style: none;
+}
+.mbb__cell {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* .menu__item - unosi się o 0.8em, gdy jest aktywna. Czas przejścia bierze z
+   --timeOut: w trakcie zmiany rozmiaru okna komponent ustawia tam `none`,
+   co unieważnia deklarację i sprowadza czas do 0s (trik z referencji). */
+.mbb__item {
+  position: relative;
+  z-index: 1;
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  /* Referencja: .55em 0 .85em. Podniesione tak, aby cel dotykowy pozycji miał
+     pełne 44 px (WCAG 2.5.8 / HIG) - różnica 4 px jest niewidoczna. */
+  padding: 0.75em 0 1.05em;
+  color: var(--mbb-icon);
+  text-decoration: none;
+  cursor: pointer;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--timeOut, 0.45s) var(--mbb-ease);
+}
+.mbb__item.active {
+  transform: translate3d(0, -0.8em, 0);
+}
+/* Wariant z podpisami. Koło zostaje w referencyjnych 4.2em, więc wystaje 0.8em
+   poniżej ikony - odstęp do etykiety musi być od niego większy, inaczej koło
+   wchodzi na tekst. Unos jest o połowę krótszy, bo pozycja jest wyższa i pełny
+   wypychałby etykietę poza pasek. */
+.mbb[data-labels="true"] .mbb__item {
+  gap: 1em;
+}
+.mbb[data-labels="true"] .mbb__item.active {
+  transform: translate3d(0, -0.4em, 0);
+}
+.mbb__item:focus-visible {
+  outline: 2px solid var(--mbb-active, var(--brand));
+  outline-offset: -0.2em;
+  border-radius: 0.6em;
+}
+
+/* Kotwica ikony. Nosi koło (::before) i licznik, dzięki czemu koło zostaje
+   wyśrodkowane na ikonie także w wariancie z podpisami. */
+.mbb__iconwrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mbb__iconwrap::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 4.2em;
+  height: 4.2em;
+  border-radius: 50%;
+  transform: scale(0);
+  background-color: var(--bgColorItem, var(--brand));
+  transition:
+    transform var(--timeOut, 0.45s) var(--mbb-ease),
+    background-color 0.3s ease;
+}
+.dark .mbb__iconwrap::before {
+  background-color: var(--bgColorItem-dark, var(--brand));
+}
+.mbb__item.active .mbb__iconwrap::before {
+  transform: scale(1);
+}
+
+/* .icon - wszystkie nieaktywne ikony w jednolitym, neutralnym kolorze paska.
+   Dopiero aktywna pozycja przełącza stroke: najpierw na kolor tła paska,
+   żeby glif czytał się jak wycięta dziura w kolorowym kole pozycji. */
+.mbb__icon {
+  display: block;
+  width: 2.6em;
+  height: 2.6em;
+  fill: none;
+  stroke: var(--mbb-icon);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-miterlimit: 10;
+  /* Wspólny wzór kreski dla animacji rysowania (stroke-dashoffset). */
+  stroke-dasharray: 400;
+  stroke-dashoffset: 0;
+  transition:
+    stroke 0.3s ease,
+    transform var(--timeOut, 0.45s) var(--mbb-ease);
+}
+.mbb__item.active .mbb__icon {
+  stroke: var(--mbb-bg);
+  animation: mbb-strok 0.6s var(--mbb-ease) reverse;
+}
+@keyframes mbb-strok {
+  100% {
+    stroke-dashoffset: 400;
+  }
+}
+
+/* .menu__border - garb wycięty ścieżką SVG, przesuwany pod aktywną pozycję.
+   `bottom: 99%` sadza go tuż nad paskiem; wspólne tło sprawia, że sylwetka
+   paska i garbu jest ciągła. */
+.mbb__border {
+  position: absolute;
+  left: 0;
+  bottom: 99%;
+  width: 10.9em;
+  height: 2.4em;
+  background-color: var(--mbb-bg);
+  pointer-events: none;
+  will-change: transform;
+  transition:
+    transform var(--timeOut, 0.45s) var(--mbb-ease),
+    opacity 0.2s ease;
+}
+/* Przed pomiarem i na trasach spoza paska garb nie ma sensownej pozycji. */
+.mbb[data-ready="false"] .mbb__border {
+  opacity: 0;
+  transition: none;
+}
+.mbb[data-has-active="false"] .mbb__border {
+  opacity: 0;
+}
+
+.mbb__label {
+  /* Etykiety jeszcze odrobinę mniejsze niż reszta paska. */
+  font-size: 0.85em;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.5s;
+}
+.mbb__item.active .mbb__label {
+  color: var(--mbb-active);
+}
+
+/* Ograniczony ruch: zostaje sama informacja (koło, kolor, pozycja garbu),
+   znikają przejścia i rysowanie ikony. */
+@media (prefers-reduced-motion: reduce) {
+  .mbb__item,
+  .mbb__icon,
+  .mbb__label,
+  .mbb__border,
+  .mbb__iconwrap::before {
+    transition: none;
+  }
+  .mbb__item.active .mbb__icon {
+    animation: none;
+  }
+}
+
+.cms-block-list-editor {
+  --cms-list-marker-col: 1.65rem;
+  --cms-list-lh: var(--lh-body, 1.65);
+  --cms-list-accent: #fa9346;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--foreground);
+}
+.cms-block-list-editor__item {
+  padding-left: calc((var(--cms-list-level, 1) - 1) * 1.75rem);
+}
+
+/* Kompaktowe okna kreatora wydarzeń: mniejsza typografia, niższe kontrolki
+   i ikony dopasowane do skali tekstu (jasny i ciemny motyw, 6px rounding). */
+.event-dialog-compact {
+  font-size: 0.8125rem;
+  line-height: 1.35rem;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.event-dialog-compact :is(h2, [data-slot="dialog-title"]) {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.event-dialog-compact :is(p, label, span, li, td, th, div) {
+  font-size: inherit;
+}
+.event-dialog-compact :is(.text-xs, .text-\[11px\]) {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}
+.event-dialog-compact
+  :is(input, button, [role="combobox"]):not([type="checkbox"]):not([role="switch"]):not(.h-auto) {
+  min-height: 2rem;
+  height: 2rem;
+}
+.event-dialog-compact textarea {
+  font-size: inherit;
+  min-height: 4.5rem;
+}
+.event-dialog-compact svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}

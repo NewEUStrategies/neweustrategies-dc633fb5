@@ -22,6 +22,7 @@ import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
 import {
   browserBaselineLightningcssTargets,
+  LIGHTNINGCSS_EXCLUDED_FEATURES,
   browserBaselineTarget,
 } from "./scripts/lib/browserBaseline.ts";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces.ts";
@@ -325,7 +326,12 @@ export default defineConfig({
       cssTarget: browserBaselineTarget(),
     },
     // Transformacja arkuszy (lightningcss) - ta sama baza przeglądarek Vite 7.
-    css: { lightningcss: { targets: browserBaselineLightningcssTargets() } },
+    css: {
+      lightningcss: {
+        targets: browserBaselineLightningcssTargets(),
+        exclude: LIGHTNINGCSS_EXCLUDED_FEATURES,
+      },
+    },
     // Do not set top-level `codeSplitting` (formerly Rollup `manualChunks`) here.
     // This config is shared by the browser and Cloudflare server environments;
     // forcing vendor chunks at this level also splits the Worker entry into files

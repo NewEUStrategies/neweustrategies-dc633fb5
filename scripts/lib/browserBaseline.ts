@@ -63,3 +63,14 @@ export function browserBaselineLightningcssTargets(): LightningcssTargets {
   }
   return targets;
 }
+
+/**
+ * Funkcje lightningcss, których NIE kompilujemy mimo celów (`exclude`): `Features.LightDark`
+ * (`1 << 20`; pakiet nie jest bezpośrednią zależnością, więc stała zamiast importu - zgodność
+ * pilnuje test). Dla celów sprzed `light-dark()` lightningcss dopisuje przy KAŻDEJ deklaracji
+ * `color-scheme` parę zmiennych `--lightningcss-light`/`--lightningcss-dark` (polyfill funkcji
+ * `light-dark()`), a w `src` żadnej `light-dark()` nie ma: ~0,5 KB surowych bajtów w arkuszu
+ * blokującym render, których nic nie czyta. Kto doda `light-dark()`, zdejmuje to wyłączenie
+ * (test oblewa wtedy suitę).
+ */
+export const LIGHTNINGCSS_EXCLUDED_FEATURES = 1 << 20;

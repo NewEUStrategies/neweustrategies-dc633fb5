@@ -31,6 +31,7 @@ import { devBuildKeepNamesPlugin } from "./scripts/lib/devBuildKeepNames.ts";
 import { clientCodeSplitting } from "./scripts/lib/clientChunkGroups.ts";
 import {
   browserBaselineLightningcssTargets,
+  LIGHTNINGCSS_EXCLUDED_FEATURES,
   browserBaselineTarget,
 } from "./scripts/lib/browserBaseline.ts";
 
@@ -123,7 +124,12 @@ export default defineConfig({
         external: [/^cloudflare:/],
       },
     },
-    css: { lightningcss: { targets: browserBaselineLightningcssTargets() } },
+    css: {
+      lightningcss: {
+        targets: browserBaselineLightningcssTargets(),
+        exclude: LIGHTNINGCSS_EXCLUDED_FEATURES,
+      },
+    },
     // Do not set top-level `codeSplitting` (formerly Rollup `manualChunks`) here.
     // This config is shared by the browser and Cloudflare server environments;
     // forcing vendor chunks at this level also splits the Worker entry into files

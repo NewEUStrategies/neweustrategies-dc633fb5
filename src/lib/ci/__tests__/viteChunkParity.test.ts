@@ -27,6 +27,7 @@ import { bezKomentarzy } from "@/lib/ci/sourceScan";
 import {
   browserBaselineLightningcssTargets,
   browserBaselineTarget,
+  LIGHTNINGCSS_EXCLUDED_FEATURES,
   VITE7_BROWSER_BASELINE,
 } from "../../../../scripts/lib/browserBaseline";
 
@@ -175,6 +176,7 @@ describe("baza przeglądarek klienta: Vite 7 zachowany jawnie w obu presetach", 
     const helperImport = [
       "import {",
       "  browserBaselineLightningcssTargets,",
+      "  LIGHTNINGCSS_EXCLUDED_FEATURES,",
       "  browserBaselineTarget,",
       '} from "./scripts/lib/browserBaseline.ts";',
     ].join("\n");
@@ -193,10 +195,26 @@ describe("baza przeglądarek klienta: Vite 7 zachowany jawnie w obu presetach", 
       const cssTargets = [...code.matchAll(/\bcssTarget:\s*browserBaselineTarget\(\)/g)];
       expect(cssTargets, file).toHaveLength(1);
       expect(cssTargets[0]!.index, file).toBeLessThan(client);
-      // 3. Transformacja arkuszy.
-      expect(code, file).toContain(
-        "css: { lightningcss: { targets: browserBaselineLightningcssTargets() } },",
+      // 3. Transformacja arkuszy (z tym samym wyłączeniem polyfilli w obu presetach).
+      expect(code.replace(/\s+/g, " "), file).toContain(
+        "css: { lightningcss: { targets: browserBaselineLightningcssTargets(), exclude: LIGHTNINGCSS_EXCLUDED_FEATURES, }, },",
       );
     }
+  });
+
+  it("`exclude` lightningcss = `Features.LightDark`, a `src` nie używa `light-dark()`", async () => {
+    // Bez bezpośredniej zależności od lightningcss stała jest liczbą - test pilnuje, że to
+    // nadal ta funkcja w zainstalowanej wersji (Vite 8 ciągnie pakiet przechodnio).
+    const { Features } = (await import("lightningcss")) as { Features: { LightDark: number } };
+    expect(LIGHTNINGCSS_EXCLUDED_FEATURES).toBe(Features.LightDark);
+    // Wyłączony polyfill zostawiłby `light-dark()` bez fallbacku dla celów sprzed jego wsparcia.
+    const { readdirSync } = await import("node:fs");
+    const offenders = readdirSync(resolve(process.cwd(), "src"), {
+      recursive: true,
+      encoding: "utf8",
+    })
+      .filter((f) => /\.(css|tsx?)$/.test(f) && !f.includes("__tests__"))
+      .filter((f) => /light-dark\(/.test(read(`src/${f}`)));
+    expect(offenders).toEqual([]);
   });
 });
