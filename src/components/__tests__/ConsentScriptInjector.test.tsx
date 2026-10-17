@@ -1345,6 +1345,12 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
     await poInterakcji();
+    // Dociągnięcie pliku idzie przez dynamiczny import polityki i jej kolejkę; na obciążonym
+    // runnerze CI (4 shardy naraz) stała liczba kroków `poKrokachKolejki` bywała za krótka
+    // (shard 3 na 3775604: 0 tagów). Czekamy na sam warunek, z limitem `waitFor`.
+    await vi.waitFor(() =>
+      expect(document.head.querySelectorAll("script[data-ga4-tag]").length).toBeGreaterThan(0),
+    );
 
     // Skrypt gtag.js jest DOKŁADNIE JEDEN - zmiana strumienia to nowa
     // konfiguracja w `dataLayer`, nigdy drugi tag (drugi tag = drugi ping
