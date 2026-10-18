@@ -7,13 +7,14 @@ SY = json.load(open(f'{S}/czesciowe14.json', encoding='utf-8'))['SYNC']
 POK = json.load(open(f'{S}/pokrycie14.json', encoding='utf-8'))['T']
 D = json.load(open(f'{S}/defekty14.json', encoding='utf-8'))
 R = json.load(open(f'{S}/rejestr-stan14.json', encoding='utf-8'))
-cl = lambda s: ' '.join(str(s or '').split()).replace('|', '/').replace('\u2014', '-').replace('\u2013', '-')
+cl = lambda s: ' '.join(str(s or '').split()).replace('|', '/').replace('—', '-').replace('–', '-')
 skr = lambda s, n: (cl(s)[: n - 1].rsplit(' ', 1)[0] + '…') if len(cl(s)) > n else cl(s)
 pc = lambda a, b: f'{100 * a / b:.2f}'.replace('.', ',')
 lin, ins, fun, gal = pc(POK['Lc'], POK['L']), pc(POK['Sc'], POK['S']), pc(POK['Fc'], POK['F']), pc(POK['Bc'], POK['B'])
 licz = collections.Counter(x['waga'] for x in D)
 rc = collections.Counter(x['stan14'] for x in R)
 plan = {int(k.split(':')[1]): v for k, v in SY.items() if k.startswith('plan:') and v}
+exec(open(f'{S}/plan14-podsumowania.py', encoding='utf-8').read())
 
 TYTUL = '## 18. WYDANIE 14 - pokrycie bez bramki, moduły w jednym cyklu i produkcja, której CI nie sprawdza'
 o = []
@@ -53,7 +54,25 @@ if plan:
             w(f'| {i} | {TYT[i]} | nie rozliczono | - | - |')
             continue
         ec = collections.Counter(e['status'] for e in v['elementy'])
-        w(f"| {i} | {TYT[i]} | **{ST_PL.get(v['status'], v['status'])}** | {ec['wykonane']} / {ec['czesciowo']} / {ec['niewykonane']} | {skr(v.get('uwagi'), 380)} |")
+        w(f"| {i} | {TYT[i]} | **{ST_PL.get(v['status'], v['status'])}** | {ec['wykonane']} / {ec['czesciowo']} / {ec['niewykonane']}" + (f" / nie dotyczy {ec['nie_dotyczy']}" if ec['nie_dotyczy'] else '') + f" | {PODS[i]} |")
+    w('')
+    w('Elementy każdej pozycji (dowód i test przypinający dla każdego elementu: `agenci/migawka14.json`, klucz `SYNC`, `plan:N`):')
+    w('')
+    ST_EL = [('wykonane', 'wykonane'), ('czesciowo', 'częściowo'), ('niewykonane', 'niewykonane'), ('nie_dotyczy', 'nie dotyczy')]
+    for i in range(1, 13):
+        v = plan.get(i)
+        if not v:
+            continue
+        el = v['elementy']
+        if i == 3:
+            assert len(el) == len(ELEMENTY3)
+            el = [dict(e, element=n) for e, n in zip(el, ELEMENTY3)]
+        grupy = []
+        for k, nazwa in ST_EL:
+            lista = [e['element'].strip().rstrip('.') for e in el if e['status'] == k]
+            if lista:
+                grupy.append(f'{nazwa} ({len(lista)}): ' + '; '.join(lista))
+        w(f'- **{i}. {TYT[i]}** - ' + '. '.join(grupy) + '.')
     w('')
 else:
     w('Rozliczenie dwunastu pozycji planu 17.15 przez agentów nie zakończyło się przed zamknięciem tego zapisu; stan pozycji dotkniętych przez defekty i rejestr wynika z 18.9 i 18.10 (pozycje 1 i 2 wykonane: N-19-1 i N-16-1 naprawione; pozycja 3 niewykonana: `main` bez ochrony i czerwony, 18.8).')
@@ -111,5 +130,5 @@ h.append('**PageSpeed Insights: desktop 94 (Speed Index 2,7 s, czerwony), mobile
 open(f'{S}/naglowek14.md', 'w', encoding='utf-8').write('\n'.join(h) + '\n')
 for f in ('r18e1.md', 'r18e2.md', 'r18e3.md', 'naglowek14.md'):
     t = open(f'{S}/{f}', encoding='utf-8').read()
-    assert '\u2014' not in t and '\u2013' not in t, f
+    assert '—' not in t and '–' not in t, f
 print('ok; plan rozliczony:', sorted(plan))

@@ -643,6 +643,7 @@ w(naglowek('Plan naprawczy wydania 13 · rozliczenie dwunastu pozycji', html.esc
 
 def kom_plan13(c, txt, wiersz, nag):
     if nag[c].lower().startswith('stan'):
+        txt = txt.replace('*', '')
         k = txt.lower()
         kl = 'ok' if k.startswith('wykonan') else 'part' if k.startswith('częściow') else 'open' if k.startswith('niewykonan') else 'info'
         return f'<span class="chip {kl}">{html.escape(txt)}</span>'

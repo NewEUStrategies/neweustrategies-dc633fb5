@@ -26,6 +26,12 @@ for czesc in ['r18e1.md', 'r18a.md', 'r18b.md', 'r18d.md', 'r18e2.md', 'r18c.md'
         assert biezaca is not None, f'{czesc}: tekst przed pierwszym naglowkiem: {linia[:60]}'
         biezaca.append(linia)
 assert naglowek18 and sorted(sekcje) == list(range(1, 16)), sorted(sekcje)
+# krytyk kompletnosci (r18f.md, jesli jest) dochodzi na koniec 18.14 jako podsekcja ####
+import os
+if os.path.exists(f'{S}/r18f.md'):
+    k = czytaj('r18f.md')
+    assert k.startswith('#### '), k[:40]
+    sekcje[14] = sekcje[14] + [''] + k.split('\n')
 blok = lambda linie: re.sub(r'\n{3,}', '\n\n', '\n'.join(linie).strip('\n'))
 rozdzial = '\n\n'.join([blok(naglowek18)] + [blok(sekcje[k]) for k in range(1, 16)])
 
@@ -48,7 +54,7 @@ i18 = t.find('\n## 18. ')
 if i18 >= 0:
     t = t[:i18].rstrip('\n') + '\n'
 t = t.rstrip('\n') + '\n\n' + rozdzial + '\n'
-for zly in ('\u2014', '\u2013'):
+for zly in ('—', '–'):
     assert zly not in rozdzial, f'znak {zly!r} w rozdziale 18'
     assert zly not in czytaj('naglowek14.md'), f'znak {zly!r} w naglowku 14'
 open(DOC, 'w', encoding='utf-8').write(t)

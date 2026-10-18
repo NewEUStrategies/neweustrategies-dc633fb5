@@ -5,7 +5,7 @@ import json, collections
 S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
 SY = json.load(open(f'{S}/czesciowe14.json', encoding='utf-8'))['SYNC']
 M = json.load(open(f'{S}/migawka14.json', encoding='utf-8'))
-cl = lambda s: ' '.join(str(s or '').split()).replace('|', '/').replace('\u2014', '-').replace('\u2013', '-')
+cl = lambda s: ' '.join(str(s or '').split()).replace('|', '/').replace('—', '-').replace('–', '-')
 skr = lambda s, n: (cl(s)[: n - 1].rsplit(' ', 1)[0] + '…') if len(cl(s)) > n else cl(s)
 OBSZARY = [('sync:wdrozenie', 'Wdrożenie i wydanie'), ('sync:schemat', 'Schemat bazy a kod'), ('sync:dane', 'Dane między modułami'),
            ('sync:cache', 'Treść i cache'), ('sync:integracje', 'Integracje zewnętrzne'), ('sync:dokumentacja', 'Dokumentacja a kod'),
@@ -116,7 +116,7 @@ for k, n in obecne:
         w(f"| {n} | **{skr(r['tytul'], 140)}.** {skr(r.get('tresc'), 330)} | {skr(r.get('automatyzacja'), 330)} |")
 w('')
 txt = '\n'.join(o)
-for zly in ('\u2014', '\u2013'):
+for zly in ('—', '–'):
     txt = txt.replace(zly, '-')
 open(f'{S}/r18d.md', 'w', encoding='utf-8').write(txt + '\n')
 print('ok', len(o), 'linii; obszary', [n for _, n in obecne], 'brak', brak, '| mech tory', len(mech), 'reczne', len(reczne), dict(kc))
