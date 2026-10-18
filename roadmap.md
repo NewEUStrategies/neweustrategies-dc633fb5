@@ -2,7 +2,7 @@
 
 ## Przewijanie menu hamburgera na telefonie
 
-- [ ] Ograniczyć wpływ wyszukiwarki do wnętrza przewijanego menu i sprawdzić przewijanie oraz zamykanie na telefonie.
+- [x] Ograniczyć wpływ wyszukiwarki do wnętrza przewijanego menu i sprawdzić przewijanie oraz zamykanie na telefonie: 65 testów jednostkowych i test przeglądarkowy przechodzą; gest palca przy 393x706 przesuwa menu o 358 px, strona pod menu pozostaje zablokowana, po zamknięciu odzyskuje przewijanie; build OK.
 
 ## Weryfikacja PR #523
 
