@@ -1,0 +1,121 @@
+# Wejscia torow wydania 14: delta 5b8c77c01 -> 346012635 (PR #518), mapa ed13, rejestr defektow do rozliczenia.
+import json, os, re, subprocess, collections
+ROOT = '/home/user/neweustrategies-dc633fb5'
+S13 = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+S14 = S13.replace('ed13', 'ed14')
+OLD, NEW = '5b8c77c01', '346012635'
+os.makedirs(S14 + '/wejscie', exist_ok=True); os.makedirs(S14 + '/delta', exist_ok=True)
+K = json.load(open(S14 + '/klasy14.json'))
+now, old = K['teraz'], K['ed13']
+git = lambda *a: subprocess.run(['git', '-C', ROOT, *a], capture_output=True, text=True).stdout
+ns = {}
+for l in git('diff', '--numstat', OLD, NEW, '--', 'src').splitlines():
+    p, m, f = l.split('\t'); ns[f] = (p, m)
+st = {}
+for l in git('diff', '--name-status', '-M', OLD, NEW, '--', 'src').splitlines():
+    parts = l.split('\t'); st[parts[-1]] = parts[0][0]
+SUB = {'3': ['3a', '3b'], '22': ['22a', '22b', '22c', '22d']}
+sub_of = {}
+for k, subs in SUB.items():
+    for s in subs:
+        for x in json.load(open(f'{S13}/wejscie/modul-{s}.json'))['plikiProdukcyjne']: sub_of[x['f']] = s
+def tor_of(f, k):
+    if k not in SUB: return k
+    if f in sub_of: return sub_of[f]
+    best, bl = SUB[k][0], -1
+    for g, s in sub_of.items():
+        if (now.get(g) or {}).get('k') != k and (old.get(g) or {}).get('k') != k: continue
+        cp = len(os.path.commonprefix([f, g]))
+        if cp > bl: best, bl = s, cp
+    return best
+TORY = ['1', '2', '3a', '3b'] + [str(i) for i in range(4, 22)] + ['22a', '22b', '22c', '22d', 'X-admin-shell', 'X-design-system', 'X-i18n']
+mod_of_tor = lambda t: '3' if t in ('3a', '3b') else ('22' if t.startswith('22') else t)
+prod = {t: [] for t in TORY}; tests = {}
+for f, v in now.items():
+    if v['k'] == 'NULL': continue
+    if v['t']: tests.setdefault(v['k'], []).append(f); continue
+    t = tor_of(f, v['k'])
+    if t in prod: prod[t].append({'f': f, 'loc': v['loc']})
+
+def klucz_pliku(p, modul):
+    if p.startswith('supabase/') or p.startswith('drizzle/'): return 'DB'
+    if p.startswith('.github/') or p.startswith('scripts/') or p.startswith('governance/') or re.match(r'^(vitest|playwright)[^/]*\.ts$', p) or p in ('package.json', 'bunfig.toml'): return 'CI'
+    v = now.get(p) or old.get(p)
+    if v and v['k'] != 'NULL': return tor_of(p, v['k'])
+    m = str(modul)
+    if m in SUB: return SUB[m][0]
+    return m if m in TORY else 'CI'
+def stan(p):
+    if not p: return 'nieznany'
+    if not os.path.exists(os.path.join(ROOT, p)): return 'plik_usuniety'
+    if p.startswith('src/'): return 'plik_zmieniony' if p in st else 'plik_bez_zmian'
+    return 'plik_zmieniony' if git('diff', '--name-only', OLD, NEW, '--', p).strip() else 'plik_bez_zmian'
+
+# --- rejestr: otwarte i zmienione z rejestru ed11/ed12 (stan po wydaniu 13) + nowe defekty wydania 13 ---
+rej = []
+R = json.load(open(S13 + '/rejestr-defektow.json')); S = json.load(open(S13 + '/rejestr-stan13.json'))
+for r in R:
+    s13 = S.get(r['id'], ['?'])[0]
+    if s13 == 'naprawiony': continue
+    rej.append({**{k: r[k] for k in ('id', 'zrodlo', 'waga', 'tytul', 'gdzie', 'plik', 'modul')}, 'stan13': s13})
+D = json.load(open(S13 + '/defekty13.json'))
+for d in D:
+    if d['werdykt'] not in ('POTWIERDZONY', 'BRAK'): continue
+    plik = d.get('plik') or ''
+    modul = now.get(plik, old.get(plik, {})).get('k', d.get('tor') or 'CI') if plik else (d.get('tor') or 'CI')
+    rej.append({'id': d['id'], 'zrodlo': 'ed13-' + ('potwierdzony' if d['werdykt'] == 'POTWIERDZONY' else 'zgloszony'), 'waga': d['waga'], 'tytul': d['tytul'],
+                'gdzie': f"{plik}:{d.get('linia')}", 'plik': plik, 'modul': modul, 'stan13': 'nowy w ed13'})
+KRY = json.load(open(S13 + '/migawka.json'))['KRY']
+for i, (k, v) in enumerate((k, v) for k, v in KRY.items() if k.startswith('sledztwo:') and v and v.get('odpowiedz') == 'DEFEKT'):
+    plik = v.get('plik') or ''
+    modul = now.get(plik, old.get(plik, {})).get('k', 'DB') if plik else 'DB'
+    rej.append({'id': f'K13-{i + 1}', 'zrodlo': 'ed13-krytyk', 'waga': v['waga'], 'tytul': v['tytul'], 'gdzie': f"{plik}:{v.get('linia')}", 'plik': plik, 'modul': modul, 'stan13': 'nowy w ed13'})
+for x in rej:
+    x['stanPliku'] = stan(x['plik']); x['tor'] = klucz_pliku(x['plik'], x['modul'])
+json.dump(rej, open(S14 + '/rejestr-defektow14.json', 'w'), ensure_ascii=False, indent=1)
+print('rejestr', len(rej), collections.Counter(x['zrodlo'] for x in rej), collections.Counter(x['stanPliku'] for x in rej))
+print('tory rejestru', collections.Counter(x['tor'] for x in rej).most_common())
+
+# --- mapa ed13 per tor: baza ed11 + delta ed12 (z wejscia ed13) + delta ed13 (wynik toru mapa:<tor>) ---
+SNAP = json.load(open(S13 + '/migawka.json'))
+mapy13 = {}
+for g in [f'G{i}' for i in range(1, 9)]:
+    for k, v in SNAP.get(g, {}).items():
+        if k.startswith('mapa:') and v: mapy13.setdefault(k[5:], v)
+F13 = json.load(open(S13 + '/funkcjonalnosci13.json'))['wiersze']
+lista = []
+for t in TORY:
+    mod = mod_of_tor(t)
+    files = {x['f'] for x in prod[t]}
+    nowe = [{'f': f, 'loc': now[f]['loc']} for f in sorted(files) if f not in old]
+    zm = [{'f': f, 'plus': int(ns[f][0]) if ns.get(f, ('0', '0'))[0].isdigit() else 0, 'minus': int(ns[f][1]) if ns.get(f, ('0', '0'))[1].isdigit() else 0} for f in sorted(files) if f in old and f in st]
+    usuniete = sorted(f for f, v in old.items() if not v['t'] and v['k'] != 'NULL' and tor_of(f, v['k']) == t and f not in now)
+    tk = tests.get(mod, [])
+    tnowe = [f for f in sorted(tk) if f not in old]; tzm = [f for f in sorted(tk) if f in old and f in st]
+    tusun = sorted(f for f, v in old.items() if v['t'] and v['k'] == mod and f not in now)
+    base = json.load(open(f'{S13}/delta/{t}.json'))
+    m13 = mapy13.get(t, {})
+    mapaEd13 = {'bazaEd11': base['mapaEd12'].get('bazaEd11'), 'deltaEd12': base['mapaEd12'].get('deltaEd12'),
+                'deltaEd13': {k: m13.get(k) for k in ('coPrzyszloWOknie', 'noweObszary', 'noweKluczoweFunkcje', 'stanDowodu')},
+                'rekomendacjeOtwarte': [r for r in (m13.get('rekomendacjeEd12') or []) if r.get('status') != 'wykonana'] + [{'tytul': r['tytul'], 'tresc': r['tresc'], 'status': 'nowa w ed13'} for r in (m13.get('noweRekomendacje') or [])]}
+    wz = {f['nazwa']: f.get('wzorce', []) for f in (m13.get('funkcjonalnosci') or [])}
+    fun = [{'nazwa': r['nazwa'], 'opis': r['opis'], 'wzorce': wz.get(r['nazwa'], []), 'linieEd13': round(r['linie'], 2), 'galezieEd13': round(r['galezie'], 2), 'plikiEd13': r['pliki']} for r in F13 if t in r['tor'].split('+')]
+    defs = [x for x in rej if x['tor'] == t]
+    sprawdz = [x for x in defs if x['stanPliku'] in ('plik_zmieniony', 'plik_usuniety') or x['plik'].startswith(('supabase/', 'drizzle/'))]
+    bez = [x for x in defs if x not in sprawdz]
+    skala = {'prod': len(files), 'loc': sum(x['loc'] for x in prod[t]), 'testyModulu': len(tk)}
+    uw = '' if t == mod else f'Modul {mod} podzielony na tory. Ten tor obejmuje WYLACZNIE pliki z listy plikiProdukcyjne. Testy, funkcjonalnosci i mapa dotycza CALEGO modulu - obsluz tylko to, co lezy w twoich plikach.'
+    json.dump({'tor': t, 'klucz': mod, 'nazwaToru': base.get('nazwaToru'), 'plikiProdukcyjne': prod[t], 'plikiTestoweModulu': tk, 'funkcjonalnosciEd13': fun, 'uwaga': uw}, open(f'{S14}/wejscie/modul-{t}.json', 'w'), ensure_ascii=False, indent=1)
+    json.dump({'tor': t, 'nazwaToru': base.get('nazwaToru'), 'modul': mod, 'mapaEd13': mapaEd13, 'skala': skala, 'noweWOknie': nowe, 'zmienioneWOknie': zm, 'usunieteWOknie': usuniete,
+               'testyNoweModulu': tnowe, 'testyZmienioneModulu': tzm, 'testyUsunieteModulu': tusun, 'defektyDoSprawdzenia': sprawdz,
+               'defektyWPlikachBezZmian': [{'id': x['id'], 'tytul': x['tytul'], 'gdzie': x['gdzie']} for x in bez], 'uwaga': uw}, open(f'{S14}/delta/{t}.json', 'w'), ensure_ascii=False, indent=1)
+    lista.append({'tor': t, 'prod': len(files), 'nowe': len(nowe), 'zmienione': len(zm), 'usuniete': len(usuniete), 'zmLinii': sum(z['plus'] + z['minus'] for z in zm), 'testyNowe': len(tnowe), 'testyZm': len(tzm), 'testyUsun': len(tusun), 'defSprawdz': len(sprawdz), 'defBez': len(bez), 'fun': len(fun)})
+for t in ('DB', 'CI'):
+    defs = [x for x in rej if x['tor'] == t]
+    json.dump({'tor': t, 'defektyDoSprawdzenia': defs}, open(f'{S14}/delta/{t}.json', 'w'), ensure_ascii=False, indent=1)
+    lista.append({'tor': t, 'defSprawdz': len(defs)})
+json.dump(lista, open(S14 + '/wejscie/lista.json', 'w'), ensure_ascii=False, indent=1)
+for x in lista: print(x)
+# delta bazy i CI dla przekrojow
+open(S14 + '/wejscie/db-delta.txt', 'w').write(git('diff', '--name-status', OLD, NEW, '--', 'supabase', 'drizzle'))
+open(S14 + '/wejscie/ci-delta.txt', 'w').write(git('diff', '--name-status', OLD, NEW, '--', '.github', 'scripts', 'governance', 'package.json', 'bunfig.toml', 'vitest.config.ts', 'vitest.setup.ts', 'playwright.config.ts', 'vite.config.ts', 'eslint.config.js', 'tsconfig.json'))

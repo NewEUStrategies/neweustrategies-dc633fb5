@@ -1,0 +1,46 @@
+// Pokrycie per funkcjonalnosc wydania 14 z map torow (wzorce regex agentow), ta sama metoda co funkcjonalnosci13.mjs:
+// tory dzielone scalane po (modul, nazwa), metryki na sumie plikow, porownanie z ed13 po nazwaEd13.
+import fs from "node:fs";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14";
+const P = JSON.parse(fs.readFileSync(SP + "/pokrycie14.json", "utf8")).perFile;
+const snap = JSON.parse(fs.readFileSync(SP + "/migawka14.json", "utf8"));
+const f13 = JSON.parse(fs.readFileSync(SP + "/../ed13/funkcjonalnosci13.json", "utf8")).wiersze;
+const f13map = new Map(f13.map((r) => [r.klucz + "|" + r.nazwa, r]));
+const mapy = [];
+for (const g of Object.keys(snap)) for (const w of snap[g]?.wyniki ?? []) if (w?.mapa) mapy.push({ tor: w.tor, mapa: w.mapa });
+const pc = (a, b) => (b ? (100 * a) / b : 100);
+const wiersze = [], martweWzorce = [], zle = [], torPokrycie = [];
+const trafienia = new Map();
+const scal = new Map();
+for (const w of mapy) {
+  const lane = JSON.parse(fs.readFileSync(`${SP}/wejscie/modul-${w.tor}.json`, "utf8")).plikiProdukcyjne.map((x) => x.f).filter((f) => P[f]);
+  const objete = new Set();
+  for (const fn of w.mapa.funkcjonalnosci ?? []) {
+    const res = []; for (const s of fn.wzorce ?? []) { try { res.push([s, new RegExp(s)]); } catch { zle.push([w.tor, fn.nazwa, s]); } }
+    const pliki = lane.filter((f) => res.some(([, re]) => re.test(f)));
+    for (const [s, re] of res) if (!lane.some((f) => re.test(f))) martweWzorce.push([w.tor, fn.nazwa, s]);
+    const klucz = w.tor.replace(/[a-d]$/, "");
+    const id = klucz + "|" + fn.nazwa;
+    const e = scal.get(id) ?? { tory: [], klucz, nazwa: fn.nazwa, nowa: true, nazwaEd13: "", opis: fn.opis, pliki: new Set() };
+    e.tory.push(w.tor); e.nowa = e.nowa && !!fn.nowa; if (fn.nazwaEd13 && !e.nazwaEd13) e.nazwaEd13 = fn.nazwaEd13;
+    if ((fn.opis ?? "").length > (e.opis ?? "").length) e.opis = fn.opis;
+    for (const f of pliki) { e.pliki.add(f); objete.add(f); }
+    scal.set(id, e);
+  }
+  torPokrycie.push({ tor: w.tor, pliki: lane.length, objete: objete.size, nieobjete: lane.filter((f) => !objete.has(f)) });
+}
+for (const [, e] of scal) {
+  const a = { L: 0, Lc: 0, F: 0, Fc: 0, B: 0, Bc: 0, zero: 0, dead: 0 };
+  for (const f of e.pliki) { const p = P[f]; a.L += p.L; a.Lc += p.Lc; a.F += p.F; a.Fc += p.Fc; a.B += p.B; a.Bc += p.Bc; a.dead += p.dead.length; if (p.L && !p.Lc) a.zero++; (trafienia.get(f) ?? trafienia.set(f, new Set()).get(f)).add(e.klucz + "|" + e.nazwa); }
+  const o = e.nazwaEd13 ? f13map.get(e.klucz + "|" + e.nazwaEd13) : null;
+  wiersze.push({ tor: e.tory.join("+"), klucz: e.klucz, nazwa: e.nazwa, nowa: e.nowa, nazwaEd13: e.nazwaEd13, ed13Znaleziona: !!o, opis: e.opis, pliki: e.pliki.size, zero: a.zero, loc: a.L, niepokryte: a.L - a.Lc, linie: pc(a.Lc, a.L), galezie: pc(a.Bc, a.B), funkcje: pc(a.Fc, a.F), fn: `${a.Fc}/${a.F}`, martwe: a.dead, ed13Linie: o?.linie ?? null, ed13Galezie: o?.galezie ?? null, ed13Pliki: o?.pliki ?? null, zerowePliki: [...e.pliki].filter((f) => P[f].L && !P[f].Lc) });
+}
+const wiele = [...trafienia.values()].filter((n) => n.size > 1).length;
+const wszystkie = torPokrycie.reduce((a, t) => a + t.pliki, 0), objete = torPokrycie.reduce((a, t) => a + t.objete, 0);
+const nazwy13 = new Set(f13.map((r) => r.klucz + "|" + r.nazwa));
+const przeniesione = new Set(wiersze.filter((w) => w.ed13Znaleziona).map((w) => w.klucz + "|" + w.nazwaEd13));
+const nieprzeniesione = [...nazwy13].filter((n) => !przeniesione.has(n));
+fs.writeFileSync(SP + "/funkcjonalnosci14.json", JSON.stringify({ wiersze, martweWzorce, zle, torPokrycie, wiele, nieprzeniesione, tory: mapy.map((m) => m.tor) }, null, 1));
+console.log(`tory z mapa: ${mapy.length} | funkcjonalnosci: ${wiersze.length} (nowych ${wiersze.filter((w) => w.nowa).length}, z nazwa ed13 znaleziona ${wiersze.filter((w) => w.ed13Znaleziona).length}) | pustych: ${wiersze.filter((w) => !w.pliki).length}`);
+console.log(`taksonomia: ${objete}/${wszystkie} plikow torow (${pc(objete, wszystkie).toFixed(2)}%) | w >1 funkcjonalnosci: ${wiele} | martwe wzorce: ${martweWzorce.length} | bledne regex: ${zle.length} | nazwy ed13 nieprzeniesione: ${nieprzeniesione.length}`);
+for (const t of torPokrycie) if (pc(t.objete, t.pliki) < 95) console.log(`   tor ${t.tor}: ${t.objete}/${t.pliki} (${pc(t.objete, t.pliki).toFixed(1)}%)`);

@@ -1,0 +1,22 @@
+// Lighthouse 13.5.0 (ta sama wersja co PSI 2026-10-18). Pelny raport JSON per przebieg - do analizy filmstripu,
+// insightow (LCP breakdown, render-blocking, cache, obrazy) i zadan sieciowych. Wznawialny.
+// Uzycie: node pomiar14.mjs <etykieta> <url> <desktop|mobile> <N> [przedrostek]
+import fs from "node:fs";
+import { execFileSync } from "node:child_process";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/lh";
+const [etykieta, url, profil, nArg, przed = "run"] = process.argv.slice(2);
+const N = Number(nArg ?? 1);
+const flags = `--headless=new --no-sandbox --disable-dev-shm-usage --proxy-server=${process.env.HTTPS_PROXY}`;
+for (let i = 1; i <= N; i++) {
+  const out = `${SP}/raporty/${przed}-${etykieta}-${profil}-${i}.json`;
+  if (fs.existsSync(out)) continue;
+  const t0 = Date.now();
+  try {
+    execFileSync(`${SP}/node_modules/.bin/lighthouse`, [url, "--quiet", "--output=json", `--output-path=${out}`, `--chrome-flags=${flags}`, "--locale=pl",
+      "--only-categories=performance,accessibility,best-practices,seo", "--max-wait-for-load=60000", ...(profil === "desktop" ? ["--preset=desktop"] : [])],
+      { env: { ...process.env, CHROME_PATH: "/opt/pw-browsers/chromium" }, stdio: ["ignore", "ignore", "pipe"], timeout: 300000 });
+  } catch (e) { fs.writeFileSync(out + ".blad.txt", String(e.stderr ?? e.message).slice(-2000)); continue; }
+  const j = JSON.parse(fs.readFileSync(out, "utf8"));
+  const a = j.audits, m = (k) => a[k]?.numericValue;
+  console.log(`${etykieta}/${profil}#${i} ${Math.round((Date.now() - t0) / 1000)}s perf=${j.categories.performance.score} FCP=${Math.round(m("first-contentful-paint"))} LCP=${Math.round(m("largest-contentful-paint"))} TBT=${Math.round(m("total-blocking-time"))} CLS=${m("cumulative-layout-shift")?.toFixed(3)} SI=${Math.round(m("speed-index"))} TTFB=${Math.round(m("server-response-time"))} bi=${j.environment?.benchmarkIndex} final=${j.finalDisplayedUrl}`);
+}
