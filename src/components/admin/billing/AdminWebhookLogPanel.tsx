@@ -200,13 +200,21 @@ export function AdminWebhookLogPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t("adminBilling.webhookStats", {
-            processed: stats.processed,
-            failed: stats.failed,
-            stuck: stats.stuck,
-          })}
-        </p>
+        {/* Błąd odczytu NIE jest pustym dziennikiem: dawniej „0 błędów" i „brak
+            zdarzeń dla tych filtrów" przy zapytaniu, które się nie udało. */}
+        {q.isError ? (
+          <p role="alert" className="text-[0.8125rem] text-destructive">
+            {q.error.message}
+          </p>
+        ) : (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t("adminBilling.webhookStats", {
+              processed: stats.processed,
+              failed: stats.failed,
+              stuck: stats.stuck,
+            })}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
@@ -249,10 +257,10 @@ export function AdminWebhookLogPanel() {
           </Button>
         </div>
 
-        {q.isLoading && (
+        {q.isPending && (
           <p className="text-[0.8125rem] text-muted-foreground">{t("adminBilling.loading")}</p>
         )}
-        {!q.isLoading && rows.length === 0 && (
+        {q.isSuccess && rows.length === 0 && (
           <p className="text-[0.8125rem] text-muted-foreground">
             {t("adminBilling.eventsTheseFilters")}
           </p>

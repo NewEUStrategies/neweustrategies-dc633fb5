@@ -236,7 +236,9 @@ export function AdminBillingPanel() {
               <Users className="h-4 w-4" /> {t("adminBilling.activeSubscriptions")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{stats.active}</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {subsQ.isError ? "-" : stats.active}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -244,7 +246,9 @@ export function AdminBillingPanel() {
               <AlertTriangle className="h-4 w-4" /> {t("adminBilling.failedPayments")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{stats.dunning}</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {subsQ.isError ? "-" : stats.dunning}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -252,7 +256,9 @@ export function AdminBillingPanel() {
               <CreditCard className="h-4 w-4" /> {t("adminBilling.scheduledCancellations")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{stats.canceling}</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {subsQ.isError ? "-" : stats.canceling}
+          </CardContent>
         </Card>
       </div>
 
@@ -392,11 +398,17 @@ export function AdminBillingPanel() {
         <TabsContent value="subscriptions" className="mt-4">
           <Card>
             <CardContent className="p-0">
-              {subsQ.isLoading ? (
+              {subsQ.isPending ? (
                 <div className="space-y-2 p-4">
                   <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
                   <div className="h-8 w-full animate-pulse rounded-[6px] bg-muted" />
                 </div>
+              ) : subsQ.isError ? (
+                // Błąd odczytu NIE jest „brakiem subskrypcji": dawniej ten sam
+                // komunikat co pusta lista i trzy zera w licznikach.
+                <p role="alert" className="p-6 text-[0.8125rem] text-destructive">
+                  {subsQ.error.message}
+                </p>
               ) : rows.length === 0 ? (
                 <p className="p-6 text-[0.8125rem] text-muted-foreground">
                   {t("adminBilling.subscriptionsYet")}

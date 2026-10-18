@@ -186,11 +186,16 @@ describe("AdminWebhookLogPanel - odczyt dziennika", () => {
     expect(screen.getByText("evt_samotne")).toBeTruthy();
   });
 
-  it("BŁĄD ODCZYTU nie udaje pustego dziennika", async () => {
+  // DEFEKT (2026-10-18): błąd odczytu kończył się komunikatem „brak zdarzeń
+  // dla tych filtrów" i statystyką „0 błędów" - czyli dokładnie pustym
+  // dziennikiem, którego test o tym tytule miał nie udawać.
+  it("BŁĄD ODCZYTU nie udaje pustego dziennika ani zerowych statystyk", async () => {
     h.readError.current = true;
     render();
 
-    await waitFor(() => expect(screen.getByText("adminBilling.eventsTheseFilters")).toBeTruthy());
+    expect((await screen.findByRole("alert")).textContent).toBe("permission denied");
+    expect(screen.queryByText("adminBilling.eventsTheseFilters")).toBeNull();
+    expect(screen.queryByText(/adminBilling\.webhookStats/)).toBeNull();
     // Kluczowe: brak wiersza z danymi - panel nie pokazuje wymyślonego stanu.
     expect(eventRows()).toHaveLength(0);
   });

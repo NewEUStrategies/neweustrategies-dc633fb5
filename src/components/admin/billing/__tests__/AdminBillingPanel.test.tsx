@@ -226,11 +226,17 @@ describe("AdminBillingPanel - trzy liczniki na górze", () => {
     expect(counters()).toEqual(["0", "0", "0"]);
   });
 
-  it("BŁĄD ODCZYTU nie udaje zerowych liczników na realnych danych", async () => {
+  // DEFEKT (2026-10-18): błąd odczytu subskrypcji kończył się komunikatem
+  // „brak subskrypcji" i trzema zerami - test o tym tytule przypinał właśnie
+  // to, czemu tytuł przeczył. Admin widział „nikt nie subskrybuje" przy
+  // nieudanym zapytaniu.
+  it("BŁĄD ODCZYTU nie udaje zerowych liczników ani pustej listy", async () => {
     h.subsError.current = true;
     render();
 
-    await waitFor(() => expect(screen.getByText("adminBilling.subscriptionsYet")).toBeTruthy());
+    expect((await screen.findByRole("alert")).textContent).toBe("permission denied");
+    expect(screen.queryByText("adminBilling.subscriptionsYet")).toBeNull();
+    expect(counters()).toEqual(["-", "-", "-"]);
     // Żaden wiersz nie jest renderowany - panel nie wymyśla stanu.
     expect(document.querySelectorAll("tbody tr")).toHaveLength(0);
   });
