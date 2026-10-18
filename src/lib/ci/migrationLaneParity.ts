@@ -36,6 +36,9 @@
 // spełnia, zostaje wyłączona pierwszego dnia. Rejestr wymusza coś słabszego, ale
 // wykonalnego: KAŻDY nowy plik w drizzle/ wymaga świadomego wpisu - wskazania
 // bliźniaka albo napisania, czemu go nie ma. Nie da się już dołożyć pliku po cichu.
+//
+// KIERUNEK ODWROTNY (supabase -> dziennik drizzle) pilnuje osobny moduł:
+// `src/lib/ci/supabaseLaneCoverage.ts` (rejestr SUPABASE_LANE_GAPS).
 import { readFileSync, readdirSync } from "node:fs";
 
 export const DRIZZLE_DIR = "drizzle/migrations";

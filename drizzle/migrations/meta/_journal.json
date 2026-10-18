@@ -2140,15 +2140,15 @@
     {
       "idx": 305,
       "version": "7",
-      "when": 1792341370072,
-      "tag": "0305_release_coupon_server_only",
+      "when": 1792314000000,
+      "tag": "0305_subscriptions_tenant_from_owner",
       "breakpoints": true
     },
     {
       "idx": 306,
       "version": "7",
-      "when": 1792345707856,
-      "tag": "0306_release_coupon_order_lock",
+      "when": 1792314060000,
+      "tag": "0306_payment_webhook_events_follow_subscription_tenant",
       "breakpoints": true
     }
   ]

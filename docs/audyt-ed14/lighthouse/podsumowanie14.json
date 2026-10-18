@@ -1,0 +1,2312 @@
+{
+  "psiZrzuty": {
+    "zrodlo": "zrzuty PageSpeed Insights od uzytkownika, 18 paz 2026 11:30 CEST, Lighthouse 13.5.0 (API PSI zwrocilo 429 - limit dzienny wspolnego projektu)",
+    "desktop": {
+      "wydajnosc": 94,
+      "ulatwienia": 92,
+      "sprawdzoneMetody": 100,
+      "seo": 100,
+      "przegladanieAgentowe": "3/3",
+      "FCP": "0,4 s",
+      "LCP": "0,5 s",
+      "TBT": "10 ms",
+      "CLS": "0,033",
+      "SI": "2,7 s",
+      "statystyki": [
+        "cache 9 KiB",
+        "blokujace renderowanie 50 ms",
+        "zestawienie LCP",
+        "dostarczanie obrazow 12 KiB",
+        "przyczyny przesuniec ukladu",
+        "obrazy bez width/height"
+      ],
+      "tasma": "4 pierwsze z 8 klatek biale"
+    },
+    "mobile": {
+      "urzadzenie": "Moto G Power, 4G",
+      "wydajnosc": 98,
+      "ulatwienia": 95,
+      "sprawdzoneMetody": 100,
+      "seo": 100,
+      "przegladanieAgentowe": "3/3",
+      "FCP": "1,7 s",
+      "LCP": "2,1 s",
+      "TBT": "0 ms",
+      "CLS": "0",
+      "SI": "3,0 s",
+      "statystyki": [
+        "blokujace renderowanie 440 ms",
+        "zestawienie LCP",
+        "cache 11 KiB",
+        "nieuzywany JS 198 KiB",
+        "1 dlugie zadanie"
+      ],
+      "zaliczone": 22,
+      "tasma": "naglowek i baner zgody od 1. klatki, okladka hero od 6. z 8"
+    }
+  },
+  "przebiegi": [
+    {
+      "plik": "raporty/mediana-glowna-pl-desktop-1.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:46:44.797Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 87,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 939.5,
+          "wynik": 0.89,
+          "tekst": "0,9 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 1139.5,
+          "wynik": 0.91,
+          "tekst": "1,1 s"
+        },
+        "total-blocking-time": {
+          "ms": 17,
+          "wynik": 1,
+          "tekst": "20 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0.0,
+          "wynik": 1,
+          "tekst": "0,033"
+        },
+        "speed-index": {
+          "ms": 4593.3,
+          "wynik": 0.05,
+          "tekst": "4,6 s"
+        },
+        "interactive": {
+          "ms": 1302.3,
+          "wynik": 1,
+          "tekst": "1,3 s"
+        },
+        "server-response-time": {
+          "ms": 5297,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 5300 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 350 ms",
+          "oszczednoscMs": {
+            "FCP": 350,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 5200 ms",
+          "oszczednoscMs": {
+            "FCP": 5200,
+            "LCP": 5200
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 1 długie zadanie",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 1
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0,5 s",
+          "oszczednoscMs": {
+            "TBT": 50
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "1,0 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-desktop-2.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:47:20.408Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 72,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 742.8,
+          "wynik": 0.96,
+          "tekst": "0,7 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 3267.0,
+          "wynik": 0.28,
+          "tekst": "3,3 s"
+        },
+        "total-blocking-time": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 5226.0,
+          "wynik": 0.03,
+          "tekst": "5,2 s"
+        },
+        "interactive": {
+          "ms": 3278.3,
+          "wynik": 0.75,
+          "tekst": "3,3 s"
+        },
+        "server-response-time": {
+          "ms": 5702,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 5700 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 270 ms",
+          "oszczednoscMs": {
+            "FCP": 250,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 12 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 5600 ms",
+          "oszczednoscMs": {
+            "FCP": 5600,
+            "LCP": 5600
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 200
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 1 długie zadanie",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 1
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0,3 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 3
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "0,8 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-desktop-3.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:47:57.345Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 88,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 872.2,
+          "wynik": 0.92,
+          "tekst": "0,9 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 1072.2,
+          "wynik": 0.93,
+          "tekst": "1,1 s"
+        },
+        "total-blocking-time": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0.0,
+          "wynik": 1,
+          "tekst": "0,001"
+        },
+        "speed-index": {
+          "ms": 4095.2,
+          "wynik": 0.09,
+          "tekst": "4,1 s"
+        },
+        "interactive": {
+          "ms": 1072.2,
+          "wynik": 1,
+          "tekst": "1,1 s"
+        },
+        "server-response-time": {
+          "ms": 4557,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 4560 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 330 ms",
+          "oszczednoscMs": {
+            "FCP": 350,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 4460 ms",
+          "oszczednoscMs": {
+            "FCP": 4450,
+            "LCP": 4450
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 2 długie zadania",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 2
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0,3 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 3
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "0,8 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-desktop-4.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:48:29.783Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 89,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 714.2,
+          "wynik": 0.97,
+          "tekst": "0,7 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 1252.4,
+          "wynik": 0.88,
+          "tekst": "1,3 s"
+        },
+        "total-blocking-time": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0.0,
+          "wynik": 1,
+          "tekst": "0,001"
+        },
+        "speed-index": {
+          "ms": 3416.4,
+          "wynik": 0.18,
+          "tekst": "3,4 s"
+        },
+        "interactive": {
+          "ms": 1254.0,
+          "wynik": 1,
+          "tekst": "1,3 s"
+        },
+        "server-response-time": {
+          "ms": 3464,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 3460 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 260 ms",
+          "oszczednoscMs": {
+            "FCP": 250,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 12 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 3360 ms",
+          "oszczednoscMs": {
+            "FCP": 3350,
+            "LCP": 3350
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 1 długie zadanie",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 1
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0,3 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 3
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "0,8 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-desktop-5.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:49:00.879Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 89,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 854.4,
+          "wynik": 0.93,
+          "tekst": "0,9 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 1054.4,
+          "wynik": 0.93,
+          "tekst": "1,1 s"
+        },
+        "total-blocking-time": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 3455.1,
+          "wynik": 0.17,
+          "tekst": "3,5 s"
+        },
+        "interactive": {
+          "ms": 1054.4,
+          "wynik": 1,
+          "tekst": "1,1 s"
+        },
+        "server-response-time": {
+          "ms": 3614,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 3610 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 310 ms",
+          "oszczednoscMs": {
+            "FCP": 300,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 12 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 3510 ms",
+          "oszczednoscMs": {
+            "FCP": 3500,
+            "LCP": 3500
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": null,
+          "tekst": null,
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 0
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0,3 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 3
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "0,8 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-mobile-1.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:49:30.887Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 92,
+        "accessibility": 95,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 1763.9,
+          "wynik": 0.9,
+          "tekst": "1,8 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 2813.9,
+          "wynik": 0.83,
+          "tekst": "2,8 s"
+        },
+        "total-blocking-time": {
+          "ms": 123.5,
+          "wynik": 0.97,
+          "tekst": "120 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4013.3,
+          "wynik": 0.8,
+          "tekst": "4,0 s"
+        },
+        "interactive": {
+          "ms": 6892.6,
+          "wynik": 0.54,
+          "tekst": "6,9 s"
+        },
+        "server-response-time": {
+          "ms": 355,
+          "wynik": 1,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 360 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 330 ms",
+          "oszczednoscMs": {
+            "FCP": 350,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 198 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 6 długich zadań",
+          "oszczednoscMs": {
+            "TBT": 100
+          },
+          "pozycje": 6
+        },
+        "bootup-time": {
+          "wynik": 0.5,
+          "tekst": "1,3 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0,
+          "tekst": "2,9 s",
+          "oszczednoscMs": {
+            "TBT": 100
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-mobile-2.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:49:59.514Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 91,
+        "accessibility": 95,
+        "best-practices": 100,
+        "seo": 92
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 1996.8,
+          "wynik": 0.84,
+          "tekst": "2,0 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 2896.8,
+          "wynik": 0.81,
+          "tekst": "2,9 s"
+        },
+        "total-blocking-time": {
+          "ms": 17,
+          "wynik": 1,
+          "tekst": "20 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4535.6,
+          "wynik": 0.72,
+          "tekst": "4,5 s"
+        },
+        "interactive": {
+          "ms": 7733.6,
+          "wynik": 0.45,
+          "tekst": "7,7 s"
+        },
+        "server-response-time": {
+          "ms": 1254,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 1250 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 610 ms",
+          "oszczednoscMs": {
+            "FCP": 600,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 1150 ms",
+          "oszczednoscMs": {
+            "FCP": 1150,
+            "LCP": 1150
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 199 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 11 długich zadań",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 11
+        },
+        "bootup-time": {
+          "wynik": 0.5,
+          "tekst": "1,4 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0.5,
+          "tekst": "2,9 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-mobile-3.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:50:26.452Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 90,
+        "accessibility": 95,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 1787.6,
+          "wynik": 0.9,
+          "tekst": "1,8 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 3137.6,
+          "wynik": 0.74,
+          "tekst": "3,1 s"
+        },
+        "total-blocking-time": {
+          "ms": 27,
+          "wynik": 1,
+          "tekst": "30 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4300.4,
+          "wynik": 0.76,
+          "tekst": "4,3 s"
+        },
+        "interactive": {
+          "ms": 6896.9,
+          "wynik": 0.54,
+          "tekst": "6,9 s"
+        },
+        "server-response-time": {
+          "ms": 1008,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 1010 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 440 ms",
+          "oszczednoscMs": {
+            "FCP": 450,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 150
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 910 ms",
+          "oszczednoscMs": {
+            "FCP": 900,
+            "LCP": 900
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 199 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 150
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 8 długich zadań",
+          "oszczednoscMs": {
+            "TBT": 50
+          },
+          "pozycje": 8
+        },
+        "bootup-time": {
+          "wynik": 0.5,
+          "tekst": "1,3 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 5
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0,
+          "tekst": "2,8 s",
+          "oszczednoscMs": {
+            "TBT": 50
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-mobile-4.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:50:50.598Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 91,
+        "accessibility": 95,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 1771.3,
+          "wynik": 0.9,
+          "tekst": "1,8 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 2821.3,
+          "wynik": 0.82,
+          "tekst": "2,8 s"
+        },
+        "total-blocking-time": {
+          "ms": 126.5,
+          "wynik": 0.96,
+          "tekst": "130 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4409.6,
+          "wynik": 0.74,
+          "tekst": "4,4 s"
+        },
+        "interactive": {
+          "ms": 5063.3,
+          "wynik": 0.76,
+          "tekst": "5,1 s"
+        },
+        "server-response-time": {
+          "ms": 1369,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 1370 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 440 ms",
+          "oszczednoscMs": {
+            "FCP": 450,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 1270 ms",
+          "oszczednoscMs": {
+            "FCP": 1250,
+            "LCP": 1250
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 198 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 6 długich zadań",
+          "oszczednoscMs": {
+            "TBT": 150
+          },
+          "pozycje": 6
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "1,2 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0,
+          "tekst": "2,6 s",
+          "oszczednoscMs": {
+            "TBT": 150
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/mediana-glowna-pl-mobile-5.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T14:51:14.951Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 91,
+        "accessibility": 95,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 1970.3,
+          "wynik": 0.85,
+          "tekst": "2,0 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 2720.3,
+          "wynik": 0.85,
+          "tekst": "2,7 s"
+        },
+        "total-blocking-time": {
+          "ms": 155,
+          "wynik": 0.94,
+          "tekst": "160 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4060.8,
+          "wynik": 0.8,
+          "tekst": "4,1 s"
+        },
+        "interactive": {
+          "ms": 7942.6,
+          "wynik": 0.43,
+          "tekst": "7,9 s"
+        },
+        "server-response-time": {
+          "ms": 857,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 860 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 460 ms",
+          "oszczednoscMs": {
+            "FCP": 450,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 150
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 760 ms",
+          "oszczednoscMs": {
+            "FCP": 750,
+            "LCP": 750
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 198 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 12 długich zadań",
+          "oszczednoscMs": {
+            "TBT": 150
+          },
+          "pozycje": 12
+        },
+        "bootup-time": {
+          "wynik": 0,
+          "tekst": "1,6 s",
+          "oszczednoscMs": {
+            "TBT": 200
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0,
+          "tekst": "3,1 s",
+          "oszczednoscMs": {
+            "TBT": 150
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/struktura-glowna-desktop-1.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/en",
+      "czas": "2026-10-18T09:38:35.159Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 86,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 92
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 955.7,
+          "wynik": 0.89,
+          "tekst": "1,0 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 1400.1,
+          "wynik": 0.84,
+          "tekst": "1,4 s"
+        },
+        "total-blocking-time": {
+          "ms": 9,
+          "wynik": 1,
+          "tekst": "10 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4381.7,
+          "wynik": 0.07,
+          "tekst": "4,4 s"
+        },
+        "interactive": {
+          "ms": 1401.3,
+          "wynik": 0.99,
+          "tekst": "1,4 s"
+        },
+        "server-response-time": {
+          "ms": 1504,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 1500 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 110 ms",
+          "oszczednoscMs": {
+            "FCP": 100,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 12 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 4140 ms",
+          "oszczednoscMs": {
+            "FCP": 4150,
+            "LCP": 4150
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 2 długie zadania",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 2
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0,6 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "1,2 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "raporty/struktura-glowna-mobile-1.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/en",
+      "czas": "2026-10-18T09:39:14.392Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 79,
+        "accessibility": 95,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 2254.3,
+          "wynik": 0.76,
+          "tekst": "2,3 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 3156.5,
+          "wynik": 0.74,
+          "tekst": "3,2 s"
+        },
+        "total-blocking-time": {
+          "ms": 192,
+          "wynik": 0.9,
+          "tekst": "190 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 9257.8,
+          "wynik": 0.13,
+          "tekst": "9,3 s"
+        },
+        "interactive": {
+          "ms": 8184.6,
+          "wynik": 0.41,
+          "tekst": "8,2 s"
+        },
+        "server-response-time": {
+          "ms": 1727,
+          "wynik": 0,
+          "tekst": "Czas odpowiedzi głównego dokumentu: 1730 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 530 ms",
+          "oszczednoscMs": {
+            "FCP": 550,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Szacunkowe przyspieszenie: 3910 ms",
+          "oszczednoscMs": {
+            "FCP": 3900,
+            "LCP": 3900
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Szacunkowe zmniejszenie rozmiaru: 198 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "Znaleziono 9 długich zadań",
+          "oszczednoscMs": {
+            "TBT": 200
+          },
+          "pozycje": 9
+        },
+        "bootup-time": {
+          "wynik": 0,
+          "tekst": "1,5 s",
+          "oszczednoscMs": {
+            "TBT": 100
+          },
+          "pozycje": 4
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0,
+          "tekst": "3,2 s",
+          "oszczednoscMs": {
+            "TBT": 200
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "slad/pl-desktop.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T09:45:45.223Z",
+      "formFactor": "desktop",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 84
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 913.2,
+          "wynik": 0.9,
+          "tekst": "0.9 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 1650.9,
+          "wynik": 0.75,
+          "tekst": "1.7 s"
+        },
+        "total-blocking-time": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 4181.3,
+          "wynik": 0.08,
+          "tekst": "4.2 s"
+        },
+        "interactive": {
+          "ms": 1652.5,
+          "wynik": 0.98,
+          "tekst": "1.7 s"
+        },
+        "server-response-time": {
+          "ms": 3529,
+          "wynik": 0,
+          "tekst": "Root document took 3,530 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Est savings of 350 ms",
+          "oszczednoscMs": {
+            "FCP": 350,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 0.5,
+          "tekst": "Est savings of 12 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Est savings of 9 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Est savings of 3,430 ms",
+          "oszczednoscMs": {
+            "FCP": 3450,
+            "LCP": 3450
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Est savings of 192 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 0.5,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 1
+        },
+        "long-tasks": {
+          "wynik": null,
+          "tekst": null,
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 0
+        },
+        "bootup-time": {
+          "wynik": 1,
+          "tekst": "0.4 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 3
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 1,
+          "tekst": "0.9 s",
+          "oszczednoscMs": {
+            "TBT": 0
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    },
+    {
+      "plik": "slad/pl-mobile.json",
+      "lighthouse": "13.5.0",
+      "url": "https://neweuropeanstrategies.com/",
+      "czas": "2026-10-18T09:46:18.386Z",
+      "formFactor": "mobile",
+      "throttling": "simulate",
+      "kategorie": {
+        "performance": 82
+      },
+      "metryki": {
+        "first-contentful-paint": {
+          "ms": 1989.9,
+          "wynik": 0.84,
+          "tekst": "2.0 s"
+        },
+        "largest-contentful-paint": {
+          "ms": 3765.3,
+          "wynik": 0.56,
+          "tekst": "3.8 s"
+        },
+        "total-blocking-time": {
+          "ms": 75.5,
+          "wynik": 0.99,
+          "tekst": "80 ms"
+        },
+        "cumulative-layout-shift": {
+          "ms": 0,
+          "wynik": 1,
+          "tekst": "0"
+        },
+        "speed-index": {
+          "ms": 5881.4,
+          "wynik": 0.48,
+          "tekst": "5.9 s"
+        },
+        "interactive": {
+          "ms": 8013.3,
+          "wynik": 0.42,
+          "tekst": "8.0 s"
+        },
+        "server-response-time": {
+          "ms": 1129,
+          "wynik": 0,
+          "tekst": "Root document took 1,130 ms"
+        }
+      },
+      "statystyki": {
+        "render-blocking-insight": {
+          "wynik": 0,
+          "tekst": "Est savings of 610 ms",
+          "oszczednoscMs": {
+            "FCP": 600,
+            "LCP": 0
+          },
+          "pozycje": 1
+        },
+        "lcp-breakdown-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        },
+        "image-delivery-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 0
+        },
+        "cache-insight": {
+          "wynik": 0.5,
+          "tekst": "Est savings of 11 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "cls-culprits-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "document-latency-insight": {
+          "wynik": 0,
+          "tekst": "Est savings of 1,030 ms",
+          "oszczednoscMs": {
+            "FCP": 1050,
+            "LCP": 1050
+          },
+          "pozycje": 3
+        },
+        "unused-javascript": {
+          "wynik": 0.5,
+          "tekst": "Est savings of 198 KiB",
+          "oszczednoscMs": {
+            "FCP": 0,
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "unsized-images": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "CLS": 0
+          },
+          "pozycje": 0
+        },
+        "long-tasks": {
+          "wynik": 1,
+          "tekst": "11 long tasks found",
+          "oszczednoscMs": {
+            "TBT": 100
+          },
+          "pozycje": 11
+        },
+        "bootup-time": {
+          "wynik": 0,
+          "tekst": "1.7 s",
+          "oszczednoscMs": {
+            "TBT": 100
+          },
+          "pozycje": 5
+        },
+        "mainthread-work-breakdown": {
+          "wynik": 0,
+          "tekst": "3.6 s",
+          "oszczednoscMs": {
+            "TBT": 100
+          },
+          "pozycje": 7
+        },
+        "network-dependency-tree-insight": {
+          "wynik": 1,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 3
+        },
+        "lcp-discovery-insight": {
+          "wynik": 0,
+          "tekst": null,
+          "oszczednoscMs": {
+            "LCP": 0
+          },
+          "pozycje": 2
+        }
+      }
+    }
+  ]
+}

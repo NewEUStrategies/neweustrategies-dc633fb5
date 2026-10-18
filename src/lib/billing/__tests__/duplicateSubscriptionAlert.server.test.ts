@@ -92,6 +92,11 @@ const {
 } = await import("@/lib/billing/duplicateSubscriptionAlert.server");
 
 const TENANT = "tenant-a";
+/**
+ * DEFAULT public_tenant_id() kolumny `subscriptions.tenant_id` pod rolą
+ * serwisową (brak nagłówka hosta): najemca DOMYŚLNY, nie najemca kupującego.
+ */
+const COLUMN_DEFAULT_TENANT = "tenant-domyslny";
 const BUYER = "user-kupujacy";
 const ADMIN = "admin-najemcy";
 const NEW_SUB = "sub_nowa";
@@ -162,8 +167,12 @@ const isLiveLookup = (chain: RecordedChain): boolean =>
 function subscriptionsResponder(): TableResponder {
   return (chain) => {
     if (chain.has("upsert") && chain.has("select")) {
-      // RETURNING niesie najemcę przypiętego triggerem z profilu właściciela.
-      return ok(scenario.inserted ? [{ id: "row-nowy", tenant_id: TENANT, user_id: BUYER }] : []);
+      // RETURNING oddaje to, co zapisano - jak baza BEZ triggera
+      // `subscriptions_pin_tenant` (pas drizzle przed 0305): brak `tenant_id`
+      // w zapisie to DEFAULT kolumny, czyli najemca domyślny.
+      const values = chain.argsOf("upsert")?.[0] as { tenant_id?: string };
+      const tenantId = values.tenant_id ?? COLUMN_DEFAULT_TENANT;
+      return ok(scenario.inserted ? [{ id: "row-nowy", tenant_id: tenantId, user_id: BUYER }] : []);
     }
     if (chain.has("update") && chain.has("select")) return ok([{ id: "row-nowy" }]);
     if (isLiveLookup(chain)) {
@@ -253,14 +262,16 @@ function mirrorResponder(rows: Map<string, MirrorRow>): TableResponder {
         provider_subscription_id: string;
       };
       if (rows.has(values.provider_subscription_id)) return ok([]);
-      // Najemcę przypina trigger z profilu właściciela - nie ładunek.
+      // Jak baza BEZ triggera `subscriptions_pin_tenant`: najemcę niesie
+      // wyłącznie zapis webhooka (profil właściciela), a jego brak to DEFAULT
+      // kolumny - najemca domyślny.
       const row = {
         trial_ends_at: null,
         first_payment_failed_at: null,
         last_event_at: null,
         ...values,
         id: `row-${values.provider_subscription_id}`,
-        tenant_id: TENANT,
+        tenant_id: values.tenant_id ?? COLUMN_DEFAULT_TENANT,
         purchase_confirmed_at: null,
         last_payment_at: null,
       } as MirrorRow;
@@ -506,7 +517,9 @@ describe("webhook: druga żywa subskrypcja planu w tym samym modelu", () => {
     expect(await deliverCreated(createdEvent())).toBe("processed");
     await settleBackground();
 
-    // Zakres z WIERSZA W BAZIE (RETURNING) - ładunek nie niesie najemcy.
+    // Zakres z WIERSZA W BAZIE (RETURNING) - ładunek nie niesie najemcy,
+    // a atrapa nie ma triggera: najemca kupującego jest tu wyłącznie dlatego,
+    // że webhook wpisał go z profilu właściciela.
     const [lookup] = liveLookups();
     expect(lookup?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
       ["tenant_id", TENANT],

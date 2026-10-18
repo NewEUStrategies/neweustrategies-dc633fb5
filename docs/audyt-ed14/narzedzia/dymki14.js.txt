@@ -1,0 +1,59 @@
+
+(function () {
+  // Opublikowana strona dostaje szkielet platformy bez atrybutu języka - czytniki ekranu potrzebują lang.
+  if (!document.documentElement.lang) document.documentElement.lang = 'pl';
+  var tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.setAttribute('role', 'tooltip');
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  var cur = null;
+  function place(x, y) {
+    var r = tip.getBoundingClientRect();
+    var vw = document.documentElement.clientWidth;
+    if (x == null && cur) {
+      var b = cur.getBoundingClientRect();
+      x = b.left + b.width / 2;
+      y = b.top;
+    }
+    var left = Math.min(Math.max(8, x - r.width / 2), vw - r.width - 8);
+    var top = y - r.height - 12;
+    if (top < 8) top = y + 22;
+    tip.style.transform = 'translate(' + Math.round(left) + 'px,' + Math.round(top) + 'px)';
+  }
+  function show(el, x, y) {
+    var t = el.getAttribute('data-tip');
+    if (!t) return;
+    cur = el;
+    tip.textContent = t;
+    tip.hidden = false;
+    place(x, y);
+  }
+  function hide() {
+    cur = null;
+    tip.hidden = true;
+  }
+  function find(n) {
+    return n && n.closest ? n.closest('[data-tip]') : null;
+  }
+  document.addEventListener('pointerover', function (e) {
+    var el = find(e.target);
+    if (el && el !== cur) show(el, e.clientX, e.clientY);
+    else if (!el && cur) hide();
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (cur && e.pointerType !== 'touch') place(e.clientX, e.clientY);
+  });
+  document.addEventListener('focusin', function (e) {
+    var el = find(e.target);
+    if (el) show(el, null, null);
+  });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hide();
+  });
+  document.addEventListener('click', function (e) {
+    if (find(e.target) && e.target.closest('[popovertarget]')) hide();
+  });
+  window.addEventListener('scroll', hide, { passive: true });
+})();
