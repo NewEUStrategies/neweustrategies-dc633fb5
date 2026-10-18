@@ -637,6 +637,19 @@ describe("przebieg platformowy - środowisko, kolejność, kursor (SUB-08)", () 
     expect(stub.chainsFor("subscriptions")).toHaveLength(3);
   });
 
+  it("bezpiecznik partii: po 1000 pełnych partiach przebieg przerywa się głośno, bez 1001. odczytu", async () => {
+    // Sufit chroni przed defektem, w którym kursor rośnie, ale okno nie ma
+    // końca. Wiersze bez daty końca okresu są pomijane bez poczty, więc
+    // tysiąc partii po jednym wierszu biegnie szybko.
+    const all = rowsWithIds(1001).map((row) => ({ ...row, current_period_end: null }));
+    const stub = givenPagedDb(all);
+
+    await expect(runBillingReminders(3, 1, NOW)).rejects.toThrow(/more than 1000 batches/);
+
+    expect(stub.chainsFor("subscriptions")).toHaveLength(1000);
+    expect(mail.sendTxEmail).not.toHaveBeenCalled();
+  });
+
   it("kursor, który się nie przesuwa, przerywa przebieg głośno", async () => {
     // Defekt bazy/atrapy oddający w kółko tę samą partię nie może zamienić
     // crona w nieskończoną wysyłkę tych samych maili.

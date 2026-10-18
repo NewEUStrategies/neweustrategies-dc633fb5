@@ -240,10 +240,12 @@ export async function runBillingReminders(
     }
 
     if (rows.length < limit) return { renewal, expiring, skipped };
-    const last = rows[rows.length - 1]?.id ?? null;
+    // Partia jest pełna (`limit` >= 1 wierszy), a `id` to klucz główny -
+    // ostatni wiersz zawsze niesie kursor.
+    const last = rows[rows.length - 1].id;
     // Kursor, który się nie przesunął, oznacza pętlę bez końca - głośno,
     // zamiast cicho wysyłać te same przypomnienia w kółko.
-    if (!last || (after !== null && last <= after)) {
+    if (after !== null && last <= after) {
       throw new Error("reminder lookup failed: cursor did not advance");
     }
     after = last;
