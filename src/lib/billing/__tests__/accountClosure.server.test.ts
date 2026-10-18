@@ -49,14 +49,22 @@ const provider = vi.hoisted(() => ({
   envs: [] as unknown[],
   /** Identyfikatory, które realnie poszły do `subscriptions.cancel`. */
   canceled: [] as unknown[],
+  /** `środowisko klienta:identyfikator` każdego udanego anulowania. */
+  canceledIn: [] as string[],
+  /** Parametry anulowania (drugi argument `subscriptions.cancel`). */
+  cancelParams: [] as unknown[],
   /** Klucze idempotencji przekazane do `subscriptions.cancel`. */
   idempotencyKeys: [] as unknown[],
   /** Identyfikatory, dla których operator ma ODMÓWIĆ (subskrypcja dalej żyje). */
   refuse: new Set<string>(),
   /** Subskrypcje JUŻ zamknięte u operatora (anulowanie odbija się, odczyt: `canceled`). */
   alreadyCanceled: new Set<string>(),
+  /** Subskrypcje wygasłe bez pierwszej płatności (anulowanie odbija się, odczyt: `incomplete_expired`). */
+  expired: new Set<string>(),
   /** Wyniki Search po `metadata.userId`, per środowisko. */
   searchResults: {} as Record<string, unknown[]>,
+  /** Zapytania Search: środowisko KLIENTA, który je wysłał, i parametry. */
+  searches: [] as { env: string; params: unknown }[],
   /** Search ma paść (np. indeks niedostępny). */
   searchFails: false,
   /** Odczyt `retrieve` po odmowie anulowania ma paść tym błędem (per subskrypcja). */
@@ -83,7 +91,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
       }
       return {
         subscriptions: {
-          cancel: (id: string, _params?: unknown, options?: { idempotencyKey?: string }) => {
+          cancel: (id: string, params?: unknown, options?: { idempotencyKey?: string }) => {
             if (provider.refuse.has(id) || provider.alreadyCanceled.has(id)) {
               return Promise.reject(
                 Object.assign(new Error(`No such subscription: ${id}`), {
@@ -92,7 +100,16 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
                 }),
               );
             }
+            if (provider.expired.has(id)) {
+              return Promise.reject(
+                Object.assign(new Error(`Subscription ${id} is no longer active`), {
+                  type: "invalid_request_error",
+                }),
+              );
+            }
             provider.canceled.push(id);
+            provider.canceledIn.push(`${env}:${id}`);
+            provider.cancelParams.push(params);
             provider.idempotencyKeys.push(options?.idempotencyKey);
             return Promise.resolve({ id, status: "canceled" });
           },
@@ -103,16 +120,22 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
               ? Promise.reject(provider.retrieveFails.get(id))
               : Promise.resolve({
                   id,
-                  status: provider.alreadyCanceled.has(id) ? "canceled" : "active",
+                  status: provider.alreadyCanceled.has(id)
+                    ? "canceled"
+                    : provider.expired.has(id)
+                      ? "incomplete_expired"
+                      : "active",
                 }),
-          search: () =>
-            provider.searchFails
+          search: (params: unknown) => {
+            provider.searches.push({ env, params });
+            return provider.searchFails
               ? Promise.reject(new Error("search index unavailable"))
               : Promise.resolve({
                   data: provider.searchResults[env] ?? [],
                   has_more: false,
                   next_page: null,
-                }),
+                });
+          },
         },
       };
     },
@@ -121,6 +144,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
 
 const mail = vi.hoisted(() => ({
   sent: [] as { type: string; to: string; idempotencyKey: string | undefined }[],
+  /** Zmienne treści każdego wysłanego maila (`bodyVars`), w kolejności wysyłki. */
+  bodies: [] as unknown[],
   throws: false,
 }));
 
@@ -128,15 +153,22 @@ vi.mock("@/lib/email/transactional.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/email/transactional.server")>();
   return {
     ...actual,
-    sendTxEmail: (input: { type: string; to: string; idempotencyKey?: string }) => {
+    sendTxEmail: (input: {
+      type: string;
+      to: string;
+      idempotencyKey?: string;
+      bodyVars?: unknown;
+    }) => {
       if (mail.throws) return Promise.reject(new Error("dostawca poczty nie odpowiada"));
       mail.sent.push({ type: input.type, to: input.to, idempotencyKey: input.idempotencyKey });
+      mail.bodies.push(input.bodyVars);
       return Promise.resolve({ ok: true });
     },
   };
 });
 
 import { closeBillingForUser } from "@/lib/billing/accountClosure.server";
+import { formatDate } from "@/lib/email/transactional.server";
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const SOMEONE_ELSE = "22222222-2222-4222-8222-222222222222";
@@ -297,16 +329,21 @@ beforeEach(() => {
   vi.stubEnv("LOVABLE_API_KEY", "");
   provider.envs.length = 0;
   provider.canceled.length = 0;
+  provider.canceledIn.length = 0;
+  provider.cancelParams.length = 0;
   provider.idempotencyKeys.length = 0;
   provider.refuse.clear();
   provider.alreadyCanceled.clear();
+  provider.expired.clear();
   provider.searchResults = {};
+  provider.searches.length = 0;
   provider.searchFails = false;
   provider.retrieveFails.clear();
   provider.clientFails.clear();
   db.rpcCalls.length = 0;
   db.rpcError = null;
   mail.sent.length = 0;
+  mail.bodies.length = 0;
   mail.throws = false;
   seed();
 });
@@ -342,6 +379,15 @@ describe("konto Z AKTYWNĄ subskrypcją", () => {
     expect(updates()[0]).toMatchObject({ cancel_at_period_end: false });
     // U operatora poszło `subscriptions.cancel`, a nie `update`.
     expect(provider.canceled).toEqual(["sub_stripe_1"]);
+  });
+
+  it("anulowanie BEZ faktury końcowej i bez proracji - domyślne parametry operatora", async () => {
+    // `invoice_now` wystawia fakturę końcową z oczekującymi pozycjami (w tym
+    // proracją z `prorate`) i próbuje ją pobrać - obciążenie karty osoby, której
+    // konto właśnie znika, bez panelu, w którym mogłaby je zobaczyć.
+    await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(provider.cancelParams).toEqual([{}]);
   });
 
   it("zapis celuje w KONKRETNĄ subskrypcję i KONKRETNE środowisko bramki", async () => {
@@ -524,6 +570,22 @@ describe("izolacja: CUDZE konto i cudze środowisko", () => {
     );
   });
 
+  it("zapytanie o darowizny zawęża się do TEGO użytkownika, rat cyklicznych z subskrypcją i dozwolonych środowisk", async () => {
+    // Atrapa `donations` sama odsiewa raty jednorazowe i puste referencje,
+    // więc o tych filtrach rozstrzyga dopiero łańcuch zapytania.
+    await closeBillingForUser(ME, MY_EMAIL);
+
+    const lookup = db.current!.chainsFor("donations").find((c) => !c.has("update"))!;
+    expect(
+      lookup.calls.filter((c) => c.method !== "select").map((c) => [c.method, ...c.args]),
+    ).toEqual([
+      ["eq", "user_id", ME],
+      ["eq", "recurring", true],
+      ["in", "environment", ["sandbox", "live"]],
+      ["not", "provider_subscription_id", "is", null],
+    ]);
+  });
+
   it("subskrypcja INNEGO użytkownika nie jest anulowana przy zamykaniu mojego konta", async () => {
     seed({ rows: [subscription({ user_id: SOMEONE_ELSE, provider_subscription_id: "sub_obcy" })] });
 
@@ -645,6 +707,26 @@ describe("odmowa anulowania: odczyt u operatora rozstrzyga, czy subskrypcja żyj
     },
   );
 
+  it("subskrypcja WYGASŁA przed pierwszą płatnością (`incomplete_expired`) nie blokuje usunięcia", async () => {
+    // Rata darowizny, której pierwsza płatność nigdy nie przeszła: wiersz
+    // `donations` czytamy bez filtra statusu, więc trafia do zamknięcia.
+    // Operator odbija anulowanie, a odczyt mówi „wygasła" - taka subskrypcja
+    // już nigdy nie obciąży karty. Uznanie jej za żywą blokowałoby usunięcie
+    // konta na zawsze, bo każde ponowienie kończy się tą samą odmową.
+    provider.expired.add("sub_darowizna_1");
+    seed({ rows: [], donations: [donationSub()] });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 0, failed: [] });
+    expect(provider.canceled).toEqual([]);
+    const donationUpdate = db.current!.chainsFor("donations").find((c) => c.has("update"))!;
+    expect(donationUpdate.argsOf("update")?.[0]).toEqual({ status: "canceled" });
+    expect(db.rpcCalls).toEqual([
+      { fn: "payment_webhook_events_redact_for_user", args: { p_user_id: ME } },
+    ]);
+  });
+
   it.each([
     ["błąd sieci bez kodu", new Error("socket hang up")],
     ["inny błąd operatora", Object.assign(new Error("Too many requests"), { code: "rate_limit" })],
@@ -752,6 +834,21 @@ describe("awarie bazy", () => {
 
 // ===========================================================================
 describe("mail potwierdzający - ścieżka poboczna, nie krytyczna", () => {
+  it("mail nazywa anulowany plan i kończy dostęp z chwilą zamknięcia konta", async () => {
+    // Cena z wiersza (`plus_monthly`) prowadzi do planu najemcy konta, a koniec
+    // dostępu to moment anulowania - nie koniec opłaconego okresu, bo
+    // anulowanie jest natychmiastowe.
+    await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(mail.bodies).toEqual([
+      expect.objectContaining({
+        planName: "Członek",
+        renewsAt: null,
+        accessUntil: formatDate(NOW_ISO, "pl"),
+      }),
+    ]);
+  });
+
   it("brak adresu = brak maila, ale subskrypcja i tak jest anulowana", async () => {
     const result = await closeBillingForUser(ME, null);
 
@@ -927,6 +1024,27 @@ describe("SUB-11: aktywna darowizna cykliczna", () => {
     await expect(closeBillingForUser(ME, MY_EMAIL)).rejects.toThrow(/konto nie zostało usunięte/);
   });
 
+  it("darowizna z INNEGO środowiska niż wdrożenie zamyka się klientem i wierszem swojego środowiska", async () => {
+    // Poza produkcją wdrożenie pracuje na piaskownicy, a darowizna żyje
+    // w `live`: anulowanie kluczem piaskownicy trafiłoby do innej instancji
+    // operatora, a zapis z `environment = sandbox` - w nie ten wiersz.
+    seed({
+      rows: [],
+      donations: [donationSub({ environment: "live", provider_subscription_id: "sub_live" })],
+    });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 1, failed: [] });
+    expect(provider.canceledIn).toEqual(["live:sub_live"]);
+    const donationUpdate = db.current!.chainsFor("donations").find((c) => c.has("update"))!;
+    expect(donationUpdate.calls.filter((c) => c.method === "eq").map((c) => [...c.args])).toEqual([
+      ["provider_subscription_id", "sub_live"],
+      ["environment", "live"],
+      ["status", "pending"],
+    ]);
+  });
+
   it("w produkcji darowizna z piaskownicy nie jest ruszana - test nie pobiera pieniędzy", async () => {
     vi.stubEnv("NODE_ENV", "production");
     seed({
@@ -958,13 +1076,74 @@ describe("SUB-11: subskrypcja, której webhook nie dotarł (Search po metadata.u
 
     expect(result).toEqual({ canceled: 2, failed: [] });
     expect(provider.canceled).toEqual(["sub_stripe_1", "sub_zgubiona"]);
+    // Trafienie Search nie nadpisuje celu z NASZEGO wiersza: plan dalej
+    // dostaje mail potwierdzający (Search sam w sobie maila nie wysyła).
+    expect(mail.sent).toEqual([
+      {
+        type: "subscription_canceled",
+        to: "profil-konta@example.org",
+        idempotencyKey: "subscription_canceled:account-closure:sub_stripe_1",
+      },
+    ]);
   });
 
-  it("cudza albo już zamknięta subskrypcja z wyniku Search NIE jest anulowana", async () => {
+  it("darowizna znana WYŁĄCZNIE operatorowi zamyka wiersz oczekujący darowizny, nie plan", async () => {
+    // `metadata.purpose = donation` rozstrzyga ścieżkę: zamyka się oczekująca
+    // rata (opłacone zostają jako dowody), a `subscriptions` i uprawnienia do
+    // treści nie są ruszane - darowizna ich nie ma.
+    stubOperatorKeys();
+    seed({ rows: [] });
+    provider.searchResults.sandbox = [
+      { id: "sub_zgubiona", status: "active", metadata: { userId: ME, purpose: "donation" } },
+    ];
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 1, failed: [] });
+    const donationUpdate = db.current!.chainsFor("donations").find((c) => c.has("update"))!;
+    expect(donationUpdate.argsOf("update")?.[0]).toEqual({ status: "canceled" });
+    expect(donationUpdate.calls.filter((c) => c.method === "eq").map((c) => [...c.args])).toEqual([
+      ["provider_subscription_id", "sub_zgubiona"],
+      ["environment", "sandbox"],
+      ["status", "pending"],
+    ]);
+    expect(updates()).toEqual([]);
+    expect(db.current!.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(mail.sent).toEqual([]);
+  });
+
+  it("Search pyta KAŻDE dozwolone środowisko jego własnym klientem; znalezisko zamyka się tam, gdzie żyje", async () => {
+    // Poza produkcją dozwolone są oba środowiska. Subskrypcja istniejąca
+    // wyłącznie w `live` musi zostać znaleziona klientem `live` i anulowana
+    // w `live` - klucz piaskownicy jej nie widzi i jej nie zamknie.
+    stubOperatorKeys();
+    vi.stubEnv("STRIPE_LIVE_API_KEY", "sk_live_atrapa");
+    seed({ rows: [] });
+    provider.searchResults.live = [
+      { id: "sub_live_zgubiona", status: "active", metadata: { userId: ME } },
+    ];
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 1, failed: [] });
+    expect(provider.searches).toEqual([
+      { env: "sandbox", params: { query: `metadata['userId']:'${ME}'`, limit: 100 } },
+      { env: "live", params: { query: `metadata['userId']:'${ME}'`, limit: 100 } },
+    ]);
+    expect(provider.canceledIn).toEqual(["live:sub_live_zgubiona"]);
+    const update = db.current!.chainsFor("subscriptions").find((c) => c.has("update"))!;
+    expect(update.calls.filter((c) => c.method === "eq").map((c) => [...c.args])).toEqual([
+      ["provider_subscription_id", "sub_live_zgubiona"],
+      ["environment", "live"],
+    ]);
+  });
+
+  it("cudza albo już zamknięta (także wygasła) subskrypcja z wyniku Search NIE jest anulowana", async () => {
     stubOperatorKeys();
     provider.searchResults.sandbox = [
       { id: "sub_cudza", status: "active", metadata: { userId: SOMEONE_ELSE } },
       { id: "sub_zamknieta", status: "canceled", metadata: { userId: ME } },
+      { id: "sub_wygasla", status: "incomplete_expired", metadata: { userId: ME } },
     ];
 
     const result = await closeBillingForUser(ME, MY_EMAIL);
@@ -1029,6 +1208,18 @@ describe("SUB-11: subskrypcja, której webhook nie dotarł (Search po metadata.u
 
     await expect(closeBillingForUser(ME, MY_EMAIL)).resolves.toEqual({ canceled: 0, failed: [] });
     expect(provider.envs).toEqual([]);
+  });
+
+  it("klucz bramki BEZ klucza połączenia (`LOVABLE_API_KEY`) to też brak operatora - Search nie blokuje", async () => {
+    // Prawdziwy klient bez klucza połączenia nie powstanie, więc Search
+    // padałby za każdym razem i żadnego konta nie dałoby się usunąć.
+    vi.stubEnv("STRIPE_SANDBOX_API_KEY", "sk_test_atrapa");
+    provider.searchFails = true;
+    seed({ rows: [] });
+
+    await expect(closeBillingForUser(ME, MY_EMAIL)).resolves.toEqual({ canceled: 0, failed: [] });
+    expect(provider.envs).toEqual([]);
+    expect(provider.searches).toEqual([]);
   });
 });
 
