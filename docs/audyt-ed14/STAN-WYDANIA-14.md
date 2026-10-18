@@ -39,6 +39,40 @@ W tym samym oknie doszły nowe bramki: `check:sql-definer-views`, `check:migrati
 Trzy pliki pgTAP mają `plan(N)` niezgodny z liczbą asercji (`reg_foundations_test.sql`,
 `metering_concurrency_test.sql`, `subscriptions_payment_grace_columns_test.sql`): plan 4 588, asercji 4 574.
 
+## Pomiar pokrycia: wynik
+
+Dwanaście shardów (`--shard=N/12`, raport blob) scalonych jak w CI, provider `istanbul`, ta sama reguła mianownika co
+w wydaniu 13 (cały `src/`). Pliki: `pokrycie14.json` (per plik i per moduł), `pokrycie14-delta.json` (zera, spadki,
+nowe pliki, progi), `przebieg14.json` (wynik suity).
+
+| Metryka                  | Wydanie 13 | Wydanie 14 |
+| ------------------------ | ---------: | ---------: |
+| Pliki w mianowniku       |      3 972 |      4 216 |
+| Linie                    |     98,84% |     95,69% |
+| Instrukcje               |     98,00% |     94,64% |
+| Funkcje                  |     98,32% |     94,05% |
+| Gałęzie                  |     94,02% |     90,15% |
+| Pliki na zerze           |         14 |         61 |
+| Niepokryte linie         |      1 570 |      6 628 |
+| Martwe funkcje (nazwane) |         68 |        309 |
+
+**Suita jest zielona:** 3 421 plików testowych, 86 026 przypadków, 0 czerwonych, 51 pominiętych. Próg globalny
+(instrukcje 79, funkcje 77, linie 80, gałęzie 73) ma 15,6-17,2 pp zapasu, więc nic go nie narusza.
+
+**Spadek to w większości skutek decyzji, nie regresji kodu.** Commit `c3f0c0e72` usunął 215 plików testów,
+które według jego opisu pisano pod liczbę, a nie pod zachowanie. 56 z 61 plików na zerze miało w wydaniu 13
+pokrycie: 40 edytorów bloków (`src/components/admin/blocks/edit/`) przejeżdżała macierz `blockEditMatrix`
+(6 części, po rejestrze edytorów), 9 widoków bloków macierz `blockMatrix` (po `BLOCK_RENDERERS`), a 5 pulpitów
+analitycznych osobne testy renderu. Wszystkie te pliki testów usunięto w tym commicie. Teraz liczba mówi
+uczciwie, że tych ekranów nie sprawdza żaden test zachowania. Na zerze jest też 5 nowych plików z okna:
+`RangeScale.tsx`, `settlementStatus.functions.ts`, `eventInvoiceFx.functions.ts`, `eventInvoiceVies.functions.ts`
+i trasa `admin.billing-settlements.tsx`.
+
+Moduły z największą zmianą linii: 3 (silniki treści: bloki i page builder) 88,29% (-10,44 pp, 49 plików na zerze), 17 (analityka
+i BI) 90,46% (-7,58 pp; funkcje -12,04 pp), 20 (platforma, backend, SSR) 91,44% (-7,33 pp), 8 (SEO, feedy, dane strukturalne) 96,13%
+(-3,46 pp). W górę: moduł 4 98,26% (+5,38 pp, cztery ekrany zeszły z zera) i moduł 12 100% (+1,84 pp).
+269 nowych plików z okna ma razem 95,57% linii i 86,97% gałęzi.
+
 ## Mapa powiązań modułów (graf importów)
 
 Narzędzie: `narzedzia/graf14.mjs.txt`, wynik: `graf14.json`.
@@ -76,10 +110,44 @@ w rozdziale 18, liczby lokalne są zebrane pod obciążeniem pomiarem pokrycia, 
 Klatki z krzywej kompletności wizualnej: `lighthouse/klatki/`, podsumowanie przebiegów:
 `lighthouse/podsumowanie14.json`.
 
+## Wyniki częściowe agentów (przed scaleniem)
+
+Plik `agenci/wyniki-czesciowe14.json` to surowe wyniki agentów, które skończyły pracę przed limitem sesji: mapy
+modułów, nowe defekty i rozliczenie rejestru. Agenci sami sprawdzają swoje ustalenia (pole `samosprawdzenie`,
+pewność `pewny` albo `prawdopodobny`). Etapu obalania nie ma. Do rozdziału 18 trafi dopiero wersja scalona.
+Do tej pory:
+
+- **45 nowych defektów:** 1 krytyczny, 3 wysokie, 14 średnich, 27 niskich.
+- **Rozliczenie 103 pozycji rejestru:** 27 naprawionych, 14 zmienionych, 62 otwarte.
+
+Najpoważniejsze:
+
+1. **Krytyczny, prawdopodobny.** Migracja `20261007140300_subscriptions_tenant_from_owner` (trigger, który
+   przypina subskrypcji najemcę z profilu właściciela) istnieje tylko w pasie supabase. W pasie drizzle nie ma
+   jej bliźniaka, a webhook `webhookDispatch.server.ts` zapisuje subskrypcję bez `tenant_id` i liczy na ten
+   trigger. Rozjazd pasów sprawdziłem sam: w `drizzle/migrations` nie ma `subscriptions_pin_tenant`.
+   Skutek na produkcji zależy od tego, czy migrację zastosowano tam inną drogą.
+2. **Wysoki, prawdopodobny.** Z tego samego powodu w pasie drizzle brakuje `20261007140200_release_coupon_server_only`.
+3. **Wysoki, pewny.** Wyszukiwanie głosowe (Web Speech w trybie `continuous`) wysyła frazę przy każdym
+   kolejnym zdarzeniu po pierwszym wyniku końcowym: seria nawigacji do `/search`, wpisów w „ostatnich” i logów
+   `log_search_query`.
+4. **Wysoki, pewny.** Zbiorcze wycofanie zgody marketingowej przez super admina w zakresie „Wszystkie tenanty”
+   po cichu nie wycofuje zgody kontaktom innych najemców, a panel i dziennik audytu raportują sukces.
+
+Dwie obserwacje z przekrojów, istotne dla mapy synchronizacji i dla Speed Index:
+
+- **Bramka pasów działa w jedną stronę.** `check:migration-lanes` wymaga decyzji dla każdego wpisu dziennika
+  drizzle, ale migracji obecnej tylko w pasie supabase nie widzi. Według skanu agenta 29 z 252 migracji
+  supabase od 2026-09-20 nie ma w drizzle odpowiednika o tym samym SQL-u, w tym 22 z 7-9 października.
+- **Okładka strony głównej przychodzi prawie na końcu strumienia.** W zimnym dokumencie (`x-nes-cache: MISS`)
+  sekcja hero jest za granicą `Suspense` i przychodzi jako przedostatni segment, na ok. 81% długości dokumentu.
+  Rozgrzewka danych nad zgięciem liczy budżet od wspólnego terminu 600 ms. Gdy pobranie strony i trybu trwa
+  dłużej, budżet spada do zera, a preload obrazu hero nie trafia do `<head>`.
+
 ## W toku
 
-- Pełny pomiar pokrycia w 12 shardach na `346012635` (moduły, funkcje, funkcjonalności, linie, gałęzie,
-  instrukcje, pliki na zerze, martwe funkcje).
+- Pokrycie per funkcjonalność (z wzorców map agentów) po dokończeniu torów.
+- Dokończenie agentów przerwanych limitem sesji (31 z 84).
 - Tory agentów T1-T9: mapa każdego modułu względem wydania 13, powiązania i synchronizacja, nowe defekty,
   rozliczenie rejestru 341 otwartych defektów (`rejestr-defektow14.json`). Bez etapu obalania.
 - Śledztwo Speed Index (4 ścieżki + synteza z rekomendacjami) i mapa synchronizacji z rozliczeniem planu 17.15.

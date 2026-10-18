@@ -14,6 +14,8 @@ done
 if [ "$(ls .vitest-reports/blob-*-$N.json 2>/dev/null | wc -l)" = "$N" ]; then
   echo "merge: start $(date -u +%FT%TZ)" >> $SP/shardy/postep.log
   rm -rf coverage
-  npx vitest run --merge-reports --coverage --reporter=dot --reporter=json --outputFile.json=$SP/vitest-results.json > $SP/shardy/merge.log 2>&1
+  npx vitest run --config vitest.shard.config.ts --merge-reports .vitest-reports --coverage --reporter=dot --reporter=json --outputFile.json=$SP/vitest-results.json > $SP/shardy/merge.log 2>&1
   echo "merge: EXIT $? koniec $(date -u +%FT%TZ)" >> $SP/shardy/postep.log
 fi
+# Uwaga wydania 14: Vitest 5 domyslnie szuka blobow w .vitest/blob - bez jawnej sciezki --merge-reports
+# konczy sie ENOENT (pierwsze scalenie 10:34 UTC). Scalenie powtorzone ta komenda o 14:34 UTC, shardy bez zmian.

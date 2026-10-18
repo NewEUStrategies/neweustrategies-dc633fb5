@@ -1,0 +1,1279 @@
+{
+  "zera14": [
+    {
+      "f": "src/components/admin/analytics/ClientErrorsDashboard.tsx",
+      "k": "17",
+      "L": 37,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/analytics/Ga4BiDashboard.tsx",
+      "k": "17",
+      "L": 154,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/analytics/GscBiDashboard.tsx",
+      "k": "17",
+      "L": 198,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/analytics/RelatedPostsAnalytics.tsx",
+      "k": "17",
+      "L": 124,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/analytics/VitalsBiDashboard.tsx",
+      "k": "17",
+      "L": 101,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Affiliate.tsx",
+      "k": "3",
+      "L": 15,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Archives.tsx",
+      "k": "3",
+      "L": 7,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Audio.tsx",
+      "k": "3",
+      "L": 10,
+      "ed13": "90.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Button.tsx",
+      "k": "3",
+      "L": 7,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Buttons.tsx",
+      "k": "3",
+      "L": 19,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Calendar.tsx",
+      "k": "3",
+      "L": 4,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/CategoriesList.tsx",
+      "k": "3",
+      "L": 9,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Code.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Columns.tsx",
+      "k": "3",
+      "L": 5,
+      "ed13": "80.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Compare.tsx",
+      "k": "3",
+      "L": 12,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ContextBlocks.tsx",
+      "k": "3",
+      "L": 43,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Details.tsx",
+      "k": "3",
+      "L": 7,
+      "ed13": "85.7%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Embed.tsx",
+      "k": "3",
+      "L": 5,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Faq.tsx",
+      "k": "3",
+      "L": 23,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/File.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Gallery.tsx",
+      "k": "3",
+      "L": 21,
+      "ed13": "95.2%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Html.tsx",
+      "k": "3",
+      "L": 5,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/LatestPosts.tsx",
+      "k": "3",
+      "L": 11,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/LiveBlog.tsx",
+      "k": "3",
+      "L": 10,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/LoginForm.tsx",
+      "k": "3",
+      "L": 20,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/LostPasswordForm.tsx",
+      "k": "3",
+      "L": 14,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/MarketingBlocks.tsx",
+      "k": "3",
+      "L": 77,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/MediaText.tsx",
+      "k": "3",
+      "L": 10,
+      "ed13": "90.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/NavLoopBlocks.tsx",
+      "k": "3",
+      "L": 26,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Newsletter.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/PageBreak.tsx",
+      "k": "3",
+      "L": 2,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Preformatted.tsx",
+      "k": "3",
+      "L": 4,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ProsCons.tsx",
+      "k": "3",
+      "L": 20,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Pullquote.tsx",
+      "k": "3",
+      "L": 6,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ReadMore.tsx",
+      "k": "3",
+      "L": 3,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/RegisterForm.tsx",
+      "k": "3",
+      "L": 21,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ResetPasswordForm.tsx",
+      "k": "3",
+      "L": 17,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Review.tsx",
+      "k": "3",
+      "L": 33,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Search.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Spoiler.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/TagCloud.tsx",
+      "k": "3",
+      "L": 6,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Toc.tsx",
+      "k": "3",
+      "L": 10,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Verse.tsx",
+      "k": "3",
+      "L": 4,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Video.tsx",
+      "k": "3",
+      "L": 13,
+      "ed13": "92.3%"
+    },
+    {
+      "f": "src/components/admin/blocks/edit/XQuote.tsx",
+      "k": "3",
+      "L": 9,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/AffiliateBlockView.tsx",
+      "k": "3",
+      "L": 5,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/CompareSlider.tsx",
+      "k": "3",
+      "L": 18,
+      "ed13": "94.4%"
+    },
+    {
+      "f": "src/components/blocks/FaqBlockView.tsx",
+      "k": "3",
+      "L": 11,
+      "ed13": "90.9%"
+    },
+    {
+      "f": "src/components/blocks/LatestPostsView.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/LinkPreviewBlockView.tsx",
+      "k": "3",
+      "L": 10,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/NavLoopViews.tsx",
+      "k": "3",
+      "L": 23,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/ReviewBlockView.tsx",
+      "k": "3",
+      "L": 13,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/TagCloudView.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/blocks/XQuoteShare.tsx",
+      "k": "3",
+      "L": 8,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/components/charts/RangeScale.tsx",
+      "k": "17",
+      "L": 23,
+      "ed13": "nowy"
+    },
+    {
+      "f": "src/lib/billing/settlementStatus.functions.ts",
+      "k": "13",
+      "L": 30,
+      "ed13": "nowy"
+    },
+    {
+      "f": "src/lib/ci/migrationSplitCli.ts",
+      "k": "20",
+      "L": 78,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/lib/ci/ownership.ts",
+      "k": "20",
+      "L": 274,
+      "ed13": "100.0%"
+    },
+    {
+      "f": "src/lib/events/eventInvoiceFx.functions.ts",
+      "k": "22",
+      "L": 5,
+      "ed13": "nowy"
+    },
+    {
+      "f": "src/lib/events/eventInvoiceVies.functions.ts",
+      "k": "22",
+      "L": 5,
+      "ed13": "nowy"
+    },
+    {
+      "f": "src/routes/admin.billing-settlements.tsx",
+      "k": "13",
+      "L": 22,
+      "ed13": "nowy"
+    }
+  ],
+  "ustapione": [
+    {
+      "f": "src/components/admin/analytics/TrafficGeoDashboard.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/lib/clubs/useClubOwner.ts",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/admin.appearance.font-sizes.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/admin.content-area.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/admin.custom-meta.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/admin.members.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/admin.newsletter.outbox.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/admin.tags.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/feed.ts",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/mcp.ts",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/meetings.$eventSlug.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/profile.tickets.tsx",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/[.well-known]/oauth-protected-resource.ts",
+      "teraz": "100.0"
+    },
+    {
+      "f": "src/routes/api/public/version.ts",
+      "teraz": "100.0"
+    }
+  ],
+  "spadki": [
+    {
+      "f": "src/components/admin/analytics/ClientErrorsDashboard.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 37
+    },
+    {
+      "f": "src/components/admin/analytics/Ga4BiDashboard.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 154
+    },
+    {
+      "f": "src/components/admin/analytics/GscBiDashboard.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 198
+    },
+    {
+      "f": "src/components/admin/analytics/RelatedPostsAnalytics.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 124
+    },
+    {
+      "f": "src/components/admin/analytics/VitalsBiDashboard.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 101
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ContextBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 43
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Faq.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 23
+    },
+    {
+      "f": "src/components/admin/blocks/edit/LoginForm.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 20
+    },
+    {
+      "f": "src/components/admin/blocks/edit/MarketingBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 77
+    },
+    {
+      "f": "src/components/admin/blocks/edit/NavLoopBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 26
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ProsCons.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 20
+    },
+    {
+      "f": "src/components/admin/blocks/edit/RegisterForm.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 21
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Review.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 33
+    },
+    {
+      "f": "src/components/blocks/NavLoopViews.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 23
+    },
+    {
+      "f": "src/lib/ci/migrationSplitCli.ts",
+      "k": "20",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 78
+    },
+    {
+      "f": "src/lib/ci/ownership.ts",
+      "k": "20",
+      "ed13": 100,
+      "teraz": 0,
+      "L": 274
+    },
+    {
+      "f": "src/components/admin/blocks/edit/PresentationBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 0.8,
+      "L": 126
+    },
+    {
+      "f": "src/components/share/FloatingShareBar.tsx",
+      "k": "8",
+      "ed13": 100,
+      "teraz": 0.8,
+      "L": 120
+    },
+    {
+      "f": "src/components/blocks/PresentationViews.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 1.3,
+      "L": 76
+    },
+    {
+      "f": "src/components/admin/blocks/edit/DataSocialBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 1.9,
+      "L": 106
+    },
+    {
+      "f": "src/components/admin/blocks/edit/FoxizExtraBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 2.6,
+      "L": 38
+    },
+    {
+      "f": "src/components/admin/blocks/edit/PostUtilityBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 2.9,
+      "L": 34
+    },
+    {
+      "f": "src/components/admin/blocks/edit/LinkPreviewBlock.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 3.3,
+      "L": 30
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Gallery.tsx",
+      "k": "3",
+      "ed13": 95.2,
+      "teraz": 0,
+      "L": 21
+    },
+    {
+      "f": "src/components/admin/blocks/edit/SocialIcons.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 5,
+      "L": 20
+    },
+    {
+      "f": "src/components/blocks/FoxizExtraViews.tsx",
+      "k": "3",
+      "ed13": 94.4,
+      "teraz": 1.1,
+      "L": 89
+    },
+    {
+      "f": "src/components/blocks/DataSocialViews.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 7,
+      "L": 43
+    },
+    {
+      "f": "src/lib/ci/publicRouteLoaders.ts",
+      "k": "20",
+      "ed13": 99.2,
+      "teraz": 9.1,
+      "L": 394
+    },
+    {
+      "f": "src/lib/ci/migrationSplitPlan.ts",
+      "k": "20",
+      "ed13": 100,
+      "teraz": 12.1,
+      "L": 157
+    },
+    {
+      "f": "src/components/admin/blocks/edit/InteractiveBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 12.3,
+      "L": 57
+    },
+    {
+      "f": "src/components/admin/blocks/BlockEditRenderer.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 14.4,
+      "L": 104
+    },
+    {
+      "f": "src/components/blocks/ConversionViews.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 23.3,
+      "L": 43
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/InteractiveCircleEditor.tsx",
+      "k": "3",
+      "ed13": 97.1,
+      "teraz": 29.4,
+      "L": 34
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/EventCountdownEditor.tsx",
+      "k": "3",
+      "ed13": 95.5,
+      "teraz": 31.8,
+      "L": 22
+    },
+    {
+      "f": "src/components/blocks/renderer/molecules.tsx",
+      "k": "3",
+      "ed13": 99.6,
+      "teraz": 37.4,
+      "L": 273
+    },
+    {
+      "f": "src/components/blocks/renderer/organisms.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 39.6,
+      "L": 111
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/RatedListEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 40,
+      "L": 95
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/LogoCloudEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 43.8,
+      "L": 32
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/TimelineEditor.tsx",
+      "k": "3",
+      "ed13": 92.7,
+      "teraz": 36.6,
+      "L": 41
+    },
+    {
+      "f": "src/lib/ci/migrationSplit.ts",
+      "k": "20",
+      "ed13": 100,
+      "teraz": 44.2,
+      "L": 335
+    },
+    {
+      "f": "src/components/blocks/ContextBlockViews.tsx",
+      "k": "3",
+      "ed13": 96.3,
+      "teraz": 40.7,
+      "L": 54
+    },
+    {
+      "f": "src/lib/builder/autoInvertColor.ts",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 48.1,
+      "L": 52
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/AnimatedHeadingEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 49.2,
+      "L": 65
+    },
+    {
+      "f": "src/components/builder/molecules/SectionTabsBar.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 49.2,
+      "L": 65
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/CircularCarouselEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 50,
+      "L": 40
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/ProgressCarouselEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 50,
+      "L": 36
+    },
+    {
+      "f": "src/components/blocks/InteractiveViews.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 50,
+      "L": 70
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/PricingEditor.tsx",
+      "k": "3",
+      "ed13": 89.7,
+      "teraz": 41.4,
+      "L": 29
+    },
+    {
+      "f": "src/components/admin/blocks/edit/Table.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 52.4,
+      "L": 42
+    },
+    {
+      "f": "src/components/admin/blocks/edit/ConversionBlocks.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 54.3,
+      "L": 92
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/TextRotateEditor.tsx",
+      "k": "3",
+      "ed13": 95.6,
+      "teraz": 53.3,
+      "L": 45
+    },
+    {
+      "f": "src/lib/ci/pgTapPlan.ts",
+      "k": "20",
+      "ed13": 96.8,
+      "teraz": 54.8,
+      "L": 73
+    },
+    {
+      "f": "src/components/builder/organisms/widget-view/socialHover.ts",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 60.4,
+      "L": 144
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/TeamMemberGridEditor.tsx",
+      "k": "3",
+      "ed13": 71.2,
+      "teraz": 36.4,
+      "L": 66
+    },
+    {
+      "f": "src/components/blocks/MarketingViews.tsx",
+      "k": "3",
+      "ed13": 97.6,
+      "teraz": 62.8,
+      "L": 43
+    },
+    {
+      "f": "src/components/charts/FanChart.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 66.3,
+      "L": 178
+    },
+    {
+      "f": "src/lib/builder/hoverCss.ts",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 66.7,
+      "L": 36
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/SpeakersEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 67.3,
+      "L": 98
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/EventScheduleEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 69.5,
+      "L": 82
+    },
+    {
+      "f": "src/components/AlertBar.tsx",
+      "k": "X-admin-shell",
+      "ed13": 100,
+      "teraz": 73.5,
+      "L": 34
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/AccountLinkEditor.tsx",
+      "k": "3",
+      "ed13": 95.1,
+      "teraz": 68.9,
+      "L": 61
+    },
+    {
+      "f": "src/components/admin/blocks/edit/PostContextBlocks.tsx",
+      "k": "3",
+      "ed13": 92,
+      "teraz": 68,
+      "L": 100
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/SponsorsEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 76.9,
+      "L": 39
+    },
+    {
+      "f": "src/hooks/useContainerWidth.ts",
+      "k": "X-admin-shell",
+      "ed13": 100,
+      "teraz": 77.3,
+      "L": 22
+    },
+    {
+      "f": "src/lib/builder/sliderVariants.tsx",
+      "k": "3",
+      "ed13": 98.4,
+      "teraz": 76.4,
+      "L": 296
+    },
+    {
+      "f": "src/components/events/public/molecules/EventTabsBar.tsx",
+      "k": "22",
+      "ed13": 100,
+      "teraz": 81.6,
+      "L": 38
+    },
+    {
+      "f": "src/components/admin/blocks/edit/DataVizBlocks.tsx",
+      "k": "3",
+      "ed13": 85.1,
+      "teraz": 67,
+      "L": 94
+    },
+    {
+      "f": "src/components/blocks/MarketingContactFormView.tsx",
+      "k": "3",
+      "ed13": 97.4,
+      "teraz": 79.5,
+      "L": 39
+    },
+    {
+      "f": "src/components/admin/builder/ui/organisms/widget-properties/SliderEditor.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 82.2,
+      "L": 107
+    },
+    {
+      "f": "src/components/charts/SmallMultiplesChart.tsx",
+      "k": "17",
+      "ed13": 99.6,
+      "teraz": 82.3,
+      "L": 232
+    },
+    {
+      "f": "src/components/blocks/renderer/atoms.tsx",
+      "k": "3",
+      "ed13": 98.4,
+      "teraz": 81.6,
+      "L": 125
+    },
+    {
+      "f": "src/components/charts/PercentStackedChart.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 86.1,
+      "L": 208
+    },
+    {
+      "f": "src/lib/charts/measureText.ts",
+      "k": "17",
+      "ed13": 94.1,
+      "teraz": 82.4,
+      "L": 51
+    },
+    {
+      "f": "src/lib/clubs/postsApi.ts",
+      "k": "16",
+      "ed13": 88.9,
+      "teraz": 77.9,
+      "L": 95
+    },
+    {
+      "f": "src/components/charts/CartesianChart.tsx",
+      "k": "17",
+      "ed13": 99.3,
+      "teraz": 88.4,
+      "L": 397
+    },
+    {
+      "f": "src/lib/ci/i18nKeyUsage.ts",
+      "k": "20",
+      "ed13": 100,
+      "teraz": 89.6,
+      "L": 249
+    },
+    {
+      "f": "src/components/blocks/CalendarView.tsx",
+      "k": "3",
+      "ed13": 100,
+      "teraz": 90,
+      "L": 20
+    },
+    {
+      "f": "src/components/charts/ChartFrame.tsx",
+      "k": "17",
+      "ed13": 100,
+      "teraz": 90,
+      "L": 120
+    }
+  ],
+  "nowe": {
+    "n": 269,
+    "L": 11270,
+    "Lc": 10771,
+    "B": 11029,
+    "Bc": 9592,
+    "F": 2732,
+    "Fc": 2578
+  },
+  "nowePlikiLista": [
+    "src/components/admin/billing/LegacyNonPaymentReconcileCard.tsx",
+    "src/components/admin/blocks/edit/DataMapBlock.tsx",
+    "src/components/admin/blocks/edit/dataVizShared.tsx",
+    "src/components/admin/charts/ChartAccentField.tsx",
+    "src/components/admin/charts/ChartColorPicker.tsx",
+    "src/components/admin/charts/ChartDataGrid.tsx",
+    "src/components/admin/charts/ChartDataTextarea.tsx",
+    "src/components/admin/charts/ChartSeriesColorsField.tsx",
+    "src/components/admin/charts/GridCells.tsx",
+    "src/components/admin/charts/GridMenu.tsx",
+    "src/components/admin/charts/ImportProblemList.tsx",
+    "src/components/admin/charts/MapDataDialog.tsx",
+    "src/components/admin/charts/MapDataGrid.tsx",
+    "src/components/admin/charts/MapScalePicker.tsx",
+    "src/components/admin/charts/MapSchemeField.tsx",
+    "src/components/admin/charts/PastePreviewDialog.tsx",
+    "src/components/admin/charts/blockTablePaste.ts",
+    "src/components/admin/charts/chartColorSlots.ts",
+    "src/components/admin/charts/chartEditorI18n.ts",
+    "src/components/admin/charts/chartGridState.ts",
+    "src/components/admin/charts/gridCellValue.ts",
+    "src/components/admin/charts/gridKeyboard.ts",
+    "src/components/admin/charts/mapCountryNames.ts",
+    "src/components/admin/charts/mapGridState.ts",
+    "src/components/admin/charts/mapTableLayout.ts",
+    "src/components/admin/charts/tableLayout.ts",
+    "src/components/admin/charts/textareaPaste.ts",
+    "src/components/admin/dashboard/sectionReserve.ts",
+    "src/components/admin/events/atoms/MoneyInputPreview.tsx",
+    "src/components/admin/events/molecules/RegistrationConsentDetail.tsx",
+    "src/components/admin/events/molecules/SponsorReportAnomalyNotice.tsx",
+    "src/components/admin/events/molecules/TaxProfileFields.tsx",
+    "src/components/admin/events/organisms/AccountBindingsPanel.tsx",
+    "src/components/admin/podcasts/PodcastArtworkField.tsx",
+    "src/components/admin/post-editor/lib/markdownPreview.ts",
+    "src/components/admin/seo/GscSitemapsCard.tsx",
+    "src/components/atoms/FastForwardIcon.tsx",
+    "src/components/audio/atoms/AnimatedDownloadIcon.tsx",
+    "src/components/charts/ChartDialog.tsx",
+    "src/components/charts/ChartLoadFailed.tsx",
+    "src/components/charts/MapLegend.tsx",
+    "src/components/charts/PointDialog.tsx",
+    "src/components/charts/RangeScale.tsx",
+    "src/components/charts/RangeSlider.tsx",
+    "src/components/charts/Sparkline.tsx",
+    "src/components/charts/chartFacts.ts",
+    "src/components/charts/kindPaint.ts",
+    "src/components/charts/mapPaint.ts",
+    "src/components/charts/readHelp.ts",
+    "src/components/chat/molecules/VoiceRecorderUi.tsx",
+    "src/components/clubs/atoms/ClubFeedText.tsx",
+    "src/components/clubs/atoms/ClubMentionField.tsx",
+    "src/components/clubs/atoms/ClubReactionGlyph.tsx",
+    "src/components/clubs/molecules/ClubComposerLinkCard.tsx",
+    "src/components/clubs/molecules/ClubFeedCard.tsx",
+    "src/components/clubs/molecules/ClubFeedComments.tsx",
+    "src/components/clubs/molecules/ClubFeedDiscussion.tsx",
+    "src/components/clubs/molecules/ClubFeedGallery.tsx",
+    "src/components/clubs/molecules/ClubFeedReactAction.tsx",
+    "src/components/clubs/molecules/ClubFeedShareAction.tsx",
+    "src/components/clubs/molecules/ClubFeedThreadReplies.tsx",
+    "src/components/clubs/molecules/feedDiscussion.ts",
+    "src/components/clubs/molecules/feedDrafts.ts",
+    "src/components/clubs/molecules/useComposerLinkPreview.ts",
+    "src/components/clubs/organisms/clubHubPostFocus.ts",
+    "src/components/consent/ConsentShell.tsx",
+    "src/components/events/participant/molecules/ChannelWithdrawCard.tsx",
+    "src/components/events/participant/molecules/ReminderPreferencesCard.tsx",
+    "src/components/events/participant/molecules/SmsConsentConfirm.tsx",
+    "src/components/events/participant/slots/ManageConsentsSlot.tsx",
+    "src/components/events/public/atoms/EventOrgLogo.tsx",
+    "src/components/events/public/atoms/EventSectionHeading.tsx",
+    "src/components/events/public/directory/DirectoryCompanyView.tsx",
+    "src/components/events/public/directory/DirectoryPersonView.tsx",
+    "src/components/events/public/directory/EventDirectoryContext.tsx",
+    "src/components/events/public/directory/EventDirectoryDialog.tsx",
+    "src/components/events/public/directory/directoryParts.tsx",
+    "src/components/events/public/molecules/EventCatalogueCard.tsx",
+    "src/components/events/public/organisms/EventPartnersTab.tsx",
+    "src/components/events/registration/EventConsentConfirmPanel.tsx",
+    "src/components/events/registration/molecules/CancellationFinancialEffect.tsx",
+    "src/components/events/registration/molecules/RegistrationCheckEmail.tsx",
+    "src/components/footer/LegalLinks.tsx",
+    "src/components/forms/CharacterCounter.tsx",
+    "src/components/molecules/authorTitleScheduler.ts",
+    "src/components/molecules/useAuthorTitleSize.ts",
+    "src/components/popups/sinceNavigationStart.ts",
+    "src/components/profile/privacy/EventOrganizerConsentsSection.tsx",
+    "src/components/theme/StyleSink.tsx",
+    "src/components/ui/date-input.tsx",
+    "src/components/ui/platform-select.tsx",
+    "src/components/ui/time-input.tsx",
+    "src/components/voice/VoiceListeningIndicator.tsx",
+    "src/hooks/newsletterSettingsData.ts",
+    "src/integrations/supabase/sessionHint.ts",
+    "src/lib/adminPageHead.ts",
+    "src/lib/i18n-admin-core.ts",
+    "src/lib/i18n-admin-legacy-non-payment.ts",
+    "src/lib/i18n-admin-settlements.ts",
+    "src/lib/i18n-chart-data-editor.ts",
+    "src/lib/i18n-charts-map.ts",
+    "src/lib/i18n-company.ts",
+    "src/lib/i18n-map-editor.ts",
+    "src/lib/access/meteringVisitor.functions.ts",
+    "src/lib/access/meteringVisitor.server.ts",
+    "src/lib/access/visitorToken.ts",
+    "src/lib/admin/communityJobs.functions.ts",
+    "src/lib/admin/eventDeleteErrors.ts",
+    "src/lib/admin/invitationErrors.ts",
+    "src/lib/admin/inviteTarget.ts",
+    "src/lib/ads/adminSlots.ts",
+    "src/lib/billing/accountingRetentionRule.ts",
+    "src/lib/billing/billingDocumentSnapshot.server.ts",
+    "src/lib/billing/billingDocumentStatus.ts",
+    "src/lib/billing/chargeMinimum.ts",
+    "src/lib/billing/checkoutPayload.ts",
+    "src/lib/billing/couponRefusalMessage.ts",
+    "src/lib/billing/couponRpc.server.ts",
+    "src/lib/billing/duplicateSubscriptionAlert.server.ts",
+    "src/lib/billing/legacyNonPaymentReconcile.functions.ts",
+    "src/lib/billing/legacyNonPaymentReconcile.server.ts",
+    "src/lib/billing/legacyNonPaymentReconcile.ts",
+    "src/lib/billing/moneyInput.ts",
+    "src/lib/billing/paymentOutcomeToast.ts",
+    "src/lib/billing/pdfText.ts",
+    "src/lib/billing/planPricing.ts",
+    "src/lib/billing/planSubscriptionGuard.ts",
+    "src/lib/billing/planSwitch.server.ts",
+    "src/lib/billing/promotionCodeScope.server.ts",
+    "src/lib/billing/settlementStatus.functions.ts",
+    "src/lib/billing/settlementStatus.ts",
+    "src/lib/billing/stripeEventTypes.ts",
+    "src/lib/billing/webhookReplay.server.ts",
+    "src/lib/boot/bootLoaderScript.ts",
+    "src/lib/boot/bootManifest.ts",
+    "src/lib/boot/bootSet.server.ts",
+    "src/lib/boot/bootSetId.ts",
+    "src/lib/boot/bootSetNode.tsx",
+    "src/lib/boot/bootSetRegistry.ts",
+    "src/lib/brand/headerLogo.ts",
+    "src/lib/builder/contentPatch.ts",
+    "src/lib/builder/customFieldDefs.ts",
+    "src/lib/builder/heroPreloadStore.ts",
+    "src/lib/builder/lcpCandidate.ts",
+    "src/lib/builder/logoAlt.ts",
+    "src/lib/builder/normalizeRichHtmlDom.ts",
+    "src/lib/builder/normalizeRichHtmlRules.ts",
+    "src/lib/builder/postListExcerpt.ts",
+    "src/lib/builder/themeGeometry.ts",
+    "src/lib/builder/dataVizSchemas/chart.ts",
+    "src/lib/builder/dataVizSchemas/dataMap.ts",
+    "src/lib/builder/dataVizSchemas/shared.ts",
+    "src/lib/charts/clipboardTable.ts",
+    "src/lib/charts/countryAliases.ts",
+    "src/lib/charts/exportColor.ts",
+    "src/lib/charts/gridModel.ts",
+    "src/lib/charts/importNumber.ts",
+    "src/lib/charts/importProblems.ts",
+    "src/lib/charts/kindCaps.ts",
+    "src/lib/charts/roles.ts",
+    "src/lib/charts/seriesStyle.ts",
+    "src/lib/charts/sources.ts",
+    "src/lib/charts/status.ts",
+    "src/lib/charts/widgetConfig.ts",
+    "src/lib/charts/zoom.ts",
+    "src/lib/charts/kinds/mapScale.ts",
+    "src/lib/ci/definerViewGrants.ts",
+    "src/lib/ci/onConflictArbiters.ts",
+    "src/lib/ci/tsSqlContract.ts",
+    "src/lib/ci/woff2Tables.ts",
+    "src/lib/clubs/feedClock.ts",
+    "src/lib/clubs/feedMedia.ts",
+    "src/lib/clubs/reactionSummary.ts",
+    "src/lib/consent/consentInitScript.ts",
+    "src/lib/content/testPages.ts",
+    "src/lib/css/minifyStaticCss.ts",
+    "src/lib/errors/errorMessage.ts",
+    "src/lib/events/accountBindingsAdminApi.ts",
+    "src/lib/events/admission.functions.ts",
+    "src/lib/events/admissionRpc.server.ts",
+    "src/lib/events/cancellationPreview.ts",
+    "src/lib/events/consentTexts.ts",
+    "src/lib/events/eventConsent.functions.ts",
+    "src/lib/events/eventConsent.server.ts",
+    "src/lib/events/eventConsent.ts",
+    "src/lib/events/eventDirectory.ts",
+    "src/lib/events/eventInvoiceFx.functions.ts",
+    "src/lib/events/eventInvoiceFx.server.ts",
+    "src/lib/events/eventInvoiceVies.functions.ts",
+    "src/lib/events/eventInvoiceVies.server.ts",
+    "src/lib/events/eventLocalInput.ts",
+    "src/lib/events/eventRegistration.functions.ts",
+    "src/lib/events/eventRegistration.server.ts",
+    "src/lib/events/groupGuests.functions.ts",
+    "src/lib/events/groupGuests.server.ts",
+    "src/lib/events/groupTicketCodes.server.ts",
+    "src/lib/events/homeAdDraft.ts",
+    "src/lib/events/registrationChannelsApi.ts",
+    "src/lib/events/registrationFieldLimits.ts",
+    "src/lib/events/registrationPayload.ts",
+    "src/lib/events/registrationSelfNotify.server.ts",
+    "src/lib/events/scannerExpiryLimit.ts",
+    "src/lib/events/scannerLeftoverPurge.ts",
+    "src/lib/events/scannerLink.ts",
+    "src/lib/events/scannerOutcomeView.ts",
+    "src/lib/events/scannerQueueMarker.ts",
+    "src/lib/events/scannerRelocation.ts",
+    "src/lib/events/scannerRuntimeLock.ts",
+    "src/lib/events/scannerVault.ts",
+    "src/lib/events/speakerDetail.ts",
+    "src/lib/events/sponsorExposureAnomalies.ts",
+    "src/lib/events/taxProfileDraft.ts",
+    "src/lib/events/ticketTaxProfileApi.ts",
+    "src/lib/events/useCancellationPreview.ts",
+    "src/lib/events/usePackageTerms.ts",
+    "src/lib/events/usePublicEventDirectory.ts",
+    "src/lib/events/useRegistrationPreferences.ts",
+    "src/lib/events/wallet/walletRevocationJob.server.ts",
+    "src/lib/files/vendor/dingbatToUnicode.ts",
+    "src/lib/files/vendor/mammothPromises.ts",
+    "src/lib/files/vendor/mammothUnderscore.ts",
+    "src/lib/files/vendor/mammothXmlDom.ts",
+    "src/lib/files/vendor/mammothXmlWriter.ts",
+    "src/lib/files/vendor/officeZip.ts",
+    "src/lib/files/vendor/xmldomXmlEntities.ts",
+    "src/lib/forms/contactLimits.ts",
+    "src/lib/http/crawlerUnavailable.ts",
+    "src/lib/http/searchCrawler.ts",
+    "src/lib/i18n/refreshRenderedLinks.ts",
+    "src/lib/icons/iconNodePacking.ts",
+    "src/lib/maps/geoCoords.ts",
+    "src/lib/menus/refResolution.ts",
+    "src/lib/notifications/preferencesQuery.ts",
+    "src/lib/performance/firstInteraction.ts",
+    "src/lib/performance/hydrationIsland.tsx",
+    "src/lib/performance/interactionOrQuiet.ts",
+    "src/lib/performance/motionGate.ts",
+    "src/lib/performance/postInteractionQueue.ts",
+    "src/lib/performance/viewportDevice.ts",
+    "src/lib/performance/whenQuiescent.ts",
+    "src/lib/podcast/artwork.ts",
+    "src/lib/podcast/artworkRules.ts",
+    "src/lib/publications/params.ts",
+    "src/lib/routing/codeRoutes.ts",
+    "src/lib/scroll/fragmentLandingScript.ts",
+    "src/lib/scroll/restoreAfterReveal.ts",
+    "src/lib/seo/homepagePage.ts",
+    "src/lib/seo/homepageSeo.ts",
+    "src/lib/seo/limits.ts",
+    "src/lib/seo/noindexCodeRoutes.ts",
+    "src/lib/seo/primaryNavigation.ts",
+    "src/lib/seo/siteMapRedirects.functions.ts",
+    "src/lib/seo/sitemapStylesheet.ts",
+    "src/lib/seo/sitemapStylesheetXsl.ts",
+    "src/lib/seo/sitemapValidation.ts",
+    "src/lib/seo/structuredDataAudit.ts",
+    "src/lib/seo/testContent.ts",
+    "src/lib/seo/useErrorNoindex.ts",
+    "src/lib/seo/useStaticHomepage.ts",
+    "src/lib/server/newsSitemapEntries.server.ts",
+    "src/lib/ssr/dehydratedQueryEnvelope.ts",
+    "src/lib/supabase/migrationPending.ts",
+    "src/lib/theme/brandAccent.ts",
+    "src/lib/tracker/feedPath.ts",
+    "src/routes/admin.billing-settlements.tsx",
+    "src/routes/admin.events.account-bindings.tsx",
+    "src/routes/event-consent.confirm.tsx",
+    "src/routes/profile_.portal.tsx",
+    "src/routes/sitemap[.]xsl.ts"
+  ],
+  "usunietePliki": 25,
+  "progi": {
+    "statements": {
+      "prog": 79,
+      "wynik": 94.64,
+      "zapas": 15.64
+    },
+    "functions": {
+      "prog": 77,
+      "wynik": 94.05,
+      "zapas": 17.05
+    },
+    "lines": {
+      "prog": 80,
+      "wynik": 95.69,
+      "zapas": 15.69
+    },
+    "branches": {
+      "prog": 73,
+      "wynik": 90.15,
+      "zapas": 17.15
+    }
+  }
+}
