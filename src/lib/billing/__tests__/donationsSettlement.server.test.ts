@@ -56,6 +56,8 @@ interface Scene {
   byId: unknown;
   /** Odczyt kotwicy po `provider_subscription_id`. */
   bySubscription: unknown;
+  /** Odmowa odczytu kotwicy (po `id` albo po subskrypcji) zamiast wiersza. */
+  readFailure: { byId?: SupabaseResult; bySubscription?: SupabaseResult };
   /** Pierwszy UPDATE (z warunkiem `paid_at IS NULL` albo `status = pending`). */
   firstUpdate: SupabaseResult;
   /** Drugi UPDATE księgowania jednorazowego (bez warunku na `paid_at`). */
@@ -73,6 +75,7 @@ beforeEach(() => {
   scene = {
     byId: null,
     bySubscription: null,
+    readFailure: {},
     firstUpdate: ok([{ id: "don-1" }]),
     retryUpdate: ok([]),
     insert: ok(null),
@@ -84,8 +87,8 @@ beforeEach(() => {
       const conditional = chain.has("is") || eqColumn(chain, "status") === "pending";
       return conditional ? scene.firstUpdate : scene.retryUpdate;
     }
-    if (eqColumn(chain, "id") !== undefined) return ok(scene.byId);
-    return ok(scene.bySubscription);
+    if (eqColumn(chain, "id") !== undefined) return scene.readFailure.byId ?? ok(scene.byId);
+    return scene.readFailure.bySubscription ?? ok(scene.bySubscription);
   });
 });
 
@@ -208,5 +211,50 @@ describe("recordRecurringDonationPayment - kotwica i błędy", () => {
         invoiceId: "in_3",
       }),
     ).rejects.toThrow("donation renewal insert failed: violates check constraint");
+  });
+});
+
+// DEFEKT NAPRAWIONY 18.10.2026 (`donations.server.ts`, `findDonationAnchor`).
+//
+// CO BYŁO ZŁE. Odczyty kotwicy brały samo `data` i gubiły `error`. Chwilowa
+// awaria bazy (limit czasu, zakleszczenie, odmowa puli połączeń) wyglądała
+// więc jak „brak kotwicy": rata wracała jako `skipped`, dyspozytor webhooka
+// kończył zdarzenie sukcesem, a operator nie ponawiał. Odnowienia darowizny
+// cyklicznej nie domyka też uzgodnienie (to czyta wyłącznie sesje checkout),
+// więc wpłata przepadała z rejestru, eksportów i statusu wspierającego.
+//
+// JAK ZOSTAŁO NAPRAWIONE. Odmowa odczytu leci wyjątkiem - ta sama reguła co
+// przy zapisach w tym pliku: webhook zapisze `failed`, operator ponowi.
+describe("recordRecurringDonationPayment - awaria odczytu kotwicy to nie „brak kotwicy”", () => {
+  it("odmowa odczytu po identyfikatorze wpłaty leci wyjątkiem, bez szukania dalej i bez zapisu", async () => {
+    scene.readFailure.byId = fail("canceling statement due to statement timeout", "57014");
+    scene.bySubscription = { ...ANCHOR };
+
+    await expect(
+      recordRecurringDonationPayment({
+        environment: "sandbox",
+        donationId: "don-1",
+        subscriptionId: "sub_1",
+        invoiceId: "in_7",
+      }),
+    ).rejects.toThrow(
+      "donation anchor lookup failed: canceling statement due to statement timeout",
+    );
+    expect(db.chainsFor("donations")).toHaveLength(1);
+    expect(inserted()).toBeUndefined();
+  });
+
+  it("odmowa odczytu po subskrypcji też leci wyjątkiem, a nie kończy raty jako `skipped`", async () => {
+    scene.readFailure.bySubscription = fail("remaining connection slots are reserved", "53300");
+
+    await expect(
+      recordRecurringDonationPayment({
+        environment: "sandbox",
+        subscriptionId: "sub_1",
+        invoiceId: "in_7",
+      }),
+    ).rejects.toThrow("donation anchor lookup failed: remaining connection slots are reserved");
+    expect(inserted()).toBeUndefined();
+    expect(updates()).toHaveLength(0);
   });
 });
