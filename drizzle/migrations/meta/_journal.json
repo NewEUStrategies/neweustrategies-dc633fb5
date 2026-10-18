@@ -2136,6 +2136,13 @@
       "when": 1792272050281,
       "tag": "0304_club_lists_total_order",
       "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1792341370072,
+      "tag": "0305_release_coupon_server_only",
+      "breakpoints": true
     }
   ]
 }

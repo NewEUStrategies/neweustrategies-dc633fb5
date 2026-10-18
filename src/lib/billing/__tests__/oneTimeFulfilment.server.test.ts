@@ -1903,6 +1903,30 @@ describe("PAY-09 - wygaśnięcie sesji Checkout", () => {
     expect(h.notifyPayloads).toHaveLength(0);
   });
 
+  it("kasa zamknęła zamówienie (`canceled`) MIĘDZY naszym odczytem a zamknięciem - kupon i tak wraca", async () => {
+    // Zastąpione zamówienie kasa oznacza `canceled` bez zwalniania kuponu
+    // i zostawia to temu webhookowi. Odczyt widział jeszcze `processing`,
+    // warunkowe zamknięcie nie trafiło - stary status pomijał zwolnienie, a
+    // zdarzenie kończyło się bez ponowienia.
+    givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, status: "processing" }));
+    paidFlipResponse = ok([]);
+    stateResponse = ok({ status: "canceled" });
+
+    expect(await expireCheckoutOrder(expired(), "sandbox")).toBe(true);
+    expect(h.couponReleases).toEqual([
+      { _tenant_id: TENANT, _user_id: USER, _coupon_id: "kupon-1", _order_id: ORDER_ID },
+    ]);
+  });
+
+  it("zamknięcie nie trafiło, bo zamówienie w międzyczasie OPŁACONO - kupon zostaje", async () => {
+    givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, status: "processing" }));
+    paidFlipResponse = ok([]);
+    stateResponse = ok({ status: "paid" });
+
+    expect(await expireCheckoutOrder(expired(), "sandbox")).toBe(false);
+    expect(h.couponReleases).toHaveLength(0);
+  });
+
   it("zamówienie OPŁACONE nie jest zamykane ani pozbawiane kuponu; wynik `false`", async () => {
     givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, status: "paid" }));
     paidFlipResponse = ok([]);
@@ -1961,6 +1985,20 @@ describe("PAY-09 - odrzucona płatność asynchroniczna", () => {
     expect(h.couponReleases).toEqual([expect.objectContaining({ _coupon_id: "kupon-1" })]);
     // To JEST odrzucona płatność - uczestnik dostaje powiadomienie.
     expect(h.notifyPayloads).toHaveLength(1);
+  });
+
+  it("status zamknięty przez kogoś innego po naszym odczycie: zwolnienie z BIEŻĄCEGO statusu", async () => {
+    givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, status: "pending" }));
+    paidFlipResponse = ok([]);
+    stateResponse = ok({ status: "failed" });
+
+    await markOneTimePaymentFailed({ orderId: ORDER_ID }, "sandbox");
+
+    expect(h.couponReleases).toEqual([expect.objectContaining({ _coupon_id: "kupon-1" })]);
+    const reread = stub()
+      .chainsFor("payment_orders")
+      .find((c) => c.argsOf("select")?.[0] === "status");
+    expect(reread?.argsOf("eq")).toEqual(["id", ORDER_ID]);
   });
 
   it("zdarzenie z innego środowiska nie zamyka zamówienia i nie rusza zgłoszenia", async () => {
@@ -2580,6 +2618,79 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
     expect(flip?.argsOf("update")?.[0]).toMatchObject({ status: "canceled" });
     expect(h.log).not.toContain("refund");
     expect(h.eventMails).toHaveLength(0);
+    // Zwolnienie PO anulowaniu (baza oddaje użycie tylko nieopłaconemu
+    // zamówieniu), z najemcą i kontem z NASZEGO wiersza.
+    expect(h.couponReleases).toEqual([
+      { _tenant_id: TENANT, _user_id: USER, _coupon_id: COUPON, _order_id: ORDER_ID },
+    ]);
+    expect(h.log.indexOf("coupon:release")).toBeGreaterThan(
+      h.log.lastIndexOf("from:payment_orders"),
+    );
+    expect(buyerNotice()).toMatchObject({
+      body_pl: expect.stringContaining("Kod wrócił do puli"),
+      body_en: expect.stringContaining("Your code is usable again"),
+    });
+  });
+
+  function buyerNotice(): Record<string, unknown> | undefined {
+    const insert = stub()
+      .chainsFor("notifications")
+      .find((c) => c.has("insert"));
+    return insert?.argsOf("insert")?.[0] as Record<string, unknown> | undefined;
+  }
+
+  it("pełna sala bez funkcji `_for_user` (pas produkcyjny przed 0305): kod wraca starą ścieżką, nie przepada", async () => {
+    // Gołe RPC bez powrotu do starej funkcji kończyło się PGRST202 połkniętym
+    // w logu - anulowanego zamówienia nic już nie rozlicza ponownie.
+    givenOrder(freeOrder());
+    h.seat = "full";
+    h.couponReleaseReply = {
+      data: null,
+      error: { code: "PGRST202", message: "Could not find the function" },
+    };
+
+    await settleFreeTicketOrder(ORDER_ID);
+
+    expect(h.couponReleases).toHaveLength(1);
+    expect(h.rpcCalls.filter((c) => c.fn === "release_b2b_coupon")).toEqual([
+      { fn: "release_b2b_coupon", args: { _coupon_id: COUPON, _order_id: ORDER_ID } },
+    ]);
+  });
+
+  it("pełna sala, a baza NIE oddała kodu: zamówienie anulowane, kupujący nie słyszy, że kod wrócił", async () => {
+    givenOrder(freeOrder());
+    h.seat = "full";
+    h.couponReleaseReply = { data: null, error: { code: "57014", message: "statement timeout" } };
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({
+      outcome: "oversold_refunded",
+      seated: false,
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[payments] free order coupon release failed",
+      ORDER_ID,
+      "statement timeout",
+    );
+    const notice = buyerNotice();
+    expect(notice?.["body_pl"]).toBe(
+      "Ostatnie miejsce zajęto, zanim bilet został wydany. Zamówienie zostało anulowane.",
+    );
+    expect(notice?.["body_en"]).toBe(
+      "The last seat was taken before your ticket was issued. Your order was canceled.",
+    );
+  });
+
+  it("pełna sala, a baza odmówiła zwolnienia wartością (`false`) - ten sam neutralny tekst", async () => {
+    givenOrder(freeOrder());
+    h.seat = "full";
+    h.couponReleaseReply = { data: false, error: null };
+
+    await settleFreeTicketOrder(ORDER_ID);
+
+    expect(h.couponReleases).toHaveLength(1);
+    expect(buyerNotice()?.["body_pl"]).toBe(
+      "Ostatnie miejsce zajęto, zanim bilet został wydany. Zamówienie zostało anulowane.",
+    );
   });
 
   it("zgłoszenie w kolejce: rozliczone, ale BEZ potwierdzonego miejsca - kasa nie obiecuje sukcesu", async () => {

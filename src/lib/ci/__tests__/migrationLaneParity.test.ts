@@ -12,10 +12,14 @@ import {
   DRIZZLE_DIR,
   evaluateLaneGate,
   KNOWN_NON_MONOTONIC_JOURNAL,
+  executableSql,
   KNOWN_ORPHAN_LANE_ENTRIES,
   laneGateFailed,
+  MIGRATION_LANES,
+  missingProductionCarriers,
   nonMonotonicJournal,
   renderLaneGate,
+  REQUIRED_PRODUCTION_TWINS,
   SUPABASE_DIR,
   type JournalEntry,
   type LaneEntry,
@@ -162,6 +166,49 @@ describe("analiza pasów na wstrzykniętych plikach", () => {
   });
 });
 
+describe("poprawki wymagane na pasie produkcyjnym", () => {
+  const FIX = "20261012000000_fix.sql";
+  const files: Record<string, string> = {
+    [`${SUPABASE_DIR}/${FIX}`]: "-- długi nagłówek\nREVOKE ALL ON FUNCTION public.f() FROM anon;",
+    [`${DRIZZLE_DIR}/0001_other.sql`]: "SELECT 1;",
+    [`${DRIZZLE_DIR}/0002_carrier.sql`]: "-- Twin\nREVOKE ALL ON FUNCTION public.f()  FROM anon;",
+  };
+  const read = (p: string) => files[p] ?? null;
+
+  it("nośnik o tym samym SQL-u wykonywalnym wystarcza (nagłówek i spacje bez znaczenia)", () => {
+    expect(missingProductionCarriers(["0001_other", "0002_carrier"], [FIX], read)).toEqual([]);
+  });
+
+  it("poprawka obecna tylko w pasie supabase jest brakiem - tak przeszło 20261007140200", () => {
+    expect(missingProductionCarriers(["0001_other"], [FIX], read)).toEqual([FIX]);
+  });
+
+  it("wpis listy wskazujący plik, którego nie ma, też jest brakiem", () => {
+    expect(missingProductionCarriers(["0002_carrier"], ["20990101000000_gone.sql"], read)).toEqual([
+      "20990101000000_gone.sql",
+    ]);
+  });
+
+  it("brak nośnika czerwieni bramkę i jest nazwany w raporcie", () => {
+    const r = evaluateLaneGate(
+      report([]),
+      [entry(1, 1, "0001_other")],
+      { ...noKnown, requiredTwins: [FIX] },
+      read,
+    );
+    expect(r.missingCarriers).toEqual([FIX]);
+    expect(laneGateFailed(r)).toBe(true);
+    const text = renderLaneGate(report([]), r);
+    expect(text).toContain("POPRAWKI BEZ NOŚNIKA NA PASIE PRODUKCYJNYM");
+    expect(text).toContain(`${SUPABASE_DIR}/${FIX}`);
+  });
+
+  it("bez listy wymaganych bramka nie sprawdza nośników (testy nie dziedziczą listy repo)", () => {
+    const r = evaluateLaneGate(report([]), [entry(1, 1, "0001_other")], noKnown, read);
+    expect(r.missingCarriers).toEqual([]);
+  });
+});
+
 describe("self-test na realnym dzienniku drizzle", () => {
   const journal = (
     JSON.parse(readFileSync(`${DRIZZLE_DIR}/meta/_journal.json`, "utf8")) as {
@@ -177,6 +224,43 @@ describe("self-test na realnym dzienniku drizzle", () => {
     expect(r.journalFresh).toEqual([]);
     expect(r.journalStale).toEqual([]);
     expect(r.missingFiles).toEqual([]);
+    expect(r.missingCarriers).toEqual([]);
+  });
+
+  it("lista poprawek wymaganych na produkcji tylko rośnie", () => {
+    expect(REQUIRED_PRODUCTION_TWINS).toContain("20261007140200_release_coupon_server_only.sql");
+    expect(new Set(REQUIRED_PRODUCTION_TWINS).size).toBe(REQUIRED_PRODUCTION_TWINS.length);
+  });
+
+  it("każda wymagana poprawka ma nośnik w dzienniku zapisany jako bliźniak w rejestrze", () => {
+    // Szukamy po TREŚCI, nie po tagu - przenumerowanie przy konflikcie z main
+    // nie może zepsuć testu.
+    for (const fix of REQUIRED_PRODUCTION_TWINS) {
+      const want = executableSql(readFileSync(`${SUPABASE_DIR}/${fix}`, "utf8"));
+      const carriers = journal.filter(
+        (e) => executableSql(readFileSync(`${DRIZZLE_DIR}/${e.tag}.sql`, "utf8")) === want,
+      );
+      expect(carriers.length, fix).toBeGreaterThan(0);
+      const registered = MIGRATION_LANES.filter((l) => "twin" in l && l.twin === fix).map(
+        (l) => l.tag,
+      );
+      expect(
+        carriers.some((c) => registered.includes(c.tag)),
+        fix,
+      ).toBe(true);
+    }
+  });
+
+  it("dziennik bez nośnika poprawki kuponu zapala bramkę (stan sprzed portu 0305)", () => {
+    const fix = "20261007140200_release_coupon_server_only.sql";
+    const want = executableSql(readFileSync(`${SUPABASE_DIR}/${fix}`, "utf8"));
+    const before = journal.filter(
+      (e) => executableSql(readFileSync(`${DRIZZLE_DIR}/${e.tag}.sql`, "utf8")) !== want,
+    );
+    expect(before.length).toBe(journal.length - 1);
+    const r = evaluateLaneGate(analyzeMigrationLanes(before.map((e) => e.tag)), before);
+    expect(r.missingCarriers).toEqual([fix]);
+    expect(laneGateFailed(r)).toBe(true);
   });
 
   it("listy znanych przypadków tylko maleją", () => {
