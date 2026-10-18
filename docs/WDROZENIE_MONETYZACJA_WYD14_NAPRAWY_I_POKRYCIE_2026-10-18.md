@@ -172,11 +172,44 @@ typów albo grafu wywołań. Przykłady:
   Po scaleniu zbiór plików nakładających się z `main` jest zielony
   (16 plików, 384 testy).
 
-## 6. Świadomie NIE zrobione (poza zakresem klastrów albo decyzja produktowa)
+## 6. Uprawnienia `user_subscriptions` przy usunięciu konta (RODO)
 
-- **`user_subscriptions.user_id` bez klucza obcego.** Wiersze uprawnień
-  zostają po usunięciu konta z surowym identyfikatorem. Potrzebna jest
-  migracja i decyzja RODO / ustawa o rachunkowości (osobne zadanie).
+Kampania wykryła, że `user_subscriptions.user_id` (20260601051732) nie ma
+klucza obcego. W efekcie usunięcie konta zostawiało wiersze uprawnień z
+surowym identyfikatorem osoby: ani `anonymize_accounting_evidence_for_user()`,
+ani trigger `on_auth_user_deleted_retain_accounting` tej tabeli nie dotykały.
+
+**Decyzja właściciela: kasowanie kaskadowe**, nie anonimizacja. Uzasadnienie:
+
+- lustro operatora `subscriptions` od początku kasuje się kaskadowo razem z
+  kontem;
+- dowodami księgowymi zostają `payment_orders` (pseudonim) i
+  `billing_documents`, których `subscription_id` odpina się
+  (`ON DELETE SET NULL`);
+- `user_subscriptions`, w odróżnieniu od `user_purchases`, nie niesie kwoty.
+
+Zmiany:
+
+- **Migracja** `20261018120000_user_subscriptions_user_fk_cascade.sql` z
+  bliźniakiem `drizzle/migrations/0307_*`:
+  - usuwa wiersze osierocone;
+  - zakłada `user_subscriptions_user_id_fkey`
+    `REFERENCES auth.users(id) ON DELETE CASCADE`.
+- **Kod:** zapis uprawnienia dla konta usuniętego w trakcie dostawy webhooka
+  (23503 na tym kluczu) kończy się ostrzeżeniem zamiast wyjątku. Dotyczy to
+  `syncEntitlementState` i `grantEntitlement`; inaczej zdarzenie byłoby
+  ponawiane bez końca. 23503 na innym kluczu (plan, najemca) nadal jest
+  błędem.
+- **Testy:**
+  - pgTAP `supabase/tests/user_subscriptions_user_fk_cascade_test.sql`
+    (7 asercji, czerwony bez FK);
+  - dwa testy regresji w vitest (czerwone na starym kodzie).
+- **Weryfikacja na pełnym schemacie** (lokalny PostgreSQL 16, wszystkie
+  migracje): pozostałe testy pgTAP wstawiające uprawnienia działają na
+  istniejących kontach `auth.users`.
+
+## 7. Świadomie NIE zrobione (poza zakresem klastrów albo decyzja produktowa)
+
 - **Strefa w `formatDate` maili rozliczeniowych** (`transactional.server.ts`).
   Daty końca okresu formatują się w strefie procesu (UTC), więc godziny
   22:00-24:00 UTC wypadają poprzedniego dnia. Wymaga decyzji o strefie.

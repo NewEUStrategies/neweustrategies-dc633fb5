@@ -312,6 +312,57 @@ describe("grantEntitlement", () => {
     );
   });
 
+  it("konto usunięte w trakcie realizacji (23503 na kluczu właściciela) - bez wyjątku i bez ponowień", async () => {
+    // Od 20261018120000 `user_subscriptions.user_id` ma FK do `auth.users`.
+    // Zamówienie opłacone tuż przed zamknięciem konta nie ma już komu nadać
+    // uprawnienia; wyjątek skazałby zdarzenie na ponowienia bez końca.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: null, error: null },
+    ];
+    h.state.writeQueue = [
+      {
+        data: null,
+        error: {
+          code: "23503",
+          message:
+            'insert or update on table "user_subscriptions" violates foreign key constraint "user_subscriptions_user_id_fkey"',
+        },
+      },
+    ];
+
+    await expect(grantEntitlement(subOrder, "sub_po_zamknieciu")).resolves.toBeUndefined();
+
+    expect(find("update")).toBeFalsy();
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] grant skipped: entitlement owner no longer exists",
+      "sub_po_zamknieciu",
+    );
+    warn.mockRestore();
+  });
+
+  it("23503 na innym kluczu (plan, najemca) zostaje błędem - to stan do naprawy, nie brak właściciela", async () => {
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: null, error: null },
+    ];
+    h.state.writeQueue = [
+      {
+        data: null,
+        error: {
+          code: "23503",
+          message:
+            'insert or update on table "user_subscriptions" violates foreign key constraint "user_subscriptions_plan_id_fkey"',
+        },
+      },
+    ];
+
+    await expect(grantEntitlement(subOrder, "sub_bez_planu")).rejects.toThrow(
+      /insert failed \(sub_bez_planu\): .*user_subscriptions_plan_id_fkey/,
+    );
+  });
+
   it("falls back to the order id as external ref when none is provided", async () => {
     h.state.maybeSingleQueue = [
       { data: { interval: "month" }, error: null },

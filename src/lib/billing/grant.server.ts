@@ -7,7 +7,7 @@ import {
   isLifetimePlanInterval,
   periodEndFor,
 } from "@/lib/billing/entitlement";
-import { isUniqueViolation } from "@/lib/billing/entitlementSync.server";
+import { isEntitlementOwnerGone, isUniqueViolation } from "@/lib/billing/entitlementSync.server";
 
 export interface GrantableOrder {
   id: string;
@@ -236,6 +236,11 @@ export async function grantEntitlement(
     // odświeżamy go zamiast dopisywać drugi.
     if (isUniqueViolation(error)) {
       await refresh();
+      return;
+    }
+    // Konto zamknięte między zapłatą a realizacją - nie ma komu nadać dostępu.
+    if (isEntitlementOwnerGone(error)) {
+      console.warn("[payments] grant skipped: entitlement owner no longer exists", ref);
       return;
     }
     if (error) {

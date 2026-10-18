@@ -95,6 +95,20 @@ export function isUniqueViolation(error: { code?: string } | null | undefined): 
 }
 
 /**
+ * Konto właściciela usunięte (23503 na `user_subscriptions_user_id_fkey`,
+ * 20261018120000): uprawnienia nie ma komu zapisać, a wyjątek skazałby
+ * zdarzenie na ponowienia bez końca. 23503 na innym kluczu (plan, najemca)
+ * zostaje błędem - to stan do naprawy, nie brak właściciela.
+ */
+export function isEntitlementOwnerGone(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  return (
+    error?.code === "23503" && (error.message ?? "").includes("user_subscriptions_user_id_fkey")
+  );
+}
+
+/**
  * Czy stan operatora wolno zapisać na uprawnieniu `refunded`.
  *
  * `refunded` to korekta BIEŻĄCEGO okresu (pełny zwrot, spór otwarty albo
@@ -266,6 +280,10 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     const winner = await read();
     if (winner) await apply(winner);
     else await refresh(null);
+    return;
+  }
+  if (isEntitlementOwnerGone(error)) {
+    console.warn("[payments] entitlement owner no longer exists", input.externalRef);
     return;
   }
   if (error) {
