@@ -26,6 +26,14 @@ import {
 import { loadTicketOrderHistory, loadTicketOrders } from "@/lib/billing/ticketOrders.server";
 
 /**
+ * Klucze wydarzeń w kształcie bazy (`events.id` to `uuid`). Słownik wydarzeń
+ * pyta wyłącznie o takie - napis spoza kształtu zerwałby całe zapytanie.
+ */
+const EVENT_ID = "e1e1e1e1-1111-4111-8111-111111111111";
+const EVENT_ID_2 = "e2e2e2e2-2222-4222-8222-222222222222";
+const FOREIGN_EVENT_ID = "e9e9e9e9-9999-4999-8999-999999999999";
+
+/**
  * Kolumny czytane przez moduł, WYPROWADZONE z wygenerowanych typów - ta sama
  * zasada, co w samym module produkcyjnym. Ręczna kopia kształtu wiersza
  * rozjeżdżałaby się z bazą bez żadnego sygnału.
@@ -86,14 +94,14 @@ function ticketOrder(overrides: Partial<OrderRecord> = {}): OrderRecord {
     currency: "pln",
     paid_at: "2026-08-18T10:01:00.000Z",
     created_at: "2026-08-18T10:00:00.000Z",
-    metadata: { event_id: "event-1", quantity: 2, coupon_code: "NES10" },
+    metadata: { event_id: EVENT_ID, quantity: 2, coupon_code: "NES10" },
     ...overrides,
   };
 }
 
 function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
   return {
-    id: "event-1",
+    id: EVENT_ID,
     slug: "decision-lab-2026",
     title_pl: "Decision Lab 2026",
     title_en: "Decision Lab 2026",
@@ -189,9 +197,9 @@ describe("loadTicketOrders - kontrakt zapytania", () => {
     chain.setResponse(
       "payment_orders",
       ok([
-        ticketOrder({ id: "o1", metadata: { event_id: "event-1" } }),
-        ticketOrder({ id: "o2", metadata: { event_id: "event-1" } }),
-        ticketOrder({ id: "o3", user_id: BILLING_IDS.other, metadata: { event_id: "event-2" } }),
+        ticketOrder({ id: "o1", metadata: { event_id: EVENT_ID } }),
+        ticketOrder({ id: "o2", metadata: { event_id: EVENT_ID } }),
+        ticketOrder({ id: "o3", user_id: BILLING_IDS.other, metadata: { event_id: EVENT_ID_2 } }),
       ]),
     );
 
@@ -199,7 +207,7 @@ describe("loadTicketOrders - kontrakt zapytania", () => {
 
     expect(chain.chainsFor("events")).toHaveLength(1);
     expect(chain.chainsFor("profiles")).toHaveLength(1);
-    expect(chain.lastChain("events")!.argsOf("in")).toEqual(["id", ["event-1", "event-2"]]);
+    expect(chain.lastChain("events")!.argsOf("in")).toEqual(["id", [EVENT_ID, EVENT_ID_2]]);
     expect(chain.lastChain("profiles")!.argsOf("in")).toEqual([
       "id",
       [BILLING_IDS.me, BILLING_IDS.other],
@@ -232,7 +240,7 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
       buyerName: "Uczestnik Testowy",
       buyerEmail: "uczestnik@example.com",
       buyerAnonymized: false,
-      eventId: "event-1",
+      eventId: EVENT_ID,
       eventTitlePl: "Decision Lab 2026",
       eventSlug: "decision-lab-2026",
       eventStartsAt: "2026-09-01T08:00:00.000Z",
@@ -252,13 +260,13 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
     // wartość, której nie da się odczytać jako dodatniej liczby, MUSI dać 1 -
     // a nie `NaN` w kolumnie „bilety" ani zero, które ukrywa sprzedaż.
     const cases: Array<[Json, number]> = [
-      [{ event_id: "event-1" }, 1],
-      [{ event_id: "event-1", quantity: 0 }, 1],
-      [{ event_id: "event-1", quantity: -3 }, 1],
-      [{ event_id: "event-1", quantity: "trzy" }, 1],
-      [{ event_id: "event-1", quantity: null }, 1],
-      [{ event_id: "event-1", quantity: "3" }, 3],
-      [{ event_id: "event-1", quantity: 2.9 }, 2],
+      [{ event_id: EVENT_ID }, 1],
+      [{ event_id: EVENT_ID, quantity: 0 }, 1],
+      [{ event_id: EVENT_ID, quantity: -3 }, 1],
+      [{ event_id: EVENT_ID, quantity: "trzy" }, 1],
+      [{ event_id: EVENT_ID, quantity: null }, 1],
+      [{ event_id: EVENT_ID, quantity: "3" }, 3],
+      [{ event_id: EVENT_ID, quantity: 2.9 }, 2],
     ];
 
     for (const [metadata, expected] of cases) {
@@ -271,7 +279,7 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
   it("kod rabatowy złożony z samych spacji jest traktowany jak jego brak", async () => {
     chain.setResponse(
       "payment_orders",
-      ok([ticketOrder({ metadata: { event_id: "event-1", coupon_code: "   " } })]),
+      ok([ticketOrder({ metadata: { event_id: EVENT_ID, coupon_code: "   " } })]),
     );
 
     const rows = await loadTicketOrders(client(), 50);
@@ -322,7 +330,7 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      eventId: "event-1",
+      eventId: EVENT_ID,
       eventTitlePl: null,
       eventTitleEn: null,
       eventSlug: null,
@@ -346,7 +354,7 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
     const rows = await loadTicketOrders(client(), 50);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ eventId: "event-1", eventTitlePl: null, eventSlug: null });
+    expect(rows[0]).toMatchObject({ eventId: EVENT_ID, eventTitlePl: null, eventSlug: null });
     expect(rows[0].amountCents).toBe(12000);
   });
 
@@ -373,13 +381,13 @@ describe("loadTicketOrders - odwzorowanie wiersza", () => {
   it("CUDZE WYDARZENIE w odpowiedzi słownika nie podmienia nazwy biletu", async () => {
     chain.setResponse(
       "events",
-      ok([eventRecord({ id: "event-obce", title_pl: "Cudza konferencja" })]),
+      ok([eventRecord({ id: FOREIGN_EVENT_ID, title_pl: "Cudza konferencja" })]),
     );
 
     const rows = await loadTicketOrders(client(), 50);
 
     expect(rows[0].eventTitlePl).toBeNull();
-    expect(rows[0].eventId).toBe("event-1");
+    expect(rows[0].eventId).toBe(EVENT_ID);
   });
 });
 
@@ -396,7 +404,7 @@ describe("loadTicketOrders - metadane spoza kontraktu", () => {
     chain.setResponse(
       "payment_orders",
       ok([
-        ticketOrder({ id: "o-tablica", metadata: ["event-1"] }),
+        ticketOrder({ id: "o-tablica", metadata: [EVENT_ID] }),
         ticketOrder({ id: "o-liczba", metadata: 7 }),
       ]),
     );
@@ -454,6 +462,45 @@ describe("loadTicketOrders - metadane spoza kontraktu", () => {
     expect(rows[0].eventTitlePl).toBeNull();
   });
 
+  // DEFEKT NAPRAWIONY 18.10.2026 (`ticketOrders.server.ts`, słownik wydarzeń).
+  //
+  // CO BYŁO ZŁE. Identyfikator spoza kształtu klucza (liczba `42` przepisana
+  // na `'42'`, napis typu `legacy-slug`) szedł do `.in("id", ...)` razem
+  // z resztą. `events.id` to `uuid`, więc Postgres odrzuca CAŁE zapytanie
+  // błędem rzutowania (22P02) - a błąd słownika degraduje się do „brak
+  // wydarzenia". Jedno nietypowe zamówienie zabierało więc nazwę, adres
+  // i datę wydarzenia WSZYSTKIM zamówieniom na liście, choć nagłówek modułu
+  // obiecywał pustą nazwę wyłącznie temu jednemu wierszowi.
+  it("identyfikator spoza kształtu klucza nie zabiera nazw wydarzeń POZOSTAŁYM zamówieniom", async () => {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    // Słownik zachowuje się jak Postgres: `in.(...)` z napisem, który nie
+    // jest uuid, to błąd całego zapytania, a nie brak jednego wiersza.
+    chain.setResponse("events", (recorded) => {
+      const ids = (recorded.argsOf("in")?.[1] ?? []) as unknown[];
+      if (ids.some((id) => typeof id !== "string" || !UUID.test(id))) {
+        return fail("invalid input syntax for type uuid", "22P02");
+      }
+      return ok([eventRecord()].filter((event) => ids.includes(event.id)));
+    });
+    chain.setResponse(
+      "payment_orders",
+      ok([
+        ticketOrder({ id: "order-zwykle" }),
+        ticketOrder({ id: "order-liczbowy", metadata: { event_id: 42 } }),
+        ticketOrder({ id: "order-napis", metadata: { event_id: "legacy-slug" } }),
+      ]),
+    );
+
+    const rows = await loadTicketOrders(client(), 50);
+
+    expect(rows.map((row) => [row.id, row.eventId, row.eventTitlePl])).toEqual([
+      ["order-zwykle", EVENT_ID, "Decision Lab 2026"],
+      ["order-liczbowy", "42", null],
+      ["order-napis", "legacy-slug", null],
+    ]);
+    expect(chain.lastChain("events")!.argsOf("in")).toEqual(["id", [EVENT_ID]]);
+  });
+
   it("wartość logiczna i pusty tekst NIE są identyfikatorem - te wiersze dalej odpadają", async () => {
     // Granica poprawki: dopuszczamy liczbę (bo `->>` daje z niej sensowny
     // tekst), a nie „cokolwiek da się zamienić na napis". `true` czy `""` nie
@@ -464,7 +511,7 @@ describe("loadTicketOrders - metadane spoza kontraktu", () => {
       ok([
         ticketOrder({ id: "o-bool", metadata: { event_id: true } }),
         ticketOrder({ id: "o-pusty", metadata: { event_id: "   " } }),
-        ticketOrder({ id: "o-obiekt", metadata: { event_id: { id: "event-1" } } }),
+        ticketOrder({ id: "o-obiekt", metadata: { event_id: { id: EVENT_ID } } }),
       ]),
     );
 
