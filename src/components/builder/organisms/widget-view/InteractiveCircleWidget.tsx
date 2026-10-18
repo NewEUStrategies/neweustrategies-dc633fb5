@@ -276,8 +276,10 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           const commonCls =
             "relative rounded-full border flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
-          if (it.href) {
-            const href = safeUrl(it.href);
+          // Fallback "" (nie "#"): niebezpieczny adres zostawia przycisk wyboru
+          // zamiast martwego odnośnika na górę strony.
+          const href = it.href ? safeUrl(it.href, "") : "";
+          if (href) {
             return (
               <a
                 key={i}

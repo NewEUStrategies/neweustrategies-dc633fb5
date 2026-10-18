@@ -44,6 +44,7 @@ import type {
   AvatarImage as AvatarImagePart,
 } from "@/components/ui/avatar";
 import { AppLink } from "@/components/atoms/AppLink";
+import { safeUrl } from "@/lib/sanitizePure";
 import { useAuth } from "@/hooks/useAuth";
 import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
@@ -335,7 +336,9 @@ function resolveItem(item: AccountMenuItem, pages: PageRef[] | undefined, lang: 
       labelFallback = label || page.title;
     }
   } else if (item.kind === "custom") {
-    href = item.customHref || "";
+    // Adres z treści menu idzie do <a href> w nagłówku każdej strony - tylko
+    // bezpieczne schematy; `javascript:`/`data:` dają "" i pozycja znika.
+    href = safeUrl(item.customHref || "", "");
   }
   return { href, label: labelFallback, desc };
 }
@@ -602,8 +605,9 @@ function AccountMenuPanel({
   const logoutLabel =
     (lang === "pl" ? config.logout_pl : config.logout_en) ||
     (lang === "pl" ? "Wyloguj" : "Sign out");
-  const signinHref = config.signinHref || "/login";
-  const signupHref = config.signupHref || "/login?mode=signup";
+  // Ten sam filtr co pozycje „custom": niebezpieczny adres = adres domyślny.
+  const signinHref = safeUrl(config.signinHref || "", "") || "/login";
+  const signupHref = safeUrl(config.signupHref || "", "") || "/login?mode=signup";
   // Naglowek panelu konta. Klucz istnial w defaultach, w seedzie chrome i w
   // typie, ale zaden renderer go nie czytal - ustawienie bylo martwe. Puste =
   // brak widocznego naglowka (zachowanie sprzed zmiany), a nazwa dostepnosciowa

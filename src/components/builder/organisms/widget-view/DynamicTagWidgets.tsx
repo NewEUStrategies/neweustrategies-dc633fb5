@@ -590,7 +590,9 @@ function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 
 function SearchFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = node.content;
-  const action = safeUrl(asStr(c.action) || "/search") || "/search";
+  // Fallback "" (nie domyślne "#"): niebezpieczny/pusty adres ma spaść na
+  // "/search", a "#" wysyłał zapytanie na bieżącą stronę.
+  const action = safeUrl(asStr(c.action), "") || "/search";
   const placeholder =
     pickI18n(c, "placeholder", lang) || (lang === "en" ? "Search..." : "Szukaj...");
   const button = pickI18n(c, "button", lang) || (lang === "en" ? "Search" : "Szukaj");

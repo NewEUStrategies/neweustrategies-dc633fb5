@@ -122,7 +122,9 @@ export function PurchaseConfirmationView({ c, lang }: { c: WidgetContent; lang: 
   const showReference = getBool(c, "showReference", true);
   const showSecureNote = getBool(c, "showSecureNote", true);
   const accent = getStr(c, "accentColor");
-  const extraHref = safeUrl(getStr(c, "href"));
+  // Pusty/niebezpieczny adres = brak CTA (fallback "" zamiast "#"), więc sama
+  // etykieta nie tworzy odnośnika na górę strony.
+  const extraHref = safeUrl(getStr(c, "href"), "");
   const extraLabel = locStr(c, "ctaLabel", lang);
 
   const subQ = useQuery({

@@ -308,10 +308,18 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
     return () => io.disconnect();
   }, [pageMode, canLoadMore, pageSize, filtered.length]);
 
-  const onOpenProfile = (item: SpeakerItem) => {
-    if (!openProfile) return;
+  // Dialog profilu jest osiągalny TYLKO, gdy jest włączony i pozycja ma
+  // `user_id` (profil dociąga resztę sam). W przeciwnym razie karta nie dostaje
+  // handlera, więc spada na odnośnik z pola „Adres" albo nie ma kontrolki
+  // wcale - nigdy nie renderuje przycisku, który po kliknięciu nic nie robi.
+  const profileHandler = (item: SpeakerItem): (() => void) | undefined => {
+    if (!openProfile) return undefined;
     const userId = getStr(item as WidgetContent, "user_id");
-    if (!userId) return;
+    if (!userId) return undefined;
+    return () => onOpenProfile(item, userId);
+  };
+
+  const onOpenProfile = (item: SpeakerItem, userId: string) => {
     setDialogSpeaker({
       userId,
       fallback: {
@@ -442,7 +450,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
             index={i}
             bookmarked={bookmarks.has(id)}
             onToggleBookmark={() => toggleBookmark(id)}
-            onOpenProfile={() => onOpenProfile(item)}
+            onOpenProfile={profileHandler(item)}
           />
         ))}
         {paginated.length === 0 && (

@@ -24,7 +24,7 @@ import {
 } from "@/lib/builder/ratedListQuery";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
 import { AppLink } from "@/components/atoms/AppLink";
-import { hardenStyleCss } from "@/lib/sanitize";
+import { hardenStyleCss, safeUrl } from "@/lib/sanitize";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { hasAuthorByline, resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 import { uiLocale } from "@/lib/i18n/format";
@@ -193,8 +193,15 @@ export function RatedListView({
     opacity: numOpacity,
   };
 
+  // Wpis `null`/nie-obiekt (import, ręczna edycja JSON) jest pomijany -
+  // wcześniej `pickI18n(null, ...)` wywracał całą listę.
   const manualItems: RatedListItem[] = (
-    Array.isArray(c.items) ? (c.items as Array<Record<string, unknown>>) : []
+    Array.isArray(c.items)
+      ? (c.items as unknown[]).filter(
+          (x): x is Record<string, unknown> =>
+            typeof x === "object" && x !== null && !Array.isArray(x),
+        )
+      : []
   ).map((it) => ({
     title: pickI18n(it, "title", lang),
     excerpt: pickI18n(it, "excerpt", lang),
@@ -203,7 +210,8 @@ export function RatedListView({
     rating: asNum(it.rating, 0),
     // Link pozycji: bez niego "Czytaj wiecej" i klikalny tytul byly martwe w
     // trybie recznym (przycisk jest bramkowany na `href`).
-    href: asStr(it.href) || undefined,
+    // Tylko bezpieczne schematy - surowy adres szedł prosto do <a href>.
+    href: safeUrl(asStr(it.href), "") || undefined,
     category: pickI18n(it, "category", lang),
     date: asStr(it.date),
     format: asStr(it.format) || "standard",
