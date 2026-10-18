@@ -1,21 +1,45 @@
 # Artefakt "Pokrycie testami NES" - wydanie 14 na górze, wydanie 13 (z zagnieżdżonymi 12 i 11) w zwiniętym archiwum.
 # Źródła: rozdział 18 dokumentu w gałęzi (ten sam tekst co w repo), dane z docs/audyt-ed14, taśma klatek z lokalnego śladu.
 # Objaśnienia: dymki (data-tip, skrypt w stopce) i okna popover z pięcioma częściami (slownik14.py).
-import html, json, re, sys
+#
+# Uruchomienie (z dowolnej kopii repozytorium):
+#   python3 docs/audyt-ed14/narzedzia/gen_artefakt14.py.txt --stary <HTML wydania 13> [--wyjscie plik.html] [--repo .]
+# --stary to strona artefaktu wydania 13 (pobrana z publikacji); jej ciało trafia do zwiniętego archiwum.
+# Pliki pomocnicze (slownik14.py, styl14.css, dymki14.js) są obok skryptu, w repozytorium z sufiksem .txt.
+import argparse, html, json, re
+from pathlib import Path
 
-S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
-G = S + '/galaz'
-STARY = '/root/.claude/projects/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/tool-results/artifact-7c7b3873-1791146451-9467.html'
-WYJSCIE = S + '/artefakt14/pokrycie-testami-nes.html'
-sys.path.insert(0, S + '/artefakt14')
-from slownik14 import SLOWNIK, SEKCJE  # noqa: E402
+TU = Path(__file__).resolve().parent
+ap = argparse.ArgumentParser(description='Artefakt wydania 14 audytu pokrycia testami')
+ap.add_argument('--repo', type=Path, default=TU.parents[2] if TU.name == 'narzedzia' else Path.cwd(),
+                help='korzeń repozytorium (domyślnie: wyliczony z położenia skryptu w docs/audyt-ed14/narzedzia)')
+ap.add_argument('--stary', type=Path, required=True, help='HTML artefaktu wydania 13')
+ap.add_argument('--wyjscie', type=Path, default=Path('pokrycie-testami-nes.html'), help='plik wynikowy (domyślnie w katalogu bieżącym)')
+ap.add_argument('--tasma', type=Path, default=None, help='dane taśmy klatek (domyślnie docs/audyt-ed14/lighthouse/tasma14.json)')
+ARGS = ap.parse_args()
+
+
+def obok(nazwa):
+    """Plik pomocniczy obok skryptu: w roboczym katalogu bez sufiksu, w repozytorium z sufiksem .txt."""
+    for kandydat in (TU / nazwa, TU / (nazwa + '.txt')):
+        if kandydat.exists():
+            return kandydat
+    raise FileNotFoundError(nazwa)
+
+
+G = str(ARGS.repo)
+STARY = ARGS.stary
+WYJSCIE = ARGS.wyjscie
+_slownik = {}
+exec(obok('slownik14.py').read_text(encoding='utf-8'), _slownik)
+SLOWNIK, SEKCJE = _slownik['SLOWNIK'], _slownik['SEKCJE']
 
 doc = open(G + '/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md', encoding='utf-8').read()
 rozdzial = doc[doc.index('\n## 18. '):]
 J = lambda p: json.load(open(G + '/docs/audyt-ed14/' + p, encoding='utf-8'))
 GRAF = J('graf14.json')['ed14']
 DEF = J('defekty14.json')
-TASMA = json.load(open(S + '/artefakt14/tasma14.json', encoding='utf-8'))
+TASMA = json.load(open(ARGS.tasma or Path(G) / 'docs/audyt-ed14/lighthouse/tasma14.json', encoding='utf-8'))
 
 
 # ---------- markdown -> HTML ----------
@@ -832,8 +856,11 @@ cialo13 = cialo[:k_div].strip('\n')
 assert cialo13.startswith('<header class="hero">') and cialo13.endswith('</footer>'), (cialo13[:40], cialo13[-40:])
 cialo13 = cialo13.replace('<header class="hero">', '<header class="hero" style="border-bottom:0">', 1)
 glowa = glowa.replace('</head>', '').replace('<body>', '')
+# Pełny dokument: doctype, język, kodowanie i viewport (bez nich plik otwarty samodzielnie renderuje się w trybie quirks).
+PREFIKS = ('<!doctype html>\n<html lang="pl">\n<head>\n<meta charset="utf-8">\n'
+           '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n')
 
-CSS14 = open(S + '/artefakt14/styl14.css', encoding='utf-8').read()
+CSS14 = obok('styl14.css').read_text(encoding='utf-8')
 assert '/* --- wydanie 14 --- */' in CSS14
 if '/* --- wydanie 14 --- */' not in glowa:
     glowa = glowa.replace('</style>', CSS14 + '</style>', 1)
@@ -846,9 +873,9 @@ stopka = ('<footer><span>Audyt pokrycia testami NES · wydanie 14 · HEAD <code>
           '<span>Dokument źródłowy: <code>docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md</code>, rozdział 18 (PR #519)</span>'
           '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-14.mjs</code> - 476 asercji na drzewach <code>346012635</code> i <code>5b8c77c01</code> czytanych z obiektów gita, 476 zielonych, 0 czerwonych</span>'
           '<span>Dane: <code>docs/audyt-ed14/</code> (pomiar, funkcjonalności, graf, defekty, rejestr, migawka agentów, Lighthouse z klatkami, narzędzia)</span></footer>')
-skrypt = open(S + '/artefakt14/dymki14.js', encoding='utf-8').read()
-wynik = (glowa + '<div class="wrap">\n' + ed14 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
-         + '<div class="pops">' + ''.join(okna.values()) + '</div>\n<script>' + skrypt + '</script>\n')
+skrypt = obok('dymki14.js').read_text(encoding='utf-8')
+wynik = (PREFIKS + glowa + '</head>\n<body>\n<div class="wrap">\n' + ed14 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
+         + '<div class="pops">' + ''.join(okna.values()) + '</div>\n<script>' + skrypt + '</script>\n</body>\n</html>\n')
 nowe = ed14 + stopka + ''.join(okna.values()) + skrypt + CSS14
 for zly in ('—', '–'):
     n = nowe.count(zly)
