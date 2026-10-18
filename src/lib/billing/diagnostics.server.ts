@@ -560,7 +560,7 @@ async function resolvePlanProducts(
     return out;
   }
   const lookupByPlan = new Map<string, string>();
-  for (const plan of plans ?? []) {
+  for (const plan of plans) {
     const entry = planCheckoutPricing(plan)?.entry;
     if (entry) lookupByPlan.set(String(plan.id), entry.priceId);
   }
@@ -645,7 +645,8 @@ export async function syncCouponDiscounts(
     .filter("event_ids", "eq", "{}")
     .limit(200);
   const rows = ((data ?? []) as SyncCouponRow[]).filter(
-    (row) => String(row.code ?? "") !== "" && !countedAtCheckout(row),
+    (row): row is SyncCouponRow & { code: string } =>
+      typeof row.code === "string" && row.code !== "" && !countedAtCheckout(row),
   );
 
   const result: CouponSyncResult = { created: 0, existing: 0, failed: 0, skipped: 0 };
@@ -673,7 +674,7 @@ export async function syncCouponDiscounts(
 
   const nowMs = Date.now();
   for (const row of rows) {
-    const code = String(row.code ?? "").toUpperCase();
+    const code = row.code.toUpperCase();
     const planIds = row.plan_ids ?? [];
     const products = planIds.map((planId) => planProducts.get(planId));
     if (products.some((productId) => productId === undefined)) {

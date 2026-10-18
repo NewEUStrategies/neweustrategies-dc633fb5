@@ -46,6 +46,8 @@ const h = vi.hoisted(() => {
     checkoutSettings: { current: null as Record<string, unknown> | null },
     /** Plany najemcy czytane przy zawężaniu kodów planowych. */
     plans: { current: [] as Array<Record<string, unknown>> | null },
+    /** Błąd PostgREST odczytu planów najemcy (`null` = odczyt udany). */
+    plansError: { current: null as Error | null },
     endpointsThrow: { current: false },
     prices: { current: new Map<string, { id: string; product?: unknown }>() },
     pricesThrow: { current: false },
@@ -108,15 +110,17 @@ const h = vi.hoisted(() => {
         Promise.resolve(
           table === "payment_webhook_events" && state.webhookReadError.current
             ? { data: null, error: state.webhookReadError.current }
-            : {
-                data:
-                  table === "b2b_coupons"
-                    ? state.coupons.current
-                    : table === "access_plans"
-                      ? state.plans.current
-                      : state.webhookRows.current,
-                error: null,
-              },
+            : table === "access_plans" && state.plansError.current
+              ? { data: null, error: state.plansError.current }
+              : {
+                  data:
+                    table === "b2b_coupons"
+                      ? state.coupons.current
+                      : table === "access_plans"
+                        ? state.plans.current
+                        : state.webhookRows.current,
+                  error: null,
+                },
         ).then(onFulfilled);
       return link;
     },
@@ -298,6 +302,7 @@ beforeEach(() => {
   // wypycha (domyślne PAY-06). Przypadki „pole wyłączone" ustawiają to jawnie.
   h.checkoutSettings.current = { allow_promotion_codes: true };
   h.plans.current = [];
+  h.plansError.current = null;
   h.prices.current = new Map(
     BILLING_CATALOG.map((entry) => [entry.priceId, { id: `price_${entry.priceId}` }]),
   );
@@ -1441,6 +1446,80 @@ describe("syncCouponDiscounts - zawężenie kodów na WSPÓLNYM koncie (audyt PA
     expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
     expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
     expect(h.createdCoupons[0]).not.toHaveProperty("applies_to");
+    consoleError.mockRestore();
+  });
+
+  it("AWARIA odczytu planów: kod planowy NIE jedzie bez zawężenia, ogólny jedzie", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+      { id: "c-ogolny", code: "OGOLNY", discount_kind: "percent", discount_percent: 10 },
+    ];
+    h.plansError.current = Object.assign(new Error("statement timeout"), {
+      name: "PostgrestError",
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] coupon sync: plan lookup failed",
+      "statement timeout",
+    );
+    consoleError.mockRestore();
+  });
+
+  it("plan bez pozycji katalogu (bez warstwy) nie pyta operatora o ceny - kod pominięty", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: null, interval: "month" }];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 1 });
+    expect(h.priceListCalls).toHaveLength(0);
+    expect(h.createdCoupons).toHaveLength(0);
+    consoleError.mockRestore();
+  });
+
+  it("AWARIA operatora przy cenach planów: kod planowy pominięty, synchronizacja trwa dalej", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+      { id: "c-ogolny", code: "OGOLNY", discount_kind: "percent", discount_percent: 10 },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: "pro", interval: "month" }];
+    h.pricesThrow.current = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] coupon sync: plan products lookup failed",
+      expect.any(Error),
+    );
     consoleError.mockRestore();
   });
 
