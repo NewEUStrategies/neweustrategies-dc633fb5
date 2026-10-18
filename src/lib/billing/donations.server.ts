@@ -413,17 +413,21 @@ async function findDonationAnchor(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const columns = "id, tenant_id, user_id, amount_cents, currency, donor_email, message, status";
 
+  // Odmowa odczytu RZUCA. Jako „brak kotwicy" kończyła ratę `skipped`,
+  // webhook - sukcesem, a odnowienia nie domyka nic innego: wpłata
+  // przepadała z rejestru po jednej chwilowej awarii bazy.
   if (payment.donationId) {
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("donations")
       .select(columns)
       .eq("id", payment.donationId)
       .eq("environment", payment.environment)
       .maybeSingle();
+    if (error) throw new Error(`donation anchor lookup failed: ${error.message}`);
     if (data) return data as DonationAnchor;
   }
 
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("donations")
     .select(columns)
     .eq("provider_subscription_id", payment.subscriptionId)
@@ -431,7 +435,8 @@ async function findDonationAnchor(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  return (data as DonationAnchor | null) ?? null;
+  if (error) throw new Error(`donation anchor lookup failed: ${error.message}`);
+  return data as DonationAnchor | null;
 }
 
 /** Księguje ratę darowizny cyklicznej z FAKTURY: pierwszą aktualizuje, kolejne dopisuje. */

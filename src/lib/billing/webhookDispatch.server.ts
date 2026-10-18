@@ -520,7 +520,7 @@ async function insertSubscriptionRow(
   tenantId: string | null,
   subscriptionId: string,
   mark: EventMark,
-  extra: { purchase_confirmed_at?: string } = {},
+  extra: { purchase_confirmed_at?: string },
 ): Promise<{ outcome: "inserted" | "exists" | "invalid"; owner: RowOwner | null }> {
   const supabase = await admin();
   const { data: inserted, error } = await supabase
@@ -587,7 +587,7 @@ async function commitSubscriptionState(
   }
   const { data: written, error } = await query.select("id");
   if (error) throw new Error(`${failure}: ${error.message}`);
-  return claim === null || (written ?? []).length > 0;
+  return claim === null || written.length > 0;
 }
 
 /**
@@ -871,8 +871,8 @@ async function resyncFromProvider(
   if (!row?.user_id) return;
 
   const { priceId: currentPriceId, quantity, trialEndsAt } = readIds(current);
-  const priceId = currentPriceId ?? row.price_id ?? null;
-  if (!priceId) return;
+  // `price_id` wiersza jest NOT NULL - cena z API ma pierwszeństwo, wiersz jest zapasem.
+  const priceId = currentPriceId ?? row.price_id;
   const periodStart = current.currentBillingPeriod?.startsAt ?? null;
 
   if (current.status === "canceled") {
@@ -902,10 +902,10 @@ async function resyncFromProvider(
 
   const period = accessPeriodFromEvent({
     kind: "updated",
-    eventPeriodEnd: current.currentBillingPeriod?.endsAt ?? trialEndsAt ?? null,
-    storedPeriodEnd: row.current_period_end ?? null,
+    eventPeriodEnd: current.currentBillingPeriod?.endsAt ?? trialEndsAt,
+    storedPeriodEnd: row.current_period_end,
     status: current.status,
-    periodStart: periodStart ?? row.current_period_start ?? null,
+    periodStart: periodStart ?? row.current_period_start,
     // Kotwica z wiersza (nie „teraz"): wyrównanie nie zakłada nowego cyklu
     // windykacji, a bez kotwicy karencja liczy się od początku okresu.
     firstPaymentFailedAt: row.first_payment_failed_at ?? null,

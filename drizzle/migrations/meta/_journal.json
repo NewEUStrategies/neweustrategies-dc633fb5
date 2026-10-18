@@ -2178,6 +2178,13 @@
       "when": 1792349340560,
       "tag": "0310_release_coupon_order_lock_final",
       "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1792349400560,
+      "tag": "0311_user_subscriptions_user_fk_cascade",
+      "breakpoints": true
     }
   ]
 }

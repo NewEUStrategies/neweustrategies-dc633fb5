@@ -838,7 +838,7 @@ async function restoreReleasedSchedule(
  * sekundy potrafiły zostawić w lustrze „kończy się" przy odnawiającej się
  * subskrypcji (przegląd SUB-04). Daty `cancel_at` operator w oczekującej
  * zmianie nie przyjmuje - tę zdejmuje wywołujący po sukcesie, a przy odmowie
- * (`markCancelDate`) zapisujemy ją na fakturze oczekującej zmiany, żeby
+ * (`cancelDateToMark`) zapisujemy ją na fakturze oczekującej zmiany, żeby
  * zdjął ją webhook po zapłacie opłaconej później (`markUpgradeCancelDate`).
  *
  * Dołączony harmonogram zwalniamy DOPIERO po zastosowanej zmianie (nagłówek
@@ -852,7 +852,8 @@ async function updateWithProration(
   item: { id: string; price?: string; quantity: number },
   options: {
     alongside?: Pick<Stripe.SubscriptionUpdateParams, "cancel_at_period_end">;
-    markCancelDate?: boolean;
+    /** Data końca `cancel_at` z żywego stanu - do znacznika przy odrzuconej dopłacie. */
+    cancelDateToMark?: number;
   } = {},
 ): Promise<Stripe.Subscription | SubscriptionOpFailure> {
   const alongside = options.alongside ?? {};
@@ -881,16 +882,24 @@ async function updateWithProration(
   } catch (e) {
     // Odmowa RZUCONA: oczekująca zmiana i jej faktura mogły mimo to powstać
     // (`declinedPayment`) - znacznik idzie tak samo jak przy zwróconej.
-    if (options.markCancelDate && item.price && declineOf(e)) {
-      await markUpgradeCancelDate(stripe, subscriptionId, current, item.price, null);
+    if (options.cancelDateToMark !== undefined && item.price && declineOf(e)) {
+      await markUpgradeCancelDate(stripe, subscriptionId, current, {
+        price: item.price,
+        cancelAt: options.cancelDateToMark,
+        returned: null,
+      });
     }
     throw e;
   }
   // Odmowa / 3DS (zwrócona albo RZUCONA): nic nie weszło, a harmonogram
   // zostaje - klient zapłaci przy odnowieniu to, na co się wcześniej umówił.
   if (updated.pending_update) {
-    if (options.markCancelDate && item.price) {
-      await markUpgradeCancelDate(stripe, subscriptionId, current, item.price, updated);
+    if (options.cancelDateToMark !== undefined && item.price) {
+      await markUpgradeCancelDate(stripe, subscriptionId, current, {
+        price: item.price,
+        cancelAt: options.cancelDateToMark,
+        returned: updated,
+      });
     }
     return incompletePayment(stripe, updated);
   }
@@ -1039,11 +1048,11 @@ async function markUpgradeCancelDate(
   stripe: Stripe,
   subscriptionId: string,
   current: Stripe.Subscription,
-  price: string,
-  returned: Stripe.Subscription | null,
+  // Data przychodzi od wołającego (`scheduledCancellation` tego samego
+  // odczytu), więc tu nie ma już gałęzi „to nie data".
+  mark: { price: string; cancelAt: number; returned: Stripe.Subscription | null },
 ): Promise<void> {
-  const cancellation = scheduledCancellation(current);
-  if (cancellation?.kind !== "date") return;
+  const { price, cancelAt, returned } = mark;
   let invoiceId: string | null = null;
   try {
     if (typeof current.canceled_at !== "number") {
@@ -1062,7 +1071,7 @@ async function markUpgradeCancelDate(
       invoiceId,
       {
         metadata: {
-          [UPGRADE_CANCEL_AT_KEY]: String(cancellation.at),
+          [UPGRADE_CANCEL_AT_KEY]: String(cancelAt),
           [UPGRADE_CANCELED_AT_KEY]: String(current.canceled_at),
           [UPGRADE_PRICE_KEY]: price,
         },
@@ -1072,7 +1081,7 @@ async function markUpgradeCancelDate(
           subscriptionId,
           invoiceId,
           price,
-          cancellation.at,
+          cancelAt,
           current.canceled_at,
         ]),
       },
@@ -1350,7 +1359,7 @@ export async function changeSubscriptionPrice(
         { id: item.id, price: providerPriceId, quantity },
         {
           alongside: cancellation?.kind === "period_end" ? { cancel_at_period_end: false } : {},
-          markCancelDate: cancellation?.kind === "date",
+          cancelDateToMark: cancellation?.kind === "date" ? cancellation.at : undefined,
         },
       );
       if (isFailure(updated)) return updated;

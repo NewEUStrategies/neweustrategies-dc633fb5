@@ -219,3 +219,23 @@ describe("ChangePlanCard - wykonanie zmiany", () => {
     expect(screen.queryByText("profile.subscription.changePlan.cancelNote")).toBeNull();
   });
 });
+
+describe("ChangePlanCard - subskrypcja bez czytelnego planu (wycofany ze sprzedaży)", () => {
+  // RLS pokazuje klientowi tylko plany aktywne, więc subskrypcja planu
+  // wycofanego wraca z `plan: null`. Bez bieżącej ceny lista celów liczy się
+  // jak przy wejściu (sam plan, bez kierunku) - karta nie może się na tym
+  // wywrócić ani zaproponować planu, na którym subskrypcja już jest.
+  it("lista celów pomija bieżący `plan_id` i plany jednorazowe, reszta zostaje", async () => {
+    h.plans.current = [
+      ...planLadder(),
+      accessPlan({ id: "plan-once", interval: "one_time", name_pl: "Jednorazowy" }),
+    ];
+    renderWithQueryClient(<ChangePlanCard subscription={userSubscription({ plan: null })} />);
+    const select = await awaitTargets();
+
+    const values = Array.from(select.querySelectorAll("option")).map((o) =>
+      o.getAttribute("value"),
+    );
+    expect(values).toEqual(["plan-student-monthly", "plan-pro-monthly", "plan-pro-annual"]);
+  });
+});

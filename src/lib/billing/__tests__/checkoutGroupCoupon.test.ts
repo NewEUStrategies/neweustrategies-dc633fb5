@@ -133,12 +133,15 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
 const free = vi.hoisted(() => ({
   settled: [] as string[],
   result: { outcome: "order", seated: true } as
-    { outcome: "order" | "oversold_refunded" | "skipped"; seated: boolean } | Error,
+    | { outcome: "order" | "oversold_refunded" | "skipped"; seated: boolean }
+    | Error
+    | { thrown: unknown },
 }));
 vi.mock("@/lib/billing/oneTimeFulfilment.server", () => ({
   settleFreeTicketOrder: async (orderId: string) => {
     free.settled.push(orderId);
     if (free.result instanceof Error) throw free.result;
+    if ("thrown" in free.result) throw free.result.thrown;
     return free.result;
   },
 }));
@@ -546,6 +549,24 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
       settlement: "processing",
     });
     expect(free.settled).toEqual(["order-grupa"]);
+    logged.mockRestore();
+  });
+
+  it("bilet za zero: rozliczenie urwane wartością BEZ klasy Error - też `processing`, powód w logu", async () => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = { thrown: "canceling statement due to timeout" };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await call({ coupon_code: "WIELKI" })).toMatchObject({
+      ok: true,
+      mode: "free",
+      settlement: "processing",
+    });
+    expect(logged).toHaveBeenCalledWith(
+      "[checkout] free ticket settlement failed - left to the job retry",
+      "order-grupa",
+      "canceling statement due to timeout",
+    );
     logged.mockRestore();
   });
 

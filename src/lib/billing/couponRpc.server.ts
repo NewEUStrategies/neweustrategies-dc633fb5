@@ -263,13 +263,13 @@ export async function loadCouponStackingPolicy(couponId: string): Promise<Coupon
     .eq("id", couponId)
     .maybeSingle();
   if (error) {
-    if (COLUMN_PENDING_CODES.has(String(error.code ?? ""))) return DEFAULT_COUPON_STACKING;
+    if (COLUMN_PENDING_CODES.has(error.code)) return DEFAULT_COUPON_STACKING;
     throw new Error(`coupon_policy_unavailable: ${error.message}`);
   }
-  const cap = data?.max_total_discount_percent;
+  // Zakres limitu pilnuje baza: `smallint` z CHECK 1..100 (20261012130000).
+  // Brak wiersza = brak reguły, czyli zachowanie sprzed kolumn.
   return {
     stacksWithPromotions: data?.stacks_with_promotions !== false,
-    maxTotalDiscountPercent:
-      typeof cap === "number" && Number.isInteger(cap) && cap >= 1 && cap <= 100 ? cap : null,
+    maxTotalDiscountPercent: data?.max_total_discount_percent ?? null,
   };
 }

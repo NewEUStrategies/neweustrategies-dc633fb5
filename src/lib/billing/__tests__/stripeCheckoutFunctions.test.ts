@@ -754,6 +754,17 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
   });
 
+  it("wiersz planu BEZ kolumny okresu próbnego nie wysyła `NaN` dni (ta sama reguła co drugi silnik)", async () => {
+    // Nieaktualny cache schematu PostgREST potrafi oddać wiersz bez kolumny;
+    // `Number(undefined)` to NaN, którego operator nie przyjmie jako dni triala.
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: undefined })));
+
+    const result = await planCall();
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
   it("ujemny okres próbny z bazy jest zaciskany do braku triala", async () => {
     chain.setResponse("access_plans", ok(planQuote({ trial_days: -3 })));
 
@@ -929,6 +940,26 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
       _coupon_id: COUPON_ID,
       _order_id: "order-1",
     });
+    logged.mockRestore();
+  });
+
+  it("NIEUDANE zwolnienie kuponu nie zmienia odmowy - zamówienie `failed`, ślad w logu", async () => {
+    // Zwolnienie jest sprzątaniem po odmowie operatora: jego porażka nie może
+    // zamienić czytelnej odmowy w wyjątek, ale musi zostawić ślad - użycie
+    // kodu zostało zarezerwowane za zamówienie, którego nikt nie opłaci.
+    h.state.prices = [];
+    rpcResponses.set("release_b2b_coupon_for_user", fail("deadlock detected"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result).toEqual({ ok: false, error: "price_missing" });
+    expect(rpcArgs("payment_order_mark_session")).toMatchObject({ _status: "failed" });
+    expect(logged).toHaveBeenCalledWith(
+      "[stripe-checkout] coupon release failed",
+      "order-1",
+      "deadlock detected",
+    );
     logged.mockRestore();
   });
 

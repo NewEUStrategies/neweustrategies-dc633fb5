@@ -80,7 +80,12 @@ async function portalCustomer(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error || !data?.provider_customer_id) return null;
+  // Awaria odczytu to awaria (`portal_failed` / `send_failed` u wołających),
+  // nie „brak klienta": `no_customer` mówi klientowi, że konta u operatora
+  // nie ma, a administratorowi - że subskrypcji nie ma. Odczyt startuje
+  // dopiero po kontroli przynależności, więc błąd nie zdradza obcych kont.
+  if (error) throw new Error(`odczyt subskrypcji nie powiódł się: ${error.message}`);
+  if (!data?.provider_customer_id) return null;
   return { customerId: data.provider_customer_id as string };
 }
 

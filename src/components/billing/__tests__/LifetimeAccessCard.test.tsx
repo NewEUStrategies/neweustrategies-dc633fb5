@@ -18,7 +18,7 @@ import type { MembershipGrantRow } from "@/lib/billing/membership";
 
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
-  grants: { current: [] as MembershipGrantRow[] },
+  grants: { current: [] as MembershipGrantRow[] | undefined },
   tier: { current: null as { key: string; name_pl: string; name_en: string } | null },
 }));
 
@@ -183,5 +183,15 @@ describe("LifetimeAccessCard - co pokazuje o nadaniu", () => {
 
     await waitFor(() => expect(screen.getByText("MEMBER")).toBeTruthy());
     expect(screen.queryByText("PRO")).toBeNull();
+  });
+});
+
+describe("LifetimeAccessCard - nadania w trakcie wczytywania", () => {
+  it("dopóki odczyt nadań trwa, karta milczy zamiast mignąć pustym nagłówkiem", async () => {
+    h.grants.current = undefined;
+    const { container } = render();
+
+    await waitFor(() => expect(container.textContent).toBe(""));
+    expect(screen.queryByText("profile.planPage.grantTitle")).toBeNull();
   });
 });

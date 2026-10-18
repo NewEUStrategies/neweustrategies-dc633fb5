@@ -182,7 +182,8 @@ export function planLadder(): AccessPlan[] {
  * Wiersz LOKALNY (`user_subscriptions`) - to on stoi za kartą na
  * /profile/subscription, gdy subskrypcja nie pochodzi z bramki płatności.
  * Domyślnie AKTYWNA, z trwającym opłaconym okresem i dołączonym planem
- * (bez `plan` karta pokazuje „brak subskrypcji", co jest innym przypadkiem).
+ * (`plan: null` to plan ukryty przez RLS, np. wycofany ze sprzedaży - karta
+ * pokazuje wtedy subskrypcję bez nazwy planu, nie „brak subskrypcji").
  */
 export function userSubscription(
   overrides: Partial<UserSubscriptionRow> = {},

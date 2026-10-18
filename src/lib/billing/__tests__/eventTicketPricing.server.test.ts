@@ -437,6 +437,47 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     expect(quote.taxMode).toBeNull();
   });
 
+  // DEFEKT NAPRAWIONY 18.10.2026: błąd `event_ticket_public_options` był
+  // połykany (`const { data: opts } = ...`) i czytał się jak „bilet bez trybu
+  // podatku". Kasa otwierała wtedy sesję bez `tax_behavior` i bez `tax_code` -
+  // bilet z podatkiem DOLICZANYM szedł w trybie domyślnym konta (podatek
+  // wycięty z ceny zamiast doliczony), a Stripe Tax liczył stawkę z kodu
+  // domyślnego zamiast z kodu biletu. Podgląd chował przy tym „+ podatek".
+  it("AWARIA odczytu opcji biletu przerywa wycenę, zamiast zgadywać podatek", async () => {
+    rpcResponses.set("event_ticket_public_options", fail("canceling statement due to timeout"));
+
+    await expect(
+      priceEventTicket(client(), {
+        userId: USER_ID,
+        eventId: EVENT_ID,
+        ticketTypeId: TICKET_ID,
+        registrationId: null,
+      }),
+    ).rejects.toMatchObject({ message: "canceling statement due to timeout" });
+  });
+
+  it("kod podatkowy biletu przechodzi do wyceny tylko w kształcie `txcd_########`", async () => {
+    const price = (taxCode: unknown) => {
+      rpcResponses.set(
+        "event_ticket_public_options",
+        ok({ tax_mode: "inclusive", stripe_tax_code: taxCode }),
+      );
+      return priceEventTicket(client(), {
+        userId: USER_ID,
+        eventId: EVENT_ID,
+        ticketTypeId: TICKET_ID,
+        registrationId: null,
+      });
+    };
+
+    expect(await price("txcd_20030000")).toMatchObject({
+      taxMode: "inclusive",
+      taxCode: "txcd_20030000",
+    });
+    expect((await price("txcd_2003")).taxCode).toBeNull();
+    expect((await price(20030000)).taxCode).toBeNull();
+  });
+
   it("kod z samych spacji jest brakiem kodu, a nie kodem `not_found`", async () => {
     const quote = await quoteEventTicketOrder(client(), {
       userId: USER_ID,
@@ -531,6 +572,62 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       discountCents: 400,
       totalCents: 9600,
       freeWithCode: false,
+    });
+  });
+
+  it("kod mieszczący się w limicie łącznego rabatu schodzi w całości i po równo z miejsc", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon_for_user",
+      ok([
+        {
+          ok: true,
+          coupon_id: COUPON_ID,
+          discount_cents: 3000,
+          final_cents: 27000,
+          discount_kind: "fixed",
+        },
+      ]),
+    );
+    // Kod -30 zł na miejsce, trzy miejsca. Limit 50% od ceny regularnej
+    // 360 zł (180 zł) - promocja zdjęła 60 zł, kodowi zostaje 120 zł,
+    // a chce 3 × 30 zł.
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 50 };
+
+    expect(
+      await applyEventTicketCoupon(client(), couponInput({ listCents: 36000, promoActive: true })),
+    ).toEqual({
+      ok: true,
+      couponId: COUPON_ID,
+      kind: "fixed",
+      percent: null,
+      discountCents: 9000,
+      finalCents: 21000,
+      perSeatCents: 3000,
+      capped: false,
+    });
+  });
+
+  it("bez ceny regularnej limit liczy się od kwoty zamówienia - promocja niczego z niego nie zjada", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon_for_user",
+      ok([
+        {
+          ok: true,
+          coupon_id: COUPON_ID,
+          discount_cents: 9000,
+          final_cents: 21000,
+          discount_kind: "percent",
+          discount_percent: 30,
+        },
+      ]),
+    );
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 25 };
+
+    expect(await applyEventTicketCoupon(client(), couponInput())).toMatchObject({
+      ok: true,
+      discountCents: 7500,
+      finalCents: 22500,
+      capped: true,
     });
   });
 

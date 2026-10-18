@@ -210,6 +210,27 @@ describe("syncEntitlementState - zapis uprawnienia", () => {
     },
   );
 
+  it("konto usunięte przed zapisem (23503 na kluczu właściciela) kończy synchronizację bez wyjątku", async () => {
+    // Od 20261018150000 `user_subscriptions.user_id` ma FK do `auth.users`
+    // (ON DELETE CASCADE). Zdarzenie subskrypcji konta zamkniętego w trakcie
+    // dostawy nie ma komu nadać dostępu - wyjątek dałby ponowienia bez końca,
+    // jak przy zapisie `subscriptions` w dyspozytorze.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    plan({
+      existing: null,
+      insert: fail(
+        'insert or update on table "user_subscriptions" violates foreign key constraint "user_subscriptions_user_id_fkey"',
+        "23503",
+      ),
+    });
+
+    await expect(syncEntitlementState(input())).resolves.toBeUndefined();
+
+    expect(writeOf("update").chain).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith("[payments] entitlement owner no longer exists", SUB);
+    warn.mockRestore();
+  });
+
   it("przegrany wyścig o wstawienie (23505) aktualizuje TEN SAM klucz zamiast dopisać drugi wiersz", async () => {
     // Równoległe zdarzenie wstawiło uprawnienie między naszym odczytem
     // („brak") a wstawieniem. Indeks unikalny odrzuca drugi wiersz, a stan

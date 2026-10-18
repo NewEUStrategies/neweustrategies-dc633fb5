@@ -39,16 +39,26 @@ const h = vi.hoisted(() => {
     // oddaje `data: null` przy zerowym wyniku, a diagnostyka MUSI to przeżyć.
     coupons: { current: [] as Array<Record<string, unknown>> | null },
     webhookRows: { current: [] as Array<Record<string, unknown>> | null },
+    /** Błąd PostgREST odczytu dziennika zdarzeń (`null` = odczyt udany). */
+    webhookReadError: { current: null as Error | null },
     endpoints: { current: [] as Array<Record<string, unknown>> },
     /** Wiersz `checkout_settings` najemcy (`maybeSingle`). */
     checkoutSettings: { current: null as Record<string, unknown> | null },
     /** Plany najemcy czytane przy zawężaniu kodów planowych. */
     plans: { current: [] as Array<Record<string, unknown>> | null },
+    /** Błąd PostgREST odczytu planów najemcy (`null` = odczyt udany). */
+    plansError: { current: null as Error | null },
     endpointsThrow: { current: false },
     prices: { current: new Map<string, { id: string; product?: unknown }>() },
     pricesThrow: { current: false },
+    /** `lookup_keys` każdego `prices.list` - operator przyjmuje najwyżej 10. */
+    priceListCalls: [] as string[][],
     promoByCode: { current: new Map<string, string>() },
     promoThrows: { current: false },
+    /** Odpowiedź `promotionCodes.list` dopiero w następnym obrocie pętli zdarzeń. */
+    promoDeferred: { current: false },
+    /** Ile zapytań o kod promocyjny było naraz w locie (maksimum przebiegu). */
+    promoInFlight: { now: 0, max: 0 },
     createdCoupons: [] as Array<Record<string, unknown>>,
     createdPromos: [] as Array<Record<string, unknown>>,
     /** Drugi argument wywołań operatora (`RequestOptions`, klucz idempotencji). */
@@ -97,15 +107,21 @@ const h = vi.hoisted(() => {
           error: null,
         });
       link.then = (onFulfilled?: (value: unknown) => unknown) =>
-        Promise.resolve({
-          data:
-            table === "b2b_coupons"
-              ? state.coupons.current
-              : table === "access_plans"
-                ? state.plans.current
-                : state.webhookRows.current,
-          error: null,
-        }).then(onFulfilled);
+        Promise.resolve(
+          table === "payment_webhook_events" && state.webhookReadError.current
+            ? { data: null, error: state.webhookReadError.current }
+            : table === "access_plans" && state.plansError.current
+              ? { data: null, error: state.plansError.current }
+              : {
+                  data:
+                    table === "b2b_coupons"
+                      ? state.coupons.current
+                      : table === "access_plans"
+                        ? state.plans.current
+                        : state.webhookRows.current,
+                  error: null,
+                },
+        ).then(onFulfilled);
       return link;
     },
     rpc: (fn: string, args?: Record<string, unknown>) => {
@@ -127,16 +143,31 @@ const h = vi.hoisted(() => {
    */
   const stripe = {
     prices: {
-      list: () =>
-        state.pricesThrow.current
-          ? Promise.reject(new Error("stripe padł"))
-          : Promise.resolve({
-              data: [...state.prices.current.entries()].map(([lookupKey, price]) => ({
-                id: price.id,
-                lookup_key: lookupKey,
-                product: price.product ?? null,
-              })),
+      // Kontrakt operatora, nie wygoda atrapy: `lookup_keys` przyjmuje NAJWYŻEJ
+      // 10 kluczy (dokumentacja `prices.list`), a odpowiedź zawiera wyłącznie
+      // ceny o kluczach z zapytania. Atrapa, która oddawała cały katalog na
+      // każde pytanie, przepuściła katalog 11 pozycji pytany jednym żądaniem.
+      list: (params: { lookup_keys?: string[] }) => {
+        const keys = params.lookup_keys ?? [];
+        state.priceListCalls.push(keys);
+        if (state.pricesThrow.current) return Promise.reject(new Error("stripe padł"));
+        if (keys.length > 10) {
+          return Promise.reject(
+            Object.assign(new Error("You can only pass up to 10 lookup_keys."), {
+              type: "StripeInvalidRequestError",
             }),
+          );
+        }
+        return Promise.resolve({
+          data: [...state.prices.current.entries()]
+            .filter(([lookupKey]) => keys.includes(lookupKey))
+            .map(([lookupKey, price]) => ({
+              id: price.id,
+              lookup_key: lookupKey,
+              product: price.product ?? null,
+            })),
+        });
+      },
     },
     webhookEndpoints: {
       list: () =>
@@ -150,7 +181,16 @@ const h = vi.hoisted(() => {
         const { code } = params;
         if (state.promoThrows.current) return Promise.reject(new Error("stripe padł"));
         const id = state.promoByCode.current.get(code);
-        return Promise.resolve({ data: id ? [{ id }] : [] });
+        const response = { data: id ? [{ id }] : [] };
+        if (!state.promoDeferred.current) return Promise.resolve(response);
+        state.promoInFlight.now += 1;
+        state.promoInFlight.max = Math.max(state.promoInFlight.max, state.promoInFlight.now);
+        return new Promise((resolve) =>
+          setTimeout(() => {
+            state.promoInFlight.now -= 1;
+            resolve(response);
+          }, 0),
+        );
       },
       create: (payload: Record<string, unknown>, options?: unknown) => {
         state.createdPromos.push(payload);
@@ -255,18 +295,24 @@ beforeEach(() => {
   h.rpc.mockReset();
   h.coupons.current = [];
   h.webhookRows.current = [];
+  h.webhookReadError.current = null;
   h.endpoints.current = [];
   h.endpointsThrow.current = false;
   // Najemca z WŁĄCZONYM polem kodu Stripe - inaczej synchronizacja niczego nie
   // wypycha (domyślne PAY-06). Przypadki „pole wyłączone" ustawiają to jawnie.
   h.checkoutSettings.current = { allow_promotion_codes: true };
   h.plans.current = [];
+  h.plansError.current = null;
   h.prices.current = new Map(
     BILLING_CATALOG.map((entry) => [entry.priceId, { id: `price_${entry.priceId}` }]),
   );
   h.pricesThrow.current = false;
+  h.priceListCalls.length = 0;
   h.promoByCode.current = new Map();
   h.promoThrows.current = false;
+  h.promoDeferred.current = false;
+  h.promoInFlight.now = 0;
+  h.promoInFlight.max = 0;
   h.createdCoupons.length = 0;
   h.createdPromos.length = 0;
   h.couponOptions.length = 0;
@@ -521,6 +567,27 @@ describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
     expect(diag.catalog.every((entry) => entry.providerPriceId)).toBe(true);
   });
 
+  // DEFEKT (2026-10-18): katalog ma 11 pozycji (od dołożenia trzech cykli
+  // Partnera Biznesowego), a sonda pytała operatora o WSZYSTKIE klucze jednym
+  // `prices.list`. Operator przyjmuje najwyżej 10 `lookup_keys` i odrzuca
+  // żądanie - sonda kończyła się w `catch`, a diagnostyka pokazywała CAŁY
+  // katalog jako brakujący (`0/11`, `error`) przy kompletnym cenniku u operatora.
+  it("katalog dłuższy niż limit operatora (10 kluczy) jest pytany PACZKAMI i rozwiązuje się cały", async () => {
+    expect(BILLING_CATALOG.length).toBeGreaterThan(10);
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(h.priceListCalls.length).toBeGreaterThan(1);
+    expect(h.priceListCalls.every((keys) => keys.length <= 10)).toBe(true);
+    // Każdy klucz pytany dokładnie raz - paczki się nie nakładają.
+    expect(h.priceListCalls.flat().sort()).toEqual(
+      BILLING_CATALOG.map((entry) => entry.priceId).sort(),
+    );
+    expect(diag.catalog.map((entry) => entry.providerPriceId)).toEqual(
+      BILLING_CATALOG.map((entry) => `price_${entry.priceId}`),
+    );
+  });
+
   it("BRAKUJĄCA CENA u operatora to `error` z liczbą braków", async () => {
     const [first, ...rest] = BILLING_CATALOG;
     h.prices.current = new Map(
@@ -605,6 +672,37 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
     expect(diag.webhooks.total).toBe(1);
   });
 
+  // DEFEKT (2026-10-18): błąd odczytu dziennika był połykany (`const { data }`
+  // bez `error`), a pusty wynik liczył się jak „zero zdarzeń" - kontrola
+  // `webhook_failures` świeciła ZIELONO („0/0", ok) właśnie wtedy, gdy
+  // diagnostyka nie umiała przeczytać ani jednego zdarzenia. Operator
+  // szukający „dlaczego zakup nie nadał dostępu" dostawał fałszywe „błędów brak".
+  it("BŁĄD ODCZYTU dziennika to `error` obu kontroli dziennika, a nie zielone „0/0”", async () => {
+    h.webhookRows.current = [
+      { status: "failed", created_at: "2026-08-18T10:00:00.000Z", duration_ms: 10 },
+    ];
+    h.webhookReadError.current = Object.assign(new Error("statement timeout"), {
+      name: "PostgrestError",
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_failures")).toMatchObject({
+      state: "error",
+      detail: "read_failed",
+    });
+    expect(checkById(diag, "webhook_traffic")).toMatchObject({
+      state: "error",
+      detail: "read_failed",
+    });
+    // Pozostałe kontrole raportu zostają - awaria jednego odczytu ich nie gasi.
+    expect(checkById(diag, "catalog").state).toBe("ok");
+    expect(diag.webhooks).toMatchObject({ total: 0, failed: 0, lastEventAt: null });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
   it("JAKIKOLWIEK BŁĄD w dzienniku to `error` z proporcją", async () => {
     h.webhookRows.current = [
       { status: "processed", created_at: "2026-08-18T10:00:00.000Z", duration_ms: 10 },
@@ -637,6 +735,32 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
 });
 
 describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () => {
+  // Tabela kuponów pyta operatora o KAŻDY z (do) 50 kodów. Dawniej po kolei:
+  // 50 sekwencyjnych żądań przez bramkę konektorów to kilkanaście sekund
+  // ładowania diagnostyki. Teraz najwyżej 5 naraz - poniżej limitu odczytów
+  // piaskownicy operatora - a wynik zostaje w kolejności tabeli.
+  it("kody są sprawdzane u operatora RÓWNOLEGLE, najwyżej 5 naraz, w kolejności tabeli", async () => {
+    h.coupons.current = Array.from({ length: 12 }, (_, i) => ({
+      code: `kod${String(i).padStart(2, "0")}`,
+      active: true,
+      discount_kind: "percent",
+    }));
+    h.promoByCode.current = new Map([["KOD07", "promo_7"]]);
+    h.promoDeferred.current = true;
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(h.promoInFlight.max).toBeGreaterThan(1);
+    expect(h.promoInFlight.max).toBeLessThanOrEqual(5);
+    expect(h.promoListCalls).toHaveLength(12);
+    expect(diag.coupons.map((coupon) => coupon.code)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `KOD${String(i).padStart(2, "0")}`),
+    );
+    expect(diag.coupons.map((coupon) => coupon.providerDiscountId)).toEqual(
+      Array.from({ length: 12 }, (_, i) => (i === 7 ? "promo_7" : null)),
+    );
+  });
+
   it("kupon procentowy jest opisany jako procentowy", async () => {
     h.coupons.current = [
       {
@@ -1322,6 +1446,102 @@ describe("syncCouponDiscounts - zawężenie kodów na WSPÓLNYM koncie (audyt PA
     expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
     expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
     expect(h.createdCoupons[0]).not.toHaveProperty("applies_to");
+    consoleError.mockRestore();
+  });
+
+  it("AWARIA odczytu planów: kod planowy NIE jedzie bez zawężenia, ogólny jedzie", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+      { id: "c-ogolny", code: "OGOLNY", discount_kind: "percent", discount_percent: 10 },
+    ];
+    h.plansError.current = Object.assign(new Error("statement timeout"), {
+      name: "PostgrestError",
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] coupon sync: plan lookup failed",
+      "statement timeout",
+    );
+    consoleError.mockRestore();
+  });
+
+  it("plan bez pozycji katalogu (bez warstwy) nie pyta operatora o ceny - kod pominięty", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: null, interval: "month" }];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 1 });
+    expect(h.priceListCalls).toHaveLength(0);
+    expect(h.createdCoupons).toHaveLength(0);
+    consoleError.mockRestore();
+  });
+
+  it("cena planu u operatora BEZ produktu (albo bez ceny): kod planowy pominięty, nie rozszerzony", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: "pro", interval: "month" }];
+    // Cena istnieje, ale bez produktu - kodu nie da się zawęzić do planu.
+    h.prices.current.set("pro_monthly", { id: "price_pro" });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdCoupons).toHaveLength(0);
+    consoleError.mockRestore();
+  });
+
+  it("AWARIA operatora przy cenach planów: kod planowy pominięty, synchronizacja trwa dalej", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+      { id: "c-ogolny", code: "OGOLNY", discount_kind: "percent", discount_percent: 10 },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: "pro", interval: "month" }];
+    h.pricesThrow.current = true;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 1, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdPromos.map((promo) => promo.code)).toEqual(["OGOLNY"]);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] coupon sync: plan products lookup failed",
+      expect.any(Error),
+    );
     consoleError.mockRestore();
   });
 

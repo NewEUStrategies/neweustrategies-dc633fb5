@@ -83,6 +83,7 @@ import i18n from "@/lib/i18n";
 import { renderRoute } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { moneyPattern } from "@/test/billing/fixtures";
+import { OBJECT_URL_REVOKE_DELAY_MS } from "@/lib/files/downloadBlob";
 import { Route as AuditRoute } from "@/routes/admin.billing-audit";
 
 const PATH = "/admin/billing-audit";
@@ -430,6 +431,18 @@ describe("trasa /admin/billing-audit - dziennik zamówień", () => {
     expect(row.textContent).not.toContain("zł");
   });
 
+  it("zamówienie BEZ waluty pokazuje kwotę kodem PLN (domyślna waluta kolumny), nie wywraca tabeli", async () => {
+    h.audit.mockResolvedValue(
+      report({ orders: [order({ currency: null, amountCents: 4900 })], webhooks: [] }),
+    );
+    await mount();
+    await load();
+
+    const row = (await screen.findByText("pi_test_1")).closest("tr") as HTMLElement;
+    expect(row.textContent).toMatch(/PLN/);
+    expect(row.textContent).toMatch(/49[.,]00/);
+  });
+
   it("brak kwoty to myślnik, a nie zero złotych", async () => {
     // Zamówienie bez kwoty (sesja porzucona przed wyceną) to brak danych.
     // Wyświetlone „0,00 zł" byłoby zdaniem o darmowym zamówieniu.
@@ -542,6 +555,49 @@ describe("trasa /admin/billing-audit - dziennik zdarzeń i ponowienie", () => {
     ) as HTMLElement;
     expect(within(row).getAllByText("-").length).toBeGreaterThan(0);
     expect(row.textContent).not.toContain("0 ms");
+  });
+
+  // DEFEKT (2026-10-18): raport zostawał na ekranie po zmianie zakresu
+  // w formularzu - sumy i wiersze piaskownicy pod przełącznikiem „Produkcja",
+  // a eksport (który pyta o zakres Z FORMULARZA) inny niż tabela obok.
+  it("zmiana zakresu po wczytaniu chowa raport POPRZEDNIEGO zakresu, powrót go przywraca", async () => {
+    await mount();
+    await load();
+    expect(await screen.findByText("pi_test_1")).toBeInTheDocument();
+
+    fireEvent.change(auditEnv(), { target: { value: "live" } });
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zaksięgowane")).not.toBeInTheDocument();
+
+    // Ten sam zakres co przy wczytaniu - raport wraca bez nowego zapytania.
+    fireEvent.change(auditEnv(), { target: { value: "sandbox" } });
+    expect(screen.getByText("pi_test_1")).toBeInTheDocument();
+
+    fireEvent.change(auditWindow(), { target: { value: "24" } });
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    fireEvent.change(auditWindow(), { target: { value: "168" } });
+    fireEvent.change(auditEventFilter(), { target: { value: EVENT_UUID } });
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    expect(h.audit).toHaveBeenCalledTimes(1);
+  });
+
+  it("raport zamówiony dla piaskownicy, a formularz w międzyczasie na produkcji: nie podpisuje się produkcją", async () => {
+    let finish: (value: AuditReport) => void = () => {};
+    h.audit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wczytaj" }));
+    await waitFor(() => expect(h.audit).toHaveBeenCalledTimes(1));
+    fireEvent.change(auditEnv(), { target: { value: "live" } });
+    finish(report());
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Wczytaj" })).not.toBeDisabled());
+    expect(lastAuditQuery().environment).toBe("sandbox");
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    // Powrót na piaskownicę pokazuje raport, który faktycznie dla niej przyszedł.
+    fireEvent.change(auditEnv(), { target: { value: "sandbox" } });
+    expect(screen.getByText("pi_test_1")).toBeInTheDocument();
   });
 
   it("powrót na zakładkę zamówień nie gubi wczytanego raportu", async () => {
@@ -665,18 +721,18 @@ describe("trasa /admin/billing-audit - eksport księgowy", () => {
   /** Przechwytuje pobranie pliku: adres obiektu, nazwę i typ MIME. */
   function captureDownload() {
     const created: Blob[] = [];
-    const anchors: { href: string; download: string }[] = [];
+    const anchors: { href: string; download: string; attached: boolean }[] = [];
     vi.spyOn(URL, "createObjectURL").mockImplementation((blob: Blob | MediaSource) => {
       created.push(blob as Blob);
       return "blob:test-object-url";
     });
-    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
       this: HTMLAnchorElement,
     ) {
-      anchors.push({ href: this.href, download: this.download });
+      anchors.push({ href: this.href, download: this.download, attached: this.isConnected });
     });
-    return { created, anchors };
+    return { created, anchors, revoke };
   }
 
   it("eksport CSV pyta o TEN SAM zakres co dziennik i pobiera plik z serwera", async () => {
@@ -743,6 +799,37 @@ describe("trasa /admin/billing-audit - eksport księgowy", () => {
     await waitFor(() => expect(h.exportAudit).toHaveBeenCalled());
     expect(h.audit).not.toHaveBeenCalled();
   });
+
+  // DEFEKT (2026-10-18): trasa miała własną kopię pobrania, która klikała
+  // kotwicę SPOZA dokumentu i zwalniała adres `blob:` zaraz po `click()`.
+  // Safari i część Chromium na Androidzie gubią wtedy plik (pobranie
+  // „nieudane" albo pusta karta) - eksport księgowy kończył się niczym. Wspólny
+  // `downloadBlob` wstawia kotwicę do dokumentu i zwalnia adres po chwili.
+  it("plik eksportu: kotwica W dokumencie, adres zwolniony PO chwili, nie od razu", async () => {
+    const download = captureDownload();
+    await mount();
+    // Zwolnienie adresu jest odroczone - sterujemy `setTimeout` dopiero tu,
+    // po zamontowaniu trasy.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Eksport CSV" }));
+
+      await vi.waitFor(() => expect(download.anchors).toHaveLength(1));
+      expect(download.anchors[0]).toEqual({
+        href: "blob:test-object-url",
+        download: "audyt-sandbox-2026-08-18.csv",
+        attached: true,
+      });
+      expect(download.revoke).not.toHaveBeenCalled();
+      // Kotwica nie zostaje w dokumencie po kliknięciu.
+      expect(document.querySelector("a[download]")).toBeNull();
+
+      vi.advanceTimersByTime(OBJECT_URL_REVOKE_DELAY_MS);
+      expect(download.revoke).toHaveBeenCalledWith("blob:test-object-url");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
@@ -782,6 +869,40 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
     expect(document.body.textContent).toContain("brak uprawnień administratora");
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
+
+  it("odmowa wczytania wartością bez klasy Error też niesie POWÓD", async () => {
+    h.audit.mockRejectedValue("serwer zamknął połączenie");
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wczytaj" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("serwer zamknął połączenie");
+  });
+
+  it.each([
+    ["Eksport XLSX", "Eksport CSV"],
+    ["Eksport CSV", "Eksport XLSX"],
+  ])(
+    "W TRAKCIE eksportu „przygotowuję” ma TYLKO klikany format (%s), a oba przyciski są zablokowane",
+    async (clicked, other) => {
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-object-url");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      let finish: (value: AuditExport) => void = () => {};
+      h.exportAudit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+      await mount();
+
+      fireEvent.click(screen.getByRole("button", { name: clicked }));
+
+      const exporting = await screen.findByRole("button", { name: "Przygotowuję plik..." });
+      expect(exporting).toBeDisabled();
+      expect(screen.getByRole("button", { name: other })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: clicked })).toBeNull();
+      finish(exportFile());
+      await screen.findByRole("button", { name: clicked });
+      expect(h.exportAudit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("nieudany eksport księgowy kończy się komunikatem, nie ciszą", async () => {
     // CO BYŁO ZŁE. Mutacja `exportFile` też nie miała `onError`. Gdy funkcja

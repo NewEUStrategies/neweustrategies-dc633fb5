@@ -162,6 +162,8 @@ interface SubSeed {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   provider_subscription_id: string;
+  /** Opłacona subskrypcja ma potwierdzony zakup; anulowana bez niego i bez zapłaty nie miała dostępu. */
+  purchase_confirmed_at: string | null;
 }
 
 interface SeatSeed {
@@ -182,6 +184,7 @@ function sub(overrides: Partial<SubSeed> = {}): SubSeed {
     current_period_end: iso(3),
     cancel_at_period_end: false,
     provider_subscription_id: "sub_1",
+    purchase_confirmed_at: iso(-27),
     ...overrides,
   };
 }

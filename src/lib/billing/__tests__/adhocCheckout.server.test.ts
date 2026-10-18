@@ -267,6 +267,20 @@ describe("createAdhocCheckoutSession - kształt sesji", () => {
     });
   });
 
+  it("bilet niesie kod podatkowy Stripe ze swojego wiersza (TIX-09), a kod w złym kształcie - żadnego", async () => {
+    await createAdhocCheckoutSession(adhoc({ purpose: "event_ticket", taxCode: "txcd_20030000" }));
+    expect(lastSession().line_items[0].price_data?.product_data).toMatchObject({
+      tax_code: "txcd_20030000",
+    });
+
+    await createAdhocCheckoutSession(adhoc({ purpose: "event_ticket", taxCode: "VAT-8" }));
+    expect(lastSession().line_items[0].price_data?.product_data).not.toHaveProperty("tax_code");
+
+    // Bilet bez kodu nie dostaje kodu treści cyfrowej (to nie produkt MoR).
+    await createAdhocCheckoutSession(adhoc({ purpose: "event_ticket" }));
+    expect(lastSession().line_items[0].price_data?.product_data).not.toHaveProperty("tax_code");
+  });
+
   it("przycina nazwę i opis pozycji do limitu operatora", async () => {
     await createAdhocCheckoutSession(
       adhoc({ name: "N".repeat(250), description: "O".repeat(250) }),
@@ -1077,6 +1091,18 @@ describe("resolveOrCreateCustomer - klient INNEGO konta nigdy nie jest przejmowa
     expect(h.fns.customersCreate).not.toHaveBeenCalled();
   });
 
+  it("odrzucenie przejęcia wartością, która nie jest obiektem błędu, też NIE jest wyścigiem", async () => {
+    // Rozpoznanie wyścigu czyta pola błędu operatora - napis z warstwy
+    // transportu nie ma ich wcale i nie może skończyć się nowym klientem.
+    h.fns.customersList.mockResolvedValue({ data: [{ id: "cus_sporny", metadata: {} }] });
+    h.fns.customersUpdate.mockRejectedValue("socket hang up");
+
+    await expect(
+      resolveOrCreateCustomer(asStripe(), { userId: "user-1", email: "biuro@example.com" }),
+    ).rejects.toBe("socket hang up");
+    expect(h.fns.customersCreate).not.toHaveBeenCalled();
+  });
+
   it("zakładanie klienta ma DETERMINISTYCZNY klucz idempotencji (to samo konto i dane = ten sam klucz)", async () => {
     await resolveOrCreateCustomer(asStripe(), { userId: "user-1", email: "a@example.com" });
     await resolveOrCreateCustomer(asStripe(), { userId: "user-1", email: "a@example.com" });
@@ -1244,6 +1270,42 @@ describe("kwota ceny operatora - kształty, których nie zgadujemy", () => {
     expect(
       stripePriceAmountFor(price({ billing_scheme: "tiered", tiers: undefined }), 1),
     ).toBeNull();
+  });
+
+  it("tryb `volume`: próg bez stawki całkowitej albo ilość ponad ostatni próg - `null`", () => {
+    // Stawka wyłącznie w `unit_amount_decimal` (ułamek grosza) i progi kończące
+    // się przed zamówioną ilością - kwoty nie da się policzyć jednoznacznie.
+    const decimalOnly = price({
+      billing_scheme: "tiered",
+      tiers_mode: "volume",
+      unit_amount: null,
+      tiers: [{ up_to: null, unit_amount: null, unit_amount_decimal: "999.5", flat_amount: null }],
+    });
+    const capped = price({
+      billing_scheme: "tiered",
+      tiers_mode: "volume",
+      unit_amount: null,
+      tiers: [{ up_to: 10, unit_amount: 4900, flat_amount: null }],
+    });
+
+    expect(stripePriceAmountFor(decimalOnly, 3)).toBeNull();
+    expect(stripePriceAmountFor(capped, 11)).toBeNull();
+    expect(stripePriceAmountFor(capped, 10)).toBe(10 * 4900);
+  });
+
+  it("tryb `graduated`: przedział bez stawki całkowitej - `null`, a nie suma bez niego", () => {
+    const graduated = price({
+      billing_scheme: "tiered",
+      tiers_mode: "graduated",
+      unit_amount: null,
+      tiers: [
+        { up_to: 2, unit_amount: 1000, flat_amount: null },
+        { up_to: null, unit_amount: null, unit_amount_decimal: "799.5", flat_amount: null },
+      ],
+    });
+
+    expect(stripePriceAmountFor(graduated, 2)).toBe(2000);
+    expect(stripePriceAmountFor(graduated, 3)).toBeNull();
   });
 
   it("kwota, której nie da się policzyć, jest rozjazdem (`unverifiable_amount`)", () => {
@@ -1491,6 +1553,126 @@ describe("createPlanCheckoutSession - otwarte sesje tego konta (audyt #18)", () 
     expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
   });
 
+  it("otwarte sesje na DRUGIEJ stronie listy też są wygaszane (`starting_after`)", async () => {
+    const first = openSession({ metadata: { userId: "user-1", planId: "plan_pro", orderId: "A" } });
+    const second = openSession({
+      metadata: { userId: "user-1", planId: "plan_pro", orderId: "B" },
+    });
+    // Operator oddaje po jednej sesji na stronę.
+    h.fns.sessionsList.mockImplementation(
+      async (params: { status?: string; starting_after?: string }) => {
+        const open = sessions.filter((s) => !params.status || s.status === params.status);
+        const start = params.starting_after
+          ? open.findIndex((s) => s.id === params.starting_after) + 1
+          : 0;
+        return { data: open.slice(start, start + 1), has_more: start + 1 < open.length };
+      },
+    );
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_new" }));
+
+    expect(result).toMatchObject({ ok: true, supersededOrderIds: ["A", "B"] });
+    expect([first.status, second.status]).toEqual(["expired", "expired"]);
+    expect(h.fns.sessionsList).toHaveBeenCalledWith(
+      expect.objectContaining({ starting_after: first.id }),
+    );
+  });
+
+  it("więcej otwartych sesji niż trzy strony listy: odmowa fail-closed, bez nowej sesji", async () => {
+    // Nie da się przeczytać wszystkich - każda niewygaszona byłaby drugą
+    // subskrypcją po opłaceniu.
+    h.fns.sessionsList.mockImplementation(async (params: { starting_after?: string }) => ({
+      data: [
+        {
+          id: `cs_${params.starting_after ?? "start"}_next`,
+          created: 1,
+          mode: "payment",
+          status: "open",
+          metadata: {},
+        },
+      ],
+      has_more: true,
+    }));
+
+    const result = await createPlanCheckoutSession(plan());
+
+    expect(result).toEqual({
+      ok: false,
+      error: "stripe_error:too many open checkout sessions for customer cus_new",
+    });
+    expect(h.fns.sessionsList).toHaveBeenCalledTimes(3);
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("sesja, której wygaszenie odbiło, a operator mówi `expired` - liczy się jako wygaszona", async () => {
+    const stale = openSession({ metadata: { userId: "user-1", planId: "plan_pro", orderId: "A" } });
+    h.fns.sessionsExpire.mockImplementationOnce(async () => {
+      stale.status = "expired";
+      throw new Error("This Checkout Session is already expired");
+    });
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_new" }));
+
+    expect(result).toMatchObject({ ok: true, supersededOrderIds: ["A"] });
+  });
+
+  it("sesja bez metadanych (`metadata: null`) nie jest sesją planu - zostaje nietknięta", async () => {
+    const foreign = openSession({ metadata: null as unknown as Record<string, string> });
+
+    const result = await createPlanCheckoutSession(plan());
+
+    expect(result.ok).toBe(true);
+    expect(foreign.status).toBe("open");
+    expect(h.fns.sessionsExpire).not.toHaveBeenCalled();
+  });
+
+  it("wyścig: STARSZA równoległa sesja zdążyła się opłacić - nasza wygasa, odmowa `subscription_exists`", async () => {
+    let rival: FakeSession | undefined;
+    h.fns.sessionsCreate.mockImplementationOnce(
+      async (params: { metadata: Record<string, string> }) => {
+        rival = openSession({
+          metadata: { userId: "user-1", planId: "plan_pro", orderId: "ord_rival" },
+          created: 2_000,
+        });
+        return openSession({ metadata: params.metadata, created: 2_001 });
+      },
+    );
+    h.fns.sessionsExpire.mockImplementation(async (id: string) => {
+      const session = sessions.find((s) => s.id === id)!;
+      if (session === rival) {
+        session.status = "complete";
+        throw new Error("This Checkout Session is already complete");
+      }
+      session.status = "expired";
+      return session;
+    });
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_ours" }));
+
+    expect(result).toEqual({ ok: false, error: "subscription_exists" });
+    expect(sessions.map((s) => [s.metadata["orderId"], s.status])).toEqual([
+      ["ord_rival", "complete"],
+      ["ord_ours", "expired"],
+    ]);
+  });
+
+  it("wyścig z sesją CUDZEGO konta na tym kliencie: rywal wygasa, jego zamówienia nie zgłaszamy", async () => {
+    h.fns.sessionsCreate.mockImplementationOnce(
+      async (params: { metadata: Record<string, string> }) => {
+        openSession({
+          metadata: { userId: "ktos-inny", planId: "plan_pro", orderId: "ord_obcy" },
+          created: 2_000,
+        });
+        return openSession({ metadata: params.metadata, created: 2_001 });
+      },
+    );
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_ours" }));
+
+    expect(result).toEqual({ ok: true, clientSecret: "secret_2", sessionId: "cs_2" });
+    expect(sessions.map((s) => s.status)).toEqual(["expired", "open"]);
+  });
+
   it("wyścig: sesja otwarta RÓWNOLEGLE jest nowsza - nasza wygasa i kasa mówi `checkout_superseded`", async () => {
     // Oba przeglądy przed założeniem były puste; druga karta założyła sesję
     // chwilę po nas (późniejszy `created`).
@@ -1695,6 +1877,29 @@ describe("createPlanCheckoutSession - porzucone 3DS (`incomplete`, audyt #39)", 
     expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
   });
 
+  it("faktura rozwinięta do OBIEKTU jest unieważniana po swoim identyfikatorze", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({
+      data: [incomplete({ latest_invoice: { id: "in_obiekt", status: "open" } })],
+    });
+
+    expect((await createPlanCheckoutSession(plan())).ok).toBe(true);
+    expect(h.fns.invoicesVoid).toHaveBeenCalledWith(
+      "in_obiekt",
+      {},
+      { idempotencyKey: "void-abandoned-first-invoice:in_obiekt" },
+    );
+  });
+
+  it("subskrypcja `incomplete` BEZ faktury: odmowa zamiast zgadywania, bez nowej sesji", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({ data: [incomplete({ latest_invoice: null })] });
+
+    expect(await createPlanCheckoutSession(plan())).toEqual({
+      ok: false,
+      error: "stripe_error:incomplete subscription without invoice: sub_3ds",
+    });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
   it("niedokończona DAROWIZNA nie jest planem - jej faktury nie ruszamy", async () => {
     h.fns.subscriptionsList.mockResolvedValue({
       data: [incomplete({ metadata: { purpose: "donation" } })],
@@ -1734,6 +1939,41 @@ describe("resolvePricesByLookupKeys", () => {
       active: true,
       expand: ["data.product", "data.tiers"],
     });
+  });
+
+  // Operator przyjmuje NAJWYŻEJ 10 `lookup_keys` na jedno `prices.list`
+  // (dokumentacja SDK: „You can specify up to 10 lookup_keys") i odrzuca
+  // dłuższą listę. Katalog ma dziś 11 pozycji, więc jedno żądanie o cały
+  // katalog (sonda diagnostyki) kończyło się błędem zamiast mapą cen.
+  it("lista dłuższa niż 10 kluczy idzie PACZKAMI po 10 - każdy klucz raz, wynik pełny", async () => {
+    const keys = Array.from({ length: 23 }, (_, i) => `key_${String(i).padStart(2, "0")}`);
+    h.fns.pricesList.mockImplementation(async (params: { lookup_keys: string[] }) => {
+      if (params.lookup_keys.length > 10) {
+        throw new Error("You can only pass up to 10 lookup_keys.");
+      }
+      return {
+        data: params.lookup_keys.map((key) => stripePrice({ id: `price_${key}`, lookup_key: key })),
+      };
+    });
+
+    const prices = await resolvePricesByLookupKeys(asStripe(), keys);
+
+    const asked = h.fns.pricesList.mock.calls.map(
+      ([params]) => (params as { lookup_keys: string[] }).lookup_keys,
+    );
+    expect(asked.map((batch) => batch.length)).toEqual([10, 10, 3]);
+    expect(asked.flat()).toEqual(keys);
+    expect([...prices.keys()].sort()).toEqual(keys);
+    expect(prices.get("key_22")?.id).toBe("price_key_22");
+  });
+
+  it("awaria JEDNEJ paczki nie udaje częściowego katalogu - wyjątek idzie do wołającego", async () => {
+    const keys = Array.from({ length: 12 }, (_, i) => `key_${i}`);
+    h.fns.pricesList
+      .mockResolvedValueOnce({ data: [stripePrice({ id: "price_a", lookup_key: "key_0" })] })
+      .mockRejectedValueOnce(new Error("bramka padła"));
+
+    await expect(resolvePricesByLookupKeys(asStripe(), keys)).rejects.toThrow("bramka padła");
   });
 });
 

@@ -22,6 +22,7 @@
 //
 // Moduł server-only - importuj wyłącznie z handlera crona i z funkcji panelu
 // operatora platformy.
+import { accessPeriodFromEvent, effectiveCancellationReason } from "@/lib/billing/accessPeriod";
 import { notifyReminderEmail } from "@/lib/billing/notifications.server";
 import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
 import { environmentGrantsAccess, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
@@ -49,6 +50,9 @@ const MAX_BATCHES = 1_000;
  * było: brak daty granicznej, brak adresu, odmowa dostawcy, błąd katalogu
  * planów. Ten podział jest jedynym sygnałem zwrotnym dla człowieka (toast w
  * panelu, log crona), więc nie wolno w nim zliczać prób jako sukcesów.
+ * Subskrypcja, której dostęp kończy się PRZED oknem (karencja płatności) albo
+ * której nigdy nie było (anulowana bez zapłaty), nie jest należna i nie trafia
+ * do żadnego licznika - to nie awaria.
  */
 export interface ReminderRunResult {
   readonly renewal: number;
@@ -65,6 +69,10 @@ interface SubRow {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   provider_subscription_id: string;
+  current_period_start: string | null;
+  first_payment_failed_at: string | null;
+  last_payment_at: string | null;
+  purchase_confirmed_at: string | null;
 }
 
 /** Okno [start, end) w którym końcówka okresu wypada dokładnie za `leadDays`. */
@@ -112,7 +120,7 @@ async function loadDueSubscriptions(query: DueQuery): Promise<SubRow[]> {
   let builder = supabaseAdmin
     .from("subscriptions")
     .select(
-      "id, user_id, tenant_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id",
+      "id, user_id, tenant_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id, current_period_start, first_payment_failed_at, last_payment_at, purchase_confirmed_at",
     )
     .eq("environment", query.environment)
     .in("status", ["active", "trialing", "past_due", "canceled"])
@@ -122,6 +130,44 @@ async function loadDueSubscriptions(query: DueQuery): Promise<SubRow[]> {
   const { data, error } = await builder.order("id", { ascending: true }).limit(query.limit);
   if (error) throw new Error(`reminder lookup failed: ${error.message}`);
   return (data as SubRow[] | null) ?? [];
+}
+
+/**
+ * Czy dostęp kończącej się subskrypcji trwa do końca okresu - ta sama reguła
+ * co webhook (`accessPeriodFromEvent`, SUB-03). Anulowanie za brak płatności
+ * zostawia w wierszu koniec NIEOPŁACONEGO okresu operatora (powód anulowania
+ * nie jest zapisywany, więc wyprowadzamy go z kotwicy karencji i ostatniej
+ * zapłaty - `effectiveCancellationReason`), a wypowiedzenie w trakcie
+ * windykacji kończy karencja. Mail „dostęp zakończy się <koniec okresu>, wznów
+ * subskrypcję" byłby wtedy nieprawdą o dostępie, który już zgasł.
+ *
+ * Anulowana subskrypcja NIGDY NIEOPŁACONA (porzucone 3DS, nieudana pierwsza
+ * płatność: ani potwierdzenia zakupu, ani zaksięgowanej zapłaty) nie miała
+ * dostępu wcale - ta sama reguła co `cancellationAccess` w webhooku dla wiersza
+ * już `canceled`. Jej okres liczony od checkoutu (przy planie rocznym rok
+ * naprzód) nie jest końcem żadnego dostępu.
+ */
+function accessLastsUntilPeriodEnd(row: SubRow, periodEnd: string, now: Date): boolean {
+  const canceled = row.status === "canceled";
+  if (canceled && !row.purchase_confirmed_at && !row.last_payment_at) return false;
+  const { accessUntil } = accessPeriodFromEvent({
+    kind: canceled ? "canceled" : "updated",
+    storedPeriodEnd: periodEnd,
+    status: row.status,
+    periodStart: row.current_period_start,
+    firstPaymentFailedAt: row.first_payment_failed_at,
+    cancellationReason: canceled
+      ? effectiveCancellationReason({
+          firstPaymentFailedAt: row.first_payment_failed_at,
+          lastPaymentAt: row.last_payment_at,
+          periodStart: row.current_period_start,
+        })
+      : null,
+    now,
+  });
+  // Nieczytelna data końca okresu: reguły nie da się policzyć - zostaje
+  // zachowanie sprzed bramki (przypomnienie wychodzi).
+  return accessUntil === null || Date.parse(accessUntil) >= Date.parse(periodEnd);
 }
 
 /**
@@ -168,6 +214,7 @@ export async function runBillingReminders(
         continue;
       }
       const ending = row.status === "canceled" || row.cancel_at_period_end === true;
+      if (ending && !accessLastsUntilPeriodEnd(row, periodEnd, now)) continue;
       try {
         const plan = await resolvePlanForPrice(row.price_id, {
           tenantId: row.tenant_id,
@@ -202,10 +249,12 @@ export async function runBillingReminders(
     }
 
     if (rows.length < limit) return { renewal, expiring, skipped };
-    const last = rows[rows.length - 1]?.id ?? null;
+    // Partia jest pełna (`limit` >= 1 wierszy), a `id` to klucz główny -
+    // ostatni wiersz zawsze niesie kursor.
+    const last = rows[rows.length - 1].id;
     // Kursor, który się nie przesunął, oznacza pętlę bez końca - głośno,
     // zamiast cicho wysyłać te same przypomnienia w kółko.
-    if (!last || (after !== null && last <= after)) {
+    if (after !== null && last <= after) {
       throw new Error("reminder lookup failed: cursor did not advance");
     }
     after = last;

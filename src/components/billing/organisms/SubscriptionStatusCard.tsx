@@ -47,10 +47,12 @@ export function SubscriptionStatusCard({ subscription }: Props) {
     queryKey: billingKeys.myPaymentMethod(uid, env),
     // Karta bywa nieskonfigurowana (dostęp z nadania) - to nie jest błąd,
     // więc brak metody zwracamy jako `null`, nie jako wyjątek.
+    // Odmowa przychodzi z niepustym powodem (`getStripeErrorMessage` nie
+    // zwraca pustego napisu), a każda inna odpowiedź niesie pole `method`.
     queryFn: async () => {
       const result = await getMyPaymentMethod({ data: { environment: env } });
-      if ("error" in result && result.error) throw new Error(result.error);
-      return "method" in result ? result.method : null;
+      if ("error" in result) throw new Error(result.error);
+      return result.method;
     },
     enabled: !!session && isPaymentsConfigured(),
     staleTime: 5 * 60 * 1000,

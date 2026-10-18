@@ -111,10 +111,10 @@ export async function loadPaymentOrders(
 
   const { data, error } = await query;
   if (error) throw error;
-  const records = (data ?? []) as OrderRecord[];
+  const records = data as OrderRecord[];
 
   const planIds = [...new Set(records.map((r) => r.plan_id).filter((v): v is string => !!v))];
-  const planNames = new Map<string, { pl: string | null; en: string | null }>();
+  const planNames = new Map<string, { pl: string; en: string }>();
   if (planIds.length > 0) {
     // Kolumny WYPROWADZONE z wygenerowanych typów, dokładnie jak `OrderRecord`
     // wyżej. Poprzednia wersja pytała o kolumnę `name`, której w `access_plans`
@@ -128,8 +128,8 @@ export async function loadPaymentOrders(
     // Błąd odczytu planów NIE może cicho zniknąć: zamówienia i tak pokażemy,
     // ale operator musi wiedzieć, że kolumna „pozycja" jest niekompletna.
     if (plansError) throw plansError;
-    for (const plan of (plans ?? []) as PlanNameRecord[]) {
-      planNames.set(plan.id, { pl: plan.name_pl ?? null, en: plan.name_en ?? null });
+    for (const plan of plans as PlanNameRecord[]) {
+      planNames.set(plan.id, { pl: plan.name_pl, en: plan.name_en });
     }
   }
 
@@ -139,7 +139,7 @@ export async function loadPaymentOrders(
     paidAt: r.paid_at,
     status: r.status,
     kind: r.kind,
-    provider: r.provider ?? "-",
+    provider: r.provider,
     environment: r.environment,
     sessionId: r.provider_session_id,
     amountCents: r.amount_cents,

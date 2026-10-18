@@ -349,7 +349,8 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
   if (isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null) && (await invoiceAlreadyPaid(ctx))) {
     console.warn("[payments] stale payment failure of an already paid invoice - ignored", {
       subscriptionId: ctx.subscriptionId,
-      transactionId: ctx.transactionId ?? null,
+      // Tu zawsze jest faktura `in_...` - bez niej `invoiceAlreadyPaid` daje `false`.
+      transactionId: ctx.transactionId,
       occurredAt: ctx.occurredAt,
       lastPaymentAt: sub.last_payment_at,
     });
