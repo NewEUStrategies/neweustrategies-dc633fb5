@@ -40,7 +40,7 @@ export function LoginFormBlock({ block, onChange }: Props) {
     const v = block.data[k];
     return typeof v === "string" ? v : fallback;
   };
-  const b = (k: BoolKey, fallback = true) => readAuthFlag(block.data, [k], fallback);
+  const b = (k: BoolKey) => readAuthFlag(block.data, [k], true);
   const set = (k: string, v: string | boolean) =>
     onChange({ ...block, data: { ...block.data, [k]: v } });
 
@@ -97,7 +97,9 @@ export function LoginFormBlock({ block, onChange }: Props) {
           ] as [BoolKey, string][]
         ).map(([k, label]) => (
           <label key={k} className="flex items-center gap-2 text-sm">
-            <Switch checked={b(k, k !== "showOAuthGoogle")} onCheckedChange={(v) => set(k, v)} />
+            {/* Wszystkie domyślnie włączone - także Google: `LoginFormView` czyta
+                brak klucza jako `true`, a panel pokazywał wtedy wyłączenie. */}
+            <Switch checked={b(k)} onCheckedChange={(v) => set(k, v)} />
             <span>{label}</span>
           </label>
         ))}

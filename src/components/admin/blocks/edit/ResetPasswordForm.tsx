@@ -15,6 +15,15 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+const CONFIRM_KEYS = ["showPasswordConfirm", "showConfirmPassword"] as const;
+
+/**
+ * Górna granica pola. Strona przyjmuje do 128 (`asNumInRange(…, 6, 128)`),
+ * ale Supabase odrzuca hasła dłuższe niż 72 znaki - minimum powyżej tego
+ * zamyka reset hasła na amen. Wpis spoza pola zapisuje więc granicę pola.
+ */
+const MIN_LENGTH_MAX = 64;
+
 export function ResetPasswordFormBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const af = (k: string) => i18n.editor("authForms", k);
@@ -26,10 +35,17 @@ export function ResetPasswordFormBlock({ block, onChange }: Props) {
     const v = block.data[k];
     return typeof v === "string" ? v : fallback;
   };
-  const n = (k: string, fallback = 8) => asNum(block.data[k], fallback);
-  const b = (k: string, fallback = true) => readAuthFlag(block.data, [k], fallback);
+  const minLength = asNum(block.data.minLength, 8);
   const set = (k: string, v: string | number | boolean) =>
     onChange({ ...block, data: { ...block.data, [k]: v } });
+  // Potwierdzenie hasła czytamy tak jak `ResetPasswordFormView`: kanoniczny
+  // klucz schematu przed historycznym. Zapis trafia w klucz, który strona
+  // przeczyta PIERWSZY - inaczej przełącznik obok klucza kanonicznego nic by
+  // na stronie nie zmieniał.
+  const confirmShown = readAuthFlag(block.data, CONFIRM_KEYS, true);
+  const confirmKey =
+    CONFIRM_KEYS.find((k) => block.data[k] !== undefined && block.data[k] !== null) ??
+    "showConfirmPassword";
 
   /** Pole z etykietą powiązaną przez `htmlFor` - czytnik ekranu czyta nazwę pola, nie samą wartość. */
   const field = (k: string, label: string, fallback = "") => (
@@ -68,9 +84,11 @@ export function ResetPasswordFormBlock({ block, onChange }: Props) {
             id={`${uid}-minLength`}
             type="number"
             min={6}
-            max={64}
-            value={n("minLength", 8)}
-            onChange={(e) => set("minLength", Number(e.target.value) || 8)}
+            max={MIN_LENGTH_MAX}
+            value={minLength}
+            onChange={(e) =>
+              set("minLength", Math.min(MIN_LENGTH_MAX, Number(e.target.value) || 8))
+            }
           />
         </div>
         {field("redirectTo", af("redirectSave"), "/login")}
@@ -78,10 +96,7 @@ export function ResetPasswordFormBlock({ block, onChange }: Props) {
         {field("submitLabel_en", af("fSubmitEn"))}
       </div>
       <label className="flex items-center gap-2 text-sm pt-1">
-        <Switch
-          checked={b("showConfirmPassword", true)}
-          onCheckedChange={(v) => set("showConfirmPassword", v)}
-        />
+        <Switch checked={confirmShown} onCheckedChange={(v) => set(confirmKey, v)} />
         <span>{af("resetConfirmPassword")}</span>
       </label>
     </div>

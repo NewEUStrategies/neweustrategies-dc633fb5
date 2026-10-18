@@ -15,8 +15,10 @@
 //    przechodzą bez zmian, a na samym renderze nic się nie zapisuje,
 //  * pola z wartością domyślną (przekierowania, linki) pokazują te same
 //    domyślne, których użyje renderer, gdy klucza nie ma,
-//  * przełącznik zapisuje `boolean`, a odczyt idzie tą samą koercją, co
-//    renderer: „0" to wyłączone, `null` to wartość domyślna,
+//  * przełącznik zapisuje `boolean`, a odczyt idzie tą samą koercją, tymi
+//    samymi aliasami kluczy i z tą samą wartością domyślną, co renderer:
+//    „0" to wyłączone, `null` to wartość domyślna, a przy obecnym kluczu
+//    kanonicznym schematu zapis trafia właśnie w niego,
 //  * tekst w kształcie obiektu nie wchodzi do pola jako „[object Object]",
 //    a minimalna długość hasła zapisana słowem pokazuje domyślne 8.
 //
@@ -139,17 +141,30 @@ describe("domyślne wartości - te same, których użyje renderer", () => {
     expect(tekst(etykieta).value).toBe(domyslna);
   });
 
-  it("logowanie: Google jest domyślnie WYŁĄCZONE, reszta przełączników włączona", () => {
+  // NAPRAWIONE 2026-10-18: bez klucza `showOAuthGoogle` panel pokazywał Google
+  // jako WYŁĄCZONE, a `LoginFormView` (`readAuthFlag(…, true)`) rysował
+  // przycisk Google. Paleta zapisuje `false` jawnie, więc rozjazd widział
+  // dopiero dokument bez klucza (import, starsza wersja palety).
+  it("logowanie: bez danych wszystkie przełączniki są włączone - także Google, jak na stronie", () => {
     renderEditor(LoginFormBlock, blok("login-form", {}));
-    expect(przelacznik(af("oauthGoogle")).checked).toBe(false);
-    for (const k of ["showRemember", "showShowPassword", "showForgot", "showRegister"]) {
+    for (const k of [
+      "showRemember",
+      "showShowPassword",
+      "showForgot",
+      "showRegister",
+      "oauthGoogle",
+    ]) {
       expect(przelacznik(af(k)).checked, k).toBe(true);
     }
   });
 
-  it("rejestracja: wszystkie cztery przełączniki są domyślnie włączone", () => {
+  // NAPRAWIONE 2026-10-18: „Powtórz hasło" było domyślnie WŁĄCZONE, choć
+  // `RegisterFormView` bez obu kluczy (`showPasswordConfirm`,
+  // `showConfirmPassword`) pola nie rysuje.
+  it("rejestracja: bez danych potwierdzenie hasła jest wyłączone, reszta - włączona", () => {
     renderEditor(RegisterFormBlock, blok("register-form", {}));
-    for (const k of ["showName", "showConfirmPassword", "showNewsletterOptIn", "requireConsent"]) {
+    expect(przelacznik(af("showConfirmPassword")).checked).toBe(false);
+    for (const k of ["showName", "showNewsletterOptIn", "requireConsent", "oauthGoogle"]) {
       expect(przelacznik(af(k)).checked, k).toBe(true);
     }
   });
@@ -161,9 +176,10 @@ describe("przełączniki - zapis `boolean` i odczyt tą samą koercją, co rende
     [LOGIN, af("showShowPassword"), "showShowPassword", false],
     [LOGIN, af("showForgot"), "showForgot", false],
     [LOGIN, af("showRegister"), "showRegister", false],
-    [LOGIN, af("oauthGoogle"), "showOAuthGoogle", true],
+    [LOGIN, af("oauthGoogle"), "showOAuthGoogle", false],
     [REJESTRACJA, af("showName"), "showName", false],
-    [REJESTRACJA, af("showConfirmPassword"), "showConfirmPassword", false],
+    [REJESTRACJA, af("showConfirmPassword"), "showConfirmPassword", true],
+    [REJESTRACJA, af("oauthGoogle"), "showOAuthGoogle", false],
     [REJESTRACJA, af("showNewsletterOptIn"), "showNewsletterOptIn", false],
     [REJESTRACJA, af("requireConsent"), "requireConsent", false],
     [NOWE_HASLO, af("resetConfirmPassword"), "showConfirmPassword", false],
@@ -190,9 +206,55 @@ describe("przełączniki - zapis `boolean` i odczyt tą samą koercją, co rende
     expect(przelacznik(af("showName")).checked).toBe(true);
   });
 
-  it("napis „tak” w przełączniku Google czyta się jako WŁĄCZONE", () => {
-    renderEditor(LoginFormBlock, blok("login-form", { showOAuthGoogle: "tak" }));
-    expect(przelacznik(af("oauthGoogle")).checked).toBe(true);
+  it("napis „nie” w przełączniku Google czyta się jako WYŁĄCZONE", () => {
+    renderEditor(LoginFormBlock, blok("login-form", { showOAuthGoogle: "nie" }));
+    expect(przelacznik(af("oauthGoogle")).checked).toBe(false);
+  });
+});
+
+describe("przełączniki z kluczem kanonicznym schematu - odczyt i zapis jak na stronie", () => {
+  // Renderer czyta aliasy w kolejności: kanoniczny klucz schematu
+  // (`showPasswordConfirm`, `newsletterOptIn`) PRZED historycznym, który pisze
+  // paleta i panel. Panel znał tylko historyczny - przy obecnym kluczu
+  // kanonicznym pokazywał nie ten stan, a jego zapis strony nie zmieniał.
+  it.each<readonly [Formularz, string, Record<string, Json>, boolean]>([
+    [REJESTRACJA, af("showConfirmPassword"), { showPasswordConfirm: true }, true],
+    [
+      REJESTRACJA,
+      af("showConfirmPassword"),
+      { showPasswordConfirm: false, showConfirmPassword: true },
+      false,
+    ],
+    [REJESTRACJA, af("showNewsletterOptIn"), { newsletterOptIn: false }, false],
+    [NOWE_HASLO, af("resetConfirmPassword"), { showPasswordConfirm: "0" }, false],
+  ])("%s: „%s” przy %j pokazuje %s", ([, Editor, type], etykieta, dane, widac) => {
+    renderEditor(Editor, blok(type, dane));
+    expect(przelacznik(etykieta).checked).toBe(widac);
+  });
+
+  it.each<readonly [Formularz, string, Record<string, Json>, string]>([
+    [
+      REJESTRACJA,
+      af("showConfirmPassword"),
+      { showPasswordConfirm: false, showConfirmPassword: true },
+      "showPasswordConfirm",
+    ],
+    [REJESTRACJA, af("showNewsletterOptIn"), { newsletterOptIn: false }, "newsletterOptIn"],
+    [NOWE_HASLO, af("resetConfirmPassword"), { showPasswordConfirm: false }, "showPasswordConfirm"],
+  ])("%s: „%s” zapisuje klucz, który strona czyta PIERWSZY", ([, Editor, type], e, dane, klucz) => {
+    const zapis = zapisPo(Editor, blok(type, dane), () => fireEvent.click(przelacznik(e)));
+    // Przełączona wartość ląduje pod kluczem kanonicznym; reszta danych zostaje.
+    expect(zapis).toEqual({ ...dane, [klucz]: !dane[klucz] });
+  });
+
+  it("klucz kanoniczny ustawiony na `null` nie przejmuje zapisu - trafia on w klucz palety", () => {
+    // `readAuthFlag` pomija `null`, więc stronę steruje wtedy klucz historyczny.
+    const zapis = zapisPo(
+      RegisterFormBlock,
+      blok("register-form", { showPasswordConfirm: null, showConfirmPassword: true }),
+      () => fireEvent.click(przelacznik(af("showConfirmPassword"))),
+    );
+    expect(zapis).toEqual({ showPasswordConfirm: null, showConfirmPassword: false });
   });
 });
 
@@ -239,6 +301,16 @@ describe("dane z importu i minimalna długość hasła", () => {
         fireEvent.change(pole(), { target: { value: "" } }),
       ),
     ).toEqual({ minLength: 8 });
+  });
+
+  it("minimalna długość powyżej granicy pola zapisuje granicę pola", () => {
+    // Strona przyjęłaby do 128, ale Supabase odrzuca hasła dłuższe niż 72 znaki
+    // - minimum 500 zamknęłoby reset hasła wszystkim użytkownikom.
+    const zapis = zapisPo(ResetPasswordFormBlock, blok("reset-password-form", {}), () => {
+      const pole = screen.getByRole("spinbutton", { name: af("minLength") }) as HTMLInputElement;
+      fireEvent.change(pole, { target: { value: "500" } });
+    });
+    expect(zapis).toEqual({ minLength: 64 });
   });
 
   it("minimalna długość zapisana słowem pokazuje domyślne 8, a nie `NaN`", () => {

@@ -26,12 +26,18 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
   );
 }
 
-/** `PostTitleView` przycina poziom do [1, 4] - lista pokazuje poziom PO przycięciu. */
-const POST_TITLE_MAX_LEVEL = 4;
+/**
+ * `PostTitleView` i `SiteTitleView` przycinają poziom do [1, 4] - obie listy
+ * oferują ten sam zakres i pokazują poziom PO przycięciu (natywny `<select>`
+ * z wartością spoza opcji pokazałby PIERWSZĄ, czyli „H1").
+ */
+const HEADING_LEVELS = [1, 2, 3, 4] as const;
+const readHeadingLevel = (data: Block["data"]) =>
+  Math.min(HEADING_LEVELS.length, Math.max(1, num(data, "level", 1)));
 
 export function PostTitleBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const level = Math.min(POST_TITLE_MAX_LEVEL, Math.max(1, num(block.data, "level", 1)));
+  const level = readHeadingLevel(block.data);
   return (
     <Shell label={bt.editor("contextBlocks", "postTitle")}>
       <AdminSelect
@@ -41,7 +47,7 @@ export function PostTitleBlock({ block, onChange }: Props) {
           onChange({ ...block, data: { ...block.data, level: Number(e.target.value) } })
         }
       >
-        {[1, 2, 3, 4].map((l) => (
+        {HEADING_LEVELS.map((l) => (
           <option key={l} value={l}>
             H{l}
           </option>
@@ -186,7 +192,8 @@ export function PostTermsBlock({ block, onChange }: Props) {
 
 export function SiteTitleBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const level = num(block.data, "level", 1);
+  // Strona rysuje h1-h4; lista H1-H3 pokazywała zapisane „4" jako „H1".
+  const level = readHeadingLevel(block.data);
   return (
     <Shell label={bt.editor("contextBlocks", "siteTitle")}>
       <AdminSelect
@@ -196,7 +203,7 @@ export function SiteTitleBlock({ block, onChange }: Props) {
           onChange({ ...block, data: { ...block.data, level: Number(e.target.value) } })
         }
       >
-        {[1, 2, 3].map((l) => (
+        {HEADING_LEVELS.map((l) => (
           <option key={l} value={l}>
             H{l}
           </option>

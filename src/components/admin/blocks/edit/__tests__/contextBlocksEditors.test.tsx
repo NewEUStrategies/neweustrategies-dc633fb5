@@ -17,9 +17,9 @@
 //  * przełącznik „domyślnie wyłączony" czyta wyłącznie prawdziwe `true` -
 //    renderer (`bool(data, k, false)`) traktuje napis „false" i liczbę 1 jako
 //    BRAK ustawienia, więc panel nie może pokazać ich jako włączonych,
-//  * poziom tytułu wpisu i szerokość logo pokazują wartość PO przycięciu,
-//    które robi strona (`PostTitleView` 1-4, `SiteLogoView` 32-480), a nie
-//    surową liczbę z importu,
+//  * poziom tytułu wpisu i witryny oraz szerokość logo pokazują wartość PO
+//    przycięciu, które robi strona (`PostTitleView`/`SiteTitleView` 1-4,
+//    `SiteLogoView` 32-480), a nie surową liczbę z importu,
 //  * slogan witryny jest WYŁĄCZNIE podglądem - nie ma czego edytować.
 //
 // GRANICE. Fabryki `vi.mock` niesie moduł wspólny tabeli (import PIERWSZY):
@@ -142,14 +142,32 @@ describe("poziom nagłówka - tytuł wpisu i tytuł witryny", () => {
     expect(wybor().value).toBe("1");
   });
 
-  it("tytuł witryny oferuje H1-H3 i zapisuje poziom jako LICZBĘ", () => {
+  it("tytuł witryny oferuje H1-H4 i zapisuje poziom jako LICZBĘ", () => {
+    // `SiteTitleView` rysuje h1-h4 - ten sam zakres, co tytuł wpisu.
     const start = blok("site-title", {});
     const zapis = zapisPo(SiteTitleBlock, start, () =>
-      fireEvent.change(wybor(), { target: { value: "2" } }),
+      fireEvent.change(wybor(), { target: { value: "4" } }),
     );
-    expect(opcje()).toEqual(["H1", "H2", "H3"]);
-    expect(zapis).toEqual({ level: 2 });
+    expect(opcje()).toEqual(["H1", "H2", "H3", "H4"]);
+    expect(zapis).toEqual({ level: 4 });
   });
+
+  // NAPRAWIONE 2026-10-18: lista tytułu witryny miała tylko H1-H3 i czytała
+  // poziom bez przycięcia. Zapisane „4" (strona: `<h4>`) i „6" (strona też
+  // `<h4>`, bo `SiteTitleView` przycina do [1, 4]) pokazywały się jako „H1" -
+  // natywny `<select>` z wartością spoza opcji pokazuje pierwszą.
+  it.each<[Json, string]>([
+    [4, "4"],
+    [6, "4"],
+    [0, "1"],
+    ["3", "3"],
+  ])(
+    "poziom tytułu witryny %j pokazuje się jako H%s - tak go narysuje strona",
+    (zapisany, widac) => {
+      renderEditor(SiteTitleBlock, blok("site-title", { level: zapisany }));
+      expect(wybor().value).toBe(widac);
+    },
+  );
 });
 
 describe("data wpisu", () => {
@@ -239,6 +257,11 @@ describe("obraz wyróżniony i taksonomie", () => {
     expect(opcje()).toEqual([cb("categories"), cb("tags")]);
     fireEvent.change(wybor(), { target: { value: "tags" } });
     expect(ostatniZapis(changes, start).data).toEqual({ taxonomy: "tags" });
+  });
+
+  it("zapisane tagi pokazują się jako tagi, a nie jako pierwsza opcja", () => {
+    renderEditor(PostTermsBlock, blok("post-terms", { taxonomy: "tags" }));
+    expect(wybor().value).toBe("tags");
   });
 
   it("taksonomia spoza listy czyta się jak kategorie - tak jak w rendererze", () => {

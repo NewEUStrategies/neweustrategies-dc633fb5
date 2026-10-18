@@ -372,4 +372,14 @@ describe("pozostałe warianty podglądu - montowane dopiero po rozwinięciu", ()
     przelacz(lista(container), false);
     expect(podpisy(lista(container))).toEqual([]);
   });
+
+  it("rozwinięte warianty pokazują autora INLINE - te same dane, co podgląd główny", () => {
+    // Każdy dodatkowy podgląd dostaje to samo `authorOverride`; gdyby sięgał
+    // po przykładowego autora, redaktor porównywałby warianty na cudzych danych.
+    const { container } = renderEditor(AuthorBioBlock, inline({ variant: "card" }));
+    przelacz(lista(container), true);
+    const rozwinieta = within(lista(container));
+    expect(rozwinieta.getAllByText(AUTOR.name as string).length).toBeGreaterThanOrEqual(4);
+    expect(rozwinieta.queryAllByText(PRZYKLADOWY_AUTOR)).toHaveLength(0);
+  });
 });

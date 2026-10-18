@@ -223,6 +223,25 @@ describe("nawigacja i link do sąsiedniego wpisu", () => {
     ).toEqual({ direction: "next", showTitle: false });
   });
 
+  it("zapisane ustawienia niedomyślne wracają do kontrolek po ponownym otwarciu", () => {
+    // Odczyt zawęża wartości do zbioru opcji - ten test pilnuje, żeby
+    // zawężenie nie połknęło też PRAWIDŁOWEJ wartości niedomyślnej.
+    const nawigacja = renderEditor(
+      NavigationBlock,
+      blok("navigation", { menuKey: "footer", layout: "vertical" }),
+    );
+    expect(pole(nl("menuKeyPh")).value).toBe("footer");
+    expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("vertical");
+    nawigacja.unmount();
+
+    renderEditor(
+      PostNavigationLinkBlock,
+      blok("post-navigation-link", { direction: "prev", showTitle: false }),
+    );
+    expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("prev");
+    expect((przelacznik(nl("showTitle")) as HTMLInputElement).checked).toBe(false);
+  });
+
   it("kierunek SPOZA {prev, next} czyta się jak „Następny” - tak jak na stronie", () => {
     // `renderPostNavigationLink` zamienia wszystko poza „prev" na „next".
     // Natywna lista z wartością spoza opcji pokazywała PIERWSZĄ opcję,
@@ -307,6 +326,36 @@ describe("pętla zapytań", () => {
     ).toEqual({ limit: 24 });
     renderEditor(QueryLoopBlock, blok("query-loop", { limit: "dużo" }));
     expect(liczba().value).toBe("6");
+  });
+
+  it("zapisana lista, kolejność alfabetyczna i wyłączenia wracają do kontrolek", () => {
+    renderEditor(
+      QueryLoopBlock,
+      blok("query-loop", {
+        categorySlug: "analizy",
+        limit: 12,
+        layout: "list",
+        orderBy: "title",
+        showImage: false,
+        showExcerpt: false,
+        showDate: false,
+      }),
+    );
+    expect(pole(nl("categoryPh")).value).toBe("analizy");
+    expect(liczba().value).toBe("12");
+    const [uklad, kolejnosc] = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    expect(uklad.value).toBe("list");
+    expect(kolejnosc.value).toBe("title");
+    for (const nazwa of [nl("showImage"), nl("showExcerpt"), nl("showDate")]) {
+      expect((przelacznik(nazwa) as HTMLInputElement).checked, nazwa).toBe(false);
+    }
+  });
+
+  it("układ i kolejność spoza listy czytają się jak siatka i data - tak jak w rendererze", () => {
+    renderEditor(QueryLoopBlock, blok("query-loop", { layout: "masonry", orderBy: "views" }));
+    const [uklad, kolejnosc] = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    expect(uklad.value).toBe("grid");
+    expect(kolejnosc.value).toBe("date");
   });
 
   it("kategoria w kształcie OBIEKTU nie wpisuje „[object Object]”", () => {
