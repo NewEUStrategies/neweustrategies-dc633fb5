@@ -40,6 +40,8 @@ describe("retainAccountingEvidence", () => {
   });
 
   it("anonimizuje OBIE tabele dowodowe jednym wywołaniem", async () => {
+    // Kształt najnowszej definicji SQL: gałęzie + płaskie lustro `orders` dla
+    // starszych konsumentów. Lustro nie wchodzi do sumy drugi raz (7, nie 10).
     h.state.result = {
       data: {
         orders: { retained: 3, discarded: 2 },
@@ -77,18 +79,6 @@ describe("retainAccountingEvidence", () => {
     await expect(retainAccountingEvidence(USER)).resolves.toEqual({
       orders: { retained: 4, discarded: 0 },
       purchases: { retained: 1, discarded: 0 },
-      retainedTotal: 5,
-    });
-  });
-
-  it("czyta STARY, płaski kształt {retained, discarded} jako zamówienia", async () => {
-    // Baza migrowana do 20260803090002, ale jeszcze nie do 20260805090100:
-    // funkcja zwraca płaski obiekt. Liczba zachowanych dowodów w komunikacie
-    // dla użytkownika musi wtedy nadal być prawdziwa, a nie zerowa.
-    h.state.result = { data: { retained: 5, discarded: 1 }, error: null };
-    await expect(retainAccountingEvidence(USER)).resolves.toEqual({
-      orders: { retained: 5, discarded: 1 },
-      purchases: EMPTY,
       retainedTotal: 5,
     });
   });

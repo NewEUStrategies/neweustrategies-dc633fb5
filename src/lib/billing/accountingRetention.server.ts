@@ -90,10 +90,11 @@ export async function retainAccountingEvidence(userId: string): Promise<Accounti
     throw new Error(`accounting retention: evidence anonymisation failed: ${error.message}`);
   }
 
+  // Funkcja od powstania (20260805090100) zwraca gałęzie `orders`/`purchases`.
+  // Płaskie {retained, discarded} obok to lustro `orders` dla starszych
+  // konsumentów SQL - nie drugie źródło liczby.
   const payload = toRecord(data);
-  // Zgodność w tył: przed 20260805090100 funkcja zwracała płaskie
-  // {retained, discarded} znaczące „zamówienia". Nowy kształt ma gałęzie.
-  const orders = "orders" in payload ? toTally(payload.orders) : toTally(payload);
+  const orders = toTally(payload.orders);
   const purchases = toTally(payload.purchases);
 
   return {
