@@ -50,8 +50,9 @@ const MAX_BATCHES = 1_000;
  * było: brak daty granicznej, brak adresu, odmowa dostawcy, błąd katalogu
  * planów. Ten podział jest jedynym sygnałem zwrotnym dla człowieka (toast w
  * panelu, log crona), więc nie wolno w nim zliczać prób jako sukcesów.
- * Subskrypcja, której dostęp kończy się PRZED oknem (karencja płatności), nie
- * jest należna i nie trafia do żadnego licznika - to nie awaria.
+ * Subskrypcja, której dostęp kończy się PRZED oknem (karencja płatności) albo
+ * której nigdy nie było (anulowana bez zapłaty), nie jest należna i nie trafia
+ * do żadnego licznika - to nie awaria.
  */
 export interface ReminderRunResult {
   readonly renewal: number;
@@ -71,6 +72,7 @@ interface SubRow {
   current_period_start: string | null;
   first_payment_failed_at: string | null;
   last_payment_at: string | null;
+  purchase_confirmed_at: string | null;
 }
 
 /** Okno [start, end) w którym końcówka okresu wypada dokładnie za `leadDays`. */
@@ -118,7 +120,7 @@ async function loadDueSubscriptions(query: DueQuery): Promise<SubRow[]> {
   let builder = supabaseAdmin
     .from("subscriptions")
     .select(
-      "id, user_id, tenant_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id, current_period_start, first_payment_failed_at, last_payment_at",
+      "id, user_id, tenant_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id, current_period_start, first_payment_failed_at, last_payment_at, purchase_confirmed_at",
     )
     .eq("environment", query.environment)
     .in("status", ["active", "trialing", "past_due", "canceled"])
@@ -138,9 +140,16 @@ async function loadDueSubscriptions(query: DueQuery): Promise<SubRow[]> {
  * zapłaty - `effectiveCancellationReason`), a wypowiedzenie w trakcie
  * windykacji kończy karencja. Mail „dostęp zakończy się <koniec okresu>, wznów
  * subskrypcję" byłby wtedy nieprawdą o dostępie, który już zgasł.
+ *
+ * Anulowana subskrypcja NIGDY NIEOPŁACONA (porzucone 3DS, nieudana pierwsza
+ * płatność: ani potwierdzenia zakupu, ani zaksięgowanej zapłaty) nie miała
+ * dostępu wcale - ta sama reguła co `cancellationAccess` w webhooku dla wiersza
+ * już `canceled`. Jej okres liczony od checkoutu (przy planie rocznym rok
+ * naprzód) nie jest końcem żadnego dostępu.
  */
 function accessLastsUntilPeriodEnd(row: SubRow, periodEnd: string, now: Date): boolean {
   const canceled = row.status === "canceled";
+  if (canceled && !row.purchase_confirmed_at && !row.last_payment_at) return false;
   const { accessUntil } = accessPeriodFromEvent({
     kind: canceled ? "canceled" : "updated",
     storedPeriodEnd: periodEnd,

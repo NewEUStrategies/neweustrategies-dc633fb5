@@ -107,6 +107,9 @@ type SubscriptionProjection = Pick<
   | "current_period_start"
   | "first_payment_failed_at"
   | "last_payment_at"
+  // Potwierdzenie zakupu - bez niego i bez zapłaty subskrypcja nigdy nie
+  // dawała dostępu (porzucone 3DS), więc nie ma czego „kończyć".
+  | "purchase_confirmed_at"
 >;
 
 /** Wiersz z kluczem kursora - przebieg stronicuje `ORDER BY id`. */
@@ -136,6 +139,7 @@ function subscriptionRow(over: Partial<SubscriptionProjection> = {}): Subscripti
     current_period_start: "2026-07-21T12:00:00.000Z",
     first_payment_failed_at: null,
     last_payment_at: "2026-07-21T12:00:00.000Z",
+    purchase_confirmed_at: "2026-06-21T12:01:00.000Z",
     ...over,
   };
 }
@@ -810,5 +814,95 @@ describe("przypomnienie o wygaśnięciu tylko wtedy, gdy dostęp kończy się w 
     const result = await runBillingReminders(3, 200, NOW);
 
     expect(result).toEqual({ renewal: 1, expiring: 0, skipped: 0 });
+  });
+});
+
+// SUBSKRYPCJA NIGDY NIEOPŁACONA NIE MA DOSTĘPU, KTÓRY MOGŁABY STRACIĆ.
+// Porzucone 3DS (albo nieudana pierwsza płatność) zostawia wiersz `incomplete`
+// z okresem liczonym od checkoutu - przy planie rocznym rok naprzód. Jego
+// anulowanie webhook rozpoznaje po braku potwierdzenia zakupu I braku zapłaty
+// (`cancellationAccess`, „nigdy nieopłacona") i nie daje dostępu ani maila.
+// Przebieg przypomnień tego nie wiedział: 3 dni przed końcem nieopłaconego
+// okresu klient, który nigdy nie zapłacił, dostawał „Twoja subskrypcja została
+// anulowana, a dostęp zakończy się ... - wznów subskrypcję".
+describe("przypomnienie o wygaśnięciu nie trafia do subskrypcji nigdy nieopłaconej", () => {
+  /** Checkout 21.07, płatność nie przeszła - ani potwierdzenia, ani zapłaty. */
+  const NIGDY_NIEOPLACONA = {
+    status: "canceled",
+    current_period_start: "2026-07-21T12:00:00.000Z",
+    first_payment_failed_at: null,
+    last_payment_at: null,
+    purchase_confirmed_at: null,
+  } as const;
+
+  it("przebieg czyta potwierdzenie zakupu - bez niego nie odróżni rezygnacji od porzuconego checkoutu", async () => {
+    const stub = givenDb({ rows: [] });
+    await runBillingReminders(3, 200, NOW);
+
+    const columns = String(stub.lastChain("subscriptions")?.argsOf("select")?.[0]);
+    expect(columns).toContain("purchase_confirmed_at");
+  });
+
+  it("anulowana bez potwierdzenia zakupu i bez zapłaty: żadnego maila i żadnego licznika", async () => {
+    const stub = givenDb({ rows: [subscriptionRow(NIGDY_NIEOPLACONA)] });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    // Nie „pominięta" (to sygnał awarii dla człowieka) - po prostu nienależna.
+    expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+    expect(mail.sendTxEmail).not.toHaveBeenCalled();
+    // Rekord odpada przed odwzorowaniem planu i odczytem odbiorcy.
+    expect(stub.chainsFor("access_plans")).toHaveLength(0);
+    expect(stub.chainsFor("profiles")).toHaveLength(0);
+  });
+
+  it("potwierdzony zakup bez zaksięgowanej zapłaty (nagrobek opłaconego okresu) nadal dostaje przypomnienie", async () => {
+    // Rezygnacja, która wyprzedziła założenie wiersza: operator potwierdził
+    // opłacony okres (`purchase_confirmed_at`), a zapłaty nasza baza nie zna.
+    givenDb({
+      rows: [
+        subscriptionRow({
+          ...NIGDY_NIEOPLACONA,
+          purchase_confirmed_at: "2026-07-21T12:01:00.000Z",
+        }),
+      ],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 1, skipped: 0 });
+    expect(mail.sent[0]?.type).toBe("subscription_expiring");
+  });
+
+  it("zaksięgowana zapłata bez potwierdzenia zakupu to opłacony okres - przypomnienie wychodzi", async () => {
+    // Potwierdzenie mogło przepaść (awaria zajęcia), ale pieniądze wpłynęły -
+    // ta sama reguła co w webhooku: nigdy nieopłacona to brak OBU sygnałów.
+    givenDb({
+      rows: [
+        subscriptionRow({ ...NIGDY_NIEOPLACONA, last_payment_at: "2026-07-21T12:00:00.000Z" }),
+      ],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 1, skipped: 0 });
+  });
+
+  it("wypowiedzenie na koniec okresu bez potwierdzenia nadal dostaje przypomnienie - reguła dotyczy tylko anulowanych", async () => {
+    // Subskrypcja aktywna (lub w okresie próbnym) MA dostęp; brak znacznika
+    // potwierdzenia przy niej to ponowienie potwierdzenia w toku, nie brak zakupu.
+    givenDb({
+      rows: [
+        subscriptionRow({
+          cancel_at_period_end: true,
+          last_payment_at: null,
+          purchase_confirmed_at: null,
+        }),
+      ],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 1, skipped: 0 });
   });
 });
