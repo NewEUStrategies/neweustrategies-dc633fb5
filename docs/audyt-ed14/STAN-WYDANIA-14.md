@@ -110,15 +110,17 @@ w rozdziale 18, liczby lokalne są zebrane pod obciążeniem pomiarem pokrycia, 
 Klatki z krzywej kompletności wizualnej: `lighthouse/klatki/`, podsumowanie przebiegów:
 `lighthouse/podsumowanie14.json`.
 
-## Wyniki częściowe agentów (przed scaleniem)
+## Wyniki agentów: komplet 31 torów
 
-Plik `agenci/wyniki-czesciowe14.json` to surowe wyniki agentów, które skończyły pracę przed limitem sesji: mapy
-modułów, nowe defekty i rozliczenie rejestru. Agenci sami sprawdzają swoje ustalenia (pole `samosprawdzenie`,
-pewność `pewny` albo `prawdopodobny`). Etapu obalania nie ma. Do rozdziału 18 trafi dopiero wersja scalona.
-Do tej pory:
+Plik `agenci/migawka14.json` zawiera wyniki wszystkich 31 torów agentów (29 map modułów i dwa przekroje: baza i CI):
+mapy modułów, powiązania i mechanizmy synchronizacji, nowe defekty i rozliczenie rejestru. Agenty przerwane limitem
+sesji wznowiono. Agenci sami sprawdzają swoje ustalenia (pole `samosprawdzenie`, pewność `pewny` albo `prawdopodobny`);
+etapu obalania nie ma. `agenci/si-synteza14.json` to synteza śledztwa Speed Index, a `funkcjonalnosci14.json` -
+pokrycie 428 funkcjonalności (78 nowych; wszystkie 350 nazw z wydania 13 przeniesione, wzorce obejmują 100% plików).
 
-- **45 nowych defektów:** 1 krytyczny, 3 wysokie, 14 średnich, 27 niskich.
-- **Rozliczenie 103 pozycji rejestru:** 27 naprawionych, 14 zmienionych, 62 otwarte.
+- **89 nowych defektów:** 1 krytyczny, 6 wysokich, 30 średnich, 52 niskie (68 pewnych, 21 prawdopodobnych).
+- **Rozliczenie rejestru:** agenci rozliczyli 197 z 341 pozycji (40 naprawionych, 24 zmienione, 133 otwarte).
+  Pozostałe 144 leżą w plikach bez zmian w oknie i zostaną rozliczone mechanicznie w rozdziale 18.
 
 Najpoważniejsze:
 
@@ -146,8 +148,8 @@ Dwie obserwacje z przekrojów, istotne dla mapy synchronizacji i dla Speed Index
 
 ## W toku
 
-- Pokrycie per funkcjonalność (z wzorców map agentów) po dokończeniu torów.
-- Dokończenie agentów przerwanych limitem sesji (31 z 84).
+- Mapa synchronizacji (7 obszarów) i rozliczenie 12 pozycji planu 17.15 - agenci kończą pracę.
+- Rozdział 18 dokumentu audytu, weryfikator, README i artefakt.
 - Tory agentów T1-T9: mapa każdego modułu względem wydania 13, powiązania i synchronizacja, nowe defekty,
   rozliczenie rejestru 341 otwartych defektów (`rejestr-defektow14.json`). Bez etapu obalania.
 - Śledztwo Speed Index (4 ścieżki + synteza z rekomendacjami) i mapa synchronizacji z rozliczeniem planu 17.15.

@@ -13,7 +13,7 @@ for (let i = 1; i <= N; i++) {
   const t0 = Date.now();
   try {
     execFileSync(`${SP}/node_modules/.bin/lighthouse`, [url, "--quiet", "--output=json", `--output-path=${out}`, `--chrome-flags=${flags}`, "--locale=pl",
-      "--only-categories=performance,accessibility,best-practices,seo", "--max-wait-for-load=60000", ...(profil === "desktop" ? ["--preset=desktop"] : [])],
+      "--only-categories=performance,accessibility,best-practices,seo", "--max-wait-for-load=60000", `--extra-headers=${JSON.stringify({ "Accept-Language": "pl-PL,pl;q=0.9" })}`, ...(profil === "desktop" ? ["--preset=desktop"] : [])],
       { env: { ...process.env, CHROME_PATH: "/opt/pw-browsers/chromium" }, stdio: ["ignore", "ignore", "pipe"], timeout: 300000 });
   } catch (e) { fs.writeFileSync(out + ".blad.txt", String(e.stderr ?? e.message).slice(-2000)); continue; }
   const j = JSON.parse(fs.readFileSync(out, "utf8"));
