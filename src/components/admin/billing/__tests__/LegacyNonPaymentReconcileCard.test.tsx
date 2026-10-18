@@ -285,6 +285,69 @@ describe("LegacyNonPaymentReconcileCard - przebieg przerwany i kontynuacja", () 
     expect(h.run.mock.calls.at(-1)?.[0]).toEqual({ data: { mode: "dry_run", cursor: CURSOR } });
     expect(screen.queryByText(/adminLegacyNonPayment\.failed/)).toBeNull();
   });
+
+  it("„Kontynuuj” w trakcie przebiegu jest wygaszone - drugi klik nie puszcza tej samej partii drugi raz", async () => {
+    h.run
+      .mockResolvedValueOnce(batch({ nextCursor: CURSOR, done: false }))
+      .mockRejectedValueOnce(new Error("Worker exceeded time limit"));
+    renderWithQueryClient(<LegacyNonPaymentReconcileCard />);
+    fireEvent.click(screen.getByText("adminLegacyNonPayment.dryRun"));
+    await screen.findByText(
+      'adminLegacyNonPayment.failed {"message":"Worker exceeded time limit"}',
+    );
+
+    let finish: (report: LegacyReconcileReport) => void = () => undefined;
+    h.run.mockReset();
+    h.run.mockImplementationOnce(
+      () => new Promise<LegacyReconcileReport>((resolve) => (finish = resolve)),
+    );
+    fireEvent.click(screen.getByText("adminLegacyNonPayment.resume"));
+
+    await waitFor(() => expect(button("adminLegacyNonPayment.resume").disabled).toBe(true));
+    fireEvent.click(screen.getByText("adminLegacyNonPayment.resume"));
+    expect(h.run).toHaveBeenCalledTimes(1);
+
+    finish(batch({ scanned: 4, rows: [row({ subscriptionId: "sub_legacy_2" })] }));
+
+    await waitFor(() => expect(summaryWith('"scanned":54')).toBeTruthy());
+    expect(h.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("nowy przebieg zaczyna raport od zera - zastosowanie po symulacji nie dolicza jej liczników ani wierszy", async () => {
+    h.run.mockResolvedValueOnce(batch({ rows: [row({ subscriptionId: "sub_legacy_sim" })] }));
+    renderWithQueryClient(<LegacyNonPaymentReconcileCard />);
+    fireEvent.click(screen.getByText("adminLegacyNonPayment.dryRun"));
+    await waitFor(() => expect(screen.getByText("sub_legacy_sim")).toBeTruthy());
+
+    let finish: (report: LegacyReconcileReport) => void = () => undefined;
+    h.run.mockImplementationOnce(
+      () => new Promise<LegacyReconcileReport>((resolve) => (finish = resolve)),
+    );
+    fireEvent.click(screen.getByText("adminLegacyNonPayment.apply"));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByText("adminLegacyNonPayment.apply"),
+    );
+
+    // Raport symulacji znika od razu - w trakcie zapisu nie udaje jego wyniku.
+    await waitFor(() => expect(screen.getByText("adminLegacyNonPayment.running")).toBeTruthy());
+    expect(screen.queryByText("sub_legacy_sim")).toBeNull();
+    expect(h.run.mock.calls.at(-1)?.[0]).toEqual({ data: { mode: "apply", cursor: null } });
+
+    finish(
+      batch({
+        mode: "apply",
+        scanned: 7,
+        writes: { anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 },
+        rows: [row({ subscriptionId: "sub_legacy_apply", applied: true })],
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByText("sub_legacy_apply")).toBeTruthy());
+    expect(summaryWith('"scanned":7').textContent).toContain(
+      'adminLegacyNonPayment.writes {"anchors":1,"paymentMarkers":0,"entitlements":1,"teams":0}',
+    );
+    expect(screen.queryByText("sub_legacy_sim")).toBeNull();
+  });
 });
 
 describe("LegacyNonPaymentReconcileCard - raport", () => {
@@ -296,10 +359,12 @@ describe("LegacyNonPaymentReconcileCard - raport", () => {
         rows: [
           row({ applied: true, suspendTeam: true, decision: "revoke" }),
           // Bez powodu od operatora szczegół to status faktury; „przed” bez
-          // końca, „po” bez zmiany.
+          // końca, „po” bez zmiany. Zapis częściowy: kotwica weszła przed
+          // błędem przycięcia, więc obok błędu stoi odznaka zapisu.
           row({
             subscriptionId: "sub_legacy_2",
             decision: "error",
+            applied: true,
             cancellationReason: null,
             invoiceStatus: "uncollectible",
             accessUntilBefore: null,
@@ -348,7 +413,7 @@ describe("LegacyNonPaymentReconcileCard - raport", () => {
       "adminLegacyNonPayment.decisions.error",
       "adminLegacyNonPayment.noEnd",
       "-",
-      "uncollectibleentitlement clamp failed: row is locked",
+      "adminLegacyNonPayment.applieduncollectibleentitlement clamp failed: row is locked",
     ]);
     expect(within(second as HTMLElement).getByText(/row is locked/).className).toContain(
       "text-destructive",
