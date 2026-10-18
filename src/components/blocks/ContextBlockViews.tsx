@@ -29,7 +29,9 @@ function formatDate(
 ): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (format === "relative" && now !== null) {
+  // Data nieczytelna schodzi na ścieżkę absolutną (ta ma własną straż i daje
+  // pustkę): `Intl.RelativeTimeFormat#format(NaN)` RZUCA RangeError.
+  if (format === "relative" && now !== null && Number.isFinite(d.getTime())) {
     const diff = now - d.getTime();
     const day = 86_400_000;
     const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en" : "pl", { numeric: "auto" });

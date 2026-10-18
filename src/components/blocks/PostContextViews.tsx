@@ -44,10 +44,15 @@ const XIcon = (props: SVGProps<SVGSVGElement>) => (
 
 type Lang = "pl" | "en";
 
+// Forma licznika z reguł CLDR: „22 wpisy", ale „12 wpisów" i „0 wpisów" -
+// samo `n < 5` myliło zero i każdą dziesiątkę powyżej dwudziestu.
+const PL_PLURAL = new Intl.PluralRules("pl-PL");
+const PL_POSTS: Record<string, string> = { one: "wpis", few: "wpisy" };
+
 const L = {
   pl: {
     about: "O autorze",
-    posts: (n: number) => `${n} ${n === 1 ? "wpis" : n < 5 ? "wpisy" : "wpisów"}`,
+    posts: (n: number) => `${n} ${PL_POSTS[PL_PLURAL.select(n)] ?? "wpisów"}`,
     related: "Powiązane wpisy",
     viewProfile: "Zobacz profil",
     contact: "Kontakt",
@@ -452,6 +457,13 @@ interface RelatedRow {
   published_at: string | null;
 }
 
+/** Tytuł w języku strony, a bez tłumaczenia drugi język (jak `PostTitleView`). */
+function relatedTitle(p: RelatedRow, lang: Lang): string {
+  const [primary, secondary] = lang === "en" ? [p.title_en, p.title_pl] : [p.title_pl, p.title_en];
+  if (primary?.trim()) return primary;
+  return secondary?.trim() ? secondary : "";
+}
+
 export function RelatedPostsView({
   limit = 3,
   strategy = "category",
@@ -495,7 +507,7 @@ export function RelatedPostsView({
         </h3>
         <ul className="flex flex-col gap-2 list-none m-0 p-0">
           {posts.map((p) => {
-            const tt = (lang === "en" ? p.title_en : p.title_pl) ?? "";
+            const tt = relatedTitle(p, lang);
             return (
               <li key={p.id}>
                 <AppLink
@@ -522,7 +534,7 @@ export function RelatedPostsView({
       <h3 className="font-serif text-xl font-semibold text-foreground mb-4">{title}</h3>
       <ul className={`${container} list-none m-0 p-0`}>
         {posts.map((p) => {
-          const tt = (lang === "en" ? p.title_en : p.title_pl) ?? "";
+          const tt = relatedTitle(p, lang);
           const href = `/post/${p.slug}`;
           return (
             <li key={p.id} className={isGrid ? "flex flex-col gap-2" : "flex gap-4 items-start"}>

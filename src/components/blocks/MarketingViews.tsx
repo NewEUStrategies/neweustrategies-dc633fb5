@@ -5,6 +5,7 @@ import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { safeImageUrl } from "@/lib/sanitize";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 
 // ===== Hero =====
@@ -48,6 +49,10 @@ export function HeroView({
   overlay = 40,
   cls,
 }: HeroProps) {
+  // Schemat ograniczony przez safeImageUrl, a wartość cytowana (jak `cover`
+  // w rendererze) - z cudzysłowem zakodowanym, żeby `");position:fixed` nie
+  // stał się drugą deklaracją stylu w HTML z serwera.
+  const bg = safeImageUrl(bgImage).replace(/["\\\n\r]/g, encodeURIComponent);
   const isCenter = align === "center";
   const ov = Math.max(0, Math.min(90, overlay));
   return (
@@ -55,14 +60,12 @@ export function HeroView({
       className={[
         "relative overflow-hidden rounded-2xl",
         HERO_HEIGHT_CLS[height],
-        bgImage
-          ? "bg-cover bg-center"
-          : "bg-gradient-to-br from-primary/15 via-background to-muted",
+        bg ? "bg-cover bg-center" : "bg-gradient-to-br from-primary/15 via-background to-muted",
         cls ?? "",
       ].join(" ")}
-      style={bgImage ? { backgroundImage: `url(${bgImage})` } : undefined}
+      style={bg ? { backgroundImage: `url("${bg}")` } : undefined}
     >
-      {bgImage ? (
+      {bg ? (
         <div className="absolute inset-0 bg-black" style={{ opacity: ov / 100 }} aria-hidden />
       ) : null}
       <div
@@ -76,7 +79,7 @@ export function HeroView({
             <div
               className={[
                 "inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide",
-                bgImage ? "bg-white/10 text-white backdrop-blur" : "bg-primary/10 text-primary",
+                bg ? "bg-white/10 text-white backdrop-blur" : "bg-primary/10 text-primary",
               ].join(" ")}
             >
               {eyebrow}
@@ -86,7 +89,7 @@ export function HeroView({
             <h1
               className={[
                 "font-serif text-3xl md:text-5xl lg:text-6xl font-bold leading-tight",
-                bgImage ? "text-white" : "text-foreground",
+                bg ? "text-white" : "text-foreground",
               ].join(" ")}
             >
               {title}
@@ -96,7 +99,7 @@ export function HeroView({
             <p
               className={[
                 "text-base md:text-lg leading-relaxed",
-                bgImage ? "text-white/90" : "text-muted-foreground",
+                bg ? "text-white/90" : "text-muted-foreground",
               ].join(" ")}
             >
               {subtitle}
@@ -117,7 +120,7 @@ export function HeroView({
                   href={secondaryHref}
                   className={[
                     "inline-flex items-center justify-center px-5 py-3 rounded-lg border text-sm font-semibold transition-colors",
-                    bgImage
+                    bg
                       ? "border-white/30 text-white hover:bg-white/10"
                       : "border-border text-foreground hover:bg-muted",
                   ].join(" ")}
@@ -211,6 +214,12 @@ const ASPECT_CLS: Record<string, string> = {
   "21:9": "aspect-[21/9]",
 };
 
+/** Pole slajdu jako tekst: napis albo liczba; obiekt z importu to brak wartości. */
+function slideText(v: Json | undefined): string {
+  if (typeof v === "string") return v;
+  return typeof v === "number" && Number.isFinite(v) ? String(v) : "";
+}
+
 interface CarouselProps {
   items?: Json[];
   autoplay?: boolean;
@@ -230,19 +239,24 @@ export function ImageCarouselView({
     if (!Array.isArray(items)) return [];
     return items
       .map((i) => {
-        const o = (i ?? {}) as Record<string, Json>;
+        const o = (i && typeof i === "object" && !Array.isArray(i) ? i : {}) as Record<
+          string,
+          Json
+        >;
         return {
-          url: String(o.url ?? ""),
-          alt: String(o.alt ?? ""),
-          caption: String(o.caption ?? ""),
-          href: String(o.href ?? ""),
+          url: slideText(o.url),
+          alt: slideText(o.alt),
+          caption: slideText(o.caption),
+          href: slideText(o.href),
         };
       })
       .filter((s) => s.url.length > 0);
   }, [items]);
-  const [idx, setIdx] = useState(0);
+  const [rawIdx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const total = parsed.length;
+  // Lista skrócona w podglądzie na żywo nie może zostawić indeksu poza nią.
+  const idx = total > 0 ? rawIdx % total : 0;
 
   const go = useCallback(
     (d: number) => {
