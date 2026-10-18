@@ -418,6 +418,9 @@ beforeEach(() => {
   // Zgłoszenie bez gości to w bazie jedno miejsce. Brak odpowiedzi byłby
   // odmową `seats_unavailable` - liczba miejsc jest fail-closed.
   rpcResponses.set("event_registration_group_seats", ok(1));
+  // Bilet bez profilu podatkowego. Brak odpowiedzi byłby awarią odczytu,
+  // a ta przerywa wycenę - kasa nie zgaduje trybu ani kodu podatku.
+  rpcResponses.set("event_ticket_public_options", ok(null));
   rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
   rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
   rpcResponses.set("release_b2b_coupon_for_user", ok(true));

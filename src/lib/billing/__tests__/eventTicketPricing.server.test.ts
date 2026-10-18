@@ -437,6 +437,47 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     expect(quote.taxMode).toBeNull();
   });
 
+  // DEFEKT NAPRAWIONY 18.10.2026: błąd `event_ticket_public_options` był
+  // połykany (`const { data: opts } = ...`) i czytał się jak „bilet bez trybu
+  // podatku". Kasa otwierała wtedy sesję bez `tax_behavior` i bez `tax_code` -
+  // bilet z podatkiem DOLICZANYM szedł w trybie domyślnym konta (podatek
+  // wycięty z ceny zamiast doliczony), a Stripe Tax liczył stawkę z kodu
+  // domyślnego zamiast z kodu biletu. Podgląd chował przy tym „+ podatek".
+  it("AWARIA odczytu opcji biletu przerywa wycenę, zamiast zgadywać podatek", async () => {
+    rpcResponses.set("event_ticket_public_options", fail("canceling statement due to timeout"));
+
+    await expect(
+      priceEventTicket(client(), {
+        userId: USER_ID,
+        eventId: EVENT_ID,
+        ticketTypeId: TICKET_ID,
+        registrationId: null,
+      }),
+    ).rejects.toMatchObject({ message: "canceling statement due to timeout" });
+  });
+
+  it("kod podatkowy biletu przechodzi do wyceny tylko w kształcie `txcd_########`", async () => {
+    const price = (taxCode: unknown) => {
+      rpcResponses.set(
+        "event_ticket_public_options",
+        ok({ tax_mode: "inclusive", stripe_tax_code: taxCode }),
+      );
+      return priceEventTicket(client(), {
+        userId: USER_ID,
+        eventId: EVENT_ID,
+        ticketTypeId: TICKET_ID,
+        registrationId: null,
+      });
+    };
+
+    expect(await price("txcd_20030000")).toMatchObject({
+      taxMode: "inclusive",
+      taxCode: "txcd_20030000",
+    });
+    expect((await price("txcd_2003")).taxCode).toBeNull();
+    expect((await price(20030000)).taxCode).toBeNull();
+  });
+
   it("kod z samych spacji jest brakiem kodu, a nie kodem `not_found`", async () => {
     const quote = await quoteEventTicketOrder(client(), {
       userId: USER_ID,
