@@ -181,7 +181,6 @@ beforeEach(() => {
         }
       : ok(h.subs.current),
   );
-  h.chain.setResponse("payment_webhook_events", ok([]));
 });
 
 describe("AdminBillingPanel - trzy liczniki na górze", () => {
@@ -618,14 +617,18 @@ describe("AdminBillingPanel - kompozycja paneli potomnych", () => {
     expect(screen.getByTestId("karta-dawne-anulowania")).toBeTruthy();
   });
 
-  it("odświeżenie pyta bazę PONOWNIE o subskrypcje i zdarzenia", async () => {
+  it("odświeżenie pyta bazę PONOWNIE o subskrypcje", async () => {
     render();
     await awaitRows();
-    const before = h.chain!.chains.length;
+    const before = h.chain!.chainsFor("subscriptions").length;
 
     fireEvent.click(screen.getByText("adminBilling.refresh"));
 
-    await waitFor(() => expect(h.chain!.chains.length).toBeGreaterThan(before));
+    await waitFor(() => expect(h.chain!.chainsFor("subscriptions").length).toBeGreaterThan(before));
+    // Dziennik zdarzeń czyta wyłącznie jego własny panel (tu atrapa) - panel
+    // rozliczeń nie trzyma pod kluczem dziennika okrojonej kopii wierszy
+    // (`AdminBillingPanelWebhookLogCache.test.tsx`).
+    expect(h.chain!.chainsFor("payment_webhook_events")).toHaveLength(0);
   });
 });
 

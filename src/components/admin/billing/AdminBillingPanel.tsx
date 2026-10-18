@@ -2,8 +2,17 @@
 // płatności. Odczyt idzie przez RLS (polityki "Admins read tenant subscriptions"
 // i "payment_webhook_events admin read") - komponent nie ma żadnych uprawnień
 // ponad to, co baza przyzna zalogowanemu adminowi.
+//
+// DZIENNIK ZDARZEŃ CZYTA WYŁĄCZNIE `AdminWebhookLogPanel`. Panel czytał kiedyś
+// na starcie własne 200 zdarzeń (9 kolumn) pod TYM SAMYM kluczem cache, pod
+// którym dziennik trzyma swoje 300 wierszy z ładunkiem, czasem obsługi
+// i ponowieniami - nigdzie ich nie pokazując. Dziennik otwarty w oknie
+// `staleTime` renderował wtedy okrojone wiersze („undefined ms", pusty
+// ładunek), a „Odśwież" nadpisywał nimi pełne dane. Odświeżenie unieważnia
+// więc klucz dziennika: zapytanie wykona panel, który je zna, i tylko gdy jest
+// otwarty.
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-billing";
 import { AlertTriangle, BellRing, CreditCard, RefreshCcw, Users } from "lucide-react";
@@ -43,18 +52,6 @@ interface SubscriptionRow {
   payment_failure_count: number;
   last_payment_failed_at: string | null;
   environment: string;
-  created_at: string;
-}
-
-interface WebhookRow {
-  id: string;
-  event_id: string;
-  event_type: string;
-  status: string;
-  environment: string;
-  error: string | null;
-  subscription_id: string | null;
-  occurred_at: string | null;
   created_at: string;
 }
 
@@ -109,6 +106,7 @@ export function AdminBillingPanel() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const [tab, setTab] = useState("subscriptions");
+  const queryClient = useQueryClient();
 
   const subsQ = useQuery({
     queryKey: billingKeys.admin.stripeSubscriptions(),
@@ -121,22 +119,7 @@ export function AdminBillingPanel() {
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return (data ?? []) as SubscriptionRow[];
-    },
-  });
-
-  const eventsQ = useQuery({
-    queryKey: billingKeys.admin.paymentWebhookEvents(),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_webhook_events")
-        .select(
-          "id,event_id,event_type,status,environment,error,subscription_id,occurred_at,created_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as WebhookRow[];
+      return data as SubscriptionRow[];
     },
   });
 
@@ -222,7 +205,7 @@ export function AdminBillingPanel() {
   const rows = useMemo(() => subsQ.data ?? [], [subsQ.data]);
   const stats = useMemo(() => {
     const active = rows.filter((r) => ["active", "trialing"].includes(r.status)).length;
-    const dunning = rows.filter((r) => (r.payment_failure_count ?? 0) > 0).length;
+    const dunning = rows.filter((r) => r.payment_failure_count > 0).length;
     const canceling = rows.filter((r) => r.cancel_at_period_end).length;
     return { active, dunning, canceling };
   }, [rows]);
@@ -396,7 +379,9 @@ export function AdminBillingPanel() {
               className="rounded-[6px]"
               onClick={() => {
                 void subsQ.refetch();
-                void eventsQ.refetch();
+                void queryClient.invalidateQueries({
+                  queryKey: billingKeys.admin.paymentWebhookEvents(),
+                });
               }}
             >
               <RefreshCcw className="mr-2 h-4 w-4" /> {t("adminBilling.refresh")}
