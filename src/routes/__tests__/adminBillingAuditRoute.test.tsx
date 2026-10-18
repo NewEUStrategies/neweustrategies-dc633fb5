@@ -557,6 +557,49 @@ describe("trasa /admin/billing-audit - dziennik zdarzeń i ponowienie", () => {
     expect(row.textContent).not.toContain("0 ms");
   });
 
+  // DEFEKT (2026-10-18): raport zostawał na ekranie po zmianie zakresu
+  // w formularzu - sumy i wiersze piaskownicy pod przełącznikiem „Produkcja",
+  // a eksport (który pyta o zakres Z FORMULARZA) inny niż tabela obok.
+  it("zmiana zakresu po wczytaniu chowa raport POPRZEDNIEGO zakresu, powrót go przywraca", async () => {
+    await mount();
+    await load();
+    expect(await screen.findByText("pi_test_1")).toBeInTheDocument();
+
+    fireEvent.change(auditEnv(), { target: { value: "live" } });
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zaksięgowane")).not.toBeInTheDocument();
+
+    // Ten sam zakres co przy wczytaniu - raport wraca bez nowego zapytania.
+    fireEvent.change(auditEnv(), { target: { value: "sandbox" } });
+    expect(screen.getByText("pi_test_1")).toBeInTheDocument();
+
+    fireEvent.change(auditWindow(), { target: { value: "24" } });
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    fireEvent.change(auditWindow(), { target: { value: "168" } });
+    fireEvent.change(auditEventFilter(), { target: { value: EVENT_UUID } });
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    expect(h.audit).toHaveBeenCalledTimes(1);
+  });
+
+  it("raport zamówiony dla piaskownicy, a formularz w międzyczasie na produkcji: nie podpisuje się produkcją", async () => {
+    let finish: (value: AuditReport) => void = () => {};
+    h.audit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wczytaj" }));
+    await waitFor(() => expect(h.audit).toHaveBeenCalledTimes(1));
+    fireEvent.change(auditEnv(), { target: { value: "live" } });
+    finish(report());
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Wczytaj" })).not.toBeDisabled());
+    expect(lastAuditQuery().environment).toBe("sandbox");
+    expect(screen.queryByText("pi_test_1")).not.toBeInTheDocument();
+    // Powrót na piaskownicę pokazuje raport, który faktycznie dla niej przyszedł.
+    fireEvent.change(auditEnv(), { target: { value: "sandbox" } });
+    expect(screen.getByText("pi_test_1")).toBeInTheDocument();
+  });
+
   it("powrót na zakładkę zamówień nie gubi wczytanego raportu", async () => {
     // Zakładki dzielą JEDEN raport. Przeładowanie przy każdym przełączeniu
     // kosztowałoby zapytanie i - przy zmienionym oknie - dałoby dwie tabele

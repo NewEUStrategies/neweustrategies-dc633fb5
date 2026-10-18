@@ -26,6 +26,7 @@
 //      jak „nie sprawdzono".
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 import type { WebhookHealth } from "@/lib/billing/webhookHealthApi";
@@ -151,6 +152,51 @@ describe("wczytanie pomiaru", () => {
     await screen.findByRole("status");
     expect(przycisk).toBeEnabled();
     expect(h.fetchHealth).toHaveBeenCalledTimes(1);
+  });
+
+  // DEFEKT (2026-10-18): pomiar zostawał na ekranie po zmianie środowiska
+  // albo okna na trasie audytu - odsetek awarii piaskownicy pod przełącznikiem
+  // „Produkcja". Metryki należą do zakresu, dla którego je wczytano.
+  it("zmiana środowiska albo okna chowa pomiar POPRZEDNIEGO zakresu, powrót go przywraca", async () => {
+    const view = pokaz("live", 24);
+    await wczytaj();
+    const rerender = (environment: "sandbox" | "live", sinceHours: number) =>
+      view.rerender(
+        <QueryClientProvider client={view.queryClient}>
+          <WebhookHealthPanel environment={environment} sinceHours={sinceHours} />
+        </QueryClientProvider>,
+      );
+
+    rerender("sandbox", 24);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("webhookHealth.total")).toBeNull();
+
+    rerender("live", 72);
+    expect(screen.queryByRole("status")).toBeNull();
+
+    rerender("live", 24);
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(h.fetchHealth).toHaveBeenCalledTimes(1);
+  });
+
+  it("pomiar zamówiony dla jednego środowiska i zmiana w locie: wynik nie podpisuje się nowym", async () => {
+    let finish: (value: WebhookHealth) => void = () => {};
+    h.fetchHealth.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const view = pokaz("sandbox", 24);
+    const przycisk = screen.getByRole("button", { name: "webhookHealth.load" });
+
+    fireEvent.click(przycisk);
+    await waitFor(() => expect(przycisk).toBeDisabled());
+    view.rerender(
+      <QueryClientProvider client={view.queryClient}>
+        <WebhookHealthPanel environment="live" sinceHours={24} />
+      </QueryClientProvider>,
+    );
+    finish(zdrowie({ environment: "sandbox" }));
+
+    await waitFor(() => expect(przycisk).toBeEnabled());
+    expect(h.fetchHealth).toHaveBeenCalledWith("sandbox", 24);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("liczby z odpowiedzi trafiają na ekran bez przeliczania", async () => {

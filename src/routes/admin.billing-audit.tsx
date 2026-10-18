@@ -36,6 +36,19 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** Górna granica okna audytu - TA SAMA, którą wymusza schemat funkcji serwerowej. */
 const MAX_WINDOW_HOURS = 8760;
 
+/** Zakres pytania audytu - to samo jedzie do raportu i do eksportu. */
+interface AuditQuery {
+  environment: Env;
+  sinceHours: number;
+  eventId: string | null;
+}
+
+function sameQuery(a: AuditQuery, b: AuditQuery): boolean {
+  return (
+    a.environment === b.environment && a.sinceHours === b.sinceHours && a.eventId === b.eventId
+  );
+}
+
 /** Treść błędu z granicy serwerowej - operator ma zobaczyć POWÓD, nie ciszę. */
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -63,23 +76,29 @@ function AdminBillingAudit() {
   const [sinceHours, setSinceHours] = useState(168);
   const [eventId, setEventId] = useState("");
   const [tab, setTab] = useState<Tab>("orders");
-  const [report, setReport] = useState<AuditReport | null>(null);
+  const [loaded, setLoaded] = useState<{ query: AuditQuery; report: AuditReport } | null>(null);
   const [outcomes, setOutcomes] = useState<Record<string, string>>({});
 
   const locale = i18n.language?.startsWith("en") ? "en-GB" : "pl-PL";
-  const query = {
+  const query: AuditQuery = {
     environment,
     sinceHours,
     eventId: UUID_RE.test(eventId.trim()) ? eventId.trim() : null,
   };
 
   const load = useMutation({
-    mutationFn: () => getBillingAudit({ data: query }),
-    onSuccess: (data) => {
-      setReport(data);
+    mutationFn: (scope: AuditQuery) => getBillingAudit({ data: scope }),
+    onSuccess: (data, scope) => {
+      setLoaded({ query: scope, report: data });
       setOutcomes({});
     },
   });
+  // RAPORT WYŁĄCZNIE DLA ZAKRESU Z FORMULARZA. Po zmianie środowiska, okna
+  // albo filtra raport poprzedniego zakresu zostawał na ekranie pod nowymi
+  // ustawieniami: produkcja podpisana sumami piaskownicy, a eksport (który
+  // pyta o zakres z formularza) rozjeżdżał się z tym, co widać. Wraca sam,
+  // gdy formularz wróci do zakresu, dla którego go wczytano.
+  const report = loaded !== null && sameQuery(loaded.query, query) ? loaded.report : null;
 
   const exportFile = useMutation({
     mutationFn: (format: "csv" | "xlsx") => exportBillingAudit({ data: { ...query, format } }),
@@ -204,7 +223,7 @@ function AdminBillingAudit() {
           />
         </label>
 
-        <Button onClick={() => load.mutate()} disabled={load.isPending}>
+        <Button onClick={() => load.mutate(query)} disabled={load.isPending}>
           {load.isPending ? t("adminBillingAudit.loading") : t("adminBillingAudit.load")}
         </Button>
         <Button
