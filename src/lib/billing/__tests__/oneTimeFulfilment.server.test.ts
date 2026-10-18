@@ -495,15 +495,20 @@ describe("fulfilOneTimeTransaction - rozdział na skutek biznesowy", () => {
   });
 
   it("darowizna bez czytelnej chwili zapłaty dostaje chwilę księgowania, a nie napis", async () => {
-    const before = Date.now();
-    await fulfilOneTimeTransaction(
-      txn({ customData: { purpose: "donation", donationId: "don_1" }, paidAt: "nie-data" }),
-      "live",
-    );
+    // Zegar zamrożony tylko na „teraz" (`Date`) - asercja na DOKŁADNĄ chwilę,
+    // a nie „nie wcześniej niż start testu".
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-02T09:15:00.000Z"));
+    try {
+      await fulfilOneTimeTransaction(
+        txn({ customData: { purpose: "donation", donationId: "don_1" }, paidAt: "nie-data" }),
+        "live",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
 
-    const paidAt = String(h.donations[0]?.["paidAt"]);
-    expect(Date.parse(paidAt)).toBeGreaterThanOrEqual(before);
-    expect(new Date(paidAt).toISOString()).toBe(paidAt);
+    expect(h.donations[0]).toMatchObject({ paidAt: "2026-10-02T09:15:00.000Z" });
   });
 
   it("historyczne `kind=donation` bez sesji: sesją jest id transakcji, nierozliczona = skipped", async () => {
