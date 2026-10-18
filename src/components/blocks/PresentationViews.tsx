@@ -103,23 +103,44 @@ export function IconBoxView({
 
 // ===== Stats Counter =====
 
+interface CountableValue {
+  prefix: string;
+  num: number;
+  /** Cyfry po przecinku w treści z CMS-u - licznik kończy na tej samej precyzji. */
+  decimals: number;
+}
+
 interface StatItemLite {
   value: string;
   label: string;
   suffix: string;
+  /** `null` - wartość nie jest „przedrostek + liczba"; pokazujemy ją dosłownie. */
+  countable: CountableValue | null;
 }
 
-function parseNumber(v: string): { num: number; prefix: string } {
-  const match = v.match(/^([^\d-]*)(-?\d+(?:[.,]\d+)?)/);
-  if (!match) return { num: 0, prefix: v };
-  return { num: Number(match[2].replace(",", ".")) || 0, prefix: match[1] ?? "" };
+/**
+ * Liczy tylko wartość w kształcie „przedrostek + liczba" (np. „€1200", „4,5").
+ * Wszystko inne („N/A", „24/7", „1.000.000", puste pole) zostaje tekstem:
+ * wcześniej „N/A" malowało się jako „N/A0", puste pole jako „0", a „24/7"
+ * gubiło „/7".
+ */
+function parseCountable(raw: string): CountableValue | null {
+  const match = raw.trim().match(/^([^\d-]*)(-?\d+)(?:[.,](\d+))?$/);
+  if (!match) return null;
+  const fraction = match[3] ?? "";
+  return {
+    prefix: match[1],
+    num: Number(fraction ? `${match[2]}.${fraction}` : match[2]),
+    decimals: fraction.length,
+  };
 }
 
-function formatNumber(n: number, lang: "pl" | "en"): string {
+function formatNumber(n: number, lang: "pl" | "en", decimals: number): string {
   const locale = lang === "en" ? "en-GB" : "pl-PL";
-  return Number.isInteger(n)
-    ? n.toLocaleString(locale)
-    : n.toLocaleString(locale, { maximumFractionDigits: 2 });
+  return n.toLocaleString(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
 /**
@@ -132,11 +153,13 @@ function formatNumber(n: number, lang: "pl" | "en"): string {
  */
 function AnimatedCounter({
   target,
+  decimals,
   duration,
   state,
   lang,
 }: {
   target: number;
+  decimals: number;
   duration: number;
   state: RevealState;
   lang: "pl" | "en";
@@ -163,7 +186,8 @@ function AnimatedCounter({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [state, target, duration]);
-  return <>{formatNumber(Math.round(val), lang)}</>;
+  // Precyzja z treści: `Math.round` zamieniało ocenę „4,5" w „5".
+  return <>{formatNumber(val, lang, decimals)}</>;
 }
 
 interface StatsProps {
@@ -178,10 +202,12 @@ export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: S
     if (!Array.isArray(items)) return [];
     return items.map((i) => {
       const o = (i ?? {}) as Record<string, Json>;
+      const value = String(o.value ?? "");
       return {
-        value: String(o.value ?? ""),
+        value,
         label: String(o.label ?? ""),
         suffix: String(o.suffix ?? ""),
+        countable: parseCountable(value),
       };
     });
   }, [items]);
@@ -196,12 +222,24 @@ export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: S
       ].join(" ")}
     >
       {parsed.map((it, idx) => {
-        const { num, prefix } = parseNumber(it.value);
+        const c = it.countable;
         return (
           <div key={idx} className="space-y-1">
             <div className="text-3xl md:text-4xl font-bold text-foreground tabular-nums">
-              {prefix}
-              <AnimatedCounter target={num} duration={duration} state={state} lang={lang} />
+              {c ? (
+                <>
+                  {c.prefix}
+                  <AnimatedCounter
+                    target={c.num}
+                    decimals={c.decimals}
+                    duration={duration}
+                    state={state}
+                    lang={lang}
+                  />
+                </>
+              ) : (
+                it.value
+              )}
               {it.suffix}
             </div>
             {it.label ? <div className="text-sm text-muted-foreground">{it.label}</div> : null}
@@ -290,14 +328,18 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
   const total = parsed.length;
   const go = useCallback(
     (d: number) => {
-      setIdx((cur) => (cur + d + total) % Math.max(1, total));
+      setIdx((cur) => (Math.min(cur, total - 1) + d + total) % Math.max(1, total));
     },
     [total],
   );
   if (total === 0) return null;
 
   if (layout === "slider") {
-    const t = parsed[idx];
+    // Indeks przycięty do bieżącej listy: usunięcie ostatniej opinii na
+    // kanwie buildera (podgląd na żywo) zostawiało `parsed[idx]` = undefined
+    // i wywracało render.
+    const current = Math.min(idx, total - 1);
+    const t = parsed[current];
     return (
       <div className={`relative ${cls ?? ""}`}>
         <TestimonialCard t={t} />
@@ -312,7 +354,7 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
               <ChevronLeft className="w-4 h-4" />
             </button>
             <div className="text-xs text-muted-foreground tabular-nums">
-              {idx + 1} / {total}
+              {current + 1} / {total}
             </div>
             <button
               type="button"

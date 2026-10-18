@@ -128,16 +128,6 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
                     {htmlToPlainText(m.bio)}
                   </p>
                 ) : null}
-                {m.social ? (
-                  <a
-                    href={m.social}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-xs text-primary hover:underline mt-2"
-                  >
-                    Profil
-                  </a>
-                ) : null}
               </div>
             </>
           );
@@ -150,6 +140,21 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
               ) : (
                 card
               )}
+              {/* Link profilu jest RODZEŃSTWEM karty, nie jej dzieckiem: przy
+                  `href` + `social` dawał `<a>` w `<a>`, które parser HTML
+                  rozcina - DOM z SSR przestawał pasować do drzewa Reacta. */}
+              {m.social ? (
+                <div className="text-center">
+                  <a
+                    href={m.social}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs text-primary hover:underline mt-2"
+                  >
+                    Profil
+                  </a>
+                </div>
+              ) : null}
             </li>
           );
         })}

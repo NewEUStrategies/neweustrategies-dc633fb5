@@ -1,7 +1,15 @@
 // Publiczne renderery dla Phase 4 batch 9:
 // accordion, tabs, countdown, progress.
 
-import { useEffect, useId, useMemo, useState, useCallback } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  type KeyboardEvent,
+} from "react";
 import type { Json } from "@/lib/blocks/types";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
@@ -107,9 +115,30 @@ export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) 
   const parsed = useMemo(() => parseItems(items, "label"), [items]);
   const [active, setActive] = useState(0);
   const uid = useId();
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   if (parsed.length === 0) return null;
 
   const vert = orientation === "vertical";
+  // Przycięty do bieżącej listy: po usunięciu zakładek na kanwie buildera
+  // żadna nie była wybrana, a wszystkie miały `tabIndex=-1`.
+  const current = Math.min(active, parsed.length - 1);
+
+  // Wzorzec WAI-ARIA „Tabs": niewybrane zakładki mają `tabIndex=-1`, więc
+  // bez strzałek klawiatura w ogóle nie dochodziła do pozostałych paneli.
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const last = parsed.length - 1;
+    const keys: Record<string, number> = {
+      [vert ? "ArrowDown" : "ArrowRight"]: current === last ? 0 : current + 1,
+      [vert ? "ArrowUp" : "ArrowLeft"]: current === 0 ? last : current - 1,
+      Home: 0,
+      End: last,
+    };
+    const next = keys[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    setActive(next);
+    tabRefs.current[next]?.focus();
+  };
 
   return (
     <div className={`${vert ? "flex gap-4" : "space-y-3"} ${cls ?? ""}`}>
@@ -123,10 +152,13 @@ export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) 
         }
       >
         {parsed.map((it, idx) => {
-          const selected = idx === active;
+          const selected = idx === current;
           return (
             <button
               key={idx}
+              ref={(node) => {
+                tabRefs.current[idx] = node;
+              }}
               role="tab"
               type="button"
               id={`${uid}-tab-${idx}`}
@@ -134,6 +166,7 @@ export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) 
               aria-controls={`${uid}-panel-${idx}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(idx)}
+              onKeyDown={onTabKeyDown}
               className={[
                 "text-sm font-medium px-3 py-2 transition-colors",
                 vert ? "text-left border-r-2" : "border-b-2 -mb-px",
@@ -154,7 +187,7 @@ export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) 
             role="tabpanel"
             id={`${uid}-panel-${idx}`}
             aria-labelledby={`${uid}-tab-${idx}`}
-            hidden={idx !== active}
+            hidden={idx !== current}
             className="text-sm text-foreground prose prose-sm max-w-none dark:prose-invert"
             dangerouslySetInnerHTML={{ __html: clean(it.body) }}
           />
@@ -197,6 +230,22 @@ function PlaceholderCell({ unit }: { unit: string }) {
   return (
     <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-card border border-border min-w-[64px]">
       <span className="text-2xl font-bold tabular-nums text-foreground">--</span>
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit}</span>
+    </div>
+  );
+}
+
+/**
+ * Komórka z wartością. Na poziomie modułu, nie w renderze: komponent
+ * definiowany w ciele `CountdownView` był co takt NOWYM typem, więc React
+ * odmontowywał i montował od zera wszystkie cztery komórki co sekundę.
+ */
+function Cell({ value, unit }: { value: number; unit: string }) {
+  return (
+    <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-card border border-border min-w-[64px]">
+      <span className="text-2xl font-bold tabular-nums text-foreground">
+        {value.toString().padStart(2, "0")}
+      </span>
       <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit}</span>
     </div>
   );
@@ -267,15 +316,6 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
       </div>
     );
   }
-
-  const Cell = ({ value, unit }: { value: number; unit: string }) => (
-    <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-card border border-border min-w-[64px]">
-      <span className="text-2xl font-bold tabular-nums text-foreground">
-        {value.toString().padStart(2, "0")}
-      </span>
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{unit}</span>
-    </div>
-  );
 
   return (
     <div className={`flex flex-col items-start gap-2 ${cls ?? ""}`}>
