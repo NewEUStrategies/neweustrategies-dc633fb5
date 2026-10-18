@@ -295,6 +295,9 @@ function NestedChildRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       data-block-id={block.id}
       data-block-type={block.type}
+      // Aktywne dziecko (to, któremu pasek ustawień pisze) - stan jako kontrakt
+      // atrybutu, nie wyłącznie pierścień z klas.
+      data-active={active ? "true" : undefined}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();

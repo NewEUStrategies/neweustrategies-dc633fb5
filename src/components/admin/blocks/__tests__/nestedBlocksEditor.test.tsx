@@ -1,13 +1,12 @@
 // MINI-KANWA DZIECI KONTENERA (`NestedBlocksEditor`) - druga polowa dowodu
 // dla operacji "zagniezdzenie ponad dopuszczalna glebokosc" z zadania.
 //
-// STOSUNEK DO `nestingDepthGuard.test.ts`. Tamten plik dowodzi po ZRODLACH,
-// ze w calym module nie ma stalej limitu glebokosci ani miejsca, w ktorym
-// mozna by ja dzis odczytac. Ten plik dowodzi tego samego PRZEZ INTERFEJS:
-// mini-kanwa faktycznie renderuje pelna palete (razem z kontenerami), klik
-// w kontener faktycznie tworzy kolejny poziom, a nowy poziom faktycznie ma
-// wlasna, rowna palete. Petla jest wiec osiagalna KLIKANIEM, nie tylko
-// czytelna w kodzie - i to jest ta czesc, ktorej test zrodlowy nie pokazuje.
+// STOSUNEK DO `nestingDepthGuard.test.ts`. Tamten plik dowodzi granicy
+// ZAPISU (schemat dokumentu nie ogranicza glebokosci drzewa). Ten plik
+// dowodzi, ze redaktor do takiego drzewa dochodzi PRZEZ INTERFEJS: mini-kanwa
+// renderuje pelna palete (razem z kontenerami), klik w kontener tworzy
+// kolejny poziom, a nowy poziom ma wlasna, rowna palete - petla jest
+// osiagalna KLIKANIEM.
 //
 // CO MA TU JESZCZE DOWOD
 //   * wszystkie operacje na dzieciach: wstawianie na wskazany indeks (przed
@@ -204,12 +203,12 @@ describe("NestedBlocksEditor - operacje na dzieciach", () => {
     expect(wejscie.map((b) => b.id)).toEqual(["c1", "c2"]);
   });
 
-  it("klik w dziecko zaznacza je (obwód dziecka dostaje pierścień aktywności)", () => {
+  it("klik w dziecko zaznacza je (dziecko staje się aktywne: `data-active`)", () => {
     zamontuj(dwa());
     const wiersz = document.querySelector('[data-block-id="c2"]');
     expect(wiersz).not.toBeNull();
     fireEvent.click(wiersz as Element);
-    expect(wiersz?.className).toContain("ring-1");
+    expect(wiersz).toHaveAttribute("data-active", "true");
   });
 });
 
@@ -283,20 +282,20 @@ describe("NestedBlocksEditor - pisanie w dzieciach kontenera", () => {
   });
 
   it("strzałka w górę przenosi fokus na poprzednie dziecko TEKSTOWE", () => {
-    // Widać to po pierścieniu aktywności - mini-kanwa trzyma aktywne dziecko
+    // Widać to po `data-active` dziecka - mini-kanwa trzyma aktywne dziecko
     // u siebie (kanwa główna nie zna dzieci kontenera).
     const separator = { id: "s1", type: "separator", data: {} } as Block;
     zamontuj([akapit("c1", "alfa"), separator, akapit("c3", "gamma")]);
     fireEvent.keyDown(polePisania("c3"), { key: "ArrowUp" });
     const wiersz = document.querySelector('[data-block-id="c1"]');
-    expect(wiersz?.className).toContain("ring-1");
-    expect(document.querySelector('[data-block-id="s1"]')?.className).not.toContain("ring-1");
+    expect(wiersz).toHaveAttribute("data-active", "true");
+    expect(document.querySelector('[data-block-id="s1"]')).not.toHaveAttribute("data-active");
   });
 
   it("strzałka w dół przenosi fokus na następne dziecko tekstowe", () => {
     zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
     fireEvent.keyDown(polePisania("c1"), { key: "ArrowDown" });
-    expect(document.querySelector('[data-block-id="c2"]')?.className).toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c2"]')).toHaveAttribute("data-active", "true");
   });
 
   it("menu slash w PUSTYM dziecku PODMIENIA je na wybrany typ (replaceWith)", () => {
@@ -337,16 +336,16 @@ describe("NestedBlocksEditor - odmowy na granicach kontenera", () => {
   it("strzałka w górę z PIERWSZEGO dziecka nie wyprowadza z kontenera", () => {
     zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
     fireEvent.keyDown(polePisania("c1"), { key: "ArrowUp" });
-    // Zadne dziecko nie przejmuje pierscienia aktywnosci - fokus zostaje tam,
+    // Zadne dziecko nie staje sie aktywne (`data-active`) - fokus zostaje tam,
     // gdzie byl (wyjscie z kontenera nalezy do przeglądarki, nie do mini-kanwy).
-    expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
-    expect(document.querySelector('[data-block-id="c2"]')?.className).not.toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c1"]')).not.toHaveAttribute("data-active");
+    expect(document.querySelector('[data-block-id="c2"]')).not.toHaveAttribute("data-active");
   });
 
   it("strzałka w dół z OSTATNIEGO dziecka nie wyprowadza z kontenera", () => {
     zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
     fireEvent.keyDown(polePisania("c2"), { key: "ArrowDown" });
-    expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c1"]')).not.toHaveAttribute("data-active");
   });
 
   it("Ctrl+A w PUSTYM dziecku nie zaznacza blokowo wnętrza kontenera", () => {
@@ -359,7 +358,7 @@ describe("NestedBlocksEditor - odmowy na granicach kontenera", () => {
     ]);
     fireEvent.keyDown(polePisania("c1"), { key: "a", ctrlKey: true });
     expect(onChange).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-block-id="c2"]')?.className).not.toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c2"]')).not.toHaveAttribute("data-active");
   });
 
   it("Shift+strzałka w dziecku NIE eskaluje do zaznaczenia blokowego", () => {
@@ -369,7 +368,7 @@ describe("NestedBlocksEditor - odmowy na granicach kontenera", () => {
     const { onChange } = zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
     fireEvent.keyDown(polePisania("c2"), { key: "ArrowUp", shiftKey: true });
     expect(onChange).not.toHaveBeenCalled();
-    expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c1"]')).not.toHaveAttribute("data-active");
   });
 
   it("klik w UCHWYT przeciągania nie zaznacza dziecka", () => {
@@ -377,10 +376,10 @@ describe("NestedBlocksEditor - odmowy na granicach kontenera", () => {
     // bloku, inaczej samo złapanie dziecka zmieniałoby aktywny blok w pasku.
     zamontuj([akapit("c1", "alfa"), akapit("c2", "beta")]);
     fireEvent.click(screen.getAllByRole("button", { name: t("blocks.actions.drag") })[1]);
-    expect(document.querySelector('[data-block-id="c2"]')?.className).not.toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c2"]')).not.toHaveAttribute("data-active");
     // Kontrola dodatnia: klik w sam wiersz dziecka zaznacza je.
     fireEvent.click(document.querySelector('[data-block-id="c2"]') as Element);
-    expect(document.querySelector('[data-block-id="c2"]')?.className).toContain("ring-1");
+    expect(document.querySelector('[data-block-id="c2"]')).toHaveAttribute("data-active", "true");
   });
 });
 
@@ -563,25 +562,29 @@ it("wzorzec wstawiony do PUSTEGO kontenera przejmuje aktywnosc", () => {
   const dzieci = onChange.mock.calls.at(-1)![0];
   expect(dzieci).toHaveLength(2);
   const ostatni = dzieci[dzieci.length - 1];
-  expect(document.querySelector(`[data-block-id="${ostatni.id}"]`)?.className).toContain("ring-1");
+  expect(document.querySelector(`[data-block-id="${ostatni.id}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   // Pierwszy blok wzorca (naglowek) NIE jest aktywny - aktywnosc jest jedna.
-  expect(document.querySelector(`[data-block-id="${dzieci[0].id}"]`)?.className).not.toContain(
-    "ring-1",
+  expect(document.querySelector(`[data-block-id="${dzieci[0].id}"]`)).not.toHaveAttribute(
+    "data-active",
   );
 });
 
 it("wzorzec wstawiony MIEDZY dzieci zabiera aktywnosc dziecku sprzed wstawienia", () => {
   const { onChange } = zamontujSterowany([akapit("c1", "pierwsze"), akapit("c2", "drugie")]);
   fireEvent.click(document.querySelector('[data-block-id="c1"]') as Element);
-  expect(document.querySelector('[data-block-id="c1"]')?.className).toContain("ring-1");
+  expect(document.querySelector('[data-block-id="c1"]')).toHaveAttribute("data-active", "true");
 
   wstawWzorzec(1);
 
   const dzieci = onChange.mock.calls.at(-1)![0];
   expect(dzieci.map((b) => b.type)).toEqual(["paragraph", "heading", "list", "paragraph"]);
   // Pasek ustawien ma wskazywac blok, ktory redaktor widzi jako nowy.
-  expect(document.querySelector(`[data-block-id="${dzieci[2].id}"]`)?.className).toContain(
-    "ring-1",
+  expect(document.querySelector(`[data-block-id="${dzieci[2].id}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
   );
-  expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
+  expect(document.querySelector('[data-block-id="c1"]')).not.toHaveAttribute("data-active");
 });
