@@ -1,7 +1,7 @@
 // Bezpiecznik mock-mode billingu (P0 z audytu): produkcja bez dostawcy musi
 // odmawiać checkoutu zamiast rozdawać uprawnienia, dev zachowuje stare DX.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockCheckoutAllowed } from "../mockMode.server";
+import { mockCheckoutAllowed, paymentsConfiguredServer } from "../mockMode.server";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -41,5 +41,28 @@ describe("mockCheckoutAllowed", () => {
     vi.stubEnv("NODE_ENV", "test");
     vi.stubEnv("BILLING_ALLOW_MOCK", "");
     expect(mockCheckoutAllowed()).toBe(true);
+  });
+});
+
+describe("paymentsConfiguredServer - komplet kluczy bramki", () => {
+  it("sam klucz PRODUKCYJNY (bez piaskownicy) to skonfigurowana bramka - produkcja nie wpada w mock", () => {
+    vi.stubEnv("LOVABLE_API_KEY", "lov_test");
+    vi.stubEnv("STRIPE_SANDBOX_API_KEY", "");
+    vi.stubEnv("STRIPE_LIVE_API_KEY", "rk_live_syntetyczny");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("BILLING_ALLOW_MOCK", "1");
+
+    expect(paymentsConfiguredServer()).toBe(true);
+    expect(mockCheckoutAllowed()).toBe(false);
+  });
+
+  it("klucz operatora BEZ klucza bramki konektorów nie jest konfiguracją", () => {
+    // Ruch do operatora idzie przez bramkę konektorów (`stripe.server`) - bez
+    // jej klucza checkout i tak by nie powstał, więc to nie jest „dostawca".
+    vi.stubEnv("LOVABLE_API_KEY", "");
+    vi.stubEnv("STRIPE_SANDBOX_API_KEY", "sk_test_syntetyczny");
+    vi.stubEnv("STRIPE_LIVE_API_KEY", "rk_live_syntetyczny");
+
+    expect(paymentsConfiguredServer()).toBe(false);
   });
 });

@@ -19,11 +19,26 @@ export async function resolveUserTenantId(
   supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<string> {
+  const tenantId = await readUserTenantId(supabase, userId).catch(() => null);
+  if (!tenantId) throw new Error("No tenant for current user");
+  return tenantId;
+}
+
+/**
+ * Same lookup for service-role writers that must tell "no profile" apart from
+ * a failed read: `null` when the user has no profile (closed account), throws
+ * when the query itself fails, so a webhook answers 5xx and the provider
+ * retries instead of writing a row under the column's fallback tenant.
+ */
+export async function readUserTenantId(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<string | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select("tenant_id")
     .eq("id", userId)
     .maybeSingle();
-  if (error || !data?.tenant_id) throw new Error("No tenant for current user");
-  return data.tenant_id;
+  if (error) throw new Error(`profile tenant lookup failed: ${error.message}`);
+  return data?.tenant_id ?? null;
 }

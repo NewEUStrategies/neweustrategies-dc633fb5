@@ -669,21 +669,18 @@ export async function revokeOrderAccess(
 async function suspendPlanEntitlements(
   externalRefs: ReadonlyArray<string>,
   suspendedAt: string,
-): Promise<boolean> {
-  if (externalRefs.length === 0) return false;
+): Promise<void> {
   const supabase = await admin();
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("user_subscriptions")
     .update({ status: "canceled", current_period_end: suspendedAt, canceled_at: suspendedAt })
     .in("external_ref", [...externalRefs])
-    .eq("status", "active")
-    .select("id");
+    .eq("status", "active");
   if (error) {
     throw new Error(
       `dispute: user_subscriptions suspend failed (${externalRefs.join(",")}): ${error.message}`,
     );
   }
-  return (data?.length ?? 0) > 0;
 }
 
 /**
@@ -741,13 +738,13 @@ interface OrderRefundAmounts {
  * zamówienie jest już zamknięte, a licznik zaciśnięty do kwoty zamówienia.
  */
 function orderRefundAmounts(event: RefundEvent, order: AdjustmentOrder): OrderRefundAmounts {
-  const stored = order.refunded_amount_cents ?? 0;
-  const orderAmount =
-    typeof order.amount_cents === "number" && order.amount_cents > 0 ? order.amount_cents : null;
+  // Obie kolumny są `NOT NULL` (licznik z `DEFAULT 0`) - bez zapasów `??`.
+  const stored = order.refunded_amount_cents;
+  const orderAmount = order.amount_cents > 0 ? order.amount_cents : null;
   // Kwota pobrana: z korekty, a bez niej - kwota zamówienia. Jawne zero od
   // operatora znaczy „nie wiem" i NIE pozwala uznać zwrotu za częściowy.
-  const captured = event.capturedAmountCents ?? order.amount_cents ?? null;
-  const knownCaptured = typeof captured === "number" && captured > 0;
+  const captured = event.capturedAmountCents ?? order.amount_cents;
+  const knownCaptured = captured > 0;
   const chargeCaptured =
     typeof event.capturedAmountCents === "number" && event.capturedAmountCents > 0
       ? event.capturedAmountCents
@@ -765,7 +762,7 @@ function orderRefundAmounts(event: RefundEvent, order: AdjustmentOrder): OrderRe
   // Operator liczy narastająco, więc bierzemy maksimum z zapisanym stanem -
   // ponowione zdarzenie nie może cofnąć licznika.
   const reported = Math.max(stored, incoming);
-  const basis = orderAmount ?? (knownCaptured ? (captured as number) : null);
+  const basis = orderAmount ?? (knownCaptured ? captured : null);
   const clamped = basis !== null && reported > basis;
   const refundedSoFar = clamped ? (basis as number) : reported;
   return {
@@ -788,8 +785,7 @@ function orderCentsFromCharge(
   order: Pick<AdjustmentOrder, "amount_cents">,
   state: PaymentRefundState,
 ): number {
-  const orderAmount =
-    typeof order.amount_cents === "number" && order.amount_cents > 0 ? order.amount_cents : null;
+  const orderAmount = order.amount_cents > 0 ? order.amount_cents : null;
   if (orderAmount === null) return state.refundedCents;
   const scaled =
     state.amountCents > 0 && state.amountCents !== orderAmount
@@ -862,7 +858,6 @@ async function revokeOrder(
   persistIntent: string | null,
 ): Promise<RefundOutcome> {
   const supabase = await admin();
-  const txnId = event.transactionId ?? order.id;
   const nowIso = new Date().toISOString();
   const amounts = orderRefundAmounts(event, order);
   const { refundedSoFar, isPartial } = amounts;
@@ -987,7 +982,9 @@ async function revokeOrder(
       planId: order.plan_id,
       amountCents: event.amountCents,
       currency: event.currency,
-      transactionId: txnId,
+      // Cel `order` powstaje wyłącznie z transakcji korekty
+      // (`resolveAdjustmentTarget`), więc identyfikator jest tu zawsze.
+      transactionId: event.transactionId,
       accessUntil: nowIso,
       idempotencySeed: event.adjustmentId,
     });
@@ -1428,15 +1425,15 @@ async function reviveSubscription(
   }
   const current = mapStripeSubscription(remote);
   const priceId = current.items[0]?.price.externalId ?? sub.price_id;
-  if (!priceId) return { outcome: "skipped", note: "none" };
 
   const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
   const plan = await resolvePlanForPrice(priceId, { tenantId: sub.tenant_id, userId: sub.user_id });
-  // Cena spoza katalogu: nie ma czego nadać - wynik mówi to wprost, zamiast
-  // udawać przywrócenie.
+  // Cena spoza katalogu (także pusta): nie ma czego nadać - wynik mówi to
+  // wprost, zamiast udawać przywrócenie.
   if (!plan) return { outcome: "skipped", note: "none" };
 
-  const status = current.status || sub.status || "active";
+  // `subscriptions.status` jest `NOT NULL` - pusty status operatora bierze zapisany.
+  const status = current.status || sub.status;
   const periodStart = current.currentBillingPeriod?.startsAt ?? sub.current_period_start ?? null;
   const { accessPeriodFromEvent } = await import("@/lib/billing/accessPeriod");
   const { accessUntil } = accessPeriodFromEvent({
@@ -1514,9 +1511,9 @@ async function refundDonation(
   event: RefundEvent,
   donation: AdjustmentDonation,
 ): Promise<RefundOutcome> {
-  const captured = event.capturedAmountCents ?? donation.amount_cents ?? null;
-  const knownCaptured = typeof captured === "number" && captured > 0;
-  const reported = Math.max(donation.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+  const captured = event.capturedAmountCents ?? donation.amount_cents;
+  const knownCaptured = captured > 0;
+  const reported = Math.max(donation.refunded_amount_cents, event.amountCents ?? 0);
   const refundedSoFar = knownCaptured && reported > captured ? captured : reported;
   const isPartial = knownCaptured && refundedSoFar > 0 && refundedSoFar < captured;
 
@@ -1575,7 +1572,7 @@ async function restoreDonation(
   donation: AdjustmentDonation,
 ): Promise<CorrectionResult> {
   if (donation.status !== "refunded") return { outcome: "skipped", note: "none" };
-  if ((donation.refunded_amount_cents ?? 0) >= donation.amount_cents) {
+  if (donation.refunded_amount_cents >= donation.amount_cents) {
     return { outcome: "skipped", note: "refunded_kept" };
   }
   const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
@@ -1738,25 +1735,22 @@ async function adjustmentTenant(
   // Cel nierozpoznany: zamówienia ani wpłaty pod tą płatnością już szukano
   // (`resolveAdjustmentTarget`) - nie ma czyjego najemcy alarmować.
   if (target.kind === "unmatched") return null;
+  // Zostaje subskrypcja: najemca z jej wiersza, a gdy go nie ma - z płatności.
   try {
     const supabase = await admin();
-    if (target.kind === "subscription") {
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("tenant_id")
-        .eq("provider_subscription_id", target.subscriptionId)
-        .eq("environment", event.environment)
-        .maybeSingle();
-      if (data) return data.tenant_id;
-    }
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("tenant_id")
+      .eq("provider_subscription_id", target.subscriptionId)
+      .eq("environment", event.environment)
+      .maybeSingle();
+    if (data) return data.tenant_id;
     const txnId = event.transactionId;
     // Subskrypcja nieznana lokalnie (inne środowisko, sprzed migracji) - spór
     // może nieść też transakcję, a ta wskazuje zamówienie.
-    if (target.kind === "subscription" && txnId && PROVIDER_REFERENCE_SHAPE.test(txnId)) {
-      const order = await findOrderForAdjustment(event, "dispute");
-      if (order) return order.tenant_id;
-    }
     if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
+    const order = await findOrderForAdjustment(event, "dispute");
+    if (order) return order.tenant_id;
     const { data: donation } = await supabase
       .from("donations")
       .select("tenant_id")

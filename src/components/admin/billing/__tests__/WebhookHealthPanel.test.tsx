@@ -26,6 +26,7 @@
 //      jak „nie sprawdzono".
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 import type { WebhookHealth } from "@/lib/billing/webhookHealthApi";
@@ -135,6 +136,67 @@ describe("wczytanie pomiaru", () => {
     await wczytaj();
     expect(h.fetchHealth).toHaveBeenCalledTimes(1);
     expect(h.fetchHealth).toHaveBeenCalledWith("sandbox", 72);
+  });
+
+  it("W TRAKCIE pomiaru przycisk jest zablokowany - drugi pomiar nie wyprzedzi pierwszego", async () => {
+    let finish: (value: WebhookHealth) => void = () => {};
+    h.fetchHealth.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    pokaz();
+    const przycisk = screen.getByRole("button", { name: "webhookHealth.load" });
+
+    fireEvent.click(przycisk);
+
+    await waitFor(() => expect(przycisk).toBeDisabled());
+    expect(przycisk.querySelector(".animate-spin")).toBeTruthy();
+    finish(zdrowie());
+    await screen.findByRole("status");
+    expect(przycisk).toBeEnabled();
+    expect(h.fetchHealth).toHaveBeenCalledTimes(1);
+  });
+
+  // DEFEKT (2026-10-18): pomiar zostawał na ekranie po zmianie środowiska
+  // albo okna na trasie audytu - odsetek awarii piaskownicy pod przełącznikiem
+  // „Produkcja". Metryki należą do zakresu, dla którego je wczytano.
+  it("zmiana środowiska albo okna chowa pomiar POPRZEDNIEGO zakresu, powrót go przywraca", async () => {
+    const view = pokaz("live", 24);
+    await wczytaj();
+    const rerender = (environment: "sandbox" | "live", sinceHours: number) =>
+      view.rerender(
+        <QueryClientProvider client={view.queryClient}>
+          <WebhookHealthPanel environment={environment} sinceHours={sinceHours} />
+        </QueryClientProvider>,
+      );
+
+    rerender("sandbox", 24);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("webhookHealth.total")).toBeNull();
+
+    rerender("live", 72);
+    expect(screen.queryByRole("status")).toBeNull();
+
+    rerender("live", 24);
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(h.fetchHealth).toHaveBeenCalledTimes(1);
+  });
+
+  it("pomiar zamówiony dla jednego środowiska i zmiana w locie: wynik nie podpisuje się nowym", async () => {
+    let finish: (value: WebhookHealth) => void = () => {};
+    h.fetchHealth.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const view = pokaz("sandbox", 24);
+    const przycisk = screen.getByRole("button", { name: "webhookHealth.load" });
+
+    fireEvent.click(przycisk);
+    await waitFor(() => expect(przycisk).toBeDisabled());
+    view.rerender(
+      <QueryClientProvider client={view.queryClient}>
+        <WebhookHealthPanel environment="live" sinceHours={24} />
+      </QueryClientProvider>,
+    );
+    finish(zdrowie({ environment: "sandbox" }));
+
+    await waitFor(() => expect(przycisk).toBeEnabled());
+    expect(h.fetchHealth).toHaveBeenCalledWith("sandbox", 24);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("liczby z odpowiedzi trafiają na ekran bez przeliczania", async () => {
@@ -373,6 +435,57 @@ describe("ponowna wysyłka powiadomienia", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
     expect(h.toastError.mock.calls[0][0]).toContain("registration_not_found");
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("kanały w meldunku nie są zamienione: bez maila, ale z SMS-em", async () => {
+    h.resend.mockResolvedValue({
+      registrationId: UUID,
+      outcome: "paid",
+      emailed: false,
+      smsSent: true,
+      promotedNotified: 0,
+    });
+    pokaz();
+    fireEvent.change(screen.getByLabelText("webhookHealth.registrationId"), {
+      target: { value: UUID },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /webhookHealth\.resend$/ }));
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith('webhookHealth.resendOk {"email":"-","sms":"✓"}'),
+    );
+  });
+
+  it("odmowa bez klasy Error przy wysyłce nie gubi komunikatu", async () => {
+    h.resend.mockRejectedValue("rate_limited");
+    pokaz();
+    fireEvent.change(screen.getByLabelText("webhookHealth.registrationId"), {
+      target: { value: UUID },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /webhookHealth\.resend$/ }));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        'webhookHealth.resendFailed {"error":"rate_limited"}',
+      ),
+    );
+  });
+
+  it("W TRAKCIE wysyłki przycisk mówi „wysyłam” i jest zablokowany (bez dubla powiadomienia)", async () => {
+    let finish: (value: unknown) => void = () => {};
+    h.resend.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    pokaz();
+    fireEvent.change(screen.getByLabelText("webhookHealth.registrationId"), {
+      target: { value: UUID },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /webhookHealth\.resend$/ }));
+
+    const pending = await screen.findByRole("button", { name: /webhookHealth\.resending/ });
+    expect(pending).toBeDisabled();
+    finish({ registrationId: UUID, outcome: "paid", emailed: true, smsSent: false });
+    await screen.findByRole("button", { name: /webhookHealth\.resend$/ });
+    expect(h.resend).toHaveBeenCalledTimes(1);
   });
 
   it("ponowna wysyłka NIE odpytuje pomiaru - to dwie rozłączne akcje", async () => {

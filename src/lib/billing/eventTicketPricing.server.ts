@@ -278,10 +278,13 @@ export async function priceEventTicket(
 
   // PODATEK. Tryb (wliczony/doliczany) i kod podatkowy produktu pochodzą
   // z biletu; stawkę liczy Stripe z kodu - ta sama, którą bilet niesie na
-  // fakturę (`vat_rate`, 20261012130200).
-  const { data: opts } = await supabase.rpc("event_ticket_public_options", {
+  // fakturę (`vat_rate`, 20261012130200). Awaria odczytu RZUCA: „brak trybu"
+  // z połkniętego błędu otwierał kasę bez `tax_behavior` i `tax_code`, czyli
+  // z podatkiem i stawką wg domyślnych ustawień konta, a nie biletu.
+  const { data: opts, error: optsErr } = await supabase.rpc("event_ticket_public_options", {
     p_ticket_type_id: input.ticketTypeId,
   });
+  if (optsErr) throw new Error(optsErr.message);
   const options = objectOf(opts);
   const mode = options?.tax_mode;
   const taxMode: TicketTaxMode | null = mode === "inclusive" || mode === "exclusive" ? mode : null;

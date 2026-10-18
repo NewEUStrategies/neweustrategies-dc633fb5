@@ -1,0 +1,122 @@
+# Rozdzial 18, czesc D: 18.8 - mapa synchronizacji miedzy modulami. Zrodla: przekrojowe sledztwa synchronizacji
+# (przeplyw wf_45384e3f-ff5, obszary sync:*) oraz pola `synchronizacja` i `powiazania` z map 29 torow (migawka14.json).
+import json, collections
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+SY = json.load(open(f'{S}/czesciowe14.json', encoding='utf-8'))['SYNC']
+M = json.load(open(f'{S}/migawka14.json', encoding='utf-8'))
+cl = lambda s: ' '.join(str(s or '').split()).replace('|', '/').replace('—', '-').replace('–', '-')
+skr = lambda s, n: (cl(s)[: n - 1].rsplit(' ', 1)[0] + '…') if len(cl(s)) > n else cl(s)
+OBSZARY = [('sync:wdrozenie', 'Wdrożenie i wydanie'), ('sync:schemat', 'Schemat bazy a kod'), ('sync:dane', 'Dane między modułami'),
+           ('sync:cache', 'Treść i cache'), ('sync:integracje', 'Integracje zewnętrzne'), ('sync:dokumentacja', 'Dokumentacja a kod'),
+           ('sync:graf', 'Graf zależności i kontrakty')]
+STANY = ['dziala', 'rozjazd', 'krok_reczny', 'brak_mechanizmu', 'nie_do_ustalenia']
+STAN_PL = {'dziala': 'działa', 'rozjazd': 'rozjazd', 'krok_reczny': 'krok ręczny', 'brak_mechanizmu': 'brak mechanizmu', 'nie_do_ustalenia': 'nie do ustalenia'}
+obecne = [(k, n) for k, n in OBSZARY if SY.get(k)]
+brak = [n for k, n in OBSZARY if not SY.get(k)]
+
+o = []
+w = o.append
+w('### 18.8. Synchronizacja: co jest automatyczne, co ręczne i gdzie się rozjeżdża')
+w('')
+w('Mapa z 18.7 mówi, kto kogo importuje. Ta sekcja mówi, jak moduły trzymają wspólny stan: przez bazę, kolejki, harmonogramy, cache, webhooki, wygenerowane pliki i ręczne kroki ludzi. Dwa źródła: ' + str(len(obecne)) + ' śledztw przekrojowych (każde z mechanizmami, dowodem w kodzie albo na wdrożeniu, rozjazdami i rekomendacją automatyzacji) oraz pola „synchronizacja\" i „powiązania\" z map wszystkich 29 modułów.' + (' Śledztwa ' + ', '.join(f'„{n}\"' for n in brak) + ' nie zakończyły się przed zamknięciem wydania - ich zakres pokrywają częściowo mapy modułów.' if brak else ''))
+w('')
+w('| Obszar | Mechanizmy | Działa | Rozjazd | Krok ręczny | Brak mechanizmu | Nie do ustalenia |')
+w('| --- | ---: | ---: | ---: | ---: | ---: | ---: |')
+suma = collections.Counter()
+for k, n in obecne:
+    c = collections.Counter(m['stan'] for m in SY[k]['mechanizmy'])
+    suma.update(c)
+    w(f"| {n} | {len(SY[k]['mechanizmy'])} | {c['dziala']} | {c['rozjazd']} | {c['krok_reczny']} | {c['brak_mechanizmu']} | {c['nie_do_ustalenia']} |")
+w(f"| **Razem** | **{sum(suma.values())}** | **{suma['dziala']}** | **{suma['rozjazd']}** | **{suma['krok_reczny']}** | **{suma['brak_mechanizmu']}** | **{suma['nie_do_ustalenia']}** |")
+w('')
+w(f"Mniej niż połowa mechanizmów ({suma['dziala']} z {sum(suma.values())}) działa tak, jak opisuje je kod. Reszta albo się rozjeżdża, albo opiera się na człowieku, albo jej stanu nie da się ustalić z repozytorium - bo jedynym źródłem prawdy jest produkcja, do której CI nie ma wglądu.")
+w('')
+
+w('#### Główna oś: produkcja nie jest tym, co sprawdza CI')
+w('')
+w('Pięć ustaleń, które razem tłumaczą większość rozjazdów w tej sekcji:')
+w('')
+w('1. **Publikacja nie zależy od CI.** Jedynym kanałem wdrożenia jest publikacja Lovable; żaden workflow nie wdraża, GitHub nie zna deploymentu ani tagu. Produkcja z 2026-10-17 22:07 UTC jest zbudowana z `6a0b9d570` (HEAD `main` po 13 commitach edytora), a nie z `346012635` - kod tych commitów jest w chunkach produkcji. Jedyny przebieg CI tego stanu jest czerwony (`test-shards (1)`, ten sam co na PR #519), a build powstał 30 s przed końcem padającego sharda. Trzy z tych commitów nie mają żadnego własnego przebiegu CI.')
+w('2. **`main` nie ma ochrony.** `governance/release/main-ruleset.json` deklaruje `\"enforcement\": \"active\"`, ale na GitHubie nie ma żadnego rulesetu ani ochrony gałęzi (`rulesets` = `[]`, `protected: false`, sprawdzone w API) - od 36 dni. Plik ewoluuje dalej (`c3f0c0e72` usunął z niego `first-visit` i `lighthouse`) bez odpowiednika na serwerze.')
+w('3. **Migracje mają dwie drogi na produkcję, a CI widzi jedną.** Cała warstwa dowodu (bramki `check:sql-*`, kontrakt TS-SQL, pgTAP) odtwarza bazę z `supabase/migrations`; produkcję wdraża migrator drizzle z `_journal.json` i ręczne stosowanie z panelu. Bramka `check:migration-lanes` działa w jedną stronę: plik tylko w drizzle zapala CI, migracja tylko w supabase przechodzi. Według skanu śledztwa 29 z 252 migracji supabase od 2026-09-20 nie ma w drizzle odpowiednika o tym samym SQL-u, w tym 22 z 7-9 października - stąd trzy najpoważniejsze defekty z 18.9 (dla nich brak bliźniaka sprawdziłem sam).')
+w('4. **Jedyne porównanie repo z produkcją nie działa.** Job post-deploy (`check:db-contract`, `check:migration-ledger`) bez sekretów kończy się na zielono w 4-5 s i niczego nie sprawdza, a przez `!cancelled()` uruchamia się nawet po czerwonej bramce wydania. Funkcja-sonda `missing_schema_columns` jest na produkcji, ale jej jedyny wołający nie startuje.')
+w('5. **Harmonogram i siatki bezpieczeństwa są nieskonfigurowane.** Cała warstwa asynchroniczna (poczta, push, ponowienia webhooków, dezaktywacja wallet, osadzenia) zależy od jednego wiersza `job_runner_settings` w bazie, którego stanu nie da się odczytać z zewnątrz. Zapasowy `scheduler.yml` nie ma zmiennej ani sekretu i kończy się na zielono bez ticku; nocna sonda odnowienia Stripe (`billing-nightly.yml`) ma 73 czerwone przebiegi na 76 od powstania (sprawdzone w API Actions; ostatni zielony 2026-08-06), bo brakuje jej sekretów, i nikt nie reaguje. Dwa śledztwa niżej podają węższe zakresy - liczy się ta liczba.')
+w('')
+
+w('#### Rozjazdy - konkretnie')
+w('')
+w('Każdy wiersz to miejsce, w którym dwie strony mają się zgadzać, a się nie zgadzają (waga wg śledztwa; pełny dowód w `agenci/migawka14.json`, klucz `SYNC`).')
+w('')
+w('| Obszar | Waga | Rozjazd | Strona A | Strona B |')
+w('| --- | --- | --- | --- | --- |')
+WAGA = {'wysoki': 0, 'sredni': 1, 'niski': 2}
+WAGA_PL = {'wysoki': 'wysoki', 'sredni': 'średni', 'niski': 'niski'}
+rz = []
+for k, n in obecne:
+    for r in SY[k].get('rozjazdy', []):
+        rz.append((WAGA.get(r.get('waga'), 3), n, r))
+for _, n, r in sorted(rz, key=lambda x: (x[0], x[1])):
+    w(f"| {n} | {WAGA_PL.get(r.get('waga'), r.get('waga'))} | {skr(r['opis'], 420)} | {skr(r.get('strona1'), 140)} | {skr(r.get('strona2'), 140)} |")
+w('')
+
+w('#### Kroki ręczne i miejsca bez mechanizmu')
+w('')
+w('| Obszar | Mechanizm | Stan | Co jest nie tak |')
+w('| --- | --- | --- | --- |')
+for k, n in obecne:
+    for m in SY[k]['mechanizmy']:
+        if m['stan'] in ('krok_reczny', 'brak_mechanizmu', 'nie_do_ustalenia'):
+            w(f"| {n} | {skr(m['nazwa'], 110)} | {STAN_PL[m['stan']]} | {skr(m.get('problem'), 360)} |")
+w('')
+
+# --- z map modulow ---
+mech, pow_ = [], []
+for g, v in M.items():
+    if not g.startswith('T'):
+        continue
+    for x in v['wyniki']:
+        mp = x.get('mapa') or {}
+        for s in mp.get('synchronizacja') or []:
+            mech.append({**s, 'tor': x['tor']})
+        for p in mp.get('powiazania') or []:
+            pow_.append({**p, 'tor': x['tor']})
+def kat(s):
+    t = (s.get('mechanizm', '') + ' ' + s.get('opis', '')).lower()
+    if 'pas' in t and 'migrac' in t or 'drizzle' in t: return 'dwa pasy migracji'
+    if 'lovable' in t or 'edytor' in t and 'publik' in t: return 'publikacja z edytora Lovable'
+    if 'i18n' in t or 'slownik' in t or 'słownik' in t: return 'słowniki i18n'
+    if 'skrypt' in t or 'backfill' in t or 'reczn' in t or 'ręczn' in t: return 'skrypty i akcje ręczne'
+    if 'cache' in t or 'uniewazn' in t or 'unieważn' in t: return 'cache i unieważnianie'
+    if 'cron' in t or 'kolejk' in t or 'harmonogram' in t or 'tick' in t: return 'harmonogram i kolejki'
+    if 'typ' in t and ('generat' in t or 'types.ts' in t): return 'generowane typy i pliki'
+    return 'inne'
+reczne = [s for s in mech if s.get('automatyczny') is False]
+kc = collections.Counter(kat(s) for s in reczne)
+mc = collections.Counter(p.get('mechanizm') for p in pow_)
+w('#### Co mówią mapy modułów')
+w('')
+w(f"Mapy 29 modułów opisują **{len(pow_)} powiązań** z innymi modułami (import {mc['import']}, wspólna tabela {mc['tabela']}, konfiguracja {mc['konfiguracja']}, RPC {mc['rpc']}, cache {mc['cache']}, cron {mc['cron']}, kolejka/zdarzenie {mc['zdarzenie_kolejka']}, realtime {mc['realtime']}, trigger {mc['trigger']}, webhook {mc['webhook']}) i **{len(mech)} mechanizmów synchronizacji**, z których **{len(reczne)} nie jest automatycznych**. Ręczne mechanizmy grupują się tak:")
+w('')
+w('| Rodzaj ręcznej synchronizacji | Mechanizmy | Przykład z map |')
+w('| --- | ---: | --- |')
+for k_, n_ in kc.most_common():
+    ex = next(s for s in reczne if kat(s) == k_)
+    w(f"| {k_} | {n_} | moduł {ex['tor']}: {skr(ex.get('problem') or ex.get('opis'), 260)} |")
+w('')
+w('Najczęstszy wzorzec w mapach to „lustro utrzymywane ręcznie\": dwa pasy migracji (każda zmiana RPC wymaga dwóch plików i wpisu w dzienniku), słowniki PL/EN bez typowania drugiego języka, listy kluczy cache powielone w dwóch hookach, kopie warunków (np. warunek okładki LCP w dwóch plikach, pilnowany komentarzem), projekcje danych przepisywane ręcznie przy nowym polu. Drugi wzorzec to commity edytora Lovable bez przeglądu: mapy modułów 1, 6, 9, 10 i 12 opisują przypadki, w których test dopasowano do nowego zachowania (odwrócona asercja, klasa CSS wpisana tak samo błędnie w kodzie i w teście) albo masowa podmiana kolorów obniżyła kontrast do ok. 2,1:1 bez testu.')
+w('')
+
+w('#### Co zautomatyzować - rekomendacje śledztw')
+w('')
+w('| Obszar | Rekomendacja | Automatyzacja |')
+w('| --- | --- | --- |')
+for k, n in obecne:
+    for r in SY[k].get('rekomendacje', []):
+        w(f"| {n} | **{skr(r['tytul'], 140)}.** {skr(r.get('tresc'), 330)} | {skr(r.get('automatyzacja'), 330)} |")
+w('')
+txt = '\n'.join(o)
+for zly in ('—', '–'):
+    txt = txt.replace(zly, '-')
+open(f'{S}/r18d.md', 'w', encoding='utf-8').write(txt + '\n')
+print('ok', len(o), 'linii; obszary', [n for _, n in obecne], 'brak', brak, '| mech tory', len(mech), 'reczne', len(reczne), dict(kc))

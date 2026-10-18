@@ -74,27 +74,37 @@ export function EventSpeakerCardFields({
 
   return (
     <div className="space-y-3">
-      <EventImageDropzone
-        label={t("adminCommunityEvents.speakers.card.photo")}
-        hint={t("adminCommunityEvents.speakers.card.photoHint")}
-        recommendation={t("adminCommunityEvents.speakers.card.photoRecommendation")}
-        value={value.photoUrl}
-        onValueChange={(next) => set("photoUrl", next)}
-        subfolder="event-speakers"
-        aspectClassName="aspect-square max-w-40"
-      />
-      <FieldError id={id("photo-error")} message={message("photoUrl")} />
-
-      <EventImageDropzone
-        label={t("adminCommunityEvents.speakers.card.institutionLogo")}
-        hint={t("adminCommunityEvents.speakers.card.institutionLogoHint")}
-        recommendation={t("adminCommunityEvents.speakers.card.institutionLogoRecommendation")}
-        value={value.institutionLogoUrl}
-        onValueChange={(next) => set("institutionLogoUrl", next)}
-        subfolder="event-speaker-logos"
-        aspectClassName="aspect-[3/1] max-w-48"
-      />
-      <FieldError id={id("institution-logo-error")} message={message("institutionLogoUrl")} />
+      {/* Zdjęcie i logo obok siebie: redaktor widzi oba kadry naraz, a długie
+          adresy nie rozpychają okna w pionie. Logo bez przycinania. */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="min-w-0 space-y-1">
+          <EventImageDropzone
+            label={t("adminCommunityEvents.speakers.card.photo")}
+            hint={t("adminCommunityEvents.speakers.card.photoHint")}
+            recommendation={t("adminCommunityEvents.speakers.card.photoRecommendation")}
+            value={value.photoUrl}
+            onValueChange={(next) => set("photoUrl", next)}
+            subfolder="event-speakers"
+            aspectClassName="aspect-square max-w-36"
+            className="h-full"
+          />
+          <FieldError id={id("photo-error")} message={message("photoUrl")} />
+        </div>
+        <div className="min-w-0 space-y-1">
+          <EventImageDropzone
+            label={t("adminCommunityEvents.speakers.card.institutionLogo")}
+            hint={t("adminCommunityEvents.speakers.card.institutionLogoHint")}
+            recommendation={t("adminCommunityEvents.speakers.card.institutionLogoRecommendation")}
+            value={value.institutionLogoUrl}
+            onValueChange={(next) => set("institutionLogoUrl", next)}
+            subfolder="event-speaker-logos"
+            aspectClassName="aspect-[3/1] max-w-56"
+            fit="contain"
+            className="h-full"
+          />
+          <FieldError id={id("institution-logo-error")} message={message("institutionLogoUrl")} />
+        </div>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">

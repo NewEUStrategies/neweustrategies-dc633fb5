@@ -71,6 +71,21 @@ describe("loadPaymentOrders - kontrakt zapytania", () => {
     expect(chain.lastChain("payment_orders")!.argsOf("eq")).toEqual(["status", "failed"]);
   });
 
+  // Tabela trzyma piaskownicę i produkcję w jednej kolumnie NOT NULL. Zawężenie
+  // musi pójść DO BAZY, przed `limit` - filtr w pamięci po `limit(200)`
+  // zostawiał okno zapełnione zamówieniami testowymi.
+  it("środowisko zawęża zapytanie W BAZIE, razem ze statusem i przed odczytem", async () => {
+    await loadPaymentOrders(client(), { status: "paid", limit: 200, environment: "live" });
+
+    const query = chain.lastChain("payment_orders")!;
+    const filters = query.calls.filter((call) => call.method === "eq").map((call) => call.args);
+    expect(filters).toEqual([
+      ["status", "paid"],
+      ["environment", "live"],
+    ]);
+    expect(query.argsOf("limit")).toEqual([200]);
+  });
+
   it("BŁĄD ODCZYTU jest zgłaszany, nie zamieniany na pustą listę", async () => {
     chain.setResponse("payment_orders", {
       data: null,
@@ -130,13 +145,17 @@ describe("loadPaymentOrders - odwzorowanie wiersza", () => {
     expect(result.rows).toHaveLength(1);
   });
 
-  it("brak dostawcy schodzi na kreskę, żeby kolumna nie była pusta", async () => {
-    chain.setResponse("payment_orders", ok([orderRecord({ provider: null })]));
+  it("dostawca i środowisko przechodzą z wiersza bez podmian", async () => {
+    // `provider` i `environment` są w bazie NOT NULL - dawna zapasowa kreska
+    // dla „braku dostawcy" była martwą gałęzią na stan, którego baza nie dopuszcza.
+    chain.setResponse(
+      "payment_orders",
+      ok([orderRecord({ provider: "stripe", environment: "live" })]),
+    );
 
     const result = await load();
 
-    expect(result.rows[0].provider).toBe("-");
-    expect(result.rows[0].provider).not.toBeNull();
+    expect(result.rows[0]).toMatchObject({ provider: "stripe", environment: "live" });
   });
 
   it("brak sesji u operatora jest zachowany jako `null` (to sygnał, nie brak danych)", async () => {

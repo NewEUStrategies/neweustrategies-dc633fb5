@@ -262,9 +262,13 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
     const copy = txCopy("event_registered", lang);
     const title = (lang === "en" ? event.title_en : event.title_pl) || event.title_pl || "";
     const details: TxDetail[] = [{ label: copy.labels.event, value: title }];
-    if (event.starts_at) {
-      details.push({ label: copy.labels.date, value: formatDate(event.starts_at, lang, true) });
-    }
+    // Termin w strefie WYDARZENIA (`events.timezone`), nie procesu: serwer stoi
+    // w UTC, więc `formatDate` dawał forum w Brukseli o 11:00 jako „09:00",
+    // a wydarzenie tuż po północy - dzień wcześniej. Ten sam formater co
+    // pozostałe maile o zgłoszeniu i bilecie.
+    const { formatEventMoment } = await import("@/lib/events/registrationNotify.server");
+    const when = formatEventMoment(event.starts_at, event.timezone, lang);
+    if (when) details.push({ label: copy.labels.date, value: when });
     if (event.location) details.push({ label: copy.labels.place, value: event.location });
     if (input.amountCents) {
       details.push({

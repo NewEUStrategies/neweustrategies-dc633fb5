@@ -26,7 +26,7 @@
 // - żaden przypadek nie ma prawa wyjść do sieci). PRAWDZIWE biegną: dziennik
 // (`webhookLog.server` - przejęcie i domknięcie), normalizacja zdarzeń
 // Stripe'a, dyspozytor i synchronizacja profilu klienta (`customer.updated`).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fail, ok, supabaseFromStub, type RecordedChain } from "@/test/supabase/chain";
 import { FIXED_NOW_ISO, FIXED_NOW_MS, MINUTA, freezeClock, relativeIso } from "@/test/time";
@@ -40,6 +40,8 @@ const h = vi.hoisted(() => ({
   },
   /** Praca oddana „za odpowiedź" (`runAfterResponse`). */
   afterResponse: [] as Promise<unknown>[],
+  /** Klient operatora dla przypadku, który MA go wołać; domyślnie brak. */
+  stripe: null as null | { subscriptions: { retrieve: (id: string) => Promise<unknown> } },
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -64,6 +66,7 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getStripeClient: () => {
+    if (h.stripe) return h.stripe;
     throw new Error("test: zamiatarka nie ma prawa wołać operatora w tym scenariuszu");
   },
 }));
@@ -129,6 +132,13 @@ interface Plan {
   reclaim?: (rowId: string) => ReturnType<typeof ok> | ReturnType<typeof fail>;
   /** Ładunek per `id` wiersza; domyślnie surowe `customer.updated`. */
   payload?: (rowId: string) => unknown;
+  /** Cały wynik odczytu ładunku (np. błąd bazy); ma pierwszeństwo przed `payload`. */
+  payloadRead?: (rowId: string) => ReturnType<typeof ok> | ReturnType<typeof fail>;
+  /**
+   * Odczyt pokolenia przejęcia przez rdzeń, gdy wołający go nie podał (trasa,
+   * uzgadnianie, panel). Domyślnie wiersza nie widać (`null`).
+   */
+  claimRead?: () => ReturnType<typeof ok> | ReturnType<typeof fail>;
 }
 
 const eqValue = (chain: RecordedChain, column: string): unknown =>
@@ -138,6 +148,10 @@ const eqValue = (chain: RecordedChain, column: string): unknown =>
 const isClaim = (chain: RecordedChain): boolean =>
   chain.has("update") &&
   (chain.argsOf("update")?.[0] as { status?: string } | undefined)?.status === "received";
+
+/** Odczyt pokolenia przejęcia (`claimedGeneration`) - kolumny decyzji, bez ładunku. */
+const isGenerationRead = (chain: RecordedChain): boolean =>
+  chain.table === LOG && chain.argsOf("select")?.[0] === "status, retry_count";
 
 function plan(p: Plan = {}) {
   // Kandydaci: RPC liczące odstęp, sufit i horyzont w bazie (przegląd 3.2).
@@ -153,9 +167,11 @@ function plan(p: Plan = {}) {
       const rowId = String(eqValue(chain, "id"));
       return p.reclaim ? p.reclaim(rowId) : ok([{ id: rowId }]);
     }
+    if (isGenerationRead(chain)) return p.claimRead ? p.claimRead() : ok(null);
     // Odczyt ładunku przejętego wiersza.
     if (chain.has("select") && chain.has("maybeSingle")) {
       const rowId = String(eqValue(chain, "id"));
+      if (p.payloadRead) return p.payloadRead(rowId);
       const payload = p.payload ? p.payload(rowId) : rawCustomerUpdated(`evt_${rowId}`);
       return ok({ payload });
     }
@@ -179,7 +195,13 @@ beforeEach(() => {
   h.rpc.calls.length = 0;
   h.rpc.respond = null;
   h.afterResponse.length = 0;
+  h.stripe = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `received`", () => {
@@ -384,6 +406,102 @@ describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `receiv
     ]);
   });
 
+  // Strażnik kolejności subskrypcji porównuje czas ZDARZENIA z zapisanym
+  // stanem i rozpoznaje powtórkę po identyfikatorze. Gdyby zamiatarka podała
+  // chwilę ponowienia, zdarzenie sprzed godziny wyglądałoby na najnowsze
+  // i nadpisało stan zapisany przez późniejsze zdarzenie.
+  it("spóźnione zdarzenie subskrypcji: strażnik dostaje czas i identyfikator ZDARZENIA, nowszy stan zostaje", async () => {
+    const storedAt = relativeIso(-20 * MINUTA);
+    plan({
+      candidates: [
+        row({
+          id: "row-sub",
+          event_id: "evt_sub_old",
+          event_type: "subscription.updated",
+          occurred_at: relativeIso(-50 * MINUTA),
+        }),
+      ],
+      payload: () => ({
+        eventType: "subscription.updated",
+        data: { id: "sub_1", customerId: "cus_sweep_1", status: "past_due" },
+      }),
+    });
+    db.setResponse("subscriptions", (chain: RecordedChain) => {
+      if (chain.has("update")) {
+        // Warunek strażnika: zajmuje wyłącznie zdarzenie NOWSZE niż zapisane.
+        const stamp = (chain.argsOf("update")?.[0] as { last_event_at: string }).last_event_at;
+        return ok(Date.parse(stamp) > Date.parse(storedAt) ? [{ id: "sub-row-1" }] : []);
+      }
+      return ok({ last_event_at: storedAt, last_event_id: "evt_sub_newer" });
+    });
+    // Wyrównanie spóźnionego zdarzenia pyta operatora o stan; tu subskrypcji
+    // już tam nie ma, więc nie ma czego stosować.
+    h.stripe = {
+      subscriptions: {
+        retrieve: () =>
+          Promise.reject(
+            Object.assign(new Error("No such subscription"), { code: "resource_missing" }),
+          ),
+      },
+    };
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ due: 1, processed: 1, failed: 0 });
+    const subscriptionWrites = db.chainsFor("subscriptions").filter((c) => c.has("update"));
+    expect(subscriptionWrites).toHaveLength(1);
+    expect(subscriptionWrites[0]!.argsOf("update")?.[0]).toEqual({
+      last_event_at: relativeIso(-50 * MINUTA),
+      last_event_id: "evt_sub_old",
+    });
+    expect(eqFilters(subscriptionWrites[0]!)).toEqual([
+      ["provider_subscription_id", "sub_1"],
+      ["environment", "live"],
+    ]);
+    expect(finishes()[0]!.argsOf("update")?.[0]).toMatchObject({ status: "processed" });
+  });
+
+  // IZOLACJA ŚRODOWISK (PAY-05) przez zamiatarkę: wiersz piaskownicy musi
+  // dojść do dyspozytora jako piaskownica - jako `live` nadałby na produkcji
+  // realne skutki zdarzeniu z karty testowej - i domknąć się w swoim
+  // środowisku, także porażką przed obsługą.
+  it("wiersz piaskownicy: obsługa i domknięcie w środowisku WIERSZA - na produkcji bez skutków", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    plan({
+      candidates: [
+        row({ id: "row-sbx", event_id: "evt_sbx_1", environment: "sandbox" }),
+        row({ id: "row-sbx-empty", event_id: "evt_sbx_2", environment: "sandbox" }),
+      ],
+      payload: (rowId) => (rowId === "row-sbx-empty" ? {} : rawCustomerUpdated("evt_sbx_1")),
+    });
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ due: 2, skipped: 1, failed: 1, processed: 0 });
+    expect(db.chainsFor("subscriptions")).toHaveLength(0);
+    expect(db.chainsFor("billing_profiles")).toHaveLength(0);
+    expect(finishes().map((c) => [c.argsOf("update")?.[0], eqFilters(c)])).toEqual([
+      [
+        expect.objectContaining({ status: "skipped", error: null }),
+        [
+          ["event_id", "evt_sbx_1"],
+          ["environment", "sandbox"],
+          ["status", "received"],
+          ["retry_count", 2],
+        ],
+      ],
+      [
+        expect.objectContaining({ status: "failed", error: EMPTY_PAYLOAD_ERROR }),
+        [
+          ["event_id", "evt_sbx_2"],
+          ["environment", "sandbox"],
+          ["status", "received"],
+          ["retry_count", 2],
+        ],
+      ],
+    ]);
+  });
+
   it("odczyt kandydatów padł: wynik z `error`, NIE wyjątek - tick i cron jadą dalej", async () => {
     plan({ candidates: "error" });
 
@@ -453,6 +571,124 @@ describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `receiv
       error: "webhook sweep replay crashed: socket hang up",
     });
     expect(eqFilters(finishes()[0]!)).toContainEqual(["retry_count", 2]);
+  });
+
+  it("wyjątek po przejęciu, który nie jest `Error` (odrzucenie napisem), też domyka wiersz z przyczyną", async () => {
+    plan({ candidates: [row()] });
+    db.setResponse(LOG, (chain: RecordedChain) => {
+      if (isClaim(chain)) return ok([{ id: "row-1" }]);
+      if (chain.has("maybeSingle")) throw "ECONNRESET";
+      if (chain.has("update")) return ok([{ id: "row-1" }]);
+      return fail("test: nieoczekiwany łańcuch");
+    });
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ failed: 1, errors: 0 });
+    expect(finishes()[0]!.argsOf("update")?.[0]).toMatchObject({
+      status: "failed",
+      error: "webhook sweep replay crashed: ECONNRESET",
+    });
+  });
+
+  // Błąd bazy przy odczycie ładunku wraca w WYNIKU zapytania (supabase-js nie
+  // rzuca). Bez jego odczytu `data: null` wyglądałoby na pusty ładunek
+  // i przyczyna w panelu kłamałaby („nie ma czego ponowić").
+  it("odczyt ładunku po przejęciu padł: `failed` z przyczyną bazy, w pokoleniu przejęcia, bez obsługi", async () => {
+    plan({
+      candidates: [row({ id: "row-7", event_id: "evt_read_1", retry_count: 3 })],
+      payloadRead: () => fail("permission denied for table payment_webhook_events"),
+    });
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ due: 1, failed: 1, processed: 0, errors: 0 });
+    // Ładunek czytany wyłącznie dla przejętego wiersza, po jego `id`.
+    const payloadRead = db.chainsFor(LOG).find((c) => c.has("maybeSingle"))!;
+    expect(payloadRead.argsOf("select")).toEqual(["payload"]);
+    expect(eqFilters(payloadRead)).toEqual([["id", "row-7"]]);
+    expect(finishes()).toHaveLength(1);
+    expect(finishes()[0]!.argsOf("update")?.[0]).toMatchObject({
+      status: "failed",
+      error:
+        "webhook sweep payload read failed: permission denied for table payment_webhook_events",
+    });
+    expect(eqFilters(finishes()[0]!)).toEqual([
+      ["event_id", "evt_read_1"],
+      ["environment", "live"],
+      ["status", "received"],
+      ["retry_count", 4],
+    ]);
+    expect(db.chainsFor("subscriptions")).toHaveLength(0);
+  });
+
+  it("zdarzenie, którego dyspozytor nie obsługuje, kończy jako `skipped` - nie jako fałszywe `processed`", async () => {
+    // Wiersz z naprawy o typie spoza dyspozytora: kompletny ładunek, zero skutków.
+    plan({
+      candidates: [row({ event_type: "payout.created" })],
+      payload: () => ({ eventType: "payout.created", data: { id: "po_1", amount: 1200 } }),
+    });
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ due: 1, skipped: 1, processed: 0, failed: 0 });
+    expect(finishes()[0]!.argsOf("update")?.[0]).toMatchObject({ status: "skipped", error: null });
+    expect(eqFilters(finishes()[0]!)).toContainEqual(["retry_count", 2]);
+  });
+
+  it("baza oddaje kandydatów jako `null` bez błędu: pusty przebieg, bez wyjątku i bez przejęć", async () => {
+    plan();
+    h.rpc.respond = () => ({ data: null, error: null });
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toEqual({
+      scanned: 0,
+      due: 0,
+      processed: 0,
+      skipped: 0,
+      failed: 0,
+      busy: 0,
+      errors: 0,
+      deferred: 0,
+      timedOut: 0,
+    });
+    expect(db.chainsFor(LOG)).toHaveLength(0);
+  });
+
+  it.each([
+    ["wyjątek transportu", new Error("fetch failed"), "fetch failed"],
+    ["odrzucenie napisem", "socket closed", "socket closed"],
+  ])(
+    "odczyt kandydatów rzuca (%s): wynik z `error`, NIE wyjątek",
+    async (_label, thrown, message) => {
+      plan();
+      h.rpc.respond = () => {
+        throw thrown;
+      };
+
+      const result = await sweepWebhookEvents();
+
+      expect(result).toMatchObject({
+        scanned: 0,
+        processed: 0,
+        error: `webhook sweep read failed: ${message}`,
+      });
+      expect(claims()).toHaveLength(0);
+    },
+  );
+
+  it("termin: wiersz domknięty przed terminem nie zostawia uzbrojonego licznika", async () => {
+    // Licznik terminu żyje tyle co wiersz - inaczej każdy przebieg zostawiałby
+    // w izolacie timery, które odpalą po odpowiedzi.
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(FIXED_NOW_MS);
+    plan({ candidates: [row({ id: "row-a" }), row({ id: "row-b" })] });
+
+    const result = await sweepWebhookEvents({ deadlineAt: FIXED_NOW_MS + 60_000 });
+
+    expect(result).toMatchObject({ processed: 2, timedOut: 0, deferred: 0 });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("partia: domyślnie najwyżej 20 wykonań na przebieg, reszta czeka", async () => {
@@ -558,6 +794,31 @@ describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `receiv
     expect(h.afterResponse).toHaveLength(1);
     expect(finishes()).toHaveLength(0);
   });
+
+  it("termin: na wiersz, który kończy się PRZED terminem, przebieg czeka - także gdy obsługa trwa", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(FIXED_NOW_MS);
+    plan({ candidates: [row({ id: "row-a" }), row({ id: "row-b" })] });
+    // Zapis profilu klienta trwa 5 s - dwa wiersze mieszczą się w terminie.
+    db.setResponse(
+      "billing_profiles",
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(ok([{ id: "profile-1" }])), 5_000);
+        }),
+    );
+
+    const pending = sweepWebhookEvents({ deadlineAt: FIXED_NOW_MS + WEBHOOK_SWEEP_ROW_BUDGET_MS });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await pending;
+
+    expect(result).toMatchObject({ processed: 2, timedOut: 0, deferred: 0 });
+    // Czas obsługi w dzienniku (panel diagnostyczny) to czas TEGO wiersza.
+    expect(finishes().map((c) => c.argsOf("update")?.[0])).toEqual([
+      expect.objectContaining({ status: "processed", duration_ms: 5_000 }),
+      expect.objectContaining({ status: "processed", duration_ms: 5_000 }),
+    ]);
+  });
 });
 
 describe("isDueForSweep / isWithinSweepHorizon - odstęp wykładniczy, sufit prób, okno porzucenia, horyzont", () => {
@@ -655,6 +916,17 @@ describe("isDueForSweep / isWithinSweepHorizon - odstęp wykładniczy, sufit pr�
         now,
       ),
     ).toBe(false);
+    // Granica domknięta jak `>= now() - horyzont` w bazie.
+    expect(
+      isWithinSweepHorizon(
+        {
+          event_id: "evt_3",
+          occurred_at: relativeIso(-WEBHOOK_SWEEP_HORIZON_MS),
+          created_at: FIXED_NOW_ISO,
+        },
+        now,
+      ),
+    ).toBe(true);
     // Syntetyczna naprawa zamówienia: stan sesji odczytany TERAZ, `occurred_at`
     // = czas zakupu sprzed tygodnia (dla `paid_at`) - wiek liczy się od wiersza.
     expect(
@@ -672,6 +944,71 @@ describe("isDueForSweep / isWithinSweepHorizon - odstęp wykładniczy, sufit pr�
   it("statusy końcowe nigdy nie są do zamiatania", () => {
     expect(isDueForSweep(row({ status: "processed" }), now)).toBe(false);
     expect(isDueForSweep(row({ status: "skipped" }), now)).toBe(false);
+  });
+
+  // Ta sama kolejność co `COALESCE(processed_at, last_retried_at, created_at)`
+  // w `payment_webhook_sweep_candidates`.
+  it("`failed`: ostatnia próba z `processed_at`, bez niego z `last_retried_at`, potem z `created_at`", () => {
+    const failed = (stamps: Partial<WebhookSweepRow>) =>
+      row({ retry_count: 0, processed_at: null, last_retried_at: null, ...stamps });
+
+    // `last_retried_at` sprzed 4 min, choć wiersz ma godzinę - jeszcze w odstępie.
+    expect(isDueForSweep(failed({ last_retried_at: relativeIso(-4 * MINUTA) }), now)).toBe(false);
+    expect(isDueForSweep(failed({ last_retried_at: relativeIso(-5 * MINUTA) }), now)).toBe(true);
+    // Pierwsza próba bez żadnego przejęcia: od utworzenia wiersza.
+    expect(isDueForSweep(failed({ created_at: relativeIso(-4 * MINUTA) }), now)).toBe(false);
+    expect(isDueForSweep(failed({ created_at: relativeIso(-5 * MINUTA) }), now)).toBe(true);
+    // Chwila porażki ma pierwszeństwo przed chwilą przejęcia: obsługa trwała
+    // 6 min, więc odstęp liczy się od jej końca, nie od startu.
+    expect(
+      isDueForSweep(
+        failed({
+          processed_at: relativeIso(-4 * MINUTA),
+          last_retried_at: relativeIso(-10 * MINUTA),
+        }),
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("`failed` bez ŻADNEGO znacznika czasu jest do wzięcia od razu - sufit prób ogranicza powtórki", () => {
+    const bare = row({ processed_at: null, last_retried_at: null, created_at: null });
+
+    expect(isDueForSweep({ ...bare, retry_count: 7 }, now)).toBe(true);
+    expect(isDueForSweep({ ...bare, retry_count: 8 }, now)).toBe(false);
+  });
+
+  it("porzucenia `received` bez znacznika przejęcia nie da się dowieść - nie jest do wzięcia", () => {
+    expect(
+      isDueForSweep(
+        row({ status: "received", processed_at: null, last_retried_at: null, created_at: null }),
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("brak licznika prób to zero prób: odstęp 5 min, nie natychmiast", () => {
+    const noCount = (minAgo: number) =>
+      row({ retry_count: null, processed_at: relativeIso(-minAgo * MINUTA) });
+
+    expect(isDueForSweep(noCount(4), now)).toBe(false);
+    expect(isDueForSweep(noCount(5), now)).toBe(true);
+  });
+
+  it("horyzont bez czytelnego znacznika czasu: poza automatem (także naprawa bez `created_at`)", () => {
+    expect(
+      isWithinSweepHorizon({ event_id: "evt_4", occurred_at: null, created_at: null }, now),
+    ).toBe(false);
+    // Naprawa liczy wiek WYŁĄCZNIE od wiersza - świeże `occurred_at` jej nie ratuje.
+    expect(
+      isWithinSweepHorizon(
+        { event_id: "reconcile_cs_2_4085000000", occurred_at: FIXED_NOW_ISO, created_at: null },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isWithinSweepHorizon({ event_id: "evt_5", occurred_at: "nie-data", created_at: null }, now),
+    ).toBe(false);
   });
 });
 
@@ -752,6 +1089,150 @@ describe("processClaimedWebhookEvent - wspólny rdzeń wykonania", () => {
 
     expect(eqFilters(finishes()[0]!)).toContainEqual(["tenant_id", "tenant-alfa"]);
   });
+
+  it("wyjątek obsługi, który nie jest `Error`, trafia do dziennika jako tekst", async () => {
+    plan();
+    db.setResponse("subscriptions", () => {
+      throw "upstream reset";
+    });
+
+    const outcome = await processClaimedWebhookEvent({
+      eventId: "evt_core_5",
+      environment: "live",
+      occurredAt: FIXED_NOW_ISO,
+      normalized: { eventType: "customer.updated", data: { id: "cus_1" } },
+      generation: 1,
+    });
+
+    expect(outcome).toMatchObject({ status: "failed", error: "upstream reset" });
+    expect(finishes()[0]!.argsOf("update")?.[0]).toMatchObject({
+      status: "failed",
+      error: "upstream reset",
+    });
+  });
+});
+
+// PRZEGLĄD 3.4 dla wołających bez pokolenia (trasa webhooka, uzgadnianie,
+// ponowienie z panelu). Bez strażnika ponowienie z panelu, które przeciągnęło
+// się ponad okno porzucenia, nadpisywało wiersz przejęty w międzyczasie przez
+// zamiatarkę.
+describe("processClaimedWebhookEvent - pokolenie odczytane z wiersza tuż po przejęciu", () => {
+  const event = {
+    eventId: "evt_gen_1",
+    environment: "live" as const,
+    occurredAt: FIXED_NOW_ISO,
+    normalized: {
+      eventType: "customer.updated",
+      data: { id: "cus_sweep_1", email: "anna@example.com" },
+    },
+  };
+
+  it("wiersz `received` po przejęciu: jego licznik strzeże domknięcia, a odczyt pada PRZED obsługą", async () => {
+    plan({ claimRead: () => ok({ status: "received", retry_count: 3 }) });
+
+    const outcome = await processClaimedWebhookEvent(event);
+
+    expect(outcome).toMatchObject({ status: "processed", error: null, finish: "finished" });
+    const read = db.chains.find(isGenerationRead)!;
+    expect(eqFilters(read)).toEqual([
+      ["event_id", "evt_gen_1"],
+      ["environment", "live"],
+    ]);
+    // Po obsłudze wiersz mógł już przejąć ktoś inny - pokolenie musi być
+    // znane, zanim ruszy dyspozytor.
+    expect(db.chains.indexOf(read)).toBeLessThan(
+      db.chains.findIndex((c) => c.table === "subscriptions"),
+    );
+    expect(eqFilters(finishes()[0]!)).toEqual([
+      ["event_id", "evt_gen_1"],
+      ["environment", "live"],
+      ["status", "received"],
+      ["retry_count", 3],
+    ]);
+  });
+
+  it("nowy wiersz trasy (pokolenie 0) też dostaje strażnika - zero to nie „brak pokolenia”", async () => {
+    plan({ claimRead: () => ok({ status: "received", retry_count: 0 }) });
+
+    await processClaimedWebhookEvent({ ...event, normalized: null });
+
+    expect(eqFilters(finishes()[0]!)).toContainEqual(["retry_count", 0]);
+  });
+
+  it("ponowienie w imieniu admina: odczyt pokolenia i domknięcie zawężone do najemcy", async () => {
+    plan({ claimRead: () => ok({ status: "received", retry_count: 2 }) });
+
+    await processClaimedWebhookEvent({ ...event, normalized: null, tenantId: "tenant-alfa" });
+
+    expect(eqFilters(db.chains.find(isGenerationRead)!)).toEqual([
+      ["event_id", "evt_gen_1"],
+      ["environment", "live"],
+      ["tenant_id", "tenant-alfa"],
+    ]);
+    expect(eqFilters(finishes()[0]!)).toEqual([
+      ["event_id", "evt_gen_1"],
+      ["environment", "live"],
+      ["tenant_id", "tenant-alfa"],
+      ["status", "received"],
+      ["retry_count", 2],
+    ]);
+  });
+
+  // Pokolenie 0 to nowy wiersz z wstawienia (`claimWebhookEventWithGeneration`)
+  // - pełnoprawne pokolenie, nie „brak pokolenia".
+  it.each([5, 0])(
+    "pokolenie %i podane przez wołającego - bez dodatkowego odczytu wiersza",
+    async (generation) => {
+      plan();
+
+      await processClaimedWebhookEvent({ ...event, normalized: null, generation });
+
+      expect(db.chains.filter(isGenerationRead)).toHaveLength(0);
+      expect(eqFilters(finishes()[0]!)).toContainEqual(["retry_count", generation]);
+    },
+  );
+
+  it("odczyt pokolenia padł: obsługa NIE jest blokowana, domknięcie wraca do zapisu po kluczu (z logiem)", async () => {
+    plan({ claimRead: () => fail("canceling statement due to statement timeout") });
+
+    const outcome = await processClaimedWebhookEvent(event);
+
+    expect(outcome).toMatchObject({ status: "processed", finish: "finished" });
+    expect(db.lastChain("billing_profiles")?.argsOf("update")?.[0]).toMatchObject({
+      email: "anna@example.com",
+    });
+    expect(eqFilters(finishes()[0]!)).toEqual([
+      ["event_id", "evt_gen_1"],
+      ["environment", "live"],
+    ]);
+    expect(console.warn).toHaveBeenCalledWith(
+      "[payments] webhook claim generation unreadable",
+      "evt_gen_1",
+      expect.objectContaining({ message: "canceling statement due to statement timeout" }),
+    );
+  });
+
+  it.each([
+    ["wiersza nie widać", null, null],
+    ["wiersz ma już status końcowy", { status: "processed", retry_count: 4 }, "processed"],
+  ])(
+    "%s: domknięcie po kluczu, ostrzeżenie ze stanem wiersza",
+    async (_label, data, loggedStatus) => {
+      plan({ claimRead: () => ok(data) });
+
+      await processClaimedWebhookEvent({ ...event, normalized: null });
+
+      expect(eqFilters(finishes()[0]!)).toEqual([
+        ["event_id", "evt_gen_1"],
+        ["environment", "live"],
+      ]);
+      expect(console.warn).toHaveBeenCalledWith(
+        "[payments] webhook claim generation unknown - domknięcie bez strażnika pokolenia",
+        "evt_gen_1",
+        loggedStatus,
+      );
+    },
+  );
 });
 
 describe("loggedWebhookEvent - trzy kształty ładunku w dzienniku", () => {
@@ -790,6 +1271,34 @@ describe("loggedWebhookEvent - trzy kształty ładunku w dzienniku", () => {
       normalized: { eventType: "subscription.updated", data: { id: "sub_1" } },
     });
   });
+
+  it("surowe zdarzenie z PUSTYM obiektem danych to `null` - normalizacja nie ma czego oddać", async () => {
+    // `customer.updated` z `{ object: {} }` normalizuje się do `{}`: obsługa nie
+    // zrobiłaby nic, a wpis `processed` udawałby, że coś się stało.
+    const payload = { ...rawCustomerUpdated("evt_empty"), data: { object: {} } };
+
+    await expect(
+      loggedWebhookEvent({ event_type: "customer.updated", payload }),
+    ).resolves.toBeNull();
+    expect(unreplayablePayloadError(payload)).toBe(EMPTY_PAYLOAD_ERROR);
+  });
+
+  it.each([
+    ["`data` bez `object`", { id: "cus_1", email: "anna@example.com" }],
+    ["`data.object` jako tablica", { object: [], id: "cus_1" }],
+  ])(
+    "pola zdarzenia operatora, ale %s: to NIE surowe zdarzenie - dane idą wprost z typem z kolumny",
+    async (_label, data) => {
+      // Przez normalizację operatora poszłoby `object = {}` i odtworzenie
+      // zgubiłoby cały zapisany obiekt.
+      await expect(
+        loggedWebhookEvent({
+          event_type: "customer.updated",
+          payload: { id: "evt_x", type: "customer.updated", created: 1, data },
+        }),
+      ).resolves.toEqual({ normalized: { eventType: "customer.updated", data } });
+    },
+  );
 
   it("sam obiekt danych (wiersz historyczny): typ z kolumny", async () => {
     await expect(

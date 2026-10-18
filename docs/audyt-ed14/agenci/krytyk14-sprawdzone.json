@@ -1,0 +1,13 @@
+{
+  "Kubełek club-media istnieje tylko na produkcji - żadna migracja go nie zakłada, a harness CI podstawia go sam": "sprawdzone",
+  "Brak pomiaru pokrycia kodu zmienionego: ścieżka pieniędzy urosła z gałęziami bez testów": "sprawdzone",
+  "200 z 799 RPC wołanych z kodu nie ma żadnego testu SQL": "sprawdzone",
+  "Brak przekroju defekty × pokrycie: linie nie przewidują defektów": "sprawdzone",
+  "CI nigdy nie uruchamia aplikacji w runtime produkcji (Cloudflare Workers)": "sprawdzone",
+  "Pomiary A/B wydajności gubią zmiany z anulowanych pushy, a bramka wagi dokumentu nie biegnie na PR": "sprawdzone",
+  "Rekomendacja 2 zmienia klucz cache mediów, a ten cache na produkcji nie działa (wspólny samotest L2)": "sprawdzone",
+  "PSI i Lighthouse dostają na MISS wariant `allReady` dla automatów - rozdział go nie wyodrębnia": "sprawdzone",
+  "Rekomendacja 1 'rozgrzewać / i /en' powtarza istniejący warmer, który nie daje HIT - bez diagnozy, dlaczego": "sprawdzone",
+  "Cel SI z 18.12 nie ma automatu; trzy budżety SI w repo są rozjechane, a PSI czeka na ręczny sekret": "sprawdzone",
+  "Rzutowania `as unknown as` bez zapadki: +14 w oknie, 6 nowych na ścieżce pieniędzy": "sprawdzone"
+}

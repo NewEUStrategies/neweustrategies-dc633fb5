@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
 import type { Database } from "@/integrations/supabase/types";
+import { mapWithConcurrency } from "@/lib/async/pool";
 import { BILLING_CATALOG, type PlanBillingInterval } from "@/lib/billing/catalog";
 import { planCheckoutPricing } from "@/lib/billing/planPricing";
 import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
@@ -286,6 +287,13 @@ function countedAtCheckout(row: {
 }
 
 /**
+ * Ile zapytań o kod promocyjny naraz. Piaskownica operatora przyjmuje około
+ * 25 odczytów na sekundę - pięć torów po kilkaset milisekund zostaje wyraźnie
+ * poniżej, a 50 kodów tabeli to dziesięć „rund" zamiast pięćdziesięciu.
+ */
+const COUPON_LOOKUP_CONCURRENCY = 5;
+
+/**
  * Tabela kuponów - ZAWSZE w zakresie najemcy admina. Klient serwisowy omija
  * RLS, więc bez `.eq("tenant_id", ...)` admin najemcy A oglądał kody
  * wszystkich najemców (i pytał o nie operatora).
@@ -301,14 +309,16 @@ async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDisc
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const rows: CouponDiscountStatus[] = [];
-  for (const c of data ?? []) {
+  // Operator pytany o każdy kod - do `COUPON_LOOKUP_CONCURRENCY` naraz zamiast
+  // po kolei (50 sekwencyjnych żądań przez bramkę to kilkanaście sekund
+  // diagnostyki). Kolejność wyniku = kolejność tabeli.
+  return mapWithConcurrency(data ?? [], COUPON_LOOKUP_CONCURRENCY, async (c) => {
     const code = String(c.code ?? "").toUpperCase();
     const local = countedAtCheckout(c);
     const providerDiscountId = code
       ? await findPromotionCodeByCode(env, code, local).catch(() => null)
       : null;
-    rows.push({
+    return {
       code,
       active: c.active !== false,
       discountKind: c.discount_kind === "fixed" ? "fixed" : "percent",
@@ -323,10 +333,23 @@ async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDisc
       grantsDurationDays: c.grants_duration_days ?? null,
       providerDiscountId,
       countedAtCheckout: local,
-    });
-  }
-  return rows;
+    } satisfies CouponDiscountStatus;
+  });
 }
+
+/** Kondycja dziennika, którego nie udało się przeczytać - same zera. */
+const UNREAD_WEBHOOK_HEALTH: WebhookHealth = {
+  total: 0,
+  processed: 0,
+  skipped: 0,
+  failed: 0,
+  received: 0,
+  lastEventAt: null,
+  avgDurationMs: null,
+};
+
+/** Szczegół kontroli dziennika, gdy odczyt się nie udał. */
+const WEBHOOK_READ_FAILED = "read_failed";
 
 /**
  * Kondycja dziennika webhookow - ZAWSZE w zakresie jednego najemcy.
@@ -334,11 +357,15 @@ async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDisc
  * Klient jest serwisowy, wiec omija RLS: bez jawnego `.eq("tenant_id", ...)`
  * kontrolki `webhook_failures` i `webhook_traffic` liczyly ruch wszystkich
  * obszarow roboczych, a `lastEventAt` oddawal znacznik cudzego zdarzenia.
+ *
+ * `null` = odczyt się NIE udał. Dawniej błąd był połykany, a pusty wynik
+ * liczył się jak „zero zdarzeń": `webhook_failures` świeciło zielono („0/0")
+ * dokładnie wtedy, gdy diagnostyka nie widziała ani jednego zdarzenia.
  */
-async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<WebhookHealth> {
+async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<WebhookHealth | null> {
   const supabase = await admin();
   const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("payment_webhook_events")
     .select("status, created_at, duration_ms")
     .eq("tenant_id", tenantId)
@@ -346,6 +373,10 @@ async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<Webh
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(1000);
+  if (error) {
+    console.error("[payments] webhook log health read failed", error.message);
+    return null;
+  }
 
   const rows = data ?? [];
   const durations = rows
@@ -379,12 +410,13 @@ export async function buildPaymentsDiagnostics(
   const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
   const configured = paymentsConfiguredServer();
 
-  const [destinations, catalog, coupons, webhooks] = await Promise.all([
+  const [destinations, catalog, coupons, webhooksRead] = await Promise.all([
     configured ? readDestinations(env) : Promise.resolve([]),
     configured ? readCatalog(env) : Promise.resolve([]),
     readCoupons(env, tenantId),
     readWebhookHealth(env, tenantId),
   ]);
+  const webhooks = webhooksRead ?? UNREAD_WEBHOOK_HEALTH;
 
   const missingPrices = catalog.filter((c) => !c.providerPriceId);
   const appEndpoints = destinations.filter((d) => d.url.includes(APP_WEBHOOK_PATH));
@@ -433,16 +465,21 @@ export async function buildPaymentsDiagnostics(
       state: !configured ? "warn" : missingPrices.length === 0 ? "ok" : "error",
       detail: `${catalog.length - missingPrices.length}/${catalog.length}`,
     },
-    {
-      id: "webhook_failures",
-      state: webhooks.failed === 0 ? "ok" : "error",
-      detail: `${webhooks.failed}/${webhooks.total}`,
-    },
-    {
-      id: "webhook_traffic",
-      state: webhooks.total > 0 ? "ok" : "warn",
-      detail: webhooks.lastEventAt ?? "-",
-    },
+    // Dziennik nieprzeczytany to `error` OBU kontroli - nie „0/0, w porządku".
+    webhooksRead === null
+      ? { id: "webhook_failures", state: "error", detail: WEBHOOK_READ_FAILED }
+      : {
+          id: "webhook_failures",
+          state: webhooks.failed === 0 ? "ok" : "error",
+          detail: `${webhooks.failed}/${webhooks.total}`,
+        },
+    webhooksRead === null
+      ? { id: "webhook_traffic", state: "error", detail: WEBHOOK_READ_FAILED }
+      : {
+          id: "webhook_traffic",
+          state: webhooks.total > 0 ? "ok" : "warn",
+          detail: webhooks.lastEventAt ?? "-",
+        },
   ];
 
   return {
@@ -523,7 +560,7 @@ async function resolvePlanProducts(
     return out;
   }
   const lookupByPlan = new Map<string, string>();
-  for (const plan of plans ?? []) {
+  for (const plan of plans) {
     const entry = planCheckoutPricing(plan)?.entry;
     if (entry) lookupByPlan.set(String(plan.id), entry.priceId);
   }
@@ -608,7 +645,8 @@ export async function syncCouponDiscounts(
     .filter("event_ids", "eq", "{}")
     .limit(200);
   const rows = ((data ?? []) as SyncCouponRow[]).filter(
-    (row) => String(row.code ?? "") !== "" && !countedAtCheckout(row),
+    (row): row is SyncCouponRow & { code: string } =>
+      typeof row.code === "string" && row.code !== "" && !countedAtCheckout(row),
   );
 
   const result: CouponSyncResult = { created: 0, existing: 0, failed: 0, skipped: 0 };
@@ -636,7 +674,7 @@ export async function syncCouponDiscounts(
 
   const nowMs = Date.now();
   for (const row of rows) {
-    const code = String(row.code ?? "").toUpperCase();
+    const code = row.code.toUpperCase();
     const planIds = row.plan_ids ?? [];
     const products = planIds.map((planId) => planProducts.get(planId));
     if (products.some((productId) => productId === undefined)) {

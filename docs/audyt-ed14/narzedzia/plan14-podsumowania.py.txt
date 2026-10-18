@@ -1,0 +1,23 @@
+# Podsumowania pozycji planu 17.15 do kolumny „Najważniejsze" w 18.11 (z wyników agentów plan:N, SYNC) i poprawione etykiety elementów pozycji 3.
+PODS = {
+    1: 'Wykonana w całości: `6228b0139` (cel `ON CONFLICT`, bramka `check:on-conflict-arbiters`, pgTAP odtwarzający 42P10) i `55d505865` (konto założone przez `handle_new_user` w najemcy domyślnym, `inviteTarget.ts`). Poza zakresem zostaje rola `user` w najemcy domyślnym po przeniesieniu zaproszonej osoby - do decyzji.',
+    2: 'Wykonana: migracja `20261004090000` w obu pasach z wpisem w dzienniku i pgTAP na prawdziwej tabeli; przy okazji `club_update_settings` przeszło na `club_capabilities`, a `REVOKE` dla `anon` wróciło. Działania na produkcji nie da się potwierdzić, bo post-deploy bez sekretów pomija sprawdzenie.',
+    3: 'Budżet bundla podniesiony świadomie (4 772 → 4 879 KB), 39 testów kolorów naprawionych (`5aec0180c`), więc `346012635` był zielony. Rdzenia nie ma: `main` bez rulesetu, a `c3f0c0e72` zdjął budżet bundla z PR-ów (`ci.yml:198-200`), więc przekroczenie widać dopiero jako czerwony `main`. Od 2026-10-13 do 2026-10-17 `main` nie miał zielonego przebiegu (40 porażek, 82 anulowane).',
+    4: '3 z 6: zwrot po wygranym sporze (`f96b64928`), `ad_slots.notes` dla anonima (`75c5f5482` z pgTAP) i autolink `provisionTeamMembers` w granicy najemcy (`fdf3ac716`). Stoją: Search Console bez domeny (`tenant.server.ts:479-481`, testy przypinają przepuszczanie), bliźniak Z3 (`scheduler.functions.ts:282`) i stempel Z4 (`send.ts:455`).',
+    5: 'Strona główna ma CLS 0, TBT 0-192 ms i 0,83-0,94 MB, ale analiza nie: odpowiedź serwera 1,6-6,1 s, 23 zapytania do bazy, TBT ok. 1,45 s, 3,06 MB, z czego 1,77 MB to jeden awatar PNG bez transformacji (`PostOverlayMeta.tsx:94-106`). MISS wynika z martwego L2 (`nes-l2;desc="off"`), nie z nagłówka `no-cache`. `c3f0c0e72` usunął bramkę `check:ssr-budgets`.',
+    6: '6 z 12: `/podcasts` w SSR, strona główna bez komunikatu zastępczego, klucze `ttsPlayer.card.label` i `club.*`, `event_package_purchase` z kontrolą firmy, skala czcionek. Stoją: treść EN analizy (pusty dokument EN nie cofa się do PL, `src/routes/$.tsx:1322`), `Content-Signal` w `robots.txt`, monitor 404 bez redakcji, limitu i retencji; `/polls` częściowo.',
+    7: 'Z1 (profile przestawione przez `drizzle/0001`, brak śladu decyzji) i Z8 (PESEL przechodzi przez redakcję i `redact.test.ts:72` tego wymaga; GA4 dostaje zdarzenie przed zgodą, co przypina `trackRedaction.test.ts:140`) stoją bez zmian. Wszystkie elementy czekają na decyzję osoby odpowiedzialnej za RODO.',
+    8: 'N-DB-1 naprawione: bramka pasów czyta tagi dziennika, monotoniczność `when` i wpisy bez pliku. Inwarianty `db-schema-invariant` i `lang-parity` dalej się pomijają, bo CI nie ma sekretów Supabase; sieć w testach i `paid-lifecycle.spec.ts` bez zmian. Z10 i martwe progi „nie dotyczą", bo `c3f0c0e72` usunął skaner zegara i progi, a ryzyko zostało bez bramki.',
+    9: 'Brak tabel, tras i pól JSON-LD (`ownershipFundingInfo`, `correctionsPolicy`, `publishingPrinciples`) dla finansowania, rady programowej, raportu rocznego i polityki korekt; sprawdzone adresy PL i EN zwracają 404. Najbliżej jest „Historia aktualizacji" wpisu, która nie odróżnia sprostowania od aktualizacji.',
+    10: '1 z 8 (osoby na `/o-nas`). `/statut` nie da się naprawić redakcyjnie: regułę 301 na `/o-nas` zasiewa migracja `20260801152304` (`:47`) i przesłania gotową trasę `statut.tsx`. Strony testowe wydarzeń wyciekają przez kod: mapa strony `events` i head `events.$slug.tsx:282` nie stosują `isTestContentSlug`.',
+    11: 'W próbce trzech raportów z okna liczby zgadzają się z repozytorium, ale z dyscypliny autorów, nie z mechanizmu: nie ma skryptu ani bramki, które by je wyprowadzały. Błędne liczby w dziesięciu raportach wydania 13 dalej stoją, a osiem nowych raportów z okna nie było sprawdzanych.',
+    12: 'Z 45 zgłoszeń 27 leży w plikach zmienionych w oknie; naprawionych 7 (każde z testem), 3 „nie dotyczy", 35 otwartych. W 8 plikach commit z okna zmienił plik i nie poprawił zgłoszonego miejsca, a `accountMenuWidget.test.tsx:129` utrwala wadliwy stan D-3a-1.',
+}
+ELEMENTY3 = [
+    'N-CI-1: `main` czerwony na bramce wydania, a commity dalej na niego trafiają',
+    'budżet bundla (4 806,5 KB wobec 4 772 KB): zejść albo świadomie podnieść z uzasadnieniem',
+    'ruleset `main`, żeby czerwona bramka wydania blokowała także wypchnięcia bezpośrednie',
+    'próg gałęzi `src/lib/webVitals.ts` (93,42% wobec 94%), który czerwienił job test',
+    '39 czerwonych testów kolorów i tokenów po masowej podmianie kolorów na `main`',
+    'commity wypychane na `main` bez PR-a (111 w oknie wydania 13)',
+]

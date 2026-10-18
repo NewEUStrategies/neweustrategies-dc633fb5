@@ -35,32 +35,24 @@ describe("Switch", () => {
     expect(onCheckedChange).toHaveBeenLastCalledWith(false);
   });
 
-  it("ukrywa warstwę SVG przed czytnikiem i wiąże ją z filtrem o poprawnym identyfikatorze", () => {
-    render(<Switch aria-label="Filtr" />);
-    const toggle = screen.getByRole("switch", { name: "Filtr" });
-    const svg = toggle.querySelector("svg");
-    expect(svg).toHaveAttribute("aria-hidden", "true");
-    expect(svg).toHaveClass("pointer-events-none");
-    expect(svg?.style.fill).toBe("var(--to-toggle-thumb, #ffffff)");
-    const filter = toggle.querySelector("filter");
-    const id = filter?.getAttribute("id") ?? "";
-    expect(id).toMatch(/^[a-zA-Z0-9_-]+$/);
-    expect(svg).toHaveAttribute("filter", `url(#${id})`);
-    expect(toggle.querySelectorAll("circle")).toHaveLength(3);
+  it("rysuje jeden suwak, który przesuwa się w stanie włączonym", () => {
+    render(<Switch aria-label="Suwak" />);
+    const toggle = screen.getByRole("switch", { name: "Suwak" });
+    const thumb = toggle.querySelector("[data-ui-switch-thumb]");
+    expect(toggle.querySelector("svg")).toBeNull();
+    expect(thumb).toHaveAttribute("data-state", "unchecked");
+    expect(thumb).toHaveClass("data-[state=checked]:translate-x-4", "h-[18px]", "w-[18px]");
+    fireEvent.click(toggle);
+    expect(thumb).toHaveAttribute("data-state", "checked");
   });
 
-  it("nadaje każdej instancji osobny filtr, żeby przełączniki nie dzieliły stanu wizualnego", () => {
-    render(
-      <>
-        <Switch aria-label="Pierwszy" />
-        <Switch aria-label="Drugi" />
-      </>,
+  it("bierze kolory toru z tokenów motywu", () => {
+    render(<Switch aria-label="Kolory" />);
+    const toggle = screen.getByRole("switch", { name: "Kolory" });
+    expect(toggle).toHaveClass(
+      "bg-[var(--to-toggle-off,var(--input))]",
+      "data-[state=checked]:bg-[var(--to-toggle-on,var(--primary))]",
     );
-    const ids = screen
-      .getAllByRole("switch")
-      .map((toggle) => toggle.querySelector("filter")?.getAttribute("id"));
-    expect(ids[0]).toBeTruthy();
-    expect(ids[0]).not.toBe(ids[1]);
   });
 
   it("w stanie wyłączonym nie reaguje na kliknięcie", () => {

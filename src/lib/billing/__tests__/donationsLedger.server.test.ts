@@ -543,6 +543,38 @@ describe("stan subskrypcji darowizny", () => {
     expect(row("don-1")).toMatchObject({ status: "canceled" });
     expect(row("don-2")).toMatchObject({ status: "paid" });
   });
+
+  it("anulowanie z identyfikatorem wpłaty zamyka TEN wiersz, wiąże go z subskrypcją i nie rusza opłaconego", async () => {
+    // Subskrypcja wygasła, zanim faktura doszła (`incomplete_expired`):
+    // wiersz z checkoutu nie znał jeszcze subskrypcji, a inny oczekujący
+    // wiersz tej subskrypcji nie jest jej kotwicą.
+    seed(
+      { ...ANCHOR, id: "don-1", status: "pending", provider_subscription_id: null },
+      { ...ANCHOR, id: "don-2", status: "pending", provider_session_id: "cs_inna" },
+      { ...ANCHOR, id: "don-3", status: "paid", provider_session_id: "cs_oplacona" },
+    );
+
+    await syncDonationSubscription({
+      environment: "sandbox",
+      subscriptionId: "sub_1",
+      donationId: "don-1",
+      status: "incomplete_expired",
+    });
+    await syncDonationSubscription({
+      environment: "sandbox",
+      subscriptionId: "sub_1",
+      donationId: "don-3",
+      status: "canceled",
+    });
+
+    expect(row("don-1")).toMatchObject({
+      status: "canceled",
+      recurring: true,
+      provider_subscription_id: "sub_1",
+    });
+    expect(row("don-2")).toMatchObject({ status: "pending" });
+    expect(row("don-3")).toMatchObject({ status: "paid" });
+  });
 });
 
 // ---------------------------------------------------------------------------

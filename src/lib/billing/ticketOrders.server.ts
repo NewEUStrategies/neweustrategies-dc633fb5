@@ -114,6 +114,9 @@ function eventIdOf(source: Json): string | null {
   return null;
 }
 
+/** Kształt klucza `events.id` (`uuid`) - tylko taki wolno podać słownikowi wydarzeń. */
+const EVENT_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function positiveInt(source: Json, key: string): number {
   const value = asObject(source)?.[key];
   const parsed = typeof value === "number" ? value : Number(value);
@@ -144,8 +147,17 @@ export async function loadTicketOrders(
   const orders = (data ?? []) as OrderRecord[];
   if (orders.length === 0) return [];
 
+  // Słownik pytamy wyłącznie o identyfikatory w kształcie klucza. `'42'` albo
+  // `legacy-slug` w `in.(...)` to dla Postgresa błąd rzutowania CAŁEGO
+  // zapytania (22P02), a błąd słownika degraduje się do „brak wydarzenia" -
+  // jeden nietypowy wiersz zabierał nazwy wydarzeń wszystkim zamówieniom.
+  // Taki wiersz zostaje na liście bez nazwy (patrz `eventIdOf`).
   const eventIds = [
-    ...new Set(orders.map((o) => eventIdOf(o.metadata)).filter((v): v is string => !!v)),
+    ...new Set(
+      orders
+        .map((o) => eventIdOf(o.metadata))
+        .filter((v): v is string => !!v && EVENT_KEY_PATTERN.test(v)),
+    ),
   ];
   // Zamówienia zanonimizowane (konto usunięte) nie mają kogo szukać w
   // profilach - wypadają z zapytania, żeby `.in()` nie dostał NULL-a.

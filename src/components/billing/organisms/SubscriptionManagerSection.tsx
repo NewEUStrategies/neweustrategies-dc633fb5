@@ -57,20 +57,24 @@ export function SubscriptionManagerSection() {
   const [busy, setBusy] = useState(false);
   const [retentionOpen, setRetentionOpen] = useState(false);
 
-  const { data } = useQuery({
+  const subscriptionQ = useQuery({
     queryKey: billingKeys.mySubscription(session?.user?.id),
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
+  const data = subscriptionQ.data;
 
-  // Status płatności: najświeższe zamówienie użytkownika. Widoczny status
+  // Status płatności: najświeższe zamówienie PLANU. Widoczny status
   // (np. „Nieudane" / „Oczekujące") tłumaczy, dlaczego dostęp może nie działać.
+  // `payment_orders` trzyma też bilety i odblokowania treści (`plan_id` null) -
+  // te o dostępie z planu nic nie mówią, a porzucona kasa biletowa malowała
+  // członkowi czerwone „Oczekujące" z ceną biletu.
   const ordersQ = useQuery({
     queryKey: billingKeys.myOrders(session?.user?.id),
     queryFn: fetchMyOrders,
     enabled: !!session,
   });
-  const lastOrder = ordersQ.data?.[0] ?? null;
+  const lastOrder = ordersQ.data?.find((order) => order.plan_id !== null) ?? null;
 
   // Nadanie (dożywotni VIP eksperta) zastępuje komunikat „brak subskrypcji" -
   // użytkownik ma widzieć swój realny poziom dostępu, nie pustkę.
@@ -94,11 +98,14 @@ export function SubscriptionManagerSection() {
   // widział rozwiązany promise, zamykał się jak po sukcesie i klient dostawał
   // najmocniejszy możliwy sygnał „zrezygnowano" przy subskrypcji, która dalej
   // była obciążana.
-  const onCancel = async () => {
-    if (!data) return;
+  //
+  // Identyfikator przychodzi z wyrenderowanego bloku subskrypcji (przyciski
+  // rezygnacji i wznowienia istnieją tylko przy niej), więc handler nie
+  // potrzebuje strażnika „brak subskrypcji".
+  const onCancel = async (subscriptionId: string) => {
     setBusy(true);
     try {
-      await cancelMySubscription(data.id);
+      await cancelMySubscription(subscriptionId);
       await qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       toast.success(t("profile.subscription.canceled"));
     } catch (error) {
@@ -109,11 +116,10 @@ export function SubscriptionManagerSection() {
     }
   };
 
-  const onResume = async () => {
-    if (!data) return;
+  const onResume = async (subscriptionId: string) => {
     setBusy(true);
     try {
-      await resumeMySubscription(data.id);
+      await resumeMySubscription(subscriptionId);
       await qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       toast.success(t("profile.subscription.resumed"));
     } catch (error) {
@@ -164,7 +170,10 @@ export function SubscriptionManagerSection() {
       </div>
     );
   }
-  if (providerPending) return null;
+  // Ta sama reguła dla WŁASNEGO odczytu: dopóki nie wrócił, nie wiadomo, czy
+  // członkostwo jest. Dawniej w tym oknie płacący klient czytał „Nie masz
+  // aktywnego członkostwa" z „Zobacz plany" - zaproszenie do drugiego zakupu.
+  if (providerPending || subscriptionQ.isLoading) return null;
 
   return (
     <div className="space-y-6">
@@ -176,7 +185,13 @@ export function SubscriptionManagerSection() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!data?.plan && activeGrant ? (
+          {/* „Brak członkostwa" rozstrzyga BRAK WIERSZA subskrypcji, nie brak
+              planu: plan dociąga złączenie pod RLS, które pokazuje klientowi
+              tylko plany aktywne, więc plan wycofany ze sprzedaży wraca jako
+              `null` przy subskrypcji, która dalej daje dostęp. Dawniej taki
+              klient czytał „Nie masz aktywnego członkostwa" z zaproszeniem do
+              ponownego zakupu i bez rezygnacji. */}
+          {!data && activeGrant ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
                 <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
@@ -200,7 +215,7 @@ export function SubscriptionManagerSection() {
                 </Button>
               </div>
             </div>
-          ) : !data?.plan ? (
+          ) : !data ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{t("profile.subscription.none")}</p>
               <div className="flex flex-wrap gap-2">
@@ -219,15 +234,26 @@ export function SubscriptionManagerSection() {
                   <div className="text-xs uppercase text-muted-foreground">
                     {t("profile.subscription.plan")}
                   </div>
-                  <div className="text-lg font-semibold">{planName(data.plan, i18n.language)}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {formatMoney(data.plan.price_cents, data.plan.currency, i18n.language)}
-                  </div>
-                  <Button asChild variant="link" className="h-auto p-0 text-xs">
-                    <Link to="/plans/$planId" params={{ planId: data.plan.id }}>
-                      {t("pricing.planDetails.cta")}
-                    </Link>
-                  </Button>
+                  {data.plan ? (
+                    <>
+                      <div className="text-lg font-semibold">
+                        {planName(data.plan, i18n.language)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {formatMoney(data.plan.price_cents, data.plan.currency, i18n.language)}
+                      </div>
+                      <Button asChild variant="link" className="h-auto p-0 text-xs">
+                        <Link to="/plans/$planId" params={{ planId: data.plan.id }}>
+                          {t("pricing.planDetails.cta")}
+                        </Link>
+                      </Button>
+                    </>
+                  ) : (
+                    // Plan niewidoczny (wycofany ze sprzedaży): bez nazwy, kwoty
+                    // i linku do strony, która powiedziałaby „nie znaleziono".
+                    // Poziom dostępu i tak pokazuje odznaka warstwy w nagłówku.
+                    <div className="text-lg font-semibold">-</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-xs uppercase text-muted-foreground">
@@ -260,7 +286,7 @@ export function SubscriptionManagerSection() {
                       date: fmtDate(data.current_period_end),
                     })}
                   </p>
-                  <Button size="sm" disabled={busy} onClick={onResume}>
+                  <Button size="sm" disabled={busy} onClick={() => onResume(data.id)}>
                     {t("profile.subscription.resume")}
                   </Button>
                 </div>
@@ -291,7 +317,7 @@ export function SubscriptionManagerSection() {
                       open={retentionOpen}
                       onOpenChange={setRetentionOpen}
                       subscriptionId={data.id}
-                      onConfirmCancel={onCancel}
+                      onConfirmCancel={() => onCancel(data.id)}
                     />
                   </>
                 )}

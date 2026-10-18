@@ -78,6 +78,8 @@
 //
 // TREŚĆ NIESIE TYLKO IDENTYFIKATORY subskrypcji operatora - żadnych adresów
 // e-mail ani nazwisk (jak każdy alarm `tenantAdminAlert`).
+import type { PostgrestSingleResponse } from "@supabase/supabase-js";
+
 import { isEntitledSubscriptionStatus } from "@/lib/billing/accessPeriod";
 import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 import {
@@ -165,9 +167,11 @@ const ALERT_GATE_SCOPE = "billing.duplicate_plan_alert";
 const ALERT_GATE_WINDOW_MINUTES = 24 * 60;
 
 /**
- * Przerwy przed ponowieniem odczytu żywych subskrypcji. Sprawdzenie biegnie
- * RAZ na zajęcie potwierdzenia zakupu, więc chwilowy błąd bazy bez ponowienia
- * gubiłby je na zawsze. Krótko: praca w tle ma limit czasu runtime'u.
+ * Przerwy przed ponowieniem odczytu (żywe subskrypcje, właściciel klienta
+ * operatora). Sprawdzenie biegnie RAZ na zajęcie potwierdzenia zakupu, a
+ * subskrypcja z panelu ma następną okazję dopiero przy kolejnym zdarzeniu
+ * stanu (zwykle odnowienie), więc chwilowy błąd bazy bez ponowienia gubiłby
+ * alarm. Krótko: praca w tle ma limit czasu runtime'u.
  */
 const LOOKUP_RETRY_DELAYS_MS = [150, 600] as const;
 
@@ -228,12 +232,28 @@ interface CheckScope extends DuplicatePlanSubscriptionInput {
   unmirrored: boolean;
 }
 
-/** Inne żywe subskrypcje planu konta - z krótkim ponowieniem chwilowego błędu. */
-async function otherLivePlanRows(supabase: AdminClient, scope: CheckScope) {
+/**
+ * Odczyt z krótkim ponowieniem chwilowego błędu (`LOOKUP_RETRY_DELAYS_MS`).
+ * Rzuca po wyczerpaniu prób - wołający zamienia to na log.
+ */
+async function readWithRetry<T>(
+  label: string,
+  read: () => PromiseLike<PostgrestSingleResponse<T>>,
+): Promise<T> {
   let lastError = "";
-  for (let attempt = 0; attempt <= LOOKUP_RETRY_DELAYS_MS.length; attempt += 1) {
-    if (attempt > 0) await sleep(LOOKUP_RETRY_DELAYS_MS[attempt - 1] ?? 0);
-    const { data, error } = await supabase
+  for (const delay of [0, ...LOOKUP_RETRY_DELAYS_MS]) {
+    if (delay > 0) await sleep(delay);
+    const { data, error } = await read();
+    if (!error) return data;
+    lastError = error.message;
+  }
+  throw new Error(`${label} failed: ${lastError}`);
+}
+
+/** Inne żywe subskrypcje planu konta - z krótkim ponowieniem chwilowego błędu. */
+function otherLivePlanRows(supabase: AdminClient, scope: CheckScope) {
+  return readWithRetry("live plan subscriptions lookup", () =>
+    supabase
       .from("subscriptions")
       .select("provider_subscription_id, price_id, status")
       .eq("tenant_id", scope.tenantId)
@@ -242,11 +262,8 @@ async function otherLivePlanRows(supabase: AdminClient, scope: CheckScope) {
       .in("status", [...LIVE_PLAN_SUBSCRIPTION_STATUSES])
       .neq("provider_subscription_id", scope.subscriptionId)
       .order("created_at", { ascending: true })
-      .limit(MAX_OTHER_SUBSCRIPTIONS);
-    if (!error) return Array.isArray(data) ? data : [];
-    lastError = error.message;
-  }
-  throw new Error(`live plan subscriptions lookup failed: ${lastError}`);
+      .limit(MAX_OTHER_SUBSCRIPTIONS),
+  );
 }
 
 /**
@@ -278,7 +295,7 @@ async function donationSubscriptionIds(
     return new Set();
   }
   return new Set(
-    (Array.isArray(data) ? data : [])
+    data
       .map((row) => row.provider_subscription_id)
       .filter((id): id is string => typeof id === "string" && id !== ""),
   );
@@ -450,25 +467,24 @@ export async function alertOnUnmirroredPlanSubscription(
   if (!isEntitledSubscriptionStatus(input.status)) {
     return [{ kind: "skipped", reason: "not_entitled" }];
   }
-  const priceId = input.priceId;
-  // Cena spoza katalogu planów to nie plan (inny produkt na tym samym koncie
-  // operatora) - alarm o „drugim planie" byłby fałszywy.
-  if (!priceId || !catalogEntryByPriceId(priceId)) {
-    return [{ kind: "skipped", reason: "not_a_plan" }];
-  }
+  // Cena spoza katalogu planów (albo bez `lookup_key`) to nie plan - inny
+  // produkt na tym samym koncie operatora; alarm o „drugim planie" byłby fałszywy.
+  const plan = catalogEntryByPriceId(input.priceId);
+  if (!plan) return [{ kind: "skipped", reason: "not_a_plan" }];
+  // Ładunek bez klienta (normalizacja zdarzenia daje wtedy "") - nie ma kogo szukać.
   if (!input.customerId) return [{ kind: "skipped", reason: "unknown_customer" }];
 
   let rows: { provider_subscription_id: string; user_id: string; tenant_id: string }[];
   try {
     const supabase = await admin();
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("provider_subscription_id, user_id, tenant_id")
-      .eq("provider_customer_id", input.customerId)
-      .eq("environment", input.environment)
-      .limit(MAX_CUSTOMER_ROWS);
-    if (error) throw new Error(`customer owner lookup failed: ${error.message}`);
-    rows = Array.isArray(data) ? data : [];
+    rows = await readWithRetry("customer owner lookup", () =>
+      supabase
+        .from("subscriptions")
+        .select("provider_subscription_id, user_id, tenant_id")
+        .eq("provider_customer_id", input.customerId)
+        .eq("environment", input.environment)
+        .limit(MAX_CUSTOMER_ROWS),
+    );
   } catch (err) {
     console.error("[payments] duplicate plan subscription check failed", {
       subscriptionId: input.subscriptionId,
@@ -482,9 +498,9 @@ export async function alertOnUnmirroredPlanSubscription(
   if (rows.some((row) => row.provider_subscription_id === input.subscriptionId)) {
     return [{ kind: "skipped", reason: "mirrored" }];
   }
+  // `user_id` i `tenant_id` są w `subscriptions` NOT NULL - każdy wiersz ma właściciela.
   const owners = new Map<string, { userId: string; tenantId: string }>();
   for (const row of rows) {
-    if (!row.user_id || !row.tenant_id) continue;
     owners.set(`${row.tenant_id}:${row.user_id}`, { userId: row.user_id, tenantId: row.tenant_id });
   }
   if (owners.size === 0) {
@@ -505,7 +521,7 @@ export async function alertOnUnmirroredPlanSubscription(
         userId: owner.userId,
         tenantId: owner.tenantId,
         environment: input.environment,
-        priceId,
+        priceId: plan.priceId,
         status: input.status,
         purpose: input.purpose ?? null,
         unmirrored: true,
@@ -515,32 +531,21 @@ export async function alertOnUnmirroredPlanSubscription(
   return outcomes;
 }
 
-/** Rejestracja pracy w tle; błąd rejestracji to log, nigdy wyjątek. */
-function inBackground(subscriptionId: string, work: () => Promise<unknown>): void {
-  try {
-    runAfterResponse(work());
-  } catch (err) {
-    console.error("[payments] duplicate plan subscription check not scheduled", {
-      subscriptionId,
-      error: errorMessage(err),
-    });
-  }
-}
-
 /**
  * Wejście z webhooka (zajęcie potwierdzenia zakupu): sprawdzenie biegnie ZA
  * odpowiedzią (`ctx.waitUntil`), więc nie wydłuża obsługi zdarzenia, a jego
- * błąd nie wraca do wołającego. Nigdy nie rzuca.
+ * błąd nie wraca do wołającego. Nigdy nie rzuca: `runAfterResponse` nie rzuca
+ * z konstrukcji, a sprawdzenie zamienia każdy błąd na log i wynik `failed`.
  */
 export function scheduleDuplicatePlanSubscriptionAlert(
   input: DuplicatePlanSubscriptionInput,
 ): void {
-  inBackground(input.subscriptionId, () => alertOnDuplicatePlanSubscription(input));
+  runAfterResponse(alertOnDuplicatePlanSubscription(input));
 }
 
-/** Wejście z webhooka dla subskrypcji bez `metadata.userId`. Nigdy nie rzuca. */
+/** Wejście z webhooka dla subskrypcji bez `metadata.userId`. Nigdy nie rzuca (jak wyżej). */
 export function scheduleUnmirroredPlanSubscriptionAlert(
   input: UnmirroredPlanSubscriptionInput,
 ): void {
-  inBackground(input.subscriptionId, () => alertOnUnmirroredPlanSubscription(input));
+  runAfterResponse(alertOnUnmirroredPlanSubscription(input));
 }

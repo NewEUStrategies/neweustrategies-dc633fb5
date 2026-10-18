@@ -24,6 +24,17 @@ export interface SettlementReport {
 
 const LIMIT = 500;
 
+/**
+ * Ile identyfikatorów zamówień idzie w JEDNYM odczycie zleceń zwrotu.
+ * `.in(...)` jedzie w adresie żądania GET: zmierzone na postgrest-js 2.116,
+ * 100 identyfikatorów to ~4,1 tys. znaków adresu, a pełna strona 500 -
+ * ~19,7 tys., ponad bufor wiersza żądania bramki przed PostgREST-em (8 KB,
+ * por. `INVITATION_LOOKUP_CHUNK_SIZE` w `admin/invitations.functions.ts`).
+ * Odpowiedź 414 wywracała cały raport każdemu najemcy z ponad ~200
+ * zamówieniami w oknie. Porcje idą równolegle.
+ */
+const JOB_LOOKUP_CHUNK = 100;
+
 export const getSettlementReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => inputSchema.parse(input))
@@ -32,61 +43,80 @@ export const getSettlementReport = createServerFn({ method: "POST" })
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Z metadanych zamówienia (dane kasy, adres paragonu) potrzebny jest
+    // jeden znacznik - reszta nie opuszcza bazy.
     let query = supabaseAdmin
       .from("payment_orders")
       .select(
-        "id, created_at, kind, status, amount_cents, refunded_amount_cents, currency, environment, metadata",
+        "id, created_at, kind, status, amount_cents, refunded_amount_cents, currency, environment, needs_manual_review:metadata->needs_manual_review",
       )
-      .eq("tenant_id", tenantId)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT + 1);
+      .eq("tenant_id", tenantId);
+    // Filtr stanu w SQL, PRZED oknem `limit` - nakładany dopiero w pamięci
+    // gubił zamówienia w wybranym stanie leżące za 500 najnowszymi
+    // zamówieniami wszystkich stanów. Stany zwrotu zależą od porównania dwóch
+    // kolumn (zwrot >= kwota), którego filtr PostgREST nie wyrazi: SQL bierze
+    // kandydatów, a dokładny podział robi `filterSettlementRows` tą samą
+    // regułą, która nadaje etykietę (`deriveSettlementStatus`).
+    switch (data.status) {
+      case "all":
+        break;
+      case "paid":
+        query = query.eq("status", "paid").lte("refunded_amount_cents", 0);
+        break;
+      case "partially_refunded":
+        query = query.eq("status", "paid").gt("refunded_amount_cents", 0);
+        break;
+      case "refunded":
+        query = query.or("status.eq.refunded,and(status.eq.paid,refunded_amount_cents.gt.0)");
+        break;
+      default:
+        query = query.eq("status", data.status);
+    }
     if (data.fromIso) query = query.gte("created_at", data.fromIso);
     if (data.toIso) query = query.lt("created_at", data.toIso);
-    const { data: orders, error } = await query;
+    const { data: orders, error } = await query
+      .order("created_at", { ascending: false })
+      .limit(LIMIT + 1);
     if (error) throw new Error(error.message);
 
-    const list = orders ?? [];
-    const truncated = list.length > LIMIT;
-    const page = list.slice(0, LIMIT);
+    const truncated = orders.length > LIMIT;
+    const page = orders.slice(0, LIMIT);
     const ids = page.map((o) => o.id);
-
-    const jobs = new Map<string, { state: string; error: string | null }>();
-    if (ids.length > 0) {
-      const { data: jobRows, error: jobError } = await supabaseAdmin
-        .from("event_registration_refund_jobs")
-        .select("payment_order_id, state, last_error")
-        .eq("tenant_id", tenantId)
-        .in("payment_order_id", ids);
+    const parts: string[][] = [];
+    for (let i = 0; i < ids.length; i += JOB_LOOKUP_CHUNK) {
+      parts.push(ids.slice(i, i + JOB_LOOKUP_CHUNK));
+    }
+    const lookups = await Promise.all(
+      parts.map((part) =>
+        supabaseAdmin
+          .from("event_registration_refund_jobs")
+          .select("payment_order_id, state, last_error")
+          .eq("tenant_id", tenantId)
+          .in("payment_order_id", part),
+      ),
+    );
+    // Klucz może być `null` (wpłata ręczna bez zamówienia, REG-03) - filtr
+    // `in` takich zleceń nie zwraca, a wiersz zamówienia i tak pyta o swój id.
+    const jobs = new Map<string | null, { state: string; last_error: string | null }>();
+    for (const { data: jobRows, error: jobError } of lookups) {
       if (jobError) throw new Error(jobError.message);
-      for (const j of jobRows ?? []) {
-        // Zlecenie bez zamówienia (wpłata ręczna, REG-03) nie należy do żadnego
-        // wiersza tej listy - filtr `in` i tak go nie zwraca, typ pilnuje reszty.
-        if (j.payment_order_id === null) continue;
-        jobs.set(j.payment_order_id, { state: j.state, error: j.last_error });
-      }
+      for (const job of jobRows) jobs.set(job.payment_order_id, job);
     }
 
     const rows: SettlementRow[] = page.map((o) => {
-      const amount = o.amount_cents ?? 0;
-      const refunded = o.refunded_amount_cents ?? 0;
-      const meta =
-        o.metadata && typeof o.metadata === "object" && !Array.isArray(o.metadata)
-          ? (o.metadata as Record<string, unknown>)
-          : {};
       const job = jobs.get(o.id);
       return {
         id: o.id,
         createdAt: o.created_at,
-        kind: String(o.kind),
-        status: deriveSettlementStatus(String(o.status), amount, refunded),
-        rawStatus: String(o.status),
-        amountCents: amount,
-        refundedCents: refunded,
+        kind: o.kind,
+        status: deriveSettlementStatus(o.status, o.amount_cents, o.refunded_amount_cents),
+        amountCents: o.amount_cents,
+        refundedCents: o.refunded_amount_cents,
         currency: o.currency,
-        environment: o.environment ?? null,
+        environment: o.environment,
         refundJobState: job?.state ?? null,
-        refundJobError: job?.error ?? null,
-        needsReview: meta["needs_manual_review"] === true,
+        refundJobError: job?.last_error ?? null,
+        needsReview: o.needs_manual_review === true,
       };
     });
 

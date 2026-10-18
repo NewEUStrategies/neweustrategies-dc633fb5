@@ -49,7 +49,9 @@ na starej wersji (sprawdzone mutacją).
    w `types.ts`, bez migracji - sprawdzić, czy istnieje na produkcji.
 2. **Subskrypcje w złym najemcy.** Przed `140300`:
    `SELECT count(*) FROM subscriptions s JOIN profiles p ON p.id = s.user_id WHERE s.tenant_id IS DISTINCT FROM p.tenant_id;`
-   i kopia tabeli.
+   i kopia tabeli. Uwaga (2026-10-18): `140300` nie trafiło do dziennika drizzle,
+   którym jedzie produkcja - przenosi je dopiero `0305`, a webhook wpisuje
+   najemcę jawnie (`docs/WDROZENIE_SUBSKRYPCJE_NAJEMCA_2026-10-18.md`).
 3. **Ochrona `main`.** Ruleset / merge queue; edytor Lovable na osobnej gałęzi
    (dziś większość przebiegów CI na `main` to bezpośrednie pushe edytora).
 4. **Prawda o produkcji.** Rola tylko do odczytu w chronionym Environment

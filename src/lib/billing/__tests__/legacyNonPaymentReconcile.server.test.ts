@@ -21,6 +21,11 @@
 //     nie cofnął przycięcia przy kolejnym `deleted` bez powodu.
 //   * POZORNA SYMULACJA. `dry_run` ma nie wysłać ANI JEDNEGO zapisu.
 //   * PODWÓJNY SKUTEK. Drugi przebieg `apply` nie zmienia niczego.
+//   * WYŚCIG. Wiersz zmieniony po odczycie partii (webhook, zwrot, dobowy
+//     przebieg zespołów) nie zostaje nadpisany - strażnicy w `WHERE`, a liczniki
+//     liczą tylko wiersze naprawdę zmienione.
+//   * ZAPIS CZĘŚCIOWY. Błąd późniejszego kroku zapisu nie ukrywa wcześniejszych:
+//     liczniki partii, ślad w logu i `applied` mówią, co już jest w bazie.
 //   * PARTIE. Kursor po `subscriptions.id` przechodzi każdy wiersz raz.
 //   * GRANICE. Uprawnienie i organizacja innego najemcy z tym samym
 //     `external_ref` nie są ani podstawą decyzji, ani celem zapisu; partia
@@ -37,15 +42,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  fail,
   ok,
   supabaseFromStub,
   type RecordedChain,
   type SupabaseFromStub,
   type SupabaseResult,
 } from "@/test/billing/fixtures";
-import { DZIEN, GODZINA, FIXED_NOW, freezeClock, relativeIso } from "@/test/time";
+import { DZIEN, GODZINA, FIXED_NOW, SEKUNDA, freezeClock, relativeIso } from "@/test/time";
 import type {
   LegacyEntitlementRow,
+  LegacyInvoiceFacts,
   LegacySubscriptionRow,
 } from "@/lib/billing/legacyNonPaymentReconcile.server";
 
@@ -124,6 +131,7 @@ vi.mock("@/lib/stripe.server", () => ({
 const {
   PERIOD_INVOICE_SCAN_LIMIT,
   decideLegacyNonPayment,
+  invoicePaysPeriod,
   needsPeriodInvoiceCheck,
   readLegacyStripeFacts,
   reconcileLegacyNonPaymentCancellations,
@@ -451,6 +459,14 @@ describe("decyzja - anulowanie za brak płatności", () => {
     expect(plan.anchor).toBe(stored);
     expect(plan.writeAnchor).toBe(false);
     expect(plan.accessUntil).toBe(relativeIso(2 * DZIEN));
+    // Koniec subskrypcji ogranicza tylko NOWĄ kotwicę - zapisanej nie przesuwa
+    // (webhook liczy z niej tak samo).
+    expect(
+      decide({
+        sub: { first_payment_failed_at: stored },
+        remote: { endedAt: relativeIso(-20 * DZIEN) },
+      }).anchor,
+    ).toBe(stored);
   });
 
   it("nowa kotwica nie jest późniejsza niż koniec subskrypcji", () => {
@@ -560,6 +576,41 @@ describe("decyzja - okres opłacony mimo anulowania za brak płatności", () => 
 
     expect(plan.decision).toBe("paid");
     expect(plan.paymentProof).toBe("invoice");
+  });
+
+  it("odnowienie pokryte w całości saldem klienta albo kuponem (do zapłaty 0) też jest zapłatą", () => {
+    // `amount_paid: 0` przy `amount_due` większym od zera zapłatą nie jest
+    // (przypadek niżej) - rozstrzyga kwota NALEŻNA.
+    const plan = decide({ remote: { invoice: { ...paidLate, amountPaid: 0, amountDue: 0 } } });
+
+    expect(plan).toMatchObject({ decision: "paid", paymentProof: "invoice", clamp: [] });
+  });
+
+  it("dopłata otwiera okres tylko z pozycją za cały okres w oknie wokół jego początku - z obu stron", () => {
+    const periodStart = relativeIso(-5 * DZIEN);
+    const update = (fullPeriodStart: string | null): LegacyInvoiceFacts => ({
+      status: "paid",
+      attemptCount: 1,
+      attemptedAt: periodStart,
+      paidAt: periodStart,
+      amountPaid: 47500,
+      amountDue: 47500,
+      amountPaidOffStripe: null,
+      paidOutOfBand: false,
+      billingReason: "subscription_update",
+      fullPeriodStart,
+    });
+
+    expect(invoicePaysPeriod(update(relativeIso(-5 * DZIEN - 90 * SEKUNDA)), periodStart)).toBe(
+      true,
+    );
+    expect(invoicePaysPeriod(update(relativeIso(-5 * DZIEN + 90 * SEKUNDA)), periodStart)).toBe(
+      true,
+    );
+    // Pozycja za cały POPRZEDNI okres albo zaczęta dobę po początku - nie ten okres.
+    expect(invoicePaysPeriod(update(relativeIso(-6 * DZIEN)), periodStart)).toBe(false);
+    expect(invoicePaysPeriod(update(relativeIso(-4 * DZIEN)), periodStart)).toBe(false);
+    expect(invoicePaysPeriod(update(null), periodStart)).toBe(false);
   });
 
   it("fakty faktury: kwota poza operatorem i początek pozycji za cały okres", () => {
@@ -930,6 +981,92 @@ describe("zastosowanie", () => {
       ["org-1", "suspended"],
       ["org-x", "active"],
     ]);
+  });
+});
+
+describe("zapis przerwany w połowie - raport nie ukrywa tego, co już zapisano", () => {
+  // Kroki zapisu idą po kolei (znacznik, kotwica, uprawnienia, zespół), więc
+  // błąd późniejszego kroku zostawia w bazie skutki wcześniejszych. Wiersz to
+  // `error`, ale liczniki partii, ślad w logu i `applied` muszą mówić prawdę -
+  // inaczej operator czyta „nic się nie zmieniło", a dostęp klienta już
+  // przycięto.
+  const start = relativeIso(-40 * DZIEN);
+
+  it("odmowa zawieszenia zespołu po kotwicy i przycięciu: zapisane kroki są policzone", async () => {
+    seed({
+      subscriptions: [subRow(1, { price_id: "team_monthly_seat", current_period_start: start })],
+      entitlements: [entRow(1)],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, { start, invoice: { status: "open", attempts: 4, finalizedAt: start } }),
+    );
+    db.setResponse("member_organizations", (chain) =>
+      chain.has("update")
+        ? fail("trigger rejected the update")
+        : execute("member_organizations", chain),
+    );
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "error",
+      error: "team suspend failed: trigger rejected the update",
+      suspendTeam: true,
+      applied: true,
+    });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    expect(consoleInfo).toHaveBeenCalledWith(
+      "[billing] legacy non-payment reconcile batch",
+      expect.objectContaining({
+        writes: { anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 },
+      }),
+    );
+    // To, co raport liczy, naprawdę jest w bazie.
+    expect(tables.subscriptions?.[0]?.first_payment_failed_at).toBe(start);
+    expect(tables.user_subscriptions?.[0]).toMatchObject({
+      status: "canceled",
+      current_period_end: relativeIso(-26 * DZIEN),
+    });
+    expect(tables.member_organizations?.[0]?.status).toBe("active");
+  });
+
+  it("wyczyszczony znacznik zapłaty, a potem błąd kotwicy: znacznik jest w licznikach", async () => {
+    const prorationPaidAt = relativeIso(-3 * DZIEN);
+    seed({
+      subscriptions: [subRow(1, { last_payment_at: prorationPaidAt })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+    db.setResponse("subscriptions", (chain) => {
+      const update = chain.argsOf("update")?.[0] as Row | undefined;
+      return update && "first_payment_failed_at" in update
+        ? fail("statement timeout")
+        : execute("subscriptions", chain);
+    });
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "error",
+      error: "anchor write failed: statement timeout",
+      applied: true,
+    });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 1, entitlements: 0, teams: 0 });
+    expect(tables.subscriptions?.[0]).toMatchObject({
+      last_payment_at: null,
+      first_payment_failed_at: null,
+    });
+    // Uprawnienie nietknięte - przycięcie czeka na kotwicę (kolejny przebieg).
+    expect(tables.user_subscriptions?.[0]?.current_period_end).toBe(relativeIso(360 * DZIEN));
   });
 });
 
@@ -1431,5 +1568,580 @@ describe("operator i partie", () => {
     expect(h.retrieveCalls[0]?.params).toEqual({ expand: ["latest_invoice"] });
     // Każde z trzech odnowień jest nieopłacone - historia dla każdego, po kolei.
     expect(h.listCalls.map((c) => c.subscription)).toEqual([1, 2, 3].map(providerId));
+  });
+});
+
+// --- kształt ładunku operatora ----------------------------------------------
+
+describe("fakty operatora - ładunek bez pól, na których stoi decyzja", () => {
+  /** Subskrypcja `n` u operatora z dowolną surową ostatnią fakturą. */
+  const withInvoice = (latestInvoice: Record<string, unknown>, o: RemoteOptions = {}) => ({
+    ...remoteSub(1, o),
+    latest_invoice: { id: "in_surowa", object: "invoice", ...latestInvoice },
+  });
+  const decideRaw = (raw: Record<string, unknown>) =>
+    decideLegacyNonPayment({
+      subscription: subRow(1) as unknown as LegacySubscriptionRow,
+      entitlements: [entRow(1)] as unknown as LegacyEntitlementRow[],
+      teamActive: false,
+      stripe: readLegacyStripeFacts(raw),
+      now: FIXED_NOW,
+    });
+
+  it("faktura bez statusu, prób i powodu niczego nie dowodzi; chwila próby to jej utworzenie", () => {
+    const created = relativeIso(-5 * DZIEN + 30 * 60 * 1000);
+    const raw = withInvoice({ created: unix(created) });
+
+    expect(readLegacyStripeFacts(raw).invoice).toEqual({
+      status: null,
+      attemptCount: 0,
+      attemptedAt: created,
+      paidAt: null,
+      amountPaid: null,
+      amountDue: null,
+      amountPaidOffStripe: null,
+      paidOutOfBand: false,
+      billingReason: null,
+      fullPeriodStart: null,
+    });
+    // `payment_failed` od operatora wystarcza, ale kotwicą nie jest
+    // utworzenie faktury, która porażki nie dowodzi - tylko początek okresu.
+    expect(decideRaw(raw)).toMatchObject({
+      decision: "clamp",
+      evidence: "reason",
+      anchor: relativeIso(-5 * DZIEN),
+    });
+    // Bez powodu taka faktura nie jest dowodem braku płatności.
+    expect(decideRaw(withInvoice({ created: unix(created) }, { reason: null }))).toMatchObject({
+      decision: "no_evidence",
+      clamp: [],
+    });
+  });
+
+  it("bez `ended_at` (starszy ładunek) koniec subskrypcji to `canceled_at` - kotwica nie później", () => {
+    const canceledAt = relativeIso(-3 * DZIEN);
+    const raw = {
+      ...remoteSub(1, {
+        invoice: { status: "open", attempts: 1, finalizedAt: relativeIso(-1 * DZIEN) },
+      }),
+      ended_at: null,
+      canceled_at: unix(canceledAt),
+    };
+
+    expect(readLegacyStripeFacts(raw).endedAt).toBe(canceledAt);
+    expect(decideRaw(raw).anchor).toBe(canceledAt);
+  });
+
+  it("nieopłacona faktura bez znaczników czasu: kotwicą zostaje początek okresu", () => {
+    const raw = withInvoice({ status: "open", attempt_count: 4 }, { reason: null });
+
+    expect(decideRaw(raw)).toMatchObject({
+      decision: "clamp",
+      evidence: "invoice",
+      anchor: relativeIso(-5 * DZIEN),
+      accessUntil: relativeIso(9 * DZIEN),
+    });
+  });
+
+  it("ładunek sprzed Basil bez kwot, opłacony poza operatorem (`paid_out_of_band`): dowód zapłaty", () => {
+    const raw = withInvoice({
+      status: "paid",
+      attempt_count: 4,
+      paid_out_of_band: true,
+      billing_reason: "subscription_cycle",
+      status_transitions: { paid_at: unix(relativeIso(-2 * DZIEN)) },
+    });
+
+    expect(decideRaw(raw)).toMatchObject({ decision: "paid", paymentProof: "invoice" });
+    // Ten sam ładunek bez znacznika poza operatorem - zero kwot to nie zapłata.
+    expect(
+      decideRaw(
+        withInvoice({
+          status: "paid",
+          attempt_count: 4,
+          status_transitions: { paid_at: unix(relativeIso(-2 * DZIEN)) },
+        }),
+      ),
+    ).toMatchObject({ decision: "clamp", paymentProof: null });
+  });
+});
+
+describe("przebieg - operator bez okresu i bez ostatniej faktury", () => {
+  it("okres z bazy: kotwica z jej początku, koniec karencji ograniczony jej końcem", async () => {
+    // Starsza odpowiedź operatora: okres ani na pozycji, ani na subskrypcji,
+    // ostatnia faktura nieznana. Baza pamięta okres, który kończy się za 3 dni.
+    seed({
+      subscriptions: [subRow(1, { current_period_end: relativeIso(3 * DZIEN) })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), {
+      ...remoteSub(1, { invoice: null }),
+      items: { data: [{ price: { id: "price_plus_annual", lookup_key: "plus_annual" } }] },
+    });
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "clamp",
+      evidence: "reason",
+      cancellationReason: "payment_failed",
+      invoiceStatus: null,
+      anchor: relativeIso(-5 * DZIEN),
+      accessUntilAfter: relativeIso(3 * DZIEN),
+      applied: true,
+    });
+    // Historia faktur okresu liczona od początku okresu z bazy.
+    expect(h.listCalls).toEqual([
+      expect.objectContaining({ created: { gte: unix(relativeIso(-5 * DZIEN)) - 60 * 60 } }),
+    ]);
+    expect(tables.subscriptions?.[0]?.first_payment_failed_at).toBe(relativeIso(-5 * DZIEN));
+    expect(tables.user_subscriptions?.[0]?.current_period_end).toBe(relativeIso(3 * DZIEN));
+  });
+});
+
+describe("wstępna selekcja - zwrot", () => {
+  it("zwrot bez dostępu, bez zespołu i z minionym okresem nie trafia do raportu", () => {
+    const expired = [
+      entRow(1, { status: "refunded", current_period_end: relativeIso(-1 * DZIEN) }),
+    ] as unknown as LegacyEntitlementRow[];
+
+    expect(triageLegacyCandidate(expired, false, FIXED_NOW)).toBe("skip");
+    // Aktywny zespół na tej subskrypcji - zwrot raportujemy, nie ruszamy.
+    expect(triageLegacyCandidate(expired, true, FIXED_NOW)).toBe("refunded");
+  });
+});
+
+describe("przebieg - błędy operatora w kształcie SDK", () => {
+  it("`resource_missing` w `raw` (kształt błędu SDK) to pominięcie; limit zapytań to `error`", async () => {
+    seed({ subscriptions: [subRow(1), subRow(2)], entitlements: [entRow(1), entRow(2)] });
+    h.remoteErrors.set(
+      providerId(1),
+      Object.assign(new Error("No such subscription: 'sub_legacy_1'"), {
+        type: "StripeInvalidRequestError",
+        raw: { code: "resource_missing", message: "No such subscription" },
+      }),
+    );
+    h.remoteErrors.set(
+      providerId(2),
+      Object.assign(new Error("Too many requests"), {
+        type: "StripeRateLimitError",
+        code: "rate_limit",
+        raw: { code: "rate_limit", message: "Too many requests" },
+      }),
+    );
+
+    const report = await run("apply");
+
+    expect(report.rows.map((r) => [r.subscriptionId, r.decision, r.error])).toEqual([
+      [providerId(1), "stripe_missing", null],
+      [providerId(2), "error", "Too many requests"],
+    ]);
+    expect(updates()).toEqual([]);
+  });
+});
+
+describe("przebieg - zapisy", () => {
+  it("zapisana kotwica: przycięcie bez ponownego zapisu kotwicy", async () => {
+    const stored = relativeIso(-12 * DZIEN);
+    seed({
+      subscriptions: [subRow(1, { first_payment_failed_at: stored })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "clamp", anchor: stored, applied: true });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    expect(updates("subscriptions")).toEqual([]);
+    expect(tables.user_subscriptions?.[0]?.current_period_end).toBe(relativeIso(2 * DZIEN));
+  });
+
+  it("dwa aktywne uprawnienia tego klucza: oba przycięte, „przed” to najdalszy koniec", async () => {
+    seed({
+      subscriptions: [subRow(1)],
+      entitlements: [
+        entRow(1, { current_period_end: relativeIso(200 * DZIEN) }),
+        entRow(1, { id: "us-1-dup", current_period_end: relativeIso(360 * DZIEN) }),
+        entRow(1, { id: "us-1-old", current_period_end: relativeIso(100 * DZIEN) }),
+      ],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "clamp",
+      accessUntilBefore: relativeIso(360 * DZIEN),
+      accessUntilAfter: relativeIso(9 * DZIEN + GODZINA),
+    });
+    expect(report.writes.entitlements).toBe(3);
+    expect(tables.user_subscriptions?.map((r) => r.current_period_end)).toEqual([
+      relativeIso(9 * DZIEN + GODZINA),
+      relativeIso(9 * DZIEN + GODZINA),
+      relativeIso(9 * DZIEN + GODZINA),
+    ]);
+  });
+
+  it("odmowa przycięcia drugiego uprawnienia: pierwsze przycięte i policzone, wiersz `error`", async () => {
+    seed({
+      subscriptions: [subRow(1)],
+      entitlements: [entRow(1), entRow(1, { id: "us-1-dup" })],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+    db.setResponse("user_subscriptions", (chain) =>
+      chain.has("update") && chain.calls.some((c) => c.method === "eq" && c.args[1] === "us-1-dup")
+        ? fail("row is locked")
+        : execute("user_subscriptions", chain),
+    );
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "error",
+      error: "entitlement clamp failed: row is locked",
+      applied: true,
+    });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    expect(tables.user_subscriptions?.map((r) => [r.id, r.current_period_end])).toEqual([
+      ["us-1", relativeIso(9 * DZIEN + GODZINA)],
+      ["us-1-dup", relativeIso(360 * DZIEN)],
+    ]);
+  });
+
+  it("odmowa wyczyszczenia znacznika zapłaty: `error` bez żadnego zapisu", async () => {
+    seed({
+      subscriptions: [subRow(1, { last_payment_at: relativeIso(-3 * DZIEN) })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+    db.setResponse("subscriptions", (chain) =>
+      chain.has("update") ? fail("permission denied") : execute("subscriptions", chain),
+    );
+    const before = structuredClone(tables);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "error",
+      error: "payment marker clear failed: permission denied",
+      applied: false,
+    });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    expect(updates("user_subscriptions")).toEqual([]);
+    expect(tables).toEqual(before);
+  });
+});
+
+describe("przebieg - stan zapisany wcześniej", () => {
+  it("przycięte przez wersję zadania sprzed czyszczenia znacznika: zostaje do zapisania sam znacznik", async () => {
+    // Kotwica i przycięcie już w bazie, ale `last_payment_at` z dopłaty
+    // w okresie został - z nim webhook przy kolejnym `deleted` bez powodu
+    // uznałby okres za opłacony i cofnął przycięcie.
+    const anchor = relativeIso(-5 * DZIEN + GODZINA);
+    const prorationPaidAt = relativeIso(-3 * DZIEN);
+    seed({
+      subscriptions: [
+        subRow(1, { first_payment_failed_at: anchor, last_payment_at: prorationPaidAt }),
+      ],
+      entitlements: [entRow(1, { current_period_end: relativeIso(9 * DZIEN + GODZINA) })],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "already_clamped", applied: true });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 1, entitlements: 0, teams: 0 });
+    expect(tables.subscriptions?.[0]).toMatchObject({
+      last_payment_at: null,
+      first_payment_failed_at: anchor,
+    });
+    expect(updates("user_subscriptions")).toEqual([]);
+  });
+
+  it("okres w bazie sprzed nieudanego odnowienia: liczy okres operatora, nie bazy", async () => {
+    // Zdarzenie odnowienia nie dotarło - baza pamięta POPRZEDNI rok (koniec
+    // 5 dni temu), a operator już nowy okres, którego porażka dała anulowanie.
+    seed({
+      subscriptions: [
+        subRow(1, {
+          current_period_start: relativeIso(-370 * DZIEN),
+          current_period_end: relativeIso(-5 * DZIEN),
+        }),
+      ],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "clamp",
+      accessUntilAfter: relativeIso(9 * DZIEN + GODZINA),
+    });
+    // Historia od początku okresu operatora; zapłata za poprzedni rok to nie
+    // znacznik z bieżącego okresu - zostaje.
+    expect(h.listCalls).toEqual([
+      expect.objectContaining({ created: { gte: unix(relativeIso(-5 * DZIEN)) - 60 * 60 } }),
+    ]);
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    expect(tables.subscriptions?.[0]?.last_payment_at).toBe(relativeIso(-370 * DZIEN));
+  });
+});
+
+describe("plan Zespół - organizacje poza zasięgiem zadania", () => {
+  it("organizacja zawieszona przez stary kod ani aktywna organizacja innego najemcy nie są ani podstawą, ani celem", async () => {
+    const start = relativeIso(-40 * DZIEN);
+    const team = (n: number) =>
+      subRow(n, { price_id: "team_monthly_seat", current_period_start: start });
+    const org = (n: number, tenant: string, status: string) => ({
+      id: `org-${n}`,
+      tenant_id: tenant,
+      provider_subscription_id: providerId(n),
+      status,
+    });
+    seed({
+      subscriptions: [team(1), team(2), team(3)],
+      // 1: właściciel ma jeszcze uprawnienie do końca nieopłaconego roku.
+      entitlements: [entRow(1, { current_period_end: relativeIso(325 * DZIEN) })],
+      // 1 i 2: zespół zawieszony już w chwili anulowania; 3: aktywna
+      // organizacja INNEGO najemcy z tym samym kluczem subskrypcji.
+      orgs: [org(1, TENANT, "suspended"), org(2, TENANT, "suspended"), org(3, FOREIGN, "active")],
+    });
+    for (const n of [1, 2, 3]) {
+      h.remote.set(
+        providerId(n),
+        remoteSub(n, {
+          start,
+          end: relativeIso(325 * DZIEN),
+          invoice: { status: "open", attempts: 4, finalizedAt: start },
+        }),
+      );
+    }
+    const orgsBefore = structuredClone(tables.member_organizations);
+
+    const report = await run("apply");
+
+    // 2 i 3 nie mają dostępu w swoim najemcy - bez pytania operatora.
+    expect(report).toMatchObject({ scanned: 3, candidates: 1 });
+    expect(h.retrieveCalls.map((c) => c.id)).toEqual([providerId(1)]);
+    expect(report.rows[0]).toMatchObject({
+      subscriptionId: providerId(1),
+      decision: "revoke",
+      suspendTeam: false,
+    });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    // Uzgodnienie nie wznawia zawieszonych i nie sięga do cudzych.
+    expect(updates("member_organizations")).toEqual([]);
+    expect(tables.member_organizations).toEqual(orgsBefore);
+  });
+});
+
+describe("wyścig - zapis zmieniony między odczytem partii a zapisem zadania", () => {
+  // Webhook (przycisk synchronizacji, odtworzone zdarzenie, zwrot) albo dobowy
+  // przebieg zespołów może zmienić wiersz po odczycie partii. Zadanie
+  // WYŁĄCZNIE skraca dostęp i nie nadpisuje świeższego zapisu: każdy krok ma
+  // strażnika w `WHERE`, a licznik liczy tylko wiersze, które naprawdę zmienił.
+
+  /** Tuż przed zapisem do `table` „ktoś inny” zmienia adresowany wiersz. */
+  function beforeWrite(table: string, change: (row: Row) => void) {
+    db.setResponse(table, (chain) => {
+      if (chain.has("update")) {
+        const target = chain.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1];
+        for (const row of tables[table] ?? []) {
+          if (target === undefined || row.id === target) change(row);
+        }
+      }
+      return execute(table, chain);
+    });
+  }
+
+  it("kotwica zapisana w międzyczasie przez webhook zostaje - zadanie jej nie nadpisuje i nie liczy", async () => {
+    const webhookAnchor = relativeIso(-4 * DZIEN);
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1));
+    beforeWrite("subscriptions", (row) => {
+      row.first_payment_failed_at = webhookAnchor;
+    });
+
+    const report = await run("apply");
+
+    expect(tables.subscriptions?.[0]?.first_payment_failed_at).toBe(webhookAnchor);
+    expect(report.writes.anchors).toBe(0);
+  });
+
+  it("zwrot albo krótszy dostęp zapisany w międzyczasie zostaje - przycięcie niczego nie wydłuża ani nie ożywia", async () => {
+    seed({
+      subscriptions: [subRow(1), subRow(2), subRow(3)],
+      entitlements: [entRow(1), entRow(2), entRow(3, { current_period_end: null })],
+    });
+    for (const n of [1, 2, 3]) h.remote.set(providerId(n), remoteSub(n));
+    const shorter = relativeIso(2 * DZIEN);
+    beforeWrite("user_subscriptions", (row) => {
+      // 1: `charge.refunded` - zwrot jest ostateczny; 2 i 3 (także dostęp
+      // bezterminowy): webhook skrócił dostęp bardziej niż karencja zadania.
+      if (row.id === "us-1") row.status = "refunded";
+      else row.current_period_end = shorter;
+    });
+
+    const report = await run("apply");
+
+    expect(tables.user_subscriptions?.map((r) => [r.id, r.status, r.current_period_end])).toEqual([
+      ["us-1", "refunded", relativeIso(360 * DZIEN)],
+      ["us-2", "active", shorter],
+      ["us-3", "active", shorter],
+    ]);
+    expect(report.writes).toEqual({ anchors: 3, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    // Kotwice weszły - wiersze są zapisane, choć przycięcia nie było czego robić.
+    expect(report.rows.map((r) => [r.decision, r.applied])).toEqual([
+      ["clamp", true],
+      ["clamp", true],
+      ["clamp", true],
+    ]);
+  });
+
+  it("organizację zawiesił w międzyczasie przebieg dobowy - bez drugiego zapisu i bez licznika", async () => {
+    const start = relativeIso(-40 * DZIEN);
+    const suspendedAt = relativeIso(-1 * GODZINA);
+    seed({
+      subscriptions: [subRow(1, { price_id: "team_monthly_seat", current_period_start: start })],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+          updated_at: relativeIso(-30 * DZIEN),
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, {
+        start,
+        end: relativeIso(-10 * DZIEN),
+        invoice: { status: "open", attempts: 4, finalizedAt: start },
+      }),
+    );
+    beforeWrite("member_organizations", (row) => {
+      row.status = "suspended";
+      row.updated_at = suspendedAt;
+    });
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "revoke", suspendTeam: true, applied: true });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    expect(tables.member_organizations?.[0]).toMatchObject({
+      status: "suspended",
+      updated_at: suspendedAt,
+    });
+  });
+
+  it("każdy zapis zawęża najemca i klucz subskrypcji, a nie sam identyfikator wiersza", async () => {
+    // Atrapa adresuje wiersz po `id`, więc filtrów zawężających nie widać
+    // w skutkach - przybijamy warunki wysłane do bazy dla wszystkich czterech
+    // kroków zapisu (znacznik, kotwica, uprawnienie, zespół).
+    const start = relativeIso(-40 * DZIEN);
+    seed({
+      subscriptions: [
+        subRow(1, {
+          price_id: "team_monthly_seat",
+          current_period_start: start,
+          last_payment_at: relativeIso(-20 * DZIEN),
+        }),
+      ],
+      entitlements: [entRow(1)],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, { start, invoice: { status: "open", attempts: 4, finalizedAt: start } }),
+    );
+
+    const report = await run("apply");
+
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 1, entitlements: 1, teams: 1 });
+    const filters = (chain: RecordedChain) =>
+      chain.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    const subscriptionWrites = updates("subscriptions");
+    expect(subscriptionWrites).toHaveLength(2);
+    for (const chain of subscriptionWrites) {
+      expect(filters(chain)).toEqual(
+        expect.arrayContaining([
+          ["id", subId(1)],
+          ["tenant_id", TENANT],
+          ["environment", "live"],
+          ["status", "canceled"],
+        ]),
+      );
+    }
+    expect(filters(updates("user_subscriptions")[0] as RecordedChain)).toEqual(
+      expect.arrayContaining([
+        ["id", "us-1"],
+        ["tenant_id", TENANT],
+        ["external_ref", providerId(1)],
+        ["status", "active"],
+      ]),
+    );
+    expect(filters(updates("member_organizations")[0] as RecordedChain)).toEqual(
+      expect.arrayContaining([
+        ["provider_subscription_id", providerId(1)],
+        ["tenant_id", TENANT],
+        ["status", "active"],
+      ]),
+    );
+  });
+});
+
+describe("przebieg - odczyt bazy", () => {
+  // Nieudany odczyt NIE jest pustą partią: `done: true` z zerem wierszy
+  // zakończyłby zadanie w panelu, choć nic nie zostało sprawdzone.
+  it.each([
+    ["subscriptions", "legacy reconcile: subscriptions read failed: boom"],
+    ["user_subscriptions", "legacy reconcile: entitlements read failed: boom"],
+    ["member_organizations", "legacy reconcile: teams read failed: boom"],
+  ])("błąd odczytu `%s` przerywa partię - bez operatora i bez zapisów", async (table, message) => {
+    seed({
+      subscriptions: [subRow(1, { price_id: "team_monthly_seat" })],
+      entitlements: [entRow(1)],
+    });
+    db.setResponse(table, fail("boom"));
+    h.remote.set(providerId(1), remoteSub(1));
+
+    await expect(run("apply")).rejects.toThrow(message);
+    expect(h.retrieveCalls).toEqual([]);
+    expect(updates()).toEqual([]);
+  });
+
+  it("partia bez planu Zespół nie pyta o organizacje", async () => {
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    await run("dry_run");
+
+    expect(db.chainsFor("member_organizations")).toEqual([]);
+  });
+
+  it("rozmiar partii: poza 1..100 - domyślna albo górna granica, ułamek obcięty", async () => {
+    seed({ subscriptions: [subRow(1)] });
+
+    for (const [requested, limit] of [
+      [0, 50],
+      [Number.NaN, 50],
+      [500, 100],
+      [2.7, 2],
+    ] as const) {
+      db.chains.length = 0;
+      await run("dry_run", { batchSize: requested });
+      expect(db.chainsFor("subscriptions")[0]?.argsOf("limit")).toEqual([limit]);
+    }
   });
 });

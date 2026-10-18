@@ -43,9 +43,10 @@
 //      nie blokują zakupu i nie zużywają triala. Zakupy jednorazowe (plan
 //      `one_time`, treść, bilet) w ogóle nie przechodzą przez tego strażnika.
 //
-// Źródła są dwa i oba są sprawdzane: lokalny lustrzany wiersz `subscriptions`
-// (pod RLS kupującego - jego konto i najemca z SESJI, nigdy z ładunku) oraz
-// subskrypcje klienta u operatora, które widzą też okno przed webhookiem
+// Źródła są dwa i każde odmawia samodzielnie: lokalny lustrzany wiersz
+// `subscriptions` (pod RLS kupującego - jego konto i najemca z SESJI, nigdy
+// z ładunku; funkcje serwerowe kasy) oraz subskrypcje klienta u operatora
+// (`createPlanCheckoutSession`), które widzą też okno przed webhookiem
 // i historię, której baza nie ma (np. po przepięciu profilu).
 //
 // Moduł czysty (bez zależności serwerowych), więc ta sama reguła żyje
@@ -117,13 +118,17 @@ export function planPurchaseConflict(
   if (refusal === null) return "change_plan";
   if (refusal === "same_plan") return "same_plan";
   // `plan_kind_mismatch`: zmiana planu mówi „wymaga nowego zakupu" - to jest
-  // ten zakup. Inne odmowy dotyczą celu niecyklicznego, który tu nie trafia.
+  // ten zakup. Została odmowa celu niecyklicznego: kasa takiego celu tu nie
+  // podaje, ale alarm duplikatu podaje cenę NOWEJ subskrypcji, a ta bywa
+  // pozycją jednorazową (miejsce Decision Labu jako cena cykliczna) - bez
+  // ścieżki zmiany planu, więc fail-closed.
   if (refusal === "plan_kind_mismatch") return null;
   return "unmanaged";
 }
 
 export interface PlanSubscriptionRecord {
-  status: string | null | undefined;
+  /** Status operatora (Stripe zawsze go podaje, w lustrze `status` jest NOT NULL). */
+  status: string;
   /** `metadata.purpose` subskrypcji u operatora (`donation` = nie plan). */
   purpose?: string | null;
   /** `lookup_key` ceny subskrypcji (w lustrze: `subscriptions.price_id`). */
@@ -163,33 +168,14 @@ export function planSubscriptionHistory(
   let conflict: PlanPurchaseConflict | null = null;
   for (const record of records) {
     if (record.purpose === "donation") continue;
-    const status = typeof record.status === "string" ? record.status : "";
-    if (status && !NEVER_STARTED_STATUSES.has(status)) hadAny = true;
-    if (!isLivePlanSubscriptionStatus(status)) continue;
+    if (!NEVER_STARTED_STATUSES.has(record.status)) hadAny = true;
+    if (!isLivePlanSubscriptionStatus(record.status)) continue;
     const found = planPurchaseConflict(record.lookupKey, target);
     if (found && (!conflict || CONFLICT_WEIGHT[found] > CONFLICT_WEIGHT[conflict])) {
       conflict = found;
     }
   }
   return { hasLive: conflict !== null, hadAny, conflict };
-}
-
-/** Łączy historie z dwóch źródeł - wystarczy ślad w którymkolwiek. */
-export function mergePlanSubscriptionHistory(
-  ...histories: readonly PlanSubscriptionHistory[]
-): PlanSubscriptionHistory {
-  let conflict: PlanPurchaseConflict | null = null;
-  for (const history of histories) {
-    const found = history.conflict;
-    if (found && (!conflict || CONFLICT_WEIGHT[found] > CONFLICT_WEIGHT[conflict])) {
-      conflict = found;
-    }
-  }
-  return {
-    hasLive: histories.some((h) => h.hasLive),
-    hadAny: histories.some((h) => h.hadAny),
-    conflict,
-  };
 }
 
 /**
@@ -219,7 +205,7 @@ export async function loadLocalPlanSubscriptionHistory(
     .limit(100);
   if (error) throw new Error(`subscription history lookup failed: ${error.message}`);
   return planSubscriptionHistory(
-    (data ?? []).map((row) => ({ status: row.status, lookupKey: row.price_id })),
+    data.map((row) => ({ status: row.status, lookupKey: row.price_id })),
     input.target,
   );
 }

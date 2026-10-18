@@ -19,11 +19,13 @@
 //      co w karcie subskrypcji klienta).
 //   4. ŁADUNEK POKAZUJE SIĘ W CAŁOŚCI I NIE WYWALA WIDOKU, gdy jest pusty
 //      albo nie jest obiektem.
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, webhookEvent } from "@/test/billing/fixtures";
 import type { WebhookEventRow } from "@/test/billing/fixtures";
+import { uiLocale } from "@/lib/i18n/format";
 
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
@@ -105,17 +107,53 @@ beforeEach(() => {
   h.toastError.mockReset();
   h.chain = supabaseFromStub();
   h.rows.current = [webhookEvent()];
-  h.chain.setResponse("payment_webhook_events", () =>
-    h.readError.current
-      ? {
-          data: null,
-          error: Object.assign(new Error("permission denied"), { name: "PostgrestError" }),
-        }
-      : ok(h.rows.current),
-  );
+  h.chain.setResponse("payment_webhook_events", (chain) => {
+    if (h.readError.current) {
+      return {
+        data: null,
+        error: Object.assign(new Error("permission denied"), { name: "PostgrestError" }),
+      };
+    }
+    // Atrapa odpowiada jak PostgREST: wyłącznie kolumnami z `select(...)`.
+    // Pojedynczy wiersz (`maybeSingle`) to podgląd ładunku po identyfikatorze.
+    const columns = String(chain.argsOf("select")?.[0] ?? "")
+      .split(",")
+      .map((column) => column.trim());
+    const project = (row: WebhookEventRow) =>
+      Object.fromEntries(columns.map((column) => [column, row[column as keyof WebhookEventRow]]));
+    if (chain.has("maybeSingle")) {
+      const id = chain.calls.find((call) => call.method === "eq" && call.args[0] === "id")?.args[1];
+      const row = h.rows.current.find((candidate) => candidate.id === id);
+      return ok(row ? project(row) : null);
+    }
+    return ok(h.rows.current.map(project));
+  });
+});
+
+afterEach(() => {
+  onlineManager.setOnline(true);
 });
 
 describe("AdminWebhookLogPanel - odczyt dziennika", () => {
+  // Odczyt wstrzymany bez sieci nie ma `isLoading` (to tylko „pobiera teraz"),
+  // ale też nie ma danych: panel ma mówić „wczytuję", a nie pokazywać
+  // statystykę „0 błędów" policzoną z niczego.
+  it("dziennik wstrzymany BEZ SIECI mówi „wczytuję”, bez statystyki z zer i bez pustej listy", async () => {
+    onlineManager.setOnline(false);
+    render();
+
+    expect(await screen.findByText("adminBilling.loading")).toBeTruthy();
+    expect(screen.queryByText(/adminBilling\.webhookStats/)).toBeNull();
+    expect(screen.queryByText("adminBilling.eventsTheseFilters")).toBeNull();
+    expect(h.chain!.chainsFor("payment_webhook_events")).toHaveLength(0);
+
+    // Po powrocie sieci dziennik wczytuje się sam.
+    onlineManager.setOnline(true);
+    await awaitRows();
+    expect(screen.queryByText("adminBilling.loading")).toBeNull();
+    expect(screen.getByText(/adminBilling\.webhookStats/)).toBeTruthy();
+  });
+
   it("czyta najnowsze zdarzenia z limitem, malejąco po dacie", async () => {
     render();
 
@@ -163,6 +201,34 @@ describe("AdminWebhookLogPanel - odczyt dziennika", () => {
     expect(screen.getByText("cus_2")).toBeTruthy();
   });
 
+  it("zdarzenie bez czasu u operatora pokazuje chwilę ZAPISU w dzienniku", async () => {
+    h.rows.current = [webhookEvent({ occurred_at: null, created_at: "2026-08-18T09:30:00.000Z" })];
+    render();
+
+    await awaitRows();
+    const expected = new Date("2026-08-18T09:30:00.000Z").toLocaleString(uiLocale("pl"));
+    expect(within(eventRows()[0] as HTMLElement).getByText(expected)).toBeTruthy();
+  });
+
+  it("interfejs ANGIELSKI pokazuje czas w zapisie angielskim", async () => {
+    h.lang.current = "en";
+    h.rows.current = [webhookEvent({ occurred_at: "2026-08-18T09:30:00.000Z" })];
+    render();
+
+    await awaitRows();
+    const expected = new Date("2026-08-18T09:30:00.000Z").toLocaleString(uiLocale("en"));
+    expect(within(eventRows()[0] as HTMLElement).getByText(expected)).toBeTruthy();
+  });
+
+  it("status spoza słownika tonów jest pokazany neutralnie, a nie bez stylu", async () => {
+    h.rows.current = [webhookEvent({ status: "quarantined" })];
+    render();
+
+    const badge = await screen.findByText("quarantined");
+    expect(badge.className).toContain("bg-muted");
+    expect(badge.className).toContain("text-muted-foreground");
+  });
+
   it("bez subskrypcji i klienta zostaje identyfikator zdarzenia", async () => {
     h.rows.current = [
       webhookEvent({ subscription_id: null, customer_id: null, event_id: "evt_samotne" }),
@@ -173,11 +239,16 @@ describe("AdminWebhookLogPanel - odczyt dziennika", () => {
     expect(screen.getByText("evt_samotne")).toBeTruthy();
   });
 
-  it("BŁĄD ODCZYTU nie udaje pustego dziennika", async () => {
+  // DEFEKT (2026-10-18): błąd odczytu kończył się komunikatem „brak zdarzeń
+  // dla tych filtrów" i statystyką „0 błędów" - czyli dokładnie pustym
+  // dziennikiem, którego test o tym tytule miał nie udawać.
+  it("BŁĄD ODCZYTU nie udaje pustego dziennika ani zerowych statystyk", async () => {
     h.readError.current = true;
     render();
 
-    await waitFor(() => expect(screen.getByText("adminBilling.eventsTheseFilters")).toBeTruthy());
+    expect((await screen.findByRole("alert")).textContent).toBe("permission denied");
+    expect(screen.queryByText("adminBilling.eventsTheseFilters")).toBeNull();
+    expect(screen.queryByText(/adminBilling\.webhookStats/)).toBeNull();
     // Kluczowe: brak wiersza z danymi - panel nie pokazuje wymyślonego stanu.
     expect(eventRows()).toHaveLength(0);
   });
@@ -308,6 +379,65 @@ describe("AdminWebhookLogPanel - filtry i statystyki", () => {
 });
 
 describe("AdminWebhookLogPanel - podgląd ładunku", () => {
+  // ŁADUNEK TO PEŁNE ZDARZENIE OPERATORA (kilka-kilkadziesiąt kB na wiersz).
+  // Lista czytała go dla wszystkich 300 wierszy przy każdym otwarciu i każdym
+  // odświeżeniu (`staleTime` 15 s), choć pokazuje go wyłącznie podgląd JEDNEGO
+  // rozwiniętego wiersza. Teraz lista go nie czyta, a podgląd dociąga ładunek
+  // tego jednego wiersza po identyfikatorze.
+  it("lista NIE czyta ładunków; podgląd dociąga ładunek JEDNEGO wiersza po identyfikatorze", async () => {
+    h.rows.current = [
+      webhookEvent({ id: "a", payload: { marker: "pierwszy" } }),
+      webhookEvent({ id: "b", payload: { marker: "drugi" } }),
+    ];
+    render();
+    await awaitRows();
+
+    const [list] = h.chain!.chainsFor("payment_webhook_events");
+    expect(String(list.argsOf("select")?.[0])).not.toContain("payload");
+    expect(h.chain!.chainsFor("payment_webhook_events")).toHaveLength(1);
+
+    fireEvent.click(screen.getAllByLabelText("adminBilling.showPayload")[1]);
+
+    await waitFor(() => expect(document.querySelector("pre")!.textContent).toContain("drugi"));
+    const preview = h.chain!.chainsFor("payment_webhook_events").at(-1)!;
+    expect(preview.argsOf("select")).toEqual(["payload"]);
+    expect(preview.calls).toContainEqual({ method: "eq", args: ["id", "b"] });
+    expect(preview.has("maybeSingle")).toBe(true);
+  });
+
+  it("ładunek przeczytany RAZ: zwinięcie i ponowne rozwinięcie wiersza nie pyta bazy drugi raz", async () => {
+    // Ładunek zdarzenia się nie zmienia (ponowienie czyta ten sam zapis), więc
+    // przeglądanie dziennika „rozwiń - zwiń - rozwiń" nie może za każdym razem
+    // ciągnąć kilkudziesięciu kB z bazy.
+    h.rows.current = [webhookEvent({ id: "a", payload: { marker: "pierwszy" } })];
+    render();
+    await awaitRows();
+    const previewReads = () =>
+      h.chain!.chainsFor("payment_webhook_events").filter((chain) => chain.has("maybeSingle"));
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+    await waitFor(() => expect(document.querySelector("pre")?.textContent).toContain("pierwszy"));
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+    await waitFor(() => expect(document.querySelector("pre")).toBeNull());
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    // Podgląd od razu z pamięci, bez stanu „wczytuję".
+    expect(document.querySelector("pre")?.textContent).toContain("pierwszy");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(previewReads()).toHaveLength(1);
+  });
+
+  it("BŁĄD odczytu ładunku jest pokazany w podglądzie, a nie jako pusty ładunek", async () => {
+    render();
+    await awaitRows();
+    h.readError.current = true;
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    await waitFor(() => expect(screen.getByText("permission denied")).toBeTruthy());
+    expect(document.querySelector("pre")).toBeNull();
+  });
+
   it("ładunek jest ukryty, dopóki operator go nie rozwinie", async () => {
     render();
     await awaitRows();
@@ -394,6 +524,36 @@ describe("AdminWebhookLogPanel - podgląd ładunku", () => {
     expect(screen.getByText(/adminBilling\.retriesCount/).textContent).toContain('"count":3');
   });
 
+  it("zdarzenie bez użytkownika i bez zakończenia obsługi ma kreski, nie „null”", async () => {
+    h.rows.current = [webhookEvent({ user_id: null, processed_at: null, status: "received" })];
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    const details = await waitFor(() => {
+      const list = document.querySelector("dl");
+      expect(list).toBeTruthy();
+      return list!;
+    });
+    const value = (label: string) =>
+      within(details).getByText(new RegExp(`^${label}:`)).nextElementSibling?.textContent;
+    expect(value("adminBilling\\.user")).toBe("-");
+    expect(value("adminBilling\\.finished")).toBe("-");
+    expect(details.textContent).not.toContain("null");
+  });
+
+  it("wiersz usunięty z dziennika między listą a podglądem pokazuje `null`, a nie wywraca panelu", async () => {
+    render();
+    await awaitRows();
+    // Retencja dziennika usunęła wiersz po wczytaniu listy.
+    h.rows.current = [];
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    await waitFor(() => expect(document.querySelector("pre")?.textContent).toBe("null"));
+  });
+
   it("zdarzenie bez ponowień mówi to osobnym kluczem", async () => {
     h.rows.current = [webhookEvent({ retry_count: 0 })];
     render();
@@ -450,6 +610,40 @@ describe("AdminWebhookLogPanel - PONOWIENIE zdarzenia", () => {
         "adminBilling.retryFailed",
         expect.objectContaining({ description: "nieznany plan w metadanych" }),
       ),
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("nieudane ponowienie BEZ powodu nie dokleja pustego opisu", async () => {
+    h.retry.mockResolvedValue({
+      status: "failed",
+      error: null,
+      eventType: "checkout.session.completed",
+      durationMs: 12,
+    });
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.retry2"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.retryFailed", {
+        description: undefined,
+      }),
+    );
+  });
+
+  it("odrzucenie transportu wartością bez komunikatu nadal kończy się komunikatem ponowienia", async () => {
+    h.retry.mockRejectedValue("zerwane połączenie");
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.retry2"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.couldRetryEvent", {
+        description: undefined,
+      }),
     );
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });

@@ -55,6 +55,16 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
     [plansQ.data, subscription?.plan],
   );
 
+  // Zmiana planu ma sens tylko w TRWAJĄCYM opłaconym okresie - ta sama reguła
+  // co przy karcie zmiany planu w sekcji subskrypcji. Serwer odmawia zakupowi
+  // dożywotniemu (bez końca okresu: `subscription_not_switchable`) i
+  // subskrypcji po końcu okresu (`subscription_period_ended`), więc przycisk
+  // zmiany kończyłby się tam zawsze błędem; zamiast niego jest wejście na cennik.
+  const switchable =
+    subscription?.current_period_end && Date.parse(subscription.current_period_end) > Date.now()
+      ? subscription
+      : null;
+
   // Identyfikator subskrypcji przychodzi z kliknięcia: przycisk zmiany istnieje
   // wyłącznie przy subskrypcji, więc mutacja nigdy nie startuje bez niej.
   const changePlan = useMutation({
@@ -119,13 +129,13 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
               {t("profile.planPage.details")}
             </Link>
           </Button>
-          {subscription ? (
+          {switchable ? (
             <Button
               size="sm"
               variant={option.direction === "upgrade" ? "default" : "outline"}
               disabled={changePlan.isPending}
               onClick={() =>
-                changePlan.mutate({ subscriptionId: subscription.id, planId: option.plan.id })
+                changePlan.mutate({ subscriptionId: switchable.id, planId: option.plan.id })
               }
             >
               {changePlan.isPending && (

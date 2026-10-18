@@ -18,6 +18,7 @@
 import { useId, type ReactNode } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -104,7 +105,17 @@ export function AdminFormTextRow({
           </span>
         ) : null}
       </div>
-      {rows === undefined ? (
+      {rows === undefined && (type === "date" || type === "datetime-local") ? (
+        // Daty idą przez wspólny atom z kalendarzem platformy - natywny
+        // kalendarz przeglądarki nie zna motywu ani języka panelu.
+        <DateInput
+          {...shared}
+          type={type}
+          min={min}
+          max={max}
+          autoFocus={autoFocus}
+        />
+      ) : rows === undefined ? (
         endAdornment === undefined ? (
           <Input
             {...shared}
