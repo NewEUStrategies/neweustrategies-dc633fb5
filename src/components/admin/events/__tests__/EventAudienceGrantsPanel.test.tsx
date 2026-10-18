@@ -99,6 +99,20 @@ vi.mock("@/lib/i18n/format", async (importOriginal) => ({
 // Radix Switch nie przełącza się pod happy-dom bez pointer API - oba filtry
 // i przełącznik zakresu w oknie są natywnymi polami wyboru z tą samą
 // dostępną nazwą.
+// Wyszukiwarka podmiotu ma własny test; tu liczy się wyłącznie oddany identyfikator.
+vi.mock("@/components/admin/events/molecules/GrantSubjectCombobox", () => ({
+  GrantSubjectCombobox: ({
+    id,
+    value,
+    onChange,
+  }: {
+    id?: string;
+    value: string;
+    onChange: (v: string) => void;
+  }) => (
+    <input id={id} aria-label="UUID" value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
 
 // Radix Select nie renderuje opcji bez pointer API - droplista jest natywnym

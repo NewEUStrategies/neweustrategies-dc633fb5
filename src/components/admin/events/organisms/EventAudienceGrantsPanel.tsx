@@ -46,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormSelect } from "@/components/atoms/FormSelect";
+import { GrantSubjectCombobox } from "@/components/admin/events/molecules/GrantSubjectCombobox";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { formatDateTime } from "@/lib/i18n/format";
@@ -372,6 +373,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                     setDraft((prev) => ({
                       ...prev,
                       subjectKind: SUBJECT_KINDS.find((item) => item === value) ?? "user",
+                      subjectId: "",
                     }))
                   }
                   options={[
@@ -391,15 +393,14 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="grant-subject-id">UUID</Label>
-                <Input
+                <Label htmlFor="grant-subject-id">
+                  {t("adminEventRegistration.audienceGrants.subjectSearch.label")}
+                </Label>
+                <GrantSubjectCombobox
                   id="grant-subject-id"
+                  kind={draft.subjectKind}
                   value={draft.subjectId}
-                  onChange={(event) =>
-                    setDraft((prev) => ({ ...prev, subjectId: event.target.value }))
-                  }
-                  placeholder="00000000-0000-0000-0000-000000000000"
-                  autoComplete="off"
+                  onChange={(subjectId) => setDraft((prev) => ({ ...prev, subjectId }))}
                 />
               </div>
             </div>

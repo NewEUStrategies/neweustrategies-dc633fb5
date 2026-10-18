@@ -161,13 +161,13 @@ export function EventSpeakerCardDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-[6px] p-5">
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto rounded-[6px] p-5">
         <DialogHeader>
           <DialogTitle>{t("adminCommunityEvents.speakers.card.title", { name })}</DialogTitle>
           <DialogDescription>{t("adminCommunityEvents.speakers.card.subtitle")}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_17rem] lg:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="space-y-4">
             <EventSpeakerCardFields
               idPrefix={`speaker-card-${speaker.speaker_profile_id}`}
@@ -196,7 +196,7 @@ export function EventSpeakerCardDialog({
             </section>
           </div>
 
-          <aside className="space-y-2">
+          <aside className="space-y-2 md:sticky md:top-0 md:self-start md:rounded-[6px] md:border md:border-border/60 md:bg-card md:p-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("adminCommunityEvents.speakers.card.preview")}
