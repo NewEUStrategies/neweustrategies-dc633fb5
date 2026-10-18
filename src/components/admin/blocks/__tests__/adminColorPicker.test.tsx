@@ -16,10 +16,14 @@
 //      To jest tu ZALETA i dlatego jest przypieta: rodzina `blocks/edit`
 //      klamrowania NIE MA (siedem defektow koercji w tym samym module), wiec
 //      ten plik jest kontrprzykladem, ktorego nie wolno zgubic,
-//   4. przezroczystosc: przelacznik w obie strony, wraz z `aria-pressed`,
+//   4. przezroczystosc: przelacznik w obie strony, wraz z `aria-pressed`
+//      i etykieta, ktora PRZEZYWA wcisniecie (naprawione 2026-10-18),
 //   5. reset do wartosci odziedziczonej oddaje `undefined`, a nie pusty napis -
-//      rozroznienie "brak nadpisania" kontra "nadpisane pustka",
-//   6. stan odziedziczony rysuje obwodke przerywana zamiast pelnej.
+//      rozroznienie "brak nadpisania" kontra "nadpisane pustka"; powrot do
+//      dziedziczenia w popoverze stoi TYLKO przy wlasnym nadpisaniu,
+//   6. stan odziedziczony rysuje obwodke przerywana zamiast pelnej,
+//   7. wszystkie napisy ida ze slownika w OBU jezykach - zaden surowy klucz
+//      `blocks.editors.adminControls.*` nie dociera do redaktora.
 //
 // CZEGO TU NIE MA - swiadomie: nie steruje kanwa `react-colorful`
 // (`HexColorPicker`). To komponent obcy, ktory liczy pozycje wskaznika
@@ -27,7 +31,8 @@
 // mierzylby atrape przegladarki, nie ten plik. Jego wyjscie idzie tym samym
 // `commitHex`, co wejscie HEX, ktore jest tu pokryte.
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import i18n from "@/lib/i18n";
 
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { realT } from "@/test/i18nReal";
@@ -41,6 +46,7 @@ const PICK = t("blocks.editors.adminControls.pickColor");
 const SET_TRANSPARENT = t("blocks.editors.adminControls.setTransparent");
 const DISABLE_TRANSPARENT = t("blocks.editors.adminControls.disableTransparency");
 const RESET = t("blocks.editors.adminControls.resetDefault");
+const RESET_INHERITED = t("blocks.editors.adminControls.resetInherited");
 
 interface Setup {
   onChange: ReturnType<typeof vi.fn>;
@@ -68,12 +74,9 @@ function openPopover(): HTMLElement {
 }
 
 /**
- * Przelacznik przezroczystosci. Szukam po `aria-pressed`, NIE po nazwie
- * dostepnej - i to jest swiadome, bo nazwa tego przycisku ZNIKA po wcisnieciu:
- * gdy wartosc jest przezroczysta, trescia guzika jest znak "✓", a `title`
- * przestaje byc zrodlem nazwy (tresc ma pierwszenstwo w wyliczaniu nazwy
- * dostepnej). Defekt jest zarejestrowany asercja `it.fails` nizej; tutaj
- * potrzebuje selektora, ktory dziala w OBU stanach.
+ * Przelacznik przezroczystosci - jedyny przycisk z `aria-pressed` w wierszu.
+ * Selektor dziala w OBU stanach; nazwe dostepna (od 2026-10-18 stala dzieki
+ * `aria-label`) sprawdzaja osobne testy nizej.
  */
 function transparencyToggle(container: HTMLElement): HTMLElement {
   const found = container.querySelector<HTMLElement>("button[aria-pressed]");
@@ -325,76 +328,105 @@ describe("AdminColorPicker - przezroczystosc i reset", () => {
     expect(screen.queryByRole("button", { name: RESET })).toBeNull();
   });
 
-  it("popover ma WLASNY reset, gdy wartosc jest tylko odziedziczona", () => {
-    // Druga sciezka `onChange(undefined)` w tym pliku - w stopce panelu
-    // popovera, widoczna wylacznie przy `showInherited`.
-    const { onChange } = setup({ value: "", inheritedValue: "#00ff00" });
+  it("popover ma WLASNY powrot do dziedziczenia, gdy redaktor nadpisal kolor", () => {
+    // Druga sciezka `onChange(undefined)` w tym pliku - w panelu popovera.
+    // ZMIANA 2026-10-18: guzik stal TYLKO wtedy, gdy nadpisania nie bylo, czyli
+    // gdy nie bylo czego zdejmowac - a znikal w chwili wybrania koloru.
+    const { onChange } = setup({ value: "#ff0000", inheritedValue: "#00ff00" });
     const dialog = openPopover();
-    const inner = within(dialog)
-      .getAllByRole("button")
-      .filter((b) => b.className.includes("mt-auto"));
-    expect(inner).toHaveLength(1);
-    fireEvent.click(inner[0]);
+    fireEvent.click(within(dialog).getByRole("button", { name: RESET_INHERITED }));
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
 
-  it("wewnetrznego resetu NIE MA, gdy dziedziczona wartosc jest przezroczysta", () => {
-    // `showInherited` wymaga `!isTransparent(inherited)` - przezroczystosc nie
-    // jest wartoscia, do ktorej warto "wrocic".
-    setup({ value: "", inheritedValue: "transparent" });
+  it("bez wlasnego nadpisania powrotu do dziedziczenia w popoverze NIE MA", () => {
+    // Wartosc juz jest dziedziczona - guzik, ktory nic nie zmienia, jest gorszy
+    // niz jego brak.
+    setup({ value: "", inheritedValue: "#00ff00" });
     const dialog = openPopover();
-    expect(
-      within(dialog)
-        .getAllByRole("button")
-        .filter((b) => b.className.includes("mt-auto")),
-    ).toHaveLength(0);
+    expect(within(dialog).queryByRole("button", { name: RESET_INHERITED })).toBeNull();
+  });
+
+  it("powrotu do dziedziczenia NIE MA, gdy dziedziczona wartosc jest przezroczysta", () => {
+    // Przezroczystosc nie jest wartoscia, do ktorej warto "wrocic".
+    setup({ value: "#ff0000", inheritedValue: "transparent" });
+    const dialog = openPopover();
+    expect(within(dialog).queryByRole("button", { name: RESET_INHERITED })).toBeNull();
+  });
+
+  it("powrotu do dziedziczenia NIE MA, gdy wolajacy wylaczyl reset", () => {
+    setup({ value: "#ff0000", inheritedValue: "#00ff00", allowReset: false });
+    const dialog = openPopover();
+    expect(within(dialog).queryByRole("button", { name: RESET_INHERITED })).toBeNull();
   });
 });
 
-// ── DWA DEFEKTY TEGO PLIKU, ZAREJESTROWANE, NIE NAPRAWIONE ───────────────────
-describe("AdminColorPicker - defekty zarejestrowane", () => {
-  it("STAN DZIS: wcisniety przelacznik nazywa sie znakiem `✓`, a nie swoja etykieta", () => {
-    // Asercja stanu biezacego, zeby zmiana nie przeszla niezauwazona.
+// ── DWA DAWNE DEFEKTY TEGO PLIKU - NAPRAWIONE 2026-10-18 ─────────────────────
+describe("AdminColorPicker - etykiety przelacznika i panelu (dawne defekty)", () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails` + „STAN DZIS"): wcisniety przelacznik
+  // nazywal sie znakiem `✓`, bo tresc guzika wygrywa z `title` w wyliczaniu
+  // nazwy dostepnej. KONTRAKT: nazwe niesie `aria-label`, a znak jest
+  // `aria-hidden` - czytnik slyszy „Wylacz przezroczystosc, wcisniety".
+  it("wcisniety przelacznik zachowuje etykiete zamiast nazywac sie `✓`", () => {
     const { container } = setup({ value: "transparent" });
-    expect(transparencyToggle(container).textContent).toBe("✓");
-    expect(screen.queryByRole("button", { name: DISABLE_TRANSPARENT })).toBeNull();
+    const przelacznik = screen.getByRole("button", { name: DISABLE_TRANSPARENT });
+    expect(przelacznik).toBe(transparencyToggle(container));
+    expect(przelacznik).toHaveAttribute("aria-pressed", "true");
   });
 
-  it.fails(
-    "POWINIEN zachowac etykiete po wcisnieciu - dzis czytnik ekranu slyszy `✓ wcisniety` zamiast `Wylacz przezroczystosc`",
-    () => {
-      // `title` przegrywa z trescia w wyliczaniu nazwy dostepnej, wiec
-      // wstawienie "✓" do srodka guzika ODBIERA mu etykiete. Naprawa to
-      // `aria-label` obok `title` (albo znak w `::after`), ale to zmiana
-      // produkcyjna - nie w tym zadaniu.
-      setup({ value: "transparent" });
-      expect(screen.getByRole("button", { name: DISABLE_TRANSPARENT })).toBeInTheDocument();
-    },
-  );
+  it("niewcisniety przelacznik nazywa sie akcja wlaczenia", () => {
+    const { container } = setup({ value: "#ff0000" });
+    expect(screen.getByRole("button", { name: SET_TRANSPARENT })).toBe(
+      transparencyToggle(container),
+    );
+  });
 
-  it("STAN DZIS: wewnetrzny reset pokazuje redaktorowi SUROWY KLUCZ i18n", () => {
-    // `ac("resetInherited") || ac("resetDefault")` mialo byc fallbackiem, ale
-    // i18next na brakujacym kluczu oddaje SAM KLUCZ - napis prawdziwy, wiec
-    // `||` nigdy nie wchodzi, a fallback jest martwy.
-    setup({ value: "", inheritedValue: "#00ff00" });
+  // NAPRAWIONE 2026-10-18 (byl `it.fails` + „STAN DZIS"): panel pokazywal
+  // SUROWE KLUCZE `adminControls.resetInherited`, `activeToken` i
+  // `brandPalette` - fallback `ac(k) || "…"` byl martwy, bo i18next na
+  // brakujacym kluczu oddaje sam klucz. KONTRAKT: klucze istnieja w PL i EN,
+  // a fallbacki zniknely z kodu.
+  it("panel popovera nie pokazuje redaktorowi zadnego surowego klucza i18n", () => {
+    setup({ value: "#ff0000", inheritedValue: "#00ff00" });
     const dialog = openPopover();
-    const inner = within(dialog)
-      .getAllByRole("button")
-      .filter((b) => b.className.includes("mt-auto"))[0];
-    expect(inner.textContent).toContain("blocks.editors.adminControls.resetInherited");
+    expect(dialog.textContent).not.toContain("blocks.editors.adminControls.");
+    expect(within(dialog).getByText(t("blocks.editors.adminControls.activeToken"))).toBeVisible();
+    expect(within(dialog).getByText(t("blocks.editors.adminControls.brandPalette"))).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: RESET_INHERITED })).toBeInTheDocument();
   });
 
-  it.fails(
-    "POWINIEN pokazac tekst w jezyku redaktora - brakuje klucza `adminControls.resetInherited` w PL i EN",
-    () => {
-      setup({ value: "", inheritedValue: "#00ff00" });
-      const dialog = openPopover();
-      const inner = within(dialog)
-        .getAllByRole("button")
-        .filter((b) => b.className.includes("mt-auto"))[0];
-      expect(inner.textContent).not.toContain("blocks.editors.adminControls.");
-    },
-  );
+  it("podpowiedz dziedziczenia idzie ze slownika i pokazuje odziedziczona wartosc", () => {
+    // Napis `dziedziczy: …` byl wpisany w kod po polsku - takze w panelu EN.
+    const { container } = setup({ value: "", inheritedValue: "#00ff00" });
+    expect(tokenInput(container)).toHaveAttribute(
+      "placeholder",
+      t("blocks.editors.adminControls.inheritsPh", { value: "#00ff00" }),
+    );
+    expect(tokenInput(container).placeholder).toContain("#00ff00");
+  });
+
+  it("w panelu angielskim podpowiedz dziedziczenia jest po angielsku", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      const { container } = setup({ value: "", inheritedValue: "#00ff00" });
+      expect(tokenInput(container)).toHaveAttribute(
+        "placeholder",
+        tEn("blocks.editors.adminControls.inheritsPh", { value: "#00ff00" }),
+      );
+    } finally {
+      // Odmontowanie PRZED powrotem do polskiego - `changeLanguage`
+      // przerenderowuje kazdy zamontowany komponent.
+      cleanup();
+      await i18n.changeLanguage("pl");
+    }
+  });
+
+  it("wszystkie nowe etykiety panelu istnieja takze po angielsku", () => {
+    for (const k of ["resetInherited", "activeToken", "brandPalette", "inheritsPh"]) {
+      const en = tEn(`blocks.editors.adminControls.${k}`, { value: "#00ff00" });
+      expect(en).not.toContain("blocks.editors.adminControls.");
+      expect(en).not.toBe(t(`blocks.editors.adminControls.${k}`, { value: "#00ff00" }));
+    }
+  });
 });
 
 describe("AdminColorPicker - stan odziedziczony i etykiety", () => {

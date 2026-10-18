@@ -27,7 +27,13 @@ import { CSS } from "@dnd-kit/utilities";
 import type { Block } from "@/lib/blocks/types";
 import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
 import { htmlTextLength, innerInlineHtml, mergeInlineIntoHtml } from "@/lib/blocks/merge";
-import { insertChildAt, moveChild, removeChildAt, replaceChildWith } from "@/lib/blocks/nested";
+import {
+  insertChildAt,
+  insertChildrenAt,
+  moveChild,
+  removeChildAt,
+  replaceChildWith,
+} from "@/lib/blocks/nested";
 import { regenerateBlockIds } from "@/lib/blocks/clipboard";
 import { ChevronDown, ChevronUp, Copy, GripVertical, Trash2 } from "@/lib/lucide-shim";
 import { IconButton } from "../atoms/IconButton";
@@ -68,6 +74,22 @@ export function NestedBlocksEditor({ blocks, onChange, emptyLabel }: Props) {
       emit(insertChildAt(blocksRef.current, idx, block));
       setActiveChildId(block.id);
       if (isTextEntryBlockType(block.type)) requestBlockFocus(block.id, "start");
+    },
+    [emit],
+  );
+
+  /**
+   * Wstawienie WIELU bloków (wzorzec) - odpowiednik `insertBlocksAt` kanwy
+   * głównej: aktywność i karetka przechodzą na OSTATNI wstawiony blok, więc
+   * ten sam gest zachowuje się tak samo w kontenerze i poza nim.
+   */
+  const insertManyAt = useCallback(
+    (idx: number, list: Block[]) => {
+      const last = list[list.length - 1];
+      if (!last) return;
+      emit(insertChildrenAt(blocksRef.current, idx, list));
+      setActiveChildId(last.id);
+      if (isTextEntryBlockType(last.type)) requestBlockFocus(last.id, "end");
     },
     [emit],
   );
@@ -173,9 +195,7 @@ export function NestedBlocksEditor({ blocks, onChange, emptyLabel }: Props) {
         <BlockInserter
           variant="fab"
           onInsert={(b) => insertAt(0, b)}
-          onInsertBlocks={(list) => {
-            emit([...blocksRef.current, ...list]);
-          }}
+          onInsertBlocks={(list) => insertManyAt(0, list)}
         />
       </div>
     );
@@ -187,7 +207,7 @@ export function NestedBlocksEditor({ blocks, onChange, emptyLabel }: Props) {
         <div className="space-y-0.5" data-nested-canvas>
           <BlockInserter
             onInsert={(b) => insertAt(0, b)}
-            onInsertBlocks={(list) => emit([...list, ...blocksRef.current])}
+            onInsertBlocks={(list) => insertManyAt(0, list)}
           />
           {blocks.map((child, idx) => (
             <div key={child.id}>
@@ -233,11 +253,7 @@ export function NestedBlocksEditor({ blocks, onChange, emptyLabel }: Props) {
               </NestedChildRow>
               <BlockInserter
                 onInsert={(b) => insertAt(idx + 1, b)}
-                onInsertBlocks={(list) => {
-                  const arr = [...blocksRef.current];
-                  arr.splice(idx + 1, 0, ...list);
-                  emit(arr);
-                }}
+                onInsertBlocks={(list) => insertManyAt(idx + 1, list)}
               />
             </div>
           ))}

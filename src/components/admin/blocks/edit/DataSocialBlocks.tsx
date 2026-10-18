@@ -7,6 +7,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
+import { asRecord, readDecimal, readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -27,6 +28,25 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 const inputCls = "w-full text-xs bg-background border border-border rounded px-2 py-2 h-9";
 const selectCls = inputCls;
 
+// KOERCJA TREŚCI. Pola tekstowe idą przez `readText`, a nie `String()`:
+// obiekt (np. treść per język po migracji) wchodził do pola jako literalne
+// „[object Object]", a pierwsza edycja utrwalała ten napis w dokumencie.
+//
+// Liczba kolumn musi być JEDNĄ Z OPCJI listy. Natywny `<select>` z wartością
+// spoza opcji pokazuje pierwszą z nich (React zaznacza wtedy pierwszą
+// dostępną), więc „trzy" albo 7 wyglądały w panelu jak „2 kolumny", podczas
+// gdy strona rysuje domyślne 3 (`num(..., 3)` i `COLS_CLS[n] ?? COLS_CLS[3]`).
+// Wartość spoza opcji wraca więc do domyślnej - tej samej, co w renderze.
+function readColumns(raw: Json | undefined, options: readonly number[], fallback: number): number {
+  const n = readDecimal(raw);
+  return n !== null && options.includes(n) ? n : fallback;
+}
+
+const TEAM_COLUMNS = [2, 3, 4] as const;
+const LOGO_COLUMNS = [3, 4, 5, 6] as const;
+const FEATURE_COLUMNS = [2, 3, 4] as const;
+const DIVIDER_ALIGNS = ["left", "center", "right"] as const;
+
 // ===== Team Grid =====
 
 interface TeamMember {
@@ -42,20 +62,20 @@ export function TeamGridBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TeamMember[] = rawItems.map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
+    const o = asRecord(i);
     return {
-      name: String(o.name ?? ""),
-      role: String(o.role ?? ""),
-      bio: String(o.bio ?? ""),
-      avatar: String(o.avatar ?? ""),
-      href: String(o.href ?? ""),
-      social: String(o.social ?? ""),
+      name: readText(o.name),
+      role: readText(o.role),
+      bio: readText(o.bio),
+      avatar: readText(o.avatar),
+      href: readText(o.href),
+      social: readText(o.social),
     };
   });
   const update = (next: TeamMember[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
-  const columns = Number(block.data.columns ?? 3);
+  const columns = readColumns(block.data.columns, TEAM_COLUMNS, 3);
   const shape = String(block.data.shape ?? "circle");
 
   return (
@@ -63,7 +83,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
       <input
         className={inputCls}
         placeholder={i18n.editor("dataSocialBlocks", "sectionTitle")}
-        value={String(block.data.title ?? "")}
+        value={readText(block.data.title)}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
@@ -190,8 +210,8 @@ export function LogoGridBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: LogoItem[] = rawItems.map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return { url: String(o.url ?? ""), alt: String(o.alt ?? ""), href: String(o.href ?? "") };
+    const o = asRecord(i);
+    return { url: readText(o.url), alt: readText(o.alt), href: readText(o.href) };
   });
   const update = (next: LogoItem[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
@@ -202,13 +222,13 @@ export function LogoGridBlock({ block, onChange }: Props) {
       <input
         className={inputCls}
         placeholder={i18n.editor("dataSocialBlocks", "sectionTitle")}
-        value={String(block.data.title ?? "")}
+        value={readText(block.data.title)}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <div className="grid grid-cols-3 gap-2">
         <AdminSelect
           className={selectCls}
-          value={Number(block.data.columns ?? 5)}
+          value={readColumns(block.data.columns, LOGO_COLUMNS, 5)}
           onChange={(e) =>
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
@@ -300,6 +320,22 @@ export function LogoGridBlock({ block, onChange }: Props) {
 
 // ===== Feature Grid =====
 
+/** Ikony, które zna render publiczny (`FEATURE_ICON_MAP`); nieznana rysuje się jako gwiazdka. */
+const FEATURE_ICONS = [
+  "star",
+  "zap",
+  "shield",
+  "rocket",
+  "heart",
+  "check",
+  "trophy",
+  "target",
+  "globe",
+  "lightbulb",
+  "sparkles",
+  "gauge",
+] as const;
+
 interface FeatureItem {
   icon: string;
   title: string;
@@ -311,50 +347,35 @@ export function FeatureGridBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const rawItems = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: FeatureItem[] = rawItems.map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
+    const o = asRecord(i);
     return {
-      icon: String(o.icon ?? "star"),
-      title: String(o.title ?? ""),
-      description: String(o.description ?? ""),
-      href: String(o.href ?? ""),
+      icon: readText(o.icon) || "star",
+      title: readText(o.title),
+      description: readText(o.description),
+      href: readText(o.href),
     };
   });
   const update = (next: FeatureItem[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
-  const iconOptions = [
-    "star",
-    "zap",
-    "shield",
-    "rocket",
-    "heart",
-    "check",
-    "trophy",
-    "target",
-    "globe",
-    "lightbulb",
-    "sparkles",
-    "gauge",
-  ];
-
   return (
     <Shell label={i18n.editor("dataSocialBlocks", "featureLabel")}>
       <input
         className={inputCls}
         placeholder={i18n.editor("dataSocialBlocks", "sectionTitle")}
-        value={String(block.data.title ?? "")}
+        value={readText(block.data.title)}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[48px]"
         placeholder={i18n.editor("dataSocialBlocks", "subtitle")}
-        value={String(block.data.subtitle ?? "")}
+        value={readText(block.data.subtitle)}
         onChange={(e) => onChange({ ...block, data: { ...block.data, subtitle: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className={selectCls}
-          value={Number(block.data.columns ?? 3)}
+          value={readColumns(block.data.columns, FEATURE_COLUMNS, 3)}
           onChange={(e) =>
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
@@ -386,7 +407,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
                   update(next);
                 }}
               >
-                {iconOptions.map((o) => (
+                {FEATURE_ICONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
                   </option>
@@ -466,26 +487,26 @@ export function AlertBannerBlock({ block, onChange }: Props) {
       <input
         className={inputCls}
         placeholder={i18n.editor("dataSocialBlocks", "title")}
-        value={String(d.title ?? "")}
+        value={readText(d.title)}
         onChange={(e) => onChange({ ...block, data: { ...d, title: e.target.value } })}
       />
       <textarea
         className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[56px]"
         placeholder={i18n.editor("dataSocialBlocks", "message")}
-        value={String(d.message ?? "")}
+        value={readText(d.message)}
         onChange={(e) => onChange({ ...block, data: { ...d, message: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <input
           className={inputCls}
           placeholder={i18n.editor("dataSocialBlocks", "ctaLabel")}
-          value={String(d.ctaLabel ?? "")}
+          value={readText(d.ctaLabel)}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaLabel: e.target.value } })}
         />
         <input
           className={inputCls}
           placeholder={i18n.field("ctaUrl")}
-          value={String(d.ctaHref ?? "")}
+          value={readText(d.ctaHref)}
           onChange={(e) => onChange({ ...block, data: { ...d, ctaHref: e.target.value } })}
         />
       </div>
@@ -516,18 +537,22 @@ export function AlertBannerBlock({ block, onChange }: Props) {
 export function DividerTextBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const d = block.data;
+  // Domyślne wyrównanie to ŚRODEK, a nie pierwsza opcja listy („po lewej") -
+  // wartość spoza listy pokazywałaby inne wyrównanie niż to, które rysuje strona.
+  const alignRaw = readText(d.align);
+  const align = (DIVIDER_ALIGNS as readonly string[]).includes(alignRaw) ? alignRaw : "center";
   return (
     <Shell label={i18n.editor("dataSocialBlocks", "dividerLabel")}>
       <input
         className={inputCls}
         placeholder={i18n.editor("dataSocialBlocks", "dividerText")}
-        value={String(d.text ?? "")}
+        value={readText(d.text)}
         onChange={(e) => onChange({ ...block, data: { ...d, text: e.target.value } })}
       />
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className={selectCls}
-          value={String(d.align ?? "center")}
+          value={align}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
           <option value="left">{i18n.editor("dataSocialBlocks", "alignLeft")}</option>

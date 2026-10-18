@@ -15,8 +15,22 @@ function readLevels(block: Block, count: number): number[] {
   );
 }
 
+/**
+ * Pozycje listy TAK, JAK CZYTA JE STRONA (`strList`): wyłącznie napisy, a ich
+ * indeksy są indeksami `levels`. Wcześniej `items as string[]` było
+ * rzutowaniem, nie strażnikiem - obiekt (`{ text: "Punkt" }`) szedł do pola
+ * jako „[object Object]", a kolejna edycja utrwalała ten napis jako treść
+ * punktu. Lista bez żadnej pozycji tekstowej dostaje jedną pustą, żeby
+ * redaktor miał gdzie pisać.
+ */
+function readItems(block: Block): string[] {
+  const raw = Array.isArray(block.data.items) ? block.data.items : [];
+  const items = raw.filter((it): it is string => typeof it === "string");
+  return items.length > 0 ? items : [""];
+}
+
 export function ListBlockEdit({ block, onChange }: Props) {
-  const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [""];
+  const items = readItems(block);
   const ordered = Boolean(block.data.ordered);
   const levels = readLevels(block, items.length);
   const refs = useRef<(HTMLDivElement | null)[]>([]);

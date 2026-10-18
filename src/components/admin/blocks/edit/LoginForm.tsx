@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -5,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { LogIn } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { readAuthFlag } from "@/lib/content-model/authFormSettings";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -30,11 +32,32 @@ type BoolKey =
 export function LoginFormBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const af = (k: string) => i18n.editor("authForms", k);
-  const s = (k: Key, fallback = "") => String(block.data[k] ?? fallback);
-  const b = (k: BoolKey, fallback = true) =>
-    block.data[k] === undefined ? fallback : Boolean(block.data[k]);
+  const uid = useId();
+  // Odczyt tą samą koercją, co renderer (`AuthFormBlocks`): tekst wyłącznie
+  // jako napis (obiekt z migracji nie wchodzi do pola jako „[object Object]"),
+  // przełącznik przez `readAuthFlag` - „0" to wyłączone, `null` to domyślne.
+  const s = (k: Key, fallback = "") => {
+    const v = block.data[k];
+    return typeof v === "string" ? v : fallback;
+  };
+  const b = (k: BoolKey, fallback = true) => readAuthFlag(block.data, [k], fallback);
   const set = (k: string, v: string | boolean) =>
     onChange({ ...block, data: { ...block.data, [k]: v } });
+
+  /** Pole z etykietą powiązaną przez `htmlFor` - czytnik ekranu czyta nazwę pola, nie samą wartość. */
+  const field = (k: Key, label: string, fallback = "", extra?: { placeholder?: string }) => (
+    <div className={k === "forgotHref" ? "space-y-1 md:col-span-2" : "space-y-1"}>
+      <Label htmlFor={`${uid}-${k}`} className="text-[11px] uppercase text-muted-foreground">
+        {label}
+      </Label>
+      <Input
+        id={`${uid}-${k}`}
+        value={s(k, fallback)}
+        onChange={(e) => set(k, e.target.value)}
+        placeholder={extra?.placeholder}
+      />
+    </div>
+  );
 
   return (
     <div className="not-prose space-y-3 rounded-md border border-border bg-muted/30 p-3">
@@ -52,62 +75,15 @@ export function LoginFormBlock({ block, onChange }: Props) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("fTitlePl")}</Label>
-          <Input value={s("title_pl")} onChange={(e) => set("title_pl", e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("fTitleEn")}</Label>
-          <Input value={s("title_en")} onChange={(e) => set("title_en", e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("fSubtitlePl")}</Label>
-          <Input value={s("subtitle_pl")} onChange={(e) => set("subtitle_pl", e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("fSubtitleEn")}</Label>
-          <Input value={s("subtitle_en")} onChange={(e) => set("subtitle_en", e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("fSubmitPl")}</Label>
-          <Input
-            value={s("submitLabel_pl")}
-            onChange={(e) => set("submitLabel_pl", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("fSubmitEn")}</Label>
-          <Input
-            value={s("submitLabel_en")}
-            onChange={(e) => set("submitLabel_en", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">
-            {af("redirectLogin")}
-          </Label>
-          <Input
-            value={s("redirectTo", "/")}
-            onChange={(e) => set("redirectTo", e.target.value)}
-            placeholder="/"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] uppercase text-muted-foreground">
-            {af("linkRegister")}
-          </Label>
-          <Input
-            value={s("registerHref", "?mode=signup")}
-            onChange={(e) => set("registerHref", e.target.value)}
-          />
-        </div>
-        <div className="space-y-1 md:col-span-2">
-          <Label className="text-[11px] uppercase text-muted-foreground">{af("linkForgot")}</Label>
-          <Input
-            value={s("forgotHref", "?mode=reset")}
-            onChange={(e) => set("forgotHref", e.target.value)}
-          />
-        </div>
+        {field("title_pl", af("fTitlePl"))}
+        {field("title_en", af("fTitleEn"))}
+        {field("subtitle_pl", af("fSubtitlePl"))}
+        {field("subtitle_en", af("fSubtitleEn"))}
+        {field("submitLabel_pl", af("fSubmitPl"))}
+        {field("submitLabel_en", af("fSubmitEn"))}
+        {field("redirectTo", af("redirectLogin"), "/", { placeholder: "/" })}
+        {field("registerHref", af("linkRegister"), "?mode=signup")}
+        {field("forgotHref", af("linkForgot"), "?mode=reset")}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">

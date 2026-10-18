@@ -4,7 +4,7 @@
 // zmienia kolejność bloków top-level. Fundament: lib/blocks/tree (drzewo),
 // lib/blocks/selection (zakresy) - te same prymitywy co kanwa.
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-blocks";
 import {
@@ -57,6 +57,21 @@ export function BlockListView({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  // KOTWICA ZAKRESU jest PAMIĘTANA, a nie odtwarzana z `selectedIds[0]`:
+  // po zakresie zaznaczonym W GÓRĘ pierwszym elementem zbioru jest KONIEC
+  // gestu, nie jego początek - kolejny Shift+klik rozciągałby się wtedy od
+  // przeciwnej krawędzi. Kotwicę stawia zwykły klik i Ctrl/Cmd+klik; Shift+klik
+  // ją zostawia. Zaznaczenie zmienione poza listą (kanwa) unieważnia kotwicę,
+  // gdy ta wypadła ze zbioru.
+  const anchorRef = useRef<string | null>(null);
+  const rangeAnchor = (): string | null => {
+    if (selectedIds.length) {
+      const remembered = anchorRef.current;
+      return remembered && selectedIds.includes(remembered) ? remembered : selectedIds[0];
+    }
+    return activeId;
+  };
+
   const scrollToBlock = (id: string) => {
     // Id bloków to bezpieczne `b_[a-z0-9]+` - selektor atrybutu bez escapowania.
     document
@@ -68,21 +83,22 @@ export function BlockListView({
     // Selekcja/zakresy działają na blokach TOP-LEVEL (dziecko wskazuje
     // swój korzeń) - spójnie z modelem zaznaczeń kanwy.
     const targetId = row.rootId;
-    if (e.shiftKey && (activeId || selectedIds.length)) {
-      const anchor = selectedIds[0] ?? activeId;
-      if (anchor) {
-        e.preventDefault();
-        onSelectedIdsChange(blockRange(topLevelIds, anchor, targetId));
-        onSelect(null);
-        return;
-      }
+    const anchor = e.shiftKey ? rangeAnchor() : null;
+    if (anchor) {
+      e.preventDefault();
+      anchorRef.current = anchor;
+      onSelectedIdsChange(blockRange(topLevelIds, anchor, targetId));
+      onSelect(null);
+      return;
     }
     if (e.metaKey || e.ctrlKey) {
       const base = selectedIds.length ? selectedIds : activeId ? [activeId] : [];
+      anchorRef.current = targetId;
       onSelectedIdsChange(toggleInSelection(topLevelIds, base, targetId));
       onSelect(null);
       return;
     }
+    anchorRef.current = targetId;
     onSelectedIdsChange([]);
     onSelect(targetId);
     scrollToBlock(row.id);
@@ -164,10 +180,12 @@ function ListRow({
       aria-level={row.depth + 1}
       className={isDragging ? "opacity-45" : undefined}
     >
-      <button
-        type="button"
-        onClick={onClick}
-        className={`group/row w-full flex items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs transition-colors ${
+      {/* Uchwyt i wybór bloku są RODZEŃSTWEM, nie zagnieżdżeniem: uchwyt
+          (z `{...attributes}` dnd-kit - jedyna klawiaturowa droga do zmiany
+          kolejności) nie może być kontrolką wewnątrz `<button>` wiersza.
+          Widoczny także przy fokusie, nie tylko pod myszą. */}
+      <div
+        className={`group/row w-full flex items-center gap-1.5 rounded px-1.5 py-1 text-xs transition-colors ${
           selected
             ? "bg-foreground/10 ring-1 ring-foreground/20"
             : active
@@ -176,24 +194,31 @@ function ListRow({
         }`}
       >
         {isTopLevel ? (
-          <span
+          <button
+            type="button"
             {...attributes}
             {...listeners}
-            onClick={(e) => e.stopPropagation()}
             title={t("blocks.actions.drag")}
-            className="shrink-0 p-0.5 -ml-0.5 rounded text-muted-foreground opacity-0 group-hover/row:opacity-100 cursor-grab active:cursor-grabbing"
+            aria-label={t("blocks.actions.drag")}
+            className="shrink-0 p-0.5 -ml-0.5 rounded text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 cursor-grab active:cursor-grabbing"
           >
             <GripVertical className="w-3 h-3" />
-          </span>
+          </button>
         ) : (
           <span className="w-3.5 shrink-0" aria-hidden />
         )}
-        {Icon ? <Icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : null}
-        <span className="shrink-0 font-medium">{label}</span>
-        {row.snippet ? (
-          <span className="min-w-0 truncate text-muted-foreground">{row.snippet}</span>
-        ) : null}
-      </button>
+        <button
+          type="button"
+          onClick={onClick}
+          className="min-w-0 flex-1 flex items-center gap-1.5 text-left"
+        >
+          {Icon ? <Icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : null}
+          <span className="shrink-0 font-medium">{label}</span>
+          {row.snippet ? (
+            <span className="min-w-0 truncate text-muted-foreground">{row.snippet}</span>
+          ) : null}
+        </button>
+      </div>
     </li>
   );
 }

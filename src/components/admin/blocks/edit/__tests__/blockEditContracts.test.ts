@@ -122,16 +122,14 @@ describe("3. parytet tabeli testowej z dyspozytorem", () => {
     expect(brakujace).toEqual([]);
   });
 
-  it("tabela nie zmyśla edytorów - poza jednym NIEPODŁĄCZONYM", () => {
-    // `LinkPreviewBlock` jest w tabeli ŚWIADOMIE: komponent istnieje i ma
-    // 146 linii, ale `switch` nie ma dla niego `case`, więc jest nieosiągalny
-    // z panelu. Ten rozjazd ma własny, pełny opis i `it.fails`
-    // w `src/components/admin/blocks/__tests__/blockEditorRegistryParity.test.ts`.
-    // Tutaj jest tylko po to, żeby przejazd czterech przypadków JEDNAK go
-    // pokrywał - inaczej naprawa podłączenia szłaby w kod bez testów.
+  it("tabela nie zmyśla edytorów - każdy jej wpis jest wołany ze switcha", () => {
+    // NAPRAWIONE 2026-10-18: `LinkPreviewBlock` był tu jedynym wyjątkiem -
+    // komponent istniał, ale `switch` nie miał dla niego `case`, więc edytor
+    // był nieosiągalny z panelu. Dyspozytor ma już `case "link-preview"`
+    // (dowód zachowania: `blockEditorRegistryParity.test.ts`).
     const dispatched = dispatchedComponents();
     const nadmiarowe = ALL_EDITOR_NAMES.filter((name) => !dispatched.has(name));
-    expect(nadmiarowe).toEqual(["LinkPreviewBlock"]);
+    expect(nadmiarowe).toEqual([]);
   });
 
   it("tabela ma 98 wpisów i żadnej nazwy dwa razy", () => {

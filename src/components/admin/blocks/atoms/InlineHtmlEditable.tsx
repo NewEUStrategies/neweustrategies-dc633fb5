@@ -3,6 +3,7 @@
 // tekst zamiast go ucinać - w przeciwieństwie do <input type="text">.
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { escapeHtmlToText } from "@/lib/sanitizeEngineGuard";
 
 interface Props {
   value: string;
@@ -56,10 +57,12 @@ export function InlineHtmlEditable({
       onPaste={(e) => {
         // Wklejamy oczyszczony HTML (pogrubienia z Worda zostają jako <strong>,
         // a nie jako widoczny tekst ze znacznikami).
+        // Zwykły tekst jest ESCAPOWANY, nie przycinany: `&`, `<`, `>` to znaki
+        // treści („Procter & Gamble"), które usuwane ginęły redaktorowi z wpisu.
         e.preventDefault();
         const html = e.clipboardData.getData("text/html");
         const text = e.clipboardData.getData("text/plain");
-        const safe = html ? sanitizeHtml(html) : text.replace(/[<>&]/g, "");
+        const safe = html ? sanitizeHtml(html) : escapeHtmlToText(text);
         document.execCommand("insertHTML", false, safe);
       }}
       onKeyDown={onKeyDown}

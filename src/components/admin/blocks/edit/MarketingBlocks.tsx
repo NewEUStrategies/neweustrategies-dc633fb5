@@ -7,6 +7,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
+import { num } from "@/components/blocks/renderer/data";
 
 interface Props {
   block: Block;
@@ -24,12 +25,31 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
   );
 }
 
+/**
+ * Liczba z pola numerycznego docięta do GÓRNEJ granicy pola - tak, jak docina
+ * ją renderer (`MapView`). Tylko górnej: każdy prefiks poprawnej liczby jest od
+ * niej mniejszy, więc docięcie nie walczy z pisaniem. Dolna by walczyła -
+ * wpisanie „400" w pole z minimum 160 zaczyna się od „4" - i zostaje rendererowi.
+ */
+function capAt(value: number, max: number): number {
+  return Math.min(max, value);
+}
+
 // ===== Hero =====
 
 export function HeroBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const d = block.data;
+  // Odczyt tak, jak czyta `renderHero`: nieznane wyrównanie to „center",
+  // nieznana wysokość - „md" (natywny `<select>` bez pasującej opcji pokazałby
+  // pierwszą: „left" i „sm"), nakładka to liczba skończona docięta do 0-90.
+  const align = d.align === "left" ? "left" : "center";
+  const height =
+    d.height === "sm" || d.height === "md" || d.height === "lg" || d.height === "screen"
+      ? d.height
+      : "md";
+  const overlay = Math.max(0, Math.min(90, num(d, "overlay", 40)));
   return (
     <Shell label={mb("heroLabel")}>
       <input
@@ -87,7 +107,7 @@ export function HeroBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          value={String(d.align ?? "center")}
+          value={align}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
           <option value="left">{mb("alignLeft")}</option>
@@ -95,7 +115,7 @@ export function HeroBlock({ block, onChange }: Props) {
         </AdminSelect>
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          value={String(d.height ?? "md")}
+          value={height}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
         >
           <option value="sm">{mb("heightSm")}</option>
@@ -109,11 +129,11 @@ export function HeroBlock({ block, onChange }: Props) {
           type="range"
           min={0}
           max={90}
-          value={Number(d.overlay ?? 40)}
+          value={overlay}
           onChange={(e) => onChange({ ...block, data: { ...d, overlay: Number(e.target.value) } })}
           className="flex-1"
         />
-        <span className="tabular-nums w-10 text-right">{Number(d.overlay ?? 40)}%</span>
+        <span className="tabular-nums w-10 text-right">{overlay}%</span>
         <span>{mb("overlay")}</span>
       </label>
     </Shell>
@@ -194,7 +214,8 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const autoplay = block.data.autoplay === true;
-  const interval = Number(block.data.interval ?? 5000);
+  // Czytnik renderera: śmieć w danych to 5000 ms, a nie `NaN` w polu.
+  const interval = num(block.data, "interval", 5000);
   const aspect = String(block.data.aspect ?? "16:9");
 
   return (
@@ -376,8 +397,12 @@ export function MapBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const mb = (k: string) => i18n.editor("marketingBlocks", k);
   const d = block.data;
-  const lat = Number(d.lat ?? 52.2297);
-  const lng = Number(d.lng ?? 21.0122);
+  // Ten sam czytnik co `renderMap` (liczba skończona albo wartość domyślna),
+  // a powiększenie i wysokość docięte do górnej granicy pola jak w `MapView`.
+  const lat = num(d, "lat", 52.2297);
+  const lng = num(d, "lng", 21.0122);
+  const zoom = capAt(num(d, "zoom", 13), 18);
+  const height = capAt(num(d, "height", 360), 800);
   return (
     <Shell label={mb("mapLabel")}>
       <div className="grid grid-cols-2 gap-2">
@@ -410,8 +435,10 @@ export function MapBlock({ block, onChange }: Props) {
             min={1}
             max={18}
             className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            value={Number(d.zoom ?? 13)}
-            onChange={(e) => onChange({ ...block, data: { ...d, zoom: Number(e.target.value) } })}
+            value={zoom}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...d, zoom: capAt(Number(e.target.value), 18) } })
+            }
           />
         </label>
         <label className="block text-xs text-muted-foreground">
@@ -421,8 +448,10 @@ export function MapBlock({ block, onChange }: Props) {
             min={160}
             max={800}
             className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-            value={Number(d.height ?? 360)}
-            onChange={(e) => onChange({ ...block, data: { ...d, height: Number(e.target.value) } })}
+            value={height}
+            onChange={(e) =>
+              onChange({ ...block, data: { ...d, height: capAt(Number(e.target.value), 800) } })
+            }
           />
         </label>
       </div>

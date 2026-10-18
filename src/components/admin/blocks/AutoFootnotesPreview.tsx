@@ -15,13 +15,14 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, Check, X, Trash2, AlertTriangle } from "lucide-react";
-import type { BlocksDoc } from "@/lib/blocks/types";
+import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { safeParseBlocks } from "@/lib/blocks/schema";
 import { renderFootnoteHtml } from "@/components/blocks/renderer";
 import {
   collectFootnoteOrigins,
   updateFootnoteAtOrigin,
   type FootnoteEntry,
+  type FootnoteOrigin,
 } from "@/lib/blocks/footnoteOrigins";
 import { validateFootnotes, type FootnoteIssue } from "@/lib/blocks/footnoteValidation";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,23 +34,51 @@ interface Props {
   onChange?: (next: BlocksDoc) => void;
 }
 
+const BEZ_PRZYPISOW = { entries: [], issues: [], blocks: [], rawIndex: [] } as const;
+
+/**
+ * Indeks bloku z oczyszczonej listy -> indeks TEGO SAMEGO bloku w dokumencie
+ * redaktora. `safeParseBlocks` wyrzuca bloki spoza schematu (typ z nowszego
+ * wdrożenia po rollbacku), więc ścieżki przypisów liczone na oczyszczonym
+ * dokumencie są przesunięte względem `doc.blocks`, do którego idzie zapis.
+ * Oczyszczanie zachowuje kolejność i `id`, więc dopasowanie jest sekwencyjne.
+ */
+function rawIndexes(raw: readonly unknown[], safe: readonly Block[]): number[] {
+  if (raw.length === safe.length) return safe.map((_, i) => i);
+  const out: number[] = [];
+  let j = 0;
+  for (const block of safe) {
+    while (j < raw.length && (raw[j] as { id?: unknown } | null)?.id !== block.id) j += 1;
+    out.push(j < raw.length ? j : -1);
+    j += 1;
+  }
+  return out;
+}
+
 export function AutoFootnotesPreview({ doc, onChange }: Props) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
 
-  const entries: FootnoteEntry[] = useMemo(() => {
-    if (!doc?.blocks?.length) return [];
+  // JEDNA walidacja schematu na zmianę dokumentu: lista przypisów i ostrzeżenia
+  // walidatora czytają ten sam, już oczyszczony dokument (wcześniej każda z
+  // dwóch pamięci parsowała cały dokument osobno).
+  const { entries, issues, blocks, rawIndex } = useMemo((): {
+    entries: readonly FootnoteEntry[];
+    issues: readonly FootnoteIssue[];
+    blocks: readonly Block[];
+    rawIndex: readonly number[];
+  } => {
+    if (!doc?.blocks?.length) return BEZ_PRZYPISOW;
     const safe = safeParseBlocks(doc);
-    if (!safe.blocks.length) return [];
-    return collectFootnoteOrigins({ ...doc, blocks: safe.blocks } as BlocksDoc);
-  }, [doc]);
-
-  const issues: FootnoteIssue[] = useMemo(() => {
-    if (!doc?.blocks?.length) return [];
-    const safe = safeParseBlocks(doc);
-    if (!safe.blocks.length) return [];
-    return validateFootnotes({ ...doc, blocks: safe.blocks } as BlocksDoc);
+    if (!safe.blocks.length) return BEZ_PRZYPISOW;
+    const clean = { ...doc, blocks: safe.blocks } as BlocksDoc;
+    return {
+      entries: collectFootnoteOrigins(clean),
+      issues: validateFootnotes(clean),
+      blocks: safe.blocks,
+      rawIndex: rawIndexes(doc.blocks, safe.blocks),
+    };
   }, [doc]);
 
   if (entries.length === 0 && issues.length === 0) return null;
@@ -57,15 +86,15 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
   const canEdit = typeof onChange === "function";
 
   // Rozwiązuje id top-level bloku z pierwszego segmentu `origin.path`
-  // (walidator/collector wchodzą do dokumentu z prefiksem `[]`, więc path[0]
-  // to zawsze indeks w `doc.blocks`). Nawet dla przypisów zagnieżdżonych
-  // wewnątrz columns/group scrollujemy do NAJBLIŻSZEGO renderowanego
-  // top-level bloku - to jest jedyny poziom, który `SortableBlockItem`
-  // oznacza atrybutem `data-block-id`.
+  // (walidator/collector wchodzą do OCZYSZCZONEGO dokumentu z prefiksem `[]`,
+  // więc path[0] to indeks w `blocks`, nie w `doc.blocks`). Nawet dla
+  // przypisów zagnieżdżonych wewnątrz columns/group scrollujemy do
+  // NAJBLIŻSZEGO renderowanego top-level bloku - to jest jedyny poziom,
+  // który `SortableBlockItem` oznacza atrybutem `data-block-id`.
   const scrollToOrigin = (path: readonly (string | number)[]) => {
     if (typeof document === "undefined") return;
-    const topIdx = typeof path[0] === "number" ? (path[0] as number) : -1;
-    const top = topIdx >= 0 ? doc?.blocks?.[topIdx] : null;
+    const topIdx = typeof path[0] === "number" ? path[0] : -1;
+    const top = topIdx >= 0 ? blocks[topIdx] : null;
     if (!top?.id) return;
     const el = document.querySelector<HTMLElement>(`[data-block-id="${top.id}"]`);
     if (!el) return;
@@ -85,15 +114,23 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
     setEditingId(null);
     setDraft("");
   };
+  // Zapis idzie do dokumentu REDAKTORA (z blokami spoza schematu, których nie
+  // wolno zgubić), więc ścieżkę z oczyszczonego dokumentu tłumaczymy na jego
+  // indeksy. Blok bez odpowiednika (-1) daje no-op zamiast zapisu w cudzy blok.
+  const toDocOrigin = (origin: FootnoteOrigin): FootnoteOrigin => {
+    const [top, ...rest] = origin.path;
+    if (typeof top !== "number") return origin;
+    return { ...origin, path: [rawIndex[top] ?? -1, ...rest] };
+  };
   const saveEdit = (e: FootnoteEntry) => {
     if (!onChange || !doc) return;
-    const next = updateFootnoteAtOrigin(doc, e.origin, draft);
+    const next = updateFootnoteAtOrigin(doc, toDocOrigin(e.origin), draft);
     onChange(next);
     cancelEdit();
   };
   const removeEntry = (e: FootnoteEntry) => {
     if (!onChange || !doc) return;
-    const next = updateFootnoteAtOrigin(doc, e.origin, "");
+    const next = updateFootnoteAtOrigin(doc, toDocOrigin(e.origin), "");
     onChange(next);
     if (editingId === e.id) cancelEdit();
   };

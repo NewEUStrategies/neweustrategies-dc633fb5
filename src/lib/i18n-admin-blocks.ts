@@ -1859,6 +1859,10 @@ const pl = {
         disableTransparency: "Wyłącz przezroczystość",
         setTransparent: "Ustaw przezroczyste",
         resetDefault: "Przywróć domyślny",
+        resetInherited: "Wróć do wartości dziedziczonej",
+        activeToken: "Aktywny",
+        brandPalette: "Paleta marki",
+        inheritsPh: "dziedziczy: {{value}}",
       },
       postContextBlocks: {
         none: "brak",
@@ -2796,6 +2800,10 @@ const en: typeof pl = {
         disableTransparency: "Disable transparency",
         setTransparent: "Set transparent",
         resetDefault: "Reset to default",
+        resetInherited: "Back to the inherited value",
+        activeToken: "Active",
+        brandPalette: "Brand palette",
+        inheritsPh: "inherits: {{value}}",
       },
       postContextBlocks: {
         none: "none",

@@ -4,6 +4,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
 import { Input } from "@/components/ui/input";
 import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -13,11 +14,16 @@ interface Props {
 
 export function ImageBlock({ block, isActive, onChange }: Props) {
   const bt = useBlocksI18n();
-  const url = String(block.data.url ?? "");
-  const alt = String(block.data.alt ?? "");
-  const caption = String(block.data.caption ?? "");
-  const source = String(block.data.source ?? "");
-  const sourceUrl = String(block.data.sourceUrl ?? "");
+  // `readText`, nie `String()`: podpis jako OBIEKT (po migracji treści
+  // dwujęzycznej podpisy trafiły do obiektu per język) wchodził do pola jako
+  // literalne „[object Object]", a pierwszy dopisany znak utrwalał ten śmieć
+  // w dokumencie. Strona publiczna takiego podpisu i tak nie pokazuje
+  // (`str(..., "caption")`), więc puste pole mówi redaktorowi prawdę.
+  const url = readText(block.data.url);
+  const alt = readText(block.data.alt);
+  const caption = readText(block.data.caption);
+  const source = readText(block.data.source);
+  const sourceUrl = readText(block.data.sourceUrl);
 
   if (!url) {
     return (

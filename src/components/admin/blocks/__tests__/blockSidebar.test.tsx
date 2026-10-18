@@ -49,6 +49,8 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import i18n from "@/lib/i18n";
 import { realT } from "@/test/i18nReal";
 import type { Block, BlockStyle, BlockType, BlocksDoc, Json } from "@/lib/blocks/types";
+import { BLOCK_SPECS } from "@/lib/blocks/registry";
+import { BlocksDocSchema } from "@/lib/blocks/schema";
 
 vi.mock("@/components/ui/select", async () => {
   const React = await import("react");
@@ -90,6 +92,11 @@ interface OpcjeMontazu {
    * a `RichTextEditor` w Visual Builderze montuje edytor wlasnie tak.
    */
   bezZwijania?: boolean;
+  /**
+   * Wybor wiersza listy dokumentu ZAZNACZA blok w rodzicu - tak jak robi to
+   * `PostBlockEditor` (`onSelect={setActiveId}`).
+   */
+  wyborZListyZaznacza?: boolean;
 }
 
 /**
@@ -114,7 +121,12 @@ function zamontuj(opcje: OpcjeMontazu = {}) {
         doc={opcje.doc ?? dokument()}
         activeBlock={aktywny}
         activeId={aktywny?.id ?? null}
-        onSelect={(id) => wybrane.push(id)}
+        onSelect={(id) => {
+          wybrane.push(id);
+          if (opcje.wyborZListyZaznacza) {
+            setAktywny((opcje.doc ?? dokument()).blocks.find((b) => b.id === id) ?? null);
+          }
+        }}
         onChangeBlock={(next) => {
           zmiany.push(next);
           setAktywny(next);
@@ -689,136 +701,186 @@ describe("BlockSidebar - inspektor bloku, wspolna sekcja ukladu", () => {
   });
 });
 
-// ── DEFEKTY ─────────────────────────────────────────────────────────────────
+// ── DAWNE DEFEKTY - NAPRAWIONE 2026-10-18 ───────────────────────────────────
 
-describe("BlockSidebar - defekty", () => {
-  // DEFEKT: ZAZNACZENIE BLOKU NIE PRZELACZA PANELU NA ZAKLADKE „BLOK".
+describe("BlockSidebar - kontrakty po naprawie dawnych defektow", () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): ZAZNACZENIE BLOKU PRZELACZA PANEL
+  // NA ZAKLADKE „BLOK".
   //
-  // WEJSCIE: panel zamontowany bez zaznaczenia (stoi na „Dokumencie"), redaktor
-  //   klika blok w kanwie - rodzic podaje `activeBlock`.
-  // CO PSUJE: `BlockSidebar.tsx:54-55` deklaruje w komentarzu
-  //   „Auto-switch to 'block' when a block is selected", ale kod robi coś
-  //   ODWROTNEGO: `activeBlock ? tab : "document"` wymusza „document" tylko przy
-  //   BRAKU bloku, a przy bloku oddaje `tab` - czyli stan poczatkowy
-  //   `useState("document")` (linia 52). Auto-przelaczenia nie ma nigdzie.
-  // KONSEKWENCJA: redaktor klika blok, zeby zmienic mu poziom albo alt, i widzi
-  //   dalej liste blokow. Zakladka „Blok" wlasnie sie odblokowala, ale nic tego
-  //   nie sygnalizuje - wiec inspektor uchodzi za pusty i sciezka „zaznacz blok
-  //   -> ustaw metadane" wymaga dwoch klikniec zamiast jednego przez cale zycie
-  //   sesji. Rozjazd komentarza z kodem jest tu grozniejszy niz sam brak
-  //   funkcji: nastepny czytajacy uzna zachowanie za zaimplementowane.
-  // WYMAGANA POPRAWKA: `effectiveTab` ma wchodzic na „block" przy PRZEJSCIU
-  //   `activeBlock` z `null` na blok (efekt na zmianie `activeBlock`), zamiast
-  //   biernie oddawac zapamietana zakladke.
-  it.fails("DEFEKT: zaznaczenie bloku w kanwie ma przelaczyc panel na zakladke „Blok”", () => {
+  // KONTRAKT: przejscie `activeBlock` z `null` na blok wchodzi na zakladke
+  //   „Blok" (stan z poprzedniego propsa, liczony w renderze - bez efektu
+  //   i bez klatki z lista). Wczesniej komentarz obiecywal auto-przelaczenie,
+  //   a kod oddawal zapamietana zakladke - sciezka „zaznacz blok -> ustaw
+  //   metadane" wymagala dwoch klikniec przez cale zycie sesji.
+  it("zaznaczenie bloku w kanwie przelacza panel na zakladke „Blok”", () => {
     const { zaznaczWKanwie } = zamontuj();
 
     zaznaczWKanwie(blok("heading", { level: 2, anchor: "wstep" }));
 
     expect(zakladka(t("blocks.sidebar.block"))).toHaveAttribute("data-state", "active");
+    expect(screen.getByDisplayValue("wstep")).toBeInTheDocument();
   });
 
-  // DEFEKT: KOMUNIKAT „WYBIERZ BLOK" JEST NIEOSIAGALNY, A JEGO KLUCZ MARTWY.
+  it("zmiana zaznaczenia na INNY blok nie wyrzuca redaktora z listy dokumentu", () => {
+    // Redaktor wybiera kolejne bloki z listy na zakladce „Dokument" - lista nie
+    // moze znikac po kazdym kliknieciu wiersza.
+    const { zaznaczWKanwie } = zamontuj({ aktywny: blok("code", { lang: "ts" }) });
+    expect(zakladka(t("blocks.sidebar.document"))).toHaveAttribute("data-state", "active");
+
+    zaznaczWKanwie({ id: "b2", type: "quote", data: { cite: "x" } });
+
+    expect(zakladka(t("blocks.sidebar.document"))).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("panel-dokumentu")).toBeInTheDocument();
+  });
+
+  it("wybor bloku z LISTY dokumentu nie wyrzuca redaktora z listy", () => {
+    // Lista jest jedyna droga do blokow w kontenerach - nie moze znikac spod
+    // kursora po pierwszym kliknieciu wiersza.
+    zamontuj({
+      wyborZListyZaznacza: true,
+      doc: dokument(blok("heading", { level: 2, text: "Tytul" }), {
+        id: "b2",
+        type: "quote",
+        data: { text: "cytat" },
+      }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("blocks.types.quote")) }));
+
+    expect(zakladka(t("blocks.sidebar.document"))).toHaveAttribute("data-state", "active");
+    expect(screen.getByRole("tree", { name: t("blocks.listView.title") })).toBeInTheDocument();
+    // Blok JEST zaznaczony - zakladka „Blok" stoi otworem na zyczenie.
+    expect(zakladka(t("blocks.sidebar.block"))).toBeEnabled();
+  });
+
+  it("ponowne zaznaczenie po odznaczeniu znow wchodzi na zakladke „Blok”", () => {
+    const { zaznaczWKanwie } = zamontuj();
+    zaznaczWKanwie(blok("code", { lang: "ts" }));
+    zaznaczWKanwie(null);
+    expect(zakladka(t("blocks.sidebar.document"))).toHaveAttribute("data-state", "active");
+
+    zaznaczWKanwie(blok("code", { lang: "python" }));
+
+    expect(zakladka(t("blocks.sidebar.block"))).toHaveAttribute("data-state", "active");
+    expect(screen.getByDisplayValue("python")).toBeInTheDocument();
+  });
+
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): ZACHETA „WYBIERZ BLOK" JEST OSIAGALNA.
   //
-  // WEJSCIE: panel bez zaznaczonego bloku - jedyny stan, w ktorym ten komunikat
-  //   mialby sens.
-  // CO PSUJE: galaz `BlockSidebar.tsx:147-151` renderuje
-  //   `t("blocks.sidebar.selectBlock")` wtedy i tylko wtedy, gdy zakladka „block"
-  //   jest AKTYWNA, a bloku NIE MA. Tymczasem `effectiveTab` (linia 55) wymusza
-  //   „document" dokladnie w przypadku braku bloku, a `TabsContent` Radiksa
-  //   odmontowuje nieaktywna zakladke. Warunek renderowania i warunek aktywnosci
-  //   wykluczaja sie wiec wzajemnie - nie ma stanu, w ktorym ten `<p>` powstaje.
-  // KONSEKWENCJA: martwa galaz UI plus martwy klucz slownika utrzymywany
-  //   w OBU jezykach (`locale/pl.ts:1381`, `locale/en.ts:1372`). Bramki
-  //   parytetu i18n licza go jako zywy, przeglad kodu widzi zachete, ktorej
-  //   uzytkownik nigdy nie zobaczy, a pokrycie tej galezi nie da sie podniesc
-  //   zadnym testem - co maskuje kazdy przyszly regres w tym miejscu.
-  // WYMAGANA POPRAWKA: albo `effectiveTab` przestaje wymuszac „document" (wtedy
-  //   zachęta jest widoczna, a wylaczona zakladka i tak nie da sie w nia wejsc
-  //   myszka), albo galaz i oba klucze slownika znikaja. Stan posredni - kod
-  //   i slownik obiecujace komunikat, ktorego nie ma - jest niedopuszczalny.
-  it.fails("DEFEKT: zachęta „Wybierz blok…” ma byc dla redaktora osiagalna", () => {
+  // KONTRAKT: bez zaznaczenia zachęta stoi na zakladce „Dokument" - tam, gdzie
+  //   redaktor wtedy jest - i tlumaczy wylaczona zakladke „Blok". Martwa galaz
+  //   w zakladce „Blok" (aktywnej wylacznie Z blokiem) zniknela.
+  it("bez zaznaczenia zachęta „Wybierz blok…” stoi na zakladce dokumentu", () => {
     zamontuj();
 
     expect(screen.getByText(t("blocks.sidebar.selectBlock"))).toBeInTheDocument();
+    expect(zakladka(t("blocks.sidebar.document"))).toHaveAttribute("data-state", "active");
   });
 
-  // DEFEKT: NAGLOWEK INSPEKTORA NIE PRZECHODZI PRZEZ i18n.
+  it("z zaznaczonym blokiem zachęta znika takze z zakladki dokumentu", () => {
+    const { zaznaczWKanwie } = zamontuj();
+    zaznaczWKanwie(blok("code", { lang: "ts" }));
+
+    fireEvent.mouseDown(zakladka(t("blocks.sidebar.document")));
+
+    expect(screen.getByTestId("panel-dokumentu")).toBeInTheDocument();
+    expect(screen.queryByText(t("blocks.sidebar.selectBlock"))).not.toBeInTheDocument();
+  });
+
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): NAGLOWEK INSPEKTORA PRZECHODZI PRZEZ i18n.
   //
-  // WEJSCIE: panel z jezykiem interfejsu ustawionym na angielski i zaznaczonym
-  //   blokiem naglowka.
-  // CO PSUJE: `BlockSidebar.tsx:193` bierze `spec` z `BLOCK_SPECS` i wypisuje
-  //   `spec.label` (linia 209) oraz `spec.description` (linia 210) WPROST.
-  //   W rejestrze (`src/lib/blocks/registry.tsx:130-137`) oba pola sa twardymi
-  //   polskimi napisami („Nagłówek", „H2, H3 lub H4 z opcjonalnym anchorem.").
-  //   Cala reszta repo nazywa typy blokow przez slownik - `BlockInserter.tsx:90`,
-  //   `BlockCanvas.tsx:449`, `Paragraph.tsx:100` i sasiadujaca `BlockListView`
-  //   (linia 118) wolaja `t("blocks.types.<typ>")`, a klucze istnieja w obu
-  //   jezykach. Inspektor jest jedynym miejscem, ktore te sciezke omija.
-  // KONSEKWENCJA: w angielskim panelu TEN SAM blok nazywa sie „Heading" na
-  //   liscie dokumentu i „Nagłówek" dwa centymetry obok, w naglowku inspektora,
-  //   a pod nim stoi pelne polskie zdanie opisu. To nie jest brak tlumaczenia
-  //   jednego napisu - to jedyna sciezka, ktora rejestr blokow wystawia
-  //   uzytkownikowi bez slownika, wiec rosnie z kazdym nowym typem bloku.
-  // WYMAGANA POPRAWKA: `BlockSettings` ma czytac nazwe przez
-  //   `t("blocks.types.<typ>")` (klucze juz sa), a dla opisu albo dostac wlasny
-  //   klucz `blocks.descriptions.<typ>`, albo przestac go pokazywac.
-  it.fails(
-    "DEFEKT: naglowek inspektora ma byc tlumaczony tak samo jak nazwa na liscie blokow",
-    async () => {
-      await i18n.changeLanguage("en");
-      try {
-        zInspektorem(blok("heading", { level: 2 }), dokument(blok("heading", { level: 2 })));
+  // KONTRAKT: nazwa typu w inspektorze to `t("blocks.types.<typ>")` - ta sama
+  //   co na liscie dokumentu, w inserterze i w kanwie. Opis z rejestru jest
+  //   napisany wylacznie po polsku (bez kluczy slownika), wiec w panelu w innym
+  //   jezyku znika, zamiast stawiac polskie zdanie pod angielska nazwa.
+  it("naglowek inspektora jest tlumaczony tak samo jak nazwa na liscie blokow", async () => {
+    await i18n.changeLanguage("en");
+    try {
+      // Zakladke otwiera zaznaczenie (auto-przelaczenie) - nazwa zakladki jest
+      // tu angielska, wiec polski pomocnik `otworzZakladkeBloku` jej nie znajdzie.
+      const { zaznaczWKanwie } = zamontuj({ doc: dokument(blok("heading", { level: 2 })) });
+      zaznaczWKanwie(blok("heading", { level: 2 }));
 
-        expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
-          tEn("blocks.types.heading"),
-        );
-      } finally {
-        // Odmontowanie PRZED powrotem do polskiego: `changeLanguage`
-        // przerenderowuje kazdy zamontowany komponent, a ten render nie nalezy
-        // juz do zadnego testu.
-        cleanup();
-        await i18n.changeLanguage("pl");
-      }
-    },
-  );
+      expect(zakladka(tEn("blocks.sidebar.block"))).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(
+        tEn("blocks.types.heading"),
+      );
+      expect(screen.queryByText(BLOCK_SPECS.heading.description)).not.toBeInTheDocument();
+    } finally {
+      // Odmontowanie PRZED powrotem do polskiego: `changeLanguage`
+      // przerenderowuje kazdy zamontowany komponent, a ten render nie nalezy
+      // juz do zadnego testu.
+      cleanup();
+      await i18n.changeLanguage("pl");
+    }
+  });
 
-  // DEFEKT: POLA ODSTEPU PRZYJMUJA WARTOSCI, KTORE SCHEMAT DOKUMENTU ODRZUCA.
+  it("w panelu polskim inspektor nazywa typ ze slownika i pokazuje opis z rejestru", () => {
+    zInspektorem(blok("heading", { level: 2 }));
+
+    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent(t("blocks.types.heading"));
+    expect(screen.getByText(BLOCK_SPECS.heading.description)).toBeInTheDocument();
+  });
+
+  it("blok o typie SPOZA rejestru da sie zaznaczyc - inspektor nie wywraca panelu", () => {
+    // Lista dokumentu pokazuje taki blok (dokument z nowszej wersji edytora),
+    // wiec redaktor moze go kliknac. `BLOCK_SPECS[typ]` jest wtedy `undefined`
+    // i odczyt `spec.icon` zabieral CALY edytor wpisu.
+    const obcy = { id: "x1", type: "blok-z-przyszlosci", data: {} } as unknown as Block;
+    const { zmiany, zaznaczWKanwie } = zamontuj();
+
+    zaznaczWKanwie(obcy);
+
+    // Nazwa to sam klucz typu (tak jak na liscie), a sekcja ukladu dziala.
+    expect(screen.getByRole("heading", { level: 3 })).toHaveTextContent("blok-z-przyszlosci");
+    expect(screen.getByText(t("blocks.sidebar.canvasEdit"))).toBeInTheDocument();
+    fireEvent.change(polaOdstepu()[0], { target: { value: "24" } });
+    expect(ostatniaZmiana(zmiany).style?.marginTop).toBe(24);
+  });
+
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): POLA ODSTEPU ZAPISUJA TYLKO TO, CO
+  // PRZYJMIE SCHEMAT DOKUMENTU.
   //
-  // WEJSCIE: redaktor wpisuje w „Margines gorny" wartosc ujemna, wieksza niz 400
-  //   albo ulamkowa - wszystkie trzy przechodza przez `<input type="number">`
-  //   bez mrugniecia, bo `min`/`max` w HTML sa walidacja FORMULARZA, a formularza
-  //   tu nie ma (`BlockSidebar.tsx:471-479` i :485-496 czytaja `e.target.value`
-  //   wprost i wolaja `Number(...)`).
-  // CO PSUJE: `BlockStyleSchema` (`src/lib/blocks/schema.ts:20-21`) wymaga
-  //   `z.number().int().min(0).max(400)`. Zapisana wartosc jest wiec legalna dla
-  //   panelu i NIELEGALNA dla dokumentu.
-  // KONSEKWENCJA: nie jest to „brzydki odstep". `safeParseBlocks`
-  //   (`schema.ts:149-167`) przy nieudanej walidacji CALEGO dokumentu przechodzi
-  //   na tryb ratunkowy i przepuszcza wylacznie bloki, ktore waliduja sie
-  //   pojedynczo - blok z `marginTop: -50` odpada. Publiczny renderer
-  //   (`BlocksRenderer.tsx:16`) dostaje dokument BEZ tego bloku, wiec akapit
-  //   znika z opublikowanej strony, choc w panelu redaktora stoi na swoim
-  //   miejscu i wyglada na zapisany. Awaria jest cicha i widoczna wylacznie
-  //   dla czytelnika.
-  // WYMAGANA POPRAWKA: `setStyle` dla marginesow ma klamrowac wejscie do
-  //   `0..400` i zaokraglac do liczby calkowitej (albo odrzucac wartosc spoza
-  //   zakresu), tak samo jak robia to edytory z wlasnym klamrowaniem w
-  //   `admin/blocks/edit/**`.
-  it.fails(
-    "DEFEKT: pole odstepu ma odrzucac wartosci, ktorych schemat dokumentu nie przyjmie",
-    () => {
-      const { zmiany } = zInspektorem(blok("paragraph", { html: "<p>tekst</p>" }));
-      const [gora] = polaOdstepu();
+  // KONTRAKT: wartosc jest zaokraglana do liczby calkowitej i klamrowana do
+  //   0..400 (`BlockStyleSchema`: `int().min(0).max(400)`). Wczesniej `-50`,
+  //   `900` czy `12.5` szly do dokumentu wprost, walidacja calego dokumentu
+  //   padala, a tryb ratunkowy `safeParseBlocks` zrzucal blok z publicznej
+  //   strony - cicho i tylko dla czytelnika.
+  it.each([
+    ["-50", 0],
+    ["900", 400],
+    ["12.5", 13],
+    ["400", 400],
+    ["0", 0],
+  ])("wpisane „%s” zapisuje sie jako %s", (wpisane, oczekiwane) => {
+    const { zmiany } = zInspektorem(blok("paragraph", { html: "<p>tekst</p>" }));
+    const [gora, dol] = polaOdstepu();
 
-      for (const wpisane of ["-50", "900", "12.5"]) {
-        fireEvent.change(gora, { target: { value: wpisane } });
-        const zapisany = ostatniaZmiana(zmiany).style?.marginTop;
-        expect(zapisany).toBeTypeOf("number");
-        expect(Number.isInteger(zapisany)).toBe(true);
-        expect(zapisany).toBeGreaterThanOrEqual(0);
-        expect(zapisany).toBeLessThanOrEqual(400);
-      }
-    },
-  );
+    fireEvent.change(gora, { target: { value: wpisane } });
+    expect(ostatniaZmiana(zmiany).style?.marginTop).toBe(oczekiwane);
+    fireEvent.change(dol, { target: { value: wpisane } });
+    expect(ostatniaZmiana(zmiany).style?.marginBottom).toBe(oczekiwane);
+  });
+
+  it("dokument z odstepem wpisanym spoza zakresu nadal przechodzi walidacje schematu", () => {
+    const { zmiany } = zInspektorem(blok("paragraph", { html: "<p>tekst</p>" }));
+    const [gora, dol] = polaOdstepu();
+
+    fireEvent.change(gora, { target: { value: "-50" } });
+    fireEvent.change(dol, { target: { value: "1e5" } });
+
+    const zapisany = ostatniaZmiana(zmiany);
+    expect(zapisany.style).toEqual({ marginTop: 0, marginBottom: 400 });
+    expect(BlocksDocSchema.safeParse(dokument(zapisany)).success).toBe(true);
+  });
+
+  it("napis, ktory nie jest liczba, USUWA odstep zamiast zapisac NaN", () => {
+    const { zmiany } = zInspektorem(blok("paragraph", {}, { marginTop: 32 }));
+
+    fireEvent.change(polaOdstepu()[0], { target: { value: "abc" } });
+
+    const styl = ostatniaZmiana(zmiany).style;
+    expect(styl?.marginTop).toBeUndefined();
+    expect(JSON.stringify(styl)).not.toContain("NaN");
+  });
 });

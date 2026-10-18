@@ -2,7 +2,7 @@
 // Zawsze widoczny nad blokiem gdy blok jest aktywny - dopasowany do możliwości
 // każdego formatu (obraz: wyrównanie/rozmiar/kadr, wideo: poster/aspect/tryby,
 // audio: cover/download). PL/EN i18n przez useBlocksI18n().
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import {
   Link as LinkIcon,
   Link2Off,
@@ -77,9 +77,8 @@ function Divider() {
 export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [, force] = useState(0);
-  useEffect(() => force((n) => n + 1), [block.data]);
-
+  // Bez wymuszania renderu efektem po `block.data`: nowe `block` i tak
+  // re-renderuje pasek, a efekt dokładał drugi, identyczny render po każdej zmianie.
   const d = block.data as Record<string, Json>;
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });

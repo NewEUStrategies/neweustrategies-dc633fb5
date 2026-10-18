@@ -41,9 +41,9 @@
 // GRANICA DOWODU: to jest poziom komponentu, nie przegladarki. Nie sprawdzam
 // tu ani focusu wymuszanego przez `initialFocus` (happy-dom nie ma silnika
 // layoutu, a react-day-picker ustawia focus we wlasnym efekcie - mierzylabym
-// obca biblioteke), ani wygladu klas Tailwinda - klasy `bg-primary` i
-// `ring-1` traktuje wylacznie jako JEDYNY nosnik informacji o wyroznieniu,
-// co samo w sobie jest zarejestrowanym nizej defektem dostepnosci. Nie
+// obca biblioteke), ani wygladu klas Tailwinda - wyroznienie w siatkach
+// miesiecy i lat czytam od 2026-10-18 z ARIA (`aria-pressed`,
+// `aria-current`), bo to jest jego kontrakt po naprawie defektu. Nie
 // sprawdzam tez zachowania wewnatrz Popovera `AdminDatePicker` - to osobna
 // powierzchnia z wlasnym stanem otwarcia.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -260,40 +260,42 @@ describe("oddalenie do siatki miesiecy", () => {
     ]);
   });
 
-  it("miesiac wybranej daty ma tlo wyroznienia, a miesiac biezacy - sama obwodke", () => {
+  it("miesiac wybranej daty jest wcisniety, a miesiac biezacy - oznaczony jako dzisiejszy", () => {
+    // ZMIANA 2026-10-18: stan czytamy z ARIA (`aria-pressed`, `aria-current`),
+    // a nie z klas tla/obwodki - od naprawy to jest kontrakt tego widoku.
     const { container } = zamontuj({ selected: MAJ_2026 });
 
     oddalDoMiesiecy(container);
     const [, , , , maj, , , , wrzesien] = przyciskiSiatki(container);
 
-    expect(maj).toHaveClass("bg-primary");
-    expect(maj).not.toHaveClass("ring-1");
-    // Wrzesien 2026 jest "dzisiaj", ale nie jest wybrany - stad sama obwodka.
-    expect(wrzesien).toHaveClass("ring-1");
-    expect(wrzesien).not.toHaveClass("bg-primary");
+    expect(maj).toHaveAttribute("aria-pressed", "true");
+    expect(maj).not.toHaveAttribute("aria-current");
+    // Wrzesien 2026 jest "dzisiaj", ale nie jest wybrany.
+    expect(wrzesien).toHaveAttribute("aria-current", "date");
+    expect(wrzesien).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("gdy nie ma wybranej daty, zaden miesiac nie dostaje tla wyroznienia", () => {
+  it("gdy nie ma wybranej daty, zaden miesiac nie jest wcisniety", () => {
     const { container } = zamontuj();
 
     oddalDoMiesiecy(container);
 
-    expect(przyciskiSiatki(container).filter((b) => b.classList.contains("bg-primary"))).toEqual(
-      [],
-    );
+    expect(
+      przyciskiSiatki(container).filter((b) => b.getAttribute("aria-pressed") === "true"),
+    ).toEqual([]);
   });
 
-  it("przewiniecie roku gasi oba wyroznienia, bo ani wybor, ani dzisiaj nie sa w tym roku", () => {
+  it("przewiniecie roku gasi oba oznaczenia, bo ani wybor, ani dzisiaj nie sa w tym roku", () => {
     const { container } = zamontuj({ selected: MAJ_2026 });
 
     oddalDoMiesiecy(container);
     fireEvent.click(screen.getByRole("button", { name: "Poprzedni rok" }));
 
     expect(screen.getByRole("button", { name: "2025" })).toBeInTheDocument();
-    const bezWyroznien = przyciskiSiatki(container).every(
-      (b) => !b.classList.contains("bg-primary") && !b.classList.contains("ring-1"),
+    const bezOznaczen = przyciskiSiatki(container).every(
+      (b) => b.getAttribute("aria-pressed") === "false" && !b.hasAttribute("aria-current"),
     );
-    expect(bezWyroznien).toBe(true);
+    expect(bezOznaczen).toBe(true);
   });
 
   it("strzalki przesuwaja rok o jeden w obie strony, zachowujac numer miesiaca", () => {
@@ -385,7 +387,7 @@ describe("oddalenie do strony lat", () => {
     ]);
   });
 
-  it("rok wybranej daty ma tlo wyroznienia, a rok biezacy - sama obwodke", () => {
+  it("rok wybranej daty jest wcisniety, a rok biezacy - oznaczony jako dzisiejszy", () => {
     const { container } = zamontuj({ selected: MARZEC_2024 });
 
     oddalDoMiesiecy(container);
@@ -393,21 +395,21 @@ describe("oddalenie do strony lat", () => {
 
     const rok2024 = screen.getByRole("button", { name: "2024" });
     const rok2026 = screen.getByRole("button", { name: "2026" });
-    expect(rok2024).toHaveClass("bg-primary");
-    expect(rok2024).not.toHaveClass("ring-1");
-    expect(rok2026).toHaveClass("ring-1");
-    expect(rok2026).not.toHaveClass("bg-primary");
+    expect(rok2024).toHaveAttribute("aria-pressed", "true");
+    expect(rok2024).not.toHaveAttribute("aria-current");
+    expect(rok2026).toHaveAttribute("aria-current", "date");
+    expect(rok2026).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("bez wybranej daty zaden rok nie dostaje tla wyroznienia", () => {
+  it("bez wybranej daty zaden rok nie jest wcisniety", () => {
     const { container } = zamontuj();
 
     oddalDoMiesiecy(container);
     oddalDoLat("2026");
 
-    expect(przyciskiSiatki(container).filter((b) => b.classList.contains("bg-primary"))).toEqual(
-      [],
-    );
+    expect(
+      przyciskiSiatki(container).filter((b) => b.getAttribute("aria-pressed") === "true"),
+    ).toEqual([]);
   });
 
   it("strzalki przewijaja strone o dwanascie lat w obie strony", () => {
@@ -488,63 +490,36 @@ describe("dostepnosc trzech widokow", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY - zarejestrowane, NIE naprawione w kodzie produkcyjnym.
+// NAPRAWIONE 2026-10-18 - byly trzy `it.fails` (defekty kalendarza panelu).
 // ---------------------------------------------------------------------------
 
-describe("defekty kalendarza panelu", () => {
-  // DEFEKT: KLIKNIECIE JUZ WYBRANEGO DNIA KASUJE DATE ZAMIAST JA POTWIERDZIC.
+describe("kontrakty kalendarza panelu (dawne defekty)", () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): KLIK W JUZ WYBRANY DZIEN POTWIERDZA DATE.
   //
-  // WEJSCIE: kalendarz z `selected` = 15 maja 2026 (czyli pole formularza ma
-  //   juz wartosc), redaktor otwiera go i klika w podswietlony dzien 15.
-  // CO PSUJE: `AdminCalendar` (src/components/admin/blocks/AdminCalendar.tsx:39-42)
-  //   podaje `onSelect` react-day-pickerowi w trybie `mode="single"` BEZ propu
-  //   `required`. W react-day-picker 9 tryb pojedynczy jest przelacznikiem:
-  //   klikniecie aktualnie zaznaczonego dnia to ODZNACZENIE i handler dostaje
-  //   `undefined`. Zmierzone: `onSelect` wolane raz, argument `undefined`.
-  // KONSEKWENCJA: jedyny konsument, `AdminDatePicker`
-  //   (src/components/admin/blocks/AdminDatePicker.tsx:107-110), robi z tego
-  //   `onChange(d ? toLocalDate(d) : null)` i NATYCHMIAST zamyka popover.
-  //   Czyli: redaktor klika w date, ktora widzi jako wybrana - zeby ja
-  //   potwierdzic - a pole zostaje WYCZYSZCZONE i kalendarz sie zamyka, bez
-  //   zadnego komunikatu. Na `/admin/tracker` i w edytorze bloku odliczania
-  //   znika wtedy cala zaplanowana data, a odzyskac ja mozna tylko pamiecia.
-  //   Kasowanie ma w tym UI wlasny, jawny przycisk "Wyczyść" - ten gest nie
-  //   ma prawa go dublowac.
-  // WYMAGANA POPRAWKA: `<Calendar mode="single" required ...>` (react-day-picker
-  //   wylacza wtedy odznaczanie) albo straznik w `onSelect`, ktory przy
-  //   `undefined` zostawia dotychczasowa wartosc.
-  it.fails("DEFEKT: klikniecie juz wybranego dnia NIE moze kasowac daty", () => {
+  // KONTRAKT: `<Calendar mode="single" required>` - react-day-picker nie
+  //   odznacza dnia, wiec klik w podswietlony dzien oddaje rodzicowi TE SAMA
+  //   date, a nie `undefined`. Wczesniej `AdminDatePicker` robil z `undefined`
+  //   `null` i zamykal popover: redaktor potwierdzal widoczna date, a pole
+  //   zostawalo WYCZYSZCZONE bez komunikatu. Kasowanie ma wlasny przycisk.
+  it("klikniecie juz wybranego dnia oddaje te sama date zamiast ja kasowac", () => {
     const { container, onSelect } = zamontuj({ selected: MAJ_2026 });
 
     fireEvent.click(within(container).getByRole("button", { name: /15 maja 2026/ }));
 
     expect(onSelect).toHaveBeenCalledTimes(1);
-    expect(onSelect.mock.calls[0][0]).toBeInstanceOf(Date);
+    const oddana = onSelect.mock.calls[0][0] as Date;
+    expect(oddana).toBeInstanceOf(Date);
+    expect([oddana.getFullYear(), oddana.getMonth(), oddana.getDate()]).toEqual([2026, 4, 15]);
   });
 
-  // DEFEKT: NOWA INSTANCJA TEJ SAMEJ DATY COFA NAWIGACJE REDAKTORA.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): NOWA INSTANCJA TEJ SAMEJ DATY NIE
+  // COFA NAWIGACJI.
   //
-  // WEJSCIE: kalendarz z `selected` = 15 maja 2026. Redaktor przewija do
-  //   czerwca 2026 strzalka siatki dni. Rodzic renderuje sie ponownie
-  //   (dowolny powod: zmiana innego pola, otwarcie/zamkniecie popovera,
-  //   przerysowanie panelu) i podaje TE SAMA date jako NOWY obiekt `Date`.
-  // CO PSUJE: efekt synchronizacji
-  //   (src/components/admin/blocks/AdminCalendar.tsx:33-35) ma w tablicy
-  //   zaleznosci `[selected]`, czyli porownuje TOZSAMOSC obiektu, a nie jego
-  //   wartosc. To nie jest teoretyczne: jedyny konsument liczy
-  //   `parsed = value ? parseLocalDateTime(value) : null`
-  //   (src/components/admin/blocks/AdminDatePicker.tsx:82) przy KAZDYM
-  //   renderze, wiec `selected` dostaje nowa tozsamosc nawet wtedy, gdy
-  //   napis "2026-05-15" w ogole sie nie zmienil.
-  // KONSEKWENCJA: `setMonth(selected)` przestawia widok z powrotem na maj i
-  //   przewiniecie przepada. Redaktor, ktory szuka daty kilka miesiecy dalej,
-  //   jest cofany do miesiaca juz wybranego - w skrajnym przypadku (rodzic
-  //   renderujacy sie na kazde nacisniecie klawisza w sasiednim polu) siatka
-  //   jest nie do przewiniecia w ogole.
-  // WYMAGANA POPRAWKA: efekt musi zalezec od WARTOSCI, a nie od tozsamosci -
-  //   `[selected?.getTime()]` z odczytem daty w srodku - zeby zadzialal
-  //   wylacznie wtedy, gdy realnie zmienil sie wybrany dzien.
-  it.fails("DEFEKT: nowa instancja tej samej daty NIE moze cofac nawigacji redaktora", () => {
+  // KONTRAKT: synchronizacja miesiaca z `selected` zalezy od WARTOSCI
+  //   (`selected?.getTime()`), nie od tozsamosci obiektu. `AdminDatePicker`
+  //   parsuje napis daty przy kazdym renderze, wiec ta sama data przychodzi
+  //   jako nowy `Date` - i nie moze juz cofac przewinietego miesiaca.
+  it("nowa instancja tej samej daty NIE cofa nawigacji redaktora", () => {
     const { container, rerender } = zamontuj({ selected: new Date(2026, 4, 15) });
 
     fireEvent.click(within(container).getByRole("button", { name: NASTEPNY_MIESIAC }));
@@ -557,34 +532,49 @@ describe("defekty kalendarza panelu", () => {
     expect(podpis(container)).toHaveTextContent("czerwiec 2026");
   });
 
-  // DEFEKT: WYROZNIENIE W SIATKACH MIESIECY I LAT ISTNIEJE WYLACZNIE JAKO KLASA CSS.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): STAN W SIATKACH MIESIECY I LAT JEST
+  // W DRZEWIE DOSTEPNOSCI.
   //
-  // WEJSCIE: kalendarz z `selected` = 15 maja 2026, oddalony do siatki
-  //   miesiecy; uzytkownik czytnika ekranu przechodzi tabulatorem po
-  //   dwunastu przyciskach.
-  // CO PSUJE: przyciski miesiecy (AdminCalendar.tsx:106-122) i lat
-  //   (:161-177) roznicuja stan wybrania WYLACZNIE klasami `bg-primary` /
-  //   `ring-1 ring-border`. Nie ma ani `aria-pressed`, ani `aria-current`,
-  //   ani zadnego tekstu pomocniczego. Zmierzone: `maj` ma `bg-primary`
-  //   i ZERO atrybutow ARIA.
-  // KONSEKWENCJA: czytnik ekranu ogloszi dwanascie identycznie brzmiacych
-  //   przyciskow ("sty", "lut", ... "gru") i nie powie, ktory jest wybrany
-  //   ani ktory jest biezacy. To regres wzgledem widoku, ktory te siatki
-  //   ZASTEPUJA: react-day-picker dokleja w siatce dni stan do nazwy
-  //   dostepnej ("piątek, 15 maja 2026, selected"). Oddalenie widoku odbiera
-  //   wiec informacje, ktora przyblizony widok podaje - a to jest jedyna
-  //   droga do lat odleglych, wiec obejscia nie ma.
-  //   Sam kolor tla nie jest dopuszczalnym nosnikiem informacji (WCAG 1.4.1).
-  // WYMAGANA POPRAWKA: przyciski miesiaca i roku musza niesc
-  //   `aria-pressed={isSelected}` (albo `aria-current="date"` dla biezacego),
-  //   zeby stan byl w drzewie dostepnosci, a nie tylko w warstwie wizualnej.
-  it.fails("DEFEKT: wybrany miesiac musi byc oznaczony w ARIA, nie tylko klasa CSS", () => {
+  // KONTRAKT: przyciski miesiaca i roku niosa `aria-pressed` (wybrany) oraz
+  //   `aria-current="date"` (biezacy). Wczesniej stan istnial WYLACZNIE jako
+  //   klasa tla/obwodki (WCAG 1.4.1), a czytnik ekranu slyszal dwanascie
+  //   identycznych przyciskow - oddalenie widoku odbieralo informacje, ktora
+  //   siatka dni podaje w nazwie dostepnej.
+  it("wybrany miesiac jest oznaczony w ARIA, a nie tylko kolorem", () => {
     const { container } = zamontuj({ selected: MAJ_2026 });
 
     oddalDoMiesiecy(container);
-    const maj = screen.getByRole("button", { name: "maj" });
 
-    expect(maj).toHaveClass("bg-primary");
-    expect(maj).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "maj", pressed: true })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(1);
+  });
+
+  it("wybrany rok jest oznaczony w ARIA na stronie lat", () => {
+    const { container } = zamontuj({ selected: MARZEC_2024 });
+
+    oddalDoMiesiecy(container);
+    oddalDoLat("2024");
+
+    expect(screen.getByRole("button", { name: "2024", pressed: true })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("podpis siatki dni jako staly komponent", () => {
+  it("przerenderowanie rodzica NIE montuje podpisu od nowa - fokus zostaje na nim", () => {
+    // Literal komponentu w renderze byl dla Reacta nowym typem przy KAZDYM
+    // renderze: podpis montowal sie od nowa, a fokus klawiatury spadal na
+    // `body`. Rodzic (pole daty) renderuje sie przy kazdej zmianie formularza.
+    const { container, rerender } = zamontuj({ selected: MAJ_2026 });
+    const przed = podpis(container);
+    przed.focus();
+    expect(document.activeElement).toBe(przed);
+
+    rerender(<AdminCalendar selected={MAJ_2026} onSelect={vi.fn()} locale={plLocale} />);
+
+    expect(podpis(container)).toBe(przed);
+    expect(document.activeElement).toBe(przed);
   });
 });

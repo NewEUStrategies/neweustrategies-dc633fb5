@@ -112,6 +112,7 @@ import {
   VideoHeroBlock,
 } from "./edit/ConversionBlocks";
 import { ChartBlock, DataMapBlock } from "./edit/DataVizBlocks";
+import { LinkPreviewBlock } from "./edit/LinkPreviewBlock";
 
 /** Bloki, które renderują własny wyspecjalizowany floating toolbar. */
 const OWN_TOOLBAR_TYPES = new Set(["paragraph", "heading", "image", "video", "audio"]);
@@ -398,6 +399,8 @@ export function BlockEditRenderer({
       return <ChartBlock block={block} onChange={onChange} />;
     case "data-map":
       return <DataMapBlock block={block} onChange={onChange} />;
+    case "link-preview":
+      return <LinkPreviewBlock block={block} onChange={onChange} />;
 
     default:
       return <div className="text-xs text-muted-foreground italic py-2">[{block.type}]</div>;

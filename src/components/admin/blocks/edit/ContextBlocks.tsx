@@ -1,8 +1,13 @@
 // Admin edytory dla bloków dynamicznych "post-*" (Phase 2).
 // Wszystkie czytają CurrentPostCtx na public stronie; tu pokazujemy tylko placeholder + opcje.
+//
+// Odczyt `block.data` idzie przez TE SAME czytniki, co renderer publiczny
+// (`components/blocks/renderer/data.ts`): panel ma pokazać wartość, której
+// strona faktycznie użyje - a nie surowy kształt z importu.
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
+import { bool, num, str } from "@/components/blocks/renderer/data";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -21,9 +26,12 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
   );
 }
 
+/** `PostTitleView` przycina poziom do [1, 4] - lista pokazuje poziom PO przycięciu. */
+const POST_TITLE_MAX_LEVEL = 4;
+
 export function PostTitleBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const level = Number(block.data.level ?? 1);
+  const level = Math.min(POST_TITLE_MAX_LEVEL, Math.max(1, num(block.data, "level", 1)));
   return (
     <Shell label={bt.editor("contextBlocks", "postTitle")}>
       <AdminSelect
@@ -45,8 +53,10 @@ export function PostTitleBlock({ block, onChange }: Props) {
 
 export function PostDateBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const format = String(block.data.format ?? "long");
-  const showUpdated = Boolean(block.data.showUpdated);
+  const format = str(block.data, "format", "long");
+  // „Domyślnie wyłączone" = wyłącznie prawdziwe `true`, jak `bool(..., false)`
+  // w rendererze. `Boolean("false")` pokazywał zaznaczenie, którego strona nie stosuje.
+  const showUpdated = bool(block.data, "showUpdated", false);
   return (
     <Shell label={bt.editor("contextBlocks", "postDate")}>
       <div className="flex gap-2 items-center text-xs">
@@ -76,8 +86,8 @@ export function PostDateBlock({ block, onChange }: Props) {
 
 export function PostAuthorBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const showAvatar = block.data.showAvatar !== false;
-  const showBio = Boolean(block.data.showBio);
+  const showAvatar = bool(block.data, "showAvatar", true);
+  const showBio = bool(block.data, "showBio", false);
   return (
     <Shell label={bt.editor("contextBlocks", "postAuthor")}>
       <div className="flex gap-4 text-xs">
@@ -108,7 +118,7 @@ export function PostAuthorBlock({ block, onChange }: Props) {
 
 export function PostExcerptBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const showMore = Boolean(block.data.showMore);
+  const showMore = bool(block.data, "showMore", false);
   return (
     <Shell label={bt.editor("contextBlocks", "postExcerpt")}>
       <label className="flex items-center gap-1 text-xs">
@@ -127,8 +137,8 @@ export function PostExcerptBlock({ block, onChange }: Props) {
 
 export function PostFeaturedImageBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const aspect = String(block.data.aspect ?? "16/9");
-  const rounded = block.data.rounded !== false;
+  const aspect = str(block.data, "aspect", "16/9");
+  const rounded = bool(block.data, "rounded", true);
   return (
     <Shell label={bt.editor("contextBlocks", "postFeaturedImage")}>
       <div className="flex gap-2 items-center text-xs">
@@ -159,7 +169,7 @@ export function PostFeaturedImageBlock({ block, onChange }: Props) {
 
 export function PostTermsBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const taxonomy = String(block.data.taxonomy ?? "categories");
+  const taxonomy = str(block.data, "taxonomy") === "tags" ? "tags" : "categories";
   return (
     <Shell label={bt.editor("contextBlocks", "postTerms")}>
       <AdminSelect
@@ -176,7 +186,7 @@ export function PostTermsBlock({ block, onChange }: Props) {
 
 export function SiteTitleBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const level = Number(block.data.level ?? 1);
+  const level = num(block.data, "level", 1);
   return (
     <Shell label={bt.editor("contextBlocks", "siteTitle")}>
       <AdminSelect
@@ -201,18 +211,28 @@ export function SiteTaglineBlock(_: Props) {
   return <Shell label={bt.editor("contextBlocks", "siteTagline")} />;
 }
 
+/** Granice `SiteLogoView` (`Math.min(480, Math.max(32, width))`). */
+const LOGO_MIN = 32;
+const LOGO_MAX = 480;
+
 export function SiteLogoBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const width = Number(block.data.width ?? 120);
+  // Górna granica - w odczycie i w zapisie - bo powyżej niej strona i tak
+  // przytnie logo. Dolnej nie wymuszamy w trakcie pisania: „2" to stan
+  // przejściowy w drodze do „250", a `SiteLogoView` domyka wynik sam.
+  const width = Math.min(LOGO_MAX, num(block.data, "width", 120));
   return (
     <Shell label={bt.editor("contextBlocks", "siteLogo")}>
       <input
         type="number"
-        min={32}
-        max={480}
+        min={LOGO_MIN}
+        max={LOGO_MAX}
         value={width}
         onChange={(e) =>
-          onChange({ ...block, data: { ...block.data, width: Number(e.target.value || 120) } })
+          onChange({
+            ...block,
+            data: { ...block.data, width: Math.min(LOGO_MAX, Number(e.target.value || 120)) },
+          })
         }
         className="text-xs bg-background border border-border rounded px-2 py-2 h-9 w-full"
       />

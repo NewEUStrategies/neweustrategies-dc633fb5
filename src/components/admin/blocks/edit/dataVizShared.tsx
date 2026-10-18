@@ -82,6 +82,12 @@ export function Warning({ text }: { text: string }) {
 }
 
 // ===== Odczyt treści =====
+//
+// Trzy czytniki niżej są koercją „Json -> pole formy" dla CAŁEGO katalogu
+// `edit/`, nie tylko dla wykresu i mapy: biorą z nich też nagłówek, obraz,
+// odstęp, bloki interaktywne i siatki danych/social proof. Jedno miejsce
+// znaczy jedną odpowiedź na pytanie, co pole pokazuje dla obiektu, `NaN`
+// albo napisu nieliczbowego.
 
 export function asRecord(raw: Json | undefined): Record<string, Json> {
   return raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
@@ -129,10 +135,13 @@ export function DecimalInput({
   value,
   placeholder,
   onCommit,
+  inputMode = "decimal",
 }: {
   value: number | null;
   placeholder: string;
   onCommit: (next: number | null) => void;
+  /** Klawiatura ekranowa: „numeric" dla liczb całkowitych (np. `n`). */
+  inputMode?: "decimal" | "numeric";
 }) {
   const [draft, setDraft] = useState(value === null ? "" : String(value));
   const [seen, setSeen] = useState(value);
@@ -143,7 +152,7 @@ export function DecimalInput({
   return (
     <input
       className={inputCls}
-      inputMode="decimal"
+      inputMode={inputMode}
       value={draft}
       placeholder={placeholder}
       aria-label={placeholder}
@@ -250,26 +259,27 @@ export function CaptionField({ data, write, label }: DataFieldsProps & { label?:
   );
 }
 
-/** Data danych i liczebność próby w jednym wierszu. */
+/**
+ * Data danych i liczebność próby w jednym wierszu. `n` idzie przez pole ze
+ * szkicem: wcześniej `Number(wpis)` zapisywało dla literówki `NaN`, które pole
+ * pokazywało z powrotem jako „NaN", a JSON utrwalał jako `null`. Teraz wpis
+ * niebędący liczbą zapisuje BRAK (`null`) - tyle właśnie pokaże podpis.
+ */
 export function SourceDateSampleFields({ data, write }: DataFieldsProps) {
   const bt = useBlocksI18n();
   return (
     <div className="grid grid-cols-2 gap-2">
       <input
         className={inputCls}
-        value={String(data.sourceDate ?? "")}
+        value={readText(data.sourceDate)}
         placeholder={bt.editor("chart", "sourceDate")}
         onChange={(e) => write({ sourceDate: e.target.value })}
       />
-      <input
-        className={inputCls}
-        inputMode="numeric"
-        value={data.sampleSize == null ? "" : String(data.sampleSize)}
+      <DecimalInput
+        value={readDecimal(data.sampleSize)}
         placeholder={bt.editor("chart", "sampleSize")}
-        onChange={(e) => {
-          const raw = e.target.value.trim();
-          write({ sampleSize: raw === "" ? null : Number(raw) });
-        }}
+        inputMode="numeric"
+        onCommit={(v) => write({ sampleSize: v })}
       />
     </div>
   );
@@ -291,23 +301,23 @@ export function NotesFields({
     <>
       <input
         className={inputCls}
-        value={String(data.notesShows ?? "")}
+        value={readText(data.notesShows)}
         placeholder={bt.editor("chart", "notesShows")}
         onChange={(e) => write({ notesShows: e.target.value })}
       />
       <input
         className={inputCls}
-        value={String(data.notesSurprising ?? "")}
+        value={readText(data.notesSurprising)}
         placeholder={bt.editor("chart", "notesSurprising")}
         onChange={(e) => write({ notesSurprising: e.target.value })}
       />
       <input
         className={inputCls}
-        value={String(data.notesHidden ?? "")}
+        value={readText(data.notesHidden)}
         placeholder={bt.editor("chart", "notesHidden")}
         onChange={(e) => write({ notesHidden: e.target.value })}
       />
-      {!String(data.notesHidden ?? "").trim() && (
+      {!readText(data.notesHidden).trim() && (
         <Warning text={missingNotesText ?? ct("editor.missingNotes")} />
       )}
     </>

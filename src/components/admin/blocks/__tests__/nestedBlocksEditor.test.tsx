@@ -539,27 +539,18 @@ function zamontujSterowany(startowe: Block[]) {
   return { onChange };
 }
 
-// DEFEKT: WZORZEC WSTAWIONY DO KONTENERA NIE PRZEJMUJE AKTYWNOSCI.
+// NAPRAWIONE 2026-10-18 (byl `it.fails`): WZORZEC WSTAWIONY DO KONTENERA
+// PRZEJMUJE AKTYWNOSC.
 //
-// WEJSCIE: pusty kontener (np. świeża kolumna), redaktor otwiera inserter
-//   i wybiera wzorzec „Kluczowe wnioski" (nagłówek + lista).
-// CO PSUJE: sciezka wielu blokow w mini-kanwie to SUROWY `emit` -
-//   `onInsertBlocks={(list) => { emit([...blocksRef.current, ...list]); }}`
-//   (NestedBlocksEditor.tsx:175-177, to samo na :189 i :235-239). W przeciwienstwie
-//   do sciezki JEDNEGO bloku (`insertAt`, :65-72) nie ustawia `activeChildId`
-//   ani nie wola `requestBlockFocus`. Kanwa glowna robi jedno i drugie w
-//   `insertBlocksAt` (BlockCanvas.tsx:368-379), wiec ten sam gest zachowuje sie
-//   inaczej w zaleznosci od tego, czy blok stoi w kontenerze, czy nie.
-// KONSEKWENCJA: po wstawieniu wzorca do kolumny zaden blok nie jest aktywny -
-//   nie ma karetki do pisania i nie ma paska ustawien, mimo ze redaktor wlasnie
-//   wskazal, gdzie chce pracowac. Przy wstawianiu wzorca POMIEDZY dzieci jest
-//   gorzej: aktywne zostaje dziecko sprzed wstawienia, wiec pasek ustawien
-//   odnosi sie do INNEGO bloku niz ten, ktory redaktor widzi jako nowy.
-// WYMAGANA POPRAWKA: wszystkie trzy `onInsertBlocks` mini-kanwy musza przejsc
-//   przez wspolny odpowiednik `insertBlocksAt` z kanwy glownej: ustawic
-//   `activeChildId` na OSTATNI wstawiony blok i - dla typow tekstowych -
-//   poprosic o karetke przez `requestBlockFocus(id, "end")`.
-it.fails("DEFEKT: wzorzec wstawiony do kontenera POWINIEN przejac aktywnosc", () => {
+// KONTRAKT: wszystkie trzy `onInsertBlocks` mini-kanwy (pusty kontener, przed
+// pierwszym dzieckiem, po n-tym) ida przez wspolne `insertManyAt` - odpowiednik
+// `insertBlocksAt` kanwy glownej. Aktywny staje sie OSTATNI wstawiony blok
+// (a dla typow tekstowych mini-kanwa prosi o karetke na jego koncu), wiec ten
+// sam gest zachowuje sie tak samo w kontenerze i poza nim. Wczesniej sciezka
+// wielu blokow byla surowym `emit`: po wstawieniu wzorca do kolumny zaden blok
+// nie byl aktywny, a przy wstawieniu MIEDZY dzieci pasek ustawien zostawal
+// przy dziecku sprzed wstawienia.
+it("wzorzec wstawiony do PUSTEGO kontenera przejmuje aktywnosc", () => {
   const { onChange } = zamontujSterowany([]);
   fireEvent.click(screen.getByRole("button", { name: t("blocks.firstBlock") }));
   fireEvent.click(screen.getByRole("button", { name: t("blocks.inserter.browseAll") }));
@@ -573,4 +564,24 @@ it.fails("DEFEKT: wzorzec wstawiony do kontenera POWINIEN przejac aktywnosc", ()
   expect(dzieci).toHaveLength(2);
   const ostatni = dzieci[dzieci.length - 1];
   expect(document.querySelector(`[data-block-id="${ostatni.id}"]`)?.className).toContain("ring-1");
+  // Pierwszy blok wzorca (naglowek) NIE jest aktywny - aktywnosc jest jedna.
+  expect(document.querySelector(`[data-block-id="${dzieci[0].id}"]`)?.className).not.toContain(
+    "ring-1",
+  );
+});
+
+it("wzorzec wstawiony MIEDZY dzieci zabiera aktywnosc dziecku sprzed wstawienia", () => {
+  const { onChange } = zamontujSterowany([akapit("c1", "pierwsze"), akapit("c2", "drugie")]);
+  fireEvent.click(document.querySelector('[data-block-id="c1"]') as Element);
+  expect(document.querySelector('[data-block-id="c1"]')?.className).toContain("ring-1");
+
+  wstawWzorzec(1);
+
+  const dzieci = onChange.mock.calls.at(-1)![0];
+  expect(dzieci.map((b) => b.type)).toEqual(["paragraph", "heading", "list", "paragraph"]);
+  // Pasek ustawien ma wskazywac blok, ktory redaktor widzi jako nowy.
+  expect(document.querySelector(`[data-block-id="${dzieci[2].id}"]`)?.className).toContain(
+    "ring-1",
+  );
+  expect(document.querySelector('[data-block-id="c1"]')?.className).not.toContain("ring-1");
 });

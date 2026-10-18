@@ -2,7 +2,7 @@
 // Zawsze widoczny nad blokiem - pozwala szybko zmienić poziom, wyrównanie,
 // formatowanie (pogrubienie / kursywa / tekst normalny), kolor tekstu oraz
 // dodać anchor/ID. PL/EN i18n przez useBlocksI18n().
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   AlignLeft,
   AlignCenter,
@@ -19,7 +19,8 @@ import type { Editor } from "@tiptap/react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { promptDialog } from "@/lib/appDialogs";
-import { safeCssColor } from "@/lib/blocks/inlineHtml";
+import { safeCssColor, stripParagraphWrapper } from "@/lib/blocks/inlineHtml";
+import { normalizeAuthorAnchor } from "@/lib/content/anchorSlug";
 import type { Block, Json } from "@/lib/blocks/types";
 
 /** Paleta kolorów nagłówka - tokeny motywu + bezpieczne kolory druku. */
@@ -79,9 +80,8 @@ function Divider() {
 
 export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
   const i18n = useBlocksI18n();
-  const [, force] = useState(0);
-  useEffect(() => force((n) => n + 1), [block.data]);
-
+  // Bez wymuszania renderu efektem po `block.data`: nowe `block` i tak
+  // re-renderuje pasek, a efekt podwajał render przy każdym naciśnięciu klawisza.
   const d = block.data as Record<string, Json>;
   const level = Number(d.level ?? 2);
   const align = String(d.align ?? "left");
@@ -99,8 +99,23 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
     const sel = editor?.state.selection;
     const hasSelection = Boolean(sel && sel.from !== sel.to);
     if (editor && hasSelection) {
-      if (value) editor.chain().focus().setColor(value).run();
-      else editor.chain().focus().unsetColor().run();
+      if (value) {
+        editor.chain().focus().setColor(value).run();
+        return;
+      }
+      if (String(d.color ?? "") === "") {
+        editor.chain().focus().unsetColor().run();
+        return;
+      }
+      // „Wyczyść kolor" obiecuje BRAK koloru, a nagłówek ma go w dwóch
+      // miejscach: mark inline w treści i `data.color` całego bloku. Oba idą
+      // JEDNYM zapisem: `preventUpdate` wycisza `onUpdate` edytora, który
+      // zapisałby treść na bloku sprzed resetu (z kolorem) - drugi zapis
+      // nadpisałby wtedy pierwszy.
+      const before = editor.getHTML();
+      editor.chain().focus().unsetColor().setMeta("preventUpdate", true).run();
+      const after = editor.getHTML();
+      set(after === before ? { color: "" } : { color: "", text: stripParagraphWrapper(after) });
       return;
     }
     set({ color: value ?? "" });
@@ -251,7 +266,9 @@ export function HeadingWidgetToolbar({ block, onChange, editor }: Props) {
             confirmLabel: i18n.t("blocks.toolbar.apply"),
           });
           if (v === null) return;
-          set({ anchor: v.trim().replace(/\s+/g, "-").toLowerCase() });
+          // Kotwica idzie wprost do `<h2 id>` - musi być kanonicznym slugiem,
+          // tym samym, który liczy spis treści (`href="#…"`).
+          set({ anchor: normalizeAuthorAnchor(v) });
         }}
       >
         <Anchor className="h-3.5 w-3.5" />
