@@ -1,7 +1,3 @@
--- Twin of supabase/migrations/20261007140200_release_coupon_server_only.sql (same executable SQL).
--- Port onto the production lane: until now the release_b2b_coupon abuse fix existed only in the
--- supabase lane. Rationale, deploy order and the pgTAP proof live in that file.
-
 CREATE OR REPLACE FUNCTION public._release_b2b_coupon(
   p_tenant uuid, p_uid uuid, _coupon_id uuid, _order_id uuid
 )
@@ -14,9 +10,6 @@ BEGIN
   IF p_tenant IS NULL OR p_uid IS NULL OR _coupon_id IS NULL OR _order_id IS NULL THEN
     RETURN false;
   END IF;
-  -- Zamowienie TEGO konta, w TYM najemcy, jeszcze nieoplacone. Oplacone,
-  -- przetwarzane i zwrocone zachowuja realizacje - inaczej zwolnienie
-  -- resetowaloby limit kodu po skorzystaniu z rabatu.
   IF NOT EXISTS (
     SELECT 1 FROM public.payment_orders o
      WHERE o.id = _order_id AND o.tenant_id = p_tenant AND o.user_id = p_uid
@@ -24,8 +17,6 @@ BEGIN
   ) THEN
     RETURN false;
   END IF;
-  -- Blokada wiersza kodu: rownolegla rezerwacja i zwolnienie licza na tym samym
-  -- liczniku.
   PERFORM 1 FROM public.b2b_coupons
    WHERE id = _coupon_id AND tenant_id = p_tenant
    FOR UPDATE;

@@ -773,11 +773,20 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   // Port poprawki nadużycia kuponu B2B, wcześniej obecnej tylko w pasie
   // supabase (patrz REQUIRED_PRODUCTION_TWINS).
   {
-    tag: "0305_release_coupon_server_only",
+    tag: "0307_ledger_reconcile_pr521",
+    drizzleOnly:
+      "Uzupełnienie rejestru supabase_migrations o wersje PR #521 wgrane narzędziowo; operacja księgowa bez zmian schematu.",
+  },
+  {
+    tag: "0308_release_coupon_order_lock",
+    twin: "20261018120000_release_coupon_order_lock.sql",
+  },
+  {
+    tag: "0309_release_coupon_server_only",
     twin: "20261007140200_release_coupon_server_only.sql",
   },
   {
-    tag: "0306_release_coupon_order_lock",
+    tag: "0310_release_coupon_order_lock_final",
     twin: "20261018120000_release_coupon_order_lock.sql",
   },
 ];
