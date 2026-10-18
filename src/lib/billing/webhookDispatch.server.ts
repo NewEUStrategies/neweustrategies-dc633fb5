@@ -479,6 +479,19 @@ interface RowOwner {
 }
 
 /**
+ * Najemca właściciela zakładanej subskrypcji: `profiles.tenant_id`, nigdy
+ * z ładunku ani z hosta. `null` = konto bez profilu (zamknięte); porażka
+ * odczytu rzuca - trasa odpowiada 500, operator ponawia, a wiersz nie powstaje
+ * pod najemcą awaryjnym.
+ */
+async function ownerTenant(userId: string): Promise<string | null> {
+  const { readUserTenantId } = await import("@/lib/server/userTenant.server");
+  const tenantId = await readUserTenantId(await admin(), userId);
+  if (!tenantId) console.warn("[payments] subscription owner has no profile", userId);
+  return tenantId;
+}
+
+/**
  * Zakłada wiersz `subscriptions` WYŁĄCZNIE, gdy go nie ma
  * (`ON CONFLICT (provider_subscription_id) DO NOTHING`).
  *
@@ -486,6 +499,15 @@ interface RowOwner {
  * spóźnione `created` (np. po `deleted`) cofało strażnika i wskrzeszało
  * anulowaną subskrypcję. Wstawienie niesie parę strażnika - wiersz od
  * pierwszej chwili zna zdarzenie, którego skutki wystartowały.
+ *
+ * NAJEMCA JAWNIE, Z PROFILU WŁAŚCICIELA (`tenantId`, patrz `ownerTenant`).
+ * Pod rolą serwisową nie ma nagłówka hosta, więc DEFAULT public_tenant_id()
+ * kolumny oddaje najemcę DOMYŚLNEGO. Trigger `subscriptions_pin_tenant`
+ * (20261007140300) poprawia to w bazie, ale długo istniał wyłącznie w pasie
+ * supabase, a produkcję zasila dziennik drizzle - każda subskrypcja konta
+ * spoza najemcy domyślnego lądowała w domyślnym. Zapis nie polega więc na
+ * triggerze; `null` (konto bez profilu) zostawia wartość awaryjną bazy, jak
+ * trigger.
  *
  * @returns `outcome`: `inserted` - ten zapis założył wiersz; `exists` -
  *          przegraliśmy wyścig z równoległym zdarzeniem (wołający ponawia
@@ -495,6 +517,7 @@ interface RowOwner {
  */
 async function insertSubscriptionRow(
   source: SubscriptionRowSource,
+  tenantId: string | null,
   subscriptionId: string,
   mark: EventMark,
   extra: { purchase_confirmed_at?: string } = {},
@@ -505,6 +528,7 @@ async function insertSubscriptionRow(
     .upsert(
       {
         ...source.row,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
         ...extra,
         // Czas nie do odczytania pomijamy: strażnik przepuścił takie zdarzenie
         // świadomie, a następne zdarzenie z poprawnym czasem i tak zajmie wiersz.
@@ -512,9 +536,9 @@ async function insertSubscriptionRow(
       },
       { onConflict: "provider_subscription_id", ignoreDuplicates: true },
     )
-    // `tenant_id` i `user_id` z RETURNING: najemcę przypina trigger z profilu
-    // właściciela, więc alarm o drugiej subskrypcji (przy zajęciu potwierdzenia
-    // zakupu) nie bierze go z ładunku.
+    // `tenant_id` i `user_id` z RETURNING - to, co faktycznie zapisano - więc
+    // alarm o drugiej subskrypcji (przy zajęciu potwierdzenia zakupu) nie
+    // bierze najemcy z ładunku.
     .select("id, tenant_id, user_id");
   // 23503: konto właściciela usunięte (`user_id` -> `auth.users`). Zdarzenie
   // po zamknięciu konta (np. `deleted` subskrypcji anulowanej przy zamknięciu)
@@ -1032,6 +1056,7 @@ async function applyCreationEffects(
   data: SubscriptionData,
   env: StripeEnv,
   source: SubscriptionRowSource,
+  tenantId: string | null,
   mark: EventMark,
   announcements: AnnouncementQueue,
   owner: RowOwner,
@@ -1052,6 +1077,7 @@ async function applyCreationEffects(
     userId: source.userId,
     priceId: source.priceId,
     subscriptionId: data.id,
+    tenantId,
     periodEnd: period.accessUntil,
     periodStart,
     environment: env,
@@ -1110,11 +1136,12 @@ async function applyTombstoneAccess(
   data: SubscriptionData,
   env: StripeEnv,
   source: SubscriptionRowSource,
+  tenantId: string | null,
 ): Promise<boolean> {
   // Bez planu najemcy (konto zamknięte, cena spoza katalogu) nie ma czego
   // nadać - i nie ma po co pytać operatora.
   const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
-  const plan = await resolvePlanForPrice(source.priceId, { userId: source.userId });
+  const plan = await resolvePlanForPrice(source.priceId, { tenantId, userId: source.userId });
   if (!plan) return false;
 
   const { getStripeClient } = await import("@/lib/stripe.server");
@@ -1218,6 +1245,11 @@ async function createSubscription(
     return "invalid";
   }
 
+  // Najemca z profilu właściciela - raz, przed skutkami: ten sam odczyt
+  // zakresuje odwzorowanie ceny na plan (bez niego `resolvePlanForPrice` czyta
+  // profil drugi raz) i trafia jawnie do wstawianego wiersza.
+  const tenantId = await ownerTenant(source.userId);
+
   // Właściciel i najemca do sprawdzenia drugiego planu: wpisuje je RETURNING
   // wstawienia niżej, a czyta zajęcie potwierdzenia - komunikat, który wychodzi
   // dopiero po udanym wstawieniu.
@@ -1225,8 +1257,8 @@ async function createSubscription(
   let extra: { purchase_confirmed_at?: string } = {};
   if (grantsAccess) {
     if (kind !== "canceled") {
-      await applyCreationEffects(row, env, source, mark, announcements, owner);
-    } else if (await applyTombstoneAccess(row, env, source)) {
+      await applyCreationEffects(row, env, source, tenantId, mark, announcements, owner);
+    } else if (await applyTombstoneAccess(row, env, source, tenantId)) {
       // Nagrobek OPŁACONEGO okresu: zakup rozstrzygnął operator, a potwierdzenia
       // anulowanej subskrypcji już nie będzie. Pusty `purchase_confirmed_at`
       // udawałby subskrypcję nigdy nieopłaconą - jej ponowiona rezygnacja albo
@@ -1234,7 +1266,7 @@ async function createSubscription(
       extra = { purchase_confirmed_at: new Date().toISOString() };
     }
   }
-  const inserted = await insertSubscriptionRow(source, data.id, mark, extra);
+  const inserted = await insertSubscriptionRow(source, tenantId, data.id, mark, extra);
   if (inserted.outcome !== "inserted") announcements.length = 0;
   if (inserted.owner) Object.assign(owner, inserted.owner);
   return inserted.outcome;
