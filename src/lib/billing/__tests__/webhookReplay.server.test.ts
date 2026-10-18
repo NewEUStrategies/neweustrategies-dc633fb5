@@ -26,7 +26,7 @@
 // - żaden przypadek nie ma prawa wyjść do sieci). PRAWDZIWE biegną: dziennik
 // (`webhookLog.server` - przejęcie i domknięcie), normalizacja zdarzeń
 // Stripe'a, dyspozytor i synchronizacja profilu klienta (`customer.updated`).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fail, ok, supabaseFromStub, type RecordedChain } from "@/test/supabase/chain";
 import { FIXED_NOW_ISO, FIXED_NOW_MS, MINUTA, freezeClock, relativeIso } from "@/test/time";
@@ -40,6 +40,8 @@ const h = vi.hoisted(() => ({
   },
   /** Praca oddana „za odpowiedź" (`runAfterResponse`). */
   afterResponse: [] as Promise<unknown>[],
+  /** Klient operatora dla przypadku, który MA go wołać; domyślnie brak. */
+  stripe: null as null | { subscriptions: { retrieve: (id: string) => Promise<unknown> } },
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -64,6 +66,7 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getStripeClient: () => {
+    if (h.stripe) return h.stripe;
     throw new Error("test: zamiatarka nie ma prawa wołać operatora w tym scenariuszu");
   },
 }));
@@ -192,8 +195,13 @@ beforeEach(() => {
   h.rpc.calls.length = 0;
   h.rpc.respond = null;
   h.afterResponse.length = 0;
+  h.stripe = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `received`", () => {
@@ -395,6 +403,102 @@ describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `receiv
     expect(eqFilters(finishes()[0]!)).toContainEqual([
       "event_id",
       "reconcile_sub_1_active_1700000000",
+    ]);
+  });
+
+  // Strażnik kolejności subskrypcji porównuje czas ZDARZENIA z zapisanym
+  // stanem i rozpoznaje powtórkę po identyfikatorze. Gdyby zamiatarka podała
+  // chwilę ponowienia, zdarzenie sprzed godziny wyglądałoby na najnowsze
+  // i nadpisało stan zapisany przez późniejsze zdarzenie.
+  it("spóźnione zdarzenie subskrypcji: strażnik dostaje czas i identyfikator ZDARZENIA, nowszy stan zostaje", async () => {
+    const storedAt = relativeIso(-20 * MINUTA);
+    plan({
+      candidates: [
+        row({
+          id: "row-sub",
+          event_id: "evt_sub_old",
+          event_type: "subscription.updated",
+          occurred_at: relativeIso(-50 * MINUTA),
+        }),
+      ],
+      payload: () => ({
+        eventType: "subscription.updated",
+        data: { id: "sub_1", customerId: "cus_sweep_1", status: "past_due" },
+      }),
+    });
+    db.setResponse("subscriptions", (chain: RecordedChain) => {
+      if (chain.has("update")) {
+        // Warunek strażnika: zajmuje wyłącznie zdarzenie NOWSZE niż zapisane.
+        const stamp = (chain.argsOf("update")?.[0] as { last_event_at: string }).last_event_at;
+        return ok(Date.parse(stamp) > Date.parse(storedAt) ? [{ id: "sub-row-1" }] : []);
+      }
+      return ok({ last_event_at: storedAt, last_event_id: "evt_sub_newer" });
+    });
+    // Wyrównanie spóźnionego zdarzenia pyta operatora o stan; tu subskrypcji
+    // już tam nie ma, więc nie ma czego stosować.
+    h.stripe = {
+      subscriptions: {
+        retrieve: () =>
+          Promise.reject(
+            Object.assign(new Error("No such subscription"), { code: "resource_missing" }),
+          ),
+      },
+    };
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ due: 1, processed: 1, failed: 0 });
+    const subscriptionWrites = db.chainsFor("subscriptions").filter((c) => c.has("update"));
+    expect(subscriptionWrites).toHaveLength(1);
+    expect(subscriptionWrites[0]!.argsOf("update")?.[0]).toEqual({
+      last_event_at: relativeIso(-50 * MINUTA),
+      last_event_id: "evt_sub_old",
+    });
+    expect(eqFilters(subscriptionWrites[0]!)).toEqual([
+      ["provider_subscription_id", "sub_1"],
+      ["environment", "live"],
+    ]);
+    expect(finishes()[0]!.argsOf("update")?.[0]).toMatchObject({ status: "processed" });
+  });
+
+  // IZOLACJA ŚRODOWISK (PAY-05) przez zamiatarkę: wiersz piaskownicy musi
+  // dojść do dyspozytora jako piaskownica - jako `live` nadałby na produkcji
+  // realne skutki zdarzeniu z karty testowej - i domknąć się w swoim
+  // środowisku, także porażką przed obsługą.
+  it("wiersz piaskownicy: obsługa i domknięcie w środowisku WIERSZA - na produkcji bez skutków", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    plan({
+      candidates: [
+        row({ id: "row-sbx", event_id: "evt_sbx_1", environment: "sandbox" }),
+        row({ id: "row-sbx-empty", event_id: "evt_sbx_2", environment: "sandbox" }),
+      ],
+      payload: (rowId) => (rowId === "row-sbx-empty" ? {} : rawCustomerUpdated("evt_sbx_1")),
+    });
+
+    const result = await sweepWebhookEvents();
+
+    expect(result).toMatchObject({ due: 2, skipped: 1, failed: 1, processed: 0 });
+    expect(db.chainsFor("subscriptions")).toHaveLength(0);
+    expect(db.chainsFor("billing_profiles")).toHaveLength(0);
+    expect(finishes().map((c) => [c.argsOf("update")?.[0], eqFilters(c)])).toEqual([
+      [
+        expect.objectContaining({ status: "skipped", error: null }),
+        [
+          ["event_id", "evt_sbx_1"],
+          ["environment", "sandbox"],
+          ["status", "received"],
+          ["retry_count", 2],
+        ],
+      ],
+      [
+        expect.objectContaining({ status: "failed", error: EMPTY_PAYLOAD_ERROR }),
+        [
+          ["event_id", "evt_sbx_2"],
+          ["environment", "sandbox"],
+          ["status", "received"],
+          ["retry_count", 2],
+        ],
+      ],
     ]);
   });
 
@@ -690,6 +794,31 @@ describe("sweepWebhookEvents - ponowienie wierszy `failed` i porzuconych `receiv
     expect(h.afterResponse).toHaveLength(1);
     expect(finishes()).toHaveLength(0);
   });
+
+  it("termin: na wiersz, który kończy się PRZED terminem, przebieg czeka - także gdy obsługa trwa", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    vi.setSystemTime(FIXED_NOW_MS);
+    plan({ candidates: [row({ id: "row-a" }), row({ id: "row-b" })] });
+    // Zapis profilu klienta trwa 5 s - dwa wiersze mieszczą się w terminie.
+    db.setResponse(
+      "billing_profiles",
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(ok([{ id: "profile-1" }])), 5_000);
+        }),
+    );
+
+    const pending = sweepWebhookEvents({ deadlineAt: FIXED_NOW_MS + WEBHOOK_SWEEP_ROW_BUDGET_MS });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await pending;
+
+    expect(result).toMatchObject({ processed: 2, timedOut: 0, deferred: 0 });
+    // Czas obsługi w dzienniku (panel diagnostyczny) to czas TEGO wiersza.
+    expect(finishes().map((c) => c.argsOf("update")?.[0])).toEqual([
+      expect.objectContaining({ status: "processed", duration_ms: 5_000 }),
+      expect.objectContaining({ status: "processed", duration_ms: 5_000 }),
+    ]);
+  });
 });
 
 describe("isDueForSweep / isWithinSweepHorizon - odstęp wykładniczy, sufit prób, okno porzucenia, horyzont", () => {
@@ -787,6 +916,17 @@ describe("isDueForSweep / isWithinSweepHorizon - odstęp wykładniczy, sufit pr�
         now,
       ),
     ).toBe(false);
+    // Granica domknięta jak `>= now() - horyzont` w bazie.
+    expect(
+      isWithinSweepHorizon(
+        {
+          event_id: "evt_3",
+          occurred_at: relativeIso(-WEBHOOK_SWEEP_HORIZON_MS),
+          created_at: FIXED_NOW_ISO,
+        },
+        now,
+      ),
+    ).toBe(true);
     // Syntetyczna naprawa zamówienia: stan sesji odczytany TERAZ, `occurred_at`
     // = czas zakupu sprzed tygodnia (dla `paid_at`) - wiek liczy się od wiersza.
     expect(
@@ -1038,14 +1178,19 @@ describe("processClaimedWebhookEvent - pokolenie odczytane z wiersza tuż po prz
     ]);
   });
 
-  it("pokolenie podane przez wołającego (zamiatarka) - bez dodatkowego odczytu wiersza", async () => {
-    plan();
+  // Pokolenie 0 to nowy wiersz z wstawienia (`claimWebhookEventWithGeneration`)
+  // - pełnoprawne pokolenie, nie „brak pokolenia".
+  it.each([5, 0])(
+    "pokolenie %i podane przez wołającego - bez dodatkowego odczytu wiersza",
+    async (generation) => {
+      plan();
 
-    await processClaimedWebhookEvent({ ...event, normalized: null, generation: 5 });
+      await processClaimedWebhookEvent({ ...event, normalized: null, generation });
 
-    expect(db.chains.filter(isGenerationRead)).toHaveLength(0);
-    expect(eqFilters(finishes()[0]!)).toContainEqual(["retry_count", 5]);
-  });
+      expect(db.chains.filter(isGenerationRead)).toHaveLength(0);
+      expect(eqFilters(finishes()[0]!)).toContainEqual(["retry_count", generation]);
+    },
+  );
 
   it("odczyt pokolenia padł: obsługa NIE jest blokowana, domknięcie wraca do zapisu po kluczu (z logiem)", async () => {
     plan({ claimRead: () => fail("canceling statement due to statement timeout") });
