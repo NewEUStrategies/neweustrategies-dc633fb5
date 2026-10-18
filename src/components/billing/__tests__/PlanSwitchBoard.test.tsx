@@ -227,3 +227,35 @@ describe("PlanSwitchBoard - wykonanie zmiany", () => {
     expect(details?.getAttribute("href")).toBe("/plans/plan-pro-monthly");
   });
 });
+
+describe("PlanSwitchBoard - komunikat po zmianie mówi, KIEDY zmiana wchodzi", () => {
+  it("zejście zaplanowane od nowego okresu ogłasza harmonogram, nie „plan zmieniony”", async () => {
+    // Downgrade wchodzi dopiero od nowego okresu - „zmieniono" sugerowałoby,
+    // że niższy plan (i niższa cena) obowiązuje już teraz.
+    h.changePlan.mockResolvedValue({ effect: "scheduled" });
+    renderBoard(memberSubscription());
+    await awaitBoard();
+
+    clickRowAction("Student", "profile.planPage.downgradeCta");
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("profile.subscription.portal.downgradeScheduled"),
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalledWith("profile.subscription.changePlan.success");
+  });
+
+  it("zmiana zastosowana od razu ogłasza zmianę planu", async () => {
+    h.changePlan.mockResolvedValue({ effect: "applied" });
+    renderBoard(memberSubscription());
+    await awaitBoard();
+
+    clickRowAction("Pro", "profile.planPage.upgradeCta");
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("profile.subscription.changePlan.success"),
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalledWith(
+      "profile.subscription.portal.downgradeScheduled",
+    );
+  });
+});
