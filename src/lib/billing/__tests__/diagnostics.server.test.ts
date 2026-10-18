@@ -39,6 +39,8 @@ const h = vi.hoisted(() => {
     // oddaje `data: null` przy zerowym wyniku, a diagnostyka MUSI to przeżyć.
     coupons: { current: [] as Array<Record<string, unknown>> | null },
     webhookRows: { current: [] as Array<Record<string, unknown>> | null },
+    /** Błąd PostgREST odczytu dziennika zdarzeń (`null` = odczyt udany). */
+    webhookReadError: { current: null as Error | null },
     endpoints: { current: [] as Array<Record<string, unknown>> },
     /** Wiersz `checkout_settings` najemcy (`maybeSingle`). */
     checkoutSettings: { current: null as Record<string, unknown> | null },
@@ -99,15 +101,19 @@ const h = vi.hoisted(() => {
           error: null,
         });
       link.then = (onFulfilled?: (value: unknown) => unknown) =>
-        Promise.resolve({
-          data:
-            table === "b2b_coupons"
-              ? state.coupons.current
-              : table === "access_plans"
-                ? state.plans.current
-                : state.webhookRows.current,
-          error: null,
-        }).then(onFulfilled);
+        Promise.resolve(
+          table === "payment_webhook_events" && state.webhookReadError.current
+            ? { data: null, error: state.webhookReadError.current }
+            : {
+                data:
+                  table === "b2b_coupons"
+                    ? state.coupons.current
+                    : table === "access_plans"
+                      ? state.plans.current
+                      : state.webhookRows.current,
+                error: null,
+              },
+        ).then(onFulfilled);
       return link;
     },
     rpc: (fn: string, args?: Record<string, unknown>) => {
@@ -272,6 +278,7 @@ beforeEach(() => {
   h.rpc.mockReset();
   h.coupons.current = [];
   h.webhookRows.current = [];
+  h.webhookReadError.current = null;
   h.endpoints.current = [];
   h.endpointsThrow.current = false;
   // Najemca z WŁĄCZONYM polem kodu Stripe - inaczej synchronizacja niczego nie
@@ -642,6 +649,37 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
 
     expect(diag.webhooks.avgDurationMs).toBeNull();
     expect(diag.webhooks.total).toBe(1);
+  });
+
+  // DEFEKT (2026-10-18): błąd odczytu dziennika był połykany (`const { data }`
+  // bez `error`), a pusty wynik liczył się jak „zero zdarzeń" - kontrola
+  // `webhook_failures` świeciła ZIELONO („0/0", ok) właśnie wtedy, gdy
+  // diagnostyka nie umiała przeczytać ani jednego zdarzenia. Operator
+  // szukający „dlaczego zakup nie nadał dostępu" dostawał fałszywe „błędów brak".
+  it("BŁĄD ODCZYTU dziennika to `error` obu kontroli dziennika, a nie zielone „0/0”", async () => {
+    h.webhookRows.current = [
+      { status: "failed", created_at: "2026-08-18T10:00:00.000Z", duration_ms: 10 },
+    ];
+    h.webhookReadError.current = Object.assign(new Error("statement timeout"), {
+      name: "PostgrestError",
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(checkById(diag, "webhook_failures")).toMatchObject({
+      state: "error",
+      detail: "read_failed",
+    });
+    expect(checkById(diag, "webhook_traffic")).toMatchObject({
+      state: "error",
+      detail: "read_failed",
+    });
+    // Pozostałe kontrole raportu zostają - awaria jednego odczytu ich nie gasi.
+    expect(checkById(diag, "catalog").state).toBe("ok");
+    expect(diag.webhooks).toMatchObject({ total: 0, failed: 0, lastEventAt: null });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   it("JAKIKOLWIEK BŁĄD w dzienniku to `error` z proporcją", async () => {

@@ -328,17 +328,35 @@ async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDisc
   return rows;
 }
 
+/** Kondycja dziennika, którego nie udało się przeczytać - same zera. */
+const UNREAD_WEBHOOK_HEALTH: WebhookHealth = {
+  total: 0,
+  processed: 0,
+  skipped: 0,
+  failed: 0,
+  received: 0,
+  lastEventAt: null,
+  avgDurationMs: null,
+};
+
+/** Szczegół kontroli dziennika, gdy odczyt się nie udał. */
+const WEBHOOK_READ_FAILED = "read_failed";
+
 /**
  * Kondycja dziennika webhookow - ZAWSZE w zakresie jednego najemcy.
  *
  * Klient jest serwisowy, wiec omija RLS: bez jawnego `.eq("tenant_id", ...)`
  * kontrolki `webhook_failures` i `webhook_traffic` liczyly ruch wszystkich
  * obszarow roboczych, a `lastEventAt` oddawal znacznik cudzego zdarzenia.
+ *
+ * `null` = odczyt się NIE udał. Dawniej błąd był połykany, a pusty wynik
+ * liczył się jak „zero zdarzeń": `webhook_failures` świeciło zielono („0/0")
+ * dokładnie wtedy, gdy diagnostyka nie widziała ani jednego zdarzenia.
  */
-async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<WebhookHealth> {
+async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<WebhookHealth | null> {
   const supabase = await admin();
   const since = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("payment_webhook_events")
     .select("status, created_at, duration_ms")
     .eq("tenant_id", tenantId)
@@ -346,6 +364,10 @@ async function readWebhookHealth(env: StripeEnv, tenantId: string): Promise<Webh
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(1000);
+  if (error) {
+    console.error("[payments] webhook log health read failed", error.message);
+    return null;
+  }
 
   const rows = data ?? [];
   const durations = rows
@@ -379,12 +401,13 @@ export async function buildPaymentsDiagnostics(
   const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
   const configured = paymentsConfiguredServer();
 
-  const [destinations, catalog, coupons, webhooks] = await Promise.all([
+  const [destinations, catalog, coupons, webhooksRead] = await Promise.all([
     configured ? readDestinations(env) : Promise.resolve([]),
     configured ? readCatalog(env) : Promise.resolve([]),
     readCoupons(env, tenantId),
     readWebhookHealth(env, tenantId),
   ]);
+  const webhooks = webhooksRead ?? UNREAD_WEBHOOK_HEALTH;
 
   const missingPrices = catalog.filter((c) => !c.providerPriceId);
   const appEndpoints = destinations.filter((d) => d.url.includes(APP_WEBHOOK_PATH));
@@ -433,16 +456,21 @@ export async function buildPaymentsDiagnostics(
       state: !configured ? "warn" : missingPrices.length === 0 ? "ok" : "error",
       detail: `${catalog.length - missingPrices.length}/${catalog.length}`,
     },
-    {
-      id: "webhook_failures",
-      state: webhooks.failed === 0 ? "ok" : "error",
-      detail: `${webhooks.failed}/${webhooks.total}`,
-    },
-    {
-      id: "webhook_traffic",
-      state: webhooks.total > 0 ? "ok" : "warn",
-      detail: webhooks.lastEventAt ?? "-",
-    },
+    // Dziennik nieprzeczytany to `error` OBU kontroli - nie „0/0, w porządku".
+    webhooksRead === null
+      ? { id: "webhook_failures", state: "error", detail: WEBHOOK_READ_FAILED }
+      : {
+          id: "webhook_failures",
+          state: webhooks.failed === 0 ? "ok" : "error",
+          detail: `${webhooks.failed}/${webhooks.total}`,
+        },
+    webhooksRead === null
+      ? { id: "webhook_traffic", state: "error", detail: WEBHOOK_READ_FAILED }
+      : {
+          id: "webhook_traffic",
+          state: webhooks.total > 0 ? "ok" : "warn",
+          detail: webhooks.lastEventAt ?? "-",
+        },
   ];
 
   return {
