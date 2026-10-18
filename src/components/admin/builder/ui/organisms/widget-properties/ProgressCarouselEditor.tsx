@@ -9,11 +9,18 @@
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import {
+  PROGRESS_CAROUSEL_MAX_DURATION,
+  PROGRESS_CAROUSEL_MIN_DURATION,
+  clampDuration,
+} from "@/lib/builder/progressCarousel";
+import { getBool, getNum } from "@/components/builder/organisms/widget-view/frame";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
@@ -73,9 +80,12 @@ export function ProgressCarouselEditor({ c, lang, setContent }: Props) {
       },
     ]);
 
-  const duration = typeof c.duration === "number" ? c.duration : 5000;
-  const vertical = c.vertical === true;
-  const showDesc = c.showDesc !== false;
+  // Odczyt TAK SAMO jak `ProgressCarouselView`: czas po klamrze renderera,
+  // przełączniki przez `getBool` - inaczej panel i strona rozjeżdżają się na
+  // treści z importu ("true" / "false" / 0 / 1 zamiast booleanów).
+  const duration = clampDuration(getNum(c, "duration", 5000));
+  const vertical = getBool(c, "vertical", false);
+  const showDesc = getBool(c, "showDesc", true);
 
   return (
     <div className="space-y-3">
@@ -89,14 +99,15 @@ export function ProgressCarouselEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.progressCarouselEditor.duration")}>
-          <Input
-            type="number"
-            min={1000}
-            max={30000}
-            step={500}
+          <ClampedNumberInput
             value={duration}
-            onChange={(e) => setContent("duration", Number(e.target.value) || 5000)}
-            className="h-8 text-xs"
+            min={PROGRESS_CAROUSEL_MIN_DURATION}
+            max={PROGRESS_CAROUSEL_MAX_DURATION}
+            step={500}
+            ariaLabel={t("builder.progressCarouselEditor.duration")}
+            onCommit={(v) => {
+              if (v !== undefined && v !== duration) setContent("duration", v);
+            }}
           />
         </PropField>
         <PropField label={t("builder.progressCarouselEditor.toggles")}>

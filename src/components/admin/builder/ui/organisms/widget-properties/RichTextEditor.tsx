@@ -37,8 +37,11 @@ interface Props {
 export function RichTextEditor({ c, setContent }: Props) {
   const { t } = useTranslation();
   const value = readLocalized(c.doc);
-  const plCount = value?.pl?.blocks?.length ?? 0;
-  const enCount = value?.en?.blocks?.length ?? 0;
+  // Liczy wyłącznie TABLICĘ bloków: napis z uszkodzonego zapisu ma `length`
+  // i dawał na przycisku liczbę znaków zamiast liczby bloków.
+  const countOf = (blocks: unknown): number => (Array.isArray(blocks) ? blocks.length : 0);
+  const plCount = countOf(value?.pl?.blocks);
+  const enCount = countOf(value?.en?.blocks);
 
   return (
     <PropField label={t("builder.richTextEditor.field")}>

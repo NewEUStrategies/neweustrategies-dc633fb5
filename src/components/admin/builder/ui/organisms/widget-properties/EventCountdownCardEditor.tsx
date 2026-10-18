@@ -2,6 +2,7 @@
 // (zrodlo daty, tytul, CTA, kolor akcentu) i dokłada pola specyficzne dla
 // karty: okladka, liczba uczestnikow, badge oraz animacje.
 import type { WidgetNode, Json } from "@/lib/builder/types";
+import { getBool, getNum } from "@/components/builder/organisms/widget-view/frame";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { PropField } from "../../atoms";
@@ -16,14 +17,19 @@ interface Props {
 }
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
-const numOf = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0);
+/** Liczba uczestników tak, jak liczy ją `EventCountdownCardView`. */
+const attendeesOf = (v: number): number => Math.max(0, Math.round(v));
 
 export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const showAttendees = c.showAttendees !== false;
-  const showCountdown = c.showCountdown !== false;
-  const showLocation = c.showLocation !== false;
-  const enableAnimations = c.enableAnimations !== false;
+  // Odczyt jak w `EventCountdownCardView` (`getBool` / `getNum`): przełącznik
+  // z importu zapisany jako "false" albo 0 ma być w panelu WYŁĄCZONY, a liczba
+  // uczestników - ta sama, którą pokaże karta (bez ułamków i wartości ujemnych).
+  const showAttendees = getBool(c, "showAttendees", true);
+  const showCountdown = getBool(c, "showCountdown", true);
+  const showLocation = getBool(c, "showLocation", true);
+  const enableAnimations = getBool(c, "enableAnimations", true);
+  const attendees = attendeesOf(getNum(c, "attendees", 0));
   const eventMode = strOf(c.mode) === "event";
 
   return (
@@ -69,8 +75,8 @@ export function EventCountdownCardEditor({ c, lang, setContent }: Props) {
             <Input
               type="number"
               min={0}
-              value={numOf(c.attendees) || ""}
-              onChange={(e) => setContent("attendees", Math.max(0, Number(e.target.value) || 0))}
+              value={attendees || ""}
+              onChange={(e) => setContent("attendees", attendeesOf(Number(e.target.value) || 0))}
               className="h-8 text-xs"
             />
           </PropField>

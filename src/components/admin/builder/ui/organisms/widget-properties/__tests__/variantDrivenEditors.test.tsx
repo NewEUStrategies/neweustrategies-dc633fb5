@@ -513,34 +513,31 @@ describe("WorldMapEditor - kraj wpisuje współrzędne punktu", () => {
 
   it("wybór kraju sięga po centroid z katalogu geo", () => {
     // Autor prawie nigdy nie zna lat/lng, za to zawsze wie „skąd” jest punkt,
-    // więc picker WPISUJE centroid kraju do pól współrzędnych. Poniżej stoi
-    // `it.fails`, bo dojeżdża z tego wyłącznie DŁUGOŚĆ.
+    // więc picker WPISUJE centroid kraju do pól współrzędnych.
     const point = connectionsFrom(pickPoland())[0];
     expect(point?.startLng).toBe(POLAND.lng);
   });
 
-  // DEFEKT: WYBÓR KRAJU WPISUJE TYLKO DŁUGOŚĆ, A SZEROKOŚĆ GUBI.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): wybór kraju wpisywał tylko długość.
   //
   // WEJŚCIE: połączenie bez współrzędnych; autor wybiera „Poland (PL)" na
   //   liście „Kraj (wypełnia współrzędne)" przy początku łuku.
-  // CO PSUJE: `pickCountry` (`WorldMapEditor.tsx:385-391`) woła po kolei
-  //   `onLat(hit.lat)` i `onLng(hit.lng)`. Oba trafiają w `patch(i, p)`
-  //   (:107-108), które liczy nową listę z `connections` ZAMROŻONYCH w
-  //   domknięciu tego renderu. React grupuje obie aktualizacje w jedno
-  //   przerysowanie, więc drugi zapis powstaje z tej samej listy WEJŚCIOWEJ,
-  //   co pierwszy - i nadpisuje go w całości. Zostaje wyłącznie `startLng`.
-  // KONSEKWENCJA: punkt ląduje na szerokości 0 (równik) z poprawną długością,
-  //   czyli w Zatoce Gwinejskiej zamiast w wybranym kraju. Panel obiecuje
-  //   wprost („pola szerokości i długości wypełnią się same"), a mapa rysuje
-  //   łuk w zupełnie innym miejscu - i to bez żadnego komunikatu, bo 0 jest
-  //   POPRAWNĄ szerokością i walidacja jej nie zaczerwieni.
-  // WYMAGANA POPRAWKA: `pickCountry` musi zapisać obie współrzędne JEDNYM
-  //   patchem (np. wspólne `onCoords({ lat, lng })` zamiast dwóch wywołań),
-  //   żeby nie zależeć od kolejności przerysowań.
-  it.fails("DEFEKT: wybór kraju MUSI wpisać OBIE współrzędne punktu", () => {
-    const point = connectionsFrom(pickPoland())[0];
-    expect(point?.startLat).toBe(POLAND.lat);
-    expect(point?.startLng).toBe(POLAND.lng);
+  // BYŁO: `pickCountry` wołał po kolei `onLat` i `onLng`; oba liczyły nową
+  //   listę z `connections` zamrożonych w tym samym renderze, więc drugi zapis
+  //   nadpisywał pierwszy i punkt lądował na równiku (szerokość 0 - poprawna,
+  //   więc bez czerwonego pola).
+  // KONTRAKT: wybór kraju to JEDEN zapis (`onCoords`) z obiema współrzędnymi,
+  //   a pozostałe pola połączenia (id, etykiety) przechodzą bez zmian.
+  it("wybór kraju wpisuje OBIE współrzędne punktu jednym zapisem", () => {
+    const written = pickPoland();
+    expect(written).toHaveLength(1);
+    const point = connectionsFrom(written)[0];
+    expect(point).toMatchObject({
+      id: "wm-1",
+      endLabel_pl: "Warszawa",
+      startLat: POLAND.lat,
+      startLng: POLAND.lng,
+    });
   });
 
   it("wartość spoza katalogu krajów NIE rusza współrzędnych", () => {

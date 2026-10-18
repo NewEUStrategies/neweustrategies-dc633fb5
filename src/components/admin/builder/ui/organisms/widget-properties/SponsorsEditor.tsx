@@ -5,6 +5,7 @@
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { parseSponsorTiers, type SponsorEntry, type SponsorTier } from "@/lib/events/sponsors";
+import { getBool } from "@/components/builder/organisms/widget-view/frame";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -29,6 +30,38 @@ interface Props {
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
 const newLocalId = (prefix: string): string =>
   `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Poziomy do EDYCJI. `parseSponsorTiers` (wspólny z widokiem) odrzuca
+ * sponsora bez nazwy i logo - strona słusznie nie rysuje pustej karty, ale
+ * panel czytający tym samym parserem gubił w ten sposób każdy nowo dodany
+ * (pusty) wiersz już przy następnym renderze, a wyczyszczenie nazwy
+ * sponsora bez logo kasowało cały wiersz w trakcie pisania. Tu poziomy idą
+ * przez parser widoku, a sponsorzy - przez tę samą normalizację pól, ale BEZ
+ * odrzucania pustych.
+ */
+function editableTiers(c: WidgetNode["content"]): SponsorTier[] {
+  const rawTiers = (Array.isArray(c.tiers) ? (c.tiers as unknown[]) : []).filter(isRecord);
+  return parseSponsorTiers(c).map((tier, i) => {
+    const rawSponsors = rawTiers[i]?.sponsors;
+    const sponsors: SponsorEntry[] = [];
+    (Array.isArray(rawSponsors) ? rawSponsors : []).forEach((s, j) => {
+      if (!isRecord(s)) return;
+      sponsors.push({
+        id: strOf(s.id) || `spo-${j + 1}`,
+        name: strOf(s.name),
+        logo: strOf(s.logo),
+        url: strOf(s.url),
+        description_pl: strOf(s.description_pl),
+        description_en: strOf(s.description_en),
+      });
+    });
+    return { ...tier, sponsors };
+  });
+}
 
 function moveAt<T>(list: T[], index: number, dir: -1 | 1): T[] {
   const target = index + dir;
@@ -115,7 +148,7 @@ function SponsorRow({
 
 export function SponsorsEditor({ c, lang, setContent }: Props) {
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const tiers = parseSponsorTiers(c);
+  const tiers = editableTiers(c);
   const commit = (next: SponsorTier[]) => setContent("tiers", toJson(next));
   const patchTier = (i: number, patch: Partial<SponsorTier>) =>
     commit(tiers.map((t, j) => (j === i ? { ...t, ...patch } : t)));
@@ -158,7 +191,7 @@ export function SponsorsEditor({ c, lang, setContent }: Props) {
           inline
         >
           <Switch
-            checked={c.grayscale !== false}
+            checked={getBool(c, "grayscale", true)}
             onCheckedChange={(v) => setContent("grayscale", v)}
           />
         </PropField>

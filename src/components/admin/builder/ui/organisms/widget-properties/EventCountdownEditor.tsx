@@ -3,6 +3,8 @@ import { DateInput } from "@/components/ui/date-input";
 // modulu events, wybor przez EventPicker) lub "custom" (reczna data). Tytul,
 // tekst po zakonczeniu i etykieta CTA sa i18n (PL/EN).
 import type { WidgetNode, Json } from "@/lib/builder/types";
+import { asOneOf } from "@/lib/content-model/contentValue";
+import { getBool } from "@/components/builder/organisms/widget-view/frame";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -23,6 +25,9 @@ interface Props {
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
 
+/** Rozmiary, które rysują `EventCountdownView` i `EventCountdownCardView`. */
+const COUNTDOWN_SIZES = ["md", "lg"] as const;
+
 /** ISO -> wartosc pola datetime-local (lokalna, bez strefy). */
 function isoToLocalInput(iso: string): string {
   if (!iso) return "";
@@ -35,8 +40,11 @@ function isoToLocalInput(iso: string): string {
 export function EventCountdownEditor({ c, lang, setContent }: Props) {
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const mode = strOf(c.mode) === "event" ? "event" : "custom";
-  const showSeconds = c.showSeconds !== false;
-  const size = strOf(c.size) || "md";
+  // Odczyt jak w rendererach odliczania: `getBool` (napis "false" / 0 z importu
+  // też wyłącza sekundy) i rozmiar spoza listy = „md" - panel nie może pokazać
+  // stanu, którego strona nie rysuje.
+  const showSeconds = getBool(c, "showSeconds", true);
+  const size = asOneOf(c.size, COUNTDOWN_SIZES, "md");
 
   return (
     <div className="space-y-3">
