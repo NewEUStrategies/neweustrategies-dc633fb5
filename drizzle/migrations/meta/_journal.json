@@ -2157,6 +2157,13 @@
       "when": 1792349212517,
       "tag": "0307_ledger_reconcile_pr521",
       "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1792349282358,
+      "tag": "0308_release_coupon_order_lock",
+      "breakpoints": true
     }
   ]
 }
