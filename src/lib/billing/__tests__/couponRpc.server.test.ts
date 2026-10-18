@@ -278,6 +278,30 @@ describe("redeemCouponForUser", () => {
     expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: false, error: null });
     expect(h.user).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { code: "42501", message: "permission denied for function redeem_b2b_coupon_for_user" },
+    { code: "57014", message: "canceling statement due to statement timeout" },
+  ])(
+    "awaria spoza okna wdrożenia ($code) idzie do wołającego bez starej ścieżki",
+    async (error) => {
+      h.admin.mockResolvedValue({ data: null, error });
+
+      expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: null, error });
+      expect(h.user).not.toHaveBeenCalled();
+    },
+  );
+
+  it("OKNO WDROŻENIA: błąd starej rezerwacji też idzie do wołającego (kasa nie udaje zajęcia kodu)", async () => {
+    const legacyError = { code: "P0001", message: "coupon_exhausted" };
+    h.admin.mockResolvedValue({ data: null, error: { code: "42883", message: "no function" } });
+    h.user.mockResolvedValue({ data: null, error: legacyError });
+
+    expect(await redeemCouponForUser(userClient, redemption)).toEqual({
+      data: null,
+      error: legacyError,
+    });
+  });
 });
 
 describe("releaseCouponForUser (zwolnienie po odmowie dostawcy, 20261007140200)", () => {
@@ -318,6 +342,21 @@ describe("releaseCouponForUser (zwolnienie po odmowie dostawcy, 20261007140200)"
     expect(await releaseCouponForUser(userClient, release)).toEqual({ data: false, error: null });
     expect(h.user).not.toHaveBeenCalled();
   });
+
+  // Stara funkcja zwalniała użycie także OPŁACONEGO zamówienia - awaria nowej
+  // (uprawnienia, timeout) nie może być przepustką do niej.
+  it.each([
+    { code: "42501", message: "permission denied for function release_b2b_coupon_for_user" },
+    { code: "57014", message: "canceling statement due to statement timeout" },
+  ])(
+    "awaria spoza okna wdrożenia ($code) idzie do wołającego bez starej ścieżki",
+    async (error) => {
+      h.admin.mockResolvedValue({ data: null, error });
+
+      expect(await releaseCouponForUser(userClient, release)).toEqual({ data: null, error });
+      expect(h.user).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("requestProbeIdentity (tożsamość sond kodów: wycena, pakiet, licznik treści)", () => {

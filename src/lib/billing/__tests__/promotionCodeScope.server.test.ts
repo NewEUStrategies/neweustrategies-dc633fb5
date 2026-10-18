@@ -12,7 +12,13 @@
 // Atrapy na granicach: klient operatora i klient roli serwisowej.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
+import {
+  fail,
+  ok,
+  supabaseFromStub,
+  type SupabaseFromStub,
+  type TableResponder,
+} from "@/test/supabaseChain";
 
 const h = vi.hoisted(() => ({
   // `null` = kod bez metadanych (typ operatora: `metadata: Metadata | null`);
@@ -63,6 +69,17 @@ const EVENT = "event-gala";
 /** Wiersz `b2b_coupons` w kształcie odczytu oceny zakresu. */
 function couponRow(over: Partial<Record<"active" | "plan_ids" | "event_ids", unknown>> = {}) {
   return { id: COUPON, active: true, plan_ids: [], event_ids: [], ...over };
+}
+
+/**
+ * Baza, w której kupon żyje w JEDNYM najemcy: wiersz wraca tylko zapytaniu bez
+ * filtra najemcy albo z filtrem tego najemcy - jak prawdziwe `.eq("tenant_id")`.
+ */
+function couponOnlyIn(tenant: string, row: ReturnType<typeof couponRow>): TableResponder {
+  return (chain) => {
+    const filter = chain.calls.find((c) => c.method === "eq" && c.args[0] === "tenant_id");
+    return ok(!filter || filter.args[1] === tenant ? row : null);
+  };
 }
 
 beforeEach(() => {
@@ -133,14 +150,19 @@ describe("reviewPromotionCodes", () => {
     expect(h.db?.chainsFor("b2b_coupons")).toHaveLength(0);
   });
 
-  it("identyfikator kuponu o złym kształcie: poza zakresem, bez zapytania do bazy", async () => {
-    h.codes["promo_a"] = { tenant_id: TENANT, coupon_id: "nie-uuid" };
+  // Kształt sprawdzany na CAŁYM identyfikatorze: UUID z doklejonym znakiem
+  // to dla Postgresa nadal 22P02, więc nie może dojść do zapytania.
+  it.each([["nie-uuid"], [`${COUPON}x`], [`x${COUPON}`]])(
+    "identyfikator kuponu o złym kształcie (%s): poza zakresem, bez zapytania do bazy",
+    async (couponId) => {
+      h.codes["promo_a"] = { tenant_id: TENANT, coupon_id: couponId };
 
-    const review = await reviewPromotionCodes("live", ["promo_a"], ORDER);
+      const review = await reviewPromotionCodes("live", ["promo_a"], ORDER);
 
-    expect(review.hold?.reason).toBe("promotion_code_out_of_scope");
-    expect(h.db?.chainsFor("b2b_coupons")).toHaveLength(0);
-  });
+      expect(review.hold?.reason).toBe("promotion_code_out_of_scope");
+      expect(h.db?.chainsFor("b2b_coupons")).toHaveLength(0);
+    },
+  );
 
   it("kupon czytany w najemcy zamówienia; plan na liście = w zakresie", async () => {
     h.codes["promo_a"] = { tenant_id: TENANT, coupon_id: COUPON };
@@ -151,6 +173,10 @@ describe("reviewPromotionCodes", () => {
 
     expect((await reviewPromotionCodes("live", ["promo_a"], ORDER)).hold).toBeNull();
     const lookup = h.db?.lastChain("b2b_coupons");
+    // Bez `active` w odczycie każdy kod najemcy byłby wstrzymany jako
+    // „kupon wyłączony", bez `event_ids` - kod wydarzenia przechodziłby na planie.
+    expect(lookup?.argsOf("select")).toEqual(["id, active, plan_ids, event_ids"]);
+    expect(lookup?.has("maybeSingle")).toBe(true);
     expect(lookup?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
       ["id", COUPON],
       ["tenant_id", TENANT],
@@ -196,7 +222,11 @@ describe("reviewPromotionCodes", () => {
       { ...ORDER, planId: null },
     ],
     ["kupon wyłączony po synchronizacji", couponRow({ active: false }), ORDER],
-    ["kupon tylko w innym najemcy (brak wiersza w najemcy zamówienia)", null, ORDER],
+    [
+      "kupon tylko w innym najemcy (metadane kodu wskazują najemcę zamówienia)",
+      couponOnlyIn("tenant-beta", couponRow()),
+      ORDER,
+    ],
     ["kupon wydarzenia na zamówieniu planu", couponRow({ event_ids: [EVENT] }), ORDER],
     [
       "kupon wydarzenia na bilet innego wydarzenia",
@@ -206,7 +236,7 @@ describe("reviewPromotionCodes", () => {
   ])("%s: wstrzymanie `promotion_code_out_of_scope`", async (_label, row, order) => {
     h.codes["promo_a"] = { tenant_id: TENANT, coupon_id: COUPON };
     h.codes["promo_operatora"] = {};
-    h.db?.setResponse("b2b_coupons", ok(row));
+    h.db?.setResponse("b2b_coupons", typeof row === "function" ? row : ok(row));
 
     const review = await reviewPromotionCodes("live", ["promo_a", "promo_operatora"], order);
 
