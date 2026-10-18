@@ -497,7 +497,7 @@ async function insertSubscriptionRow(
   source: SubscriptionRowSource,
   subscriptionId: string,
   mark: EventMark,
-  extra: { purchase_confirmed_at?: string } = {},
+  extra: { purchase_confirmed_at?: string },
 ): Promise<{ outcome: "inserted" | "exists" | "invalid"; owner: RowOwner | null }> {
   const supabase = await admin();
   const { data: inserted, error } = await supabase
@@ -563,7 +563,7 @@ async function commitSubscriptionState(
   }
   const { data: written, error } = await query.select("id");
   if (error) throw new Error(`${failure}: ${error.message}`);
-  return claim === null || (written ?? []).length > 0;
+  return claim === null || written.length > 0;
 }
 
 /**
