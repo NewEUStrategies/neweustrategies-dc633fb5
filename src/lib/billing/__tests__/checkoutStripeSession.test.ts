@@ -91,6 +91,22 @@ const h = vi.hoisted(() => {
   return { calls, state, record, catalogPrice };
 });
 
+// Decision Lab jest od v6.2 wyłącznie na zapytanie - `planPurchaseRefusal`
+// odmawia go w obu silnikach, zanim kasa dojdzie do wyceny. Mechanika kasy
+// JEDNORAZOWEJ zostaje jednak gotowa na produkt samoobsługowy, a jedyną
+// pozycją jednorazową katalogu jest dziś Decision Lab. Testy tej mechaniki
+// zdejmują więc zamek „na zapytanie" JAWNIE (`enquiry.locked = false`);
+// sam zamek dowodzą osobne przypadki i `catalogV62.test.ts`.
+const enquiry = vi.hoisted(() => ({ locked: true }));
+vi.mock("@/lib/billing/enquiryPlans", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/enquiryPlans")>();
+  return {
+    ...actual,
+    isEnquiryOnlyPlan: (plan: Parameters<typeof actual.isEnquiryOnlyPlan>[0]) =>
+      enquiry.locked && actual.isEnquiryOnlyPlan(plan),
+  };
+});
+
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
 );
@@ -365,6 +381,7 @@ function entityPayload(over: Record<string, unknown> = {}): Record<string, unkno
 }
 
 beforeEach(() => {
+  enquiry.locked = true;
   h.calls.length = 0;
   h.state.prices = [h.catalogPrice()];
   h.state.remoteSubscriptions = [];
@@ -930,6 +947,8 @@ describe("createCheckoutOrder - RODZAJ zamówienia planu wynika z PLANU (przegl�
   });
 
   it("`kind=subscription` z planem JEDNORAZOWYM (Decision Lab): `kind_mismatch`, bez zamówienia i kuponu", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
@@ -944,6 +963,8 @@ describe("createCheckoutOrder - RODZAJ zamówienia planu wynika z PLANU (przegl�
   });
 
   it("plan jednorazowy z `kind=one_time` idzie CENĄ KATALOGOWĄ w trybie `payment` (jak drugi silnik)", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(

@@ -63,6 +63,20 @@ function readableProductId(product: unknown): string | null {
   return strOf(metadata?.lovable_external_id);
 }
 
+/**
+ * Kwota JEDNEJ sztuki ceny z ładunku zdarzenia - wyłącznie cena cykliczna
+ * `per_unit` (cena schodkowa nie niesie progów w zdarzeniu). To jest cena, na
+ * której subskrypcja FAKTYCZNIE jest u operatora; po zmianie cennika (v6.2)
+ * nie musi być równa cenie planu w `access_plans`.
+ */
+function perUnitAmount(price: unknown): { unitAmount: number; currency: string } | null {
+  if (!isRecord(price) || !isRecord(price.recurring)) return null;
+  if (price.billing_scheme === "tiered") return null;
+  const currency = strOf(price.currency);
+  if (typeof price.unit_amount !== "number" || !currency) return null;
+  return { unitAmount: price.unit_amount, currency: currency.toUpperCase() };
+}
+
 function mapSubscriptionItems(sub: Raw): SubscriptionData["items"] {
   const itemsRaw = isRecord(sub.items) && Array.isArray(sub.items.data) ? sub.items.data : [];
   const trialEndsAt = isoFromUnix(sub.trial_end);
@@ -83,6 +97,7 @@ function mapSubscriptionItems(sub: Raw): SubscriptionData["items"] {
         id: priceId,
         externalId: readablePriceId(price),
         trialPeriod: null,
+        ...(perUnitAmount(price) ?? {}),
       },
       product: {
         id: productId,

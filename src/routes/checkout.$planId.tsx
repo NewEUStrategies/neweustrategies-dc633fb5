@@ -34,6 +34,7 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
+import { planPurchaseRefusal } from "@/lib/billing/planPricing";
 import {
   normalizeNewsletterLanguage,
   PREMIUM_NEWSLETTER_CONSENT_VERSION,
@@ -152,6 +153,17 @@ function CheckoutPage() {
     }
   }, [plan.isSuccess, planData, t]);
 
+  // Plan, którego nie da się kupić samoobsługowo (cennik v6.2): Decision Lab
+  // wyłącznie na zapytanie, Partner Biznesowy wycofany ze sprzedaży, Zespół
+  // sprzedawany przez rozmowę. Serwer
+  // i tak odmawia (`planPurchaseRefusal` w obu silnikach kasy) - strona nie
+  // pokazuje więc kwoty ani przycisku płatności, tylko drogę dalej.
+  const purchaseRefusal = planData ? planPurchaseRefusal(planData) : null;
+  const unavailable =
+    purchaseRefusal === "plan_enquiry_only" || purchaseRefusal === "plan_not_for_sale"
+      ? purchaseRefusal
+      : null;
+
   const hasBilling = !!billing.data?.address_line1 && !!billing.data?.city;
   // Tryb sesji u operatora wynika z cyklu planu - plan jednorazowy jedzie jako
   // `payment`, każdy cykliczny jako `subscription` (patrz `catalog.ts`).
@@ -206,7 +218,7 @@ function CheckoutPage() {
     existingSubscription === null;
 
   const submit = async () => {
-    if (!planData || !hasBilling) return;
+    if (!planData || !hasBilling || unavailable) return;
     setBusy(true);
     try {
       // Bramka wyłącznie interfejsu: plan bez ceny w katalogu nie otwiera kasy.
@@ -240,6 +252,10 @@ function CheckoutPage() {
         } else if (result.error === "rate_limited") {
           // Limit prób kodów - to nie brak konfiguracji płatności.
           toast.error(t("coupon.error.rateLimited"));
+        } else if (result.error === "plan_not_for_sale") {
+          toast.error(t("checkout.notForSale"));
+        } else if (result.error === "plan_enquiry_only") {
+          toast.error(t("checkout.enquiryOnly"));
         } else {
           toast.error(t("checkout.paymentsNotConfigured"));
         }
@@ -315,7 +331,27 @@ function CheckoutPage() {
                 <CardTitle>{t("checkout.summary")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {planData ? (
+                {planData && unavailable ? (
+                  <div className="space-y-3">
+                    <div className="font-semibold">{planName(planData, i18n.language)}</div>
+                    <p className="text-sm text-muted-foreground" role="status">
+                      {t(
+                        unavailable === "plan_enquiry_only"
+                          ? "checkout.enquiryOnly"
+                          : "checkout.notForSale",
+                      )}
+                    </p>
+                    <Button asChild className="w-full" variant="outline">
+                      {unavailable === "plan_enquiry_only" ? (
+                        <Link to="/plans/$planId" params={{ planId: planData.id }}>
+                          {t("checkout.enquiryOnlyCta")}
+                        </Link>
+                      ) : (
+                        <Link to="/pricing">{t("checkout.notForSaleCta")}</Link>
+                      )}
+                    </Button>
+                  </div>
+                ) : planData ? (
                   <>
                     <div>
                       <div className="text-xs uppercase text-muted-foreground">

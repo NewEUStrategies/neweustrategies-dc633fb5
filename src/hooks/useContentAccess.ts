@@ -47,6 +47,10 @@ export interface AccessPlan {
   badge_en: string | null;
   highlighted: boolean;
   trial_days: number;
+  /** Warstwa planu - Decision Lab (`decision_lab`) jest wyłącznie na zapytanie. */
+  tier_key?: string | null;
+  /** `access_plans.for_sale` (cennik v6.2); brak pola = plan w sprzedaży. */
+  for_sale?: boolean;
 }
 
 export function formatMoney(cents: number, currency: string) {

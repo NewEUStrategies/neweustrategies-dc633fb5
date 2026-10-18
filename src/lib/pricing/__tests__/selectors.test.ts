@@ -60,6 +60,7 @@ function makePlan(patch: Partial<AccessPlan>): AccessPlan {
     highlighted: false,
     trial_days: 0,
     tier_key: null,
+    for_sale: true,
     ...patch,
   };
 }
@@ -93,6 +94,7 @@ function makeTier(patch: Partial<MembershipTierRow>): MembershipTierRow {
     price_note_pl: null,
     price_note_en: null,
     cta_mode: "auto",
+    pricing_visible: true,
     ...patch,
   };
 }

@@ -47,6 +47,7 @@ export function TiersTab({
           badge_pl: draft.badge_pl.trim() || null,
           badge_en: draft.badge_en.trim() || null,
           highlight: draft.highlight,
+          pricing_visible: draft.pricing_visible,
           contact_url: draft.contact_url.trim() || null,
           cta_mode: draft.cta_mode,
           per_seat: draft.per_seat,

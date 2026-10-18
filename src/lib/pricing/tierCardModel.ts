@@ -53,7 +53,12 @@ export type PriceDisplay =
       cents: number;
       currency: string;
       intervalKey: string;
-      /** Cena „od" - plan rozliczany za miejsce. */
+      /**
+       * Cena „od". Dziś zawsze `false`: plan za miejsce (Zespół) pokazuje
+       * stawkę podstawową za miejsce, a próg wolumenowy niesie nota ceny
+       * („od 11 miejsc 79 zł") - „od 89 zł" obok „79 zł od 11 miejsc"
+       * sugerowało, że 89 zł to minimum, choć najniższa stawka to 79 zł.
+       */
       fromPrefix: boolean;
       /** Dopisek „za miejsce" przy okresie. */
       perSeat: boolean;
@@ -100,7 +105,7 @@ export function priceDisplay(
     cents: plan.price_cents,
     currency: plan.currency,
     intervalKey: intervalSuffixKey(plan.interval),
-    fromPrefix: tier.per_seat,
+    fromPrefix: false,
     perSeat: tier.per_seat,
     savingsPct,
     note,
@@ -195,23 +200,56 @@ export function ctaVariant(tier: Pick<MembershipTierRow, "highlight">): "default
 const REST_CAP_WITH_HIGHLIGHTS = 4;
 const REST_CAP_WITHOUT_HIGHLIGHTS = 8;
 
+/** Nagłówek grupy benefitu (`group_*`) w języku strony; `null` = brak. */
+function groupLabel(benefit: TierBenefit, lang: string): string | null {
+  const raw =
+    lang === "en" ? benefit.group_en || benefit.group_pl : benefit.group_pl || benefit.group_en;
+  return raw && raw.trim() ? raw : null;
+}
+
 /**
- * Podział benefitów na spotlight („Co wyróżnia ten plan") i pozostałe.
+ * Podział benefitów na spotlight („Co wyróżnia ten plan"), listę widoczną od
+ * razu (`rest`) i rozwijaną listę szczegółową (`more`).
  *
- * Reguła, o którą tu chodzi: benefit użyty w spotlighcie NIE MOŻE wrócić na
- * pełnej liście - klient widzi każdy punkt dokładnie raz. Porównanie idzie po
- * znormalizowanym tekście W JĘZYKU STRONY, bo to ten tekst czyta klient (ta sama
- * obietnica wpisana raz z wielką, raz z małą literą to jedna obietnica).
+ * Reguły:
+ *   1. benefit użyty w spotlighcie NIE WRACA na liście - klient widzi każdy
+ *      punkt dokładnie raz. Porównanie idzie po znormalizowanym tekście
+ *      W JĘZYKU STRONY (ta sama obietnica wpisana raz z wielką, raz z małą
+ *      literą to jedna obietnica);
+ *   2. ŻADEN benefit nie znika: ponad limit widocznej listy trafia do `more`
+ *      (v6.2, „Komunikacja karty": pozostałe pozycje Pro „trafiają do
+ *      rozwijanej listy szczegółowej"). Dawniej lista była obcinana, więc
+ *      z karty Pro znikały m.in. Chatham House i wydarzenia z limitem miejsc;
+ *   3. nagłówek grupy (`group_*`) benefitu przeniesionego do spotlightu
+ *      przechodzi na pierwszą pozycję listy bez własnego nagłówka - inaczej
+ *      ginęło np. zastrzeżenie Pro „ten sam jeden bilet rocznie - nie drugi".
  */
 export function splitBenefits(
   all: TierBenefit[],
   highlights: TierBenefit[] | undefined,
   lang: string,
-): { highlights: TierBenefit[]; rest: TierBenefit[] } {
+): { highlights: TierBenefit[]; rest: TierBenefit[]; more: TierBenefit[] } {
   const spotlight = highlights ?? [];
   const norm = (value: string): string => value.trim().toLowerCase();
   const shown = new Set(spotlight.map((benefit) => norm(benefitText(benefit, lang))));
-  const rest = all.filter((benefit) => !shown.has(norm(benefitText(benefit, lang))));
+  const remaining: TierBenefit[] = [];
+  let pendingGroup: TierBenefit | null = null;
+  for (const benefit of all) {
+    if (shown.has(norm(benefitText(benefit, lang)))) {
+      if (groupLabel(benefit, lang)) pendingGroup ??= benefit;
+      continue;
+    }
+    if (pendingGroup && !groupLabel(benefit, lang)) {
+      remaining.push({
+        ...benefit,
+        group_pl: pendingGroup.group_pl,
+        group_en: pendingGroup.group_en,
+      });
+    } else {
+      remaining.push(benefit);
+    }
+    pendingGroup = null;
+  }
   const cap = spotlight.length > 0 ? REST_CAP_WITH_HIGHLIGHTS : REST_CAP_WITHOUT_HIGHLIGHTS;
-  return { highlights: spotlight, rest: rest.slice(0, cap) };
+  return { highlights: spotlight, rest: remaining.slice(0, cap), more: remaining.slice(cap) };
 }

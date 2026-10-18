@@ -33,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PricingComparisonMatrix } from "@/components/pricing/organisms/PricingComparisonMatrix";
 import { ContactSalesDialog } from "@/components/pricing/organisms/ContactSalesDialog";
 import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
+import { listedTiers, tierCtaMode } from "@/lib/pricing/selectors";
 import { activeLang } from "@/lib/seo/head";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensurePricingI18n } from "@/lib/i18n-pricing";
@@ -154,7 +155,9 @@ function PlanDetailsPage() {
     ownFeatures.length > 0 ? ownFeatures : tierBenefits.map((b) => (lang === "en" ? b.en : b.pl));
 
   const audienceKey = tier?.audience_key ?? "individual";
-  const segmentTiers = tiers
+  // Macierz pokazuje tę samą ofertę co /pricing - bez kart ukrytych progów
+  // (Enterprise, Partner Biznesowy; cennik v6.2).
+  const segmentTiers = listedTiers(tiers)
     .filter((x) => (x.audience_key ?? "individual") === audienceKey && x.key !== "supporter")
     .sort((a, b) => a.rank - b.rank || a.sort_order - b.sort_order);
 
@@ -206,6 +209,19 @@ function PlanDetailsPage() {
   const badge = planBadge(plan, lang);
   const description = planDescription(plan, lang);
   const enquiryOnly = isEnquiryOnlyPlan(plan);
+  // Plan progu sprzedawanego PRZEZ ROZMOWĘ (Zespół v6.2: „3-20 miejsc ·
+  // rozmowa"): cena jest jawna jak na karcie /pricing, ale zamiast kasy -
+  // formularz rozmowy. To nie jest plan wycofany.
+  const conversationSale =
+    !enquiryOnly &&
+    plan.for_sale === false &&
+    tier !== null &&
+    tier.pricing_visible !== false &&
+    tierCtaMode(tier) === "contact";
+  // Plan wycofany ze sprzedaży (Partner Biznesowy, v6.2) dalej istnieje - jego
+  // subskrybenci wchodzą tu z profilu i widzą swoją cenę - ale nie przyjmuje
+  // nowego zakupu: zamiast przycisku kasy strona mówi to wprost.
+  const retired = !enquiryOnly && !conversationSale && plan.for_sale === false;
 
   return (
     <div className="container mx-auto max-w-5xl space-y-8 px-4 py-10">
@@ -238,13 +254,30 @@ function PlanDetailsPage() {
         {/* Okres próbny tylko tam, gdzie checkout go przyzna - plan jednorazowy
             idzie płatnością bez triala (ten sam strażnik co karta, checkout
             i paywall). */}
-        {!enquiryOnly && plan.interval !== "one_time" && plan.trial_days > 0 && (
-          <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
+        {!enquiryOnly &&
+          !retired &&
+          !conversationSale &&
+          plan.interval !== "one_time" &&
+          plan.trial_days > 0 && (
+            <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
+          )}
+        {retired && (
+          <p className="max-w-2xl text-sm text-muted-foreground" role="status">
+            {t("pricing.planDetails.retired")}
+          </p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">
           {enquiryOnly ? (
             <Button size="lg" onClick={() => setEnquiryOpen(true)}>
               {t("pricing.enquiry.cta")}
+            </Button>
+          ) : conversationSale ? (
+            <Button size="lg" onClick={() => setEnquiryOpen(true)}>
+              {t("pricing.contactCta")}
+            </Button>
+          ) : retired ? (
+            <Button asChild size="lg">
+              <Link to="/pricing">{t("pricing.planDetails.retiredCta")}</Link>
             </Button>
           ) : (
             <Button asChild size="lg">
@@ -259,11 +292,11 @@ function PlanDetailsPage() {
         </div>
       </header>
 
-      {enquiryOnly && (
+      {(enquiryOnly || conversationSale) && (
         <ContactSalesDialog
           open={enquiryOpen}
           onOpenChange={setEnquiryOpen}
-          tier={null}
+          tier={conversationSale ? tier : null}
           lang={lang}
           subjectLabel={planName(plan, lang)}
         />

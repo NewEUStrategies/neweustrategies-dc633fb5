@@ -103,7 +103,7 @@ const pl = {
       minTier: "Minimalna warstwa",
       minTierNone: "Dowolna (bez progu warstwy)",
       minTierHint:
-        "Wymagana warstwa wg rangi (np. Plus vs Pro). Wyższe warstwy zawsze mają dostęp. Puste = klasyczne zachowanie (dowolna płatna warstwa / zalogowany).",
+        "Wymagana warstwa wg rangi (np. Członek vs Członek Pro). Wyższe warstwy zawsze mają dostęp. Puste = klasyczne zachowanie (dowolna płatna warstwa / zalogowany).",
       metering: "Metering (darmowy limit miesięczny)",
       meteringInherit: "Dziedzicz z ustawień globalnych",
       meteringMetered: "Zawsze licz do limitu (metered)",
@@ -619,7 +619,7 @@ const en = {
       minTier: "Minimum tier",
       minTierNone: "Any (no tier threshold)",
       minTierHint:
-        "Required tier by rank (e.g. Plus vs Pro). Higher tiers always have access. Empty = classic behaviour (any paid tier / logged-in).",
+        "Required tier by rank (e.g. Member vs Member Pro). Higher tiers always have access. Empty = classic behaviour (any paid tier / logged-in).",
       metering: "Metering (free monthly quota)",
       meteringInherit: "Inherit from global settings",
       meteringMetered: "Always count towards the quota (metered)",

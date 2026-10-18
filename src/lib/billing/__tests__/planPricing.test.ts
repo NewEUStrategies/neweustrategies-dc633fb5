@@ -166,7 +166,9 @@ describe("planCheckoutPricing - wyłącznie DOKŁADNA para (warstwa, cykl) (prze
     ["member", "two_weeks", "dawniej plus_monthly"],
     ["member", "quarter", "dawniej plus_monthly"],
     ["team", "year", "dawniej team_monthly_seat"],
-    ["student", "year", "dawniej student_monthly"],
+    // Student rocznie MA od v6.2 własny wpis (`student_annual`, 190 zł/rok) -
+    // tę samą pułapkę pilnuje dziś kadra akademicka, która rocznego planu nie ma.
+    ["educator", "year", "dawniej educator_monthly"],
   ])("plan %s/%s bez wpisu katalogu nie ma ceny (%s)", (tier, interval) => {
     expect(planCheckoutPricing(plan({ tier_key: tier, interval }))).toBeNull();
     expect(exactCatalogEntryForPlan({ tier_key: tier, interval })).toBeNull();

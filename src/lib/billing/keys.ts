@@ -27,6 +27,9 @@ export const billingKeys = {
   myStripeSubscription: (uid: string | undefined, env: string) =>
     ["my-stripe-subscription", uid ?? "anon", env] as const,
   myStripeSubscriptionAll: () => ["my-stripe-subscription"] as const,
+  /** Kwota najbliższego odnowienia z żywej subskrypcji u operatora (karta w profilu). */
+  renewalCharge: (subscriptionId: string, env: string, priceId: string, quantity: number) =>
+    ["renewal-charge", subscriptionId, env, priceId, quantity] as const,
   /** Podgląd kosztu zmiany planu (kwota liczona przez operatora). */
   planChangePreview: (subscriptionId: string, targetPriceId: string, env: string) =>
     ["plan-change-preview", subscriptionId, targetPriceId, env] as const,
@@ -83,6 +86,8 @@ export const billingKeys = {
     stripeSubscriptions: () => ["admin", "stripe-subscriptions"] as const,
     /** Historia zdarzeń webhooka operatora płatności. */
     paymentWebhookEvents: () => ["admin", "payment-webhook-events"] as const,
+    /** Dziennik przeniesienia subskrypcji na cenę katalogu v6.2. */
+    subscriptionRepricingLog: () => ["admin", "subscription-repricing-log"] as const,
     /** Subskrypcje wszystkich użytkowników (lista /admin/users). */
     allUserSubscriptions: () => ["all-user-subscriptions"] as const,
   },

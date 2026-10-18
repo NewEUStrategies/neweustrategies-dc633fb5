@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
   preview: vi.fn(),
   createClient: vi.fn(),
   returnUrl: vi.fn(),
+  renewal: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
@@ -44,6 +45,7 @@ vi.mock("@/lib/billing/subscriptionProvider.server", () => ({
   cancelSubscriptionAtPeriodEnd: h.cancel,
   resumeProviderSubscription: h.resume,
   updateSubscriptionQuantity: h.seats,
+  renewalListCharge: h.renewal,
 }));
 // Bramka celu (oferta najemcy) ma własne testy - tu sprawdzamy, ŻE adapter
 // karty operatora przez nią przechodzi i z czym.
@@ -87,6 +89,7 @@ const protectedFns = [
   "updateStripeSubscriptionSeats",
   "syncMyBillingFromProvider",
   "getMyPaymentMethod",
+  "getStripeRenewalCharge",
 ] as const;
 /** Funkcje czytające wiersz subskrypcji pod RLS wołającego (portal czyta przez bramkę portalu). */
 const subscriptionReaders = protectedFns.filter((name) => name !== "createStripePortalSession");
@@ -126,6 +129,7 @@ beforeEach(() => {
     },
   });
   h.tenant.mockResolvedValue("tenant-own");
+  h.renewal.mockResolvedValue({ amountCents: 5900, currency: "PLN" });
   h.returnUrl.mockReturnValue("https://example.test/account");
   h.retrieve.mockResolvedValue({ items: { data: [{ id: "si_own" }] } });
   h.preview.mockResolvedValue({
@@ -212,6 +216,28 @@ describe("payment server function boundaries", () => {
       expect(db.chains).toHaveLength(0);
     },
   );
+});
+
+describe("renewal charge for the profile card", () => {
+  it("reads the live renewal amount of the SESSION user's subscription, never a payload id", async () => {
+    const result = await invoke("getStripeRenewalCharge", {
+      environment: "live",
+      provider_subscription_id: "sub_victim",
+    });
+
+    expect(h.renewal).toHaveBeenCalledWith("live", "sub_own");
+    expect(result).toEqual({ amountCents: 5900, currency: "PLN" });
+  });
+
+  it("no subscription or no readable amount: nulls instead of a catalogue price", async () => {
+    db.setResponse("subscriptions", ok(null));
+    expect(await invoke("getStripeRenewalCharge")).toEqual({ amountCents: null, currency: null });
+    expect(h.renewal).not.toHaveBeenCalled();
+
+    db.setResponse("subscriptions", ok(sub));
+    h.renewal.mockResolvedValue(null);
+    expect(await invoke("getStripeRenewalCharge")).toEqual({ amountCents: null, currency: null });
+  });
 });
 
 describe("catalog resolution", () => {

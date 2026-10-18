@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLUB_PLAN_TIERS,
+  CLUB_PLAN_TIERS_NOT_SOLD,
   CLUB_PLAN_TIER_RANK,
   DEFAULT_CLUB_PLAN_TIER,
 } from "@/lib/clubs/planTiers";
@@ -60,11 +61,11 @@ describe("sellTier - czego bramka nie sprzedaje", () => {
     expect(view.sellTier).toBe(DEFAULT_CLUB_PLAN_TIER);
   });
 
-  it("KAŻDY próg od PRO w górę sprzedaje SIEBIE, nie domyślny", () => {
+  it("KAŻDY próg z kartą na cenniku od PRO w górę sprzedaje SIEBIE, nie domyślny", () => {
     // To jest ta regresja, przez którą klub o progu 30 pokazywał w bramce
     // „PRO": lokalna mapa znała tylko free/plus/pro/vip.
     for (const tier of CLUB_PLAN_TIERS) {
-      if (tier === "free" || tier === "plus") continue;
+      if (tier === "free" || tier === "plus" || CLUB_PLAN_TIERS_NOT_SOLD.has(tier)) continue;
       const view = clubGateView({
         club: club({ min_tier_rank: CLUB_PLAN_TIER_RANK[tier] }),
         signedIn: true,
@@ -74,14 +75,35 @@ describe("sellTier - czego bramka nie sprzedaje", () => {
     }
   });
 
-  it("ranga spoza katalogu degraduje do najbliższego niższego progu", () => {
+  it("klub z rangą 30 sprzedaje Partnera Instytucjonalnego - karty Enterprise nie ma na /pricing", () => {
+    // Cennik v6.2 (decyzja 4): Enterprise ukryty, ranga 30 zostaje progiem
+    // klubów (także tych przemapowanych z 28).
     const view = clubGateView({
-      club: club({ min_tier_rank: 35 }),
+      club: club({ min_tier_rank: 30 }),
       signedIn: true,
       isExpert: false,
     });
 
-    expect(view.sellTier).toBe("corporate");
+    expect(view.sellTier).toBe("partner");
+    expect(view.planLabelKey).toBe("club.planTier.partner");
+  });
+
+  it("ranga spoza katalogu zaokrągla się W GÓRĘ - bramka nie sprzedaje progu, który nie wpuszcza", () => {
+    // 28: Rada (25) nie wejdzie, Enterprise (30) nie jest w ofercie -> Partner.
+    for (const [rank, expected] of [
+      [28, "partner"],
+      [35, "partner"],
+      [22, "vip"],
+      [15, "pro"],
+      [99, "presidents_circle"],
+    ] as const) {
+      const view = clubGateView({
+        club: club({ min_tier_rank: rank }),
+        signedIn: true,
+        isExpert: false,
+      });
+      expect(view.sellTier, `ranga ${rank}`).toBe(expected);
+    }
   });
 
   it("klucz etykiety zawsze wskazuje słownik progów, nie lokalną mapę", () => {

@@ -71,6 +71,9 @@ const adminPricingPl = {
       badgeHint: 'Etykieta nad kartą, np. "Najpopularniejszy".',
       highlight: "Wyróżnienie",
       highlightHint: "Kotwica wyboru: obwódka, cień i domyślny wariant przycisku.",
+      pricingVisible: "Widoczna w cenniku",
+      pricingVisibleHint:
+        "Wyłączona karta znika z /pricing i strony dołączania. Próg, ranga i uprawnienia obecnych członków działają dalej.",
       contactUrl: "Link kontaktowy (CTA bez planu)",
       contactUrlHint:
         "Dla warstw bez planów samoobsługowych. Puste = wbudowany formularz kontaktowy na /pricing.",
@@ -248,6 +251,9 @@ const adminPricingEn: typeof adminPricingPl = {
       badgeHint: 'Label above the card, e.g. "Most popular".',
       highlight: "Highlight",
       highlightHint: "Choice anchor: ring, shadow and the default button variant.",
+      pricingVisible: "Shown on the price list",
+      pricingVisibleHint:
+        "When off, the card disappears from /pricing and the join page. The tier, its rank and current members' entitlements keep working.",
       contactUrl: "Contact link (CTA without a plan)",
       contactUrlHint:
         "For tiers without self-serve plans. Empty = built-in contact form on /pricing.",

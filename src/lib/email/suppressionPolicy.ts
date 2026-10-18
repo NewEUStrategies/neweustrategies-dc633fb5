@@ -137,6 +137,9 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   // zasady organizacji kartowych i oczekiwane przez konsumenta.
   subscription_renewal_reminder: "transactional",
   subscription_expiring: "transactional",
+  // Zawiadomienie o zmianie ceny przy odnowieniu (cennik v6.2) - wiadomość
+  // serwisowa o warunkach trwającej umowy, nie wysyłka za zgodą marketingową.
+  subscription_price_lowered: "transactional",
   // Utrata dostępu zespołowego: konsekwencja natychmiastowa i kosztowna.
   team_seat_grace: "transactional",
   team_seat_grace_reminder: "transactional",

@@ -39,10 +39,12 @@ import {
   distinguishingBenefits,
   faqForAudience,
   availableIntervals,
+  listedTiers,
   maxYearlySavingsPct,
   passPlans,
   plansByTierKey,
   planTierBenefits,
+  publicOfferPlans,
   recurringPlans,
   sortTiers,
   tiersForAudience,
@@ -184,7 +186,16 @@ function PricingPage() {
 
   const audiences = useMemo(() => audiencesQ.data ?? [], [audiencesQ.data]);
   const tiersAll = useMemo(() => tiersQ.data ?? [], [tiersQ.data]);
-  const plansAll = useMemo(() => plansQ.data ?? [], [plansQ.data]);
+  // Cennik v6.2: karty ukrytych progów (Enterprise, Partner Biznesowy) i plany
+  // wycofane ze sprzedaży znikają ze strony, ale NIE z drabinki - ranga
+  // i uprawnienia obecnych klientów działają dalej.
+  const tiersListed = useMemo(() => listedTiers(tiersAll), [tiersAll]);
+  // Plan Zespołu (rozmowa, `for_sale = false`) zostaje na karcie z ceną -
+  // przycisk i tak prowadzi do rozmowy (`cta_mode = 'contact'`).
+  const plansAll = useMemo(
+    () => publicOfferPlans(plansQ.data ?? [], tiersListed),
+    [plansQ.data, tiersListed],
+  );
 
   const defaultAudienceKey = audiences[0]?.key ?? null;
   const requestedKey = sanitizeAudienceKey(search.audience);
@@ -206,9 +217,9 @@ function PricingPage() {
   const activeTiers = useMemo(
     () =>
       audiences.length > 0 && activeKey
-        ? tiersForAudience(tiersAll, audiences, activeKey)
-        : sortTiers(tiersAll),
-    [tiersAll, audiences, activeKey],
+        ? tiersForAudience(tiersListed, audiences, activeKey)
+        : sortTiers(tiersListed),
+    [tiersListed, audiences, activeKey],
   );
   const cardTiers = useMemo(
     () => activeTiers.filter((tier) => tier.key !== "supporter"),
@@ -252,6 +263,8 @@ function PricingPage() {
   // oraz plany cykliczne niepodpięte pod żadną warstwę dostają własne sekcje.
   const passes = useMemo(() => passPlans(plansAll), [plansAll]);
   const orphanPlans = useMemo(() => {
+    // Klucze z NIEFILTROWANYCH progów: plan ukrytego progu nie jest „sierotą"
+    // i nie może wrócić na stronę tylnymi drzwiami sekcji „Pozostałe plany".
     const tierKeys = new Set(tiersAll.map((tier) => tier.key));
     return recurringPlans(plansAll).filter((p) => !p.tier_key || !tierKeys.has(p.tier_key));
   }, [plansAll, tiersAll]);

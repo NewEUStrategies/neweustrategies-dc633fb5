@@ -87,16 +87,20 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     const { data: plan, error: planErr } = await supabase
       .from("access_plans")
       .select(
-        "id, price_cents, currency, active, trial_days, tier_key, interval, volume_threshold_seats, volume_price_cents",
+        "id, price_cents, currency, active, for_sale, trial_days, tier_key, interval, volume_threshold_seats, volume_price_cents",
       )
       .eq("id", data.planId)
       .maybeSingle();
     if (planErr) throw planErr;
-    if (!plan || !plan.active) return { ok: false as const, error: "plan_not_found" };
+    if (!plan) return { ok: false as const, error: "plan_not_found" };
 
     // Wycena PRZED kuponem i zamówieniem: plan bez spójnej ceny katalogowej
     // nie może zarezerwować użycia kuponu ani zostawić zamówienia `pending`.
-    const { planCheckoutPricing } = await import("@/lib/billing/planPricing");
+    // Ta sama reguła zakupu co w drugim silniku: plan nieaktywny, na zapytanie
+    // (Decision Lab) albo wycofany ze sprzedaży (v6.2) nie otwiera sesji.
+    const { planCheckoutPricing, planPurchaseRefusal } = await import("@/lib/billing/planPricing");
+    const refusal = planPurchaseRefusal(plan);
+    if (refusal) return { ok: false as const, error: refusal };
     const pricing = planCheckoutPricing(plan, data.seats ?? data.quantity);
     if (!pricing) return { ok: false as const, error: "plan_price_missing" };
     // `priceId` klienta sprzed zmiany tylko jako asercja: inna cena niż pozycja

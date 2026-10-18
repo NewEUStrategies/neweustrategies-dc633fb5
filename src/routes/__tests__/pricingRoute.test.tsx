@@ -467,6 +467,88 @@ describe("trasa /pricing - lista planów", () => {
     expect(screen.getByText("Plan bez warstwy")).toBeInTheDocument();
   });
 
+  it("cennik v6.2: ukryta karta znika z drabinki, a jej plan nie wraca jako „Pozostałe plany”", async () => {
+    // Partner Biznesowy: próg działa (ranga 28, obecni klienci), karta jest
+    // ukryta (`pricing_visible = false`), a plan wycofany ze sprzedaży
+    // (`for_sale = false`) - nie może wrócić na stronę bocznymi drzwiami.
+    fullCatalogue();
+    h.tiers = [
+      ...tiers(),
+      membershipTier({
+        id: "tier-business",
+        key: "business",
+        name_pl: "Partner Biznesowy",
+        name_en: "Business Partner",
+        rank: 28,
+        audience_key: "individual",
+        pricing_visible: false,
+      }),
+    ];
+    h.plans = [
+      ...plans(),
+      accessPlan({
+        id: "plan-business-month",
+        tier_key: "business",
+        price_cents: 99000,
+        name_pl: "Partner Biznesowy - miesięcznie",
+        name_en: "Business Partner - monthly",
+        for_sale: false,
+      }),
+    ];
+    await mount();
+
+    await waitFor(() => expect(hasTierGrid()).toBe(true));
+    expect(tierNames()).not.toContain("Partner Biznesowy");
+    expect(screen.queryByText("Partner Biznesowy - miesięcznie")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pozostałe plany")).not.toBeInTheDocument();
+  });
+
+  it("cennik v6.2: Zespół (rozmowa, poza kasą) zostaje na karcie z ceną i przyciskiem rozmowy", async () => {
+    // Plan za miejsce bez liczby miejsc w kasie sprzedawał się po 1 miejscu -
+    // v6.2 sprzedaje Zespół przez rozmowę (`for_sale = false`), ale jego cena
+    // 89 zł za miejsce ma zostać na karcie.
+    fullCatalogue();
+    h.tiers = tiers().map((tier) =>
+      tier.key === "team" ? { ...tier, cta_mode: "contact" as const, per_seat: true } : tier,
+    );
+    h.plans = [
+      ...plans().filter((plan) => plan.tier_key !== "team"),
+      accessPlan({
+        id: "plan-team-month",
+        tier_key: "team",
+        price_cents: 8900,
+        name_pl: "Zespół - za miejsce, miesięcznie",
+        name_en: "Team - per seat, monthly",
+        for_sale: false,
+      }),
+    ];
+    await mount("/pricing?audience=team");
+
+    await waitFor(() => expect(tierNames()).toContain("Zespół"));
+    expect(document.body.textContent).toMatch(/89[.,]00/);
+    expect(document.querySelector('a[href="/checkout/plan-team-month"]')).toBeNull();
+    expect(screen.getAllByText("Porozmawiajmy").length).toBeGreaterThan(0);
+  });
+
+  it("cennik v6.2: Decision Lab poza sprzedażą zostaje jako oferta na zapytanie", async () => {
+    fullCatalogue();
+    h.plans = [
+      ...plans(),
+      accessPlan({
+        id: "plan-decision-lab",
+        tier_key: "decision_lab",
+        interval: "one_time",
+        price_cents: 1_600_000,
+        name_pl: "Decision Lab - miejsce w cyklu",
+        name_en: "Decision Lab - seat in the cycle",
+        for_sale: false,
+      }),
+    ];
+    await mount();
+
+    expect(await screen.findByText("Decision Lab - miejsce w cyklu")).toBeInTheDocument();
+  });
+
   it("przepustki jednorazowe mają własną sekcję z własnym wyjaśnieniem", async () => {
     // Przepustka to inny produkt niż subskrypcja („bez zobowiązań"). Wrzucona
     // do drabinki byłaby czytana jako najtańszy plan cykliczny.
@@ -866,7 +948,7 @@ describe("trasa /pricing - cross-sell i sekcje segmentu", () => {
 
     expect(
       await screen.findByText(
-        "Mniejszy zespół? Wspólny dostęp z panelem miejsc uruchomisz od ręki.",
+        "Mniejszy zespół (3-20 osób)? Plan Zespół z panelem miejsc ustalimy w krótkiej rozmowie.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Zobacz plan dla zespołów/ })).toHaveAttribute(

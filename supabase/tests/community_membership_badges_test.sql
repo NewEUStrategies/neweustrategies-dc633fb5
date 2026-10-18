@@ -1,6 +1,6 @@
 -- pgTAP: warstwy członkostwa (membership_tiers) + odznaki (profile_badges).
 --
---   1. Nowy tenant dostaje automatycznie 3 warstwy (trigger seedujący).
+--   1. Nowy tenant dostaje automatycznie warstwy katalogu (trigger seedujący).
 --   2. Publiczny odczyt warstw jest ograniczony do PUBLICZNEGO tenanta
 --      (cross-tenant niewidoczny) i tylko do aktywnych.
 --   3. Zapis warstw: wyłącznie admin, wyłącznie we własnym tenancie
@@ -55,8 +55,11 @@ VALUES ('c1000000-0000-0000-0000-0000000000cc',
 SELECT is(
   (SELECT count(*)::int FROM public.membership_tiers
     WHERE tenant_id = 'c1111111-1111-1111-1111-111111111111'),
-  14,
-  'nowy tenant dostaje 14 warstw (katalog v3 + Partner Biznesowy)'
+  15,
+  -- 14 progów katalogu v6.2 (z ukrytymi Enterprise i Partnerem Biznesowym)
+  -- + techniczny, nieaktywny wpis `decision_lab`, który istniejący najemcy
+  -- mają od migracji v6.1 - seed nowego najemcy odtwarza ten sam stan.
+  'nowy tenant dostaje 15 warstw (katalog v6.2 + techniczny decision_lab)'
 );
 
 SELECT is(

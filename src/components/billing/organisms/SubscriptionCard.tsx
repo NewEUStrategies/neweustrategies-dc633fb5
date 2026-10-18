@@ -36,11 +36,13 @@ import { switchTargets } from "@/lib/billing/planSwitch";
 import { toastSubscriptionFailure } from "@/lib/billing/paymentOutcomeToast";
 import { providerErrorCode, unwrapProviderResult } from "@/lib/billing/providerResult";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
+import { isRepriceLookupKey } from "@/lib/billing/subscriptionRepricing";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import {
   cancelStripeSubscription,
   changeStripePlan,
   createStripePortalSession,
+  getStripeRenewalCharge,
   previewStripePlanChange,
   resumeStripeSubscription,
   updateStripeSubscriptionSeats,
@@ -234,6 +236,33 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const perSeat = !!entry?.perSeat;
   const currentSeats = Math.max(1, subscription.quantity ?? 1);
 
+  // KWOTA NA KARCIE = KWOTA ODNOWIENIA U OPERATORA. Cena planu w katalogu to
+  // cena NOWEGO zakupu: po zmianie cennika v6.2 trwająca subskrypcja odnawia
+  // się po swojej, starszej cenie (59 zamiast 39 zł), dopóki admin jej nie
+  // przeniesie. Dla kluczy objętych tą zmianą (Członek, Członek Pro, Zespół)
+  // cenę z katalogu pokazujemy więc WYŁĄCZNIE, gdy odczyt operatora ją
+  // potwierdzi; dla pozostałych katalog jest bezpiecznym zapasem.
+  const chargeQ = useQuery({
+    queryKey: billingKeys.renewalCharge(
+      subscription.provider_subscription_id,
+      environment,
+      subscription.price_id,
+      currentSeats,
+    ),
+    queryFn: () => getStripeRenewalCharge({ data: { environment } }),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const liveCharge =
+    chargeQ.data && chargeQ.data.amountCents !== null && chargeQ.data.currency
+      ? { amountCents: chargeQ.data.amountCents, currency: chargeQ.data.currency }
+      : null;
+  const liveUnit =
+    liveCharge && Number.isInteger(liveCharge.amountCents / currentSeats)
+      ? liveCharge.amountCents / currentSeats
+      : null;
+  const catalogPriceTrusted = !isRepriceLookupKey(subscription.price_id);
+
   // Formatowanie daty przez wspólny `formatDate`/`formatDateShort` - do
   // 19.08.2026 osiem miejsc w rozliczeniach liczyło ją własnym
   // `toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL")`, bez zabezpieczenia
@@ -266,12 +295,18 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
                 ? planName(currentPlan, lang)
                 : (entry?.tierKey ?? subscription.price_id)}
             </div>
-            {currentPlan && (
+            {liveCharge ? (
+              <div className="text-sm text-muted-foreground">
+                {liveUnit !== null && currentSeats > 1
+                  ? `${formatMoney(liveUnit, liveCharge.currency, lang)} × ${currentSeats}`
+                  : formatMoney(liveCharge.amountCents, liveCharge.currency, lang)}
+              </div>
+            ) : currentPlan && catalogPriceTrusted ? (
               <div className="text-sm text-muted-foreground">
                 {formatMoney(currentPlan.price_cents, currentPlan.currency, lang)}
                 {subscription.quantity > 1 ? ` × ${subscription.quantity}` : ""}
               </div>
-            )}
+            ) : null}
           </Field>
           <Field
             label={

@@ -114,6 +114,22 @@ export function tierHasFeature(features: Json, key: string): boolean {
 }
 
 /**
+ * Pula zapytań do eksperta progu - TA SAMA reguła co bramka
+ * `my_expert_request_quota()` (20260812102000): GREATEST(`expert_request_quota`,
+ * dawne flagi `chat_inmail_quota_5` -> 5 / `chat_inmail_quota_2` -> 2). Najemca
+ * istniejący z dawną flagą daje Członkowi 2, choć karta v6.2 mówi 1 - macierz
+ * pokazuje prawdę bramki, a rozjazd jest zgłoszony w raporcie wdrożenia v6.2.
+ */
+export function tierExpertRequestQuota(features: Json): number {
+  const legacy = tierHasFeature(features, "chat_inmail_quota_5")
+    ? 5
+    : tierHasFeature(features, "chat_inmail_quota_2")
+      ? 2
+      : 0;
+  return Math.max(tierFeatureNumber(features, "expert_request_quota"), legacy);
+}
+
+/**
  * Wartość liczbowa flagi features (np. `expert_request_quota`). Akceptuje liczbę
  * lub numeryczny string (panel zapisuje features jako JSON); 0 gdy brak/niepoprawna.
  */

@@ -236,6 +236,29 @@ function metadataFor(externalId: string, trialDays: number | null): Record<strin
   };
 }
 
+/**
+ * Archiwizacja ceny zastąpionej nową z tym samym `lookup_key`.
+ *
+ * STEMPEL `lovable_external_id`. `transfer_lookup_key` zabiera starej cenie
+ * `lookup_key`, a trwające subskrypcje ZOSTAJĄ na starej cenie - zmiana
+ * cennika (v6.2: Członek 59 -> 39 zł) nie przenosi ich sama, robi to dopiero
+ * świadoma akcja admina. Webhook odwzorowuje cenę odnowienia na plan po
+ * `lookup_key`, a bez niego po `metadata.lovable_external_id`
+ * (`readablePriceId`, stripeEvents.server.ts). Cena założona kiedyś ręcznie,
+ * bez tej metadanej, po archiwizacji przestałaby się mapować - odnowienie nie
+ * przedłużyłoby dostępu. Stempel domyka ten przypadek; pozostałe metadane
+ * (np. `trial_days`) zostają bez zmian.
+ */
+function archivedPriceParams(
+  price: Stripe.Price,
+  entry: CatalogPriceEntry,
+): Stripe.PriceUpdateParams {
+  return {
+    active: false,
+    metadata: { ...(price.metadata ?? {}), lovable_external_id: entry.priceId },
+  };
+}
+
 async function findProductByExternalId(
   stripe: Stripe,
   externalId: string,
@@ -262,10 +285,43 @@ async function findPriceByLookupKey(
   return res.data[0] ?? null;
 }
 
+/**
+ * Nazwa PRODUKTU u operatora - niezależna od cyklu. Produkt jest wspólny dla
+ * cen miesięcznej i rocznej (`plan_plus`), a nazwy planów niosą cykl po
+ * myślniku („Członek - miesięcznie"), więc produkt dostaje część przed nim
+ * („Członek"). Nazwa bez myślnika zostaje w całości.
+ */
+export function catalogProductName(
+  plan: Pick<PlanRow, "name_pl" | "name_en">,
+  entry: Pick<CatalogPriceEntry, "tierKey">,
+): string {
+  const full = (plan.name_pl || plan.name_en || entry.tierKey).trim();
+  const base = full.split(" - ")[0]?.trim();
+  return base || full;
+}
+
+/**
+ * Nazwy produktów w JEDNOZNACZNEJ kolejności: pierwsza pozycja katalogu
+ * produktu z aktywnym planem wyznacza nazwę dla wszystkich jego cen. Bez
+ * tego dwa plany jednego produktu nazwane różnie bez myślnika („Pro
+ * miesięczny", „Pro roczny") przepisywałyby nazwę produktu przy każdym
+ * przebiegu na zmianę.
+ */
+function productNamesFor(planFor: (entry: CatalogPriceEntry) => PlanRow | undefined) {
+  const names = new Map<string, string>();
+  for (const entry of BILLING_CATALOG) {
+    if (names.has(entry.productId)) continue;
+    const plan = planFor(entry);
+    if (plan && plan.active !== false) names.set(entry.productId, catalogProductName(plan, entry));
+  }
+  return names;
+}
+
 async function syncOne(
   stripe: Stripe,
   entry: CatalogPriceEntry,
   plan: PlanRow | undefined,
+  productName?: string,
 ): Promise<CatalogSyncItem> {
   const item: CatalogSyncItem = {
     priceId: entry.priceId,
@@ -287,16 +343,24 @@ async function syncOne(
   const currency = (plan.currency || "PLN").toLowerCase();
   const trialDays = trialDaysForPlan(plan);
 
-  // 1. Produkt
+  // 1. Produkt. Nazwa jest korygowana także na produkcie ISTNIEJĄCYM: zmiana
+  // nazw planów (cennik v6.2: „Plus" -> „Członek", „Pro" -> „Członek Pro")
+  // musi dojść do Checkoutu, faktur i portalu operatora - inaczej klient
+  // dostaje dokumenty z nazwą, której cennik i mail już nie znają. Opisu nie
+  // ruszamy: produkt jest wspólny dla cykli, a opisy planów bywają różne.
+  const desiredProductName = productName ?? catalogProductName(plan, entry);
   let product = await findProductByExternalId(stripe, entry.productId);
   if (!product) {
     product = await stripe.products.create({
-      name,
+      name: desiredProductName,
       description: plan.description_pl ?? undefined,
       tax_code: DIGITAL_SERVICE_TAX_CODE,
       metadata: { lovable_external_id: entry.productId },
     });
     item.product = "created";
+  } else if (product.name !== desiredProductName) {
+    product = await stripe.products.update(product.id, { name: desiredProductName });
+    item.product = "updated";
   }
 
   // 2. Cena
@@ -364,7 +428,7 @@ async function syncOne(
       nickname: `${name} (${entry.interval})`,
       metadata: metadataFor(entry.priceId, trialDays),
     });
-    await stripe.prices.update(price.id, { active: false });
+    await stripe.prices.update(price.id, archivedPriceParams(price, entry));
     item.price = "updated";
   } else if (trialDrifted) {
     await stripe.prices.update(price.id, {
@@ -387,11 +451,12 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
 
   const planFor = (entry: CatalogPriceEntry): PlanRow | undefined =>
     catalogPlanForEntry(plans, entry);
+  const productNames = productNamesFor(planFor);
 
   const items: CatalogSyncItem[] = [];
   for (const entry of BILLING_CATALOG) {
     try {
-      items.push(await syncOne(stripe, entry, planFor(entry)));
+      items.push(await syncOne(stripe, entry, planFor(entry), productNames.get(entry.productId)));
     } catch (err) {
       // Jedna pozycja nie może zatrzymać całej synchronizacji.
       console.error("[payments] catalog sync failed", entry.priceId, err);
@@ -453,7 +518,7 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
     items,
     archived,
     created: items.filter((i) => i.product === "created" || i.price === "created").length,
-    updated: items.filter((i) => i.price === "updated").length,
+    updated: items.filter((i) => i.price === "updated" || i.product === "updated").length,
     failed,
   };
 }

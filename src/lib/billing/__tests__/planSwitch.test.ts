@@ -32,6 +32,7 @@ function plan(over: Partial<AccessPlan> & { id: string }): AccessPlan {
     highlighted: false,
     trial_days: 0,
     tier_key: null,
+    for_sale: true,
     ...over,
   };
 }

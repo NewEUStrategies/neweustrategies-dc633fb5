@@ -56,7 +56,7 @@ const APPLY_SEO: Readonly<Record<Lang, ApplySeoCopy>> = {
   en: {
     title: "Apply to a discussion club | New European Strategies",
     description:
-      "Apply to a closed discussion club of experts and decision-makers. An account and PRO membership or higher are required.",
+      "Apply to a closed discussion club of experts and decision-makers. An account and Member Pro or higher are required.",
   },
 };
 

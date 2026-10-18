@@ -28,7 +28,9 @@
 //   * LEJEK CRM. Rezygnacja i pauza muszą być widoczne tak samo jak zakup.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE: klienta roli serwisowej
-// (`@/integrations/supabase/client.server`) i wysyłkę poczty (`sendTxEmail`).
+// (`@/integrations/supabase/client.server`), wysyłkę poczty (`sendTxEmail`)
+// i operatora płatności (`subscriptionProvider.server` - skutki zdarzeń nie
+// mają prawa go wołać).
 // Sąsiedzi - `entitlementSync.server`, `notifications.server`, `catalog`,
 // `premiumNewsletter` - biegną prawdziwym kodem, więc test widzi wiersz,
 // który naprawdę trafia do `user_subscriptions`, i treść maila, którą
@@ -59,6 +61,14 @@ import { PREMIUM_NEWSLETTER_CONSENT_VERSION } from "@/lib/billing/premiumNewslet
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
   emails: [] as unknown[],
+  // Operator płatności: skutki zdarzeń NIE mogą go wołać (kwoty idą z ładunku).
+  operator: vi.fn(),
+}));
+
+// GRANICA 3: operator płatności - każde wywołanie to błąd testu.
+vi.mock("@/lib/billing/subscriptionProvider.server", () => ({
+  renewalListCharge: h.operator,
+  upgradeProrationCharge: h.operator,
 }));
 
 // GRANICA 1: klient roli serwisowej.
@@ -176,6 +186,7 @@ function isWrite(chain: RecordedChain): boolean {
 
 beforeEach(() => {
   h.emails.length = 0;
+  h.operator.mockReset();
   scene = {
     plans: [
       accessPlan({
@@ -608,8 +619,11 @@ describe("applyPlanChangeEffects - zmiana planu", () => {
       idempotencyKey: `subscription_upgraded:${SUB}:pro_monthly`,
     });
     expect(mail?.bodyVars).toMatchObject({ planName: "Pro", previousPlanName: "Członek" });
-    // (9900 - 4900) za 15 z 30 dni = 2500.
-    expect(mail?.bodyVars?.prorationAmount).toMatch(moneyPattern(2500));
+    // Członek to klucz objęty zmianą cennika v6.2 - klient mógł płacić STARĄ
+    // cenę (59 zł), a katalog ma już nową: różnica z katalogu ((9900 - 4900)
+    // za 15 z 30 dni = 2500) byłaby fikcją, więc zdania o dopłacie nie ma.
+    expect(mail?.bodyVars?.prorationAmount).toBeNull();
+    expect(h.operator).not.toHaveBeenCalled();
 
     expect(written("notifications", "insert")).toEqual({
       user_id: BILLING_IDS.me,
@@ -625,24 +639,46 @@ describe("applyPlanChangeEffects - zmiana planu", () => {
   });
 
   it("dopłata nigdy nie przekracza pełnej różnicy cen, nawet przy okresie dłuższym niż 30 dni", async () => {
-    await applyPlanChangeEffects(planChange({ periodEnd: relativeIso(45 * DZIEN) }));
+    // Student -> Pro: klucz spoza zmiany cennika, katalog = cena klienta.
+    await applyPlanChangeEffects(
+      planChange({ previousPriceId: "student_monthly", periodEnd: relativeIso(45 * DZIEN) }),
+    );
 
-    expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(5000));
+    expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(8000));
   });
 
   it("upgrade w cyklu ROCZNYM: dopłata liczona od długości roku, nie od 30 dni", async () => {
+    scene.plans = [
+      ...scene.plans,
+      accessPlan({
+        id: "plan-student-annual",
+        tier_key: "student",
+        interval: "year",
+        name_pl: "Student rocznie",
+        name_en: "Student yearly",
+        price_cents: 19000,
+        sort_order: 11,
+      }),
+    ];
     await applyPlanChangeEffects(
       planChange({
         priceId: "pro_annual",
-        previousPriceId: "plus_annual",
+        previousPriceId: "student_annual",
         periodEnd: relativeIso(180 * DZIEN),
       }),
     );
 
     expect(written("user_subscriptions", "insert")).toMatchObject({ plan_id: "plan-pro-annual" });
-    // (99900 - 49900) za 180 z 365 dni = 24657,53 -> 24658. Mianownik 30 dni
-    // dawał pełną różnicę (500 zł) - dwa razy więcej niż faktura operatora.
-    expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(24658));
+    // (99900 - 19000) za 180 z 365 dni = 39895,89 -> 39896. Mianownik 30 dni
+    // dawał pełną różnicę (809 zł) - dwa razy więcej niż faktura operatora.
+    expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(39896));
+  });
+
+  it("klucz spoza zmiany cennika (Student -> Pro): szacunek dopłaty z katalogu zostaje", async () => {
+    await applyPlanChangeEffects(planChange({ previousPriceId: "student_monthly" }));
+
+    // (9900 - 1900) za 15 z 30 dni = 4000.
+    expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(4000));
   });
 
   it("upgrade ze zmianą cyklu (miesiąc -> rok): mail bez kwoty dopłaty", async () => {
@@ -845,6 +881,26 @@ describe("applyStatusTransitionEffects - zmiana samego stanu", () => {
       type: "subscription_resumed",
       idempotencyKey: `subscription_resumed:${SUB}:resumed:${ctx.periodEnd}`,
     });
+  });
+
+  it("wznowienie: kwota z ceny, na której subskrypcja JEST (ładunek zdarzenia), nie z katalogu", async () => {
+    // Stara cena 59 zł po zmianie cennika - katalog mówi 49 zł (fikstura).
+    await applyStatusTransitionEffects({
+      ...transition("paused", "active"),
+      charge: { amountCents: 5900, currency: "PLN" },
+    });
+
+    expect(mails()[0]?.bodyVars?.amount).toMatch(moneyPattern(5900));
+    expect(JSON.stringify(mails()[0]?.details)).not.toMatch(moneyPattern(4900));
+    expect(h.operator).not.toHaveBeenCalled();
+  });
+
+  it("wznowienie klucza objętego zmianą cennika bez kwoty w zdarzeniu: mail BEZ kwoty", async () => {
+    await applyStatusTransitionEffects(transition("paused", "active"));
+
+    expect(mails()).toHaveLength(1);
+    expect(mails()[0]?.bodyVars?.amount).toBeNull();
+    expect(JSON.stringify(mails()[0]?.details)).not.toMatch(moneyPattern(4900));
   });
 
   it.each([

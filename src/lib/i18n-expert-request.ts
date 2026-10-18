@@ -9,7 +9,7 @@ export const expertRequestPl = {
     dialogTitle: "Wyślij zapytanie do eksperta lub VIP-a",
     dialogSubtitle:
       "Prześlij formalne zapytanie - jeśli odbiorca je zaakceptuje, otworzymy stałą konwersację.",
-    upgradeCta: "Zobacz plan VIP (bezpośrednia rozmowa z ekspertami i VIP-ami)",
+    upgradeCta: "Zobacz próg Rada Instytutu (bezpośrednia rozmowa z ekspertami i VIP-ami)",
     recipientLabel: "Odbiorca",
     quota: {
       remaining: "Pozostało {{remaining}} z {{quota}} zapytań w tym miesiącu.",
@@ -54,7 +54,7 @@ export const expertRequestPl = {
       notExpert:
         "Ten użytkownik nie wymaga zapytania - napisz do niego bezpośrednio z listy kontaktów.",
       tierDisabled:
-        "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Plus, Pro lub VIP).",
+        "Twoja warstwa nie umożliwia wysyłania zapytań do ekspertów. Zaktualizuj plan (Członek, Członek Pro lub Rada Instytutu).",
       recipientDisabled: "Ten ekspert wstrzymał przyjmowanie zapytań. Spróbuj ponownie później.",
       featureDisabled: "Zapytania do ekspertów są wyłączone w tej organizacji.",
       notAvailable: "Ten odbiorca jest niedostępny w Twoim obszarze roboczym.",
@@ -131,7 +131,7 @@ export const expertRequestEn = {
     dialogTitle: "Send an expert request to an expert or VIP",
     dialogSubtitle:
       "Send a formal request - if the recipient approves, we open an ongoing conversation.",
-    upgradeCta: "See the VIP plan (direct chat with experts and VIPs)",
+    upgradeCta: "See the Institute Council tier (direct chat with experts and VIPs)",
     recipientLabel: "Recipient",
     quota: {
       remaining: "{{remaining}} of {{quota}} requests left this month.",
@@ -175,7 +175,7 @@ export const expertRequestEn = {
         "You have used your monthly expert request quota. Upgrade to reach more experts or VIPs.",
       notExpert: "This user does not require a request - send a normal DM instead.",
       tierDisabled:
-        "Your tier does not include expert requests. Upgrade your plan (Plus, Pro or VIP).",
+        "Your tier does not include expert requests. Upgrade your plan (Member, Member Pro or Institute Council).",
       recipientDisabled: "This expert has paused incoming requests. Please try again later.",
       featureDisabled: "Expert requests are switched off for this organisation.",
       notAvailable: "This recipient is not available in your workspace.",

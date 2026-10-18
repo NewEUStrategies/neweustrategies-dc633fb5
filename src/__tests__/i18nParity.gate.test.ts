@@ -177,6 +177,10 @@ const GATED_PREFIXES = [
   "chartsMap",
   "mapEditor",
   "chartEditor",
+  // Przeniesienie subskrypcji na cennik v6.2: admin decyduje tu o cenach
+  // klientów - powód pominięcia albo blokady wykonania musi być zdaniem
+  // w języku panelu, nie surowym kluczem. Bramka od pierwszego dnia.
+  "adminRepricing",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
@@ -318,6 +322,10 @@ const IDENTICAL_ALLOWLIST: readonly string[] = [
   // Nazwy własne usług na przyciskach portfela - tłumaczenie byłoby błędem.
   "eventWallet.apple.name",
   "eventWallet.google.name",
+  // Przeniesienie na cennik v6.2: nagłówek kolumny „Plan" to to samo słowo
+  // w obu językach (jak `adminEvents.list.columns.status`).
+  "adminRepricing.columns.plan",
+  "adminRepricing.logColumns.plan",
 ];
 
 function loadOverlays(): void {

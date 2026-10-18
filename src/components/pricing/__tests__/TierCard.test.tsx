@@ -134,10 +134,10 @@ describe("TierCard - CENA, którą widzi klient", () => {
     expect(screen.queryByText("pricing.onRequest")).not.toBeInTheDocument();
   });
 
-  it("plan ZA MIEJSCE pokazuje „od” przed kwotą", () => {
+  it("plan ZA MIEJSCE pokazuje stawkę za miejsce BEZ „od” (próg wolumenowy jest w nocie)", () => {
     renderCard({ tier: membershipTier({ per_seat: true }), plans: [monthly] });
 
-    expect(screen.getByText("pricing.fromPrefix")).toBeInTheDocument();
+    expect(screen.queryByText("pricing.fromPrefix")).not.toBeInTheDocument();
     expect(screen.getByText(/pricing\.perSeat/)).toBeInTheDocument();
   });
 

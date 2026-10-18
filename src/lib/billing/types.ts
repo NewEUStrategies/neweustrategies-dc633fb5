@@ -28,6 +28,13 @@ export interface AccessPlan {
   trial_days: number;
   /** Warstwa członkostwa nadawana przez plan (membership_tiers.key). */
   tier_key: string | null;
+  /**
+   * Plan przyjmuje NOWY zakup samoobsługowy (`access_plans.for_sale`, cennik
+   * v6.2). `false` = wycofany ze sprzedaży (Partner Biznesowy) albo wyłącznie
+   * na zapytanie (Decision Lab). To NIE jest `active`: plan poza sprzedażą
+   * dalej odnawia trwające subskrypcje i widzą go ich właściciele.
+   */
+  for_sale: boolean;
 }
 
 export interface BillingProfile {

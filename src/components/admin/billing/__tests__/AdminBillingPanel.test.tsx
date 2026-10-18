@@ -120,6 +120,10 @@ vi.mock("@/components/admin/billing/AdminTicketOrdersPanel", () => ({
 vi.mock("@/components/admin/billing/LegacyNonPaymentReconcileCard", () => ({
   LegacyNonPaymentReconcileCard: () => <div data-testid="karta-dawne-anulowania" />,
 }));
+// Karta przeniesienia na cennik v6.2 ma własny test (SubscriptionRepricingCard.test.tsx).
+vi.mock("@/components/admin/billing/SubscriptionRepricingCard", () => ({
+  SubscriptionRepricingCard: () => <div data-testid="karta-cennik-v62" />,
+}));
 
 vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },

@@ -45,6 +45,20 @@ const h = vi.hoisted(() => ({
   prices: [] as unknown[],
 }));
 
+// Decision Lab jest od v6.2 wyłącznie na zapytanie (`planPurchaseRefusal`).
+// Przypadek ceny jednorazowej sprawdza mechanikę zgody przy produkcie
+// jednorazowym, a jedyną taką pozycją katalogu jest dziś Decision Lab - zamek
+// „na zapytanie" zdejmujemy więc JAWNIE i tylko w tym przypadku.
+const enquiry = vi.hoisted(() => ({ locked: true }));
+vi.mock("@/lib/billing/enquiryPlans", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/enquiryPlans")>();
+  return {
+    ...actual,
+    isEnquiryOnlyPlan: (plan: Parameters<typeof actual.isEnquiryOnlyPlan>[0]) =>
+      enquiry.locked && actual.isEnquiryOnlyPlan(plan),
+  };
+});
+
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
 );
@@ -142,6 +156,7 @@ const consentKeys = (metadata: Record<string, string> | undefined) =>
   Object.keys(metadata ?? {}).filter((key) => key.startsWith("newsletterConsent"));
 
 beforeEach(() => {
+  enquiry.locked = true;
   h.sessions.length = 0;
   h.prices = [PLUS_MONTHLY];
   vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
@@ -236,6 +251,8 @@ describe("createPlanCheckoutSession - zgoda na newsletter (SUB-15)", () => {
   it("cena jednorazowa: zgoda nie jedzie do operatora (nie ma skutku zakupu, który by ją zapisał)", async () => {
     // Pozycja jednorazowa katalogu (Decision Lab) - cena `one_time` pod
     // kluczem cyklicznym jest od SUB-05 rozjazdem cennika i kasa ją odrzuca.
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok({

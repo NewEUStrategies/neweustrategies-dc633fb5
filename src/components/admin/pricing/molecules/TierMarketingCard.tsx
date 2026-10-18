@@ -162,6 +162,20 @@ export function TierMarketingCard({
               <span className="text-[11px] text-muted-foreground">{ta("tiers.highlightHint")}</span>
             </span>
           </label>
+          {/* Cennik v6.2: Enterprise i Partner Biznesowy działają (ranga,
+              uprawnienia, kluby), ale nie są oferowane publicznie. */}
+          <label className="mt-2 flex items-start gap-2 rounded-[6px] border border-border/60 bg-muted/30 px-2.5 py-2">
+            <Switch
+              checked={draft.pricing_visible}
+              onCheckedChange={(v) => onChange({ pricing_visible: v })}
+            />
+            <span className="flex flex-col">
+              <span className="text-xs font-medium">{ta("tiers.pricingVisible")}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {ta("tiers.pricingVisibleHint")}
+              </span>
+            </span>
+          </label>
         </FieldGroup>
 
         <FieldGroup icon={MessageSquare} title={ta("tiers.ctaMode")} accent={rankTone.dot}>

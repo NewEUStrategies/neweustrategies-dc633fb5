@@ -5,7 +5,10 @@
 //     (tierHasFeature), więc tabela pokazuje FAKTYCZNY zakres dostępu wg planu -
 //     zmiana flagi w panelu /admin/membership natychmiast zmienia komórkę,
 //   * wiersze redakcyjne (values per tier.key) niosą różnice nieujęte flagą
-//     (limit artykułów, typ newslettera, świadczenia relacyjne),
+//     (limit analiz, zobowiązania procesowe [P] katalogu v6.2 z liczbą albo
+//     terminem: onboarding, noty, konsultacje, zjazdy),
+//   * gdzie flaga i karta v6.2 mówią co innego (np. Zespół bez trackera),
+//     macierz pokazuje PRAWDĘ BRAMKI - rozjazd jest zgłoszony, nie przykryty,
 //   * kolumna planu zalogowanego użytkownika (currentTierKey, rozstrzygana
 //     serwerowo per tenant przez current_membership_tier) jest podświetlona
 //     z etykietą "Twój plan".
@@ -17,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  tierExpertRequestQuota,
   tierFeatureNumber,
   tierHasFeature,
   tierName,
@@ -26,7 +30,7 @@ import {
 type CellValue = "check" | "dash" | string;
 
 /** Wiersze wyliczane z realnych, nieboolowskich danych warstwy (nie flagą 0/1). */
-type MatrixDerive = "expertRequest";
+type MatrixDerive = "expertRequest" | "includedTicket";
 
 interface MatrixRow {
   id: string;
@@ -40,15 +44,24 @@ interface MatrixRow {
   values?: Record<string, CellValue>;
 }
 
-// Realne klucze katalogu (seed pricing_catalog_v3/v4). Kolumnę renderujemy
-// tylko jeśli warstwa o tym kluczu jest w bieżącym segmencie - segment sam
-// dobiera swoje kolumny (indywidualny / firmowy / akademicki).
+// Klucze katalogu v6.2 (`pricing_catalog_v62_rows`). Kolumnę renderujemy
+// tylko jeśli warstwa o tym kluczu jest w przekazanych `tiers` - wołający sam
+// dobiera kolumny (segment indywidualny / instytucje / akademicki).
+//
+// `corporate` i `business` (Enterprise ukryty, Partner Biznesowy wycofany -
+// `pricing_visible = false`) SĄ na liście: o widoczności decyduje powierzchnia,
+// nie macierz. Powierzchnie sprzedażowe (/pricing, /plans, /membership-join)
+// podają wyłącznie `listedTiers`, a profil obecnego klienta takiego progu
+// dokłada jego kolumnę - inaczej porównanie progów nie miałoby kolumny
+// „Twój plan", choć próg działa. Wiersze flag liczą się z jego `features`,
+// redakcyjne v6.2 nie mają dla niego wartości (kreska).
 const KNOWN_TIER_KEYS = [
+  "corporate",
+  "business",
   "reader",
   "member",
   "pro",
   "vip",
-  "corporate",
   "partner",
   "partner_general",
   "presidents_circle",
@@ -59,14 +72,26 @@ const KNOWN_TIER_KEYS = [
 ] as const;
 
 function cellFor(row: MatrixRow, tier: MembershipTierRow, t: TFunction): CellValue {
-  // „Zapytanie do eksperta": realna liczba z planu (Plus/Pro) lub „Bezpośrednio"
-  // dla progów pisania wprost (VIP+). Zero => brak (kreska).
+  // „Zapytanie do eksperta": realna liczba z planu (Członek/Pro) lub
+  // „Bezpośrednio" dla progów pisania wprost (Rada+). Zero => brak (kreska).
   if (row.derive === "expertRequest") {
     if (tierHasFeature(tier.features, "chat_direct_gated")) {
       return t("pricing.comparisonMatrix.expertRequestDirect");
     }
-    const quota = tierFeatureNumber(tier.features, "expert_request_quota");
+    const quota = tierExpertRequestQuota(tier.features);
     return quota > 0 ? t("pricing.comparisonMatrix.perMonth", { n: quota }) : "dash";
+  }
+  // Bilet wliczony (katalog v6.2): pula ORGANIZACJI wygrywa z pulą osoby (Zespół:
+  // 3 rocznie niezależnie od liczby miejsc), stawki ulgowe dostają zniżkę
+  // zamiast biletu. Liczby z `features` - ta sama prawda co bramka
+  // `my_ticket_allowance`, nie zdanie redakcji.
+  if (row.derive === "includedTicket") {
+    const perOrg = tierFeatureNumber(tier.features, "included_event_tickets_org");
+    if (perOrg > 0) return t("pricing.comparisonMatrix.ticketPerOrg", { n: perOrg });
+    const perYear = tierFeatureNumber(tier.features, "included_event_tickets");
+    if (perYear > 0) return t("pricing.comparisonMatrix.ticketPerYear", { n: perYear });
+    const discount = tierFeatureNumber(tier.features, "event_ticket_discount_pct");
+    return discount > 0 ? t("pricing.comparisonMatrix.ticketDiscount", { pct: discount }) : "dash";
   }
   if (row.feature) return tierHasFeature(tier.features, row.feature) ? "check" : "dash";
   return row.values?.[tier.key] ?? "dash";

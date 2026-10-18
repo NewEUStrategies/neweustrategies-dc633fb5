@@ -36,6 +36,7 @@ import { AdminPaymentOrdersPanel } from "@/components/admin/billing/AdminPayment
 
 import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
 import { LegacyNonPaymentReconcileCard } from "@/components/admin/billing/LegacyNonPaymentReconcileCard";
+import { SubscriptionRepricingCard } from "@/components/admin/billing/SubscriptionRepricingCard";
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
 import { uiLocale } from "@/lib/i18n/format";
@@ -347,6 +348,9 @@ export function AdminBillingPanel() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Cennik v6.2: obecni członkowie na niższą cenę od odnowienia (admin najemcy). */}
+      <SubscriptionRepricingCard />
 
       {/* Jednorazowe uzgodnienie anulowań sprzed reguły karencji (operator platformy). */}
       <LegacyNonPaymentReconcileCard />

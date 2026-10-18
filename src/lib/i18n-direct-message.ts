@@ -18,8 +18,8 @@ export const directMessagePl = {
     upgrade: {
       title: "Odblokuj bezpośrednie wiadomości",
       description:
-        "Twój plan Essential nie obejmuje wysyłania wiadomości do innych członków sieci. Przejdź na Plus, aby napisać do {{name}} i korzystać z dodatkowych benefitów.",
-      benefitsHeading: "Co zyskujesz w planie Plus:",
+        "Twój próg Czytelnik nie obejmuje wysyłania wiadomości do innych członków sieci. Przejdź na próg Członek, aby napisać do {{name}} i korzystać z dodatkowych benefitów.",
+      benefitsHeading: "Co zyskujesz w progu Członek:",
       benefit1: "Bezpośrednie wiadomości do innych członków sieci eksperckiej",
       benefit2: "Pełny dostęp do wszystkich pogłębionych materiałów analitycznych",
       benefit3: "Interakcje z ekspertami: komentarze, dyskusje, obserwowanie profili",
@@ -44,8 +44,8 @@ export const directMessageEn = {
     upgrade: {
       title: "Unlock direct messages",
       description:
-        "Your Essential plan does not include messaging other network members. Upgrade to Plus to reach {{name}} and unlock additional benefits.",
-      benefitsHeading: "What you get with Plus:",
+        "Your Reader tier does not include messaging other network members. Upgrade to Member to reach {{name}} and unlock additional benefits.",
+      benefitsHeading: "What you get with Member:",
       benefit1: "Direct messages to other expert-network members",
       benefit2: "Full access to every in-depth analytical piece",
       benefit3: "Interactions with experts: comments, discussions, following profiles",

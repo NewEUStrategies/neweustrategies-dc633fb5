@@ -8,9 +8,10 @@
 // przypomnienie NIEWYSŁANE przed automatycznym pobraniem środków to
 // reklamacja i podstawa do obciążenia zwrotnego.
 //
-// GRANICE ATRAPOWANE: klient service_role, wysyłka poczty i katalog najemców
+// GRANICE ATRAPOWANE: klient service_role, wysyłka poczty, katalog najemców
 // (`tenants.domain` - z niego PRAWDZIWY `tenantPublicUrl` składa host linku
-// w przypomnieniu). Świadomie NIE
+// w przypomnieniu) i odczyt ŻYWEJ subskrypcji u operatora (kwota, którą
+// operator pobierze przy odnowieniu - `renewalListCharge`). Świadomie NIE
 // atrapujemy `@/lib/billing/notifications.server` ani
 // `@/lib/billing/purchaseEffects.server` - to sąsiedzi w tej samej warstwie,
 // a przebieg przypomnień polega właśnie na ich prawdziwym zachowaniu
@@ -41,6 +42,11 @@ const db = vi.hoisted(() => {
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (table: string) => db.from(table) },
+}));
+
+const operator = vi.hoisted(() => ({ renewalListCharge: vi.fn() }));
+vi.mock("@/lib/billing/subscriptionProvider.server", () => ({
+  renewalListCharge: operator.renewalListCharge,
 }));
 
 const mail = vi.hoisted(() => {
@@ -201,6 +207,7 @@ let errorSpy: MockInstance<typeof console.error>;
 
 beforeEach(() => {
   mail.reset();
+  operator.renewalListCharge.mockReset().mockResolvedValue(null);
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 
@@ -320,6 +327,36 @@ describe("stan subskrypcji decyduje o TREŚCI przypomnienia", () => {
     expect(mail.sent[0]?.to).toBe(RECIPIENT);
     // Plan odwzorowany z ceny operatora - w mailu musi być nazwa, nie kod ceny.
     expect(mail.sent[0]?.subjectName).toBe("Członek");
+  });
+
+  it("kwota w przypomnieniu pochodzi z ŻYWEJ subskrypcji, nie z cennika w bazie", async () => {
+    // Po zmianie cennika `access_plans` ma 49 zł (fikstura), a subskrypcja
+    // odnawia się po swojej starej cenie 59 zł - mail podaje 59 zł.
+    operator.renewalListCharge.mockResolvedValue({ amountCents: 5900, currency: "PLN" });
+    givenDb({ rows: [subscriptionRow()] });
+    await runBillingReminders(3, 200, NOW, "live");
+
+    expect(operator.renewalListCharge).toHaveBeenCalledWith("live", "sub_syntetyczna_1");
+    const sent = mail.sent[0];
+    expect(sent?.bodyVars?.amount).toMatch(/59[.,]00/);
+    expect(JSON.stringify(sent?.details)).not.toMatch(/49[.,]00/);
+  });
+
+  it("kwota nieustalona u operatora: przypomnienie wychodzi BEZ kwoty, nie z ceną katalogu", async () => {
+    givenDb({ rows: [subscriptionRow()] });
+    const result = await runBillingReminders(3, 200, NOW, "live");
+
+    expect(result.renewal).toBe(1);
+    expect(mail.sent[0]?.bodyVars?.amount).toBeNull();
+    expect(JSON.stringify(mail.sent[0]?.details)).not.toMatch(/49[.,]00/);
+  });
+
+  it("przypomnienie o WYGAŚNIĘCIU nie pyta operatora o kwotę", async () => {
+    givenDb({ rows: [subscriptionRow({ cancel_at_period_end: true })] });
+    await runBillingReminders(3, 200, NOW, "live");
+
+    expect(mail.sent[0]?.type).toBe("subscription_expiring");
+    expect(operator.renewalListCharge).not.toHaveBeenCalled();
   });
 
   it("plan szukany jest W NAJEMCY subskrypcji i w jawnej kolejności", async () => {

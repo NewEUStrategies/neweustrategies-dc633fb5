@@ -50,6 +50,22 @@ const admin = vi.hoisted(() => ({
   forward: null as null | ((fn: string, args: unknown) => Promise<unknown>),
 }));
 
+// Decision Lab jest od v6.2 wyłącznie na zapytanie - `planPurchaseRefusal`
+// odmawia go w obu silnikach, zanim kasa dojdzie do wyceny. Mechanika kasy
+// JEDNORAZOWEJ zostaje jednak gotowa na produkt samoobsługowy, a jedyną
+// pozycją jednorazową katalogu jest dziś Decision Lab. Testy tej mechaniki
+// zdejmują więc zamek „na zapytanie" JAWNIE (`enquiry.locked = false`);
+// sam zamek dowodzą osobne przypadki i `catalogV62.test.ts`.
+const enquiry = vi.hoisted(() => ({ locked: true }));
+vi.mock("@/lib/billing/enquiryPlans", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/enquiryPlans")>();
+  return {
+    ...actual,
+    isEnquiryOnlyPlan: (plan: Parameters<typeof actual.isEnquiryOnlyPlan>[0]) =>
+      enquiry.locked && actual.isEnquiryOnlyPlan(plan),
+  };
+});
+
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
 );
@@ -102,6 +118,7 @@ type PlanQuote = Pick<
   | "name_pl"
   | "name_en"
   | "active"
+  | "for_sale"
   | "interval"
   | "trial_days"
   | "tier_key"
@@ -135,6 +152,7 @@ function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
     name_pl: "Członek",
     name_en: "Member",
     active: true,
+    for_sale: true,
     interval: "month",
     trial_days: 0,
     tier_key: "member",
@@ -257,6 +275,7 @@ function entityPayload(over: Record<string, unknown> = {}): Record<string, unkno
 }
 
 beforeEach(() => {
+  enquiry.locked = true;
   admin.rpcCalls.length = 0;
   chain = supabaseFromStub();
   rpcCalls = [];
@@ -354,6 +373,38 @@ describe("createCheckoutOrder - odmowy na ścieżce planu", () => {
     chain.setResponse("access_plans", ok(planQuote({ active: false })));
 
     await expect(call(planPayload())).rejects.toThrow("plan_not_found");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("plan WYCOFANY ZE SPRZEDAŻY (Partner Biznesowy, v6.2) - odmowa przed kuponem i zamówieniem", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({ tier_key: "business", interval: "month", price_cents: 99000, for_sale: false }),
+      ),
+    );
+
+    await expect(call(planPayload())).rejects.toThrow("plan_not_for_sale");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(chain.lastChain("access_plans")?.argsOf("select")?.[0]).toContain("for_sale");
+  });
+
+  it("Decision Lab bezpośrednim adresem /checkout/<id> - odmowa serwera (oferta na zapytanie)", async () => {
+    // Do v6.2 kasa sprawdzała tylko `active`: karta i strona planu chowały
+    // przycisk, a ręcznie wpisany adres kasy sprzedawał miejsce za 16 000 zł.
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({
+          tier_key: "decision_lab",
+          interval: "one_time",
+          price_cents: 1_600_000,
+          for_sale: true,
+        }),
+      ),
+    );
+
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_enquiry_only");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 
@@ -552,6 +603,8 @@ describe("createCheckoutOrder - wycena planu", () => {
   // `kind=one_time` z planem MIESIĘCZNYM (`plan_not_one_time`, TIX-02) - patrz
   // blok „jedna ścieżka wyceny na zamówienie" niżej. Tu kierunek odwrotny.
   it("`kind=subscription` z planem JEDNORAZOWYM też jest odmową (`kind_mismatch`)", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
@@ -562,6 +615,8 @@ describe("createCheckoutOrder - wycena planu", () => {
   });
 
   it("plan JEDNORAZOWY z katalogu: zamówienie `one_time` z kwotą WYCENY", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),

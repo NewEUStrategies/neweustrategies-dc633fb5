@@ -65,6 +65,13 @@ export type SubscriptionData = {
       id: string;
       externalId?: string | null;
       trialPeriod?: { interval?: string | null; frequency?: number | null } | null;
+      /**
+       * Kwota jednej sztuki ceny, na której subskrypcja JEST u operatora (cena
+       * cykliczna `per_unit`; schodkowa - brak). Po zmianie cennika nie musi
+       * być równa cenie planu w katalogu - z niej idzie kwota w mailu.
+       */
+      unitAmount?: number;
+      currency?: string;
     };
     product?: { id: string; externalId?: string | null } | null;
   }>;
@@ -1504,6 +1511,7 @@ async function applyUpdateEffects(input: {
     status: data.status,
     eventAt: mark.stamp,
     announcements,
+    charge: eventCharge(data),
   });
 
   const direction = eventPriceId ? planChangeDirection(existing.price_id, eventPriceId) : "same";
@@ -1526,6 +1534,18 @@ async function applyUpdateEffects(input: {
     eventAt: mark.stamp,
     announcements,
   });
+}
+
+/**
+ * Kwota pozycji z ładunku zdarzenia (cena × ilość) - jedna pozycja z ceną
+ * `per_unit`, inaczej `null` (mail bez kwoty, zamiast ceny z katalogu).
+ */
+function eventCharge(data: SubscriptionData): { amountCents: number; currency: string } | null {
+  if (data.items.length !== 1) return null;
+  const item = data.items[0];
+  const { unitAmount, currency } = item.price;
+  if (typeof unitAmount !== "number" || !currency) return null;
+  return { amountCents: unitAmount * Math.max(1, item.quantity ?? 1), currency };
 }
 
 /**

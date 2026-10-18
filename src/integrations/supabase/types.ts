@@ -25,6 +25,7 @@ export type Database = {
           description_pl: string | null
           features_en: Json
           features_pl: Json
+          for_sale: boolean
           highlighted: boolean
           id: string
           interval: Database["public"]["Enums"]["plan_interval"]
@@ -49,6 +50,7 @@ export type Database = {
           description_pl?: string | null
           features_en?: Json
           features_pl?: Json
+          for_sale?: boolean
           highlighted?: boolean
           id?: string
           interval?: Database["public"]["Enums"]["plan_interval"]
@@ -73,6 +75,7 @@ export type Database = {
           description_pl?: string | null
           features_en?: Json
           features_pl?: Json
+          for_sale?: boolean
           highlighted?: boolean
           id?: string
           interval?: Database["public"]["Enums"]["plan_interval"]
@@ -15248,6 +15251,7 @@ export type Database = {
           per_seat: boolean
           price_note_en: string | null
           price_note_pl: string | null
+          pricing_visible: boolean
           rank: number
           sort_order: number
           tenant_id: string
@@ -15274,6 +15278,7 @@ export type Database = {
           per_seat?: boolean
           price_note_en?: string | null
           price_note_pl?: string | null
+          pricing_visible?: boolean
           rank?: number
           sort_order?: number
           tenant_id: string
@@ -15300,6 +15305,7 @@ export type Database = {
           per_seat?: boolean
           price_note_en?: string | null
           price_note_pl?: string | null
+          pricing_visible?: boolean
           rank?: number
           sort_order?: number
           tenant_id?: string
@@ -21253,6 +21259,105 @@ export type Database = {
           },
           {
             foreignKeyName: "speaker_profiles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_price_migrations: {
+        Row: {
+          actor_user_id: string | null
+          applied_at: string | null
+          attempts: number
+          billing_interval: string
+          campaign: string
+          created_at: string
+          currency: string
+          effective_at: string | null
+          email_queued_at: string | null
+          email_status: string
+          environment: string
+          from_amount_cents: number
+          from_provider_price_id: string
+          id: string
+          lookup_key: string
+          provider_subscription_id: string
+          quantity: number
+          reason: string | null
+          status: string
+          subscription_id: string | null
+          tenant_id: string
+          to_amount_cents: number
+          to_provider_price_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          applied_at?: string | null
+          attempts?: number
+          billing_interval: string
+          campaign?: string
+          created_at?: string
+          currency: string
+          effective_at?: string | null
+          email_queued_at?: string | null
+          email_status?: string
+          environment: string
+          from_amount_cents: number
+          from_provider_price_id: string
+          id?: string
+          lookup_key: string
+          provider_subscription_id: string
+          quantity: number
+          reason?: string | null
+          status: string
+          subscription_id?: string | null
+          tenant_id: string
+          to_amount_cents: number
+          to_provider_price_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          applied_at?: string | null
+          attempts?: number
+          billing_interval?: string
+          campaign?: string
+          created_at?: string
+          currency?: string
+          effective_at?: string | null
+          email_queued_at?: string | null
+          email_status?: string
+          environment?: string
+          from_amount_cents?: number
+          from_provider_price_id?: string
+          id?: string
+          lookup_key?: string
+          provider_subscription_id?: string
+          quantity?: number
+          reason?: string | null
+          status?: string
+          subscription_id?: string | null
+          tenant_id?: string
+          to_amount_cents?: number
+          to_provider_price_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_price_migrations_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_price_migrations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -28436,6 +28541,10 @@ export type Database = {
         Args: { p_tenant: string }
         Returns: undefined
       }
+      apply_pricing_catalog_v62: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       arm_job_runner: { Args: { p_base_url: string }; Returns: Json }
       ask_qa_question: {
         Args: { p_anonymous?: boolean; p_body: string; p_session_id: string }
@@ -32897,6 +33006,37 @@ export type Database = {
           key: string
         }[]
       }
+      pricing_catalog_v62_benefits: {
+        Args: never
+        Returns: {
+          benefits: Json
+          key: string
+        }[]
+      }
+      pricing_catalog_v62_rows: {
+        Args: never
+        Returns: {
+          apply_presentation: boolean
+          audience_key: string
+          badge_en: string
+          badge_pl: string
+          cta_mode: string
+          desc_en: string
+          desc_pl: string
+          features: Json
+          highlight: boolean
+          is_default: boolean
+          key: string
+          name_en: string
+          name_pl: string
+          per_seat: boolean
+          price_note_en: string
+          price_note_pl: string
+          pricing_visible: boolean
+          rank: number
+          sort_order: number
+        }[]
+      }
       process_mentions: {
         Args: {
           p_actor_id: string
@@ -33444,11 +33584,19 @@ export type Database = {
         }[]
       }
       seed_chat_tier_flags: { Args: { p_tenant: string }; Returns: undefined }
+      seed_decision_lab_product: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       seed_membership_tiers: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_audiences: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_faq: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_plans_v3: { Args: { p_tenant: string }; Returns: undefined }
+      seed_pricing_plans_v62: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       seed_related_posts_config: {
         Args: { _tenant_id: string }
         Returns: undefined

@@ -66,3 +66,30 @@ export function planTierFromRank(rank: number): ClubPlanTier {
 export function rankFromPlanTier(tier: ClubPlanTier): number {
   return CLUB_PLAN_TIER_RANK[tier];
 }
+
+/**
+ * Progi, których bramki PUBLICZNE nie sprzedają (cennik v6.2, decyzja 4:
+ * Enterprise ukryty na /pricing). Próg działa - ranga 30 dalej otwiera kluby
+ * i jest w droplistach panelu - ale bramka klubu nie może wołać „wykup
+ * Enterprise" i prowadzić na cennik, na którym takiej karty nie ma.
+ */
+export const CLUB_PLAN_TIERS_NOT_SOLD: ReadonlySet<ClubPlanTier> = new Set<ClubPlanTier>([
+  "corporate",
+]);
+
+/**
+ * Najniższy próg OFEROWANY PUBLICZNIE, który otwiera klub o danej randze.
+ *
+ * Kierunek jest odwrotny niż w `planTierFromRank` (droplista panelu): bramka
+ * zaokrągla W GÓRĘ, bo sprzedaż progu poniżej wymaganej rangi to obietnica
+ * wejścia, którego nie będzie (ranga 28 nie wpuszcza Rady z rangą 25), i
+ * pomija progi bez karty na /pricing (Enterprise -> Partner Instytucjonalny).
+ * Ranga ponad katalog sprzedaje próg najwyższy.
+ */
+export function sellableClubTierForRank(rank: number): ClubPlanTier {
+  const safe = Number.isFinite(rank) ? rank : 0;
+  for (const tier of CLUB_PLAN_TIERS) {
+    if (CLUB_PLAN_TIER_RANK[tier] >= safe && !CLUB_PLAN_TIERS_NOT_SOLD.has(tier)) return tier;
+  }
+  return CLUB_PLAN_TIERS[CLUB_PLAN_TIERS.length - 1];
+}

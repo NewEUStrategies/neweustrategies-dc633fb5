@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLink } from "@/components/atoms/AppLink";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { formatMoney, planBadge, planFeatures, planName } from "@/lib/billing/types";
@@ -48,7 +49,11 @@ export function PricingPlansView({
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    let out = all;
+    // Każda karta widżetu ma przycisk zakupu, więc zostają WYŁĄCZNIE plany
+    // w sprzedaży samoobsługowej (cennik v6.2): bez wycofanych (Partner
+    // Biznesowy) i bez ofert na zapytanie (Decision Lab) - inaczej przycisk
+    // prowadziłby do kasy, która i tak odmówi.
+    let out = all.filter((p) => p.for_sale !== false && !isEnquiryOnlyPlan(p));
     if (interval && interval !== "all") out = out.filter((p) => p.interval === interval);
     if (keys.length > 0) out = out.filter((p) => (p.tier_key ? keys.includes(p.tier_key) : false));
     return limit > 0 ? out.slice(0, limit) : out;

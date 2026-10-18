@@ -93,6 +93,7 @@ export function membershipTier(overrides: Partial<MembershipTierRow> = {}): Memb
     per_seat: false,
     price_note_pl: null,
     price_note_en: null,
+    pricing_visible: true,
     created_at: isoDaysAgo(30),
     updated_at: isoDaysAgo(1),
     ...overrides,

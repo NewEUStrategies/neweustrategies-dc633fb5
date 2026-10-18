@@ -341,8 +341,14 @@ function EventOverview() {
 
   // Nazwa wymaganej warstwy: najniższy aktywny tier o randze >= progu
   // (members podnosi próg do >=1; briefing Pro wskazuje tier z pro_briefings).
+  // Wyłącznie progi z kartą na /pricing (cennik v6.2): przycisk prowadzi na
+  // cennik, więc „Wymaga progu Enterprise" albo wycofanego Partnera
+  // Biznesowego wysyłałby tam, gdzie takiej oferty nie ma.
+  const offeredTiers = (tiersQ.data ?? [])
+    .filter((tier) => tier.pricing_visible !== false)
+    .sort((a, b) => a.rank - b.rank);
   const requiredTierName = (() => {
-    const tiers = tiersQ.data ?? [];
+    const tiers = offeredTiers;
     if (isProBriefing) {
       const withFlag = tiers.find(
         (tier) =>
@@ -355,7 +361,7 @@ function EventOverview() {
     }
     if (!membersOnly && ev.min_tier_rank <= 0) return null;
     const minRank = membersOnly ? Math.max(ev.min_tier_rank, 1) : ev.min_tier_rank;
-    const match = [...tiers].sort((a, b) => a.rank - b.rank).find((tier) => tier.rank >= minRank);
+    const match = tiers.find((tier) => tier.rank >= minRank);
     return match ? tierName(match, lang) : null;
   })();
 
@@ -364,10 +370,7 @@ function EventOverview() {
   // Najniższa warstwa z benefitem nagrań (flaga features.recordings) - do
   // czytelnego upsellu przy bramce nagrania.
   const recordingTierName = (() => {
-    const tiers = tiersQ.data ?? [];
-    const match = [...tiers]
-      .sort((a, b) => a.rank - b.rank)
-      .find((tier) => tierHasFeature(tier.features, "recordings"));
+    const match = offeredTiers.find((tier) => tierHasFeature(tier.features, "recordings"));
     return match ? tierName(match, lang) : null;
   })();
 

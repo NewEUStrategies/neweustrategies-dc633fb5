@@ -144,6 +144,7 @@ function plan(over: Partial<AccessPlan> = {}): AccessPlan {
     highlighted: false,
     trial_days: 0,
     tier_key: "pro",
+    for_sale: true,
     ...over,
   };
 }

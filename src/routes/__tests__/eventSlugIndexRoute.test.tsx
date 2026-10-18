@@ -61,6 +61,8 @@ interface TierRow {
   name_pl: string;
   name_en: string;
   features: Record<string, unknown> | null;
+  /** Karta na publicznym cenniku (v6.2); brak = widoczna. */
+  pricing_visible?: boolean;
 }
 
 const h = vi.hoisted(() => ({
@@ -702,6 +704,27 @@ describe("bramka warstwy - odmowa MUSI mieć wyjście", () => {
     await waitFor(() =>
       expect(screen.getByText("community.events.tierRequiredGeneric")).toBeTruthy(),
     );
+  });
+
+  it("odmowa nazywa najniższy próg Z KARTĄ na cenniku - nie ukryty Enterprise (v6.2)", async () => {
+    // Ranga 30 (Enterprise) zostaje progiem wydarzeń, ale karty nie ma na
+    // /pricing - przycisk prowadziłby tam, gdzie takiej oferty nie ma.
+    h.event = event({ visibility: "members", min_tier_rank: 30 });
+    h.access = access({ reason: "tier_required" });
+    h.tiers = [
+      tier({ rank: 30, name_pl: "Enterprise", pricing_visible: false }),
+      tier({ rank: 28, name_pl: "Partner Biznesowy", pricing_visible: false }),
+      tier({ rank: 40, name_pl: "Partner Instytucjonalny" }),
+    ];
+
+    await renderOverview();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("community.events.tierRequired(tier=Partner Instytucjonalny)"),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByText("community.events.tierRequired(tier=Enterprise)")).toBeNull();
   });
 
   it("briefing Pro wskazuje warstwę Z FLAGĄ `pro_briefings`, a nie po randze", async () => {

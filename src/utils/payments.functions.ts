@@ -18,6 +18,35 @@ const envSchema = z.enum(["sandbox", "live"]);
 // dla buildów deweloperskich. Bez tego produkcyjna sesja mogła operować na
 // wierszach sandboxa (izolacja środowisk).
 
+/**
+ * Kwota, po której subskrypcja wołającego odnowi się przy najbliższej fakturze
+ * - odczyt ŻYWEJ subskrypcji u operatora (`renewalListCharge`: cena pozycji ×
+ * miejsca, przed rabatem i podatkiem). Karta w profilu nie może pokazywać
+ * ceny z katalogu: po zmianie cennika (v6.2) trwająca subskrypcja odnawia się
+ * po swojej, starszej cenie, dopóki admin jej nie przeniesie. `null` = kwota
+ * nieustalona (harmonogram zmiany, kilka pozycji, błąd odczytu) - karta
+ * pokazuje wtedy samą nazwę planu. Subskrypcja z sesji, nigdy z ładunku.
+ */
+export const getStripeRenewalCharge = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: { environment: StripeEnv }) => z.object({ environment: envSchema }).parse(data))
+  .handler(async ({ data, context }) => {
+    const environment = resolveEnvironment(data.environment);
+    const { data: sub, error } = await context.supabase
+      .from("subscriptions")
+      .select("provider_subscription_id")
+      .eq("user_id", context.userId)
+      .eq("environment", environment)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!sub?.provider_subscription_id) return { amountCents: null, currency: null };
+    const { renewalListCharge } = await import("@/lib/billing/subscriptionProvider.server");
+    const charge = await renewalListCharge(environment, sub.provider_subscription_id);
+    return { amountCents: charge?.amountCents ?? null, currency: charge?.currency ?? null };
+  });
+
 /** Zamiana czytelnego identyfikatora ceny (`lookup_key`) na `price_...` u Stripe. */
 export const resolveStripePrice = createServerFn({ method: "GET" })
   .validator((data: { priceId: string; environment: StripeEnv }) =>

@@ -123,10 +123,12 @@ describe("priceDisplay - co widzi klient w miejscu ceny", () => {
     expect(price(membershipTier({ cta_mode: "contact" }), []).kind).toBe("onRequest");
   });
 
-  it("plan ZA MIEJSCE pokazuje cenę „od” i dopisek za miejsce", () => {
+  it("plan ZA MIEJSCE pokazuje stawkę podstawową BEZ „od” i dopisek za miejsce", () => {
+    // Zespół v6.2: „od 89 zł" obok noty „od 11 miejsc 79 zł" sugerowało, że
+    // 89 zł to minimum - próg wolumenowy niesie nota, nie prefiks.
     const display = price(membershipTier({ per_seat: true }), [monthly]);
 
-    expect(display).toMatchObject({ fromPrefix: true, perSeat: true });
+    expect(display).toMatchObject({ fromPrefix: false, perSeat: true });
   });
 
   it("zwykły plan nie dostaje ani „od”, ani „za miejsce”", () => {
@@ -335,6 +337,36 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
 
     expect(split.rest).toHaveLength(4);
     expect(split.rest[0].pl).toBe("Benefit 0");
+    // Reszta NIE znika - idzie do rozwijanej listy szczegółowej (v6.2).
+    expect(split.more.map((x) => x.pl)).toEqual(
+      Array.from({ length: 8 }, (_, i) => `Benefit ${i + 4}`),
+    );
+  });
+
+  it("żaden benefit nie ginie: spotlight + lista + rozwinięcie = wszystkie pozycje", () => {
+    const all = Array.from({ length: 12 }, (_, i) => b(`Benefit ${i}`));
+
+    const split = splitBenefits(all, [all[1], all[5], all[9]], "pl");
+
+    expect(split.highlights.length + split.rest.length + split.more.length).toBe(12);
+  });
+
+  it("nagłówek grupy benefitu ze spotlightu przechodzi na pierwszą pozycję listy", () => {
+    // Członek Pro: zastrzeżenie „ten sam jeden bilet rocznie - nie drugi" wisi
+    // na pierwszym benefice, który trafia do spotlightu.
+    const all = [
+      { ...b("Klub"), group_pl: "Wszystko z progu Członek - ten sam bilet, nie drugi - oraz:" },
+      b("Monitoring"),
+      b("Onboarding"),
+    ];
+
+    const split = splitBenefits(all, [all[0]], "pl");
+
+    expect(split.rest[0]).toMatchObject({
+      pl: "Monitoring",
+      group_pl: "Wszystko z progu Członek - ten sam bilet, nie drugi - oraz:",
+    });
+    expect(split.rest[1].group_pl).toBeUndefined();
   });
 
   it("BEZ spotlightu zostaje do OŚMIU pozycji - karta nie ma czym się chwalić inaczej", () => {
@@ -359,6 +391,7 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
     const split = splitBenefits([], undefined, "pl");
 
     expect(split.rest).toEqual([]);
+    expect(split.more).toEqual([]);
     expect(split.highlights).toEqual([]);
   });
 

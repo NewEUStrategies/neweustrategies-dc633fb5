@@ -31,6 +31,11 @@ export interface SwitchablePlan {
   active: boolean;
   interval: string | null;
   tier_key: string | null;
+  /**
+   * `access_plans.for_sale` (cennik v6.2). Brak pola = plan w sprzedaży - tak
+   * czytają go wywołujący sprzed kolumny.
+   */
+  for_sale?: boolean | null;
 }
 
 export interface PlanSwitchOption<P extends SwitchablePlan = AccessPlan> {
@@ -52,7 +57,8 @@ export interface PlanSwitchBoardModel {
 /**
  * Powód odmowy zmiany planu. Kody są kontraktem serwera (lecą w błędzie do UI),
  * więc nie zmieniamy ich nazw bez przejrzenia wywołujących.
- * - `plan_not_found`      - plan nieaktywny (nie zdradzamy, że istnieje),
+ * - `plan_not_found`      - plan nieaktywny albo wycofany ze sprzedaży
+ *                            (`for_sale = false`) - nie zdradzamy powodu,
  * - `plan_not_recurring`  - przepustka/zakup jednorazowy, nie cykl,
  * - `plan_not_switchable` - brak ŚCISŁEGO odpowiednika (tier, interwał)
  *                            w katalogu albo pozycja jednorazowa (Decision Lab),
@@ -115,6 +121,11 @@ export function planSwitchRefusal(
   current: CatalogPriceEntry | null,
 ): PlanSwitchRefusal | null {
   if (!plan.active) return "plan_not_found";
+  // Przejście na plan wycofany ze sprzedaży (Partner Biznesowy, v6.2) to NOWY
+  // zakup tego planu - także między jego cyklami. Obecny klient odnawia się po
+  // swojej cenie, ale nie wybiera wycofanego produktu od nowa; wolno mu za to
+  // przejść na plan w sprzedaży (np. Członek Pro jako zmiana w dół).
+  if (plan.for_sale === false) return "plan_not_found";
   if (!plan.interval || !RECURRING.has(plan.interval)) return "plan_not_recurring";
   const entry = switchEntryForPlan(plan);
   if (!entry) return "plan_not_switchable";

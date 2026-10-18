@@ -5,6 +5,7 @@
 //  - framing ceny rocznej jako równowartości miesięcznej + realny % zniżki,
 //  - segment odbiorcy nigdy nie "gubi" warstw (nieznane klucze -> pierwszy
 //    segment), więc redakcyjne literówki nie chowają oferty.
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import type { AccessPlan } from "@/lib/billing/types";
 import { parseTierBenefits, type MembershipTierRow, type TierBenefit } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "./queries";
@@ -82,6 +83,54 @@ export function audienceTrust(
   const value =
     lang === "en" ? audience.trust_en || audience.trust_pl : audience.trust_pl || audience.trust_en;
   return value && value.trim() ? value : null;
+}
+
+/**
+ * Progi oferowane na PUBLICZNYM cenniku (/pricing, /membership-join, macierz).
+ *
+ * `pricing_visible = false` (cennik v6.2: Enterprise ukryty, Partner Biznesowy
+ * wycofany) chowa kartę, ale NIE próg - ranga, features, granty i bramki
+ * klubów działają dalej, a pickery w panelu admina widzą wszystkie progi.
+ * Dlatego to filtr powierzchni publicznych, a nie `active = false`, które
+ * wyłączyłoby uprawnienia. Brak pola (odczyt sprzed migracji) = widoczny.
+ *
+ * Filtr MUSI iść przed `tiersForAudience`: pusty segment nie ukrywa progu, bo
+ * selektor przerzuca warstwę bez znanego segmentu do pierwszego.
+ */
+export function listedTiers<T extends Pick<MembershipTierRow, "pricing_visible">>(
+  tiers: readonly T[],
+): T[] {
+  return tiers.filter((tier) => tier.pricing_visible !== false);
+}
+
+/**
+ * Plany do pokazania na powierzchniach publicznych: w sprzedaży, „na
+ * zapytanie" (Decision Lab - karta z wyceną indywidualną i formularzem) albo
+ * plan progu sprzedawanego PRZEZ ROZMOWĘ, którego karta jest na cenniku
+ * (Zespół v6.2: „89 zł za miejsce, 3-20 miejsc · rozmowa", `for_sale = false`,
+ * `cta_mode = 'contact'`) - karta pokazuje jego cenę, a przycisk prowadzi do
+ * rozmowy (`ctaDescriptor`: tryb `contact` wyprzedza kasę). Plan wycofany ze
+ * sprzedaży (`for_sale = false`, Partner Biznesowy - karta ukryta) znika,
+ * choć zostaje aktywny dla trwających subskrypcji.
+ *
+ * Bez `tiers` zostaje reguła węższa (tylko sprzedaż i zapytanie) - tak liczą
+ * powierzchnie z przyciskiem kasy (widżet cennika, paywall).
+ */
+export function publicOfferPlans<P extends Pick<AccessPlan, "for_sale" | "tier_key">>(
+  plans: readonly P[],
+  tiers: readonly Pick<MembershipTierRow, "key" | "cta_mode" | "pricing_visible">[] = [],
+): P[] {
+  const conversationPriced = new Set(
+    tiers
+      .filter((tier) => tier.pricing_visible !== false && tierCtaMode(tier) === "contact")
+      .map((tier) => tier.key),
+  );
+  return plans.filter(
+    (plan) =>
+      plan.for_sale !== false ||
+      isEnquiryOnlyPlan(plan) ||
+      conversationPriced.has(plan.tier_key ?? ""),
+  );
 }
 
 /** Rosnąca drabinka wartości: ranga, potem kolejność redakcyjna. */

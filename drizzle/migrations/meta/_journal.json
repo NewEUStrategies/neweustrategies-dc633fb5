@@ -2185,6 +2185,41 @@
       "when": 1792349400560,
       "tag": "0311_user_subscriptions_user_fk_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 312,
+      "version": "7",
+      "when": 1792349460560,
+      "tag": "0312_pricing_v62_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1792349520560,
+      "tag": "0313_pricing_v62_catalog_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1792349580560,
+      "tag": "0314_pricing_v62_catalog_benefits",
+      "breakpoints": true
+    },
+    {
+      "idx": 315,
+      "version": "7",
+      "when": 1792349640560,
+      "tag": "0315_pricing_v62_seed_apply",
+      "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1792349700560,
+      "tag": "0316_payment_orders_for_sale_guard",
+      "breakpoints": true
     }
   ]
 }

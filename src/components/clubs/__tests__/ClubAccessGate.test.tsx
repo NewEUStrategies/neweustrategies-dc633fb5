@@ -258,8 +258,11 @@ describe("warianty bramki", () => {
     gate({ name_pl: "Klub transportowy", min_tier_rank: 30 });
 
     expect(screen.getByText("Klub transportowy")).toBeTruthy();
-    // Ranga 30 to `corporate` - lokalna mapa pokazywałaby tu „PRO".
-    expect(hasKey("club.planTier.corporate")).toBe(true);
+    // Ranga 30 to `corporate` - lokalna mapa pokazywałaby tu „PRO". Od cennika
+    // v6.2 karty Enterprise nie ma na /pricing, więc bramka sprzedaje
+    // najniższy próg z kartą, który klub otwiera: Partnera Instytucjonalnego.
+    expect(hasKey("club.planTier.partner")).toBe(true);
+    expect(hasKey("club.planTier.corporate")).toBe(false);
   });
 });
 
