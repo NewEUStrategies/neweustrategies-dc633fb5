@@ -69,6 +69,14 @@ const h = vi.hoisted(() => {
     /** Wynik `coupons.create` - `{}` udaje odpowiedź bez identyfikatora. */
     coupon: { id: "coupon_1" } as Record<string, unknown>,
     couponError: null as Error | null,
+    /** Otwarte sesje Checkout klienta u operatora (`checkout.sessions.list`). */
+    openSessions: [] as Array<{
+      id: string;
+      created: number;
+      mode: string;
+      status: string;
+      metadata: Record<string, string>;
+    }>,
   };
   const record = (method: string, result: () => unknown) => {
     return (...args: unknown[]) => {
@@ -154,6 +162,16 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
         checkout: {
           sessions: {
             ...stub.checkout.sessions,
+            list: h.record("checkout.sessions.list", () => ({
+              data: h.state.openSessions.filter((session) => session.status === "open"),
+              has_more: false,
+            })),
+            expire: (id: string) => {
+              h.calls.push({ method: "checkout.sessions.expire", args: [id] });
+              const session = h.state.openSessions.find((candidate) => candidate.id === id);
+              if (session) session.status = "expired";
+              return Promise.resolve({ id, status: "expired" });
+            },
             create: h.record("checkout.sessions.create", () => {
               if (h.state.sessionError) throw h.state.sessionError;
               return { id: "cs_test_1", client_secret: "cs_test_1_secret" };
@@ -353,6 +371,7 @@ beforeEach(() => {
   h.state.sessionError = null;
   h.state.coupon = { id: "coupon_1" };
   h.state.couponError = null;
+  h.state.openSessions = [];
 
   chain = supabaseFromStub();
   rpcCalls = [];
@@ -621,6 +640,33 @@ describe("createCheckoutOrder - druga subskrypcja i ponowny trial (audyt SUB-13)
     });
     expect(rpcArgs("payment_order_mark_session")).toMatchObject({ _status: "failed" });
     logged.mockRestore();
+  });
+
+  it("otwarta sesja POPRZEDNIEJ karty jest wygaszana, a jej zamówienie dostaje `canceled`", async () => {
+    // Bez tego zamówienie z porzuconej karty wisiało w `processing` do
+    // dostawy `checkout.session.expired` - ta sama reguła co w drugim silniku.
+    h.state.openSessions = [
+      {
+        id: "cs_poprzednia",
+        created: 1,
+        mode: "subscription",
+        status: "open",
+        metadata: { userId: "user-kupujacy", planId: PLAN_ID, orderId: "order-poprzednie" },
+      },
+    ];
+
+    const result = await call(planPayload());
+
+    expect(result).toMatchObject({ ok: true, mode: "stripe", orderId: "order-1" });
+    expect(stripeCall("checkout.sessions.expire")?.args).toEqual(["cs_poprzednia"]);
+    expect(
+      rpcCalls
+        .filter((c) => c.fn === "payment_order_mark_session")
+        .map((c) => [c.args._order_id, c.args._status]),
+    ).toEqual([
+      ["order-poprzednie", "canceled"],
+      ["order-1", "processing"],
+    ]);
   });
 
   it("subskrypcja DAROWIZNY u operatora nie blokuje planu i nie zużywa triala", async () => {
@@ -1099,6 +1145,20 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
       event_id: EVENT_ID,
       ticket_type_id: TICKET_ID,
       registration_id: REGISTRATION_ID,
+    });
+  });
+
+  it("bilet niesie kod podatkowy i tryb podatku ze swojego cennika (TIX-09)", async () => {
+    rpcResponses.set(
+      "event_ticket_public_options",
+      ok({ tax_mode: "inclusive", stripe_tax_code: "txcd_20030000" }),
+    );
+
+    await call(ticketPayload());
+
+    expect(lastSession()?.line_items[0]?.price_data).toMatchObject({
+      tax_behavior: "inclusive",
+      product_data: { tax_code: "txcd_20030000" },
     });
   });
 
