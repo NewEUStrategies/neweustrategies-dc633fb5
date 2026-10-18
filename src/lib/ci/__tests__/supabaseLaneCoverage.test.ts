@@ -15,9 +15,9 @@ import {
 } from "@/lib/ci/migrationLaneParity";
 import {
   DRIZZLE_LANE_START,
+  GAP_EXCEPTIONS_AT_GATE_START,
   PRE_LANE_FREEZE,
   SUPABASE_LANE_GAPS,
-  SUPABASE_LANE_GAPS_CLOSED_FROM,
   analyzeSupabaseCoverage,
   coverageStatements,
   preLaneFingerprint,
@@ -86,6 +86,7 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     listSupabase: listWithoutNew,
     lanes,
     preLane: null,
+    exceptions: new Set(["20261001000200_bundled.sql", "20261001000300_known_gap.sql"]),
   };
   const run = (opts: SupabaseCoverageOptions = {}) =>
     analyzeSupabaseCoverage(journal, { ...base, ...opts });
@@ -273,7 +274,6 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
       listSupabase: listAll,
       gaps: [...gaps, { file: "20261101000400_new.sql", pending: "port później" }],
     });
-    expect(SUPABASE_LANE_GAPS_CLOSED_FROM).toBe("20261018100000");
     expect(kinds(r)).toEqual(["zamkniety-rejestr:20261101000400_new.sql"]);
     expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
     // `uncovered` też jest zamknięte - wyjątek z samych wyjątków byłby cichym `pending`.
@@ -290,6 +290,21 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
       ],
     });
     expect(kinds(withUncovered)).toEqual(["zamkniety-rejestr:20261101000400_new.sql"]);
+  });
+
+  it("zamknięcie to zbiór NAZW, nie próg wersji: port starszej migracji pod dawną datą nie dostaje cichego `pending`", () => {
+    const backdated = "20261001000600_older_port.sql";
+    const withBackdated: Record<string, string> = {
+      ...files,
+      [`${SUPABASE_DIR}/${backdated}`]: "REVOKE ALL ON public.f FROM anon;",
+    };
+    const r = run({
+      read: (p) => withBackdated[p] ?? null,
+      listSupabase: () => [...listWithoutNew(), backdated].sort(),
+      gaps: [...gaps, { file: backdated, pending: "port później" }],
+    });
+    expect(kinds(r)).toEqual([`zamkniety-rejestr:${backdated}`]);
+    expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
   });
 
   it("wpis dla pliku, którego nie ma w pasie supabase, i wpis sprzed startu pasa czerwienią", () => {
@@ -437,8 +452,14 @@ describe("self-test kierunku odwrotnego na realnym repozytorium", () => {
     // w „do usunięcia", a to nie może czerwienić `main`.
     pendingInvariants(real, SUPABASE_LANE_GAPS);
     const pending = SUPABASE_LANE_GAPS.filter((g) => "pending" in g).map((g) => g.file);
-    expect(pending.every((f) => f < SUPABASE_LANE_GAPS_CLOSED_FROM)).toBe(true);
     expect(pending.length).toBeLessThanOrEqual(23);
+    // Wyjątki (`pending`, `uncovered`) wyłącznie dla plików z zamrożonego zbioru,
+    // a zbiór tylko maleje.
+    const excepted = SUPABASE_LANE_GAPS.filter(
+      (g) => "pending" in g || ("uncovered" in g && g.uncovered),
+    ).map((g) => g.file);
+    expect(excepted.every((f) => GAP_EXCEPTIONS_AT_GATE_START.has(f))).toBe(true);
+    expect(GAP_EXCEPTIONS_AT_GATE_START.size).toBeLessThanOrEqual(30);
   });
 
   it("zamrożony zbiór sprzed pasa odpowiada repozytorium i jest WŁĄCZONY domyślnie (ścieżka CI)", () => {

@@ -37,8 +37,8 @@
 // wpis wymienia z początku w `uncovered` (do granicy słowa), a `reason` mówi,
 // czemu to nie zmienia stanu bazy. Inaczej wpis z dowolnym tagiem dziennika
 // zazieleniłby plik, którego treści w dzienniku nie ma. Zestawienie musi nieść
-// choć jedną instrukcję pliku, a `uncovered` - jak `pending` - jest zamknięte
-// dla migracji od SUPABASE_LANE_GAPS_CLOSED_FROM.
+// choć jedną instrukcję pliku, a `uncovered` - jak `pending` - przysługuje
+// wyłącznie plikom z GAP_EXCEPTIONS_AT_GATE_START.
 //
 // DLACZEGO (ii) TYLKO DLA TAGÓW Z DZIENNIKA. Dziesięć wpisów `twin` należy do
 // sierot spoza `_journal.json` (KNOWN_ORPHAN_LANE_ENTRIES, np.
@@ -52,8 +52,9 @@
 // pójść narzędziem albo z panelu). Bramka czerwona od pierwszego dnia zostaje
 // wyłączona; bramka, która milczy, powtarza incydent. Stąd środek: lista jest
 // jawna i KAŻDY przebieg drukuje ją głośno z powodem. Lista jest ZAMKNIĘTA:
-// `pending` dla pliku od SUPABASE_LANE_GAPS_CLOSED_FROM czerwieni CI, więc
-// nowy plik ma kopię w dzienniku albo zmierzone `coveredBy`.
+// `pending` dla pliku spoza GAP_EXCEPTIONS_AT_GATE_START czerwieni CI (zbiór
+// nazw, nie próg wersji), więc nowy plik ma kopię w dzienniku albo zmierzone
+// `coveredBy`.
 //
 // ZBIÓR SPRZED PASA JEST ZAMROŻONY (PRE_LANE_FREEZE). Bramka nie sprawdza
 // plików sprzed DRIZZLE_LANE_START, więc nowy plik z cofniętą albo literówkową
@@ -85,10 +86,45 @@ import { lexStatements } from "./migrationSplit";
 export const DRIZZLE_LANE_START = "20260911160000";
 
 /**
- * Pierwsza wersja, dla której rejestr nie przyjmuje `pending` - dzień
- * włączenia bramki. Nowa migracja ma kopię w dzienniku, a nie wpis „znany brak".
+ * Pliki, którym w dniu włączenia bramki (2026-10-18) wolno mieć wyjątek:
+ * `pending` (23 znane braki) albo `uncovered` (7 zestawień z instrukcjami
+ * świadomie pominiętymi). Zbiór NAZW, nie próg wersji: port starszej migracji
+ * pod dawną datą też nie dostanie cichego wyjątku. Zbiór tylko maleje - wyjątek
+ * dla pliku spoza niego czerwieni CI (`zamkniety-rejestr`), więc nowa migracja
+ * ma kopię w dzienniku albo zestawienie niosące każdą jej instrukcję.
  */
-export const SUPABASE_LANE_GAPS_CLOSED_FROM = "20261018100000";
+export const GAP_EXCEPTIONS_AT_GATE_START: ReadonlySet<string> = new Set([
+  "20260912101000_chat_wallpaper_compatibility.sql",
+  "20260912102000_footer_youtube_profile.sql",
+  "20260914090000_push_subscriptions_tenant_binding.sql",
+  "20260914120000_tenant_follows_profile.sql",
+  "20260914140000_author_profiles_tenant_follows_profile.sql",
+  "20260914160000_profile_cv_tenant_follows_profile.sql",
+  "20260914180000_media_mentions_tenant_follows_profile.sql",
+  "20260915090000_legal_document_versions_compliance_pack_keys.sql",
+  "20260926153200_event_participant_defect_fixes.sql",
+  "20261007100000_club_post_comments.sql",
+  "20261007100100_club_post_mentions_and_link_validation.sql",
+  "20261007120000_event_package_order_company_not_from_payload.sql",
+  "20261007120100_ad_slots_private_notes.sql",
+  "20261007120200_plan_coupon_server_only.sql",
+  "20261007120300_client_grants_follow_ts_callers.sql",
+  "20261007120400_content_password_explicit_tenant.sql",
+  "20261007120500_service_only_rpc_default_execute.sql",
+  "20261007120510_career_cv_gc_service_only.sql",
+  "20261007120600_event_codes_server_only.sql",
+  "20261007140000_email_queue_service_only.sql",
+  "20261007140100_definer_functions_without_client_path.sql",
+  "20261007140200_release_coupon_server_only.sql",
+  "20261007140400_ticket_access_code_probe.sql",
+  "20261007140500_crm_newsletter_writers_bound.sql",
+  "20261007140600_event_functions_runtime_errors.sql",
+  "20261007140700_runtime_errors_seats_workflow_passwords.sql",
+  "20261007140710_club_application_crm_sync_overload.sql",
+  "20261007140800_rate_limits_retention.sql",
+  "20261009100000_podcast_apple_connect_metadata_reapply.sql",
+  "20261009110000_schema_column_contract_probe.sql",
+]);
 
 /** Liczba i odcisk nazw plików supabase spoza zakresu bramki (sprzed pasa). */
 export interface PreLaneFreeze {
@@ -472,6 +508,8 @@ export interface SupabaseCoverageOptions {
   readonly lanes?: readonly LaneEntry[];
   /** `null` wyłącza kontrolę zbioru sprzed pasa (testy na syntetycznych plikach). */
   readonly preLane?: PreLaneFreeze | null;
+  /** Pliki, którym wolno mieć `pending` albo `uncovered` (domyślnie zamrożony zbiór). */
+  readonly exceptions?: ReadonlySet<string>;
 }
 
 /** Wersja migracji supabase (14 cyfr przed `_`); `null` dla nazwy spoza konwencji CLI. */
@@ -549,6 +587,7 @@ export function analyzeSupabaseCoverage(
     listSupabase = listSqlOrEmpty,
     lanes = MIGRATION_LANES,
     preLane = PRE_LANE_FREEZE,
+    exceptions = GAP_EXCEPTIONS_AT_GATE_START,
   }: SupabaseCoverageOptions = {},
 ): SupabaseCoverageReport {
   const inJournal = new Set(journalTags);
@@ -628,11 +667,12 @@ export function analyzeSupabaseCoverage(
       continue;
     }
     if ("pending" in gap) {
-      if ((supabaseMigrationVersion(file) ?? "") >= SUPABASE_LANE_GAPS_CLOSED_FROM) {
+      if (!exceptions.has(file)) {
         violations.push({
           kind: "zamkniety-rejestr",
           file,
-          detail: `Lista znanych braków jest zamknięta od ${SUPABASE_LANE_GAPS_CLOSED_FROM}: nowa migracja ma kopię w dzienniku drizzle (albo zmierzone \`coveredBy\`), a nie wpis \`pending\`.`,
+          detail:
+            "Lista znanych braków jest zamknięta (GAP_EXCEPTIONS_AT_GATE_START): migracja spoza niej - także pod dawną datą - ma kopię w dzienniku drizzle albo zmierzone `coveredBy`, a nie wpis `pending`.",
         });
         continue;
       }
@@ -654,11 +694,12 @@ export function analyzeSupabaseCoverage(
     // `uncovered` to wyjątek z dnia włączenia bramki, nie furtka: nowa
     // migracja ma pokrycie pełne albo kopię - inaczej wpis z samych wyjątków
     // byłby cichym `pending` obok zamkniętej listy.
-    if (gap.uncovered && (supabaseMigrationVersion(file) ?? "") >= SUPABASE_LANE_GAPS_CLOSED_FROM) {
+    if (gap.uncovered && !exceptions.has(file)) {
       violations.push({
         kind: "zamkniety-rejestr",
         file,
-        detail: `\`uncovered\` jest zamknięte od ${SUPABASE_LANE_GAPS_CLOSED_FROM}: zestawienie nowej migracji musi nieść każdą jej instrukcję.`,
+        detail:
+          "`uncovered` jest zamknięte (GAP_EXCEPTIONS_AT_GATE_START): zestawienie migracji spoza zbioru musi nieść każdą jej instrukcję.",
       });
       continue;
     }
