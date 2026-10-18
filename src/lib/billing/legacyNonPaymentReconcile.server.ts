@@ -664,7 +664,9 @@ async function fetchStripeFacts(
 
 /**
  * Zapis planu - każdy krok z warunkiem w `WHERE`, więc powtórka (drugi
- * przebieg, ponowione wywołanie) trafia w zero wierszy.
+ * przebieg, ponowione wywołanie) trafia w zero wierszy. Liczniki idą do
+ * `writes` wołającego PO KAŻDYM kroku: błąd późniejszego kroku (rzut) nie
+ * cofa wcześniejszych zapisów, więc raport i ślad w logu muszą je widzieć.
  */
 async function applyLegacyPlan(
   supabase: AdminClient,
@@ -672,14 +674,8 @@ async function applyLegacyPlan(
   sub: LegacySubscriptionRow,
   plan: LegacyPlan,
   now: Date,
-): Promise<LegacyReconcileWrites> {
-  const writes: LegacyReconcileWrites = {
-    anchors: 0,
-    paymentMarkers: 0,
-    entitlements: 0,
-    teams: 0,
-  };
-
+  writes: LegacyReconcileWrites,
+): Promise<void> {
   // 1. Znacznik zapłaty obalony historią operatora - przed wszystkim innym,
   //    bo to on (obok kotwicy) każe webhookowi liczyć tę samą karencję.
   //    Zapis warunkowy na zaobserwowanej wartości. Chybienie znaczy, że
@@ -760,8 +756,6 @@ async function applyLegacyPlan(
     if (error) throw new Error(`team suspend failed: ${error.message}`);
     writes.teams += (data ?? []).length;
   }
-
-  return writes;
 }
 
 export interface LegacyReconcileOptions {
@@ -938,16 +932,28 @@ export async function reconcileLegacyNonPaymentCancellations(
     };
 
     if (mode === "apply" && plansWrites(plan)) {
+      const writes: LegacyReconcileWrites = {
+        anchors: 0,
+        paymentMarkers: 0,
+        entitlements: 0,
+        teams: 0,
+      };
+      let failure: string | null = null;
       try {
-        const writes = await applyLegacyPlan(supabase, environment, sub, plan, now);
-        report.writes.anchors += writes.anchors;
-        report.writes.paymentMarkers += writes.paymentMarkers;
-        report.writes.entitlements += writes.entitlements;
-        report.writes.teams += writes.teams;
-        decided.applied =
-          writes.anchors + writes.paymentMarkers + writes.entitlements + writes.teams > 0;
+        await applyLegacyPlan(supabase, environment, sub, plan, now, writes);
       } catch (error) {
-        push({ ...decided, decision: "error", error: messageOf(error) });
+        failure = messageOf(error);
+      }
+      // Także przy błędzie: kroki sprzed niego są już w bazie (`applied` +
+      // `error` = zapis częściowy, kolejny przebieg dokończy resztę).
+      report.writes.anchors += writes.anchors;
+      report.writes.paymentMarkers += writes.paymentMarkers;
+      report.writes.entitlements += writes.entitlements;
+      report.writes.teams += writes.teams;
+      decided.applied =
+        writes.anchors + writes.paymentMarkers + writes.entitlements + writes.teams > 0;
+      if (failure !== null) {
+        push({ ...decided, decision: "error", error: failure });
         continue;
       }
     }

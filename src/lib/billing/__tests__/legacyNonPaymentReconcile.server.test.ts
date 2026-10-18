@@ -21,6 +21,8 @@
 //     nie cofnął przycięcia przy kolejnym `deleted` bez powodu.
 //   * POZORNA SYMULACJA. `dry_run` ma nie wysłać ANI JEDNEGO zapisu.
 //   * PODWÓJNY SKUTEK. Drugi przebieg `apply` nie zmienia niczego.
+//   * ZAPIS CZĘŚCIOWY. Błąd późniejszego kroku zapisu nie ukrywa wcześniejszych:
+//     liczniki partii, ślad w logu i `applied` mówią, co już jest w bazie.
 //   * PARTIE. Kursor po `subscriptions.id` przechodzi każdy wiersz raz.
 //   * GRANICE. Uprawnienie i organizacja innego najemcy z tym samym
 //     `external_ref` nie są ani podstawą decyzji, ani celem zapisu; partia
@@ -37,6 +39,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  fail,
   ok,
   supabaseFromStub,
   type RecordedChain,
@@ -930,6 +933,92 @@ describe("zastosowanie", () => {
       ["org-1", "suspended"],
       ["org-x", "active"],
     ]);
+  });
+});
+
+describe("zapis przerwany w połowie - raport nie ukrywa tego, co już zapisano", () => {
+  // Kroki zapisu idą po kolei (znacznik, kotwica, uprawnienia, zespół), więc
+  // błąd późniejszego kroku zostawia w bazie skutki wcześniejszych. Wiersz to
+  // `error`, ale liczniki partii, ślad w logu i `applied` muszą mówić prawdę -
+  // inaczej operator czyta „nic się nie zmieniło", a dostęp klienta już
+  // przycięto.
+  const start = relativeIso(-40 * DZIEN);
+
+  it("odmowa zawieszenia zespołu po kotwicy i przycięciu: zapisane kroki są policzone", async () => {
+    seed({
+      subscriptions: [subRow(1, { price_id: "team_monthly_seat", current_period_start: start })],
+      entitlements: [entRow(1)],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, { start, invoice: { status: "open", attempts: 4, finalizedAt: start } }),
+    );
+    db.setResponse("member_organizations", (chain) =>
+      chain.has("update")
+        ? fail("trigger rejected the update")
+        : execute("member_organizations", chain),
+    );
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "error",
+      error: "team suspend failed: trigger rejected the update",
+      suspendTeam: true,
+      applied: true,
+    });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    expect(consoleInfo).toHaveBeenCalledWith(
+      "[billing] legacy non-payment reconcile batch",
+      expect.objectContaining({
+        writes: { anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 },
+      }),
+    );
+    // To, co raport liczy, naprawdę jest w bazie.
+    expect(tables.subscriptions?.[0]?.first_payment_failed_at).toBe(start);
+    expect(tables.user_subscriptions?.[0]).toMatchObject({
+      status: "canceled",
+      current_period_end: relativeIso(-26 * DZIEN),
+    });
+    expect(tables.member_organizations?.[0]?.status).toBe("active");
+  });
+
+  it("wyczyszczony znacznik zapłaty, a potem błąd kotwicy: znacznik jest w licznikach", async () => {
+    const prorationPaidAt = relativeIso(-3 * DZIEN);
+    seed({
+      subscriptions: [subRow(1, { last_payment_at: prorationPaidAt })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+    db.setResponse("subscriptions", (chain) => {
+      const update = chain.argsOf("update")?.[0] as Row | undefined;
+      return update && "first_payment_failed_at" in update
+        ? fail("statement timeout")
+        : execute("subscriptions", chain);
+    });
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "error",
+      error: "anchor write failed: statement timeout",
+      applied: true,
+    });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 1, entitlements: 0, teams: 0 });
+    expect(tables.subscriptions?.[0]).toMatchObject({
+      last_payment_at: null,
+      first_payment_failed_at: null,
+    });
+    // Uprawnienie nietknięte - przycięcie czeka na kotwicę (kolejny przebieg).
+    expect(tables.user_subscriptions?.[0]?.current_period_end).toBe(relativeIso(360 * DZIEN));
   });
 });
 

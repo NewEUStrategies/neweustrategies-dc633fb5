@@ -93,7 +93,10 @@ export interface LegacyReconcileRow {
   accessUntilAfter: string | null;
   /** Czy organizacja planu Zespół traci dostęp (karencja minęła). */
   suspendTeam: boolean;
-  /** Czy zmiany zostały zapisane (zawsze `false` w symulacji). */
+  /**
+   * Czy zmiany zostały zapisane (zawsze `false` w symulacji). Razem z decyzją
+   * `error` znaczy zapis częściowy: kroki sprzed błędu są już w bazie.
+   */
   applied: boolean;
   error: string | null;
 }
