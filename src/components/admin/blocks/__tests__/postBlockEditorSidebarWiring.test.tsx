@@ -25,7 +25,7 @@
 // podlaczenie listy do historii, nie biblioteka.
 import { describe, expect, it, vi } from "vitest";
 import { isValidElement, useState, type ReactNode } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, within } from "@testing-library/react";
 import type { Block, BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { realT } from "@/test/i18nReal";
 import "@/lib/i18n-admin-core";
