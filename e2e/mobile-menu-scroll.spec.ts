@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("hamburger menu scrolls independently after builder search mounts", async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 706 });
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__nesAppReady === true);
   const consent = page.getByRole("button", { name: /^(Tylko niezbędne|Necessary only)$/ });
   if (await consent.isVisible()) await consent.click();
   await page.getByRole("button", { name: /^(Otwórz menu|Open menu)$/ }).click();
