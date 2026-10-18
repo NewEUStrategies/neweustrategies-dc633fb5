@@ -770,6 +770,25 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0186_public_definer_views_read_only",
     twin: "20261012210000_public_definer_views_read_only.sql",
   },
+  // Port poprawki nadużycia kuponu B2B, wcześniej obecnej tylko w pasie
+  // supabase (patrz REQUIRED_PRODUCTION_TWINS).
+  {
+    tag: "0307_ledger_reconcile_pr521",
+    drizzleOnly:
+      "Uzupełnienie rejestru supabase_migrations o wersje PR #521 wgrane narzędziowo; operacja księgowa bez zmian schematu.",
+  },
+  {
+    tag: "0308_release_coupon_order_lock",
+    twin: "20261018120000_release_coupon_order_lock.sql",
+  },
+  {
+    tag: "0309_release_coupon_server_only",
+    twin: "20261007140200_release_coupon_server_only.sql",
+  },
+  {
+    tag: "0310_release_coupon_order_lock_final",
+    twin: "20261018120000_release_coupon_order_lock.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
@@ -1340,6 +1359,50 @@ export const KNOWN_NON_MONOTONIC_JOURNAL: readonly string[] = [
   "0115_event_participation_lifecycle",
 ];
 
+/**
+ * Poprawki z pasa supabase, które MUSZĄ mieć nośnik w dzienniku drizzle - wpis,
+ * którego plik ma ten sam SQL wykonywalny (bliźniak z rejestru albo zapis
+ * wdrożenia rozpoznany po treści).
+ *
+ * Rejestr wyżej patrzy tylko w jedną stronę: plik drizzle bez decyzji zapala
+ * bramkę, ale migracja obecna WYŁĄCZNIE w pasie supabase przechodzi po cichu -
+ * a pgTAP i bramki `check:sql-*` czytają tylko ten pas, więc dowód poprawki
+ * zostaje zielony, choć migrator produkcji nigdy jej nie wykona. Tak przeszło
+ * `20261007140200_release_coupon_server_only`: `release_b2b_coupon` (SECURITY
+ * DEFINER, EXECUTE dla authenticated, bez sprawdzenia właściciela i statusu
+ * zamówienia) zostało na produkcji, a kod wracał do niego przy PGRST202.
+ *
+ * Lista może tylko rosnąć. Nie jest regułą „każda migracja supabase ma
+ * bliźniaka": wiele plików tego pasa celowo nie ma osobnego nośnika (zlepki
+ * panelu, rekoncyliacje), więc wpis tutaj to świadoma decyzja, że brak
+ * nośnika byłby luką na produkcji.
+ */
+export const REQUIRED_PRODUCTION_TWINS: readonly string[] = [
+  "20261007140200_release_coupon_server_only.sql",
+  "20261018120000_release_coupon_order_lock.sql",
+];
+
+/**
+ * Pliki z `required`, których SQL-a wykonywalnego nie niesie żaden wpis dziennika
+ * (także plik supabase, którego nie ma - wpis listy nie może wskazywać w próżnię).
+ */
+export function missingProductionCarriers(
+  tags: readonly string[],
+  required: readonly string[] = REQUIRED_PRODUCTION_TWINS,
+  read: ReadFile = readFileOrNull,
+): string[] {
+  if (required.length === 0) return [];
+  const carried = new Set<string>();
+  for (const tag of tags) {
+    const sql = read(`${DRIZZLE_DIR}/${tag}.sql`);
+    if (sql !== null) carried.add(executableSql(sql));
+  }
+  return required.filter((name) => {
+    const sql = read(`${SUPABASE_DIR}/${name}`);
+    return sql === null || !carried.has(executableSql(sql));
+  });
+}
+
 /** Wpis dziennika drizzle (`meta/_journal.json`) w zakresie, którego potrzebuje bramka. */
 export interface JournalEntry {
   readonly idx: number;
@@ -1372,11 +1435,15 @@ export interface LaneGateResult {
   readonly journalStale: readonly string[];
   /** Wpisy dziennika bez pliku `.sql` - migrator wywróci się na nich przy wdrożeniu. */
   readonly missingFiles: readonly string[];
+  /** Wymagane poprawki (`REQUIRED_PRODUCTION_TWINS`) bez nośnika w dzienniku - czerwienią CI. */
+  readonly missingCarriers: readonly string[];
 }
 
 export interface LaneGateKnown {
   readonly orphans: readonly string[];
   readonly nonMonotonic: readonly string[];
+  /** Domyślnie pusta - testy jednostkowe nie dziedziczą listy z repozytorium. */
+  readonly requiredTwins?: readonly string[];
 }
 
 /** Ocena bramki: raport rejestru + kolejność dziennika względem list znanych przypadków. */
@@ -1386,6 +1453,7 @@ export function evaluateLaneGate(
   known: LaneGateKnown = {
     orphans: KNOWN_ORPHAN_LANE_ENTRIES,
     nonMonotonic: KNOWN_NON_MONOTONIC_JOURNAL,
+    requiredTwins: REQUIRED_PRODUCTION_TWINS,
   },
   read: ReadFile = readFileOrNull,
 ): LaneGateResult {
@@ -1402,10 +1470,10 @@ export function evaluateLaneGate(
   const journalFresh = disordered.filter((tag) => !knownDisorder.has(tag));
   const journalStale = known.nonMonotonic.filter((tag) => !disordered.includes(tag));
   // analyzeMigrationLanes pomija wpis z decyzją, gdy pliku nie ma - tu to łapiemy.
-  const missingFiles = journal
-    .map((e) => e.tag)
-    .filter((tag) => read(`${DRIZZLE_DIR}/${tag}.sql`) === null);
-  return { fresh, stale, journalFresh, journalStale, missingFiles };
+  const tags = journal.map((e) => e.tag);
+  const missingFiles = tags.filter((tag) => read(`${DRIZZLE_DIR}/${tag}.sql`) === null);
+  const missingCarriers = missingProductionCarriers(tags, known.requiredTwins ?? [], read);
+  return { fresh, stale, journalFresh, journalStale, missingFiles, missingCarriers };
 }
 
 export function laneGateFailed(result: LaneGateResult): boolean {
@@ -1414,7 +1482,8 @@ export function laneGateFailed(result: LaneGateResult): boolean {
     result.stale.length > 0 ||
     result.journalFresh.length > 0 ||
     result.journalStale.length > 0 ||
-    result.missingFiles.length > 0
+    result.missingFiles.length > 0 ||
+    result.missingCarriers.length > 0
   );
 }
 
@@ -1441,6 +1510,15 @@ export function renderLaneGate(report: LaneReport, result: LaneGateResult): stri
       `WPISY DZIENNIKA BEZ PLIKU (${result.missingFiles.length}) - migrator wywróci się przy wdrożeniu:`,
     );
     for (const t of result.missingFiles) lines.push(`  ${DRIZZLE_DIR}/${t}.sql`);
+  }
+  if (result.missingCarriers.length > 0) {
+    lines.push(
+      `POPRAWKI BEZ NOŚNIKA NA PASIE PRODUKCYJNYM (${result.missingCarriers.length}) - migrator drizzle ich nie wykona:`,
+    );
+    for (const t of result.missingCarriers) lines.push(`  ${SUPABASE_DIR}/${t}`);
+    lines.push(
+      "  Naprawa: dopisz do dziennika drizzle plik o tym samym SQL-u wykonywalnym (snapshot, wpis `_journal.json` z `when` późniejszym od ostatniego, bliźniak w MIGRATION_LANES).",
+    );
   }
   if (result.journalFresh.length > 0) {
     lines.push(`NIEMONOTONICZNY DZIENNIK (${result.journalFresh.length}):`);

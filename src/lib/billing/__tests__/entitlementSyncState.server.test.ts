@@ -211,7 +211,7 @@ describe("syncEntitlementState - zapis uprawnienia", () => {
   );
 
   it("konto usunięte przed zapisem (23503 na kluczu właściciela) kończy synchronizację bez wyjątku", async () => {
-    // Od 20261018120000 `user_subscriptions.user_id` ma FK do `auth.users`
+    // Od 20261018150000 `user_subscriptions.user_id` ma FK do `auth.users`
     // (ON DELETE CASCADE). Zdarzenie subskrypcji konta zamkniętego w trakcie
     // dostawy nie ma komu nadać dostępu - wyjątek dałby ponowienia bez końca,
     // jak przy zapisie `subscriptions` w dyspozytorze.

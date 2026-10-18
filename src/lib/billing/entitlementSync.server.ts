@@ -96,7 +96,7 @@ export function isUniqueViolation(error: { code?: string } | null | undefined): 
 
 /**
  * Konto właściciela usunięte (23503 na `user_subscriptions_user_id_fkey`,
- * 20261018120000): uprawnienia nie ma komu zapisać, a wyjątek skazałby
+ * 20261018150000): uprawnienia nie ma komu zapisać, a wyjątek skazałby
  * zdarzenie na ponowienia bez końca. 23503 na innym kluczu (plan, najemca)
  * zostaje błędem - to stan do naprawy, nie brak właściciela.
  */

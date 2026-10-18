@@ -190,8 +190,8 @@ ani trigger `on_auth_user_deleted_retain_accounting` tej tabeli nie dotykały.
 
 Zmiany:
 
-- **Migracja** `20261018120000_user_subscriptions_user_fk_cascade.sql` z
-  bliźniakiem `drizzle/migrations/0307_*`:
+- **Migracja** `20261018150000_user_subscriptions_user_fk_cascade.sql` z
+  bliźniakiem `drizzle/migrations/0311_*`:
   - usuwa wiersze osierocone;
   - zakłada `user_subscriptions_user_id_fkey`
     `REFERENCES auth.users(id) ON DELETE CASCADE`.

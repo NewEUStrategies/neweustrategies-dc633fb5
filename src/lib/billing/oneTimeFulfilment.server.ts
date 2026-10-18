@@ -638,21 +638,30 @@ async function refundOversold(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const nowIso = new Date().toISOString();
+  // Kupujący słyszy „kod wrócił do puli" tylko wtedy, gdy baza go oddała.
+  let couponReleased = false;
   if (mode.provider === "coupon") {
     const { error: flipErr } = await supabaseAdmin
       .from("payment_orders")
       .update({ status: "canceled", updated_at: nowIso })
       .eq("id", order.id);
     if (flipErr) throw new Error(`one-time: free order cancel failed: ${flipErr.message}`);
-    const { error: releaseErr } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
-      _tenant_id: order.tenant_id,
-      _user_id: userId,
-      _coupon_id: mode.couponId,
-      _order_id: order.id,
+    // Wspólna ścieżka zwolnienia, jak `releaseOrderCoupon`. Gołe RPC
+    // `release_b2b_coupon_for_user` nie miało powrotu do starej funkcji, więc
+    // na bazie bez migracji 20261007140200 (pas produkcyjny przed 0305)
+    // użycie kodu przepadało - a anulowanego zamówienia nic już nie rozlicza
+    // ponownie (`_event_free_ticket_orders_unsettled` bierze pending/paid).
+    const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
+    const { data, error: releaseErr } = await releaseCouponForUser(supabaseAdmin, {
+      tenantId: order.tenant_id,
+      userId,
+      couponId: mode.couponId,
+      orderId: order.id,
     });
     if (releaseErr) {
       console.error("[payments] free order coupon release failed", order.id, releaseErr.message);
     }
+    couponReleased = !releaseErr && data === true;
   } else {
     // Zwrot w ŚRODOWISKU ZDARZENIA, nie w domyślnym (PAY-14b).
     // `resolveEnvironment(null)` dawało `sandbox` wszędzie poza produkcją -
@@ -704,13 +713,17 @@ async function refundOversold(
     title_pl: "Brak wolnych miejsc - zwrot płatności",
     title_en: "Event sold out - payment refunded",
     body_pl:
-      mode.provider === "coupon"
-        ? "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli."
-        : "Ostatnie miejsce zajęto przed zaksięgowaniem płatności. Zwróciliśmy pełną kwotę.",
+      mode.provider !== "coupon"
+        ? "Ostatnie miejsce zajęto przed zaksięgowaniem płatności. Zwróciliśmy pełną kwotę."
+        : couponReleased
+          ? "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli."
+          : "Ostatnie miejsce zajęto, zanim bilet został wydany. Zamówienie zostało anulowane.",
     body_en:
-      mode.provider === "coupon"
-        ? "The last seat was taken before your ticket was issued. Your code is usable again."
-        : "The last seat was taken before your payment settled. We refunded the full amount.",
+      mode.provider !== "coupon"
+        ? "The last seat was taken before your payment settled. We refunded the full amount."
+        : couponReleased
+          ? "The last seat was taken before your ticket was issued. Your code is usable again."
+          : "The last seat was taken before your ticket was issued. Your order was canceled.",
     href: "/profile/tickets",
     icon: "receipt",
   });
@@ -872,9 +885,26 @@ export async function applyTicketOutcome(
   return payload;
 }
 
-/** Zamówienie zamknięte bez płatności - teraz albo przez wcześniejszą dostawę. */
-function closedUnpaid(order: LifecycleOrder, closedNow: boolean): boolean {
-  return closedNow || order.status === "failed" || order.status === "canceled";
+/**
+ * Zamówienie zamknięte bez płatności - teraz albo przez wcześniejszą dostawę.
+ *
+ * Warunkowe zamknięcie, które nie trafiło w wiersz widziany przez NAS jako kasa
+ * w toku, znaczy, że status zmienił w międzyczasie ktoś inny - np. kasa,
+ * która unieważnia zastąpione zamówienie jako `canceled` i zwolnienie kuponu
+ * zostawia temu webhookowi (`adhocCheckout.server.ts`). Stary odczyt
+ * (`processing`) pomijał wtedy zwolnienie, a zdarzenie kończyło się bez
+ * ponowienia - użycie kodu przepadało. Pytamy więc bazę o bieżący status.
+ */
+async function closedUnpaid(
+  order: LifecycleOrder,
+  closedNow: boolean,
+  scope: string,
+): Promise<boolean> {
+  if (closedNow) return true;
+  const status = (OPEN_STATUSES as readonly string[]).includes(order.status ?? "")
+    ? await currentOrderStatus(order.id, scope)
+    : order.status;
+  return status === "failed" || status === "canceled";
 }
 
 /**
@@ -904,7 +934,7 @@ export async function markOneTimePaymentFailed(
   const order = await loadLifecycleOrder(orderId, "payment failed");
   if (order && !sameEnvironment(order, env, "payment failed")) return;
   const closed = order ? await closeOpenOrder(order, "failed", "payment failed") : false;
-  const unpaid = order ? closedUnpaid(order, closed) : false;
+  const unpaid = order ? await closedUnpaid(order, closed, "payment failed") : false;
 
   if (!order || (unpaid && str(order.metadata, "event_id"))) {
     await applyTicketOutcome(orderId, "unpaid", null, { throwOnError: true });
@@ -947,7 +977,7 @@ export async function expireCheckoutOrder(
   }
 
   const closed = await closeOpenOrder(order, "canceled", "expire");
-  const unpaid = closedUnpaid(order, closed);
+  const unpaid = await closedUnpaid(order, closed, "expire");
   if (unpaid && str(order.metadata, "event_id")) {
     await applyTicketOutcome(order.id, "unpaid", null, { notify: false, throwOnError: true });
   }

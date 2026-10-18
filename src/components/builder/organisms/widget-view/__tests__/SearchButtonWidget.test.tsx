@@ -882,7 +882,7 @@ describe("SearchButtonWidget", () => {
     expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
   });
 
-  it("dyktowanie BEZ wyników na żywo: finalna transkrypcja sama odpala wyszukiwanie", async () => {
+  it("dyktowanie BEZ wyników na żywo: wyszukiwanie RAZ, po stopie, z pełną frazą", async () => {
     installSpeechRecognition();
     rpc.rows = [
       row({
@@ -901,10 +901,36 @@ describe("SearchButtonWidget", () => {
       expect(speech.instances).toHaveLength(1);
     });
 
-    emitTranscript("traktat lizbonski", true);
+    // Chrome w trybie ciągłym: finał zostaje w `results` do końca sesji, za
+    // nim rośnie interim. Dawniej każde z tych zdarzeń odpalało osobne
+    // `search_autosuggest` - cztery zapytania, zanim użytkownik skończył mówić.
+    const rec = speech.instances[0];
+    const emitSession = (segs: Array<[string, boolean]>) =>
+      act(() => {
+        rec.onresult?.({
+          results: segs.map(([transcript, isFinal]) => ({ isFinal, 0: { transcript } })),
+        });
+      });
+    emitSession([["traktat", true]]);
+    emitSession([
+      ["traktat", true],
+      [" liz", false],
+    ]);
+    emitSession([
+      ["traktat", true],
+      [" lizbo", false],
+    ]);
+    emitSession([
+      ["traktat", true],
+      [" lizbonski", true],
+    ]);
     expect(input.value).toBe("traktat lizbonski");
+    expect(rpc.calls).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Zatrzymaj dyktowanie" }));
     expect(await screen.findByText("Tytuł wpisu")).toBeTruthy();
     expect(rpc.calls).toHaveLength(1);
+    expect(rpc.calls[0]?.args).toMatchObject({ _q: "traktat lizbonski" });
   });
 
   // ── REGRESJA CLS: rezerwa miejsca na mikrofon ──────────────────────────────

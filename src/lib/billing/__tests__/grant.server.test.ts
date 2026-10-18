@@ -313,7 +313,7 @@ describe("grantEntitlement", () => {
   });
 
   it("konto usunięte w trakcie realizacji (23503 na kluczu właściciela) - bez wyjątku i bez ponowień", async () => {
-    // Od 20261018120000 `user_subscriptions.user_id` ma FK do `auth.users`.
+    // Od 20261018150000 `user_subscriptions.user_id` ma FK do `auth.users`.
     // Zamówienie opłacone tuż przed zamknięciem konta nie ma już komu nadać
     // uprawnienia; wyjątek skazałby zdarzenie na ponowienia bez końca.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

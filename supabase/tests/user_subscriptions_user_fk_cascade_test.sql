@@ -1,5 +1,5 @@
 -- pgTAP: uprawnienia `user_subscriptions` znikają razem z kontem
--- (migracja 20261018120000_user_subscriptions_user_fk_cascade, RODO art. 17).
+-- (migracja 20261018150000_user_subscriptions_user_fk_cascade, RODO art. 17).
 --
 -- Bez klucza obcego `auth.admin.deleteUser()` zostawiał wiersze uprawnień
 -- z surowym identyfikatorem osoby. Dowodem księgowym zostaje dokument
