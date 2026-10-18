@@ -320,11 +320,14 @@ export async function syncDonationsFromStripe(
   }
 
   // Osierocone wiersze `pending:` bez sesji - starsze niż 24h są anulowane.
+  // Wyłącznie w środowisku przebiegu, jak każdy inny odczyt tego modułu:
+  // uzgodnienie piaskownicy nie zamyka (ani nie liczy) wierszy produkcyjnych.
   const staleIso = new Date(Date.now() - 86_400_000).toISOString();
   const { data: stale } = await supabase
     .from("donations")
     .select("id")
     .eq("tenant_id", tenantId)
+    .eq("environment", environment)
     .eq("status", "pending")
     .like("provider_session_id", "pending:%")
     .lt("created_at", staleIso)
