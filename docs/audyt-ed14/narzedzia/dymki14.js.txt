@@ -1,5 +1,7 @@
 
 (function () {
+  // Opublikowana strona dostaje szkielet platformy bez atrybutu języka - czytniki ekranu potrzebują lang.
+  if (!document.documentElement.lang) document.documentElement.lang = 'pl';
   var tip = document.createElement('div');
   tip.className = 'tip';
   tip.setAttribute('role', 'tooltip');

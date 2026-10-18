@@ -15,6 +15,7 @@ ap.add_argument('--repo', type=Path, default=TU.parents[2] if TU.name == 'narzed
                 help='korzeń repozytorium (domyślnie: wyliczony z położenia skryptu w docs/audyt-ed14/narzedzia)')
 ap.add_argument('--stary', type=Path, required=True, help='HTML artefaktu wydania 13')
 ap.add_argument('--wyjscie', type=Path, default=Path('pokrycie-testami-nes.html'), help='plik wynikowy (domyślnie w katalogu bieżącym)')
+ap.add_argument('--fragment', action='store_true', help='bez szkieletu dokumentu (do publikacji, którą platforma sama opakowuje doctype, charset i viewport)')
 ap.add_argument('--tasma', type=Path, default=None, help='dane taśmy klatek (domyślnie docs/audyt-ed14/lighthouse/tasma14.json)')
 ARGS = ap.parse_args()
 
@@ -874,8 +875,8 @@ stopka = ('<footer><span>Audyt pokrycia testami NES · wydanie 14 · HEAD <code>
           '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-14.mjs</code> - 476 asercji na drzewach <code>346012635</code> i <code>5b8c77c01</code> czytanych z obiektów gita, 476 zielonych, 0 czerwonych</span>'
           '<span>Dane: <code>docs/audyt-ed14/</code> (pomiar, funkcjonalności, graf, defekty, rejestr, migawka agentów, Lighthouse z klatkami, narzędzia)</span></footer>')
 skrypt = obok('dymki14.js').read_text(encoding='utf-8')
-wynik = (PREFIKS + glowa + '</head>\n<body>\n<div class="wrap">\n' + ed14 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
-         + '<div class="pops">' + ''.join(okna.values()) + '</div>\n<script>' + skrypt + '</script>\n</body>\n</html>\n')
+wynik = ('' if ARGS.fragment else PREFIKS) + (glowa if ARGS.fragment else glowa + '</head>\n<body>\n') + ('<div class="wrap">\n' + ed14 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
+         + '<div class="pops">' + ''.join(okna.values()) + '</div>\n<script>' + skrypt + '</script>\n') + ('' if ARGS.fragment else '</body>\n</html>\n')
 nowe = ed14 + stopka + ''.join(okna.values()) + skrypt + CSS14
 for zly in ('—', '–'):
     n = nowe.count(zly)
