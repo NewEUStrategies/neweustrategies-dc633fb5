@@ -1503,6 +1503,265 @@ describe("strażnik i wyrównanie - przypadki brzegowe", () => {
   });
 });
 
+describe("zakładanie, zaległość i wyrównanie - stan zapisywany przez dyspozytor", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("zdarzenie z PUSTYM czasem (dziennik bez znacznika) zakłada subskrypcję bez pary strażnika", async () => {
+    const subscriptions = subscriptionsTable();
+
+    expect(
+      await dispatchWebhookEvent({
+        eventType: "subscription.activated",
+        data: subscriptionEvent(),
+        environment: "live",
+        occurredAt: "",
+      }),
+    ).toBe("processed");
+    expect(subscriptions.rows).toHaveLength(1);
+    expect(subscriptions.rows[0]).not.toHaveProperty("last_event_at");
+  });
+
+  it("pozycja bez ilości (cena bez `quantity` u operatora) zakłada subskrypcję na JEDNO miejsce", async () => {
+    const subscriptions = subscriptionsTable();
+
+    await dispatchWebhookEvent({
+      eventId: "evt_bez_ilosci",
+      eventType: "subscription.created",
+      data: subscriptionEvent({
+        items: [
+          {
+            price: { id: "pri_atrapa", externalId: "pro_monthly" },
+            product: { id: "prod_atrapa", externalId: "plan_pro" },
+          },
+        ],
+      }),
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(subscriptions.rows[0]).toMatchObject({ quantity: 1 });
+  });
+
+  it("ZALEGŁOŚĆ, która wyprzedziła `created`: wiersz dostaje kotwicę karencji z chwili zdarzenia (SUB-03)", async () => {
+    const subscriptions = subscriptionsTable();
+
+    await dispatchWebhookEvent({
+      eventId: "evt_zaleglosc",
+      eventType: "subscription.past_due",
+      data: subscriptionEvent({ status: "past_due" }),
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "past_due",
+      first_payment_failed_at: OCCURRED_AT,
+    });
+  });
+
+  it("zaległość istniejącej subskrypcji BEZ wiarygodnego czasu: kotwica karencji „teraz”, nie pusta", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-30T12:00:00.000Z"));
+    const subscriptions = subscriptionsTable([
+      storedSubscription({ status: "active", first_payment_failed_at: null }),
+    ]);
+
+    await dispatchWebhookEvent({
+      eventId: "evt_zaleglosc",
+      eventType: "subscription.past_due",
+      data: subscriptionEvent({ status: "past_due" }),
+      environment: "live",
+      occurredAt: "nie-data",
+    });
+
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "past_due",
+      first_payment_failed_at: "2026-08-30T12:00:00.000Z",
+    });
+  });
+
+  it("okres próbny istniejącej subskrypcji zapisuje datę końca triala z pozycji zdarzenia", async () => {
+    const subscriptions = subscriptionsTable([storedSubscription({ status: "incomplete" })]);
+
+    await dispatchWebhookEvent({
+      eventId: "evt_trial",
+      eventType: "subscription.trialing",
+      data: subscriptionEvent({
+        status: "trialing",
+        items: [
+          {
+            quantity: 1,
+            trialDates: { startsAt: OCCURRED_AT, endsAt: "2026-09-13T10:00:00.000Z" },
+            price: { id: "pri_atrapa", externalId: "pro_monthly" },
+            product: { id: "prod_atrapa", externalId: "plan_pro" },
+          },
+        ],
+      }),
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "trialing",
+      trial_ends_at: "2026-09-13T10:00:00.000Z",
+    });
+  });
+
+  it("zdarzenie stanu NIEZNANEJ subskrypcji z właścicielem, ale bez ceny katalogowej: nic nie zakłada", async () => {
+    const subscriptions = subscriptionsTable();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_bez_ceny",
+        eventType: "subscription.updated",
+        data: subscriptionEvent({
+          items: [{ quantity: 1, price: { id: "pri_obca", externalId: null }, product: null }],
+        }),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).toBe("processed");
+    expect(subscriptions.rows).toHaveLength(0);
+    warn.mockRestore();
+  });
+
+  it("wiersz zniknął między strażnikiem a odczytem, a zdarzenie nie ma właściciela: bez wiersza-sieroty", async () => {
+    db.setResponse("subscriptions", subscriptionsResponder({ claimed: true, row: null }));
+
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_sierota",
+        eventType: "subscription.updated",
+        data: subscriptionEvent({ customData: null }),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).toBe("processed");
+    expect(db.chainsFor("subscriptions").filter((chain) => chain.has("upsert"))).toHaveLength(0);
+    expect(writesOn("user_subscriptions")).toHaveLength(0);
+  });
+
+  it("rezygnacja NIGDY nieopłaconej subskrypcji, której cena nie ma planu: bez zapisu uprawnienia", async () => {
+    const subscriptions = subscriptionsTable([
+      storedSubscription({
+        status: "incomplete",
+        purchase_confirmed_at: null,
+        last_payment_at: null,
+      }),
+    ]);
+    db.setResponse("access_plans", ok(null));
+
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_porzucone",
+        eventType: "subscription.canceled",
+        data: subscriptionEvent({ status: "canceled" }),
+        environment: "live",
+        occurredAt: LATER,
+      }),
+    ).toBe("processed");
+    expect(subscriptions.rows[0]).toMatchObject({ status: "canceled" });
+    expect(writesOn("user_subscriptions")).toHaveLength(0);
+    expect(writesOn("notifications")).toHaveLength(0);
+  });
+
+  it("wyrównanie rezygnacji przy BŁĘDZIE odczytu uprawnienia: wyjątek, nie zgadywanie dostępu", async () => {
+    subscriptionsTable([storedSubscription({ last_event_at: LATER, last_event_id: "evt_nowsze" })]);
+    stripeApi.retrieve = async () => ({
+      ...activeRemote(),
+      status: "canceled",
+      cancellation_details: { reason: "cancellation_requested" },
+    });
+    db.setResponse("user_subscriptions", fail("connection reset"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(
+      dispatchWebhookEvent({
+        eventId: "evt_starsze",
+        eventType: "subscription.updated",
+        data: subscriptionEvent(),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).rejects.toThrow("entitlement lookup failed: connection reset");
+    warn.mockRestore();
+  });
+
+  it("zajęcie remisu przegrane z NOWSZYM zdarzeniem w locie: kolejna runda widzi `stale` i wyrównuje", async () => {
+    const subscriptions = subscriptionsTable([
+      storedSubscription({ last_event_at: OCCURRED_AT, last_event_id: "evt_a" }),
+    ]);
+    const store = rowStore({
+      rows: subscriptions.rows,
+      unique: ["provider_subscription_id"],
+      timestamps: ["last_event_at"],
+      beforeResolve: (chain) => {
+        const patch = chain.argsOf("update")?.[0] as Record<string, unknown> | undefined;
+        // Nowsze zdarzenie zajmuje wiersz dokładnie między odczytem a remisem.
+        if (patch && Object.keys(patch).join() === "last_event_id") {
+          store.rows[0]!.last_event_at = LATER;
+          store.rows[0]!.last_event_id = "evt_nowsze";
+        }
+      },
+    });
+    db.setResponse("subscriptions", (chain) => store.respond(chain));
+    db.setResponse("access_plans", ok(PLAN_PRO));
+    stripeApi.retrieve = async () => activeRemote();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_b",
+        eventType: "subscription.updated",
+        data: subscriptionEvent({ status: "paused" }),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).toBe("processed");
+    // Ładunek `paused` nie został zastosowany - wygrało nowsze zdarzenie.
+    expect(store.rows[0]).toMatchObject({ status: "active", last_event_id: "evt_nowsze" });
+    expect(stripeApi.calls).toEqual([
+      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product"] } },
+    ]);
+    warn.mockRestore();
+  });
+
+  it("odczyt operatora przy remisie odrzucony wartością bez klasy Error: powód w wyjątku", async () => {
+    subscriptionsTable([
+      storedSubscription({ last_event_at: OCCURRED_AT, last_event_id: "evt_a" }),
+    ]);
+    stripeApi.retrieve = async () => {
+      throw "socket hang up";
+    };
+
+    await expect(
+      dispatchWebhookEvent({
+        eventId: "evt_b",
+        eventType: "subscription.updated",
+        data: subscriptionEvent(),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).rejects.toThrow("subscription tie: provider read failed (sub_atrapa_1): socket hang up");
+  });
+
+  it("wygaśnięcie sesji BEZ naszego zamówienia w metadanych: `skipped`, nic nie zamyka", async () => {
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_wygasla",
+        eventType: "transaction.expired",
+        data: transactionEvent({ id: "cs_obca", subscriptionId: null, customData: null }),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).toBe("skipped");
+    expect(writesOn("payment_orders")).toHaveLength(0);
+  });
+});
+
 describe("aktualizacja stanu subskrypcji - odmowy i przypadki brzegowe", () => {
   it("nieudany zapis stanu przerywa obsługę zamiast udawać sukces", async () => {
     // Zapis stanu jest tu jedynym śladem zdarzenia. Połknięty błąd oznacza

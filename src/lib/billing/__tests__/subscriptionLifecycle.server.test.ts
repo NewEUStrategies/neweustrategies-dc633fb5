@@ -2354,6 +2354,68 @@ describe("rezygnacja nigdy nieopłaconej subskrypcji - powtórka po zapisie", ()
   });
 });
 
+describe("zajęcie potwierdzenia zakupu - wyścig i awaria zapisu znacznika (SUB-02)", () => {
+  /** Zajęcie potwierdzenia: warunkowy UPDATE samego `purchase_confirmed_at`. */
+  const isConfirmationClaim = (chain: RecordedChain): boolean => {
+    const patch = chain.argsOf("update")?.[0] as Record<string, unknown> | undefined;
+    return !!patch && Object.keys(patch).join() === "purchase_confirmed_at";
+  };
+
+  it("RÓWNOLEGŁE zdarzenie zajęło potwierdzenie pierwsze: to zdarzenie nie wysyła drugiego maila ani dzwonka", async () => {
+    const at = relativeIso(-1 * DZIEN);
+    const base = table(subscriptions, SUBSCRIPTION_DEFAULTS);
+    db.setResponse("subscriptions", (chain) => {
+      // Zwycięzca wyścigu zapisał znacznik między naszym odczytem a zajęciem.
+      if (isConfirmationClaim(chain)) {
+        const row = subscriptionRow();
+        if (row) row.purchase_confirmed_at = relativeIso(-1 * DZIEN + SEKUNDA);
+      }
+      return base(chain);
+    });
+
+    const outcome = await deliver(
+      "customer.subscription.created",
+      stripeSubscription({ status: "active", periodStart: at, periodEnd: relativeIso(29 * DZIEN) }),
+      at,
+    );
+
+    expect(outcome).toBe("processed");
+    expect(grantsAccess(entitlement())).toBe(true);
+    // Mail i dzwonek należą do zwycięzcy zajęcia - przegrany milczy.
+    expect(mails("subscription_confirmed")).toHaveLength(0);
+    expect(bells("Subskrypcja aktywna")).toHaveLength(0);
+  });
+
+  it("AWARIA zapisu znacznika potwierdzenia: zdarzenie pada, ponowienie potwierdza zakup RAZ", async () => {
+    const at = relativeIso(-1 * DZIEN);
+    const base = table(subscriptions, SUBSCRIPTION_DEFAULTS);
+    let failNext = true;
+    db.setResponse("subscriptions", (chain) => {
+      if (failNext && isConfirmationClaim(chain)) {
+        failNext = false;
+        return fail("could not serialize access", "40001");
+      }
+      return base(chain);
+    });
+    const object = stripeSubscription({
+      status: "active",
+      periodStart: at,
+      periodEnd: relativeIso(29 * DZIEN),
+    });
+
+    await expect(deliver("customer.subscription.created", object, at)).rejects.toThrow(
+      "purchase confirmation claim failed: purchase confirmation claim failed: could not serialize access",
+    );
+    expect(subscriptionRow()?.purchase_confirmed_at).toBeNull();
+    expect(mails("subscription_confirmed")).toHaveLength(0);
+
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
+    expect(subscriptionRow()?.purchase_confirmed_at).toBeTruthy();
+    expect(mails("subscription_confirmed")).toHaveLength(1);
+    expect(bells("Subskrypcja aktywna")).toHaveLength(1);
+  });
+});
+
 describe("potwierdzenie zakupu po zapisie stanu - przejściowa awaria zgody (SUB-15 #34 x A3)", () => {
   it("awaria zapisu zgody PO wstawieniu wiersza: zdarzenie pada, ponowienie zapisuje zgodę i potwierdza RAZ", async () => {
     // Komunikaty zakupu (CRM, zgoda z checkoutu, zajęcie potwierdzenia, mail,
