@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #523
+
+- [x] Potwierdzić wszystkie commity i zakres scalenia PR #523: merge a807c8a27, cztery commity 288269ceb, ff5bd9a7e, 260ff2f24, 692907e1a; cztery ścieżki, końcowy hook i oba testy identyczne z końcem gałęzi PR; bez migracji bazy.
+- [x] Sprawdzić rzeczywiste tabele, widoki, RPC oraz zgodność rejestrów migracji: 343 tabele z RLS, 15 widoków, 1585 funkcji; kontrakt 1660 obiektów bez braków, 751 kolumn bez nowych braków (7 znanych rozbieżności); 370 migracji wykonanych, 311 wpisów Drizzle zgodnych. Bramka nadal raportuje 22 historyczne braki kopii w Drizzle i jeden nieaktualny wyjątek, niezwiązane z PR #523; nie zmieniono bazy.
+- [x] Uruchomić testy zmian i zweryfikować działanie wyszukiwarki: 116/116 testów; produkcyjny formularz przyjmuje kontrolowane wyniki Web Speech, po stopie przechodzi do /search?q=polityka+europejska i pokazuje 13 wyników, bez błędów JavaScript/hydratacji. Rzeczywisty dźwięk i serwerowe STT nieprzetestowane; stare obrazy części wyników zwracają 404. Ostrzeżenia hydratacji podglądu nie odtworzyły się na produkcji.
+- [x] Opublikować i potwierdzić nową wersję na stronie publicznej: identyfikator produkcji zmienił się z tmve6kd3q na tmve75ian, przepływ wyszukiwania sprawdzony na neweuropeanstrategies.com.
+
 ## Weryfikacja PR #518
 
 - [x] Potwierdzić integrację wszystkich 24 commitów PR #518: merge 346012635, 192 pliki; drzewo scalenia identyczne z końcem gałęzi PR.
@@ -23,7 +30,7 @@
 - [x] Potwierdzić wszystkie commity i zakres zmian PR #515: 46 commitów, 331 ścieżek, brak zmian schematu bazy.
 - [x] Sprawdzić rzeczywisty katalog tabel, widoków, RPC i kolumn: 343 tabele z RLS, 15 widoków, 1585 funkcji; kontrakt 1660 obiektów bez braków, 751 kolumn i 7 wcześniej znanych rozbieżności; rejestr zgodny. Nie zmieniono bazy ani rejestru.
 - [x] Uruchomić testy zmian i sprawdzić podgląd bez aktualizacji zależności: 728/728 testów zakresowych, build OK; /, /blog i /en HTTP 200 bez błędów przeglądarki. Pełna seria testów przerwana limitem 600 s, bez końcowego werdyktu.
-- [ ] Potwierdzić zakończenie zleconej publikacji PR #515: ostatni odczyt produkcji nadal zwraca starszy identyfikator tmvb6lfhz (podgląd tmvc1bpt0); blokada: zewnętrzny proces publikacji. Strona publiczna / i /blog HTTP 200 bez błędów przeglądarki, lecz nie jest to dowód wdrożenia PR #515.
+- [x] Potwierdzić zakończenie zleconej publikacji PR #515: wcześniejszy nierozstrzygnięty punkt zastąpiony późniejszymi potwierdzonymi publikacjami, ostatnia produkcja tmve75ian zawiera aktualne drzewo scalenia PR #523 i jego przodków.
 
 ## Pola formularzy platformy
 
