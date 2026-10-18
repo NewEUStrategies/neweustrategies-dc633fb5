@@ -49,14 +49,16 @@ const h = vi.hoisted(() => ({
    * `already` - sala pełna, ale RSVP 'going' TEGO kupującego już stoi
    * (pierwsza dostawa zajęła miejsce), więc baza odpowiada `already: true`
    * (pgTAP: event_rsvp_claim_paid_seat_replay_test.sql), `broken` - błąd
-   * RPC; `legacy-*` - funkcji jeszcze nie ma (migracja przed kodem), więc
-   * idzie dawny odczyt `assertSeatAvailable` z danym skutkiem.
+   * RPC, `refused` - odmowa bazy z powodem innym niż pełna sala; `legacy-*` -
+   * funkcji jeszcze nie ma (migracja przed kodem), więc idzie dawny odczyt
+   * `assertSeatAvailable` z danym skutkiem.
    */
   seat: "free" as
     | "free"
     | "full"
     | "already"
     | "broken"
+    | "refused"
     | "legacy-free"
     | "legacy-full"
     | "legacy-broken"
@@ -120,6 +122,9 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         }
         if (h.seat === "broken") {
           return { data: null, error: { code: "XX000", message: "test: odczyt pojemności padł" } };
+        }
+        if (h.seat === "refused") {
+          return { data: { ok: false, reason: "order_not_paid" }, error: null };
         }
         if (h.seat.startsWith("legacy-")) {
           return { data: null, error: { code: "PGRST202", message: "test: brak funkcji" } };
@@ -2757,6 +2762,416 @@ describe("runUnsettledFreeTicketOrders - ponowienie urwanego rozliczenia", () =>
 
     await expect(runUnsettledFreeTicketOrders(client)).rejects.toThrow(
       "free ticket orders lookup failed",
+    );
+  });
+});
+
+// --- 14. gałęzie brzegowe: wyścigi, odmowy bazy, ładunki niepełne ----------
+//
+// Każdy test niżej odpowiada na pytanie „co, jeśli baza albo operator powie
+// coś innego niż na szczęśliwej ścieżce" - i pilnuje, żeby odpowiedzią nie
+// było ciche `paid`, cichy `skipped` ani zgadnięty identyfikator.
+
+describe("realizacja - wyścigi między zapisem a ponownym odczytem", () => {
+  it("zamówienie, które ZNIKNĘŁO między zapisem a ponownym odczytem: dostęp odebrany, bez skutków", async () => {
+    // Usunięty szkic porzuconej kasy: zapis warunkowy nie trafia w nic,
+    // a ponowny odczyt nie zwraca wiersza. Pieniądze nie mają zamówienia,
+    // więc uprawnienie z kroku 1 nie może zostać.
+    givenOrder(orderRow({ metadata: {} }));
+    paidFlipResponse = ok([]);
+    stateResponse = ok(null);
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("skipped");
+    expect(h.revokedOrders).toEqual([expect.objectContaining({ id: ORDER_ID })]);
+    expect(h.log).not.toContain("coupon");
+  });
+
+  it("wyścig licznika zwrotu, po którym zamówienie jest już ZWRÓCONE: bez wyjątku, dostęp odebrany", async () => {
+    // Zwrot pełny wyprzedził zapis z przeliczonym licznikiem. Ponowienie nic
+    // by nie dokończyło (zwrot nie wraca na `paid`), więc nie rzucamy.
+    givenOrder(orderRow({ metadata: {}, amount_cents: 8_000, refunded_amount_cents: 6_911 }));
+    paidFlipResponse = ok([]);
+    stateResponse = ok({ status: "refunded" });
+
+    expect(await fulfilOneTimeTransaction(txn({ amountCents: 9_840 }), "sandbox")).toBe("skipped");
+    expect(h.revokedOrders).toHaveLength(1);
+  });
+
+  it("zapisana flaga przeglądu z NIEZNANYM powodem nie wstrzymuje powtórki i nie dzwoni", async () => {
+    givenOrder(
+      orderRow({
+        status: "paid",
+        metadata: { review: { reason: "reczna_kontrola", flagged_at: "2026-10-01T10:00:00.000Z" } },
+      }),
+    );
+    paidFlipResponse = ok([]);
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    expect(h.grants).toHaveLength(1);
+    expect(h.adminBells).toHaveLength(0);
+  });
+});
+
+describe("realizacja - zapisana flaga przeglądu sprzed obecnego kształtu", () => {
+  it("flaga rozjazdu BEZ kwot (starszy zapis) nie wywraca powtórki - alert idzie", async () => {
+    givenOrder(
+      orderRow({
+        status: "paid",
+        metadata: { review: { reason: "amount_mismatch", flagged_at: "2026-10-01T10:00:00.000Z" } },
+      }),
+    );
+    paidFlipResponse = ok([]);
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({
+        p_href: `/admin/billing?order=${ORDER_ID}&review=amount_mismatch`,
+      }),
+    ]);
+  });
+
+  it("wstrzymanie BEZ listy kodów (starszy zapis) zostaje wstrzymaniem z alertem", async () => {
+    givenOrder(
+      orderRow({
+        status: "paid",
+        metadata: {
+          review: { reason: "foreign_promotion_code", flagged_at: "2026-10-01T10:00:00.000Z" },
+        },
+      }),
+    );
+    paidFlipResponse = ok([]);
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("held");
+    expect(h.grants).toHaveLength(0);
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({ p_title_pl: "Płatność wstrzymana do weryfikacji" }),
+    ]);
+  });
+});
+
+describe("realizacja - wstrzymanie kodem promocyjnym, gdy zapis nie trafia", () => {
+  const foreign = (over: Partial<OneTimeTransaction> = {}): OneTimeTransaction =>
+    txn({
+      amountCents: 0,
+      amountSubtotalCents: 12_000,
+      amountDiscountCents: 12_000,
+      promotionCodeIds: ["promo_obcy"],
+      ...over,
+    });
+
+  beforeEach(() => {
+    h.promotionCodes["promo_obcy"] = { metadata: { tenant_id: "inny-najemca" } };
+  });
+
+  it("odmowa zapisu wstrzymania RZUCA - bez dostępu i bez alertu", async () => {
+    givenOrder(orderRow({ metadata: {} }));
+    paidFlipResponse = fail("zapis odrzucony");
+
+    await expect(fulfilOneTimeTransaction(foreign(), "sandbox")).rejects.toThrow(
+      "one-time: order hold flip failed: zapis odrzucony",
+    );
+    expect(h.grants).toHaveLength(0);
+    expect(h.adminBells).toHaveLength(0);
+  });
+
+  it("wstrzymanie, którego zapis nic nie przestawił (zamknięcie wyprzedziło): bez alertu", async () => {
+    givenOrder(orderRow({ metadata: {} }));
+    paidFlipResponse = ok([]);
+
+    expect(await fulfilOneTimeTransaction(foreign(), "sandbox")).toBe("skipped");
+    expect(h.grants).toHaveLength(0);
+    expect(h.adminBells).toHaveLength(0);
+    // Bez przeliczanego licznika nie ma czego sprawdzać ponownym odczytem.
+    expect(
+      stub()
+        .chainsFor("payment_orders")
+        .filter((c) => c.argsOf("select")?.[0] === "status"),
+    ).toHaveLength(0);
+  });
+
+  it("wstrzymanie z przeliczanym licznikiem, który zmienił się w międzyczasie: RZUCA, zdarzenie wróci", async () => {
+    givenOrder(orderRow({ metadata: {}, refunded_amount_cents: 1_000 }));
+    paidFlipResponse = ok([]);
+    stateResponse = ok({ status: "processing" });
+
+    await expect(
+      fulfilOneTimeTransaction(
+        foreign({ amountCents: 6_000, amountDiscountCents: 6_000 }),
+        "sandbox",
+      ),
+    ).rejects.toThrow(`one-time: refund counter changed while settling (${ORDER_ID})`);
+    expect(h.adminBells).toHaveLength(0);
+  });
+});
+
+describe("miejsce RSVP - odmowy bazy inne niż pełna sala", () => {
+  it("odmowa zajęcia miejsca z innym powodem RZUCA - bez zwrotu i bez RSVP", async () => {
+    h.seat = "refused";
+
+    await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
+      `one-time: rsvp seat claim refused (${ORDER_ID}): order_not_paid`,
+    );
+    expect(h.refundCalls).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
+  });
+
+  it("okno wdrożenia: nieudany zapis RSVP z kodu RZUCA - webhook dokończy potwierdzenie", async () => {
+    h.seat = "legacy-free";
+    rsvpResponse = fail("test: zapis RSVP odrzucony");
+
+    await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
+      "one-time: rsvp confirm failed: test: zapis RSVP odrzucony",
+    );
+    expect(h.eventMails).toHaveLength(0);
+  });
+});
+
+describe("bilet za zero przy pełnej sali - zapisy po stronie bazy", () => {
+  const COUPON = "66666666-ffff-4fff-8fff-666666666666";
+  const freeOrder = (): OrderRow =>
+    orderRow({
+      amount_cents: 0,
+      status: "pending",
+      provider: "coupon",
+      metadata: { event_id: EVENT, coupon_id: COUPON },
+    });
+
+  beforeEach(() => {
+    givenOrder(freeOrder());
+    h.seat = "full";
+  });
+
+  it("kod wraca do puli z najemcą i kontem zamówienia oraz kuponem z jego metadanych", async () => {
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({
+      outcome: "oversold_refunded",
+      seated: false,
+    });
+    expect(h.couponReleases).toEqual([
+      { _tenant_id: TENANT, _user_id: USER, _coupon_id: COUPON, _order_id: ORDER_ID },
+    ]);
+    expect(stub().lastChain("notifications")?.argsOf("insert")?.[0]).toMatchObject({
+      user_id: USER,
+      tenant_id: TENANT,
+      body_pl: "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli.",
+    });
+  });
+
+  it("odmowa anulowania zamówienia RZUCA, zanim kod wróci do puli", async () => {
+    oversoldFlipResponse = fail("anulowanie odrzucone");
+
+    await expect(settleFreeTicketOrder(ORDER_ID)).rejects.toThrow(
+      "one-time: free order cancel failed: anulowanie odrzucone",
+    );
+    expect(h.couponReleases).toHaveLength(0);
+  });
+
+  it("odmowa zwolnienia kodu zostaje w logu - zamówienie i tak jest anulowane, kupujący dostaje dzwonek", async () => {
+    h.couponReleaseReply = { data: null, error: { message: "zwolnienie odrzucone" } };
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toMatchObject({ outcome: "oversold_refunded" });
+    expect(errorMessages()).toContain("[payments] free order coupon release failed");
+    expect(stub().chainsFor("notifications")).toHaveLength(1);
+  });
+});
+
+describe("wygaśnięcie i odczyt zamówienia cyklu życia", () => {
+  it("odmowa odczytu zamówienia przy wygaśnięciu RZUCA - webhook wróci", async () => {
+    orderResponse = fail("odczyt odrzucony");
+
+    await expect(
+      expireCheckoutOrder(txn({ id: "cs_wygasla", amountCents: null }), "sandbox"),
+    ).rejects.toThrow("expire: order lookup failed: odczyt odrzucony");
+  });
+
+  it("zdarzenie bez osobnego identyfikatora sesji: sesją jest identyfikator transakcji", async () => {
+    givenOrder(orderRow({ status: "processing", provider_session_id: "cs_wygasla" }));
+
+    expect(
+      await expireCheckoutOrder(
+        txn({ id: "cs_wygasla", sessionId: undefined, amountCents: null }),
+        "sandbox",
+      ),
+    ).toBe(true);
+    expect(paidPatch()).toMatchObject({ status: "canceled" });
+  });
+});
+
+describe("domknięcie zamówienia subskrypcji - ładunki niepełne i powtórki trialu", () => {
+  const subscriptionOrder = (over: Partial<OrderRow> = {}): OrderRow =>
+    orderRow({
+      kind: "subscription",
+      plan_id: "plan_pro",
+      metadata: { coupon_id: "kupon-1" },
+      amount_cents: 4_900,
+      ...over,
+    });
+  const session = (over: Partial<OneTimeTransaction> = {}): OneTimeTransaction =>
+    txn({
+      id: "cs_sub",
+      sessionId: "cs_sub",
+      subscriptionId: "sub_nowa",
+      customerId: "cus_1",
+      amountCents: 4_900,
+      amountSubtotalCents: 4_900,
+      amountDiscountCents: 0,
+      ...over,
+    });
+
+  it("sesja bez pobrania i BEZ rozbicia kwoty (ładunek sprzed wdrożenia) to trial: tylko stempel", async () => {
+    givenOrder(subscriptionOrder());
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ amountCents: 0, amountSubtotalCents: undefined, amountDiscountCents: undefined }),
+        "sandbox",
+      ),
+    ).toBe("stamped");
+    expect(paidPatch()).not.toHaveProperty("metadata");
+    expect(h.adminBells).toHaveLength(0);
+  });
+
+  it("stempel trialu, który nic nie przestawił (zamówienie już zamknięte), to `skipped`", async () => {
+    givenOrder(subscriptionOrder());
+    paidFlipResponse = ok([]);
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ amountCents: 0, amountSubtotalCents: 0 }),
+        "sandbox",
+      ),
+    ).toBe("skipped");
+  });
+
+  it("powtórka sesji trialu z zapisaną flagą dokańcza jej alert (raz na incydent)", async () => {
+    givenOrder(
+      subscriptionOrder({
+        provider_subscription_id: "sub_nowa",
+        metadata: {
+          coupon_id: "kupon-1",
+          review: {
+            reason: "amount_mismatch",
+            expected_cents: 4_900,
+            expected_currency: "PLN",
+            charged_cents: 0,
+            currency: "PLN",
+            flagged_at: "2026-10-01T10:00:00.000Z",
+          },
+        },
+      }),
+    );
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ amountCents: 0, amountSubtotalCents: 4_900, amountDiscountCents: 4_900 }),
+        "sandbox",
+      ),
+    ).toBe("stamped");
+    // Powtórka nie liczy przeglądu od nowa - nie nadpisuje zapisanej flagi.
+    expect(paidPatch()).not.toHaveProperty("metadata");
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({
+        p_href: `/admin/billing?order=${ORDER_ID}&review=amount_mismatch`,
+      }),
+    ]);
+  });
+
+  it("zdarzenie bez sesji, subskrypcji, klienta i adresu: zapisuje tylko to, co przyszło", async () => {
+    givenOrder(subscriptionOrder());
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({
+          sessionId: undefined,
+          subscriptionId: undefined,
+          customerId: undefined,
+          customerEmail: null,
+        }),
+        "sandbox",
+      ),
+    ).toBe("settled");
+    const patch = paidPatch() ?? {};
+    expect(patch).toMatchObject({ status: "paid", provider_session_id: "cs_sub" });
+    for (const column of ["provider_subscription_id", "provider_customer_id", "receipt_email"]) {
+      expect(patch).not.toHaveProperty(column);
+    }
+  });
+
+  it("intencja płatności sesji trafia do zamówienia - po niej przychodzi zwrot", async () => {
+    givenOrder(subscriptionOrder());
+
+    await settleSubscriptionCheckoutOrder(session({ paymentIntentId: "pi_sub" }), "sandbox");
+
+    expect(paidPatch()).toMatchObject({ provider_payment_intent_id: "pi_sub" });
+  });
+
+  it("metadane w kształcie `null` (jsonb `null`) dostają samą flagę przeglądu", async () => {
+    givenOrder(subscriptionOrder({ metadata: null }));
+
+    await settleSubscriptionCheckoutOrder(
+      session({ amountCents: 3_900, amountSubtotalCents: 3_900 }),
+      "sandbox",
+    );
+
+    expect(paidPatch()?.["metadata"]).toEqual({
+      review: expect.objectContaining({ reason: "amount_mismatch", charged_cents: 3_900 }),
+    });
+  });
+});
+
+describe("runUnsettledFreeTicketOrders - termin i nietypowe odpowiedzi", () => {
+  const COUPON = "66666666-ffff-4fff-8fff-666666666666";
+
+  function lister(data: unknown) {
+    return {
+      rpc: async () => ({ data, error: null }),
+    } as unknown as Parameters<typeof runUnsettledFreeTicketOrders>[0];
+  }
+
+  beforeEach(() => {
+    givenOrder(
+      orderRow({
+        amount_cents: 0,
+        status: "pending",
+        provider: "coupon",
+        metadata: { event_id: EVENT, coupon_id: COUPON },
+      }),
+    );
+  });
+
+  it("termin minął w trakcie odczytu listy: zamówienia są ODKŁADANE, nie rozliczane", async () => {
+    const start = Date.parse("2026-10-18T10:00:00.000Z");
+    const clock = vi
+      .spyOn(Date, "now")
+      .mockReturnValueOnce(start)
+      .mockReturnValue(start + 10_000);
+
+    expect(
+      await runUnsettledFreeTicketOrders(lister([ORDER_ID, ORDER_ID]), 10, start + 5_000),
+    ).toEqual({ claimed: 2, settled: 0, failed: 0, deferred: 2 });
+    expect(h.grants).toHaveLength(0);
+    clock.mockRestore();
+  });
+
+  it("odpowiedź bazy, która nie jest listą, nie jest listą zamówień", async () => {
+    expect(await runUnsettledFreeTicketOrders(lister({ id: ORDER_ID }))).toEqual({
+      claimed: 0,
+      settled: 0,
+      failed: 0,
+      deferred: 0,
+    });
+  });
+
+  it("rzut bez obiektu `Error` też jest porażką zamówienia z czytelnym logiem", async () => {
+    h.seat = "legacy-thrown-string";
+
+    expect(await runUnsettledFreeTicketOrders(lister([ORDER_ID]))).toMatchObject({
+      claimed: 1,
+      failed: 1,
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[payments] free ticket order retry failed",
+      ORDER_ID,
+      "test: rzut bez obiektu Error",
     );
   });
 });

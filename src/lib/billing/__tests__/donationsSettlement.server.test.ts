@@ -35,8 +35,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (table: string) => db.from(table) },
 }));
 
-const { recordRecurringDonationPayment, settleDonation } =
-  await import("@/lib/billing/donations.server");
+const {
+  linkDonationSubscription,
+  recordRecurringDonationPayment,
+  settleDonation,
+  syncDonationSubscription,
+} = await import("@/lib/billing/donations.server");
 
 freezeClock();
 
@@ -256,5 +260,57 @@ describe("recordRecurringDonationPayment - awaria odczytu kotwicy to nie „brak
     ).rejects.toThrow("donation anchor lookup failed: remaining connection slots are reserved");
     expect(inserted()).toBeUndefined();
     expect(updates()).toHaveLength(0);
+  });
+});
+
+describe("recordRecurringDonationPayment - sesja checkout nie jest ratą", () => {
+  it("identyfikator sesji (`cs_...`) zamiast faktury kończy się `skipped`, zanim dotknie bazy", async () => {
+    // Bezpiecznik kontraktu: wołający, który poda sesję zamiast faktury,
+    // odtworzyłby podwójne księgowanie pierwszej wpłaty (audyt SUB-09).
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
+      donationId: "don-1",
+      subscriptionId: "sub_1",
+      invoiceId: "cs_sesja_1",
+    });
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("donations")).toHaveLength(0);
+    warned.mockRestore();
+  });
+});
+
+describe("subskrypcja darowizny - odmowa zapisu leci wyjątkiem", () => {
+  it("nieudane powiązanie subskrypcji z wierszem RZUCA - webhook zapisze `failed`", async () => {
+    scene.firstUpdate = fail("permission denied", "42501");
+
+    await expect(
+      linkDonationSubscription({
+        environment: "sandbox",
+        donationId: "don-1",
+        subscriptionId: "sub_1",
+      }),
+    ).rejects.toThrow("donation subscription link failed: permission denied");
+    expect(updates()).toHaveLength(1);
+  });
+
+  it("nieudane zamknięcie wiersza wygasłej subskrypcji RZUCA", async () => {
+    scene.firstUpdate = fail("deadlock detected", "40P01");
+
+    await expect(
+      syncDonationSubscription({
+        environment: "sandbox",
+        donationId: "don-1",
+        subscriptionId: "sub_1",
+        status: "canceled",
+      }),
+    ).rejects.toThrow("donation subscription cancel failed: deadlock detected");
+    expect(updates()[0]?.argsOf("update")?.[0]).toEqual({
+      provider_subscription_id: "sub_1",
+      recurring: true,
+      status: "canceled",
+    });
   });
 });

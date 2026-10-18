@@ -575,6 +575,62 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     });
   });
 
+  it("kod mieszczący się w limicie łącznego rabatu schodzi w całości i po równo z miejsc", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon_for_user",
+      ok([
+        {
+          ok: true,
+          coupon_id: COUPON_ID,
+          discount_cents: 3000,
+          final_cents: 27000,
+          discount_kind: "fixed",
+        },
+      ]),
+    );
+    // Kod -30 zł na miejsce, trzy miejsca. Limit 50% od ceny regularnej
+    // 360 zł (180 zł) - promocja zdjęła 60 zł, kodowi zostaje 120 zł,
+    // a chce 3 × 30 zł.
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 50 };
+
+    expect(
+      await applyEventTicketCoupon(client(), couponInput({ listCents: 36000, promoActive: true })),
+    ).toEqual({
+      ok: true,
+      couponId: COUPON_ID,
+      kind: "fixed",
+      percent: null,
+      discountCents: 9000,
+      finalCents: 21000,
+      perSeatCents: 3000,
+      capped: false,
+    });
+  });
+
+  it("bez ceny regularnej limit liczy się od kwoty zamówienia - promocja niczego z niego nie zjada", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon_for_user",
+      ok([
+        {
+          ok: true,
+          coupon_id: COUPON_ID,
+          discount_cents: 9000,
+          final_cents: 21000,
+          discount_kind: "percent",
+          discount_percent: 30,
+        },
+      ]),
+    );
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 25 };
+
+    expect(await applyEventTicketCoupon(client(), couponInput())).toMatchObject({
+      ok: true,
+      discountCents: 7500,
+      finalCents: 22500,
+      capped: true,
+    });
+  });
+
   it("stała odmowy liczby miejsc to nazwa, którą ekran mapuje na zdanie", () => {
     expect(SEATS_UNAVAILABLE).toBe("registration_not_payable:seats_unavailable");
   });
