@@ -111,7 +111,10 @@ export function EventImageDropzone({
           <div
             className={`mx-auto w-full overflow-hidden rounded-[6px] border border-border/60 ${fit === "contain" ? "bg-muted/40 p-3" : ""} ${aspectClassName}`}
           >
-            <img src={value} alt={label} className={`size-full ${fit === "contain" ? "object-contain" : "object-cover"}`}
+            <img
+              src={value}
+              alt={label}
+              className={`size-full ${fit === "contain" ? "object-contain" : "object-cover"}`}
             />
           </div>
         ) : undefined

@@ -108,13 +108,7 @@ export function AdminFormTextRow({
       {rows === undefined && (type === "date" || type === "datetime-local") ? (
         // Daty idą przez wspólny atom z kalendarzem platformy - natywny
         // kalendarz przeglądarki nie zna motywu ani języka panelu.
-        <DateInput
-          {...shared}
-          type={type}
-          min={min}
-          max={max}
-          autoFocus={autoFocus}
-        />
+        <DateInput {...shared} type={type} min={min} max={max} autoFocus={autoFocus} />
       ) : rows === undefined ? (
         endAdornment === undefined ? (
           <Input

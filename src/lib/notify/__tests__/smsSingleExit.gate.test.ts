@@ -303,5 +303,10 @@ describe("bramka jednego wyjścia SMS", () => {
     // pilnuje niczego.
     expect(singleExitSeen).toBe(true);
     expect(transportSeen).toBe(true);
-  });
+    // Skan całego drzewa src nie mieści się w globalnym `testTimeout` 20 s
+    // z zapasem: w shardzie CI trwał 14,8 s (b57d4872) i 15,0 s (27ee31c6),
+    // a na a4b6f921 przekroczył 20 s pod obciążeniem runnera; w izolacji
+    // lokalnie 9,8 s. Własna granica jak w pozostałych testach skanujących
+    // drzewo (np. onConflictArbiters) - asercje bez zmian.
+  }, 60_000);
 });
