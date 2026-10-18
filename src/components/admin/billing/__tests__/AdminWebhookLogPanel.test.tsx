@@ -19,8 +19,9 @@
 //      co w karcie subskrypcji klienta).
 //   4. ŁADUNEK POKAZUJE SIĘ W CAŁOŚCI I NIE WYWALA WIDOKU, gdy jest pusty
 //      albo nie jest obiektem.
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, webhookEvent } from "@/test/billing/fixtures";
 import type { WebhookEventRow } from "@/test/billing/fixtures";
@@ -129,7 +130,30 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  onlineManager.setOnline(true);
+});
+
 describe("AdminWebhookLogPanel - odczyt dziennika", () => {
+  // Odczyt wstrzymany bez sieci nie ma `isLoading` (to tylko „pobiera teraz"),
+  // ale też nie ma danych: panel ma mówić „wczytuję", a nie pokazywać
+  // statystykę „0 błędów" policzoną z niczego.
+  it("dziennik wstrzymany BEZ SIECI mówi „wczytuję”, bez statystyki z zer i bez pustej listy", async () => {
+    onlineManager.setOnline(false);
+    render();
+
+    expect(await screen.findByText("adminBilling.loading")).toBeTruthy();
+    expect(screen.queryByText(/adminBilling\.webhookStats/)).toBeNull();
+    expect(screen.queryByText("adminBilling.eventsTheseFilters")).toBeNull();
+    expect(h.chain!.chainsFor("payment_webhook_events")).toHaveLength(0);
+
+    // Po powrocie sieci dziennik wczytuje się sam.
+    onlineManager.setOnline(true);
+    await awaitRows();
+    expect(screen.queryByText("adminBilling.loading")).toBeNull();
+    expect(screen.getByText(/adminBilling\.webhookStats/)).toBeTruthy();
+  });
+
   it("czyta najnowsze zdarzenia z limitem, malejąco po dacie", async () => {
     render();
 

@@ -203,6 +203,9 @@ export function AdminBillingPanel() {
   });
 
   const rows = useMemo(() => subsQ.data ?? [], [subsQ.data]);
+  // Liczniki pokazują liczby WYŁĄCZNIE z udanego odczytu: przy błędzie, przed
+  // pierwszą odpowiedzią i przy odczycie wstrzymanym bez sieci - kreska.
+  // „0 aktywnych" przy niczym nie przeczytanym czyta się jak „nikt nie płaci".
   const stats = useMemo(() => {
     const active = rows.filter((r) => ["active", "trialing"].includes(r.status)).length;
     const dunning = rows.filter((r) => r.payment_failure_count > 0).length;
@@ -237,7 +240,7 @@ export function AdminBillingPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {subsQ.isError ? "-" : stats.active}
+            {subsQ.isSuccess ? stats.active : "-"}
           </CardContent>
         </Card>
         <Card>
@@ -247,7 +250,7 @@ export function AdminBillingPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {subsQ.isError ? "-" : stats.dunning}
+            {subsQ.isSuccess ? stats.dunning : "-"}
           </CardContent>
         </Card>
         <Card>
@@ -257,7 +260,7 @@ export function AdminBillingPanel() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {subsQ.isError ? "-" : stats.canceling}
+            {subsQ.isSuccess ? stats.canceling : "-"}
           </CardContent>
         </Card>
       </div>

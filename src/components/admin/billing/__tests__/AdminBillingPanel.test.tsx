@@ -17,8 +17,9 @@
 //      po stronie operatora (nowe konto, rotacja klucza).
 //   3. LINK DO PORTALU IDZIE DO WŁAŚCICIELA SUBSKRYPCJI, nigdy do administratora.
 //      Administrator nie widzi samego linku - jest jednorazowy i wrażliwy.
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub } from "@/test/billing/fixtures";
 import { uiLocale } from "@/lib/i18n/format";
@@ -184,6 +185,10 @@ beforeEach(() => {
   );
 });
 
+afterEach(() => {
+  onlineManager.setOnline(true);
+});
+
 describe("AdminBillingPanel - trzy liczniki na górze", () => {
   it("AKTYWNE liczy `active` i `trialing`, nic więcej", async () => {
     h.subs.current = [
@@ -240,6 +245,24 @@ describe("AdminBillingPanel - trzy liczniki na górze", () => {
     expect(counters()).toEqual(["-", "-", "-"]);
     // Żaden wiersz nie jest renderowany - panel nie wymyśla stanu.
     expect(document.querySelectorAll("tbody tr")).toHaveLength(0);
+  });
+
+  // Odczyt wstrzymany bez sieci nie ma `isLoading`, ale nie ma też danych.
+  // Liczniki „0 / 0 / 0" i „brak subskrypcji" byłyby wtedy zmyślone - jak przy
+  // błędzie odczytu: szkielet listy i kreski, dopóki nic nie przeczytano.
+  it("odczyt wstrzymany BEZ SIECI: szkielet i kreski, a nie „brak subskrypcji” i zera", async () => {
+    onlineManager.setOnline(false);
+    render();
+
+    await waitFor(() => expect(document.querySelector(".animate-pulse")).toBeTruthy());
+    expect(screen.queryByText("adminBilling.subscriptionsYet")).toBeNull();
+    expect(counters()).toEqual(["-", "-", "-"]);
+    expect(h.chain!.chainsFor("subscriptions")).toHaveLength(0);
+
+    // Po powrocie sieci odczyt rusza sam, a liczniki dostają liczby.
+    onlineManager.setOnline(true);
+    await waitFor(() => expect(counters()).toEqual(["1", "0", "0"]));
+    expect(document.querySelector(".animate-pulse")).toBeNull();
   });
 });
 

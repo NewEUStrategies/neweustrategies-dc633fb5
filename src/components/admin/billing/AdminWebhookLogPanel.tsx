@@ -201,12 +201,15 @@ export function AdminWebhookLogPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Błąd odczytu NIE jest pustym dziennikiem: dawniej „0 błędów" i „brak
-            zdarzeń dla tych filtrów" przy zapytaniu, które się nie udało. */}
-        {q.isError ? (
+            zdarzeń dla tych filtrów" przy zapytaniu, które się nie udało.
+            Statystyka liczy się wyłącznie z udanego odczytu - przed pierwszą
+            odpowiedzią (także wstrzymaną bez sieci) „0 błędów" byłoby zmyślone. */}
+        {q.isError && (
           <p role="alert" className="text-[0.8125rem] text-destructive">
             {q.error.message}
           </p>
-        ) : (
+        )}
+        {q.isSuccess && (
           <p className="text-[0.8125rem] text-muted-foreground">
             {t("adminBilling.webhookStats", {
               processed: stats.processed,

@@ -186,17 +186,19 @@ describe("AdminTicketOrdersPanel - lista bez danych", () => {
     expect(screen.getByRole("alert").textContent).toBe("adminBilling.couldLoadOrders");
   });
 
-  it("lista wstrzymana BEZ SIECI mówi „wczytuję”, a nie „brak zamówień biletowych”", async () => {
+  it("lista wstrzymana BEZ SIECI mówi „wczytuję”, bez „brak zamówień” i statystyki z zer", async () => {
     onlineManager.setOnline(false);
     renderWithQueryClient(<AdminTicketOrdersPanel />);
 
     expect(await screen.findByText("adminBilling.loadingOrders")).toBeTruthy();
     expect(screen.queryByText("adminBilling.ticketOrdersYet")).toBeNull();
+    expect(screen.queryByText(/adminBilling\.ticketStats/)).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
 
     // Po powrocie sieci lista wczytuje się sama i „wczytuję” znika.
     onlineManager.setOnline(true);
     expect(await screen.findByText("Decision Lab: energia")).toBeTruthy();
     expect(screen.queryByText("adminBilling.loadingOrders")).toBeNull();
+    expect(screen.getByText(/adminBilling\.ticketStats/).textContent).toContain('"paid":1');
   });
 });

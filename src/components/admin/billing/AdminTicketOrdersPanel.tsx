@@ -142,12 +142,14 @@ export function AdminTicketOrdersPanel() {
         {/* Błąd odczytu NIE jest pustą listą: dawniej obok „nie udało się
             wczytać" stało „brak zamówień biletowych" i statystyka z samych zer,
             a lista wstrzymana bez sieci (`isLoading` = fałsz) mówiła „brak
-            zamówień" zamiast „wczytuję" - jak oś czasu niżej. */}
-        {ordersQ.isError ? (
+            zamówień" zamiast „wczytuję" - jak oś czasu niżej. Statystyka liczy
+            się wyłącznie z udanego odczytu. */}
+        {ordersQ.isError && (
           <p role="alert" className="text-[0.8125rem] text-destructive">
             {t("adminBilling.couldLoadOrders")}
           </p>
-        ) : (
+        )}
+        {ordersQ.isSuccess && (
           <p className="text-[0.8125rem] text-muted-foreground">
             {t("adminBilling.ticketStats", {
               paid: stats.paidCount,
