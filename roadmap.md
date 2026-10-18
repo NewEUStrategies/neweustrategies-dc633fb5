@@ -1,5 +1,9 @@
 # Roadmap
 
+## Przewijanie menu hamburgera na telefonie
+
+- [ ] Ograniczyć wpływ wyszukiwarki do wnętrza przewijanego menu i sprawdzić przewijanie oraz zamykanie na telefonie.
+
 ## Weryfikacja PR #523
 
 - [x] Potwierdzić wszystkie commity i zakres scalenia PR #523: merge a807c8a27, cztery commity 288269ceb, ff5bd9a7e, 260ff2f24, 692907e1a; cztery ścieżki, końcowy hook i oba testy identyczne z końcem gałęzi PR; bez migracji bazy.
