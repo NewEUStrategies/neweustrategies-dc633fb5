@@ -1,4 +1,5 @@
 import type { Block } from "@/lib/blocks/types";
+import { str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { Video as VideoIcon } from "@/lib/lucide-shim";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
@@ -11,13 +12,15 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+// Pola czyta czytnik renderera (`str`): liczba w `url` to brak wideo (strona
+// nic nie narysuje), a obiekt w podpisie to pusty napis, nie „[object Object]".
 export function VideoBlock({ block, isActive, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const url = String(block.data.url ?? "");
-  const poster = String(block.data.poster ?? "");
-  const caption = String(block.data.caption ?? "");
-  const source = String(block.data.source ?? "");
-  const sourceUrl = String(block.data.sourceUrl ?? "");
+  const url = str(block.data, "url");
+  const poster = str(block.data, "poster");
+  const caption = str(block.data, "caption");
+  const source = str(block.data, "source");
+  const sourceUrl = str(block.data, "sourceUrl");
 
   if (!url) {
     return (

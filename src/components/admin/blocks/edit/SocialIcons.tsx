@@ -1,4 +1,6 @@
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
+import { toJson } from "@/lib/content-model/json";
+import { objList, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
@@ -10,36 +12,50 @@ interface Props {
   onChange: (next: Block) => void;
 }
 interface Item {
+  [key: string]: Json;
   platform: string;
   url: string;
 }
 
-const PLATFORMS = [
+/** Każda ikona, którą umie narysować `renderSocialIcons` (`SOCIAL_ICON_MAP`). */
+const PLATFORMS: readonly string[] = [
   "facebook",
   "x",
   "instagram",
   "youtube",
   "linkedin",
+  "spotify",
   "tiktok",
   "github",
   "mail",
   "rss",
-] as const;
+];
 
-/** Ikony socjalne (Gutenberg "Social Icons"). */
+/**
+ * Platforma tak, jak narysuje ją renderer: bez rozróżniania wielkości liter,
+ * stary alias „twitter" to X, a nieznana platforma dostaje ikonę zastępczą RSS.
+ */
+function shownPlatform(platform: string): string {
+  const key = platform.toLowerCase();
+  if (key === "twitter") return "x";
+  return PLATFORMS.includes(key) ? key : "rss";
+}
+
+/** Ikony socjalne (Gutenberg "Social Icons"). Pozycje czyta `objList`, jak renderer. */
 export function SocialIconsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const items: Item[] = Array.isArray(block.data.items)
-    ? (block.data.items as unknown as Item[])
-    : [];
-  const size = String(block.data.size ?? "md");
-  const align = String(block.data.align ?? "left");
+  const items: Item[] = objList(block.data, "items", (o) => ({
+    ...o,
+    platform: str(o, "platform"),
+    url: str(o, "url"),
+  }));
+  const rawSize = str(block.data, "size", "md");
+  const size = rawSize === "sm" || rawSize === "lg" ? rawSize : "md";
+  const rawAlign = str(block.data, "align", "left");
+  const align = rawAlign === "center" || rawAlign === "right" ? rawAlign : "left";
 
   const update = (next: Item[]) =>
-    onChange({
-      ...block,
-      data: { ...block.data, items: next as unknown as Block["data"][string] },
-    });
+    onChange({ ...block, data: { ...block.data, items: toJson(next) } });
 
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
@@ -73,7 +89,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
           <div key={i} className="grid grid-cols-[160px_1fr_auto] gap-2 items-center">
             <AdminSelect
               className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
-              value={it.platform}
+              value={shownPlatform(it.platform)}
               onChange={(e) => {
                 const next = [...items];
                 next[i] = { ...it, platform: e.target.value };
@@ -100,6 +116,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
               size="icon"
               variant="ghost"
               onClick={() => update(items.filter((_, j) => j !== i))}
+              aria-label={i18n.editor("common", "remove")}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Block } from "@/lib/blocks/types";
+import { str } from "@/components/blocks/renderer/data";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -26,7 +27,8 @@ const STATUS_LABEL: Readonly<Record<string, string>> = {
 };
 
 export function PollBlockEdit({ block, onChange }: Props) {
-  const pollId = String(block.data.pollId ?? "");
+  // Jak `renderPoll` (czytnik `str`): liczba czy obiekt to brak wybranej ankiety.
+  const pollId = str(block.data, "pollId");
   const pollsQ = useQuery({
     queryKey: ["admin", "blocks", "poll-choices"],
     queryFn: async (): Promise<PollChoice[]> => {
@@ -71,7 +73,14 @@ export function PollBlockEdit({ block, onChange }: Props) {
           To szkic: publicznie pojawi się dopiero po otwarciu ankiety.
         </p>
       )}
-      {pollId && !pollsQ.isLoading && !selected && (
+      {pollsQ.isError && (
+        <p role="alert" className="text-xs text-destructive">
+          Nie udało się wczytać ankiet - odśwież stronę albo spróbuj ponownie później.
+        </p>
+      )}
+      {/* Ostrzeżenie o usuniętej ankiecie TYLKO po udanym odczycie listy: przy
+          błędzie zapytania `selected` też jest puste, a ankieta może istnieć. */}
+      {pollId && pollsQ.isSuccess && !selected && (
         <p className="text-xs text-destructive">
           Wybrana ankieta już nie istnieje - blok nie wyrenderuje się publicznie.
         </p>

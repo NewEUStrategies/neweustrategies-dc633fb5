@@ -1,8 +1,14 @@
 // Foxiz-style Review Box editor.
+//
+// Odczyt `block.data` idzie przez TE SAME czytniki, co renderer publiczny
+// (`components/blocks/renderer/data.ts`), a ocena łączna liczy się jak w
+// `ReviewBlockView` (tylko kryteria z nazwą) - panel pokazuje to, co zobaczy
+// czytelnik, a nie „NaN" czy „[object Object]" z importu.
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/content-model/json";
 import type { Block, Json } from "@/lib/blocks/types";
+import { num, objList, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Star } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
@@ -17,28 +23,28 @@ interface Criterion {
   score: number;
 }
 
-function readCriteria(raw: Json | undefined): Criterion[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Criterion[] = [];
-  for (const x of raw) {
-    if (x && typeof x === "object" && !Array.isArray(x)) {
-      const o = x as Record<string, unknown>;
-      out.push({ label: String(o.label ?? ""), score: Number(o.score ?? 0) });
-    }
-  }
-  return out;
+/** Skale, które daje lista wyboru; inna (z importu) dochodzi jako dodatkowa opcja. */
+const SCALES: readonly number[] = [5, 10];
+
+function readCriteria(block: Block): Criterion[] {
+  return objList(block.data, "criteria", (o) => ({
+    label: str(o, "label"),
+    score: num(o, "score", 0),
+  }));
 }
 
 export function ReviewBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const title = String(block.data.title ?? "");
-  const summary = String(block.data.summary ?? "");
-  const ctaLabel = String(block.data.ctaLabel ?? "");
-  const ctaHref = String(block.data.ctaHref ?? "");
-  const scale = Math.max(5, Math.min(10, Number(block.data.scale ?? 10)));
-  const criteria = readCriteria(block.data.criteria);
+  const title = str(block.data, "title");
+  const summary = str(block.data, "summary");
+  const ctaLabel = str(block.data, "ctaLabel");
+  const ctaHref = str(block.data, "ctaHref");
+  const scale = Math.max(5, Math.min(10, num(block.data, "scale", 10)));
+  const scaleOptions = SCALES.includes(scale) ? SCALES : [...SCALES, scale].sort((a, b) => a - b);
+  const criteria = readCriteria(block);
 
-  const total = criteria.length ? criteria.reduce((a, c) => a + c.score, 0) / criteria.length : 0;
+  const rated = criteria.filter((c) => c.label.trim());
+  const total = rated.length ? rated.reduce((a, c) => a + c.score, 0) / rated.length : 0;
 
   const patch = (key: string, value: Json) =>
     onChange({ ...block, data: { ...block.data, [key]: value } });
@@ -74,8 +80,11 @@ export function ReviewBlock({ block, onChange }: Props) {
                 onChange={(e) => patch("scale", Number(e.target.value))}
                 className="bg-background border border-border rounded px-1 py-0.5"
               >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
+                {scaleOptions.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
               </AdminSelect>
             </label>
           </div>

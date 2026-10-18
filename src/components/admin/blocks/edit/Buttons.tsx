@@ -1,4 +1,6 @@
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
+import { toJson } from "@/lib/content-model/json";
+import { objList, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
@@ -11,24 +13,35 @@ interface Props {
   onChange: (next: Block) => void;
 }
 interface Item {
+  [key: string]: Json;
   label: string;
   href: string;
-  variant?: string;
 }
 
-/** Grupa przycisków (Gutenberg "Buttons"). */
+const VARIANTS: readonly string[] = ["default", "outline", "ghost"];
+const ALIGNS: readonly string[] = ["left", "center", "right"];
+
+/** Wartość listy wyboru tak, jak użyje jej renderer: spoza opcji - pierwsza (domyślna). */
+function pick(value: Json | undefined, options: readonly string[]): string {
+  return typeof value === "string" && options.includes(value) ? value : options[0];
+}
+
+/**
+ * Grupa przycisków (Gutenberg "Buttons"). Pozycje czyta ten sam czytnik co
+ * `renderButtons` (`objList`): `null` czy napis w liście są pomijane, zamiast
+ * wywracać kanwę na `null.label`. Pozostałe pola przycisku przechodzą bez zmian.
+ */
 export function ButtonsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const items: Item[] = Array.isArray(block.data.items)
-    ? (block.data.items as unknown as Item[])
-    : [];
-  const align = String(block.data.align ?? "left");
+  const items: Item[] = objList(block.data, "items", (o) => ({
+    ...o,
+    label: str(o, "label"),
+    href: str(o, "href"),
+  }));
+  const align = pick(block.data.align, ALIGNS);
 
   const update = (next: Item[]) =>
-    onChange({
-      ...block,
-      data: { ...block.data, items: next as unknown as Block["data"][string] },
-    });
+    onChange({ ...block, data: { ...block.data, items: toJson(next) } });
 
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
@@ -69,7 +82,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
             />
             <AdminSelect
               className="text-xs bg-background border border-border rounded px-2 py-1"
-              value={it.variant ?? "default"}
+              value={pick(it.variant, VARIANTS)}
               onChange={(e) => {
                 const next = [...items];
                 next[i] = { ...it, variant: e.target.value };
@@ -85,6 +98,7 @@ export function ButtonsBlock({ block, onChange }: Props) {
               size="icon"
               variant="ghost"
               onClick={() => update(items.filter((_, j) => j !== i))}
+              aria-label={i18n.editor("common", "remove")}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
