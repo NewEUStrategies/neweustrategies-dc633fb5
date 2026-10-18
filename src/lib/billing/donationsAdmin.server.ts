@@ -136,6 +136,36 @@ async function refundedCharge(
 }
 
 /**
+ * Które z podanych wpłat należą do najemcy (i środowiska) uzgodnienia - JEDEN
+ * odczyt na przebieg zamiast jednego na sesję. Lista sesji operatora jest
+ * wspólna dla instalacji, więc `metadata.donationId` bywa cudzym wierszem.
+ * Awaria odczytu degraduje się w JEDYNYM bezpiecznym kierunku: nic nie jest
+ * domykane po identyfikatorze, a raport mówi dlaczego.
+ */
+async function ownedDonationIdsOf(
+  supabase: Awaited<ReturnType<typeof admin>>,
+  tenantId: string,
+  environment: StripeEnv,
+  donationIds: string[],
+  report: DonationsSyncReport,
+): Promise<Set<string>> {
+  const unique = [...new Set(donationIds)];
+  if (unique.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from("donations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("environment", environment)
+    .in("id", unique);
+  if (error) {
+    report.warnings.push("donation_owner_lookup_failed");
+    console.error("[donations sync] donation owner lookup failed", error.message);
+    return new Set();
+  }
+  return new Set(data.map((row) => row.id));
+}
+
+/**
  * Sesja w trybie subskrypcji: wiąże subskrypcję z wierszem i księguje PIERWSZĄ
  * ratę z faktury sesji - kluczem `in_...`, tym samym, którym przychodzi
  * `invoice.paid`. Księgowanie samej sesji (`cs_...`) dawało drugi wiersz tej
@@ -319,6 +349,19 @@ export async function syncDonationsFromStripe(
       limit: 100,
     });
     if (sessions.has_more) report.warnings.push("sessions_page_limit");
+    const ownedDonationIds = await ownedDonationIdsOf(
+      supabase,
+      tenantId,
+      environment,
+      sessions.data.flatMap((session) =>
+        session.metadata?.purpose === "donation" &&
+        session.metadata.donationId &&
+        !knownSessionIds.has(session.id)
+          ? [session.metadata.donationId]
+          : [],
+      ),
+      report,
+    );
     for (const session of sessions.data) {
       if (session.metadata?.purpose !== "donation") continue;
       report.scannedSessions += 1;
@@ -327,6 +370,11 @@ export async function syncDonationsFromStripe(
       if (session.metadata?.donationId) {
         // Wiersz istnieje, ale ma jeszcze zapisany identyfikator tymczasowy.
         const donationId = session.metadata.donationId;
+        // Ta sama izolacja co przy imporcie niżej, ale dowodem jest WIERSZ, nie
+        // stempel (sesje sprzed stempla też niosą `donationId`): wpłata innego
+        // najemcy nie jest ani domykana, ani liczona, ani zgłaszana tutaj -
+        // domknie ją uzgodnienie jej własnego administratora.
+        if (!ownedDonationIds.has(donationId)) continue;
         let settled: boolean;
         if (session.mode === "subscription") {
           settled = await settleRecurringFromSession(session, donationId, environment);
@@ -346,6 +394,7 @@ export async function syncDonationsFromStripe(
           .from("donations")
           .update({ provider_session_id: session.id })
           .eq("id", donationId)
+          .eq("tenant_id", tenantId)
           .eq("environment", environment);
         if (settled) report.settled += 1;
         continue;

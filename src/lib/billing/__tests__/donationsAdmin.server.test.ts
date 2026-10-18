@@ -112,6 +112,8 @@ let rows: DonationRow[];
 let writeFailure: string | null;
 /** Wymuszona odmowa ODCZYTU wierszy osieroconych (`like 'pending:%'`). */
 let staleReadFailure: string | null;
+/** Wymuszona odmowa odczytu przynależności wpłat z sesji (`in("id", ...)`). */
+let ownershipReadFailure: string | null;
 /** PostgREST oddaje `null` zamiast pustej tablicy - osobny kształt odpowiedzi. */
 let nullReads: boolean;
 
@@ -193,6 +195,9 @@ function matches(row: DonationRow, recorded: RecordedChain): boolean {
     if (call.method === "eq" && fieldOf(row, column) !== value) return false;
     if (call.method === "neq" && fieldOf(row, column) === value) return false;
     if (call.method === "is" && fieldOf(row, column) !== value) return false;
+    if (call.method === "in" && !(Array.isArray(value) && value.includes(fieldOf(row, column)))) {
+      return false;
+    }
     if (call.method === "gte" && String(fieldOf(row, column)) < String(value)) return false;
     if (call.method === "lt") {
       const bound =
@@ -231,6 +236,7 @@ function respondDonations(recorded: RecordedChain): SupabaseResult {
   // Odczyt wierszy osieroconych rozpoznajemy po filtrze wzorcem - to jedyne
   // zapytanie tego modułu, które go używa.
   if (staleReadFailure && recorded.has("like")) return fail(staleReadFailure);
+  if (ownershipReadFailure && recorded.has("in")) return fail(ownershipReadFailure);
 
   const matched = rows.filter((row) => matches(row, recorded));
 
@@ -314,6 +320,7 @@ beforeEach(() => {
   rows = [];
   writeFailure = null;
   staleReadFailure = null;
+  ownershipReadFailure = null;
   nullReads = false;
 
   for (const fn of Object.values(h.fns)) fn.mockReset();
@@ -1198,6 +1205,122 @@ describe("wiarygodność raportu i izolacja tenanta", () => {
 
     expect(report.imported).toBe(1);
     expect(rows[0]).toMatchObject({ tenant_id: TENANT, provider_session_id: "cs_nasza_sierota" });
+  });
+
+  // DEFEKT NAPRAWIONY 18.10.2026 (`donationsAdmin.server.ts`, gałąź sesji
+  // z `metadata.donationId`).
+  //
+  // CO BYŁO ZŁE. Bramka stempla wyżej chroniła wyłącznie WSTAWIENIE. Sesja
+  // z identyfikatorem wpłaty szła prosto do `settleDonation` po samym `id`
+  // i przepisywała wierszowi `provider_session_id` - bez pytania, czyj to
+  // wiersz. Lista sesji jest wspólna dla instalacji, więc uzgodnienie
+  // administratora A domykało i przepisywało darowizny najemcy B, a raport A
+  // liczył je jako „domknięte" (każdą opłaconą wpłatę B z okna, przy każdym
+  // kliknięciu - ponowne domknięcie opłaconego wiersza też zwraca `true`).
+  //
+  // JAK ZOSTAŁO NAPRAWIONE. Identyfikatory wpłat z sesji idą JEDNYM odczytem
+  // zawężonym do najemcy i środowiska; wiersz spoza tego zbioru nie jest
+  // ruszany ani liczony.
+  it("sesja z identyfikatorem wpłaty CUDZEGO tenanta nie domyka jej wiersza ani nie podbija raportu", async () => {
+    rows = [
+      donationRow({
+        id: "don-beta",
+        tenant_id: FOREIGN_TENANT,
+        provider_session_id: "pending:beta",
+        status: "pending",
+      }),
+      donationRow({
+        id: "don-beta-oplacona",
+        tenant_id: FOREIGN_TENANT,
+        provider_session_id: "cs_beta_oplacona",
+        status: "paid",
+        paid_at: relativeIso(-2 * DZIEN),
+      }),
+    ];
+    h.fns.sessionsList.mockResolvedValue({
+      data: [
+        stripeSession({
+          id: "cs_beta",
+          metadata: { purpose: "donation", donationId: "don-beta", tenantId: FOREIGN_TENANT },
+        }),
+        // Sesja sprzed stempla najemcy - przynależność rozstrzyga wiersz.
+        stripeSession({
+          id: "cs_beta_oplacona",
+          metadata: { purpose: "donation", donationId: "don-beta-oplacona" },
+        }),
+      ],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect({ settled: report.settled, imported: report.imported }).toEqual({
+      settled: 0,
+      imported: 0,
+    });
+    expect(rowById("don-beta")).toMatchObject({
+      status: "pending",
+      provider_session_id: "pending:beta",
+      paid_at: null,
+    });
+    expect(rowById("don-beta-oplacona")).toMatchObject({ provider_session_id: "cs_beta_oplacona" });
+    expect(chain.chainsFor("donations").filter((c) => c.has("update"))).toHaveLength(0);
+    // Cudza sesja nie zostawia też śladu w raporcie klikającego.
+    expect(report.warnings).toEqual([]);
+    expect(h.fns.invalidateCache).not.toHaveBeenCalled();
+  });
+
+  it("identyfikatory wpłat z sesji sprawdza JEDEN odczyt zawężony do tenanta i środowiska", async () => {
+    rows = [
+      donationRow({ id: "don-1", provider_session_id: "pending:a", status: "pending" }),
+      donationRow({ id: "don-2", provider_session_id: "pending:b", status: "pending" }),
+    ];
+    // Zapis sesji po jej utworzeniu nie doszedł: wiersze znają tylko
+    // identyfikator tymczasowy, więc sesje nie są „znane" z kroku 1.
+    rows[0]!.created_at = relativeIso(-2 * GODZINA);
+    rows[1]!.created_at = relativeIso(-2 * GODZINA);
+    h.fns.sessionsList.mockResolvedValue({
+      data: [
+        stripeSession({ id: "cs_a", metadata: { purpose: "donation", donationId: "don-1" } }),
+        stripeSession({ id: "cs_b", metadata: { purpose: "donation", donationId: "don-2" } }),
+      ],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.settled).toBe(2);
+    expect(rowById("don-1")).toMatchObject({ status: "paid", provider_session_id: "cs_a" });
+    expect(rowById("don-2")).toMatchObject({ status: "paid", provider_session_id: "cs_b" });
+    const ownership = chain.chainsFor("donations").filter((c) => c.has("in") && !c.has("update"));
+    expect(ownership).toHaveLength(1);
+    expect(ownership[0]!.calls.filter((c) => c.method !== "select")).toEqual([
+      { method: "eq", args: ["tenant_id", TENANT] },
+      { method: "eq", args: ["environment", "sandbox"] },
+      { method: "in", args: ["id", ["don-1", "don-2"]] },
+    ]);
+  });
+
+  it("awaria odczytu przynależności nie domyka niczego i jest zgłaszana", async () => {
+    rows = [
+      donationRow({
+        id: "don-1",
+        provider_session_id: "pending:a",
+        status: "pending",
+        created_at: relativeIso(-2 * GODZINA),
+      }),
+    ];
+    h.fns.sessionsList.mockResolvedValue({
+      data: [stripeSession({ id: "cs_a", metadata: { purpose: "donation", donationId: "don-1" } })],
+      has_more: false,
+    });
+    ownershipReadFailure = "statement timeout";
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.settled).toBe(0);
+    expect(report.warnings).toContain("donation_owner_lookup_failed");
+    expect(rowById("don-1")).toMatchObject({ status: "pending", provider_session_id: "pending:a" });
   });
 });
 
