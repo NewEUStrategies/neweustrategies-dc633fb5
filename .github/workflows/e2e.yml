@@ -137,6 +137,9 @@ jobs:
           export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
           export E2E_SEEDED=1
           bun run test:e2e e2e/user-paths.spec.ts
+          # The seed has no builder header, so there is no menu button: the
+          # spec installs one for the seeded tenant and restores the row after.
+          PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-mobile-menu bun run test:e2e e2e/mobile-menu-scroll.spec.ts
           # Run after the other seeded journeys: popup settings are changed only
           # in this disposable stack and restored by the registration suite.
           PLAYWRIGHT_HTML_OUTPUT_DIR=playwright-report-registration bun run test:e2e e2e/popup-registration.spec.ts
@@ -149,6 +152,14 @@ jobs:
         with:
           name: playwright-report-seeded
           path: playwright-report/
+          retention-days: 7
+
+      - name: Upload mobile menu report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-menu-scroll-report
+          path: playwright-report-mobile-menu/
           retention-days: 7
 
       - name: Upload popup registration evidence

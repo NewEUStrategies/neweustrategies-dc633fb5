@@ -32,17 +32,13 @@ export function sanitizeSearchTerm(term: string): string {
   return term.replace(/[%,()*\\]/g, " ").trim();
 }
 
-async function searchSubjects(
-  kind: GrantSubjectKind,
-  term: string,
-): Promise<GrantSubjectOption[]> {
+async function searchSubjects(kind: GrantSubjectKind, term: string): Promise<GrantSubjectOption[]> {
   const uuid = isUuid(term);
   const safe = sanitizeSearchTerm(term);
   if (kind === "user") {
     const base = supabase.from("profiles").select("id, display_name, avatar_url, slug");
-    const { data, error } = await (uuid
-      ? base.eq("id", term)
-      : base.ilike("display_name", `%${safe}%`).order("display_name")
+    const { data, error } = await (
+      uuid ? base.eq("id", term) : base.ilike("display_name", `%${safe}%`).order("display_name")
     ).limit(10);
     if (error) throw error;
     return (data ?? []).map((row) => ({
@@ -79,9 +75,8 @@ async function searchSubjects(
     });
   }
   const base = supabase.from("crm_companies").select("id, name, email, logo_url");
-  const { data, error } = await (uuid
-    ? base.eq("id", term)
-    : base.ilike("name", `%${safe}%`).order("name")
+  const { data, error } = await (
+    uuid ? base.eq("id", term) : base.ilike("name", `%${safe}%`).order("name")
   ).limit(10);
   if (error) throw error;
   return (data ?? []).map((row) => ({
