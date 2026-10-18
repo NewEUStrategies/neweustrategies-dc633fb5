@@ -1,0 +1,113 @@
+# Rozdzial 18, czesc E: naglowek rozdzialu, 18.1, 18.11 (plan 17.15), 18.13 (plan wydania 14), 18.14, 18.15
+# oraz naglowek dokumentu wydania 14 (naglowek14.md). 18.11 z wynikow agentow planu (SYNC plan:N), jesli sa.
+import json, collections
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+SY = json.load(open(f'{S}/czesciowe14.json', encoding='utf-8'))['SYNC']
+POK = json.load(open(f'{S}/pokrycie14.json', encoding='utf-8'))['T']
+D = json.load(open(f'{S}/defekty14.json', encoding='utf-8'))
+R = json.load(open(f'{S}/rejestr-stan14.json', encoding='utf-8'))
+cl = lambda s: ' '.join(str(s or '').split()).replace('|', '/').replace('\u2014', '-').replace('\u2013', '-')
+skr = lambda s, n: (cl(s)[: n - 1].rsplit(' ', 1)[0] + '…') if len(cl(s)) > n else cl(s)
+pc = lambda a, b: f'{100 * a / b:.2f}'.replace('.', ',')
+lin, ins, fun, gal = pc(POK['Lc'], POK['L']), pc(POK['Sc'], POK['S']), pc(POK['Fc'], POK['F']), pc(POK['Bc'], POK['B'])
+licz = collections.Counter(x['waga'] for x in D)
+rc = collections.Counter(x['stan14'] for x in R)
+plan = {int(k.split(':')[1]): v for k, v in SY.items() if k.startswith('plan:') and v}
+
+TYTUL = '## 18. WYDANIE 14 - pokrycie bez bramki, moduły w jednym cyklu i produkcja, której CI nie sprawdza'
+o = []
+w = o.append
+w(TYTUL)
+w('')
+w(f'Pomiar na `346012635` (scalenie PR #518, 2026-10-17), okno od wydania 13 (`5b8c77c01`). Bez porównania z konkurencją (polecenie zespołu); dochodzą PageSpeed Insights desktop i mobile z rekomendacjami dla Speed Index oraz mapa powiązań i synchronizacji między modułami. Dane i narzędzia: `docs/audyt-ed14/`, weryfikacja: `scripts/audit/verify-edition-14.mjs`.')
+w('')
+w('### 18.1. Trzy rzeczy, które trzeba wiedzieć przed liczbami')
+w('')
+w(f'1. **Pokrycie spadło, bo zmieniły się zasady, a nie dlatego, że nowy kod jest bez testów.** Commit `c3f0c0e72` usunął 947 progów pokrycia per ścieżka, 27 bramek `check:*` i 215 plików testów, głównie macierze renderu. Linie spadły z 98,84% do {lin}%, a plików na zerze jest 61 zamiast 14 - 56 z nich straciło pokrycie razem z macierzami. Nowe 269 plików ma 95,57% linii, suita jest zielona (86 026 przypadków, 0 czerwonych). Liczba jest teraz uczciwsza, ale nie ma już nic, co zatrzyma nowy plik bez testu (18.3-18.5).')
+w('2. **Najpoważniejsze defekty i większość rozjazdów mają jedno źródło: produkcja dostaje kod i migracje drogą, której CI nie widzi.** Publikacja Lovable nie zależy od CI, `main` nie ma ochrony, migracje mają dwa pasy, a bramka pasów patrzy w jedną stronę. Jedyne porównanie repo z produkcją (post-deploy) przechodzi na zielono, niczego nie sprawdzając. Produkcja działa dziś na stanie, którego jedyny przebieg CI jest czerwony, a trzy migracje z kodem już w produkcji istnieją tylko w pasie, którego produkcja może nie mieć (18.8, 18.9).')
+w('3. **Speed Index desktop 2,7 s to białe klatki zimnego dokumentu i późna okładka, nie JavaScript.** Lighthouse 13 liczy SI z prawdziwej taśmy klatek, więc trafia w niego to, co FCP i LCP rozmywają: dokument rzadko przychodzi z brzegu, transformacje obrazów są zimne, a okładka hero jest za granicą `Suspense`, bo budżet jej rozgrzewki liczy się od wspólnych 600 ms. Cztery zmiany (cache dokumentu, cache `/media`, hero w pierwszym flushu, Early Hints) dają w warunkach lokalnych szacunkowo -1,7 do -2,0 s na desktopie (18.12).')
+w('')
+w(f'Defekty w skrócie: **{len(D)} nowych** (krytyczny {licz["krytyczny"]}, wysokich {licz["wysoki"]}, średnich {licz["sredni"]}, niskich {licz["niski"]}), a z rejestru {len(R)} defektów wydań 11-13 naprawiono {rc["naprawiony"]}, zmieniono {rc["zmieniony"]}, otwartych zostaje {rc["otwarty"]}. Obie regresje z wydania 13 (zaproszenia N-19-1 i zapis ustawień klubu N-16-1) są naprawione.')
+w('')
+open(f'{S}/r18e1.md', 'w', encoding='utf-8').write('\n'.join(o) + '\n')
+
+# ---------------- 18.11 ----------------
+o = []
+w = o.append
+w('### 18.11. Plan naprawczy wydania 13: co zrobiło okno')
+w('')
+ST_PL = {'wykonana': 'wykonana', 'czesciowo': 'częściowo', 'niewykonana': 'niewykonana', 'nie_dotyczy': 'nie dotyczy', 'wykonane': 'wykonane', 'niewykonane': 'niewykonane'}
+TYT = {1: 'Zaproszenia znowu działają', 2: 'Zapis ustawień klubu', 3: 'Main zielony i chroniony', 4: 'Pieniądze i dane między najemcami', 5: 'Wydajność wdrożenia publicznego',
+       6: 'Pełny SSR i czysty interfejs', 7: 'Decyzje RODO, które czekają od dwóch wydań', 8: 'Dowód, który dziś nie biegnie', 9: 'Moduł przejrzystości instytucjonalnej',
+       10: 'Treść i operacje wdrożenia (nie kod)', 11: 'Raporty kampanii z liczbami ze skryptu', 12: '45 zgłoszeń bez próby obalenia'}
+if plan:
+    sc = collections.Counter(v['status'] for v in plan.values())
+    w(f"Dwanaście pozycji planu z 17.15 sprawdził na `346012635` osobny agent na każdą pozycję, element po elemencie (defekt, znalezisko, plik), z dowodem i testem, który to przypina. Wynik: **wykonanych {sc['wykonana']}, częściowo {sc['czesciowo']}, niewykonanych {sc['niewykonana']}**" + (f", nie dotyczy {sc['nie_dotyczy']}" if sc['nie_dotyczy'] else '') + (f"; {12 - len(plan)} pozycji agenci nie zdążyli rozliczyć przed zamknięciem wydania" if len(plan) < 12 else '') + '.')
+    w('')
+    w('| # | Pozycja | Stan | Elementy wykonane / częściowo / nie | Najważniejsze |')
+    w('| --- | --- | --- | --- | --- |')
+    for i in range(1, 13):
+        v = plan.get(i)
+        if not v:
+            w(f'| {i} | {TYT[i]} | nie rozliczono | - | - |')
+            continue
+        ec = collections.Counter(e['status'] for e in v['elementy'])
+        w(f"| {i} | {TYT[i]} | **{ST_PL.get(v['status'], v['status'])}** | {ec['wykonane']} / {ec['czesciowo']} / {ec['niewykonane']} | {skr(v.get('uwagi'), 380)} |")
+    w('')
+else:
+    w('Rozliczenie dwunastu pozycji planu 17.15 przez agentów nie zakończyło się przed zamknięciem tego zapisu; stan pozycji dotkniętych przez defekty i rejestr wynika z 18.9 i 18.10 (pozycje 1 i 2 wykonane: N-19-1 i N-16-1 naprawione; pozycja 3 niewykonana: `main` bez ochrony i czerwony, 18.8).')
+    w('')
+open(f'{S}/r18e2.md', 'w', encoding='utf-8').write('\n'.join(o) + '\n')
+
+# ---------------- 18.13-18.15 ----------------
+o = []
+w = o.append
+w('### 18.13. Plan wydania 14: co robić i w jakiej kolejności')
+w('')
+w('Kolejność według tego, co chroni produkcję i dane, potem wydajność, potem dług dowodowy. Każda pozycja mówi, co zamyka.')
+w('')
+w('1. **Produkcja tylko z zielonego SHA.** Zastosować ruleset `main` (dziś tylko plik w `governance/release/`), publikację powiązać z wynikiem `Required release checks` (gałąź robocza Lovable i PR do `main` albo gałąź `production` przesuwana workflowem po sukcesie bramki), identyfikator wersji produkcji z SHA commita zamiast znacznika czasu. Post-deploy z sekretami `SUPABASE_URL` i `SUPABASE_PUBLISHABLE_KEY`, a brak sekretów na `main` jako czerwień, nie ostrzeżenie; warunek `!cancelled()` zamienić na `success()`. Zamyka: oś rozjazdów z 18.8 (wdrożenie).')
+w('2. **Pasy migracji w obie strony.** Rozszerzyć `check:migration-lanes` o kierunek supabase → drizzle: każda migracja supabase ma bliźniaka w dzienniku albo zapisaną decyzję. Przenieść do drizzle 22 migracje z 7-9 października, zaczynając od `20261007140300_subscriptions_tenant_from_owner`, `20261007140200_release_coupon_server_only` i `20261007100000_club_post_comments`, i potwierdzić na produkcji sondą `missing_schema_objects`/`missing_schema_columns`. Zamyka: N14-13-1, N14-13-2, N14-16-2, N14-CI-1.')
+w('3. **Dane osób i najemców.** N14-18-1: zbiorcze wycofanie zgody w zakresie „Wszystkie tenanty\" ma wycofywać per najemca albo raportować prawdziwą liczbę z RPC; wypis z newslettera ma cofać `crm_leads.marketing_consent` i zapisywać `crm_consent_log` (18.8, dane). N14-16-1: `club_post_create` ma wiązać `path` załącznika z katalogiem autora (`(storage.foldername(path))[1] = auth.uid()`). Test pgTAP dla każdego z trzech.')
+w('4. **Speed Index.** Rekomendacje 1-4 z 18.12 (rozwiązany HTML w cache dokumentu i rozgrzewanie `/` i `/en`, klucz cache `/media` z formatu, hero w pierwszym flushu z własnym budżetem, Early Hints na MISS), potem 6 i 8. Cel: SI desktop ≤ 1,8 s w PSI (wydajność ok. 97), następnie ≤ 1,311 s. Pomiar po każdej zmianie tym samym `pomiar14.mjs` i PSI.')
+w('5. **Dowód zamiast macierzy.** Jedna tania bramka w miejsce 947 progów: nowy plik `*.functions.ts`, `*.server.ts` i trasa `src/routes/**` musi mieć test, który go importuje. Testy zachowania dla 40 edytorów bloków (rodzinami: dane na wejściu → `onChange` na wyjściu), 5 pulpitów BI i 5 nowych plików na zerze (`settlementStatus.functions.ts`, `eventInvoiceFx.functions.ts`, `eventInvoiceVies.functions.ts`, `admin.billing-settlements.tsx`, `RangeScale.tsx`). Biblioteki po usuniętych bramkach (`publicRouteLoaders.ts`, `ownership.ts`, `migrationSplit*.ts`) usunąć albo przetestować.')
+w('6. **Siatki bezpieczeństwa, które dziś świecą na zielono.** `scheduler.yml` skonfigurować (zmienna i sekret) albo usunąć; sekrety `billing-nightly.yml`; `RESEND_WEBHOOK_SECRET` i bramka reputacji kampanii zamknięta przy braku webhooka; L2 cache dokumentu - wdrożyć magazyn zastępczy (KV albo Storage) albo zdjąć z kodu i dokumentacji twierdzenie, że działa; purge po zmianie motywu, ustawień i menu oraz po publikacji z harmonogramu.')
+w('7. **`main` zielony.** Atrapa routera w `clubThreadWorkspaceShell.test.tsx` bez `useHydrated` (18.15, komentarz na PR #519). Zamyka: czerwone `test-shards (1)` na `main` i na każdym PR.')
+w(f"8. **Rejestr.** {sum(1 for x in R if x['stan14'] == 'otwarty' and x['waga'] == 'wysoki')} otwartych wysokich z 18.10, w tym te w plikach, których okno nie dotknęło; N14-6-1 (wyszukiwanie głosowe) i średnie defekty z 18.9 per moduł.")
+w('')
+w('### 18.14. Rachunek sumienia wydania 14')
+w('')
+w('- **Bez etapu obalania.** Na polecenie zespołu tory nie miały osobnego agenta próbującego obalić defekt. Każdy agent sam sprawdzał swoje ustalenie i wpisywał pewność; 21 defektów jest „prawdopodobnych\". Krytyczny i wszystkie sześć wysokich przeczytałem w kodzie sam.')
+w('- **PSI ze zrzutów.** API PageSpeed Insights zwróciło 429 (limit dzienny wspólnego projektu), więc liczby PSI pochodzą ze zrzutów z 18.10.2026 11:30. Lokalny Lighthouse idzie z kontenera w USA przez proxy sesji, z dłuższym TTFB; służy do mechanizmu, nie do punktów.')
+w('- **Pomiar pokrycia z tymczasową konfiguracją.** Próg globalny był wyłączony plikiem spoza repozytorium (usuniętym po pomiarze), żeby czerwony próg nie ukrył wyniku shardu. Pierwsze scalenie raportów padło, bo Vitest 5 szuka blobów w `.vitest/blob`; scalenie powtórzyłem z jawną ścieżką na tych samych 12 shardach.')
+w('- **Limit sesji przerwał 31 z 84 agentów.** Wznowiłem je z pamięci podręcznej przepływów; ukończone wyniki nie przepadły, a przerwane przeszły ponownie od początku.')
+w('- **Stan migracji na produkcji jest nieznany.** Trzy najpoważniejsze defekty zależą od tego, czy pas supabase trafia na produkcję inną drogą. Z repozytorium nie da się tego ustalić - i to jest defekt, a nie luka w audycie.')
+if len(plan) < 12 or not SY.get('sync:dokumentacja') or not SY.get('sync:graf'):
+    w('- **Niedokończone śledztwa.** ' + ('Śledztwa synchronizacji „dokumentacja a kod\" i „graf zależności\" ' if not SY.get('sync:dokumentacja') or not SY.get('sync:graf') else '') + (f'oraz rozliczenie {12 - len(plan)} pozycji planu 17.15 ' if len(plan) < 12 else '') + 'nie zakończyły się przed zamknięciem tego zapisu; dojdą kolejnym commitem tej gałęzi.')
+w('- **Taksonomia ma łapacza.** Moduł 20 łapie `src/lib/**` i `src/routes/**` bez własnej reguły, więc część jego liczb (pokrycie, importy) to trasy i wspólne biblioteki bez właściciela. Cykl modułów sprawdziłem także bez łapacza (18.7).')
+w('')
+w('### 18.15. Jak sprawdzić to wydanie')
+w('')
+w('- `bun scripts/audit/verify-edition-14.mjs` - liczby i stany z tego rozdziału wobec drzew `346012635` i `5b8c77c01` czytanych z obiektów gita (działa na każdej gałęzi z tymi commitami w historii). `--zywe` sprawdza twierdzenia o kodzie na bieżącym katalogu roboczym: czerwień znaczy wtedy, że repozytorium poszło dalej.')
+w('- Pokrycie: `docs/audyt-ed14/narzedzia/shardy.sh.txt` (12 shardów i scalenie), potem `pokrycie14.mjs.txt` i `funkcjonalnosci14.mjs.txt`. Wynik w `pokrycie14.json`, `pokrycie14-delta.json`, `funkcjonalnosci14.json` i `przebieg14.json`.')
+w('- Graf i synchronizacja: `graf14.mjs.txt` i `graf14b.mjs.txt` (wynik w `graf14.json`, `graf14b.json`); śledztwa i mapy modułów w `agenci/migawka14.json`.')
+w('- Speed Index: `lh-pomiar14.mjs.txt <etykieta> https://neweuropeanstrategies.com/ desktop|mobile 5`, klatki `lh-klatki14.py.txt`; synteza `agenci/si-synteza14.json`, podsumowanie przebiegów `lighthouse/podsumowanie14.json`.')
+w('- Czerwone CI na PR #519: `bunx vitest run src/components/clubs/__tests__/clubThreadWorkspaceShell.test.tsx` na `main` daje 14 z 30 czerwonych (`No "useHydrated" export is defined on the "@tanstack/react-router" mock`), a z `useHydrated: () => true` w atrapie 30 z 30.')
+w('')
+open(f'{S}/r18e3.md', 'w', encoding='utf-8').write('\n'.join(o) + '\n')
+
+# ---------------- naglowek dokumentu ----------------
+h = []
+h.append(f'**WYDANIE 14 - pokrycie bez bramki, moduły w jednym cyklu i produkcja, której CI nie sprawdza.** Pomiar na `346012635` (scalenie PR #518, 2026-10-17), okno od wydania 13 (`5b8c77c01`): 1 604 commity, PR-y #467-#518. Kod produkcyjny +253 pliki i +97 129 wierszy, testy +169 plików mimo usunięcia 215. Mapę 428 funkcjonalności, powiązań i mechanizmów synchronizacji zbudowało 31 torów agentów od mapy wydania 13, bez etapu obalania; siedem najpoważniejszych defektów przeczytałem w kodzie sam. Po raz pierwszy: PageSpeed Insights z rekomendacjami dla Speed Index i mapa synchronizacji między modułami. Pełny rozbiór: **rozdział 18**.')
+h.append('')
+h.append(f'**Linie {lin}%, funkcje {fun}%, instrukcje {ins}%, gałęzie {gal}%** na 4 216 plikach w mianowniku (wydanie 13: 98,84 / 98,32 / 98,00 / 94,02; ten sam provider i ta sama reguła mianownika). Przebieg w dwunastu shardach: 3 421 pliki testowe, 86 026 przypadków, **zero czerwonych**, 51 pominiętych, zero naruszeń progu globalnego. Spadek to skutek decyzji: commit `c3f0c0e72` usunął 947 progów per ścieżka, 27 bramek `check:*` i 215 plików testów - plików na zerze jest 61 (było 14), z czego 56 straciło pokrycie razem z macierzami renderu. Nowy kod z okna ma 95,57% linii.')
+h.append('')
+h.append(f'**Nowych defektów: {len(D)}** (krytyczny {licz["krytyczny"]}, wysokich {licz["wysoki"]}, średnich {licz["sredni"]}, niskich {licz["niski"]}). Najpoważniejsze trzy mają wspólną przyczynę: migracje z 7-9 października są tylko w pasie supabase, a produkcję wdraża migrator drizzle - trigger najemcy subskrypcji, poprawka nadużycia kuponu B2B i komentarze ściany klubu mogą nie istnieć na produkcji, choć kod już z nich korzysta. Rejestr {len(R)} defektów wydań 11-13: naprawionych {rc["naprawiony"]}, zmienionych {rc["zmieniony"]}, otwartych {rc["otwarty"]}; obie regresje z wydania 13 naprawione. Wszystkie 26 obszarów kodu tworzy jedną silnie spójną składową importów, `main` nie ma ochrony, a produkcja działa na stanie z czerwonym CI.')
+h.append('')
+h.append('**PageSpeed Insights: desktop 94 (Speed Index 2,7 s, czerwony), mobile 98 (3,0 s).** Speed Index to jedyna czerwona metryka, bo Lighthouse 13 liczy go z prawdziwej taśmy klatek: białe klatki zimnego dokumentu (`x-nes-cache: MISS`, a trafienie bywa kopią zimnego strumienia), zimne transformacje `/media` i okładka hero za granicą `Suspense`, bo budżet jej rozgrzewki liczy się od wspólnych 600 ms. Cztery zmiany w kodzie i konfiguracji dają w warunkach lokalnych szacunkowo -1,7 do -2,0 s na desktopie; nieużywany JavaScript nie jest tu dźwignią.')
+open(f'{S}/naglowek14.md', 'w', encoding='utf-8').write('\n'.join(h) + '\n')
+for f in ('r18e1.md', 'r18e2.md', 'r18e3.md', 'naglowek14.md'):
+    t = open(f'{S}/{f}', encoding='utf-8').read()
+    assert '\u2014' not in t and '\u2013' not in t, f
+print('ok; plan rozliczony:', sorted(plan))

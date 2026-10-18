@@ -148,12 +148,10 @@ Dwie obserwacje z przekrojów, istotne dla mapy synchronizacji i dla Speed Index
 
 ## W toku
 
-- Mapa synchronizacji (7 obszarów) i rozliczenie 12 pozycji planu 17.15 - agenci kończą pracę.
-- Rozdział 18 dokumentu audytu, weryfikator, README i artefakt.
-- Tory agentów T1-T9: mapa każdego modułu względem wydania 13, powiązania i synchronizacja, nowe defekty,
-  rozliczenie rejestru 341 otwartych defektów (`rejestr-defektow14.json`). Bez etapu obalania.
-- Śledztwo Speed Index (4 ścieżki + synteza z rekomendacjami) i mapa synchronizacji z rozliczeniem planu 17.15.
-- Mediany Lighthouse (5 przebiegów na profil) po zakończeniu pomiaru pokrycia, z nagłówkiem `Accept-Language: pl`.
+- Rozliczenie 12 pozycji planu 17.15 i dwa ostatnie śledztwa synchronizacji (dokumentacja, graf) - agenci kończą pracę.
+- Weryfikator `scripts/audit/verify-edition-14.mjs`, README PL/EN i artefakt.
+
+Rozdział 18 jest już w `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md` (sekcja 18.11 czeka na agentów planu).
 
 ## Pliki
 

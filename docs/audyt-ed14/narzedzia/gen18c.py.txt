@@ -38,7 +38,7 @@ for profil, nazwa in (('desktop', 'Lighthouse lokalnie, desktop'), ('mobile', 'L
     if m:
         w(f"| {nazwa} (mediana z {m['n']}) | {round(m['perf'])} | - | - | - | {fmt(m['fcp'] / 1000)} s | {fmt(m['lcp'] / 1000)} s | {round(m['tbt'])} ms | {fmt(m['cls'], 3)} | **{fmt(m['si'] / 1000)} s** ({fmt(m['siMin'] / 1000)}-{fmt(m['siMax'] / 1000)}) |")
 w('')
-w('Lokalne przebiegi idą z kontenera w USA przez proxy sesji, więc mają dłuższy czas odpowiedzi serwera niż PSI i gorsze liczby bezwzględne. Służą do mechanizmu (ślad, klatki, kolejność zasobów), nie do porównania punktów z PSI.')
+w('Lokalne przebiegi idą z kontenera w USA przez proxy sesji, więc mają dłuższy czas odpowiedzi serwera niż PSI (mediana 4,6 s na desktopie i 1,0 s na mobile) i gorsze liczby bezwzględne. Służą do mechanizmu (ślad, klatki, kolejność zasobów), nie do porównania punktów z PSI. Jedną zależność widać w nich wprost: na desktopie SI idzie za czasem odpowiedzi serwera - przebiegi z TTFB 3,5 i 3,6 s mają SI 3,4 i 3,5 s, a przebieg z TTFB 5,7 s ma SI 5,2 s, przy FCP 0,7-0,9 s we wszystkich pięciu.')
 w('')
 w('**Dlaczego wynik jest wysoki, a Speed Index czerwony.** W Lighthouse 13 wagi wydajności to TBT 30, LCP 25, CLS 25, FCP 10 i SI 10. Na desktopie wszystko poza SI ma ocenę 1,0, a SI 2,7 s daje 0,35 - czerwony SI kosztuje 6,5 punktu (94 zamiast ok. 100). Na mobile SI 3,0 s jest już zielony (próg dobrej oceny 3,387 s). Dla odniesienia: SI 1,8 s na desktopie dałby 97 punktów, a 1,311 s (próg zielonego) 99.')
 w('')
