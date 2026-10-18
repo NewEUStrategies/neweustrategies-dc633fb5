@@ -37,6 +37,8 @@ interface EventImageDropzoneProps {
   subfolder: string;
   /** Klasa proporcji kafla podglądu. */
   aspectClassName?: string;
+  /** `contain` dla logotypów - nie przycina znaku, pokazuje go na tle karty. */
+  fit?: "cover" | "contain";
   className?: string;
 }
 
@@ -48,6 +50,7 @@ export function EventImageDropzone({
   onValueChange,
   subfolder,
   aspectClassName = "aspect-video",
+  fit = "cover",
   className,
 }: EventImageDropzoneProps) {
   const { t } = useTranslation();
@@ -106,9 +109,10 @@ export function EventImageDropzone({
       preview={
         hasImage ? (
           <div
-            className={`w-full overflow-hidden rounded-[6px] border border-border/60 ${aspectClassName}`}
+            className={`mx-auto w-full overflow-hidden rounded-[6px] border border-border/60 ${fit === "contain" ? "bg-muted/40 p-3" : ""} ${aspectClassName}`}
           >
-            <img src={value} alt={label} className="size-full object-cover" />
+            <img src={value} alt={label} className={`size-full ${fit === "contain" ? "object-contain" : "object-cover"}`}
+            />
           </div>
         ) : undefined
       }
