@@ -1,5 +1,9 @@
 // Wspólny model widoku "Stany rozliczeń i zwrotów" (klient + serwer).
 // Czyste funkcje bez zależności od bazy - testowane jednostkowo.
+import type { Database } from "@/integrations/supabase/types";
+
+/** Status zamówienia w bazie (enum `order_status`). */
+type OrderStatus = Database["public"]["Enums"]["order_status"];
 
 export const SETTLEMENT_STATUSES = [
   "pending",
@@ -11,8 +15,6 @@ export const SETTLEMENT_STATUSES = [
   "canceled",
 ] as const;
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[number];
-
-export const REFUND_JOB_STATES = ["pending", "processing", "done", "review", "failed"] as const;
 
 export interface SettlementFilter {
   status: SettlementStatus | "all";
@@ -27,29 +29,30 @@ export interface SettlementRow {
   createdAt: string;
   kind: string;
   status: SettlementStatus;
-  rawStatus: string;
   amountCents: number;
   refundedCents: number;
   currency: string;
-  environment: string | null;
+  environment: string;
   refundJobState: string | null;
   refundJobError: string | null;
   needsReview: boolean;
 }
 
-/** Stan rozliczenia: częściowy zwrot opłaconego zamówienia ma własny stan. */
+/**
+ * Stan rozliczenia: częściowy zwrot opłaconego zamówienia ma własny stan.
+ * Pełny zwrot zapisuje się jako `refunded` (`refunds.server.ts`); `paid`
+ * z kwotą zwrotu sięgającą kwoty zamówienia też czyta się jako „zwrócone".
+ * Każdy inny status bazy jest stanem rozliczenia wprost.
+ */
 export function deriveSettlementStatus(
-  rawStatus: string,
+  rawStatus: OrderStatus,
   amountCents: number,
   refundedCents: number,
 ): SettlementStatus {
   if (rawStatus === "paid" && refundedCents > 0) {
     return refundedCents >= amountCents && amountCents > 0 ? "refunded" : "partially_refunded";
   }
-  if (rawStatus === "cancelled") return "canceled";
-  return (SETTLEMENT_STATUSES as readonly string[]).includes(rawStatus)
-    ? (rawStatus as SettlementStatus)
-    : "pending";
+  return rawStatus;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
