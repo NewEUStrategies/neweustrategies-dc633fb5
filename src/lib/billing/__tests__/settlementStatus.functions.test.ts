@@ -444,6 +444,53 @@ describe("handler - filtr stanu przed oknem 500 wierszy", () => {
     expect(wynik.truncated).toBe(false);
   });
 
+  // Ten sam scenariusz dla KAŻDEGO stanu, nie tylko „zwróconych": 600 nowszych
+  // zamówień, które SQL umie odrzucić, przesłania starsze zamówienia w stanie.
+  // Bez zawężenia (albo z niepełnym - np. „opłacone" bez `lte` na zwrocie,
+  // „zwrot częściowy" bez `gt`) okno 501 wierszy wypełniają same zasłony,
+  // a podział w pamięci oddaje pustą listę.
+  const ZASLONY_I_CELE: Record<SettlementStatus, { zaslona: Wiersz; cele: Wiersz[] }> = {
+    pending: { zaslona: {}, cele: [{ status: "pending" }] },
+    processing: { zaslona: {}, cele: [{ status: "processing" }] },
+    // Zasłoną „opłaconych" jest opłacone ze zwrotem - ten sam status w bazie.
+    paid: {
+      zaslona: { refunded_amount_cents: 100 },
+      cele: [{ status: "paid" }, { status: "paid", amount_cents: 0 }],
+    },
+    partially_refunded: {
+      zaslona: {},
+      cele: [
+        { status: "paid", refunded_amount_cents: 100 },
+        { status: "paid", amount_cents: 0, refunded_amount_cents: 100 },
+      ],
+    },
+    refunded: {
+      zaslona: {},
+      cele: [
+        { status: "refunded", refunded_amount_cents: 4900 },
+        { status: "paid", refunded_amount_cents: 4900 },
+      ],
+    },
+    failed: { zaslona: {}, cele: [{ status: "failed" }] },
+    canceled: { zaslona: {}, cele: [{ status: "canceled" }] },
+  };
+
+  it.each(SETTLEMENT_STATUSES)(
+    "„%s”: zamówienia w stanie leżące za 600 nowszymi spoza stanu są w wyniku",
+    async (stan) => {
+      const { zaslona, cele } = ZASLONY_I_CELE[stan];
+      const zaslony = Array.from({ length: 600 }, () => zamowienie(zaslona));
+      const szukane = cele.map((c) => zamowienie(c));
+      baza([...zaslony, ...szukane]);
+
+      const wynik = await raport({ status: stan });
+
+      expect(wynik.rows.map((r) => r.id)).toEqual(szukane.map((z) => z.id));
+      expect(wynik.rows.every((r) => r.status === stan)).toBe(true);
+      expect(wynik.truncated).toBe(false);
+    },
+  );
+
   it("dla KAŻDEGO stanu wynik to dokładnie zamówienia, którym reguła nadaje ten stan", async () => {
     // Zawężenie w SQL nie może zgubić wiersza ani dołożyć cudzego: stany
     // zwrotu zależą od porównania kwot, którego PostgREST nie wyrazi, więc SQL

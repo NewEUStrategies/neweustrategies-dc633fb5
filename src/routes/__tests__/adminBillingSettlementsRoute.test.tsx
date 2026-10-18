@@ -167,6 +167,29 @@ describe("trasa /admin/billing-settlements - zakres pytania", () => {
     });
   });
 
+  it("pola filtra to wspólne atomy daty i listy - jedna oś wysokości i motyw pól", async () => {
+    // AGENTS.md: wspólne atomy daty/listy i tokeny rozmiaru. Surowe
+    // `<input type="date">` z własnym `h-9` stało obok listy na tokenie
+    // `--form-field-height` (na ekranie dotykowym 44 px) - rząd filtrów
+    // rozjeżdżał się, a natywny kalendarz nie szedł za ciemnym motywem.
+    await mount();
+    const pola = [
+      screen.getByLabelText("Od dnia"),
+      screen.getByLabelText("Do dnia"),
+      screen.getByLabelText("Status"),
+    ];
+
+    expect(pola.map((p) => p.getAttribute("data-slot"))).toEqual([
+      "platform-date",
+      "platform-date",
+      "platform-select",
+    ]);
+    for (const pole of pola) {
+      expect(pole).toHaveClass("platform-field");
+      expect(pole.className).not.toMatch(/(^|\s)h-\d/);
+    }
+  });
+
   it("lista stanów to „Wszystkie” i każdy stan rozliczenia, a wybór jedzie do serwera", async () => {
     await mount();
     const select = screen.getByLabelText("Status");
@@ -343,11 +366,18 @@ describe("trasa /admin/billing-settlements - wiersze", () => {
   });
 
   it("po angielsku: stany, zlecenia, znacznik i licznik z angielskiego słownika", async () => {
+    process.env.TZ = "Europe/Warsaw";
     await i18n.changeLanguage("en");
     h.report.mockResolvedValue(
       report({
         rows: [
-          row({ id: "en-1", status: "refunded", refundedCents: 4900, refundJobState: "completed" }),
+          row({
+            id: "en-1",
+            status: "refunded",
+            amountCents: 123456,
+            refundedCents: 123456,
+            refundJobState: "completed",
+          }),
           row({
             id: "en-2",
             status: "canceled",
@@ -367,6 +397,11 @@ describe("trasa /admin/billing-settlements - wiersze", () => {
     const pierwszy = within(await tableRow("en-1"));
     expect(pierwszy.getByText("Refunded")).toBeInTheDocument();
     expect(pierwszy.getByText("Done")).toBeInTheDocument();
+    // Kwoty i data idą za językiem panelu, nie tylko etykiety: kropka
+    // dziesiętna z przecinkiem tysięcy i dzień/miesiąc z zerem to en-GB -
+    // pl-PL dałoby „1234,56" i „1.10.2026".
+    expect(pierwszy.getAllByText(/1,234\.56/)).toHaveLength(2);
+    expect(pierwszy.getByText(/01\/10\/2026, 12:00/)).toBeInTheDocument();
     const drugi = within(await tableRow("en-2"));
     expect(drugi.getByText("Canceled")).toBeInTheDocument();
     expect(drugi.getByText("Needs review")).toBeInTheDocument();
