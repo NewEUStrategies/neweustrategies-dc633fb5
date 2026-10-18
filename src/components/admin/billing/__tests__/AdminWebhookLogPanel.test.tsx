@@ -381,6 +381,28 @@ describe("AdminWebhookLogPanel - podgląd ładunku", () => {
     expect(preview.has("maybeSingle")).toBe(true);
   });
 
+  it("ładunek przeczytany RAZ: zwinięcie i ponowne rozwinięcie wiersza nie pyta bazy drugi raz", async () => {
+    // Ładunek zdarzenia się nie zmienia (ponowienie czyta ten sam zapis), więc
+    // przeglądanie dziennika „rozwiń - zwiń - rozwiń" nie może za każdym razem
+    // ciągnąć kilkudziesięciu kB z bazy.
+    h.rows.current = [webhookEvent({ id: "a", payload: { marker: "pierwszy" } })];
+    render();
+    await awaitRows();
+    const previewReads = () =>
+      h.chain!.chainsFor("payment_webhook_events").filter((chain) => chain.has("maybeSingle"));
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+    await waitFor(() => expect(document.querySelector("pre")?.textContent).toContain("pierwszy"));
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+    await waitFor(() => expect(document.querySelector("pre")).toBeNull());
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    // Podgląd od razu z pamięci, bez stanu „wczytuję".
+    expect(document.querySelector("pre")?.textContent).toContain("pierwszy");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(previewReads()).toHaveLength(1);
+  });
+
   it("BŁĄD odczytu ładunku jest pokazany w podglądzie, a nie jako pusty ładunek", async () => {
     render();
     await awaitRows();

@@ -1501,6 +1501,99 @@ describe("strażnik i wyrównanie - przypadki brzegowe", () => {
     expect(writesOn("user_subscriptions")).toHaveLength(0);
     warn.mockRestore();
   });
+
+  // CENA Z API MA PIERWSZEŃSTWO PRZED CENĄ Z WIERSZA. Wyrównanie biegnie
+  // dlatego, że wiersz może jeszcze nie znać nowszego stanu - np. zmiany planu,
+  // którą zapisze dopiero nowsze zdarzenie. Plan z ceny wiersza oddałby
+  // klientowi po zmianie planu uprawnienie STAREGO planu aż do kolejnego
+  // zdarzenia; wiersz jest wyłącznie zapasem, gdy pozycja w API nie ma ceny
+  // z katalogu.
+  describe("wyrównanie - plan uprawnienia", () => {
+    /** Plany najemcy wg pary (warstwa, cykl) - tak, jak szuka ich `resolvePlanForPrice`. */
+    const PLANS: Record<string, string> = {
+      "member/month": "plan-plus-m",
+      "pro/month": "plan-pro-m",
+      "pro/year": "plan-pro-y",
+    };
+    const planForTier: TableResponder = (chain) => {
+      const eq = (column: string) =>
+        chain.calls.find((c) => c.method === "eq" && c.args[0] === column)?.args[1];
+      const id = PLANS[`${String(eq("tier_key"))}/${String(eq("interval"))}`];
+      return ok(id ? { id, tenant_id: "tenant-alfa", price_cents: 4900, currency: "PLN" } : null);
+    };
+
+    /** Subskrypcja w API z ceną `price` w jedynej pozycji. */
+    const remoteWithPrice = (price: Record<string, unknown>) => {
+      const remote = activeRemote();
+      const [item] = (remote.items as { data: Record<string, unknown>[] }).data;
+      return { ...remote, items: { data: [{ ...item, price }] } };
+    };
+
+    async function resyncEntitlement(price: Record<string, unknown>) {
+      subscriptionsTable([
+        storedSubscription({
+          price_id: "pro_monthly",
+          last_event_at: LATER,
+          last_event_id: "evt_nowsze",
+        }),
+      ]);
+      db.setResponse("access_plans", planForTier);
+      const entitlements = rowStore({
+        rows: [
+          // Stan sprzed wyrównania - zapis MUSI go zmienić, inaczej test nic nie dowodzi.
+          { id: "us-1", external_ref: "sub_atrapa_1", plan_id: "plan-stary", status: "canceled" },
+        ],
+        unique: ["external_ref"],
+      });
+      db.setResponse("user_subscriptions", (chain) => entitlements.respond(chain));
+      stripeApi.retrieve = async () => remoteWithPrice(price);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const outcome = await dispatchWebhookEvent({
+        eventId: "evt_starsze",
+        eventType: "subscription.updated",
+        data: subscriptionEvent(),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      });
+      warn.mockRestore();
+      return { outcome, entitlements };
+    }
+
+    it("plan uprawnienia z ceny w API operatora, nie z ceny zapisanej w wierszu", async () => {
+      const { outcome, entitlements } = await resyncEntitlement({
+        id: "pri_plus",
+        lookup_key: "plus_monthly",
+        product: "prod_plus",
+      });
+
+      expect(outcome).toBe("processed");
+      expect(entitlements.rows).toEqual([
+        expect.objectContaining({
+          external_ref: "sub_atrapa_1",
+          plan_id: "plan-plus-m",
+          status: "active",
+        }),
+      ]);
+    });
+
+    it("pozycja w API BEZ ceny z katalogu: plan z ceny zapisanej w wierszu", async () => {
+      const { outcome, entitlements } = await resyncEntitlement({
+        id: "pri_bez_klucza",
+        lookup_key: null,
+        product: "prod_atrapa",
+      });
+
+      expect(outcome).toBe("processed");
+      expect(entitlements.rows).toEqual([
+        expect.objectContaining({
+          external_ref: "sub_atrapa_1",
+          plan_id: "plan-pro-m",
+          status: "active",
+        }),
+      ]);
+    });
+  });
 });
 
 describe("zakładanie, zaległość i wyrównanie - stan zapisywany przez dyspozytor", () => {
