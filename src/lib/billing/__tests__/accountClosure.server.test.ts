@@ -422,7 +422,11 @@ describe("konto BEZ otwartej subskrypcji", () => {
 
     expect(result).toEqual({ canceled: 0, failed: [] });
     const lookup = db.current!.chainsFor("subscriptions").find((c) => !c.has("update"))!;
-    expect(lookup.argsOf("in")).toEqual(["status", ["active", "trialing", "past_due", "paused"]]);
+    // Ten sam zbiór co strażnik drugiej subskrypcji (`LIVE_PLAN_SUBSCRIPTION_STATUSES`).
+    expect(lookup.argsOf("in")).toEqual([
+      "status",
+      ["active", "trialing", "past_due", "unpaid", "paused"],
+    ]);
   });
 
   it.each(["past_due", "paused", "trialing"])(
@@ -435,6 +439,36 @@ describe("konto BEZ otwartej subskrypcji", () => {
       expect(result.canceled).toBe(1);
     },
   );
+
+  it("wiersz `unpaid` jest anulowany i potwierdzony mailem jak każdy żywy plan", async () => {
+    // Po wyczerpaniu ponowień operator może zostawić subskrypcję `unpaid`:
+    // faktury dalej powstają, a opłacenie ostatniej wznawia obciążenia karty.
+    // Wspólny zbiór „plan trwa i obciąża" (`LIVE_PLAN_SUBSCRIPTION_STATUSES`)
+    // ją obejmuje; zamknięcie konta pomijało ją w odczycie wierszy, więc bez
+    // trafienia w Search zostawała u operatora po usunięciu konta - i nigdy
+    // nie dostawała maila potwierdzającego.
+    seed({ rows: [subscription({ status: "unpaid" })] });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 1, failed: [] });
+    expect(provider.canceled).toEqual(["sub_stripe_1"]);
+    expect(updates()).toEqual([
+      {
+        status: "canceled",
+        cancel_at_period_end: false,
+        trial_ends_at: null,
+        updated_at: NOW_ISO,
+      },
+    ]);
+    expect(mail.sent).toEqual([
+      {
+        type: "subscription_canceled",
+        to: "profil-konta@example.org",
+        idempotencyKey: "subscription_canceled:account-closure:sub_stripe_1",
+      },
+    ]);
+  });
 
   it.each([
     ["brak identyfikatora", null],

@@ -26,6 +26,7 @@
 //
 // Moduł server-only (klucze bramki + service role).
 import type Stripe from "stripe";
+import { LIVE_PLAN_SUBSCRIPTION_STATUSES } from "@/lib/billing/planSubscriptionGuard";
 import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface AccountClosureResult {
@@ -35,7 +36,12 @@ export interface AccountClosureResult {
   failed: string[];
 }
 
-const OPEN_STATUSES = ["active", "trialing", "past_due", "paused"];
+/**
+ * Wiersze planu, które trzeba zamknąć - ten sam zbiór „plan trwa i obciąża"
+ * co strażnik drugiej subskrypcji. Własna lista pomijała `unpaid`, przy którym
+ * operator dalej wystawia faktury, a opłacenie ostatniej wznawia obciążenia.
+ */
+const OPEN_STATUSES = [...LIVE_PLAN_SUBSCRIPTION_STATUSES];
 
 /** Subskrypcja w tym stanie już nigdy nie obciąży karty. */
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["canceled", "incomplete_expired"]);
