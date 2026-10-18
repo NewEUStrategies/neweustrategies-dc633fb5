@@ -102,6 +102,11 @@ type SubscriptionProjection = Pick<
   | "current_period_end"
   | "cancel_at_period_end"
   | "provider_subscription_id"
+  // Kotwica karencji i ostatnia zapłata - z nich wynika, czy anulowanie było
+  // za brak płatności (dostęp skończyła karencja, nie koniec okresu).
+  | "current_period_start"
+  | "first_payment_failed_at"
+  | "last_payment_at"
 >;
 
 /** Wiersz z kluczem kursora - przebieg stronicuje `ORDER BY id`. */
@@ -128,6 +133,9 @@ function subscriptionRow(over: Partial<SubscriptionProjection> = {}): Subscripti
     current_period_end: "2026-08-21T12:00:00.000Z",
     cancel_at_period_end: false,
     provider_subscription_id: "sub_syntetyczna_1",
+    current_period_start: "2026-07-21T12:00:00.000Z",
+    first_payment_failed_at: null,
+    last_payment_at: "2026-07-21T12:00:00.000Z",
     ...over,
   };
 }
@@ -681,5 +689,113 @@ describe("ręczny przebieg z innym wyprzedzeniem NIE zużywa klucza przypomnieni
     expect(mail.sent[1]?.idempotencyKey).toBe(
       "subscription_renewal_reminder:sub_syntetyczna_1:2026-09-17",
     );
+  });
+});
+
+// PRZYPOMNIENIE O WYGAŚNIĘCIU MÓWI PRAWDĘ O KOŃCU DOSTĘPU. Anulowanie za brak
+// płatności zostawia w `subscriptions` koniec NIEOPŁACONEGO okresu operatora,
+// a dostęp skończyła karencja (SUB-03, `accessPeriodFromEvent`). Przebieg
+// wysyłał takiemu klientowi 3 dni przed tą datą „Twoja subskrypcja została
+// anulowana, a dostęp zakończy się 21 sierpnia - wznów ją" - choć dostęp
+// zgasł 4 sierpnia. To samo dla wypowiedzenia złożonego w trakcie windykacji.
+describe("przypomnienie o wygaśnięciu tylko wtedy, gdy dostęp kończy się w oknie", () => {
+  /** Odnowienie 21.07 nie przeszło - karencja 14 dni minęła 04.08, przed oknem. */
+  const NIEOPLACONE_ODNOWIENIE = {
+    current_period_start: "2026-07-21T12:00:00.000Z",
+    first_payment_failed_at: "2026-07-21T12:05:00.000Z",
+    last_payment_at: "2026-06-21T12:00:00.000Z",
+  } as const;
+
+  it("przebieg czyta kolumny, z których wynika koniec dostępu", async () => {
+    const stub = givenDb({ rows: [] });
+    await runBillingReminders(3, 200, NOW);
+
+    const columns = String(stub.lastChain("subscriptions")?.argsOf("select")?.[0]);
+    for (const column of ["current_period_start", "first_payment_failed_at", "last_payment_at"]) {
+      expect(columns).toContain(column);
+    }
+  });
+
+  it("anulowanie za brak płatności: dostęp zgasł z karencją - żadnego maila i żadnego licznika", async () => {
+    givenDb({ rows: [subscriptionRow({ status: "canceled", ...NIEOPLACONE_ODNOWIENIE })] });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    // Rekord nie jest „pominięty" (to sygnał awarii dla człowieka) - po prostu
+    // nie jest należny: koniec dostępu nie wypada w oknie przypomnienia.
+    expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+    expect(mail.sendTxEmail).not.toHaveBeenCalled();
+  });
+
+  it("wypowiedzenie złożone w trakcie windykacji: koniec dostępu wyznacza karencja, nie okres", async () => {
+    givenDb({
+      rows: [
+        subscriptionRow({
+          status: "past_due",
+          cancel_at_period_end: true,
+          ...NIEOPLACONE_ODNOWIENIE,
+        }),
+      ],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+    expect(mail.sendTxEmail).not.toHaveBeenCalled();
+  });
+
+  it("zaległość zapłacona przed anulowaniem to rezygnacja - dostęp do końca okresu, przypomnienie wychodzi", async () => {
+    // Kotwica karencji została, ale zapłata pokrywa bieżący okres
+    // (`paymentCoversPeriod`) - to nie jest anulowanie za brak płatności.
+    givenDb({
+      rows: [
+        subscriptionRow({
+          status: "canceled",
+          ...NIEOPLACONE_ODNOWIENIE,
+          last_payment_at: "2026-07-25T09:00:00.000Z",
+        }),
+      ],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 1, skipped: 0 });
+    expect(mail.sent[0]?.type).toBe("subscription_expiring");
+  });
+
+  it("karencja sięgająca końca okresu: dostęp kończy się w oknie, przypomnienie wychodzi", async () => {
+    // Pierwsza porażka 10.08 - karencja do 24.08 jest ucięta końcem okresu
+    // 21.08, więc data w mailu jest prawdziwa.
+    givenDb({
+      rows: [
+        subscriptionRow({
+          status: "canceled",
+          ...NIEOPLACONE_ODNOWIENIE,
+          first_payment_failed_at: "2026-08-10T12:00:00.000Z",
+        }),
+      ],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 1, skipped: 0 });
+  });
+
+  it("nieczytelna data końca okresu nie wyłącza przypomnienia - reguły nie da się policzyć", async () => {
+    givenDb({
+      rows: [subscriptionRow({ cancel_at_period_end: true, current_period_end: "nie-data" })],
+    });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 0, expiring: 1, skipped: 0 });
+  });
+
+  it("zaległość bez wypowiedzenia nadal dostaje przypomnienie o ODNOWIENIU (operator ponowi obciążenie)", async () => {
+    givenDb({ rows: [subscriptionRow({ status: "past_due", ...NIEOPLACONE_ODNOWIENIE })] });
+
+    const result = await runBillingReminders(3, 200, NOW);
+
+    expect(result).toEqual({ renewal: 1, expiring: 0, skipped: 0 });
   });
 });
