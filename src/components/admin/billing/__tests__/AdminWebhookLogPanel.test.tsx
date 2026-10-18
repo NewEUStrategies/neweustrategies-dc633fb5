@@ -105,14 +105,27 @@ beforeEach(() => {
   h.toastError.mockReset();
   h.chain = supabaseFromStub();
   h.rows.current = [webhookEvent()];
-  h.chain.setResponse("payment_webhook_events", () =>
-    h.readError.current
-      ? {
-          data: null,
-          error: Object.assign(new Error("permission denied"), { name: "PostgrestError" }),
-        }
-      : ok(h.rows.current),
-  );
+  h.chain.setResponse("payment_webhook_events", (chain) => {
+    if (h.readError.current) {
+      return {
+        data: null,
+        error: Object.assign(new Error("permission denied"), { name: "PostgrestError" }),
+      };
+    }
+    // Atrapa odpowiada jak PostgREST: wyłącznie kolumnami z `select(...)`.
+    // Pojedynczy wiersz (`maybeSingle`) to podgląd ładunku po identyfikatorze.
+    const columns = String(chain.argsOf("select")?.[0] ?? "")
+      .split(",")
+      .map((column) => column.trim());
+    const project = (row: WebhookEventRow) =>
+      Object.fromEntries(columns.map((column) => [column, row[column as keyof WebhookEventRow]]));
+    if (chain.has("maybeSingle")) {
+      const id = chain.calls.find((call) => call.method === "eq" && call.args[0] === "id")?.args[1];
+      const row = h.rows.current.find((candidate) => candidate.id === id);
+      return ok(row ? project(row) : null);
+    }
+    return ok(h.rows.current.map(project));
+  });
 });
 
 describe("AdminWebhookLogPanel - odczyt dziennika", () => {
@@ -308,6 +321,43 @@ describe("AdminWebhookLogPanel - filtry i statystyki", () => {
 });
 
 describe("AdminWebhookLogPanel - podgląd ładunku", () => {
+  // ŁADUNEK TO PEŁNE ZDARZENIE OPERATORA (kilka-kilkadziesiąt kB na wiersz).
+  // Lista czytała go dla wszystkich 300 wierszy przy każdym otwarciu i każdym
+  // odświeżeniu (`staleTime` 15 s), choć pokazuje go wyłącznie podgląd JEDNEGO
+  // rozwiniętego wiersza. Teraz lista go nie czyta, a podgląd dociąga ładunek
+  // tego jednego wiersza po identyfikatorze.
+  it("lista NIE czyta ładunków; podgląd dociąga ładunek JEDNEGO wiersza po identyfikatorze", async () => {
+    h.rows.current = [
+      webhookEvent({ id: "a", payload: { marker: "pierwszy" } }),
+      webhookEvent({ id: "b", payload: { marker: "drugi" } }),
+    ];
+    render();
+    await awaitRows();
+
+    const [list] = h.chain!.chainsFor("payment_webhook_events");
+    expect(String(list.argsOf("select")?.[0])).not.toContain("payload");
+    expect(h.chain!.chainsFor("payment_webhook_events")).toHaveLength(1);
+
+    fireEvent.click(screen.getAllByLabelText("adminBilling.showPayload")[1]);
+
+    await waitFor(() => expect(document.querySelector("pre")!.textContent).toContain("drugi"));
+    const preview = h.chain!.chainsFor("payment_webhook_events").at(-1)!;
+    expect(preview.argsOf("select")).toEqual(["payload"]);
+    expect(preview.calls).toContainEqual({ method: "eq", args: ["id", "b"] });
+    expect(preview.has("maybeSingle")).toBe(true);
+  });
+
+  it("BŁĄD odczytu ładunku jest pokazany w podglądzie, a nie jako pusty ładunek", async () => {
+    render();
+    await awaitRows();
+    h.readError.current = true;
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    await waitFor(() => expect(screen.getByText("permission denied")).toBeTruthy());
+    expect(document.querySelector("pre")).toBeNull();
+  });
+
   it("ładunek jest ukryty, dopóki operator go nie rozwinie", async () => {
     render();
     await awaitRows();

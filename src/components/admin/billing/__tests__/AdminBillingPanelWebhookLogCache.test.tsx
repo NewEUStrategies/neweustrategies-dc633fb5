@@ -73,17 +73,27 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { AdminBillingPanel } from "@/components/admin/billing/AdminBillingPanel";
 
-/** Odpowiedź PostgREST: każdy wiersz ograniczony do kolumn z `select(...)`. */
+/**
+ * Odpowiedź PostgREST: każdy wiersz ograniczony do kolumn z `select(...)`;
+ * `maybeSingle` (podgląd ładunku) to jeden wiersz po identyfikatorze.
+ */
 function projected(chain: RecordedChain) {
   const columns = String(chain.argsOf("select")?.[0] ?? "")
     .split(",")
     .map((column) => column.trim());
-  return ok(
-    h.rows.map((row) => Object.fromEntries(columns.map((column) => [column, row[column]]))),
-  );
+  const project = (row: Record<string, unknown>) =>
+    Object.fromEntries(columns.map((column) => [column, row[column]]));
+  if (chain.has("maybeSingle")) {
+    const id = chain.calls.find((call) => call.method === "eq")?.args[1];
+    const row = h.rows.find((candidate) => candidate.id === id);
+    return ok(row ? project(row) : null);
+  }
+  return ok(h.rows.map(project));
 }
 
-const webhookChains = () => h.chain!.chainsFor("payment_webhook_events");
+/** Odczyty LISTY dziennika (bez podglądu ładunku jednego wiersza). */
+const webhookChains = () =>
+  h.chain!.chainsFor("payment_webhook_events").filter((chain) => !chain.has("maybeSingle"));
 
 async function openEventLog() {
   renderWithQueryClient(<AdminBillingPanel />);
@@ -125,7 +135,11 @@ describe("AdminBillingPanel - dziennik zdarzeń nie dostaje cudzych, okrojonych 
     expect(within(eventRow()).getByText(/adminBilling\.attempts/).textContent).toContain("2");
 
     fireEvent.click(within(eventRow()).getByLabelText("adminBilling.showPayload"));
-    const payload = document.querySelector("pre")!;
+    const payload = await waitFor(() => {
+      const pre = document.querySelector("pre");
+      expect(pre).toBeTruthy();
+      return pre!;
+    });
     expect(JSON.parse(payload.textContent ?? "")).toEqual({
       id: "evt_1SyntetyczneZdarzenie",
       livemode: false,

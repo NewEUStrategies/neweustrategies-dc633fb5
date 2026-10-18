@@ -4,6 +4,11 @@
 // czas obsługi, powiązanie z użytkownikiem/subskrypcją i rozwijany podgląd
 // ładunku - tyle, żeby diagnoza „dlaczego zakup nie nadał uprawnień" nie
 // wymagała wchodzenia do bazy.
+//
+// ŁADUNEK NIE JEDZIE Z LISTĄ. To pełne zdarzenie operatora (kilka-kilkadziesiąt
+// kB na wiersz), a pokazuje go wyłącznie podgląd JEDNEGO rozwiniętego wiersza.
+// Lista czytała go dla wszystkich 300 wierszy przy każdym otwarciu
+// i odświeżeniu; teraz dociąga go `WebhookPayloadPreview` po identyfikatorze.
 import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -60,7 +65,6 @@ type WebhookLogRow = Pick<
   | "duration_ms"
   | "retry_count"
   | "last_retried_at"
-  | "payload"
 >;
 
 const STATUS_TONE: Record<string, string> = {
@@ -69,6 +73,42 @@ const STATUS_TONE: Record<string, string> = {
   skipped: "bg-muted text-muted-foreground",
   failed: "bg-destructive/10 text-destructive",
 };
+
+/**
+ * Podgląd ładunku JEDNEGO zdarzenia, czytany dopiero po rozwinięciu wiersza.
+ * Klucz pod kluczem dziennika: odświeżenie po ponowieniu obejmuje też podgląd.
+ * Ładunek zdarzenia się nie zmienia, więc raz przeczytany nie jest odpytywany
+ * ponownie przy powrocie do karty.
+ */
+function WebhookPayloadPreview({ id }: { id: string }) {
+  const { t } = useTranslation();
+  const q = useQuery({
+    queryKey: [...billingKeys.admin.paymentWebhookEvents(), "payload", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payment_webhook_events")
+        .select("payload")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      // Wiersz zniknął między listą a podglądem (retencja dziennika).
+      return data === null ? null : data.payload;
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  if (q.isError) {
+    return <p className="text-xs text-destructive">{q.error.message}</p>;
+  }
+  if (!q.isSuccess) {
+    return <p className="text-xs text-muted-foreground">{t("adminBilling.loading")}</p>;
+  }
+  return (
+    <pre className="max-h-72 overflow-auto rounded-[6px] bg-background p-3 text-[0.7rem] leading-relaxed">
+      {JSON.stringify(q.data, null, 2)}
+    </pre>
+  );
+}
 
 export function AdminWebhookLogPanel() {
   const { t, i18n } = useTranslation();
@@ -118,12 +158,12 @@ export function AdminWebhookLogPanel() {
       const { data, error } = await supabase
         .from("payment_webhook_events")
         .select(
-          "id,event_id,event_type,status,environment,error,subscription_id,customer_id,user_id,occurred_at,created_at,processed_at,duration_ms,retry_count,last_retried_at,payload",
+          "id,event_id,event_type,status,environment,error,subscription_id,customer_id,user_id,occurred_at,created_at,processed_at,duration_ms,retry_count,last_retried_at",
         )
         .order("created_at", { ascending: false })
         .limit(300);
       if (error) throw error;
-      return (data ?? []) satisfies WebhookLogRow[];
+      return data satisfies WebhookLogRow[];
     },
     staleTime: 15_000,
   });
@@ -306,7 +346,7 @@ export function AdminWebhookLogPanel() {
                               {t("adminBilling.retry2")}
                             </Button>
                           )}
-                          {(row.retry_count ?? 0) > 0 && (
+                          {row.retry_count > 0 && (
                             <span className="mt-1 block text-[0.7rem] text-muted-foreground">
                               {t("adminBilling.attempts")}: {row.retry_count} ·{" "}
                               {fmt(row.last_retried_at)}
@@ -340,15 +380,13 @@ export function AdminWebhookLogPanel() {
                                 </dt>
                                 <dd className="inline">
                                   {t("adminBilling.key")} {row.event_id.slice(0, 12)}… ·{" "}
-                                  {(row.retry_count ?? 0) === 0
+                                  {row.retry_count === 0
                                     ? t("adminBilling.retries")
                                     : t("adminBilling.retriesCount", { count: row.retry_count })}
                                 </dd>
                               </div>
                             </dl>
-                            <pre className="max-h-72 overflow-auto rounded-[6px] bg-background p-3 text-[0.7rem] leading-relaxed">
-                              {JSON.stringify(row.payload, null, 2)}
-                            </pre>
+                            <WebhookPayloadPreview id={row.id} />
                           </td>
                         </tr>
                       )}
