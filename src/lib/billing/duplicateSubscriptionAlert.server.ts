@@ -295,7 +295,7 @@ async function donationSubscriptionIds(
     return new Set();
   }
   return new Set(
-    (Array.isArray(data) ? data : [])
+    data
       .map((row) => row.provider_subscription_id)
       .filter((id): id is string => typeof id === "string" && id !== ""),
   );
@@ -467,12 +467,11 @@ export async function alertOnUnmirroredPlanSubscription(
   if (!isEntitledSubscriptionStatus(input.status)) {
     return [{ kind: "skipped", reason: "not_entitled" }];
   }
-  const priceId = input.priceId;
-  // Cena spoza katalogu planów to nie plan (inny produkt na tym samym koncie
-  // operatora) - alarm o „drugim planie" byłby fałszywy.
-  if (!priceId || !catalogEntryByPriceId(priceId)) {
-    return [{ kind: "skipped", reason: "not_a_plan" }];
-  }
+  // Cena spoza katalogu planów (albo bez `lookup_key`) to nie plan - inny
+  // produkt na tym samym koncie operatora; alarm o „drugim planie" byłby fałszywy.
+  const plan = catalogEntryByPriceId(input.priceId);
+  if (!plan) return [{ kind: "skipped", reason: "not_a_plan" }];
+  // Ładunek bez klienta (normalizacja zdarzenia daje wtedy "") - nie ma kogo szukać.
   if (!input.customerId) return [{ kind: "skipped", reason: "unknown_customer" }];
 
   let rows: { provider_subscription_id: string; user_id: string; tenant_id: string }[];
@@ -499,9 +498,9 @@ export async function alertOnUnmirroredPlanSubscription(
   if (rows.some((row) => row.provider_subscription_id === input.subscriptionId)) {
     return [{ kind: "skipped", reason: "mirrored" }];
   }
+  // `user_id` i `tenant_id` są w `subscriptions` NOT NULL - każdy wiersz ma właściciela.
   const owners = new Map<string, { userId: string; tenantId: string }>();
   for (const row of rows) {
-    if (!row.user_id || !row.tenant_id) continue;
     owners.set(`${row.tenant_id}:${row.user_id}`, { userId: row.user_id, tenantId: row.tenant_id });
   }
   if (owners.size === 0) {
@@ -522,7 +521,7 @@ export async function alertOnUnmirroredPlanSubscription(
         userId: owner.userId,
         tenantId: owner.tenantId,
         environment: input.environment,
-        priceId,
+        priceId: plan.priceId,
         status: input.status,
         purpose: input.purpose ?? null,
         unmirrored: true,
@@ -532,32 +531,21 @@ export async function alertOnUnmirroredPlanSubscription(
   return outcomes;
 }
 
-/** Rejestracja pracy w tle; błąd rejestracji to log, nigdy wyjątek. */
-function inBackground(subscriptionId: string, work: () => Promise<unknown>): void {
-  try {
-    runAfterResponse(work());
-  } catch (err) {
-    console.error("[payments] duplicate plan subscription check not scheduled", {
-      subscriptionId,
-      error: errorMessage(err),
-    });
-  }
-}
-
 /**
  * Wejście z webhooka (zajęcie potwierdzenia zakupu): sprawdzenie biegnie ZA
  * odpowiedzią (`ctx.waitUntil`), więc nie wydłuża obsługi zdarzenia, a jego
- * błąd nie wraca do wołającego. Nigdy nie rzuca.
+ * błąd nie wraca do wołającego. Nigdy nie rzuca: `runAfterResponse` nie rzuca
+ * z konstrukcji, a sprawdzenie zamienia każdy błąd na log i wynik `failed`.
  */
 export function scheduleDuplicatePlanSubscriptionAlert(
   input: DuplicatePlanSubscriptionInput,
 ): void {
-  inBackground(input.subscriptionId, () => alertOnDuplicatePlanSubscription(input));
+  runAfterResponse(alertOnDuplicatePlanSubscription(input));
 }
 
-/** Wejście z webhooka dla subskrypcji bez `metadata.userId`. Nigdy nie rzuca. */
+/** Wejście z webhooka dla subskrypcji bez `metadata.userId`. Nigdy nie rzuca (jak wyżej). */
 export function scheduleUnmirroredPlanSubscriptionAlert(
   input: UnmirroredPlanSubscriptionInput,
 ): void {
-  inBackground(input.subscriptionId, () => alertOnUnmirroredPlanSubscription(input));
+  runAfterResponse(alertOnUnmirroredPlanSubscription(input));
 }
