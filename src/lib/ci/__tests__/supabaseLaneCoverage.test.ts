@@ -8,6 +8,7 @@ import {
   DRIZZLE_DIR,
   SUPABASE_DIR,
   executableSql,
+  listSqlOrEmpty,
   readFileOrNull,
   type JournalEntry,
   type LaneEntry,
@@ -26,6 +27,22 @@ import {
   type SupabaseCoverageOptions,
   type SupabaseLaneGap,
 } from "@/lib/ci/supabaseLaneCoverage";
+
+/**
+ * Niezmienniki rejestru, które mają przetrwać kopię dopisaną przez panel
+ * Lovable prosto na `main`: każdy raportowany brak jest wpisem `pending`,
+ * a wpis `pending`, którego nie ma w raporcie, czeka „do usunięcia".
+ */
+function pendingInvariants(
+  report: ReturnType<typeof analyzeSupabaseCoverage>,
+  registry: readonly SupabaseLaneGap[],
+): void {
+  const registered = registry.filter((g) => "pending" in g).map((g) => g.file);
+  const reported = report.pending.map((p) => p.file);
+  const stale = new Set(report.stale.map((s) => s.file));
+  expect(reported.every((f) => registered.includes(f))).toBe(true);
+  expect(registered.filter((f) => !reported.includes(f)).every((f) => stale.has(f))).toBe(true);
+}
 
 describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
   const files: Record<string, string> = {
@@ -139,6 +156,102 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     expect(justified.consolidated).toBe(1);
     expect(justified.stale.map((s) => s.file)).toEqual(["20261001000200_bundled.sql"]);
     expect(justified.stale[0]!.detail).toContain("DROP TABLE public.nigdy");
+    // Zbędny prefiks nie czerwieni - wynik i raport zostają zielone.
+    expect(supabaseCoverageFailed(justified)).toBe(false);
+    expect(renderSupabaseCoverage(justified)).toMatch(/^✓/);
+  });
+
+  it("`uncovered` nie zwalnia z pomiaru: instrukcja spoza zestawienia i spoza wyjątków nadal czerwieni", () => {
+    const readExtra = (p: string) =>
+      p === `${SUPABASE_DIR}/20261001000200_bundled.sql`
+        ? "ALTER TABLE public.c ADD COLUMN x int;\nDO $$ BEGIN RAISE NOTICE 'x'; END $$;\nGRANT SELECT ON public.z TO anon;"
+        : read(p);
+    for (const uncovered of [["DO $$ BEGIN RAISE NOTICE"], []]) {
+      const r = run({
+        read: readExtra,
+        gaps: [
+          { file: "20261001000200_bundled.sql", coveredBy: ["0302_bundle"], uncovered, reason: "" },
+          gaps[1]!,
+        ],
+      });
+      expect(kinds(r)).toEqual(["niezmierzone-pokrycie:20261001000200_bundled.sql"]);
+    }
+  });
+
+  it("wpis z samych wyjątków `uncovered` albo z pustym prefiksem niczego nie pokrywa", () => {
+    const allSwallowed = run({
+      gaps: [
+        {
+          file: "20261001000200_bundled.sql",
+          coveredBy: ["0300_copied"],
+          uncovered: ["ALTER TABLE public.c"],
+          reason: "",
+        },
+        gaps[1]!,
+      ],
+    });
+    expect(kinds(allSwallowed)).toEqual(["niezmierzone-pokrycie:20261001000200_bundled.sql"]);
+    expect(allSwallowed.violations[0]!.detail).toContain("ŻADNEJ instrukcji");
+    const emptyPrefix = run({
+      gaps: [
+        {
+          file: "20261001000200_bundled.sql",
+          coveredBy: ["0302_bundle"],
+          uncovered: [" "],
+          reason: "",
+        },
+        gaps[1]!,
+      ],
+    });
+    expect(kinds(emptyPrefix)).toEqual(["niezmierzone-pokrycie:20261001000200_bundled.sql"]);
+  });
+
+  it("prefiks `uncovered` trafia w granicę słowa: `CREATE TRIGGER x` nie przepuszcza `CREATE TRIGGER x_v2`", () => {
+    const readTrigger = (p: string) =>
+      p === `${SUPABASE_DIR}/20261001000200_bundled.sql`
+        ? "ALTER TABLE public.c ADD COLUMN x int;\nCREATE TRIGGER x_v2 AFTER UPDATE ON t FOR EACH ROW EXECUTE FUNCTION f();"
+        : read(p);
+    const gap = (uncovered: string[]): SupabaseLaneGap[] => [
+      { file: "20261001000200_bundled.sql", coveredBy: ["0302_bundle"], uncovered, reason: "" },
+      gaps[1]!,
+    ];
+    expect(kinds(run({ read: readTrigger, gaps: gap(["CREATE TRIGGER x "]) }))).toEqual([
+      "niezmierzone-pokrycie:20261001000200_bundled.sql",
+    ]);
+    expect(run({ read: readTrigger, gaps: gap(["CREATE TRIGGER x_v2 "]) }).violations).toEqual([]);
+  });
+
+  it("ponowny przebieg z tym samym SQL-em co starszy plik potrzebuje WŁASNEJ kopii - jeden wpis dziennika pokrywa jeden plik", () => {
+    const rerun = "20261001000500_copied_rerun.sql";
+    const withRerun: Record<string, string> = {
+      ...files,
+      [`${SUPABASE_DIR}/${rerun}`]:
+        "-- ten sam przebieg co 20261001000000\nREVOKE ALL ON public.a FROM anon;",
+      [`${DRIZZLE_DIR}/0303_copied_rerun.sql`]: "REVOKE ALL ON public.a FROM anon;",
+    };
+    const readRerun = (p: string) => withRerun[p] ?? null;
+    const listRerun = () => [...listWithoutNew(), rerun].sort();
+    const alone = run({ read: readRerun, listSupabase: listRerun });
+    expect(kinds(alone)).toEqual([`brak-kopii-drizzle:${rerun}`]);
+    const copied = analyzeSupabaseCoverage([...journal, "0303_copied_rerun"], {
+      ...base,
+      read: readRerun,
+      listSupabase: listRerun,
+    });
+    expect(copied.violations).toEqual([]);
+    expect(copied.twins).toBe(3);
+  });
+
+  it("przesłonięty duplikat wpisu `twin` niczego nie pokrywa - kierunek prosty sprawdza tylko ostatni", () => {
+    const r = run({
+      listSupabase: listAll,
+      lanes: [
+        { tag: "0300_copied", twin: "20261101000400_new.sql" },
+        ...lanes,
+        { tag: "0300_copied", twin: "20261001000000_copied.sql" },
+      ],
+    });
+    expect(kinds(r)).toEqual(["brak-kopii-drizzle:20261101000400_new.sql"]);
   });
 
   it("`coveredBy` musi wskazywać tag z dziennika - sierota ani pusta lista niczego nie pokrywają", () => {
@@ -160,9 +273,23 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
       listSupabase: listAll,
       gaps: [...gaps, { file: "20261101000400_new.sql", pending: "port później" }],
     });
-    expect(SUPABASE_LANE_GAPS_CLOSED_FROM <= "20261101000400").toBe(true);
+    expect(SUPABASE_LANE_GAPS_CLOSED_FROM).toBe("20261018100000");
     expect(kinds(r)).toEqual(["zamkniety-rejestr:20261101000400_new.sql"]);
     expect(r.pending.map((p) => p.file)).toEqual(["20261001000300_known_gap.sql"]);
+    // `uncovered` też jest zamknięte - wyjątek z samych wyjątków byłby cichym `pending`.
+    const withUncovered = run({
+      listSupabase: listAll,
+      gaps: [
+        ...gaps,
+        {
+          file: "20261101000400_new.sql",
+          coveredBy: ["0300_copied"],
+          uncovered: ["REVOKE ALL ON public.d"],
+          reason: "",
+        },
+      ],
+    });
+    expect(kinds(withUncovered)).toEqual(["zamkniety-rejestr:20261101000400_new.sql"]);
   });
 
   it("wpis dla pliku, którego nie ma w pasie supabase, i wpis sprzed startu pasa czerwienią", () => {
@@ -198,6 +325,23 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     expect(renderSupabaseCoverage(r)).toContain(
       "DO USUNIĘCIA Z SUPABASE_LANE_GAPS (2, bez czerwieni)",
     );
+    expect(supabaseCoverageFailed(r)).toBe(false);
+    expect(renderSupabaseCoverage(r)).toMatch(/^✓/);
+  });
+
+  it("kopia z panelu dla pliku `pending`: bramka i niezmienniki self-testu zostają zielone", () => {
+    const withPanelCopy: Record<string, string> = {
+      ...files,
+      [`${DRIZZLE_DIR}/0304_known_gap.sql`]: "CREATE INDEX c_x ON public.c (x);",
+    };
+    const r = analyzeSupabaseCoverage([...journal, "0304_known_gap"], {
+      ...base,
+      read: (p) => withPanelCopy[p] ?? null,
+    });
+    expect(r.violations).toEqual([]);
+    expect(r.pending).toEqual([]);
+    expect(r.stale.map((s) => s.file)).toEqual(["20261001000300_known_gap.sql"]);
+    pendingInvariants(r, gaps);
   });
 
   it("zbiór sprzed pasa jest zamrożony: plik z cofniętą wersją czerwieni zamiast przejść bokiem", () => {
@@ -212,6 +356,15 @@ describe("pokrycie pasa supabase w dzienniku drizzle (syntetycznie)", () => {
     // Nazwa spoza konwencji też należy do zamrożonego zbioru, a nie znika z oczu.
     const misnamed = run({ preLane: frozen, listSupabase: () => [...listWithoutNew(), "fix.sql"] });
     expect(kinds(misnamed)).toEqual([`zmiana-sprzed-pasa:${SUPABASE_DIR}/*`]);
+    // Ta sama liczba, inny zbiór (dodany plik z cofniętą wersją, usunięty stary).
+    const swapped = run({
+      preLane: frozen,
+      listSupabase: () => [
+        ...listWithoutNew().filter((f) => f !== "20260901000000_before_lane.sql"),
+        "20260118100000_new_rls_fix.sql",
+      ],
+    });
+    expect(kinds(swapped)).toEqual([`zmiana-sprzed-pasa:${SUPABASE_DIR}/*`]);
   });
 
   it("pomiar instrukcji: bez COMMENT ON, bez komentarzy i odporny na spację przy nawiasach", () => {
@@ -235,7 +388,6 @@ describe("self-test kierunku odwrotnego na realnym repozytorium", () => {
 
   it("obecny stan repo przechodzi: każdy plik od startu pasa drizzle jest pokryty albo jawnie znany", () => {
     expect(real.violations).toEqual([]);
-    expect(real.stale).toEqual([]);
     expect(real.twins + real.consolidated + real.pending.length).toBe(real.checked);
   });
 
@@ -281,14 +433,24 @@ describe("self-test kierunku odwrotnego na realnym repozytorium", () => {
   });
 
   it("znane braki to dokładnie wpisy `pending`, wszystkie sprzed zamknięcia rejestru, i ta lista tylko maleje", () => {
+    // Bez `toEqual`: kopia z panelu prosto na `main` zamienia wpis `pending`
+    // w „do usunięcia", a to nie może czerwienić `main`.
+    pendingInvariants(real, SUPABASE_LANE_GAPS);
     const pending = SUPABASE_LANE_GAPS.filter((g) => "pending" in g).map((g) => g.file);
-    expect(real.pending.map((p) => p.file)).toEqual(pending);
     expect(pending.every((f) => f < SUPABASE_LANE_GAPS_CLOSED_FROM)).toBe(true);
     expect(pending.length).toBeLessThanOrEqual(23);
   });
 
-  it("zamrożony zbiór sprzed pasa odpowiada repozytorium", () => {
+  it("zamrożony zbiór sprzed pasa odpowiada repozytorium i jest WŁĄCZONY domyślnie (ścieżka CI)", () => {
     expect(PRE_LANE_FREEZE.count).toBe(951);
     expect(analyzeSupabaseCoverage(journalTags).violations).toEqual([]);
+    // Bez `preLane` w opcjach - dokładnie tak woła runner `check:migration-lanes`.
+    const backdated = "20260118100000_new_rls_fix.sql";
+    const r = analyzeSupabaseCoverage(journalTags, {
+      listSupabase: () => [...listSqlOrEmpty(SUPABASE_DIR), backdated],
+      read: (p) =>
+        p.endsWith(backdated) ? "REVOKE ALL ON public.x FROM anon;" : readFileOrNull(p),
+    });
+    expect(r.violations.map((v) => v.kind)).toEqual(["zmiana-sprzed-pasa"]);
   });
 });

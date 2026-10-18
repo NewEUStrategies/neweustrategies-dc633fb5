@@ -22,7 +22,9 @@
 // CO ZNACZY „POKRYTY". Plik supabase z wersją >= DRIZZLE_LANE_START jest
 // pokryty, gdy:
 //   (i)   plik któregoś WPISU DZIENNIKA ma ten sam SQL wykonywalny
-//         (`executableSql` - ta sama miara co w kierunku prostym),
+//         (`executableSql` - ta sama miara co w kierunku prostym); każdy wpis
+//         pokrywa JEDEN plik, więc ponowny przebieg albo przywrócenie z tym
+//         samym SQL-em co starszy plik potrzebuje własnej kopii,
 //   (ii)  wpis MIGRATION_LANES o tagu Z DZIENNIKA wskazuje go jako `twin`
 //         (kierunek prosty pilnuje wtedy, że treść jest ta sama),
 //   (iii) ma wpis w SUPABASE_LANE_GAPS: `coveredBy` (SQL wszedł do dziennika
@@ -32,9 +34,11 @@
 // instrukcja pliku (poza `COMMENT ON`) musi stać w którymś ze wskazanych plików
 // dziennika (`coverageStatements`). Instrukcję, której tam świadomie nie ma
 // (pośrednia wersja funkcji nadpisanej później, diagnostyczne DO, no-op),
-// wpis wymienia z początku w `uncovered`, a `reason` mówi, czemu to nie
-// zmienia stanu bazy. Inaczej wpis z dowolnym tagiem dziennika zazieleniłby
-// plik, którego treści w dzienniku nie ma.
+// wpis wymienia z początku w `uncovered` (do granicy słowa), a `reason` mówi,
+// czemu to nie zmienia stanu bazy. Inaczej wpis z dowolnym tagiem dziennika
+// zazieleniłby plik, którego treści w dzienniku nie ma. Zestawienie musi nieść
+// choć jedną instrukcję pliku, a `uncovered` - jak `pending` - jest zamknięte
+// dla migracji od SUPABASE_LANE_GAPS_CLOSED_FROM.
 //
 // DLACZEGO (ii) TYLKO DLA TAGÓW Z DZIENNIKA. Dziesięć wpisów `twin` należy do
 // sierot spoza `_journal.json` (KNOWN_ORPHAN_LANE_ENTRIES, np.
@@ -492,6 +496,16 @@ function statementKey(sql: string): string {
 const COMMENT_ON = /^COMMENT ON\b/i;
 
 /**
+ * Prefiks `uncovered` dopasowany do granicy słowa: `CREATE TRIGGER x` nie
+ * trafia w `CREATE TRIGGER x_v2` (klucz zjada końcową spację prefiksu).
+ */
+function startsWithToken(statement: string, prefix: string): boolean {
+  if (!statement.startsWith(prefix)) return false;
+  const next = statement[prefix.length];
+  return next === undefined || !/[A-Za-z0-9_$]/.test(prefix.at(-1)!) || !/[A-Za-z0-9_$]/.test(next);
+}
+
+/**
  * Instrukcje najwyższego poziomu pliku jako klucze `statementKey`, bez
  * `COMMENT ON` (dokumentacja w bazie - ta sama decyzja co w kierunku prostym).
  */
@@ -538,13 +552,20 @@ export function analyzeSupabaseCoverage(
   }: SupabaseCoverageOptions = {},
 ): SupabaseCoverageReport {
   const inJournal = new Set(journalTags);
-  // Odcisk SQL-u wykonywalnego -> pierwszy tag dziennika o tej treści.
-  const journalBySql = new Map<string, string>();
+  // Odcisk SQL-u wykonywalnego -> wpisy dziennika o tej treści, w kolejności
+  // dziennika. Każdy wpis pokrywa JEDEN plik supabase (zużywany w kolejności
+  // wersji): ponowny przebieg albo przywrócenie z tym samym SQL-em co starszy
+  // plik potrzebuje WŁASNEJ kopii - migrator nie wykona starego wpisu drugi raz.
+  // Kopie panelu tego samego pliku (0297/0301) to po prostu nadmiar wpisów.
+  const journalBySql = new Map<string, string[]>();
   for (const tag of journalTags) {
     const text = read(`${DRIZZLE_DIR}/${tag}.sql`);
     if (text === null) continue; // wpis bez pliku łapie evaluateLaneGate
     const key = executableSql(text);
-    if (key !== "" && !journalBySql.has(key)) journalBySql.set(key, tag);
+    if (key === "") continue;
+    const tags = journalBySql.get(key);
+    if (tags) tags.push(tag);
+    else journalBySql.set(key, [tag]);
   }
   const statementsOf = new Map<string, ReadonlySet<string>>();
   const journalStatements = (tag: string): ReadonlySet<string> => {
@@ -556,12 +577,17 @@ export function analyzeSupabaseCoverage(
     }
     return set;
   };
+  // Ostatni wpis tagu wygrywa - jak w `analyzeMigrationLanes`, który porównuje
+  // treść WYŁĄCZNIE tego wpisu. Przesłonięty duplikat nie jest niczym
+  // sprawdzony, więc niczego nie pokrywa.
   const declaredTwins = new Set(
-    lanes.flatMap((e) => ("twin" in e && inJournal.has(e.tag) ? [e.twin] : [])),
+    [...new Map(lanes.map((e) => [e.tag, e])).values()].flatMap((e) =>
+      "twin" in e && inJournal.has(e.tag) ? [e.twin] : [],
+    ),
   );
   const gapByFile = new Map(gaps.map((g) => [g.file, g]));
   const all = listSupabase(SUPABASE_DIR);
-  const inScope = all.filter(inLaneScope);
+  const inScope = all.filter(inLaneScope).sort();
 
   const violations: SupabaseCoverageViolation[] = [];
   const pending: PendingSupabaseFile[] = [];
@@ -582,7 +608,7 @@ export function analyzeSupabaseCoverage(
 
   for (const file of inScope) {
     const text = read(`${SUPABASE_DIR}/${file}`);
-    const copy = text === null ? undefined : journalBySql.get(executableSql(text));
+    const copy = text === null ? undefined : journalBySql.get(executableSql(text))?.shift();
     const gap = gapByFile.get(file);
     if (copy !== undefined || declaredTwins.has(file)) {
       twins += 1;
@@ -625,21 +651,45 @@ export function analyzeSupabaseCoverage(
       });
       continue;
     }
-    const carried = new Set(gap.coveredBy.flatMap((tag) => [...journalStatements(tag)]));
+    // `uncovered` to wyjątek z dnia włączenia bramki, nie furtka: nowa
+    // migracja ma pokrycie pełne albo kopię - inaczej wpis z samych wyjątków
+    // byłby cichym `pending` obok zamkniętej listy.
+    if (gap.uncovered && (supabaseMigrationVersion(file) ?? "") >= SUPABASE_LANE_GAPS_CLOSED_FROM) {
+      violations.push({
+        kind: "zamkniety-rejestr",
+        file,
+        detail: `\`uncovered\` jest zamknięte od ${SUPABASE_LANE_GAPS_CLOSED_FROM}: zestawienie nowej migracji musi nieść każdą jej instrukcję.`,
+      });
+      continue;
+    }
     const allowed = (gap.uncovered ?? []).map(statementKey);
+    if (allowed.some((prefix) => prefix === "")) {
+      violations.push({
+        kind: "niezmierzone-pokrycie",
+        file,
+        detail:
+          "Pusty prefiks w `uncovered` pasuje do każdej instrukcji - wymień instrukcje z początku.",
+      });
+      continue;
+    }
+    const carried = new Set(gap.coveredBy.flatMap((tag) => [...journalStatements(tag)]));
+    const statements = text === null ? [] : coverageStatements(text);
     const used = new Set<string>();
-    const missing = (text === null ? [] : coverageStatements(text)).filter((statement) => {
+    const missing = statements.filter((statement) => {
       if (carried.has(statement)) return false;
-      const prefix = allowed.find((p) => statement.startsWith(p));
+      const prefix = allowed.find((p) => startsWithToken(statement, p));
       if (prefix === undefined) return true;
       used.add(prefix);
       return false;
     });
-    if (missing.length > 0) {
+    if (missing.length > 0 || !statements.some((statement) => carried.has(statement))) {
       violations.push({
         kind: "niezmierzone-pokrycie",
         file,
-        detail: `${missing.length} instrukcji nie ma w ${gap.coveredBy.join(", ")} ani w \`uncovered\` wpisu, np. „${missing[0]!.slice(0, 160)}". Zestawienie, które nie niesie treści pliku, niczego nie pokrywa.`,
+        detail:
+          missing.length > 0
+            ? `${missing.length} instrukcji nie ma w ${gap.coveredBy.join(", ")} ani w \`uncovered\` wpisu, np. „${missing[0]!.slice(0, 160)}". Zestawienie, które nie niesie treści pliku, niczego nie pokrywa.`
+            : `${gap.coveredBy.join(", ")} nie niesie ŻADNEJ instrukcji pliku - wpis z samych wyjątków \`uncovered\` niczego nie pokrywa.`,
       });
       continue;
     }
