@@ -102,7 +102,9 @@ export async function resolveOfferedSwitchTarget(input: {
     .eq("active", true)
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
-  const offered = (plans ?? []).filter((p) => p.tenant_id === tenantId);
+  // Bez błędu PostgREST oddaje tablicę (pustą, gdy oferty nie ma) - typ jest
+  // zawężony przez `error`, więc zapasowe `?? []` byłoby martwą gałęzią.
+  const offered = plans.filter((p) => p.tenant_id === tenantId);
   const match = switchTargets(offered, current).find((o) => o.lookupKey === lookupKey);
   if (!match) {
     // Najbardziej konkretny powód dla planu, który istnieje, ale nie przechodzi
