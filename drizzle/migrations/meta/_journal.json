@@ -2164,6 +2164,13 @@
       "when": 1792349282358,
       "tag": "0308_release_coupon_order_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1792349318962,
+      "tag": "0309_release_coupon_server_only",
+      "breakpoints": true
     }
   ]
 }
