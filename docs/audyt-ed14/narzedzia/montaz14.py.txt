@@ -1,0 +1,61 @@
+# Montaz wydania 14 w dokumencie audytu (galaz w worktree): nowy H1, naglowek wydania 14 na gorze, naglowek wydania 13
+# przeniesiony pod "## Wydanie 13 (2026-10-04) - naglowek poprzedniego wydania", rozdzial 18 na koncu (sekcje 18.1-18.15
+# w kolejnosci numerow, z czesci r18*.md). Idempotentny: jesli rozdzial 18 juz jest, zastepuje go.
+import re
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+DOC = S + '/galaz/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md'
+t = open(DOC, encoding='utf-8').read()
+czytaj = lambda n: open(f'{S}/{n}', encoding='utf-8').read().strip('\n')
+
+sekcje, naglowek18 = {}, None
+for czesc in ['r18e1.md', 'r18a.md', 'r18b.md', 'r18d.md', 'r18e2.md', 'r18c.md', 'r18e3.md']:
+    biezaca = None
+    for linia in czytaj(czesc).split('\n'):
+        if linia.startswith('## 18. '):
+            naglowek18 = [linia]
+            biezaca = naglowek18
+            continue
+        m = re.match(r'^### 18\.(\d+)\. ', linia)
+        if m:
+            k = int(m.group(1))
+            assert k not in sekcje, f'sekcja 18.{k} dwa razy ({czesc})'
+            sekcje[k] = [linia]
+            biezaca = sekcje[k]
+            continue
+        assert biezaca is not None, f'{czesc}: tekst przed pierwszym naglowkiem: {linia[:60]}'
+        biezaca.append(linia)
+assert naglowek18 and sorted(sekcje) == list(range(1, 16)), sorted(sekcje)
+# krytyk kompletnosci (r18f.md, jesli jest) dochodzi na koniec 18.14 jako podsekcja ####
+import os
+if os.path.exists(f'{S}/r18f.md'):
+    k = czytaj('r18f.md')
+    assert k.startswith('#### '), k[:40]
+    sekcje[14] = sekcje[14] + [''] + k.split('\n')
+blok = lambda linie: re.sub(r'\n{3,}', '\n\n', '\n'.join(linie).strip('\n'))
+rozdzial = '\n\n'.join([blok(naglowek18)] + [blok(sekcje[k]) for k in range(1, 16)])
+
+H1_STARY = '# Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-10-04)'
+H1_NOWY = '# Audyt pokrycia testami: moduł po module, funkcja po funkcji (2026-10-18)'
+W13 = '## Wydanie 13 (2026-10-04) - nagłówek poprzedniego wydania'
+W12 = '## Wydanie 12 (2026-10-01) - nagłówek poprzedniego wydania'
+if t.startswith(H1_STARY):
+    assert W13 not in t
+    i12 = t.index('\n---\n\n' + W12)
+    stary13 = t[len(H1_STARY):i12].strip('\n')
+    assert stary13.startswith('**WYDANIE 13'), stary13[:40]
+    t = H1_NOWY + '\n\n' + czytaj('naglowek14.md') + '\n\n---\n\n' + W13 + '\n\n' + stary13 + '\n' + t[i12:]
+else:
+    assert t.startswith(H1_NOWY)
+    i13 = t.index('\n---\n\n' + W13)
+    t = H1_NOWY + '\n\n' + czytaj('naglowek14.md') + '\n' + t[i13:]
+
+i18 = t.find('\n## 18. ')
+if i18 >= 0:
+    t = t[:i18].rstrip('\n') + '\n'
+t = t.rstrip('\n') + '\n\n' + rozdzial + '\n'
+for zly in ('—', '–'):
+    assert zly not in rozdzial, f'znak {zly!r} w rozdziale 18'
+    assert zly not in czytaj('naglowek14.md'), f'znak {zly!r} w naglowku 14'
+open(DOC, 'w', encoding='utf-8').write(t)
+print('ok', len(t.split('\n')), 'linii; rozdzial 18:', len(rozdzial.split('\n')), 'linii')

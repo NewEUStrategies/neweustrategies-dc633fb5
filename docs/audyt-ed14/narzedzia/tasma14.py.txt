@@ -1,0 +1,38 @@
+# Dane taśmy klatek do artefaktu: miniatury Lighthouse (webp), krzywa kompletności wizualnej ze śladu (histogram jak speedline).
+import json, base64, io
+from PIL import Image
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+out = {}
+for prof in ('desktop', 'mobile'):
+    rap = json.load(open(f'{S}/lh/slad/pl-{prof}.json'))
+    a = rap['audits']
+    m = a['metrics']['details']['items'][0]
+    miniatury = []
+    for it in a['screenshot-thumbnails']['details']['items']:
+        im = Image.open(io.BytesIO(base64.b64decode(it['data'].split(',', 1)[1]))).convert('RGB')
+        szer = 120 if prof == 'mobile' else 168
+        im = im.resize((szer, round(im.height * szer / im.width)), Image.LANCZOS)
+        b = io.BytesIO(); im.save(b, 'WEBP', quality=62, method=6)
+        miniatury.append({'t': round(it['timing']), 'src': 'data:image/webp;base64,' + base64.b64encode(b.getvalue()).decode(), 'w': im.width, 'h': im.height})
+    tr = json.load(open(f'{S}/lh/slad/pl-{prof}-0.trace.json'))
+    ev = tr['traceEvents'] if isinstance(tr, dict) else tr
+    nav = next(e['ts'] for e in ev if e.get('name') == 'navigationStart' and e.get('args', {}).get('data', {}).get('isLoadingMainFrame'))
+    shots = sorted([e for e in ev if e.get('name') == 'Screenshot'], key=lambda e: e['ts'])
+    klatki = [((e['ts'] - nav) / 1000, Image.open(io.BytesIO(base64.b64decode(e['args']['snapshot']))).convert('RGB')) for e in shots]
+    hist = lambda im: im.histogram()
+    H0, HN = hist(klatki[0][1]), hist(klatki[-1][1])
+    d0 = sum(abs(x - y) for x, y in zip(H0, HN)) or 1
+    pkt = []
+    for t, im in klatki:
+        h = hist(im)
+        pkt.append((round(t), round(max(0.0, 1 - sum(abs(x - y) for x, y in zip(h, HN)) / d0), 4)))
+    # tylko punkty zmiany (schodkowa krzywa)
+    krzywa = [pkt[0]] + [p for i, p in enumerate(pkt[1:], 1) if p[1] != pkt[i - 1][1]]
+    if krzywa[-1][0] != pkt[-1][0]:
+        krzywa.append(pkt[-1])
+    out[prof] = {'miniatury': miniatury, 'krzywa': krzywa, 'siRaport': round(a['speed-index']['numericValue']),
+                 'siObs': m['observedSpeedIndex'], 'fcpObs': m['observedFirstContentfulPaint'], 'lcpObs': m['observedLargestContentfulPaint'],
+                 'ttfb': round(a['server-response-time']['numericValue']), 'fcp': round(a['first-contentful-paint']['numericValue']),
+                 'lcp': round(a['largest-contentful-paint']['numericValue'])}
+    print(prof, len(krzywa), 'pkt;', sum(len(x['src']) for x in miniatury), 'B miniatur;', {k: v for k, v in out[prof].items() if k not in ('miniatury', 'krzywa')})
+json.dump(out, open(f'{S}/artefakt14/tasma14.json', 'w'))

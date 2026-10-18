@@ -1,0 +1,79 @@
+// Mapa powiazan miedzy modulami (wydanie 14): graf importow plikow produkcyjnych zagregowany do modulow taksonomii
+// repozytorium (klasy14.json = classifyPath) oraz sprzezenie przez baze (te same tabele / RPC uzywane w wielu modulach).
+// Dwa drzewa jednym kodem: ed13 = git archive 5b8c77c01 (old-full), ed14 = 346012635 (katalog roboczy).
+import fs from "node:fs";
+import path from "node:path";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14";
+const K = JSON.parse(fs.readFileSync(SP + "/klasy14.json", "utf8"));
+const TREES = { ed13: [SP + "/old-full", K.ed13], ed14: ["/home/user/neweustrategies-dc633fb5", K.teraz] };
+const EXT = ["", ".ts", ".tsx", ".js", ".jsx", ".mjs", "/index.ts", "/index.tsx", "/index.js"];
+const IMP = /(?:^|[\s;])(?:import|export)\s+(type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/gm;
+const FROM = /\.from\(\s*["'`]([a-z_][a-z0-9_]*)["'`]\s*\)/g;
+const RPC = /\.rpc\(\s*["'`]([a-z_][a-z0-9_]*)["'`]/g;
+
+function analiza(base, klasy) {
+  const pliki = Object.entries(klasy).filter(([f, v]) => !v.t && /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !f.endsWith(".d.ts"));
+  const istnieje = new Set(Object.keys(klasy));
+  const resolve = (from, spec) => {
+    let p;
+    if (spec.startsWith("@/")) p = "src/" + spec.slice(2);
+    else if (spec.startsWith(".")) p = path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
+    else return null;
+    for (const e of EXT) if (istnieje.has(p + e)) return p + e;
+    return null;
+  };
+  const kraw = new Map(); // "A>B" -> {imp, typy, dyn, pliki:Set}
+  const tab = new Map(); const rpc = new Map(); // nazwa -> Map(modul -> liczba)
+  const plikiZewn = new Map(); // plik -> liczba importow z innych modulow (fan-in pliku)
+  for (const [f, v] of pliki) {
+    const src = fs.readFileSync(path.join(base, f), "utf8");
+    for (const m of src.matchAll(IMP)) {
+      const spec = m[2] ?? m[3];
+      const cel = resolve(f, spec);
+      if (!cel) continue;
+      const kc = klasy[cel]?.k;
+      if (!kc || kc === v.k || klasy[cel]?.t) continue;
+      const key = `${v.k}>${kc}`;
+      const e = kraw.get(key) ?? { imp: 0, typy: 0, dyn: 0, pliki: new Set(), cele: new Set() };
+      e.imp++; if (m[1]) e.typy++; if (m[3]) e.dyn++; e.pliki.add(f); e.cele.add(cel);
+      kraw.set(key, e);
+      plikiZewn.set(cel, (plikiZewn.get(cel) ?? 0) + 1);
+    }
+    for (const [re, mapa] of [[FROM, tab], [RPC, rpc]]) {
+      for (const m of src.matchAll(re)) {
+        const mm = mapa.get(m[1]) ?? new Map(); mm.set(v.k, (mm.get(v.k) ?? 0) + 1); mapa.set(m[1], mm);
+      }
+    }
+  }
+  // silnie spojne skladowe grafu modulow (cykle zaleznosci miedzy modulami, bez importow typow i dynamicznych)
+  const mod = [...new Set([...kraw.keys()].flatMap((k) => k.split(">")))];
+  const adj = new Map(mod.map((m) => [m, []]));
+  for (const [k, e] of kraw) { if (e.imp - e.typy - e.dyn > 0) { const [a, b] = k.split(">"); adj.get(a).push(b); } }
+  let idx = 0; const st = [], on = new Set(), ix = new Map(), low = new Map(), scc = [];
+  const dfs = (v) => { ix.set(v, idx); low.set(v, idx); idx++; st.push(v); on.add(v);
+    for (const w of adj.get(v)) { if (!ix.has(w)) { dfs(w); low.set(v, Math.min(low.get(v), low.get(w))); } else if (on.has(w)) low.set(v, Math.min(low.get(v), ix.get(w))); }
+    if (low.get(v) === ix.get(v)) { const c = []; let w; do { w = st.pop(); on.delete(w); c.push(w); } while (w !== v); if (c.length > 1) scc.push(c.sort()); } };
+  for (const m of mod) if (!ix.has(m)) dfs(m);
+  const wspolne = (mapa) => [...mapa].map(([n, mm]) => ({ nazwa: n, moduly: Object.fromEntries([...mm].sort()) })).filter((x) => Object.keys(x.moduly).length > 1).sort((a, b) => Object.keys(b.moduly).length - Object.keys(a.moduly).length);
+  return {
+    krawedzie: [...kraw].map(([k, e]) => { const [z, d] = k.split(">"); return { z, do: d, importy: e.imp, typy: e.typy, dynamiczne: e.dyn, plikiZrodlowe: e.pliki.size, plikiCelu: e.cele.size }; }).sort((a, b) => b.importy - a.importy),
+    cykleModulow: scc,
+    fanOut: Object.fromEntries(mod.map((m) => [m, [...kraw].filter(([k]) => k.startsWith(m + ">")).length])),
+    fanIn: Object.fromEntries(mod.map((m) => [m, [...kraw].filter(([k]) => k.endsWith(">" + m)).length])),
+    plikiWezlowe: [...plikiZewn].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([f, n]) => ({ f, modul: klasy[f]?.k, importyZInnychModulow: n })),
+    tabeleWspolne: wspolne(tab), rpcWspolne: wspolne(rpc),
+    tabeleRazem: tab.size, rpcRazem: rpc.size,
+  };
+}
+const out = {};
+for (const [n, [base, klasy]] of Object.entries(TREES)) out[n] = analiza(base, klasy);
+fs.writeFileSync(SP + "/graf14.json", JSON.stringify(out, null, 1));
+for (const n of Object.keys(out)) {
+  const o = out[n];
+  console.log(`== ${n}: krawedzi modul->modul ${o.krawedzie.length}, importow miedzymodulowych ${o.krawedzie.reduce((s, e) => s + e.importy, 0)}, cykle ${JSON.stringify(o.cykleModulow)}`);
+  console.log(`   tabele: ${o.tabeleRazem} (wspolne >1 modul: ${o.tabeleWspolne.length}), rpc: ${o.rpcRazem} (wspolne: ${o.rpcWspolne.length})`);
+}
+console.log("top krawedzie ed14:"); for (const e of out.ed14.krawedzie.slice(0, 25)) console.log(`  ${e.z} -> ${e.do}: ${e.importy} (typy ${e.typy}, dyn ${e.dynamiczne}), plikow ${e.plikiZrodlowe}->${e.plikiCelu}`);
+console.log("fanIn ed14:", JSON.stringify(Object.entries(out.ed14.fanIn).sort((a, b) => b[1] - a[1]).slice(0, 12)));
+console.log("fanOut ed14:", JSON.stringify(Object.entries(out.ed14.fanOut).sort((a, b) => b[1] - a[1]).slice(0, 12)));
+console.log("tabele w najwiekszej liczbie modulow:", out.ed14.tabeleWspolne.slice(0, 12).map((x) => `${x.nazwa}(${Object.keys(x.moduly).length})`).join(", "));

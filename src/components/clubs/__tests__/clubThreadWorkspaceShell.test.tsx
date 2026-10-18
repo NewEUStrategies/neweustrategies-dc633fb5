@@ -60,6 +60,9 @@ vi.mock("react-i18next", async () =>
 vi.mock("@/lib/i18n-club", () => ({ ensureClubI18n: () => undefined }));
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+  // `useClubBySlug` bierze klucz widza i `enabled` z `useHydrated()`; powłoka
+  // w tym pliku renderuje się po hydratacji, więc atrapa zwraca `true`.
+  useHydrated: () => true,
 }));
 vi.mock("@/lib/clubs/api", () => clubApiMock);
 // Karta klubu czeka na rozstrzygniętą sesję (`useClubBySlug`), więc harness

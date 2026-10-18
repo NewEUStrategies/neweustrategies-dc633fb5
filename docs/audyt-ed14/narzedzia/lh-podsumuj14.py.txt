@@ -1,0 +1,30 @@
+# Podsumowanie przebiegow Lighthouse 13.5.0 wydania 14 (lokalnie, throttling symulowany) + liczby PSI ze zrzutow uzytkownika.
+import json, glob, os, sys
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/lh'
+AUD = ['first-contentful-paint', 'largest-contentful-paint', 'total-blocking-time', 'cumulative-layout-shift', 'speed-index', 'interactive', 'server-response-time']
+INS = ['render-blocking-insight', 'lcp-breakdown-insight', 'image-delivery-insight', 'cache-insight', 'cls-culprits-insight', 'document-latency-insight', 'unused-javascript', 'unsized-images', 'long-tasks', 'bootup-time', 'mainthread-work-breakdown', 'network-dependency-tree-insight', 'lcp-discovery-insight']
+def opis(p):
+    r = json.load(open(p))
+    a = r['audits']
+    w = {'plik': os.path.relpath(p, S), 'lighthouse': r.get('lighthouseVersion'), 'url': r.get('finalDisplayedUrl') or r.get('finalUrl'), 'czas': r.get('fetchTime'),
+         'formFactor': r['configSettings'].get('formFactor'), 'throttling': r['configSettings'].get('throttlingMethod'),
+         'kategorie': {k: round(v['score'] * 100) if v.get('score') is not None else None for k, v in r['categories'].items()},
+         'metryki': {k: {'ms': round(a[k]['numericValue'], 1) if a.get(k, {}).get('numericValue') is not None else None, 'wynik': a.get(k, {}).get('score'), 'tekst': a.get(k, {}).get('displayValue')} for k in AUD},
+         'statystyki': {}}
+    for k in INS:
+        if k in a:
+            x = a[k]
+            d = x.get('details') or {}
+            w['statystyki'][k] = {'wynik': x.get('score'), 'tekst': x.get('displayValue'), 'oszczednoscMs': (x.get('metricSavings') or {}), 'pozycje': len(d.get('items') or [])}
+    return w
+pliki = sorted(glob.glob(S + '/raporty/*.json')) + sorted(p for p in glob.glob(S + '/slad/*.json') if not p.endswith(('.trace.json', '.devtoolslog.json')))
+out = {'psiZrzuty': {
+    'zrodlo': 'zrzuty PageSpeed Insights od uzytkownika, 18 paz 2026 11:30 CEST, Lighthouse 13.5.0 (API PSI zwrocilo 429 - limit dzienny wspolnego projektu)',
+    'desktop': {'wydajnosc': 94, 'ulatwienia': 92, 'sprawdzoneMetody': 100, 'seo': 100, 'przegladanieAgentowe': '3/3', 'FCP': '0,4 s', 'LCP': '0,5 s', 'TBT': '10 ms', 'CLS': '0,033', 'SI': '2,7 s',
+                'statystyki': ['cache 9 KiB', 'blokujace renderowanie 50 ms', 'zestawienie LCP', 'dostarczanie obrazow 12 KiB', 'przyczyny przesuniec ukladu', 'obrazy bez width/height'], 'tasma': '4 pierwsze z 8 klatek biale'},
+    'mobile': {'urzadzenie': 'Moto G Power, 4G', 'wydajnosc': 98, 'ulatwienia': 95, 'sprawdzoneMetody': 100, 'seo': 100, 'przegladanieAgentowe': '3/3', 'FCP': '1,7 s', 'LCP': '2,1 s', 'TBT': '0 ms', 'CLS': '0', 'SI': '3,0 s',
+               'statystyki': ['blokujace renderowanie 440 ms', 'zestawienie LCP', 'cache 11 KiB', 'nieuzywany JS 198 KiB', '1 dlugie zadanie'], 'zaliczone': 22, 'tasma': 'naglowek i baner zgody od 1. klatki, okladka hero od 6. z 8'}},
+    'przebiegi': [opis(p) for p in pliki]}
+json.dump(out, open(sys.argv[1], 'w'), ensure_ascii=False, indent=1)
+for p in out['przebiegi']:
+    print(p['plik'], p['formFactor'], p['kategorie'].get('performance'), {k: v['ms'] for k, v in p['metryki'].items()})

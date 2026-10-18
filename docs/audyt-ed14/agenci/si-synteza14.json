@@ -1,0 +1,148 @@
+{
+  "podsumowanie": "Lista łączy cztery śledztwa. Trzecie dotarło ucięte, czwarte nie dotarło wcale, więc kluczowe twierdzenia sprawdziłem sam na repo 346012635, na raportach LH w /tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/lh/slad/ i w Lantern 13.5.0 (/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/lh/node_modules/@paulirish/trace_engine/models/trace/lantern/metrics/SpeedIndex.js). Wyliczenia wag są w /tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/skrypty/wagi.mjs.\n\nNajważniejsze ustalenie: raportowany SI to SI_lab = a·SI_obserwowany + b·SI_layout. Na desktopie a=0,575 i b=0,492, na mobile a=1,4 i b=0,4. Liczy się więc prawdziwy filmstrip (białe klatki, późny obraz hero) oraz czas zakończenia zadań z Layout w symulacji. Wzór odtwarza nasze wyniki: desktop 0,575·5713 + 0,492·1823 = 4181 ms, mobile 1,4·2965 + 0,4·4326 = 5881 ms.\n\nKolejność dźwigni (efekt w raportowanym SI, przy naszych warunkach: TTFB 1,1-3,9 s z USA-East):\n1. Cache dokumentu (oba). Desktop -1,7 do -2,0 s, mobile ok. -1,1 s.\n2. Cache transformacji /media (oba). Mobile -0,85 do -1,4 s, desktop -0,23 do -0,37 s.\n3. Hero w pierwszym flushu z preloadem w head i w Link (oba). Mobile -0,2 do -0,6 s, desktop -0,1 do -0,2 s. Dodatkowo daje pełną świeżość wpisu, co wzmacnia punkt 1.\n4. 103 Early Hints dla CSS i fontu. Głównie desktop przy MISS: -0,45 do -0,5 s, mobile ok. -0,4 s.\n5. Priorytet obrazu LCP (tylko mobile). -0,15 do -0,4 s, nakłada się z 2 i 3.\n6. Odchudzenie arkusza CSS. Mobile -0,2 do -0,45 s, desktop -0,05 do -0,2 s.\n7. Jeden round-trip dla danych hero. Ułatwia punkt 3, sam daje mało.\n8. Wymuszony layout w zadaniu hydratacji (Header.tsx:486). Działa na składnik layout: mobile -0,05 do -0,2 s, desktop do -0,1 s.\n9. sizes na desktopie (12 KiB). Pomijalne.\n\nEfekty nie sumują się liniowo (1, 3 i 5 częściowo się pokrywają). W PSI wszystkie są proporcjonalnie mniejsze, bo PSI ma krótszy TTFB.\n\nCo działa gdzie:\n- Desktop (tu SI jest czerwony): przede wszystkim 1, 4, 2 i 3. Do zielonego progu potrzebne są też 6 i 8, bo sam składnik layout (0,492·1,82 s = 0,9 s) zjada 69% budżetu 1,311 s.\n- Mobile (w PSI już zielony, 3,0 s przy progu 3,387 s): 2, 1, 3, 5, 6 i 8. W PSI na mobile około połowy wyniku to prawdopodobnie składnik layout (0,4·L), więc tam ważniejsze są 6 i 8.\n\nOdrzucone jako bez wpływu na SI albo bez dowodu:\n- nieużywany JS jako dźwignia FCP (boot rusza po LCP),\n- obrazy bez wymiarów (obraz leży pod zgięciem, top 1276 px),\n- cache 9/11 KiB (dotyczy tylko powtórnych wizyt),\n- sprawca CLS 0,033 (nieodtworzony, CLS w naszych przebiegach = 0, a 0,033 i tak daje wynik CLS 1,0),\n- odchudzenie nagłówka S:0 (szacunek bez pomiaru).",
+  "dlaczegoWynikWysoki": "Wagi wyniku w Lighthouse 13.5.0 (pl-desktop.json, categories.performance.auditRefs): TBT 30, LCP 25, CLS 25, FCP 10, SI 10. SI waży więc tylko 10%.\n\nOceny cząstkowe liczyłem funkcją Audit.computeLogNormalScore z lighthouse/core/audits/audit.js (skrypt /tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/skrypty/wagi.mjs) na wartościach z PSI:\n- Desktop: FCP 0,4 s daje 1,0, LCP 0,5 s daje 1,0, TBT 10 ms daje 1,0, CLS 0,033 daje 1,0 (próg p10 to 0,1), SI 2,7 s daje 0,35. Suma 90 + 3,5 = 94. Czerwony SI kosztuje 6,5 pkt.\n- Mobile: FCP 0,92, LCP 0,96, SI 3,0 s daje 0,94, TBT 1, CLS 1. Wynik 98. SI mobile 3,0 s jest już zielony (p10 = 3387 ms, speed-index.js:44-45).\n- Dla porównania na desktopie: SI 1,8 s daje 97 pkt, SI 1,311 s daje 99.\n\nDlaczego tylko SI jest czerwony, skoro FCP i LCP są zielone. W Lantern estymata optymistyczna SI to obserwowany SI z prawdziwego filmstripu: SpeedIndex.js:53-55 'const estimate = extras.optimistic ? extras.observedSpeedIndex : SpeedIndex.computeLayoutBasedSpeedIndex(...)'. Współczynniki 'intercept: 0, optimistic: 1.4, pessimistic: 0.4' (:13-15) są skalowane przez RTT (:32-36: 'optimistic: 0.5 + (defaultCoefficients.optimistic - 0.5) * multiplier'). Przy desktopowym RTT 40 ms wychodzi a=0,575 i b=0,492, przy mobilnym RTT 150 ms a=1,4 i b=0,4.\n\nFCP i LCP są natomiast w pełni symulowane. Czas odpowiedzi serwera Lantern bierze jako medianę dla całego originu (NetworkAnalyzer.js:434-443 'serverResponseTimeByOrigin.set(origin, summary.median)'), więc długi TTFB samego dokumentu się rozmywa. W naszym przebiegu desktop symulowany FCP wynosi 913 ms przy obserwowanym 5091 ms (document-latency-insight szacuje 3450 ms oszczędności). SI jest więc jedyną metryką, do której białe klatki zimnego MISS, późny obraz hero i późne zadania z Layout trafiają niemal wprost. Stąd zielone FCP i LCP przy czerwonym SI.\n\nCele:\n- Desktop SI ≤ 1,311 s (p10, speed-index.js:51-52), czyli 0,575·SI_obs + 0,492·SI_layout ≤ 1311. Przykładowo SI_obs ≤ 1,2 s i SI_layout ≤ 1,27 s. Przy dzisiejszym SI_layout 1,82 s trzeba by mieć SI_obs ≤ 0,72 s, co jest nierealne. Potrzebne są więc obie grupy dźwigni. Cel pośredni: SI ≤ 1,8 s (ocena 0,71, wydajność 97).\n- Mobile SI ≤ 3,387 s, czyli 1,4·SI_obs + 0,4·SI_layout ≤ 3387. Przykładowo SI_obs ≤ 1,9 s i SI_layout ≤ 3,8 s. W naszym przebiegu jest 2,97 i 4,33 s, czyli 5,88 s.\n\nRozkład wyniku PSI desktop 2,7 s to szacunek, nie pomiar. Przy SI_layout podobnym do naszego daje SI_obs ok. 3,1 s, co zgadza się z 4 białymi klatkami z 8.",
+  "rekomendacje": [
+    {
+      "kolejnosc": 1,
+      "tytul": "Cache dokumentu: zapisywać rozwiązany HTML, wydłużyć świeżość, włączyć L2 lub rozgrzewać '/' i '/en'",
+      "profil": "oba",
+      "coZmienic": "(a) Wpis NES Edge Cache budować tylko z dokumentu bez zawieszonych granic. Odświeżenie w tle (po MISS z aboveFoldLate i przy STALE) renderować wariantem 'allReady', który dziś dostają tylko automaty, a zwykły tee strumienia ze szkieletami zapisywać wyłącznie wtedy, gdy hero wyszło w powłoce. (b) Włączyć L2 (dziś 'nes-l2 off') albo rozgrzewać '/' i '/en' dla klas UA mobile i desktop w każdej kolonii. (c) Poprawić nieprawdziwy komentarz o HIT. (d) Po rekomendacji 3 czysty wpis dostaje 900 s zamiast 30 s.",
+      "gdzie": "src/lib/http/documentCache.server.ts:930 'const [toClient, toCache] = response.body.tee();'; src/server.ts:165-167 'router renderuje automatom (isbot) INNY wariant: czeka na `allReady` i oddaje dokument buforowany'; src/lib/http/cachePolicy.ts:46 'PUBLIC_CONTENT_S_MAXAGE = 900' wobec :93 'CHROME_DEGRADED_S_MAXAGE = 30'; src/routes/index.tsx:341-347 'degraded ? resilientCacheControl(true) : aboveFoldLate ? chromeDegradedCacheControl() : resilientCacheControl(false)'; src/lib/builder/sectionStreaming.tsx:161-162 'On a cache HIT it is never seen (the CDN serves the resolved body)'",
+      "mechanizm": "Biały okres filmstripu to TTFB plus pobranie CSS, a SI_obs wchodzi do wyniku z wagą 0,575 (desktop) albo 1,4 (mobile). HIT ma TTFB 0,38 s, MISS 0,9-4,1 s. Pomiar: desktop pierwszy paint 4939 ms przy server-response-time 3530 ms; mobile pierwszy paint 1638 ms przy TTFB 1220 ms. Rozwiązany HIT (hit2.html) ma hero inline na bajcie 131 241 i preload obrazu w <head> na bajcie 341, więc wcześniej maluje się wszystko, od nagłówka po hero. Dziś nawet HIT bywa bajtową kopią zimnego strumienia (hit3.html: 9 granic, hero w S:1 na bajcie 263 864).",
+      "szacunekSI": "Nasze warunki. Desktop: SI_obs od -3,0 do -3,5 s (TTFB 3,93 -> 0,4 s), w wyniku od -1,7 do -2,0 s. Mobile: SI_obs ok. -0,8 s (TTFB 1,22 -> 0,4 s), w wyniku ok. -1,1 s. W PSI efekt jest proporcjonalny do białego okresu: przy 1-2 s bieli na desktopie (4 z 8 klatek) to od -0,5 do -1,0 s. Szacunek przy założeniu, że PSI trafi w HIT; dziś mobilny UA miał 5/5 MISS.",
+      "ryzyko": "LCP i FCP: poprawa. Odświeżenia w tle kosztują CPU Workera i zapytania do bazy, więc trzeba zachować predykat kompletności i limit prób. Wariant allReady w odświeżeniu nie obciąża czytelnika. L2 to osobna konfiguracja infrastruktury. Dłuższa świeżość opóźnia widoczność nowych wpisów, dlatego potrzebna jest inwalidacja przy publikacji. CLS i TBT bez zmian. SEO: korzyść, bo crawler dostaje stały, pełny HTML."
+    },
+    {
+      "kolejnosc": 2,
+      "tytul": "Cache transformacji /media: klucz ze znormalizowanego formatu i rozgrzewanie wariantów hero",
+      "profil": "oba",
+      "coZmienic": "Kluczować cache kolonii formatem wynikowym (np. 'webp' albo 'avif' wyprowadzonym z Accept), a nie surowym nagłówkiem Accept. Po publikacji wpisu lub zmianie strony głównej rozgrzewać wszystkie warianty srcset obrazu kandydata LCP (480/640/768/960...). Dodać nagłówek diagnostyczny HIT/MISS dla mediów. Rozważyć cache Cloudflare (cacheEverything/Cache-Tag) zamiast samego Cache API kolonii.",
+      "gdzie": "src/lib/http/mediaCache.server.ts:31-32 'url.searchParams.set(\"source\", upstream.href); url.searchParams.set(\"accept\", request.headers.get(\"accept\") ?? \"\");'; src/routes/media.$.ts:92-98 '`/storage/v1/render/image/public/media/${encodedPath}?${transform.toString()}` ... return withMediaCache(request, upstream, ...)'",
+      "mechanizm": "Górna połowa ekranu mobile (okładka hero) dochodzi dopiero po 5,8 s, bo pobranie 25,9 KB trwało 1714-5764 ms. Desktop: 38,7 KB w 4395-7249 ms (lcp-breakdown: resourceLoadDuration 4050/2855 ms). Sonda curl tego samego URL: TTFB 2,93 s, potem 0,82 s, czyli zimna transformacja Supabase. Z obserwowanego SI: mobile 2965 - 1638 = 1327 ms niekompletności rozłożone na 1638-5796 ms daje średnio 1-VC ≈ 0,32. Desktop: 5713 - 4939 = 774 ms na 4939-7311 ms daje ≈ 0,33. Ten ogon znika, gdy obraz przychodzi krótko po HTML.",
+      "szacunekSI": "Mobile: obraz ok. 2,5 s zamiast 5,8 s, SI_obs od -0,6 do -1,0 s (0,32 × 3,3 s to górna granica), w wyniku od -0,85 do -1,4 s. Desktop: obraz ok. 5,3 s zamiast 7,3 s, SI_obs od -0,4 do -0,65 s, w wyniku od -0,23 do -0,37 s. W PSI powtarzane przebiegi z tej samej kolonii mogą już trafiać w ciepły cache, więc tam efekt jest mniejszy (szacunek).",
+      "ryzyko": "LCP: duża poprawa (obraz LCP). Normalizacja Accept musi zachować poprawne Vary i obsługę przeglądarek bez webp/avif. Rozgrzewanie kosztuje transformacje Supabase (limity i koszt). CLS, TBT i SEO bez zmian."
+    },
+    {
+      "kolejnosc": 3,
+      "tytul": "Hero w pierwszym flushu: własny termin rozgrzewki nad zgięciem i brak granicy dla gotowej sekcji LCP",
+      "profil": "oba",
+      "coZmienic": "(a) Budżet prefetchAboveFoldQueries liczyć od chwili, gdy dokument jest znany, z twardym sufitem na zegarze treści, np. min(HOME_ABOVE_FOLD_BUDGET_MS, contentDeadlineAt + HOME_ABOVE_FOLD_BUDGET_MS - Date.now()), zamiast z resztki wspólnych 600 ms. Wtedy builderHeroPreloads ma wiersze, a preload obrazu wychodzi w <head> i w nagłówku Link z fetchpriority=high. (b) Dla sekcji kandydata LCP z kompletem danych nie tworzyć granicy Suspense, a przy braku danych zostawić dzisiejszy strumień. Znika wtedy szkielet B:1 i dławienie odsłon React 19.2.",
+      "gdzie": "src/routes/index.tsx:296-297 'const budgetMs = remainingHomeBudget(deadlineAt, HOME_ABOVE_FOLD_BUDGET_MS); if (budgetMs > 0) await prefetchAboveFoldQueries(...)'; :312 'heroPreloads = builderHeroPreloads(doc, queryClient, lang);'; :360 'for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));'; src/lib/ssr/homeSsrBudget.ts:16 'HOME_SSR_BUDGET_MS = 600', :18 'HOME_ABOVE_FOLD_BUDGET_MS = 500', :32 'HOME_CONTENT_BUDGET_MS = 1_200'; src/lib/ssr/routeSsrDeadline.ts:47 'return Math.max(0, Math.min(phaseLimitMs, deadlineAt - Date.now()));'; src/lib/builder/sectionStreaming.tsx:234-236 'return enabled && hasSectionQueries(section, lang);' i :263 '<Suspense fallback={<SectionStreamSkeleton minHeight={estimateSectionHeight(section)} />}>'; src/components/builder/organisms/BuilderRenderer.tsx:1024",
+      "mechanizm": "Na zimnym MISS hero to granica B:1 (szablon na bajcie 53 275). Jej HTML przychodzi na bajcie 389 784, a $RC(\"B:1\",\"S:1\") na 438 895 z 482 KB. Preload obrazu stoi na bajcie 388 921 w body, a nagłówek Link nie zawiera obrazu. Runtime $RC (bajt 212 227: '2300>a&&2E3<a?2300-a:$RT+300-a') odsłania hero najwcześniej 300 ms po nagłówku. Po zmianie: obraz startuje z nagłówków odpowiedzi z High (dziś desktop +430 ms po pierwszym bajcie, mobile 1714 ms z Low), tytuł i układ hero malują się z pierwszą treścią, a dokument dostaje 900 s świeżości zamiast 30 s, więc rośnie liczba HIT z rekomendacji 1.",
+      "szacunekSI": "Mobile: obraz wcześniej o ok. 0,4-0,5 s i z High, tekst hero bez dławienia. SI_obs od -0,15 do -0,45 s, w wyniku od -0,2 do -0,6 s. Desktop: SI_obs od -0,15 do -0,25 s, w wyniku od -0,1 do -0,15 s. Dolna granica uwzględnia wzrost TTFB MISS o 0,2-0,45 s (nagłówek i baner maluje się odpowiednio później). Do tego dochodzi efekt pośredni przez wyższy odsetek HIT.",
+      "ryzyko": "LCP: poprawa. TTFB zimnego MISS rośnie o czas zapytań hero, więc limit musi być twardy, a powyżej niego wracamy do strumienia. Hydratacja: komentarz sectionStreaming.tsx:252-256 ostrzega przed pustym widgetem, dlatego gałąź bez granicy wolno brać tylko przy kompletnych danych. Granica musi być stabilna między serwerem i klientem, a testy budżetów SSR i artefaktu LCP trzeba zaktualizować. CLS: znika podmiana szkieletu 1032 px. SEO: korzyść (treść hero w powłoce)."
+    },
+    {
+      "kolejnosc": 4,
+      "tytul": "103 Early Hints dla arkusza i fontu, także na MISS",
+      "profil": "desktop",
+      "coZmienic": "Włączyć i potwierdzić emisję 103 Early Hints dla '/' z gotowych wartości rootLinkHeaderValues (arkusz, preconnect, font), a po rekomendacji 3 także z obrazem hero z rememberHeroPreloads. Sprawdzić w strefie Cloudflare, czy 103 powstaje dla odpowiedzi Workera. Dziś Early Hints opisane są tylko dla ścieżki HIT/STALE.",
+      "gdzie": "src/lib/seo/rootHead.ts:118-123 '`<${assets.appCss}>; rel=\"preload\"; as=\"style\"`, ... ...fontPreloadLinkHeaderValues(assets.font)'; src/lib/http/documentCache.server.ts:625-627 '// HIT/STALE to główna ścieżka czytelników i główny beneficjent Early Hints. if (entry.link) headers.set(\"link\", entry.link);'; src/lib/http/frameworkPreloads.server.ts:125 'onEarlyHints: ({ hints, links: emitted }) => {' (kolektor do Link, nie wysyłka 103)",
+      "mechanizm": "Przeglądarka poznaje arkusz dopiero z odpowiedzi 200. Desktop: arkusz żądany w 3964 ms, gotowy w 4845 ms, pierwszy paint w 4939 ms. Mobile: arkusz 1297-1601 ms, pierwszy paint 1638 ms. W 8 odpowiedziach curl (w tym 2 HIT) nie ma statusu 103, a w obu devtoolslog LH jest 0 zdarzeń EarlyHints. Z 103 arkusz i font pobierają się w czasie, gdy serwer renderuje, więc pierwszy paint następuje zaraz po HTML.",
+      "szacunekSI": "Na zimnej wizycie z MISS. Desktop: SI_obs od -0,8 do -0,9 s, w wyniku od -0,45 do -0,5 s. Mobile: SI_obs ok. -0,3 s, w wyniku ok. -0,4 s. Na HIT i przy powtórnych wizytach (arkusz immutable) efekt jest mniejszy albo zerowy. PSI desktop pokazuje tylko 50 ms blokowania, więc w PSI na desktopie raczej dolna granica.",
+      "ryzyko": "Zależy od wsparcia 103 dla tras Workera po stronie Cloudflare (do potwierdzenia; brak 103 w curl może też wynikać z proxy sesji, ale devtoolslog LH potwierdza brak). Nadmiar hintów to zmarnowane łącze. LCP i FCP: poprawa. CLS, TBT i SEO bez zmian."
+    },
+    {
+      "kolejnosc": 5,
+      "tytul": "Mobile: obraz LCP nie może przyjść z priorytetem Low przez leniwą kartę z tym samym URL",
+      "profil": "mobile",
+      "coZmienic": "Jeśli URL okładki karty multi-card (albo innej leniwej karty lub listy na stronie) jest równy URL kandydata LCP strony, nadawać jej priority (eager + fetchPriority=high) albo pomijać pierwszy wpis hero w karuzelach i listach tej strony (deduplikacja). Preload w <head> z rekomendacji 3 też rozwiązuje kolizję, ale tylko wtedy, gdy rozgrzewka zdąży.",
+      "gdzie": "src/lib/builder/sliderVariants.tsx:298 'sizes={srcSet ? `${priority ? \"\" : \"auto, \"}${sizes}` : undefined}', :303 'loading={priority ? \"eager\" : \"lazy\"}', :309 'fetchPriority={priority && active ? \"high\" : active ? \"auto\" : \"low\"}'; :1426-1433 karty multi-card 'priority={p.firstSlidePriority && i === 0}'",
+      "mechanizm": "Na mobile URL hero ...2efcf691...webp?width=640 jako pierwsza wysłała leniwa karta z segmentu S:4 (devtoolslog: 1714 ms, Low, parser line 76). Hero i preload z S:1 doklejają się do tego zadania. lcp-discovery-insight: priorityHinted=false, a pobranie trwało do 5764 ms, czyli do chwili, gdy górna połowa ekranu się domyka. High przesuwa obraz przed konkurujące zasoby.",
+      "szacunekSI": "SI_obs od -0,1 do -0,3 s, w wyniku od -0,15 do -0,4 s na mobile. Efekt nakłada się z rekomendacjami 2 i 3, więc się z nimi nie sumuje. Na desktopie hero już ma High (4395 ms, High), więc efekt jest zerowy.",
+      "ryzyko": "Dwa obrazy z High mogą konkurować z CSS i fontem, dlatego High tylko dla URL równego kandydatowi LCP. Deduplikacja zmienia redakcyjną zawartość sekcji i wymaga zgody właściciela treści. CLS, TBT i SEO bez zmian."
+    },
+    {
+      "kolejnosc": 6,
+      "tytul": "Mniejszy arkusz blokujący render",
+      "profil": "oba",
+      "coZmienic": "Wydzielić CSS powierzchni niewystępujących na stronie głównej z jednego arkusza: charts.css i map.css (44 948 B) oraz utility club/events/studio/careers/profil/czat, które trafiają tam przez skan całego src. Do tego arkusz per grupa tras, ładowany jako blokujący tylko tam, gdzie jest potrzebny, albo mały krytyczny CSS nagłówka i hero inline. Pomiar selektorów: użyte 1061 z 5323 reguł, czyli 26,7% bajtów.",
+      "gdzie": "src/styles.css:1-2 '@import \"tailwindcss\" source(none);' i '@source \"../src\";'; src/styles.css:19-20 '@import \"./components/charts/charts.css\";' i '@import \"./components/charts/map.css\";'; src/lib/seo/rootHead.ts:55 '{ rel: \"stylesheet\", href: assets.appCss },'",
+      "mechanizm": "Arkusz ma 82 KB br i 561 KB po rozpakowaniu. render-blocking-insight w naszym pomiarze: wastedMs 620 (mobile) i 357 (desktop); PSI: 440 i 50 ms. Pierwsze przeliczenie stylów i układu na mobile trwa 49 ms surowo (Layout 26,4 ms, UpdateLayoutTree 15,3 ms, long-tasks 'Unattributable 178'). Mniejszy arkusz to wcześniejszy pierwszy paint (składnik obserwowany) i wcześniejsze, krótsze pierwsze zadanie z Layout w symulacji (składnik layout).",
+      "szacunekSI": "Mobile: SI_obs od -0,1 do -0,2 s, do tego składnik layout; w wyniku od -0,2 do -0,45 s. Desktop: w wyniku od -0,05 do -0,2 s (w PSI blokowanie desktop to tylko 50 ms).",
+      "ryzyko": "CLS i FOUC, jeśli arkusz trasy przyjdzie po pierwszym malowaniu; musi być blokujący dla swojej trasy. Komentarz styles.css:17-18 ostrzega, że wydzielenie charts zwiększa sumę CSS, więc liczyć łączny koszt dla tras z wykresami. Spada współdzielenie cache między stronami. Reguły AGENTS.md o wspólnej typografii i tokenach muszą zostać we wspólnym arkuszu. LCP lekko lepiej, SEO bez zmian."
+    },
+    {
+      "kolejnosc": 7,
+      "tytul": "Jeden round-trip dla danych hero: autorzy razem z wpisami slidera",
+      "profil": "oba",
+      "coZmienic": "Rozszerzyć zapytanie wpisów slidera o byline i awatar autora (literalne RPC z grantami zgodnymi z AGENTS.md) i zasiewać wpis sliderAuthorsQueryOptions z tego samego wyniku. Usunąć zależny łańcuch .then(...prefetchQuery(sliderAuthorsQueryOptions)) oraz drugą iterację bramki.",
+      "gdzie": "src/lib/builder/prefetch.ts:367-373 'const posts = queryClient.getQueryData(sliderPostsQueryOptions(widget.content, lang).queryKey); ... optionsList.push(sliderAuthorsQueryOptions(authorIds));'; :419-426 '.then(() => { ... return queryClient.prefetchQuery(sliderAuthorsQueryOptions(ids)); })'",
+      "mechanizm": "Hero potrzebuje dziś dwóch szeregowych round-tripów do bazy (wpisy, potem autorzy). W strumieniu przychodzi po sekcji z 3 sliderami spod zgięcia (S:4 +0,21-0,23 s, hero +0,38-0,44 s). Krótsza ścieżka hero sprawia, że rekomendacja 3 mieści się w twardym limicie bez dużego wzrostu TTFB.",
+      "szacunekSI": "Sam w sobie mały: dane hero o ok. 0,1-0,2 s wcześniej. W wyniku mobile od -0,05 do -0,2 s, desktop od -0,03 do -0,1 s. Głównie umożliwia rekomendację 3.",
+      "ryzyko": "Zmiana kształtu danych i kluczy slidera. Trzeba testem artefaktu sprawdzić zgodność byline przy hydratacji (komentarz prefetch.ts o doskakującej byline). RLS i granty autorów, czyli bramka generate:ts-sql-contract. LCP: poprawa, CLS bez zmian."
+    },
+    {
+      "kolejnosc": 8,
+      "tytul": "Bez wymuszonego layoutu w zadaniu hydratacji (sticky-shrink nagłówka)",
+      "profil": "oba",
+      "coZmienic": "W efekcie sticky-shrink nie czytać scrollHeight przy pierwszym wywołaniu, gdy wynik jest przesądzony. Przy current=false i scrollY ≤ SHRINK_AT 'next' zawsze wynosi false, więc wystarczy najpierw sprawdzić scrollY i wyjść. Ewentualnie pierwsze evaluate() przenieść do requestAnimationFrame. Drugi kandydat to pomiar AuthorByline w rAF (getComputedStyle), ale wolno go tylko ograniczyć do zmienionych wpisów, bo AGENTS.md nakazuje wspólny harmonogram rAF.",
+      "gdzie": "src/components/Header.tsx:476 'const slack = document.documentElement.scrollHeight - window.innerHeight;' i :486 'evaluate();' (synchronicznie w efekcie); src/components/molecules/authorTitleScheduler.ts:84 'const px = Number.parseFloat(getComputedStyle(title).fontSize);' i :167 'frame = requestAnimationFrame(flush);'",
+      "mechanizm": "Składnik layout w Lantern (SpeedIndex.js:82-94) to średnia czasów końca zadań zawierających Layout, ważona log2(czasu zadania). Ślad mobile: w zadaniu hydratacji 6736-6769 ms (33,6 ms) commit React wywołuje evaluate, co daje wymuszone UpdateLayoutTree 7,5 ms i Layout (ramka app-initial, kolumna 23432 to kod sticky-shrink). Desktop: 9257-9308 ms, UpdateLayoutTree 16,9 ms. Zadania z Layout po hydratacji mają 21% (mobile) i 27% (desktop) wagi; bez nich składnik layout na czasach obserwowanych spada z 3754 do 2842 ms (mobile) i z 6884 do 5823 ms (desktop). Bez wymuszenia layout trafia do krótkiego zadania renderującego o mniejszej wadze.",
+      "szacunekSI": "Górna granica przy usunięciu wszystkich takich zadań: mobile ok. -1 s składnika layout, czyli -0,4 s w wyniku; realnie tylko to jedno wymuszenie, więc mobile od -0,05 do -0,2 s, desktop od -0,03 do -0,1 s. To szacunek z proporcji wag; symulowanych czasów węzłów nie liczyłem.",
+      "ryzyko": "Niskie. Zachowanie zwijania nagłówka i ochrona przed pętlą drgań (MIN_SLACK, komentarz :463-469) muszą zostać bez zmian, co wymaga testu e2e. TBT: lekka poprawa. CLS, LCP i SEO bez zmian."
+    },
+    {
+      "kolejnosc": 9,
+      "tytul": "Dokładniejsze sizes slotu kolumny na desktopie",
+      "profil": "desktop",
+      "coZmienic": "W slocie kolumny odejmować odstępy kolumn i padding sekcji, a dla contentWidth full podawać np. calc(50vw - 48px) zamiast 50vw. Preload korzysta z tego samego modułu, więc zgodność bajtowa preloadu zostaje.",
+      "gdzie": "src/lib/builder/imageSlot.ts:15-16 'section.layout?.contentWidth === \"full\" ? Infinity : ...'; :27-30 'vw: (parent?.[device].vw ?? 100) * share, cap: Math.min(maxWidth, parent?.[device].cap ?? Infinity) * share'; :63-67 (imageSlotSizes, `${vw}vw` bez min(.., px) przy cap = Infinity)",
+      "mechanizm": "Obraz hero ma 626 px, a sizes deklaruje 675 px (50vw przy 1350 px), więc przeglądarka bierze 768w zamiast 640w. image-delivery-insight: 12 KiB do oszczędzenia, czyli dokładnie pozycja 'dostarczanie obrazów 12 KiB' z PSI. Mniej bajtów obrazu LCP to nieco wcześniejsze domknięcie górnej połowy ekranu.",
+      "szacunekSI": "Pomijalny: 12 KiB z 38,7 KB, czyli kilkadziesiąt ms pobrania. W wyniku desktop od 0 do -0,05 s.",
+      "ryzyko": "Niskie. Przy DPR 2 obraz może być nieco mniej ostry. Wymaga aktualizacji testów sliderSizes i heroImage. CLS, LCP i SEO bez zmian."
+    }
+  ],
+  "pozostaleZPSI": [
+    {
+      "pozycja": "Wydajność desktop 94 / mobile 98 mimo czerwonego SI",
+      "ocena": "Zgodne z wagami LH 13 (TBT 30, LCP 25, CLS 25, FCP 10, SI 10). Desktop: jedyna ocena poniżej 1,0 to SI 0,35, co odbiera 6,5 pkt. Mobile: SI 3,0 s daje 0,94 i jest zielony (próg 3,387 s).",
+      "rekomendacja": "Szczegóły w polu dlaczegoWynikWysoki. Dla desktopu priorytet mają rekomendacje 1, 4, 2 i 3; zielony próg wymaga też 6 i 8."
+    },
+    {
+      "pozycja": "Zestawienie LCP (czerwone, oba profile)",
+      "ocena": "Potwierdzone. Desktop: TTFB 3931, opóźnienie startu 472, pobieranie 2855, render 53 ms. Mobile: 1220 / 496 / 4050 / 29 ms. Dominuje pobieranie obrazu przez zimne /media, a na desktopie TTFB.",
+      "rekomendacja": "Rekomendacje 2 (pobieranie), 1 (TTFB), 3 i 5 (opóźnienie startu i priorytet)."
+    },
+    {
+      "pozycja": "Blokujące renderowanie: desktop 50 ms, mobile 440 ms",
+      "ocena": "Potwierdzone: jedyny zasób to /assets/styles--dnDiGfQ.css (82 KB br, 561 KB po rozpakowaniu, 26,7% użyte). Na MISS dochodzi brak 103 Early Hints.",
+      "rekomendacja": "Rekomendacja 6 (arkusz) i 4 (Early Hints)."
+    },
+    {
+      "pozycja": "Wydajne cache: desktop 9 KiB, mobile 11 KiB",
+      "ocena": "Bez wpływu na SI, bo PSI mierzy zimne wejście. Pozycje to ~flock.js z TTL 25 min (wstrzykiwany przez hosting, nie ma go w repo) oraz awatar avatar-1784010884008.png z TTL 1 h. Wzorzec w src/routes/media.$.ts:74 '(?:avatar-)?\\d{13}-[a-z0-9]+' wymaga sufiksu po 13 cyfrach, więc ta nazwa wpada w 'public, max-age=3600' (:79).",
+      "rekomendacja": "Niski priorytet. Rozszerzyć wzorzec do '(?:avatar-)?\\d{13}(?:-[a-z0-9]+)?' po potwierdzeniu, że nazwa awatara zmienia się przy każdym przesłaniu. W sprawie TTL flock.js zapytać hosting."
+    },
+    {
+      "pozycja": "Dostarczanie obrazów 12 KiB (desktop)",
+      "ocena": "Potwierdzone: 768x432 dla 626x352, bo sizes 50vw zawyża szerokość o 8%.",
+      "rekomendacja": "Rekomendacja 9 (efekt na SI pomijalny)."
+    },
+    {
+      "pozycja": "Przyczyny przesunięć układu / CLS 0,033 (desktop)",
+      "ocena": "Nieodtworzone: w naszych przebiegach CLS = 0, cls-culprits i layout-shifts są puste, w śladach jest 0 zdarzeń LayoutShift. 0,033 jest poniżej p10 = 0,1, więc ocena CLS i tak wynosi 1,0 i wynik się nie zmienia. Kandydat do sprawdzenia: wysokość szkieletu granicy liczona zawsze dla desktopu (sectionStreaming.tsx:263 'estimateSectionHeight(section)'; sectionHeightEstimate.ts:266 'device: Device = \"desktop\"').",
+      "rekomendacja": "Zapisać JSON z PSI desktop i odczytać layout-shifts. Bez tego nie wprowadzać poprawek CLS. Po rekomendacji 3 szkielet hero znika na MISS."
+    },
+    {
+      "pozycja": "Obrazy bez width/height (desktop)",
+      "ocena": "Potwierdzone dla jednego widgetu obrazu z ratio=auto (1782767599578-5jgrel.webp, top 1276 px, czyli pod zgięciem 940 px). mediaWidgets.tsx:156 'height: heightPx > 0 ? `${heightPx}px` : \"auto\"' bez wymiarów <img>. Bez wpływu na SI i bez zmierzonego CLS.",
+      "rekomendacja": "Zapisywać naturalne wymiary pliku w treści widgetu i przekazywać width/height albo aspectRatio do OptimizedImage. Niski priorytet."
+    },
+    {
+      "pozycja": "Nieużywany JS 198 KiB (mobile) / 192 KiB (desktop)",
+      "ocena": "Nie leży na ścieżce pierwszego renderu: metricSavings FCP/LCP = 0, a boot rusza po LCP (src/lib/boot/bootLoaderScript.ts:95 'BOOT_AFTER_LCP_DELAY_MS = 50', :99 'BOOT_HARD_CAP_MS = 3_000'). Na SI działa tylko pośrednio, przez późne zadania hydratacji z Layout w składniku layout.",
+      "rekomendacja": "Nie jest dźwignią SI pierwszego rzędu. Najpierw rekomendacja 8 (wymuszony layout w hydratacji). Odchudzenie app-initial (head/validateSearch ok. 300 tras, statyczny SDK Supabase) planować jako osobny tor."
+    },
+    {
+      "pozycja": "1 długie zadanie (mobile)",
+      "ocena": "W naszym śladzie jest to pierwsze przeliczenie stylów i układu (RunTask 1667 ms, 49 ms surowo, w symulacji 'Unattributable 178 ms'), wynikające z 5323 reguł CSS i 1560 elementów DOM. TBT w PSI = 0 ms, więc bez wpływu na wynik.",
+      "rekomendacja": "Pokrywa je rekomendacja 6. Poniżej 50 ms zejdzie prawdopodobnie dopiero razem z redukcją DOM."
+    },
+    {
+      "pozycja": "Ułatwienia dostępu 92/95, BP 100, SEO 100",
+      "ocena": "Poza zakresem Speed Index.",
+      "rekomendacja": "Bez działań w tym torze."
+    }
+  ]
+}

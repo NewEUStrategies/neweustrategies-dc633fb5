@@ -1,0 +1,228 @@
+{
+  "drzewo": "346012635",
+  "przebieg": "12 shardow (--shard=N/12, reporter blob) scalonych --merge-reports .vitest-reports --coverage, provider istanbul, TZ=UTC",
+  "plikiTestowe": 3421,
+  "statusyPlikow": {
+    "passed": 3421
+  },
+  "przypadki": {
+    "numTotalTests": 86026,
+    "numPassedTests": 85975,
+    "numFailedTests": 0,
+    "numPendingTests": 51,
+    "numTodoTests": 0
+  },
+  "grupy": {
+    "numTotalTestSuites": 18450,
+    "numPassedTestSuites": 18450,
+    "numFailedTestSuites": 0,
+    "numPendingTestSuites": 0
+  },
+  "sukces": true,
+  "pominiete": [
+    {
+      "plik": "src/__tests__/lang-parity.test.ts",
+      "test": "i18n parity: posts + pages have PL and EN content every published post has PL/EN parity for title and excerpt"
+    },
+    {
+      "plik": "src/__tests__/lang-parity.test.ts",
+      "test": "i18n parity: posts + pages have PL and EN content every published page has non-empty title_pl and title_en"
+    },
+    {
+      "plik": "src/__tests__/lang-parity.test.ts",
+      "test": "i18n parity: no duplicate pages after translation updates no duplicated slug among live pages"
+    },
+    {
+      "plik": "src/__tests__/lang-parity.test.ts",
+      "test": "i18n parity: no duplicate pages after translation updates no duplicated title_pl or title_en among published pages"
+    },
+    {
+      "plik": "src/__tests__/lang-parity.test.ts",
+      "test": "i18n parity: no duplicate pages after translation updates previously merged duplicate slugs stay absent from live pages"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table posts exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table pages exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table categories exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table tags exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table series exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table media exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table media_folders exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table author_profiles exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table profiles exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table post_authors exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table post_categories exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table post_tags exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table polls exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table poll_votes exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table glossary_terms exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table cross_references exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table live_blog_entries exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table podcasts exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table web_stories exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table access_plans exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table membership_tiers exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table membership_grants exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table content_access exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table b2b_coupons exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table b2b_coupon_campaigns exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table b2b_coupon_redemptions exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table checkout_settings exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table metering_settings exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table metering_event_log exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table payment_orders exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table events exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table event_rsvps exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table qa_sessions exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table qa_questions exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table workflow_definitions exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table workflow_runs exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table workflow_templates exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table domain_events exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table client_errors exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table user_roles exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table tenants exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: required tables are reachable via Data API table user_consents exists and accepts a projection"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: PR #58 (BlocksRenderer) data model is unchanged posts still exposes every column the block renderer reads"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: PR #58 (BlocksRenderer) data model is unchanged pages still exposes every column the block renderer reads"
+    },
+    {
+      "plik": "src/__tests__/db-schema-invariant.test.ts",
+      "test": "db schema: PR #58 (BlocksRenderer) data model is unchanged generated Database types still declare blocks_data on posts and pages"
+    },
+    {
+      "plik": "src/lib/seo/__tests__/speculationRules.test.ts",
+      "test": "speculationRules semantyka URLPattern = dawne cztery wzorce"
+    }
+  ]
+}

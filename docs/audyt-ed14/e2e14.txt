@@ -1,0 +1,6 @@
+playwright.ab.config.ts: Total: 1 test in 1 file
+playwright.artifact.config.ts: Total: 57 tests in 11 files
+playwright.cms-performance.config.ts: Total: 96 tests in 1 file
+playwright.config.ts: Total: 125 tests in 11 files
+playwright.integration.config.ts:     at _Command.<anonymous> (/home/user/neweustrategies-dc633fb5/node_modules/playwright/lib/program.js:55:7)
+playwright.performance.config.ts: Total: 119 tests in 11 files
