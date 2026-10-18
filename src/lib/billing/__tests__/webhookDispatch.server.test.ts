@@ -1545,6 +1545,167 @@ describe("zakładanie subskrypcji - odmowy", () => {
   });
 });
 
+describe("najemca zakładanej subskrypcji - z profilu właściciela, nie z DEFAULT kolumny", () => {
+  // Pod rolą serwisową DEFAULT public_tenant_id() kolumny `tenant_id` oddaje
+  // najemcę DOMYŚLNEGO, a trigger `subscriptions_pin_tenant` (20261007140300)
+  // długo istniał wyłącznie w pasie supabase - produkcję zasila dziennik
+  // drizzle. Subskrypcja konta spoza najemcy domyślnego lądowała więc
+  // w domyślnym: jego admin widział cudze faktury, a właściwy najemca nie
+  // widział subskrypcji w panelach, uzgadnianiu i windykacji. `rowStore` nie
+  // ma triggera - jak tamta baza - więc najemca w wierszu to WYŁĄCZNIE zapis
+  // webhooka.
+  const TENANT_BETA = "tenant-beta";
+  const PLAN_BETA = { ...PLAN_PRO, id: "plan-pro-beta", tenant_id: TENANT_BETA };
+
+  /** Odczyty najemcy z profilu (inne odczyty profilu niosą e-mail i imię). */
+  const tenantReads = (): RecordedChain[] =>
+    db.chainsFor("profiles").filter((c) => c.argsOf("select")?.[0] === "tenant_id");
+
+  const planScopes = (): (readonly unknown[])[] =>
+    db
+      .chainsFor("access_plans")
+      .flatMap((c) => c.calls.filter((call) => call.method === "eq").map((call) => call.args))
+      .filter((args) => args[0] === "tenant_id");
+
+  let entitlements: RowStore;
+  beforeEach(() => {
+    db.setResponse("access_plans", ok(PLAN_BETA));
+    db.setResponse("profiles", ok({ email: "kupujacy@example.com", tenant_id: TENANT_BETA }));
+    entitlements = rowStore({ unique: ["external_ref"] });
+    db.setResponse("user_subscriptions", (chain) => entitlements.respond(chain));
+  });
+
+  it("konto spoza najemcy domyślnego: wiersz i uprawnienie w najemcy PROFILU, jednym odczytem profilu", async () => {
+    const subscriptions = subscriptionsTable();
+
+    const outcome = await dispatchWebhookEvent({
+      eventId: "evt_utworzenie",
+      eventType: "subscription.created",
+      data: subscriptionEvent(),
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(outcome).toBe("processed");
+    expect(writePayload("subscriptions", "upsert")).toMatchObject({
+      user_id: "user-kupujacy",
+      tenant_id: TENANT_BETA,
+    });
+    expect(subscriptions.rows).toEqual([expect.objectContaining({ tenant_id: TENANT_BETA })]);
+    expect(entitlements.rows).toEqual([
+      expect.objectContaining({ tenant_id: TENANT_BETA, plan_id: PLAN_BETA.id }),
+    ]);
+    // Ten sam odczyt profilu zakresuje odwzorowanie ceny na plan - bez
+    // drugiego odczytu w `resolvePlanForPrice`.
+    expect(tenantReads()).toHaveLength(1);
+    expect(tenantReads()[0]?.argsOf("eq")).toEqual(["id", "user-kupujacy"]);
+    expect(planScopes()).toEqual([["tenant_id", TENANT_BETA]]);
+  });
+
+  it("ślad księgowy piaskownicy na produkcji (bez skutków) też trafia do najemcy profilu", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const subscriptions = subscriptionsTable();
+
+    const outcome = await dispatchWebhookEvent({
+      eventId: "evt_sandbox_utworzenie",
+      eventType: "subscription.created",
+      data: subscriptionEvent(),
+      environment: "sandbox",
+      occurredAt: OCCURRED_AT,
+    });
+    warn.mockRestore();
+
+    expect(outcome).toBe("processed");
+    expect(subscriptions.rows).toEqual([expect.objectContaining({ tenant_id: TENANT_BETA })]);
+    expect(writesOn("user_subscriptions")).toHaveLength(0);
+  });
+
+  it("nagrobek (rezygnacja przed `created`) trafia do najemcy profilu, a plan szuka w tym samym zakresie", async () => {
+    const subscriptions = subscriptionsTable();
+    stripeApi.retrieve = async () => ({
+      id: "sub_atrapa_1",
+      customer: "cus_atrapa_1",
+      status: "canceled",
+      metadata: { userId: "user-kupujacy" },
+      cancellation_details: { reason: "cancellation_requested" },
+      latest_invoice: { id: "in_pierwsza", status: "paid" },
+      items: {
+        data: [
+          {
+            quantity: 1,
+            current_period_start: Date.parse("2026-08-01T00:00:00.000Z") / 1000,
+            current_period_end: Date.parse("2099-01-01T00:00:00.000Z") / 1000,
+            price: { id: "pri_atrapa", lookup_key: "pro_monthly", product: "prod_atrapa" },
+          },
+        ],
+      },
+    });
+
+    const outcome = await dispatchWebhookEvent({
+      eventId: "evt_usuniecie",
+      eventType: "subscription.canceled",
+      data: subscriptionEvent({ status: "canceled" }),
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(outcome).toBe("processed");
+    expect(subscriptions.rows).toEqual([
+      expect.objectContaining({ status: "canceled", tenant_id: TENANT_BETA }),
+    ]);
+    expect(tenantReads()).toHaveLength(1);
+    expect(planScopes()).toEqual([["tenant_id", TENANT_BETA]]);
+  });
+
+  it("konto bez profilu (zamknięte): wiersz bez `tenant_id` - wartość awaryjną zostawia baza, jak trigger", async () => {
+    // Ta sama reguła co `subscriptions_pin_tenant`: brak profilu nie wywraca
+    // zapisu płatności. Wyjątek skazałby zdarzenie na ponowienia bez końca,
+    // a profilu i tak nie przybędzie.
+    db.setResponse("profiles", ok(null));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const subscriptions = subscriptionsTable();
+
+    const outcome = await dispatchWebhookEvent({
+      eventId: "evt_utworzenie",
+      eventType: "subscription.created",
+      data: subscriptionEvent(),
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(outcome).toBe("processed");
+    expect(writePayload("subscriptions", "upsert")).not.toHaveProperty("tenant_id");
+    expect(subscriptions.rows).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] subscription owner has no profile",
+      "user-kupujacy",
+    );
+    warn.mockRestore();
+  });
+
+  it("porażka odczytu profilu przerywa obsługę ZANIM powstanie wiersz pod najemcą awaryjnym", async () => {
+    // Wiersz zapisany mimo to trafiłby do najemcy domyślnego - ten sam defekt.
+    // Wyjątek = odpowiedź 500, operator ponowi zdarzenie.
+    db.setResponse("profiles", fail("connection reset"));
+    const subscriptions = subscriptionsTable();
+
+    await expect(
+      dispatchWebhookEvent({
+        eventId: "evt_utworzenie",
+        eventType: "subscription.created",
+        data: subscriptionEvent(),
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).rejects.toThrow("profile tenant lookup failed: connection reset");
+
+    expect(subscriptions.rows).toHaveLength(0);
+    expect(db.chainsFor("subscriptions").filter((c) => c.has("upsert"))).toHaveLength(0);
+    expect(writesOn("user_subscriptions")).toHaveLength(0);
+  });
+});
+
 describe("subskrypcja darowizny - poza ścieżką uprawnień", () => {
   it("darowizna cykliczna idzie do rejestru wpłat, nie do `subscriptions`", async () => {
     // Darowizna nie jest planem dostępu: nie ma odpowiednika w cenniku i nie
