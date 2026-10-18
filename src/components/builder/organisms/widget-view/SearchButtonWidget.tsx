@@ -405,9 +405,12 @@ export function SearchButtonWidget({
   // się renderować (zakładka, urządzenie, dostęp). Ten efekt domyka przodków
   // spoza renderera, których SSR nie zna; jego znaczniki zostają po
   // odmontowaniu - atrybutu na cudzym przodku nikt inny nie zdejmie.
+  // Stop before the drawer's scroll root: removing its overflow disables
+  // native scrolling and also releases the panel's clipping boundary.
   useEffect(() => {
     let el = wrapRef.current?.parentElement ?? null;
     while (el && el !== document.body && el !== document.documentElement) {
+      if (el.hasAttribute("data-mobile-drawer-scroller")) break;
       if (!el.hasAttribute("data-reading-row") && !el.hasAttribute("data-search-overflow")) {
         el.setAttribute("data-search-overflow", "");
       }
