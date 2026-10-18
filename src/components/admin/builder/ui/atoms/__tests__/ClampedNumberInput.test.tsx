@@ -208,9 +208,10 @@ describe("ClampedNumberInput - zatwierdzanie", () => {
     primeOutOfRange(input);
     fireEvent.blur(input, { target: { value: "abc" } });
     expect(onCommit).not.toHaveBeenCalled();
-    // Draft = "" -> strzałka liczy od zera i klampuje do min (1).
+    // Draft = "" -> strzałka startuje od dolnego krańca (1) i dodaje krok.
+    // (Przed naprawą z 2026-10-18 liczyła od zera i trafiała w 1 klampem.)
     fireEvent.keyDown(input, { key: "ArrowUp" });
-    expect(onCommit).toHaveBeenLastCalledWith(1);
+    expect(onCommit).toHaveBeenLastCalledWith(2);
   });
 
   it("czyści pole na puste zatwierdzenie bez wartości poprzedniej i bez allowEmpty", () => {
@@ -223,8 +224,9 @@ describe("ClampedNumberInput - zatwierdzanie", () => {
     // Same białe znaki to dla `commit` wpis PUSTY - `trim()` przed testem.
     fireEvent.blur(input, { target: { value: "   " } });
     expect(onCommit).not.toHaveBeenCalled();
+    // Pusty draft -> start od min (1) + krok.
     fireEvent.keyDown(input, { key: "ArrowUp" });
-    expect(onCommit).toHaveBeenLastCalledWith(1);
+    expect(onCommit).toHaveBeenLastCalledWith(2);
   });
 
   it("klampuje w dół do min przy zatwierdzeniu", () => {
@@ -270,17 +272,13 @@ describe("ClampedNumberInput - strzałki klawiatury", () => {
     expect(onCommit).toHaveBeenLastCalledWith(4);
   });
 
-  // BŁĄD PRODUKCYJNY (udokumentowany, nienaprawiony w tym etapie).
-  // `bump` chce wrócić do wartości dokumentu, gdy draft nie jest liczbą:
-  //   const base = Number(draft.replace(",", "."));
-  //   const start = Number.isFinite(base) ? base : (value ?? min);
-  // Tylko że `Number("")` to ZERO, a nie NaN - więc dla pola WYCZYSZCZONEGO
-  // gałąź zapasowa nigdy nie wchodzi i strzałka liczy od zera, nie od wartości
-  // dokumentu. Skutek dla redakcji: wyczyszczenie pola „Szerokość" (8) i klik
-  // strzałką w dół daje 1 (klamp z -1), a nie 7. Warunek powinien brzmieć
-  // `draft.trim() !== "" && Number.isFinite(base)`. Zmiany produkcyjnej nie
-  // robimy tutaj - to etap testowy, a poprawka dotyka zachowania edytora.
-  it.fails("startuje od wartości dokumentu, gdy draft jest pusty", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): `bump` wraca do wartości
+  // dokumentu, gdy draft nie jest liczbą - ale `Number("")` to ZERO, nie NaN,
+  // więc dla pola WYCZYSZCZONEGO gałąź zapasowa nie wchodziła i strzałka
+  // liczyła od zera (wyczyszczona „Szerokość" 8 + strzałka w dół dawała 1,
+  // klamp z -1, zamiast 7). Warunek brzmi teraz
+  // `draft.trim() !== "" && Number.isFinite(base)`.
+  it("startuje od wartości dokumentu, gdy draft jest pusty", () => {
     const onCommit = vi.fn();
     render(<ClampedNumberInput value={8} min={1} max={12} ariaLabel="w" onCommit={onCommit} />);
     const input = screen.getByLabelText("w") as HTMLInputElement;
@@ -288,18 +286,21 @@ describe("ClampedNumberInput - strzałki klawiatury", () => {
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(onCommit).toHaveBeenLastCalledWith(7);
+    expect(input.value).toBe("7");
   });
 
-  it("pusty draft liczy strzałkę od zera - stan faktyczny", () => {
-    // Kontrola dodatnia do `it.fails` powyżej: przypina RZECZYWISTE zachowanie,
-    // żeby ewentualna naprawa nie przeszła niezauważona (ten test wtedy padnie).
+  it("pusty draft bez wartości dokumentu startuje od dolnego krańca zakresu", () => {
+    // Druga połowa tej samej gałęzi: bez wartości w dokumencie punktem
+    // wyjścia jest `min`, a nie zero spoza zakresu (min 3 + krok 1 = 4,
+    // dawniej klamp z 0 + 1 dawał 3).
     const onCommit = vi.fn();
-    render(<ClampedNumberInput value={8} min={1} max={12} ariaLabel="w" onCommit={onCommit} />);
+    render(
+      <ClampedNumberInput value={undefined} min={3} max={12} ariaLabel="w" onCommit={onCommit} />,
+    );
     const input = screen.getByLabelText("w") as HTMLInputElement;
     fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: "" } });
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(onCommit).toHaveBeenLastCalledWith(1);
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(onCommit).toHaveBeenLastCalledWith(4);
   });
 
   it("respektuje własny krok", () => {

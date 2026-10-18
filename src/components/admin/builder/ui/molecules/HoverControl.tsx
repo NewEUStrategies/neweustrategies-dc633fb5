@@ -87,8 +87,11 @@ export function HoverControl({ value, onChange }: Props) {
               value={v.transitionMs ?? ""}
               placeholder="200"
               onChange={(e) => {
-                const n = Number(e.target.value);
-                set({ transitionMs: Number.isFinite(n) && n >= 0 ? n : undefined });
+                // `Number("")` to ZERO - bez sprawdzenia pustego pola
+                // wyczyszczenie zapisywało 0 ms zamiast zdjąć nadpisanie.
+                const raw = e.target.value.trim();
+                const n = Number(raw);
+                set({ transitionMs: raw !== "" && Number.isFinite(n) && n >= 0 ? n : undefined });
               }}
               className="h-8 text-xs"
             />

@@ -115,6 +115,7 @@ function InnerRow({
   const { t } = useTranslation();
   const [open, setOpen] = useState(true);
   const selected = selection.kind === "inner-section" && selection.id === inner.id;
+  const hidden = !!inner.advanced?.hideOn?.[device];
   return (
     <div>
       <Row
@@ -122,10 +123,13 @@ function InnerRow({
         open={open}
         onToggle={() => setOpen(!open)}
         selected={selected}
-        hidden={false}
+        // Sekcja wewnętrzna ma własne `advanced.hideOn` (`ops.toggleHidden`
+        // obsługuje rodzaj "inner-section"). Wcześniej „oko" było tu martwe
+        // (`() => {}`), a wiersz nigdy nie pokazywał stanu ukrycia.
+        hidden={hidden}
         label={t("builder.navigator.innerSection")}
         onSelect={() => onSelect({ kind: "inner-section", id: inner.id })}
-        onToggleHidden={() => {}}
+        onToggleHidden={() => onToggleHidden(inner.id, "inner-section")}
       />
       {open &&
         (Array.isArray(inner.columns) ? inner.columns : [])
@@ -266,6 +270,8 @@ function Row({
         <span className="w-3.5" />
       ) : (
         <button
+          type="button"
+          aria-expanded={!!open}
           onClick={(e) => {
             e.stopPropagation();
             onToggle?.();

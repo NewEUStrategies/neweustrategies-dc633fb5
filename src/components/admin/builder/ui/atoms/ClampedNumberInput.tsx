@@ -66,7 +66,9 @@ export function ClampedNumberInput({
 
   const bump = (delta: number) => {
     const base = Number(draft.replace(",", "."));
-    const start = Number.isFinite(base) ? base : (value ?? min);
+    // `Number("")` to ZERO, nie NaN - pusty draft musi jawnie wrócić do
+    // wartości dokumentu, inaczej strzałka liczyła od zera.
+    const start = draft.trim() !== "" && Number.isFinite(base) ? base : (value ?? min);
     const next = clamp(start + delta, min, max);
     setDraft(String(next));
     onCommit(next);

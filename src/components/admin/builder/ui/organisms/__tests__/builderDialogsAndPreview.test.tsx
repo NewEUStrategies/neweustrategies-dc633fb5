@@ -18,6 +18,7 @@ import type { TemplateRevision } from "@/lib/builder/templates";
 import EmptyContainerPickerBox from "../EmptyContainerPickerBox";
 import { TemplateHistoryDialog } from "../TemplateHistoryDialog";
 import { WidgetLivePreview } from "../WidgetLivePreview";
+import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
 
 const revisions = vi.hoisted(() => ({
   current: { items: [] as TemplateRevision[], loading: false },
@@ -77,6 +78,31 @@ describe("EmptyContainerPickerBox", () => {
     render(<EmptyContainerPickerBox tabsEnabled={false} onPick={onPick} />);
     fireEvent.click(screen.getByTitle("builder.chrome.insertSection(label=1/3 · 2/3)"));
     expect(onPick).toHaveBeenCalledWith([4, 8]);
+  });
+
+  it("przeciągnięcie struktury niesie rozpiętości w typie MIME kanwy", () => {
+    // Kanwa (VisualCanvas) rozpoznaje upuszczenie struktury WYŁĄCZNIE po
+    // własnym typie MIME i czyta z niego JSON rozpiętości. Inny typ albo inny
+    // kształt danych = upuszczenie, po którym nic się nie dzieje.
+    render(<EmptyContainerPickerBox tabsEnabled={false} onPick={vi.fn()} />);
+    const data: Record<string, string> = {};
+    const dataTransfer = {
+      setData: (mime: string, value: string) => {
+        data[mime] = value;
+      },
+    };
+    fireEvent.dragStart(screen.getByTitle("builder.chrome.insertSection(label=1/4 × 4)"), {
+      dataTransfer,
+    });
+    expect(JSON.parse(data[SECTION_STRUCTURE_MIME] ?? "null")).toEqual([3, 3, 3, 3]);
+    expect(data["text/plain"]).toBe("1/4 × 4");
+  });
+
+  it("jedna kolumna ma etykietę ze słownika, nie z kodu", () => {
+    render(<EmptyContainerPickerBox tabsEnabled={false} onPick={vi.fn()} />);
+    expect(
+      screen.getByTitle("builder.chrome.insertSection(label=builder.chrome.oneColumn)"),
+    ).toBeTruthy();
   });
 
   it("kliknięcia nie wychodzą do kanwy", () => {
