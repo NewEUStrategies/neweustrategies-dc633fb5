@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #523
+
+- [ ] Potwierdzić wszystkie commity i zakres scalenia PR #523.
+- [ ] Sprawdzić rzeczywiste tabele, widoki, RPC oraz zgodność rejestrów migracji; uzupełnić potwierdzone braki.
+- [ ] Uruchomić testy zmian i zweryfikować działanie wyszukiwarki.
+- [ ] Opublikować i potwierdzić nową wersję na stronie publicznej.
+
 ## Weryfikacja PR #518
 
 - [x] Potwierdzić integrację wszystkich 24 commitów PR #518: merge 346012635, 192 pliki; drzewo scalenia identyczne z końcem gałęzi PR.
