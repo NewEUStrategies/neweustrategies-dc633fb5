@@ -778,11 +778,35 @@ t18_14, _ = sekcja(14)
 t18_15, _ = sekcja(15)
 w('<section>')
 w(naglowek('Rachunek sumienia i sprawdzalność', 'Co w tym wydaniu jest szacunkiem i jak sprawdzić resztę'))
+wstep14, pod14 = podsekcje(t18_14)
 w('  <div class="tgrid">')
-for p in punkty(t18_14, r'^- (.*)$'):
+for p in punkty(wstep14, r'^- (.*)$'):
     m = re.match(r'^\*\*(.+?)\*\*\s*(.*)$', p)
     w(f'    <div class="tcard"><span class="tname">{inline(m.group(1).rstrip("."))}</span><p class="tproof">{inline(m.group(2))}</p></div>')
 w('  </div>')
+KRYT = 'Krytyk kompletności: czego ten rozdział nie pokrył'
+if KRYT in pod14:
+    kt = pod14[KRYT]
+    w(f'  <h3 class="sub3">{KRYT}</h3>')
+    w(f'  <p class="section-note">{inline(akapity(kt)[0])}</p>')
+    WK = {'wysoka': 't1', 'średnia': 't2', 'niska': 't3'}
+    w('  <div class="zgrid" style="margin-top:12px">')
+    for p in punkty(kt, r'^- (.*)$'):
+        m = re.match(r'^\*\*\(([^,]+), (.+?)\) (.+?)\.\*\*\s*(.*)$', p)
+        waga, sp_, tyt, reszta = m.groups()
+        spr = sp_.endswith(', sprawdzone')
+        sp_ = sp_[:-len(', sprawdzone')] if spr else sp_
+        czesci = re.split(r' (Dowód|Rekomendacja|Miejsce w rozdziale): ', ' ' + reszta)
+        opis = czesci[0].strip()
+        pola = dict(zip(czesci[1::2], czesci[2::2]))
+        w(f'    <div class="zcard {WK.get(waga, "t3")}"><div class="zhead"><span class="zname">{inline(tyt)}</span>'
+          f'<span class="chip {"open" if waga == "wysoka" else "part" if waga == "średnia" else "info"}">{html.escape(waga)}</span></div>'
+          f'<span class="zmeta">{html.escape(sp_)}{" · sprawdzone w kodzie" if spr else " · zgłoszone, do potwierdzenia"}</span>'
+          f'<p class="tproof">{inline(opis)}</p>'
+          + '<details class="zmore"><summary>Dowód, rekomendacja, miejsce w rozdziale</summary>'
+          + ''.join(f'<p class="tproof"><b>{k}.</b> {inline(pola[k].strip())}</p>' for k in ('Dowód', 'Rekomendacja', 'Miejsce w rozdziale') if k in pola)
+          + '</details></div>')
+    w('  </div>')
 w('  <h3 class="sub3">Jak sprawdzić</h3>')
 w('  ' + md(t18_15))
 w('</section>')

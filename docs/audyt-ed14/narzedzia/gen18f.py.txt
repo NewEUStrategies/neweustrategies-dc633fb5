@@ -18,12 +18,28 @@ w(f'Po zamknięciu rozdziału {len(K)} niezależnych spojrzeń ({", ".join(NAZWY
   f'Zgłosiły **{len(luki)} luk**, w tym {wys} o wadze wysokiej. Każda ma dowód w repozytorium na `346012635` albo w danych wydania. '
   + ('Luki o wadze wysokiej przeczytałem w kodzie sam (oznaczone **sprawdzone**); pozostałe są zgłoszeniami do potwierdzenia przy pracy nad planem 18.13.' if SPRAWDZONE else 'Nie sprawdzałem ich osobno: to zgłoszenia do potwierdzenia przy pracy nad planem 18.13.'))
 w('')
+import re as _re
+
+
+def plasko(x):
+    """Pole agenta w jednej linii punktu listy: wewnętrzne listy jako „; ", podziały wierszy jako spacje."""
+    x = _re.sub(r'\s*\n+\s*-\s+', '; ', x.strip())
+    x = _re.sub(r':\s*;\s*', ': ', x)
+    return _re.sub(r'\s*\n+\s*', ' ', x)
+
+
+luki = [(sp, {k: (plasko(v) if isinstance(v, str) else v) for k, v in l.items()}) for sp, l in luki]
 for sp, l in sorted(luki, key=lambda x: (WAGA[x[1]['waga']], list(NAZWY).index(x[0]))):
     stan = SPRAWDZONE.get(l['tytul'])
-    znak = f', **{stan}**' if stan else ''
+    znak = f', {stan}' if stan else ''
     w(f'- **({WAGA_PL[l["waga"]]}, {NAZWY[sp]}{znak}) {l["tytul"].rstrip(".")}.** {l["coBrakuje"].strip()} Dowód: {l["dowod"].strip()} '
       f'Rekomendacja: {l["rekomendacja"].strip()} Miejsce w rozdziale: {l["gdzieWRozdziale"].strip()}.')
 tekst = '\n'.join(o) + '\n'
+# odwołania do numerów linii dokumentu audytu przesuwają się przy każdym montażu - zamiast numeru: sekcja rozdziału
+import re
+tekst = re.sub(r'`?docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18\.md:\d+`?', 'rozdział 18', tekst)
+tekst = re.sub(r'Rozdział:? :\d+', 'Rozdział 18:', tekst)
+tekst = re.sub(r'Rozdział :\d+', 'Rozdział 18', tekst)
 for zly in ('—', '–'):
     tekst = tekst.replace(zly, '-')
 open(f'{S}/r18f.md', 'w', encoding='utf-8').write(tekst)
