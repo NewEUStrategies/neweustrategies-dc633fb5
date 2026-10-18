@@ -16,6 +16,7 @@ import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuditCurrencyTotals, AuditReport } from "@/lib/billing/audit.server";
 import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
+import { downloadBlob } from "@/lib/files/downloadBlob";
 import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
 
 export const Route = createFileRoute("/admin/billing-audit")({
@@ -40,17 +41,19 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Zamienia base64 z serwera na pobranie pliku - bez pośrednictwa sieci. */
+/**
+ * Zamienia base64 z serwera na pobranie pliku - bez pośrednictwa sieci.
+ *
+ * Pobranie idzie WSPÓLNYM `downloadBlob`: kotwica w dokumencie i zwolnienie
+ * adresu `blob:` po chwili. Własna kopia zwalniała adres zaraz po `click()`
+ * kotwicy spoza dokumentu - Safari i część Chromium na Androidzie gubią wtedy
+ * plik, a to eksport, z którego księgowość zamyka miesiąc.
+ */
 function downloadBase64(fileName: string, mimeType: string, base64: string): void {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([bytes], { type: mimeType }), fileName);
 }
 
 function AdminBillingAudit() {

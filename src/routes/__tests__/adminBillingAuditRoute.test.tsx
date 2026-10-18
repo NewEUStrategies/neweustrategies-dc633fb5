@@ -83,6 +83,7 @@ import i18n from "@/lib/i18n";
 import { renderRoute } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { moneyPattern } from "@/test/billing/fixtures";
+import { OBJECT_URL_REVOKE_DELAY_MS } from "@/lib/files/downloadBlob";
 import { Route as AuditRoute } from "@/routes/admin.billing-audit";
 
 const PATH = "/admin/billing-audit";
@@ -677,18 +678,18 @@ describe("trasa /admin/billing-audit - eksport księgowy", () => {
   /** Przechwytuje pobranie pliku: adres obiektu, nazwę i typ MIME. */
   function captureDownload() {
     const created: Blob[] = [];
-    const anchors: { href: string; download: string }[] = [];
+    const anchors: { href: string; download: string; attached: boolean }[] = [];
     vi.spyOn(URL, "createObjectURL").mockImplementation((blob: Blob | MediaSource) => {
       created.push(blob as Blob);
       return "blob:test-object-url";
     });
-    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
       this: HTMLAnchorElement,
     ) {
-      anchors.push({ href: this.href, download: this.download });
+      anchors.push({ href: this.href, download: this.download, attached: this.isConnected });
     });
-    return { created, anchors };
+    return { created, anchors, revoke };
   }
 
   it("eksport CSV pyta o TEN SAM zakres co dziennik i pobiera plik z serwera", async () => {
@@ -754,6 +755,37 @@ describe("trasa /admin/billing-audit - eksport księgowy", () => {
 
     await waitFor(() => expect(h.exportAudit).toHaveBeenCalled());
     expect(h.audit).not.toHaveBeenCalled();
+  });
+
+  // DEFEKT (2026-10-18): trasa miała własną kopię pobrania, która klikała
+  // kotwicę SPOZA dokumentu i zwalniała adres `blob:` zaraz po `click()`.
+  // Safari i część Chromium na Androidzie gubią wtedy plik (pobranie
+  // „nieudane" albo pusta karta) - eksport księgowy kończył się niczym. Wspólny
+  // `downloadBlob` wstawia kotwicę do dokumentu i zwalnia adres po chwili.
+  it("plik eksportu: kotwica W dokumencie, adres zwolniony PO chwili, nie od razu", async () => {
+    const download = captureDownload();
+    await mount();
+    // Zwolnienie adresu jest odroczone - sterujemy `setTimeout` dopiero tu,
+    // po zamontowaniu trasy.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Eksport CSV" }));
+
+      await vi.waitFor(() => expect(download.anchors).toHaveLength(1));
+      expect(download.anchors[0]).toEqual({
+        href: "blob:test-object-url",
+        download: "audyt-sandbox-2026-08-18.csv",
+        attached: true,
+      });
+      expect(download.revoke).not.toHaveBeenCalled();
+      // Kotwica nie zostaje w dokumencie po kliknięciu.
+      expect(document.querySelector("a[download]")).toBeNull();
+
+      vi.advanceTimersByTime(OBJECT_URL_REVOKE_DELAY_MS);
+      expect(download.revoke).toHaveBeenCalledWith("blob:test-object-url");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
