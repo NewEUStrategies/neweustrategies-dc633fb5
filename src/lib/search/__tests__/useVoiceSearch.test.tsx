@@ -95,19 +95,29 @@ function installMediaRecorder() {
 /** Kolejka klatek animacji - test odpala je ręcznie. */
 let frames: FrameRequestCallback[] = [];
 
+interface SpeechEvent {
+  resultIndex?: number;
+  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string; confidence?: number } }>;
+}
+
 interface SpeechInstance {
   lang: string;
-  onresult:
-    ((e: { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onresult: ((e: SpeechEvent) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((e?: { error: string }) => void) | null;
   start: () => void;
   stop: () => void;
   abort: () => void;
+  /** Ile razy wystartowała sesja - auto-wznowienia w onend też się liczą. */
+  starts: number;
+  stopped: boolean;
+  aborted: boolean;
 }
 
 const speeches: SpeechInstance[] = [];
-const speechCtl = { available: true, startThrows: false };
+/** `endOnStop: false` = realny silnik: po stop() przychodzi jeszcze wynik
+ *  dla nagranego już dźwięku, a `end` dopiero, gdy test go odpali (`end`). */
+const speechCtl = { available: true, startThrows: false, endOnStop: true };
 
 function installSpeechRecognition() {
   class FakeSpeechRecognition implements SpeechInstance {
@@ -118,23 +128,52 @@ function installSpeechRecognition() {
     onresult: SpeechInstance["onresult"] = null;
     onend: SpeechInstance["onend"] = null;
     onerror: SpeechInstance["onerror"] = null;
+    starts = 0;
     stopped = false;
+    aborted = false;
     constructor() {
       speeches.push(this);
     }
     start() {
       if (speechCtl.startThrows) throw new Error("odmowa");
+      this.starts += 1;
     }
     stop() {
       this.stopped = true;
-      this.onend?.();
+      if (speechCtl.endOnStop) this.onend?.();
     }
+    // Jak Chrome: abort() nic nie zgłasza synchronicznie, później przychodzi
+    // `error: aborted` i `end`. Uchwyty są czytane w chwili zdarzenia, więc
+    // test widzi, czy hook odpiął je przed abort().
     abort() {
       this.stopped = true;
+      this.aborted = true;
+      void Promise.resolve().then(() => {
+        this.onerror?.({ error: "aborted" });
+        this.onend?.();
+      });
     }
   }
   (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = FakeSpeechRecognition;
 }
+
+/** [transkrypcja, isFinal, confidence] - domyślnie finał 0.9, interim 0. */
+type Seg = [string, boolean, number?];
+
+/** Zdarzenie jak z Chrome w trybie ciągłym: CAŁA lista wyników sesji -
+ *  finały zostają w niej do końca sesji, za nimi bieżący interim. */
+function emit(rec: SpeechInstance, segs: Seg[]) {
+  act(() => {
+    rec.onresult?.({
+      results: segs.map(([transcript, isFinal, confidence]) => ({
+        isFinal,
+        0: { transcript, confidence: confidence ?? (isFinal ? 0.9 : 0) },
+      })),
+    });
+  });
+}
+const fail = (rec: SpeechInstance, error: string) => act(() => rec.onerror?.({ error }));
+const end = (rec: SpeechInstance) => act(() => rec.onend?.());
 
 function installAudio() {
   const analyser = {
@@ -196,6 +235,7 @@ beforeEach(() => {
   });
   speechCtl.available = true;
   speechCtl.startThrows = false;
+  speechCtl.endOnStop = true;
 
   getUserMedia.mockReset().mockResolvedValue(fakeStream());
   Object.defineProperty(navigator, "mediaDevices", {
@@ -516,15 +556,16 @@ describe("useVoiceSearch - transkrypcja serwerowa", () => {
   });
 });
 
-describe("useVoiceSearch - fallback Web Speech API", () => {
-  async function startFallback(over: Partial<VoiceSearchOptions> = {}) {
-    getUserMedia.mockRejectedValue(new Error("NotAllowedError"));
-    const opts = options(over);
-    const hook = renderHook(() => useVoiceSearch(opts));
-    await act(async () => hook.result.current.toggle());
-    return { ...hook, opts, rec: speeches.at(-1)! };
-  }
+/** Start dyktowania przez Web Speech (odmowa mikrofonu = fallback). */
+async function startFallback(over: Partial<VoiceSearchOptions> = {}) {
+  getUserMedia.mockRejectedValue(new Error("NotAllowedError"));
+  const opts = options(over);
+  const hook = renderHook(() => useVoiceSearch(opts));
+  await act(async () => hook.result.current.toggle());
+  return { ...hook, opts, rec: speeches.at(-1)! };
+}
 
+describe("useVoiceSearch - fallback Web Speech API", () => {
   it("ustawia język rozpoznawania zgodnie z językiem interfejsu", async () => {
     const { rec } = await startFallback({ lang: "en" });
     expect(rec.lang).toBe("en-US");
@@ -541,8 +582,11 @@ describe("useVoiceSearch - fallback Web Speech API", () => {
     expect(opts.onFinal).not.toHaveBeenCalled();
   });
 
-  it("wynik OSTATECZNY zatwierdza frazę (submit wyszukiwania)", async () => {
-    const { opts, rec } = await startFallback();
+  // Dawniej „wynik OSTATECZNY zatwierdza frazę" - i to przypinało defekt:
+  // w trybie ciągłym finał zostaje w `results` do końca sesji, więc KAŻDE
+  // kolejne zdarzenie zatwierdzało frazę od nowa.
+  it("wynik OSTATECZNY trafia do pola od razu, a frazę zatwierdza dopiero stop", async () => {
+    const { result, opts, rec } = await startFallback();
     act(() => {
       rec.onresult?.({
         results: [
@@ -552,14 +596,18 @@ describe("useVoiceSearch - fallback Web Speech API", () => {
       });
     });
     expect(opts.onText).toHaveBeenCalledWith("polityka energetyczna");
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
     expect(opts.onFinal).toHaveBeenCalledWith("polityka energetyczna");
   });
 
-  it("PUSTY wynik nie czyści pola frazy", async () => {
-    const { opts, rec } = await startFallback();
+  it("PUSTY wynik nie czyści pola frazy - ani w trakcie, ani po stopie", async () => {
+    const { result, opts, rec } = await startFallback();
     act(() => {
       rec.onresult?.({ results: [{ isFinal: true, 0: { transcript: "   " } }] });
     });
+    act(() => result.current.toggle());
     expect(opts.onText).not.toHaveBeenCalled();
     expect(opts.onFinal).not.toHaveBeenCalled();
   });
@@ -583,12 +631,17 @@ describe("useVoiceSearch - fallback Web Speech API", () => {
     expect(result.current.listening).toBe(false);
   });
 
-  it("błąd rozpoznawania jest cichy - stan gasi dopiero onend, który zawsze przychodzi", async () => {
+  // Dawniej „błąd jest cichy - stan gasi dopiero onend, który zawsze
+  // przychodzi". Kod błędu był ignorowany, a WebKit po odmowie zgody `end`
+  // nie przysyła wcale. Cichy jest tylko błąd ciszy.
+  it("`no-speech` jest cichy: nasłuch trwa, a koniec sesji ją wznawia", async () => {
     const { result, rec } = await startFallback();
-    act(() => rec.onerror?.());
+    act(() => vi.advanceTimersByTime(8000));
+    fail(rec, "no-speech");
     expect(result.current.listening).toBe(true);
+    end(rec);
+    expect(rec.starts).toBe(2);
     act(() => result.current.stop());
-    act(() => rec.onend?.());
     expect(result.current.listening).toBe(false);
   });
 
@@ -598,6 +651,272 @@ describe("useVoiceSearch - fallback Web Speech API", () => {
     const { result } = renderHook(() => useVoiceSearch(options()));
     await act(async () => result.current.toggle());
     expect(result.current.listening).toBe(false);
+  });
+});
+
+// Tryb ciągły (`continuous = true`): `e.results` to CAŁA sesja, finały
+// zostają w liście do jej końca. Kod sprzed poprawki wołał onFinal, gdy
+// w liście był JAKIKOLWIEK finał - czyli przy każdym zdarzeniu po pierwszym
+// finale. Na /search to seria nawigacji, wpisów w „ostatnich" i wywołań
+// `log_search_query`, w widgecie seria `search_autosuggest`. Kontrakt jest ten
+// sam co w ścieżce serwerowej: jedno dyktowanie (start -> stop) = jeden submit.
+describe("useVoiceSearch - Web Speech w trybie ciągłym: jedno dyktowanie = jeden submit", () => {
+  it("REGRESJA: po pierwszym finale kolejne zdarzenia NIE zatwierdzają frazy - submit raz, po stopie", async () => {
+    const { result, opts, rec } = await startFallback();
+    const words = "polityka energetyczna unii europejskiej".split(" ");
+    const finals: Seg[] = [];
+    let events = 0;
+    for (const [i, w] of words.entries()) {
+      const lead = i ? " " : "";
+      for (let n = 1; n < w.length; n += 2) {
+        emit(rec, [...finals, [lead + w.slice(0, n), false]]);
+        events++;
+      }
+      finals.push([lead + w, true]);
+      emit(rec, [...finals]);
+      events++;
+    }
+    expect(events).toBeGreaterThanOrEqual(20);
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("polityka energetyczna unii europejskiej");
+    expect(opts.onText).toHaveBeenLastCalledWith("polityka energetyczna unii europejskiej");
+  });
+
+  it("wynik dosłany PO stop() (przed onend) trafia do frazy; mikrofon gaśnie od razu", async () => {
+    speechCtl.endOnStop = false;
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["polityka", false]]);
+    act(() => result.current.toggle());
+    expect(result.current.listening).toBe(false);
+    expect(result.current.busy).toBe(true);
+    emit(rec, [["polityka energetyczna", true]]);
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    end(rec);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("polityka energetyczna");
+    expect(result.current.busy).toBe(false);
+  });
+
+  it("klik w trakcie dosyłania wyniku NIE startuje drugiego rozpoznawania", async () => {
+    // Dawniej stop zerował referencję od razu: nowy start szedł równolegle,
+    // a spóźniony `end` starej instancji gasił `listening` nowej.
+    speechCtl.endOnStop = false;
+    const { result, rec } = await startFallback();
+    act(() => result.current.toggle());
+    await act(async () => result.current.toggle());
+    expect(speeches).toHaveLength(1);
+    end(rec);
+    expect(result.current.listening).toBe(false);
+    await act(async () => result.current.toggle());
+    expect(speeches).toHaveLength(2);
+    expect(result.current.listening).toBe(true);
+  });
+
+  it("auto-wznowienie sesji NIE gubi wcześniej podyktowanych słów", async () => {
+    // Wznowiona sesja zaczyna od pustej listy wyników - bez bufora pole
+    // pokazywało tylko ostatni odcinek i tylko on szedł do wyszukiwania.
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["polityka", true]]);
+    act(() => vi.advanceTimersByTime(9000));
+    fail(rec, "no-speech");
+    end(rec);
+    expect(rec.starts).toBe(2);
+    expect(result.current.listening).toBe(true);
+    emit(rec, [["energetyczna", true]]);
+    expect(opts.onText).toHaveBeenLastCalledWith("polityka energetyczna");
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("polityka energetyczna");
+  });
+
+  it.each([
+    "not-allowed",
+    "service-not-allowed",
+    "audio-capture",
+    "language-not-supported",
+    "aborted",
+  ])("błąd %s KOŃCZY dyktowanie - bez pętli start -> błąd -> koniec", async (code) => {
+    const { result, rec } = await startFallback();
+    fail(rec, code);
+    end(rec);
+    expect(rec.starts).toBe(1);
+    expect(result.current.listening).toBe(false);
+  });
+
+  it("WebKit: odmowa zgody BEZ onend i tak gasi nasłuch", async () => {
+    const { result, rec } = await startFallback();
+    fail(rec, "not-allowed");
+    expect(result.current.listening).toBe(false);
+  });
+
+  it("błąd krytyczny w trakcie dyktowania zatwierdza zebraną frazę RAZ", async () => {
+    const { opts, rec } = await startFallback();
+    emit(rec, [["unia europejska", false]]);
+    fail(rec, "audio-capture");
+    end(rec);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia europejska");
+  });
+
+  it("seria natychmiastowych końców (Brave: `network`) kończy dyktowanie zamiast kręcić pętlę", async () => {
+    const { result, rec } = await startFallback();
+    for (let i = 0; i < 5; i++) {
+      fail(rec, "network");
+      end(rec);
+    }
+    expect(rec.starts).toBe(3);
+    expect(result.current.listening).toBe(false);
+  });
+
+  it("cisza (`no-speech` co ~8 s) wznawia sesję - nasłuch trwa aż do stopu", async () => {
+    const { result, rec } = await startFallback();
+    for (let i = 0; i < 5; i++) {
+      act(() => vi.advanceTimersByTime(8000));
+      fail(rec, "no-speech");
+      end(rec);
+    }
+    expect(rec.starts).toBe(6);
+    expect(result.current.listening).toBe(true);
+  });
+
+  it("sesja Z WYNIKIEM nie jest pustym obrotem: Android kończy po każdej wypowiedzi, tekst rośnie", async () => {
+    const { result, opts, rec } = await startFallback();
+    for (const w of ["unia", "europejska", "traktat", "lizbonski"]) {
+      emit(rec, [[w, true]]);
+      end(rec);
+    }
+    expect(rec.starts).toBe(5);
+    expect(result.current.listening).toBe(true);
+    expect(opts.onText).toHaveBeenLastCalledWith("unia europejska traktat lizbonski");
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia europejska traktat lizbonski");
+  });
+
+  it("wznowienie, które rzuca, kończy dyktowanie i zatwierdza frazę RAZ", async () => {
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["unia", true]]);
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    speechCtl.startThrows = true;
+    act(() => vi.advanceTimersByTime(9000));
+    end(rec);
+    expect(result.current.listening).toBe(false);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia");
+  });
+
+  it("bezpiecznik 5 min kończy też Web Speech i zatwierdza frazę RAZ", async () => {
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["unia", false]]);
+    act(() => vi.advanceTimersByTime(5 * 60_000));
+    expect(rec.stopped).toBe(true);
+    expect(result.current.listening).toBe(false);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia");
+  });
+
+  it("silnik, który po stop() NIE przyśle onend, nie zostawia hooka w „zajęte”", async () => {
+    speechCtl.endOnStop = false;
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["unia", false]]);
+    act(() => result.current.toggle());
+    act(() => vi.advanceTimersByTime(3000));
+    expect(result.current.busy).toBe(false);
+    expect(result.current.listening).toBe(false);
+    expect(rec.aborted).toBe(true);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia");
+  });
+
+  it("pusty wynik po stopie (nomatch) NIE kasuje podyktowanej frazy", async () => {
+    speechCtl.endOnStop = false;
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["unia", false]]);
+    act(() => result.current.toggle());
+    emit(rec, [["", true]]);
+    end(rec);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia");
+  });
+
+  it("powtórzony identyczny interim NIE woła onText ponownie", async () => {
+    const { opts, rec } = await startFallback();
+    emit(rec, [["unia", false]]);
+    emit(rec, [["unia", false]]);
+    emit(rec, [["unia ", false]]);
+    expect(opts.onText).toHaveBeenCalledTimes(1);
+  });
+
+  it("Android Chrome <158: rosnące hipotezy jako finały z confidence 0 nie dublują słów", async () => {
+    const { result, opts, rec } = await startFallback();
+    const list: Seg[] = [];
+    for (const t of ["pol", "polityka", "polityka energetyczna"]) {
+      list.push([t, true, 0]);
+      emit(rec, [...list]);
+    }
+    list.push(["polityka energetyczna", true, 0.92]);
+    emit(rec, [...list]);
+    expect(opts.onText).toHaveBeenLastCalledWith("polityka energetyczna");
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("polityka energetyczna");
+  });
+
+  it("finał z pewnością > 0 skleja się normalnie („w” + „wschodniej” bez zwijania)", async () => {
+    const { opts, rec } = await startFallback();
+    emit(rec, [
+      ["w", true, 0.8],
+      [" wschodniej Europie", false],
+    ]);
+    expect(opts.onText).toHaveBeenLastCalledWith("w wschodniej Europie");
+  });
+
+  it("finał z confidence 0, po którym idzie INTERIM, nie jest zwijany", async () => {
+    const { opts, rec } = await startFallback();
+    emit(rec, [
+      ["w", true, 0],
+      [" wschodniej", false],
+    ]);
+    expect(opts.onText).toHaveBeenLastCalledWith("w wschodniej");
+  });
+
+  it("ODMONTOWANIE w trakcie dyktowania: spóźnione zdarzenia nie piszą do pola ani nie zatwierdzają", async () => {
+    const { opts, rec, unmount } = await startFallback();
+    emit(rec, [["unia", false]]);
+    const lateResult = rec.onresult;
+    const lateEnd = rec.onend;
+    unmount();
+    expect(rec.aborted).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    lateResult?.({ results: [{ isFinal: true, 0: { transcript: "unia europejska" } }] });
+    lateEnd?.();
+    expect(opts.onText).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).not.toHaveBeenCalled();
+  });
+
+  it("ODMONTOWANIE po stopie, przed onend: abort i zero zwrotek, także ze spóźnionego zdarzenia", async () => {
+    // Stop zerował referencję, więc sprzątanie odmontowania nie miało już
+    // czego przerwać, a spóźniony `end` zatwierdzał frazę spod innej strony.
+    speechCtl.endOnStop = false;
+    const { result, opts, rec, unmount } = await startFallback();
+    emit(rec, [["unia", false]]);
+    act(() => result.current.toggle());
+    const lateResult = rec.onresult;
+    const lateEnd = rec.onend;
+    unmount();
+    expect(rec.aborted).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    lateResult?.({ results: [{ isFinal: true, 0: { transcript: "unia europejska" } }] });
+    lateEnd?.();
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    expect(opts.onText).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -681,7 +1000,7 @@ describe("useVoiceSearch - sprzątanie", () => {
     const { result, unmount } = renderHook(() => useVoiceSearch(options()));
     await act(async () => result.current.toggle());
     unmount();
-    expect((speeches[0] as unknown as { stopped: boolean }).stopped).toBe(true);
+    expect(speeches[0].stopped).toBe(true);
   });
 
   it("odmontowanie bez rozpoczętego nagrania nie rzuca", () => {
@@ -695,7 +1014,7 @@ describe("useVoiceSearch - anonim (serwerowe STT wymaga sesji)", () => {
     h.getSession.mockResolvedValue({ data: { session: null } });
   });
 
-  it("ANONIM dyktuje przez Web Speech i fraza WRACA do pola oraz do wyszukiwania", async () => {
+  it("ANONIM dyktuje przez Web Speech i fraza WRACA do pola, a po stopie do wyszukiwania", async () => {
     const opts = options();
     const { result } = renderHook(() => useVoiceSearch(opts));
     await act(async () => result.current.toggle());
@@ -703,6 +1022,10 @@ describe("useVoiceSearch - anonim (serwerowe STT wymaga sesji)", () => {
     expect(result.current.listening).toBe(true);
     act(() => speeches[0].onresult?.({ results: [{ isFinal: true, 0: { transcript: "unia" } }] }));
     expect(opts.onText).toHaveBeenCalledWith("unia");
+    // Jak w ścieżce serwerowej: submit dopiero po stopie, raz.
+    expect(opts.onFinal).not.toHaveBeenCalled();
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
     expect(opts.onFinal).toHaveBeenCalledWith("unia");
   });
 
