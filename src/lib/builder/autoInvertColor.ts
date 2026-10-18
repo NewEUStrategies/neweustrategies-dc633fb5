@@ -7,64 +7,56 @@
 // light mode), invert RGB. Mid-tone colors (brand accents, mid greys) pass
 // through unchanged - they read fine on both backgrounds.
 
+import { parseColorChannels, type RgbaChannels } from "./cssColor";
 import { isThemedValue } from "./themed";
 import type { Mode, Themed } from "./types";
 
-const NAMED: Record<string, [number, number, number]> = {
+// Słowa kluczowe, które da się policzyć bez layoutu. `transparent`,
+// `currentcolor` i `inherit` celowo NIE są tu wpisane: ich wartość zna
+// dopiero przeglądarka, więc wracają bez zmian.
+const NAMED: Readonly<Record<string, readonly [number, number, number]>> = {
   white: [255, 255, 255],
   black: [0, 0, 0],
-  transparent: [0, 0, 0],
 };
 
-function parseColor(input: string): { r: number; g: number; b: number; a: number } | null {
+const clamp = (value: number, max: number): number => Math.min(Math.max(value, 0), max);
+
+/**
+ * Kanały koloru albo `null`, gdy zapisu nie da się policzyć lokalnie. Parser
+ * jest wspólny z luminancją podświetlenia ikon social (`parseColorChannels`),
+ * więc odwracanie rozumie te same zapisy, które `safeWidgetColor` przepuszcza
+ * do `style`: procenty kanałów i alfy oraz `hsl()`. Słowa kluczowe szukamy
+ * WYŁĄCZNIE po kluczach własnych - „constructor" z prototypu `Object` nie może
+ * udawać koloru.
+ */
+function parseColor(input: string): RgbaChannels | null {
   if (!input) return null;
   const s = input.trim().toLowerCase();
-  if (s === "transparent" || s === "currentcolor" || s === "inherit") return null;
-  if (NAMED[s]) {
+  if (Object.hasOwn(NAMED, s)) {
     const [r, g, b] = NAMED[s];
     return { r, g, b, a: 1 };
   }
-  // #rgb / #rgba / #rrggbb / #rrggbbaa
-  if (s.startsWith("#")) {
-    const hex = s.slice(1);
-    if (hex.length === 3 || hex.length === 4) {
-      const r = parseInt(hex[0] + hex[0], 16);
-      const g = parseInt(hex[1] + hex[1], 16);
-      const b = parseInt(hex[2] + hex[2], 16);
-      const a = hex.length === 4 ? parseInt(hex[3] + hex[3], 16) / 255 : 1;
-      return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) ? { r, g, b, a } : null;
-    }
-    if (hex.length === 6 || hex.length === 8) {
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
-      return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) ? { r, g, b, a } : null;
-    }
-    return null;
-  }
-  // rgb(r g b) / rgb(r,g,b) / rgba(...)
-  const rgbMatch = s.match(/^rgba?\(([^)]+)\)$/);
-  if (rgbMatch) {
-    const parts = rgbMatch[1].split(/[\s,/]+/).filter(Boolean);
-    if (parts.length >= 3) {
-      const r = Math.round(parseFloat(parts[0]));
-      const g = Math.round(parseFloat(parts[1]));
-      const b = Math.round(parseFloat(parts[2]));
-      const a = parts[3] != null ? parseFloat(parts[3]) : 1;
-      if ([r, g, b].every(Number.isFinite)) return { r, g, b, a };
-    }
-  }
-  return null;
+  const rgba = parseColorChannels(s);
+  if (!rgba) return null;
+  // CSS przycina kanały i alfę spoza zakresu - liczymy na wartościach, które
+  // przeglądarka faktycznie narysuje.
+  return {
+    r: clamp(rgba.r, 255),
+    g: clamp(rgba.g, 255),
+    b: clamp(rgba.b, 255),
+    a: clamp(rgba.a, 1),
+  };
 }
 
 function relLuminance(r: number, g: number, b: number): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-function format({ r, g, b, a }: { r: number; g: number; b: number; a: number }): string {
-  if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
-  return `rgb(${r}, ${g}, ${b})`;
+/** Kolor odwrócony; kanały z `hsl()` i procentów są ułamkowe, więc zaokrąglamy. */
+function invert({ r, g, b, a }: RgbaChannels): string {
+  const flip = (channel: number) => Math.round(255 - channel);
+  const rgb = `${flip(r)}, ${flip(g)}, ${flip(b)}`;
+  return a < 1 ? `rgba(${rgb}, ${a})` : `rgb(${rgb})`;
 }
 
 /**
@@ -76,13 +68,9 @@ export function autoInvertColor(color: string, targetMode: Mode): string {
   if (!rgb) return color;
   const lum = relLuminance(rgb.r, rgb.g, rgb.b);
   // Dark mode: dark colors (lum < 0.4) need to flip light
-  if (targetMode === "dark" && lum < 0.45) {
-    return format({ r: 255 - rgb.r, g: 255 - rgb.g, b: 255 - rgb.b, a: rgb.a });
-  }
+  if (targetMode === "dark" && lum < 0.45) return invert(rgb);
   // Light mode: light colors (lum > 0.6) need to flip dark
-  if (targetMode === "light" && lum > 0.55) {
-    return format({ r: 255 - rgb.r, g: 255 - rgb.g, b: 255 - rgb.b, a: rgb.a });
-  }
+  if (targetMode === "light" && lum > 0.55) return invert(rgb);
   return color;
 }
 
