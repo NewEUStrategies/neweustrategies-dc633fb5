@@ -896,6 +896,20 @@ describe("potwierdzenie zapisu - termin w strefie wydarzenia", () => {
     expect(when).toMatch(/00:30/);
   });
 
+  it("strefę wyznacza WYDARZENIE, nie domyślna strefa serwisu: Lizbona o 10:00 to 10:00", async () => {
+    // Bruksela i Warszawa mają ten sam czas, więc sam przypadek brukselski
+    // przeszedłby też wtedy, gdyby kod zgubił `events.timezone` i liczył
+    // wszystko w strefie domyślnej. Lizbona (WEST) jest godzinę za Warszawą.
+    givenDb({
+      event: eventRow({ starts_at: "2026-09-15T09:00:00.000Z", timezone: "Europe/Lisbon" }),
+    });
+    await notifyEventRegistration({ userId: "user-me", eventId: "evt-1", idempotencySeed: "tz-4" });
+
+    const when = detailValue(onlyMail(), labelsOf("event_registered").date);
+    expect(when).toMatch(/10:00/);
+    expect(when).not.toMatch(/11:00/);
+  });
+
   it("wydarzenie bez strefy liczy termin w strefie domyślnej serwisu, nie maszyny", async () => {
     givenDb({
       lang: "en",

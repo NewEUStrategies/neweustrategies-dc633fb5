@@ -190,6 +190,7 @@ import {
   type RefundEvent,
 } from "@/lib/billing/refunds.server";
 import { normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
+import { txCopy } from "@/lib/email-templates/tx-copy";
 import { dispatchWebhookEvent } from "@/lib/billing/webhookDispatch.server";
 import { DZIEN, freezeClock, relativeIso } from "@/test/time";
 
@@ -656,6 +657,20 @@ describe("zwrot PEŁNY zamówienia - dostęp znika natychmiast", () => {
     expect(periodEnd).toBeGreaterThanOrEqual(before);
     expect(periodEnd).toBeLessThanOrEqual(Date.now());
     expect(entitlement.canceled_at).toBe(entitlement.current_period_end);
+  });
+
+  it("mail o zwrocie podaje identyfikator ZWRÓCONEJ płatności - po nim obsługa ją znajdzie", async () => {
+    // Zamówienie wskazuje wyłącznie transakcja korekty (`resolveAdjustmentTarget`),
+    // więc w mailu ląduje płatność u operatora, a nie wewnętrzny identyfikator
+    // zamówienia, którego klient ani bank nie znają.
+    await applyRefundEffects(refundEvent());
+
+    const details = (emails()[0]?.details ?? []) as Array<{ label: string; value: string }>;
+    expect(details).toContainEqual({
+      label: txCopy("payment_refunded", "pl").labels.transaction,
+      value: TXN,
+    });
+    expect(details.map((detail) => detail.value)).not.toContain(BILLING_IDS.order);
   });
 
   it("zwrot zakupu jednorazowego odbiera `user_purchases`, nie subskrypcję", async () => {
