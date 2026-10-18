@@ -302,19 +302,36 @@ export async function resolveOrCreateCustomer(
  * schodkowej bez rozwinięcia, a bramka kasy (`catalogPriceMismatch`) liczy
  * z nich kwotę za zamówioną liczbę miejsc. Bez progów cena Zespołu wyglądałaby
  * jak cena bez kwoty i każda sesja kończyłaby się odmową.
+ *
+ * PACZKAMI PO `LOOKUP_KEYS_PER_REQUEST`. Operator przyjmuje najwyżej 10
+ * kluczy na jedno `prices.list` i odrzuca dłuższą listę - a katalog ma 11
+ * pozycji, więc sonda diagnostyki (cały katalog naraz) kończyła się błędem
+ * i pokazywała każdą cenę jako brakującą. Paczki idą równolegle; klucz jest
+ * unikalny u operatora, więc paczka oddaje najwyżej 10 cen i mieści się
+ * w domyślnej stronie listy. Awaria którejkolwiek paczki to wyjątek, nie
+ * częściowa mapa udająca braki w katalogu.
  */
+const LOOKUP_KEYS_PER_REQUEST = 10;
+
 export async function resolvePricesByLookupKeys(
   stripe: Stripe,
   lookupKeys: string[],
 ): Promise<Map<string, Stripe.Price>> {
-  if (lookupKeys.length === 0) return new Map();
-  const result = await stripe.prices.list({
-    lookup_keys: lookupKeys,
-    active: true,
-    expand: ["data.product", "data.tiers"],
-  });
+  const batches: string[][] = [];
+  for (let i = 0; i < lookupKeys.length; i += LOOKUP_KEYS_PER_REQUEST) {
+    batches.push(lookupKeys.slice(i, i + LOOKUP_KEYS_PER_REQUEST));
+  }
+  const results = await Promise.all(
+    batches.map((batch) =>
+      stripe.prices.list({
+        lookup_keys: batch,
+        active: true,
+        expand: ["data.product", "data.tiers"],
+      }),
+    ),
+  );
   const map = new Map<string, Stripe.Price>();
-  for (const price of result.data) {
+  for (const price of results.flatMap((result) => result.data)) {
     if (price.lookup_key) map.set(price.lookup_key, price);
   }
   return map;

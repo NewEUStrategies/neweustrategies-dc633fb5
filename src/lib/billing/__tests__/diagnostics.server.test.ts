@@ -47,6 +47,8 @@ const h = vi.hoisted(() => {
     endpointsThrow: { current: false },
     prices: { current: new Map<string, { id: string; product?: unknown }>() },
     pricesThrow: { current: false },
+    /** `lookup_keys` każdego `prices.list` - operator przyjmuje najwyżej 10. */
+    priceListCalls: [] as string[][],
     promoByCode: { current: new Map<string, string>() },
     promoThrows: { current: false },
     createdCoupons: [] as Array<Record<string, unknown>>,
@@ -127,16 +129,31 @@ const h = vi.hoisted(() => {
    */
   const stripe = {
     prices: {
-      list: () =>
-        state.pricesThrow.current
-          ? Promise.reject(new Error("stripe padł"))
-          : Promise.resolve({
-              data: [...state.prices.current.entries()].map(([lookupKey, price]) => ({
-                id: price.id,
-                lookup_key: lookupKey,
-                product: price.product ?? null,
-              })),
+      // Kontrakt operatora, nie wygoda atrapy: `lookup_keys` przyjmuje NAJWYŻEJ
+      // 10 kluczy (dokumentacja `prices.list`), a odpowiedź zawiera wyłącznie
+      // ceny o kluczach z zapytania. Atrapa, która oddawała cały katalog na
+      // każde pytanie, przepuściła katalog 11 pozycji pytany jednym żądaniem.
+      list: (params: { lookup_keys?: string[] }) => {
+        const keys = params.lookup_keys ?? [];
+        state.priceListCalls.push(keys);
+        if (state.pricesThrow.current) return Promise.reject(new Error("stripe padł"));
+        if (keys.length > 10) {
+          return Promise.reject(
+            Object.assign(new Error("You can only pass up to 10 lookup_keys."), {
+              type: "StripeInvalidRequestError",
             }),
+          );
+        }
+        return Promise.resolve({
+          data: [...state.prices.current.entries()]
+            .filter(([lookupKey]) => keys.includes(lookupKey))
+            .map(([lookupKey, price]) => ({
+              id: price.id,
+              lookup_key: lookupKey,
+              product: price.product ?? null,
+            })),
+        });
+      },
     },
     webhookEndpoints: {
       list: () =>
@@ -265,6 +282,7 @@ beforeEach(() => {
     BILLING_CATALOG.map((entry) => [entry.priceId, { id: `price_${entry.priceId}` }]),
   );
   h.pricesThrow.current = false;
+  h.priceListCalls.length = 0;
   h.promoByCode.current = new Map();
   h.promoThrows.current = false;
   h.createdCoupons.length = 0;
@@ -519,6 +537,27 @@ describe("buildPaymentsDiagnostics - kontrola katalogu cen", () => {
       detail: `${total}/${total}`,
     });
     expect(diag.catalog.every((entry) => entry.providerPriceId)).toBe(true);
+  });
+
+  // DEFEKT (2026-10-18): katalog ma 11 pozycji (od dołożenia trzech cykli
+  // Partnera Biznesowego), a sonda pytała operatora o WSZYSTKIE klucze jednym
+  // `prices.list`. Operator przyjmuje najwyżej 10 `lookup_keys` i odrzuca
+  // żądanie - sonda kończyła się w `catch`, a diagnostyka pokazywała CAŁY
+  // katalog jako brakujący (`0/11`, `error`) przy kompletnym cenniku u operatora.
+  it("katalog dłuższy niż limit operatora (10 kluczy) jest pytany PACZKAMI i rozwiązuje się cały", async () => {
+    expect(BILLING_CATALOG.length).toBeGreaterThan(10);
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(h.priceListCalls.length).toBeGreaterThan(1);
+    expect(h.priceListCalls.every((keys) => keys.length <= 10)).toBe(true);
+    // Każdy klucz pytany dokładnie raz - paczki się nie nakładają.
+    expect(h.priceListCalls.flat().sort()).toEqual(
+      BILLING_CATALOG.map((entry) => entry.priceId).sort(),
+    );
+    expect(diag.catalog.map((entry) => entry.providerPriceId)).toEqual(
+      BILLING_CATALOG.map((entry) => `price_${entry.priceId}`),
+    );
   });
 
   it("BRAKUJĄCA CENA u operatora to `error` z liczbą braków", async () => {

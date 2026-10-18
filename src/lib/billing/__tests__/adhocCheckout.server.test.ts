@@ -1735,6 +1735,41 @@ describe("resolvePricesByLookupKeys", () => {
       expand: ["data.product", "data.tiers"],
     });
   });
+
+  // Operator przyjmuje NAJWYŻEJ 10 `lookup_keys` na jedno `prices.list`
+  // (dokumentacja SDK: „You can specify up to 10 lookup_keys") i odrzuca
+  // dłuższą listę. Katalog ma dziś 11 pozycji, więc jedno żądanie o cały
+  // katalog (sonda diagnostyki) kończyło się błędem zamiast mapą cen.
+  it("lista dłuższa niż 10 kluczy idzie PACZKAMI po 10 - każdy klucz raz, wynik pełny", async () => {
+    const keys = Array.from({ length: 23 }, (_, i) => `key_${String(i).padStart(2, "0")}`);
+    h.fns.pricesList.mockImplementation(async (params: { lookup_keys: string[] }) => {
+      if (params.lookup_keys.length > 10) {
+        throw new Error("You can only pass up to 10 lookup_keys.");
+      }
+      return {
+        data: params.lookup_keys.map((key) => stripePrice({ id: `price_${key}`, lookup_key: key })),
+      };
+    });
+
+    const prices = await resolvePricesByLookupKeys(asStripe(), keys);
+
+    const asked = h.fns.pricesList.mock.calls.map(
+      ([params]) => (params as { lookup_keys: string[] }).lookup_keys,
+    );
+    expect(asked.map((batch) => batch.length)).toEqual([10, 10, 3]);
+    expect(asked.flat()).toEqual(keys);
+    expect([...prices.keys()].sort()).toEqual(keys);
+    expect(prices.get("key_22")?.id).toBe("price_key_22");
+  });
+
+  it("awaria JEDNEJ paczki nie udaje częściowego katalogu - wyjątek idzie do wołającego", async () => {
+    const keys = Array.from({ length: 12 }, (_, i) => `key_${i}`);
+    h.fns.pricesList
+      .mockResolvedValueOnce({ data: [stripePrice({ id: "price_a", lookup_key: "key_0" })] })
+      .mockRejectedValueOnce(new Error("bramka padła"));
+
+    await expect(resolvePricesByLookupKeys(asStripe(), keys)).rejects.toThrow("bramka padła");
+  });
 });
 
 describe("createAdhocDiscountForCoupon", () => {
