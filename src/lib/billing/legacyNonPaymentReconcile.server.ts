@@ -601,16 +601,17 @@ type AdminClient = Awaited<ReturnType<typeof admin>>;
  * subskrypcji; strony przechodzi automatycznie, najwyżej
  * `PERIOD_INVOICE_SCAN_LIMIT` faktur - po przekroczeniu bez dowodu rzuca,
  * bo nieprzejrzana historia nie dowodzi braku zapłaty. Błąd operatora też
- * rzuca: wiersz to wtedy `error` bez zapisów, a nie przycięcie.
+ * rzuca: wiersz to wtedy `error` bez zapisów, a nie przycięcie. Początek
+ * okresu jest zawsze datą (od operatora przez `isoFromUnix`, z bazy kolumna
+ * `timestamptz`) - bez osobnego strażnika: gdyby nie był, operator odrzuci
+ * filtr `created` i wiersz też skończy się `error`, a nie przycięciem.
  */
 async function hasPaidPeriodInvoice(
   stripe: Stripe,
   subscriptionId: string,
   periodStart: string,
 ): Promise<boolean> {
-  const startMs = Date.parse(periodStart);
-  if (Number.isNaN(startMs)) return false;
-  const gte = Math.floor(startMs / 1000) - PERIOD_INVOICE_SLACK_SECONDS;
+  const gte = Math.floor(Date.parse(periodStart) / 1000) - PERIOD_INVOICE_SLACK_SECONDS;
   let scanned = 0;
   for await (const invoice of stripe.invoices.list({
     subscription: subscriptionId,
@@ -694,10 +695,10 @@ async function applyLegacyPlan(
       .eq("last_payment_at", plan.staleLastPaymentAt)
       .select("id");
     if (error) throw new Error(`payment marker clear failed: ${error.message}`);
-    if ((data ?? []).length === 0) {
+    if (data.length === 0) {
       throw new Error("payment marker changed during reconcile - run again");
     }
-    writes.paymentMarkers += (data ?? []).length;
+    writes.paymentMarkers += data.length;
   }
 
   // 2. Kotwica - przed przycięciem, bo z niej liczy karencję dobowy przebieg
@@ -713,7 +714,7 @@ async function applyLegacyPlan(
       .is("first_payment_failed_at", null)
       .select("id");
     if (error) throw new Error(`anchor write failed: ${error.message}`);
-    writes.anchors += (data ?? []).length;
+    writes.anchors += data.length;
   }
 
   // 3. Uprawnienia - wyłącznie skrócenie aktywnego dostępu w najemcy
@@ -738,7 +739,7 @@ async function applyLegacyPlan(
           : base.gt("current_period_end", plan.accessUntil);
       const { data, error } = await guarded.select("id");
       if (error) throw new Error(`entitlement clamp failed: ${error.message}`);
-      writes.entitlements += (data ?? []).length;
+      writes.entitlements += data.length;
     }
   }
 
@@ -754,7 +755,7 @@ async function applyLegacyPlan(
       .eq("status", "active")
       .select("id");
     if (error) throw new Error(`team suspend failed: ${error.message}`);
-    writes.teams += (data ?? []).length;
+    writes.teams += data.length;
   }
 }
 
@@ -813,7 +814,7 @@ export async function reconcileLegacyNonPaymentCancellations(
     .order("id", { ascending: true })
     .limit(batchSize);
   if (subError) throw new Error(`legacy reconcile: subscriptions read failed: ${subError.message}`);
-  const subs = (subRows ?? []) as LegacySubscriptionRow[];
+  const subs = subRows as LegacySubscriptionRow[];
 
   const report: LegacyReconcileReport = {
     environment,
@@ -823,7 +824,7 @@ export async function reconcileLegacyNonPaymentCancellations(
     counts: emptyLegacyCounts(),
     writes: { anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 },
     rows: [],
-    nextCursor: subs.length === batchSize ? (subs[subs.length - 1]?.id ?? null) : null,
+    nextCursor: subs.length === batchSize ? subs[subs.length - 1].id : null,
     done: subs.length < batchSize,
   };
   if (subs.length === 0) return report;
@@ -834,7 +835,7 @@ export async function reconcileLegacyNonPaymentCancellations(
     .select("id, tenant_id, external_ref, status, current_period_end, canceled_at")
     .in("external_ref", refs);
   if (entError) throw new Error(`legacy reconcile: entitlements read failed: ${entError.message}`);
-  const entitlements = (entRows ?? []) as LegacyEntitlementRow[];
+  const entitlements = entRows as LegacyEntitlementRow[];
 
   const seatRefs = [
     ...new Set(
@@ -849,7 +850,7 @@ export async function reconcileLegacyNonPaymentCancellations(
       .in("provider_subscription_id", seatRefs)
       .eq("status", "active");
     if (orgError) throw new Error(`legacy reconcile: teams read failed: ${orgError.message}`);
-    orgs = orgRows ?? [];
+    orgs = orgRows;
   }
 
   let stripe: Stripe | null = null;
