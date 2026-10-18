@@ -93,7 +93,9 @@ vi.mock("../ImageSlot", () => ({
 }));
 
 type Call = [string, Json];
-type Member = Record<string, unknown>;
+// Członek zespołu jako obiekt JSON treści widgetu - ten sam typ, który panel
+// zapisuje, więc fikstury trafiają do `members` bez rzutowania.
+type Member = { [key: string]: Json };
 
 /**
  * Gospodarz ze stanem: zapis wraca do panelu jako nowa treść, tak jak w
