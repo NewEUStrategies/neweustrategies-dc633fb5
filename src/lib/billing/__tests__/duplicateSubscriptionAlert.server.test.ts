@@ -86,6 +86,7 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
 const {
   alertOnDuplicatePlanSubscription,
+  alertOnUnmirroredPlanSubscription,
   duplicatePlanAlertHref,
   duplicatePlanAlertKey,
   duplicatePlanSeverity,
@@ -1053,5 +1054,67 @@ describe("izolacja środowisk (PAY-05): ślad księgowy piaskownicy na produkcji
       db.chainsFor("subscriptions").filter((c) => eqFilters(c).provider_customer_id !== undefined),
     ).toHaveLength(0);
     expect(duplicateBells()).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Subskrypcja z panelu operatora: odczyt właściciela po kliencie operatora.
+// ---------------------------------------------------------------------------
+
+/** Wejście alarmu dla subskrypcji z panelu (bez `metadata.userId`). */
+const panelInput = (
+  overrides: Partial<Parameters<typeof alertOnUnmirroredPlanSubscription>[0]> = {},
+) => ({
+  subscriptionId: NEW_SUB,
+  customerId: "cus_panel",
+  environment: "live" as const,
+  priceId: "pro_monthly",
+  status: "active",
+  ...overrides,
+});
+
+/** Odczyt właściciela - jedyny odczyt `subscriptions` po kliencie operatora. */
+const ownerLookups = (): RecordedChain[] =>
+  db.chainsFor("subscriptions").filter((c) => eqFilters(c).provider_customer_id !== undefined);
+
+/** Lustro, w którym PIERWSZE `failures` odczytów właściciela pada (chwilowa awaria bazy). */
+function failOwnerLookups(rows: Map<string, MirrorRow>, failures: number): void {
+  const base = mirrorResponder(rows);
+  let left = failures;
+  db.setResponse("subscriptions", (chain) => {
+    if (eqFilters(chain).provider_customer_id !== undefined && left > 0) {
+      left -= 1;
+      return fail("connection reset");
+    }
+    return base(chain);
+  });
+}
+
+describe("panel operatora: chwilowa awaria odczytu właściciela", () => {
+  // DEFEKT: odczyt właściciela nie miał ponowienia, choć moduł obiecuje je
+  // każdemu chwilowemu błędowi odczytu. Jedno `connection reset` przy
+  // `created(active)` subskrypcji z panelu dawało `failed` - następna okazja
+  // to dopiero kolejne zdarzenie stanu (zwykle odnowienie, czyli jeszcze jedno
+  // podwójne obciążenie, zanim organizator się dowie).
+  it("ponawia odczyt właściciela w tle i dzwoni, zamiast kończyć się `failed`", async () => {
+    failOwnerLookups(useMirror([liveMirrorRow({ provider_customer_id: "cus_panel" })]), 1);
+
+    const outcomes = await alertOnUnmirroredPlanSubscription(panelInput());
+
+    expect(ownerLookups()).toHaveLength(2);
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        kind: "alerted",
+        severity: "warning",
+        otherSubscriptionIds: [OLD_SUB],
+        delivered: 1,
+      }),
+    ]);
+    expect(duplicateBells().map((call) => call.arg("p_title_pl"))).toEqual([
+      "Subskrypcja planu spoza kasy obok żywego planu",
+    ]);
+    expect(
+      loggedWith(console.error, "[payments] duplicate plan subscription check failed"),
+    ).toHaveLength(0);
   });
 });

@@ -78,6 +78,8 @@
 //
 // TREŚĆ NIESIE TYLKO IDENTYFIKATORY subskrypcji operatora - żadnych adresów
 // e-mail ani nazwisk (jak każdy alarm `tenantAdminAlert`).
+import type { PostgrestSingleResponse } from "@supabase/supabase-js";
+
 import { isEntitledSubscriptionStatus } from "@/lib/billing/accessPeriod";
 import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 import {
@@ -165,9 +167,11 @@ const ALERT_GATE_SCOPE = "billing.duplicate_plan_alert";
 const ALERT_GATE_WINDOW_MINUTES = 24 * 60;
 
 /**
- * Przerwy przed ponowieniem odczytu żywych subskrypcji. Sprawdzenie biegnie
- * RAZ na zajęcie potwierdzenia zakupu, więc chwilowy błąd bazy bez ponowienia
- * gubiłby je na zawsze. Krótko: praca w tle ma limit czasu runtime'u.
+ * Przerwy przed ponowieniem odczytu (żywe subskrypcje, właściciel klienta
+ * operatora). Sprawdzenie biegnie RAZ na zajęcie potwierdzenia zakupu, a
+ * subskrypcja z panelu ma następną okazję dopiero przy kolejnym zdarzeniu
+ * stanu (zwykle odnowienie), więc chwilowy błąd bazy bez ponowienia gubiłby
+ * alarm. Krótko: praca w tle ma limit czasu runtime'u.
  */
 const LOOKUP_RETRY_DELAYS_MS = [150, 600] as const;
 
@@ -228,12 +232,28 @@ interface CheckScope extends DuplicatePlanSubscriptionInput {
   unmirrored: boolean;
 }
 
-/** Inne żywe subskrypcje planu konta - z krótkim ponowieniem chwilowego błędu. */
-async function otherLivePlanRows(supabase: AdminClient, scope: CheckScope) {
+/**
+ * Odczyt z krótkim ponowieniem chwilowego błędu (`LOOKUP_RETRY_DELAYS_MS`).
+ * Rzuca po wyczerpaniu prób - wołający zamienia to na log.
+ */
+async function readWithRetry<T>(
+  label: string,
+  read: () => PromiseLike<PostgrestSingleResponse<T>>,
+): Promise<T> {
   let lastError = "";
-  for (let attempt = 0; attempt <= LOOKUP_RETRY_DELAYS_MS.length; attempt += 1) {
-    if (attempt > 0) await sleep(LOOKUP_RETRY_DELAYS_MS[attempt - 1] ?? 0);
-    const { data, error } = await supabase
+  for (const delay of [0, ...LOOKUP_RETRY_DELAYS_MS]) {
+    if (delay > 0) await sleep(delay);
+    const { data, error } = await read();
+    if (!error) return data;
+    lastError = error.message;
+  }
+  throw new Error(`${label} failed: ${lastError}`);
+}
+
+/** Inne żywe subskrypcje planu konta - z krótkim ponowieniem chwilowego błędu. */
+function otherLivePlanRows(supabase: AdminClient, scope: CheckScope) {
+  return readWithRetry("live plan subscriptions lookup", () =>
+    supabase
       .from("subscriptions")
       .select("provider_subscription_id, price_id, status")
       .eq("tenant_id", scope.tenantId)
@@ -242,11 +262,8 @@ async function otherLivePlanRows(supabase: AdminClient, scope: CheckScope) {
       .in("status", [...LIVE_PLAN_SUBSCRIPTION_STATUSES])
       .neq("provider_subscription_id", scope.subscriptionId)
       .order("created_at", { ascending: true })
-      .limit(MAX_OTHER_SUBSCRIPTIONS);
-    if (!error) return Array.isArray(data) ? data : [];
-    lastError = error.message;
-  }
-  throw new Error(`live plan subscriptions lookup failed: ${lastError}`);
+      .limit(MAX_OTHER_SUBSCRIPTIONS),
+  );
 }
 
 /**
@@ -461,14 +478,14 @@ export async function alertOnUnmirroredPlanSubscription(
   let rows: { provider_subscription_id: string; user_id: string; tenant_id: string }[];
   try {
     const supabase = await admin();
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("provider_subscription_id, user_id, tenant_id")
-      .eq("provider_customer_id", input.customerId)
-      .eq("environment", input.environment)
-      .limit(MAX_CUSTOMER_ROWS);
-    if (error) throw new Error(`customer owner lookup failed: ${error.message}`);
-    rows = Array.isArray(data) ? data : [];
+    rows = await readWithRetry("customer owner lookup", () =>
+      supabase
+        .from("subscriptions")
+        .select("provider_subscription_id, user_id, tenant_id")
+        .eq("provider_customer_id", input.customerId)
+        .eq("environment", input.environment)
+        .limit(MAX_CUSTOMER_ROWS),
+    );
   } catch (err) {
     console.error("[payments] duplicate plan subscription check failed", {
       subscriptionId: input.subscriptionId,
