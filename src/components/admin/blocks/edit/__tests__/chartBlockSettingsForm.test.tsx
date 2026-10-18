@@ -262,6 +262,47 @@ describe("pola liczbowe nie zapisują NaN", () => {
   });
 });
 
+describe("liczby w zapisie z arkusza - pole czyta je tak samo jak parser", () => {
+  // Parser (`num` w `parseChartConfig`) przyjmuje polski zapis z arkusza:
+  // spację (także twardą i wąską) grupującą tysiące i minus U+2212. Pole ze
+  // szkicem czytało tylko przecinek, więc wpis „1 234,5" w polu celu zapisywał
+  // BRAK - linia celu znikała z podglądu bez słowa - a cel zapisany napisem
+  // „−2,5" (wykres go rysuje) stał w formie jako puste pole.
+  it.each([
+    ["1 234,5", 1234.5],
+    ["1\u00a0234", 1234],
+    ["12\u202f500", 12500],
+    ["\u22123", -3],
+  ])("wpis „%s” w polu celu zapisuje liczbę %s", (wpis, liczba) => {
+    const { changes } = renderEditor(ChartBlock, wykres());
+    fireEvent.change(pole("Linia celu - wartość (puste = brak)"), { target: { value: wpis } });
+    expect(ostatnie(changes).target).toEqual({ value: liczba });
+  });
+
+  it("krawędź pasma z minusem U+2212 zapisuje liczbę ujemną", () => {
+    const { changes } = renderEditor(ChartBlock, wykres({ band: { min: 1, max: 4 } }));
+    fireEvent.change(pole("Pasmo optimum - od"), { target: { value: "\u22122,5" } });
+    expect(ostatnie(changes).band).toEqual({ min: -2.5, max: 4, sourceId: "", demo: false });
+  });
+
+  it("cel zapisany NAPISEM w zapisie arkusza pokazuje się jako liczba, którą rysuje wykres", () => {
+    renderEditor(ChartBlock, wykres({ target: "\u22122,5" }));
+    expect(pole("Linia celu - wartość (puste = brak)").value).toBe("-2.5");
+  });
+
+  it("prognoza zapisana NAPISEM liczbowym pokazuje numer kategorii, od której rysuje ją wykres", () => {
+    // Parser czyta `forecastFrom: "1"` jako indeks 1, czyli kategorię numer 2;
+    // forma pokazywała puste pole, jakby prognozy nie było.
+    renderEditor(
+      ChartBlock,
+      wykres({ categories: ["2024", "2025", "2026"], forecastFrom: "1", forecastBandPct: 5 }),
+    );
+    expect(screen.getByPlaceholderText<HTMLInputElement>("Prognoza od kategorii numer").value).toBe(
+      "2",
+    );
+  });
+});
+
 describe("odniesienia - kierunek, pochodzenie, demo, podpis, pasmo, wiarygodność", () => {
   it("kierunek: wybór zapisuje wartość, „brak” USUWA klucz z treści", () => {
     const { changes } = renderEditor(ChartBlock, wykres({ direction: "lower" }));
@@ -273,6 +314,13 @@ describe("odniesienia - kierunek, pochodzenie, demo, podpis, pasmo, wiarygodnoś
     expect(ostatnie(changes).direction).toBe("higher");
     fireEvent.change(kierunek, { target: { value: "" } });
     expect("direction" in ostatnie(changes)).toBe(false);
+  });
+
+  it("zapisane pochodzenie z dziedziny stoi w liście jako ta sama litera", () => {
+    renderEditor(ChartBlock, wykres({ provenance: "W" }));
+    expect(
+      screen.getByRole<HTMLSelectElement>("combobox", { name: "Pochodzenie liczb" }).value,
+    ).toBe("W");
   });
 
   it("pochodzenie spoza dziedziny pokazuje „brak”; wybór zapisuje literę, „brak” usuwa klucz", () => {

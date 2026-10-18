@@ -83,11 +83,16 @@ export function Warning({ text }: { text: string }) {
 
 // ===== Odczyt treści =====
 //
-// Trzy czytniki niżej są koercją „Json -> pole formy" dla CAŁEGO katalogu
+// `asRecord` i `readText` są koercją „Json -> pole formy" dla CAŁEGO katalogu
 // `edit/`, nie tylko dla wykresu i mapy: biorą z nich też nagłówek, obraz,
-// odstęp, bloki interaktywne i siatki danych/social proof. Jedno miejsce
-// znaczy jedną odpowiedź na pytanie, co pole pokazuje dla obiektu, `NaN`
-// albo napisu nieliczbowego.
+// bloki interaktywne i siatki danych/social proof - jedno miejsce znaczy
+// jedną odpowiedź na pytanie, co pole pokazuje dla obiektu albo `NaN`.
+//
+// LICZBY MAJĄ DWIE PRAWDY i każde pole bierze tę, którą czyta JEGO render:
+// pola wykresu i mapy - `readDecimal` (koercja parsera wykresów, zapis
+// z arkusza), a pola zwykłych bloków (odstęp, pasek postępu, kolumny siatek)
+// - `num` z `components/blocks/renderer/data.ts`, który napisu „33,5" nie
+// uznaje za liczbę. Jedna wspólna koercja dla obu kłamałaby w jednym z nich.
 
 export function asRecord(raw: Json | undefined): Record<string, Json> {
   return raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
@@ -104,9 +109,18 @@ export function readText(raw: Json | undefined): string {
   return "";
 }
 
-/** Liczba z pola tekstowego: przecinek dziesiętny dozwolony, pustka i śmieć = brak. */
+/**
+ * Liczba z pola tekstowego, w zapisie z arkusza - tak samo jak `num`
+ * w `parseChartConfig`: spacja (także twarda i wąska) grupuje tysiące, minus
+ * bywa znakiem U+2212, przecinek jest dziesiętny. Pustka i śmieć = brak.
+ * Bez tego wpis „1 234,5" zapisywał BRAK celu (linia znikała z podglądu),
+ * a cel zapisany jako „−2,5", który wykres rysuje, stał w polu pusty.
+ */
 export function parseDecimal(raw: string): number | null {
-  const text = raw.trim().replace(",", ".");
+  const text = raw
+    .replace(/[\s\u00a0\u202f]/g, "")
+    .replace("\u2212", "-")
+    .replace(",", ".");
   if (text === "") return null;
   const value = Number(text);
   return Number.isFinite(value) ? value : null;

@@ -13,8 +13,10 @@
 //    `data` zostają nietknięte,
 //  * „Dodaj" dopisuje KOMPLET pustych pól na końcu listy, „Usuń" usuwa
 //    dokładnie wskazaną pozycję, pole pozycji pisze tylko w swoją pozycję,
-//  * lista wyboru pokazuje to, co narysuje strona: liczba kolumn spoza opcji
-//    wraca do wartości domyślnej renderu (a nie do pierwszej opcji listy),
+//  * lista wyboru pokazuje to, co narysuje strona: liczba kolumn, której
+//    widok nie zna, wraca do wartości domyślnej renderu (a nie do pierwszej
+//    opcji listy), liczba, którą widok rysuje, a lista jej nie oferuje
+//    (np. 2 kolumny logotypów), zostaje wybrana jako osobna opcja,
 //    wyrównanie separatora spoza opcji - do środka,
 //  * pole pozycji-OBIEKTU (treść per język po migracji) jest puste, a nie
 //    „[object Object]", który pierwsza edycja utrwaliłaby w dokumencie.
@@ -138,6 +140,8 @@ describe("siatka zespołu", () => {
     [7, "3"],
     [null, "3"],
     ["4", "4"],
+    // `num` renderu czyta napis przez `Number()`, więc przecinek to NIE liczba.
+    ["4,0", "3"],
   ] as const)(
     "kolumny %j pokazują się jako %s - tyle narysuje strona, a nie pierwsza opcja",
     (columns, widac) => {
@@ -147,6 +151,24 @@ describe("siatka zespołu", () => {
       expect(listaZOpcja("3 kolumny").value).toBe(widac);
     },
   );
+
+  it("5 kolumn (strona je rysuje, lista ich nie oferuje) ZOSTAJE wybrane jako osobna opcja", () => {
+    // `COLS_CLS` widoku zna 2-6 kolumn. Zamiana na domyślne 3 pokazywałaby
+    // redaktorowi inną siatkę niż ta na stronie; zwykłe opcje listy zostają.
+    const b = blok("team-grid", { columns: 5 });
+    const { changes } = renderEditor(TeamGridBlock, b);
+    const lista = listaZOpcja("3 kolumny");
+    expect(lista.value).toBe("5");
+    expect(Array.from(lista.options, (o) => o.text)).toEqual([
+      "2 kolumny",
+      "3 kolumny",
+      "4 kolumny",
+      "5 kol.",
+    ]);
+    expect(changes).toEqual([]);
+    fireEvent.change(lista, { target: { value: "2" } });
+    expect(ostatni(changes, b).data.columns).toBe(2);
+  });
 
   it("osoba zapisana jako OBIEKTY per język ma puste pola, a nie „[object Object]”", () => {
     renderEditor(TeamGridBlock, blok("team-grid", { items: [{ name: { pl: "Anna" }, role: 7 }] }));
@@ -171,12 +193,23 @@ describe("siatka logotypów", () => {
     expect(screen.getByRole("checkbox", { name: "Ramki" })).not.toBeChecked();
   });
 
-  it("kolumny spoza opcji (2) pokazują domyślne 5, a zmiana zapisuje liczbę", () => {
+  it("2 kolumny (strona je rysuje, lista ich nie oferuje) pokazują się jako 2, a nie domyślne 5", () => {
+    // Siatka logotypów rysuje `COLS_CLS[2]`, czyli DWIE kolumny - pokazanie
+    // tu „5 kol." mówiłoby redaktorowi nieprawdę o stronie.
     const b = blok("logo-grid", { columns: 2 });
     const { changes } = renderEditor(LogoGridBlock, b);
-    expect(listaZOpcja("5 kol.").value).toBe("5");
-    fireEvent.change(listaZOpcja("5 kol."), { target: { value: "6" } });
+    const lista = listaZOpcja("5 kol.");
+    expect(lista.value).toBe("2");
+    expect(lista.selectedOptions[0]?.text).toBe("2 kolumny");
+    fireEvent.change(lista, { target: { value: "6" } });
     expect(ostatni(changes, b).data.columns).toBe(6);
+  });
+
+  it("kolumny, których strona NIE rysuje (9), pokazują domyślne 5", () => {
+    renderEditor(LogoGridBlock, blok("logo-grid", { columns: 9 }));
+    const lista = listaZOpcja("5 kol.");
+    expect(lista.value).toBe("5");
+    expect(lista.options).toHaveLength(4);
   });
 
   it("przełączniki zapisują `grayscale` i `bordered` jako wartości logiczne", () => {
@@ -249,13 +282,16 @@ describe("siatka funkcji", () => {
     expect(ostatni(changes, b).data.items).toEqual([{ ...F1, href: "/x" }, F2]);
   });
 
-  it("nieznana ikona pokazuje gwiazdkę - tę samą, którą narysuje strona", () => {
-    renderEditor(FeatureGridBlock, blok("feature-grid", { items: [{ ...F1, icon: "unicorn" }] }));
-    const ikona = screen
-      .getAllByRole<HTMLSelectElement>("combobox")
-      .find((el) => Array.from(el.options).some((o) => o.value === "gauge"));
-    expect(ikona?.value).toBe("star");
-  });
+  it.each([["unicorn"], [""], [null]] as const)(
+    "ikona %j pokazuje gwiazdkę - tę samą, którą narysuje strona",
+    (icon) => {
+      renderEditor(FeatureGridBlock, blok("feature-grid", { items: [{ ...F1, icon }] }));
+      const ikona = screen
+        .getAllByRole<HTMLSelectElement>("combobox")
+        .find((el) => Array.from(el.options).some((o) => o.value === "gauge"));
+      expect(ikona?.value).toBe("star");
+    },
+  );
 
   it("tytuł sekcji zapisuje się pod `title`, bez ruszania funkcji", () => {
     const b = blok("feature-grid", { items: [F1] });

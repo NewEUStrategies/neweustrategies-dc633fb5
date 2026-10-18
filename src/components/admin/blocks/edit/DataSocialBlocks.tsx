@@ -7,7 +7,8 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
-import { asRecord, readDecimal, readText } from "./dataVizShared";
+import { num } from "@/components/blocks/renderer/data";
+import { asRecord, readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -32,19 +33,41 @@ const selectCls = inputCls;
 // obiekt (np. treść per język po migracji) wchodził do pola jako literalne
 // „[object Object]", a pierwsza edycja utrwalała ten napis w dokumencie.
 //
-// Liczba kolumn musi być JEDNĄ Z OPCJI listy. Natywny `<select>` z wartością
-// spoza opcji pokazuje pierwszą z nich (React zaznacza wtedy pierwszą
-// dostępną), więc „trzy" albo 7 wyglądały w panelu jak „2 kolumny", podczas
-// gdy strona rysuje domyślne 3 (`num(..., 3)` i `COLS_CLS[n] ?? COLS_CLS[3]`).
-// Wartość spoza opcji wraca więc do domyślnej - tej samej, co w renderze.
-function readColumns(raw: Json | undefined, options: readonly number[], fallback: number): number {
-  const n = readDecimal(raw);
-  return n !== null && options.includes(n) ? n : fallback;
+// LICZBA KOLUMN pokazuje siatkę, którą narysuje strona: `num` renderu
+// (`molecules.tsx`), a potem `COLS_CLS[n] ?? COLS_CLS[domyślna]` widoku
+// (`DataSocialViews.tsx`), który zna 2-6 kolumn. Natywny `<select>` z wartością
+// spoza opcji pokazuje pierwszą z nich, więc „trzy" albo 7 wyglądały w panelu
+// jak „2 kolumny", podczas gdy strona rysuje domyślne 3. Wartość, której widok
+// nie zna, wraca więc do domyślnej, a wartość, którą widok RYSUJE, choć lista
+// jej nie oferuje (np. 2 kolumny logotypów z importu), zostaje na liście jako
+// osobna opcja - zamiana na domyślną mówiłaby redaktorowi nieprawdę o stronie.
+const DRAWN_COLUMNS: readonly number[] = [2, 3, 4, 5, 6];
+/** Etykiety z tych, które słownik już ma: pełne dla 2-4, krótkie dla 5-6. */
+const COLUMN_LABEL_KEYS: Record<number, string> = {
+  2: "cols2",
+  3: "cols3",
+  4: "cols4",
+  5: "cols5short",
+  6: "cols6short",
+};
+
+function readColumns(data: Record<string, Json>, fallback: number): number {
+  const n = num(data, "columns", fallback);
+  return DRAWN_COLUMNS.includes(n) ? n : fallback;
 }
 
-const TEAM_COLUMNS = [2, 3, 4] as const;
-const LOGO_COLUMNS = [3, 4, 5, 6] as const;
-const FEATURE_COLUMNS = [2, 3, 4] as const;
+/** Opcja dla liczby kolumn, którą strona rysuje, a lista edytora jej nie oferuje. */
+function ExtraColumnsOption({ columns, offered }: { columns: number; offered: readonly number[] }) {
+  const i18n = useBlocksI18n();
+  if (offered.includes(columns)) return null;
+  return (
+    <option value={columns}>{i18n.editor("dataSocialBlocks", COLUMN_LABEL_KEYS[columns])}</option>
+  );
+}
+
+const TEAM_COLUMNS: readonly number[] = [2, 3, 4];
+const LOGO_COLUMNS: readonly number[] = [3, 4, 5, 6];
+const FEATURE_COLUMNS: readonly number[] = [2, 3, 4];
 const DIVIDER_ALIGNS = ["left", "center", "right"] as const;
 
 // ===== Team Grid =====
@@ -75,7 +98,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
   const update = (next: TeamMember[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
-  const columns = readColumns(block.data.columns, TEAM_COLUMNS, 3);
+  const columns = readColumns(block.data, 3);
   const shape = String(block.data.shape ?? "circle");
 
   return (
@@ -97,6 +120,7 @@ export function TeamGridBlock({ block, onChange }: Props) {
           <option value={2}>{i18n.editor("dataSocialBlocks", "cols2")}</option>
           <option value={3}>{i18n.editor("dataSocialBlocks", "cols3")}</option>
           <option value={4}>{i18n.editor("dataSocialBlocks", "cols4")}</option>
+          <ExtraColumnsOption columns={columns} offered={TEAM_COLUMNS} />
         </AdminSelect>
         <AdminSelect
           className={selectCls}
@@ -216,6 +240,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
   const update = (next: LogoItem[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
+  const columns = readColumns(block.data, 5);
 
   return (
     <Shell label={i18n.editor("dataSocialBlocks", "logoLabel")}>
@@ -228,7 +253,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-3 gap-2">
         <AdminSelect
           className={selectCls}
-          value={readColumns(block.data.columns, LOGO_COLUMNS, 5)}
+          value={columns}
           onChange={(e) =>
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
@@ -237,6 +262,7 @@ export function LogoGridBlock({ block, onChange }: Props) {
           <option value={4}>{i18n.editor("dataSocialBlocks", "cols4short")}</option>
           <option value={5}>{i18n.editor("dataSocialBlocks", "cols5short")}</option>
           <option value={6}>{i18n.editor("dataSocialBlocks", "cols6short")}</option>
+          <ExtraColumnsOption columns={columns} offered={LOGO_COLUMNS} />
         </AdminSelect>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -358,6 +384,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
   const update = (next: FeatureItem[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
+  const columns = readColumns(block.data, 3);
   return (
     <Shell label={i18n.editor("dataSocialBlocks", "featureLabel")}>
       <input
@@ -375,7 +402,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className={selectCls}
-          value={readColumns(block.data.columns, FEATURE_COLUMNS, 3)}
+          value={columns}
           onChange={(e) =>
             onChange({ ...block, data: { ...block.data, columns: Number(e.target.value) } })
           }
@@ -383,6 +410,7 @@ export function FeatureGridBlock({ block, onChange }: Props) {
           <option value={2}>{i18n.editor("dataSocialBlocks", "cols2")}</option>
           <option value={3}>{i18n.editor("dataSocialBlocks", "cols3")}</option>
           <option value={4}>{i18n.editor("dataSocialBlocks", "cols4")}</option>
+          <ExtraColumnsOption columns={columns} offered={FEATURE_COLUMNS} />
         </AdminSelect>
         <AdminSelect
           className={selectCls}

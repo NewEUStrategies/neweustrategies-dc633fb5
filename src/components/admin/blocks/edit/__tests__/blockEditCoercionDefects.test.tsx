@@ -19,10 +19,12 @@
 //    (podpis obrazu, pozycje listy) - wcześniej przepuszczał go idiom
 //    `String(x ?? "")`, a pierwsza edycja utrwalała śmieć w dokumencie.
 //
-// NAPRAWIONE 2026-10-18. Edytory czytają liczby i napisy przez strażniki typu
-// z `dataVizShared.tsx` (`readDecimal`, `readText`), wykres - przez ten sam
-// parser, który rysuje podgląd i stronę (`parseChartConfig`), a lista - tylko
-// napisy, jak `strList` w renderze publicznym. Każdy przypadek niżej był
+// NAPRAWIONE 2026-10-18. Edytory czytają napisy przez strażnik typu
+// `readText` z `dataVizShared.tsx`, a liczby - TĄ SAMĄ koercją, co ich
+// render: odstęp i pasek postępu przez `num` z `renderer/data.ts` (napis
+// z przecinkiem to dla niego nie liczba), wykres przez parser, który rysuje
+// podgląd i stronę (`parseChartConfig`), a lista - tylko napisy, jak
+// `strList` w renderze publicznym. Każdy przypadek niżej był
 // wcześniej `it.fails` padającym NA ASERCJI DOCELOWEJ; teraz pilnuje, żeby
 // defekt nie wrócił, i mówi, NA CO wartość jest zamieniana.
 //
@@ -149,6 +151,15 @@ describe("koercja niepoprawnych wartości - NAPRAWIONE DEFEKTY", () => {
     // różne wartości tego samego pola naraz.
     const { container } = renderEditor(SpacerBlock, block("spacer", { height: "wysoko" }));
     expect(container.textContent).not.toContain("NaN");
+    expect(container.textContent).toContain("40px");
+    expect(screen.getByRole<HTMLInputElement>("slider").value).toBe("40");
+  });
+
+  it('odstęp z wysokością „33,5" (przecinek) pokazuje domyślne 40 px, jak strona', () => {
+    // Render publiczny czyta napis przez `Number()` (`num` z `renderer/data.ts`),
+    // więc „33,5" to dla niego NIE liczba i rysuje domyślne 40 px. Panel czyta
+    // tą samą funkcją - pokazanie 33,5 px obiecywałoby odstęp, którego nie ma.
+    const { container } = renderEditor(SpacerBlock, block("spacer", { height: "33,5" }));
     expect(container.textContent).toContain("40px");
     expect(screen.getByRole<HTMLInputElement>("slider").value).toBe("40");
   });

@@ -1,6 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
-import { readDecimal } from "./dataVizShared";
+import { num } from "@/components/blocks/renderer/data";
 
 interface Props {
   block: Block;
@@ -15,14 +15,15 @@ const HEIGHT_DEFAULT = 40;
 export function SpacerBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const label = i18n.editor("spacer", "heightLabel");
-  // Wysokość spoza liczb (np. „wysoko") to wartość domyślna, a liczba spoza
-  // zakresu - najbliższy kraniec suwaka. Wcześniej `Number("wysoko")` dawało
-  // `NaN` i w podglądzie (element bez wysokości), i w etykiecie („NaNpx"),
-  // a suwak stał w pozycji domyślnej przeglądarki - dwie różne wartości tego
-  // samego pola naraz.
+  // Wysokość czyta TEN SAM `num`, co render publiczny (`renderSpacer`): napis,
+  // którego `Number()` nie przeczyta („wysoko", „33,5"), to wartość domyślna,
+  // a liczba spoza zakresu - najbliższy kraniec suwaka. Wcześniej
+  // `Number("wysoko")` dawało `NaN` i w podglądzie (element bez wysokości),
+  // i w etykiecie („NaNpx"), a suwak stał w pozycji domyślnej przeglądarki -
+  // dwie różne wartości tego samego pola naraz.
   const height = Math.min(
     HEIGHT_MAX,
-    Math.max(HEIGHT_MIN, readDecimal(block.data.height) ?? HEIGHT_DEFAULT),
+    Math.max(HEIGHT_MIN, num(block.data, "height", HEIGHT_DEFAULT)),
   );
   return (
     <div className="group relative">

@@ -15,7 +15,8 @@
 //    (`2026-12-31T18:30`), a wyczyszczenie - jako pusty napis; zmiana godziny
 //    nie przesuwa dnia,
 //  * pasek postępu pokazuje i zapisuje wartość w zakresie 0-100, tak jak
-//    narysuje ją strona (blok bez wartości to 0%, nie 50%),
+//    narysuje ją strona - tą samą koercją (`num` z `renderer/data.ts`): blok
+//    bez wartości to 0%, nie 50%, a napis z przecinkiem to 0%, nie 33,5%,
 //  * pozycja-OBIEKT (treść per język) daje puste pole, a nie „[object Object]".
 //
 // GRANICE. Fabryki `vi.mock` niesie moduł wspólny tabeli, dlatego jego
@@ -197,12 +198,17 @@ describe("pasek postępu", () => {
     expect(screen.getByRole<HTMLInputElement>("slider").value).toBe("0");
   });
 
-  it("wartość jako napis z przecinkiem („33,5”) jest liczbą, a ujemna - zerem", () => {
-    const a = renderEditor(ProgressBlock, blok("progress", { value: "33,5" }));
-    expect(screen.getByText("33.5%")).toBeInTheDocument();
-    a.unmount();
-    renderEditor(ProgressBlock, blok("progress", { value: -12 }));
-    expect(screen.getByText("0%")).toBeInTheDocument();
+  it.each([
+    // Napis liczbowy z kropką strona czyta jak liczbę (`Number("33.5")`)...
+    ["33.5", "33.5%"],
+    // ...ale napisu z przecinkiem już NIE (`num` daje 0). Pole pokazuje to
+    // samo, co strona - wcześniej panel pokazywał tu 33,5%, a czytelnik
+    // widział pusty pasek.
+    ["33,5", "0%"],
+    [-12, "0%"],
+  ] as const)("wartość %j pokazuje %s - tyle, ile narysuje strona", (value, widac) => {
+    renderEditor(ProgressBlock, blok("progress", { value }));
+    expect(screen.getByText(widac)).toBeInTheDocument();
   });
 
   it("etykieta, kolor i przełącznik procentu zapisują się pod swoimi kluczami", () => {

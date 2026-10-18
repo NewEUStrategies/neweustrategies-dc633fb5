@@ -68,6 +68,7 @@ import {
   FieldGroup,
   inputCls,
   NotesFields,
+  parseDecimal,
   ProvenanceSelect,
   readDecimal,
   readText,
@@ -224,6 +225,7 @@ export function ChartBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, ...data } });
 
   const smoothing = previewConfig.smoothing;
+  const forecastIndex = readDecimal(block.data.forecastFrom);
 
   const metricRaw = asRecord(block.data.metric);
   const metric = {
@@ -637,19 +639,16 @@ export function ChartBlock({ block, onChange }: Props) {
               Zamiana strony zapisu na liczenie od jednej byłaby gorsza:
               przeniosłaby korektę o jeden do silnika, czyli do kodu, który
               indeksuje tablice. */}
+          {/* Odczyt tą samą koercją co parser: indeks zapisany napisem
+              liczbowym („1") wykres rysuje, więc pole nie może stać puste. */}
           <input
             className={inputCls}
             inputMode="numeric"
-            value={
-              typeof block.data.forecastFrom === "number" ? String(block.data.forecastFrom + 1) : ""
-            }
+            value={forecastIndex === null ? "" : String(Math.round(forecastIndex) + 1)}
             placeholder={bt.editor("chart", "forecastFrom")}
             onChange={(e) => {
-              const raw = e.target.value.trim();
-              const numer = Number(raw);
-              patch({
-                forecastFrom: raw === "" || !Number.isFinite(numer) ? null : Math.round(numer) - 1,
-              });
+              const numer = parseDecimal(e.target.value);
+              patch({ forecastFrom: numer === null ? null : Math.round(numer) - 1 });
             }}
           />
           {/* Pole ze szkicem (`DecimalInput`), nie `Number(wpis)`: „7,5" albo
