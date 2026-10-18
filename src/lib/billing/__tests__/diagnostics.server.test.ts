@@ -1497,6 +1497,28 @@ describe("syncCouponDiscounts - zawężenie kodów na WSPÓLNYM koncie (audyt PA
     consoleError.mockRestore();
   });
 
+  it("cena planu u operatora BEZ produktu (albo bez ceny): kod planowy pominięty, nie rozszerzony", async () => {
+    h.coupons.current = [
+      {
+        id: "c-pro",
+        code: "PRO",
+        discount_kind: "percent",
+        discount_percent: 5,
+        plan_ids: [PLAN_PRO],
+      },
+    ];
+    h.plans.current = [{ id: PLAN_PRO, tier_key: "pro", interval: "month" }];
+    // Cena istnieje, ale bez produktu - kodu nie da się zawęzić do planu.
+    h.prices.current.set("pro_monthly", { id: "price_pro" });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await syncCouponDiscounts("sandbox", TENANT);
+
+    expect(result).toEqual({ created: 0, existing: 0, failed: 0, skipped: 1 });
+    expect(h.createdCoupons).toHaveLength(0);
+    consoleError.mockRestore();
+  });
+
   it("AWARIA operatora przy cenach planów: kod planowy pominięty, synchronizacja trwa dalej", async () => {
     h.coupons.current = [
       {

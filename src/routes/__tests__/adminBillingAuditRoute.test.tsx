@@ -804,24 +804,30 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("serwer zamknął połączenie");
   });
 
-  it("W TRAKCIE eksportu „przygotowuję” ma TYLKO klikany format, a oba przyciski są zablokowane", async () => {
-    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-object-url");
-    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    let finish: (value: AuditExport) => void = () => {};
-    h.exportAudit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
-    await mount();
+  it.each([
+    ["Eksport XLSX", "Eksport CSV"],
+    ["Eksport CSV", "Eksport XLSX"],
+  ])(
+    "W TRAKCIE eksportu „przygotowuję” ma TYLKO klikany format (%s), a oba przyciski są zablokowane",
+    async (clicked, other) => {
+      vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-object-url");
+      vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      let finish: (value: AuditExport) => void = () => {};
+      h.exportAudit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+      await mount();
 
-    fireEvent.click(screen.getByRole("button", { name: "Eksport XLSX" }));
+      fireEvent.click(screen.getByRole("button", { name: clicked }));
 
-    const exporting = await screen.findByRole("button", { name: "Przygotowuję plik..." });
-    const csv = screen.getByRole("button", { name: "Eksport CSV" });
-    expect(exporting).toBeDisabled();
-    expect(csv).toBeDisabled();
-    finish(exportFile({ fileName: "audyt.xlsx" }));
-    await screen.findByRole("button", { name: "Eksport XLSX" });
-    expect(h.exportAudit).toHaveBeenCalledTimes(1);
-  });
+      const exporting = await screen.findByRole("button", { name: "Przygotowuję plik..." });
+      expect(exporting).toBeDisabled();
+      expect(screen.getByRole("button", { name: other })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: clicked })).toBeNull();
+      finish(exportFile());
+      await screen.findByRole("button", { name: clicked });
+      expect(h.exportAudit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("nieudany eksport księgowy kończy się komunikatem, nie ciszą", async () => {
     // CO BYŁO ZŁE. Mutacja `exportFile` też nie miała `onError`. Gdy funkcja
