@@ -8,20 +8,31 @@
 //   2. SUROWY ADRES W BAZIE - do `rate_limits` trafia wyłącznie solony skrót.
 //   3. ZŁE OKNO WDROŻENIA - stara ścieżka JWT kupującego wolno użyć tylko przy
 //      braku funkcji (PGRST202/42883); odmowa uprawnień czy timeout to awaria.
+//   4. CICHE ŁĄCZENIE KODU - reguła kumulacji (TIX-13a), której nie dało się
+//      odczytać, nie może zamienić się w „łączy się ze wszystkim"; wyjątek
+//      to wyłącznie okno wdrożenia kolumn (42703/PGRST204).
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { hashedRateSubject } from "@/lib/server/rateSubject.server";
+import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 
 const h = vi.hoisted(() => ({
   tenant: "aaaaaaaa-0000-4000-8000-00000000000a" as string | null,
   tenantThrows: false,
+  requestThrows: false,
   admin: vi.fn(),
   user: vi.fn(),
+  db: null as SupabaseFromStub | null,
 }));
 
 vi.mock("@tanstack/react-start/server", () => ({
-  getRequest: () =>
-    new Request("https://kasa.example.org/checkout", {
+  getRequest: () => {
+    // Poza zasięgiem żądania (rozgrzewka, zadanie w tle) `getRequest` rzuca.
+    if (h.requestThrows) throw new Error("No StartEvent found in AsyncLocalStorage");
+    return new Request("https://kasa.example.org/checkout", {
       headers: { "cf-connecting-ip": "198.51.100.23", "x-forwarded-host": "kasa.example.org" },
-    }),
+    });
+  },
 }));
 vi.mock("@/lib/server/tenant.server", () => ({
   resolveTenantIdForHost: async () => {
@@ -30,12 +41,21 @@ vi.mock("@/lib/server/tenant.server", () => ({
   },
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { rpc: (...args: unknown[]) => h.admin(...args) },
+  supabaseAdmin: {
+    rpc: (...args: unknown[]) => h.admin(...args),
+    from: (table: string) => {
+      if (!h.db) throw new Error("test: atrapa bazy nieustawiona");
+      return h.db.from(table);
+    },
+  },
 }));
 
 const {
+  DEFAULT_COUPON_STACKING,
+  loadCouponStackingPolicy,
   redeemCouponForUser,
   releaseCouponForUser,
+  requestProbeIdentity,
   validateEventTicketCouponForUser,
   validatePlanCouponForUser,
 } = await import("@/lib/billing/couponRpc.server");
@@ -77,6 +97,8 @@ const redemption = {
 beforeEach(() => {
   h.tenant = "aaaaaaaa-0000-4000-8000-00000000000a";
   h.tenantThrows = false;
+  h.requestThrows = false;
+  h.db = supabaseFromStub();
   h.admin.mockReset();
   h.user.mockReset();
   h.admin.mockResolvedValue({ data: { ok: true }, error: null });
@@ -295,5 +317,104 @@ describe("releaseCouponForUser (zwolnienie po odmowie dostawcy, 20261007140200)"
 
     expect(await releaseCouponForUser(userClient, release)).toEqual({ data: false, error: null });
     expect(h.user).not.toHaveBeenCalled();
+  });
+});
+
+describe("requestProbeIdentity (tożsamość sond kodów: wycena, pakiet, licznik treści)", () => {
+  it("najemca hosta i ten sam solony kubełek adresu, który dostaje walidacja kodu planu", async () => {
+    const identity = await requestProbeIdentity();
+    await validatePlanCouponForUser(userClient, validation);
+
+    expect(identity.tenantId).toBe("aaaaaaaa-0000-4000-8000-00000000000a");
+    expect(identity.probeSubject).toMatch(/^ip:[0-9a-f]{32}$/);
+    expect(identity.probeSubject).not.toContain("198.51.100.23");
+    expect(identity.probeSubject).toBe(
+      (h.admin.mock.lastCall?.[1] as { _probe_subject: string })._probe_subject,
+    );
+  });
+
+  it("poza zasięgiem żądania: bez wyjątku, wspólny kubełek nieznanego adresu", async () => {
+    h.requestThrows = true;
+    h.tenant = null;
+
+    expect(await requestProbeIdentity()).toEqual({
+      tenantId: null,
+      probeSubject: hashedRateSubject("ip", "unknown"),
+    });
+  });
+
+  it("walidacja poza zasięgiem żądania liczy pudło w kubełku nieznanego adresu, nie gubi konta", async () => {
+    h.requestThrows = true;
+
+    await validateEventTicketCouponForUser(userClient, eventValidation);
+
+    expect(h.admin.mock.lastCall?.[1]).toMatchObject({
+      _user_id: USER,
+      _probe_subject: hashedRateSubject("ip", "unknown"),
+    });
+  });
+});
+
+describe("loadCouponStackingPolicy (reguła kumulacji kodu, TIX-13a)", () => {
+  const COUPON = "eeeeeeee-0000-4000-8000-00000000000e";
+
+  it("czyta dwie kolumny reguły JEDNEGO kuponu rolą serwisową", async () => {
+    h.db?.setResponse(
+      "b2b_coupons",
+      ok({ stacks_with_promotions: false, max_total_discount_percent: 40 }),
+    );
+
+    expect(await loadCouponStackingPolicy(COUPON)).toEqual({
+      stacksWithPromotions: false,
+      maxTotalDiscountPercent: 40,
+    });
+    const read = h.db?.lastChain("b2b_coupons");
+    expect(read?.argsOf("select")).toEqual(["stacks_with_promotions, max_total_discount_percent"]);
+    expect(read?.argsOf("eq")).toEqual(["id", COUPON]);
+    expect(read?.has("maybeSingle")).toBe(true);
+  });
+
+  it("kod łączący się z promocjami, bez limitu łącznego rabatu", async () => {
+    h.db?.setResponse(
+      "b2b_coupons",
+      ok({ stacks_with_promotions: true, max_total_discount_percent: null }),
+    );
+
+    expect(await loadCouponStackingPolicy(COUPON)).toEqual({
+      stacksWithPromotions: true,
+      maxTotalDiscountPercent: null,
+    });
+  });
+
+  it("brak wiersza: zachowanie sprzed reguły (kod nie niesie zakazu łączenia)", async () => {
+    h.db?.setResponse("b2b_coupons", ok(null));
+
+    expect(await loadCouponStackingPolicy(COUPON)).toEqual(DEFAULT_COUPON_STACKING);
+  });
+
+  it.each(["42703", "PGRST204"])(
+    "OKNO WDROŻENIA (%s, baza bez kolumn): zachowanie sprzed reguły, bez wyjątku",
+    async (code) => {
+      h.db?.setResponse(
+        "b2b_coupons",
+        fail("column b2b_coupons.stacks_with_promotions does not exist", code),
+      );
+
+      expect(await loadCouponStackingPolicy(COUPON)).toEqual({
+        stacksWithPromotions: true,
+        maxTotalDiscountPercent: null,
+      });
+    },
+  );
+
+  it.each([
+    ["odmowa uprawnień", fail("permission denied for table b2b_coupons", "42501")],
+    ["przerwane połączenie", fail("TypeError: fetch failed", "")],
+  ])("%s RZUCA - kasa nie łączy po cichu kodu, którego nie wolno łączyć", async (_l, result) => {
+    h.db?.setResponse("b2b_coupons", result);
+
+    await expect(loadCouponStackingPolicy(COUPON)).rejects.toThrow(
+      `coupon_policy_unavailable: ${result.error?.message}`,
+    );
   });
 });
