@@ -53,6 +53,10 @@ const h = vi.hoisted(() => {
     priceListCalls: [] as string[][],
     promoByCode: { current: new Map<string, string>() },
     promoThrows: { current: false },
+    /** Odpowiedź `promotionCodes.list` dopiero w następnym obrocie pętli zdarzeń. */
+    promoDeferred: { current: false },
+    /** Ile zapytań o kod promocyjny było naraz w locie (maksimum przebiegu). */
+    promoInFlight: { now: 0, max: 0 },
     createdCoupons: [] as Array<Record<string, unknown>>,
     createdPromos: [] as Array<Record<string, unknown>>,
     /** Drugi argument wywołań operatora (`RequestOptions`, klucz idempotencji). */
@@ -173,7 +177,16 @@ const h = vi.hoisted(() => {
         const { code } = params;
         if (state.promoThrows.current) return Promise.reject(new Error("stripe padł"));
         const id = state.promoByCode.current.get(code);
-        return Promise.resolve({ data: id ? [{ id }] : [] });
+        const response = { data: id ? [{ id }] : [] };
+        if (!state.promoDeferred.current) return Promise.resolve(response);
+        state.promoInFlight.now += 1;
+        state.promoInFlight.max = Math.max(state.promoInFlight.max, state.promoInFlight.now);
+        return new Promise((resolve) =>
+          setTimeout(() => {
+            state.promoInFlight.now -= 1;
+            resolve(response);
+          }, 0),
+        );
       },
       create: (payload: Record<string, unknown>, options?: unknown) => {
         state.createdPromos.push(payload);
@@ -292,6 +305,9 @@ beforeEach(() => {
   h.priceListCalls.length = 0;
   h.promoByCode.current = new Map();
   h.promoThrows.current = false;
+  h.promoDeferred.current = false;
+  h.promoInFlight.now = 0;
+  h.promoInFlight.max = 0;
   h.createdCoupons.length = 0;
   h.createdPromos.length = 0;
   h.couponOptions.length = 0;
@@ -714,6 +730,32 @@ describe("buildPaymentsDiagnostics - kondycja dziennika zdarzeń", () => {
 });
 
 describe("buildPaymentsDiagnostics - kupony B2B wobec rabatów operatora", () => {
+  // Tabela kuponów pyta operatora o KAŻDY z (do) 50 kodów. Dawniej po kolei:
+  // 50 sekwencyjnych żądań przez bramkę konektorów to kilkanaście sekund
+  // ładowania diagnostyki. Teraz najwyżej 5 naraz - poniżej limitu odczytów
+  // piaskownicy operatora - a wynik zostaje w kolejności tabeli.
+  it("kody są sprawdzane u operatora RÓWNOLEGLE, najwyżej 5 naraz, w kolejności tabeli", async () => {
+    h.coupons.current = Array.from({ length: 12 }, (_, i) => ({
+      code: `kod${String(i).padStart(2, "0")}`,
+      active: true,
+      discount_kind: "percent",
+    }));
+    h.promoByCode.current = new Map([["KOD07", "promo_7"]]);
+    h.promoDeferred.current = true;
+
+    const diag = await buildPaymentsDiagnostics("sandbox", TENANT);
+
+    expect(h.promoInFlight.max).toBeGreaterThan(1);
+    expect(h.promoInFlight.max).toBeLessThanOrEqual(5);
+    expect(h.promoListCalls).toHaveLength(12);
+    expect(diag.coupons.map((coupon) => coupon.code)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `KOD${String(i).padStart(2, "0")}`),
+    );
+    expect(diag.coupons.map((coupon) => coupon.providerDiscountId)).toEqual(
+      Array.from({ length: 12 }, (_, i) => (i === 7 ? "promo_7" : null)),
+    );
+  });
+
   it("kupon procentowy jest opisany jako procentowy", async () => {
     h.coupons.current = [
       {

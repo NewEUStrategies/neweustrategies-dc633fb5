@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
 import type { Database } from "@/integrations/supabase/types";
+import { mapWithConcurrency } from "@/lib/async/pool";
 import { BILLING_CATALOG, type PlanBillingInterval } from "@/lib/billing/catalog";
 import { planCheckoutPricing } from "@/lib/billing/planPricing";
 import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
@@ -286,6 +287,13 @@ function countedAtCheckout(row: {
 }
 
 /**
+ * Ile zapytań o kod promocyjny naraz. Piaskownica operatora przyjmuje około
+ * 25 odczytów na sekundę - pięć torów po kilkaset milisekund zostaje wyraźnie
+ * poniżej, a 50 kodów tabeli to dziesięć „rund" zamiast pięćdziesięciu.
+ */
+const COUPON_LOOKUP_CONCURRENCY = 5;
+
+/**
  * Tabela kuponów - ZAWSZE w zakresie najemcy admina. Klient serwisowy omija
  * RLS, więc bez `.eq("tenant_id", ...)` admin najemcy A oglądał kody
  * wszystkich najemców (i pytał o nie operatora).
@@ -301,14 +309,16 @@ async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDisc
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const rows: CouponDiscountStatus[] = [];
-  for (const c of data ?? []) {
+  // Operator pytany o każdy kod - do `COUPON_LOOKUP_CONCURRENCY` naraz zamiast
+  // po kolei (50 sekwencyjnych żądań przez bramkę to kilkanaście sekund
+  // diagnostyki). Kolejność wyniku = kolejność tabeli.
+  return mapWithConcurrency(data ?? [], COUPON_LOOKUP_CONCURRENCY, async (c) => {
     const code = String(c.code ?? "").toUpperCase();
     const local = countedAtCheckout(c);
     const providerDiscountId = code
       ? await findPromotionCodeByCode(env, code, local).catch(() => null)
       : null;
-    rows.push({
+    return {
       code,
       active: c.active !== false,
       discountKind: c.discount_kind === "fixed" ? "fixed" : "percent",
@@ -323,9 +333,8 @@ async function readCoupons(env: StripeEnv, tenantId: string): Promise<CouponDisc
       grantsDurationDays: c.grants_duration_days ?? null,
       providerDiscountId,
       countedAtCheckout: local,
-    });
-  }
-  return rows;
+    } satisfies CouponDiscountStatus;
+  });
 }
 
 /** Kondycja dziennika, którego nie udało się przeczytać - same zera. */
