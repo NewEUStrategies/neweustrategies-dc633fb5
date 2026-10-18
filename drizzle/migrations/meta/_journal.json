@@ -2150,6 +2150,13 @@
       "when": 1792314060000,
       "tag": "0306_payment_webhook_events_follow_subscription_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1792314120000,
+      "tag": "0307_user_subscriptions_user_fk_cascade",
+      "breakpoints": true
     }
   ]
 }
