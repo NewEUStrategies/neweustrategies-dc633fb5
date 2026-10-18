@@ -21,6 +21,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub } from "@/test/billing/fixtures";
+import { uiLocale } from "@/lib/i18n/format";
 
 interface AdminSubscriptionRow {
   id: string;
@@ -320,6 +321,38 @@ describe("AdminBillingPanel - wiersz subskrypcji", () => {
     expect(screen.queryByText(/^0 ·/)).toBeNull();
   });
 
+  it("status spoza słownika tonów jest pokazany neutralnie, a nie bez stylu", async () => {
+    h.subs.current = [subscription({ status: "incomplete_expired" })];
+    render();
+
+    const badge = await screen.findByText("incomplete_expired");
+    expect(badge.className).toContain("bg-muted");
+    expect(badge.className).toContain("text-muted-foreground");
+  });
+
+  it("interfejs ANGIELSKI pokazuje koniec okresu w zapisie angielskim", async () => {
+    h.lang.current = "en";
+    render();
+    await awaitRows();
+
+    const expected = new Date("2026-09-18T10:00:00.000Z").toLocaleString(uiLocale("en"));
+    expect(screen.getByText(expected)).toBeTruthy();
+  });
+
+  it("link do portalu dla subskrypcji PRODUKCYJNEJ idzie w środowisku `live`", async () => {
+    h.subs.current = [subscription({ environment: "live", user_id: "user-produkcja" })];
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.sendLink"));
+
+    await waitFor(() =>
+      expect(h.resend).toHaveBeenCalledWith({
+        data: { userId: "user-produkcja", environment: "live" },
+      }),
+    );
+  });
+
   it("identyfikator subskrypcji u operatora jest widoczny (do zgłoszeń)", async () => {
     render();
 
@@ -562,6 +595,36 @@ describe("AdminBillingPanel - stan katalogu cen", () => {
     await waitFor(() =>
       expect(h.toastError).toHaveBeenCalledWith("adminBilling.catalogPlatformOnly"),
     );
+  });
+
+  it("wymóg drugiego składnika przy RĘCZNEJ synchronizacji to wskazówka step-upu", async () => {
+    h.syncCatalog.mockRejectedValueOnce(
+      new Error(
+        "Forbidden: mfa_required - verify your second factor (aal2) to perform platform admin role (super_admin) actions",
+      ),
+    );
+    render();
+
+    fireEvent.click(screen.getByText("adminBilling.syncCatalog"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.mfaStepUpRequired"),
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith("adminBilling.catalogPlatformOnly");
+  });
+
+  it("odrzucenie stanu katalogu INNĄ wartością niż błąd nie jest odmową roli - przycisk zostaje", async () => {
+    // Bramka odmawia wyjątkiem z komunikatem; wartość bez komunikatu (np. napis
+    // z warstwy transportu) nie może zostać odczytana jako „tylko operator".
+    h.catalogStateError.current = "zerwane połączenie" as unknown as Error;
+    render();
+    await awaitRows();
+
+    await waitFor(() =>
+      expect(screen.getByText("adminBilling.syncCatalog").closest("button")?.disabled).toBe(false),
+    );
+    expect(screen.queryByText("adminBilling.catalogPlatformOnly")).toBeNull();
+    expect(screen.queryByText("adminBilling.mfaStepUpRequired")).toBeNull();
   });
 
   it("awaria synchronizacji katalogu pokazuje powód", async () => {

@@ -137,6 +137,22 @@ describe("wczytanie pomiaru", () => {
     expect(h.fetchHealth).toHaveBeenCalledWith("sandbox", 72);
   });
 
+  it("W TRAKCIE pomiaru przycisk jest zablokowany - drugi pomiar nie wyprzedzi pierwszego", async () => {
+    let finish: (value: WebhookHealth) => void = () => {};
+    h.fetchHealth.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    pokaz();
+    const przycisk = screen.getByRole("button", { name: "webhookHealth.load" });
+
+    fireEvent.click(przycisk);
+
+    await waitFor(() => expect(przycisk).toBeDisabled());
+    expect(przycisk.querySelector(".animate-spin")).toBeTruthy();
+    finish(zdrowie());
+    await screen.findByRole("status");
+    expect(przycisk).toBeEnabled();
+    expect(h.fetchHealth).toHaveBeenCalledTimes(1);
+  });
+
   it("liczby z odpowiedzi trafiają na ekran bez przeliczania", async () => {
     h.fetchHealth.mockResolvedValue(
       zdrowie({ total: 4211, processed: 4190, failed: 17, pending: 4, retries: 9 }),
@@ -373,6 +389,57 @@ describe("ponowna wysyłka powiadomienia", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1));
     expect(h.toastError.mock.calls[0][0]).toContain("registration_not_found");
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("kanały w meldunku nie są zamienione: bez maila, ale z SMS-em", async () => {
+    h.resend.mockResolvedValue({
+      registrationId: UUID,
+      outcome: "paid",
+      emailed: false,
+      smsSent: true,
+      promotedNotified: 0,
+    });
+    pokaz();
+    fireEvent.change(screen.getByLabelText("webhookHealth.registrationId"), {
+      target: { value: UUID },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /webhookHealth\.resend$/ }));
+
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith('webhookHealth.resendOk {"email":"-","sms":"✓"}'),
+    );
+  });
+
+  it("odmowa bez klasy Error przy wysyłce nie gubi komunikatu", async () => {
+    h.resend.mockRejectedValue("rate_limited");
+    pokaz();
+    fireEvent.change(screen.getByLabelText("webhookHealth.registrationId"), {
+      target: { value: UUID },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /webhookHealth\.resend$/ }));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        'webhookHealth.resendFailed {"error":"rate_limited"}',
+      ),
+    );
+  });
+
+  it("W TRAKCIE wysyłki przycisk mówi „wysyłam” i jest zablokowany (bez dubla powiadomienia)", async () => {
+    let finish: (value: unknown) => void = () => {};
+    h.resend.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    pokaz();
+    fireEvent.change(screen.getByLabelText("webhookHealth.registrationId"), {
+      target: { value: UUID },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /webhookHealth\.resend$/ }));
+
+    const pending = await screen.findByRole("button", { name: /webhookHealth\.resending/ });
+    expect(pending).toBeDisabled();
+    finish({ registrationId: UUID, outcome: "paid", emailed: true, smsSent: false });
+    await screen.findByRole("button", { name: /webhookHealth\.resend$/ });
+    expect(h.resend).toHaveBeenCalledTimes(1);
   });
 
   it("ponowna wysyłka NIE odpytuje pomiaru - to dwie rozłączne akcje", async () => {

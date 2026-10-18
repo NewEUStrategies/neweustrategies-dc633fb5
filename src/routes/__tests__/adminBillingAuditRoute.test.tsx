@@ -430,6 +430,18 @@ describe("trasa /admin/billing-audit - dziennik zamówień", () => {
     expect(row.textContent).not.toContain("zł");
   });
 
+  it("zamówienie BEZ waluty pokazuje kwotę kodem PLN (domyślna waluta kolumny), nie wywraca tabeli", async () => {
+    h.audit.mockResolvedValue(
+      report({ orders: [order({ currency: null, amountCents: 4900 })], webhooks: [] }),
+    );
+    await mount();
+    await load();
+
+    const row = (await screen.findByText("pi_test_1")).closest("tr") as HTMLElement;
+    expect(row.textContent).toMatch(/PLN/);
+    expect(row.textContent).toMatch(/49[.,]00/);
+  });
+
   it("brak kwoty to myślnik, a nie zero złotych", async () => {
     // Zamówienie bez kwoty (sesja porzucona przed wyceną) to brak danych.
     // Wyświetlone „0,00 zł" byłoby zdaniem o darmowym zamówieniu.
@@ -781,6 +793,34 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
 
     expect(document.body.textContent).toContain("brak uprawnień administratora");
     expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("odmowa wczytania wartością bez klasy Error też niesie POWÓD", async () => {
+    h.audit.mockRejectedValue("serwer zamknął połączenie");
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wczytaj" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain("serwer zamknął połączenie");
+  });
+
+  it("W TRAKCIE eksportu „przygotowuję” ma TYLKO klikany format, a oba przyciski są zablokowane", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-object-url");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    let finish: (value: AuditExport) => void = () => {};
+    h.exportAudit.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Eksport XLSX" }));
+
+    const exporting = await screen.findByRole("button", { name: "Przygotowuję plik..." });
+    const csv = screen.getByRole("button", { name: "Eksport CSV" });
+    expect(exporting).toBeDisabled();
+    expect(csv).toBeDisabled();
+    finish(exportFile({ fileName: "audyt.xlsx" }));
+    await screen.findByRole("button", { name: "Eksport XLSX" });
+    expect(h.exportAudit).toHaveBeenCalledTimes(1);
   });
 
   it("nieudany eksport księgowy kończy się komunikatem, nie ciszą", async () => {

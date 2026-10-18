@@ -20,10 +20,11 @@
 //   4. ŁADUNEK POKAZUJE SIĘ W CAŁOŚCI I NIE WYWALA WIDOKU, gdy jest pusty
 //      albo nie jest obiektem.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub, webhookEvent } from "@/test/billing/fixtures";
 import type { WebhookEventRow } from "@/test/billing/fixtures";
+import { uiLocale } from "@/lib/i18n/format";
 
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
@@ -174,6 +175,34 @@ describe("AdminWebhookLogPanel - odczyt dziennika", () => {
     await awaitRows();
     expect(screen.getByText("sub_stripe_9")).toBeTruthy();
     expect(screen.getByText("cus_2")).toBeTruthy();
+  });
+
+  it("zdarzenie bez czasu u operatora pokazuje chwilę ZAPISU w dzienniku", async () => {
+    h.rows.current = [webhookEvent({ occurred_at: null, created_at: "2026-08-18T09:30:00.000Z" })];
+    render();
+
+    await awaitRows();
+    const expected = new Date("2026-08-18T09:30:00.000Z").toLocaleString(uiLocale("pl"));
+    expect(within(eventRows()[0] as HTMLElement).getByText(expected)).toBeTruthy();
+  });
+
+  it("interfejs ANGIELSKI pokazuje czas w zapisie angielskim", async () => {
+    h.lang.current = "en";
+    h.rows.current = [webhookEvent({ occurred_at: "2026-08-18T09:30:00.000Z" })];
+    render();
+
+    await awaitRows();
+    const expected = new Date("2026-08-18T09:30:00.000Z").toLocaleString(uiLocale("en"));
+    expect(within(eventRows()[0] as HTMLElement).getByText(expected)).toBeTruthy();
+  });
+
+  it("status spoza słownika tonów jest pokazany neutralnie, a nie bez stylu", async () => {
+    h.rows.current = [webhookEvent({ status: "quarantined" })];
+    render();
+
+    const badge = await screen.findByText("quarantined");
+    expect(badge.className).toContain("bg-muted");
+    expect(badge.className).toContain("text-muted-foreground");
   });
 
   it("bez subskrypcji i klienta zostaje identyfikator zdarzenia", async () => {
@@ -449,6 +478,36 @@ describe("AdminWebhookLogPanel - podgląd ładunku", () => {
     expect(screen.getByText(/adminBilling\.retriesCount/).textContent).toContain('"count":3');
   });
 
+  it("zdarzenie bez użytkownika i bez zakończenia obsługi ma kreski, nie „null”", async () => {
+    h.rows.current = [webhookEvent({ user_id: null, processed_at: null, status: "received" })];
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    const details = await waitFor(() => {
+      const list = document.querySelector("dl");
+      expect(list).toBeTruthy();
+      return list!;
+    });
+    const value = (label: string) =>
+      within(details).getByText(new RegExp(`^${label}:`)).nextElementSibling?.textContent;
+    expect(value("adminBilling\\.user")).toBe("-");
+    expect(value("adminBilling\\.finished")).toBe("-");
+    expect(details.textContent).not.toContain("null");
+  });
+
+  it("wiersz usunięty z dziennika między listą a podglądem pokazuje `null`, a nie wywraca panelu", async () => {
+    render();
+    await awaitRows();
+    // Retencja dziennika usunęła wiersz po wczytaniu listy.
+    h.rows.current = [];
+
+    fireEvent.click(screen.getByLabelText("adminBilling.showPayload"));
+
+    await waitFor(() => expect(document.querySelector("pre")?.textContent).toBe("null"));
+  });
+
   it("zdarzenie bez ponowień mówi to osobnym kluczem", async () => {
     h.rows.current = [webhookEvent({ retry_count: 0 })];
     render();
@@ -505,6 +564,40 @@ describe("AdminWebhookLogPanel - PONOWIENIE zdarzenia", () => {
         "adminBilling.retryFailed",
         expect.objectContaining({ description: "nieznany plan w metadanych" }),
       ),
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("nieudane ponowienie BEZ powodu nie dokleja pustego opisu", async () => {
+    h.retry.mockResolvedValue({
+      status: "failed",
+      error: null,
+      eventType: "checkout.session.completed",
+      durationMs: 12,
+    });
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.retry2"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.retryFailed", {
+        description: undefined,
+      }),
+    );
+  });
+
+  it("odrzucenie transportu wartością bez komunikatu nadal kończy się komunikatem ponowienia", async () => {
+    h.retry.mockRejectedValue("zerwane połączenie");
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.retry2"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.couldRetryEvent", {
+        description: undefined,
+      }),
     );
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
