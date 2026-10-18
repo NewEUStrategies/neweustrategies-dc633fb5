@@ -57,20 +57,24 @@ export function SubscriptionManagerSection() {
   const [busy, setBusy] = useState(false);
   const [retentionOpen, setRetentionOpen] = useState(false);
 
-  const { data } = useQuery({
+  const subscriptionQ = useQuery({
     queryKey: billingKeys.mySubscription(session?.user?.id),
     queryFn: fetchMySubscription,
     enabled: !!session,
   });
+  const data = subscriptionQ.data;
 
-  // Status płatności: najświeższe zamówienie użytkownika. Widoczny status
+  // Status płatności: najświeższe zamówienie PLANU. Widoczny status
   // (np. „Nieudane" / „Oczekujące") tłumaczy, dlaczego dostęp może nie działać.
+  // `payment_orders` trzyma też bilety i odblokowania treści (`plan_id` null) -
+  // te o dostępie z planu nic nie mówią, a porzucona kasa biletowa malowała
+  // członkowi czerwone „Oczekujące" z ceną biletu.
   const ordersQ = useQuery({
     queryKey: billingKeys.myOrders(session?.user?.id),
     queryFn: fetchMyOrders,
     enabled: !!session,
   });
-  const lastOrder = ordersQ.data?.[0] ?? null;
+  const lastOrder = ordersQ.data?.find((order) => order.plan_id !== null) ?? null;
 
   // Nadanie (dożywotni VIP eksperta) zastępuje komunikat „brak subskrypcji" -
   // użytkownik ma widzieć swój realny poziom dostępu, nie pustkę.
@@ -166,7 +170,10 @@ export function SubscriptionManagerSection() {
       </div>
     );
   }
-  if (providerPending) return null;
+  // Ta sama reguła dla WŁASNEGO odczytu: dopóki nie wrócił, nie wiadomo, czy
+  // członkostwo jest. Dawniej w tym oknie płacący klient czytał „Nie masz
+  // aktywnego członkostwa" z „Zobacz plany" - zaproszenie do drugiego zakupu.
+  if (providerPending || subscriptionQ.isLoading) return null;
 
   return (
     <div className="space-y-6">

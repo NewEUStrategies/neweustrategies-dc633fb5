@@ -17,7 +17,7 @@
 //      jest nowy checkout, więc przycisk musi zniknąć.
 //   4. REZYGNACJA IDZIE PRZEZ PRZEPŁYW RETENCYJNY, nie prosto z przycisku.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import {
   isoFuture,
@@ -37,6 +37,8 @@ import { formatDateShort } from "@/lib/i18n/format";
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
   subscription: { current: null as UserSubscriptionRow | null },
+  /** Odczyt subskrypcji w toku (`null` = od razu `subscription.current`). */
+  subscriptionRead: { current: null as Promise<UserSubscriptionRow | null> | null },
   orders: { current: [] as PaymentOrder[] },
   grants: { current: [] as MembershipGrantRow[] },
   providerSub: { current: null as StripeSubscriptionRow | null },
@@ -64,7 +66,7 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 
 vi.mock("@/lib/billing/queries", () => ({
-  fetchMySubscription: () => Promise.resolve(h.subscription.current),
+  fetchMySubscription: () => h.subscriptionRead.current ?? Promise.resolve(h.subscription.current),
   fetchMyOrders: () => Promise.resolve(h.orders.current),
   cancelMySubscription: (id: string) => h.cancel(id),
   resumeMySubscription: (id: string) => h.resume(id),
@@ -151,6 +153,7 @@ const lastRetention = () => h.retentionProps.at(-1);
 beforeEach(() => {
   h.lang.current = "pl";
   h.subscription.current = null;
+  h.subscriptionRead.current = null;
   h.orders.current = [];
   h.grants.current = [];
   h.providerSub.current = null;
@@ -190,6 +193,24 @@ describe("SubscriptionManagerSection - który ekran", () => {
     expect(container.textContent).toBe("");
     expect(screen.queryByText("profile.subscription.cancel")).toBeNull();
     expect(screen.queryByTestId("karta-zmiany-planu")).toBeNull();
+  });
+
+  it("dopóki WŁASNY odczyt subskrypcji trwa, sekcja nie mówi „nie masz członkostwa”", async () => {
+    // Ta sama reguła co przy lustrze operatora: w oknie wczytywania płacący
+    // klient czytał „Nie masz aktywnego członkostwa" z „Zobacz plany" - czyli
+    // zaproszenie do drugiego zakupu - zanim odczyt w ogóle wrócił.
+    h.subscriptionRead.current = new Promise(() => {});
+    const { container, queryClient } = render();
+
+    await waitFor(() =>
+      expect(queryClient.getQueryState(billingKeys.myOrders("user-me"))?.status).toBe("success"),
+    );
+    expect(queryClient.getQueryState(billingKeys.mySubscription("user-me"))?.status).toBe(
+      "pending",
+    );
+    expect(screen.queryByText("profile.subscription.none")).toBeNull();
+    expect(screen.queryByText("profile.overview.seePlans")).toBeNull();
+    expect(container.textContent).toBe("");
   });
 
   it("bez subskrypcji i bez nadania mówi wprost, że planu nie ma", async () => {
@@ -243,8 +264,11 @@ describe("SubscriptionManagerSection - który ekran", () => {
     h.subscription.current = userSubscription();
     render();
 
-    await waitFor(() => expect(screen.getByText("Członek")).toBeTruthy());
-    expect(screen.getByText("profile.subscription.title")).toBeTruthy();
+    // Odznaka stoi w nagłówku karty, obok tytułu - nazwa planu niżej to co
+    // innego (ta sama nazwa „Członek" pada w karcie dwa razy).
+    await waitFor(() => expect(screen.getByText("profile.subscription.title")).toBeTruthy());
+    const header = screen.getByText("profile.subscription.title").parentElement!;
+    expect(within(header).getByText("Członek")).toBeTruthy();
   });
 });
 
@@ -565,11 +589,13 @@ describe("SubscriptionManagerSection - daty, język i nadania w trakcie wczytywa
     h.lang.current = "en";
     h.tier.current = { key: "member", name_pl: "Członek", name_en: "Member" };
     h.subscription.current = userSubscription();
-    render();
+    const { container } = render();
 
-    await waitFor(() => expect(screen.getByText("Member")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("profile.subscription.title")).toBeTruthy());
+    const header = screen.getByText("profile.subscription.title").parentElement!;
+    expect(within(header).getByText("Member")).toBeTruthy();
     // Nazwa planu też po angielsku - w karcie nie ma ani jednego „Członek".
-    expect(screen.queryByText("Członek")).toBeNull();
+    expect(container.textContent).not.toContain("Członek");
   });
 
   it("nadanie TERMINOWE pokazuje datę wygaśnięcia w formacie serwisu, nie „dożywotnio”", async () => {
@@ -602,5 +628,65 @@ describe("SubscriptionManagerSection - daty, język i nadania w trakcie wczytywa
       "profile.subscription.cancelsAt-",
     );
     expect(screen.queryByText("profile.subscription.resume")).toBeNull();
+  });
+});
+
+describe("SubscriptionManagerSection - status płatności dotyczy CZŁONKOSTWA, nie biletu ani treści", () => {
+  // `payment_orders` trzyma też bilety na wydarzenia i odblokowania treści
+  // (`plan_id` null). Pasek „Status ostatniej płatności” stoi w karcie
+  // subskrypcji i ma tłumaczyć, dlaczego DOSTĘP z planu może nie działać -
+  // porzucona kasa biletowa (zamówienie `pending` na zawsze) malowała
+  // płacącemu członkowi czerwone „Oczekujące” z ceną biletu.
+  const ticketOrder = (overrides: Partial<PaymentOrder> = {}) =>
+    paymentOrder({
+      id: "order-ticket",
+      kind: "one_time",
+      plan_id: null,
+      status: "pending",
+      amount_cents: 15000,
+      metadata: { event_id: "event-1" },
+      paid_at: null,
+      created_at: isoPast(0),
+      ...overrides,
+    });
+
+  it("nowsze zamówienie biletu nie wypiera statusu płatności za plan", async () => {
+    h.subscription.current = userSubscription();
+    h.orders.current = [
+      ticketOrder(),
+      paymentOrder({ amount_cents: 12300, created_at: isoPast(3) }),
+    ];
+    render();
+
+    await waitFor(() => expect(screen.getByText(moneyPattern(12300))).toBeTruthy());
+    expect(screen.getByText("profile.status.paid")).toBeTruthy();
+    expect(screen.queryByText("profile.status.pending")).toBeNull();
+    expect(screen.queryByText(moneyPattern(15000))).toBeNull();
+  });
+
+  it("same zamówienia biletów i treści: paska płatności członkostwa nie ma", async () => {
+    h.subscription.current = userSubscription();
+    h.orders.current = [
+      ticketOrder({ status: "failed" }),
+      ticketOrder({ id: "order-post", entity_type: "post", entity_id: "post-1", metadata: {} }),
+    ];
+    render();
+
+    await waitFor(() => expect(screen.getByText("profile.status.active")).toBeTruthy());
+    expect(screen.queryByText("profile.subscription.paymentStatus")).toBeNull();
+    expect(screen.queryByText("profile.status.failed")).toBeNull();
+  });
+
+  it("przy karcie operatora pasek też pomija bilet i pokazuje zamówienie planu", async () => {
+    h.providerSub.current = providerSubscription();
+    h.orders.current = [
+      ticketOrder({ status: "failed" }),
+      paymentOrder({ status: "paid", created_at: isoPast(5) }),
+    ];
+    render();
+
+    await waitFor(() => expect(screen.getByTestId("karta-operatora")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("profile.status.paid")).toBeTruthy());
+    expect(screen.queryByText("profile.status.failed")).toBeNull();
   });
 });
