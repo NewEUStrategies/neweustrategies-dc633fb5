@@ -266,24 +266,30 @@ const TENANT = "33333333-cccc-4ccc-8ccc-333333333333";
 const EVENT = "44444444-dddd-4ddd-8ddd-444444444444";
 const REG = "55555555-eeee-4eee-8eee-555555555555";
 
+/**
+ * Wiersz `payment_orders` w kształcie bazy: `tenant_id`, `amount_cents`,
+ * `currency`, `environment`, `status`, `provider` i `refunded_amount_cents`
+ * są NOT NULL, więc fixture nie zna ich braku. `metadata` to `jsonb` - `null`
+ * stoi tu za ładunkiem, który nie jest obiektem.
+ */
 interface OrderRow {
   id: string;
   user_id: string | null;
-  tenant_id: string | null;
+  tenant_id: string;
   plan_id: string | null;
   kind: string;
   entity_type: string | null;
   entity_id: string | null;
-  amount_cents: number | null;
-  currency: string | null;
+  amount_cents: number;
+  currency: string;
   metadata: Record<string, unknown> | null;
-  environment?: string;
-  status?: string;
-  refunded_amount_cents?: number;
+  environment: string;
+  status: string;
+  refunded_amount_cents: number;
   provider_session_id?: string | null;
   provider_intent_id?: string | null;
   provider_subscription_id?: string | null;
-  provider?: string;
+  provider: string;
 }
 
 function orderRow(over: Partial<OrderRow> = {}): OrderRow {
@@ -299,6 +305,9 @@ function orderRow(over: Partial<OrderRow> = {}): OrderRow {
     currency: "pln",
     metadata: { event_id: EVENT },
     environment: "sandbox",
+    status: "processing",
+    refunded_amount_cents: 0,
+    provider: "stripe",
     ...over,
   };
 }
@@ -552,10 +561,10 @@ describe("fulfilOrder - odczyt zamówienia", () => {
     );
   });
 
-  it("zamówienie bez kolumny środowiska jest zamówieniem LIVE", async () => {
-    // Wiersze sprzed 20260731220000 nie mają `environment`. Domyślne 'live'
-    // znaczy: sandboxowy webhook takiego zamówienia NIE zrealizuje.
-    givenOrder(orderRow({ environment: undefined }));
+  it("zamówienie `live` realizuje wyłącznie zdarzenie `live`", async () => {
+    // Wiersze sprzed 20260731220000 dostały `live` (kolumna NOT NULL
+    // z domyślną) - sandboxowy webhook takiego zamówienia NIE zrealizuje.
+    givenOrder(orderRow({ environment: "live" }));
 
     expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("skipped");
     expect(h.grants).toHaveLength(0);
@@ -599,13 +608,6 @@ describe("fulfilOrder - księgowanie", () => {
     expect(outcome).toBe("order");
     expect(paidPatch()).toMatchObject({ amount_cents: 9_900, currency: "EUR" });
     expect(h.grants[0]).toMatchObject({ amount_cents: 9_900 });
-  });
-
-  it("bez waluty gdziekolwiek księgujemy PLN", async () => {
-    givenOrder(orderRow({ metadata: null, currency: null }));
-    await fulfilOneTimeTransaction(txn({ currency: null }), "sandbox");
-
-    expect(paidPatch()).toMatchObject({ currency: "PLN" });
   });
 
   it("identyfikatory operatora trafiają do zamówienia tylko wtedy, gdy przyszły", async () => {
@@ -755,9 +757,8 @@ describe("miejsce RSVP zakupu bez zgłoszenia - decyzja bazy pod blokadą", () =
     expect(h.eventMails).toHaveLength(1);
   });
 
-  it("zakup bez zgłoszenia przy pełnej sali: zwrot, zamówienie zamknięte, bez dzwonka bez najemcy", async () => {
+  it("zakup bez zgłoszenia przy pełnej sali: zwrot i zamówienie zamknięte, bez adresu spoza zdarzenia", async () => {
     h.seat = "full";
-    givenOrder(orderRow({ tenant_id: null }));
 
     expect(await fulfilOneTimeTransaction(txn({ customerEmail: null }), "sandbox")).toBe(
       "oversold_refunded",
@@ -773,8 +774,6 @@ describe("miejsce RSVP zakupu bez zgłoszenia - decyzja bazy pod blokadą", () =
       userId: USER,
       idempotencySeed: `oversold:${ORDER_ID}`,
     });
-    // Wpis dzwonka bez najemcy wyświetlałby się wszystkim albo nikomu.
-    expect(stub().chainsFor("notifications")).toHaveLength(0);
     expect(h.eventMails).toHaveLength(0);
   });
 
@@ -1166,7 +1165,7 @@ describe("markOneTimePaymentFailed", () => {
     ["`orderId`", { orderId: ORDER_ID }],
     ["`order_id`", { order_id: ORDER_ID }],
   ] as const)("klucz %s oznacza zgłoszenie jako nieopłacone", async (_label, customData) => {
-    await markOneTimePaymentFailed({ ...customData });
+    await markOneTimePaymentFailed({ ...customData }, "sandbox");
 
     expect(h.rpcCalls).toEqual([
       {
@@ -1180,7 +1179,7 @@ describe("markOneTimePaymentFailed", () => {
     ["bez identyfikatora zamówienia", {}],
     ["bez custom_data", null],
   ] as const)("%s nic nie robi", async (_label, customData) => {
-    await markOneTimePaymentFailed(customData === null ? null : { ...customData });
+    await markOneTimePaymentFailed(customData === null ? null : { ...customData }, "sandbox");
 
     expect(h.rpcCalls).toHaveLength(0);
   });

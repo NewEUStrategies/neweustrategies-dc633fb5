@@ -115,7 +115,12 @@ export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refund
  */
 export type SubscriptionSettleOutcome = "settled" | "stamped" | "skipped";
 
-/** Zamówienie w kształcie potrzebnym realizacji (odczyt z `payment_orders`). */
+/**
+ * Zamówienie w kształcie potrzebnym realizacji (odczyt z `payment_orders`).
+ * `currency`, `environment` (20260731220000, DEFAULT 'live'), `status`,
+ * `provider` i `refunded_amount_cents` są w bazie NOT NULL - bez zapasów
+ * na brak, którego wiersz nie ma.
+ */
 interface FulfilOrderRow {
   id: string;
   user_id: string | null;
@@ -125,15 +130,15 @@ interface FulfilOrderRow {
   entity_type: "post" | "page" | "media" | null;
   entity_id: string | null;
   amount_cents: number;
-  currency: string | null;
-  metadata: Json | null;
-  environment?: string | null;
-  status?: string | null;
-  provider?: string | null;
-  refunded_amount_cents?: number | null;
-  provider_session_id?: string | null;
-  provider_intent_id?: string | null;
-  provider_payment_intent_id?: string | null;
+  currency: string;
+  metadata: Json;
+  environment: string;
+  status: string;
+  provider: string;
+  refunded_amount_cents: number;
+  provider_session_id: string | null;
+  provider_intent_id: string | null;
+  provider_payment_intent_id: string | null;
 }
 
 const FULFIL_ORDER_COLUMNS =
@@ -145,7 +150,8 @@ const FULFIL_ORDER_COLUMNS =
  * `settleFreeTicketOrder`) - to drugie nie ma czego zwracać ani sprawdzać
  * u operatora.
  */
-type SettlementMode = { provider: "stripe"; env: StripeEnv } | { provider: "coupon" };
+type SettlementMode =
+  { provider: "stripe"; env: StripeEnv } | { provider: "coupon"; couponId: string };
 
 function str(source: Record<string, unknown> | null, key: string): string | null {
   const v = source?.[key];
@@ -164,8 +170,8 @@ function collectedCentsOf(txn: OneTimeTransaction): number | null {
 }
 
 /** Waluta księgowania: ze zdarzenia, potem z zamówienia, zawsze wielkimi literami. */
-function currencyOf(txn: OneTimeTransaction, order: { currency: string | null }): string {
-  return (txn.currency ?? order.currency ?? "PLN").toUpperCase();
+function currencyOf(txn: OneTimeTransaction, order: { currency: string }): string {
+  return (txn.currency ?? order.currency).toUpperCase();
 }
 
 /**
@@ -197,12 +203,12 @@ function sourceOf(txn: OneTimeTransaction): "checkout_session" | "invoice" {
  * zamówienia, więc z nią porównujemy; bez znanej kwoty każdy zwrot jest pełny.
  */
 function refundedInFull(order: {
-  status: string | null;
-  refunded_amount_cents: number | null;
-  amount_cents: number | null;
+  status: string;
+  refunded_amount_cents: number;
+  amount_cents: number;
 }): boolean {
   if (order.status === "refunded") return true;
-  const refunded = Number(order.refunded_amount_cents ?? 0);
+  const refunded = order.refunded_amount_cents;
   if (!(refunded > 0)) return false;
   const basis = positiveCents(order.amount_cents);
   return basis === null || refunded >= basis;
@@ -299,15 +305,15 @@ function refundCounterRaced(
 interface LifecycleOrder {
   id: string;
   user_id: string | null;
-  tenant_id: string | null;
+  tenant_id: string;
   plan_id: string | null;
   kind: string;
-  status: string | null;
-  amount_cents: number | null;
-  currency: string | null;
-  refunded_amount_cents: number | null;
+  status: string;
+  amount_cents: number;
+  currency: string;
+  refunded_amount_cents: number;
   metadata: Record<string, unknown> | null;
-  environment?: string;
+  environment: string;
   provider_session_id: string | null;
   provider_intent_id: string | null;
   provider_subscription_id: string | null;
@@ -334,18 +340,17 @@ async function loadLifecycleOrder(orderId: string, scope: string): Promise<Lifec
 
 /**
  * Izolacja sandbox/live (P0) - ta sama reguła co w `fulfilOrder`: zdarzenie
- * z piaskownicy nie zamyka i nie domyka zamówienia produkcyjnego. Wiersz bez
- * kolumny środowiska jest zamówieniem `live` (20260731220000).
+ * z piaskownicy nie zamyka i nie domyka zamówienia produkcyjnego. Kolumna
+ * jest NOT NULL (20260731220000: wiersze sprzed niej dostały `live`).
  */
 function sameEnvironment(
-  order: { id: string; environment?: string },
+  order: { id: string; environment: string },
   env: StripeEnv,
   scope: string,
 ) {
-  const orderEnv = order.environment ?? "live";
-  if (orderEnv === env) return true;
+  if (order.environment === env) return true;
   console.warn(
-    `[payments] ${scope}: environment mismatch - order ${order.id} is '${orderEnv}', webhook is '${env}'; skipping`,
+    `[payments] ${scope}: environment mismatch - order ${order.id} is '${order.environment}', webhook is '${env}'; skipping`,
   );
   return false;
 }
@@ -369,7 +374,7 @@ async function closeOpenOrder(
     .in("status", [...OPEN_STATUSES])
     .select("id");
   if (error) throw new Error(`${scope}: order status flip failed: ${error.message}`);
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -388,7 +393,7 @@ async function closeOpenOrder(
  */
 async function releaseOrderCoupon(order: LifecycleOrder, scope: string): Promise<boolean> {
   const couponId = str(order.metadata, "coupon_id");
-  if (!couponId || !order.user_id || !order.tenant_id) return false;
+  if (!couponId || !order.user_id) return false;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
   const { data, error } = await releaseCouponForUser(supabaseAdmin, {
@@ -435,13 +440,12 @@ interface OrderReview extends Partial<AmountMismatch> {
  */
 function amountMismatch(
   txn: OneTimeTransaction,
-  order: { amount_cents: number | null; currency: string | null },
+  order: { amount_cents: number; currency: string },
 ): AmountMismatch | null {
   if (typeof txn.amountSubtotalCents !== "number") return null;
   const expected = order.amount_cents;
-  if (typeof expected !== "number") return null;
   const charged = txn.amountSubtotalCents - (txn.amountDiscountCents ?? 0);
-  const expectedCurrency = (order.currency ?? "PLN").toUpperCase();
+  const expectedCurrency = order.currency.toUpperCase();
   const currency = currencyOf(txn, order);
   if (currency === expectedCurrency && Math.abs(charged - expected) <= AMOUNT_TOLERANCE_CENTS) {
     return null;
@@ -562,7 +566,7 @@ function reviewCopy(orderId: string, review: OrderReview, held: boolean): Review
  * incydent dochodzi dokładnie raz, także przy powtórce zdarzenia.
  */
 async function alertOrderReview(
-  order: { id: string; tenant_id: string | null },
+  order: { id: string; tenant_id: string },
   review: OrderReview,
   held = false,
 ): Promise<void> {
@@ -573,7 +577,6 @@ async function alertOrderReview(
     order.id,
     review,
   );
-  if (!order.tenant_id) return;
   try {
     const { notifyTenantAdmins } = await import("@/lib/events/tenantAdminAlert.server");
     await notifyTenantAdmins({
@@ -626,12 +629,13 @@ const TRANSIENT_SQLSTATES: ReadonlySet<string> = new Set(["40P01", "40001"]);
 async function refundOversold(
   txn: OneTimeTransaction,
   order: FulfilOrderRow,
-  amountCents: number | null,
+  /** Właściciel zamówienia - wołający dochodzi tu wyłącznie z kontem. */
+  userId: string,
+  amountCents: number,
   currency: string,
   mode: SettlementMode,
 ): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  if (!order.user_id) return;
 
   const nowIso = new Date().toISOString();
   if (mode.provider === "coupon") {
@@ -640,17 +644,14 @@ async function refundOversold(
       .update({ status: "canceled", updated_at: nowIso })
       .eq("id", order.id);
     if (flipErr) throw new Error(`one-time: free order cancel failed: ${flipErr.message}`);
-    const couponId = str(asRecord(order.metadata), "coupon_id");
-    if (couponId) {
-      const { error: releaseErr } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
-        _tenant_id: order.tenant_id,
-        _user_id: order.user_id,
-        _coupon_id: couponId,
-        _order_id: order.id,
-      });
-      if (releaseErr) {
-        console.error("[payments] free order coupon release failed", order.id, releaseErr.message);
-      }
+    const { error: releaseErr } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
+      _tenant_id: order.tenant_id,
+      _user_id: userId,
+      _coupon_id: mode.couponId,
+      _order_id: order.id,
+    });
+    if (releaseErr) {
+      console.error("[payments] free order coupon release failed", order.id, releaseErr.message);
     }
   } else {
     // Zwrot w ŚRODOWISKU ZDARZENIA, nie w domyślnym (PAY-14b).
@@ -673,9 +674,9 @@ async function refundOversold(
         provider: "stripe",
         provider_intent_id: txn.id,
         ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
-        ...(typeof amountCents === "number"
-          ? { amount_cents: amountCents, refunded_amount_cents: amountCents, currency }
-          : {}),
+        amount_cents: amountCents,
+        refunded_amount_cents: amountCents,
+        currency,
         updated_at: nowIso,
         ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
       })
@@ -686,7 +687,7 @@ async function refundOversold(
 
     const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
     await notifyRefundEmail({
-      userId: order.user_id,
+      userId,
       planId: order.plan_id,
       amountCents,
       currency,
@@ -696,25 +697,23 @@ async function refundOversold(
     });
   }
 
-  if (order.tenant_id) {
-    await supabaseAdmin.from("notifications").insert({
-      user_id: order.user_id,
-      tenant_id: order.tenant_id,
-      kind: "billing",
-      title_pl: "Brak wolnych miejsc - zwrot płatności",
-      title_en: "Event sold out - payment refunded",
-      body_pl:
-        mode.provider === "coupon"
-          ? "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli."
-          : "Ostatnie miejsce zajęto przed zaksięgowaniem płatności. Zwróciliśmy pełną kwotę.",
-      body_en:
-        mode.provider === "coupon"
-          ? "The last seat was taken before your ticket was issued. Your code is usable again."
-          : "The last seat was taken before your payment settled. We refunded the full amount.",
-      href: "/profile/tickets",
-      icon: "receipt",
-    });
-  }
+  await supabaseAdmin.from("notifications").insert({
+    user_id: userId,
+    tenant_id: order.tenant_id,
+    kind: "billing",
+    title_pl: "Brak wolnych miejsc - zwrot płatności",
+    title_en: "Event sold out - payment refunded",
+    body_pl:
+      mode.provider === "coupon"
+        ? "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli."
+        : "Ostatnie miejsce zajęto przed zaksięgowaniem płatności. Zwróciliśmy pełną kwotę.",
+    body_en:
+      mode.provider === "coupon"
+        ? "The last seat was taken before your ticket was issued. Your code is usable again."
+        : "The last seat was taken before your payment settled. We refunded the full amount.",
+    href: "/profile/tickets",
+    icon: "receipt",
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -733,6 +732,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
  */
 async function claimPaidRsvpSeat(
   order: FulfilOrderRow,
+  userId: string,
   eventId: string,
 ): Promise<"seated" | "full"> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -751,7 +751,7 @@ async function claimPaidRsvpSeat(
 
   const { assertSeatAvailable } = await import("@/lib/events/ticket.server");
   try {
-    await assertSeatAvailable(supabaseAdmin, eventId, order.user_id as string);
+    await assertSeatAvailable(supabaseAdmin, eventId, userId);
   } catch (err) {
     if (err instanceof Error && err.message === "event_full") return "full";
     throw err;
@@ -760,7 +760,7 @@ async function claimPaidRsvpSeat(
     {
       tenant_id: order.tenant_id,
       event_id: eventId,
-      user_id: order.user_id as string,
+      user_id: userId,
       status: "going",
       updated_at: new Date().toISOString(),
     },
@@ -891,19 +891,18 @@ function closedUnpaid(order: LifecycleOrder, closedNow: boolean): boolean {
  *
  * Wynik biletu tylko dla zamówienia z wydarzeniem, które właśnie albo
  * wcześniej zamknięto bez płatności - zamówienie opłacone inną sesją nie
- * oddaje miejsca. Bez środowiska (stary wołający) zostaje wyłącznie wynik
- * biletu - zamówienia nie wolno zamknąć zdarzeniem, którego środowiska nie
- * znamy. Błąd zapisu wyniku biletu RZUCA (4.6), więc webhook wróci.
+ * oddaje miejsca. Zamówienie nieznane bazie dostaje wyłącznie wynik biletu.
+ * Błąd zapisu wyniku biletu RZUCA (4.6), więc webhook wróci.
  */
 export async function markOneTimePaymentFailed(
   customData: Record<string, unknown> | null,
-  env?: StripeEnv,
+  env: StripeEnv,
 ): Promise<void> {
   const orderId = orderIdOf(customData);
   if (!orderId) return;
 
-  const order = env ? await loadLifecycleOrder(orderId, "payment failed") : null;
-  if (order && env && !sameEnvironment(order, env, "payment failed")) return;
+  const order = await loadLifecycleOrder(orderId, "payment failed");
+  if (order && !sameEnvironment(order, env, "payment failed")) return;
   const closed = order ? await closeOpenOrder(order, "failed", "payment failed") : false;
   const unpaid = order ? closedUnpaid(order, closed) : false;
 
@@ -942,7 +941,7 @@ export async function expireCheckoutOrder(
   // Wygasła sesja INNA niż zapisana na zamówieniu - zamówienie żyje dalej
   // w nowszej sesji i nie wolno go zamknąć cudzym wygaśnięciem.
   const sessionId = txn.sessionId ?? txn.id;
-  if (order.provider_session_id && sessionId && order.provider_session_id !== sessionId) {
+  if (order.provider_session_id && order.provider_session_id !== sessionId) {
     console.warn("[payments] expire: session does not match order - skipping", orderId, sessionId);
     return false;
   }
@@ -1089,14 +1088,14 @@ export async function settleSubscriptionCheckoutOrder(
       .in("status", [...PAYABLE_STATUSES])
       .select("id");
     if (error) throw new Error(`subscription settle: provider ids stamp failed: ${error.message}`);
-    const changed = (stamps ?? []).length > 0;
+    const changed = stamps.length > 0;
     if (changed && review) await alertOrderReview(order, review);
     if (pendingReview) await alertOrderReview(order, pendingReview);
     return changed ? "stamped" : "skipped";
   }
 
   // Zwrot sprzed domknięcia przechodzi razem z kwotą na podstawę pobraną.
-  const refundedSoFar = Number(order.refunded_amount_cents ?? 0);
+  const refundedSoFar = order.refunded_amount_cents;
   const rebasedRefund = refundInCollectedBasis(refundedSoFar, order.amount_cents, charged);
   const flip = supabaseAdmin
     .from("payment_orders")
@@ -1116,7 +1115,7 @@ export async function settleSubscriptionCheckoutOrder(
     rebasedRefund !== null ? flip.eq("refunded_amount_cents", refundedSoFar) : flip
   ).select("id");
   if (error) throw new Error(`subscription settle: order paid flip failed: ${error.message}`);
-  const changed = (settled ?? []).length > 0;
+  const changed = settled.length > 0;
   // Powtórka TEGO SAMEGO zdarzenia, które opłaciło zamówienie (np. po awarii
   // procesu między zapisem a efektami) - dokańcza efekty kuponu. Odnowienie
   // (inna faktura) trafia w zamówienie opłacone wcześniej i nie robi nic.
@@ -1172,13 +1171,7 @@ async function fulfilOrder(
   // tego samego środowiska, w którym powstało. Bez tego sandboxowy webhook
   // (opłacony kartą testową) mógłby zrealizować realne zamówienie. Odpowiednik
   // `.eq("environment", env)` ze ścieżki subskrypcyjnej.
-  const orderEnv = order.environment ?? "live";
-  if (orderEnv !== env) {
-    console.warn(
-      `[payments] one-time: environment mismatch - order ${orderId} is '${orderEnv}', webhook is '${env}'; skipping`,
-    );
-    return "skipped";
-  }
+  if (!sameEnvironment(order, env, "one-time")) return "skipped";
   return (await settleOrder(txn, order, { provider: "stripe", env })).outcome;
 }
 
@@ -1209,6 +1202,7 @@ export interface FreeTicketSettlement {
 export async function settleFreeTicketOrder(orderId: string): Promise<FreeTicketSettlement> {
   const order = await loadOrder(orderId);
   const meta = asRecord(order?.metadata);
+  const couponId = str(meta, "coupon_id");
   if (
     !order ||
     order.amount_cents !== 0 ||
@@ -1216,7 +1210,7 @@ export async function settleFreeTicketOrder(orderId: string): Promise<FreeTicket
     (order.status !== "pending" && order.status !== "paid") ||
     order.provider !== "coupon" ||
     !str(meta, "event_id") ||
-    !str(meta, "coupon_id")
+    !couponId
   ) {
     console.warn("[payments] free ticket order rejected", orderId);
     return { outcome: "skipped", seated: false };
@@ -1230,7 +1224,7 @@ export async function settleFreeTicketOrder(orderId: string): Promise<FreeTicket
       customData: null,
     },
     order,
-    { provider: "coupon" },
+    { provider: "coupon", couponId },
   );
   // `skipped` = zamówienie zamknięte między odczytem a księgowaniem - kasa nie
   // obiecuje wtedy biletu, a tick liczy je jako porażkę.
@@ -1329,15 +1323,9 @@ async function settleOrder(
   // zapisu dokumentu - księgowanie przestawiłoby zwrot (odmowa wpłaty, pełna
   // sala) z powrotem na opłacone. Zwrot CZĘŚCIOWY (korekta ceny) realizacji
   // nie blokuje - patrz `refundedInFull`.
-  const orderStatus = typeof order.status === "string" ? order.status : null;
-  const refundedSoFar = Number(order.refunded_amount_cents ?? 0);
-  if (
-    refundedInFull({
-      status: orderStatus,
-      refunded_amount_cents: refundedSoFar,
-      amount_cents: typeof order.amount_cents === "number" ? order.amount_cents : null,
-    })
-  ) {
+  const orderStatus = order.status;
+  const refundedSoFar = order.refunded_amount_cents;
+  if (refundedInFull(order)) {
     console.warn("[payments] one-time: order already refunded - fulfilment refused", order.id);
     return { outcome: "skipped", seated: false };
   }
@@ -1357,11 +1345,7 @@ async function settleOrder(
   // RAZEM z kwotą (jeden zapis) - patrz `refundInCollectedBasis`.
   const rebasedRefund = settledBefore
     ? null
-    : refundInCollectedBasis(
-        refundedSoFar,
-        typeof order.amount_cents === "number" ? order.amount_cents : null,
-        amountCents,
-      );
+    : refundInCollectedBasis(refundedSoFar, order.amount_cents, amountCents);
 
   const preMetadata = asRecord(order.metadata) ?? {};
   const eventId = str(preMetadata, "event_id");
@@ -1406,7 +1390,7 @@ async function settleOrder(
     provider_session_id: txn.sessionId ?? txn.id,
     ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
     ...(txn.customerId ? { provider_customer_id: txn.customerId } : {}),
-    ...(typeof amountCents === "number" ? { amount_cents: amountCents } : {}),
+    amount_cents: amountCents,
     ...(rebasedRefund !== null ? { refunded_amount_cents: rebasedRefund } : {}),
     currency,
     ...(metadata ? { metadata } : {}),
@@ -1435,7 +1419,7 @@ async function settleOrder(
     // (kody ocenia wyłącznie dostawa zamówienia nieopłaconego); dostępu i tak
     // nie ma, alarmu też nie. Wyjątek: zwrot częściowy zmienił licznik
     // w międzyczasie - zamówienie czeka na ponowienie.
-    if ((held ?? []).length === 0) {
+    if (held.length === 0) {
       if (rebasedRefund !== null) {
         refundCounterRaced(
           await currentOrderStatus(order.id, "one-time"),
@@ -1461,7 +1445,7 @@ async function settleOrder(
   const { data: flipped, error: updateErr } = await flipToPaid();
   if (updateErr) throw new Error(`one-time: order paid flip failed: ${updateErr.message}`);
 
-  if ((flipped ?? []).length === 0) {
+  if (flipped.length === 0) {
     // Nic się nie przestawiło: albo powtórka (zamówienie już `paid` - skutki
     // niżej są idempotentne), albo zwrot WYPRZEDZIŁ nadanie między naszym
     // odczytem a zapisem. W drugim przypadku uprawnienie z kroku 1 nie ma
@@ -1498,7 +1482,8 @@ async function settleOrder(
   // migracja 20260803090002): punkty 1-3 wciąż mają sens, bo dotyczą ksiąg.
   // RSVP, dzwonek i mail nie mają już adresata - kończymy tutaj, zamiast
   // rzucać i skazywać webhook na wieczne ponowienia.
-  if (!order.user_id) {
+  const userId = order.user_id;
+  if (!userId) {
     console.warn("[payments] one-time: order has no owner (anonymised), effects skipped", order.id);
     return { outcome: "order", seated: false };
   }
@@ -1522,7 +1507,7 @@ async function settleOrder(
         {
           tenant_id: order.tenant_id,
           event_id: eventId,
-          user_id: order.user_id,
+          user_id: userId,
           status: "going",
           updated_at: new Date().toISOString(),
         },
@@ -1531,8 +1516,8 @@ async function settleOrder(
       if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
       seated = true;
     } else if (verdict === "rsvp") {
-      if ((await claimPaidRsvpSeat(order, eventId)) === "full") {
-        await refundOversold(txn, order, amountCents, currency, mode);
+      if ((await claimPaidRsvpSeat(order, userId, eventId)) === "full") {
+        await refundOversold(txn, order, userId, amountCents, currency, mode);
         return { outcome: "oversold_refunded", seated: false };
       }
       seated = true;
@@ -1561,7 +1546,7 @@ async function settleOrder(
   if (entitlementForOrder(order).type === "subscription") {
     await notifySubscriptionEmail({
       kind: "subscription_confirmed",
-      userId: order.user_id,
+      userId,
       planId: order.plan_id,
       amountCents,
       currency,
@@ -1574,7 +1559,7 @@ async function settleOrder(
   // zawiadomienie o zwrocie (`notifyTicketRefusal`) z `applyTicketOutcome`.
   if (eventId && seated) {
     await notifyEventRegistration({
-      userId: order.user_id,
+      userId,
       eventId,
       amountCents,
       currency,
