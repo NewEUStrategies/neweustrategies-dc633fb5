@@ -837,7 +837,7 @@ describe("useVoiceSearch - Web Speech w trybie ciągłym: jedno dyktowanie = jed
   it("Android Chrome <158: rosnące hipotezy jako finały z confidence 0 nie dublują słów", async () => {
     const { result, opts, rec } = await startFallback();
     const list: Seg[] = [];
-    for (const t of ["pol", "polityka", "polityka energetyczna"]) {
+    for (const t of ["polityka", "polityka energetyczna", "polityka energetyczna"]) {
       list.push([t, true, 0]);
       emit(rec, [...list]);
     }
@@ -861,6 +861,23 @@ describe("useVoiceSearch - Web Speech w trybie ciągłym: jedno dyktowanie = jed
     act(() => result.current.toggle());
     expect(opts.onFinal).toHaveBeenCalledTimes(1);
     expect(opts.onFinal).toHaveBeenCalledWith("w wschodniej Europie");
+  });
+
+  it("niezależne finały z confidence 0 NIE gubią słowa, które jest tylko początkiem następnego", async () => {
+    // WebKit oddaje każdą wypowiedź jako osobny finał, a pewność bierze
+    // z segmentów (bywa 0). Zwijanie po prefiksie ZNAKÓW gubiło przyimek
+    // („w" + „Warszawie") albo „euro" przed „europejska" - liczy się granica
+    // słowa.
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [
+      ["w", true, 0],
+      ["Warszawie", true, 0],
+      ["euro", true, 0],
+      ["europejska", true, 0],
+    ]);
+    expect(opts.onText).toHaveBeenLastCalledWith("w Warszawie euro europejska");
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledWith("w Warszawie euro europejska");
   });
 
   it("WebKit / segmenty Androida: przycięte transkrypcje nie sklejają się w jedno słowo", async () => {

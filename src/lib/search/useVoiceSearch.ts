@@ -79,7 +79,7 @@ interface WebSpeechDictation {
   flushTimer: number | null;
 }
 
-const norm = (s: string) => s.trim().toLowerCase();
+const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 const joinPhrase = (a: string, b: string) => (a && b ? `${a} ${b}` : a || b);
 
 /** Tekst bieżącej sesji. W trybie ciągłym `results` to CAŁA sesja: finały
@@ -88,7 +88,9 @@ const joinPhrase = (a: string, b: string) => (a && b ? `${a} ${b}` : a || b);
  *  sam, ale WebKit i segmenty Androida oddają transkrypcje przycięte, więc
  *  pauza w zdaniu sklejała dwa słowa w jedno. Android Chrome <158 oddaje każdą
  *  hipotezę rosnącego zdania jako osobny finał z confidence 0: taki wynik,
- *  który następny finał tylko przedłuża, pomijamy, zamiast dublować słowa. */
+ *  który następny finał tylko przedłuża o kolejne słowa, pomijamy, zamiast
+ *  dublować słowa. Granica słowa, nie znaku: niezależne segmenty (WebKit oddaje
+ *  każdą wypowiedź osobno) „w" + „Warszawie" nie mogą zgubić przyimka. */
 function sessionTranscript(results: ArrayLike<SpeechRecognitionResultLike>): string {
   const parts: string[] = [];
   for (let i = 0; i < results.length; i++) {
@@ -96,13 +98,10 @@ function sessionTranscript(results: ArrayLike<SpeechRecognitionResultLike>): str
     const t = r?.[0]?.transcript ?? "";
     if (!t.trim()) continue;
     const next = i + 1 < results.length ? results[i + 1] : undefined;
-    if (
-      r.isFinal &&
-      r[0].confidence === 0 &&
-      next?.isFinal &&
-      norm(next[0]?.transcript ?? "").startsWith(norm(t))
-    ) {
-      continue;
+    if (r.isFinal && r[0].confidence === 0 && next?.isFinal) {
+      const cur = norm(t);
+      const following = norm(next[0]?.transcript ?? "");
+      if (following === cur || following.startsWith(`${cur} `)) continue;
     }
     parts.push(t.trim());
   }
