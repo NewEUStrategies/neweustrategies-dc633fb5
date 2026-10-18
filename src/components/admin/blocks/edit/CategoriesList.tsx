@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { bool, str } from "@/components/blocks/renderer/data";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -12,9 +13,11 @@ interface Props {
 export function CategoriesListBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const cl = (k: string) => i18n.editor("categoriesList", k);
-  const showCount = Boolean(block.data.showCount);
-  const hierarchical = Boolean(block.data.hierarchical);
-  const layout = String(block.data.layout ?? "list");
+  // Odczyt 1:1 z `renderCategoriesList`: tylko „dropdown" jest listą
+  // rozwijaną, a flaga-napis („false") to brak flagi.
+  const showCount = bool(block.data, "showCount", false);
+  const hierarchical = bool(block.data, "hierarchical", false);
+  const layout = str(block.data, "layout") === "dropdown" ? "dropdown" : "list";
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

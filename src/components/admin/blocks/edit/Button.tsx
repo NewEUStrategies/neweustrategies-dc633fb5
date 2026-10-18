@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -10,7 +11,7 @@ interface Props {
 export function ButtonBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const bt = (k: string) => i18n.editor("button", k);
-  const label = String(block.data.label ?? "");
+  const label = readText(block.data.label);
   const variant = String(block.data.variant ?? "default");
   const cls =
     variant === "outline"

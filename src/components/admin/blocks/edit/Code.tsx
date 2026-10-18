@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { isHighlightableLang } from "@/lib/code/highlight";
 import "@/lib/i18n-admin-blocks";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -11,8 +12,10 @@ interface Props {
 export function CodeBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const cc = (k: string, o?: Record<string, unknown>) => i18n.editor("code", k, o);
-  const code = String(block.data.code ?? "");
-  const lang = String(block.data.lang ?? "ts");
+  const code = readText(block.data.code);
+  // BEZ wartości domyślnej „ts": renderer czyta pusty `lang` i rysuje kod bez
+  // kolorów, więc pole też ma być puste (podpowiedź „ts" zostaje w placeholderze).
+  const lang = readText(block.data.lang);
   const highlightable = isHighlightableLang(lang);
   return (
     <div className="rounded-md border border-border bg-muted/40 overflow-hidden">

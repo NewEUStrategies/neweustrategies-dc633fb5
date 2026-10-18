@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Mail } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -11,8 +12,8 @@ interface Props {
 
 export function NewsletterBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const title = String(block.data.title ?? "");
-  const description = String(block.data.description ?? "");
+  const title = readText(block.data.title);
+  const description = readText(block.data.description);
   const variant = String(block.data.variant ?? "card");
 
   return (

@@ -4,6 +4,7 @@ import { PlaySquare } from "lucide-react";
 import { parseEmbedUrl, isIframeEmbed } from "@/lib/blocks/embed";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -12,7 +13,7 @@ interface Props {
 
 export function EmbedBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const url = String(block.data.url ?? "");
+  const url = readText(block.data.url);
   const parsed = parseEmbedUrl(url);
 
   return (

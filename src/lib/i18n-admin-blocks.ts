@@ -2078,6 +2078,9 @@ const pl = {
         url: "URL pliku (PDF, ZIP, DOCX…)",
         showButton: 'Pokaż przycisk „Pobierz"',
       },
+      html: {
+        emptyHint: 'Pusty blok HTML - edytuj surowy HTML w panelu „Blok" po prawej.',
+      },
       group: {
         childCount: "{{count}} blok(i)",
         background: "Kolor tła (np. #f4f4f5)",
@@ -3027,6 +3030,9 @@ const en: typeof pl = {
         label: "File name to display…",
         url: "File URL (PDF, ZIP, DOCX…)",
         showButton: 'Show the "Download" button',
+      },
+      html: {
+        emptyHint: 'Empty HTML block - edit the raw HTML in the "Block" panel on the right.',
       },
       group: {
         childCount: "{{count}} block(s)",

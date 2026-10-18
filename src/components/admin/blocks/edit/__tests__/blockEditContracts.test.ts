@@ -186,7 +186,10 @@ describe("4. stan odmowy - w tej warstwie NIE DA SIĘ go wyrazić", () => {
     // a nie warunkowy.
     const html = readFileSync(`${EDIT_DIR}/Html.tsx`, "utf8");
     expect(html).toContain("onChange: _onChange");
-    expect(html).toContain("edytuj surowy HTML w panelu");
+    // Od 2026-10-18 skierowanie do panelu idzie ze słownika (wcześniej polski
+    // napis na sztywno widział też panel angielski); TREŚĆ podpowiedzi w obu
+    // językach dowodzi `embedHtmlFileSearchEditorsWrites.test.tsx`.
+    expect(html).toContain('i18n.editor("html", "emptyHint")');
     for (const name of ["PageBreak.tsx", "Separator.tsx"]) {
       const src = readFileSync(`${EDIT_DIR}/${name}`, "utf8");
       expect(src, `${name}: pojawiło się pole edycji`).not.toMatch(/onChange=\{/);

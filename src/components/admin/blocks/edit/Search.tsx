@@ -1,6 +1,8 @@
 import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { str } from "@/components/blocks/renderer/data";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -10,9 +12,10 @@ interface Props {
 /** Formularz wyszukiwarki (Gutenberg "Search"). */
 export function SearchBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const placeholder = String(block.data.placeholder ?? "");
-  const buttonLabel = String(block.data.buttonLabel ?? "");
-  const action = String(block.data.action ?? "/search");
+  const placeholder = readText(block.data.placeholder);
+  const buttonLabel = readText(block.data.buttonLabel);
+  // Jak renderer: akcja nie-napisowa to `/search` - tam wyśle formularz strona.
+  const action = str(block.data, "action", "/search");
 
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
