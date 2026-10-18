@@ -1,0 +1,198 @@
+# Rozdzial 18, czesc A: skala i okno (18.2), zmiana zasad CI (18.3), pomiar pokrycia (18.4), pokrycie per modul (18.5),
+# mapa powiazan modulow z grafu importow (18.7). Liczby wylacznie z plikow danych wydania 14 i 13.
+import json
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+J = lambda p: json.load(open(f'{S}/{p}', encoding='utf-8'))
+M = J('metryki14.json')
+P = J('progi14.json')
+PG = J('pgrls14.json')
+POK = J('pokrycie14.json')
+D14 = J('pokrycie14-delta.json')
+E13 = J('ed13-pokrycie-moduly.json')
+G = J('graf14.json')
+GB = J('graf14b.json')
+RLS = J('rls14.json')
+NAZWY = {str(r['k']): r['name'] for r in J('inwentarz14.json')['rows']}
+NAZWY.update({'X-i18n': 'Przekrój: i18n', 'X-design-system': 'Przekrój: design system', 'X-admin-shell': 'Przekrój: powłoka panelu admin', 'NULL': 'Poza taksonomią'})
+P13 = json.load(open(S + '/../ed13/pokrycie13.json', encoding='utf-8'))['T']
+
+def pl(n, miejsca=None):
+    s = f'{n:.{miejsca}f}' if miejsca is not None else str(n)
+    cz, _, ul = s.partition('.')
+    znak = '-' if cz.startswith('-') else ''
+    cz = cz.lstrip('-')
+    grupy = []
+    while len(cz) > 3:
+        grupy.insert(0, cz[-3:])
+        cz = cz[:-3]
+    grupy.insert(0, cz)
+    wynik = znak + ' '.join(grupy)
+    return wynik + (',' + ul if ul else '')
+
+def delta(a, b, miejsca=None):
+    d = b - a
+    return ('+' if d > 0 else '') + pl(d, miejsca) if d else '0'
+
+pc = lambda a, b: 100 * a / b if b else 100.0
+o = []
+w = o.append
+
+# ---------------- 18.2 ----------------
+e, t = M['ed13'], M['teraz']
+w('### 18.2. Skala i delta okna - jedna definicja na dwóch drzewach')
+w('')
+w('Definicje bez zmian względem 17.2: każdą pozycję liczy ten sam skrypt na obu drzewach (`metryki14.mjs` i pokrewne w `docs/audyt-ed14/narzedzia/`), drzewo wydania 13 to `git archive 5b8c77c01`. Plik produkcyjny = `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs` pod `src/`, bez testów, `__tests__/` i `.d.ts`; wiersz = linia bez pustego ogona pliku. Polityki RLS i asercje pgTAP liczą biblioteki repozytorium (`extractLatestPolicies`, `analyzePgTapFile`).')
+w('')
+wiersze = [
+    ('Pliki kodu produkcyjnego', e['prodFiles'], t['prodFiles']),
+    ('Wiersze kodu produkcyjnego', e['prodLines'], t['prodLines']),
+    ('Pliki testowe', e['testFiles'], t['testFiles']),
+    ('Wiersze testów', e['testLines'], t['testLines']),
+    ('Przypadki testowe (skan statyczny)', e['cases'], t['cases']),
+    ('Wywołania `expect` (skan statyczny)', e['expects'], t['expects']),
+    ('Pliki testowe bez atrapy `vi.*`', e['noMockTests'], t['noMockTests']),
+    ('Trasy (pliki w `src/routes`)', e['routes'], t['routes']),
+    ('Komponenty design systemu (`components/ui`)', e['uiComponents'], t['uiComponents']),
+]
+w('| Metryka | Wydanie 13 (`5b8c77c01`) | Wydanie 14 (`346012635`) | Δ |')
+w('| --- | ---: | ---: | ---: |')
+for nazwa, a, b in wiersze:
+    w(f'| {nazwa} | {pl(a)} | **{pl(b)}** | {delta(a, b)} |')
+w(f"| Skrypty `package.json` / bramki `check:*` | {e['scripts']} / {e['checkScripts']} | **{t['scripts']} / {t['checkScripts']}** | {delta(e['scripts'], t['scripts'])} / {delta(e['checkScripts'], t['checkScripts'])} |")
+w(f"| Moduły `src/lib/ci` | {e['ciModules']} | **{t['ciModules']}** | {delta(e['ciModules'], t['ciModules'])} |")
+w(f"| Bramki-testy `*.gate.test.*` | {e['gateTests']} | **{t['gateTests']}** | {delta(e['gateTests'], t['gateTests'])} |")
+w(f"| Migracje `supabase/migrations` | {pl(e['migrationsSupabase'])} | **{pl(t['migrationsSupabase'])}** | {delta(e['migrationsSupabase'], t['migrationsSupabase'])} |")
+w(f"| Migracje `drizzle/migrations` (SQL) | {e['migrationsDrizzle']} | **{t['migrationsDrizzle']}** | {delta(e['migrationsDrizzle'], t['migrationsDrizzle'])} |")
+pe, pt = PG['ed13'], PG['teraz']
+w(f"| Pliki pgTAP / asercje (analizator repo) | {pe['pgtapFiles']} / {pl(pe['asercje'])} | **{pt['pgtapFiles']} / {pl(pt['asercje'])}** | {delta(pe['pgtapFiles'], pt['pgtapFiles'])} / {delta(pe['asercje'], pt['asercje'])} |")
+w(f"| Polityki RLS / tabele z politykami (repo) | {pe['polityki']} / {pe['tabeleZPolitykami']} | **{pt['polityki']} / {pt['tabeleZPolitykami']}** | {delta(pe['polityki'], pt['polityki'])} / {delta(pe['tabeleZPolitykami'], pt['tabeleZPolitykami'])} |")
+w('| Testy e2e / pliki / konfiguracje | 314 / 25 / 6 | **399 / 36 / 6** | +85 / +11 / 0 |')
+pe2, pt2 = P['ED13'], P['TERAZ']
+for _x in (pe2, pt2):
+    for _k in ('failsPliki', 'martwe', 'objete'):
+        if isinstance(_x.get(_k), list): _x[_k] = len(_x[_k])
+w(f"| Progi pokrycia per ścieżka (martwe) | {pl(pe2['progow'])} ({pe2['martwe']}) | **{pt2['progow']}** | {delta(pe2['progow'], pt2['progow'])} |")
+w(f"| Pliki produkcyjne pod progiem per ścieżka | {pl(pe2['objete'])} ({pl(pe2['pct'], 2)}%) | **0** | {delta(pe2['objete'], 0)} |")
+w(f"| Wpisy `it.fails` / plików | {pe2['fails']} / {pe2['failsPliki']} | **{pt2['fails']} / {pt2['failsPliki']}** | {delta(pe2['fails'], pt2['fails'])} / {delta(pe2['failsPliki'], pt2['failsPliki'])} |")
+w(f"| Przepływy GitHub Actions | {e['workflows']} | **{t['workflows']}** | {delta(e['workflows'], t['workflows'])} |")
+w(f"| Dokumenty w `docs/` | {e['docs']} | **{t['docs']}** | {delta(e['docs'], t['docs'])} |")
+w('')
+w(f"**Okno jest rozwojem produktu i porządkami w CI jednocześnie.** Kod produkcyjny urósł o {pl(t['prodFiles'] - e['prodFiles'])} plików i {pl(t['prodLines'] - e['prodLines'])} wierszy (+{pl(100 * (t['prodLines'] - e['prodLines']) / e['prodLines'], 1)}%), testy o {pl(t['testFiles'] - e['testFiles'])} plików i {pl(t['testLines'] - e['testLines'])} wierszy (+{pl(100 * (t['testLines'] - e['testLines']) / e['testLines'], 1)}%). W wydaniu 13 testy rosły pięć razy szybciej niż kod; tu rosną w podobnym tempie co kod (+8,5% wobec +11,1% wierszy), mimo że jeden commit usunął 215 plików testów (18.3). Pas `drizzle/` prawie się podwoił (+156 plików SQL), pgTAP dostał 61 plików i {pl(pt['asercje'] - pe['asercje'])} asercji, a warstwa ścieżek użytkownika (Playwright) urosła po wydaniu, w którym stała w miejscu: +85 testów w 11 nowych plikach.")
+w('')
+w('Testy e2e liczy `playwright test --list` dla pięciu konfiguracji (`playwright.config.ts` 125 testów w 11 plikach, `artifact` 57/11, `performance` 119/11, `cms-performance` 96/1, `ab` 1/1); konfiguracji integracyjnej nie da się wylistować bez poświadczeń, więc jej jeden test w `integration/events/paid-lifecycle.spec.ts` liczę ze źródła, tak samo jak w wydaniu 13.')
+w('')
+w('W oknie jest **1 604 commity** (394 scalenia, w tym 49 PR-ów #467-#518). Autorzy: Claude 775, edytor Lovable (`gpt-engineer-app[bot]`) 766, konto organizacji 63. 13 commitów edytora po scaleniu #518 (do `6a0b9d570`) jest poza zakresem tego pomiaru. W `src/` przybyło 278 plików produkcyjnych, a 25 usunięto, w tym 21 modułów bramek z `src/lib/ci/` (18.3); plików testowych przybyło 377, usunięto 208.')
+w('')
+
+# ---------------- 18.3 ----------------
+w('### 18.3. Zmiana zasad: pokrycie przestało być bramką CI')
+w('')
+w('Najważniejsza zmiana okna nie jest w kodzie produktu, tylko w zasadach. Commit `c3f0c0e72` z 2026-10-05 („CI: na PR tylko bramki chroniące produkcję, bez progów pokrycia per plik\") zmienił 288 plików i usunął 86 986 wierszy:')
+w('')
+w('- **947 progów pokrycia per ścieżka → 0.** W `vitest.config.ts` został jeden próg globalny: instrukcje 79, funkcje 77, linie 80, gałęzie 73. Komentarz w konfiguracji mówi wprost: „Pokrycie NIE jest bramką CI. `bun run test:coverage` liczy je lokalnie nad całym `src/` z jednym progiem globalnym; progi per plik usunięto 2026-10-05, bo każdy nowy plik bez testu przewracał CI i wymuszał pisanie testów pod liczbę zamiast pod zachowanie.\" Job pokrycia zniknął z `ci.yml`.')
+w('- **27 skryptów `check:*` usuniętych,** m.in. `check:gate-coverage`, `check:ownership`, `check:codeowners`, `check:feature-taxonomy`, `check:sql-emit-actor`, `check:ssr-budgets`, `check:loader-policy`, `check:i18n-hardcoded`, `check:i18n-default-value`, `check:i18n-overlay-imports`, `check:unknown-casts`, `check:clock-freeze`, `check:workflow-env-contract` i `check:authz-snapshot`, razem z 21 modułami `src/lib/ci/`.')
+w('- **215 plików testów usuniętych** (210 w `src/`, 5 w `scripts/`). Najwięcej to macierze renderu: `blockEditMatrix` (6 części), `blockMatrix`, `blockMatrixLoaded`, `registryVariantSweep`, `rendererBranches`, `viewInteractions` oraz testy pulpitów analitycznych (`ga4BiDashboard`, `gscBiDashboard`, `vitalsBiDashboard`, `relatedPostsAnalytics`) i wykresów (`cartesianChart`, `fanChart`), te ostatnie po 1 500-2 100 wierszy każdy.')
+w('')
+w('W tym samym oknie doszło **6 nowych bramek**: `check:sql-definer-views` (widoki DEFINER tylko do odczytu w obu pasach), `check:migration-lanes` (każdy wpis dziennika drizzle ma decyzję), `check:ts-sql-contract` (fakty szwu TS-SQL sprawdzane na odtworzonym schemacie), `check:on-conflict-arbiters` (cele `onConflict` mają indeks), `check:document-weight` i `check:structured-data-live`. Bilans: 50 → 29 skryptów `check:*`. Cztery z sześciu nowych bramek pilnują styku kodu z bazą, czyli dokładnie tej klasy defektów, która w wydaniu 13 wyłączyła zaproszenia (N-19-1).')
+w('')
+w('**Ocena.** Decyzja jest spójna i ma uzasadnienie: progi per plik zmuszały do testów „pod liczbę\" i dawały 98% pokrycia z macierzy, które renderowały komponent bez jednej asercji o zachowaniu. Ma jednak koszt, który ten pomiar pokazuje po raz pierwszy. Nowy plik bez testu nie zatrzymuje już niczego: 5 nowych plików z okna jest na zerze, a 56 plików straciło pokrycie razem z usuniętymi macierzami i nikt nie dopisał im testu zachowania (18.4). Próg globalny ma 15,6-17,2 pp zapasu, więc w praktyce nie chroni przed niczym. To nie jest czerwień, tylko brak dowodu - i powinien mieć właściciela (plan 18.13).')
+w('')
+
+# ---------------- 18.4 ----------------
+T = POK['T']
+w('### 18.4. Wynik pomiaru: pokrycie całości i przebieg suity')
+w('')
+w('Dwanaście shardów (`--shard=N/12`, raport blob) scalonych tak jak w CI, provider `istanbul`, mianownik = cały `src/` z wykluczeniami z `vitest.config.ts` - ta sama reguła co w wydaniu 13, więc porównanie jest uczciwe. Na czas pomiaru próg globalny był wyłączony tymczasową konfiguracją spoza repozytorium (`vitest.shard.config.ts`, usunięta po pomiarze), żeby czerwony próg nie ukrył wyniku shardu.')
+w('')
+w('| Metryka | Wydanie 13 | Wydanie 14 | Δ |')
+w('| --- | ---: | ---: | ---: |')
+w(f"| Pliki w mianowniku | {pl(P13['files'])} | **{pl(T['files'])}** | {delta(P13['files'], T['files'])} |")
+for nazwa, a, b in [('Linie', 'Lc', 'L'), ('Instrukcje', 'Sc', 'S'), ('Funkcje', 'Fc', 'F'), ('Gałęzie', 'Bc', 'B')]:
+    x, y = pc(P13[a], P13[b]), pc(T[a], T[b])
+    w(f"| {nazwa} | {pl(x, 2)}% ({pl(P13[a])}/{pl(P13[b])}) | **{pl(y, 2)}%** ({pl(T[a])}/{pl(T[b])}) | {delta(round(x, 2), round(y, 2), 2)} pp |")
+w(f"| Pliki na zerze | {P13['zero']} | **{T['zero']}** | {delta(P13['zero'], T['zero'])} |")
+w(f"| Niepokryte linie | {pl(P13['L'] - P13['Lc'])} | **{pl(T['L'] - T['Lc'])}** | {delta(P13['L'] - P13['Lc'], T['L'] - T['Lc'])} |")
+w(f"| Martwe funkcje nazwane | {P13['dead']} | **{T['dead']}** | {delta(P13['dead'], T['dead'])} |")
+w('')
+w('**Suita jest zielona:** 3 421 plików testowych, 86 026 przypadków, **0 czerwonych**, 51 pominiętych (`przebieg14.json`). Próg globalny ma zapas 15,64 pp na instrukcjach, 17,05 pp na funkcjach, 15,69 pp na liniach i 17,15 pp na gałęziach - **zero naruszeń**.')
+w('')
+z = D14['zera14']
+utracone = [x for x in z if x['ed13'] not in ('nowy', 'zero')]
+nowe0 = [x for x in z if x['ed13'] == 'nowy']
+w(f"**Skąd spadek o 3,15 pp linii.** {len(z)} plików na zerze ({pl(sum(x['L'] for x in z))} linii). {len(utracone)} z nich miało pokrycie w wydaniu 13 i straciło je razem z testami usuniętymi w `c3f0c0e72`:")
+w('')
+w('- **40 edytorów bloków** w `src/components/admin/blocks/edit/` (od `Affiliate.tsx` do `XQuote.tsx`). Przejeżdżała je `blockEditMatrix` w 6 częściach (`editorsOf("part1")`…), po rejestrze edytorów, a nie po imporcie pliku - dlatego bezpośredni import z usuniętych testów widać tylko dla 11 z 56 plików;')
+w('- **9 widoków bloków** w `src/components/blocks/` (m.in. `AffiliateBlockView`, `CompareSlider`, `FaqBlockView`, `NavLoopViews`, `ReviewBlockView`) - z macierzy `blockMatrix` po `BLOCK_RENDERERS`;')
+w('- **5 pulpitów analitycznych** (`ClientErrorsDashboard`, `Ga4BiDashboard`, `GscBiDashboard`, `RelatedPostsAnalytics`, `VitalsBiDashboard`) - z usuniętych testów renderu po 1 500-2 100 wierszy;')
+w('- **2 moduły CI** (`src/lib/ci/ownership.ts`, 274 linie, i `migrationSplitCli.ts`) - ich bramki zniknęły, a kod został. Ten sam los spotkał biblioteki, które nie są na zerze, ale straciły prawie całe pokrycie: `publicRouteLoaders.ts` (358 z 394 linii bez pokrycia, w wydaniu 13 99,2%), `migrationSplit.ts` i `migrationSplitPlan.ts`.')
+w('')
+w(f"Na zerze jest też {len(nowe0)} nowych plików z okna: " + ', '.join(f"`{x['f'].split('/')[-1]}`" for x in nowe0) + '. Trzy z nich to funkcje serwerowe (rozliczenia, kurs NBP, VIES) - warstwa, którą plan 17.15 kazał testować na prawdziwym schemacie. Zera ustąpiły w 14 plikach z wydania 13 (m.in. cztery ekrany modułu 4, które stały na zerze od dwóch wydań). Martwych funkcji nazwanych przybyło z 68 do 309 z tego samego powodu: funkcje edytorów bloków nie mają już żadnego wywołania w testach.')
+w('')
+nn = D14['nowe']
+w(f"**Nowy kod jest pokryty dobrze.** {nn['n']} plików, które pierwszy raz weszły do mianownika, ma razem {pl(pc(nn['Lc'], nn['L']), 2)}% linii, {pl(pc(nn['Fc'], nn['F']), 2)}% funkcji i {pl(pc(nn['Bc'], nn['B']), 2)}% gałęzi - spadek całości to stary kod, który stracił testy, a nie nowy kod bez testów. Spadków o co najmniej 10 pp w plikach co najmniej 20-liniowych jest {len(D14['spadki'])}.")
+w('')
+
+# ---------------- 18.5 ----------------
+w('### 18.5. Pokrycie per moduł - cała tabela')
+w('')
+w('Klucz modułu z `classifyPath` (`scripts/taxonomy/moduleMap.mjs`) drzewa pomiaru; Δ względem wydania 13 (`docs/audyt-ed14/ed13-pokrycie-moduly.json`, ta sama reguła). Kolejność: od najwyższego pokrycia linii.')
+w('')
+w('| Moduł | Nazwa | Pliki | Linie | Δ ed13 | Funkcje | Δ ed13 | Gałęzie | Zera (Δ) | Niepokryte linie | Martwe fn |')
+w('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |')
+pk = POK['perKey']
+klucze = sorted(pk, key=lambda k: -pc(pk[k]['Lc'], pk[k]['L']))
+for k in klucze:
+    r = pk[k]
+    l, f, b = pc(r['Lc'], r['L']), pc(r['Fc'], r['F']), pc(r['Bc'], r['B'])
+    old = E13.get(k)
+    dl = delta(old['lines'], round(l, 2), 2) if old else '-'
+    df = delta(old['funcs'], round(f, 2), 2) if old else '-'
+    dz = delta(old['zeros'], r['zero']) if old else '-'
+    w(f"| {k} | {NAZWY.get(k, k)} | {r['files']} | {pl(l, 2)}% | {dl} | {pl(f, 2)}% | {df} | {pl(b, 2)}% | {r['zero']} ({dz}) | {pl(r['L'] - r['Lc'])} | {r['dead']} |")
+w('')
+w('**Gdzie spadło i dlaczego.** Moduł 3 (silniki treści: bloki i page builder) traci 10,44 pp linii i 17,65 pp funkcji, a 49 z jego 506 plików stoi na zerze - to edytory i widoki bloków z 18.4. Moduł 17 (analityka i BI) traci 12,04 pp funkcji: cztery pulpity BI na zerze to 577 z 1 100 niepokrytych linii, a `FanChart.tsx` i `exportImage.ts` straciły testy razem z `fanChart.test.tsx`; nowe pliki modułu mają tylko 69 niepokrytych linii. Moduł 20 (platforma) traci 7,33 pp prawie wyłącznie na bibliotekach `src/lib/ci/`, którym usunięto bramki i testy: `publicRouteLoaders.ts` (358 linii), `ownership.ts` (274), `migrationSplit.ts` (187), `migrationSplitPlan.ts` (138), `migrationSplitCli.ts` (78); nowe pliki platformy (ścieżka bootu, trzy bramki) dokładają tylko 114 niepokrytych linii. Moduł 8 (SEO) traci 3,46 pp prawie w całości na `FloatingShareBar.tsx` (119 ze 120 linii bez pokrycia, w wydaniu 13 100%).')
+w('')
+w('**Gdzie wzrosło.** Moduł 4 (strony, wygląd, media) +5,38 pp linii i +7,15 pp funkcji - cztery ekrany, które od wydania 12 stały na zerze, dostały testy. Moduł 12 (realtime i powiadomienia) doszedł do 100% linii i funkcji. Moduły 12, 14 i 21 mają 100% linii.')
+w('')
+
+# ---------------- 18.7 ----------------
+g13, g14 = G['ed13'], G['ed14']
+imp = lambda g: sum(e['importy'] for e in g['krawedzie'])
+par = lambda g: sum(1 for e in g['krawedzie'] if any(x['z'] == e['do'] and x['do'] == e['z'] for x in g['krawedzie'])) // 2
+w('### 18.7. Mapa powiązań modułów: graf importów i baza jako wspólny styk')
+w('')
+w('Graf liczy `docs/audyt-ed14/narzedzia/graf14.mjs.txt` tym samym kodem na obu drzewach: każdy import (statyczny, typów i dynamiczny) z pliku produkcyjnego do pliku produkcyjnego innego modułu taksonomii jest krawędzią moduł → moduł. Osobno skrypt zbiera `.from("tabela")` i `.rpc("funkcja")`, czyli sprzężenie przez bazę. Węzłów jest 26: 22 moduły, trzy przekroje i „poza taksonomią\".')
+w('')
+w('| Miara | Wydanie 13 | Wydanie 14 |')
+w('| --- | ---: | ---: |')
+w(f"| Krawędzie moduł → moduł | {len(g13['krawedzie'])} | **{len(g14['krawedzie'])}** |")
+w(f"| Importy między modułami | {pl(imp(g13))} | **{pl(imp(g14))}** |")
+w(f"| Pary modułów importujące się nawzajem | {par(g13)} | **{par(g14)}** |")
+w(f"| Silnie spójne składowe (rozmiar) | 1 ({len(g13['cykleModulow'][0])}) | **1 ({len(g14['cykleModulow'][0])})** |")
+w(f"| Tabele czytane z kodu / w więcej niż jednym module | {g13['tabeleRazem']} / {len(g13['tabeleWspolne'])} | **{g14['tabeleRazem']} / {len(g14['tabeleWspolne'])}** |")
+w(f"| RPC wołane z kodu / w więcej niż jednym module | {g13['rpcRazem']} / {len(g13['rpcWspolne'])} | **{g14['rpcRazem']} / {len(g14['rpcWspolne'])}** |")
+w('')
+w('**Wszystkie 26 obszarów to jedna silnie spójna składowa** - z każdego modułu da się importami dojść do każdego innego. Sprawdziłem, czy to nie artefakt taksonomii: moduł 20 jest „łapaczem\" dla `src/lib/**` i `src/routes/**` bez własnej reguły (`MODULE_20_CATCH_ALL`), więc wspólne narzędzia jak `src/lib/utils.ts` (`cn`) wyglądają jak zależność od platformy. Po wyjęciu 113 plików łapacza do osobnego węzła i po odrzuceniu importów typów i dynamicznych (`graf14b.json`) składowa ma nadal 26 węzłów; bez węzła „poza taksonomią\" 25, bez powłoki panelu 24. Cykl jest więc rzeczywisty: moduły nie mają kierunku zależności.')
+w('')
+w('Najgrubsze krawędzie wydania 14:')
+w('')
+w('| Z → do | Importy | Plików źródłowych → celu |')
+w('| --- | ---: | ---: |')
+for x in g14['krawedzie'][:10]:
+    w(f"| {x['z']} → {x['do']} | {pl(x['importy'])} | {x['plikiZrodlowe']} → {x['plikiCelu']} |")
+w('')
+w('- **Moduł 22 (wydarzenia) to największy konsument:** 610 importów design systemu, 516 i18n i 374 platformy. Wydarzenia mają własną powłokę i własne słowniki, ale ich prymitywy (przyciski, pola, formaty dat) są wspólne - to jest zdrowa zależność w dół.')
+w('- **Moduł 20 (platforma) importuje z 23 modułów (640 importów),** m.in. z SEO (124), ustawień i najemców (84), wpisów (61) i silników treści (49). Prawie wszystko to jednak 113 plików łapacza (625 importów wartości), głównie trasy `src/routes/**` bez własnej reguły w taksonomii, które z natury składają funkcje wielu modułów. Pliki jawnie przypisane do platformy sięgają w górę tylko 74 razy. To jest dług taksonomii, nie architektury: trasy nie mają właściciela.')
+w('- **Cykl trzyma się bez łapacza:** po jego wyjęciu zostaje 114 par modułów importujących się nawzajem (same importy wartości). Najsilniejsze: silniki treści ↔ powłoka panelu (141/60), analityka ↔ powłoka panelu (45/88), silniki treści ↔ strony i media (45/37), konto ↔ powłoka panelu (30/33), checkout ↔ profil (32/26). Najsłabsze dają się rozciąć jednym importem, np. checkout → i18n ma 52 importy, a i18n → checkout 1; newsletter → silniki treści 16, a w drugą stronę 1.')
+w('- **Design system importuje z modułu 20** 64 razy, ale 46 z tych importów to `src/lib/utils.ts` (`cn`), a 14 to `lucide-shim` - oba trafiają do 20 przez łapacza. Realne sięgnięcie w górę to 4 importy `src/lib/performance/motionGate.ts`. Design system importuje też z powłoki panelu (7) i i18n (3).')
+w(f"- **Pliki węzłowe** (najwięcej importów z innych modułów): " + ', '.join(f"`{x['f']}` ({x['importyZInnychModulow']})" for x in g14['plikiWezlowe'][:6]) + '.')
+w('')
+w('**Baza jako styk:** ' + ', '.join(f"`{t['nazwa']}` ({len(t['moduly'])} modułów)" for t in g14['tabeleWspolne'][:8]) + '. Zmiana kolumny `profiles` dotyka 21 modułów naraz, a `posts` - 15. Wspólne RPC: ' + ', '.join(f"`{t['nazwa']}` ({len(t['moduly'])})" for t in g14['rpcWspolne'][:5]) + '. Tu nie ma importu, który pokazałby zależność w grafie - jedynym kontraktem jest schemat, dlatego bramki `check:ts-sql-contract` i `check:rpc-contract` (18.8) są w tej architekturze ważniejsze niż dowolny próg pokrycia.')
+w('')
+
+open(f'{S}/r18a.md', 'w', encoding='utf-8').write('\n'.join(o) + '\n')
+txt = '\n'.join(o)
+for zly in ('\u2014', '\u2013'):
+    assert zly not in txt, zly
+print('ok', len(o), 'linii')

@@ -1,0 +1,239 @@
+{
+  "1": {
+    "files": 110,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 99.04,
+    "branches": 95.68
+  },
+  "2": {
+    "files": 96,
+    "lines": 99.34,
+    "funcs": 98.73,
+    "zeros": 0,
+    "uncovered": 15,
+    "statements": 98.81,
+    "branches": 94.74
+  },
+  "3": {
+    "files": 492,
+    "lines": 98.73,
+    "funcs": 97.69,
+    "zeros": 0,
+    "uncovered": 294,
+    "statements": 97.62,
+    "branches": 93.23
+  },
+  "4": {
+    "files": 141,
+    "lines": 92.88,
+    "funcs": 90.12,
+    "zeros": 4,
+    "uncovered": 279,
+    "statements": 91.55,
+    "branches": 83.35
+  },
+  "5": {
+    "files": 68,
+    "lines": 96.68,
+    "funcs": 93.87,
+    "zeros": 0,
+    "uncovered": 59,
+    "statements": 95.19,
+    "branches": 83.13
+  },
+  "6": {
+    "files": 27,
+    "lines": 98.03,
+    "funcs": 96.05,
+    "zeros": 0,
+    "uncovered": 23,
+    "statements": 97.53,
+    "branches": 92.46
+  },
+  "7": {
+    "files": 114,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 98.63,
+    "branches": 90.56
+  },
+  "8": {
+    "files": 96,
+    "lines": 99.59,
+    "funcs": 99.28,
+    "zeros": 1,
+    "uncovered": 12,
+    "statements": 99.03,
+    "branches": 95.29
+  },
+  "9": {
+    "files": 95,
+    "lines": 98.44,
+    "funcs": 96.88,
+    "zeros": 0,
+    "uncovered": 55,
+    "statements": 96.34,
+    "branches": 90.6
+  },
+  "10": {
+    "files": 35,
+    "lines": 99.67,
+    "funcs": 99.38,
+    "zeros": 0,
+    "uncovered": 3,
+    "statements": 96.2,
+    "branches": 87.15
+  },
+  "11": {
+    "files": 156,
+    "lines": 99.14,
+    "funcs": 98.88,
+    "zeros": 1,
+    "uncovered": 46,
+    "statements": 98.48,
+    "branches": 94.66
+  },
+  "12": {
+    "files": 31,
+    "lines": 98.16,
+    "funcs": 97.43,
+    "zeros": 0,
+    "uncovered": 23,
+    "statements": 97.05,
+    "branches": 92.47
+  },
+  "13": {
+    "files": 204,
+    "lines": 99.98,
+    "funcs": 99.87,
+    "zeros": 0,
+    "uncovered": 1,
+    "statements": 99.66,
+    "branches": 97.52
+  },
+  "14": {
+    "files": 44,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 99.93,
+    "branches": 99.13
+  },
+  "15": {
+    "files": 108,
+    "lines": 98.9,
+    "funcs": 96.38,
+    "zeros": 1,
+    "uncovered": 44,
+    "statements": 97.97,
+    "branches": 95.01
+  },
+  "16": {
+    "files": 317,
+    "lines": 99.68,
+    "funcs": 99.54,
+    "zeros": 1,
+    "uncovered": 27,
+    "statements": 99.23,
+    "branches": 97.59
+  },
+  "17": {
+    "files": 145,
+    "lines": 98.04,
+    "funcs": 98.18,
+    "zeros": 1,
+    "uncovered": 183,
+    "statements": 97.11,
+    "branches": 93.1
+  },
+  "18": {
+    "files": 66,
+    "lines": 97.59,
+    "funcs": 97.24,
+    "zeros": 0,
+    "uncovered": 77,
+    "statements": 96.63,
+    "branches": 85.7
+  },
+  "19": {
+    "files": 157,
+    "lines": 99.29,
+    "funcs": 98.92,
+    "zeros": 0,
+    "uncovered": 39,
+    "statements": 98.6,
+    "branches": 95.99
+  },
+  "20": {
+    "files": 294,
+    "lines": 98.77,
+    "funcs": 97.91,
+    "zeros": 4,
+    "uncovered": 174,
+    "statements": 98.15,
+    "branches": 96.02
+  },
+  "21": {
+    "files": 30,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 99.81,
+    "branches": 97.72
+  },
+  "22": {
+    "files": 654,
+    "lines": 99.1,
+    "funcs": 99.16,
+    "zeros": 1,
+    "uncovered": 181,
+    "statements": 98.61,
+    "branches": 96.18
+  },
+  "X-admin-shell": {
+    "files": 267,
+    "lines": 99.48,
+    "funcs": 99.42,
+    "zeros": 0,
+    "uncovered": 35,
+    "statements": 98.33,
+    "branches": 92.36
+  },
+  "X-i18n": {
+    "files": 179,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 100.0,
+    "branches": 99.86
+  },
+  "X-design-system": {
+    "files": 46,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 99.57,
+    "branches": 94.51
+  },
+  "__T": {
+    "files": 3972,
+    "lines": 98.84,
+    "funcs": 98.32,
+    "zeros": 14,
+    "uncovered": 1570,
+    "statements": 98.0,
+    "branches": 94.02,
+    "dead": 68,
+    "L": 135717,
+    "Lc": 134147
+  }
+}

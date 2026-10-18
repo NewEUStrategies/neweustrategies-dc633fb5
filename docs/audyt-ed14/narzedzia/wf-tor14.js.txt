@@ -1,0 +1,151 @@
+export const meta = {
+  name: 'audyt-ed14-tory',
+  description: 'Wydanie 14 audytu: tory modulow od mapy wydania 13 - delta mapy, powiazania i synchronizacja, nowe defekty w nowym i zmienionym kodzie, rozliczenie rejestru (bez etapu obalania)',
+  phases: [
+    { title: 'Mapa', detail: 'delta mapy toru wzgledem wydania 13, funkcjonalnosci z wzorcami, powiazania z innymi modulami, mechanizmy synchronizacji' },
+    { title: 'Defekty', detail: 'nowe defekty w nowym i zmienionym kodzie, dowod usuniety z testami, status otwartych defektow z rejestru' },
+  ],
+}
+
+const REPO = '/home/user/neweustrategies-dc633fb5'
+const SPD = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+const DOC = REPO + '/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md'
+
+const ZASADY = `
+ZASADY:
+- Repozytorium ${REPO} jest odpiete na commicie 346012635 (scalenie PR #518, main z 2026-10-17). Drzewo wydania 13 (stan sprzed okna, commit 5b8c77c01): ${SPD}/old-full. Porownuj "bylo / jest": diff ${SPD}/old-full/<plik> ${REPO}/<plik> albo git -C ${REPO} diff 5b8c77c01 346012635 -- <plik>. Historia okna: git -C ${REPO} log 5b8c77c01..346012635 -- <plik>.
+- TYLKO CZYTASZ. Nie zmieniasz plikow repo, nie commitujesz, NIE uruchamiasz vitest, playwright, tsc, bun test ani suity (trwa pomiar pokrycia). Wolno: grep/rg, cat/sed, diff, git log/show/diff, node one-liner czytajacy pliki.
+- Kazde twierdzenie o kodzie: sciezka:linia i cytat. Bez cytatu = nie zglaszasz.
+- Nie ma osobnego etapu obalania - SAM sprawdzasz kazde zgloszenie, zanim je oddasz: czy wrapper / middleware / RLS / pozniejsza migracja / bramka wyzej w lancuchu neutralizuje defekt, czy kod pod linia naprawde tak wyglada, czy waga nie jest zawyzona. Co sprawdziles - wpisz w pole samosprawdzenie. Gdy nie masz pewnosci - pewnosc "prawdopodobny".
+- Baza: stan = odtworzenie migracji po kolei (ostatnie CREATE OR REPLACE / DROP POLICY wygrywa); dwa pasy: supabase/migrations i drizzle/migrations (produkcja wykonuje wpisy z drizzle/migrations/meta/_journal.json) - sprawdz oba.
+- Po polsku, dywiz "-", nigdy dluga kreska (U+2014) ani polpauza (U+2013), bez emoji. RODO: bez prawdziwych danych osobowych z kodu i fixture.
+- Waga: krytyczny = wyciek miedzy najemcami / obejscie autoryzacji / utrata pieniedzy lub danych; wysoki = realny blad na sciezce uzytkownika albo bezpieczenstwa; sredni = ograniczony zasieg; niski = higiena, martwy kod, rozjazd komentarza.
+- Kontekst: rozdzial 17 dokumentu ${DOC} (wydanie 13). Nie przepisuj go - opisz ZMIANE. W oknie commit c3f0c0e72 (2026-10-05) usunal 946 progow pokrycia per sciezka, 21 bramek-zapadek i 213 plikow testow - pokrycie nie jest juz bramka CI.
+- Mapa powiazan modulow (graf importow i wspolne tabele/RPC, oba drzewa): ${SPD}/graf14.json (pole ed14: krawedzie z/do z liczba importow, tabeleWspolne, rpcWspolne).
+- BUDZET: najwyzej okolo 100 wywolan narzedzi. Czytaj fragmenty wskazane grepem, nie cale wielkie pliki. Gdy budzet sie konczy - zwroc to, co masz, i nazwij braki wprost (nie zgaduj).`
+
+const STR = { type: 'string' }
+const POWIAZANIE = { type: 'object', properties: {
+  modul: { type: 'string', description: 'klucz drugiego modulu (1-22, X-admin-shell, X-design-system, X-i18n, NULL)' },
+  kierunek: { type: 'string', enum: ['ten_tor_uzywa', 'uzywa_tego_toru', 'obustronnie'] },
+  mechanizm: { type: 'string', enum: ['import', 'tabela', 'rpc', 'trigger', 'zdarzenie_kolejka', 'cron', 'webhook', 'cache', 'realtime', 'konfiguracja', 'inne'] },
+  opis: { type: 'string', description: 'co konkretnie przeplywa i przez jaki plik/obiekt, z plik:linia' },
+  ryzyko: { type: 'string', description: 'co sie psuje przy rozjezdzie albo pusty string' },
+}, required: ['modul', 'kierunek', 'mechanizm', 'opis', 'ryzyko'] }
+const SYNC = { type: 'object', properties: {
+  mechanizm: { type: 'string', description: 'np. cron, trigger, kolejka, webhook, rewalidacja cache, generator kodu, skrypt reczny, publikacja z edytora' },
+  automatyczny: { type: 'boolean' },
+  opis: { type: 'string', description: 'co synchronizuje z czym, kto/co to uruchamia, z plik:linia' },
+  problem: { type: 'string', description: 'rozjazd, brak automatyzacji, krok reczny, brak testu albo pusty string' },
+}, required: ['mechanizm', 'automatyczny', 'opis', 'problem'] }
+const MAPA_SCHEMA = { type: 'object', properties: {
+  coPrzyszloWOknie: { type: 'string', description: 'Konkretnie: nowe mozliwosci dla uzytkownika i nowe elementy techniczne w tym torze od wydania 13, z plikami' },
+  noweObszary: { type: 'array', items: { type: 'object', properties: { nazwa: STR, coRobi: STR, pliki: { type: 'array', items: STR } }, required: ['nazwa', 'coRobi', 'pliki'] } },
+  noweKluczoweFunkcje: { type: 'array', items: { type: 'object', properties: { nazwa: STR, plik: STR, opis: STR }, required: ['nazwa', 'plik', 'opis'] } },
+  funkcjonalnosci: { type: 'array', description: 'WSZYSTKIE funkcjonalnosci toru (stare i nowe) z wzorcami sciezek', items: { type: 'object', properties: {
+    nazwa: STR, opis: STR,
+    wzorce: { type: 'array', items: STR, description: 'Zrodla regex JS zakotwiczone ^src/; kazdy wzorzec trafia w co najmniej jeden plik produkcyjny toru' },
+    nowa: { type: 'boolean' }, nazwaEd13: { type: 'string', description: 'dokladna nazwa funkcjonalnosci z wydania 13 albo pusty string' },
+  }, required: ['nazwa', 'opis', 'wzorce', 'nowa', 'nazwaEd13'] } },
+  usunieteFunkcjonalnosciEd13: { type: 'array', items: { type: 'object', properties: { nazwa: STR, powod: STR }, required: ['nazwa', 'powod'] } },
+  powiazania: { type: 'array', description: 'najwazniejsze powiazania toru z innymi modulami (najwyzej 12), w tym nieoczywiste: wspolne tabele, triggery, zdarzenia, cache', items: POWIAZANIE },
+  synchronizacja: { type: 'array', description: 'mechanizmy synchronizacji, ktore dotycza toru (najwyzej 10): co jest automatyczne, co reczne, gdzie jest rozjazd', items: SYNC },
+  stanDowodu: { type: 'object', properties: { coDoszlo: STR, coUsunieto: { type: 'string', description: 'jakie testy toru usunieto w oknie (testyUsunieteModulu) i czy zdjelo to dowod dla zachowania, ktore nadal istnieje' }, czegoNadalNieObejmuje: STR }, required: ['coDoszlo', 'coUsunieto', 'czegoNadalNieObejmuje'] },
+  rekomendacjeEd13: { type: 'array', items: { type: 'object', properties: { tytul: STR, status: { type: 'string', enum: ['wykonana', 'czesciowo', 'niewykonana', 'nie_do_ustalenia'] }, dowod: STR }, required: ['tytul', 'status', 'dowod'] } },
+  noweRekomendacje: { type: 'array', items: { type: 'object', properties: { tytul: STR, tresc: STR }, required: ['tytul', 'tresc'] } },
+}, required: ['coPrzyszloWOknie', 'noweObszary', 'noweKluczoweFunkcje', 'funkcjonalnosci', 'usunieteFunkcjonalnosciEd13', 'powiazania', 'synchronizacja', 'stanDowodu', 'rekomendacjeEd13', 'noweRekomendacje'] }
+
+const STATUS = { type: 'object', properties: {
+  id: STR, tytul: STR, status: { type: 'string', enum: ['naprawiony', 'otwarty', 'zmieniony', 'nie_do_ustalenia'] }, dowod: STR,
+}, required: ['id', 'tytul', 'status', 'dowod'] }
+const DEFEKT = { type: 'object', properties: {
+  tytul: STR, waga: { type: 'string', enum: ['krytyczny', 'wysoki', 'sredni', 'niski'] }, plik: STR, linia: { type: 'integer' },
+  dowod: { type: 'string', description: 'cytat kodu z numerami linii' }, mechanizm: STR, skutek: STR,
+  samosprawdzenie: { type: 'string', description: 'co sprawdziles, zeby wykluczyc neutralizacje (wrapper, RLS, pozniejsza migracja, test)' },
+  pewnosc: { type: 'string', enum: ['pewny', 'prawdopodobny'] },
+}, required: ['tytul', 'waga', 'plik', 'linia', 'dowod', 'mechanizm', 'skutek', 'samosprawdzenie', 'pewnosc'] }
+const DEF_SCHEMA = { type: 'object', properties: {
+  defekty: { type: 'array', items: DEFEKT },
+  dowodUsuniety: { type: 'array', description: 'zachowania, ktore nadal sa w kodzie, a ktorych test usunieto w oknie (bez zastepstwa)', items: { type: 'object', properties: { zachowanie: STR, usunietyTest: STR, kodZachowania: STR, ryzyko: STR }, required: ['zachowanie', 'usunietyTest', 'kodZachowania', 'ryzyko'] } },
+  statusDefektow: { type: 'array', items: STATUS },
+}, required: ['defekty', 'dowodUsuniety', 'statusDefektow'] }
+const FULL_SCHEMA = { type: 'object', properties: {
+  cel: STR,
+  ustalenia: { type: 'array', items: { type: 'object', properties: { punkt: STR, wynik: STR, dowod: STR }, required: ['punkt', 'wynik', 'dowod'] } },
+  synchronizacja: { type: 'array', items: SYNC },
+  defekty: { type: 'array', items: DEFEKT }, statusDefektow: { type: 'array', items: STATUS },
+  rekomendacje: { type: 'array', items: { type: 'object', properties: { tytul: STR, tresc: STR }, required: ['tytul', 'tresc'] } },
+}, required: ['cel', 'ustalenia', 'synchronizacja', 'defekty', 'statusDefektow', 'rekomendacje'] }
+
+const wejscie = (t) => `${SPD}/delta/${t.tor}.json`
+
+function mapaPrompt(t) {
+  return `Jestes audytorem toru ${t.tor} platformy NES (TanStack Start + Supabase, multi-tenant, i18n PL/EN). ${ZASADY}
+
+WEJSCIE: ${wejscie(t)} - mapa modulu z wydania 13 (mapaEd13: bazaEd11 = cel, obszary, kluczowe funkcje; deltaEd12 i deltaEd13 = co doszlo w wydaniach 12 i 13; rekomendacjeOtwarte), nowe pliki (noweWOknie, z LOC), zmienione (zmienioneWOknie, z +/-), usuniete (usunieteWOknie), nowe, zmienione i usuniete testy modulu. Lista WSZYSTKICH plikow produkcyjnych toru i definicje funkcjonalnosci wydania 13 (nazwa, opis, wzorce, pokrycie linii i galezi ed13): ${SPD}/wejscie/modul-${t.tor}.json.
+
+ZADANIE - NIE odtwarzaj mapy od zera. Opisz ZMIANE wzgledem wydania 13:
+1. coPrzyszloWOknie, noweObszary, noweKluczoweFunkcje - z plikow noweWOknie (naglowki i eksporty) i najwiekszych zmian w zmienioneWOknie. Gdy w torze nic istotnego nie przyszlo, napisz to wprost.
+2. funkcjonalnosci: komplet definicji dla CALEGO toru - dla kazdej funkcjonalnosci ed13, ktora nadal istnieje, zachowaj DOKLADNA nazwe (nazwaEd13) i wzorce (popraw tylko, gdy pliki sie przeniosly lub doszly nowe); dopisz nowe (nowa=true). Wzorce razem maja objac co najmniej 95% plikow z plikiProdukcyjne - sprawdz node one-linerem na liscie plikow. Nie tworz jednej funkcjonalnosci "reszta".
+3. powiazania: z ${SPD}/graf14.json (krawedzie, w ktorych z albo do = ${t.klucz}) wybierz najwazniejsze i opisz konkretnie, CO przeplywa (funkcja, tabela, RPC, trigger, zdarzenie, cache) z plik:linia. Szczegolnie: naruszenia warstw (modul platformy albo design system importujacy modul domenowy), zaleznosci obustronne, wspolne tabele z innymi modulami (kto pisze, kto czyta).
+4. synchronizacja: mechanizmy, ktore utrzymuja spojnosc danych i kodu tego toru z reszta (cron, trigger, kolejka, webhook, rewalidacja/uniewaznianie cache, generatory kodu, slowniki i18n, skrypty reczne, publikacja z edytora Lovable) - co jest automatyczne, co wymaga recznego kroku, gdzie jest rozjazd. Kazdy z plik:linia.
+5. stanDowodu: co doszlo w testach (nazwy przypadkow, nie cale pliki), co usunieto (testyUsunieteModulu - czy zachowanie dalej istnieje bez testu) i czego dowod nadal nie obejmuje.
+6. rekomendacjeEd13: dla kazdej pozycji z mapaEd13.rekomendacjeOtwarte - wykonana / czesciowo / niewykonana, jedno zdanie dowodu (sciezka:linia). noweRekomendacje - tylko gdy nowy kod ich wymaga.`
+}
+
+function defPrompt(t) {
+  return `Jestes lowca defektow w torze ${t.tor} platformy NES (TanStack Start + Supabase, multi-tenant, i18n PL/EN). ${ZASADY}
+
+WEJSCIE: ${wejscie(t)} - noweWOknie, zmienioneWOknie (zmiane sprawdz przez git -C ${REPO} diff 5b8c77c01 346012635 -- <plik>), testyUsunieteModulu, defektyDoSprawdzenia (otwarte defekty z wydan 11-13 z rejestru, ktorych plik zmienil sie w oknie albo ktore cytuja migracje - dla nich ustal stan; kazdy ma id), defektyWPlikachBezZmian (tylko kontekst - nie sprawdzaj).
+
+ZADANIE:
+1. defekty - NOWE defekty wylacznie w kodzie nowym albo zmienionym w oknie: brak zakresu najemcy (tenant_id) w zapytaniach i funkcjach serwerowych (szczegolnie supabaseAdmin / service-role), brak autoryzacji w createServerFn i trasach api, wyscigi i brak idempotencji (platnosci, webhooki, liczniki), nieograniczone zapytania, rozjazd kodu TS z baza (cel onConflict bez indeksu, wartosc spoza CHECK, nazwa kolumny/RPC), bledy logiki, niespojnosc i18n (tekst na sztywno, brak klucza EN albo PL), rozjazd komentarza z kodem, martwy kod, dostepnosc nowych komponentow. Nie zglaszaj ponownie defektu, ktory jest w defektyDoSprawdzenia albo defektyWPlikachBezZmian. Lepiej 4 prawdziwe niz 12 watpliwych.
+2. dowodUsuniety - dla testow z testyUsunieteModulu: przeczytaj usuniety test (git -C ${REPO} show 5b8c77c01:<plik>) i ustal, czy zachowanie, ktore przypinal, nadal jest w kodzie i czy pilnuje go inny test. Zglos tylko zachowania istotne (bezpieczenstwo, pieniadze, dane, sciezka uzytkownika), nie testy prezentacyjne.
+3. statusDefektow - dla KAZDEGO wpisu z defektyDoSprawdzenia (podaj jego id): naprawiony / otwarty / zmieniony, z dowodem z dzisiejszego kodu (dla migracji: czy pozniejsza migracja w ktorymkolwiek pasie zmienia ten obiekt). "zmieniony" = kod sie zmienil, defekt istnieje w innej postaci (opisz jakiej).`
+}
+
+function dbPrompt(t) {
+  return `Jestes audytorem warstwy bazy danych platformy NES (Supabase/Postgres, multi-tenant). ${ZASADY}
+
+WEJSCIE: ${SPD}/wejscie/db-delta.txt - pliki bazy dodane/zmienione w oknie (git name-status, 538 pozycji). ${wejscie(t)} - defektyDoSprawdzenia (otwarte defekty bazy z rejestru, z id). Wyniki mechaniczne, ktore juz mam (nie licz od nowa): migracje supabase 1082 -> 1237, drizzle SQL 176 -> 332, dziennik _journal.json 145 -> 301 wpisow; odtworzenie migracji: 334 tabele public, wszystkie z RLS; 52 tabele z RLS bez polityk (nowe w oknie: billing_probe_credentials, club_post_comments, event_consent_confirmations, event_person_account_unbinds, event_sponsor_exposure_anomalies, event_sponsor_exposure_keys, event_sponsor_exposure_sessions, event_wallet_pass_tombstones, nbp_exchange_rates, sms_send_log); polityki RLS (biblioteka repo) 668 -> 673 na 295 tabelach; pgTAP 137/2 678 -> 198 plikow / 4 574 asercje (planned 4 588 - 3 pliki maja plan(N) niezgodny z asercjami: ${SPD}/pgrls14.json pole teraz.zepsute), nowe testy: teraz.noweTesty. Nowe bramki w oknie: check:sql-definer-views, check:migration-lanes, check:ts-sql-contract, check:on-conflict-arbiters.
+
+ZADANIE (kazdy punkt z dowodem, w polu ustalenia):
+1. Pasy migracji: ile nowych plikow drizzle i supabase ma blizniaka w drugim pasie, czy kazdy nowy plik drizzle ma wpis w _journal.json i czy jego "when" jest wiekszy od maksimum wczesniejszych (produkcja pomija mniejsze), co robi nowa bramka check:migration-lanes (scripts/check-migration-lanes.ts) i czy czyta dziennik, czy katalog.
+2. 10 nowych tabel z RLS bez polityk - dla kazdej: czy dostep tylko przez service-role / SECURITY DEFINER jest zamierzony i czy zaden klient nie czyta jej kluczem uzytkownika.
+3. Nowe/zmienione funkcje SECURITY DEFINER w oknie: SET search_path, auth.uid() i najemca, REVOKE z PUBLIC/anon, GRANT tylko potrzebnym rolom; co sprawdza nowa bramka check:sql-definer-views.
+4. 3 pliki pgTAP z plan(N) niezgodnym z asercjami - ktore, o ile, czy CI to wykrywa.
+5. Kontrakt TS-SQL: co generuje scripts/generate-ts-sql-contract.ts i co sprawdza check:on-conflict-arbiters - czy zamyka klase defektu N-19-1 (onConflict bez indeksu) i CHECK (club_updated).
+synchronizacja: mechanizmy utrzymania spojnosci schematu (dwa pasy, dziennik, generowane typy src/integrations/supabase/types.ts, kontrakt TS-SQL, snapshot uprawnien) - co automatyczne, co reczne, gdzie rozjazd.
+defekty: nowe defekty bazy w oknie; statusDefektow: status kazdego wpisu z defektyDoSprawdzenia (z id).`
+}
+
+function ciPrompt(t) {
+  return `Jestes audytorem CI, bramek jakosci i procesu wdrozenia platformy NES. ${ZASADY}
+
+WEJSCIE: ${SPD}/wejscie/ci-delta.txt - pliki CI/skryptow/konfiguracji zmienione w oknie. ${wejscie(t)} - defektyDoSprawdzenia (otwarte defekty CI z rejestru, z id). Wyniki mechaniczne, ktore juz mam: package.json 91 -> 68 skryptow, check:* 50 -> 29; src/lib/ci 53 -> 36 modulow; testy bramek *.gate.test.* 38 -> 30; progi per sciezka 947 -> 0 (commit c3f0c0e72); workflowy .github/workflows 7 -> 9; Vitest 5.0.5, Vite 8.3.4, tsgo; it.fails 310 -> 286. Na main po pomiarze wydania 13 weszlo 1 617 commitow (779 od gpt-engineer-app[bot], 49 scalen PR). Mozesz uzyc gh api (np. gh api repos/NewEUStrategies/neweustrategies-dc633fb5/rulesets, .../branches/main/protection, .../actions/runs?branch=main&per_page=30) - tylko odczyt.
+
+ZADANIE (kazdy punkt z dowodem, w polu ustalenia):
+1. Co dzis blokuje scalenie PR (needs bramki wydania w .github/workflows/ci.yml), co jedzie tylko na main albo recznie (workflow_dispatch), co zniknelo w c3f0c0e72 i jakie znaleziska poprzednich wydan przez to traca sens albo dowod (np. Z10 zamrozenie zegara, zapadki i18n).
+2. governance/release/main-ruleset.json kontra stan na GitHubie (gh api) - czy ruleset jest zastosowany, czy obejmuje bota gpt-engineer-app i wypchniecia bezposrednie; ile ostatnich przebiegow CI na main jest zielonych/czerwonych/anulowanych.
+3. Wdrozenie: jak kod trafia na produkcje (Lovable publikuje z edytora? workflow? Cloudflare?), jak migracje trafiaja do bazy produkcji, co robi post-deploy - co jest automatyczne, co reczne. Szukaj w docs/ (RUNBOOK, DEPLOY, governance/README.md), .github/workflows, scripts/.
+4. Nowe bramki w oknie (sql-definer-views, migration-lanes, ts-sql-contract, on-conflict-arbiters, document-weight, structured-data-live) - co sprawdzaja, czy blokuja.
+5. Status znalezisk CI z poprzednich wydan z defektyDoSprawdzenia.
+synchronizacja: wszystkie mechanizmy synchronizacji repo <-> CI <-> produkcja (Lovable <-> GitHub, generatory, snapshoty, baseline) - co automatyczne, co reczne, gdzie rozjazd.
+defekty: nowe defekty CI/procesu; statusDefektow: status kazdego wpisu z defektyDoSprawdzenia (z id).`
+}
+
+const TORY = args.tory
+log(`Grupa ${args.grupa}: tory ${TORY.join(', ')}`)
+const wyniki = await parallel(TORY.map((tor) => () => {
+  const t = { tor, klucz: tor === '3a' || tor === '3b' ? '3' : tor.startsWith('22') ? '22' : tor }
+  if (tor === 'DB' || tor === 'CI') {
+    return agent(tor === 'DB' ? dbPrompt(t) : ciPrompt(t), { label: `przekroj:${tor}`, phase: 'Mapa', schema: FULL_SCHEMA, effort: 'high' })
+      .then((m) => ({ tor, przekroj: m }))
+  }
+  return parallel([
+    () => agent(mapaPrompt(t), { label: `mapa:${tor}`, phase: 'Mapa', schema: MAPA_SCHEMA, effort: 'high' }),
+    () => agent(defPrompt(t), { label: `defekty:${tor}`, phase: 'Defekty', schema: DEF_SCHEMA, effort: 'high' }),
+  ]).then(([m, d]) => ({ tor, mapa: m, def: d }))
+}))
+const ok = wyniki.filter(Boolean)
+return { grupa: args.grupa, wyniki: ok, brakMapy: ok.filter((w) => !w.mapa && !w.przekroj).map((w) => w.tor), brakDefektow: ok.filter((w) => !w.def && !w.przekroj).map((w) => w.tor) }

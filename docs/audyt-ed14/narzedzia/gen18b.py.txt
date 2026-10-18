@@ -1,0 +1,120 @@
+# Rozdzial 18, czesc B: 18.6 funkcjonalnosci (cala tabela), 18.9 nowe defekty (cala tabela), 18.10 rejestr defektow
+# wydan 11-13 (stan po oknie). Dane: funkcjonalnosci14.json, defekty14.json (z migawka14.json), rejestr-stan14.json.
+import json, collections
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14'
+J = lambda p: json.load(open(f'{S}/{p}', encoding='utf-8'))
+F = J('funkcjonalnosci14.json')
+D = J('defekty14.json')
+R = J('rejestr-stan14.json')
+NAZWY = {str(r['k']): r['name'] for r in J('inwentarz14.json')['rows']}
+NAZWY.update({'X-i18n': 'Przekrój: i18n', 'X-design-system': 'Przekrój: design system', 'X-admin-shell': 'Przekrój: powłoka panelu admin', 'DB': 'Przekrój: baza danych', 'CI': 'Przekrój: CI i narzędzia'})
+fmt = lambda x, n=1: f'{x:.{n}f}'.replace('.', ',')
+cl = lambda s: ' '.join(str(s).split()).replace('|', '/').replace('\u2014', '-').replace('\u2013', '-')
+def klucz_sort(k):
+    k = str(k)
+    if k.startswith('X-'): return (1, 0, k)
+    if k in ('DB', 'CI'): return (2, 0, k)
+    base = ''.join(ch for ch in k if ch.isdigit())
+    return (0, int(base) if base else 99, k)
+
+o = []
+w = o.append
+
+# ---------------- 18.6 ----------------
+wiersze = F['wiersze']
+nowe = [r for r in wiersze if r['nowa']]
+w('### 18.6. Funkcjonalności: mapa wydania 13 przeniesiona na nowe drzewo')
+w('')
+w(f"Każdy tor agentów dostał definicje funkcjonalności wydania 13 (nazwa, opis, wzorce ścieżek) i miał zachować dokładną nazwę tam, gdzie funkcjonalność nadal istnieje, poprawić wzorce, gdy pliki się przeniosły, i dopisać nowe. Metryki liczy `funkcjonalnosci14.mjs` na sumie plików pasujących do wzorców (tory dzielone scalane po module i nazwie). Wynik: **{len(wiersze)} funkcjonalności**, z czego **{len(nowe)} nowych**; wszystkie 350 nazw z wydania 13 przeniesione (0 zgubionych), wzorce obejmują 100% plików torów ({F['wiele']} plików pasuje do więcej niż jednej funkcjonalności, {len(F['martweWzorce'])} wzorce nie trafiają w żaden plik).")
+w('')
+spadki = sorted([r for r in wiersze if r['ed13Linie'] is not None], key=lambda r: r['linie'] - r['ed13Linie'])
+w('**Największe spadki pokrycia linii** (ta sama funkcjonalność, wydanie 13 → 14):')
+w('')
+for r in spadki[:8]:
+    w(f"- {r['klucz']} „{cl(r['nazwa'])}\": {fmt(r['ed13Linie'])}% → **{fmt(r['linie'])}%** ({r['pliki']} plików, {r['zero']} na zerze).")
+w('')
+w('Wszystkie osiem to skutek 18.3 i 18.4: edytory i widoki bloków, pulpity BI, udostępnianie (`FloatingShareBar.tsx`) i biblioteki bramek CI straciły testy razem z macierzami. Najsłabsze nowe funkcjonalności to „Stany rozliczeń i zwrotów\" (moduł 13, 22,4% linii - dwa z trzech plików na zerze), nagrywanie notatki głosowej w czacie (59,1%) i zakres osi wykresu (73,3%).')
+w('')
+w('**Nowe funkcjonalności z okna** (' + str(len(nowe)) + '): ' + '; '.join(f"{r['klucz']} {cl(r['nazwa'])} ({fmt(r['linie'])}%)" for r in sorted(nowe, key=lambda r: klucz_sort(r['klucz']))) + '.')
+w('')
+w('Pełna tabela (kolejność: moduł, potem pokrycie linii rosnąco):')
+w('')
+w('| Moduł | Funkcjonalność | Nowa | Pliki | Linie | Gałęzie | Funkcje | Zera | Linie ed13 |')
+w('| --- | --- | :-: | ---: | ---: | ---: | ---: | ---: | ---: |')
+for r in sorted(wiersze, key=lambda r: (klucz_sort(r['klucz']), r['linie'])):
+    ed = fmt(r['ed13Linie']) + '%' if r['ed13Linie'] is not None else '-'
+    w(f"| {r['klucz']} | {cl(r['nazwa'])} | {'tak' if r['nowa'] else ''} | {r['pliki']} | {fmt(r['linie'])}% | {fmt(r['galezie'])}% | {fmt(r['funkcje'])}% | {r['zero']} | {ed} |")
+w('')
+
+# ---------------- 18.9 ----------------
+WAGA = {'krytyczny': 0, 'wysoki': 1, 'sredni': 2, 'niski': 3}
+WAGA_PL = {'krytyczny': 'krytyczny', 'wysoki': 'wysoki', 'sredni': 'średni', 'niski': 'niski'}
+licz = collections.Counter(x['waga'] for x in D)
+pew = collections.Counter(x['pewnosc'] for x in D)
+licznik = collections.Counter()
+for x in sorted(D, key=lambda x: (klucz_sort(x['tor']), WAGA[x['waga']])):
+    licznik[x['tor']] += 1
+    x['id'] = f"N14-{x['tor']}-{licznik[x['tor']]}"
+w('### 18.9. Nowe defekty')
+w('')
+w(f"Tory szukały defektów wyłącznie w kodzie nowym i zmienionym w oknie (oraz w bazie i CI). Bez etapu obalania: każdy agent sam sprawdził swoje ustalenie (szukał późniejszej migracji, drugiego wywołania, testu, który by to łapał) i wpisał pewność. Siedem najpoważniejszych (krytyczny i wszystkie wysokie) przeczytałem w kodzie sam (oznaczone **sprawdzone**). **{len(D)} defektów**: krytyczny {licz['krytyczny']}, wysokich {licz['wysoki']}, średnich {licz['sredni']}, niskich {licz['niski']}; pewnych {pew['pewny']}, prawdopodobnych {pew['prawdopodobny']}.")
+w('')
+w('**Najważniejsze - rozjazd pasów migracji.** Trzy z siedmiu najpoważniejszych defektów mają jedną przyczynę: migracje z 7-9 października istnieją tylko w pasie `supabase/migrations`, a produkcję wdraża migrator drizzle z `_journal.json` (18.8). Kod z okna zakłada, że te migracje działają:')
+w('')
+w('- **N14-13-1 (krytyczny, prawdopodobny, sprawdzone).** Trigger `subscriptions_pin_tenant` z `20261007140300_subscriptions_tenant_from_owner` przypina subskrypcji najemcę z profilu właściciela. Webhook operatora płatności zapisuje wiersz bez `tenant_id` (`webhookDispatch.server.ts:447-466`) i odczytuje najemcę z `RETURNING`, licząc na trigger (`:515-518`). W `drizzle/migrations` triggera nie ma. Jeśli produkcja ma tylko pas drizzle, każda subskrypcja konta spoza najemcy domyślnego trafia do najemcy domyślnego: jego admin pobiera cudze faktury, a właściwy najemca nie widzi subskrypcji w panelach, uzgadnianiu i windykacji.')
+w('- **N14-13-2 (wysoki, prawdopodobny, sprawdzone).** Poprawka nadużycia `release_b2b_coupon` (SECURITY DEFINER z `GRANT` dla `authenticated`, bez sprawdzenia właściciela i statusu zamówienia) jest tylko w pasie supabase.')
+w('- **N14-16-2 (wysoki, prawdopodobny, sprawdzone).** Komentarze wpisów ściany klubu (tabela i 4 RPC) są tylko w pasie supabase, a klient już woła `club_post_comments_list` i `club_post_comment_create`.')
+w('')
+w('Ten sam rozjazd zgłasza przekrój CI jako defekt systemowy (N14-CI-1: brak detektora migracji niewdrożonych). Skutek produkcyjny wszystkich trzech zależy od tego, czy pas supabase trafia na produkcję inną drogą - z repozytorium nie da się tego ustalić, i to jest właśnie defekt.')
+w('')
+w('**Pozostałe wysokie (pewne, sprawdzone):**')
+w('')
+w('- **N14-6-1.** Wyszukiwanie głosowe po przejściu na `rec.continuous = true` (`useVoiceSearch.ts:210`) woła `onFinal` przy każdym zdarzeniu po pierwszym wyniku końcowym: seria nawigacji do `/search`, wpisów w „ostatnich\" i zapytań `log_search_query`.')
+w('- **N14-18-1.** Zbiorcze wycofanie zgody marketingowej w zakresie „Wszystkie tenanty\" woła `crm_leads_marketing_consent_withdraw`, które filtruje po `current_tenant_id()`, a serwer i tak raportuje `touched = ids.length` (`crm.functions.ts:960-970`). Kontakty innych najemców zachowują zgodę, a panel i dziennik audytu raportują sukces - to sprawa RODO.')
+w('- **N14-16-1.** `club_post_create` normalizuje tylko załączniki typu `link`; `image`/`video`/`file` przechodzą z dowolnym `path`, a polityka odczytu kubełka `club-media` wpuszcza każdego, kto widzi wpis z tą ścieżką. Wpis w dowolnym klubie otwiera więc odczyt cudzego pliku.')
+w('')
+w('Pełna lista:')
+w('')
+w('| ID | Waga | Pewność | Defekt | Gdzie |')
+w('| --- | --- | --- | --- | --- |')
+for x in sorted(D, key=lambda x: (WAGA[x['waga']], klucz_sort(x['tor']))):
+    gdzie = f"`{x['plik']}:{x['linia']}`" if x.get('plik') else '-'
+    w(f"| {x['id']} | {WAGA_PL[x['waga']]} | {x['pewnosc']} | {cl(x['tytul'])} | {gdzie} |")
+w('')
+
+# ---------------- 18.10 ----------------
+c = collections.Counter(x['stan14'] for x in R)
+mech = sum(1 for x in R if x['zrodloStanu'].startswith('mechanicznie'))
+zr = collections.defaultdict(collections.Counter)
+for x in R:
+    z = x['zrodlo'].split('-')[0]
+    zr[z][x['stan14']] += 1
+w('### 18.10. Defekty wydań 11-13: co naprawiono, co stoi')
+w('')
+w(f"Rejestr do rozliczenia miał **{len(R)} pozycji**: otwarte i zmienione defekty z wydań 11 i 12 po stanie z wydania 13 oraz defekty nowe w wydaniu 13 (potwierdzone, zgłoszone bez próby obalenia i od krytyka). Pozycje w plikach zmienionych w oknie (i wszystkie w bazie) rozliczyli agenci torów z dowodem w kodzie; {mech} pozycji w plikach, których okno nie dotknęło, jest otwartych mechanicznie (`git diff 5b8c77c01 346012635 -- <plik>` jest pusty). Dane: `rejestr-stan14.json`.")
+w('')
+w('| Źródło | Naprawione | Zmienione | Otwarte | Razem |')
+w('| --- | ---: | ---: | ---: | ---: |')
+for z in ('ed11', 'ed12', 'ed13'):
+    k = zr[z]
+    w(f"| Wydanie {z[2:]} | {k['naprawiony']} | {k['zmieniony']} | {k['otwarty']} | {sum(k.values())} |")
+w(f"| **Razem** | **{c['naprawiony']}** | **{c['zmieniony']}** | **{c['otwarty']}** | **{len(R)}** |")
+w('')
+nap_w = [x for x in R if x['stan14'] == 'naprawiony' and x['waga'] == 'wysoki']
+w('**Naprawione wysokie:** ' + '; '.join(f"{x['id']} ({cl(x['tytul'])[:110]})" for x in nap_w) + '. Obie regresje, które wydanie 13 uznało za najpilniejsze, są zamknięte: zaproszenia znów działają (N-19-1) i prowadzący zapisuje ustawienia klubu (N-16-1).')
+w('')
+otw_w = [x for x in R if x['stan14'] == 'otwarty' and x['waga'] == 'wysoki']
+w(f"**Otwartych wysokich jest {len(otw_w)}** (krytycznych: 0). {sum(1 for x in otw_w if x['zrodloStanu'].startswith('mechanicznie'))} z nich leży w plikach, których okno nie dotknęło - nikt do nich nie wrócił. Lista:")
+w('')
+w('| ID | Defekt | Gdzie | Stan pliku |')
+w('| --- | --- | --- | --- |')
+for x in otw_w:
+    w(f"| {x['id']} | {cl(x['tytul'])} | `{cl(x['gdzie'])}` | {'bez zmian' if x['stanPliku'] == 'plik_bez_zmian' else 'zmieniony w oknie'} |")
+w('')
+txt = '\n'.join(o)
+for zly in ('\u2014', '\u2013'):
+    txt = txt.replace(zly, '-')
+open(f'{S}/r18b.md', 'w', encoding='utf-8').write(txt + '\n')
+json.dump(D, open(f'{S}/defekty14.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+print('ok', len(o), 'linii;', dict(c), 'mech', mech, 'otw_w', len(otw_w))
