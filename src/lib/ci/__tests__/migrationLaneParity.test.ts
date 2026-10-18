@@ -257,10 +257,15 @@ describe("self-test na realnym dzienniku drizzle", () => {
     const before = journal.filter(
       (e) => executableSql(readFileSync(`${DRIZZLE_DIR}/${e.tag}.sql`, "utf8")) !== want,
     );
-    expect(before.length).toBe(journal.length - 1);
-    const r = evaluateLaneGate(analyzeMigrationLanes(before.map((e) => e.tag)), before);
+    // Nośników może być kilka: panel Lovable dopisuje własną kopię wdrożonego
+    // pliku (jak 0301-0304 po 0297-0300) - usuwamy wszystkie.
+    expect(before.length).toBeLessThan(journal.length);
+    const lanes = analyzeMigrationLanes(before.map((e) => e.tag));
+    const r = evaluateLaneGate(lanes, before);
     expect(r.missingCarriers).toEqual([fix]);
     expect(laneGateFailed(r)).toBe(true);
+    // Czerwień wynika z braku nośnika, nie tylko z osieroconego wpisu rejestru.
+    expect(renderLaneGate(lanes, r)).toContain("POPRAWKI BEZ NOŚNIKA NA PASIE PRODUKCYJNYM");
   });
 
   it("listy znanych przypadków tylko maleją", () => {

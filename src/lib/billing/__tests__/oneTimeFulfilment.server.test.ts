@@ -82,6 +82,9 @@ const h = vi.hoisted(() => ({
   /** Zwolnienia rezerwacji kuponu (`release_b2b_coupon_for_user`). */
   couponReleases: [] as Array<Record<string, unknown>>,
   couponReleaseReply: { data: true, error: null } as RpcReply,
+  /** Stara ścieżka zwolnienia (`release_b2b_coupon`) - okno wdrożenia przy PGRST202. */
+  legacyCouponReleases: [] as Array<Record<string, unknown>>,
+  legacyCouponReleaseReply: { data: true, error: null } as RpcReply,
   /** Dzwonki administratorów najemcy (`enqueue_notification`). */
   adminBells: [] as Array<Record<string, unknown>>,
   /** Argumenty zlecenia zwrotu przy pełnej sali (środowisko, transakcja, powód). */
@@ -106,6 +109,11 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         h.log.push("coupon:release");
         h.couponReleases.push(args);
         return h.couponReleaseReply;
+      }
+      if (fn === "release_b2b_coupon") {
+        h.log.push("coupon:legacy-release");
+        h.legacyCouponReleases.push(args);
+        return h.legacyCouponReleaseReply;
       }
       if (fn === "enqueue_notification") {
         h.adminBells.push(args);
@@ -368,6 +376,8 @@ beforeEach(() => {
   h.revokedRefs.length = 0;
   h.couponReleases.length = 0;
   h.couponReleaseReply = { data: true, error: null };
+  h.legacyCouponReleases.length = 0;
+  h.legacyCouponReleaseReply = { data: true, error: null };
   h.adminBells.length = 0;
   h.refundCalls.length = 0;
   h.promotionCodes = {};
@@ -2652,9 +2662,10 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
     await settleFreeTicketOrder(ORDER_ID);
 
     expect(h.couponReleases).toHaveLength(1);
-    expect(h.rpcCalls.filter((c) => c.fn === "release_b2b_coupon")).toEqual([
-      { fn: "release_b2b_coupon", args: { _coupon_id: COUPON, _order_id: ORDER_ID } },
-    ]);
+    expect(h.legacyCouponReleases).toEqual([{ _coupon_id: COUPON, _order_id: ORDER_ID }]);
+    expect(buyerNotice()?.["body_pl"]).toBe(
+      "Ostatnie miejsce zajęto, zanim bilet został wydany. Kod wrócił do puli.",
+    );
   });
 
   it("pełna sala, a baza NIE oddała kodu: zamówienie anulowane, kupujący nie słyszy, że kod wrócił", async () => {
