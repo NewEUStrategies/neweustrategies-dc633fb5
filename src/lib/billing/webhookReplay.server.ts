@@ -370,8 +370,6 @@ export interface WebhookSweepResult {
 }
 
 export interface WebhookSweepOptions {
-  /** Maksymalna liczba wykonań w przebiegu (domyślnie `WEBHOOK_SWEEP_BATCH`). */
-  limit?: number;
   /**
    * Termin (ms od epoki), do którego przebieg ZACZYNA wiersze i na nie
    * CZEKA. Wołający ustawia go nie później niż chwila, w której jego wołający
@@ -499,7 +497,8 @@ export async function sweepWebhookEvents(
     deferred: 0,
     timedOut: 0,
   };
-  const limit = Math.max(1, Math.floor(options.limit ?? WEBHOOK_SWEEP_BATCH));
+  // Partia jest stała; długość przebiegu wołający ustawia wyłącznie terminem.
+  const limit = WEBHOOK_SWEEP_BATCH;
 
   let candidates: WebhookSweepRow[];
   try {
