@@ -23,7 +23,13 @@ export function toAnimatedHeadingLink(value: unknown): AnimatedHeadingLink | und
   if (!isRecord(value)) return undefined;
   const url = typeof value.url === "string" ? value.url.trim() : "";
   if (!url) return undefined;
-  if (/^\s*javascript:/i.test(url)) return undefined;
+  // Parser URL przeglądarki usuwa z adresu tabulatory i znaki nowej linii,
+  // a z początku także znaki sterujące - "java\tscript:" to nadal
+  // `javascript:`. Sprawdzamy więc postać, którą przeglądarka wykona.
+  const squeezed = url.replace(/[\t\n\r]/g, "");
+  let start = 0;
+  while (start < squeezed.length && squeezed.charCodeAt(start) <= 0x20) start += 1;
+  if (/^javascript:/i.test(squeezed.slice(start))) return undefined;
 
   const rels: string[] = [];
   if (typeof value.rel === "string" && value.rel.trim()) rels.push(value.rel.trim());

@@ -420,8 +420,10 @@ const SHARED_STYLES = /* @nes-static-css */ `
 /* Cover image toggle: hide media on all variants, keep overlay text + author. */
 .eh-slider[data-hide-cover="true"] .eh-img,
 .eh-slider[data-hide-cover="true"] .eh-hover-zoom,
-.eh-slider[data-hide-cover="true"] .eh-card-media img { visibility: hidden; }
-.eh-slider[data-hide-cover="true"] .eh-card-media { background: hsl(var(--muted)); }
+.eh-slider[data-hide-cover="true"] .eh-card-media img,
+.eh-slider[data-hide-cover="true"] [data-thumb-strip] img { visibility: hidden; }
+.eh-slider[data-hide-cover="true"] .eh-card-media,
+.eh-slider[data-hide-cover="true"] [data-thumb-strip] button { background: hsl(var(--muted)); }
 
 /* Side arrow buttons - base (position + transitions). Visual style comes from
    .eh-nav-<variant> modifier + inline CSS vars (--nav-bg / --nav-arrow / --nav-size / --nav-radius). */
@@ -770,7 +772,9 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   // przychodzi z trzech niezależnych źródeł (panel, defaulty palety, starsze
   // rewizje dokumentów), więc "3" musi znaczyć 3, a "0" musi znaczyć fałsz.
   const variant = asOneOf(config.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
-  const ratio = asOneOf(config.ratio, SLIDER_RATIOS, "4/3");
+  // Ta sama wartość domyślna co panel (`SliderEditor`) i oba miejsca wywołania
+  // (`SimpleWidgets`, `PostsSliderWidget`): zaznaczone w panelu = narysowane.
+  const ratio = asOneOf(config.ratio, SLIDER_RATIOS, "16/9");
   const autoplay = asBool(config.autoplay, carouselG.autoplay);
   const intervalMs = Math.max(1500, asNum(config.intervalMs, carouselG.intervalMs));
   const pauseOnHover = asBool(config.pauseOnHover, carouselG.pauseOnHover);
@@ -950,7 +954,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
         className="w-full flex items-center justify-center bg-muted/40 border border-dashed border-border text-xs text-muted-foreground"
         style={{ aspectRatio: ratio.replace("/", " / "), borderRadius: rounded }}
       >
-        Dodaj obrazki do slidera
+        {lang === "en" ? "Add images to the slider" : "Dodaj obrazki do slidera"}
       </div>
     );
   }
@@ -1166,7 +1170,9 @@ function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
     title: truncate(rawTitle, TITLE_MAX),
     sub: truncate(rawSub, EXCERPT_MAX),
     cat,
-    href: safeUrl(asStr(it.href)) || undefined,
+    // Wartość zastępcza "" (nie domyślne "#"): brak bezpiecznego adresu ma
+    // znaczyć brak odnośnika, a nie `<a href="#">` i przystanek fokusu.
+    href: safeUrl(asStr(it.href), "") || undefined,
     catColor: asStr(it.categoryColor) || "#ef6c2e",
   };
 }
@@ -1179,7 +1185,7 @@ function EditorialHeroVariant(p: VariantProps) {
       <div
         data-widget-media
         className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
-        style={{ ...p.aspectStyle, borderRadius: 4 }}
+        style={{ ...p.aspectStyle, borderRadius: p.rounded }}
         onPointerDown={p.onPointerDown}
         onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag}
@@ -1884,7 +1890,10 @@ function MinimalStripVariant(p: VariantProps) {
           />
         )}
         {/* Bottom caption strip */}
-        <div className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white">
+        <div
+          className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white"
+          data-author-title-scope={p.showAuthor ? "" : undefined}
+        >
           {cat && (
             <span
               className="inline-block mb-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
@@ -1909,6 +1918,26 @@ function MinimalStripVariant(p: VariantProps) {
             >
               {sub}
             </p>
+          )}
+          {/* Wiersz metadanych jak w pozostałych wariantach - inaczej „Pokaż
+              autora” i rozmiary bylinu są tu martwymi ustawieniami panelu. */}
+          {(hasAuthorByline(cur.author, p.author) || cur.readTime) && (
+            <div className="mt-2 flex items-center gap-2 text-white/75" style={p.authorStyle}>
+              {hasAuthorByline(cur.author, p.author) && (
+                <AuthorByline
+                  name={cur.author}
+                  avatarUrl={cur.authorAvatar}
+                  href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                  display={p.author}
+                  tone="onDark"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+              {hasAuthorByline(cur.author, p.author) && cur.readTime && (
+                <span className="opacity-60">·</span>
+              )}
+              {cur.readTime && <span>⏱ {cur.readTime}</span>}
+            </div>
           )}
         </div>
       </div>
