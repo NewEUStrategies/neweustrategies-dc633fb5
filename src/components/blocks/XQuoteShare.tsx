@@ -7,12 +7,27 @@ interface Props {
   lang?: "pl" | "en";
 }
 
+/**
+ * Parametr `hashtags` intencji X to lista po przecinku BEZ znaku „#" (X dokleja
+ * go sam). Edytor prosi o „hashtagi po przecinku", więc autor naturalnie wpisuje
+ * „#UE, #polityka" - zdejmujemy „#" (jak „@" z `via`), spacje i puste pozycje.
+ */
+function normalizeHashtags(raw: string | undefined): string {
+  if (!raw) return "";
+  return raw
+    .split(",")
+    .map((tag) => tag.replace(/\s+/g, "").replace(/^#+/, ""))
+    .filter(Boolean)
+    .join(",");
+}
+
 export function XQuoteShare({ text, via, hashtags, url, lang = "pl" }: Props) {
   const L = lang === "pl" ? "Udostępnij na X" : "Share on X";
   const params = new URLSearchParams();
   params.set("text", text);
   if (via) params.set("via", via.replace(/^@/, ""));
-  if (hashtags) params.set("hashtags", hashtags.replace(/\s+/g, ""));
+  const tags = normalizeHashtags(hashtags);
+  if (tags) params.set("hashtags", tags);
   if (url) params.set("url", url);
   const href = `https://twitter.com/intent/tweet?${params.toString()}`;
 

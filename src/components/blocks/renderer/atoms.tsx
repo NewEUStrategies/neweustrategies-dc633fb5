@@ -102,6 +102,13 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
   const start = num(block.data, "start", 1);
   const levelsRaw = Array.isArray(block.data.levels) ? block.data.levels : [];
   const orderedRaw = Array.isArray(block.data.itemsOrdered) ? block.data.itemsOrdered : [];
+  // Poziom pozycji nie może przeskoczyć więcej niż o 1 w głąb względem
+  // poprzedniej (ani zacząć się poniżej 1. poziomu). `renderLevel` schodzi
+  // dokładnie o jeden poziom, więc pozycja z dziurą (import Worda: poziom 1,
+  // potem od razu 3; lista zaczynająca się od 2. poziomu; poziom ułamkowy)
+  // nie trafiała do żadnej listy i ZNIKAŁA z publikacji. Spłaszczamy ją do
+  // najgłębszego osiągalnego poziomu - treść zostaje, wcięcie się skraca.
+  let prevLevel = 0;
   const kept = items
     .map((it, i) => ({
       it,
@@ -109,7 +116,12 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
       level: typeof levelsRaw[i] === "number" ? Math.max(1, Math.min(6, levelsRaw[i])) : 1,
       ordered: typeof orderedRaw[i] === "boolean" ? orderedRaw[i] : ordered,
     }))
-    .filter(({ it }) => Boolean(it));
+    .filter(({ it }) => Boolean(it))
+    .map((entry) => {
+      const level = Math.min(Math.floor(entry.level), prevLevel + 1);
+      prevLevel = level;
+      return level === entry.level ? entry : { ...entry, level };
+    });
 
   const renderItem = (entry: (typeof kept)[number]) => {
     const withFn = fnHtml.get(`${block.id}:item:${entry.i}`);
@@ -143,7 +155,6 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
         childEntries.push(entries[j]);
         j++;
       }
-      const childLevel = childEntries.find((c) => c.level === level + 1) ?? childEntries[0];
       nodes.push(
         <li key={entry.i} className="cms-list-item" data-list-level={level}>
           {isOrdered ? (
@@ -154,8 +165,10 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
             <span className="cms-list-bullet" aria-hidden="true" />
           )}
           <span className="cms-list-content">{renderItem(entry)}</span>
+          {/* Po normalizacji poziomów pierwsze dziecko leży DOKŁADNIE poziom
+              niżej, więc to ono wyznacza typ zagnieżdżonej listy. */}
           {childEntries.length > 0 &&
-            renderLevel(childEntries, level + 1, childLevel?.ordered ?? isOrdered, false)}
+            renderLevel(childEntries, level + 1, childEntries[0].ordered, false)}
         </li>,
       );
       ordinal += 1;

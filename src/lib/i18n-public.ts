@@ -66,6 +66,7 @@ const pl = {
     searchPlaceholder: "Szukaj…",
     searchButton: "Szukaj",
     tocTitle: "Spis treści",
+    source: "Źródło",
   },
   inlineEntity: {
     companyCard: "Karta firmy: {{name}}",
@@ -157,6 +158,7 @@ const en: typeof pl = {
     searchPlaceholder: "Search…",
     searchButton: "Search",
     tocTitle: "Table of contents",
+    source: "Source",
   },
   inlineEntity: {
     companyCard: "Company card: {{name}}",

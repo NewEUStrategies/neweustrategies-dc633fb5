@@ -22,6 +22,9 @@ export function CompareSlider({
     const el = ref.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
+    // Element bez szerokości (ukryty kontener) dawałby 0/0 = NaN: suwak
+    // ogłaszałby `aria-valuenow="NaN"`, a przycięcie obrazu „przed" znikało.
+    if (!(rect.width > 0)) return;
     const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
     setPos((x / rect.width) * 100);
   };
