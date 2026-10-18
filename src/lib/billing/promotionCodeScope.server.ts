@@ -74,24 +74,30 @@ function errorText(error: unknown): string {
 /**
  * Czy kupon najemcy zamówienia obejmuje to zamówienie. Odczyt zawężony do
  * najemcy ZAMÓWIENIA (R-TS): kupon o tym identyfikatorze w innym najemcy to
- * dla tego zamówienia kupon nieistniejący.
+ * dla tego zamówienia kupon nieistniejący. `tenantId` to najemca zamówienia
+ * już po porównaniu z najemcą kodu - zamówienie bez najemcy kończy się
+ * wcześniej jako kod obcy.
  */
-async function couponCovers(couponId: string, order: PromotionScopeOrder): Promise<boolean> {
-  if (!order.tenantId || !UUID_SHAPE.test(couponId)) return false;
+async function couponCovers(
+  couponId: string,
+  tenantId: string,
+  order: PromotionScopeOrder,
+): Promise<boolean> {
+  if (!UUID_SHAPE.test(couponId)) return false;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("b2b_coupons")
     .select("id, active, plan_ids, event_ids")
     .eq("id", couponId)
-    .eq("tenant_id", order.tenantId)
+    .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) {
     throw new Error(`promotion code scope: coupon lookup failed (${couponId}): ${error.message}`);
   }
   if (!data || data.active !== true) return false;
-  const planIds = data.plan_ids ?? [];
+  // `plan_ids` i `event_ids` są NOT NULL z domyślną pustą tablicą (= bez zawężenia).
+  const { plan_ids: planIds, event_ids: eventIds } = data;
   if (planIds.length > 0 && (!order.planId || !planIds.includes(order.planId))) return false;
-  const eventIds = data.event_ids ?? [];
   if (eventIds.length > 0 && (!order.eventId || !eventIds.includes(order.eventId))) return false;
   return true;
 }
@@ -135,7 +141,7 @@ export async function reviewPromotionCodes(
       continue;
     }
     const couponId = text(metadata["coupon_id"]);
-    if (couponId && !(await couponCovers(couponId, order))) outOfScope.push(id);
+    if (couponId && !(await couponCovers(couponId, order.tenantId, order))) outOfScope.push(id);
   }
 
   const hold =
