@@ -37,8 +37,23 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
   const patch = (i: number, delta: Partial<Item>) =>
     update(items.map((x, j) => (j === i ? { ...x, ...delta } : x)));
 
-  const layout = s(c.layout, "semi");
-  const trigger = s(c.trigger, "hover");
+  // Listy pokazują to, co RYSUJE renderer (`InteractiveCircleWidget`): brak
+  // klucza albo wartość spoza zestawu to półokrąg / najechanie / bez
+  // autoodtwarzania. Obrót renderer stosuje WYŁĄCZNIE dla pełnego koła -
+  // półokrąg z zapisanym obrotem stoi w miejscu, więc lista pokazuje „brak".
+  // Wcześniej warunek opcji obrotu brał dla brakującego układu „pełny", choć
+  // lista układu (i renderer) brały „półokrąg" - panel oferował wtedy obrót,
+  // który byłby cichym no-opem.
+  const layout = s(c.layout) === "full" ? "full" : "semi";
+  const trigger = s(c.trigger) === "click" ? "click" : "hover";
+  const autoplay = s(c.autoplay) === "on" ? "on" : "off";
+  const storedAnimation = s(c.animation);
+  const animation =
+    storedAnimation === "pulse"
+      ? "pulse"
+      : storedAnimation === "rotate" && layout === "full"
+        ? "rotate"
+        : "none";
 
   return (
     <div className="space-y-4">
@@ -113,7 +128,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.animation")}>
-          <Select value={s(c.animation, "none")} onValueChange={(v) => setContent("animation", v)}>
+          <Select value={animation} onValueChange={(v) => setContent("animation", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -122,7 +137,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
               {/* Obrot ma sens tylko dla pelnego kola - polokrag wykrecilby sie
                   poza swoje polozenie, wiec renderer go tam nie stosuje. Nie
                   pokazujemy opcji, ktora bylaby cichym no-opem. */}
-              {s(c.layout, "full") !== "semi" && (
+              {layout === "full" && (
                 <SelectItem value="rotate">
                   {t("builder.interactiveCircleEditor.animRotate")}
                 </SelectItem>
@@ -148,7 +163,7 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.autoplay")}>
-          <Select value={s(c.autoplay, "off")} onValueChange={(v) => setContent("autoplay", v)}>
+          <Select value={autoplay} onValueChange={(v) => setContent("autoplay", v)}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

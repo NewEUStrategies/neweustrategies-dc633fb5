@@ -252,7 +252,9 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               min={12}
               max={240}
               value={numSize}
-              onChange={(e) => setContent("numberSizePx", (Number(e.target.value) || 0) as Json)}
+              // Zero nie jest rozmiarem (renderer domyka do 12 px), więc pustka
+              // wraca do domyślnych 52 px - jak każde inne pole rozmiaru tu.
+              onChange={(e) => setContent("numberSizePx", (Number(e.target.value) || 52) as Json)}
               className="h-8 text-xs"
             />
           </PropField>

@@ -2,7 +2,6 @@
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -29,6 +28,9 @@ import {
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
+import { asStr } from "@/lib/content-model/contentValue";
+import { LineListTextarea } from "./LineListTextarea";
+import { readLineList } from "./lineList";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -41,9 +43,13 @@ interface Props {
 export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
-  const mode = (typeof c.mode === "string" ? c.mode : "highlight") as AnimatedHeadingMode;
-  const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
-  const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+  // Odczyty jak w rendererze (`getStr(...) || domyślna`): PUSTY napis to „nie
+  // ustawiono", a nie-napis to pustka. Dosłowny odczyt wysypywał panel - pusty
+  // znacznik dawał podglądowi element bez nazwy, a liczba w tekście padała
+  // w `resolveDynamicText` na `indexOf`.
+  const mode = (asStr(c.mode) || "highlight") as AnimatedHeadingMode;
+  const shape = (asStr(c.shape) || "underline") as AnimatedHeadingShape;
+  const tag = (asStr(c.tag) || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
   const visibleShapes =
     mode === "hover-underline"
@@ -68,29 +74,20 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
       setContent("shape", "underline");
     }
   };
-  const align = (typeof c.align === "string" ? c.align : "left") as "left" | "center" | "right";
+  const align = (asStr(c.align) || "left") as "left" | "center" | "right";
 
-  const textBefore = (c[`textBefore_${lang}`] as string) || "";
-  const textAfter = (c[`textAfter_${lang}`] as string) || "";
-  const highlight = (c[`highlight_${lang}`] as string) || "";
-  const rotateRaw = c[`rotateWords_${lang}`];
-  const rotateWords: string[] = Array.isArray(rotateRaw)
-    ? rotateRaw.filter((x): x is string => typeof x === "string")
-    : [];
+  const textBefore = asStr(c[`textBefore_${lang}`]);
+  const textAfter = asStr(c[`textAfter_${lang}`]);
+  const highlight = asStr(c[`highlight_${lang}`]);
+  // Starszy zapis jednym napisem z liniami renderer czyta - panel też musi,
+  // inaczej pokazywał pustą listę, a wstawienie znacznika ją nadpisywało.
+  const rotateWords = readLineList(c[`rotateWords_${lang}`]);
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
   const accentColor = (typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346";
   const durationMs = typeof c.durationMs === "number" ? c.durationMs : 1600;
   const delayMs = typeof c.delayMs === "number" ? c.delayMs : 200;
   const loop = c.loop !== false;
-
-  const setWords = (txt: string) => {
-    const arr = txt
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    setContent(`rotateWords_${lang}`, toJson(arr));
-  };
 
   const appendToken = (field: string, current: string, token: string) => {
     const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
@@ -303,10 +300,10 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
             label={t("builder.animatedHeadingEditor.rotateWords", { lang: lang.toUpperCase() })}
           >
             <div className="flex items-start gap-1.5">
-              <Textarea
+              <LineListTextarea
                 rows={4}
-                value={rotateWords.join("\n")}
-                onChange={(e) => setWords(e.target.value)}
+                value={rotateWords}
+                onChange={(next) => setContent(`rotateWords_${lang}`, toJson(next))}
                 placeholder={t("builder.animatedHeadingEditor.rotatePh")}
                 className="text-xs font-mono"
               />

@@ -3,7 +3,6 @@
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -13,6 +12,9 @@ import {
 } from "@/components/ui/select";
 import { PropField, ColorField } from "../../atoms";
 import { TextRotate } from "@/components/ui/text-rotate";
+import { asStr } from "@/lib/content-model/contentValue";
+import { LineListTextarea } from "./LineListTextarea";
+import { readLineList } from "./lineList";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -27,17 +29,10 @@ type StaggerFrom = "first" | "last" | "center";
 type Tag = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "span";
 type Align = "left" | "center" | "right";
 
-function readTexts(c: WidgetNode["content"], lang: "pl" | "en"): string[] {
-  const raw = c[`texts_${lang}`] ?? c.texts_pl;
-  if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
-  if (typeof raw === "string") {
-    return raw
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
+// Wersja angielska bez własnej listy rotuje polską - jak renderer
+// (`texts_en ?? texts_pl`), więc panel pokazuje to, co strona faktycznie rotuje.
+const readTexts = (c: WidgetNode["content"], lang: "pl" | "en"): string[] =>
+  readLineList(c[`texts_${lang}`] ?? c.texts_pl);
 
 export function TextRotateEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
@@ -50,14 +45,17 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
   // pole treści (`before_pl` / `before_en`) jest edytowane.
   const langTag = lang.toUpperCase();
 
-  const before = (c[`before_${lang}`] as string) || "";
-  const after = (c[`after_${lang}`] as string) || "";
+  // Odczyty jak w rendererze (`getStr(...) || domyślna`): nie-napis to pustka,
+  // a PUSTY napis to „nie ustawiono". Dosłowny odczyt wysypywał panel - pusty
+  // znacznik dawał element bez nazwy, a obiekt w `before_*` dziecko Reacta.
+  const before = asStr(c[`before_${lang}`]);
+  const after = asStr(c[`after_${lang}`]);
   const texts = readTexts(c, lang);
 
-  const tag = (typeof c.tag === "string" ? c.tag : "h2") as Tag;
-  const align = (typeof c.align === "string" ? c.align : "left") as Align;
-  const splitBy = (typeof c.splitBy === "string" ? c.splitBy : "characters") as SplitBy;
-  const staggerFrom = (typeof c.staggerFrom === "string" ? c.staggerFrom : "first") as StaggerFrom;
+  const tag = (asStr(c.tag) || "h2") as Tag;
+  const align = (asStr(c.align) || "left") as Align;
+  const splitBy = (asStr(c.splitBy) || "characters") as SplitBy;
+  const staggerFrom = (asStr(c.staggerFrom) || "first") as StaggerFrom;
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
   const accent = (typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346";
@@ -66,14 +64,6 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
   const transitionMs = typeof c.transitionMs === "number" ? c.transitionMs : 450;
   const loop = c.loop !== false;
   const auto = c.auto !== false;
-
-  const setTexts = (txt: string) => {
-    const arr = txt
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    setContent(`texts_${lang}`, toJson(arr));
-  };
 
   const alignCls =
     align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left";
@@ -131,10 +121,10 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
           </h4>
         </div>
         <PropField label={t("builder.textRotateEditor.textsLabel", { lang: langTag })}>
-          <Textarea
+          <LineListTextarea
             rows={4}
-            value={texts.join("\n")}
-            onChange={(e) => setTexts(e.target.value)}
+            value={texts}
+            onChange={(next) => setContent(`texts_${lang}`, toJson(next))}
             placeholder={t("builder.textRotateEditor.textsPlaceholder")}
             className="text-xs font-mono"
           />
