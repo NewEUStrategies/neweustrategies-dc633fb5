@@ -10,11 +10,10 @@
 // decydują, czy użytkownik zobaczy tekst, czy przycisk, który „nic nie robi".
 //
 // HARNESS. Cała maszyneria audio jest podstawiona: `getUserMedia`,
-// `MediaRecorder`, `AudioContext` z analizatorem, `SpeechRecognition`,
-// `requestAnimationFrame`, `performance.now` i `fetch`. Pętla VAD jest
-// napędzana RĘCZNIE (klatka po klatce, z kontrolowanym zegarem), bo tylko tak
-// da się wejść w jej trzy rozłączne ramiona: kalibrację tła, wykrycie mowy
-// z auto-stopem po ciszy, oraz zamknięcie po ciszy bez mowy.
+// `MediaRecorder`, `SpeechRecognition` i `fetch`. `AudioContext`
+// i `requestAnimationFrame` są tylko liczone: nagrywanie nie stawia już grafu
+// Web Audio ani pętli klatek (dawny VAD liczył RMS co klatkę i wynik
+// wyrzucał, bo ciszy celowo nie wolno kończyć nagrania).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 
@@ -48,6 +47,8 @@ interface RecorderInstance {
   start: () => void;
   stop: () => void;
   mimeType?: string;
+  /** Obietnica zwrócona przez `onstop` - test sprawdza, że się nie odrzuca. */
+  lastStop?: void | Promise<void>;
 }
 
 const recorders: RecorderInstance[] = [];
@@ -60,11 +61,6 @@ const ctl = {
   supportedMimes: ["audio/webm;codecs=opus"] as string[],
   /** Rozmiar zebranego nagrania w bajtach. */
   blobSize: 4000,
-  /** AudioContext ma rzucić (brak Web Audio). */
-  audioThrows: false,
-  /** Bieżąca amplituda sygnału widziana przez analizator. */
-  amplitude: 0,
-  now: 0,
 };
 
 function installMediaRecorder() {
@@ -73,6 +69,7 @@ function installMediaRecorder() {
     ondataavailable: RecorderInstance["ondataavailable"] = null;
     onstop: RecorderInstance["onstop"] = null;
     mimeType?: string;
+    lastStop?: void | Promise<void>;
     constructor(_stream: MediaStream, opts?: { mimeType?: string }) {
       if (ctl.recorderThrows) throw new Error("nieobsługiwany kodek");
       this.mimeType = opts?.mimeType;
@@ -86,17 +83,13 @@ function installMediaRecorder() {
       // `new Blob(chunks)` i mierzy wynik, więc atrapa z gołym obiektem dawała
       // 15 bajtów („[object Object]") i nagranie było odrzucane jako za krótkie.
       this.ondataavailable?.({ data: new Blob([new Uint8Array(ctl.blobSize)]) });
-      void this.onstop?.();
+      this.lastStop = this.onstop?.();
     }
   }
   (window as unknown as { MediaRecorder: unknown }).MediaRecorder = FakeMediaRecorder;
 }
 
-/** Kolejka klatek animacji - test odpala je ręcznie. */
-let frames: FrameRequestCallback[] = [];
-
 interface SpeechEvent {
-  resultIndex?: number;
   results: ArrayLike<{ isFinal: boolean; 0: { transcript: string; confidence?: number } }>;
 }
 
@@ -175,17 +168,21 @@ function emit(rec: SpeechInstance, segs: Seg[]) {
 const fail = (rec: SpeechInstance, error: string) => act(() => rec.onerror?.({ error }));
 const end = (rec: SpeechInstance) => act(() => rec.onend?.());
 
+/** Ile grafów Web Audio postawił hook. Atrapa jest pełna (źródło, filtr,
+ *  analizator), żeby dawny kod VAD też przez nią przechodził. */
+let audioContexts = 0;
+
 function installAudio() {
   const analyser = {
     fftSize: 1024,
     smoothingTimeConstant: 0,
     connect: vi.fn(),
-    getFloatTimeDomainData: (buf: Float32Array) => buf.fill(ctl.amplitude),
+    getFloatTimeDomainData: (buf: Float32Array) => buf.fill(0),
   };
   class FakeAudioContext {
     state = "running";
     constructor() {
-      if (ctl.audioThrows) throw new Error("brak Web Audio");
+      audioContexts += 1;
     }
     createMediaStreamSource = () => ({ connect: vi.fn() });
     createBiquadFilter = () => ({ type: "", frequency: { value: 0 }, connect: vi.fn() });
@@ -210,28 +207,19 @@ function options(over: Partial<VoiceSearchOptions> = {}): VoiceSearchOptions {
   return { lang: "pl", onText: vi.fn(), onFinal: vi.fn(), ...over };
 }
 
-/** Odpala jedną klatkę VAD, przesuwając zegar o `dtMs`. */
-function frame(dtMs: number) {
-  ctl.now += dtMs;
-  const pending = frames;
-  frames = [];
-  for (const cb of pending) cb(ctl.now);
-}
+let raf: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   tracks.length = 0;
   recorders.length = 0;
   speeches.length = 0;
-  frames = [];
+  audioContexts = 0;
   Object.assign(ctl, {
     recorderThrows: false,
     startThrows: false,
     supportedMimes: ["audio/webm;codecs=opus"],
     blobSize: 4000,
-    audioThrows: false,
-    amplitude: 0,
-    now: 1000,
   });
   speechCtl.available = true;
   speechCtl.startThrows = false;
@@ -246,12 +234,9 @@ beforeEach(() => {
   installSpeechRecognition();
   installAudio();
 
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb: FrameRequestCallback) => {
-    frames.push(cb);
-    return frames.length;
-  });
+  raf = vi.fn(() => 1);
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation(raf as never);
   vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
-  vi.spyOn(performance, "now").mockImplementation(() => ctl.now);
 
   formAppends.length = 0;
   vi.spyOn(FormData.prototype, "append").mockImplementation(function (
@@ -371,70 +356,22 @@ describe("useVoiceSearch - start nagrywania", () => {
     expect(speeches).toHaveLength(1);
   });
 
-  it("brak Web Audio nie blokuje nagrywania - zostaje sam twardy sufit czasu", async () => {
-    ctl.audioThrows = true;
+  // Dawny VAD stawiał graf Web Audio i pętlę `requestAnimationFrame`, która
+  // co klatkę liczyła RMS z 1024 próbek przez całe nagranie (do 5 min) - a
+  // wynik wyrzucała, bo ciszy celowo nie wolno kończyć nagrania.
+  it("nagrywanie NIE stawia grafu Web Audio ani pętli klatek", async () => {
     const { result } = renderHook(() => useVoiceSearch(options()));
     await act(async () => result.current.toggle());
     expect(result.current.listening).toBe(true);
-    expect(frames).toHaveLength(0);
+    expect(audioContexts).toBe(0);
+    expect(raf).not.toHaveBeenCalled();
   });
 });
 
-describe("useVoiceSearch - detektor mowy (VAD)", () => {
-  async function startRecording() {
-    const opts = options();
-    const hook = renderHook(() => useVoiceSearch(opts));
-    await act(async () => hook.result.current.toggle());
-    return { ...hook, opts };
-  }
-
-  it("KALIBRACJA: pierwsze ~400 ms mierzy tło i nie zatrzymuje nagrania", async () => {
-    const { result } = await startRecording();
-    ctl.amplitude = 0;
-    await act(async () => {
-      frame(100);
-      frame(100);
-      frame(100);
-    });
-    expect(result.current.listening).toBe(true);
-    expect(frames.length).toBeGreaterThan(0);
-  });
-
-  it("MOWA, potem CISZA - nagranie trwa dalej, kończy je tylko stop", async () => {
-    const { result } = await startRecording();
-    await act(async () => {
-      // Kalibracja tła (cisza).
-      frame(200);
-      frame(250);
-      // Mowa - ponad próg MIN_SPEECH_MS.
-      ctl.amplitude = 0.5;
-      frame(150);
-      frame(150);
-      // Cisza dłuższa niż hangover - uzbraja timer auto-stopu.
-      ctl.amplitude = 0;
-      // EMA gaśnie o 30% na klatkę: ~12 klatek schodzi pod próg mowy, kolejne
-      // przekraczają „hangover" 180 ms i dopiero wtedy uzbraja się timer.
-      for (let i = 0; i < 25; i++) frame(100);
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(1200);
-      await Promise.resolve();
-    });
-    expect(result.current.listening).toBe(true);
-  });
-
-  it("CISZA BEZ MOWY nie zamyka nagrania", async () => {
-    const { result } = await startRecording();
-    ctl.amplitude = 0;
-    await act(async () => {
-      // Ponad NO_SPEECH_TIMEOUT_MS (6 s), bez ani jednej klatki z mową.
-      for (let i = 0; i < 14; i++) frame(500);
-    });
-    expect(result.current.listening).toBe(true);
-  });
-
+describe("useVoiceSearch - cisza nie kończy nagrania", () => {
   it("30 s nie zamyka nagrania; bezpiecznik 5 min tak", async () => {
-    const { result } = await startRecording();
+    const { result } = renderHook(() => useVoiceSearch(options()));
+    await act(async () => result.current.toggle());
     await act(async () => {
       vi.advanceTimersByTime(30_000);
       await Promise.resolve();
@@ -502,6 +439,18 @@ describe("useVoiceSearch - transkrypcja serwerowa", () => {
     const { result, opts } = await recordAndStop();
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(opts.onText).not.toHaveBeenCalled();
+  });
+
+  it("OFFLINE: odrzucony fetch nie zostawia nieobsłużonego odrzucenia ani „zajęte”", async () => {
+    // `onstop` miał try/finally bez catch: zerwane połączenie (albo
+    // zablokowany magazyn sesji) kończyło się nieobsłużonym odrzuceniem
+    // obietnicy - szum w telemetrii błędów JS.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const { result, opts } = await recordAndStop();
+    await expect(recorders[0].lastStop).resolves.toBeUndefined();
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(opts.onText).not.toHaveBeenCalled();
+    expect(opts.onFinal).not.toHaveBeenCalled();
   });
 
   it("niepoprawny JSON odpowiedzi nie wywraca hooka", async () => {

@@ -32,12 +32,6 @@ const MAX_EMPTY_ENDS = 3;
 // `aborted` (mikrofon przejęła inna karta) - kończy dyktowanie. Wznawianie po
 // nich kręciło pętlę start -> błąd -> koniec i ponawiało pytanie o zgodę.
 const RESTARTABLE_ERRORS = new Set(["no-speech", "network"]);
-const SILENCE_AFTER_SPEECH_MS = 1100; // auto-stop po ciszy, gdy juz coś powiedziano
-const CALIBRATION_MS = 400; // pierwsze ~400ms - pomiar szumu tła
-const MIN_SPEECH_MS = 250; // ile mowy musi się nazbierać, żeby uznać nagranie za sensowne
-const NOISE_MULT = 2.2; // próg mowy = max(baseFloor, noiseFloor * NOISE_MULT)
-const BASE_FLOOR = 0.008; // minimalny próg RMS, gdy tło jest bardzo ciche
-const SPEECH_HANGOVER_MS = 180; // krótkie „przytrzymanie" po detekcji mowy - stabilizuje VAD
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string;
@@ -179,9 +173,6 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRafRef = useRef<number | null>(null);
-  const silenceTimerRef = useRef<number | null>(null);
   const hardStopTimerRef = useRef<number | null>(null);
   /** Dyktowanie Web Speech - trzymane aż do onFinal, także w fazie stopu
    *  (ostatni wynik w drodze): toggle w tym oknie nie startuje drugiego. */
@@ -211,18 +202,10 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
   }, []);
 
   const cleanup = useCallback(() => {
-    if (analyserRafRef.current) cancelAnimationFrame(analyserRafRef.current);
-    if (silenceTimerRef.current) window.clearTimeout(silenceTimerRef.current);
     if (hardStopTimerRef.current) window.clearTimeout(hardStopTimerRef.current);
-    analyserRafRef.current = null;
-    silenceTimerRef.current = null;
     hardStopTimerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
-      audioCtxRef.current.close().catch(() => {});
-    }
-    audioCtxRef.current = null;
   }, []);
 
   /** JEDYNE wyjście z dyktowania Web Speech i jedyne miejsce, które woła
@@ -457,80 +440,16 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
           onTextRef.current(text);
           onFinalRef.current?.(text);
         }
+      } catch {
+        // Offline albo zablokowany magazyn sesji - bez frazy, jak przy błędzie
+        // bramki (`onstop` jest async: bez catch to nieobsłużone odrzucenie).
       } finally {
         setBusy(false);
       }
     };
 
-    // Adaptacyjny VAD: kalibrujemy szum tła w pierwszych ~400 ms, potem próg mowy
-    // = max(BASE_FLOOR, noiseFloor * NOISE_MULT). Auto-stop dopiero po tym, jak
-    // usłyszymy realną mowę (>=250 ms), z krótką „hangover" po ostatniej sylabie.
-    // Highpass 90 Hz odcina buczenie klimatyzacji/wiatru, a smoothing EMA tłumi
-    // pojedyncze piki (klaśnięcie, uderzenie w klawiaturę).
-    try {
-      const ctx = new (
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      )();
-      audioCtxRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const highpass = ctx.createBiquadFilter();
-      highpass.type = "highpass";
-      highpass.frequency.value = 90;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.2;
-      source.connect(highpass);
-      highpass.connect(analyser);
-      const buf = new Float32Array(analyser.fftSize);
-      const startedAt = performance.now();
-      let noiseFloor = BASE_FLOOR;
-      let noiseSamples = 0;
-      let ema = 0;
-      let speechMs = 0;
-      let lastVoiceAt = 0;
-      let lastTick = startedAt;
-      const tick = () => {
-        analyser.getFloatTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        const rms = Math.sqrt(sum / buf.length);
-        ema = ema === 0 ? rms : ema * 0.7 + rms * 0.3;
-        const now = performance.now();
-        const dt = now - lastTick;
-        lastTick = now;
-        const elapsed = now - startedAt;
-
-        if (elapsed < CALIBRATION_MS) {
-          noiseSamples += 1;
-          noiseFloor = noiseFloor + (ema - noiseFloor) / noiseSamples;
-          analyserRafRef.current = requestAnimationFrame(tick);
-          return;
-        }
-
-        const threshold = Math.max(BASE_FLOOR, noiseFloor * NOISE_MULT);
-        const isVoice = ema > threshold;
-        if (isVoice) {
-          speechMs += dt;
-          lastVoiceAt = now;
-          if (silenceTimerRef.current != null) {
-            window.clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-          }
-        } else if (speechMs >= MIN_SPEECH_MS) {
-          const sinceVoice = now - lastVoiceAt;
-          if (sinceVoice > SPEECH_HANGOVER_MS && silenceTimerRef.current == null) {
-            const wait = Math.max(0, SILENCE_AFTER_SPEECH_MS - (sinceVoice - SPEECH_HANGOVER_MS));
-            void wait; // cisza nie kończy nagrania - tylko przycisk stop
-          }
-        }
-        analyserRafRef.current = requestAnimationFrame(tick);
-      };
-      analyserRafRef.current = requestAnimationFrame(tick);
-    } catch {
-      // brak AudioContext - tylko twardy timeout
-    }
-
+    // Cisza NIE kończy nagrania - tylko stop albo ten bezpiecznik. Dawny VAD
+    // (graf Web Audio + pętla klatek liczącą RMS) niczego już nie sterował.
     hardStopTimerRef.current = window.setTimeout(() => stopRecording(), MAX_RECORDING_MS);
 
     try {
