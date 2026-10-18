@@ -117,8 +117,12 @@ export function RetentionDialog({
   const finalizeCancel = async (offerShown: boolean) => {
     setBusy(true);
     setCancelFailed(false);
+    // Ankieta startuje RAZEM z rezygnacją, ale na nią nie czekamy: dawniej
+    // anulowanie szło dopiero po zapisie powodu, więc wiszące połączenie
+    // z analityką (a nie szybki błąd) trzymało klienta w płatnej subskrypcji.
+    // `recordFeedback` sam łapie swoje błędy, więc nic tu nie wycieka.
+    void recordFeedback(offerShown);
     try {
-      await recordFeedback(offerShown);
       await onConfirmCancel();
       // Dopiero TU - po potwierdzonym anulowaniu - wolno zamknąć okno.
       onOpenChange(false);

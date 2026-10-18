@@ -258,6 +258,36 @@ describe("RetentionDialog - kontrofertka na drodze wyjścia", () => {
 });
 
 describe("RetentionDialog - ankieta jest best-effort", () => {
+  it("ZAWIESZONY zapis powodu nie wstrzymuje rezygnacji - anulowanie wychodzi bez czekania", async () => {
+    // Padnięty serwer analityki to częściej połączenie, które wisi, niż szybki
+    // błąd. Dawniej rezygnacja startowała dopiero PO ankiecie, więc wisząca
+    // ankieta trzymała klienta w płatnej subskrypcji z kręcącym się przyciskiem.
+    h.submitFeedback.mockReturnValue(new Promise(() => {}));
+    h.settings.current = retentionSettings({ enabled: false });
+    const { onConfirmCancel, onOpenChange } = renderDialog();
+
+    clickKey("retention.continue");
+
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    // Ankieta i tak wyszła - z tym samym powodem i skutkiem pokazania oferty.
+    expect(h.submitFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ offerShown: false }) }),
+    );
+  });
+
+  it("zawieszony zapis po ODRZUCENIU OFERTY też nie wstrzymuje rezygnacji", async () => {
+    h.submitFeedback.mockReturnValue(new Promise(() => {}));
+    const { onConfirmCancel, onOpenChange } = renderDialog();
+
+    clickKey("retention.continue");
+    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
+    clickKey("retention.offer.declineAndCancel");
+
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
   it("awaria zapisu powodu NIE blokuje rezygnacji", async () => {
     h.submitFeedback.mockRejectedValue(new Error("analityka padła"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
