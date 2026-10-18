@@ -139,24 +139,31 @@ export function AdminTicketOrdersPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t("adminBilling.ticketStats", {
-            paid: stats.paidCount,
-            tickets: stats.tickets,
-            pending: stats.pending,
-          })}
-        </p>
+        {/* Błąd odczytu NIE jest pustą listą: dawniej obok „nie udało się
+            wczytać" stało „brak zamówień biletowych" i statystyka z samych zer,
+            a lista wstrzymana bez sieci (`isLoading` = fałsz) mówiła „brak
+            zamówień" zamiast „wczytuję" - jak oś czasu niżej. */}
+        {ordersQ.isError ? (
+          <p role="alert" className="text-[0.8125rem] text-destructive">
+            {t("adminBilling.couldLoadOrders")}
+          </p>
+        ) : (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t("adminBilling.ticketStats", {
+              paid: stats.paidCount,
+              tickets: stats.tickets,
+              pending: stats.pending,
+            })}
+          </p>
+        )}
 
-        {ordersQ.isLoading && (
+        {ordersQ.isPending && (
           <p className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             {t("adminBilling.loadingOrders")}
           </p>
         )}
-        {ordersQ.isError && (
-          <p className="text-[0.8125rem] text-destructive">{t("adminBilling.couldLoadOrders")}</p>
-        )}
-        {!ordersQ.isLoading && rows.length === 0 && (
+        {ordersQ.isSuccess && rows.length === 0 && (
           <p className="text-[0.8125rem] text-muted-foreground">
             {t("adminBilling.ticketOrdersYet")}
           </p>

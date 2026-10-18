@@ -2,8 +2,10 @@
 //
 // Uzupełnia `adminOrderPanels.test.tsx` o przypadki, których tamten nie
 // dotyka: data zamówienia NIEOPŁACONEGO, tytuł wydarzenia w interfejsie
-// angielskim, zwinięcie osi czasu, status spoza słownika tonów i oś czasu
-// wstrzymana bez sieci (dawniej „nie zapisano zmian", choć nic nie wczytano).
+// angielskim, zwinięcie osi czasu, status spoza słownika tonów, oś czasu
+// wstrzymana bez sieci (dawniej „nie zapisano zmian", choć nic nie wczytano)
+// oraz lista bez danych: błąd odczytu i wstrzymanie bez sieci (dawniej
+// „brak zamówień biletowych" i statystyka z samych zer).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { onlineManager } from "@tanstack/react-query";
@@ -34,6 +36,8 @@ interface TicketOrderView {
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
   orders: { current: [] as TicketOrderView[] },
+  /** Odrzucenie odczytu listy (`null` = odczyt udany). */
+  ordersError: { current: null as Error | null },
   history: { current: [] as Array<Record<string, unknown>> },
   historyCalls: 0,
 }));
@@ -45,7 +49,10 @@ vi.mock("react-i18next", async () => {
 vi.mock("@/lib/i18n-admin-billing", () => ({}));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: <T,>(fn: T) => fn }));
 vi.mock("@/lib/billing/ticketOrders.functions", () => ({
-  listTicketOrders: () => Promise.resolve(h.orders.current),
+  listTicketOrders: () =>
+    h.ordersError.current
+      ? Promise.reject(h.ordersError.current)
+      : Promise.resolve(h.orders.current),
   getTicketOrderHistory: () => {
     h.historyCalls += 1;
     return Promise.resolve(h.history.current);
@@ -86,6 +93,7 @@ const row = () => screen.getByText(/Decision Lab/).closest("tr")!;
 beforeEach(() => {
   h.lang.current = "pl";
   h.orders.current = [ticketOrder()];
+  h.ordersError.current = null;
   h.history.current = [];
   h.historyCalls = 0;
 });
@@ -158,5 +166,37 @@ describe("AdminTicketOrdersPanel - oś czasu", () => {
     expect(await screen.findByText("adminBilling.loadingHistory")).toBeTruthy();
     expect(screen.queryByText("adminBilling.recordedChanges")).toBeNull();
     expect(h.historyCalls).toBe(0);
+  });
+});
+
+describe("AdminTicketOrdersPanel - lista bez danych", () => {
+  // DEFEKT (2026-10-18): błąd odczytu listy dawał OBOK komunikatu awarii
+  // „brak zamówień biletowych" i statystykę „opłacone 0, bilety 0", a lista
+  // wstrzymana bez sieci (`isLoading` = fałsz) - samo „brak zamówień". Admin
+  // sprawdzający, czy ktoś kupił bilet, czytał „nikt", choć nic nie wczytano.
+  it("BŁĄD ODCZYTU listy nie udaje braku zamówień ani zerowych statystyk", async () => {
+    h.ordersError.current = new Error("permission denied");
+    renderWithQueryClient(<AdminTicketOrdersPanel />);
+
+    expect(await screen.findByText("adminBilling.couldLoadOrders")).toBeTruthy();
+    expect(screen.queryByText("adminBilling.ticketOrdersYet")).toBeNull();
+    expect(screen.queryByText(/adminBilling\.ticketStats/)).toBeNull();
+    expect(document.querySelector("tbody")).toBeNull();
+    // Awaria jest ogłaszana czytnikom ekranu jak w dzienniku zdarzeń.
+    expect(screen.getByRole("alert").textContent).toBe("adminBilling.couldLoadOrders");
+  });
+
+  it("lista wstrzymana BEZ SIECI mówi „wczytuję”, a nie „brak zamówień biletowych”", async () => {
+    onlineManager.setOnline(false);
+    renderWithQueryClient(<AdminTicketOrdersPanel />);
+
+    expect(await screen.findByText("adminBilling.loadingOrders")).toBeTruthy();
+    expect(screen.queryByText("adminBilling.ticketOrdersYet")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // Po powrocie sieci lista wczytuje się sama i „wczytuję” znika.
+    onlineManager.setOnline(true);
+    expect(await screen.findByText("Decision Lab: energia")).toBeTruthy();
+    expect(screen.queryByText("adminBilling.loadingOrders")).toBeNull();
   });
 });
