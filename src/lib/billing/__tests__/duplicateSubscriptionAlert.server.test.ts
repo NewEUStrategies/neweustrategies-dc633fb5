@@ -21,7 +21,10 @@
 //     awaria bramki ani rejestru darowizn nie wycisza dzwonka,
 //   * klient operatora u dwóch najemców -> osobne sprawdzenie i dzwonek
 //     w każdym, bez cudzych identyfikatorów w treści,
-//   * treść w liczbie pojedynczej i mnogiej, w obu językach.
+//   * subskrypcja z panelu OSTRZEGA także w innym modelu rozliczenia (nie
+//     nadała dostępu); klient bez naszych wierszy zostaje tylko w logu,
+//   * treść w liczbie pojedynczej i mnogiej, w obu językach, z dopiskiem
+//     środowiska testowego operatora.
 //
 // ATRAPUJEMY GRANICE: klienta Supabase, SDK operatora (bezpiecznik - nic tu
 // nie ma prawa niczego anulować u operatora) i `waitUntil` środowiska
@@ -1125,15 +1128,23 @@ describe("panel operatora: chwilowa awaria odczytu właściciela", () => {
 });
 
 describe("panel operatora: zakres i granice sprawdzenia", () => {
-  it("trwała awaria odczytu właściciela: trzy próby, `failed` i log - bez sprawdzenia i dzwonka", async () => {
+  it("trwała awaria odczytu właściciela: trzy próby z przerwami, `failed` i log - bez sprawdzenia i dzwonka", async () => {
     failOwnerLookups(useMirror([liveMirrorRow({ provider_customer_id: "cus_panel" })]), 3);
 
-    // Przerwy między próbami (150 ms, 600 ms) bez czekania naprawdę.
+    // Zegar w rękach testu. Próby idą z przerwami (150 ms, potem 600 ms), a nie
+    // jedna za drugą - ponowienie bez przerwy trafia w tę samą chwilową awarię,
+    // a cała seria mieści się w ułamku limitu pracy w tle.
     vi.useFakeTimers();
     let outcomes: Awaited<ReturnType<typeof alertOnUnmirroredPlanSubscription>>;
     try {
       const pending = alertOnUnmirroredPlanSubscription(panelInput());
-      await vi.runAllTimersAsync();
+      await vi.advanceTimersByTimeAsync(149);
+      expect(ownerLookups()).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(ownerLookups()).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(599);
+      expect(ownerLookups()).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1);
       outcomes = await pending;
     } finally {
       vi.useRealTimers();
@@ -1255,6 +1266,90 @@ describe("panel operatora: zakres i granice sprawdzenia", () => {
     expect(rpc.callsFor("rate_limit_hit").map((call) => call.arg("_subject"))).toEqual([
       `${TENANT}:live:sub_nowa,sub_stara`,
       `${TENANT_B}:live:sub_b,sub_nowa`,
+    ]);
+  });
+
+  it("ten sam właściciel w dwóch najemcach (wiersz sprzed przepięcia profilu): sprawdzenie w każdym najemcy", async () => {
+    // Najemcę wiersza przypina trigger przy zapisie, więc starszy wiersz zostaje
+    // w dawnym najemcy. Właściciel to para (najemca, konto) - samo konto
+    // zgubiłoby sprawdzenie w jednym z nich.
+    useMirror([
+      liveMirrorRow({ provider_customer_id: "cus_panel" }),
+      liveMirrorRow({
+        id: "row-sub_b",
+        provider_subscription_id: "sub_b",
+        provider_customer_id: "cus_panel",
+        tenant_id: "tenant-b",
+      }),
+    ]);
+
+    const outcomes = await alertOnUnmirroredPlanSubscription(panelInput());
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({ kind: "alerted", otherSubscriptionIds: [OLD_SUB] }),
+      expect.objectContaining({ kind: "alerted", otherSubscriptionIds: ["sub_b"] }),
+    ]);
+    expect(liveLookups().map(liveLookupScope)).toEqual([
+      [
+        ["tenant_id", TENANT],
+        ["user_id", BUYER],
+        ["environment", "live"],
+      ],
+      [
+        ["tenant_id", "tenant-b"],
+        ["user_id", BUYER],
+        ["environment", "live"],
+      ],
+    ]);
+  });
+
+  it("klient, którego nie znamy: `unknown_customer` i ostrzeżenie w logu - bez sprawdzenia i dzwonka", async () => {
+    // Wiersze tego klienta są tylko w DRUGIM środowisku - nie liczą się.
+    useMirror([liveMirrorRow({ provider_customer_id: "cus_panel", environment: "sandbox" })]);
+
+    const outcomes = await alertOnUnmirroredPlanSubscription(panelInput());
+
+    expect(outcomes).toEqual([{ kind: "skipped", reason: "unknown_customer" }]);
+    expect(ownerLookups()).toHaveLength(1);
+    expect(liveLookups()).toHaveLength(0);
+    expect(rpc.calls).toHaveLength(0);
+    expect(
+      loggedWith(console.warn, "[payments] unmirrored plan subscription: customer unknown"),
+    ).toEqual([
+      [
+        "[payments] unmirrored plan subscription: customer unknown",
+        { subscriptionId: NEW_SUB, environment: "live" },
+      ],
+    ]);
+  });
+
+  it("Zespół z panelu obok planu indywidualnego to OSTRZEŻENIE, nie informacja - bez dostępu to pieniądze za nic", async () => {
+    // Ta sama para z kasy to dozwolony osobny zakup (alarm informacyjny, test
+    // wyżej). Subskrypcja z panelu nie nadała jednak uprawnienia, więc klient
+    // płaci za plan, którego nie dostał - zawsze ostrzeżenie.
+    useMirror([liveMirrorRow({ provider_customer_id: "cus_panel" })]);
+
+    const outcomes = await alertOnUnmirroredPlanSubscription(
+      panelInput({ priceId: "team_monthly_seat" }),
+    );
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        kind: "alerted",
+        severity: "warning",
+        otherSubscriptionIds: [OLD_SUB],
+      }),
+    ]);
+    expect(duplicateBells().map((call) => call.arg("p_title_pl"))).toEqual([
+      "Subskrypcja planu spoza kasy obok żywego planu",
+    ]);
+    expect(
+      loggedWith(console.error, "[payments] unmirrored plan subscription next to a live plan"),
+    ).toEqual([
+      [
+        "[payments] unmirrored plan subscription next to a live plan",
+        expect.objectContaining({ severity: "warning", otherSubscriptionIds: [OLD_SUB] }),
+      ],
     ]);
   });
 });
@@ -1434,6 +1529,46 @@ describe("treść dzwonka: liczba pojedyncza i mnoga w obu językach", () => {
     expect(String(pluralBell?.arg("p_body_en"))).toContain(many[1]);
     expect(pluralBell?.arg("p_href")).toBe(
       "/admin/billing?duplicate_subscriptions=sub_nowa,sub_stara,sub_trzecia",
+    );
+  });
+
+  it("środowisko testowe operatora jest nazwane w ostrzeżeniu i w alarmie spoza kasy, w obu językach", async () => {
+    // Bez tego dopisku administrator szuka podwójnego obciążenia na produkcji,
+    // a chodzi o karty testowe. Treść „na żywo" bez dopisku przybijają testy wyżej.
+    scenario.live = OTHERS.slice(0, 1);
+    const fromCheckout = await alertOnDuplicatePlanSubscription({
+      subscriptionId: NEW_SUB,
+      userId: BUYER,
+      tenantId: TENANT,
+      environment: "sandbox",
+      priceId: "pro_monthly",
+      status: "active",
+    });
+    useMirror([liveMirrorRow({ provider_customer_id: "cus_panel", environment: "sandbox" })]);
+    const [fromPanel] = await alertOnUnmirroredPlanSubscription(
+      panelInput({ subscriptionId: "sub_panel", environment: "sandbox" }),
+    );
+
+    expect([fromCheckout, fromPanel]).toEqual([
+      expect.objectContaining({ kind: "alerted", severity: "warning" }),
+      expect.objectContaining({ kind: "alerted", severity: "warning" }),
+    ]);
+    const [checkoutBell, panelBell] = duplicateBells();
+    expect([checkoutBell?.arg("p_title_pl"), panelBell?.arg("p_title_pl")]).toEqual([
+      "Druga aktywna subskrypcja planu",
+      "Subskrypcja planu spoza kasy obok żywego planu",
+    ]);
+    expect(String(checkoutBell?.arg("p_body_pl"))).toContain(
+      "planu sub_stara tego samego konta (środowisko testowe operatora). Klient",
+    );
+    expect(String(checkoutBell?.arg("p_body_en"))).toContain(
+      "subscription sub_stara of the same account (provider sandbox). The customer",
+    );
+    expect(String(panelBell?.arg("p_body_pl"))).toContain(
+      "planu sub_stara (środowisko testowe operatora). Klient",
+    );
+    expect(String(panelBell?.arg("p_body_en"))).toContain(
+      "subscription sub_stara (provider sandbox). The customer",
     );
   });
 });
