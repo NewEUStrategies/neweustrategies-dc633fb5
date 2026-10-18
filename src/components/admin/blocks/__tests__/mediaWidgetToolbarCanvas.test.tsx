@@ -10,7 +10,7 @@
 //     dojdzie `click`, a podpis/alt edytowany obok traci karetkę,
 //   * kliknięcie w pasek NIE dociera do kanwy pod spodem - inaczej każde
 //     ustawienie z paska przy okazji przełączałoby aktywny blok,
-//   * etykiety sterowania odtwarzaniem (defekt zarejestrowany niżej).
+//   * etykiety sterowania odtwarzaniem idą ze słownika (naprawiony defekt niżej).
 //
 // Bez atrap: pasek nie czyta kontekstu poza i18n (prawdziwe).
 import { describe, expect, it, vi } from "vitest";
@@ -73,31 +73,38 @@ describe("MediaWidgetToolbar - pasek nie kradnie zaznaczenia ani kliknięcia", (
 });
 
 describe("MediaWidgetToolbar - etykiety sterowania odtwarzaniem", () => {
-  // DEFEKT: STEROWANIE ODTWARZANIEM MÓWI PO ANGIELSKU W POLSKIM PANELU.
-  //
-  // WEJŚCIE: aktywny blok wideo albo audio, panel w języku polskim.
-  // CO PSUJE: MediaWidgetToolbar.tsx renderuje trzy przyciski z napisami
-  //   wpisanymi w kod - `title="Autoplay"`, `title="Loop"` i
-  //   `title={d.muted ? "Unmute" : "Mute"}` - zamiast kluczy słownika. Ten sam
-  //   pasek wszystkie pozostałe etykiety bierze z `blocks.toolbar.*`, a słownik
-  //   ma już polskie odpowiedniki w innym miejscu (`blocks.ui.autoplay`
-  //   „Auto-odtwarzanie", `blocks.ui.loop` „Pętla").
-  // KONSEKWENCJA: czytnik ekranu i podpowiedź `title` czytają polskiemu
-  //   redaktorowi „Autoplay / Loop / Mute" - jedyne angielskie nazwy na pasku,
-  //   niezgodne z resztą panelu.
-  // WYMAGANA POPRAWKA: klucze `blocks.toolbar.autoplay|loop|mute|unmute` (PL
-  //   i EN) i `i18n.t(...)` w trzech przyciskach.
-  // DLACZEGO `it.fails`, a nie poprawka: na angielskich napisach stoi 9 asercji
-  //   w `mediaWidgetToolbar.test.tsx`, a ten sam defekt ma rodzeństwo
-  //   w `WordStyleToolbar` („Bold (⌘B)", „Italic (⌘I)", „Underline (⌘U)",
-  //   „Strikethrough", „Subscript", „Superscript", „Code", „Link (⌘K)" -
-  //   18 asercji w `wordStyleToolbar.test.tsx` i kolejne w testach encji
-  //   inline). To jedna zmiana dla całej rodziny pasków, z decyzją o formie
-  //   skrótów klawiszowych w etykiecie (⌘ vs Ctrl), a nie łatka jednego pliku.
-  it.fails("DEFEKT: w polskim panelu przyciski odtwarzania mają POLSKIE nazwy", () => {
-    zamontuj("video");
-    for (const angielska of ["Autoplay", "Loop", "Mute"]) {
-      expect(screen.queryByRole("button", { name: angielska })).toBeNull();
-    }
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): trzy przyciski odtwarzania miały
+  // napisy wpisane w kod - `title="Autoplay"`, `title="Loop"` i
+  // `title={d.muted ? "Unmute" : "Mute"}` - więc czytnik ekranu i podpowiedź
+  // czytały polskiemu redaktorowi jedyne angielskie nazwy na pasku.
+  // KONTRAKT: nazwy idą ze słownika (`blocks.toolbar.autoplay|loop|mute|unmute`,
+  // PL i EN), tak jak każda inna etykieta tego paska.
+  it.each(["video", "audio"] as const)(
+    "%s: w polskim panelu przyciski odtwarzania mają POLSKIE nazwy",
+    (kind) => {
+      zamontuj(kind);
+      for (const klucz of ["autoplay", "loop", "mute"]) {
+        expect(
+          screen.getByRole("button", { name: t(`blocks.toolbar.${klucz}`) }),
+        ).toBeInTheDocument();
+      }
+      for (const angielska of ["Autoplay", "Loop", "Mute", "Unmute"]) {
+        expect(screen.queryByRole("button", { name: angielska })).toBeNull();
+      }
+    },
+  );
+
+  it("wyciszone medium zaprasza do włączenia dźwięku nazwą ze słownika", () => {
+    const onChange = vi.fn<(next: Block) => void>();
+    const block = {
+      id: "m1",
+      type: "audio",
+      data: { url: "https://cdn.example.com/a", muted: true },
+    } as Block;
+    render(<MediaWidgetToolbar kind="audio" block={block} onChange={onChange} />);
+    const przycisk = screen.getByRole("button", { name: t("blocks.toolbar.unmute") });
+    expect(przycisk).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(przycisk);
+    expect(onChange.mock.calls[0][0]).toEqual({ ...block, data: { ...block.data, muted: false } });
   });
 });

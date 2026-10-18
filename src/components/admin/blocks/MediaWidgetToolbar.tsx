@@ -263,14 +263,22 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
       {(kind === "video" || kind === "audio") && (
         <>
           <Divider />
-          <TBtn title="Autoplay" active={Boolean(d.autoplay)} onClick={() => toggle("autoplay")}>
+          <TBtn
+            title={i18n.t("blocks.toolbar.autoplay")}
+            active={Boolean(d.autoplay)}
+            onClick={() => toggle("autoplay")}
+          >
             <Play className="h-3.5 w-3.5" />
           </TBtn>
-          <TBtn title="Loop" active={Boolean(d.loop)} onClick={() => toggle("loop")}>
+          <TBtn
+            title={i18n.t("blocks.toolbar.loop")}
+            active={Boolean(d.loop)}
+            onClick={() => toggle("loop")}
+          >
             <RotateCw className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={d.muted ? "Unmute" : "Mute"}
+            title={i18n.t(d.muted ? "blocks.toolbar.unmute" : "blocks.toolbar.mute")}
             active={Boolean(d.muted)}
             onClick={() => toggle("muted")}
           >

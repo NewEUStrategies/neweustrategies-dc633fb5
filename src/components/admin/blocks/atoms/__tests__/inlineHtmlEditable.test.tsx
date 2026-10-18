@@ -7,6 +7,8 @@
 //     w panelu redakcji,
 //   * pole nie nadpisuje DOM-u wartością, którą samo przed chwilą oddało -
 //     inaczej po każdym znaku karetka wracałaby na początek pozycji,
+//   * ...ale ponowienie (powrót do wpisu po cofnięciu z zewnątrz) trafia do
+//     DOM-u - pole porównuje wartość z tym, co DOM POKAZUJE, nie z wpisem,
 //   * wklejenie HTML (Word, strona WWW) wchodzi oczyszczone: pogrubienie
 //     zostaje znacznikiem, skrypt znika, a domyślne wklejenie przeglądarki
 //     (surowy HTML) jest anulowane,
@@ -106,6 +108,38 @@ describe("InlineHtmlEditable - pisanie", () => {
     // Ten sam węzeł tekstowy = DOM nie był nadpisany, więc zaznaczenie
     // przeglądarki (karetka w środku słowa) nie zostało zgubione.
     expect(pole.firstChild).toBe(wezel);
+  });
+
+  it("wartość z zewnątrz RÓWNOWAŻNA pokazanej (po sanityzacji) nie przebudowuje DOM-u", () => {
+    // Dokument może oddać wpis w innej, ale równoważnej postaci (np. z
+    // doklejonym skryptem, który sanityzator i tak usunie) - pole nie ma
+    // wtedy czego zmieniać, więc nie wolno mu zgubić karetki.
+    const { pole, rerender, onChange } = zamontuj("");
+    pole.innerHTML = "Tekst";
+    const wezel = pole.firstChild;
+    fireEvent.input(pole);
+    rerender(<InlineHtmlEditable value="Tekst<script>alert(1)</script>" onChange={onChange} />);
+    expect(pole.firstChild).toBe(wezel);
+    expect(pole.innerHTML).toBe("Tekst");
+  });
+
+  // NAPRAWIONE 2026-10-18: pole pamiętało OSTATNI WPIS redaktora także po
+  // podmianie treści z zewnątrz. Cofnięcie (wartość inna niż wpis) trafiało do
+  // DOM-u, ale ponowienie - czyli powrót do tego samego wpisu - było brane za
+  // „echo własnego wpisu" i pomijane: dokument miał „Wpis redaktora", a kanwa
+  // dalej pokazywała stan sprzed ponowienia. KONTRAKT: pole porównuje wartość
+  // z tym, co DOM aktualnie pokazuje (ostatni wpis ALBO ostatnia podmiana).
+  it("cofnięcie, a potem ponowienie wpisu przywraca wpis w DOM-ie", () => {
+    const { pole, rerender, onChange } = zamontuj("");
+    pole.innerHTML = "Wpis redaktora";
+    fireEvent.input(pole);
+    rerender(<InlineHtmlEditable value="Wpis redaktora" onChange={onChange} />);
+    rerender(<InlineHtmlEditable value="" onChange={onChange} />);
+    expect(pole.textContent).toBe("");
+    rerender(<InlineHtmlEditable value="Wpis redaktora" onChange={onChange} />);
+    expect(pole.textContent).toBe("Wpis redaktora");
+    // Podmiany z zewnątrz nie są edycją - pole odesłało wyłącznie wpis.
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 });
 

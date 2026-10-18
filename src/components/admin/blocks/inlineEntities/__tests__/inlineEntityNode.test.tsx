@@ -150,7 +150,7 @@ describe("inline entity node in the paragraph editor", () => {
 
   it("hides the entity buttons without a provider", async () => {
     mount("<p>Tekst</p>", null);
-    await screen.findByRole("button", { name: "Bold (⌘B)" });
+    await screen.findByRole("button", { name: "Pogrubienie (⌘B)" });
     expect(screen.queryByRole("button", { name: "Wstaw firmę (dane z CRM)" })).toBeNull();
   });
 

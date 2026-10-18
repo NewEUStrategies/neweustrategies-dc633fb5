@@ -132,7 +132,10 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
     if (!onChange || !doc) return;
     const next = updateFootnoteAtOrigin(doc, toDocOrigin(e.origin), "");
     onChange(next);
-    if (editingId === e.id) cancelEdit();
+    // Edycja jest adresowana NUMEREM przypisu, a usunięcie przenumerowuje
+    // wszystkie dalsze: otwarte pole przeskoczyłoby ze szkicem na sąsiedni
+    // przypis i „Zapisz" nadpisałoby jego treść. Każde usunięcie zamyka edycję.
+    cancelEdit();
   };
 
   return (

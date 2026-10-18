@@ -25,6 +25,10 @@ export function InlineHtmlEditable({
   ...rest
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  // Wartość, którą DOM pola AKTUALNIE odzwierciedla: ostatni wpis redaktora
+  // albo ostatnia podmiana z zewnątrz. Pamiętanie samego wpisu myliło
+  // ponowienie (powrót do wpisu po cofnięciu) z echem pisania i zostawiało
+  // w DOM-ie treść sprzed ponowienia.
   const lastEmitted = useRef<string>("");
 
   useEffect(() => {
@@ -33,6 +37,7 @@ export function InlineHtmlEditable({
     // Nie nadpisujemy DOM podczas pisania (utrata karetki) - tylko gdy wartość
     // zmieniła się z zewnątrz.
     if (value === lastEmitted.current) return;
+    lastEmitted.current = value;
     const safe = sanitizeHtml(value);
     if (el.innerHTML !== safe) el.innerHTML = safe;
   }, [value]);

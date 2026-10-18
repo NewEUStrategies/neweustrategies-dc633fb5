@@ -101,8 +101,8 @@ describe("MediaWidgetToolbar - paleta zalezna od rodzaju medium", () => {
 
   it("obraz NIE ma sterowania odtwarzaniem ani proporcji", () => {
     zamontuj("image");
-    expect(screen.queryByRole("button", { name: "Autoplay" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Loop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: t("blocks.toolbar.autoplay") })).toBeNull();
+    expect(screen.queryByRole("button", { name: t("blocks.toolbar.loop") })).toBeNull();
     expect(screen.queryByRole("button", { name: /16:9/ })).toBeNull();
   });
 
@@ -113,7 +113,7 @@ describe("MediaWidgetToolbar - paleta zalezna od rodzaju medium", () => {
     for (const r of ["16:9", "4:3", "1:1", "9:16"]) {
       expect(btn(`${t("blocks.toolbar.aspect")} ${r}`)).toBeInTheDocument();
     }
-    expect(btn("Autoplay")).toBeInTheDocument();
+    expect(btn(t("blocks.toolbar.autoplay"))).toBeInTheDocument();
   });
 
   it("wideo NIE ma ustawień typowo obrazowych (alt, kadr)", () => {
@@ -128,7 +128,7 @@ describe("MediaWidgetToolbar - paleta zalezna od rodzaju medium", () => {
     expect(btn(t("blocks.toolbar.download"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /16:9/ })).toBeNull();
     // Sterowanie odtwarzaniem jest wspólne dla wideo i audio.
-    expect(btn("Loop")).toBeInTheDocument();
+    expect(btn(t("blocks.toolbar.loop"))).toBeInTheDocument();
   });
 });
 
@@ -230,13 +230,13 @@ describe("MediaWidgetToolbar - ustawienia wideo i audio", () => {
 
   it("wyciszenie zmienia zarówno stan, jak i etykietę przycisku", () => {
     const { onChange } = zamontuj("video");
-    fireEvent.click(btn("Mute"));
+    fireEvent.click(btn(t("blocks.toolbar.mute")));
     expect(ostatnieDane(onChange).muted).toBe(true);
   });
 
   it("przy wyciszonym wideo przycisk zaprasza do włączenia dźwięku", () => {
     zamontuj("video", { muted: true });
-    expect(btn("Unmute")).toHaveAttribute("aria-pressed", "true");
+    expect(btn(t("blocks.toolbar.unmute"))).toHaveAttribute("aria-pressed", "true");
   });
 
   it("pobieranie audio przełącza się", () => {
@@ -286,7 +286,7 @@ describe("MediaWidgetToolbar - kazdy przycisk paska reaguje", () => {
 
   it.each(przelacznikiOdtwarzania)("wideo: przełącznik %s zmienia dane", (pole) => {
     const { onChange } = zamontuj("video");
-    fireEvent.click(btn(pole === "autoplay" ? "Autoplay" : "Loop"));
+    fireEvent.click(btn(t(`blocks.toolbar.${pole}`)));
     expect(ostatnieDane(onChange)[pole]).toBe(true);
   });
 
@@ -298,13 +298,13 @@ describe("MediaWidgetToolbar - kazdy przycisk paska reaguje", () => {
 
   it("audio: przełącznik wyciszenia zmienia dane", () => {
     const { onChange } = zamontuj("audio");
-    fireEvent.click(btn("Mute"));
+    fireEvent.click(btn(t("blocks.toolbar.mute")));
     expect(ostatnieDane(onChange).muted).toBe(true);
   });
 
   it("audio: przełącznik odtwarzania w pętli zmienia dane", () => {
     const { onChange } = zamontuj("audio", { loop: true });
-    fireEvent.click(btn("Loop"));
+    fireEvent.click(btn(t("blocks.toolbar.loop")));
     expect(ostatnieDane(onChange).loop).toBe(false);
   });
 });
@@ -370,6 +370,10 @@ describe("MediaWidgetToolbar - i18n PL/EN", () => {
       "blocks.toolbar.sourceLabel",
       "blocks.toolbar.sourceUrl",
       "blocks.toolbar.clearUrl",
+      "blocks.toolbar.autoplay",
+      "blocks.toolbar.loop",
+      "blocks.toolbar.mute",
+      "blocks.toolbar.unmute",
     ];
     for (const klucz of klucze) {
       expect(pl(klucz)).not.toBe(klucz);

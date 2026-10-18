@@ -2293,6 +2293,19 @@ const pl = {
       sourceLabel: "Nazwa źródła (np. autor, agencja)",
       sourceUrl: "URL źródła (opcjonalny)",
       next: "Dalej",
+      // Sterowanie odtwarzaniem (MediaWidgetToolbar) i formatowanie znaków
+      // (WordStyleToolbar) stały na angielskich napisach w kodzie - w polskim
+      // panelu czytnik ekranu czytał „Autoplay", „Bold (⌘B)". Skrót klawiszowy
+      // dokleja kod, więc te same liście służą paskom bez skrótu.
+      autoplay: "Autoodtwarzanie",
+      loop: "Zapętlenie",
+      mute: "Wycisz",
+      unmute: "Włącz dźwięk",
+      underline: "Podkreślenie",
+      strike: "Przekreślenie",
+      subscript: "Indeks dolny",
+      superscript: "Indeks górny",
+      inlineCode: "Kod",
     },
     // Rdzeń blocks.actions (up, down, duplicate, remove, drag, undo, redo) żyje
     // w src/lib/locale/*.ts - dokładamy wyłącznie brakujące liście, a rejestracja
@@ -3225,6 +3238,15 @@ const en: typeof pl = {
       sourceLabel: "Source name (e.g. author, agency)",
       sourceUrl: "Source URL (optional)",
       next: "Next",
+      autoplay: "Autoplay",
+      loop: "Loop",
+      mute: "Mute",
+      unmute: "Unmute",
+      underline: "Underline",
+      strike: "Strikethrough",
+      subscript: "Subscript",
+      superscript: "Superscript",
+      inlineCode: "Code",
     },
     actions: {
       preview: "View preview",
