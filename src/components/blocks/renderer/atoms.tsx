@@ -34,7 +34,9 @@ export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
  * migracja treści bloki↔richtext zerwałaby już opublikowane linki `#`.
  */
 export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) => {
-  const level = Math.min(Math.max(num(block.data, "level", 2), 2), 5);
+  // Zaokrąglenie PRZED klamrą: poziom ułamkowy z importu (3.6) dawał znacznik
+  // `<h3.6>`, który nie jest nagłówkiem dla czytnika ani wyszukiwarki.
+  const level = Math.min(Math.max(Math.round(num(block.data, "level", 2)), 2), 5);
   const text = str(block.data, "text");
   const anchor = blockAnchor(block, allBlocks);
   const id = anchor.id || undefined;

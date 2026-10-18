@@ -39,6 +39,22 @@ describe("nagłówek: poziom, kotwica, HTML inline i kolor", () => {
     ]);
   });
 
+  it("poziom ułamkowy z importu daje prawdziwy nagłówek, a nie znacznik „h3.6”", () => {
+    // NAPRAWIONE 2026-10-18: klamra 2-5 bez zaokrąglenia przepuszczała 3.6
+    // wprost do nazwy znacznika - strona dostawała <h3.6>, którego ani czytnik
+    // ekranu, ani wyszukiwarka nie uznają za nagłówek (znika ze spisu treści
+    // i z konspektu dokumentu).
+    const { container } = draw([
+      { id: "a", type: "heading", data: { level: 3.6, text: "Ułamek" } },
+      { id: "b", type: "heading", data: { level: 2.2, text: "Prawie dwa" } },
+    ]);
+    const heads = Array.from(container.querySelectorAll("h2, h3, h4, h5"));
+    expect(heads.map((h) => [h.tagName, h.textContent])).toEqual([
+      ["H4", "Ułamek"],
+      ["H2", "Prawie dwa"],
+    ]);
+  });
+
   it("zachowuje stare kotwice jako puste aliasy wskazujące na kanoniczny id", () => {
     const { container } = draw([{ id: "h", type: "heading", data: { text: "Łódź i Śląsk" } }]);
     const heading = container.querySelector("h2");
