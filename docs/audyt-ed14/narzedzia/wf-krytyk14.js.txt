@@ -1,0 +1,53 @@
+export const meta = {
+  name: 'audyt-ed14-krytyk-kompletnosci',
+  description: 'Wydanie 14: krytyk kompletnosci bez obalania - czego rozdzial 18 nie pokryl (moduly i funkcje, synchronizacja, CI i wdrozenie, wydajnosc, i18n/tenant/atomic)',
+  phases: [{ title: 'Krytyk', detail: 'piec spojrzen na luki rozdzialu 18 wobec wymagan zespolu' }],
+}
+
+const DOC = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/galaz/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md'
+const DANE = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/galaz/docs/audyt-ed14'
+
+const WSPOLNE = `Jestes krytykiem kompletnosci audytu pokrycia testami platformy NES (wydanie 14). NIE obalasz ustalen rozdzialu (zespol zakazal etapu obalania) - szukasz tego, czego rozdzial NIE pokryl, choc zespol o to prosil.
+Repozytorium w biezacym katalogu roboczym jest na commicie 346012635 (stan audytu, detached HEAD). Nie zmieniaj zadnych plikow w repozytorium, nie uruchamiaj sieci poza odczytem plikow, nie instaluj pakietow.
+Rozdzial 18 dokumentu audytu: ${DOC} (zacznij od naglowka "## 18. WYDANIE 14"; czytaj tylko rozdzial 18). Dane wydania: ${DANE} (np. pokrycie14.json - pokrycie per plik, funkcjonalnosci14.json, graf14.json, defekty14.json, rejestr-stan14.json, agenci/migawka14.json).
+Wymagania zespolu dla tego wydania (cytat): "Pamietaj o pozostalych modulach, funkcjach, funkcjonalnosciach, pokrycie kodu, linii, galezi, etc. - utworz mape powiazan pomiedzy modulami i synchronizacji (lub bledow jakie wystepuja, desynchronizacji, recznego wdrazania zamiast automatyzacji etc i to opisz konkretnie)." oraz rekomendacje poprawy Speed Index z PageSpeed Insights.
+Zasady: kazda luka ma dowod w repozytorium (sciezka:linia i krotki cytat) albo w danych wydania; nie zglaszaj tego, co rozdzial juz opisuje (sprawdz tekst rozdzialu przed zgloszeniem); nie powtarzaj defektow z tabeli 18.9 ani rejestru 18.10. Maksymalnie 8 luk, najwazniejsze najpierw. Pisz po polsku z polskimi znakami, zamiast pauzy i polpauzy uzywaj zwyklego lacznika "-". Zadnych prawdziwych danych osobowych ani sekretow w odpowiedzi.`
+
+const SCHEMA = {
+  type: 'object',
+  properties: {
+    luki: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          tytul: { type: 'string', description: 'krotko, po polsku' },
+          waga: { type: 'string', enum: ['wysoka', 'srednia', 'niska'] },
+          coBrakuje: { type: 'string', description: 'czego rozdzial 18 nie pokrywa i dlaczego to wazne dla wymagan zespolu' },
+          dowod: { type: 'string', description: 'sciezka:linia i cytat albo liczby z danych wydania' },
+          rekomendacja: { type: 'string', description: 'konkretnie: co zrobic, najlepiej jaki automat albo test' },
+          gdzieWRozdziale: { type: 'string', description: 'do ktorej sekcji 18.x to nalezy' },
+        },
+        required: ['tytul', 'waga', 'coBrakuje', 'dowod', 'rekomendacja', 'gdzieWRozdziale'],
+      },
+    },
+    podsumowanie: { type: 'string' },
+  },
+  required: ['luki', 'podsumowanie'],
+}
+
+const SPOJRZENIA = [
+  { k: 'moduly', p: `Spojrzenie: moduly, funkcje i funkcjonalnosci. Sprawdz, czy rozdzial (18.4-18.6, 18.9) pokrywa wszystkie moduly taksonomii i przekroje: czy sa moduly albo funkcjonalnosci, ktorych ryzyka liczby ukrywaja (np. funkcje serwerowe *.functions.ts / *.server.ts z niskim pokryciem galezi, pliki z pokryciem linii wysokim a galezi niskim, nowe funkcjonalnosci bez testow zachowania, wzorce funkcjonalnosci bez plikow, pliki pasujace do wielu funkcjonalnosci). Korzystaj z pokrycie14.json i funkcjonalnosci14.json. Podaj liczby.` },
+  { k: 'synchronizacja', p: `Spojrzenie: synchronizacja miedzy modulami i warstwami, ktorej 18.8 nie opisuje. Szukaj w repozytorium mechanizmow trzymania wspolnego stanu: pliki generowane (np. src/integrations/supabase/types.ts, routeTree.gen.ts, snapshoty, mapy), slowniki i18n PL/EN (czy klucze EN sa wymuszane jako typeof PL), cron i job_runner, triggery bazy, kolejki, realtime, cache i jego uniewaznianie, storage, szablony e-mail, indeks wyszukiwania, sitemap. Dla kazdego mechanizmu, ktorego 18.8 nie ma: co laczy, czy jest automatyczny, czy ma bramke albo test, gdzie moze sie rozjechac.` },
+  { k: 'wdrozenie', p: `Spojrzenie: CI, wdrozenie i reczne kroki. Przejrzyj .github/workflows/*, package.json (skrypty), scripts/, governance/, docs/ o wdrozeniu. Szukaj krokow recznych zamiast automatyzacji, ktorych 18.8 nie wymienia: workflow_dispatch bez harmonogramu, joby warunkowe na sekretach, bramki nieuruchamiane w ci.yml, skrypty check:* zdefiniowane, ale nigdzie nie wolane, kroki "uruchom recznie" w dokumentacji, rozbieznosci miedzy dokumentacja wdrozenia a workflow. Podaj nazwy jobow i warunki.` },
+  { k: 'wydajnosc', p: `Spojrzenie: wydajnosc i Speed Index (18.12). Sprawdz, czy rekomendacje dla Speed Index pokrywaja wszystkie istotne dzwignie w kodzie strony glownej przy 346012635: ladowanie fontow (font-display, preload, subset), preconnect, krytyczny CSS, obraz hero (format, rozmiary, fetchpriority), skrypty zewnetrzne i zgody (np. baner zgody jako element pierwszej klatki), service worker, budzety wydajnosci w CI (check:document-weight, Lighthouse w CI - czy dziala). Kazde miejsce w kodzie wskazane w 18.12 jako "Gdzie" sprawdz, czy istnieje pod podana sciezka i linia; rozjazd zglos jako luke.` },
+  { k: 'przekroje', p: `Spojrzenie: przekroje jakosci, ktorych zespol stale wymaga: i18n PL i EN, atomic design, tenant_id (izolacja najemcow), brak any / as any, testy. Sprawdz, czy rozdzial 18 ma o nich liczby dla okna 5b8c77c01..346012635 (np. liczba "as any" i ": any" w src bez testow, klucze i18n PL bez EN, komponenty poza warstwami atomic design, nowe tabele lub RPC bez tenant_id albo bez polityki RLS, nowe funkcje serwerowe bez testu). Mozesz policzyc na drzewie roboczym (346012635) i porownac z drzewem 5b8c77c01 przez "git show 5b8c77c01:<plik>" albo "git grep <wzor> 5b8c77c01 -- src". Podaj liczby obu drzew.` },
+]
+
+phase('Krytyk')
+const wyniki = await parallel(SPOJRZENIA.map(s => () =>
+  agent(WSPOLNE + '\n\n' + s.p, { label: 'krytyk:' + s.k, phase: 'Krytyk', schema: SCHEMA })
+    .then(r => r ? { spojrzenie: s.k, ...r } : null)))
+const ok = wyniki.filter(Boolean)
+log(`spojrzen z wynikiem: ${ok.length}/${SPOJRZENIA.length}; luk razem: ${ok.reduce((a, r) => a + r.luki.length, 0)}`)
+return { krytyk: ok }

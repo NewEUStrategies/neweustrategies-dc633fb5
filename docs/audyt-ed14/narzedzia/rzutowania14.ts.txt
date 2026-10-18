@@ -1,0 +1,11 @@
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { countsByFile, isScannable, scanUnknownCasts } from "./unknownCasts";
+const root = process.argv[2];
+const out: string[] = [];
+const walk = (d: string) => { for (const e of readdirSync(d)) { if (["node_modules", "dist", ".git", "coverage"].includes(e)) continue; const f = join(d, e); if (statSync(f).isDirectory()) walk(f); else out.push(f); } };
+walk(join(root, "src"));
+const src = out.map((p) => relative(root, p).replaceAll("\\", "/")).filter(isScannable).map((file) => ({ file, source: readFileSync(join(root, file), "utf8") }));
+const hits = scanUnknownCasts(src);
+const c = countsByFile(hits);
+console.log(JSON.stringify({ razem: hits.length, pliki: c.size, billing: [...c].filter(([f]) => f.startsWith("src/lib/billing/")).reduce((a, [, n]) => a + n, 0), vendor: c.get("src/lib/files/vendor/mammothUnderscore.ts") ?? 0 }));

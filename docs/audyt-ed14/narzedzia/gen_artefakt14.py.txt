@@ -1,0 +1,887 @@
+# Artefakt "Pokrycie testami NES" - wydanie 14 na górze, wydanie 13 (z zagnieżdżonymi 12 i 11) w zwiniętym archiwum.
+# Źródła: rozdział 18 dokumentu w gałęzi (ten sam tekst co w repo), dane z docs/audyt-ed14, taśma klatek z lokalnego śladu.
+# Objaśnienia: dymki (data-tip, skrypt w stopce) i okna popover z pięcioma częściami (slownik14.py).
+#
+# Uruchomienie (z dowolnej kopii repozytorium):
+#   python3 docs/audyt-ed14/narzedzia/gen_artefakt14.py.txt --stary <HTML wydania 13> [--wyjscie plik.html] [--repo .]
+# --stary to strona artefaktu wydania 13 (pobrana z publikacji); jej ciało trafia do zwiniętego archiwum.
+# Pliki pomocnicze (slownik14.py, styl14.css, dymki14.js) są obok skryptu, w repozytorium z sufiksem .txt.
+import argparse, html, json, re
+from pathlib import Path
+
+TU = Path(__file__).resolve().parent
+ap = argparse.ArgumentParser(description='Artefakt wydania 14 audytu pokrycia testami')
+ap.add_argument('--repo', type=Path, default=TU.parents[2] if TU.name == 'narzedzia' else Path.cwd(),
+                help='korzeń repozytorium (domyślnie: wyliczony z położenia skryptu w docs/audyt-ed14/narzedzia)')
+ap.add_argument('--stary', type=Path, required=True, help='HTML artefaktu wydania 13')
+ap.add_argument('--wyjscie', type=Path, default=Path('pokrycie-testami-nes.html'), help='plik wynikowy (domyślnie w katalogu bieżącym)')
+ap.add_argument('--fragment', action='store_true', help='bez szkieletu dokumentu (do publikacji, którą platforma sama opakowuje doctype, charset i viewport)')
+ap.add_argument('--tasma', type=Path, default=None, help='dane taśmy klatek (domyślnie docs/audyt-ed14/lighthouse/tasma14.json)')
+ARGS = ap.parse_args()
+
+
+def obok(nazwa):
+    """Plik pomocniczy obok skryptu: w roboczym katalogu bez sufiksu, w repozytorium z sufiksem .txt."""
+    for kandydat in (TU / nazwa, TU / (nazwa + '.txt')):
+        if kandydat.exists():
+            return kandydat
+    raise FileNotFoundError(nazwa)
+
+
+G = str(ARGS.repo)
+STARY = ARGS.stary
+WYJSCIE = ARGS.wyjscie
+_slownik = {}
+exec(obok('slownik14.py').read_text(encoding='utf-8'), _slownik)
+SLOWNIK, SEKCJE = _slownik['SLOWNIK'], _slownik['SEKCJE']
+
+doc = open(G + '/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md', encoding='utf-8').read()
+rozdzial = doc[doc.index('\n## 18. '):]
+J = lambda p: json.load(open(G + '/docs/audyt-ed14/' + p, encoding='utf-8'))
+GRAF = J('graf14.json')['ed14']
+DEF = J('defekty14.json')
+TASMA = json.load(open(ARGS.tasma or Path(G) / 'docs/audyt-ed14/lighthouse/tasma14.json', encoding='utf-8'))
+
+
+# ---------- markdown -> HTML ----------
+def inline(t, pogrubienia=True):
+    t = html.escape(t.strip(), quote=False)
+    kody = []
+
+    def schowaj(m):
+        kody.append('<code>' + m.group(1) + '</code>')
+        return f'\x01{len(kody) - 1}\x02'
+    t = re.sub(r'`([^`]+)`', schowaj, t)
+    if pogrubienia:
+        t = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', t)
+    return re.sub(r'\x01(\d+)\x02', lambda m: kody[int(m.group(1))], t)
+
+
+def sekcja(nr):
+    m = re.search(r'^### 18\.%d\. .*$' % nr, rozdzial, re.M)
+    n = re.search(r'^### 18\.%d\. ' % (nr + 1), rozdzial, re.M)
+    return rozdzial[m.end():n.start() if n else len(rozdzial)].strip('\n'), m.group(0)[len('### 18.%d. ' % nr):]
+
+
+def podsekcje(tekst):
+    """Tekst przed pierwszym '#### ' oraz słownik tytuł -> treść podsekcji."""
+    czesci = re.split(r'^#### (.+)$', tekst, flags=re.M)
+    return czesci[0].strip('\n'), {czesci[i].strip(): czesci[i + 1].strip('\n') for i in range(1, len(czesci), 2)}
+
+
+def rozbij(l):
+    return [c.replace('\x00', '|').strip() for c in l.replace('\\|', '\x00').strip().strip('|').split('|')]
+
+
+def tabele(tekst):
+    out, linie, i = [], tekst.split('\n'), 0
+    while i < len(linie):
+        if linie[i].startswith('|') and i + 1 < len(linie) and re.match(r'^\|[\s:|-]+\|\s*$', linie[i + 1]) and '-' in linie[i + 1]:
+            nag = rozbij(linie[i])
+            wyr = ['num' if c.strip().endswith(':') and not c.strip().startswith(':') else 'mid' if c.strip().startswith(':') and c.strip().endswith(':') else '' for c in rozbij(linie[i + 1])]
+            wiersze = []
+            i += 2
+            while i < len(linie) and linie[i].startswith('|'):
+                wiersze.append(rozbij(linie[i]))
+                i += 1
+            out.append((nag, wyr, wiersze))
+        else:
+            i += 1
+    return out
+
+
+def tabela_html(nag, wyr, wiersze, klasy_wierszy=None, komorka=None, klasa=''):
+    h = [f'<div class="tw {klasa}"><table><thead><tr>' if klasa else '<div class="tw"><table><thead><tr>']
+    for k, w in zip(nag, wyr):
+        h.append(f'<th class="{w}">{inline(k)}</th>' if w else f'<th>{inline(k)}</th>')
+    h.append('</tr></thead><tbody>')
+    for wiersz in wiersze:
+        kl = klasy_wierszy(wiersz) if klasy_wierszy else ''
+        h.append(f'<tr class="{kl}">' if kl else '<tr>')
+        for c, (txt, w) in enumerate(zip(wiersz, wyr)):
+            tresc = komorka(c, txt, wiersz) if komorka else None
+            tresc = inline(txt) if tresc is None else tresc
+            h.append(f'<td class="{w}">{tresc}</td>' if w else f'<td>{tresc}</td>')
+        h.append('</tr>')
+    h.append('</tbody></table></div>')
+    return ''.join(h)
+
+
+def md(tekst, tabela=None):
+    """Akapity, listy, tabele i nagłówki #### w kolejności z tekstu."""
+    bloki, biez, typ = [], [], None
+    linie = tekst.split('\n')
+
+    def zamknij():
+        nonlocal biez, typ
+        if biez:
+            if typ in ('ul', 'ol'):
+                bloki.append(f'<{typ} class="mdlist">' + ''.join(f'<li>{inline(x)}</li>' for x in biez) + f'</{typ}>')
+            else:
+                bloki.append('<p>' + inline(' '.join(biez)) + '</p>')
+        biez, typ = [], None
+
+    i = 0
+    while i < len(linie):
+        l = linie[i]
+        if l.startswith('|'):
+            zamknij()
+            j = i
+            while j < len(linie) and linie[j].startswith('|'):
+                j += 1
+            for t in tabele('\n'.join(linie[i:j])):
+                bloki.append(tabela(t) if tabela else tabela_html(*t))
+            i = j
+            continue
+        if l.startswith('#### '):
+            zamknij()
+            bloki.append(f'<h3 class="sub3">{inline(l[5:])}</h3>')
+        elif not l.strip():
+            zamknij()
+        elif re.match(r'^- ', l):
+            if typ != 'ul':
+                zamknij()
+                typ = 'ul'
+            biez.append(l[2:])
+        elif re.match(r'^\d+\. ', l):
+            if typ != 'ol':
+                zamknij()
+                typ = 'ol'
+            biez.append(re.sub(r'^\d+\. ', '', l))
+        elif typ in ('ul', 'ol') and l.startswith('  '):
+            biez[-1] += ' ' + l.strip()
+        else:
+            if typ in ('ul', 'ol'):
+                zamknij()
+            typ = 'p'
+            biez.append(l)
+        i += 1
+    zamknij()
+    return '<div class="prose">' + '\n'.join(bloki) + '</div>'
+
+
+def akapity(tekst):
+    out, biez = [], []
+    for l in tekst.split('\n') + ['']:
+        if not l.strip() or l.startswith('|') or l.startswith('#') or re.match(r'^(- |\d+\. )', l):
+            if biez:
+                out.append(' '.join(biez))
+            biez = []
+            continue
+        biez.append(l)
+    return out
+
+
+def punkty(tekst, wzor=r'^(?:- |\d+\. )(.*)$'):
+    out = []
+    for l in tekst.split('\n'):
+        m = re.match(wzor, l)
+        if m:
+            out.append(m.group(1))
+        elif out and l.startswith('  ') and l.strip():
+            out[-1] += ' ' + l.strip()
+    return out
+
+
+pl = lambda x, d=None: (f'{x:,.{d}f}' if d is not None else f'{x:,}').replace(',', ' ').replace('.', ',')
+num = lambda s: float(s.replace('*', '').replace('%', '').replace(' ', '').replace(',', '.'))
+esc = lambda s: html.escape(str(s), quote=True)
+
+
+# ---------- objaśnienia: dymki i okna ----------
+okna = {}
+
+
+def okno(klucz, tytul, czesci, tu=None, etykieta='Objaśnienie'):
+    nazwy = ['Co to jest', 'Dlaczego to ważne', 'Do czego służy', 'Jaki jest cel'] if etykieta == 'Objaśnienie' else \
+        ['Co pokazuje', 'Dlaczego to ważne', 'Do czego służy', 'Jaki jest cel']
+    dl = ''.join(f'<dt>{n}</dt><dd>{inline(c)}</dd>' for n, c in zip(nazwy, czesci))
+    okna[klucz] = (f'<div id="p-{klucz}" class="pop" popover role="dialog" aria-labelledby="p-{klucz}-t">'
+                   f'<div class="pop-head"><div><span class="eyebrow">{etykieta}</span><h3 id="p-{klucz}-t">{html.escape(tytul)}</h3></div>'
+                   f'<button class="pop-x" type="button" popovertarget="p-{klucz}" popovertargetaction="hide" aria-label="Zamknij">×</button></div>'
+                   f'<dl class="pop-dl">{dl}</dl>' + (f'<p class="pop-tu"><b>W tym wydaniu.</b> {inline(tu)}</p>' if tu else '') + '</div>')
+
+
+for k, (tyt, krotko, co, dlaczego, do_czego, cel, tu) in SLOWNIK.items():
+    okno(k, tyt, [co, dlaczego, do_czego, cel], tu)
+for k, (tyt, co, dlaczego, do_czego, cel) in SEKCJE.items():
+    okno('s-' + k, tyt, [co, dlaczego, do_czego, cel], etykieta='O tej sekcji')
+
+
+def t(klucz, etykieta=None):
+    tyt, krotko = SLOWNIK[klucz][0], SLOWNIK[klucz][1]
+    et = etykieta or tyt
+    return (f'<span class="term" tabindex="0" data-tip="{esc(krotko)}">{html.escape(et)}</span>'
+            f'<button class="q" type="button" popovertarget="p-{klucz}" aria-label="Objaśnienie: {esc(tyt)}" data-tip="Otwórz objaśnienie">?</button>')
+
+
+def o_sekcji(klucz):
+    return (f'<button class="about" type="button" popovertarget="p-s-{klucz}" data-tip="Co pokazuje ta sekcja, dlaczego jest ważna, do czego służy i jaki ma cel">'
+            f'<span aria-hidden="true">?</span> O tej sekcji</button>')
+
+
+def naglowek(eyebrow, h2, klucz=None):
+    return (f'  <div class="shead"><span class="eyebrow">{eyebrow}</span>{o_sekcji(klucz) if klucz else ""}</div>\n'
+            f'  <h2>{h2}</h2>')
+
+
+def zrodlo_chip(txt):
+    return f'<span class="chip info">{html.escape(txt)}</span>'
+
+
+WAGA_KL = {'krytyczny': 'krytyczne', 'wysoki': 'wysokie', 'średni': 'srednie', 'sredni': 'srednie', 'niski': 'niskie'}
+WAGA_PL = {'krytyczny': 'krytyczny', 'wysoki': 'wysoki', 'sredni': 'średni', 'średni': 'średni', 'niski': 'niski'}
+
+
+def sev(waga):
+    return f'<span class="sev {WAGA_KL.get(waga, "")}">{WAGA_PL.get(waga, waga)}</span>'
+
+
+def pewnosc_chip(p):
+    return f'<span class="chip {"ok" if p.startswith("pewn") else "part"}">{html.escape(p)}</span>'
+
+
+o = []
+w = o.append
+
+# ---------- hero ----------
+t18_1, _ = sekcja(1)
+w('<header class="hero">')
+w('  <span class="eyebrow">Audyt pokrycia testami · wydanie 14 · HEAD 346012635 (scalenie PR #518) · 2026-10-18</span>')
+w('  <h1>Pokrycie bez bramki, moduły w jednym cyklu i produkcja, której CI nie sprawdza</h1>')
+w('  <p class="lede">Pomiar na <code>346012635</code>, okno od wydania 13 (<code>5b8c77c01</code>): 1 604 commity, PR-y #467-#518. '
+  'Jeden commit zdjął 947 progów pokrycia i 215 plików testów, więc linie spadły do <b>95,69%</b>, ale suita jest zielona, a nowy kod ma 95,57% linii. '
+  'Najpoważniejsze ustalenia nie dotyczą testów, tylko drogi na produkcję: publikacja nie zależy od CI, <code>main</code> nie ma ochrony, '
+  'a trzy migracje, na których polega kod z okna, istnieją tylko w pasie, którego produkcja może nie mieć. '
+  'Do tego PageSpeed Insights i plan na Speed Index desktop 2,7 s.</p>')
+w('  <div class="facts"><span><b>4 347</b> pliki produkcyjne (+253)</span><span><b>971 581</b> wierszy kodu (+97 129)</span>'
+  '<span><b>3 429</b> plików testowych · <b>69 800</b> przypadków statycznie</span><span><b>424</b> trasy · <b>1 237</b> + <b>332</b> migracje (dwa pasy)</span>'
+  '<span><b>198</b> plików pgTAP · <b>4 574</b> asercje · <b>399</b> testów e2e w 6 konfiguracjach</span>'
+  '<span><b>0</b> progów per ścieżka (było 947) · <b>29</b> bramek <code>check:*</code></span>'
+  '<span><b>86 026</b> zielonych przypadków · <b>0</b> czerwonych · <b>286</b> wpisów <code>it.fails</code></span></div>')
+w('  <div class="howto"><b>Jak czytać.</b> Podkreślone terminy pokazują skrót po najechaniu albo zaznaczeniu klawiaturą; przycisk <span class="q demo" aria-hidden="true">?</span> '
+  'otwiera objaśnienie: co to jest, dlaczego to ważne, do czego służy, jaki jest cel i jaka jest liczba w tym wydaniu. '
+  'Każda sekcja ma przycisk „O tej sekcji". Pełny słownik jest na dole strony.</div>')
+w('</header>')
+
+# ---------- trzy rzeczy ----------
+trzy = punkty(t18_1, r'^\d+\. (.*)$')
+w('<section>')
+w(naglowek('Zanim padną liczby', 'Trzy rzeczy, które trzeba wiedzieć przed liczbami'))
+w('  <div class="tgrid">')
+for p in trzy:
+    m = re.match(r'^\*\*(.+?)\*\*\s*(.*)$', p)
+    w(f'    <div class="tcard"><span class="tname">{inline(m.group(1))}</span><p class="tproof">{inline(m.group(2))}</p></div>')
+w('  </div>')
+reszta1 = [a for a in akapity(t18_1) if a.startswith('Defekty w skrócie')]
+if reszta1:
+    w(f'  <p class="note" style="margin-top:12px">{inline(reszta1[0])}</p>')
+w('</section>')
+
+# ---------- wynik globalny ----------
+KPI = [('Linie', '95,69', '146 991 / 153 619', '98,84', 80, 'pokrycie-linii'),
+       ('Funkcje', '94,05', '43 845 / 46 620', '98,32', 77, 'pokrycie-funkcji'),
+       ('Instrukcje', '94,64', '167 030 / 176 490', '98,00', 79, 'instrukcje'),
+       ('Gałęzie', '90,15', '141 870 / 157 379', '94,02', 73, 'pokrycie-galezi')]
+w('<section>')
+w(naglowek('Wynik globalny · 12 shardów scalonych jak w CI · istanbul · cały src/ w mianowniku', 'Pokrycie spadło o 3,15 pp linii, suita bez czerwieni', 'wynik'))
+w('  <div class="kpis">')
+for k, v, ul, ed13, prog, klucz in KPI:
+    d = num(v) - num(ed13)
+    w(f'    <div class="kpi"><span class="k">{t(klucz, k)}</span><span class="v">{v}%</span>'
+      f'<span class="d">{ul} · ed13 {ed13}% (<span class="neg">{pl(d, 2)} pp</span>)</span>'
+      f'<span class="thr">próg globalny {prog}% <i>✓</i> zapas {pl(num(v) - prog, 2)} pp</span>'
+      f'<span class="kbar" aria-hidden="true"><i style="width:{num(v):.2f}%"></i><b style="left:{num(ed13):.2f}%"></b><u style="left:{prog}%"></u></span></div>')
+w('  </div>')
+w('  <div class="legend"><span><i style="background:var(--s1)"></i>wydanie 14</span><span><i class="tick"></i>wydanie 13</span><span><i class="tick thr"></i>próg globalny</span></div>')
+w('  <div class="statgrid">'
+  '<div><span class="k">Przypadki</span><span class="v">86 026</span><span class="d">0 czerwonych · 51 pominiętych</span></div>'
+  f'<div><span class="k">{t("plik-na-zerze", "Pliki na zerze")}</span><span class="v">61</span><span class="d">ed13: 14 · 1 703 linii</span></div>'
+  f'<div><span class="k">{t("martwa-funkcja", "Martwe funkcje")}</span><span class="v">309</span><span class="d">ed13: 68</span></div>'
+  f'<div><span class="k">{t("prog-pokrycia", "Progi per ścieżka")}</span><span class="v">0</span><span class="d">ed13: 947 · bramka zdjęta</span></div>'
+  f'<div><span class="k">{t("waga-defektu", "Nowe defekty")}</span><span class="v">89</span><span class="d">1 krytyczny · 6 wysokich</span></div>'
+  f'<div><span class="k">{t("rejestr", "Rejestr 11-13")}</span><span class="v">40 / 341</span><span class="d">naprawione · 277 otwartych</span></div>'
+  '</div>')
+t18_4, _ = sekcja(4)
+nowy = [a for a in akapity(t18_4) if a.startswith('**Nowy kod jest pokryty')]
+if nowy:
+    w(f'  <p class="section-note">{inline(nowy[0])}</p>')
+w('</section>')
+
+# ---------- najpoważniejsze ----------
+t18_9, _ = sekcja(9)
+TYT7 = {'N14-13-1': 'Subskrypcje mogą trafiać do najemcy domyślnego',
+        'N14-13-2': 'Poprawka nadużycia kuponu B2B nie ma wersji w pasie produkcyjnym',
+        'N14-16-2': 'Komentarze ściany klubu bez tabeli i RPC w pasie produkcyjnym',
+        'N14-CI-1': 'Nic nie wykrywa migracji, których produkcja nie dostała',
+        'N14-6-1': 'Wyszukiwanie głosowe wysyła frazę przy każdym kolejnym zdarzeniu',
+        'N14-18-1': 'Zbiorcze wycofanie zgody pomija innych najemców i raportuje sukces',
+        'N14-16-1': 'Wpis w klubie otwiera odczyt cudzego pliku'}
+opisy = {}
+for p in punkty(t18_9, r'^- (.*)$'):
+    m = re.match(r'^\*\*(N14-[\w-]+?)(?: \(([^)]*)\))?\.\*\*\s*(.*)$', p)
+    if m:
+        opisy[m.group(1)] = m.group(3)
+DEFK = {d['id']: d for d in DEF}
+lane = t18_9[t18_9.index('**Najważniejsze - rozjazd pasów migracji.**'):t18_9.index('**Pozostałe wysokie')]
+lane_wstep = akapity(lane)[0]
+lane_po = [a for a in akapity(lane) if a.startswith('Ten sam rozjazd')][0]
+opisy.setdefault('N14-CI-1', DEFK['N14-CI-1']['tytul'] + '.')
+
+
+def karta(did):
+    d = DEFK[did]
+    miejsce = f'{d["plik"]}:{d["linia"]}'
+    return (f'<article class="finding {WAGA_KL[d["waga"]]}"><div class="fmeta">{sev(d["waga"])}{pewnosc_chip(d["pewnosc"])}'
+            + ('<span class="chip ok" data-tip="Krytyczny i wszystkie wysokie przeczytałem w kodzie sam">sprawdzone</span>')
+            + f'<span class="fid">{did} · tor {html.escape(str(d["tor"]))}</span></div>'
+            f'<h3>{html.escape(TYT7[did])}</h3><p>{inline(opisy[did])}</p><p class="ev"><code>{html.escape(miejsce)}</code></p></article>')
+
+
+w('<section>')
+w(naglowek('Krytyczny i wysokie · bez etapu obalania · wszystkie siedem przeczytane w kodzie osobiście', 'Co naprawić najpierw', 'najpowazniejsze'))
+w(f'  <p class="section-note">{inline(lane_wstep.replace("**Najważniejsze - rozjazd pasów migracji.** ", ""))} '
+  f'Zobacz: {t("pasy-migracji")} i {t("najemca")}.</p>')
+w('  <h3 class="sub3">Jedna przyczyna: rozjazd pasów migracji</h3>')
+w('  <div class="fgrid2">' + ''.join(karta(x) for x in ['N14-13-1', 'N14-13-2', 'N14-16-2', 'N14-CI-1']) + '</div>')
+w(f'  <p class="note" style="margin-top:12px">{inline(lane_po)}</p>')
+w('  <h3 class="sub3">Pozostałe wysokie</h3>')
+w('  <div class="fgrid2">' + ''.join(karta(x) for x in ['N14-18-1', 'N14-16-1', 'N14-6-1']) + '</div>')
+w(f'  <p class="section-note">Skala: {t("waga-defektu", "waga")} i {t("pewnosc", "pewność")} nadaje tor, który znalazł defekt. Pełna lista 89 defektów z mechanizmem i dowodem jest w sekcji „Defekty i rejestr".</p>')
+w('</section>')
+
+# ---------- synchronizacja ----------
+t18_8, _ = sekcja(8)
+wstep8, pod8 = podsekcje(t18_8)
+tab8 = tabele(wstep8)[0]
+STAN = [('Działa', 'good', '✓'), ('Rozjazd', 'crit', '≠'), ('Krok ręczny', 'warn', '✎'), ('Brak mechanizmu', 'serious', '∅'), ('Nie do ustalenia', 'unk', '?')]
+idx = {n.replace('*', ''): i for i, n in enumerate(tab8[0])}
+obszary = [r for r in tab8[2] if not r[0].startswith('**')]
+razem = [r for r in tab8[2] if r[0].startswith('**')][0]
+mx = max(int(num(r[idx['Mechanizmy']])) for r in obszary)
+w('<section>')
+w(naglowek('Synchronizacja · śledztwa przekrojowe i mapy modułów', 'Co jest automatyczne, co ręczne i gdzie się rozjeżdża', 'synchronizacja'))
+w(f'  <p class="section-note">{inline(akapity(wstep8)[0])} Stany: {t("statusy-sync", "co znaczy każdy stan")}.</p>')
+w('  <div class="legend">' + ''.join(f'<span><i class="st {k}"></i>{g} {n.lower()}</span>' for n, k, g in STAN) + '</div>')
+w('  <div class="sync" role="img" aria-label="Wykres: liczba mechanizmów synchronizacji w każdym obszarze, podzielona według stanu">')
+for r in obszary:
+    mech = int(num(r[idx['Mechanizmy']]))
+    seg, opis = [], []
+    for n, k, g in STAN:
+        c = int(num(r[idx[n]])) if n in idx else 0
+        if c:
+            seg.append(f'<i class="st {k}" style="flex:{c}" data-tip="{esc(r[0])}: {c} · {n.lower()}"></i>')
+            opis.append(f'{c} {g}')
+    w(f'    <div class="srow"><span class="slab">{inline(r[0])}</span><span class="strk"><span class="sbar" style="width:{mech / mx * 100:.1f}%">{"".join(seg)}</span></span>'
+      f'<span class="sval"><b>{mech}</b> · {" · ".join(opis)}</span></div>')
+w('  </div>')
+dz, mm = int(num(razem[idx['Działa']])), int(num(razem[idx['Mechanizmy']]))
+w(f'  <p class="zmeta">Razem {mm} mechanizmów, z czego {dz} działa ({round(100 * dz / mm)}%). Liczby i opisy z tabeli 18.8; pełny dowód w <code>agenci/migawka14.json</code>, klucz <code>SYNC</code>.</p>')
+w('  ' + tabela_html(*tab8))
+os_ = pod8['Główna oś: produkcja nie jest tym, co sprawdza CI']
+w('  <h3 class="sub3">Główna oś: produkcja nie jest tym, co sprawdza CI</h3>')
+w(f'  <p class="section-note">{inline(akapity(os_)[0].rstrip(":") + ".")} Pojęcia: {t("ruleset")}, {t("post-deploy")}, {t("bramka-check")}.</p>')
+w('  <ol class="axis">')
+for p in punkty(os_, r'^\d+\. (.*)$'):
+    m = re.match(r'^\*\*(.+?)\*\*\s*(.*)$', p)
+    w(f'    <li><span class="rt">{inline(m.group(1))}</span><p>{inline(m.group(2))}</p></li>')
+w('  </ol>')
+
+
+def kom_waga(c, txt, wiersz, kol):
+    if c == kol:
+        return sev(txt)
+    return None
+
+
+roz = pod8['Rozjazdy - konkretnie']
+troz = tabele(roz)[0]
+kw = troz[0].index('Waga')
+w(f'  <details style="margin-top:16px"><summary><span class="sm-name">Rozjazdy - konkretnie</span><span class="sm-stat2">obszar, waga, strona A i strona B</span><span class="sm-stat t1">{len(troz[2])}</span></summary>'
+  f'<p class="dnote">{inline(akapity(roz)[0])}</p>' + tabela_html(*troz, komorka=lambda c, x, r: kom_waga(c, x, r, kw), klasa='wide') + '</details>')
+rec = pod8['Kroki ręczne i miejsca bez mechanizmu']
+trec = tabele(rec)[0]
+ks = trec[0].index('Stan')
+w(f'  <details><summary><span class="sm-name">Kroki ręczne i miejsca bez mechanizmu</span><span class="sm-stat2">gdzie zgodność zależy od człowieka</span><span class="sm-stat t2">{len(trec[2])}</span></summary>'
+  + tabela_html(*trec, komorka=lambda c, x, r: (f'<span class="chip {"open" if x.startswith("brak") else "part"}">{html.escape(x)}</span>' if c == ks else None), klasa='wide') + '</details>')
+mapy = pod8['Co mówią mapy modułów']
+w(f'  <details><summary><span class="sm-name">Co mówią mapy modułów</span><span class="sm-stat2">powiązania i ręczne mechanizmy z map 29 torów</span></summary>'
+  f'<div class="dbody">{md(mapy, tabela=lambda tt: tabela_html(*tt, klasa="wide"))}</div></details>')
+aut = pod8['Co zautomatyzować - rekomendacje śledztw']
+taut = tabele(aut)[0]
+w(f'  <details><summary><span class="sm-name">Co zautomatyzować</span><span class="sm-stat2">rekomendacje śledztw z konkretną automatyzacją</span><span class="sm-stat t3">{len(taut[2])}</span></summary>'
+  + tabela_html(*taut, klasa='wide') + '</details>')
+w('</section>')
+
+# ---------- graf ----------
+t18_7, _ = sekcja(7)
+tg = tabele(t18_7)
+t18_5, _ = sekcja(5)
+tm = tabele(t18_5)[0]
+NAZWA = {r[0]: r[1] for r in tm[2]}
+NAZWA['NULL'] = 'Poza taksonomią'
+KOLEJ = [str(i) for i in range(1, 23)] + ['X-design-system', 'X-i18n', 'X-admin-shell', 'NULL']
+KROT = {'X-design-system': 'DS', 'X-i18n': 'i18n', 'X-admin-shell': 'AS', 'NULL': 'poza'}
+kr = lambda k: KROT.get(k, k)
+E = {(e['z'], e['do']): e for e in GRAF['krawedzie']}
+assert all(z in KOLEJ and d in KOLEJ for z, d in E), set(x for zd in E for x in zd) - set(KOLEJ)
+PROGI = [1, 5, 15, 40, 100, 250, 500]
+
+
+def kosz(v):
+    return max(i for i, p in enumerate(PROGI) if v >= p) + 1
+
+
+C, L, T = 22, 46, 44
+szer = L + len(KOLEJ) * C + 56
+wys = T + len(KOLEJ) * C + 8
+sv = [f'<svg class="heat" viewBox="0 0 {szer} {wys}" width="{szer}" height="{wys}" role="img" aria-label="Macierz importów między modułami: wiersz importuje z kolumny, kolor to liczba importów w skali logarytmicznej">']
+for j, d in enumerate(KOLEJ):
+    x = L + j * C + C / 2
+    sv.append(f'<text class="hl" x="{x}" y="{T - 6}" transform="rotate(-60 {x} {T - 6})" text-anchor="start">{kr(d)}</text>')
+for i, z in enumerate(KOLEJ):
+    y = T + i * C
+    sv.append(f'<text class="hl" x="{L - 6}" y="{y + C / 2 + 4}" text-anchor="end">{kr(z)}</text>')
+    suma = 0
+    for j, d in enumerate(KOLEJ):
+        x = L + j * C
+        if z == d:
+            sv.append(f'<rect class="hd" x="{x + 1}" y="{y + 1}" width="{C - 2}" height="{C - 2}" rx="2"/>')
+            continue
+        e = E.get((z, d))
+        if not e:
+            sv.append(f'<rect class="h0" x="{x + 1}" y="{y + 1}" width="{C - 2}" height="{C - 2}" rx="2"/>')
+            continue
+        suma += e['importy']
+        tip = (f'{kr(z)} {NAZWA.get(z, z)} → {kr(d)} {NAZWA.get(d, d)}: {pl(e["importy"])} importów, {e["plikiZrodlowe"]} plików → {e["plikiCelu"]}'
+               + (f'; w tym typy {e["typy"]}' if e['typy'] else '') + (f', dynamiczne {e["dynamiczne"]}' if e['dynamiczne'] else ''))
+        sv.append(f'<rect class="h{kosz(e["importy"])}" x="{x + 1}" y="{y + 1}" width="{C - 2}" height="{C - 2}" rx="2" data-tip="{esc(tip)}"/>')
+    sv.append(f'<text class="hs" x="{L + len(KOLEJ) * C + 6}" y="{y + C / 2 + 4}">{pl(suma)}</text>')
+sv.append(f'<text class="hs hsh" x="{L + len(KOLEJ) * C + 6}" y="{T - 6}">razem</text>')
+sv.append('</svg>')
+etyk_kosz = ['1-4', '5-14', '15-39', '40-99', '100-249', '250-499', '500+']
+licz_kosz = [sum(1 for e in E.values() if kosz(e['importy']) == i + 1) for i in range(7)]
+TW = sorted([(len(x['moduly']), x['nazwa']) for x in GRAF['tabeleWspolne']], reverse=True)[:10]
+w('<section>')
+w(naglowek('Mapa powiązań · graf importów na obu drzewach · baza jako wspólny styk', 'Wszystkie 26 obszarów w jednym cyklu importów', 'graf'))
+w(f'  <p class="section-note">{inline(akapity(t18_7)[0])} Pojęcia: {t("modul")}, {t("silnie-spojna-skladowa")}, {t("lapacz-20")}.</p>')
+w('  <div class="two">' + tabela_html(*tg[0]) + tabela_html(*tg[1]) + '</div>')
+w('  <h3 class="sub3">Macierz importów: wiersz importuje z kolumny</h3>')
+w('  <div class="heatwrap">' + ''.join(sv) + '</div>')
+w('  <div class="legend heatleg"><span class="lt">importów na krawędź:</span>' + ''.join(
+    f'<span><i class="hk h{i + 1}"></i>{e} <em>({n})</em></span>' for i, (e, n) in enumerate(zip(etyk_kosz, licz_kosz))) +
+  '<span><i class="hk h0"></i>brak krawędzi</span></div>')
+w(f'  <p class="zmeta">Skróty: DS design system, i18n słowniki, AS powłoka panelu admin, poza: pliki poza taksonomią. {len(E)} krawędzi; kolumna „razem" to importy wychodzące z modułu. '
+  'Wartość każdej komórki pokazuje dymek; te same dane w tabeli najgrubszych krawędzi powyżej i w <code>graf14.json</code>.</p>')
+w('  ' + md('\n'.join(punkty(t18_7, r'^(- .*)$'))))
+w('  <h3 class="sub3">Baza jako styk: tabele czytane przez najwięcej modułów</h3>')
+w('  <div class="hbars">')
+for n, nazwa in TW:
+    w(f'    <div class="hrow"><code>{html.escape(nazwa)}</code><span class="htrk"><i style="width:{n / TW[0][0] * 100:.1f}%" data-tip="{esc(nazwa)}: {n} modułów"></i></span><span class="hval">{n} modułów</span></div>')
+w('  </div>')
+baza = [a for a in akapity(t18_7) if a.startswith('**Baza jako styk')]
+if baza:
+    w(f'  <p class="section-note">{inline(baza[0])}</p>')
+w('</section>')
+
+# ---------- wydajność ----------
+t18_12, _ = sekcja(12)
+wstep12, pod12 = podsekcje(t18_12)
+PSI = {'desktop': {'kat': [94, 92, 100, 100], 'met': [('FCP', '0,4 s', 1.0, 'fcp'), ('LCP', '0,5 s', 1.0, 'lcp'), ('TBT', '10 ms', 1.0, 'tbt'), ('CLS', '0,033', 1.0, 'cls'), ('Speed Index', '2,7 s', 0.35, 'speed-index')]},
+       'mobile': {'kat': [98, 95, 100, 100], 'met': [('FCP', '1,7 s', 0.92, 'fcp'), ('LCP', '2,1 s', 0.96, 'lcp'), ('TBT', '0 ms', 1.0, 'tbt'), ('CLS', '0', 1.0, 'cls'), ('Speed Index', '3,0 s', 0.94, 'speed-index')]}}
+WAGI = {'FCP': 10, 'LCP': 25, 'TBT': 30, 'CLS': 25, 'Speed Index': 10}
+KAT = ['Wydajność', 'Ułatwienia dostępu', 'Sprawdzone metody', 'SEO']
+
+
+def ocena(s):
+    return ('good', 'dobry') if s >= 0.9 else ('avg', 'do poprawy') if s >= 0.5 else ('poor', 'słaby')
+
+
+w('<section>')
+w(naglowek('Wydajność · PageSpeed Insights 18.10.2026 11:30 · Lighthouse 13.5.0 · strona główna', 'Wynik 94 i 98, a Speed Index desktop na czerwono', 'wydajnosc'))
+w(f'  <p class="section-note">Źródło: {t("psi")} (zrzuty; API zwróciło 429), lokalny Lighthouse 13.5.0 z taśmą klatek i śledztwo w czterech ścieżkach z syntezą. '
+  f'Metryki: {t("fcp", "FCP")}, {t("lcp", "LCP")}, {t("tbt", "TBT")}, {t("cls", "CLS")}, {t("speed-index")}.</p>')
+w('  <div class="psi">')
+for prof, nazwa in [('desktop', 'Desktop'), ('mobile', 'Mobile · Moto G Power, 4G')]:
+    P = PSI[prof]
+    kol = ''.join(f'<div class="gauge {ocena(v / 100)[0]}" style="--v:{v}"><span>{v}</span><em>{k}</em></div>' for v, k in zip(P['kat'], KAT))
+    met = ''.join(f'<li class="{ocena(s)[0]}"><i aria-hidden="true"></i><span class="mn">{t(kl, n)}</span><span class="mv">{v}</span><span class="ms">{ocena(s)[1]}</span></li>' for n, v, s, kl in P['met'])
+    w(f'    <div class="psicard"><h3>{nazwa}</h3><div class="gauges">{kol}</div><ul class="mets">{met}</ul></div>')
+w('  </div>')
+w('  <div class="legend"><span><i class="ico good"></i>dobry (ocena ≥ 0,9)</span><span><i class="ico avg"></i>do poprawy (0,5-0,89)</span><span><i class="ico poor"></i>słaby (poniżej 0,5)</span></div>')
+# skład wyniku
+w('  <h3 class="sub3">Skąd 94 i 98 punktów: waga metryki i ocena</h3>')
+w('  <div class="score" role="img" aria-label="Skład wyniku wydajności: każda metryka ma wagę, część zdobyta wypełniona, część stracona kreskowana">')
+for prof, nazwa in [('desktop', 'Desktop'), ('mobile', 'Mobile')]:
+    seg, suma = [], 0
+    for n, v, s, kl in PSI[prof]['met']:
+        wg = WAGI[n]
+        zd = wg * s
+        suma += zd
+        seg.append(f'<span class="sc" style="flex:{wg}" data-tip="{n}: waga {wg}, ocena {pl(s, 2)}, zdobyte {pl(zd, 1)} z {wg}">'
+                   f'<i class="scf {prof}" style="width:{s * 100:.0f}%"></i><b>{n if n != "Speed Index" else "SI"} {wg}</b></span>')
+    w(f'    <div class="scrow"><span class="slab">{nazwa}</span><span class="scbar">{"".join(seg)}</span><span class="sval"><b>{pl(suma, 1)}</b> → {round(suma)}</span></div>')
+w('  </div>')
+w('  <p class="zmeta">Szerokość segmentu to waga metryki w Lighthouse 13 (TBT 30, LCP 25, CLS 25, FCP 10, SI 10), wypełnienie to ocena cząstkowa liczona '
+  '<code>computeLogNormalScore</code> na wartościach z PSI. Na desktopie jedyna strata to SI: 6,5 punktu.</p>')
+# taśma i krzywa
+X0, X1, Y0, Y1, TMAX = 46, 628, 18, 196, 10000
+xs = lambda tms: X0 + (X1 - X0) * min(tms, TMAX) / TMAX
+ys = lambda v: Y1 - (Y1 - Y0) * v
+
+
+def panel(prof, nazwa, a, b, si_lay):
+    D = TASMA[prof]
+    k = [(0, 0.0)] + [(max(0, tt), v) for tt, v in D['krzywa']]
+    k.append((TMAX, 1.0))
+    sciezka = f'M{xs(0):.1f},{ys(k[0][1]):.1f}'
+    for (t0, v0), (t1, v1) in zip(k, k[1:]):
+        sciezka += f' H{xs(t1):.1f} V{ys(v1):.1f}'
+    pole = sciezka + f' H{xs(TMAX):.1f} V{ys(1):.1f} H{xs(0):.1f} Z'
+    sv = [f'<svg class="vc" viewBox="0 0 640 230" role="img" aria-label="{nazwa}: krzywa kompletności wizualnej w czasie; pole nad krzywą to obserwowany Speed Index">']
+    for v in (0, 0.5, 1):
+        sv.append(f'<line class="g" x1="{X0}" x2="{X1}" y1="{ys(v):.1f}" y2="{ys(v):.1f}"/><text class="ax" x="{X0 - 8}" y="{ys(v) + 4:.1f}" text-anchor="end">{int(v * 100)}%</text>')
+    for s_ in range(0, 11, 2):
+        sv.append(f'<text class="ax" x="{xs(s_ * 1000):.1f}" y="{Y1 + 18}" text-anchor="middle">{s_} s</text>')
+    sv.append(f'<path class="area {prof}" d="{pole}"/>')
+    sv.append(f'<path class="line {prof}" d="{sciezka}"/>')
+    znaczniki = [('TTFB', D['ttfb']), ('FCP obs.', D['fcpObs']), ('LCP obs.', D['lcpObs'])]
+    for n, (et, tt) in enumerate(znaczniki):
+        x = xs(tt)
+        sv.append(f'<line class="mk" x1="{x:.1f}" x2="{x:.1f}" y1="{Y0 - 4}" y2="{Y1}"/>'
+                  f'<text class="mkl" x="{x + 4:.1f}" y="{Y0 + 10 + n * 13}">{et} {pl(tt / 1000, 2)} s</text>')
+    for (t0, v0), (t1, v1) in zip(k, k[1:]):
+        if t1 - t0 < 1:
+            continue
+        sv.append(f'<rect class="hit" x="{xs(t0):.1f}" y="{Y0}" width="{xs(t1) - xs(t0):.1f}" height="{Y1 - Y0}" '
+                  f'data-tip="{nazwa}: od {pl(t0 / 1000, 2)} s do {pl(t1 / 1000, 2)} s ekran gotowy w {round(v0 * 100)}%"/>')
+    sv.append('</svg>')
+    krok = D['miniatury'][1]['t'] - D['miniatury'][0]['t']
+    film = ''.join(f'<figure style="width:{krok / TMAX * 100:.2f}%"><img src="{m["src"]}" width="{m["w"]}" height="{m["h"]}" alt="Klatka po {pl(m["t"] / 1000, 2)} s"><figcaption>{pl(m["t"] / 1000, 1)} s</figcaption></figure>'
+                   for m in D['miniatury'])
+    wz = f'{pl(a, 3)} · {pl(D["siObs"])} + {pl(b, 3)} · {pl(si_lay)} ≈ {pl(round(a * D["siObs"] + b * si_lay))} ms'
+    return (f'<div class="vcpanel"><div class="vchead"><h4>{nazwa}</h4><span class="zmeta">SI obserwowany {pl(D["siObs"])} ms · raportowany {pl(D["siRaport"])} ms</span></div>'
+            + ''.join(sv) + f'<div class="film {prof}" style="margin-left:{X0 / 640 * 100:.2f}%;width:{(X1 - X0) / 640 * 100:.2f}%">{film}</div>'
+            f'<p class="wzor">SI = {wz}</p></div>')
+
+
+w(f'  <h3 class="sub3">Taśma klatek: kiedy ekran przestaje być biały</h3>')
+w(f'  <p class="section-note">Lokalny ślad Lighthouse 13.5.0 (kontener w USA przez proxy sesji, więc {t("ttfb", "TTFB")} jest dłuższy niż w PSI). '
+  f'Krzywa to {t("kompletnosc")}; zacienione pole nad nią to obserwowany Speed Index. Raportowany SI dokłada {t("si-layout")}. '
+  'Pod osią czasu miniatury Lighthouse, każda na końcu swojego przedziału.</p>')
+w('  <div class="vcgrid">' + panel('desktop', 'Desktop', 0.575, 0.492, 1823) + panel('mobile', 'Mobile', 1.4, 0.4, 4326) + '</div>')
+w('  <div class="legend"><span><i style="background:var(--s1)"></i>desktop</span><span><i style="background:var(--s2)"></i>mobile</span><span><i class="dash"></i>TTFB, FCP i LCP obserwowane</span></div>')
+w('  ' + md('\n\n'.join(a for a in akapity(wstep12) if a.startswith('**Dlaczego') or a.startswith('**Co mówi taśma'))))
+# przyczyny
+w('  <h3 class="sub3">Przyczyny w kodzie i na wdrożeniu</h3>')
+w(f'  <p class="section-note">Pojęcia: {t("cache-dokumentu")}, {t("strumien-ssr")}, {t("early-hints")}.</p>')
+w('  <ol class="axis">')
+for p in punkty(pod12['Przyczyny w kodzie i na wdrożeniu'], r'^\d+\. (.*)$'):
+    m = re.match(r'^\*\*(.+?)\*\*\s*(.*)$', p)
+    w(f'    <li><span class="rt">{inline(m.group(1))}</span><p>{inline(m.group(2))}</p></li>')
+w('  </ol>')
+# rekomendacje: zakresy
+rk = pod12['Rekomendacje w kolejności efektu']
+trk = tabele(rk)[0]
+# zakresy z agenci/si-synteza14.json (pole szacunekSI, „w wyniku"); None = bez efektu w tym profilu
+ZAK = {1: ((1.7, 2.0), (1.1, 1.1)), 2: ((0.23, 0.37), (0.85, 1.4)), 3: ((0.1, 0.15), (0.2, 0.6)), 4: ((0.45, 0.5), (0.4, 0.4)),
+       5: (None, (0.15, 0.4)), 6: ((0.05, 0.2), (0.2, 0.45)), 7: ((0.03, 0.1), (0.05, 0.2)), 8: ((0.03, 0.1), (0.05, 0.2)), 9: ((0.0, 0.05), None)}
+KROTKO = {1: 'Cache dokumentu: rozwiązany HTML, L2 albo rozgrzewanie', 2: 'Cache /media: klucz z formatu wynikowego', 3: 'Hero w pierwszym flushu',
+          4: 'Early Hints także na MISS', 5: 'Mobile: priorytet obrazu LCP', 6: 'Mniejszy arkusz blokujący', 7: 'Jeden round-trip dla danych hero',
+          8: 'Bez wymuszonego układu w hydratacji', 9: 'Dokładniejsze sizes na desktopie'}
+SKALA = 2.0
+
+
+def zakres_txt(z):
+    if not z:
+        return 'bez efektu'
+    lo, hi = z
+    return f'ok. {pl(lo, 2).rstrip("0").rstrip(",")} s' if lo == hi else f'{pl(lo, 2).rstrip("0").rstrip(",")}-{pl(hi, 2).rstrip("0").rstrip(",")} s'
+
+
+def pasek(z, prof, nr):
+    if not z:
+        return '<span class="rr none">brak</span>'
+    lo, hi = z
+    lewo, szer_ = lo / SKALA * 100, max((hi - lo) / SKALA * 100, 0)
+    tip = f'Rekomendacja {nr}, {prof}: skrócenie SI {zakres_txt(z)}'
+    if lo == hi:
+        return f'<span class="rr pt {prof}" style="left:{lewo:.2f}%" data-tip="{esc(tip)}"></span>'
+    return f'<span class="rr {prof}" style="left:{lewo:.2f}%;width:{szer_:.2f}%" data-tip="{esc(tip)}"></span>'
+
+
+w('  <h3 class="sub3">Rekomendacje: o ile skrócą Speed Index</h3>')
+w(f'  <p class="section-note">{inline(akapity(rk)[0])}</p>')
+w('  <div class="legend"><span><i style="background:var(--s1)"></i>desktop</span><span><i style="background:var(--s2)"></i>mobile</span><span><i class="dot"></i>szacunek punktowy („ok.")</span></div>')
+w('  <div class="rchart" role="img" aria-label="Wykres: szacowane skrócenie raportowanego Speed Index dla każdej z dziewięciu rekomendacji, osobno desktop i mobile, skala od 0 do 2 sekund">')
+w('    <div class="rhead"><span></span><span class="rscale">' + ''.join(f'<b style="left:{v / SKALA * 100:.0f}%">{pl(v, 1)} s</b>' for v in (0, 0.5, 1.0, 1.5, 2.0)) + '</span><span></span></div>')
+for nr in range(1, 10):
+    d, m_ = ZAK[nr]
+    w(f'    <div class="rrow"><span class="rlab"><b>{nr}</b> {KROTKO[nr]}</span><span class="rtrack">'
+      f'<span class="rline">{pasek(d, "desktop", nr)}</span><span class="rline">{pasek(m_, "mobile", nr)}</span></span>'
+      f'<span class="rval">D {zakres_txt(d)}<br>M {zakres_txt(m_)}</span></div>')
+w('  </div>')
+w('  <p class="zmeta">Zakresy z syntezy śledztwa (<code>agenci/si-synteza14.json</code>, pole <code>szacunekSI</code>), w warunkach lokalnych; w PSI efekty są proporcjonalnie mniejsze, a 1, 3 i 5 częściowo się pokrywają.</p>')
+
+
+def kom_rk(c, txt, wiersz):
+    if c == 0:
+        return f'<span class="rnum">{html.escape(txt)}</span>'
+    return None
+
+
+w('  <details style="margin-top:14px"><summary><span class="sm-name">Rekomendacje w tabeli</span><span class="sm-stat2">zmiana, profil, miejsce w kodzie, efekt, ryzyko</span></summary>'
+  + tabela_html(*trk, komorka=kom_rk, klasa='wide') + '</details>')
+rk_po = [a for a in akapity(rk) if a.startswith('**Kolejność') or a.startswith('**Czego nie robić')]
+for a in rk_po:
+    w(f'  <p class="note" style="margin-top:12px">{inline(a)}</p>')
+psi_pkt = punkty(rk[rk.index('**Pozostałe pozycje z raportu PSI:**'):], r'^- (.*)$')
+w(f'  <details style="margin-top:14px"><summary><span class="sm-name">Pozostałe pozycje z raportu PSI</span><span class="sm-stat2">każda statystyka z raportu, z oceną wpływu na SI</span><span class="sm-stat t3">{len(psi_pkt)}</span></summary>'
+  '<div class="dbody"><ul class="mdlist">' + ''.join(f'<li>{inline(p)}</li>' for p in psi_pkt) + '</ul></div></details>')
+w('  <details><summary><span class="sm-name">PSI i lokalny Lighthouse w tabeli</span><span class="sm-stat2">wszystkie cztery profile</span></summary>'
+  + tabela_html(*tabele(wstep12)[0]) + f'<p class="dnote">{inline([a for a in akapity(wstep12) if a.startswith("Lokalne przebiegi")][0])}</p></details>')
+w('</section>')
+
+# ---------- plan 18.13 ----------
+t18_13, _ = sekcja(13)
+w('<section>')
+w(naglowek('Plan wydania 14 · kolejność: produkcja i dane, potem wydajność, potem dług dowodowy', 'Co robić i w jakiej kolejności', 'plan'))
+w(f'  <p class="section-note">{inline(akapity(t18_13)[0])}</p>')
+w('  <ol class="recs">')
+for p in punkty(t18_13, r'^\d+\. (.*)$'):
+    m = re.match(r'^\*\*(.+?)\*\*\s*(.*)$', p)
+    tresc = m.group(2)
+    zam = re.search(r'\s*Zamyka: (.*?)\.?$', tresc)
+    if zam:
+        tresc = tresc[:zam.start()].rstrip()
+        w(f'    <li class="rec"><span class="rt">{inline(m.group(1).rstrip("."))}<span class="rz">zamyka: {inline(zam.group(1))}</span></span><p>{inline(tresc)}</p></li>')
+    else:
+        w(f'    <li class="rec"><span class="rt">{inline(m.group(1).rstrip("."))}</span><p>{inline(tresc)}</p></li>')
+w('  </ol>')
+w('</section>')
+
+# ---------- 18.11 plan wydania 13 ----------
+t18_11, tyt11 = sekcja(11)
+w('<section>')
+w(naglowek('Plan naprawczy wydania 13 · rozliczenie dwunastu pozycji', html.escape(tyt11)))
+
+
+def kom_plan13(c, txt, wiersz, nag):
+    if nag[c].lower().startswith('stan'):
+        txt = txt.replace('*', '')
+        k = txt.lower()
+        kl = 'ok' if k.startswith('wykonan') else 'part' if k.startswith('częściow') else 'open' if k.startswith('niewykonan') else 'info'
+        return f'<span class="chip {kl}">{html.escape(txt)}</span>'
+    return None
+
+
+w('  ' + md(t18_11, tabela=lambda tt: tabela_html(*tt, komorka=lambda c, x, r: kom_plan13(c, x, r, tt[0]), klasa='wide')))
+w('</section>')
+
+# ---------- pokrycie per moduł ----------
+t18_3, _ = sekcja(3)
+
+
+def kl_mod(wiersz):
+    try:
+        v = num(wiersz[3])
+    except ValueError:
+        return ''
+    return 't4' if v >= 99 else 't3' if v >= 97 else 't2' if v >= 93 else 't1'
+
+
+def kom_mod(c, txt, wiersz):
+    if c == 0:
+        return f'<span class="mod" data-tip="{esc(wiersz[1])}">{inline(txt)}</span>'
+    if c in (3, 5, 7):
+        try:
+            v = num(txt)
+        except ValueError:
+            return None
+        k = kl_mod(wiersz) if c == 3 else 'n'
+        return f'<span class="bar {k}"><i style="width:{v:.1f}%"></i></span>{inline(txt)}'
+    if c in (4, 6):
+        v = txt.replace('*', '')
+        k = 'up' if v.startswith('+') else 'down' if v.startswith('-') else 'flat'
+        return f'<span class="delta"><span class="{k}">{inline(v)}</span></span>'
+    return None
+
+
+w('<section>')
+w(naglowek('Pokrycie per moduł · 22 moduły i 3 przekroje · delta wobec wydania 13', 'Spadek skupiony w trzech modułach: silniki treści, analityka, platforma', 'moduly'))
+w(f'  <p class="section-note">Klucz modułu z {t("modul", "taksonomii")}; kolejność od najwyższego pokrycia linii. Pasek przy liniach: kolor według progu, przy funkcjach i gałęziach neutralny.</p>')
+w('  ' + tabela_html(*tm, klasy_wierszy=kl_mod, komorka=kom_mod, klasa='wide'))
+w('  <div class="legend"><span><i style="background:var(--t4)"></i>linie ≥ 99%</span><span><i style="background:var(--t3)"></i>97-99%</span>'
+  '<span><i style="background:var(--t2)"></i>93-97%</span><span><i style="background:var(--t1)"></i>poniżej 93%</span></div>')
+w('  ' + md('\n\n'.join(a for a in akapity(t18_5) if a.startswith('**'))))
+w('  <h3 class="sub3">Skąd spadek o 3,15 pp linii</h3>')
+w('  ' + md(t18_4[t18_4.index('**Skąd spadek'):t18_4.index('**Nowy kod jest pokryty')]))
+w(f'  <details style="margin-top:14px"><summary><span class="sm-name">Zmiana zasad: pokrycie przestało być bramką CI</span><span class="sm-stat2">commit c3f0c0e72 z 2026-10-05</span></summary>'
+  f'<div class="dbody">{md(t18_3)}</div></details>')
+w('  <details><summary><span class="sm-name">Wynik pomiaru w tabeli</span><span class="sm-stat2">wydanie 13 wobec 14, wszystkie miary</span></summary>'
+  + tabela_html(*tabele(t18_4)[0]) + f'<div class="dbody">{md((chr(10) * 2).join(akapity(t18_4)[:2]))}</div></details>')
+w('</section>')
+
+# ---------- funkcjonalności ----------
+t18_6, _ = sekcja(6)
+tf = tabele(t18_6)[0]
+w('<section>')
+w(naglowek('Funkcjonalności · mapa wydania 13 przeniesiona na nowe drzewo', '428 funkcjonalności, 78 nowych, żadna nie zginęła', 'funkcjonalnosci'))
+w(f'  <p class="section-note">{inline(akapity(t18_6)[0])} Zobacz: {t("funkcjonalnosc")}.</p>')
+spadki = t18_6[t18_6.index('**Największe spadki'):t18_6.index('**Nowe funkcjonalności z okna**')]
+w('  ' + md(spadki))
+nowe_par = [a for a in akapity(t18_6) if a.startswith('**Nowe funkcjonalności z okna**')][0]
+w(f'  <details><summary><span class="sm-name">Nowe funkcjonalności z okna</span><span class="sm-stat2">nazwa i pokrycie linii</span><span class="sm-stat t3">78</span></summary><p class="dnote">{inline(nowe_par)}</p></details>')
+moduly = {}
+for wiersz in tf[2]:
+    moduly.setdefault(wiersz[0], []).append(wiersz)
+klucz_mod = lambda k: (0, int(k)) if k.isdigit() else (1, k)
+for mod in sorted(moduly, key=klucz_mod):
+    wiersze = moduly[mod]
+    linie = [num(x[4]) for x in wiersze]
+    najs = min(linie)
+    k = 't4' if najs >= 99.5 else 't3' if najs >= 95 else 't2' if najs >= 80 else 't1'
+    nowe = sum(1 for x in wiersze if x[2].strip() == 'tak')
+    w(f'  <details><summary><span class="sm-num">{html.escape(mod)}</span><span class="sm-name">{html.escape(NAZWA.get(mod, "moduł " + mod))}</span>'
+      f'<span class="sm-stat2">{len(wiersze)} funkcjonalności{f" · {nowe} nowych" if nowe else ""}</span><span class="sm-stat {k}">najsłabsza {pl(najs, 1)}%</span></summary>')
+    w('  ' + tabela_html(tf[0][1:], tf[1][1:], [x[1:] for x in wiersze],
+                          komorka=lambda c, x, r: ('<span class="new-badge">nowa</span>' if x.strip() == 'tak' else '') if c == 1 else None))
+    w('  </details>')
+w('</section>')
+
+# ---------- defekty i rejestr ----------
+t18_10, _ = sekcja(10)
+KOL = {'krytyczny': 0, 'wysoki': 1, 'sredni': 2, 'niski': 3}
+
+
+def karta_def(d):
+    miejsce = f'{d["plik"]}:{d["linia"]}'
+    return (f'<details class="dcard"><summary><span class="fid">{d["id"]}</span>{sev(d["waga"])}{pewnosc_chip(d["pewnosc"])}'
+            f'<span class="dt">{html.escape(d["tytul"])}</span><code class="dloc">{html.escape(miejsce)}</code></summary>'
+            f'<dl class="ddl"><dt>Mechanizm</dt><dd>{inline(d["mechanizm"], False)}</dd><dt>Skutek</dt><dd>{inline(d["skutek"], False)}</dd>'
+            f'<dt>Jak sprawdzone</dt><dd>{inline(d["samosprawdzenie"], False)}</dd><dt>Dowód</dt><dd class="dproof">{inline(d["dowod"], False)}</dd></dl></details>')
+
+
+w('<section>')
+w(naglowek('Defekty · 89 nowych z mechanizmem i dowodem · rejestr wydań 11-13', '89 nowych defektów; z rejestru 341 pozycji naprawiono 40', 'defekty'))
+w(f'  <p class="section-note">{inline(akapity(t18_9)[0])}</p>')
+grupy = [('krytyczny', 'Krytyczny', 't1'), ('wysoki', 'Wysokie', 't1'), ('sredni', 'Średnie', 't2'), ('niski', 'Niskie', 't3')]
+for waga, nazwa, kl in grupy:
+    lista = sorted([d for d in DEF if d['waga'] == waga], key=lambda d: (d['pewnosc'] != 'pewny', d['id']))
+    pew = sum(1 for d in lista if d['pewnosc'] == 'pewny')
+    w(f'  <details{" open" if waga == "krytyczny" else ""}><summary><span class="sm-name">{nazwa}</span><span class="sm-stat2">pewnych {pew} · prawdopodobnych {len(lista) - pew}</span>'
+      f'<span class="sm-stat {kl}">{len(lista)}</span></summary><div class="dlist">' + ''.join(karta_def(d) for d in lista) + '</div></details>')
+w(f'  <h3 class="sub3">Rejestr wydań 11-13: co naprawiono, co stoi</h3>')
+t10 = tabele(t18_10)
+w(f'  <p class="section-note">{inline(akapity(t18_10)[0])} Zobacz: {t("rejestr")}.</p>')
+w('  ' + tabela_html(*t10[0]))
+for a in akapity(t18_10)[1:]:
+    w(f'  <p class="section-note">{inline(a)}</p>')
+
+
+def kom_stan(c, txt, wiersz):
+    if c == 3:
+        return f'<span class="chip {"open" if txt.startswith("bez") else "part"}">{html.escape(txt)}</span>'
+    return None
+
+
+w(f'  <details style="margin-top:14px"><summary><span class="sm-name">Otwarte wysokie z rejestru</span><span class="sm-stat2">ze stanem pliku w oknie</span><span class="sm-stat t1">{len(t10[1][2])}</span></summary>'
+  + tabela_html(*t10[1], komorka=kom_stan, klasa='wide') + '</details>')
+w('</section>')
+
+# ---------- skala okna ----------
+t18_2, _ = sekcja(2)
+w('<section>')
+w(naglowek('Skala i delta okna · jedna definicja na dwóch drzewach', '1 604 commity: kod rośnie o 11%, testy o 8,5%', 'skala'))
+w(f'  <p class="section-note">{inline(akapity(t18_2)[0])} Zobacz: {t("okno")}, {t("it-fails")}, {t("rls")}, {t("pgtap")}.</p>')
+w('  ' + tabela_html(*tabele(t18_2)[0]))
+w('  ' + md('\n\n'.join(akapity(t18_2)[1:])))
+w('</section>')
+
+# ---------- rachunek i jak sprawdzić ----------
+t18_14, _ = sekcja(14)
+t18_15, _ = sekcja(15)
+w('<section>')
+w(naglowek('Rachunek sumienia i sprawdzalność', 'Co w tym wydaniu jest szacunkiem i jak sprawdzić resztę'))
+wstep14, pod14 = podsekcje(t18_14)
+w('  <div class="tgrid">')
+for p in punkty(wstep14, r'^- (.*)$'):
+    m = re.match(r'^\*\*(.+?)\*\*\s*(.*)$', p)
+    w(f'    <div class="tcard"><span class="tname">{inline(m.group(1).rstrip("."))}</span><p class="tproof">{inline(m.group(2))}</p></div>')
+w('  </div>')
+KRYT = 'Krytyk kompletności: czego ten rozdział nie pokrył'
+if KRYT in pod14:
+    kt = pod14[KRYT]
+    w(f'  <h3 class="sub3">{KRYT}</h3>')
+    w(f'  <p class="section-note">{inline(akapity(kt)[0])}</p>')
+    WK = {'wysoka': 't1', 'średnia': 't2', 'niska': 't3'}
+    w('  <div class="zgrid" style="margin-top:12px">')
+    for p in punkty(kt, r'^- (.*)$'):
+        m = re.match(r'^\*\*\(([^,]+), (.+?)\) (.+?)\.\*\*\s*(.*)$', p)
+        waga, sp_, tyt, reszta = m.groups()
+        spr = sp_.endswith(', sprawdzone')
+        sp_ = sp_[:-len(', sprawdzone')] if spr else sp_
+        czesci = re.split(r' (Dowód|Rekomendacja|Miejsce w rozdziale): ', ' ' + reszta)
+        opis = czesci[0].strip()
+        pola = dict(zip(czesci[1::2], czesci[2::2]))
+        w(f'    <div class="zcard {WK.get(waga, "t3")}"><div class="zhead"><span class="zname">{inline(tyt)}</span>'
+          f'<span class="chip {"open" if waga == "wysoka" else "part" if waga == "średnia" else "info"}">{html.escape(waga)}</span></div>'
+          f'<span class="zmeta">{html.escape(sp_)}{" · sprawdzone w kodzie" if spr else " · zgłoszone, do potwierdzenia"}</span>'
+          f'<p class="tproof">{inline(opis)}</p>'
+          + '<details class="zmore"><summary>Dowód, rekomendacja, miejsce w rozdziale</summary>'
+          + ''.join(f'<p class="tproof"><b>{k}.</b> {inline(pola[k].strip())}</p>' for k in ('Dowód', 'Rekomendacja', 'Miejsce w rozdziale') if k in pola)
+          + '</details></div>')
+    w('  </div>')
+w('  <h3 class="sub3">Jak sprawdzić</h3>')
+w('  ' + md(t18_15))
+w('</section>')
+
+# ---------- słownik ----------
+w('<section>')
+w(naglowek('Słownik · każde pojęcie z oknem objaśnienia', 'Pojęcia tego raportu'))
+w('  <div class="gloss">' + ''.join(
+    f'<button class="gl" type="button" popovertarget="p-{k}"><b>{html.escape(v[0])}</b><span>{html.escape(v[1])}</span></button>' for k, v in SLOWNIK.items()) + '</div>')
+w('</section>')
+
+ed14 = '\n'.join(o)
+
+# ---------- montaż z archiwum wydania 13 ----------
+s = open(STARY, encoding='utf-8').read()
+start = s.index('<title>')
+glowa_i_reszta = s[start:]
+i_wrap = glowa_i_reszta.index('<div class="wrap">')
+glowa = glowa_i_reszta[:i_wrap]
+cialo = glowa_i_reszta[i_wrap + len('<div class="wrap">'):]
+k_div = cialo.rindex('</div>')
+cialo13 = cialo[:k_div].strip('\n')
+assert cialo13.startswith('<header class="hero">') and cialo13.endswith('</footer>'), (cialo13[:40], cialo13[-40:])
+cialo13 = cialo13.replace('<header class="hero">', '<header class="hero" style="border-bottom:0">', 1)
+glowa = glowa.replace('</head>', '').replace('<body>', '')
+# Pełny dokument: doctype, język, kodowanie i viewport (bez nich plik otwarty samodzielnie renderuje się w trybie quirks).
+PREFIKS = ('<!doctype html>\n<html lang="pl">\n<head>\n<meta charset="utf-8">\n'
+           '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n')
+
+CSS14 = obok('styl14.css').read_text(encoding='utf-8')
+assert '/* --- wydanie 14 --- */' in CSS14
+if '/* --- wydanie 14 --- */' not in glowa:
+    glowa = glowa.replace('</style>', CSS14 + '</style>', 1)
+assert glowa.count('/* --- wydanie 14 --- */') == 1
+
+archiwum = ('<section>\n<details class="archiwum"><summary><span class="sm-num">13</span> <span class="sm-name">Wydanie 13 · 2026-10-04 · audyt po kampanii naprawczej</span>'
+            '<span class="sm-stat2">rozwiń pełny zapis bez zmian liczb, z archiwum wydań 12 i 11</span></summary>\n  <div class="archbody">\n'
+            + cialo13 + '\n  </div></details>\n</section>')
+stopka = ('<footer><span>Audyt pokrycia testami NES · wydanie 14 · HEAD <code>346012635</code> (scalenie PR #518) · 2026-10-18</span>'
+          '<span>Dokument źródłowy: <code>docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md</code>, rozdział 18 (PR #519)</span>'
+          '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-14.mjs</code> - 476 asercji na drzewach <code>346012635</code> i <code>5b8c77c01</code> czytanych z obiektów gita, 476 zielonych, 0 czerwonych</span>'
+          '<span>Dane: <code>docs/audyt-ed14/</code> (pomiar, funkcjonalności, graf, defekty, rejestr, migawka agentów, Lighthouse z klatkami, narzędzia)</span></footer>')
+skrypt = obok('dymki14.js').read_text(encoding='utf-8')
+wynik = ('' if ARGS.fragment else PREFIKS) + (glowa if ARGS.fragment else glowa + '</head>\n<body>\n') + ('<div class="wrap">\n' + ed14 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
+         + '<div class="pops">' + ''.join(okna.values()) + '</div>\n<script>' + skrypt + '</script>\n') + ('' if ARGS.fragment else '</body>\n</html>\n')
+nowe = ed14 + stopka + ''.join(okna.values()) + skrypt + CSS14
+for zly in ('—', '–'):
+    n = nowe.count(zly)
+    assert n == 0, f'znak {zly!r} w nowej części: {n}; ' + nowe[max(0, nowe.index(zly) - 80):nowe.index(zly) + 40]
+uzyte = set(re.findall(r'popovertarget="p-([\w-]+)"', wynik))
+assert uzyte <= set(okna), uzyte - set(okna)
+open(WYJSCIE, 'w', encoding='utf-8').write(wynik)
+print('ok', len(wynik), 'bajtów; nowa część', len(ed14), '; okien', len(okna), '; dymków', wynik.count('data-tip='))

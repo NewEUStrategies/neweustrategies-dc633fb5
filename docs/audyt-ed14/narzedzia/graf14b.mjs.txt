@@ -1,0 +1,39 @@
+// Graf modulow bez lapacza modulu 20: pliki, ktore trafiaja do 20 tylko przez MODULE_20_CATCH_ALL
+// (src/lib/** i src/routes/** bez wlasnej reguly), dostaja wezel "20*" (wspolna biblioteka bez wlasciciela).
+// Pytanie: czy jedna silnie spojna skladowa to architektura, czy artefakt taksonomii.
+import fs from "node:fs";
+import path from "node:path";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const mm = await import(ROOT + "/scripts/taxonomy/moduleMap.mjs");
+const K = JSON.parse(fs.readFileSync(SP + "/klasy14.json", "utf8")).teraz;
+const m20 = mm.MODULES.find((m) => m.id === 20);
+const jawne20 = m20.patterns.filter((p) => !["^src\\/routes\\/", "^src\\/lib\\/"].includes(p.source));
+const wezel = (f) => { const k = K[f].k; if (k !== "20") return k; return jawne20.some((p) => p.test(f)) ? "20" : "20*"; };
+const EXT = ["", ".ts", ".tsx", ".js", ".jsx", ".mjs", "/index.ts", "/index.tsx", "/index.js"];
+const IMP = /(?:^|[\s;])(?:import|export)\s+(type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/gm;
+const res = (f, s) => { let p; if (s.startsWith("@/")) p = "src/" + s.slice(2); else if (s.startsWith(".")) p = path.posix.normalize(path.posix.join(path.posix.dirname(f), s)); else return null; for (const e of EXT) if (K[p + e]) return p + e; return null; };
+const kraw = new Map(); let n20s = 0;
+for (const [f, v] of Object.entries(K)) {
+  if (v.t || !/\.(ts|tsx|js|jsx|mjs)$/.test(f) || f.endsWith(".d.ts")) continue;
+  const a = wezel(f); if (a === "20*") n20s++;
+  for (const m of fs.readFileSync(path.join(ROOT, f), "utf8").matchAll(IMP)) {
+    if (m[1] || m[3]) continue; // tylko importy wartosci, statyczne
+    const c = res(f, m[2] ?? m[3]); if (!c || K[c].t) continue;
+    const b = wezel(c); if (a === b) continue;
+    kraw.set(a + ">" + b, (kraw.get(a + ">" + b) ?? 0) + 1);
+  }
+}
+const scc = (bez) => {
+  const E = [...kraw.keys()].map((k) => k.split(">")).filter(([a, b]) => !bez.includes(a) && !bez.includes(b));
+  const V = [...new Set(E.flat())]; const adj = new Map(V.map((v) => [v, []])); for (const [a, b] of E) adj.get(a).push(b);
+  let i = 0; const st = [], on = new Set(), ix = new Map(), lo = new Map(), out = [];
+  const dfs = (v) => { ix.set(v, i); lo.set(v, i); i++; st.push(v); on.add(v); for (const w of adj.get(v)) { if (!ix.has(w)) { dfs(w); lo.set(v, Math.min(lo.get(v), lo.get(w))); } else if (on.has(w)) lo.set(v, Math.min(lo.get(v), ix.get(w))); } if (lo.get(v) === ix.get(v)) { const c = []; let w; do { w = st.pop(); on.delete(w); c.push(w); } while (w !== v); if (c.length > 1) out.push(c.sort()); } };
+  for (const v of V) if (!ix.has(v)) dfs(v); return out;
+};
+const wynik = { plikiLapacza20: n20s, krawedzie: kraw.size, lista: Object.fromEntries(kraw),
+  sccPelny: scc([]), sccBezLapacza: scc(["20*"]), sccBezLapaczaINull: scc(["20*", "NULL"]), sccBezLapaczaNullAdminShell: scc(["20*", "NULL", "X-admin-shell"]),
+  doLapacza: [...kraw].filter(([k]) => k.endsWith(">20*")).reduce((s, [, n]) => s + n, 0) };
+fs.writeFileSync(SP + "/graf14b.json", JSON.stringify(wynik, null, 1));
+console.log("pliki w lapaczu 20:", n20s, "| importy do lapacza:", wynik.doLapacza);
+for (const k of ["sccPelny", "sccBezLapacza", "sccBezLapaczaINull", "sccBezLapaczaNullAdminShell"]) console.log(k, JSON.stringify(wynik[k].map((c) => c.length)), JSON.stringify(wynik[k]).slice(0, 400));
