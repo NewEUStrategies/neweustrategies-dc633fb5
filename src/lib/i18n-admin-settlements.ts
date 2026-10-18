@@ -12,7 +12,7 @@ const pl = {
     apply: "Pokaż",
     loading: "Wczytywanie...",
     empty: "Brak rozliczeń dla wybranych filtrów.",
-    truncated: "Pokazano 500 najnowszych pozycji - zawęź zakres dat.",
+    truncated: "Sprawdzono tylko 500 najnowszych zamówień - zawęź zakres dat.",
     count: "Pozycji: {{count}}",
     review: "Do sprawdzenia",
     columns: {
@@ -32,12 +32,17 @@ const pl = {
       failed: "Nieudane",
       canceled: "Anulowane",
     },
+    // Stany zlecenia zwrotu - dokładnie wartości CHECK kolumny
+    // `event_registration_refund_jobs.state` (`REFUND_JOB_STATES`
+    // w `lib/events/registrationRefundJournal.ts`).
     jobs: {
       pending: "W kolejce",
       processing: "W toku",
-      done: "Wykonany",
-      review: "Do sprawdzenia",
+      submitted: "Zlecony operatorowi",
+      completed: "Wykonany",
       failed: "Nieudany",
+      cancelled: "Wycofany",
+      needs_review: "Wymaga decyzji",
     },
   },
 };
@@ -53,7 +58,7 @@ const en: typeof pl = {
     apply: "Show",
     loading: "Loading...",
     empty: "No settlements match the selected filters.",
-    truncated: "Showing the 500 most recent entries - narrow the date range.",
+    truncated: "Only the 500 most recent orders were checked - narrow the date range.",
     count: "Entries: {{count}}",
     review: "Needs review",
     columns: {
@@ -76,9 +81,11 @@ const en: typeof pl = {
     jobs: {
       pending: "Queued",
       processing: "Processing",
-      done: "Done",
-      review: "Needs review",
+      submitted: "Sent to the provider",
+      completed: "Done",
       failed: "Failed",
+      cancelled: "Withdrawn",
+      needs_review: "Needs a decision",
     },
   },
 };

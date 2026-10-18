@@ -7,7 +7,6 @@ import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 import {
   isLivePlanSubscriptionStatus,
   loadLocalPlanSubscriptionHistory,
-  mergePlanSubscriptionHistory,
   planPurchaseConflict,
   planSubscriptionHistory,
   visiblePlanPurchaseConflict,
@@ -76,21 +75,6 @@ describe("planSubscriptionHistory", () => {
     expect(isLivePlanSubscriptionStatus(null)).toBe(false);
     expect(isLivePlanSubscriptionStatus("canceled")).toBe(false);
   });
-
-  it("ślad w którymkolwiek źródle (lustro albo operator) wystarcza", () => {
-    expect(
-      mergePlanSubscriptionHistory(
-        { hasLive: false, hadAny: true, conflict: null },
-        { hasLive: false, hadAny: false, conflict: null },
-      ),
-    ).toEqual({ hasLive: false, hadAny: true, conflict: null });
-    expect(
-      mergePlanSubscriptionHistory(
-        { hasLive: true, hadAny: true, conflict: "change_plan" },
-        { hasLive: true, hadAny: true, conflict: "same_plan" },
-      ).conflict,
-    ).toBe("same_plan");
-  });
 });
 
 describe("konflikt zakupu z żywą subskrypcją = reguła zmiany planu (audyt #19)", () => {
@@ -127,6 +111,42 @@ describe("konflikt zakupu z żywą subskrypcją = reguła zmiany planu (audyt #1
     expect(planPurchaseConflict(null, PRO)).toBe("unmanaged");
     expect(planPurchaseConflict("decision_lab_seat", PRO)).toBe("unmanaged");
     expect(planPurchaseConflict("pro_monthly", null)).toBe("unmanaged");
+  });
+
+  it("cel niecykliczny (cena nowej subskrypcji w alarmie duplikatu) - blokada fail-closed", () => {
+    // Kasa nie podaje tu pozycji jednorazowej, ale alarm duplikatu podaje cenę
+    // NOWEJ subskrypcji - a miejsce Decision Labu bywało ceną cykliczną. Zmiana
+    // planu na taki cel nie istnieje, więc to nie jest „osobny zakup” (null).
+    const decisionLab = entry("decision_lab_seat");
+    expect(catalogSwitchRefusal(PRO, decisionLab)).toBe("plan_not_switchable");
+    expect(planPurchaseConflict("pro_monthly", decisionLab)).toBe("unmanaged");
+    expect(planPurchaseConflict("team_monthly_seat", decisionLab)).toBe("unmanaged");
+  });
+
+  it("kolejność subskrypcji nie zmienia komunikatu: wygrywa najtwardsza blokada", () => {
+    // pro_annual -> pro_monthly to zmiana planu, pro_monthly -> pro_monthly to ten
+    // sam plan, a cena spoza katalogu to portal operatora (najtwardsze).
+    const changePlan = { status: "active", lookupKey: "pro_annual" };
+    const samePlan = { status: "past_due", lookupKey: "pro_monthly" };
+    const unmanaged = { status: "paused", lookupKey: "legacy_price_xyz" };
+
+    for (const records of [
+      [changePlan, samePlan],
+      [samePlan, changePlan],
+    ]) {
+      expect(planSubscriptionHistory(records, PRO)).toEqual({
+        hasLive: true,
+        hadAny: true,
+        conflict: "same_plan",
+      });
+    }
+    for (const records of [
+      [unmanaged, samePlan, changePlan],
+      [changePlan, unmanaged, samePlan],
+      [samePlan, changePlan, unmanaged],
+    ]) {
+      expect(planSubscriptionHistory(records, PRO).conflict).toBe("unmanaged");
+    }
   });
 
   it("dwie subskrypcje: komunikat mówi o najtwardszej blokadzie", () => {

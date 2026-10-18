@@ -88,9 +88,8 @@ async function claimedGeneration(target: WebhookEventTarget): Promise<number | u
     if (target.tenantId !== undefined) query = query.eq("tenant_id", target.tenantId);
     const { data, error } = await query.maybeSingle();
     if (error) throw new Error(error.message);
-    if (data?.status === "received" && typeof data.retry_count === "number") {
-      return data.retry_count;
-    }
+    // `retry_count` jest NOT NULL DEFAULT 0 - wiersz `received` zawsze go niesie.
+    if (data?.status === "received") return data.retry_count;
     console.warn(
       "[payments] webhook claim generation unknown - domknięcie bez strażnika pokolenia",
       target.eventId,
@@ -144,7 +143,8 @@ export async function processClaimedWebhookEvent(
 
   try {
     const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
-    const outcome = await dispatchWebhookEvent({
+    // Wynik dyspozytora (`processed` | `skipped`) jest wprost statusem domknięcia.
+    const status = await dispatchWebhookEvent({
       // Ten sam identyfikator przy każdej powtórce (dostawa, panel, zamiatarka)
       // - strażnik kolejności subskrypcji rozpoznaje po nim TO SAMO zdarzenie.
       eventId: event.eventId,
@@ -153,7 +153,6 @@ export async function processClaimedWebhookEvent(
       environment: event.environment,
       occurredAt: event.occurredAt,
     });
-    const status = outcome === "processed" ? "processed" : "skipped";
     const durationMs = Date.now() - startedAt;
     const finish = await finishWebhookEvent(target, status, { durationMs });
     return { status, error: null, durationMs, finish };
@@ -337,7 +336,8 @@ export function sweepRowStartCutoff(deadlineAt: number): number {
 export interface WebhookSweepRow extends WebhookEventClaimRow {
   event_id: string;
   event_type: string;
-  environment: string;
+  /** Kolumna z `CHECK (environment IN ('sandbox','live'))` od utworzenia tabeli. */
+  environment: StripeEnv;
   occurred_at: string | null;
   processed_at: string | null;
 }
@@ -370,8 +370,6 @@ export interface WebhookSweepResult {
 }
 
 export interface WebhookSweepOptions {
-  /** Maksymalna liczba wykonań w przebiegu (domyślnie `WEBHOOK_SWEEP_BATCH`). */
-  limit?: number;
   /**
    * Termin (ms od epoki), do którego przebieg ZACZYNA wiersze i na nie
    * CZEKA. Wołający ustawia go nie później niż chwila, w której jego wołający
@@ -499,7 +497,8 @@ export async function sweepWebhookEvents(
     deferred: 0,
     timedOut: 0,
   };
-  const limit = Math.max(1, Math.floor(options.limit ?? WEBHOOK_SWEEP_BATCH));
+  // Partia jest stała; długość przebiegu wołający ustawia wyłącznie terminem.
+  const limit = WEBHOOK_SWEEP_BATCH;
 
   let candidates: WebhookSweepRow[];
   try {
@@ -552,6 +551,7 @@ async function runRowWithinDeadline(
   runAfterResponse(work);
   if (deadlineAt === undefined) return work;
 
+  // Wykonawca obietnicy biegnie synchronicznie - licznik istnieje przed `finally`.
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<"timed_out">((resolve) => {
     timer = setTimeout(() => resolve("timed_out"), Math.max(0, deadlineAt - Date.now()));
@@ -559,15 +559,13 @@ async function runRowWithinDeadline(
   try {
     return await Promise.race([work, deadline]);
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    clearTimeout(timer);
   }
 }
 
 /** Przejęcie i odtworzenie jednego wiersza zamiatarki. */
 async function sweepOne(row: WebhookSweepRow): Promise<SweepRowOutcome> {
-  if (row.environment !== "sandbox" && row.environment !== "live") return "skipped";
-  const environment: StripeEnv = row.environment;
-
+  const { environment } = row;
   const { claim, generation } = await reclaimWebhookEventRowWithGeneration(row);
   if (claim !== "claimed" || generation === null) return "busy";
   const target: WebhookEventTarget = { eventId: row.event_id, environment, generation };

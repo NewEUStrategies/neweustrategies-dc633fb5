@@ -208,3 +208,31 @@ describe("resolveOfferedSwitchTarget - cel wskazany id planu (karta lokalna)", (
     expect(await byPlan("plan-widmo")).toEqual({ ok: false, error: "plan_not_found" });
   });
 });
+
+describe("resolveOfferedSwitchTarget - awaria odczytu planu po id", () => {
+  it("BŁĄD odczytu planu jest zgłaszany, nie zamieniany na „nie ma takiego planu”", async () => {
+    // `plan_not_found` jest odmową domenową (UI: „planu nie ma w ofercie");
+    // chwilowa awaria bazy ma wrócić jako błąd do ponowienia.
+    admin.setResponse("access_plans", fail("canceling statement due to statement timeout"));
+
+    await expect(
+      resolveOfferedSwitchTarget({
+        userId: USER,
+        subscriptionTenantId: TENANT,
+        currentLookupKey: "plus_monthly",
+        target: { planId: "plan-pro-annual" },
+      }),
+    ).rejects.toThrow("canceling statement due to statement timeout");
+  });
+
+  it("plan po id z bieżącą ceną równą celowi to `same_plan` - ta sama reguła co lista w UI", async () => {
+    const result = await resolveOfferedSwitchTarget({
+      userId: USER,
+      subscriptionTenantId: TENANT,
+      currentLookupKey: "pro_monthly",
+      target: { planId: "plan-pro-monthly" },
+    });
+
+    expect(result).toEqual({ ok: false, error: "same_plan" });
+  });
+});

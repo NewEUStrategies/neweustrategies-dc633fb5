@@ -16,6 +16,7 @@ import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import { useAuth } from "@/hooks/useAuth";
 import type { AuditCurrencyTotals, AuditReport } from "@/lib/billing/audit.server";
 import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
+import { downloadBlob } from "@/lib/files/downloadBlob";
 import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
 
 export const Route = createFileRoute("/admin/billing-audit")({
@@ -35,22 +36,37 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** Górna granica okna audytu - TA SAMA, którą wymusza schemat funkcji serwerowej. */
 const MAX_WINDOW_HOURS = 8760;
 
+/** Zakres pytania audytu - to samo jedzie do raportu i do eksportu. */
+interface AuditQuery {
+  environment: Env;
+  sinceHours: number;
+  eventId: string | null;
+}
+
+function sameQuery(a: AuditQuery, b: AuditQuery): boolean {
+  return (
+    a.environment === b.environment && a.sinceHours === b.sinceHours && a.eventId === b.eventId
+  );
+}
+
 /** Treść błędu z granicy serwerowej - operator ma zobaczyć POWÓD, nie ciszę. */
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Zamienia base64 z serwera na pobranie pliku - bez pośrednictwa sieci. */
+/**
+ * Zamienia base64 z serwera na pobranie pliku - bez pośrednictwa sieci.
+ *
+ * Pobranie idzie WSPÓLNYM `downloadBlob`: kotwica w dokumencie i zwolnienie
+ * adresu `blob:` po chwili. Własna kopia zwalniała adres zaraz po `click()`
+ * kotwicy spoza dokumentu - Safari i część Chromium na Androidzie gubią wtedy
+ * plik, a to eksport, z którego księgowość zamyka miesiąc.
+ */
 function downloadBase64(fileName: string, mimeType: string, base64: string): void {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([bytes], { type: mimeType }), fileName);
 }
 
 function AdminBillingAudit() {
@@ -60,23 +76,29 @@ function AdminBillingAudit() {
   const [sinceHours, setSinceHours] = useState(168);
   const [eventId, setEventId] = useState("");
   const [tab, setTab] = useState<Tab>("orders");
-  const [report, setReport] = useState<AuditReport | null>(null);
+  const [loaded, setLoaded] = useState<{ query: AuditQuery; report: AuditReport } | null>(null);
   const [outcomes, setOutcomes] = useState<Record<string, string>>({});
 
   const locale = i18n.language?.startsWith("en") ? "en-GB" : "pl-PL";
-  const query = {
+  const query: AuditQuery = {
     environment,
     sinceHours,
     eventId: UUID_RE.test(eventId.trim()) ? eventId.trim() : null,
   };
 
   const load = useMutation({
-    mutationFn: () => getBillingAudit({ data: query }),
-    onSuccess: (data) => {
-      setReport(data);
+    mutationFn: (scope: AuditQuery) => getBillingAudit({ data: scope }),
+    onSuccess: (data, scope) => {
+      setLoaded({ query: scope, report: data });
       setOutcomes({});
     },
   });
+  // RAPORT WYŁĄCZNIE DLA ZAKRESU Z FORMULARZA. Po zmianie środowiska, okna
+  // albo filtra raport poprzedniego zakresu zostawał na ekranie pod nowymi
+  // ustawieniami: produkcja podpisana sumami piaskownicy, a eksport (który
+  // pyta o zakres z formularza) rozjeżdżał się z tym, co widać. Wraca sam,
+  // gdy formularz wróci do zakresu, dla którego go wczytano.
+  const report = loaded !== null && sameQuery(loaded.query, query) ? loaded.report : null;
 
   const exportFile = useMutation({
     mutationFn: (format: "csv" | "xlsx") => exportBillingAudit({ data: { ...query, format } }),
@@ -201,7 +223,7 @@ function AdminBillingAudit() {
           />
         </label>
 
-        <Button onClick={() => load.mutate()} disabled={load.isPending}>
+        <Button onClick={() => load.mutate(query)} disabled={load.isPending}>
           {load.isPending ? t("adminBillingAudit.loading") : t("adminBillingAudit.load")}
         </Button>
         <Button

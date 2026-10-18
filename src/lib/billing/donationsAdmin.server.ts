@@ -63,6 +63,17 @@ function idOf(value: string | { id: string } | null | undefined): string | null 
 }
 
 /**
+ * Sesja, za którą pieniądze są już u operatora - ta sama reguła co webhook
+ * (`stripeEvents.server`: `checkout.session.completed`, ale nie z
+ * `payment_status: "unpaid"`). Metoda odroczona (polecenie zapłaty SEPA,
+ * przelew) kończy sesję jako `complete` jeszcze BEZ pieniędzy, a odrzucona
+ * zostaje taka na zawsze - zapłatę przynosi `async_payment_succeeded`.
+ */
+function sessionPaid(session: Stripe.Checkout.Session): boolean {
+  return session.status === "complete" && session.payment_status !== "unpaid";
+}
+
+/**
  * Ostatnie wpłaty dla panelu (pełne dane - widok tylko dla roli `admin`).
  *
  * `tenantId` jest parametrem WYMAGANYM i pochodzi z bramki `assertAdmin`, czyli
@@ -133,6 +144,36 @@ async function refundedCharge(
     // Kierunek degradacji jedyny dopuszczalny: awaria sieci nie zwraca wpłaty.
     return null;
   }
+}
+
+/**
+ * Które z podanych wpłat należą do najemcy (i środowiska) uzgodnienia - JEDEN
+ * odczyt na przebieg zamiast jednego na sesję. Lista sesji operatora jest
+ * wspólna dla instalacji, więc `metadata.donationId` bywa cudzym wierszem.
+ * Awaria odczytu degraduje się w JEDYNYM bezpiecznym kierunku: nic nie jest
+ * domykane po identyfikatorze, a raport mówi dlaczego.
+ */
+async function ownedDonationIdsOf(
+  supabase: Awaited<ReturnType<typeof admin>>,
+  tenantId: string,
+  environment: StripeEnv,
+  donationIds: string[],
+  report: DonationsSyncReport,
+): Promise<Set<string>> {
+  const unique = [...new Set(donationIds)];
+  if (unique.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from("donations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("environment", environment)
+    .in("id", unique);
+  if (error) {
+    report.warnings.push("donation_owner_lookup_failed");
+    console.error("[donations sync] donation owner lookup failed", error.message);
+    return new Set();
+  }
+  return new Set(data.map((row) => row.id));
 }
 
 /**
@@ -216,7 +257,7 @@ export async function syncDonationsFromStripe(
     if (row.status === "pending" && sessionId.startsWith("cs_")) {
       try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        if (session.payment_status === "paid" || session.status === "complete") {
+        if (sessionPaid(session)) {
           if (session.mode === "subscription") {
             if (await settleRecurringFromSession(session, row.id, environment)) {
               report.settled += 1;
@@ -290,11 +331,14 @@ export async function syncDonationsFromStripe(
   }
 
   // Osierocone wiersze `pending:` bez sesji - starsze niż 24h są anulowane.
+  // Wyłącznie w środowisku przebiegu, jak każdy inny odczyt tego modułu:
+  // uzgodnienie piaskownicy nie zamyka (ani nie liczy) wierszy produkcyjnych.
   const staleIso = new Date(Date.now() - 86_400_000).toISOString();
   const { data: stale } = await supabase
     .from("donations")
     .select("id")
     .eq("tenant_id", tenantId)
+    .eq("environment", environment)
     .eq("status", "pending")
     .like("provider_session_id", "pending:%")
     .lt("created_at", staleIso)
@@ -319,14 +363,33 @@ export async function syncDonationsFromStripe(
       limit: 100,
     });
     if (sessions.has_more) report.warnings.push("sessions_page_limit");
+    const ownedDonationIds = await ownedDonationIdsOf(
+      supabase,
+      tenantId,
+      environment,
+      sessions.data.flatMap((session) =>
+        session.metadata?.purpose === "donation" &&
+        session.metadata.donationId &&
+        sessionPaid(session) &&
+        !knownSessionIds.has(session.id)
+          ? [session.metadata.donationId]
+          : [],
+      ),
+      report,
+    );
     for (const session of sessions.data) {
       if (session.metadata?.purpose !== "donation") continue;
       report.scannedSessions += 1;
-      if (session.payment_status !== "paid" && session.status !== "complete") continue;
+      if (!sessionPaid(session)) continue;
       if (knownSessionIds.has(session.id)) continue;
       if (session.metadata?.donationId) {
         // Wiersz istnieje, ale ma jeszcze zapisany identyfikator tymczasowy.
         const donationId = session.metadata.donationId;
+        // Ta sama izolacja co przy imporcie niżej, ale dowodem jest WIERSZ, nie
+        // stempel (sesje sprzed stempla też niosą `donationId`): wpłata innego
+        // najemcy nie jest ani domykana, ani liczona, ani zgłaszana tutaj -
+        // domknie ją uzgodnienie jej własnego administratora.
+        if (!ownedDonationIds.has(donationId)) continue;
         let settled: boolean;
         if (session.mode === "subscription") {
           settled = await settleRecurringFromSession(session, donationId, environment);
@@ -346,6 +409,7 @@ export async function syncDonationsFromStripe(
           .from("donations")
           .update({ provider_session_id: session.id })
           .eq("id", donationId)
+          .eq("tenant_id", tenantId)
           .eq("environment", environment);
         if (settled) report.settled += 1;
         continue;

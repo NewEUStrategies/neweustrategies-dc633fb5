@@ -37,12 +37,10 @@ export function CustomerPortalButton({
   const environment = getStripeEnvironmentSafe();
 
   const portal = useMutation({
+    // Mutację uruchamia wyłącznie kliknięcie, więc `window` zawsze istnieje
+    // (tak samo jak przy `window.open` w `onSuccess` i w `SubscriptionCard`).
     mutationFn: async () => {
-      const current =
-        returnPath ??
-        (typeof window !== "undefined"
-          ? `${window.location.pathname}${window.location.search}`
-          : undefined);
+      const current = returnPath ?? `${window.location.pathname}${window.location.search}`;
       // Ta sama reguła kontraktu, co w `SubscriptionCard` - odmowa operatora
       // („{ error }" bez rzucania) staje się wyjątkiem, więc `onSuccess` znaczy
       // naprawdę sukces. Wcześniej sprawdzenie było skopiowane w obu miejscach.

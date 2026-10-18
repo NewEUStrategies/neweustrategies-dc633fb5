@@ -296,6 +296,9 @@ beforeEach(() => {
     ok([{ event_id: EVENT_ID, capacity: null, seats_left: null, going: 0, waitlist: 0 }]),
   );
   rpcResponses.set("event_ticket_checkout_quote_for_user", ok(ticketQuote()));
+  // Bilet bez profilu podatkowego. Brak odpowiedzi byłby awarią odczytu,
+  // a ta przerywa wycenę - kasa nie zgaduje trybu ani kodu podatku.
+  rpcResponses.set("event_ticket_public_options", ok(null));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 

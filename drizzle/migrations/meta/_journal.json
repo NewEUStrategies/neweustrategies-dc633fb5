@@ -2136,6 +2136,55 @@
       "when": 1792272050281,
       "tag": "0304_club_lists_total_order",
       "breakpoints": true
+    },
+    {
+      "idx": 305,
+      "version": "7",
+      "when": 1792314000000,
+      "tag": "0305_subscriptions_tenant_from_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 306,
+      "version": "7",
+      "when": 1792314060000,
+      "tag": "0306_payment_webhook_events_follow_subscription_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 307,
+      "version": "7",
+      "when": 1792349212517,
+      "tag": "0307_ledger_reconcile_pr521",
+      "breakpoints": true
+    },
+    {
+      "idx": 308,
+      "version": "7",
+      "when": 1792349282358,
+      "tag": "0308_release_coupon_order_lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 309,
+      "version": "7",
+      "when": 1792349318962,
+      "tag": "0309_release_coupon_server_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 310,
+      "version": "7",
+      "when": 1792349340560,
+      "tag": "0310_release_coupon_order_lock_final",
+      "breakpoints": true
+    },
+    {
+      "idx": 311,
+      "version": "7",
+      "when": 1792349400560,
+      "tag": "0311_user_subscriptions_user_fk_cascade",
+      "breakpoints": true
     }
   ]
 }

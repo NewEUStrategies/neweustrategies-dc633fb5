@@ -1,13 +1,17 @@
 import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin -> Rozliczenia -> Stany rozliczeń i zwrotów. Filtry: zakres dat
-// (natywne pola daty, wartości lokalne RRRR-MM-DD) i status.
+// (wspólny atom `DateInput` - natywne pola, wartości lokalne RRRR-MM-DD)
+// i status (`AdminSelect`); oba na tej samej osi wysokości pól formularza.
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { getSettlementReport } from "@/lib/billing/settlementStatus.functions";
+import { formatMoney } from "@/lib/billing/types";
+import { uiLocale } from "@/lib/i18n/format";
 import {
   SETTLEMENT_STATUSES,
   dateRangeToIso,
@@ -32,7 +36,7 @@ function AdminBillingSettlements() {
   ensureI18n();
   const { t, i18n } = useTranslation();
   const [filter, setFilter] = useState<SettlementFilter>({ status: "all", from: "", to: "" });
-  const locale = i18n.language?.startsWith("en") ? "en-GB" : "pl-PL";
+  const locale = uiLocale(i18n.language);
 
   const load = useMutation({
     mutationFn: () => {
@@ -40,11 +44,6 @@ function AdminBillingSettlements() {
       return getSettlementReport({ data: { status: filter.status, fromIso, toIso } });
     },
   });
-
-  const money = (cents: number, currency: string) =>
-    new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
-
-  const field = "h-9 rounded-md border bg-background px-2 text-sm text-foreground";
 
   return (
     <div>
@@ -62,9 +61,8 @@ function AdminBillingSettlements() {
       >
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminSettlements.from")}
-          <input
+          <DateInput
             type="date"
-            className={field}
             value={filter.from}
             max={filter.to || undefined}
             onChange={(e) => setFilter((f) => ({ ...f, from: e.target.value }))}
@@ -72,9 +70,8 @@ function AdminBillingSettlements() {
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminSettlements.to")}
-          <input
+          <DateInput
             type="date"
-            className={field}
             value={filter.to}
             min={filter.from || undefined}
             onChange={(e) => setFilter((f) => ({ ...f, to: e.target.value }))}
@@ -83,7 +80,6 @@ function AdminBillingSettlements() {
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminSettlements.status")}
           <AdminSelect
-            className={field}
             value={filter.status}
             onChange={(e) => {
               const v = e.target.value;
@@ -145,8 +141,7 @@ function AdminBillingSettlements() {
                       <td className="p-2">
                         <code className="break-all text-xs">{r.id}</code>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {r.kind}
-                          {r.environment ? ` - ${r.environment}` : ""}
+                          {r.kind} - {r.environment}
                         </span>
                       </td>
                       <td className="p-2">
@@ -158,10 +153,12 @@ function AdminBillingSettlements() {
                         )}
                       </td>
                       <td className="whitespace-nowrap p-2 text-right">
-                        {money(r.amountCents, r.currency)}
+                        {formatMoney(r.amountCents, r.currency, locale)}
                       </td>
                       <td className="whitespace-nowrap p-2 text-right">
-                        {r.refundedCents > 0 ? money(r.refundedCents, r.currency) : "-"}
+                        {r.refundedCents > 0
+                          ? formatMoney(r.refundedCents, r.currency, locale)
+                          : "-"}
                       </td>
                       <td className="p-2 text-xs">
                         {r.refundJobState

@@ -487,16 +487,16 @@ describe("AdminTicketOrdersPanel - statystyki i wiersze", () => {
     expect(document.querySelector("tbody")).toBeNull();
   });
 
-  // Uwaga: przy błędzie panel pokazuje JEDNOCZEŚNIE komunikat awarii i „brak
-  // zamówień biletowych" (warunek pustej listy nie wyklucza stanu błędu). Dwa
-  // sprzeczne zdania obok siebie to drobna niezgrabność, nie usterka pieniężna -
-  // test przypina stan faktyczny i zgłasza to w dokumencie wdrożenia, zamiast
-  // zmieniać zachowanie przy okazji pisania testów.
-  it("błąd wczytania listy mówi to wprost (obok komunikatu pustej listy)", async () => {
+  // Dawniej przy błędzie panel pokazywał JEDNOCZEŚNIE komunikat awarii
+  // i „brak zamówień biletowych" (warunek pustej listy nie wykluczał stanu
+  // błędu) - ten test przypinał to jako niezgrabność. Naprawione 2026-10-18:
+  // błąd ma wyłącznie własny komunikat (`AdminTicketOrdersPanelRows.test.tsx`).
+  it("błąd wczytania listy mówi to wprost - bez komunikatu pustej listy", async () => {
     h.ticketThrows.current = true;
     renderWithQueryClient(<AdminTicketOrdersPanel />);
 
     await waitFor(() => expect(screen.getByText("adminBilling.couldLoadOrders")).toBeTruthy());
+    expect(screen.queryByText("adminBilling.ticketOrdersYet")).toBeNull();
     expect(document.querySelector("tbody")).toBeNull();
   });
 });

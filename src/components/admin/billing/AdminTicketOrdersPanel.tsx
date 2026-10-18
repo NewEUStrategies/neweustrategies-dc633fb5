@@ -52,7 +52,9 @@ function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" })
         ? t("adminBilling.paymentSettled")
         : label;
 
-  if (q.isLoading) {
+  // `isPending`, nie `isLoading`: zapytanie wstrzymane bez sieci też nie ma
+  // jeszcze danych - „nie zapisano zmian" byłoby wtedy nieprawdą.
+  if (q.isPending) {
     return (
       <p className="flex items-center gap-2 px-4 py-3 text-[0.8125rem] text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -67,7 +69,7 @@ function OrderHistory({ orderId, lang }: { orderId: string; lang: "pl" | "en" })
       </p>
     );
   }
-  const entries = q.data ?? [];
+  const entries = q.data;
   if (entries.length === 0) {
     return (
       <p className="px-4 py-3 text-[0.8125rem] text-muted-foreground">
@@ -137,24 +139,33 @@ export function AdminTicketOrdersPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-[0.8125rem] text-muted-foreground">
-          {t("adminBilling.ticketStats", {
-            paid: stats.paidCount,
-            tickets: stats.tickets,
-            pending: stats.pending,
-          })}
-        </p>
+        {/* Błąd odczytu NIE jest pustą listą: dawniej obok „nie udało się
+            wczytać" stało „brak zamówień biletowych" i statystyka z samych zer,
+            a lista wstrzymana bez sieci (`isLoading` = fałsz) mówiła „brak
+            zamówień" zamiast „wczytuję" - jak oś czasu niżej. Statystyka liczy
+            się wyłącznie z udanego odczytu. */}
+        {ordersQ.isError && (
+          <p role="alert" className="text-[0.8125rem] text-destructive">
+            {t("adminBilling.couldLoadOrders")}
+          </p>
+        )}
+        {ordersQ.isSuccess && (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            {t("adminBilling.ticketStats", {
+              paid: stats.paidCount,
+              tickets: stats.tickets,
+              pending: stats.pending,
+            })}
+          </p>
+        )}
 
-        {ordersQ.isLoading && (
+        {ordersQ.isPending && (
           <p className="flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             {t("adminBilling.loadingOrders")}
           </p>
         )}
-        {ordersQ.isError && (
-          <p className="text-[0.8125rem] text-destructive">{t("adminBilling.couldLoadOrders")}</p>
-        )}
-        {!ordersQ.isLoading && rows.length === 0 && (
+        {ordersQ.isSuccess && rows.length === 0 && (
           <p className="text-[0.8125rem] text-muted-foreground">
             {t("adminBilling.ticketOrdersYet")}
           </p>

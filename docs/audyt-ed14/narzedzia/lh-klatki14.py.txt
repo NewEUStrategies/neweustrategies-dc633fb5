@@ -1,0 +1,52 @@
+# Krzywa kompletnosci wizualnej z klatek sladu (metoda histogramowa jak speedline) + roznice regionow po LCP.
+import json, base64, io, sys
+from PIL import Image, ImageChops
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed14/lh'
+for prof in sys.argv[1:]:
+    tr = json.load(open(f'{S}/slad/pl-{prof}-0.trace.json'))
+    ev = tr['traceEvents'] if isinstance(tr, dict) else tr
+    nav = min(e['ts'] for e in ev if e.get('name') in ('navigationStart',) or (e.get('name') == 'TracingStartedInBrowser'))
+    nav = next((e['ts'] for e in ev if e.get('name') == 'navigationStart' and e.get('args', {}).get('data', {}).get('isLoadingMainFrame')), nav)
+    shots = sorted([e for e in ev if e.get('name') == 'Screenshot'], key=lambda e: e['ts'])
+    frames = [((e['ts'] - nav) / 1000, Image.open(io.BytesIO(base64.b64decode(e['args']['snapshot']))).convert('RGB')) for e in shots]
+    first, last = frames[0][1], frames[-1][1]
+    def hist(im):
+        h = im.histogram(); return [h[i * 256:(i + 1) * 256] for i in range(3)]
+    H0, HN = hist(first), hist(last)
+    def prog(im):
+        h = hist(im); tot = cur = 0
+        for c in range(3):
+            for v in range(256):
+                tot += abs(HN[c][v] - H0[c][v]); cur += abs(h[c][v] - H0[c][v]) if False else 0
+        # jak speedline: kompletnosc = 1 - suma|h-HN| / suma|H0-HN|
+        d = sum(abs(h[c][v] - HN[c][v]) for c in range(3) for v in range(256))
+        d0 = sum(abs(H0[c][v] - HN[c][v]) for c in range(3) for v in range(256)) or 1
+        return max(0.0, 1 - d / d0)
+    pts = [(t, prog(im)) for t, im in frames]
+    # Speed Index z krzywej (obserwowany): calka (1 - VC) dt
+    si = 0.0
+    for (t0, v0), (t1, _) in zip(pts, pts[1:]): si += (1 - v0) * (t1 - t0)
+    print(f'== {prof}: klatek {len(frames)}, rozmiar {last.size}, obserwowany SI ~ {si:.0f} ms')
+    progi = {}
+    for t, v in pts:
+        for p in (0.1, 0.5, 0.8, 0.9, 0.95, 0.99):
+            if v >= p and p not in progi: progi[p] = t
+    print('   VC>=10/50/80/90/95/99%:', {f'{int(p*100)}%': round(t) for p, t in progi.items()})
+    # ostatnie zmiany: ktore regiony (siatka 4x4) zmieniaja sie po 50% kompletnosci
+    W, Hh = last.size; gw, gh = W // 4, Hh // 4
+    zmiany = []
+    for (t0, a), (t1, b) in zip(frames, frames[1:]):
+        diff = ImageChops.difference(a, b).convert('L')
+        reg = []
+        for gy in range(4):
+            for gx in range(4):
+                box = diff.crop((gx * gw, gy * gh, (gx + 1) * gw, (gy + 1) * gh))
+                s = sum(i * n for i, n in enumerate(box.histogram())) / (gw * gh)
+                if s > 2.0: reg.append(f'{gy}{gx}:{s:.0f}')
+        if reg: zmiany.append((round(t1), reg))
+    print('   zmiany klatka->klatka (wiersz,kolumna siatki 4x4 : srednia roznica):')
+    for t, r in zmiany: print('    ', t, 'ms', ' '.join(r))
+    # zapis klatek kluczowych
+    for p, t in progi.items():
+        im = next(im for tt, im in frames if tt == t); im.save(f'{S}/klatki/{prof}-vc{int(p*100)}-{round(t)}ms.png')
+    last.save(f'{S}/klatki/{prof}-final-{round(frames[-1][0])}ms.png')

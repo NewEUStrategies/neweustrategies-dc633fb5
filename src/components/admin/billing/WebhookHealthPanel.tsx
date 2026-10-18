@@ -29,6 +29,12 @@ ensureTicketsI18n();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Zakres pomiaru - z właściwości panelu w chwili kliknięcia „Wczytaj". */
+interface HealthScope {
+  environment: HealthEnv;
+  sinceHours: number;
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[6px] border border-border bg-card p-3">
@@ -49,15 +55,22 @@ export function WebhookHealthPanel({
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith("en") ? "en-GB" : "pl-PL";
-  const [health, setHealth] = useState<WebhookHealth | null>(null);
+  const [loaded, setLoaded] = useState<HealthScope & { health: WebhookHealth }>();
   const [registrationId, setRegistrationId] = useState("");
 
   const load = useMutation({
-    mutationFn: () => fetchWebhookHealth(environment, sinceHours),
-    onSuccess: setHealth,
+    mutationFn: (scope: HealthScope) => fetchWebhookHealth(scope.environment, scope.sinceHours),
+    onSuccess: (result, scope) => setLoaded({ ...scope, health: result }),
     onError: (error: unknown) =>
       toast.error(error instanceof Error ? error.message : String(error)),
   });
+  // Metryki WYŁĄCZNIE dla zakresu z właściwości. Po zmianie środowiska albo
+  // okna na trasie audytu pomiar poprzedniego zakresu zostawał na ekranie pod
+  // nowymi ustawieniami - odsetek awarii piaskownicy czytany jako produkcja.
+  const health =
+    loaded !== undefined && loaded.environment === environment && loaded.sinceHours === sinceHours
+      ? loaded.health
+      : null;
 
   const resend = useMutation({
     mutationFn: () =>
@@ -91,7 +104,11 @@ export function WebhookHealthPanel({
           <h2 className="text-lg font-semibold text-foreground">{t("webhookHealth.title")}</h2>
           <p className="max-w-2xl text-sm text-muted-foreground">{t("webhookHealth.lead")}</p>
         </div>
-        <Button type="button" onClick={() => load.mutate()} disabled={load.isPending}>
+        <Button
+          type="button"
+          onClick={() => load.mutate({ environment, sinceHours })}
+          disabled={load.isPending}
+        >
           {load.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
           {t("webhookHealth.load")}
         </Button>

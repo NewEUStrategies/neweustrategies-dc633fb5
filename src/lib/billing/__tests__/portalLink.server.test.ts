@@ -42,6 +42,10 @@ const h = vi.hoisted(() => {
     profile: { current: null as Record<string, unknown> | null },
     /** Najemca profilu docelowego w atrapie bazy (`null` = brak konta). */
     profileTenant: { current: "tenant-a" as string | null },
+    /** Błąd PostgREST odczytu `subscriptions` (chwilowa awaria bazy). */
+    subscriptionError: { current: null as { message: string } | null },
+    /** Błąd PostgREST kontroli przynależności (`profiles` z najemcą). */
+    memberError: { current: null as { message: string } | null },
     /** Filtry zapytań, per tabela. */
     filters: [] as Array<[string, string, unknown]>,
     portalThrows: { current: false },
@@ -66,10 +70,16 @@ const h = vi.hoisted(() => {
       };
       chain.maybeSingle = () => {
         if (table === "subscriptions") {
+          if (state.subscriptionError.current) {
+            return Promise.resolve({ data: null, error: state.subscriptionError.current });
+          }
           const owned = eqs.get("tenant_id") === state.subscriptionTenant.current;
           return Promise.resolve({ data: owned ? state.subscription.current : null, error: null });
         }
         if (table === "profiles" && eqs.has("tenant_id")) {
+          if (state.memberError.current) {
+            return Promise.resolve({ data: null, error: state.memberError.current });
+          }
           // Kontrola przynależności: wiersz istnieje WYŁĄCZNIE w swoim najemcy.
           const member =
             state.profileTenant.current !== null &&
@@ -183,6 +193,8 @@ beforeEach(() => {
     prefs: { language: "pl" },
   };
   h.profileTenant.current = TENANT_A;
+  h.subscriptionError.current = null;
+  h.memberError.current = null;
   h.filters.length = 0;
   h.portalThrows.current = false;
   h.portalPayloads.length = 0;
@@ -475,5 +487,54 @@ describe("sendPortalLinkEmail - odmowa ponad granicą najemcy (SUB-08)", () => {
 
     expect(subscriptionFilters()).toContainEqual(["tenant_id", TENANT_A]);
     expect(h.filters).toContainEqual(["profiles", "tenant_id", TENANT_A]);
+  });
+});
+
+describe("awaria odczytu bazy to AWARIA, nie „nie masz konta u operatora”", () => {
+  // Kod `no_customer` niesie klientowi konkretną treść („nie masz jeszcze
+  // konta u operatora”), a administratorowi - „to konto nie ma subskrypcji”.
+  // Chwilowy błąd odczytu `subscriptions` kończył się dawniej tym samym kodem:
+  // płacący klient czytał, że konta nie ma, i nie próbował ponownie, a
+  // obsługa zamykała zgłoszenie jako „klient bez subskrypcji”. Awaria idzie
+  // teraz ścieżką awarii (`portal_failed` / `send_failed`), jak błąd
+  // kontroli przynależności obok.
+  it("sesja portalu: błąd odczytu subskrypcji daje `portal_failed`, bez sesji", async () => {
+    h.subscriptionError.current = { message: "canceling statement due to statement timeout" };
+
+    const result = await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
+
+    expect(result).toEqual({ ok: false, error: "portal_failed" });
+    expect(h.portalPayloads).toHaveLength(0);
+  });
+
+  it("mail z portalem: błąd odczytu subskrypcji daje `send_failed`, bez maila", async () => {
+    h.subscriptionError.current = { message: "canceling statement due to statement timeout" };
+
+    const result = await sendPortalLinkEmail(emailInput());
+
+    expect(result).toEqual({ ok: false, error: "send_failed" });
+    expect(h.sentEmails).toHaveLength(0);
+  });
+
+  it("błąd kontroli przynależności też jest awarią, a odczyt subskrypcji nie startuje", async () => {
+    h.memberError.current = { message: "connection reset" };
+
+    const result = await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
+
+    expect(result).toEqual({ ok: false, error: "portal_failed" });
+    expect(subscriptionFilters()).toEqual([]);
+    expect(h.portalPayloads).toHaveLength(0);
+  });
+
+  it("obce konto przy awarii odczytu subskrypcji dalej dostaje `no_customer` - granica najemcy pierwsza", async () => {
+    // Odczyt subskrypcji nie startuje dla konta spoza najemcy, więc jego
+    // awaria nie może zdradzić, że konto istnieje gdzie indziej.
+    h.profileTenant.current = TENANT_A;
+    h.subscriptionError.current = { message: "canceling statement due to statement timeout" };
+
+    expect(await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }))).toEqual({
+      ok: false,
+      error: "no_customer",
+    });
   });
 });

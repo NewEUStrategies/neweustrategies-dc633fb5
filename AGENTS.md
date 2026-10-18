@@ -31,3 +31,4 @@
 - Share AuthorByline sizing: measure the title only inside the nearest `[data-author-title-scope]` (card/slide/row) or `[data-w-id]` via the shared rAF scheduler (first pass in a layout effect; head/body theme sheets), skip `[data-author-title-ignore]`, use the CMS size where there is no title, show panel-typed sizes as typed, and keep server HTML equal to the hydrated page (CSS estimate, no `:has()`).
 - Keep admin compact typography out of widget frames and post titles so the builder canvas and live previews show entered values.
 - Gate club hub presentation and shared club-card viewer keys with useHydrated so settled auth cannot replace guest SSR markup before hydration.
+- Stop search overflow propagation before the mobile drawer scroll root so search labels cannot disable native menu scrolling or panel clipping.

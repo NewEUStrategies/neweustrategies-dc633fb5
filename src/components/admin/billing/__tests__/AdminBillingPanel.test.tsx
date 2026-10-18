@@ -17,10 +17,12 @@
 //      po stronie operatora (nowe konto, rotacja klucza).
 //   3. LINK DO PORTALU IDZIE DO WŁAŚCICIELA SUBSKRYPCJI, nigdy do administratora.
 //      Administrator nie widzi samego linku - jest jednorazowy i wrażliwy.
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub } from "@/test/billing/fixtures";
+import { uiLocale } from "@/lib/i18n/format";
 
 interface AdminSubscriptionRow {
   id: string;
@@ -181,7 +183,10 @@ beforeEach(() => {
         }
       : ok(h.subs.current),
   );
-  h.chain.setResponse("payment_webhook_events", ok([]));
+});
+
+afterEach(() => {
+  onlineManager.setOnline(true);
 });
 
 describe("AdminBillingPanel - trzy liczniki na górze", () => {
@@ -227,13 +232,37 @@ describe("AdminBillingPanel - trzy liczniki na górze", () => {
     expect(counters()).toEqual(["0", "0", "0"]);
   });
 
-  it("BŁĄD ODCZYTU nie udaje zerowych liczników na realnych danych", async () => {
+  // DEFEKT (2026-10-18): błąd odczytu subskrypcji kończył się komunikatem
+  // „brak subskrypcji" i trzema zerami - test o tym tytule przypinał właśnie
+  // to, czemu tytuł przeczył. Admin widział „nikt nie subskrybuje" przy
+  // nieudanym zapytaniu.
+  it("BŁĄD ODCZYTU nie udaje zerowych liczników ani pustej listy", async () => {
     h.subsError.current = true;
     render();
 
-    await waitFor(() => expect(screen.getByText("adminBilling.subscriptionsYet")).toBeTruthy());
+    expect((await screen.findByRole("alert")).textContent).toBe("permission denied");
+    expect(screen.queryByText("adminBilling.subscriptionsYet")).toBeNull();
+    expect(counters()).toEqual(["-", "-", "-"]);
     // Żaden wiersz nie jest renderowany - panel nie wymyśla stanu.
     expect(document.querySelectorAll("tbody tr")).toHaveLength(0);
+  });
+
+  // Odczyt wstrzymany bez sieci nie ma `isLoading`, ale nie ma też danych.
+  // Liczniki „0 / 0 / 0" i „brak subskrypcji" byłyby wtedy zmyślone - jak przy
+  // błędzie odczytu: szkielet listy i kreski, dopóki nic nie przeczytano.
+  it("odczyt wstrzymany BEZ SIECI: szkielet i kreski, a nie „brak subskrypcji” i zera", async () => {
+    onlineManager.setOnline(false);
+    render();
+
+    await waitFor(() => expect(document.querySelector(".animate-pulse")).toBeTruthy());
+    expect(screen.queryByText("adminBilling.subscriptionsYet")).toBeNull();
+    expect(counters()).toEqual(["-", "-", "-"]);
+    expect(h.chain!.chainsFor("subscriptions")).toHaveLength(0);
+
+    // Po powrocie sieci odczyt rusza sam, a liczniki dostają liczby.
+    onlineManager.setOnline(true);
+    await waitFor(() => expect(counters()).toEqual(["1", "0", "0"]));
+    expect(document.querySelector(".animate-pulse")).toBeNull();
   });
 });
 
@@ -313,6 +342,38 @@ describe("AdminBillingPanel - wiersz subskrypcji", () => {
     await awaitRows();
     expect(screen.getByText("-")).toBeTruthy();
     expect(screen.queryByText(/^0 ·/)).toBeNull();
+  });
+
+  it("status spoza słownika tonów jest pokazany neutralnie, a nie bez stylu", async () => {
+    h.subs.current = [subscription({ status: "incomplete_expired" })];
+    render();
+
+    const badge = await screen.findByText("incomplete_expired");
+    expect(badge.className).toContain("bg-muted");
+    expect(badge.className).toContain("text-muted-foreground");
+  });
+
+  it("interfejs ANGIELSKI pokazuje koniec okresu w zapisie angielskim", async () => {
+    h.lang.current = "en";
+    render();
+    await awaitRows();
+
+    const expected = new Date("2026-09-18T10:00:00.000Z").toLocaleString(uiLocale("en"));
+    expect(screen.getByText(expected)).toBeTruthy();
+  });
+
+  it("link do portalu dla subskrypcji PRODUKCYJNEJ idzie w środowisku `live`", async () => {
+    h.subs.current = [subscription({ environment: "live", user_id: "user-produkcja" })];
+    render();
+    await awaitRows();
+
+    fireEvent.click(screen.getByText("adminBilling.sendLink"));
+
+    await waitFor(() =>
+      expect(h.resend).toHaveBeenCalledWith({
+        data: { userId: "user-produkcja", environment: "live" },
+      }),
+    );
   });
 
   it("identyfikator subskrypcji u operatora jest widoczny (do zgłoszeń)", async () => {
@@ -559,6 +620,36 @@ describe("AdminBillingPanel - stan katalogu cen", () => {
     );
   });
 
+  it("wymóg drugiego składnika przy RĘCZNEJ synchronizacji to wskazówka step-upu", async () => {
+    h.syncCatalog.mockRejectedValueOnce(
+      new Error(
+        "Forbidden: mfa_required - verify your second factor (aal2) to perform platform admin role (super_admin) actions",
+      ),
+    );
+    render();
+
+    fireEvent.click(screen.getByText("adminBilling.syncCatalog"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.mfaStepUpRequired"),
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith("adminBilling.catalogPlatformOnly");
+  });
+
+  it("odrzucenie stanu katalogu INNĄ wartością niż błąd nie jest odmową roli - przycisk zostaje", async () => {
+    // Bramka odmawia wyjątkiem z komunikatem; wartość bez komunikatu (np. napis
+    // z warstwy transportu) nie może zostać odczytana jako „tylko operator".
+    h.catalogStateError.current = "zerwane połączenie" as unknown as Error;
+    render();
+    await awaitRows();
+
+    await waitFor(() =>
+      expect(screen.getByText("adminBilling.syncCatalog").closest("button")?.disabled).toBe(false),
+    );
+    expect(screen.queryByText("adminBilling.catalogPlatformOnly")).toBeNull();
+    expect(screen.queryByText("adminBilling.mfaStepUpRequired")).toBeNull();
+  });
+
   it("awaria synchronizacji katalogu pokazuje powód", async () => {
     h.syncCatalog.mockRejectedValue(new Error("bramka odmówiła"));
     render();
@@ -618,14 +709,18 @@ describe("AdminBillingPanel - kompozycja paneli potomnych", () => {
     expect(screen.getByTestId("karta-dawne-anulowania")).toBeTruthy();
   });
 
-  it("odświeżenie pyta bazę PONOWNIE o subskrypcje i zdarzenia", async () => {
+  it("odświeżenie pyta bazę PONOWNIE o subskrypcje", async () => {
     render();
     await awaitRows();
-    const before = h.chain!.chains.length;
+    const before = h.chain!.chainsFor("subscriptions").length;
 
     fireEvent.click(screen.getByText("adminBilling.refresh"));
 
-    await waitFor(() => expect(h.chain!.chains.length).toBeGreaterThan(before));
+    await waitFor(() => expect(h.chain!.chainsFor("subscriptions").length).toBeGreaterThan(before));
+    // Dziennik zdarzeń czyta wyłącznie jego własny panel (tu atrapa) - panel
+    // rozliczeń nie trzyma pod kluczem dziennika okrojonej kopii wierszy
+    // (`AdminBillingPanelWebhookLogCache.test.tsx`).
+    expect(h.chain!.chainsFor("payment_webhook_events")).toHaveLength(0);
   });
 });
 

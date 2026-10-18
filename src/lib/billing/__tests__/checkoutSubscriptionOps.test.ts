@@ -647,6 +647,25 @@ describe("changeSubscriptionPlan - upgrade i downgrade z samoobsługi", () => {
     });
   });
 
+  it("bieżący plan BEZ pozycji katalogu (wycofany cennik) nie blokuje zmiany przed operatorem", async () => {
+    // Wczesna odmowa (`same_plan`, inny model rozliczenia) potrzebuje ceny
+    // bieżącej z lustra. Plan spoza katalogu jej nie ma - regułę liczy wtedy
+    // wyłącznie operacja u dostawcy na ŻYWYM stanie, zamiast odmowy z bazy.
+    adminChain.setResponse("user_subscriptions", (query) =>
+      query.has("update")
+        ? ok([{ id: SUB_ID }])
+        : ok({ ...subscriptionRow(), plan: { tier_key: "legacy_gold", interval: "month" } }),
+    );
+
+    const result = await change();
+
+    expect(result).toEqual({ ok: true, effect: "applied" });
+    expect(stripe.subscriptions.update).toHaveBeenCalled();
+    expect(writeChain("user_subscriptions")?.argsOf("update")?.[0]).toMatchObject({
+      plan_id: NEW_PLAN_ID,
+    });
+  });
+
   it("upgrade opłacony, ale operator NIE zdjął zaplanowanego końca: `canceled_at` zostaje", async () => {
     // Data końca z portalu (`cancel_at`) schodzi osobnym wywołaniem po
     // dopłacie - flaga jedzie już w samej oczekującej zmianie, więc „nie
@@ -880,6 +899,24 @@ describe("changeSubscriptionPlan - downgrade od nowego okresu i cele spoza ofert
     expect(writeChain("user_subscriptions")?.argsOf("update")?.[0]).toEqual({ canceled_at: null });
   });
 
+  it("BŁĄD zdjęcia `canceled_at` przy downgradzie jest zgłaszany - panel nie obieca odnowienia", async () => {
+    stripe.subscriptions.retrieve.mockResolvedValue({
+      ...providerSnapshot("pro_monthly"),
+      cancel_at_period_end: true,
+    });
+    stripe.subscriptions.update.mockResolvedValue({
+      ...providerSnapshot("pro_monthly"),
+      cancel_at_period_end: false,
+    });
+    adminChain.setResponse("user_subscriptions", (query) =>
+      query.has("update")
+        ? fail("deadlock detected")
+        : ok(subscriptionRow({ canceled_at: isoPast(1) })),
+    );
+
+    await expect(change()).rejects.toThrow("deadlock detected");
+  });
+
   it("plan za miejsce (Zespół) z planu indywidualnego to odmowa przed operatorem", async () => {
     adminChain.setResponse("user_subscriptions", (query) =>
       query.has("update")
@@ -1059,6 +1096,34 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
         hostedInvoiceUrl: "https://invoice.stripe.test/i/resume",
       });
       logged.mockRestore();
+    });
+
+    it("odrzucona faktura wznowienia BEZ adresu faktury: wynik z `hostedInvoiceUrl: null`", async () => {
+      stripe.subscriptions.retrieve.mockResolvedValue({ ...providerSnapshot(), status: "paused" });
+      stripe.subscriptions.resume.mockResolvedValue({
+        ...providerSnapshot(),
+        status: "paused",
+        latest_invoice: null,
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await resume()).toEqual({
+        ok: false,
+        error: "payment_failed",
+        hostedInvoiceUrl: null,
+      });
+      logged.mockRestore();
+    });
+
+    it("u operatora NIE MA czego wznawiać (aktywna, bez pauzy i końca): odmowa, bez zapisu", async () => {
+      // Wiersz uprawnienia jest `canceled`, a operator nie ma pauzy ani
+      // zaplanowanego końca do cofnięcia - wstrzymania już nie ma, więc to nie
+      // jest „wznowienie", tylko subskrypcja, której uprawnienie się skończyło.
+      stripe.subscriptions.retrieve.mockResolvedValue(providerSnapshot());
+
+      await expect(resume()).rejects.toThrow("subscription_not_resumable");
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+      expect(writeChain("user_subscriptions")).toBeUndefined();
     });
 
     it("subskrypcja zakończona u operatora nie „wznawia się”", async () => {

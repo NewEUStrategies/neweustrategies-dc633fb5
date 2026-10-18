@@ -848,3 +848,76 @@ describe("potwierdzenie zapisu na wydarzenie", () => {
     expect(value).toMatch(/zł|PLN/);
   });
 });
+
+// GODZINA W STREFIE WYDARZENIA, NIE PROCESU. Potwierdzenie zapisu czytało
+// `events.timezone`, ale termin formatowało w strefie MASZYNY (`formatDate`
+// bez `timeZone`) - na serwerze w UTC uczestnik forum w Brukseli o 11:00
+// dostawał w mailu „09:00", a wydarzenie tuż przed północą lądowało w mailu
+// dzień wcześniej. Siostrzane maile o zgłoszeniu liczą termin wspólnym
+// `formatEventMoment`; każdy przypadek biegnie przy strefie maszyny INNEJ niż
+// strefa wydarzenia, żeby wynik nie zgadzał się przypadkiem.
+describe("potwierdzenie zapisu - termin w strefie wydarzenia", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+
+  beforeEach(() => {
+    process.env.TZ = "America/New_York";
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  it("kanarek: proces naprawdę stoi w Nowym Jorku", () => {
+    expect(new Date("2026-09-15T09:00:00.000Z").getHours()).toBe(5);
+  });
+
+  it("forum w Brukseli o 11:00 ma w mailu 11:00, a nie godzinę procesu", async () => {
+    givenDb({
+      event: eventRow({ starts_at: "2026-09-15T09:00:00.000Z", timezone: "Europe/Brussels" }),
+    });
+    await notifyEventRegistration({ userId: "user-me", eventId: "evt-1", idempotencySeed: "tz-1" });
+
+    const when = detailValue(onlyMail(), labelsOf("event_registered").date);
+    expect(when).toMatch(/\b15\b/);
+    expect(when).toMatch(/11:00/);
+    expect(when).not.toMatch(/05:00/);
+  });
+
+  it("wydarzenie tuż po północy czasu lokalnego nie przeskakuje w mailu na poprzedni dzień", async () => {
+    // 22:30 UTC 15.09 to 00:30 16.09 w Warszawie (CEST); w Nowym Jorku - 18:30 15.09.
+    givenDb({
+      event: eventRow({ starts_at: "2026-09-15T22:30:00.000Z", timezone: "Europe/Warsaw" }),
+    });
+    await notifyEventRegistration({ userId: "user-me", eventId: "evt-1", idempotencySeed: "tz-2" });
+
+    const when = detailValue(onlyMail(), labelsOf("event_registered").date);
+    expect(when).toMatch(/\b16\b/);
+    expect(when).toMatch(/00:30/);
+  });
+
+  it("strefę wyznacza WYDARZENIE, nie domyślna strefa serwisu: Lizbona o 10:00 to 10:00", async () => {
+    // Bruksela i Warszawa mają ten sam czas, więc sam przypadek brukselski
+    // przeszedłby też wtedy, gdyby kod zgubił `events.timezone` i liczył
+    // wszystko w strefie domyślnej. Lizbona (WEST) jest godzinę za Warszawą.
+    givenDb({
+      event: eventRow({ starts_at: "2026-09-15T09:00:00.000Z", timezone: "Europe/Lisbon" }),
+    });
+    await notifyEventRegistration({ userId: "user-me", eventId: "evt-1", idempotencySeed: "tz-4" });
+
+    const when = detailValue(onlyMail(), labelsOf("event_registered").date);
+    expect(when).toMatch(/10:00/);
+    expect(when).not.toMatch(/11:00/);
+  });
+
+  it("wydarzenie bez strefy liczy termin w strefie domyślnej serwisu, nie maszyny", async () => {
+    givenDb({
+      lang: "en",
+      event: eventRow({ starts_at: "2026-09-15T09:00:00.000Z", timezone: null }),
+    });
+    await notifyEventRegistration({ userId: "user-me", eventId: "evt-1", idempotencySeed: "tz-3" });
+
+    const when = detailValue(onlyMail(), labelsOf("event_registered", "en").date);
+    expect(when).toMatch(/11:00/);
+  });
+});

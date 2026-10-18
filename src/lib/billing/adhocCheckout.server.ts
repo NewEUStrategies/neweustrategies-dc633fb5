@@ -302,19 +302,36 @@ export async function resolveOrCreateCustomer(
  * schodkowej bez rozwinięcia, a bramka kasy (`catalogPriceMismatch`) liczy
  * z nich kwotę za zamówioną liczbę miejsc. Bez progów cena Zespołu wyglądałaby
  * jak cena bez kwoty i każda sesja kończyłaby się odmową.
+ *
+ * PACZKAMI PO `LOOKUP_KEYS_PER_REQUEST`. Operator przyjmuje najwyżej 10
+ * kluczy na jedno `prices.list` i odrzuca dłuższą listę - a katalog ma 11
+ * pozycji, więc sonda diagnostyki (cały katalog naraz) kończyła się błędem
+ * i pokazywała każdą cenę jako brakującą. Paczki idą równolegle; klucz jest
+ * unikalny u operatora, więc paczka oddaje najwyżej 10 cen i mieści się
+ * w domyślnej stronie listy. Awaria którejkolwiek paczki to wyjątek, nie
+ * częściowa mapa udająca braki w katalogu.
  */
+const LOOKUP_KEYS_PER_REQUEST = 10;
+
 export async function resolvePricesByLookupKeys(
   stripe: Stripe,
   lookupKeys: string[],
 ): Promise<Map<string, Stripe.Price>> {
-  if (lookupKeys.length === 0) return new Map();
-  const result = await stripe.prices.list({
-    lookup_keys: lookupKeys,
-    active: true,
-    expand: ["data.product", "data.tiers"],
-  });
+  const batches: string[][] = [];
+  for (let i = 0; i < lookupKeys.length; i += LOOKUP_KEYS_PER_REQUEST) {
+    batches.push(lookupKeys.slice(i, i + LOOKUP_KEYS_PER_REQUEST));
+  }
+  const results = await Promise.all(
+    batches.map((batch) =>
+      stripe.prices.list({
+        lookup_keys: batch,
+        active: true,
+        expand: ["data.product", "data.tiers"],
+      }),
+    ),
+  );
   const map = new Map<string, Stripe.Price>();
-  for (const price of result.data) {
+  for (const price of results.flatMap((result) => result.data)) {
     if (price.lookup_key) map.set(price.lookup_key, price);
   }
   return map;
@@ -493,13 +510,16 @@ const CUSTOMER_SUBSCRIPTIONS_LIMIT = 100;
 /** Strony listy otwartych sesji klienta (po 100) - więcej to anomalia, odmawiamy. */
 const OPEN_SESSION_PAGES = 3;
 
+/** Sesja planu z tej kasy - zawsze z metadanymi (patrz `isPlanSubscriptionSession`). */
+type PlanSession = Stripe.Checkout.Session & { metadata: Stripe.Metadata };
+
 /**
  * Sesja, która po opłaceniu ZAŁOŻY subskrypcję planu: tryb `subscription`,
  * metadane planu z tej kasy i nie darowizna. Darowizny cykliczne też jadą
  * sesją subskrypcyjną na tym samym kliencie (`donations.server`) - nie są
  * planem, więc ich nie ruszamy.
  */
-function isPlanSubscriptionSession(session: Stripe.Checkout.Session): boolean {
+function isPlanSubscriptionSession(session: Stripe.Checkout.Session): session is PlanSession {
   const meta = session.metadata ?? {};
   return (
     session.mode === "subscription" &&
@@ -510,11 +530,8 @@ function isPlanSubscriptionSession(session: Stripe.Checkout.Session): boolean {
 }
 
 /** Otwarte sesje planu klienta. Nie da się przeczytać wszystkich = rzut (fail-closed). */
-async function listOpenPlanSessions(
-  stripe: Stripe,
-  customerId: string,
-): Promise<Stripe.Checkout.Session[]> {
-  const sessions: Stripe.Checkout.Session[] = [];
+async function listOpenPlanSessions(stripe: Stripe, customerId: string): Promise<PlanSession[]> {
+  const sessions: PlanSession[] = [];
   let startingAfter: string | undefined;
   for (let page = 0; page < OPEN_SESSION_PAGES; page += 1) {
     const result = await stripe.checkout.sessions.list({
@@ -552,8 +569,8 @@ async function expirePlanSession(
 }
 
 /** Zamówienie TEGO konta stojące za sesją (metadane stempluje wyłącznie ta kasa). */
-function ownOrderId(session: Stripe.Checkout.Session, userId: string): string | null {
-  const meta = session.metadata ?? {};
+function ownOrderId(session: PlanSession, userId: string): string | null {
+  const meta = session.metadata;
   const orderId = meta["orderId"];
   return meta["userId"] === userId && typeof orderId === "string" && orderId ? orderId : null;
 }
