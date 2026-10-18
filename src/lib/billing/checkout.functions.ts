@@ -735,22 +735,32 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       if (eventId && phaseDiscountCents > 0 && !isBelowMinimumCharge(amountCents, currency)) {
         const { getStripeClient } = await import("@/lib/stripe.server");
         const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
-        const couponRef = await createAdhocDiscountForCoupon(await getStripeClient(environment), {
-          // Różnica cena regularna - kwota końcowa obejmuje fazę sprzedaży
-          // ORAZ kod rabatowy, więc nazwa rabatu w Stripe mówi o obu.
-          code:
-            // Kod PRZED benefitem planu: nazwa rabatu ma 40 znaków, a kod to
-            // jedyna część, którą kupujący wpisał (i po której go szuka).
-            [ticketPhaseLabel, couponCode, ticketPlan ? "Benefit planu" : ""]
-              .filter((part) => Boolean(part))
-              .join(" + ") || "Rabat",
-          discountCents: phaseDiscountCents,
-          currency,
-          orderId: order.id,
-        }).catch((err: unknown) => {
-          console.error("[checkout] phase discount failed", order.id, err);
-          return null;
-        });
+        // Klient operatora budowany WEWNĄTRZ łańcucha z `.catch`: rabat fazy
+        // jest dodatkiem do nakładki, a jego porażka - także porażka samego
+        // klienta (chwilowy import SDK, brak klucza środowiska) - ma dać sesję
+        // po kwocie końcowej. Klient budowany jako argument wywołania rzucał
+        // PRZED `.catch` i przed `failOrder`: zamówienie zostawało `pending`
+        // bez sesji, z zarezerwowanym użyciem kodu.
+        const couponRef = await getStripeClient(environment)
+          .then((stripe) =>
+            createAdhocDiscountForCoupon(stripe, {
+              // Różnica cena regularna - kwota końcowa obejmuje fazę sprzedaży
+              // ORAZ kod rabatowy, więc nazwa rabatu w Stripe mówi o obu.
+              code:
+                // Kod PRZED benefitem planu: nazwa rabatu ma 40 znaków, a kod to
+                // jedyna część, którą kupujący wpisał (i po której go szuka).
+                [ticketPhaseLabel, couponCode, ticketPlan ? "Benefit planu" : ""]
+                  .filter((part) => Boolean(part))
+                  .join(" + ") || "Rabat",
+              discountCents: phaseDiscountCents,
+              currency,
+              orderId: order.id,
+            }),
+          )
+          .catch((err: unknown) => {
+            console.error("[checkout] phase discount failed", order.id, err);
+            return null;
+          });
         if (couponRef) {
           ticketDiscount = { coupon: couponRef };
           lineAmountCents = ticketListPriceCents;
