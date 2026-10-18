@@ -140,27 +140,31 @@ export async function closeBillingForUser(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { subscriptionEnvironment, isProviderSubscriptionRef } =
     await import("@/lib/billing/subscriptionProvider.server");
-  const { getStripeClient } = await import("@/lib/stripe.server");
+  const { getStripeClient, getStripeErrorMessage } = await import("@/lib/stripe.server");
 
   const env: StripeEnv = subscriptionEnvironment();
-  const { data: rows, error } = await supabaseAdmin
-    .from("subscriptions")
-    .select("provider_subscription_id, status, price_id")
-    .eq("user_id", userId)
-    .eq("environment", env)
-    .in("status", OPEN_STATUSES);
-  if (error) throw new Error(`account closure: subscription lookup failed: ${error.message}`);
-
-  // Bez filtra statusu: wiersz raty bywa zwrócony albo zamknięty, a sama
-  // subskrypcja dalej żyje. Zamknięta u operatora nie jest błędem (niżej).
   const allowed = closureEnvironments();
-  const { data: donationRows, error: donationError } = await supabaseAdmin
-    .from("donations")
-    .select("provider_subscription_id, environment")
-    .eq("user_id", userId)
-    .eq("recurring", true)
-    .in("environment", allowed)
-    .not("provider_subscription_id", "is", null);
+  // Oba odczyty są niezależne, więc idą równolegle - użytkownik czeka na wynik.
+  const [planRead, donationRead] = await Promise.all([
+    supabaseAdmin
+      .from("subscriptions")
+      .select("provider_subscription_id, status, price_id")
+      .eq("user_id", userId)
+      .eq("environment", env)
+      .in("status", OPEN_STATUSES),
+    // Bez filtra statusu: wiersz raty bywa zwrócony albo zamknięty, a sama
+    // subskrypcja dalej żyje. Zamknięta u operatora nie jest błędem (niżej).
+    supabaseAdmin
+      .from("donations")
+      .select("provider_subscription_id, environment")
+      .eq("user_id", userId)
+      .eq("recurring", true)
+      .in("environment", allowed)
+      .not("provider_subscription_id", "is", null),
+  ]);
+  const { data: rows, error } = planRead;
+  if (error) throw new Error(`account closure: subscription lookup failed: ${error.message}`);
+  const { data: donationRows, error: donationError } = donationRead;
   if (donationError) {
     throw new Error(`account closure: donation lookup failed: ${donationError.message}`);
   }
@@ -179,8 +183,10 @@ export async function closeBillingForUser(
   }
   for (const row of donationRows ?? []) {
     const ref = row.provider_subscription_id;
-    const rowEnv = row.environment === "live" ? "live" : "sandbox";
-    if (!isProviderSubscriptionRef(ref) || !allowed.includes(rowEnv)) continue;
+    if (!isProviderSubscriptionRef(ref)) continue;
+    // Środowisko wiersza jest już zawężone do `allowed` w zapytaniu, a kolumna
+    // ma CHECK (sandbox|live) - tu zostaje tylko zawężenie typu.
+    const rowEnv: StripeEnv = row.environment === "live" ? "live" : "sandbox";
     const key = targetKey(rowEnv, ref);
     if (targets.has(key)) continue;
     targets.set(key, {
@@ -245,7 +251,8 @@ export async function closeBillingForUser(
     try {
       op = await cancelForClosure(await clientFor(target.environment), ref);
     } catch (clientError) {
-      op = { ok: false, error: clientError instanceof Error ? clientError.message : "client" };
+      // Brak poświadczeń albo nieudane ładowanie SDK: ten sam opis co odmowa.
+      op = { ok: false, error: getStripeErrorMessage(clientError) };
     }
     if (!op.ok) {
       // Sprzeczność stanu: operator zna subskrypcję, my jej już nie znajdziemy.
