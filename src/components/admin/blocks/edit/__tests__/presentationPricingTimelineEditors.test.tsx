@@ -207,7 +207,7 @@ describe("tabela cenowa - dopisanie i usunięcie planu", () => {
   });
 
   it("`plans` jako napis i plan `null` nie wywracają edytora i nie pokazują „null”", () => {
-    const { container, unmount } = renderEditor(
+    const { unmount } = renderEditor(
       PricingTableBlock,
       blok("pricing-table", { plans: "trzy plany" }),
     );
@@ -215,13 +215,17 @@ describe("tabela cenowa - dopisanie i usunięcie planu", () => {
     expect(screen.getByRole("button", { name: pb("addPlan") })).toBeInTheDocument();
     unmount();
 
-    const drugi = renderEditor(
+    const { changes } = renderEditor(
       PricingTableBlock,
       blok("pricing-table", { plans: [null] as unknown as Json }),
     );
-    expect(screen.getByPlaceholderText<HTMLInputElement>(pb("planName")).value).toBe("");
-    expect(drugi.container.textContent).not.toContain("null");
-    expect(container.textContent).not.toContain("null");
+    // Plan `null` to plan PUSTY: każde pole tekstowe (nazwa, cena, okres, opis,
+    // funkcje, CTA) puste, bez wyróżnienia - i sam odczyt niczego nie zapisuje.
+    const tekstowe = screen.getAllByRole<HTMLInputElement | HTMLTextAreaElement>("textbox");
+    expect(tekstowe).toHaveLength(7);
+    expect(tekstowe.map((el) => el.value)).toEqual(Array(7).fill(""));
+    expect(screen.getByRole("checkbox", { name: pb("featured") })).not.toBeChecked();
+    expect(changes).toEqual([]);
   });
 });
 

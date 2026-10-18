@@ -162,7 +162,7 @@ describe("sekcja CTA", () => {
     fireEvent.change(wariant, { target: { value: "gradient" } });
     expect(ostatniZapis(changes).data).toEqual({ ...start.data, variant: "gradient" });
 
-    for (const data of [{}, { variant: "neon" }]) {
+    for (const data of [{}, { variant: "neon" }] as Record<string, Json>[]) {
       const { unmount } = renderEditor(CtaSectionBlock, blok("cta-section", data));
       expect(
         screen
