@@ -288,6 +288,22 @@ describe("RetentionDialog - ankieta jest best-effort", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
+  it("powód wychodzi RAZEM z rezygnacją - nie czeka na odpowiedź operatora", async () => {
+    // Odwrotna kolejność (ankieta dopiero po udanym anulowaniu) gubiła powód
+    // przy wolnym operatorze i zamkniętej karcie, a przy odmowie operatora -
+    // zawsze, choć klient swoją decyzję już podał.
+    h.settings.current = retentionSettings({ enabled: false });
+    const { onConfirmCancel } = renderDialog({ cancel: () => new Promise<void>(() => {}) });
+
+    clickKey("retention.continue");
+
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+    expect(h.submitFeedback).toHaveBeenCalledTimes(1);
+    expect(h.submitFeedback).toHaveBeenCalledWith({
+      data: expect.objectContaining({ subscriptionId: "sub-1", offerShown: false }),
+    });
+  });
+
   it("awaria zapisu powodu NIE blokuje rezygnacji", async () => {
     h.submitFeedback.mockRejectedValue(new Error("analityka padła"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});

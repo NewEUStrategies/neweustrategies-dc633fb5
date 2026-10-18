@@ -283,6 +283,9 @@ describe("PlanSwitchBoard - subskrypcja, której nie da się przełączyć", () 
     await awaitBoard();
 
     expect(screen.queryAllByText("profile.planPage.upgradeCta")).toHaveLength(0);
-    expect(screen.getAllByText("profile.planPage.chooseCta").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("profile.planPage.downgradeCta")).toHaveLength(0);
+    const ctas = screen.getAllByText("profile.planPage.chooseCta");
+    expect(ctas.length).toBeGreaterThan(0);
+    expect(ctas.every((cta) => cta.closest("a")?.getAttribute("href") === "/pricing")).toBe(true);
   });
 });
