@@ -773,6 +773,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0305_release_coupon_server_only",
     twin: "20261007140200_release_coupon_server_only.sql",
   },
+  {
+    tag: "0306_release_coupon_order_lock",
+    twin: "20261018120000_release_coupon_order_lock.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
@@ -1363,6 +1367,7 @@ export const KNOWN_NON_MONOTONIC_JOURNAL: readonly string[] = [
  */
 export const REQUIRED_PRODUCTION_TWINS: readonly string[] = [
   "20261007140200_release_coupon_server_only.sql",
+  "20261018120000_release_coupon_order_lock.sql",
 ];
 
 /**

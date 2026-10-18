@@ -228,7 +228,12 @@ describe("self-test na realnym dzienniku drizzle", () => {
   });
 
   it("lista poprawek wymaganych na produkcji tylko rośnie", () => {
-    expect(REQUIRED_PRODUCTION_TWINS).toContain("20261007140200_release_coupon_server_only.sql");
+    expect(REQUIRED_PRODUCTION_TWINS).toEqual(
+      expect.arrayContaining([
+        "20261007140200_release_coupon_server_only.sql",
+        "20261018120000_release_coupon_order_lock.sql",
+      ]),
+    );
     expect(new Set(REQUIRED_PRODUCTION_TWINS).size).toBe(REQUIRED_PRODUCTION_TWINS.length);
   });
 

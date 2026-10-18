@@ -12,12 +12,16 @@
 -- wprost (scenariusz naduzycia) dostaje 42501; kazdy status zamowienia ma
 -- przypisany werdykt, a powtorka (webhook ponowiony) niczego nie zmienia.
 --
+-- Status zamowienia jest czytany pod blokada wiersza (20261018120000):
+-- rozliczenie platnosci nie wejdzie miedzy odczyt a usuniecie realizacji.
+--
 -- PAS PRODUKCYJNY. Ten plik buduje baze z supabase/migrations; na produkcje
--- poprawka jedzie bliznakiem drizzle/migrations/0305_release_coupon_server_only
--- (ten sam SQL wykonywalny - pilnuje `check:migration-lanes`,
--- REQUIRED_PRODUCTION_TWINS w src/lib/ci/migrationLaneParity.ts).
+-- poprawki jada bliznakami drizzle/migrations/0305_release_coupon_server_only
+-- i 0306_release_coupon_order_lock (ten sam SQL wykonywalny - pilnuje
+-- `check:migration-lanes`, REQUIRED_PRODUCTION_TWINS w
+-- src/lib/ci/migrationLaneParity.ts).
 BEGIN;
-SELECT plan(24);
+SELECT plan(25);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 ALTER TABLE public.payment_orders DISABLE TRIGGER USER;
@@ -227,6 +231,18 @@ SELECT is(
   ARRAY['c4600000-0000-0000-0000-0000000000f1', 'c4600000-0000-0000-0000-0000000000f3',
         'c4600000-0000-0000-0000-0000000000f4', 'c4600000-0000-0000-0000-0000000000f5']::uuid[],
   'zostaja: oplacone, cudze, w toku i zwrocone - zadne inne wiersze nie znikaja');
+
+-- ── 25. Status zamowienia pod blokada wiersza ──────────────────────────────
+-- Bez blokady: zwolnienie widzi `failed`, webhook przestawia na `paid`,
+-- `apply_b2b_coupon_effects` nadaje efekty kodu, a zwolnienie i tak usuwa
+-- realizacje - kod jednorazowy znow wazny po skorzystaniu z efektow.
+-- Wspolbieznosci pgTAP nie odtworzy w jednej sesji, wiec przypinamy ksztalt:
+-- odczyt `payment_orders` w rdzeniu idzie z FOR SHARE (dowod dwiema sesjami -
+-- opis PR #522).
+SELECT ok(
+  pg_get_functiondef('public._release_b2b_coupon(uuid,uuid,uuid,uuid)'::regprocedure)
+    ~* 'FROM\s+public\.payment_orders[^;]*FOR\s+SHARE',
+  'rdzen _release_b2b_coupon czyta status zamowienia pod blokada wiersza (FOR SHARE)');
 
 SELECT set_config('request.jwt.claims', '', true);
 SELECT * FROM finish();
