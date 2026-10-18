@@ -24,6 +24,17 @@
 -- rozstrzyga, zostaje, gdzie jest. UPDATE nie zmienia kolumn wyzwalających
 -- trigger, więc kaskada nie liczy się drugi raz.
 --
+-- KONTO PRZENIESIONE Z NAJEMCY DOMYŚLNEGO. Kaskada zaczyna od profilu
+-- płatnika (krok (a)), więc zdarzenie z `user_id` konta, które po płatności
+-- przeniesiono do innego najemcy, idzie za BIEŻĄCYM profilem - razem
+-- z subskrypcją, którą 20261007140300 przepina do tego samego profilu. Ta sama
+-- reguła działa już na żywo (trigger przelicza najemcę przy każdym zapisie
+-- `user_id`, `customer_id` albo `subscription_id`, np. przy domknięciu
+-- zdarzenia z identyfikatorem subskrypcji), a backfill 20260913100000
+-- przeliczył pulę domyślną tą samą kaskadą. Zawężenie do `user_id IS NULL`
+-- rozdzieliłoby jeden zakup między dwóch najemców: płatność w domyślnym,
+-- faktury i subskrypcja w nowym.
+--
 -- KOLEJNOŚĆ WDROŻENIA: po 20261007140300 (pas drizzle: 0305 przed 0306).
 -- Kod się nie zmienia.
 -- IDEMPOTENTNA: drugi przebieg nie znajduje już wierszy do przepięcia.

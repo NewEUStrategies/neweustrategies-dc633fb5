@@ -9,7 +9,7 @@
 -- uzgodnienia w migracji wymaga tej samej zmiany tutaj - inaczej test
 -- sprawdza nieaktualna regule.
 BEGIN;
-SELECT plan(10);
+SELECT plan(11);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -17,10 +17,14 @@ INSERT INTO public.tenants (id, slug, name, domain) VALUES
   ('5c0b0000-0000-0000-0000-0000000000bb', 'pwe-follow-b', 'PWE Follow B', 'pwe-follow-b.example'),
   ('5c0c0000-0000-0000-0000-0000000000cc', 'pwe-follow-c', 'PWE Follow C', 'pwe-follow-c.example');
 INSERT INTO auth.users (id, email) VALUES
-  ('5c000000-0000-0000-0000-0000000000b1', 'pwe-follow-b1@example.org');
+  ('5c000000-0000-0000-0000-0000000000b1', 'pwe-follow-b1@example.org'),
+  ('5c000000-0000-0000-0000-0000000000d1', 'pwe-follow-d1@example.org');
 INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('5c000000-0000-0000-0000-0000000000b1', 'pwe-follow-b1@example.org', 'PWE Follow B1',
-   '5c0b0000-0000-0000-0000-0000000000bb');
+   '5c0b0000-0000-0000-0000-0000000000bb'),
+  -- Konto D placi, gdy stoi w najemcy domyslnym; potem przenosza je do B.
+  ('5c000000-0000-0000-0000-0000000000d1', 'pwe-follow-d1@example.org', 'PWE Follow D1',
+   public.email_default_tenant_id());
 
 -- Stan pasa drizzle sprzed 0305: triggera nie ma (DROP wycofa ROLLBACK).
 DROP TRIGGER subscriptions_pin_tenant ON public.subscriptions;
@@ -34,6 +38,8 @@ INSERT INTO public.subscriptions
   (user_id, provider_subscription_id, provider_customer_id, product_id, price_id, status, environment)
 VALUES
   ('5c000000-0000-0000-0000-0000000000b1', 'sub_pwe_follow_1', 'cus_pwe_follow_1',
+   'prod_x', 'price_x', 'active', 'live'),
+  ('5c000000-0000-0000-0000-0000000000d1', 'sub_pwe_moved_d', 'cus_pwe_moved_d',
    'prod_x', 'price_x', 'active', 'live');
 RESET ROLE;
 SELECT set_config('request.jwt.claims', '', true);
@@ -59,6 +65,21 @@ VALUES
    NULL, NULL, NULL, '{}'),
   ('5c0e0000-0000-0000-0000-000000000005', 'evt_pwe_elsewhere', 'invoice.paid', 'live',
    'sub_pwe_follow_1', NULL, NULL, '{}');
+-- Platnosc konta D, gdy stalo w najemcy domyslnym: oba zdarzenia slusznie tam.
+INSERT INTO public.payment_webhook_events
+  (id, event_id, event_type, environment, subscription_id, customer_id, user_id, payload)
+VALUES
+  ('5c0e0000-0000-0000-0000-0000000000d1', 'evt_pwe_d_user', 'subscription.created', 'live',
+   'sub_pwe_moved_d', 'cus_pwe_moved_d', '5c000000-0000-0000-0000-0000000000d1', '{}'),
+  ('5c0e0000-0000-0000-0000-0000000000d2', 'evt_pwe_d_invoice', 'invoice.paid', 'live',
+   'sub_pwe_moved_d', NULL, NULL, '{}');
+-- Przeniesienie konta D do najemcy B rola serwisowa (repin konta celowo
+-- pomija platnosci).
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+UPDATE public.profiles
+   SET tenant_id = '5c0b0000-0000-0000-0000-0000000000bb'
+ WHERE id = '5c000000-0000-0000-0000-0000000000d1';
+SELECT set_config('request.jwt.claims', '', true);
 -- Wiersz rozstrzygniety kiedys w najemcy C: UPDATE OF tenant_id nie odpala
 -- triggera wiazania, wiec stoi tam, gdzie go postawiono.
 UPDATE public.payment_webhook_events
@@ -133,6 +154,16 @@ SELECT is(
   (SELECT tenant_id FROM public.payment_webhook_events WHERE id = '5c0e0000-0000-0000-0000-000000000003'),
   '5c0b0000-0000-0000-0000-0000000000bb'::uuid,
   '0306: zdarzenie z platnikiem bez zmian');
+
+SELECT is(
+  ARRAY[
+    (SELECT tenant_id FROM public.subscriptions WHERE provider_subscription_id = 'sub_pwe_moved_d'),
+    (SELECT tenant_id FROM public.payment_webhook_events WHERE id = '5c0e0000-0000-0000-0000-0000000000d1'),
+    (SELECT tenant_id FROM public.payment_webhook_events WHERE id = '5c0e0000-0000-0000-0000-0000000000d2')
+  ],
+  ARRAY['5c0b0000-0000-0000-0000-0000000000bb', '5c0b0000-0000-0000-0000-0000000000bb',
+        '5c0b0000-0000-0000-0000-0000000000bb']::uuid[],
+  'konto przeniesione z najemcy domyslnego: subskrypcja i CALA jej historia ida za biezacym profilem razem, bez rozdzielenia zakupu');
 
 -- Idempotencja: drugi przebieg nie znajduje juz nic do przepiecia.
 WITH resolved AS (

@@ -11,22 +11,25 @@
  * wyłącznie dziennik drizzle. Znane braki są drukowane przy każdym przebiegu.
  *
  * Cienki runner - rejestry, porównanie SQL-a i listy znanych przypadków żyją
- * w `src/lib/ci/migrationLaneParity.ts` (z testem jednostkowym).
+ * w `src/lib/ci/migrationLaneParity.ts` i `src/lib/ci/supabaseLaneCoverage.ts`
+ * (oba z testami jednostkowymi).
  *
  * Usage: bun run check:migration-lanes
  */
 import { readFileSync } from "node:fs";
 import {
   analyzeMigrationLanes,
-  analyzeSupabaseCoverage,
   evaluateLaneGate,
   type JournalEntry,
   DRIZZLE_DIR,
   laneGateFailed,
   renderLaneGate,
+} from "../src/lib/ci/migrationLaneParity";
+import {
+  analyzeSupabaseCoverage,
   renderSupabaseCoverage,
   supabaseCoverageFailed,
-} from "../src/lib/ci/migrationLaneParity";
+} from "../src/lib/ci/supabaseLaneCoverage";
 
 function main(): void {
   const journal = JSON.parse(readFileSync(`${DRIZZLE_DIR}/meta/_journal.json`, "utf8")) as {
