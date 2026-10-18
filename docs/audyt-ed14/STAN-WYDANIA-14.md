@@ -148,10 +148,12 @@ Dwie obserwacje z przekrojów, istotne dla mapy synchronizacji i dla Speed Index
 
 ## W toku
 
-- Rozliczenie 12 pozycji planu 17.15 i dwa ostatnie śledztwa synchronizacji (dokumentacja, graf) - agenci kończą pracę.
-- Weryfikator `scripts/audit/verify-edition-14.mjs`, README PL/EN i artefakt.
+- Rozliczenie 12 pozycji planu 17.15 (sekcja 18.11) i dwa ostatnie śledztwa synchronizacji (dokumentacja, graf) -
+  agenci kończą pracę.
+- Artefakt (wyjaśnienia w okienkach: co to jest, po co, dlaczego ważne, jaki cel).
 
-Rozdział 18 jest już w `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md` (sekcja 18.11 czeka na agentów planu).
+Gotowe: rozdział 18 w `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md`, README PL/EN i weryfikator
+`bun scripts/audit/verify-edition-14.mjs` (476 zielonych, 0 czerwonych na obiektach gita).
 
 ## Pliki
 
