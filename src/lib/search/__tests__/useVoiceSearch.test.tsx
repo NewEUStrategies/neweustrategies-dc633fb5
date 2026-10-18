@@ -719,6 +719,41 @@ describe("useVoiceSearch - Web Speech w trybie ciągłym: jedno dyktowanie = jed
     expect(result.current.listening).toBe(false);
   });
 
+  it("utrata sieci PO wypowiedzi też kończy dyktowanie - i zatwierdza frazę RAZ", async () => {
+    // Sesja z wynikiem zeruje licznik, ale znacznik wyniku musi wrócić do
+    // `false` przy każdym końcu - inaczej pętla po pierwszym słowie kręci się
+    // do bezpiecznika 5 min.
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["unia", true]]);
+    act(() => vi.advanceTimersByTime(4000));
+    end(rec);
+    for (let i = 0; i < 3; i++) {
+      fail(rec, "network");
+      end(rec);
+    }
+    expect(rec.starts).toBe(4);
+    expect(result.current.listening).toBe(false);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("unia");
+  });
+
+  it("puste obroty PRZEPLATANE zwykłą sesją nie kończą dyktowania - liczy się seria z rzędu", async () => {
+    const { result, rec } = await startFallback();
+    fail(rec, "network");
+    end(rec);
+    act(() => vi.advanceTimersByTime(8000));
+    fail(rec, "no-speech");
+    end(rec);
+    for (let i = 0; i < 2; i++) {
+      fail(rec, "network");
+      end(rec);
+    }
+    expect(rec.starts).toBe(5);
+    expect(result.current.listening).toBe(true);
+    act(() => result.current.stop());
+    expect(result.current.listening).toBe(false);
+  });
+
   it("cisza (`no-speech` co ~8 s) wznawia sesję - nasłuch trwa aż do stopu", async () => {
     const { result, rec } = await startFallback();
     for (let i = 0; i < 5; i++) {
@@ -815,12 +850,52 @@ describe("useVoiceSearch - Web Speech w trybie ciągłym: jedno dyktowanie = jed
   });
 
   it("finał z pewnością > 0 skleja się normalnie („w” + „wschodniej” bez zwijania)", async () => {
-    const { opts, rec } = await startFallback();
+    // Dwa FINAŁY, drugi przedłuża pierwszy tekstowo - zwinięcie zatrzymuje
+    // tu wyłącznie warunek confidence 0 (desktop podaje realną pewność).
+    const { result, opts, rec } = await startFallback();
     emit(rec, [
       ["w", true, 0.8],
-      [" wschodniej Europie", false],
+      [" wschodniej Europie", true, 0.9],
     ]);
     expect(opts.onText).toHaveBeenLastCalledWith("w wschodniej Europie");
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("w wschodniej Europie");
+  });
+
+  it("WebKit / segmenty Androida: przycięte transkrypcje nie sklejają się w jedno słowo", async () => {
+    // Chrome desktop dokleja spację wiodącą do kolejnych wyników, WebKit
+    // (`formattedString`) i segmenty Androida - nie. Bez separatora pauza
+    // w zdaniu dawała „Fundusze unijnedla samorządów" w polu i w submicie.
+    speechCtl.endOnStop = false;
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [["Fundusze unijne", true]]);
+    emit(rec, [
+      ["Fundusze unijne", true],
+      ["dla samorządów", false],
+    ]);
+    expect(opts.onText).toHaveBeenLastCalledWith("Fundusze unijne dla samorządów");
+    act(() => result.current.toggle());
+    emit(rec, [
+      ["Fundusze unijne", true],
+      ["dla samorządów", true],
+    ]);
+    end(rec);
+    expect(opts.onFinal).toHaveBeenCalledTimes(1);
+    expect(opts.onFinal).toHaveBeenCalledWith("Fundusze unijne dla samorządów");
+  });
+
+  it("Android <158 z nowym segmentem: hipotezy zwinięte, segmenty rozdzielone spacją", async () => {
+    const { result, opts, rec } = await startFallback();
+    emit(rec, [
+      ["polityka", true, 0],
+      ["polityka energetyczna", true, 0],
+      ["w", true, 0],
+      ["w Polsce", true, 0.9],
+    ]);
+    expect(opts.onText).toHaveBeenLastCalledWith("polityka energetyczna w Polsce");
+    act(() => result.current.toggle());
+    expect(opts.onFinal).toHaveBeenCalledWith("polityka energetyczna w Polsce");
   });
 
   it("finał z confidence 0, po którym idzie INTERIM, nie jest zwijany", async () => {

@@ -83,12 +83,14 @@ const norm = (s: string) => s.trim().toLowerCase();
 const joinPhrase = (a: string, b: string) => (a && b ? `${a} ${b}` : a || b);
 
 /** Tekst bieżącej sesji. W trybie ciągłym `results` to CAŁA sesja: finały
- *  zostają w liście do końca, za nimi bieżący interim, a transkrypcje niosą
- *  własne spacje - sklejamy wszystko od zera. Android Chrome <158 oddaje każdą
+ *  zostają w liście do końca, za nimi bieżący interim - składamy wszystko od
+ *  zera. Wyniki łączy pojedyncza spacja: Chrome desktop dokleja spację wiodącą
+ *  sam, ale WebKit i segmenty Androida oddają transkrypcje przycięte, więc
+ *  pauza w zdaniu sklejała dwa słowa w jedno. Android Chrome <158 oddaje każdą
  *  hipotezę rosnącego zdania jako osobny finał z confidence 0: taki wynik,
  *  który następny finał tylko przedłuża, pomijamy, zamiast dublować słowa. */
 function sessionTranscript(results: ArrayLike<SpeechRecognitionResultLike>): string {
-  let text = "";
+  const parts: string[] = [];
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     const t = r?.[0]?.transcript ?? "";
@@ -102,9 +104,9 @@ function sessionTranscript(results: ArrayLike<SpeechRecognitionResultLike>): str
     ) {
       continue;
     }
-    text += t;
+    parts.push(t.trim());
   }
-  return text.replace(/\s+/g, " ").trim();
+  return parts.join(" ").replace(/\s+/g, " ");
 }
 
 function abortQuietly(rec: SpeechRecognitionLike) {
