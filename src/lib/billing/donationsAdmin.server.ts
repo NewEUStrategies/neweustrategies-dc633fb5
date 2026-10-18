@@ -63,6 +63,17 @@ function idOf(value: string | { id: string } | null | undefined): string | null 
 }
 
 /**
+ * Sesja, za którą pieniądze są już u operatora - ta sama reguła co webhook
+ * (`stripeEvents.server`: `checkout.session.completed`, ale nie z
+ * `payment_status: "unpaid"`). Metoda odroczona (polecenie zapłaty SEPA,
+ * przelew) kończy sesję jako `complete` jeszcze BEZ pieniędzy, a odrzucona
+ * zostaje taka na zawsze - zapłatę przynosi `async_payment_succeeded`.
+ */
+function sessionPaid(session: Stripe.Checkout.Session): boolean {
+  return session.status === "complete" && session.payment_status !== "unpaid";
+}
+
+/**
  * Ostatnie wpłaty dla panelu (pełne dane - widok tylko dla roli `admin`).
  *
  * `tenantId` jest parametrem WYMAGANYM i pochodzi z bramki `assertAdmin`, czyli
@@ -246,7 +257,7 @@ export async function syncDonationsFromStripe(
     if (row.status === "pending" && sessionId.startsWith("cs_")) {
       try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        if (session.payment_status === "paid" || session.status === "complete") {
+        if (sessionPaid(session)) {
           if (session.mode === "subscription") {
             if (await settleRecurringFromSession(session, row.id, environment)) {
               report.settled += 1;
@@ -359,6 +370,7 @@ export async function syncDonationsFromStripe(
       sessions.data.flatMap((session) =>
         session.metadata?.purpose === "donation" &&
         session.metadata.donationId &&
+        sessionPaid(session) &&
         !knownSessionIds.has(session.id)
           ? [session.metadata.donationId]
           : [],
@@ -368,7 +380,7 @@ export async function syncDonationsFromStripe(
     for (const session of sessions.data) {
       if (session.metadata?.purpose !== "donation") continue;
       report.scannedSessions += 1;
-      if (session.payment_status !== "paid" && session.status !== "complete") continue;
+      if (!sessionPaid(session)) continue;
       if (knownSessionIds.has(session.id)) continue;
       if (session.metadata?.donationId) {
         // Wiersz istnieje, ale ma jeszcze zapisany identyfikator tymczasowy.

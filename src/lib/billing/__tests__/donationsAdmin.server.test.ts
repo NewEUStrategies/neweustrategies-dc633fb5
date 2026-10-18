@@ -614,6 +614,60 @@ describe("syncDonationsFromStripe - domknięcie wpłat oczekujących", () => {
     expect(rowById("don-1")).toMatchObject({ status: "pending" });
   });
 
+  // DEFEKT NAPRAWIONY 18.10.2026 (`donationsAdmin.server.ts`, warunek „sesja
+  // opłacona").
+  //
+  // CO BYŁO ZŁE. Metoda odroczona (polecenie zapłaty SEPA, przelew) kończy
+  // sesję jako `complete` z `payment_status: "unpaid"`: pieniędzy jeszcze nie
+  // ma i mogą nie dojść wcale. Webhook takiej sesji nie księguje - czeka na
+  // `async_payment_succeeded` (`stripeEvents.server`), a uzgodnienie brało
+  // samo `complete` za zapłatę. Wpłata stawała się `paid` - w statystykach
+  // zbiórki, w eksporcie księgowym i w triggerze statusu wspierającego - także
+  // wtedy, gdy bank polecenie zapłaty ODRZUCIŁ (sesja zostaje wtedy
+  // `complete` + `unpaid` na zawsze).
+  it("sesja UKOŃCZONA bez pieniędzy (polecenie zapłaty w toku albo odrzucone) nie domyka wpłaty", async () => {
+    rows = [donationRow({ provider_session_id: "cs_sepa", status: "pending" })];
+    h.fns.sessionsRetrieve.mockResolvedValue(
+      stripeSession({ id: "cs_sepa", status: "complete", payment_status: "unpaid" }),
+    );
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report).toMatchObject({ settled: 0, expired: 0, warnings: [] });
+    expect(rowById("don-1")).toMatchObject({
+      status: "pending",
+      paid_at: null,
+      provider_intent_id: null,
+    });
+    expect(h.fns.invalidateCache).not.toHaveBeenCalled();
+  });
+
+  it("wpłata cykliczna bez pieniędzy z pierwszej faktury nie dostaje raty ani subskrypcji", async () => {
+    rows = [donationRow({ provider_session_id: "cs_sepa_sub", status: "pending" })];
+    h.fns.sessionsRetrieve.mockResolvedValue(
+      stripeSession({
+        id: "cs_sepa_sub",
+        mode: "subscription",
+        status: "complete",
+        payment_status: "unpaid",
+        payment_intent: null,
+        subscription: "sub_sepa",
+        invoice: "in_sepa",
+      }),
+    );
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.settled).toBe(0);
+    expect(rows).toHaveLength(1);
+    expect(rowById("don-1")).toMatchObject({
+      status: "pending",
+      paid_at: null,
+      provider_invoice_id: null,
+      provider_subscription_id: null,
+    });
+  });
+
   it("ODMOWA: sesja nieznana operatorowi daje ostrzeżenie i NIE przerywa uzgodnienia", async () => {
     rows = [
       donationRow({ id: "don-1", provider_session_id: "cs_zgubiona", status: "pending" }),
@@ -928,6 +982,37 @@ describe("syncDonationsFromStripe - import sesji spoza rejestru", () => {
 
     expect(report).toMatchObject({ scannedSessions: 1, imported: 0 });
     expect(rows).toHaveLength(0);
+  });
+
+  it("ODMOWA: sesja ukończona BEZ pieniędzy nie wchodzi jako wpłata ani nie domyka wiersza", async () => {
+    // Polecenie zapłaty w toku albo odrzucone (`complete` + `unpaid`) - patrz
+    // test domknięcia wyżej. Import zakładał wiersz od razu `paid`.
+    rows = [
+      donationRow({
+        id: "don-1",
+        provider_session_id: "pending:a",
+        status: "pending",
+        created_at: relativeIso(-2 * GODZINA),
+      }),
+    ];
+    h.fns.sessionsList.mockResolvedValue({
+      data: [
+        stripeSession({ id: "cs_sepa_obca", status: "complete", payment_status: "unpaid" }),
+        stripeSession({
+          id: "cs_sepa_nasza",
+          status: "complete",
+          payment_status: "unpaid",
+          metadata: { purpose: "donation", donationId: "don-1", tenantId: TENANT },
+        }),
+      ],
+      has_more: false,
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report).toMatchObject({ scannedSessions: 2, imported: 0, settled: 0, warnings: [] });
+    expect(rows).toHaveLength(1);
+    expect(rowById("don-1")).toMatchObject({ status: "pending", paid_at: null });
   });
 
   it("ODMOWA: sesja znana rejestrowi nie jest importowana po raz drugi", async () => {
@@ -1298,6 +1383,20 @@ describe("wiarygodność raportu i izolacja tenanta", () => {
       { method: "eq", args: ["tenant_id", TENANT] },
       { method: "eq", args: ["environment", "sandbox"] },
       { method: "in", args: ["id", ["don-1", "don-2"]] },
+    ]);
+    // Przepisanie sesji na wierszu też idzie po najemcy z bramki - samo `id`
+    // z metadanych operatora nie jest dowodem przynależności.
+    const rewrite = chain
+      .chainsFor("donations")
+      .find(
+        (c) =>
+          (c.argsOf("update")?.[0] as { provider_session_id?: string } | undefined)
+            ?.provider_session_id === "cs_a",
+      );
+    expect(rewrite?.calls.filter((c) => c.method !== "update")).toEqual([
+      { method: "eq", args: ["id", "don-1"] },
+      { method: "eq", args: ["tenant_id", TENANT] },
+      { method: "eq", args: ["environment", "sandbox"] },
     ]);
   });
 
