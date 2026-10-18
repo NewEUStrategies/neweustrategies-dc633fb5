@@ -92,8 +92,11 @@
 //
 // IZOLACJA. Partia czyta `subscriptions` jednego środowiska (`environment`),
 // a każde uprawnienie i każda organizacja muszą mieć NAJEMCĘ TEGO SAMEGO
-// wiersza subskrypcji - dopasowanie po samym `external_ref` mogłoby sięgnąć
-// do cudzego obszaru roboczego (kod pilnuje unikalności, baza nie).
+// wiersza subskrypcji - dopasowanie po samym kluczu operatora mogłoby sięgnąć
+// do cudzego obszaru roboczego. `user_subscriptions.external_ref` jest
+// unikalny w bazie (`user_subscriptions_external_ref_key`), ale
+// `member_organizations.provider_subscription_id` - nie; najemca zawęża więc
+// każde dopasowanie (odczyt - w kodzie partii, zapis - w `WHERE`).
 //
 // OPERATOR. Odczyt sekwencyjny (jedno żądanie naraz), tylko dla wierszy, które
 // jeszcze dają dostęp. Historię opłaconych faktur okresu (`invoices.list`)

@@ -21,6 +21,9 @@
 //     nie cofnął przycięcia przy kolejnym `deleted` bez powodu.
 //   * POZORNA SYMULACJA. `dry_run` ma nie wysłać ANI JEDNEGO zapisu.
 //   * PODWÓJNY SKUTEK. Drugi przebieg `apply` nie zmienia niczego.
+//   * WYŚCIG. Wiersz zmieniony po odczycie partii (webhook, zwrot, dobowy
+//     przebieg zespołów) nie zostaje nadpisany - strażnicy w `WHERE`, a liczniki
+//     liczą tylko wiersze naprawdę zmienione.
 //   * ZAPIS CZĘŚCIOWY. Błąd późniejszego kroku zapisu nie ukrywa wcześniejszych:
 //     liczniki partii, ślad w logu i `applied` mówią, co już jest w bazie.
 //   * PARTIE. Kursor po `subscriptions.id` przechodzi każdy wiersz raz.
@@ -46,9 +49,10 @@ import {
   type SupabaseFromStub,
   type SupabaseResult,
 } from "@/test/billing/fixtures";
-import { DZIEN, GODZINA, FIXED_NOW, freezeClock, relativeIso } from "@/test/time";
+import { DZIEN, GODZINA, FIXED_NOW, SEKUNDA, freezeClock, relativeIso } from "@/test/time";
 import type {
   LegacyEntitlementRow,
+  LegacyInvoiceFacts,
   LegacySubscriptionRow,
 } from "@/lib/billing/legacyNonPaymentReconcile.server";
 
@@ -127,6 +131,7 @@ vi.mock("@/lib/stripe.server", () => ({
 const {
   PERIOD_INVOICE_SCAN_LIMIT,
   decideLegacyNonPayment,
+  invoicePaysPeriod,
   needsPeriodInvoiceCheck,
   readLegacyStripeFacts,
   reconcileLegacyNonPaymentCancellations,
@@ -454,6 +459,14 @@ describe("decyzja - anulowanie za brak płatności", () => {
     expect(plan.anchor).toBe(stored);
     expect(plan.writeAnchor).toBe(false);
     expect(plan.accessUntil).toBe(relativeIso(2 * DZIEN));
+    // Koniec subskrypcji ogranicza tylko NOWĄ kotwicę - zapisanej nie przesuwa
+    // (webhook liczy z niej tak samo).
+    expect(
+      decide({
+        sub: { first_payment_failed_at: stored },
+        remote: { endedAt: relativeIso(-20 * DZIEN) },
+      }).anchor,
+    ).toBe(stored);
   });
 
   it("nowa kotwica nie jest późniejsza niż koniec subskrypcji", () => {
@@ -563,6 +576,41 @@ describe("decyzja - okres opłacony mimo anulowania za brak płatności", () => 
 
     expect(plan.decision).toBe("paid");
     expect(plan.paymentProof).toBe("invoice");
+  });
+
+  it("odnowienie pokryte w całości saldem klienta albo kuponem (do zapłaty 0) też jest zapłatą", () => {
+    // `amount_paid: 0` przy `amount_due` większym od zera zapłatą nie jest
+    // (przypadek niżej) - rozstrzyga kwota NALEŻNA.
+    const plan = decide({ remote: { invoice: { ...paidLate, amountPaid: 0, amountDue: 0 } } });
+
+    expect(plan).toMatchObject({ decision: "paid", paymentProof: "invoice", clamp: [] });
+  });
+
+  it("dopłata otwiera okres tylko z pozycją za cały okres w oknie wokół jego początku - z obu stron", () => {
+    const periodStart = relativeIso(-5 * DZIEN);
+    const update = (fullPeriodStart: string | null): LegacyInvoiceFacts => ({
+      status: "paid",
+      attemptCount: 1,
+      attemptedAt: periodStart,
+      paidAt: periodStart,
+      amountPaid: 47500,
+      amountDue: 47500,
+      amountPaidOffStripe: null,
+      paidOutOfBand: false,
+      billingReason: "subscription_update",
+      fullPeriodStart,
+    });
+
+    expect(invoicePaysPeriod(update(relativeIso(-5 * DZIEN - 90 * SEKUNDA)), periodStart)).toBe(
+      true,
+    );
+    expect(invoicePaysPeriod(update(relativeIso(-5 * DZIEN + 90 * SEKUNDA)), periodStart)).toBe(
+      true,
+    );
+    // Pozycja za cały POPRZEDNI okres albo zaczęta dobę po początku - nie ten okres.
+    expect(invoicePaysPeriod(update(relativeIso(-6 * DZIEN)), periodStart)).toBe(false);
+    expect(invoicePaysPeriod(update(relativeIso(-4 * DZIEN)), periodStart)).toBe(false);
+    expect(invoicePaysPeriod(update(null), periodStart)).toBe(false);
   });
 
   it("fakty faktury: kwota poza operatorem i początek pozycji za cały okres", () => {
@@ -1782,6 +1830,274 @@ describe("przebieg - zapisy", () => {
     expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
     expect(updates("user_subscriptions")).toEqual([]);
     expect(tables).toEqual(before);
+  });
+});
+
+describe("przebieg - stan zapisany wcześniej", () => {
+  it("przycięte przez wersję zadania sprzed czyszczenia znacznika: zostaje do zapisania sam znacznik", async () => {
+    // Kotwica i przycięcie już w bazie, ale `last_payment_at` z dopłaty
+    // w okresie został - z nim webhook przy kolejnym `deleted` bez powodu
+    // uznałby okres za opłacony i cofnął przycięcie.
+    const anchor = relativeIso(-5 * DZIEN + GODZINA);
+    const prorationPaidAt = relativeIso(-3 * DZIEN);
+    seed({
+      subscriptions: [
+        subRow(1, { first_payment_failed_at: anchor, last_payment_at: prorationPaidAt }),
+      ],
+      entitlements: [entRow(1, { current_period_end: relativeIso(9 * DZIEN + GODZINA) })],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "already_clamped", applied: true });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 1, entitlements: 0, teams: 0 });
+    expect(tables.subscriptions?.[0]).toMatchObject({
+      last_payment_at: null,
+      first_payment_failed_at: anchor,
+    });
+    expect(updates("user_subscriptions")).toEqual([]);
+  });
+
+  it("okres w bazie sprzed nieudanego odnowienia: liczy okres operatora, nie bazy", async () => {
+    // Zdarzenie odnowienia nie dotarło - baza pamięta POPRZEDNI rok (koniec
+    // 5 dni temu), a operator już nowy okres, którego porażka dała anulowanie.
+    seed({
+      subscriptions: [
+        subRow(1, {
+          current_period_start: relativeIso(-370 * DZIEN),
+          current_period_end: relativeIso(-5 * DZIEN),
+        }),
+      ],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "clamp",
+      accessUntilAfter: relativeIso(9 * DZIEN + GODZINA),
+    });
+    // Historia od początku okresu operatora; zapłata za poprzedni rok to nie
+    // znacznik z bieżącego okresu - zostaje.
+    expect(h.listCalls).toEqual([
+      expect.objectContaining({ created: { gte: unix(relativeIso(-5 * DZIEN)) - 60 * 60 } }),
+    ]);
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    expect(tables.subscriptions?.[0]?.last_payment_at).toBe(relativeIso(-370 * DZIEN));
+  });
+});
+
+describe("plan Zespół - organizacje poza zasięgiem zadania", () => {
+  it("organizacja zawieszona przez stary kod ani aktywna organizacja innego najemcy nie są ani podstawą, ani celem", async () => {
+    const start = relativeIso(-40 * DZIEN);
+    const team = (n: number) =>
+      subRow(n, { price_id: "team_monthly_seat", current_period_start: start });
+    const org = (n: number, tenant: string, status: string) => ({
+      id: `org-${n}`,
+      tenant_id: tenant,
+      provider_subscription_id: providerId(n),
+      status,
+    });
+    seed({
+      subscriptions: [team(1), team(2), team(3)],
+      // 1: właściciel ma jeszcze uprawnienie do końca nieopłaconego roku.
+      entitlements: [entRow(1, { current_period_end: relativeIso(325 * DZIEN) })],
+      // 1 i 2: zespół zawieszony już w chwili anulowania; 3: aktywna
+      // organizacja INNEGO najemcy z tym samym kluczem subskrypcji.
+      orgs: [org(1, TENANT, "suspended"), org(2, TENANT, "suspended"), org(3, FOREIGN, "active")],
+    });
+    for (const n of [1, 2, 3]) {
+      h.remote.set(
+        providerId(n),
+        remoteSub(n, {
+          start,
+          end: relativeIso(325 * DZIEN),
+          invoice: { status: "open", attempts: 4, finalizedAt: start },
+        }),
+      );
+    }
+    const orgsBefore = structuredClone(tables.member_organizations);
+
+    const report = await run("apply");
+
+    // 2 i 3 nie mają dostępu w swoim najemcy - bez pytania operatora.
+    expect(report).toMatchObject({ scanned: 3, candidates: 1 });
+    expect(h.retrieveCalls.map((c) => c.id)).toEqual([providerId(1)]);
+    expect(report.rows[0]).toMatchObject({
+      subscriptionId: providerId(1),
+      decision: "revoke",
+      suspendTeam: false,
+    });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    // Uzgodnienie nie wznawia zawieszonych i nie sięga do cudzych.
+    expect(updates("member_organizations")).toEqual([]);
+    expect(tables.member_organizations).toEqual(orgsBefore);
+  });
+});
+
+describe("wyścig - zapis zmieniony między odczytem partii a zapisem zadania", () => {
+  // Webhook (przycisk synchronizacji, odtworzone zdarzenie, zwrot) albo dobowy
+  // przebieg zespołów może zmienić wiersz po odczycie partii. Zadanie
+  // WYŁĄCZNIE skraca dostęp i nie nadpisuje świeższego zapisu: każdy krok ma
+  // strażnika w `WHERE`, a licznik liczy tylko wiersze, które naprawdę zmienił.
+
+  /** Tuż przed zapisem do `table` „ktoś inny” zmienia adresowany wiersz. */
+  function beforeWrite(table: string, change: (row: Row) => void) {
+    db.setResponse(table, (chain) => {
+      if (chain.has("update")) {
+        const target = chain.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1];
+        for (const row of tables[table] ?? []) {
+          if (target === undefined || row.id === target) change(row);
+        }
+      }
+      return execute(table, chain);
+    });
+  }
+
+  it("kotwica zapisana w międzyczasie przez webhook zostaje - zadanie jej nie nadpisuje i nie liczy", async () => {
+    const webhookAnchor = relativeIso(-4 * DZIEN);
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1));
+    beforeWrite("subscriptions", (row) => {
+      row.first_payment_failed_at = webhookAnchor;
+    });
+
+    const report = await run("apply");
+
+    expect(tables.subscriptions?.[0]?.first_payment_failed_at).toBe(webhookAnchor);
+    expect(report.writes.anchors).toBe(0);
+  });
+
+  it("zwrot albo krótszy dostęp zapisany w międzyczasie zostaje - przycięcie niczego nie wydłuża ani nie ożywia", async () => {
+    seed({
+      subscriptions: [subRow(1), subRow(2), subRow(3)],
+      entitlements: [entRow(1), entRow(2), entRow(3, { current_period_end: null })],
+    });
+    for (const n of [1, 2, 3]) h.remote.set(providerId(n), remoteSub(n));
+    const shorter = relativeIso(2 * DZIEN);
+    beforeWrite("user_subscriptions", (row) => {
+      // 1: `charge.refunded` - zwrot jest ostateczny; 2 i 3 (także dostęp
+      // bezterminowy): webhook skrócił dostęp bardziej niż karencja zadania.
+      if (row.id === "us-1") row.status = "refunded";
+      else row.current_period_end = shorter;
+    });
+
+    const report = await run("apply");
+
+    expect(tables.user_subscriptions?.map((r) => [r.id, r.status, r.current_period_end])).toEqual([
+      ["us-1", "refunded", relativeIso(360 * DZIEN)],
+      ["us-2", "active", shorter],
+      ["us-3", "active", shorter],
+    ]);
+    expect(report.writes).toEqual({ anchors: 3, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    // Kotwice weszły - wiersze są zapisane, choć przycięcia nie było czego robić.
+    expect(report.rows.map((r) => [r.decision, r.applied])).toEqual([
+      ["clamp", true],
+      ["clamp", true],
+      ["clamp", true],
+    ]);
+  });
+
+  it("organizację zawiesił w międzyczasie przebieg dobowy - bez drugiego zapisu i bez licznika", async () => {
+    const start = relativeIso(-40 * DZIEN);
+    const suspendedAt = relativeIso(-1 * GODZINA);
+    seed({
+      subscriptions: [subRow(1, { price_id: "team_monthly_seat", current_period_start: start })],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+          updated_at: relativeIso(-30 * DZIEN),
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, {
+        start,
+        end: relativeIso(-10 * DZIEN),
+        invoice: { status: "open", attempts: 4, finalizedAt: start },
+      }),
+    );
+    beforeWrite("member_organizations", (row) => {
+      row.status = "suspended";
+      row.updated_at = suspendedAt;
+    });
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "revoke", suspendTeam: true, applied: true });
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    expect(tables.member_organizations?.[0]).toMatchObject({
+      status: "suspended",
+      updated_at: suspendedAt,
+    });
+  });
+
+  it("każdy zapis zawęża najemca i klucz subskrypcji, a nie sam identyfikator wiersza", async () => {
+    // Atrapa adresuje wiersz po `id`, więc filtrów zawężających nie widać
+    // w skutkach - przybijamy warunki wysłane do bazy dla wszystkich czterech
+    // kroków zapisu (znacznik, kotwica, uprawnienie, zespół).
+    const start = relativeIso(-40 * DZIEN);
+    seed({
+      subscriptions: [
+        subRow(1, {
+          price_id: "team_monthly_seat",
+          current_period_start: start,
+          last_payment_at: relativeIso(-20 * DZIEN),
+        }),
+      ],
+      entitlements: [entRow(1)],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, { start, invoice: { status: "open", attempts: 4, finalizedAt: start } }),
+    );
+
+    const report = await run("apply");
+
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 1, entitlements: 1, teams: 1 });
+    const filters = (chain: RecordedChain) =>
+      chain.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    const subscriptionWrites = updates("subscriptions");
+    expect(subscriptionWrites).toHaveLength(2);
+    for (const chain of subscriptionWrites) {
+      expect(filters(chain)).toEqual(
+        expect.arrayContaining([
+          ["id", subId(1)],
+          ["tenant_id", TENANT],
+          ["environment", "live"],
+          ["status", "canceled"],
+        ]),
+      );
+    }
+    expect(filters(updates("user_subscriptions")[0] as RecordedChain)).toEqual(
+      expect.arrayContaining([
+        ["id", "us-1"],
+        ["tenant_id", TENANT],
+        ["external_ref", providerId(1)],
+        ["status", "active"],
+      ]),
+    );
+    expect(filters(updates("member_organizations")[0] as RecordedChain)).toEqual(
+      expect.arrayContaining([
+        ["provider_subscription_id", providerId(1)],
+        ["tenant_id", TENANT],
+        ["status", "active"],
+      ]),
+    );
   });
 });
 
