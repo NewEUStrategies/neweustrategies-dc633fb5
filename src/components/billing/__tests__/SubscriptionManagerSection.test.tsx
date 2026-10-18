@@ -32,6 +32,7 @@ import { billingKeys } from "@/lib/billing/keys";
 import type { MembershipGrantRow } from "@/lib/billing/membership";
 import type { StripeSubscriptionRow } from "@/lib/billing/subscriptionQueries";
 import type { PaymentOrder, UserSubscriptionRow } from "@/lib/billing/types";
+import { formatDateShort } from "@/lib/i18n/format";
 
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
@@ -483,5 +484,123 @@ describe("SubscriptionManagerSection - błąd rezygnacji idzie DALEJ, nie kończ
 
     await expect(h.confirmCancel.current!()).resolves.toBeUndefined();
     expect(h.toastSuccess).toHaveBeenCalledWith("profile.subscription.canceled");
+  });
+});
+
+describe("SubscriptionManagerSection - plan wycofany ze sprzedaży (RLS ukrywa wiersz planu)", () => {
+  // `fetchMySubscription` dociąga plan złączeniem pod RLS, a polityka
+  // „plans public read" pokazuje klientowi wyłącznie plany AKTYWNE. Plan
+  // wycofany ze sprzedaży (koniec promocji dożywotniej, stary cennik) wraca
+  // więc jako `plan: null` przy wierszu subskrypcji, który dalej jest
+  // `active` i daje dostęp (`has_content_access` planu nie czyta). Dawniej
+  // sekcja rozstrzygała „brak subskrypcji" po `!data?.plan`: płacący klient
+  // czytał „Nie masz aktywnego członkostwa" z przyciskiem „Zobacz plany"
+  // (zaproszenie do drugiego zakupu) i nie miał jak zrezygnować ani wznowić.
+  it("subskrypcja odnawiana bez czytelnego planu NIE jest „brakiem członkostwa” - ma status i rezygnację", async () => {
+    h.subscription.current = userSubscription({ plan: null });
+    render();
+
+    await waitFor(() => expect(screen.getByText("profile.status.active")).toBeTruthy());
+    expect(screen.queryByText("profile.subscription.none")).toBeNull();
+    expect(screen.queryByText("profile.overview.seePlans")).toBeNull();
+    expect(screen.getByText("profile.subscription.renewsAt")).toBeTruthy();
+    expect(screen.getByText("profile.subscription.cancel")).toBeTruthy();
+    // Bez wiersza planu nie ma czego linkować ani jakiej kwoty pokazać.
+    expect(screen.queryByText("pricing.planDetails.cta")).toBeNull();
+    expect(screen.queryByText(moneyPattern(4900))).toBeNull();
+  });
+
+  it("rezygnacja z takiej subskrypcji idzie z JEJ identyfikatorem", async () => {
+    h.subscription.current = userSubscription({ plan: null });
+    render();
+    await waitFor(() => expect(screen.getByText("profile.subscription.cancel")).toBeTruthy());
+    fireEvent.click(screen.getByText("profile.subscription.cancel"));
+    await waitFor(() => expect(screen.getByText("potwierdz-rezygnacje")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("potwierdz-rezygnacje"));
+
+    await waitFor(() => expect(h.cancel).toHaveBeenCalledWith("sub-1"));
+  });
+
+  it("zakup dożywotni wycofanego planu (bez końca okresu) pokazuje aktywny status, nie pustkę", async () => {
+    h.subscription.current = userSubscription({ plan: null, current_period_end: null });
+    render();
+
+    await waitFor(() => expect(screen.getByText("profile.status.active")).toBeTruthy());
+    expect(screen.queryByText("profile.subscription.none")).toBeNull();
+    // Bez końca okresu nie ma czego wznawiać ani na co zmieniać planu.
+    expect(screen.queryByText("profile.subscription.resume")).toBeNull();
+    expect(screen.queryByTestId("karta-zmiany-planu")).toBeNull();
+  });
+
+  it("anulowana subskrypcja wycofanego planu daje wznowienie w opłaconym okresie", async () => {
+    h.subscription.current = userSubscription({
+      plan: null,
+      canceled_at: isoPast(1),
+      current_period_end: isoFuture(10),
+    });
+    render();
+    await waitFor(() => expect(screen.getByText("profile.subscription.resume")).toBeTruthy());
+
+    fireEvent.click(screen.getByText("profile.subscription.resume"));
+
+    await waitFor(() => expect(h.resume).toHaveBeenCalledWith("sub-1"));
+    expect(screen.queryByText("profile.subscription.none")).toBeNull();
+  });
+
+  it("subskrypcja wycofanego planu wypiera blok nadania - nadanie i tak pokazuje karta dożywotnia", async () => {
+    h.grants.current = [membershipGrant({ tier_key: "member" })];
+    h.subscription.current = userSubscription({ plan: null });
+    render();
+
+    await waitFor(() => expect(screen.getByText("profile.status.active")).toBeTruthy());
+    expect(screen.getByText("profile.subscription.cancel")).toBeTruthy();
+    expect(screen.queryByText("MEMBER")).toBeNull();
+    expect(screen.getByTestId("karta-dozywotnia")).toBeTruthy();
+  });
+});
+
+describe("SubscriptionManagerSection - daty, język i nadania w trakcie wczytywania", () => {
+  it("odznaka warstwy w interfejsie angielskim bierze nazwę angielską", async () => {
+    h.lang.current = "en";
+    h.tier.current = { key: "member", name_pl: "Członek", name_en: "Member" };
+    h.subscription.current = userSubscription();
+    render();
+
+    await waitFor(() => expect(screen.getByText("Member")).toBeTruthy());
+    // Nazwa planu też po angielsku - w karcie nie ma ani jednego „Członek".
+    expect(screen.queryByText("Członek")).toBeNull();
+  });
+
+  it("nadanie TERMINOWE pokazuje datę wygaśnięcia w formacie serwisu, nie „dożywotnio”", async () => {
+    const expiresAt = isoFuture(12);
+    h.grants.current = [membershipGrant({ expires_at: expiresAt })];
+    render();
+
+    await waitFor(() => expect(screen.getByText("MEMBER")).toBeTruthy());
+    expect(screen.getByText(formatDateShort(expiresAt, "pl"))).toBeTruthy();
+    expect(screen.queryByText("profile.planPage.grantLifetime")).toBeNull();
+  });
+
+  it("nadania jeszcze się wczytują: sekcja mówi o braku planu zamiast się wywrócić", async () => {
+    h.grants.current = undefined as unknown as MembershipGrantRow[];
+    render();
+
+    await waitFor(() => expect(screen.getByText("profile.subscription.none")).toBeTruthy());
+  });
+
+  it("nieparsowalna data końca okresu to „-”, nie „Invalid Date” - i bez wznowienia", async () => {
+    h.subscription.current = userSubscription({
+      canceled_at: isoPast(1),
+      current_period_end: "nie-data",
+    });
+    const { container } = render();
+
+    await waitFor(() => expect(screen.getByText("profile.subscription.cancelsAt")).toBeTruthy());
+    expect(container.textContent).not.toMatch(/Invalid Date|NaN/);
+    expect(screen.getByText("profile.subscription.cancelsAt").parentElement?.textContent).toBe(
+      "profile.subscription.cancelsAt-",
+    );
+    expect(screen.queryByText("profile.subscription.resume")).toBeNull();
   });
 });
