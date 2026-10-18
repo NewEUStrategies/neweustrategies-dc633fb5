@@ -1613,6 +1613,9 @@ export async function fulfilOneTimeTransaction(
       amountCents: txn.amountCents,
       currency: txn.currency,
       donorEmail: txn.customerEmail,
+      // Chwila zapłaty wg operatora, jak przy zamówieniu: powtórka (zamiatarka,
+      // ponowienie) nie przenosi wpłaty do okresu, w którym ją zaksięgowano.
+      paidAt: paidAtOf(txn),
     });
     return settled ? "donation" : "skipped";
   }

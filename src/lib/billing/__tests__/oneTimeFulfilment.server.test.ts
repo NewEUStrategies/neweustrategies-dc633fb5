@@ -438,6 +438,7 @@ describe("fulfilOneTimeTransaction - rozdział na skutek biznesowy", () => {
         customData: { purpose: "donation", donationId: "don_1", sessionId: "cs_1" },
         customerEmail: "darczynca@example.com",
         paymentIntentId: "pi_darowizna_1",
+        paidAt: "2026-10-01T08:00:00.000Z",
       }),
       "sandbox",
     );
@@ -454,10 +455,41 @@ describe("fulfilOneTimeTransaction - rozdział na skutek biznesowy", () => {
       amountCents: 12_000,
       currency: "pln",
       donorEmail: "darczynca@example.com",
+      paidAt: "2026-10-01T08:00:00.000Z",
     });
     // Darowizna nie nadaje uprawnienia i nie dotyka zamówień.
     expect(h.grants).toHaveLength(0);
     expect(stub().chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  // DEFEKT NAPRAWIONY 18.10.2026: `paidAt` zdarzenia nie dochodził do
+  // darowizny. Zamówienie bierze chwilę pobrania wg operatora (`paidAtOf`),
+  // a `settleDonation` dostawał pustkę i stemplował `paid_at` chwilą
+  // KSIĘGOWANIA. Powtórka z zamiatarki albo ponowienie po awarii przenosiło
+  // więc wpłatę z 30 września na październik - w eksporcie księgowym
+  // i w rocznym zestawieniu darowizn do odliczenia trafiała w zły okres.
+  it("powtórka darowizny księguje chwilę ZAPŁATY wg operatora, a nie chwilę powtórki", async () => {
+    await fulfilOneTimeTransaction(
+      txn({
+        customData: { purpose: "donation", donationId: "don_1" },
+        paidAt: "2026-09-30T21:59:00+00:00",
+      }),
+      "live",
+    );
+
+    expect(h.donations[0]).toMatchObject({ paidAt: "2026-09-30T21:59:00.000Z" });
+  });
+
+  it("darowizna bez czytelnej chwili zapłaty dostaje chwilę księgowania, a nie napis", async () => {
+    const before = Date.now();
+    await fulfilOneTimeTransaction(
+      txn({ customData: { purpose: "donation", donationId: "don_1" }, paidAt: "nie-data" }),
+      "live",
+    );
+
+    const paidAt = String(h.donations[0]?.["paidAt"]);
+    expect(Date.parse(paidAt)).toBeGreaterThanOrEqual(before);
+    expect(new Date(paidAt).toISOString()).toBe(paidAt);
   });
 
   it("historyczne `kind=donation` bez sesji: sesją jest id transakcji, nierozliczona = skipped", async () => {
