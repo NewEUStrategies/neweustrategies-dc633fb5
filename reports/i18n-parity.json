@@ -54,7 +54,9 @@
     "chartsMap",
     "mapEditor",
     "chartEditor",
-    "adminRepricing"
+    "adminRepricing",
+    "adminRevenue",
+    "adminJourneys"
   ],
   "missing": [],
   "missingEn": [],

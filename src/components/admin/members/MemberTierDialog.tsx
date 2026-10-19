@@ -29,6 +29,7 @@ import {
   setMemberTier,
   type MemberDirectoryRow,
 } from "@/lib/admin/membersDirectory.functions";
+import { billingKeys } from "@/lib/billing/keys";
 
 const FOREVER = "__forever__";
 const DURATIONS = [1, 3, 6, 12, 24] as const;
@@ -65,9 +66,11 @@ export function MemberTierDialog({ member, tiers, onOpenChange }: Props) {
   }
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+    void queryClient.invalidateQueries({ queryKey: billingKeys.admin.members() });
     if (member) {
-      void queryClient.invalidateQueries({ queryKey: ["admin-member-billing", member.userId] });
+      void queryClient.invalidateQueries({
+        queryKey: billingKeys.admin.memberBilling(member.userId),
+      });
     }
   };
 

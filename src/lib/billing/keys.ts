@@ -117,5 +117,38 @@ export const billingKeys = {
     subscriptionRepricingLog: () => ["admin", "subscription-repricing-log"] as const,
     /** Subskrypcje wszystkich użytkowników (lista /admin/users). */
     allUserSubscriptions: () => ["all-user-subscriptions"] as const,
+    /**
+     * Wszystkie plany najemcy, także nieaktywne - JEDEN odczyt dla
+     * /admin/paywall i huba przychodu. To NOWY klucz, nie dzisiejszy literał:
+     * wycinek S1 przenosi na niego paywall, który dziś czyta własne
+     * `["admin-access-plans"]` (bramka literałów zna tamten klucz jako alias
+     * przestarzały). Do tej chwili `access_plan.changed.v1` nie odświeża
+     * listy planów paywalla.
+     */
+    plansAll: () => ["admin", "plans-all"] as const,
+    /** Zamówienia w panelu /admin/billing - prefiks list ze statusem i środowiskiem. */
+    paymentOrders: () => ["admin", "payment-orders"] as const,
+    paymentOrdersList: (status: string, environment: string) =>
+      ["admin", "payment-orders", status, environment] as const,
+    /** Plany testowe diagnostyki płatności. */
+    testPlans: () => ["admin", "billing", "test-plans"] as const,
+    /** Ustawienia uruchamiania zadań billingu (`getJobRunnerSettings`) w /admin/billing. */
+    jobRunner: () => ["admin", "billing", "job-runner"] as const,
+    /**
+     * Katalog członków (/admin/members). Prefiks `members()` obejmuje każdą
+     * stronę i filtr - zmiana nadania albo subskrypcji odświeża całą listę.
+     */
+    members: () => ["admin-members"] as const,
+    membersDirectory: <P>(params: P) => ["admin-members", params] as const,
+    /** Płatności i nadania jednego członka (rozwinięcie wiersza). */
+    memberBilling: (userId: string) => ["admin-member-billing", userId] as const,
+    memberBillingAll: () => ["admin-member-billing"] as const,
+    /**
+     * Rejestr monetyzacji (darowizny, nadania, linki prezentowe) per
+     * środowisko. Leży POD `monetization()`, więc reguła szyny unieważniająca
+     * pulpit monetyzacji trafia też w rejestr - bez osobnego wpisu.
+     */
+    monetizationLedger: (environment: string) =>
+      ["admin", "monetization", "ledger", environment] as const,
   },
 } as const;

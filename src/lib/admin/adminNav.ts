@@ -484,7 +484,10 @@ export function resolveActiveNavTarget(groups: AdminNavGroup[], path: string): s
 
 /**
  * Trasy, na których pasek boczny panelu startuje ZWINIĘTY - edytor wpisu,
- * edytor strony i wygląd potrzebują szerokości na formularz.
+ * edytor strony i wygląd potrzebują szerokości na formularz, a edytor ścieżki
+ * komunikacji (`/admin/revenue/journeys/<id>`) - na kanwę grafu. Lista ścieżek
+ * (`/admin/revenue/journeys`, zakładka huba) i sam hub zostają z pełnym
+ * paskiem: tam pasek jest nawigacją, a nie przeszkodą.
  *
  * MIESZKA TU, A NIE W `AdminShell.tsx`, bo tę samą decyzję podejmują DWA
  * niezależne komponenty: powłoka i jej SZKIELET (`AdminShellSkeleton`,
@@ -494,5 +497,9 @@ export function resolveActiveNavTarget(groups: AdminNavGroup[], path: string): s
  * produkował przesunięcie 176 px, które miał zdejmować.
  */
 export function isCompactSidebarRoute(path: string): boolean {
-  return /^\/admin\/(posts|pages)\/[^/]+$/.test(path) || path.startsWith("/admin/appearance");
+  return (
+    /^\/admin\/(posts|pages)\/[^/]+$/.test(path) ||
+    /^\/admin\/revenue\/journeys\/[^/]+$/.test(path) ||
+    path.startsWith("/admin/appearance")
+  );
 }

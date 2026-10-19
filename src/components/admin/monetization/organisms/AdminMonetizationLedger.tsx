@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { listMonetizationLedger } from "@/lib/admin/monetization/ledger.functions";
+import { billingKeys } from "@/lib/billing/keys";
 import {
   MONETIZATION_SECTIONS,
   type EnvironmentFilter,
@@ -25,7 +26,7 @@ export function AdminMonetizationLedger() {
   const now = new Date();
 
   const ledger = useQuery({
-    queryKey: ["admin", "monetization", "ledger", environment] as const,
+    queryKey: billingKeys.admin.monetizationLedger(environment),
     queryFn: () => listMonetizationLedger({ data: { environment, limit: 50 } }),
     staleTime: 30_000,
   });

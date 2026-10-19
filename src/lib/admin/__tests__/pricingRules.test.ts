@@ -493,6 +493,25 @@ describe("retentionStats - skuteczność kontroferty", () => {
     expect(stats.topReasons).toEqual([]);
   });
 
+  it("przepływ anulowania bez powodu (started/abandoned) nie jest odpowiedzią ani odejściem", () => {
+    // S2 zapisuje wiersz już przy otwarciu dialogu (`started`, powód NULL),
+    // a skaner domyka porzucony do `abandoned` bez powodu. Wliczony, zawyżałby
+    // liczbę rezygnacji każdym otwarciem i rozcieńczał skuteczność oferty.
+    const stats = retentionStats(
+      [
+        feedbackRow({ id: "odp", offer_shown: true, offer_accepted: true }),
+        feedbackRow({ id: "start", reason_label: null, outcome: "started", offer_shown: true }),
+        feedbackRow({ id: "porz", reason_label: null, outcome: "abandoned", offer_shown: true }),
+      ],
+      BASE_NOW,
+    );
+
+    expect(stats.total).toBe(1);
+    expect(stats.accepted).toBe(1);
+    expect(stats.acceptRate).toBe(100);
+    expect(stats.topReasons).toEqual([["Za drogo", 1]]);
+  });
+
   it("przyjęcie liczy się nawet bez znacznika „pokazana” (dane historyczne)", () => {
     // Nie chcemy zgubić przyjętej oferty tylko dlatego, że stary wiersz nie ma
     // `offer_shown` - liczba przyjęć jest niezależna od mianownika.

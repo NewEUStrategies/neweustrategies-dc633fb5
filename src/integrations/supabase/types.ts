@@ -1080,6 +1080,7 @@ export type Database = {
           buyer_snapshot: Json | null
           created_at: string
           currency: string
+          environment: string | null
           hosted_url: string | null
           id: string
           issued_at: string
@@ -1102,6 +1103,7 @@ export type Database = {
           buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
+          environment?: string | null
           hosted_url?: string | null
           id?: string
           issued_at?: string
@@ -1124,6 +1126,7 @@ export type Database = {
           buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
+          environment?: string | null
           hosted_url?: string | null
           id?: string
           issued_at?: string
@@ -1883,6 +1886,7 @@ export type Database = {
       }
       checkout_settings: {
         Row: {
+          abandon_after_minutes: number
           allow_promotion_codes: boolean
           automatic_tax: boolean
           billing_address_collection: string
@@ -1893,6 +1897,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          abandon_after_minutes?: number
           allow_promotion_codes?: boolean
           automatic_tax?: boolean
           billing_address_collection?: string
@@ -1903,6 +1908,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          abandon_after_minutes?: number
           allow_promotion_codes?: boolean
           automatic_tax?: boolean
           billing_address_collection?: string
@@ -5214,6 +5220,70 @@ export type Database = {
           },
         ]
       }
+      crm_lead_stage_history: {
+        Row: {
+          actor_id: string | null
+          changed_at: string
+          dimension: string
+          enrollment_id: string | null
+          from_value: string | null
+          id: number
+          journey_id: string | null
+          lead_id: string
+          source: string
+          tenant_id: string
+          to_value: string
+        }
+        Insert: {
+          actor_id?: string | null
+          changed_at?: string
+          dimension: string
+          enrollment_id?: string | null
+          from_value?: string | null
+          id?: never
+          journey_id?: string | null
+          lead_id: string
+          source: string
+          tenant_id: string
+          to_value: string
+        }
+        Update: {
+          actor_id?: string | null
+          changed_at?: string
+          dimension?: string
+          enrollment_id?: string | null
+          from_value?: string | null
+          id?: never
+          journey_id?: string | null
+          lead_id?: string
+          source?: string
+          tenant_id?: string
+          to_value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_lead_stage_history_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_lead_stage_history_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "crm_lead_stage_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_leads: {
         Row: {
           aliases: Json
@@ -5231,6 +5301,8 @@ export type Database = {
           id: string
           last_activity_at: string
           last_name: string | null
+          lifecycle_changed_at: string | null
+          lifecycle_stage: string
           linkedin_url: string | null
           marketing_consent: boolean
           newsletter_status: string | null
@@ -5248,6 +5320,7 @@ export type Database = {
           tags: string[]
           tenant_id: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           aliases?: Json
@@ -5265,6 +5338,8 @@ export type Database = {
           id?: string
           last_activity_at?: string
           last_name?: string | null
+          lifecycle_changed_at?: string | null
+          lifecycle_stage?: string
           linkedin_url?: string | null
           marketing_consent?: boolean
           newsletter_status?: string | null
@@ -5282,6 +5357,7 @@ export type Database = {
           tags?: string[]
           tenant_id?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           aliases?: Json
@@ -5299,6 +5375,8 @@ export type Database = {
           id?: string
           last_activity_at?: string
           last_name?: string | null
+          lifecycle_changed_at?: string | null
+          lifecycle_stage?: string
           linkedin_url?: string | null
           marketing_consent?: boolean
           newsletter_status?: string | null
@@ -5316,6 +5394,7 @@ export type Database = {
           tags?: string[]
           tenant_id?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -5384,7 +5463,9 @@ export type Database = {
           id: string
           lead_id: string
           note: string | null
+          origin_ref: string | null
           reminded_at: string | null
+          source: string
           status: string
           tenant_id: string
           title: string
@@ -5399,7 +5480,9 @@ export type Database = {
           id?: string
           lead_id: string
           note?: string | null
+          origin_ref?: string | null
           reminded_at?: string | null
+          source?: string
           status?: string
           tenant_id?: string
           title: string
@@ -5414,7 +5497,9 @@ export type Database = {
           id?: string
           lead_id?: string
           note?: string | null
+          origin_ref?: string | null
           reminded_at?: string | null
+          source?: string
           status?: string
           tenant_id?: string
           title?: string
@@ -5582,6 +5667,44 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_event_emit_errors: {
+        Row: {
+          created_at: string
+          error: string
+          event_type: string
+          id: number
+          source: string
+          sqlstate: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error: string
+          event_type: string
+          id?: never
+          source: string
+          sqlstate?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string
+          event_type?: string
+          id?: never
+          source?: string
+          sqlstate?: string | null
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_event_emit_errors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       domain_events: {
         Row: {
           actor_id: string | null
@@ -5697,6 +5820,66 @@ export type Database = {
           },
         ]
       }
+      dunning_cycles: {
+        Row: {
+          currency: string
+          environment: string
+          failures: number
+          id: string
+          lost_at: string | null
+          mrr_at_risk_minor: number
+          outcome: string
+          recovered_at: string | null
+          started_at: string
+          subscription_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          currency: string
+          environment: string
+          failures?: number
+          id?: string
+          lost_at?: string | null
+          mrr_at_risk_minor: number
+          outcome?: string
+          recovered_at?: string | null
+          started_at: string
+          subscription_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          currency?: string
+          environment?: string
+          failures?: number
+          id?: string
+          lost_at?: string | null
+          mrr_at_risk_minor?: number
+          outcome?: string
+          recovered_at?: string | null
+          started_at?: string
+          subscription_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dunning_cycles_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_cycles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_delivery_events: {
         Row: {
           bounce_class: string | null
@@ -5790,6 +5973,7 @@ export type Database = {
           id: string
           message_id: string | null
           metadata: Json | null
+          provider_message_id: string | null
           recipient_email: string
           status: string
           template_name: string
@@ -5801,6 +5985,7 @@ export type Database = {
           id?: string
           message_id?: string | null
           metadata?: Json | null
+          provider_message_id?: string | null
           recipient_email: string
           status: string
           template_name: string
@@ -5812,6 +5997,7 @@ export type Database = {
           id?: string
           message_id?: string | null
           metadata?: Json | null
+          provider_message_id?: string | null
           recipient_email?: string
           status?: string
           template_name?: string
@@ -14569,6 +14755,772 @@ export type Database = {
         }
         Relationships: []
       }
+      journey_definitions: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          draft: Json
+          id: string
+          key: string
+          legal_basis: string | null
+          name: string
+          published_version_id: string | null
+          status: string
+          template_key: string | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          draft?: Json
+          id?: string
+          key: string
+          legal_basis?: string | null
+          name: string
+          published_version_id?: string | null
+          status?: string
+          template_key?: string | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          draft?: Json
+          id?: string
+          key?: string
+          legal_basis?: string | null
+          name?: string
+          published_version_id?: string | null
+          status?: string
+          template_key?: string | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_definitions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_email_contents: {
+        Row: {
+          doc: Json
+          id: string
+          journey_id: string
+          node_id: string
+          preheader_en: string | null
+          preheader_pl: string | null
+          subject_en: string | null
+          subject_pl: string
+          tenant_id: string
+          updated_at: string
+          variant: string
+          version_id: string | null
+        }
+        Insert: {
+          doc: Json
+          id?: string
+          journey_id: string
+          node_id: string
+          preheader_en?: string | null
+          preheader_pl?: string | null
+          subject_en?: string | null
+          subject_pl: string
+          tenant_id: string
+          updated_at?: string
+          variant?: string
+          version_id?: string | null
+        }
+        Update: {
+          doc?: Json
+          id?: string
+          journey_id?: string
+          node_id?: string
+          preheader_en?: string | null
+          preheader_pl?: string | null
+          subject_en?: string | null
+          subject_pl?: string
+          tenant_id?: string
+          updated_at?: string
+          variant?: string
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_email_contents_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_email_contents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_email_contents_version_fkey"
+            columns: ["tenant_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "journey_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      journey_engine_errors: {
+        Row: {
+          created_at: string
+          enrollment_id: string | null
+          error: string
+          event_id: string | null
+          id: number
+          journey_id: string | null
+          node_id: string | null
+          phase: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id?: string | null
+          error: string
+          event_id?: string | null
+          id?: never
+          journey_id?: string | null
+          node_id?: string | null
+          phase: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string | null
+          error?: string
+          event_id?: string | null
+          id?: never
+          journey_id?: string | null
+          node_id?: string | null
+          phase?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_engine_errors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_enrollments: {
+        Row: {
+          correlation_id: string
+          current_node_id: string | null
+          enrollment_key: string
+          entered_at: string
+          exit_reason: string | null
+          finished_at: string | null
+          id: string
+          is_test: boolean
+          journey_id: string
+          lead_id: string
+          lock_token: string | null
+          locked_until: string | null
+          next_run_at: string | null
+          status: string
+          tenant_id: string
+          trigger_event_id: string | null
+          trigger_event_type: string | null
+          trigger_snapshot: Json
+          user_id: string | null
+          version_id: string
+          wait_condition: Json | null
+          wait_deadline: string | null
+          wait_event_type: string | null
+        }
+        Insert: {
+          correlation_id?: string
+          current_node_id?: string | null
+          enrollment_key: string
+          entered_at?: string
+          exit_reason?: string | null
+          finished_at?: string | null
+          id?: string
+          is_test?: boolean
+          journey_id: string
+          lead_id: string
+          lock_token?: string | null
+          locked_until?: string | null
+          next_run_at?: string | null
+          status?: string
+          tenant_id: string
+          trigger_event_id?: string | null
+          trigger_event_type?: string | null
+          trigger_snapshot: Json
+          user_id?: string | null
+          version_id: string
+          wait_condition?: Json | null
+          wait_deadline?: string | null
+          wait_event_type?: string | null
+        }
+        Update: {
+          correlation_id?: string
+          current_node_id?: string | null
+          enrollment_key?: string
+          entered_at?: string
+          exit_reason?: string | null
+          finished_at?: string | null
+          id?: string
+          is_test?: boolean
+          journey_id?: string
+          lead_id?: string
+          lock_token?: string | null
+          locked_until?: string | null
+          next_run_at?: string | null
+          status?: string
+          tenant_id?: string
+          trigger_event_id?: string | null
+          trigger_event_type?: string | null
+          trigger_snapshot?: Json
+          user_id?: string | null
+          version_id?: string
+          wait_condition?: Json | null
+          wait_deadline?: string | null
+          wait_event_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_enrollments_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_enrollments_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_enrollments_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "crm_leads_all"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_enrollments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_enrollments_version_fkey"
+            columns: ["tenant_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "journey_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      journey_event_inbox: {
+        Row: {
+          actor_id: string | null
+          aggregate_id: string | null
+          aggregate_type: string | null
+          attempts: number
+          correlation_id: string | null
+          error: string | null
+          event_id: string
+          event_type: string
+          id: number
+          occurred_at: string
+          payload: Json
+          processed_at: string | null
+          received_at: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          aggregate_id?: string | null
+          aggregate_type?: string | null
+          attempts?: number
+          correlation_id?: string | null
+          error?: string | null
+          event_id: string
+          event_type: string
+          id?: never
+          occurred_at: string
+          payload: Json
+          processed_at?: string | null
+          received_at?: string
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          aggregate_id?: string | null
+          aggregate_type?: string | null
+          attempts?: number
+          correlation_id?: string | null
+          error?: string | null
+          event_id?: string
+          event_type?: string
+          id?: never
+          occurred_at?: string
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_event_inbox_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_event_routes: {
+        Row: {
+          condition: Json
+          event_type: string
+          journey_id: string
+          role: string
+          tenant_id: string
+          version_id: string
+        }
+        Insert: {
+          condition?: Json
+          event_type: string
+          journey_id: string
+          role: string
+          tenant_id: string
+          version_id: string
+        }
+        Update: {
+          condition?: Json
+          event_type?: string
+          journey_id?: string
+          role?: string
+          tenant_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_event_routes_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_event_routes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_event_routes_version_fkey"
+            columns: ["tenant_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "journey_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      journey_message_events: {
+        Row: {
+          day: string
+          id: number
+          kind: string
+          link_index: number
+          machine: boolean
+          message_id: string
+          occurred_at: string
+          tenant_id: string
+          url: string | null
+        }
+        Insert: {
+          day?: string
+          id?: never
+          kind: string
+          link_index?: number
+          machine?: boolean
+          message_id: string
+          occurred_at?: string
+          tenant_id: string
+          url?: string | null
+        }
+        Update: {
+          day?: string
+          id?: never
+          kind?: string
+          link_index?: number
+          machine?: boolean
+          message_id?: string
+          occurred_at?: string
+          tenant_id?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_message_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "journey_messages"
+            referencedColumns: ["message_id"]
+          },
+          {
+            foreignKeyName: "journey_message_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_messages: {
+        Row: {
+          enrollment_id: string
+          journey_id: string
+          lead_id: string
+          locale: string | null
+          message_id: string
+          node_id: string
+          queued_at: string
+          tenant_id: string
+          variant: string | null
+          version_id: string
+        }
+        Insert: {
+          enrollment_id: string
+          journey_id: string
+          lead_id: string
+          locale?: string | null
+          message_id: string
+          node_id: string
+          queued_at?: string
+          tenant_id: string
+          variant?: string | null
+          version_id: string
+        }
+        Update: {
+          enrollment_id?: string
+          journey_id?: string
+          lead_id?: string
+          locale?: string | null
+          message_id?: string
+          node_id?: string
+          queued_at?: string
+          tenant_id?: string
+          variant?: string | null
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_messages_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "journey_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_node_daily_stats: {
+        Row: {
+          day: string
+          dead: number
+          emails_bounced: number
+          emails_complained: number
+          emails_sent: number
+          entered: number
+          failed: number
+          goal_reached: number
+          journey_id: string
+          node_id: string
+          skipped: number
+          succeeded: number
+          tenant_id: string
+          unique_clicks: number
+          unique_human_opens: number
+          unique_opens: number
+          unsubscribes: number
+          variant: string
+          version_id: string
+        }
+        Insert: {
+          day: string
+          dead?: number
+          emails_bounced?: number
+          emails_complained?: number
+          emails_sent?: number
+          entered?: number
+          failed?: number
+          goal_reached?: number
+          journey_id: string
+          node_id: string
+          skipped?: number
+          succeeded?: number
+          tenant_id: string
+          unique_clicks?: number
+          unique_human_opens?: number
+          unique_opens?: number
+          unsubscribes?: number
+          variant?: string
+          version_id: string
+        }
+        Update: {
+          day?: string
+          dead?: number
+          emails_bounced?: number
+          emails_complained?: number
+          emails_sent?: number
+          entered?: number
+          failed?: number
+          goal_reached?: number
+          journey_id?: string
+          node_id?: string
+          skipped?: number
+          succeeded?: number
+          tenant_id?: string
+          unique_clicks?: number
+          unique_human_opens?: number
+          unique_opens?: number
+          unsubscribes?: number
+          variant?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_node_daily_stats_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_node_daily_stats_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_settings: {
+        Row: {
+          default_task_assignee_id: string | null
+          enabled: boolean
+          machine_open_seconds: number
+          marketing_cap_per_7d: number
+          quiet_end: string
+          quiet_start: string
+          tenant_id: string
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          default_task_assignee_id?: string | null
+          enabled?: boolean
+          machine_open_seconds?: number
+          marketing_cap_per_7d?: number
+          quiet_end?: string
+          quiet_start?: string
+          tenant_id: string
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          default_task_assignee_id?: string | null
+          enabled?: boolean
+          machine_open_seconds?: number
+          marketing_cap_per_7d?: number
+          quiet_end?: string
+          quiet_start?: string
+          tenant_id?: string
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_step_runs: {
+        Row: {
+          attempts: number
+          detail: Json
+          enrollment_id: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          journey_id: string
+          next_attempt_at: string | null
+          node_id: string
+          node_type: string
+          outcome: string | null
+          started_at: string
+          status: string
+          tenant_id: string
+          version_id: string
+        }
+        Insert: {
+          attempts?: number
+          detail?: Json
+          enrollment_id: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          journey_id: string
+          next_attempt_at?: string | null
+          node_id: string
+          node_type: string
+          outcome?: string | null
+          started_at?: string
+          status: string
+          tenant_id: string
+          version_id: string
+        }
+        Update: {
+          attempts?: number
+          detail?: Json
+          enrollment_id?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          journey_id?: string
+          next_attempt_at?: string | null
+          node_id?: string
+          node_type?: string
+          outcome?: string | null
+          started_at?: string
+          status?: string
+          tenant_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_step_runs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "journey_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journey_step_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journey_versions: {
+        Row: {
+          entry_filter: Json
+          exit_events: Json
+          goal: Json | null
+          graph: Json
+          graph_checksum: string
+          id: string
+          journey_id: string
+          published_at: string
+          published_by: string | null
+          reentry: string
+          reentry_cooldown_days: number | null
+          tenant_id: string
+          trigger_condition: Json
+          trigger_event_type: string
+          version: number
+        }
+        Insert: {
+          entry_filter?: Json
+          exit_events?: Json
+          goal?: Json | null
+          graph: Json
+          graph_checksum: string
+          id?: string
+          journey_id: string
+          published_at?: string
+          published_by?: string | null
+          reentry?: string
+          reentry_cooldown_days?: number | null
+          tenant_id: string
+          trigger_condition?: Json
+          trigger_event_type: string
+          version: number
+        }
+        Update: {
+          entry_filter?: Json
+          exit_events?: Json
+          goal?: Json | null
+          graph?: Json
+          graph_checksum?: string
+          id?: string
+          journey_id?: string
+          published_at?: string
+          published_by?: string | null
+          reentry?: string
+          reentry_cooldown_days?: number | null
+          tenant_id?: string
+          trigger_condition?: Json
+          trigger_event_type?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_versions_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_document_versions: {
         Row: {
           content: Json
@@ -15783,6 +16735,137 @@ export type Database = {
             foreignKeyName: "mobile_drawer_configs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mrr_daily_snapshots: {
+        Row: {
+          active_customers: number
+          active_subscriptions: number
+          basis_catalog_share: number
+          computed_at: string
+          currency: string
+          day: string
+          environment: string
+          mrr_minor: number
+          segment: string
+          tenant_id: string
+          trialing: number
+        }
+        Insert: {
+          active_customers: number
+          active_subscriptions: number
+          basis_catalog_share: number
+          computed_at?: string
+          currency: string
+          day: string
+          environment: string
+          mrr_minor: number
+          segment: string
+          tenant_id: string
+          trialing: number
+        }
+        Update: {
+          active_customers?: number
+          active_subscriptions?: number
+          basis_catalog_share?: number
+          computed_at?: string
+          currency?: string
+          day?: string
+          environment?: string
+          mrr_minor?: number
+          segment?: string
+          tenant_id?: string
+          trialing?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mrr_daily_snapshots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mrr_movements: {
+        Row: {
+          backfilled: boolean
+          currency: string
+          delta_minor: number | null
+          environment: string
+          history_id: number | null
+          id: number
+          interval_after: string | null
+          interval_before: string | null
+          kind: string
+          mrr_after_minor: number
+          mrr_before_minor: number
+          occurred_at: string
+          reason: string
+          segment: string
+          subscription_id: string
+          tenant_id: string
+          tier_key_after: string | null
+          tier_key_before: string | null
+          user_id: string
+        }
+        Insert: {
+          backfilled?: boolean
+          currency: string
+          delta_minor?: never
+          environment: string
+          history_id?: number | null
+          id?: never
+          interval_after?: string | null
+          interval_before?: string | null
+          kind: string
+          mrr_after_minor: number
+          mrr_before_minor: number
+          occurred_at: string
+          reason: string
+          segment: string
+          subscription_id: string
+          tenant_id: string
+          tier_key_after?: string | null
+          tier_key_before?: string | null
+          user_id: string
+        }
+        Update: {
+          backfilled?: boolean
+          currency?: string
+          delta_minor?: never
+          environment?: string
+          history_id?: number | null
+          id?: never
+          interval_after?: string | null
+          interval_before?: string | null
+          kind?: string
+          mrr_after_minor?: number
+          mrr_before_minor?: number
+          occurred_at?: string
+          reason?: string
+          segment?: string
+          subscription_id?: string
+          tenant_id?: string
+          tier_key_after?: string | null
+          tier_key_before?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mrr_movements_history_id_fkey"
+            columns: ["history_id"]
+            isOneToOne: true
+            referencedRelation: "subscription_state_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mrr_movements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -17158,6 +18241,62 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      paywall_hits: {
+        Row: {
+          day: string
+          entity_id: string
+          entity_type: string
+          first_at: string
+          hits: number
+          id: number
+          last_at: string
+          reason: string
+          required_tier_key: string | null
+          tenant_id: string
+          user_id: string | null
+          variant: string
+          visitor_hash: string | null
+        }
+        Insert: {
+          day: string
+          entity_id: string
+          entity_type: string
+          first_at?: string
+          hits?: number
+          id?: never
+          last_at?: string
+          reason: string
+          required_tier_key?: string | null
+          tenant_id: string
+          user_id?: string | null
+          variant?: string
+          visitor_hash?: string | null
+        }
+        Update: {
+          day?: string
+          entity_id?: string
+          entity_type?: string
+          first_at?: string
+          hits?: number
+          id?: never
+          last_at?: string
+          reason?: string
+          required_tier_key?: string | null
+          tenant_id?: string
+          user_id?: string | null
+          variant?: string
+          visitor_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paywall_hits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       personality_questions: {
         Row: {
@@ -20658,11 +21797,13 @@ export type Database = {
           comment: string | null
           coupon_code: string | null
           created_at: string
+          flow_started_at: string | null
           id: string
           offer_accepted: boolean
           offer_shown: boolean
+          outcome: string | null
           reason_id: string | null
-          reason_label: string
+          reason_label: string | null
           subscription_id: string | null
           tenant_id: string
           user_id: string
@@ -20671,11 +21812,13 @@ export type Database = {
           comment?: string | null
           coupon_code?: string | null
           created_at?: string
+          flow_started_at?: string | null
           id?: string
           offer_accepted?: boolean
           offer_shown?: boolean
+          outcome?: string | null
           reason_id?: string | null
-          reason_label: string
+          reason_label?: string | null
           subscription_id?: string | null
           tenant_id: string
           user_id: string
@@ -20684,11 +21827,13 @@ export type Database = {
           comment?: string | null
           coupon_code?: string | null
           created_at?: string
+          flow_started_at?: string | null
           id?: string
           offer_accepted?: boolean
           offer_shown?: boolean
+          outcome?: string | null
           reason_id?: string | null
-          reason_label?: string
+          reason_label?: string | null
           subscription_id?: string | null
           tenant_id?: string
           user_id?: string
@@ -20784,6 +21929,132 @@ export type Database = {
             foreignKeyName: "retention_settings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_diagnostic_snoozes: {
+        Row: {
+          check_id: string
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+          reason: string | null
+          scope_hash: string | null
+          scope_key: string
+          tenant_id: string
+          until: string | null
+        }
+        Insert: {
+          check_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          kind: string
+          reason?: string | null
+          scope_hash?: string | null
+          scope_key?: string
+          tenant_id: string
+          until?: string | null
+        }
+        Update: {
+          check_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+          reason?: string | null
+          scope_hash?: string | null
+          scope_key?: string
+          tenant_id?: string
+          until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_diagnostic_snoozes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_event_marks: {
+        Row: {
+          kind: string
+          marked_at: string
+          ref: string
+          tenant_id: string
+        }
+        Insert: {
+          kind: string
+          marked_at?: string
+          ref: string
+          tenant_id: string
+        }
+        Update: {
+          kind?: string
+          marked_at?: string
+          ref?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_event_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_manual_inputs: {
+        Row: {
+          amount_minor: number | null
+          currency: string | null
+          id: string
+          kind: string
+          note: string | null
+          period_month: string
+          ratio: number | null
+          segment: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount_minor?: number | null
+          currency?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          period_month: string
+          ratio?: number | null
+          segment?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount_minor?: number | null
+          currency?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          period_month?: string
+          ratio?: number | null
+          segment?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_manual_inputs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -21365,12 +22636,102 @@ export type Database = {
           },
         ]
       }
+      subscription_state_history: {
+        Row: {
+          cancel_at_period_end_after: boolean
+          currency: string | null
+          dedupe_key: string
+          environment: string
+          id: number
+          mrr_after_minor: number | null
+          mrr_basis: string | null
+          mrr_before_minor: number | null
+          occurred_at: string
+          paused_after: boolean
+          payment_failure_count_after: number
+          price_id_after: string
+          price_id_before: string | null
+          quantity_after: number
+          quantity_before: number | null
+          source_event_id: string | null
+          status_after: string
+          status_before: string | null
+          subscription_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end_after: boolean
+          currency?: string | null
+          dedupe_key: string
+          environment: string
+          id?: never
+          mrr_after_minor?: number | null
+          mrr_basis?: string | null
+          mrr_before_minor?: number | null
+          occurred_at?: string
+          paused_after: boolean
+          payment_failure_count_after: number
+          price_id_after: string
+          price_id_before?: string | null
+          quantity_after: number
+          quantity_before?: number | null
+          source_event_id?: string | null
+          status_after: string
+          status_before?: string | null
+          subscription_id: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end_after?: boolean
+          currency?: string | null
+          dedupe_key?: string
+          environment?: string
+          id?: never
+          mrr_after_minor?: number | null
+          mrr_basis?: string | null
+          mrr_before_minor?: number | null
+          occurred_at?: string
+          paused_after?: boolean
+          payment_failure_count_after?: number
+          price_id_after?: string
+          price_id_before?: string | null
+          quantity_after?: number
+          quantity_before?: number | null
+          source_event_id?: string | null
+          status_after?: string
+          status_before?: string | null
+          subscription_id?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_state_history_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_state_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           cancel_at_period_end: boolean
           created_at: string
+          currency: string | null
           current_period_end: string | null
           current_period_start: string | null
+          discount_ends_at: string | null
+          discount_minor_per_period: number
           environment: string
           first_payment_failed_at: string | null
           id: string
@@ -21391,14 +22752,18 @@ export type Database = {
           status: string
           tenant_id: string
           trial_ends_at: string | null
+          unit_amount_minor: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
           cancel_at_period_end?: boolean
           created_at?: string
+          currency?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          discount_ends_at?: string | null
+          discount_minor_per_period?: number
           environment?: string
           first_payment_failed_at?: string | null
           id?: string
@@ -21419,14 +22784,18 @@ export type Database = {
           status?: string
           tenant_id?: string
           trial_ends_at?: string | null
+          unit_amount_minor?: number | null
           updated_at?: string
           user_id: string
         }
         Update: {
           cancel_at_period_end?: boolean
           created_at?: string
+          currency?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
+          discount_ends_at?: string | null
+          discount_minor_per_period?: number
           environment?: string
           first_payment_failed_at?: string | null
           id?: string
@@ -21447,6 +22816,7 @@ export type Database = {
           status?: string
           tenant_id?: string
           trial_ends_at?: string | null
+          unit_amount_minor?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -32464,6 +33834,7 @@ export type Database = {
         }[]
       }
       metered_views_scrub_ip: { Args: { p_limit?: number }; Returns: number }
+      metering_defaults: { Args: never; Returns: Json }
       metering_impact_preview: {
         Args: { _proposed_member_limit: number }
         Returns: {
@@ -33774,6 +35145,7 @@ export type Database = {
       sync_org_verification: { Args: { p_user_id: string }; Returns: Json }
       telemetry_retention_prune: { Args: { p_limit?: number }; Returns: Json }
       tenant_id_for_public_host: { Args: { p_host: string }; Returns: string }
+      tier_rank_of: { Args: { p_tier_key: string }; Returns: number }
       trending_posts: {
         Args: { _days?: number; _limit?: number }
         Returns: {

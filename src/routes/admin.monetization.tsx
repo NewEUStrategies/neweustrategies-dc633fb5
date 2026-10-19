@@ -318,8 +318,12 @@ function RetentionSummarySection() {
 
   const stats = useMemo(() => {
     const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    // Wyłącznie odpowiedzi z powodem - ta sama reguła co `retentionStats`:
+    // wiersz przepływu anulowania bez powodu (`started`/`abandoned`, S2) to
+    // ani odpowiedź ankiety, ani odejście, więc nie wchodzi do żadnej liczby.
     const recent = (feedbackQ.data ?? []).filter(
-      (row) => new Date(row.created_at).getTime() >= cutoff,
+      (row): row is RetentionFeedbackRow & { reason_label: string } =>
+        row.reason_label !== null && new Date(row.created_at).getTime() >= cutoff,
     );
     const shown = recent.filter((row) => row.offer_shown);
     const accepted = recent.filter((row) => row.offer_accepted);

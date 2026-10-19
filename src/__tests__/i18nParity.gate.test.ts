@@ -181,6 +181,15 @@ const GATED_PREFIXES = [
   // klientów - powód pominięcia albo blokady wykonania musi być zdaniem
   // w języku panelu, nie surowym kluczem. Bramka od pierwszego dnia.
   "adminRepricing",
+  // Hub „Przychód i lejek" i jego ścieżki komunikacji: rdzeń słownika
+  // (`i18n-admin-revenue.ts`) powstaje w I0, a wycinki S1-S8 dokładają do tych
+  // samych prefiksów po kilka nakładek równolegle. Bramka od pierwszego dnia,
+  // zanim pierwsza z nich wniesie klucz tylko po jednej stronie: hub pokazuje
+  // kwoty, odmowy roli i diagnozy, a surowy klucz w tych miejscach zostawia
+  // admina bez odpowiedzi, co widzi i co może zrobić. `adminJourneys` jest do
+  // S5 pusty - bramka przechodzi wtedy trywialnie i czeka na pierwsze klucze.
+  "adminRevenue",
+  "adminJourneys",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

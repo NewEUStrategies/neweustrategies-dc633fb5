@@ -17,6 +17,8 @@ import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { isEventStudioPath } from "@/lib/events/eventStudioNav";
 import { ensureI18n as ensureAdminCoreI18n } from "@/lib/i18n-admin-core";
 import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
+import { registerInvalidationExtension } from "@/lib/realtime/eventInvalidationMap";
+import { ADMIN_HUB_INVALIDATION } from "@/lib/realtime/eventInvalidationMap.admin";
 import { cacheControlHeader } from "@/lib/http/cachePolicy";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import adminCss from "@/admin-styles.css?url";
@@ -209,6 +211,22 @@ function AdminSession({
   ensureAdminExtrasI18n();
   const { loading, session, isStaff } = useAuth();
   const navigate = useNavigate();
+
+  // REGUŁY SZYNY DLA HUBA PRZYCHODU - TU, NIE W KORZENIU I NIE W TRASIE HUBA.
+  //
+  // Rdzeń mapy inwalidacji jedzie do każdego zalogowanego (`CohesionLiveSync`
+  // w `__root`), więc klucze panelu (`["admin-revenue", …]`,
+  // `["admin", "journeys", …]`) dokłada rozszerzenie. Ten komponent to
+  // DZIELONA część układu panelu: import ląduje w chunku komponentu `/admin`,
+  // a nie w bundlu stron publicznych, i biegnie dopiero po hydratacji i
+  // rozstrzygnięciu ścieżki sesji (szkielet SSR tej linii nie wykonuje).
+  // Rejestracja na poziomie układu, a nie trasy `/admin/revenue`: chip huba
+  // w ekranach modułów (S7) czyta te same klucze, a zdarzenie, które przyjdzie,
+  // gdy admin jest na innym ekranie panelu, ma już unieważnić zapamiętane
+  // agregaty - powrót na hub nie pokaże liczb sprzed zmiany. Efekt stoi PRZED
+  // wczesnymi `return` (reguły hooków); sprzątanie wyrejestrowuje przy wyjściu
+  // z panelu.
+  useEffect(() => registerInvalidationExtension(ADMIN_HUB_INVALIDATION), []);
 
   // WARIANT PASKA W SZKIELECIE MUSI BYĆ TĄ SAMĄ DECYZJĄ, co w powłoce.
   //

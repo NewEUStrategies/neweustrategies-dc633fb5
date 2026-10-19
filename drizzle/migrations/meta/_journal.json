@@ -2220,6 +2220,48 @@
       "when": 1792349700560,
       "tag": "0316_payment_orders_for_sale_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1792349760560,
+      "tag": "0317_hub_schema_revenue_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1792349820560,
+      "tag": "0318_hub_schema_funnel_ops",
+      "breakpoints": true
+    },
+    {
+      "idx": 319,
+      "version": "7",
+      "when": 1792349880560,
+      "tag": "0319_hub_schema_crm_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1792349940560,
+      "tag": "0320_hub_schema_journeys_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1792350000560,
+      "tag": "0321_hub_schema_journeys_messaging",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1792350060560,
+      "tag": "0322_hub_shared_sql_helpers",
+      "breakpoints": true
     }
   ]
 }

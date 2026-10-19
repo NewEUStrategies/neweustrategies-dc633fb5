@@ -2,7 +2,15 @@
 // i odporność (nieznany typ zdarzenia nie wywraca konsumenta).
 import { describe, it, expect } from "vitest";
 import { DOMAIN_EVENT_TYPES, type DomainEventRow } from "@/lib/realtime/domainEvents";
-import { eventInvalidationMap, invalidationKeysFor } from "@/lib/realtime/eventInvalidationMap";
+import {
+  eventInvalidationMap,
+  invalidationKeysFor,
+  registerInvalidationExtension,
+} from "@/lib/realtime/eventInvalidationMap";
+import {
+  ADMIN_HUB_INVALIDATION,
+  PANEL_ONLY_EVENT_TYPES,
+} from "@/lib/realtime/eventInvalidationMap.admin";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 
 function eventOf(eventType: string): DomainEventRow {
@@ -26,13 +34,34 @@ describe("eventInvalidationMap", () => {
   });
 
   it("every rule returns at least one non-empty query key", () => {
+    // Typy czysto panelowe mają w rdzeniu regułę PUSTĄ (bundle `public` nie
+    // ma ich czytelników) - ich klucze niesie rozszerzenie panelu. Każdy inny
+    // typ musi odświeżać coś już w rdzeniu, inaczej moduł milczy bez panelu.
+    const panelOnly = new Set<string>(PANEL_ONLY_EVENT_TYPES);
     for (const type of DOMAIN_EVENT_TYPES) {
       const keys = invalidationKeysFor(eventOf(type), { userId: "u1" });
+      if (panelOnly.has(type)) {
+        expect(keys, `core rule for panel-only ${type}`).toEqual([]);
+        continue;
+      }
       expect(keys.length, `rule for ${type}`).toBeGreaterThan(0);
       for (const key of keys) {
         expect(Array.isArray(key), `key of ${type} is an array`).toBe(true);
         expect(key.length, `key of ${type} non-empty`).toBeGreaterThan(0);
       }
+    }
+  });
+
+  it("panel-only types get at least one non-empty key from the admin extension", () => {
+    const unregister = registerInvalidationExtension(ADMIN_HUB_INVALIDATION);
+    try {
+      for (const type of PANEL_ONLY_EVENT_TYPES) {
+        const keys = invalidationKeysFor(eventOf(type), { userId: "u1" });
+        expect(keys.length, `extension rule for ${type}`).toBeGreaterThan(0);
+        for (const key of keys) expect(key.length, `key of ${type}`).toBeGreaterThan(0);
+      }
+    } finally {
+      unregister();
     }
   });
 

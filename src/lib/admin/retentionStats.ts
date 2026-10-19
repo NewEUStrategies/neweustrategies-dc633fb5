@@ -12,6 +12,13 @@
 //   rezygnacje bez oferty (np. z panelu operatora) rozcieńczałyby wynik i
 //   „rabat nie działa" wyszłoby z arytmetyki, a nie z zachowania klientów.
 //
+//   ODPOWIEDŹ. Liczymy WYŁĄCZNIE wiersze z powodem. Przepływ anulowania (S2)
+//   zapisuje wiersz już przy otwarciu dialogu (`started`, powód NULL), a skaner
+//   domyka porzucony do `abandoned` - wciąż bez powodu. Taki wiersz to ani
+//   odpowiedź ankiety, ani odejście: wliczony do `total` i do mianownika
+//   pokazanych ofert, podbijałby liczbę rezygnacji każdym samym otwarciem
+//   dialogu i rozcieńczał skuteczność kontroferty.
+//
 // Przy zerze pokazanych ofert skuteczność to `null`, nie 0% - brak próby nie
 // jest porażką i nie ma prawa wyglądać w panelu jak porażka.
 import type { RetentionFeedbackRow } from "@/lib/retention/queries";
@@ -19,7 +26,7 @@ import type { RetentionFeedbackRow } from "@/lib/retention/queries";
 const WINDOW_DAYS = 90;
 
 export interface RetentionStats {
-  /** Liczba rezygnacji w oknie. */
+  /** Liczba odpowiedzi (wierszy z powodem) w oknie. */
   total: number;
   /** Ile z nich przyjęło kontrofertę. */
   accepted: number;
@@ -34,7 +41,10 @@ export function retentionStats(
   now: number = Date.now(),
 ): RetentionStats {
   const cutoff = now - WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  const recent = feedback.filter((row) => new Date(row.created_at).getTime() >= cutoff);
+  const recent = feedback.filter(
+    (row): row is RetentionFeedbackRow & { reason_label: string } =>
+      row.reason_label !== null && new Date(row.created_at).getTime() >= cutoff,
+  );
   const shown = recent.filter((row) => row.offer_shown);
   const accepted = recent.filter((row) => row.offer_accepted);
   const byReason = new Map<string, number>();

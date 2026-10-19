@@ -1607,3 +1607,146 @@ describe("panel rekrutacji - autorytet dostępu", () => {
     expect(panel, "panel zaczął budować adres do CV sam").not.toContain("createSignedUrl");
   });
 });
+
+// ---------------------------------------------------------------------------
+// HUB „PRZYCHÓD I LEJEK" - rozszerzenie zakresu bramki (2026-10-19, wycinek I0)
+// ---------------------------------------------------------------------------
+//
+// PO CO OD PIERWSZEGO DNIA. Hub zbiera w jednym miejscu kwoty (MRR, przychód
+// zrealizowany, koszty planu), dane lejka i ścieżki komunikacji, a jego
+// zakładki wypełnia osiem wycinków równolegle (S1-S8). Rodzina tras powstaje
+// w I0 jako zaślepki - i właśnie wtedy trzeba przybić, GDZIE mieszka dostęp,
+// zanim pierwszy wycinek dołoży „szybki" warunek roli albo zapytanie wprost
+// w pliku trasy.
+//
+// GDZIE MIESZKA DOSTĘP (trzy warstwy, każda w jednym miejscu):
+//   1. Layout `/admin` - `isStaff`, jak dla każdej trasy panelu.
+//   2. KOMPONENT układu huba (`RevenueHubLayout`) i edytora ścieżki
+//      (`JourneyEditorRoute`, wypięty z układu) - admin albo redaktor; autor
+//      dostaje powiadomienie. NIE plik trasy: powłoka trasy jedzie w chunku
+//      wejściowym każdej strony, a warunek tam rozjeżdża się z bazą przy
+//      pierwszej zmianie ról.
+//   3. BAZA - autorytet ostateczny: tabele huba czytają wyłącznie
+//      `has_role(…, 'admin')` (finansowe) albo `is_admin_or_editor()`
+//      (operacyjne), zapis tylko przez RPC; dowód w pgTAP.
+//
+// STAN i SKLEJENIE tras (404 nieznanej zakładki, nagłówki, walidatory,
+// zaślepki) pokrywa `adminRevenueHubRoutes.test.tsx`. Tutaj - AUTORYTET.
+
+/** Rodzina `admin.revenue*` - układ, kokpit, zakładki i wypięty edytor. */
+const REVENUE_ROUTES = [
+  "admin.revenue.tsx",
+  "admin.revenue.index.tsx",
+  "admin.revenue.$tab.tsx",
+  "admin.revenue_.journeys.$journeyId.tsx",
+] as const;
+
+/** Komponenty, w których mieszka warunek roli huba (warstwa 2). */
+const REVENUE_ROLE_GATES = [
+  "src/components/admin/revenue/organisms/RevenueHubLayout.tsx",
+  "src/components/admin/journeys/editor/JourneyEditorRoute.tsx",
+] as const;
+
+const REVENUE_PGTAP = "supabase/tests/hub_schema_rls_test.sql";
+
+/** Migracje schematu huba (blok wersji I0) - tam stoją polityki odczytu. */
+function hubSchemaMigrations(): string[] {
+  return readdirSync(MIGRATIONS_DIR).filter((name) => /^2026102009\d{4}_hub_.*\.sql$/.test(name));
+}
+
+describe("panel przychodu - autorytet dostępu", () => {
+  it("wszystkie cztery trasy rodziny `admin.revenue` istnieją - kanarek zasięgu", () => {
+    // Bez tego bramka zrobiłaby się pusta po zmianie nazwy pliku i MILCZAŁA.
+    const present = adminRoutes();
+    for (const file of REVENUE_ROUTES) {
+      expect(present, `brak trasy ${file}`).toContain(file);
+    }
+    // Skan widzi CAŁĄ rodzinę (także `admin.revenue_.*`). Równość, a nie „co
+    // najmniej": każda nowa trasa huba ma przejść przez tę listę, czyli przez
+    // przegląd tego, gdzie sprawdza dostęp.
+    const skan = present.filter((name) => name.startsWith("admin.revenue"));
+    expect(skan.sort()).toEqual([...REVENUE_ROUTES].sort());
+  });
+
+  it("żadna trasa huba nie sprawdza roli sama - robi to komponent układu i edytora", () => {
+    const zRolaWTrasie = REVENUE_ROUTES.filter((file) =>
+      /isAdmin|isSuperAdmin|isStaff|useAuth|roles\b/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zRolaWTrasie).toEqual([]);
+    // Warstwa 1: layout `/admin` jest realną bramką personelu.
+    expect(read(ADMIN_LAYOUT)).toMatch(/isStaff/);
+    // Warstwa 2: warunek huba (admin albo redaktor, BEZ autora) i powiadomienie
+    // zamiast treści - w obu miejscach, które renderują hub. Edytor jest
+    // wypięty z układu, więc bez własnego warunku byłby otwarty dla autora.
+    // Dokładne role, nie `isAdmin`: ten liczy `super_admin`, którego polityki
+    // huba (`has_role` admin, `is_admin_or_editor()`) nie wpuszczają.
+    for (const file of REVENUE_ROLE_GATES) {
+      const source = read(file);
+      expect(source, `${file}: zniknął warunek roli huba`).toMatch(
+        /roles\.includes\("admin"\) \|\| roles\.includes\("editor"\)/,
+      );
+      const code = source.replace(/^\s*\/\/.*$/gm, "");
+      expect(code, `${file}: bramka UI szersza niż SQL (isAdmin)`).not.toMatch(
+        /\bisAdmin\b|\bisSuperAdmin\b/,
+      );
+      expect(source, `${file}: dopuszcza autora`).not.toMatch(/roles\.includes\("author"\)/);
+      expect(source, `${file}: brak powiadomienia dla autora`).toContain("revenue-role-gate");
+    }
+  });
+
+  it("trasy huba nie budują zapytań ani zapisów do Supabase", () => {
+    // Zapytanie zbudowane w pliku trasy omija bramkę roli RPC i przypięcie do
+    // najemcy z sesji (AGENTS: tenant z sesji, nigdy z payloadu) - a tu jedno
+    // takie zapytanie to kwoty przychodu poza tenantem.
+    const offenders = REVENUE_ROUTES.filter((file) =>
+      /@\/integrations\/supabase|supabaseAdmin|client\.server|createServerFn|\.(from|rpc|insert|update|upsert|delete)\(/.test(
+        read(`${ROUTES_DIR}/${file}`),
+      ),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("polityki tabel huba pytają bazę o rolę - admin dla kwot, admin lub redaktor dla operacji", () => {
+    const files = hubSchemaMigrations();
+    expect(files.length, "migracje schematu huba zniknęły z bloku I0").toBeGreaterThanOrEqual(5);
+    const sql = files.map((file) => read(`${MIGRATIONS_DIR}/${file}`)).join("\n");
+    expect(sql, "polityki finansowe przestały wymagać admina").toContain(
+      "public.has_role((SELECT auth.uid()), 'admin'::app_role)",
+    );
+    expect(sql, "polityki operacyjne przestały pytać o admina/redaktora").toContain(
+      "public.is_admin_or_editor()",
+    );
+    // Odczyt zawsze w granicach najemcy z sesji.
+    expect(sql).toContain("tenant_id = (SELECT public.current_tenant_id())");
+  });
+
+  it("autorytet huba jest pokryty pgTAP - i to on jest ostateczny", () => {
+    // Ten test nie sprawdza bazy (do tego jest pgTAP) - sprawdza, że pokrycie
+    // NIE ZNIKNĘŁO: redaktor bez kwot, autor bez niczego, najemcy rozdzieleni,
+    // zapis z przeglądarki odrzucony.
+    const sql = read(REVENUE_PGTAP);
+    for (const guarantee of [
+      "editor: nie czyta żadnej z 5 tabel finansowych",
+      "editor: czyta tabele operacyjne",
+      "autor: nie czyta żadnej tabeli huba",
+      "izolacja: admin A widzi wyłącznie",
+      "izolacja: admin B widzi wyłącznie",
+      "zapis: admin nie wstawia ścieżki wprost",
+    ]) {
+      expect(sql, `pgTAP huba przestał sprawdzać: ${guarantee}`).toContain(guarantee);
+    }
+  });
+
+  it("trasy huba to powłoki - treść mówi kluczami i18n w komponentach, nie polszczyzną w JSX", () => {
+    // Pliki tras mają polskie literały WYŁĄCZNIE w `adminPageHead` (tytuł
+    // karty, AGENTS: sekcyjne nagłówki). Treść ekranu renderują komponenty
+    // przez słownik `adminRevenue.*` pod twardą bramką parytetu PL/EN.
+    const zTrescia = REVENUE_ROUTES.filter((file) =>
+      /useTranslation\(|\bt\(/.test(read(`${ROUTES_DIR}/${file}`)),
+    );
+    expect(zTrescia).toEqual([]);
+    for (const file of REVENUE_ROLE_GATES) {
+      expect(read(file), `${file} nie mówi kluczami huba`).toMatch(/\bt\("adminRevenue\./);
+    }
+  });
+});

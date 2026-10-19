@@ -24,6 +24,7 @@ import {
   type MyOrganization,
   type OrgSeatRow,
 } from "@/lib/billing/membership";
+import { billingKeys } from "@/lib/billing/keys";
 import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
 import { inviteOrgSeat, resendOrgSeatInvite } from "@/lib/organizations/selfservice.functions";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
@@ -187,8 +188,8 @@ function SeatAdministration({
   const seatsLeft = Math.max(0, org.seats_limit - (seats.data?.length ?? org.seats_used));
 
   const refresh = () => {
-    void qc.invalidateQueries({ queryKey: ["org-seats", org.org_id] });
-    void qc.invalidateQueries({ queryKey: ["my-organization"] });
+    void qc.invalidateQueries({ queryKey: billingKeys.orgSeats(org.org_id) });
+    void qc.invalidateQueries({ queryKey: billingKeys.myOrganizationAll() });
   };
 
   const onInvite = async () => {

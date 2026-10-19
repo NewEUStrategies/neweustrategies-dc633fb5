@@ -363,8 +363,15 @@ describe("useModuleRealtime", () => {
     act(() => vi.advanceTimersByTime(250));
 
     // Reguła `crm_lead.created.v1` z eventInvalidationMap: lista leadów, karta
-    // leada i licznik kolejki staffu.
-    expect(seen).toEqual([["crm-leads"], ["crm-lead", LEAD_ID], ["pending-counters", "tenant"]]);
+    // leada, lejek CRM (D8 huba przychodu - nowy lead zmienia liczności etapów
+    // i kafle konwersji) i licznik kolejki staffu.
+    expect(seen).toEqual([
+      ["crm-leads"],
+      ["crm-lead", LEAD_ID],
+      ["crm-funnel"],
+      ["crm-funnel-stats"],
+      ["pending-counters", "tenant"],
+    ]);
 
     unmount();
   });
