@@ -3,13 +3,12 @@
 // przy zgodzie analitycznej. Harness jak `checkoutPlanRoute.test.tsx`
 // (atrapy na granicach sieci).
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { AccessPlan, BillingProfile } from "@/lib/billing/types";
 import type { ValidateCouponResult } from "@/lib/billing/coupons";
 import { DEFAULT_CHECKOUT_SETTINGS, type CheckoutSettings } from "@/lib/billing/checkoutSettings";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
-const OTHER_TENANT = "22222222-2222-2222-2222-222222222222";
 
 const h = vi.hoisted(() => ({
   session: null as { user: { id: string } } | null,
@@ -115,13 +114,8 @@ vi.mock("@/components/billing/molecules/BillingProfileForm", () => ({
 }));
 
 import i18n from "@/lib/i18n";
-import { formatMoney } from "@/lib/billing/types";
 import { renderRoute } from "@/test/routeHarness";
 import { Route as PlanRoute } from "@/routes/checkout.$planId";
-import {
-  PREMIUM_NEWSLETTER_CONSENT_TEXTS,
-  PREMIUM_NEWSLETTER_CONSENT_VERSION,
-} from "@/lib/billing/premiumNewsletter";
 
 const PATH = "/checkout/$planId";
 const PLAN_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -190,15 +184,6 @@ function signedInBuyer(): void {
   h.tenantId = TENANT;
   h.billing = billingProfile();
 }
-
-const payButton = () => screen.getByRole("button", { name: /Zapłać/ });
-
-/** Intl wstawia twardą spację - porównujemy tekst po normalizacji białych znaków. */
-const flat = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ");
-const money = (cents: number, currency = "PLN", lang = "pl") =>
-  flat(formatMoney(cents, currency, lang));
-const showsMoney = (el: Element | null, cents: number, currency = "PLN", lang = "pl") =>
-  flat(el?.textContent).includes(money(cents, currency, lang));
 
 beforeAll(async () => {
   await i18n.changeLanguage("pl");

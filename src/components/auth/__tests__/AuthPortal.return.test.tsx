@@ -111,25 +111,6 @@ function makeReg() {
   };
 }
 
-function renderPortal() {
-  return render(<AuthPortal />);
-}
-
-// `submit()` w AuthPortal jest async (guard -> supabase -> ewentualny MFA) i ma
-// więcej niż jeden hop mikrozadań po zdarzeniu submit - opakowanie w
-// `act(async () => fireEvent.submit(...))` kończy się, gdy synchroniczna
-// część handlera dobiegnie końca, więc PÓŹNIEJSZE aktualizacje stanu (catch,
-// toast, setBusy(false)) i tak lądują poza tym act() i sypią ostrzeżeniem.
-// `fireEvent` już opakowuje własną (synchroniczną) część w act(); resztę
-// wchłania kolejny `await waitFor(...)` w każdym teście.
-function submitForm(container: HTMLElement) {
-  fireEvent.submit(container.querySelector("form") as HTMLFormElement);
-}
-
-function switchTo(label: string) {
-  fireEvent.click(screen.getAllByRole("button", { name: label })[0]);
-}
-
 function fillSignin(email = "reader@example.com", password = "haslo1234") {
   fireEvent.change(screen.getByRole("textbox"), { target: { value: email } });
   fireEvent.change(screen.getByPlaceholderText(t("authPortal.passwordPlaceholder")), {
