@@ -1090,7 +1090,7 @@ describe("useExperimentStats - liczniki lejka", () => {
     expect(db().chainsFor(TABELA_ZDARZEN)).toHaveLength(4);
   });
 
-  it("zapytanie jest LICZĄCE, nie pobierające wierszy, i zawęża trzema kolumnami", async () => {
+  it("zapytanie jest LICZĄCE, nie pobierające wierszy, i zawęża najemcą oraz trzema kolumnami", async () => {
     odpowiedzLicznikow({ ea: 1, eb: 2, ca: 3, cb: 4 });
 
     const { result } = renderHookWithQueryClient(() => useExperimentStats("exp-1"));
@@ -1101,8 +1101,11 @@ describe("useExperimentStats - liczniki lejka", () => {
       // tysięcy rekordów do przeglądarki redaktora.
       expect(chain.argsOf("select")).toEqual(["id", { count: "exact", head: true }]);
       const eq = callArgs(chain, "eq");
-      expect(eq).toHaveLength(3);
+      expect(eq).toHaveLength(4);
       expect(eq).toContainEqual(["experiment_id", "exp-1"]);
+      // Najemca z sesji (od 2026-10-19 kolumna istnieje) - zachowanie przy
+      // wierszach obcego najemcy: experimentsTenantAndDelivery.test.ts.
+      expect(eq).toContainEqual(["tenant_id", TENANT]);
     }
   });
 
@@ -1139,9 +1142,11 @@ describe("useExperimentStats - liczniki lejka", () => {
   // NAJEMCĘ. Wcześniej `["builder-experiment-stats", experimentId]` pozwalał
   // przez 30 s (`staleTime`) oglądać liczniki policzone w POPRZEDNIM obszarze
   // roboczym. Kontrakt: klucz niesie najemcę jak lista rejestru, a bez
-  // najemcy zapytania nie startują. ZAWĘŻENIE `countEvents` po `tenant_id`
-  // NIE jest możliwe bez migracji - `builder_experiment_events` nie ma tej
-  // kolumny; izolację trzyma polityka `bxe_read_tenant` (przez eksperyment).
+  // najemcy zapytania nie startują.
+  // NAPRAWIONE 2026-10-19: ZAWĘŻENIE `countEvents` po `tenant_id` - migracja
+  // 20261019090000 dała `builder_experiment_events` kolumnę najemcy
+  // (wyprowadzaną triggerem z eksperymentu), więc zapytanie niesie najemcę
+  // sesji i nie opiera się już wyłącznie na polityce SELECT.
   it("klucz cache statystyk zawiera najemcę", async () => {
     odpowiedzLicznikow({ ea: 1, eb: 1, ca: 0, cb: 0 });
 

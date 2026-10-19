@@ -11,6 +11,10 @@
 //      -> false, statystyki nie startują - bez jednego zapytania.
 //   3. `setStatus` MÓWI O WYNIKU. `true` + unieważnienie przy sukcesie,
 //      `false` bez unieważnienia przy odmowie (panel nie udaje zmiany statusu).
+//   4. LICZNIKI LEJKA LICZĄ NAJEMCĘ SESJI (2026-10-19, migracja
+//      20261019090000 dała `builder_experiment_events.tenant_id`). Zapytanie
+//      niesie najemcę z `useCurrentTenantId`, więc nawet tabela oddająca
+//      wiersze bez RLS nie dosypie do statystyk zdarzeń obcego najemcy.
 //
 // Granice: atrapa klienta Supabase, hooka najemcy, `navigator.sendBeacon`
 // i `fetch` (sieć). Magazyny przeglądarki są prawdziwe (happy-dom).
@@ -229,5 +233,79 @@ describe("useExperimentStats - bez najemcy", () => {
     // Klucz bez najemcy łączyłby liczniki dwóch obszarów roboczych w cache.
     expect(db().chainsFor(TABELA_ZDARZEN)).toHaveLength(0);
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+// ── liczniki zawężone do najemcy sesji ─────────────────────────────────────
+
+const OBCY = "22222222-2222-4222-8222-222222222222";
+
+/** Wiersz tabeli zdarzeń - dokładnie te kolumny, po których panel liczy. */
+interface WierszZdarzenia {
+  readonly experiment_id: string;
+  readonly tenant_id: string;
+  readonly variant: "a" | "b";
+  readonly event: "exposure" | "conversion";
+}
+
+function powiel(n: number, wiersz: WierszZdarzenia): WierszZdarzenia[] {
+  return Array.from({ length: n }, () => wiersz);
+}
+
+/**
+ * Tabela zdarzeń BEZ RLS - to, co widzi zapytanie, gdy polityka zawiedzie
+ * (albo pod rolą serwisową). COUNT liczy wiersze spełniające WSZYSTKIE ogniwa
+ * `.eq`, które zapytanie naprawdę wysłało, i nic ponad nie dokłada.
+ */
+function tabelaZdarzenBezRls(wiersze: readonly WierszZdarzenia[]): void {
+  db().setResponse(TABELA_ZDARZEN, (chain: RecordedChain) => {
+    const filtry = chain.calls
+      .filter((c) => c.method === "eq")
+      .map((c) => [String(c.args[0]), c.args[1]] as const);
+    const pasuje = (w: WierszZdarzenia) =>
+      filtry.every(([kolumna, wartosc]) => w[kolumna as keyof WierszZdarzenia] === wartosc);
+    return okCount(wiersze.filter(pasuje).length);
+  });
+}
+
+/** Ten sam identyfikator eksperymentu z wierszami DWÓCH najemców. */
+const ZDARZENIA_DWOCH_NAJEMCOW: readonly WierszZdarzenia[] = [
+  ...powiel(3, { experiment_id: "exp-1", tenant_id: TENANT, variant: "a", event: "exposure" }),
+  ...powiel(1, { experiment_id: "exp-1", tenant_id: TENANT, variant: "a", event: "conversion" }),
+  ...powiel(4, { experiment_id: "exp-1", tenant_id: TENANT, variant: "b", event: "exposure" }),
+  ...powiel(2, { experiment_id: "exp-1", tenant_id: TENANT, variant: "b", event: "conversion" }),
+  ...powiel(50, { experiment_id: "exp-1", tenant_id: OBCY, variant: "a", event: "exposure" }),
+  ...powiel(40, { experiment_id: "exp-1", tenant_id: OBCY, variant: "b", event: "conversion" }),
+];
+
+describe("useExperimentStats - liczniki zawężone do najemcy sesji", () => {
+  it("baza bez RLS oddaje wiersze obcego najemcy, a panel liczy WYŁĄCZNIE najemcę sesji", async () => {
+    tabelaZdarzenBezRls(ZDARZENIA_DWOCH_NAJEMCOW);
+
+    const { result } = renderHookWithQueryClient(() => useExperimentStats("exp-1"));
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    // Zdarzenia obcego najemcy dosypane do lejka przestawiają z-score: tutaj
+    // 40 sfabrykowanych konwersji „b" zrobiłoby z wariantu B zwycięzcę.
+    expect(result.current.data).toEqual({
+      exposures: { a: 3, b: 4 },
+      conversions: { a: 1, b: 2 },
+    });
+  });
+
+  it("najemca liczników pochodzi z sesji - przełączenie obszaru liczy zdarzenia nowego najemcy", async () => {
+    tabelaZdarzenBezRls(ZDARZENIA_DWOCH_NAJEMCOW);
+
+    const { result, rerender } = renderHookWithQueryClient(() => useExperimentStats("exp-1"));
+    await waitFor(() => expect(result.current.data).toBeDefined());
+
+    h.tenantId = OBCY;
+    rerender();
+    await waitFor(() =>
+      expect(result.current.data).toEqual({
+        exposures: { a: 50, b: 0 },
+        conversions: { a: 0, b: 40 },
+      }),
+    );
   });
 });

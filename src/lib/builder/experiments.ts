@@ -323,7 +323,14 @@ export function useExperimentsAdmin() {
   );
 }
 
+/**
+ * COUNT zdarzeń jednego kubełka lejka, zawężony do najemcy. `tenantId`
+ * przychodzi wyłącznie z sesji (`useCurrentTenantId` - `profiles.tenant_id`
+ * zalogowanego, ta sama wartość co `current_tenant_id()` w politykach), nigdy
+ * z wejścia panelu.
+ */
 async function countEvents(
+  tenantId: string,
   experimentId: string,
   variant: AbVariant,
   event: ExperimentEvent,
@@ -331,6 +338,7 @@ async function countEvents(
   const { count } = await supabase
     .from("builder_experiment_events")
     .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
     .eq("experiment_id", experimentId)
     .eq("variant", variant)
     .eq("event", event);
@@ -340,9 +348,10 @@ async function countEvents(
 /**
  * Liczniki lejka. Klucz cache niesie najemcę (jak lista rejestru), więc
  * przełączenie obszaru roboczego nie pokazuje wpisu policzonego w poprzednim.
- * Zapytanie o zdarzenia NIE zawęża po `tenant_id` - tabela
- * `builder_experiment_events` nie ma tej kolumny; izolację trzyma polityka
- * SELECT `bxe_read_tenant` (przez eksperyment nadrzędny).
+ * Zapytanie o zdarzenia zawęża po `tenant_id` z sesji - kolumnę wyprowadza
+ * trigger z eksperymentu (migracja 20261019090000), więc liczniki nie opierają
+ * się wyłącznie na polityce SELECT, a filtr trafia w indeks prowadzony
+ * najemcą.
  */
 export function useExperimentStats(experimentId: string | null) {
   const tenantId = useCurrentTenantId();
@@ -352,11 +361,12 @@ export function useExperimentStats(experimentId: string | null) {
     staleTime: 30_000,
     queryFn: async (): Promise<ExperimentStats> => {
       const id = experimentId ?? "";
+      const tenant = tenantId ?? "";
       const [ea, eb, ca, cb] = await Promise.all([
-        countEvents(id, "a", "exposure"),
-        countEvents(id, "b", "exposure"),
-        countEvents(id, "a", "conversion"),
-        countEvents(id, "b", "conversion"),
+        countEvents(tenant, id, "a", "exposure"),
+        countEvents(tenant, id, "b", "exposure"),
+        countEvents(tenant, id, "a", "conversion"),
+        countEvents(tenant, id, "b", "conversion"),
       ]);
       return { exposures: { a: ea, b: eb }, conversions: { a: ca, b: cb } };
     },
