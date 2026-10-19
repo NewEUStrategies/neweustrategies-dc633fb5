@@ -287,6 +287,11 @@ Bliźniaki S4 `0330…0337` (idx 330-337, `when` = 1792426365539 +
 n·60 000, §15.6). **Następny wolny numer: `0338`** (idx 338) - na
 `origin/main` w chwili scalenia ostatni był `0329`.
 
+**Po scaleniu S2 (2026-10-19, ta sama gałąź).** Bliźniaki S2 `0338…0345`
+(idx 338-345, `when` = 1792426845539 + n·60 000, §16.6) - numerami za S4,
+choć wersje S2 (`2026102011*`) są niższe niż S4 (`2026102013*`); oba
+wycinki nie dzielą obiektów. **Następny wolny numer: `0346`** (idx 346).
+
 Praktyka PR #520 (odchylenie od pkt 3-4): S6 i S1 poszły prosto do PR #520,
 bez `hub/integration`. Integrator S1 dodał bliźniaki i wpisy dziennika
 w commicie wycinka (D-S1-01, §12.6). Tak samo dla wycinków w nowym PR
@@ -440,13 +445,14 @@ przebiegu i błędy środowiska - §13.2.
 
 ## 10. Dziennik wdrożeń
 
-| Data       | Wycinek / fala                               | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                     | Odchylenia / uwagi                                                                                                |
-| ---------- | -------------------------------------------- | --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 2026-10-19 | I0 (gałąź)                                   | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                               | weryfikacja §9; Z-01…Z-09 do decyzji                                                                              |
-|            | M0                                           | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`) | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)     |
-| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                  | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18) |
-| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)   | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                           | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                       |
-| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`) | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                              | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                |
+| Data       | Wycinek / fala                               | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                     | Odchylenia / uwagi                                                                                                                                     |
+| ---------- | -------------------------------------------- | --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-10-19 | I0 (gałąź)                                   | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                               | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                   |
+|            | M0                                           | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`) | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                          |
+| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                  | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                      |
+| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)   | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                           | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                            |
+| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`) | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                              | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                     |
+| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`) | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                 | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527 |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -1274,3 +1280,340 @@ są addytywne i zostają.
 - [x] `queryOptions` społeczności = argumenty studia (`queries.test.ts`: `registrationKeys.counts({eventId, ticketTypeId: null, groupId: null, q: '', from: null, to: null})`, `staleTime` 15 s, `adsFunnelKeys.report({eventId, from: null, to: null})`); przekroje na `revenueKeys.query('events'|'clubs', najemca, okno)`.
 - [ ] Delta bundla w celu S4 (§8.6: `overall` ≤ +4, `public` i entry 0) - **niespełnione**: `overall` +9,9 (ratchet D-08 → 4982), entry +0,4 (powłoki tras, listy preloadu), `public` +0,5 (entropia nazw, zero modułów); progi zamrożone zielone (§15.7).
 - [x] Strażnik: `hub-slice-guard.ts S4 --base e135b91a` - wyłącznie pliki współdzielone zmienione przez Integratora (§15.4); dostawa huba: 8 plików, 17 definicji funkcji.
+
+## 16. Wycinek S2 - przychód i retencja: księga MRR, windykacja, przychód zrealizowany, anulowanie (2026-10-19)
+
+Gałąź `hub/s2-ksiega-mrr` (worktree `/home/user/wt/S2`), wykonawca na bazie
+`e69234c1`, przebazowana przez Integratora na `6ac07c60` (S4, §15) bez
+konfliktów, potem fast-forward do `claude/elegant-fermat-xwfca1`. Commity:
+
+- `63cddf53` - 8 migracji `2026102011*`, 7 plików pgTAP (księga MRR, skanery, retencja, oferta, ekonomika);
+- `be2c292d` - finanse huba w TS, przepływ anulowania ≤ 2 kroki, rabat retencyjny u operatora, migawka ceny w webhooku, maile P12, KPI `/admin/billing` z RPC huba;
+- `2d15a93c` - integracja: pliki współdzielone (§16.4);
+- `ad77a191` - siedem błędów `tsgo` w trzech plikach wycinka (Integrator, §16.8);
+- `61bbdee9` - raport `i18n-parity` po bramce parytetu (§16.4);
+- `5e52d63c` - ratchet `overall` 4982 → 4991 (D-08, §16.7);
+- ten wpis.
+
+Pełny pakiet vitest dla tej gałęzi uruchamia CI na PR #527 (decyzja
+właściciela 2026-10-19: lokalnie tylko testy celowane, typecheck, lint,
+build z budżetem i pgTAP - §16.8).
+
+### 16.1 Zakres
+
+Wykonawca: 63 pliki, +11 949 / −1182 linii (2 commity). Z integracją (bez
+tego wpisu): 80 plików, +14 927 / −1213.
+
+| Obszar                            | Co dostarcza S2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SQL (8 migracji, 23 funkcje)      | `110000` lustro katalogu (`billing_catalog_entry`, `billing_months_per_interval`, `subscription_mrr_minor` z `basis`); `110100` wyzwalacz historii `trg_subscriptions_revenue_history` - ruchy MRR po delcie (pauza, zmiana waluty, sandbox/mock, idempotencja, anonimizacja Z-07 przy DELETE) i `tg_billing_documents_renewed_emit`; `110200` backfill (`reason='backfill'`, `backfilled=true`, środowisko dokumentów porcjami); `110300` `_revenue_mrr_at`, `_revenue_movements`, `_revenue_realized`; `110400` RPC panelu: migawka, most (z `basis_mix`), seria, churn, kohorty, windykacja, przychód zrealizowany; `110500` skaner cyklu życia; `110600` zdarzenia retencji i skaner przepływu; `110700` macierz ofert, dane wejściowe i ekonomika. |
+| Finanse (TS)                      | `src/lib/revenue/finance/{dto,parse,mrrMath,finance.functions,queries}.ts`: parsery z `*_KEYS` = listy `set_eq` pgTAP (`null` ≠ 0, most ±0,5 %, `MoneyByCurrency[]`), `mrrMath` reużywa `monthlyEquivalent` i `catalogPlanQuote`, 11 server fn z literałami RPC (42501, 42883/PGRST202, 40001, 22023 jako stany), `revenueKeys` i `staleTime` z §5.4; `billingCatalogSqlParity` ze wspólnym fixture'em vitest/pgTAP i `BILLING_CATALOG_LEGACY`.                                                                                                                                                                                                                                                                                                         |
+| Anulowanie i retencja (P01, P02)  | `RetentionDialog` - co najwyżej 2 kroki, „Anuluj mimo to” na każdym kroku ankiety i oferty, przy wyłączonej retencji samo potwierdzenie; `SubscriptionCard` nie anuluje jednym kliknięciem; `startRetentionFlow` zapisuje `started`, `submitRetentionFeedback` aktualizuje ten sam wiersz (`not_given` bez powodu, Z-09); ankieta z portalu Stripe trafia do `retention_feedback`; `applyOffer.server` - kupon `repeating` u operatora (klucze `retention-coupon:`/`retention:{feedback_id}`), zachowuje istniejące rabaty, 1 oferta / 180 dni, tylko subskrypcje z lustrem operatora.                                                                                                                                                                  |
+| Webhook i maile (P11, P12, P13)   | Migawka ceny i rabatu w `subscriptions` (odczyt autorytatywny rozwija rabaty); mail anulowania zależny od daty (CTA `/profile/plan` albo `/pricing`, bez `/cennik`); nadawcy `renewed` (wpięty) i `donation` (tylko nadawca); akcja wznowienia na `/profile/plan`; przypomnienia pomijają `unpaid` i `incomplete_expired`; snapshoty PL/EN i test ścieżek CTA w `routeTree`.                                                                                                                                                                                                                                                                                                                                                                            |
+| `/admin/billing` (P10, br. 04 D8) | Aktywne subskrypcje, MRR i windykacja z tych samych `queryOptions` i klucza co hub; klucz listy z najemcą, panele na kluczach fabryk; filtr statusu zamówień (wpięty w trasę przy integracji).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Słowniki                          | `i18n-admin-revenue-finance.ts` (PL/EN, test pokrycia enumów DTO) i `profile.retentionFlow` w `i18n-profile.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+### 16.2 Decyzje
+
+- **S2 prosto do gałęzi PR `claude/elegant-fermat-xwfca1`** (orkiestrator,
+  §13.1), jak S1 i S4: migracje, bliźniaki i kod w jednym PR.
+- **D-05 (podstawa kwot):** `basis='catalog'` jawnie w RPC, DTO i UI -
+  `subscription_mrr_minor` zwraca `basis`, most i migawka `basis_mix`
+  (udziały 0-1 `provider`/`catalog`), panel pokazuje `ProvenanceNote`
+  i `adminRevenue.finance.basis.*`.
+- **Z-07 (RODO):** usunięcie konta nie kasuje kaskadą historii ani ruchów -
+  `user_id` w `mrr_movements`, `subscription_state_history`
+  i `dunning_cycles` staje się `NULL` (`110100`: `DROP NOT NULL`, bez FK
+  historii i windykacji do `subscriptions`), a ruch `churn` zapisuje się
+  z `user_id NULL`; dowód w `revenue_subscription_history_test` (38).
+  Polityka retencji do potwierdzenia przez właściciela/IOD (Z-S2-03).
+- **Z-09 (anulowanie przed wyborem powodu):** `reason_label='not_given'`
+  zamiast zmiany CHECK-u I0; emiter niesie `reason_key='not_given'`,
+  `admin_revenue_retention_offers` liczy `reason_not_given` osobno.
+- **Typy bazy:** Integrator dopisał do `types.ts` nullable `user_id` trzech
+  tabel księgi, zdjął dwie relacje FK i dodał sygnatury 14 RPC S2 (zwrot
+  `Json`) - wywołania i tak idą przez `asRpc`, więc to dokumentacja
+  kontraktu, nie zmiana zachowania. Regeneracja Lovable po wdrożeniu nadpisze
+  plik tym samym kształtem.
+- **D-08:** ratchet `overall` 4982 → 4991 (zmierzony przyrost +9,0 KB, w całości leniwe chunki panelu i profilu, §16.7). `css` bez zmian (99,7 = baza).
+
+### 16.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+| Miejsce SPEC / karta S2                          | Stan po S2                                                                                                                                                                       | Uzasadnienie                                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `duration_in_months = discount_periods`          | `discount_periods` × długość cyklu subskrypcji w miesiącach (roczny ×12, tydzień/dzień w górę do miesięcy); nieznany interwał Stripe = okresy jako miesiące (Integrator, §16.8). | Klient dostaje dokładnie N obniżonych faktur, jak obiecuje dialog; plany miesięczne bez zmian. |
+| `acceptRetentionOffer` (stary kupon B2B w kasie) | Oferta tylko dla subskrypcji z lustrem operatora (`subscriptions`); lokalne dostają ankietę bez oferty (`no_provider`). `coupon.ts` nieużywany, zostaje (poza manifestem).       | Kupon musi trafić na subskrypcję u operatora, nie do kasy.                                     |
+| „Anuluj mimo to” zawsze widoczne                 | Krok samego potwierdzenia (retencja wyłączona albo start przepływu padł) ma etykietę „Anuluj subskrypcję”; ankieta i oferta - „Anuluj mimo to”.                                  | Anulowanie zawsze jedno kliknięcie od otwartego dialogu.                                       |
+| `submitRetentionFeedback` zapisuje decyzję       | „Zostaw subskrypcję” = `saved`; zamknięcie X/Escape zostawia `started`, skaner zamyka jako `abandoned` po 24 h; ankieta zapisuje się po udanym anulowaniu.                       | Nieudane anulowanie nie zostawia rekordu `canceled`.                                           |
+| `basis_mix` (S6: liczności pozycji)              | Udziały 0-1 (`provider`, `catalog`).                                                                                                                                             | `ProvenanceNote` czyta oba kształty tak samo (catalog/total).                                  |
+| KPI `/admin/billing` z RPC                       | „Nieudane płatności” = otwarte cykle windykacji z `admin_revenue_dunning`; „Zaplanowane anulowania” nadal z listy (`≥ N` przy limicie 500).                                      | Brak agregatu zaplanowanych anulowań w SQL.                                                    |
+| Klucze z fabryk                                  | Seria, kohorty, ekonomika = rozwinięcie kluczy fabryki + zakres miesięcy/strefa (bez literałów).                                                                                 | `keys.ts` (poza manifestem) nie ma funkcji zakresu miesięcy; prefiksy szyny zdarzeń trafiają.  |
+| P01 `cancellation_details`                       | Portal Stripe → `reason_label 'stripe:<feedback>'` (albo `stripe:other`), pełny komentarz, `outcome='canceled'`, deduplikacja 30 dni.                                            | Jedno źródło powodów rezygnacji.                                                               |
+| P12 nadawca `donation_received`                  | Nadawca `notifyDonationEmail` gotowy i przetestowany; wywołania w `donations`/`oneTimeFulfilment` poza manifestem (Do integracji I9).                                            | Pliki S3/wspólne.                                                                              |
+| Weryfikacja karty: `run.sh … 'a\|b'`             | Od `40c5ec73` (S4) wzorzec ERE - komenda z karty działa wprost.                                                                                                                  | Z-S4-08.                                                                                       |
+
+### 16.4 Zgłoszenia „Do integracji” wykonane przez Integratora S2
+
+Strażnik `hub-slice-guard.ts S2 --base 6ac07c60` po integracji zgłasza
+wyłącznie zmiany Integratora: `[plik-wspoldzielony]`
+`drizzle/migrations/meta/_journal.json`, `src/integrations/supabase/types.ts`,
+`src/lib/__tests__/queryKeyLiterals.gate.test.ts`, `src/lib/ci/hubDelivery.ts`, `scripts/check-bundle-size.ts`
+oraz `[poza-manifestem]` `reports/i18n-parity.json` i ten dziennik. Pliki spoza manifestu, których
+wymagały bramki i zgłoszenia, dopisano do manifestu S2 z komentarzem
+„Integrator S2”.
+
+| Zgłoszenie                      | Zmiana                                                                                                                                                                                                        | Pliki                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Bliźniaki drizzle               | 8 bliźniaków (bajt w bajt) i 8 wpisów `_journal.json` w kolejności wersji (§16.6); `check:migration-lanes` i `supabaseLaneCoverage` zielone.                                                                  | `drizzle/migrations/0338…0345_*.sql`, `meta/_journal.json`, `hubDelivery.ts` (glob) |
+| `types.ts`                      | `user_id: string \| null` (Row) i opcjonalny nullable (Insert/Update) w `subscription_state_history`, `mrr_movements`, `dunning_cycles`; bez `*_subscription_id_fkey` historii i windykacji; 14 sygnatur RPC. | `src/integrations/supabase/types.ts`                                                |
+| Z-S6-16 (część finansowa)       | `REVENUE_DOMAIN_READS.snapshot` = `admin_revenue_semantic_snapshot(p_since, p_until)` - kształt z `WPIECIA_DOCELOWE`, test „każde wpięcie produkcyjne woła SWOJĄ funkcję” zielony.                            | `src/lib/analytics/semantic/revenueSnapshot.functions.ts`                           |
+| Filtr statusu `/admin/billing`  | `statusFilter`/`onStatusFilterChange` z `search.status` (zapis `replace`, jak zakładka).                                                                                                                      | `src/routes/admin.billing.tsx`                                                      |
+| P01 w teście fałszywego sukcesu | Atrapa `RetentionDialog` z przyciskiem potwierdzenia (wzór `SubscriptionCard.edges`); asercje bez zmian.                                                                                                      | `src/components/billing/__tests__/subscriptionFalseSuccess.test.tsx`                |
+| Dług literałów kluczy           | Zdjęte 3 panele rozliczeń (`AdminBillingPanel`, `AdminPaymentOrdersPanel`, `AdminPaymentsDiagnosticsPanel`).                                                                                                  | `src/lib/__tests__/queryKeyLiterals.gate.test.ts`                                   |
+| Raport parytetu i18n            | `reports/i18n-parity.json` przepisany przez bramkę `i18nParity` (`repoWide.untranslated` 561 → 570: zapożyczenia w niebramkowanych prefiksach, m.in. `adminWorkflows` z S4; bramkowany `adminRevenue` - 0).   | `reports/i18n-parity.json` (`[poza-manifestem]`)                                    |
+| Budżet D-08                     | Ratchet `overall` 4982 → 4991 z wpisem w kronice (§16.7).                                                                                                                                                     | `scripts/check-bundle-size.ts`                                                      |
+
+**Do integracji I9/S7 (nie wykonane przez Integratora S2):**
+
+- **jobsTick / harmonogram (I9):** co 5 min z `service_role`:
+  `supabaseAdmin.rpc("run_revenue_lifecycle_scanner")` i
+  `supabaseAdmin.rpc("run_retention_flow_scanner")` (koniec okresu próbnego
+  T-3 d, wygaśnięcie, windykacja przegrana po 30 d, dzienna migawka MRR,
+  `started` → `abandoned` po 24 h). Do tego czasu skanery nie biegną.
+- **`authzSnapshot.generated.ts` (I9):** regeneracja
+  `bun run generate:authz-snapshot` (11 server fn `finance.functions`
+  za `requireCrmStaff`, `startRetentionFlow` za `requireSupabaseAuth`);
+  plik był nieaktualny już na bazie.
+- **`billingDocuments.server.ts` (I9, Z-S2-07):** przy INSERT do
+  `billing_documents` ustawić `environment: input.environment` oraz
+  `subscription_id` = `user_subscriptions.id` dopasowane po `external_ref`
+  dla faktur subskrypcji. Ścieżka webhooka płatności poza manifestem -
+  wymaga testów atrapy klienta i nie mieściła się w oknie integracji.
+- **Darowizny (I9, P12):** po zaksięgowaniu w `donations.server.ts`
+  (`recordRecurringDonationPayment`) i `oneTimeFulfilment.server.ts`
+  wywołać `notifyDonationEmail({ email, lang, name, amountCents, currency,
+donorMessage, tenantId, idempotencySeed: invoiceId ?? donationId })`.
+- **S7 / właściciel S1:** `RetentionFeedbackList` i statystyki retencji:
+  `not_given` jako `t('adminRevenue.finance.retention.reasonNotGiven')`
+  z podpowiedzią `reasonNotGivenHint`, `stripe:<code>` jako „Stripe portal:
+  <code>”, `not_given` poza rankingiem powodów (Z-09); zakładki huba na
+  `queryOptions` z `src/lib/revenue/finance/queries.ts` (Z-S2-12).
+
+### 16.5 Zgłoszenia otwarte
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                                                                                 |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S2-01 | **Ręczna weryfikacja właściciela w trybie testowym operatora (przed publikacją frontu)** - instrukcja niżej. Kryterium karty otwarte do jej wykonania.                                                                                                                                                     |
+| Z-S2-02 | (Z-01) Segment ruchu = segment `tier_key` w chwili ruchu; most filtrowany segmentem wybiera subskrypcje po segmencie na `until`, więc subskrypcja, która zmieniła segment w oknie, liczy się w całości w segmencie końcowym. Decyzja właściciela: akceptacja albo podział ruchów per segment (zmiana SQL). |
+| Z-S2-03 | (Z-07) Księga zachowuje zanonimizowane ruchy, historię i cykle windykacji (`user_id NULL`) i zapisuje `churn` przy usunięciu konta - do potwierdzenia przez właściciela/IOD, że kwoty bez identyfikatora spełniają politykę retencji RODO.                                                                 |
+| Z-S2-04 | (Z-09) `not_given` w `reason_label` - etykieta i wykluczenie z rankingu w `RetentionFeedbackList`/statystykach (S1/S7, §16.4).                                                                                                                                                                             |
+| Z-S2-05 | Wskaźniki migawki (NRR, GRR, quick ratio, wzrost m/m) liczone w walucie wiodącej (największy MRR). Propozycja dla S6: `ratio_currency` w `REVENUE_SNAPSHOT_KEYS.meta`.                                                                                                                                     |
+| Z-S2-06 | `new_customers_plan` w `revenue_manual_inputs.amount_minor` to LICZBA klientów (z walutą, bo CHECK I0 jej wymaga). UI S7 musi opisać pole jako liczbę (`inputs.newCustomersHint`); docelowo osobna kolumna (zmiana schematu I0).                                                                           |
+| Z-S2-07 | Do czasu zmiany w `billingDocuments.server.ts` (§16.4, I9) nowe dokumenty są `unknown_environment_documents` (poza przychodem zrealizowanym), a `subscription.renewed.v1` z wyzwalacza nie wychodzi. Mail odnowienia od tego nie zależy (idzie z webhooka).                                                |
+| Z-S2-08 | Migawka rabatu: zwykłe zdarzenia Stripe niosą tylko identyfikatory `di_…`, więc kolumny nie są nadpisywane; rabat zdjęty zdarzeniem bez rozwinięcia zostaje w księdze do następnego odczytu autorytatywnego. Opcja: rozwijać rabaty przy każdym zdarzeniu aktualizacji (dodatkowe wywołanie Stripe).       |
+| Z-S2-09 | `average_discount` i `price_realization` w migawce tylko dla okien kończących się teraz (brak historii cen i rabatów); okna historyczne zwracają `null`.                                                                                                                                                   |
+| Z-S2-10 | Wyścig: dwa równoległe przepływy anulowania (dwie karty) mogą oba przejść regułę 180 dni i dopiąć dwa rabaty (idempotencja per `feedback_id`). Niskie ryzyko; domknięcie - RPC z blokadą doradczą per (najemca, użytkownik).                                                                               |
+| Z-S2-11 | Ankieta z portalu Stripe wymaga włączenia powodów rezygnacji w konfiguracji portalu klienta (panel Stripe, właściciel).                                                                                                                                                                                    |
+| Z-S2-12 | Konsumenci S7: zakładki huba (MRR, churn, kohorty, windykacja, zrealizowany, retencja, oferta, dane wejściowe, ekonomika) na `queryOptions` z `src/lib/revenue/finance/queries.ts` i słowniku `i18n-admin-revenue-finance` - hub i `/admin/billing` dzielą klucz (most dla okresu `month`).                |
+| Z-S2-13 | Raport `reports/i18n-parity.json` zregenerowany przez Integratora (`61bbdee9`) - `repoWide.untranslated` 570 (+9 względem stanu na bazie; wszystkie w niebramkowanych prefiksach, bramkowane `adminRevenue` 0). Przegląd zapożyczeń przy I9 (jak Z-S4-09).                                                 |
+
+**Z-S2-01 - instrukcja ręcznej weryfikacji (tryb testowy Stripe, baza
+podglądu/sandbox, przed publikacją frontu na produkcji):**
+
+1. Wdróż migracje `2026102011*` na bazę podglądu (kolejność §16.9);
+   sprawdź `retention_settings`: `enabled=true`, `discount_pct=30`,
+   `discount_periods=3`.
+2. Zaloguj się kontem testowym i kup plan miesięczny kartą
+   `4242 4242 4242 4242` (sandbox).
+3. `subscriptions`: `unit_amount_minor` i `currency` wypełnione,
+   `discount_minor_per_period=0`; `mrr_movements` ma jeden wiersz `new`.
+4. Profil → Subskrypcja → „Anuluj subskrypcję”: krok 1 z ankietą i „Anuluj
+   mimo to”; `retention_feedback` ma wiersz `outcome='started'`.
+5. „Dalej” → „Zostaję z rabatem -30%”: w panelu Stripe subskrypcja ma kupon
+   „Retencja -30%” (`repeating`, 3 miesiące, `max_redemptions` 1), wcześniejsze
+   rabaty zostały. Stripe → Developers → Logs: kupon z
+   `Idempotency-Key: retention-coupon:<feedback_id>`, aktualizacja subskrypcji
+   z `retention:<feedback_id>`. Wiersz: `outcome='saved'`,
+   `offer_accepted=true`, `coupon_code=<id kuponu>`. Po webhooku
+   `mrr_movements` ma `contraction` z powodem `discount`.
+6. Ponownie otwórz dialog i kliknij „Anuluj mimo to” na kroku 1:
+   `cancel_at_period_end=true`, wiersz `outcome='canceled'`,
+   `reason_label='not_given'`; mail `subscription_canceled` z CTA do
+   `/profile/plan`.
+7. `/profile/plan` → „Wznów subskrypcję”: `cancel_at_period_end=false`.
+8. Powtórz ofertę w ciągu 180 dni: `already_redeemed`, drugiego kuponu brak.
+9. Anuluj w portalu klienta Stripe z powodem: `retention_feedback` dostaje
+   `stripe:<code>` (wymaga Z-S2-11).
+10. `retention_settings.enabled=false`: dialog pokazuje samo potwierdzenie.
+
+Wynik (✓/✗ per krok) do §10 i zamknięcie kryterium „weryfikacja ręczna” w §16.10.
+
+### 16.6 Bliźniaki drizzle
+
+| Wersja supabase                                 | Bliźniak                              | idx | `when`        |
+| ----------------------------------------------- | ------------------------------------- | --- | ------------- |
+| `20261020110000_revenue_catalog_mirror`         | `0338_revenue_catalog_mirror`         | 338 | 1792426845539 |
+| `20261020110100_subscription_revenue_history`   | `0339_subscription_revenue_history`   | 339 | 1792426905539 |
+| `20261020110200_revenue_backfill`               | `0340_revenue_backfill`               | 340 | 1792426965539 |
+| `20261020110300_revenue_sql_helpers`            | `0341_revenue_sql_helpers`            | 341 | 1792427025539 |
+| `20261020110400_revenue_aggregates`             | `0342_revenue_aggregates`             | 342 | 1792427085539 |
+| `20261020110500_revenue_lifecycle_scanner`      | `0343_revenue_lifecycle_scanner`      | 343 | 1792427145539 |
+| `20261020110600_retention_flow_events`          | `0344_retention_flow_events`          | 344 | 1792427205539 |
+| `20261020110700_revenue_offer_inputs_economics` | `0345_revenue_offer_inputs_economics` | 345 | 1792427265539 |
+
+Numery od pierwszego wolnego po S4 (`0337`), `when` = 1792426785539
+(`0337`) + n·60 000. Wersje S2 (`2026102011*`) są niższe niż S4
+(`2026102013*`), a bliźniaki wyższe - migrator Drizzle wykona je po S4;
+to bezpieczne, bo S2 i S4 nie dzielą obiektów (S4 nie czyta księgi MRR,
+S2 nie dotyka CRM). Na panelu Lovable kolejność wersji (§16.9). `cmp`
+supabase ⇄ drizzle: bajt w bajt. **Następny wolny numer: `0346`** (idx 346),
+bez rezerwacji (§6).
+
+### 16.7 Pomiar bundla
+
+`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`, ten sam host i te same `node_modules`. Baza = drzewo końcowe
+S4 (`bf9108ea`, kod = `6ac07c60`; pomiar §15.7, wynik w `/home/user/wt/S4/.output`).
+Przypisanie: gzip -9 per chunk z `.output/public/assets` (nazwa bez hasha),
+S4 ⇄ S2.
+
+| Budżet (gzip KB)         | Próg przed / po | Baza `6ac07c60` | S2 (po integracji) | Δ S2     | Cel S2 (§8.6) | Wynik                                                                                |
+| ------------------------ | --------------- | --------------- | ------------------ | -------- | ------------- | ------------------------------------------------------------------------------------ |
+| `overall`                | 4982 / **4991** | 4980,6          | 4989,6             | **+9,0** | ≤ +4          | cel ✗; próg 4982 ✗ → ratchet D-08 (4989,6 → 4990 → +1)                               |
+| `admin-only`             | -               | 2207,6          | 2215,6             | +8,0     | -             | leniwy chunk `/admin/billing` (niżej)                                                |
+| `public`                 | 2881 (zamr.)    | 2773,0          | 2773,9             | +0,9     | 0             | próg ✓; cel ✗ - leniwe trasy i słownik profilu (dialog anulowania), niżej            |
+| największy chunk (entry) | 286 (zamr.)     | 257,9           | 257,9              | 0,0      | 0             | ✓                                                                                    |
+| `css`                    | 100             | 99,7            | 99,7               | 0,0      | 0             | ✓ (bez ratchetu)                                                                     |
+| `publicCss`              | 85 (zamr.)      | 83,8            | 83,8               | 0,0      | -             | ✓                                                                                    |
+| `boot`                   | 579 (zamr.)     | 471,7           | 471,6              | −0,1     | -             | ✓                                                                                    |
+| liczba chunków           | -               | 1455            | 1459               | +4       | -             | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Przypisanie przyrostu (+8,9 KB w sumie chunków JS):
+
+| Chunk (klasa)                               | Δ gzip KB             | Przyczyna                                                                                                                                                      |
+| ------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin.billing` (admin)                     | +7,93                 | KPI z RPC huba: `finance/queries`, zaślepki klienta 11 server fn `finance.functions` (walidatory zod), `ProvenanceNote`, słownik `i18n-admin-revenue-finance`. |
+| `i18n-profile` (public, leniwy)             | +0,79                 | `profile.retentionFlow` - teksty dialogu anulowania (2 kroki, oferta, ankieta).                                                                                |
+| `RoleGateNotice` (nowy, admin)              | +0,49                 | Rolldown wydzielił moduł huba do osobnego chunku - współdzieli go teraz także panel rozliczeń (wcześniej siedział w chunkach huba).                            |
+| `profile.membership` (public, leniwy)       | +0,45                 | `SubscriptionCard` otwiera `RetentionDialog` zamiast anulować.                                                                                                 |
+| `profile.plan` (public, leniwy)             | +0,37                 | Akcja wznowienia subskrypcji (P12).                                                                                                                            |
+| `period` / `window` / `DashboardPeriodTabs` | +0,72 / −0,42 / −0,61 | Przetasowanie wspólnych modułów okresu - `resolveRevenueRange` importuje teraz także panel rozliczeń (suma −0,3).                                              |
+
+Entry, `boot` i CSS bez zmian - S2 nie dotyka korzenia, `routeTree` ani
+rdzenia i18n. Wszystkie przyrosty `public` są w chunkach tras profilu
+ładowanych leniwie (bez nowego modułu w entry). Ratchet `overall`
+4982 → 4991 w `scripts/check-bundle-size.ts` z wpisem w kronice
+(`5e52d63c`). Progi `public`, `publicCss`, `chunk`, `boot` bez zmian
+i w normie; `css` bez zmian.
+
+### 16.8 Weryfikacja końcowa S2
+
+Worktree `/home/user/wt/S2` po przebazowaniu na `6ac07c60`. Decyzja
+właściciela (2026-10-19): lokalnie tylko testy celowane; **pełny pakiet
+vitest uruchamia CI na PR #527**. Pamięć 16 GB: typecheck w wariancie
+niskopamięciowym, vitest `--maxWorkers=3`, ciężkie kroki po kolei.
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                                                                                              | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                                                                                                                                                                                                                                 | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `bun run verify:static`                                                                                                                                                                                                                                                                                                                                                                                                | ✓ 18 bramek w 299 s (`check:migration-lanes` 346 wpisów, bliźniaki S2 rozpoznane; `check:types-freshness` 381 tabel)                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `bunx tsgo --noEmit --checkers 2 && bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                                                                                                                                                                                                                                | ✗ → ✓: 7 błędów w plikach wycinka (`ad77a191`): TS2345 ×4 `finance.functions.ts` (generyczne `T` w `windowSchema` gubi wymagalność `sinceIso`/`untilIso` - `refine` przez `windowLengthMs`, semantyka NaN bez zmian), TS2322 `applyOffer.server.ts` (`recurring.interval` w typach Stripe to też `OtherString` - nieznany interwał = brak cyklu), TS2493 ×2 `applyOffer.test.ts` (atrapy bez parametrów → `mock.calls: []`). Wykonawca widział zielony typecheck na bazie `e69234c1` przy innej pamięci podręcznej `tsgo`. |
+| `bun run lint`                                                                                                                                                                                                                                                                                                                                                                                                         | ✓ 0 błędów, 282 ostrzeżenia (bez przyrostu względem bazy)                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - katalogi karty S2 (`src/lib/revenue/finance`, `src/lib/billing`, `src/lib/retention`, `src/components/billing`, `src/lib/email-templates`, `src/components/admin/billing`) + `src/lib/ci`, `src/lib/realtime`, `src/lib/analytics/semantic`, `queryKeyLiterals.gate`, `i18nParity.gate`, `i18nKeyDrift.gate`, testy tras rozliczeń i profilu oraz `adminRouteAuthority.gate` | ✓ 334 pliki, 8962 testy + 3 oczekiwane porażki (2,2 min); w tym 4 pliki dotknięte integracją (`subscriptionFalseSuccess`, `snapshot.functions`, `queryKeyLiterals.gate`, `adminBillingRoute`) i `supabaseLaneCoverage` (bliźniaki)                                                                                                                                                                                                                                                                                         |
+| `TZ=UTC bunx vitest run --maxWorkers=3 src/routes/__tests__` (cały katalog tras, osobny przebieg)                                                                                                                                                                                                                                                                                                                      | ✓ 225 plików, 8056 testów + 79 oczekiwanych porażek (5 min)                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| pgTAP `run.sh all` (`PGTAP_DIR=/tmp/pgtap-int`, port 5470, `flock`)                                                                                                                                                                                                                                                                                                                                                    | 1273 migracje (1 błąd znany: `20260825230232`); 228 plików: 224 OK, 4 znane błędy środowiska (`community_cron_schedule` 2 i `job_scheduler_heartbeat` 1 - asercje `pg_net`; `public_definer_views_read_only` 1/35 - #3; `profile_intent_semantic` 20/36 - brak `vector`). 7 plików S2 zielone: 195 asercji; `hub_*` i `revenue_community_aggregates` (S4) zielone                                                                                                                                                          |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                                                                                             | ✓ 941 wywołań RPC (po wpięciu migawki - bez zmiany pliku, nazwa była już w kontrakcie), 1511 operacji na tabelach; 9/9                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `check:rpc-contract`                                                                                                                                                                                                                                                                                                                                                                                                   | ✓ 816 nazw, 1654 funkcje                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `check:types-freshness`, `check:migration-lanes`                                                                                                                                                                                                                                                                                                                                                                       | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters`                                                                                                                                                                                                                                                               | ✓ wszystkie rc=0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `split-migration.ts --dry-run` dla `2026102011*`                                                                                                                                                                                                                                                                                                                                                                       | ✓ każdy plik 1 część (największy `110400` = 44 486 B < 46 080 B)                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                                                | build ✓ (1,7 min); `check:bundle` ✗ wyłącznie `overall` 4989,6 > 4982 → ratchet D-08 4991 → ✓; `check:chunks` ✓ (1457 chunków, acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓                                                                                                                                                                                                                                                                                                                          |
+| `bun run scripts/hub-slice-guard.ts S2 --base 6ac07c60`                                                                                                                                                                                                                                                                                                                                                                | exit 1 wyłącznie na zmianach Integratora (§16.4); dostawa huba: 8 plików, 23 definicje funkcji                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `cmp` supabase ⇄ drizzle `0338…0345`                                                                                                                                                                                                                                                                                                                                                                                   | ✓ bajt w bajt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| e2e                                                                                                                                                                                                                                                                                                                                                                                                                    | nieuruchamiane - karta S2 nie wymaga                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+### 16.9 Wdrożenie S2 na produkcji (właściciel)
+
+Kod i migracje S2 idą w jednym PR. Zależności w obie strony:
+
+- nowy front przed migracjami woła nieistniejące RPC (PGRST202 →
+  `unavailable`/`not_configured`, bez wyjątku): zakładki finansów huba,
+  KPI `/admin/billing` (kafle „brak danych”), migawka huba (`snapshot`
+  `not_configured`); `startRetentionFlow` zapisuje `started` do
+  `retention_feedback` (kolumny I0) - działa już po M0;
+- webhook pisze migawkę ceny i rabatu w kolumnach `subscriptions` z I0
+  (`090000`) - wymaga M0 (wdrożone, §10);
+- stary front po migracjach S2 działa bez zmian (S2 nie zdejmuje kolumn
+  ani grantów czytanych przez stary front).
+
+1. **Warunek:** M0, S1 i S4 wdrożone albo wdrażane w tym samym oknie (§10) -
+   emitery S2 wołają `_log_emit_error` (`090500`), typy zdarzeń są
+   w katalogu I0, księga pisze do tabel `090000`.
+2. **Okno nocne** - gorące tabele: `ALTER TABLE` na `subscription_state_history`,
+   `mrr_movements`, `dunning_cycles` (`DROP CONSTRAINT`, `DROP NOT NULL`)
+   i `CREATE TRIGGER` na `subscriptions`, `billing_documents`,
+   `retention_feedback` - każdy pod `SET lock_timeout = '5s'`; backfill
+   środowiska `billing_documents` porcjami po 1000 wierszy. Panel Lovable →
+   8 plików **w kolejności wersji**:
+   1. `20261020110000_revenue_catalog_mirror` (lustro katalogu; funkcje czyste);
+   2. `110100_subscription_revenue_history` (ALTER księgi + wyzwalacze na `subscriptions` i `billing_documents`; `lock_timeout` 5 s);
+   3. `110200_revenue_backfill` (po `110100` - środowisko dokumentów i saldo otwarcia MRR `reason='backfill'`, tylko `live`, tylko bez ruchów);
+   4. `110300_revenue_sql_helpers` (po `110000`);
+   5. `110400_revenue_aggregates` (po `110300`);
+   6. `110500_revenue_lifecycle_scanner`;
+   7. `110600_retention_flow_events` (wyzwalacz na `retention_feedback`; `lock_timeout` 5 s);
+   8. `110700_revenue_offer_inputs_economics` (po `110400`).
+
+   Pliki są idempotentne (`CREATE OR REPLACE`, `DROP … IF EXISTS` + `ADD`/
+   `CREATE TRIGGER`, `CREATE INDEX IF NOT EXISTS`, backfill pomija wiersze
+   już uzupełnione i subskrypcje z ruchami). `55P03` (limit blokady) = ponów
+   cały plik.
+
+3. Zaraz potem opublikuj front z tego PR, potem ręczna weryfikacja Z-S2-01
+   w trybie testowym (jeśli nie wykonano jej na podglądzie przed scaleniem).
+4. Bliźniaki `0338…0345` są kopiami bajt w bajt - po panelu wykonują się jako
+   no-op; migrator Drizzle wykona je sam, jeśli panel zostanie pominięty.
+5. `workflow_dispatch` CI na `main` → `post-deploy`: `check:db-contract`
+   i `check:migration-ledger` (8 wersji) zielone. Wynik do §10.
+6. Kontrola po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- RPC panelu S2: oczekiwane 4 niepuste kolumny.
+SELECT to_regprocedure('public.admin_revenue_semantic_snapshot(timestamptz,timestamptz)') AS snapshot,
+       to_regprocedure('public.admin_revenue_mrr_bridge(timestamptz,timestamptz,text)') AS bridge,
+       to_regprocedure('public.admin_revenue_realized(timestamptz,timestamptz)') AS realized,
+       to_regprocedure('public.run_revenue_lifecycle_scanner()') AS lifecycle_scanner;
+-- 3 wyzwalacze S2: oczekiwane 3.
+SELECT count(*) FROM pg_trigger
+ WHERE NOT tgisinternal
+   AND tgname IN ('trg_subscriptions_revenue_history','trg_billing_documents_renewed_emit',
+                  'trg_retention_feedback_emit');
+-- Saldo otwarcia: liczba ruchów backfill = aktywne subskrypcje live z ceną katalogową.
+SELECT count(*) FROM public.mrr_movements WHERE reason = 'backfill';
+-- Skanery tylko dla serwera: oczekiwane false, false.
+SELECT has_function_privilege('authenticated', 'public.run_revenue_lifecycle_scanner()', 'EXECUTE'),
+       has_function_privilege('authenticated', 'public.run_retention_flow_scanner()', 'EXECUTE');
+```
+
+Wycofanie: DDL S2 to funkcje, wyzwalacze, indeks i zdjęcie `NOT NULL`/FK
+w tabelach księgi z I0 - bez nowych tabel. Revert kodu przywraca stary
+przepływ anulowania (jednym kliknięciem) bez zmian danych. Zdjęcie
+wyzwalaczy `trg_subscriptions_revenue_history`/`trg_billing_documents_renewed_emit`
+
+- osobną migracją spoza bloku huba, decyzją właściciela. Backfill (saldo
+  otwarcia, środowisko dokumentów) jest addytywny i zostaje.
+
+### 16.10 Kryteria akceptacji S2 (SPEC §8.3)
+
+- [x] `billingCatalogSqlParity.test.ts`: `billing_catalog_entry` = `[...BILLING_CATALOG, ...BILLING_CATALOG_LEGACY]` (z `student_annual`), `billing_months_per_interval` = `monthlyEquivalent` (wspólny fixture vitest/pgTAP), `subscription_mrr_minor` = `catalogPlanQuote` (33 testy; pgTAP `revenue_catalog_mirror` 33).
+- [x] `mrrMath.ts` reużywa `monthlyEquivalent`, `catalogPlanQuote`, `catalogRecurringFor` (zero drugiej normalizacji; `mrrMath.test.ts` 10).
+- [x] pgTAP 7 plików zielony: `revenue_catalog_mirror` 33, `revenue_subscription_history` 38, `revenue_backfill` 14, `revenue_aggregates` 48, `revenue_lifecycle_scanner` 16, `retention_flow` 20, `revenue_offer_inputs_economics` 26 (pułapka rangi, pauza, waluta, idempotencja, sandbox/mock, suma mostu = MRR końca, migawka = suma ruchów); w `run.sh all` po integracji - §16.8.
+- [x] Parsery: `null` ≠ 0, most ±0,5 %, `MoneyByCurrency[]`; `*_KEYS` = listy `set_eq` pgTAP (`parse.test.ts` 211, komentarz `// rpc-shape:` przy każdej stałej; migawka = `REVENUE_SNAPSHOT_KEYS` S6).
+- [x] Anulowanie: ≤ 2 kroki (RTL liczy `data-retention-step`), „Anuluj mimo to” na krokach ankiety i oferty, `enabled=false` = samo potwierdzenie (`RetentionDialog.test.tsx` 20 z axe); oferta = rabat `repeating` (atrapa operatora: parametry + klucze idempotencji, `applyOffer.test.ts` 13), 1 oferta / 180 d (`functions.test.ts`).
+- [ ] Weryfikacja ręczna właściciela w trybie testowym operatora przed scaleniem - **otwarte** (Z-S2-01, instrukcja §16.5).
+- [x] `startRetentionFlow` → `started`; `submitRetentionFeedback` aktualizuje ten sam wiersz (filtr `id`/najemca/użytkownik + `outcome in (started, abandoned)`, zapas INSERT; Z-09 `not_given`).
+- [x] Maile P12: snapshoty PL/EN (8: m/ż/neutralny + EN, w okresie i po końcu); każda ścieżka CTA w `tx-*` istnieje w `routeTree.gen.ts` (`notificationsCtaRoutes.test.ts` 12, bez `/cennik`).
+- [x] `/admin/billing` pokazuje te same aktywne subskrypcje i MRR co hub - ten sam RPC i klucz (`revenueKeys.query('mrr', tenant, range, {segment})`; `AdminBillingPanel.test.tsx` 60).
+- [x] Webhook zapisuje migawkę w kolumnach I0 (wdrożone w M0); PostgREST nie dostaje nieznanych kolumn (`webhookDispatchPriceSnapshot.test.ts` 10: każdy klucz migawki w `subscriptions.Row`).
+- [ ] Budżet D-08 (§8.6): **niespełnione w celu** - `overall` +9,0 (ratchet D-08 → 4991), `public` +0,9 (leniwe trasy profilu); entry, `boot`, CSS 0,0; progi zamrożone zielone (§16.7).
+- [x] Strażnik: `hub-slice-guard.ts S2 --base 6ac07c60` - wyłącznie pliki współdzielone zmienione przez Integratora (§16.4); dostawa huba: 8 plików, 23 definicje funkcji.
