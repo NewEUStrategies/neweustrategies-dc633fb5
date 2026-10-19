@@ -434,8 +434,11 @@ SELECT results_eq(
   $$ SELECT tenant_id FROM public.paywall_hits $$,
   $$ VALUES ('ab000000-0000-0000-0000-0000000000a0'::uuid) $$,
   'izolacja: admin A widzi wyłącznie uderzenia w paywall najemcy A');
+-- DISTINCT: od S4 (`trg_crm_leads_stage_history`, 20261020130000) INSERT
+-- leada w fixture'ze sam dopisuje wiersz historii (oś `crm_stage`), więc
+-- najemca A ma ich kilka. Przedmiotem asercji jest izolacja, nie liczba.
 SELECT results_eq(
-  $$ SELECT tenant_id FROM public.crm_lead_stage_history $$,
+  $$ SELECT DISTINCT tenant_id FROM public.crm_lead_stage_history $$,
   $$ VALUES ('ab000000-0000-0000-0000-0000000000a0'::uuid) $$,
   'izolacja: admin A widzi wyłącznie historię etapów najemcy A');
 SELECT set_eq(
