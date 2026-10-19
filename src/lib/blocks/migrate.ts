@@ -57,12 +57,51 @@ function attr(tag: string, name: string): string | null {
 // treść zewnętrzną - a `<div>` jest w niej regułą, nie wyjątkiem. Gałąź
 // rozwijania `<div>` nie była wcześniej wykonana ANI RAZU (0 pokrycia), więc
 // defekt nie miał jak się ujawnić przed dopisaniem testów.
+//
+// ELEMENTY VOID (`hr`, `img`) NIE stoją w alternatywie parzystej: nie mają
+// treści, a dopasowanie `<img …>([\s\S]*?)</img>` połykało wszystko do
+// najbliższego `</img>` i trafiało do `mapBlock`, które nie zna tych znaczników
+// - obraz i separator znikały. Teraz forma `<img …></img>` / `<hr></hr>` idzie
+// przez alternatywę samodzielną, która zjada opcjonalny znacznik zamykający.
+// `iframe` NIE jest void, więc `<iframe …></iframe>` (jedyna poprawna forma
+// osadzenia) zostaje w alternatywie parzystej i `mapBlock` deleguje go do
+// `mapStandalone`.
 const BLOCK_RE =
-  /<(p|h1|h2|h3|h4|h5|h6|ul|ol|blockquote|pre|hr|figure|img|iframe|div)\b([^>]*)>([\s\S]*?)<\/\1>|<(hr|img|iframe)\b([^>]*)\/?>/gi;
+  /<(p|h1|h2|h3|h4|h5|h6|ul|ol|blockquote|pre|figure|iframe|div)\b([^>]*)>([\s\S]*?)<\/\1>|<(hr|img|iframe)\b([^>]*)\/?>(?:\s*<\/\4\s*>)?/gi;
 
 /** Świeża instancja wzorca na KAŻDE wywołanie - patrz komentarz nad BLOCK_RE. */
 function blockMatcher(): RegExp {
   return new RegExp(BLOCK_RE.source, BLOCK_RE.flags);
+}
+
+/**
+ * Kontenery, które w realnym HTML-u zagnieżdżają się W SOBIE: Gutenberg
+ * (`wp-block-group` > `__inner-container`), Elementor, lista w liście, cytat
+ * w cytacie. Dla nich niezachłanne `([\s\S]*?)<\/\1>` kończy dopasowanie na
+ * WEWNĘTRZNYM znaczniku zamykającym, a połówki opakowania zewnętrznego
+ * wyciekały do dokumentu jako akapity `<div>` / `</div>`.
+ */
+const NESTABLE_TAGS: ReadonlySet<string> = new Set(["div", "ul", "ol", "blockquote"]);
+
+/**
+ * Domknięcie elementu `tag`, którego znacznik otwierający kończy się na
+ * `from`, z liczeniem zagnieżdżeń TEGO SAMEGO znacznika. `null`, gdy HTML jest
+ * niedomknięty - wtedy zostaje dopasowanie niezachłanne (stare zachowanie).
+ */
+function balancedClose(
+  html: string,
+  tag: string,
+  from: number,
+): { innerEnd: number; end: number } | null {
+  const re = new RegExp(`<(\\/?)${tag}\\b[^>]*>`, "gi");
+  re.lastIndex = from;
+  let depth = 1;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return { innerEnd: m.index, end: m.index + m[0].length };
+  }
+  return null;
 }
 
 function pushParagraph(out: Block[], html: string): void {
@@ -92,35 +131,27 @@ function headingLevel(tag: string): 2 | 3 | 4 {
   return 4;
 }
 
+/** `hr` / `img` / `iframe` - jedyne znaczniki alternatywy samodzielnej. */
 function mapStandalone(tag: string, openAttrs: string): Block | null {
   const lower = tag.toLowerCase();
   if (lower === "hr") {
     return { id: newBlockId(), type: "separator", data: {} };
   }
+  const open = `<${lower} ${openAttrs}>`;
+  const src = attr(open, "src");
+  if (!src) return null;
   if (lower === "img") {
-    const src = attr(`<img ${openAttrs}>`, "src");
-    if (!src) return null;
     return {
       id: newBlockId(),
       type: "image",
-      data: {
-        url: src,
-        alt: attr(`<img ${openAttrs}>`, "alt") ?? "",
-        caption: "",
-        href: "",
-      },
+      data: { url: src, alt: attr(open, "alt") ?? "", caption: "", href: "" },
     };
   }
-  if (lower === "iframe") {
-    const src = attr(`<iframe ${openAttrs}>`, "src");
-    if (!src) return null;
-    return {
-      id: newBlockId(),
-      type: "embed",
-      data: { url: src, provider: "iframe", html: "" },
-    };
-  }
-  return null;
+  return {
+    id: newBlockId(),
+    type: "embed",
+    data: { url: src, provider: "iframe", html: "" },
+  };
 }
 
 function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
@@ -185,11 +216,11 @@ function mapBlock(tag: string, inner: string, openAttrs: string): Block | null {
     }
     return { id: newBlockId(), type: "html", data: { html: `<figure>${inner}</figure>` } };
   }
-  if (lower === "div") {
-    // Don't emit raw <div> wrappers - unwrap recursively in the loop below.
-    // Returning null here is just a guard; htmlToBlocks handles div specially.
-    return null;
+  if (lower === "iframe") {
+    // Forma parzysta `<iframe …></iframe>`; treść zastępcza nie jest treścią wpisu.
+    return mapStandalone(lower, openAttrs);
   }
+  // `div` nie dociera tutaj - `htmlToBlocks` rozwija go rekurencyjnie.
   return null;
 }
 
@@ -205,31 +236,34 @@ export function htmlToBlocks(input: string | null | undefined): BlocksDoc {
     if (m.index > cursor) {
       pushParagraph(out, html.slice(cursor, m.index));
     }
+    let end = m.index + m[0].length;
     if (m[1]) {
       const tag = m[1].toLowerCase();
+      let inner = m[3];
+      if (NESTABLE_TAGS.has(tag)) {
+        // Koniec znacznika otwierającego: `<` + nazwa + atrybuty + `>`.
+        const openEnd = m.index + m[1].length + m[2].length + 2;
+        const closed = balancedClose(html, tag, openEnd);
+        if (closed) {
+          inner = html.slice(openEnd, closed.innerEnd);
+          end = closed.end;
+          re.lastIndex = end;
+        }
+      }
       if (tag === "div") {
         // Unwrap <div> wrappers (e.g. WordPress block-inner, p-wrap, entry-title).
-        // Recursively parse inner; if no block tags match, keep as paragraph
-        // so inline links/text are preserved instead of leaking raw markup.
-        const innerHtml = m[3] ?? "";
-        const nested = htmlToBlocks(innerHtml).blocks;
-        if (nested.length === 1 && nested[0].type === "paragraph") {
-          // already a clean paragraph from recursion - push as-is
-          out.push(nested[0]);
-        } else if (nested.length) {
-          for (const b of nested) out.push(b);
-        } else if (stripTags(innerHtml)) {
-          pushParagraph(out, innerHtml);
-        }
+        // Rekurencja zachowuje treść inline jako akapit (link nie przepada),
+        // a wnętrze z samych białych znaków nie daje żadnego bloku.
+        out.push(...htmlToBlocks(inner).blocks);
       } else {
-        const block = mapBlock(m[1], m[3], m[2] ?? "");
+        const block = mapBlock(m[1], inner, m[2]);
         if (block) out.push(block);
       }
     } else if (m[4]) {
       const block = mapStandalone(m[4], m[5] ?? "");
       if (block) out.push(block);
     }
-    cursor = m.index + m[0].length;
+    cursor = end;
   }
   if (cursor < html.length) {
     pushParagraph(out, html.slice(cursor));

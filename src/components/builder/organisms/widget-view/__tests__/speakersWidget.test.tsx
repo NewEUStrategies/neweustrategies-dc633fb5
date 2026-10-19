@@ -428,13 +428,30 @@ describe("speakers widget - warianty językowe i gałęzie odmowy", () => {
     expect(screen.queryByText("Speaker 2")).toBeNull();
   });
 
-  it("karta BEZ user_id nie otwiera dialogu profilu", () => {
+  // Od 2026-10-18 karta bez osiągalnego profilu NIE renderuje przycisku
+  // (wcześniej był to <button>, który po kliknięciu nic nie robił). Bez
+  // `user_id` i bez adresu karta nie ma żadnej kontrolki profilu, zostaje
+  // tylko zakładka - czytnik ekranu nie ogłasza martwej akcji.
+  it("karta BEZ user_id i BEZ adresu nie ma kontrolki profilu ani dialogu", () => {
     renderSpeakers({ speakers: [speaker(1)] } as unknown as WidgetContent, "w-nouser");
-    fireEvent.click(screen.getByRole("button", { name: "Speaker 1" }));
+    expect(screen.queryByRole("button", { name: "Speaker 1" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Speaker 1" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Dodaj do zakładek" })).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("wyłączony dialog profilu nie otwiera go po kliknięciu karty", () => {
+  it("karta BEZ user_id, ale z adresem, prowadzi odnośnikiem pod ten adres", () => {
+    renderSpeakers(
+      { speakers: [speaker(1, { href: "/author/jan" })] } as unknown as WidgetContent,
+      "w-nouser-href",
+    );
+    expect(screen.queryByRole("button", { name: "Speaker 1" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Speaker 1" }).getAttribute("href")).toBe(
+      "/author/jan",
+    );
+  });
+
+  it("wyłączony dialog profilu: karta z user_id bez adresu nie ma martwego przycisku", () => {
     renderSpeakers(
       {
         openProfile: false,
@@ -442,7 +459,7 @@ describe("speakers widget - warianty językowe i gałęzie odmowy", () => {
       } as unknown as WidgetContent,
       "w-noprofile",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Speaker 1" }));
+    expect(screen.queryByRole("button", { name: "Speaker 1" })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -518,35 +535,40 @@ describe("speakers widget - warianty językowe i gałęzie odmowy", () => {
     expect(screen.getByText(/Loading…/)).toBeTruthy();
   });
 
-  // DEFEKT: KARTA PRELEGENTA Z ADRESEM NIGDY NIE JEST ODNOSNIKIEM.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): karta prelegenta z adresem przy
+  // WYŁĄCZONYM dialogu jest odnośnikiem do profilu.
   //
-  // WEJSCIE: widget "speakers" z `openProfile: false` i wpisem recznym, ktory
-  //   ma wypelnione pole "Adres" (`href: "/author/anna"`).
-  // CO PSUJE: `SpeakersWidget` przekazuje do `SpeakerCard` prop
-  //   `onOpenProfile={() => onOpenProfile(item)}` BEZWARUNKOWO (linia 443), a
-  //   karta wybiera opakowanie po `if (onOpenProfile)` (linia 725). Funkcja
-  //   jest zawsze przekazana, wiec galaz `if (href)` (linia 737) jest
-  //   nieosiagalna. Sam handler konczy sie natychmiast na `if (!openProfile)
-  //   return;` (linia 310).
-  // KONSEKWENCJA: karta prelegenta z adresem renderuje sie jako <button>, ktory
-  //   po kliknieciu NIE ROBI NIC - odnosnik do profilu nie powstaje w ogole.
-  //   Czytelnik nie ma jak dojsc do strony prelegenta, a czytnik ekranu oglasza
-  //   aktywna kontrolke bez zadnego dzialania. Pole "Adres" w panelu jest
-  //   martwe dokladnie wtedy, gdy jest jedyna droga do profilu.
-  // WYMAGANA POPRAWKA: przekazywac `onOpenProfile` tylko gdy `openProfile` jest
-  //   wlaczone (np. `onOpenProfile={openProfile ? () => onOpenProfile(item) : undefined}`),
-  //   zeby karta z adresem spadala na galaz `if (href)` i renderowala <a>.
-  it.fails(
-    "DEFEKT: karta z adresem i WYŁĄCZONYM dialogiem powinna być odnośnikiem do profilu",
-    () => {
-      const { container } = renderSpeakers(
-        {
-          openProfile: false,
-          speakers: [speaker(1, { href: "/author/anna" })],
-        } as unknown as WidgetContent,
-        "w-href",
-      );
-      expect(container.querySelector('a[href="/author/anna"]')).not.toBeNull();
-    },
-  );
+  // WEJSCIE: widget "speakers" z `openProfile: false` i wpisem z wypełnionym
+  //   polem "Adres" (`href: "/author/anna"`), także z `user_id`.
+  // KONTRAKT: `SpeakersWidget` przekazuje karcie handler profilu tylko, gdy
+  //   dialog jest włączony I pozycja ma `user_id`. W przeciwnym razie karta
+  //   spada na gałąź `href` i renderuje <a> pod bezpieczny adres. Wcześniej
+  //   handler szedł bezwarunkowo, więc karta była <button> bez żadnego
+  //   działania, a pole "Adres" w panelu było martwe.
+  it("karta z adresem i WYŁĄCZONYM dialogiem jest odnośnikiem do profilu", () => {
+    renderSpeakers(
+      {
+        openProfile: false,
+        speakers: [speaker(1, { href: "/author/anna", user_id: "u-1" })],
+      } as unknown as WidgetContent,
+      "w-href",
+    );
+    const link = screen.getByRole("link", { name: "Speaker 1" });
+    expect(link.getAttribute("href")).toBe("/author/anna");
+    expect(screen.queryByRole("button", { name: "Speaker 1" })).toBeNull();
+    fireEvent.click(link);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("niebezpieczny adres karty (javascript:) nie staje się odnośnikiem", () => {
+    const { container } = renderSpeakers(
+      {
+        openProfile: false,
+        speakers: [speaker(1, { href: "javascript:alert(1)" })],
+      } as unknown as WidgetContent,
+      "w-href-xss",
+    );
+    expect(container.querySelector("a")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Speaker 1" })).toBeNull();
+  });
 });

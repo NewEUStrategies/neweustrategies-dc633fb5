@@ -704,6 +704,53 @@ describe("wpImportPages - nowa strona", () => {
     expect(slug).toMatchObject({ slug: "a".repeat(120) });
   });
 
+  // NAPRAWIONE 2026-10-19 (był `it.fails` w „DEFEKTY ZAREJESTROWANE"):
+  // `normalizeSlug` był DOKŁADNĄ kopią starego `slugify` importu wpisów:
+  // toLowerCase -> NFD -> usunięcie znaków łączących -> reszta na dywizy.
+  // Unicode NIE ROZKŁADA liter z kreską (ł, ø, đ, ħ), więc „ł" stawała się
+  // DYWIZEM: „Człowiek i władza" -> `cz-owiek-i-w-adza`, „Łódź" -> `odz`.
+  // Kontrakt: obie ścieżki (konektor i WXR) oraz podgląd biorą slug
+  // z `@/lib/wp-import/slug` - transliteracja przed NFD mapą wspólną
+  // z `slugifyTaxonomy`. Ten importer nie dopasowuje stron po slugu (nadpisanie
+  // tylko przez jawne `targetPageId`, które zostawia `current.slug`), więc
+  // adresy istniejących stron się nie zmieniają.
+  it("slug strony transliteruje litery z kreską tak jak slugifyTaxonomy", async () => {
+    const { wpImportPages } = await fns();
+    net.pages.set(26_000, wpPage({ ID: 26_000, slug: "Człowiek i władza" }));
+    const { stub, context } = makeClient();
+    await call(
+      wpImportPages,
+      { siteDomain: "example.com", items: [{ plId: 26_000 }], mirrorMedia: false },
+      context,
+    );
+    const payload = stub
+      .chainsFor("pages")
+      .find((c) => c.has("insert"))
+      ?.argsOf("insert")?.[0];
+    expect(payload).toMatchObject({ slug: "czlowiek-i-wladza" });
+  });
+
+  it("WXR i podgląd dają ten sam, transliterowany slug co konektor", async () => {
+    const { wpImportFromWxr, wpPreviewPage } = await fns();
+    const { stub, context } = makeClient();
+    await call(
+      wpImportFromWxr,
+      { items: [{ ...wxrItem, slug: "Łódź-Wrocław" }], mirrorMedia: false },
+      context,
+    );
+    expect(
+      stub
+        .chainsFor("pages")
+        .find((c) => c.has("insert"))
+        ?.argsOf("insert")?.[0],
+    ).toMatchObject({ slug: "lodz-wroclaw" });
+
+    net.pages.set(26_001, wpPage({ ID: 26_001, slug: "Paweł Gaweł" }));
+    expect(
+      await call(wpPreviewPage, { siteDomain: "example.com", wpId: 26_001 }, {}),
+    ).toMatchObject({ slug: "pawel-gawel" });
+  });
+
   it("slug bez ani jednego dozwolonego znaku spada do wp-page", async () => {
     const { wpImportPages } = await fns();
     net.pages.set(26, wpPage({ ID: 26, slug: "!!!" }));
@@ -1703,7 +1750,7 @@ describe("odporność na braki w danych i na wyjątki nie-Error", () => {
 
 /* ============================== DEFEKT ZAREJESTROWANY ===================== */
 
-describe("DEFEKTY ZAREJESTROWANE (it.fails) - bramka nadużycia, audyt i slug z literą ł", () => {
+describe("DEFEKTY ZAREJESTROWANE (it.fails) - bramka nadużycia i audyt", () => {
   // ZAREJESTROWANY, NIE NAPRAWIONY. Implementacja A tego samego importu
   // (`src/lib/wordpress-import.functions.ts`) ma wszystkie trzy zabezpieczenia:
   // `rateLimit({ scope: "wp.import", subjectId: userId, max: 10 })`, wiersz
@@ -1720,37 +1767,6 @@ describe("DEFEKTY ZAREJESTROWANE (it.fails) - bramka nadużycia, audyt i slug z 
   // mówią, kto i czym ją nadpisał, ani nie ograniczają częstotliwości.
   // Naprawa to zmiana produkcyjna (dodanie rateLimit + recordAudit, najlepiej
   // wspólnych z implementacją A) - poza zakresem testów.
-  // DRUGI DEFEKT, ten sam wzorzec „zarejestrowany, nie naprawiony".
-  // `normalizeSlug` (L58) to DOKŁADNA kopia starego `slugify` z implementacji A:
-  // toLowerCase -> NFD -> usunięcie znaków łączących -> reszta na dywizy.
-  // Unicode NIE ROZKŁADA liter z kreską (ł, ø, đ, ħ), więc po NFD „ł" zostaje
-  // sobą, a następny krok zamienia ją na DYWIZ. Repo ma na to gotowe lekarstwo:
-  // `replaceStrokeLetters` z `@/lib/text/strokeLetters`, wprowadzone 18.08
-  // właśnie po tym, że slug taksonomii ZJADAŁ tę literę („Łódź" -> `odz`) -
-  // patrz nagłówek `src/lib/content/taxonomySlug.ts`. Import stron WordPressa
-  // (obie ścieżki: konektor i WXR, a także slug w podglądzie `wpPreviewPage`)
-  // tej poprawki nie dostał, więc każda polska strona z „ł" w tytule dostaje
-  // slug z dywizem w środku: „Człowiek i władza" -> `cz-owiek-i-w-adza`,
-  // „Łódź" -> `odz`. To trafia do adresu URL opublikowanej strony, a po
-  // publikacji zmiana sluga to już zmiana adresu (i przekierowania).
-  // Naprawa = jedna linia w kodzie produkcyjnym (transliteracja PRZED NFD),
-  // więc świadomie nie robię jej w ramach pisania testów.
-  it.fails("normalizeSlug transliteruje litery z kreską tak jak slugifyTaxonomy", async () => {
-    const { wpImportPages } = await fns();
-    net.pages.set(26_000, wpPage({ ID: 26_000, slug: "Człowiek i władza" }));
-    const { stub, context } = makeClient();
-    await call(
-      wpImportPages,
-      { siteDomain: "example.com", items: [{ plId: 26_000 }], mirrorMedia: false },
-      context,
-    );
-    const payload = stub
-      .chainsFor("pages")
-      .find((c) => c.has("insert"))
-      ?.argsOf("insert")?.[0];
-    expect(payload).toMatchObject({ slug: "czlowiek-i-wladza" });
-  });
-
   it.fails("wpImportFromWxr jest bramkowany rate-limitem i zostawia wpis w audycie", () => {
     const src = readFileSync("src/lib/wp-import.functions.ts", "utf8");
     expect(src).toContain("rate-limit.server");

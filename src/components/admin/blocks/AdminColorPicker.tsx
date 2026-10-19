@@ -3,6 +3,10 @@
 // - HEX shown FIRST, then RGB, then HSL inputs
 // - Supports free-text tokens (var(--...), oklch(...), transparent) via passthrough
 // - Optional transparency toggle + reset to inherited/default
+//
+// Etykiety idą WYŁĄCZNIE przez słownik (`blocks.editors.adminControls.*`):
+// i18next na brakującym kluczu oddaje sam klucz (napis prawdziwy), więc
+// fallback `ac(k) || "…"` nigdy nie wchodził i redaktor widział surowe klucze.
 import { useEffect, useMemo, useState } from "react";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -132,12 +136,17 @@ export function AdminColorPicker({
   ariaLabel,
 }: AdminColorPickerProps) {
   const i18n = useBlocksI18n();
-  const ac = (k: string) => i18n.editor("adminControls", k);
+  const ac = (k: string, o?: Record<string, unknown>) => i18n.editor("adminControls", k, o);
   const v = (value ?? "").trim();
   const transparent = isTransparent(v);
   const hasOverride = v.length > 0;
   const inherited = (inheritedValue ?? "").trim();
-  const showInherited = !hasOverride && inherited.length > 0 && !isTransparent(inherited);
+  // Wartość odziedziczona, do której WARTO wrócić (przezroczystość nią nie jest).
+  const inheritedUsable = inherited.length > 0 && !isTransparent(inherited);
+  const showInherited = !hasOverride && inheritedUsable;
+  // Powrót do dziedziczenia w popoverze ma sens TYLKO przy własnym nadpisaniu -
+  // bez niego nie ma czego zdejmować (wcześniej guzik stał właśnie wtedy).
+  const showInheritReset = allowReset && hasOverride && inheritedUsable;
 
   const activeForSwatch = hasOverride ? v : inherited || "#000000";
   const hexForPicker = isHex(activeForSwatch) ? expandHex(activeForSwatch) : "#000000";
@@ -203,7 +212,7 @@ export function AdminColorPicker({
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-                    {ac("activeToken") || "Active"}
+                    {ac("activeToken")}
                   </div>
                   <div
                     className="px-2 py-1 text-[11px] font-mono rounded border truncate"
@@ -302,14 +311,15 @@ export function AdminColorPicker({
                 </div>
               </div>
 
-              {allowReset && showInherited ? (
+              {showInheritReset ? (
                 <button
                   type="button"
                   onClick={() => onChange(undefined)}
+                  title={inherited}
                   className="mt-auto w-full h-8 flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground border border-border rounded-md bg-muted/40 hover:bg-muted transition-colors"
                 >
                   <RotateCcw className="h-3 w-3" />
-                  {ac("resetInherited") || ac("resetDefault")}
+                  {ac("resetInherited")}
                 </button>
               ) : null}
             </div>
@@ -318,7 +328,7 @@ export function AdminColorPicker({
           {/* FOOTER: brand palette swatches */}
           <div className="border-t border-border bg-background px-3 py-2.5 flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
-              {ac("brandPalette") || "Paleta"}
+              {ac("brandPalette")}
             </span>
             {[
               "#FA9346",
@@ -350,7 +360,7 @@ export function AdminColorPicker({
         value={v}
         placeholder={
           showInherited
-            ? `dziedziczy: ${inherited}`
+            ? ac("inheritsPh", { value: inherited })
             : (placeholder ?? "#000 / var(--brand) / transparent")
         }
         onChange={(e) => onChange(e.target.value || undefined)}
@@ -366,6 +376,9 @@ export function AdminColorPicker({
           type="button"
           onClick={() => onChange(transparent ? undefined : "transparent")}
           aria-pressed={transparent}
+          // Nazwa dostępna z `aria-label`: treść „✓” po wciśnięciu wygrywała
+          // z `title`, więc czytnik ekranu słyszał „✓ wciśnięty” zamiast etykiety.
+          aria-label={transparent ? ac("disableTransparency") : ac("setTransparent")}
           title={transparent ? ac("disableTransparency") : ac("setTransparent")}
           className={cn(
             "h-8 w-8 shrink-0 rounded-md border text-[10px] font-medium transition",
@@ -386,7 +399,7 @@ export function AdminColorPicker({
                 }
           }
         >
-          {transparent ? "✓" : ""}
+          {transparent ? <span aria-hidden>✓</span> : null}
         </button>
       ) : null}
 

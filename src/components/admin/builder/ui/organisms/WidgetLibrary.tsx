@@ -2,6 +2,7 @@
 // plus a structure picker to add a new section, a saved-section template list
 // and the tenant's global widgets (synchronized across pages).
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   Search,
   Layers,
@@ -213,9 +214,21 @@ export function WidgetLibrary({
     g.name.toLowerCase().includes(search.toLowerCase()),
   );
 
+  // Hooki szablonów i globali zwracają wynik zapisu (odmowa bazy = false).
+  // Bez komunikatu przycisk wyglądałby na martwy, a przywrócenie wersji
+  // zamykałoby historię, jakby się udało.
   const restoreToTemplate = async (rev: TemplateRevision) => {
-    await tpl.update(rev.template_id, { section: rev.data, name: rev.name });
+    if (!(await tpl.update(rev.template_id, { section: rev.data, name: rev.name }))) {
+      toast.error(wl("restoreFailed"));
+      return;
+    }
     setHistoryOf(null);
+  };
+  const removeTemplate = async (id: string) => {
+    if (!(await tpl.remove(id))) toast.error(wl("deleteTemplateFailed"));
+  };
+  const removeGlobal = async (id: string) => {
+    if (!(await globals.remove(id))) toast.error(wl("deleteGlobalFailed"));
   };
   const insertRevision = (rev: TemplateRevision) => {
     onPickTemplate({
@@ -377,7 +390,16 @@ export function WidgetLibrary({
             {tpl.loading && <span className="text-[10px] normal-case">…</span>}
           </button>
           {!collapsed.__tpl &&
-            (tpl.items.length === 0 ? (
+            (tpl.error ? (
+              // Odmowa odczytu to NIE pusta biblioteka - inaczej redaktor
+              // uznałby, że jego szablony zniknęły.
+              <div
+                role="alert"
+                className="text-[10px] text-destructive px-2 py-3 border border-dashed border-destructive/40 rounded"
+              >
+                {wl("templatesLoadError")}
+              </div>
+            ) : tpl.items.length === 0 ? (
               <div className="text-[10px] text-muted-foreground px-2 py-3 border border-dashed border-border rounded">
                 {wl("templatesEmpty")}
               </div>
@@ -405,7 +427,7 @@ export function WidgetLibrary({
                       title={wl("deleteTemplate")}
                       onClick={() => {
                         if (confirm(wl("confirmDeleteTemplate", { name: t.name })))
-                          void tpl.remove(t.id);
+                          void removeTemplate(t.id);
                       }}
                       className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/tpl:opacity-100 transition"
                     >
@@ -469,7 +491,7 @@ export function WidgetLibrary({
                         title={wl("deleteGlobal")}
                         onClick={() => {
                           if (confirm(wl("confirmDeleteGlobal", { name: g.name })))
-                            void globals.remove(g.id);
+                            void removeGlobal(g.id);
                         }}
                         className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/gw:opacity-100 transition"
                       >

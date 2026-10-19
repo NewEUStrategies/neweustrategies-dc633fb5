@@ -3,6 +3,7 @@ import {
   BLOCK_VARIANTS,
   BLOCK_PALETTE_KEYS,
   BLOCK_PALETTE_VAR,
+  blockPaletteVar,
   getBlockVariants,
   hasBlockPalette,
   type BlockVariantOption,
@@ -48,18 +49,14 @@ describe("getBlockVariants", () => {
     },
   );
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony). `BLOCK_VARIANTS` jest
-  // literałem obiektu, więc `BLOCK_VARIANTS[type] ?? null` czyta przez ŁAŃCUCH
-  // PROTOTYPÓW: dla `type === "constructor"` operator `??` widzi funkcję
-  // `Object`, a nie `undefined`, i zwraca ją zamiast `null`. Kontrakt w
-  // komentarzu nad katalogiem („Blok bez wpisu = brak toolbara wariantów")
-  // jest wtedy złamany, a toolbar dostaje wartość, na której `.map` wywala
-  // render. Z kodu typowanego to nieosiągalne (`Block["type"]` jest unią
-  // literałów), ale `getBlockVariants` przyjmuje `string`, a dokumenty
-  // wchodzą też z bazy. Naprawa to `Object.hasOwn(BLOCK_VARIANTS, type)` albo
-  // `Map` - poza zakresem zadania pokryciowego, więc test STOI jako dowód.
-  it.fails.each(["constructor", "toString", "valueOf", "hasOwnProperty"])(
-    "POWINNO zwracać null dla klucza z prototypu Object: %s",
+  // NAPRAWIONE 2026-10-18 (był `it.fails`). `BLOCK_VARIANTS[type] ?? null`
+  // czytało przez ŁAŃCUCH PROTOTYPÓW: dla `type === "constructor"` operator
+  // `??` widział funkcję `Object`, a nie `undefined`, i toolbar dostawał
+  // wartość, na której `.map` wywracał render. `getBlockVariants` przyjmuje
+  // `string`, a typ bloku przychodzi też z bazy. Kontrakt: tylko własne klucze
+  // katalogu dają listę, każdy inny klucz - `null` („brak toolbara wariantów").
+  it.each(["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"])(
+    "zwraca null dla klucza z prototypu Object: %s",
     (type) => {
       expect(getBlockVariants(type)).toBeNull();
     },
@@ -87,4 +84,15 @@ describe("BLOCK_PALETTE_KEYS / BLOCK_PALETTE_VAR", () => {
   it("nie ma zmiennej CSS bez odpowiadającego tokenu (i odwrotnie)", () => {
     expect(Object.keys(BLOCK_PALETTE_VAR).sort()).toEqual([...BLOCK_PALETTE_KEYS].sort());
   });
+
+  it.each([...BLOCK_PALETTE_KEYS])("blockPaletteVar(%s) oddaje token katalogu", (key) => {
+    expect(blockPaletteVar(key)).toBe(BLOCK_PALETTE_VAR[key]);
+  });
+
+  it.each(["constructor", "toString", "__proto__", "hasOwnProperty", "fiolet", ""])(
+    "klucz spoza katalogu (także z prototypu: %s) daje akcent neutralny, nie tekst funkcji",
+    (key) => {
+      expect(blockPaletteVar(key)).toBe(BLOCK_PALETTE_VAR.neutral);
+    },
+  );
 });

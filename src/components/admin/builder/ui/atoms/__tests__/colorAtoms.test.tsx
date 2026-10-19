@@ -56,7 +56,10 @@ describe("ColorField", () => {
 
   it("bez nadpisania podpowiada wartość dziedziczoną", () => {
     render(<ColorField value={undefined} onChange={vi.fn()} inheritedValue="#01112f" />);
-    expect(tokenInput().placeholder).toBe("dziedziczy: #01112f");
+    // Podpowiedź idzie przez słownik (`adminControls.inheritsPh`), a nie przez
+    // zaszyty polski napis - atrapa i18n pokazuje klucz z parametrem. Brzmienie
+    // PL/EN na prawdziwym słowniku sprawdza `adminColorPicker.test.tsx`.
+    expect(tokenInput().placeholder).toBe("blocks.editors.adminControls.inheritsPh(value=#01112f)");
   });
 
   it("własny placeholder wygrywa, gdy nie ma dziedziczenia", () => {

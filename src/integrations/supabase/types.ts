@@ -1260,6 +1260,7 @@ export type Database = {
           experiment_id: string
           id: string
           path: string | null
+          tenant_id: string
           variant: Database["public"]["Enums"]["builder_ab_variant"]
           visitor_id: string
         }
@@ -1269,6 +1270,7 @@ export type Database = {
           experiment_id: string
           id?: string
           path?: string | null
+          tenant_id: string
           variant: Database["public"]["Enums"]["builder_ab_variant"]
           visitor_id: string
         }
@@ -1278,6 +1280,7 @@ export type Database = {
           experiment_id?: string
           id?: string
           path?: string | null
+          tenant_id?: string
           variant?: Database["public"]["Enums"]["builder_ab_variant"]
           visitor_id?: string
         }
@@ -1287,6 +1290,13 @@ export type Database = {
             columns: ["experiment_id"]
             isOneToOne: false
             referencedRelation: "builder_experiments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_experiment_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]

@@ -500,7 +500,10 @@ export function BlockCanvas({
                   total={blocks.length}
                   active={b.id === activeId}
                   selected={selectedSet.has(b.id)}
-                  typeLabel={BLOCK_SPECS[b.type]?.label ?? b.type}
+                  // Nazwa typu przez słownik (jak lista dokumentu i inserter) -
+                  // `spec.label` z rejestru jest wyłącznie polski. Typ spoza
+                  // rejestru zostaje surową nazwą, po której redaktor zgłosi problem.
+                  typeLabel={BLOCK_SPECS[b.type] ? t(`blocks.types.${b.type}`) : b.type}
                   typeIcon={BLOCK_SPECS[b.type]?.icon}
                   onSelect={(e) => handleBlockClick(b.id, e)}
                   onMove={(dir) => move(idx, dir)}

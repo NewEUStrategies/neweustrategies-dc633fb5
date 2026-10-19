@@ -1403,6 +1403,19 @@ const pl = {
         legend: "Legenda",
         animate: "Animacja wejścia",
         subtitle: "Opis (podtytuł)",
+        // Opcje list wyboru wspólne dla edytorów (rozmiar, wyrównanie, styl,
+        // układ) - wcześniej wpisane w kod po angielsku także w panelu PL.
+        sizeSm: "Mały",
+        sizeMd: "Średni",
+        sizeLg: "Duży",
+        alignLeft: "Do lewej",
+        alignCenter: "Do środka",
+        alignRight: "Do prawej",
+        styleSolid: "Wypełniony",
+        styleOutline: "Obrys",
+        styleGhost: "Przezroczysty",
+        layoutList: "Lista",
+        layoutGrid: "Siatka",
       },
       chart: {
         shellLabel: "Wykres",
@@ -1825,10 +1838,38 @@ const pl = {
       buttons: {
         shellLabel: "Przyciski",
         add: "Dodaj",
+        // Etykieta przycisku dopisanego przez „Dodaj" to TREŚĆ dokumentu (rysuje
+        // ją strona), więc edytor czyta ją w języku DOKUMENTU (`lng`), nie panelu.
+        newLabel: "Przycisk",
       },
       button: {
         labelPh: "Etykieta…",
         hint: "- link i wariant w panelu po prawej",
+      },
+      socialIcons: {
+        shellLabel: "Ikony społecznościowe",
+        add: "Dodaj",
+      },
+      latestPosts: {
+        shellLabel: "Najnowsze wpisy",
+        categoryPh: "Slug kategorii (opcjonalnie)",
+        showImage: "Miniatura",
+        showExcerpt: "Zajawka",
+      },
+      poll: {
+        shellLabel: "Ankieta",
+        choose: "- wybierz ankietę -",
+        statusDraft: "szkic",
+        statusOpen: "otwarta",
+        statusClosed: "zamknięta",
+        loading: "Wczytywanie ankiet...",
+        empty: "Brak ankiet - utwórz je w Społeczność > Ankiety.",
+        draftHint: "To szkic: publicznie pojawi się dopiero po otwarciu ankiety.",
+        loadError: "Nie udało się wczytać ankiet - odśwież stronę albo spróbuj ponownie później.",
+        missing: "Wybrana ankieta już nie istnieje - blok nie wyrenderuje się publicznie.",
+      },
+      audio: {
+        urlPh: "URL pliku audio (mp3, ogg, wav)…",
       },
       linkPreview: {
         shellLabel: "Podgląd linku",
@@ -1859,6 +1900,10 @@ const pl = {
         disableTransparency: "Wyłącz przezroczystość",
         setTransparent: "Ustaw przezroczyste",
         resetDefault: "Przywróć domyślny",
+        resetInherited: "Wróć do wartości dziedziczonej",
+        activeToken: "Aktywny",
+        brandPalette: "Paleta marki",
+        inheritsPh: "dziedziczy: {{value}}",
       },
       postContextBlocks: {
         none: "brak",
@@ -2074,6 +2119,9 @@ const pl = {
         url: "URL pliku (PDF, ZIP, DOCX…)",
         showButton: 'Pokaż przycisk „Pobierz"',
       },
+      html: {
+        emptyHint: 'Pusty blok HTML - edytuj surowy HTML w panelu „Blok" po prawej.',
+      },
       group: {
         childCount: "{{count}} blok(i)",
         background: "Kolor tła (np. #f4f4f5)",
@@ -2100,6 +2148,7 @@ const pl = {
         add: "Dodaj",
       },
       review: {
+        shellLabel: "Recenzja",
         title: "Tytuł recenzji",
         summary: "Podsumowanie / werdykt",
         criteriaScale: "Kryteria (skala 0-{{scale}})",
@@ -2289,6 +2338,19 @@ const pl = {
       sourceLabel: "Nazwa źródła (np. autor, agencja)",
       sourceUrl: "URL źródła (opcjonalny)",
       next: "Dalej",
+      // Sterowanie odtwarzaniem (MediaWidgetToolbar) i formatowanie znaków
+      // (WordStyleToolbar) stały na angielskich napisach w kodzie - w polskim
+      // panelu czytnik ekranu czytał „Autoplay", „Bold (⌘B)". Skrót klawiszowy
+      // dokleja kod, więc te same liście służą paskom bez skrótu.
+      autoplay: "Autoodtwarzanie",
+      loop: "Zapętlenie",
+      mute: "Wycisz",
+      unmute: "Włącz dźwięk",
+      underline: "Podkreślenie",
+      strike: "Przekreślenie",
+      subscript: "Indeks dolny",
+      superscript: "Indeks górny",
+      inlineCode: "Kod",
     },
     // Rdzeń blocks.actions (up, down, duplicate, remove, drag, undo, redo) żyje
     // w src/lib/locale/*.ts - dokładamy wyłącznie brakujące liście, a rejestracja
@@ -2355,6 +2417,17 @@ const en: typeof pl = {
         legend: "Legend",
         animate: "Entry animation",
         subtitle: "Description (subtitle)",
+        sizeSm: "Small",
+        sizeMd: "Medium",
+        sizeLg: "Large",
+        alignLeft: "Left",
+        alignCenter: "Center",
+        alignRight: "Right",
+        styleSolid: "Solid",
+        styleOutline: "Outline",
+        styleGhost: "Ghost",
+        layoutList: "List",
+        layoutGrid: "Grid",
       },
       chart: {
         shellLabel: "Chart",
@@ -2762,10 +2835,36 @@ const en: typeof pl = {
       buttons: {
         shellLabel: "Buttons",
         add: "Add",
+        newLabel: "Button",
       },
       button: {
         labelPh: "Label…",
         hint: "- link and variant in the right panel",
+      },
+      socialIcons: {
+        shellLabel: "Social icons",
+        add: "Add",
+      },
+      latestPosts: {
+        shellLabel: "Latest posts",
+        categoryPh: "Category slug (optional)",
+        showImage: "Thumbnail",
+        showExcerpt: "Excerpt",
+      },
+      poll: {
+        shellLabel: "Poll",
+        choose: "- choose a poll -",
+        statusDraft: "draft",
+        statusOpen: "open",
+        statusClosed: "closed",
+        loading: "Loading polls...",
+        empty: "No polls - create them in Community > Polls.",
+        draftHint: "This is a draft: it will appear publicly only after the poll is opened.",
+        loadError: "Could not load polls - refresh the page or try again later.",
+        missing: "The selected poll no longer exists - the block will not render publicly.",
+      },
+      audio: {
+        urlPh: "Audio file URL (mp3, ogg, wav)…",
       },
       linkPreview: {
         shellLabel: "Link preview",
@@ -2796,6 +2895,10 @@ const en: typeof pl = {
         disableTransparency: "Disable transparency",
         setTransparent: "Set transparent",
         resetDefault: "Reset to default",
+        resetInherited: "Back to the inherited value",
+        activeToken: "Active",
+        brandPalette: "Brand palette",
+        inheritsPh: "inherits: {{value}}",
       },
       postContextBlocks: {
         none: "none",
@@ -3007,6 +3110,9 @@ const en: typeof pl = {
         url: "File URL (PDF, ZIP, DOCX…)",
         showButton: 'Show the "Download" button',
       },
+      html: {
+        emptyHint: 'Empty HTML block - edit the raw HTML in the "Block" panel on the right.',
+      },
       group: {
         childCount: "{{count}} block(s)",
         background: "Background color (e.g. #f4f4f5)",
@@ -3033,6 +3139,7 @@ const en: typeof pl = {
         add: "Add",
       },
       review: {
+        shellLabel: "Review box",
         title: "Review title",
         summary: "Summary / verdict",
         criteriaScale: "Criteria (scale 0-{{scale}})",
@@ -3217,6 +3324,15 @@ const en: typeof pl = {
       sourceLabel: "Source name (e.g. author, agency)",
       sourceUrl: "Source URL (optional)",
       next: "Next",
+      autoplay: "Autoplay",
+      loop: "Loop",
+      mute: "Mute",
+      unmute: "Unmute",
+      underline: "Underline",
+      strike: "Strikethrough",
+      subscript: "Subscript",
+      superscript: "Superscript",
+      inlineCode: "Code",
     },
     actions: {
       preview: "View preview",

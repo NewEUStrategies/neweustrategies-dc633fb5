@@ -54,14 +54,15 @@ import {
   Target,
   ExternalLink,
 } from "@/lib/lucide-shim";
-import { getBool, getNum, getStr, type Lang } from "./frame";
+import { getBool, getStr, type Lang } from "./frame";
 import {
-  TEAM_GRID_DEFAULT_RADIUS,
   TEAM_GRID_SOCIAL_LABEL,
+  teamGridColumns,
   teamGridColumnsClass,
   teamGridHeader,
   teamGridInitials,
   teamGridMembers,
+  teamGridRadius,
   type TeamGridMember,
   type TeamGridSocialKey,
 } from "@/lib/builder/teamGrid";
@@ -118,11 +119,10 @@ export function TeamMemberGridWidget({
   // bramka wierności widzi je w każdej próbce i żadne nie wygląda na martwe
   // tylko dlatego, że świeży widget nie ma jeszcze nikogo w zespole.
   const { badge, heading, intro } = teamGridHeader(c, lang);
-  const columns = Math.min(4, Math.max(2, Math.round(getNum(c, "columns", 3))));
-  const radius = Math.min(
-    48,
-    Math.max(0, Math.round(getNum(c, "radius", TEAM_GRID_DEFAULT_RADIUS))),
-  );
+  // Kolumny i zaokrąglenie z modelu - te same funkcje czyta panel, więc
+  // edytor pokazuje dokładnie to, co rysuje siatka.
+  const columns = teamGridColumns(c);
+  const radius = teamGridRadius(c);
   const accent = getStr(c, "accentColor") || "var(--brand)";
   const grayscale = getBool(c, "grayscale", true);
   const openPopup = getBool(c, "openPopup", true);

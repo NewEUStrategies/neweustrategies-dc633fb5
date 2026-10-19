@@ -63,6 +63,11 @@ export function ColumnProperties({
 
   const currentSpan = column.span?.[device] ?? column.span?.desktop ?? 12;
 
+  // Kolor kolumny renderer czyta przez `pickMode` BEZ odwracania (`columnColor`
+  // w `BuilderRenderer`): płaska wartość obowiązuje w obu trybach. Dlatego
+  // kolumna zostaje przy ogólnym `setMode` - edycja jasnego stempluje ciemny
+  // jego dotychczasową wartością i wygląd ciemnego trybu się nie zmienia.
+  // Rodzina `*Invertible*` jest dla ramki widgetu, która płaską odwraca.
   type ColorKey = "bgColor" | "textColor";
   const getColor = (key: ColorKey): string | undefined =>
     pickMode<string>(column.style?.[key] as Themed<string> | undefined, mode);

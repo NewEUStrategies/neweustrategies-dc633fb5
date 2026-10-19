@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { hardenStyleCss } from "@/lib/sanitize";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { asOneOf } from "@/lib/content-model/contentValue";
 
 export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline" | "hover-allsides";
 
@@ -74,6 +75,26 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "hover-allsides-7", label: "Allsides: dół + prawo" },
   { value: "hover-allsides-8", label: "Allsides: rogi-segmenty" },
 ];
+
+const ANIMATED_SHAPE_VALUES: readonly AnimatedHeadingShape[] = ANIMATED_SHAPES.map((s) => s.value);
+
+/**
+ * Kształt do narysowania z zapisu treści. `shape` przychodzi z JSON-a (starsze
+ * rewizje, import, szablony), więc bywa napisem spoza katalogu albo nie-napisem
+ * - `switch` w `ShapeSvg` nie rysował wtedy niczego, a panel nie zaznaczał
+ * żadnego kafelka. Spoza katalogu = kształt domyślny trybu, ten sam, który panel
+ * wstawia przy przełączeniu trybu (pierwszy z rodziny hover, inaczej
+ * podkreślenie). Wspólne dla renderera i panelu: panel pokazuje, co narysuje strona.
+ */
+export function resolveAnimatedHeadingShape(shape: unknown, mode: unknown): AnimatedHeadingShape {
+  const fallback: AnimatedHeadingShape =
+    mode === "hover-underline"
+      ? "hover-line-1"
+      : mode === "hover-allsides"
+        ? "hover-allsides-1"
+        : "underline";
+  return asOneOf(shape, ANIMATED_SHAPE_VALUES, fallback);
+}
 
 const HOVER_LINE_CSS = `
 .ah-hu { display: inline-block; padding-bottom: 1px; cursor: pointer; }
@@ -698,7 +719,7 @@ export function AnimatedHeadingRender({
   preview?: boolean;
 }) {
   const mode = config.mode ?? "highlight";
-  const shape = config.shape ?? "underline";
+  const shape = resolveAnimatedHeadingShape(config.shape, mode);
   const Tag = (config.tag ?? "h2") as React.ElementType;
   const align = config.align ?? "left";
 
@@ -775,22 +796,21 @@ export function AnimatedHeadingRender({
       ? `ah-as allsides-${shape.slice("hover-allsides-".length)}`
       : "";
 
-  // Inject hover CSS once to document head (avoids invalid <style> inside <h*> which breaks hydration).
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (isHoverLine && !document.getElementById("ah-hu-css")) {
-      const el = document.createElement("style");
-      el.id = "ah-hu-css";
-      el.textContent = HOVER_LINE_CSS;
-      document.head.appendChild(el);
-    }
-    if (isHoverAllsides && !document.getElementById("ah-as-css")) {
-      const el = document.createElement("style");
-      el.id = "ah-as-css";
-      el.textContent = HOVER_ALLSIDES_CSS;
-      document.head.appendChild(el);
-    }
-  }, [isHoverLine, isHoverAllsides]);
+  // Arkusz efektu hover jako ZASÓB React 19 (`<style href precedence>`), jak
+  // `nes-slider-shared-v1` slidera: React hoistuje go do `<head>` razem z HTML-em
+  // serwera, raz na dokument. Wstrzykiwany dawniej w `useEffect` przychodził
+  // dopiero po hydratacji, a klasa `ah-as` (padding 8px) stała w znacznikach od
+  // początku - nagłówek rósł o 16px po załadowaniu (CLS w obszarze
+  // content-visibility, test boot-home). Zasób nie ląduje wewnątrz `<h*>`.
+  const hoverSheet = isHoverLine ? (
+    <style href="ah-hover-line-v1" precedence="builder">
+      {HOVER_LINE_CSS}
+    </style>
+  ) : isHoverAllsides ? (
+    <style href="ah-hover-allsides-v1" precedence="builder">
+      {HOVER_ALLSIDES_CSS}
+    </style>
+  ) : null;
 
   const whole = config.linkWhole;
   const segment = (link: AnimatedHeadingLink | undefined) => (whole?.href ? undefined : link);
@@ -843,21 +863,24 @@ export function AnimatedHeadingRender({
   );
 
   return (
-    <Tag
-      data-title-root
-      data-typography-role="title"
-      className="font-display text-3xl md:text-4xl leading-tight"
-      style={{
-        color,
-        textAlign: align,
-        margin: 0,
-        paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
-        paddingTop: needsFrame ? "0.15em" : undefined,
-      }}
-    >
-      <SegmentLink link={whole} preview={preview}>
-        {body}
-      </SegmentLink>
-    </Tag>
+    <>
+      {hoverSheet}
+      <Tag
+        data-title-root
+        data-typography-role="title"
+        className="font-display text-3xl md:text-4xl leading-tight"
+        style={{
+          color,
+          textAlign: align,
+          margin: 0,
+          paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
+          paddingTop: needsFrame ? "0.15em" : undefined,
+        }}
+      >
+        <SegmentLink link={whole} preview={preview}>
+          {body}
+        </SegmentLink>
+      </Tag>
+    </>
   );
 }

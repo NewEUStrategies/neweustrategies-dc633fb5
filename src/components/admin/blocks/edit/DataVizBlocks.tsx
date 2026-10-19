@@ -68,6 +68,7 @@ import {
   FieldGroup,
   inputCls,
   NotesFields,
+  parseDecimal,
   ProvenanceSelect,
   readDecimal,
   readText,
@@ -185,8 +186,16 @@ export function ChartBlock({ block, onChange }: Props) {
   // pokazuje się tak, jak narysuje go parser.
   const grid = useMemo(() => readBlockGrid(block.data), [block.data]);
   const categories = grid.model.categories;
-  const kind = String(block.data.variant ?? block.data.kind ?? "bar");
   const previewConfig = useMemo(() => parseChartConfig(block.data), [block.data]);
+  // Rodzaj, wysokość i wygładzenie czyta PARSER - ten sam, który rysuje
+  // podgląd i stronę publiczną - więc pole pokazuje to, co narysuje wykres.
+  // Wcześniej forma czytała surowe klucze: `variant` wygrywał zawsze (a parser
+  // bierze go tylko wtedy, gdy jest znanym rodzajem), więc pierścień
+  // z odziedziczonym `variant: "minimal"` stał w liście jako „Kolumny" i tracił
+  // ostrzeżenia tarczy; wysokość „wysoko" pokazywała „NaNpx", a 99 999 -
+  // liczbę, której strona nigdy nie użyje (parser ścina do 160-640).
+  const kind = previewConfig.kind;
+  const height = previewConfig.height;
   // `keyPrefix` haka, nie sklejanie szablonem - inaczej bramka rozjazdu
   // kod<->słownik nie sprawdzi tych kluczy wcale.
   const { t: ct, i18n } = useTranslation("translation", { keyPrefix: "charts" });
@@ -215,20 +224,18 @@ export function ChartBlock({ block, onChange }: Props) {
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
 
-  const smoothing =
-    typeof block.data.smoothing === "number"
-      ? Math.max(0, Math.min(1, block.data.smoothing))
-      : 0.55;
+  const smoothing = previewConfig.smoothing;
+  const forecastIndex = readDecimal(block.data.forecastFrom);
 
-  const metricRaw = (block.data.metric ?? {}) as Record<string, Json>;
+  const metricRaw = asRecord(block.data.metric);
   const metric = {
-    name: String(metricRaw.name ?? ""),
-    expansion: String(metricRaw.expansion ?? ""),
-    formula: String(metricRaw.formula ?? ""),
-    measures: String(metricRaw.measures ?? ""),
-    reading: String(metricRaw.reading ?? ""),
-    levers: String(metricRaw.levers ?? ""),
-    caution: String(metricRaw.caution ?? ""),
+    name: readText(metricRaw.name),
+    expansion: readText(metricRaw.expansion),
+    formula: readText(metricRaw.formula),
+    measures: readText(metricRaw.measures),
+    reading: readText(metricRaw.reading),
+    levers: readText(metricRaw.levers),
+    caution: readText(metricRaw.caution),
   };
   const patchMetric = (next: Partial<typeof metric>) =>
     patch({ metric: toJson({ ...metric, ...next }) });
@@ -366,7 +373,7 @@ export function ChartBlock({ block, onChange }: Props) {
         </AdminSelect>
         <input
           className={inputCls}
-          value={String(block.data.unit ?? "")}
+          value={readText(block.data.unit)}
           placeholder={bt.editor("chart", "unit")}
           onChange={(e) => patch({ unit: e.target.value })}
         />
@@ -374,13 +381,13 @@ export function ChartBlock({ block, onChange }: Props) {
 
       <input
         className={inputCls}
-        value={String(block.data.title ?? "")}
+        value={readText(block.data.title)}
         placeholder={bt.editor("chart", "title")}
         onChange={(e) => patch({ title: e.target.value })}
       />
       <input
         className={inputCls}
-        value={String(block.data.description ?? "")}
+        value={readText(block.data.description)}
         placeholder={bt.editor("common", "subtitle")}
         onChange={(e) => patch({ description: e.target.value })}
       />
@@ -479,12 +486,12 @@ export function ChartBlock({ block, onChange }: Props) {
           min={CHART_HEIGHT_MIN}
           max={CHART_HEIGHT_MAX}
           step={10}
-          value={Number(block.data.height ?? 320)}
+          value={height}
           onChange={(e) => patch({ height: Number(e.target.value) })}
           aria-label={bt.editor("chart", "height")}
         />
         <span className="text-xs tabular-nums text-muted-foreground w-14 text-right">
-          {Number(block.data.height ?? 320)}px
+          {height}px
         </span>
       </div>
       {/* ---- PODPIS UCZCIWOŚCIOWY ----
@@ -494,7 +501,7 @@ export function ChartBlock({ block, onChange }: Props) {
       <FieldGroup label={bt.editor("chart", "honestyLabel")}>
         <input
           className={inputCls}
-          value={String(block.data.source ?? "")}
+          value={readText(block.data.source)}
           placeholder={bt.editor("chart", "source")}
           onChange={(e) => patch({ source: e.target.value })}
         />
@@ -632,30 +639,26 @@ export function ChartBlock({ block, onChange }: Props) {
               Zamiana strony zapisu na liczenie od jednej byłaby gorsza:
               przeniosłaby korektę o jeden do silnika, czyli do kodu, który
               indeksuje tablice. */}
+          {/* Odczyt tą samą koercją co parser: indeks zapisany napisem
+              liczbowym („1") wykres rysuje, więc pole nie może stać puste. */}
           <input
             className={inputCls}
             inputMode="numeric"
-            value={
-              typeof block.data.forecastFrom === "number" ? String(block.data.forecastFrom + 1) : ""
-            }
+            value={forecastIndex === null ? "" : String(Math.round(forecastIndex) + 1)}
             placeholder={bt.editor("chart", "forecastFrom")}
             onChange={(e) => {
-              const raw = e.target.value.trim();
-              const numer = Number(raw);
-              patch({
-                forecastFrom: raw === "" || !Number.isFinite(numer) ? null : Math.round(numer) - 1,
-              });
+              const numer = parseDecimal(e.target.value);
+              patch({ forecastFrom: numer === null ? null : Math.round(numer) - 1 });
             }}
           />
-          <input
-            className={inputCls}
-            inputMode="numeric"
-            value={block.data.forecastBandPct == null ? "" : String(block.data.forecastBandPct)}
+          {/* Pole ze szkicem (`DecimalInput`), nie `Number(wpis)`: „7,5" albo
+              literówka zapisywały `NaN` (pole pokazywało „NaN", a JSON
+              utrwalał `null`, czyli pasmo zero). Przecinek dziesiętny jest
+              liczbą, śmieć i pustka zapisują 0 - tyle narysuje parser. */}
+          <DecimalInput
+            value={readDecimal(block.data.forecastBandPct)}
             placeholder={bt.editor("chart", "forecastBandPct")}
-            onChange={(e) => {
-              const raw = e.target.value.trim();
-              patch({ forecastBandPct: raw === "" ? 0 : Number(raw) });
-            }}
+            onCommit={(v) => patch({ forecastBandPct: v ?? 0 })}
           />
         </div>
         <p className="text-[10px] text-muted-foreground">

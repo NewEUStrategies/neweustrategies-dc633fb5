@@ -6,6 +6,8 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 import { useQuery } from "@tanstack/react-query";
 import { AngleChevron } from "./sectionLabelVariants";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { buildImageSrcSet, buildTransformedImageUrl, renderedMediaUrl } from "@/lib/cropSizes";
 import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
@@ -338,6 +340,19 @@ const truncate = (s: string, max: number) =>
  * (arkusz wspólny) i przesunięcia toru (`MultiCardVariant`). */
 const MULTI_CARD_GAP_PX = 16;
 
+/** Przesunięcie toru multi-card: krok = szerokość karty + odstęp, czyli
+ *  (100% + odstęp) / kolumny, plus bieżący gest. Jedno źródło dla renderu
+ *  (gest 0) i zapisu w trakcie przeciągania (`paintDrag`). */
+function multiCardTrackTransform(idx: number, dragDx: number): string {
+  return `translateX(calc(${-idx} * (100% + ${MULTI_CARD_GAP_PX}px) / var(--eh-visible-columns) + ${dragDx}px))`;
+}
+
+/** Warstwa obrazów kadru podąża za palcem z 35% ruchu; w spoczynku - bez
+ *  transformacji (pusty napis zdejmuje deklarację inline). */
+function dragLayerTransform(dragDx: number): string {
+  return dragDx ? `translate3d(${dragDx * 0.35}px, 0, 0)` : "";
+}
+
 // DIETA ZNACZNIKÓW (P2.6, HW-6). Dwie deklaracje, które każdy slajd niósł
 // dotąd w `style=""`, żyją tu - w arkuszu wysyłanym RAZ na dokument:
 //  * przejście obrazu `[data-fill-image]` - ta sama deklaracja co dawny inline
@@ -420,8 +435,10 @@ const SHARED_STYLES = /* @nes-static-css */ `
 /* Cover image toggle: hide media on all variants, keep overlay text + author. */
 .eh-slider[data-hide-cover="true"] .eh-img,
 .eh-slider[data-hide-cover="true"] .eh-hover-zoom,
-.eh-slider[data-hide-cover="true"] .eh-card-media img { visibility: hidden; }
-.eh-slider[data-hide-cover="true"] .eh-card-media { background: hsl(var(--muted)); }
+.eh-slider[data-hide-cover="true"] .eh-card-media img,
+.eh-slider[data-hide-cover="true"] [data-thumb-strip] img { visibility: hidden; }
+.eh-slider[data-hide-cover="true"] .eh-card-media,
+.eh-slider[data-hide-cover="true"] [data-thumb-strip] button { background: hsl(var(--muted)); }
 
 /* Side arrow buttons - base (position + transitions). Visual style comes from
    .eh-nav-<variant> modifier + inline CSS vars (--nav-bg / --nav-arrow / --nav-size / --nav-radius). */
@@ -770,7 +787,9 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   // przychodzi z trzech niezależnych źródeł (panel, defaulty palety, starsze
   // rewizje dokumentów), więc "3" musi znaczyć 3, a "0" musi znaczyć fałsz.
   const variant = asOneOf(config.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
-  const ratio = asOneOf(config.ratio, SLIDER_RATIOS, "4/3");
+  // Ta sama wartość domyślna co panel (`SliderEditor`) i oba miejsca wywołania
+  // (`SimpleWidgets`, `PostsSliderWidget`): zaznaczone w panelu = narysowane.
+  const ratio = asOneOf(config.ratio, SLIDER_RATIOS, "16/9");
   const autoplay = asBool(config.autoplay, carouselG.autoplay);
   const intervalMs = Math.max(1500, asNum(config.intervalMs, carouselG.intervalMs));
   const pauseOnHover = asBool(config.pauseOnHover, carouselG.pauseOnHover);
@@ -937,7 +956,12 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     pointerId: -1,
     active: false,
   });
-  const [dragDx, setDragDx] = useState(0);
+  // Element, który podąża za palcem: warstwa obrazów kadru albo tor kart.
+  // Przesunięcie gestu NIE jest stanem Reacta - `setState` na każdym
+  // `pointermove` przebudowywał całe drzewo wariantu (wszystkie slajdy i
+  // karty, arkusz instancji) z częstotliwością wskaźnika. Ruch pisze wprost
+  // w styl tego elementu; render zostaje na początku i końcu gestu.
+  const dragLayerRef = useRef<HTMLDivElement | null>(null);
   const [, force] = useState(0);
 
   // Hooks nawigacji PRZED wczesnym returnem pustego slidera - React wymaga
@@ -950,7 +974,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
         className="w-full flex items-center justify-center bg-muted/40 border border-dashed border-border text-xs text-muted-foreground"
         style={{ aspectRatio: ratio.replace("/", " / "), borderRadius: rounded }}
       >
-        Dodaj obrazki do slidera
+        {lang === "en" ? "Add images to the slider" : "Dodaj obrazki do slidera"}
       </div>
     );
   }
@@ -964,6 +988,15 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     minHeight: 0,
   };
   const SWIPE_THRESHOLD = 48;
+  // Render rysuje warstwę zawsze z gestem 0, a React dotyka DOM-u tylko przy
+  // zmianie propsu - koniec gestu poniżej progu (albo anulowanie) nie zmienia
+  // niczego w renderze, więc pozycję spoczynku przywraca `paintDrag(0)`.
+  const paintDrag = (dx: number) => {
+    const layer = dragLayerRef.current;
+    if (!layer) return;
+    layer.style.transform =
+      variant === "multi-card" ? multiCardTrackTransform(safeIdx, dx) : dragLayerTransform(dx);
+  };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (preview || items.length < 2) return;
@@ -987,14 +1020,16 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
         /* noop */
       }
     }
-    setDragDx(dx);
+    paintDrag(dx);
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (!d.active || e.pointerId !== d.pointerId) return;
     const dx = d.lastX - d.startX;
     dragRef.current = { ...d, active: false };
-    setDragDx(0);
+    // Ten sam takt co render zdejmujący `is-dragging`: przeglądarka widzi
+    // przesunięcie -> spoczynek (albo nowy slajd) z przywróconym przejściem.
+    paintDrag(0);
     force((n) => n + 1);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -1068,7 +1103,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     fallbackImages,
     markImageFailed,
     dragRef,
-    dragDx,
+    dragLayerRef,
     onPointerDown,
     onPointerMove,
     endDrag,
@@ -1139,7 +1174,9 @@ type VariantProps = {
     pointerId: number;
     active: boolean;
   }>;
-  dragDx: number;
+  /** Element podążający za palcem (warstwa kadru albo tor kart) - gest pisze
+   *  w jego styl z pominięciem Reacta, render daje mu pozycję spoczynku. */
+  dragLayerRef: React.RefObject<HTMLDivElement | null>;
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
   endDrag: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -1166,9 +1203,22 @@ function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
     title: truncate(rawTitle, TITLE_MAX),
     sub: truncate(rawSub, EXCERPT_MAX),
     cat,
-    href: safeUrl(asStr(it.href)) || undefined,
+    // Wartość zastępcza "" (nie domyślne "#"): brak bezpiecznego adresu ma
+    // znaczyć brak odnośnika, a nie `<a href="#">` i przystanek fokusu.
+    href: safeUrl(asStr(it.href), "") || undefined,
     catColor: asStr(it.categoryColor) || "#ef6c2e",
   };
+}
+
+/**
+ * Profil autora slajdu: zakodowany slug (`profileHref`) i prefiks języka
+ * treści (`localizedPath`) - te same pomocniki co reszta aplikacji, więc byline
+ * na stronie EN nie prowadzi do profilu PL, a slug ze znakami specjalnymi nie
+ * rozcina ścieżki. Własny `href` slajdu idzie osobno (`pickSlideStrings`) i
+ * zostaje taki, jak go wpisał redaktor. Bez sluga - brak odnośnika.
+ */
+function authorProfilePath(slug: string | undefined, lang: "pl" | "en"): string | null {
+  return slug ? localizedPath(profileHref({ slug, isAuthor: true }), lang) : null;
 }
 
 function EditorialHeroVariant(p: VariantProps) {
@@ -1179,7 +1229,7 @@ function EditorialHeroVariant(p: VariantProps) {
       <div
         data-widget-media
         className={`relative w-full overflow-hidden bg-muted/40 eh-drag-surface ${p.dragRef.current.active ? "is-dragging" : ""} ${href ? "cursor-pointer" : ""}`}
-        style={{ ...p.aspectStyle, borderRadius: 4 }}
+        style={{ ...p.aspectStyle, borderRadius: p.rounded }}
         onPointerDown={p.onPointerDown}
         onPointerMove={p.onPointerMove}
         onPointerUp={p.endDrag}
@@ -1187,8 +1237,8 @@ function EditorialHeroVariant(p: VariantProps) {
       >
         <div
           className="pointer-events-none absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1299,7 +1349,7 @@ function EditorialHeroVariant(p: VariantProps) {
               <AuthorByline
                 name={cur.author}
                 avatarUrl={cur.authorAvatar}
-                href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                href={authorProfilePath(cur.authorSlug, p.lang)}
                 display={p.author}
                 tone="default"
                 onClick={(e) => e.stopPropagation()}
@@ -1382,9 +1432,9 @@ function MultiCardVariant(p: VariantProps) {
   const dragging = p.dragRef.current.active;
   const gapPx = MULTI_CARD_GAP_PX;
   // Szerokość karty (100% - (cols - 1) * gap) / cols siedzi w arkuszu wspólnym
-  // pod `.eh-multi-card-item` (P2.6) - inline zostaje tylko przesunięcie toru.
-  // Krok = szerokość karty + odstęp, czyli (100% + gap) / cols.
-  const trackTransform = `translateX(calc(${-p.safeIdx} * (100% + ${gapPx}px) / var(--eh-visible-columns) + ${p.dragDx}px))`;
+  // pod `.eh-multi-card-item` (P2.6) - inline zostaje tylko przesunięcie toru,
+  // w renderze zawsze w spoczynku; gest dopisuje się poza Reactem (`paintDrag`).
+  const trackTransform = multiCardTrackTransform(p.safeIdx, 0);
   return (
     <div className="relative eh-multi-card">
       <div
@@ -1395,6 +1445,7 @@ function MultiCardVariant(p: VariantProps) {
         onPointerCancel={p.endDrag}
       >
         <div
+          ref={p.dragLayerRef}
           className={`eh-track eh-multi-track ${dragging ? "is-dragging" : ""}`}
           style={{ transform: trackTransform, gap: `${gapPx}px` }}
         >
@@ -1502,7 +1553,7 @@ function MultiCardVariant(p: VariantProps) {
                         <AuthorByline
                           name={it.author}
                           avatarUrl={it.authorAvatar}
-                          href={it.authorSlug ? `/author/${it.authorSlug}` : null}
+                          href={authorProfilePath(it.authorSlug, p.lang)}
                           display={p.author}
                           tone="default"
                           onClick={(e) => e.stopPropagation()}
@@ -1559,8 +1610,8 @@ function CinematicOverlayVariant(p: VariantProps) {
       >
         <div
           className="absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1629,7 +1680,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                   <AuthorByline
                     name={cur.author}
                     avatarUrl={cur.authorAvatar}
-                    href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                    href={authorProfilePath(cur.authorSlug, p.lang)}
                     display={p.author}
                     tone="onDark"
                     onClick={(e) => e.stopPropagation()}
@@ -1714,8 +1765,8 @@ function SplitFeatureVariant(p: VariantProps) {
       >
         <div
           className="absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1799,7 +1850,7 @@ function SplitFeatureVariant(p: VariantProps) {
               <AuthorByline
                 name={cur.author}
                 avatarUrl={cur.authorAvatar}
-                href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                href={authorProfilePath(cur.authorSlug, p.lang)}
                 display={p.author}
                 tone="default"
                 onClick={(e) => e.stopPropagation()}
@@ -1853,8 +1904,8 @@ function MinimalStripVariant(p: VariantProps) {
       >
         <div
           className="absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1884,7 +1935,10 @@ function MinimalStripVariant(p: VariantProps) {
           />
         )}
         {/* Bottom caption strip */}
-        <div className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white">
+        <div
+          className="absolute inset-x-0 bottom-0 p-3 md:p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white"
+          data-author-title-scope={p.showAuthor ? "" : undefined}
+        >
           {cat && (
             <span
               className="inline-block mb-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
@@ -1909,6 +1963,26 @@ function MinimalStripVariant(p: VariantProps) {
             >
               {sub}
             </p>
+          )}
+          {/* Wiersz metadanych jak w pozostałych wariantach - inaczej „Pokaż
+              autora” i rozmiary bylinu są tu martwymi ustawieniami panelu. */}
+          {(hasAuthorByline(cur.author, p.author) || cur.readTime) && (
+            <div className="mt-2 flex items-center gap-2 text-white/75" style={p.authorStyle}>
+              {hasAuthorByline(cur.author, p.author) && (
+                <AuthorByline
+                  name={cur.author}
+                  avatarUrl={cur.authorAvatar}
+                  href={authorProfilePath(cur.authorSlug, p.lang)}
+                  display={p.author}
+                  tone="onDark"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+              {hasAuthorByline(cur.author, p.author) && cur.readTime && (
+                <span className="opacity-60">·</span>
+              )}
+              {cur.readTime && <span>⏱ {cur.readTime}</span>}
+            </div>
           )}
         </div>
       </div>

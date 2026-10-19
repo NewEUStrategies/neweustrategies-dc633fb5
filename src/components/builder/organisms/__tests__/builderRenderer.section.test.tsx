@@ -17,10 +17,10 @@
 // * `data-section-kind="people"` - siatka osób rozpoznawana po zawartości
 //   kolumn, także w sekcji zagnieżdżonej.
 //
-// ── LUKA ZAREJESTROWANA JAKO `it.fails` ────────────────────────────────────
-// `videoUrl` przechodzi przez `safeImageUrl(...) || section.background.videoUrl`
-// - druga część tej alternatywy PRZYWRACA odrzuconą wartość, więc sanityzacja
-// tego pola nie zmienia niczego. Szczegóły przy samym przypadku.
+// ── NAPRAWIONE 2026-10-18 (był `it.fails`) ─────────────────────────────────
+// `videoUrl` przechodził przez `safeImageUrl(...) || section.background.videoUrl`
+// - druga część alternatywy PRZYWRACAŁA odrzuconą wartość. Dziś odrzucony adres
+// daje brak odtwarzacza. Szczegóły przy samym przypadku.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -374,25 +374,30 @@ describe("wideo w tle sekcji", () => {
     expect(container.querySelector("video")).not.toBeNull();
   });
 
-  it.fails("adres wideo odrzucony przez sanityzator NIE powinien wracać do DOM", () => {
-    // STAN FAKTYCZNY (L570-573): adres liczy się jako
+  it("adres wideo odrzucony przez sanityzator nie wraca do DOM", () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): adres liczył się jako
     //   safeImageUrl(background.videoUrl) || background.videoUrl
-    // Druga część alternatywy przywraca DOKŁADNIE tę wartość, którą pierwsza
-    // odrzuciła (`safeImageUrl` zwraca dla niej pusty napis), więc sanityzacja
-    // tego pola jest martwym kodem: do `<video src>` idzie wartość surowa.
-    // `safeImageUrl` przepuszcza wyłącznie `http(s):`, `data:image/` i ścieżkę
-    // bezwzględną, więc `data:text/html` jest tu adresem JAWNIE odrzuconym.
-    //
-    // To nie jest XSS: `<video src>` nie wykonuje skryptu, a schemat
-    // `javascript:` blokuje dodatkowo sam React (podmienia atrybut). Defekt
-    // polega na tym, że bramka NICZEGO nie odrzuca - a jest to pierwszy wzór,
-    // który skopiuje kolejne pole adresowe. Poprawka to zdjęcie rezerwy po
-    // `||`, czyli zmiana ZACHOWANIA produkcji - dlatego `it.fails`.
+    // i druga część alternatywy przywracała DOKŁADNIE tę wartość, którą pierwsza
+    // odrzuciła - sanityzacja pola była martwym kodem, a do `<video src>` szła
+    // wartość surowa. To nie był XSS (`<video src>` nie wykonuje skryptu,
+    // `javascript:` podmienia React), ale bramka NICZEGO nie odrzucała i była
+    // wzorem do skopiowania dla kolejnych pól adresowych.
+    // KONTRAKT: odrzucony adres (`safeImageUrl` przepuszcza wyłącznie `http(s):`,
+    // `data:image/` i ścieżkę bezwzględną) = brak odtwarzacza, jak przy pustym
+    // `videoUrl`.
     const { container } = renderWithQueryClient(
       <BuilderRenderer doc={zWideo("data:text/html;base64,PHNjcmlwdD4=")} lang="pl" />,
     );
-    // Oczekiwane: odrzucony adres = brak odtwarzacza (jak przy pustym `videoUrl`).
     expect(container.querySelector("video")).toBeNull();
+  });
+
+  it("KONTROLA DODATNIA: ścieżka bezwzględna z magazynu mediów zostaje odtwarzaczem", () => {
+    // Bez tej kontroli bramka mogła odrzucać wszystko, a przypadek wyżej
+    // przechodziłby z fałszywego powodu.
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer doc={zWideo("/media/tlo.mp4")} lang="pl" />,
+    );
+    expect(container.querySelector("video")?.getAttribute("src")).toMatch(/^\/media\/tlo\.mp4/);
   });
 });
 

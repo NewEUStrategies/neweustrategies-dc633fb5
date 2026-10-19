@@ -5,9 +5,12 @@ import { useRef, useState, type CSSProperties } from "react";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeImageUrl, safeUrl, sanitizeHtml } from "@/lib/sanitize";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AppLink } from "@/components/atoms/AppLink";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, User as UserIcon, Instagram, Youtube } from "@/lib/lucide-shim";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { getStr, type Lang } from "./frame";
 
 type SocialKey = "x" | "facebook" | "linkedin" | "instagram" | "youtube" | "website";
@@ -170,12 +173,12 @@ export function TeamMemberWidget({
         </span>
       </button>
 
+      {/* Escape i klik poza kartą zamyka sam Radix (`onOpenChange`). Własne
+          `onPointerDownOutside`/`onInteractOutside` z `setOpen(false)` omijały
+          jego decyzję - karta znikała np. przy prawym kliku na tle. */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
           className="max-w-3xl gap-0 overflow-hidden p-0"
-          onEscapeKeyDown={() => setOpen(false)}
-          onPointerDownOutside={() => setOpen(false)}
-          onInteractOutside={() => setOpen(false)}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             triggerRef.current?.focus();
@@ -282,12 +285,14 @@ export function TeamMemberWidget({
               )}
 
               {authorSlug && (
-                <a
-                  href={`/author/${authorSlug}`}
+                // Ścieżka z tych samych pomocników co reszta aplikacji: zakodowany
+                // slug i prefiks języka; AppLink trzyma nawigację w routerze.
+                <AppLink
+                  href={localizedPath(profileHref({ slug: authorSlug, isAuthor: true }), lang)}
                   className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[color:var(--brand)] hover:underline"
                 >
                   {lang === "pl" ? "Zobacz pełny profil eksperta →" : "View full expert profile →"}
-                </a>
+                </AppLink>
               )}
             </div>
           </div>

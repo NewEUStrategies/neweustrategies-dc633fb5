@@ -411,8 +411,18 @@ describe("SliderRender - katalog stylów i pozycji nawigacji", () => {
 
 /** Znacznik DOM, po którym poznajemy, że narysował się właściwy wariant. */
 const VARIANT_MARKER: Record<SliderVariant, (root: HTMLElement) => boolean> = {
-  "editorial-hero": (root) =>
-    root.querySelector<HTMLElement>("[data-widget-media]")?.style.borderRadius === "4px",
+  // Tytuł POD kadrem, poza siatką split-feature. (Dawny znacznik - stały
+  // promień 4 px - był w rzeczywistości defektem: kadr ignorował `rounded`.)
+  "editorial-hero": (root) => {
+    const media = root.querySelector("[data-widget-media]");
+    const title = root.querySelector("h3.cms-post-title");
+    return (
+      media !== null &&
+      title !== null &&
+      !media.contains(title) &&
+      root.querySelector(".md\\:grid-cols-2") === null
+    );
+  },
   "multi-card": (root) => root.querySelector(".eh-multi-card") !== null,
   "cinematic-overlay": (root) => root.querySelector("[data-widget-media].bg-black") !== null,
   "split-feature": (root) => root.querySelector(".md\\:grid-cols-2") !== null,
@@ -904,31 +914,25 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
     });
   });
 
-  // DEFEKT: SLAJD BEZ ADRESU I TAK JEST RENDEROWANY JAKO ODNOŚNIK.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): SLAJD BEZ BEZPIECZNEGO ADRESU NIE
+  // JEST ODNOŚNIKIEM.
   //
-  // WEJŚCIE: slajd bez pola `href` (albo z adresem odrzuconym przez sanitizer,
-  //   np. "javascript:alert(1)"), wariant domyślny editorial-hero.
-  // CO PSUJE: `pickSlideStrings` (sliderVariants.tsx:1130) liczy
-  //   `safeUrl(asStr(it.href)) || undefined`, a `safeUrl`
-  //   (src/lib/sanitizePure.ts:176-179) zwraca dla pustego ORAZ dla
-  //   niebezpiecznego wejścia wartość zastępczą "#", która jest prawdziwa.
-  //   Alternatywa `|| undefined` nigdy się więc nie wykonuje - `href` jest
-  //   ustawiony ZAWSZE.
-  // KONSEKWENCJA: kadr dostaje role="link", tabIndex=0 i kursor wskaźnika,
-  //   tytuł i zajawka trafiają do <a href="#">, a kliknięcie woła
-  //   `navigateTo("#")`. Slajd świadomie zostawiony bez adresu obiecuje
-  //   czytelnikowi przejście, którego nie ma, i zabiera przystanek fokusu
-  //   klawiatury. Przy okazji gałąź „rysuj bez odnośnika" jest we WSZYSTKICH
-  //   pięciu wariantach martwa, więc żaden test nie jest w stanie jej dotknąć.
-  // WYMAGANA POPRAWKA: `pickSlideStrings` ma wołać `safeUrl(raw, "")` (albo
-  //   odrzucać wynik równy "#"), żeby brak bezpiecznego adresu znaczył brak
-  //   odnośnika.
-  it.fails("DEFEKT: slajd bez bezpiecznego adresu nie może udawać odnośnika", () => {
+  // `pickSlideStrings` woła `safeUrl(raw, "")`, więc brak adresu i adres
+  // odrzucony przez sanitizer (np. "javascript:alert(1)") dają `href`
+  // undefined, a nie prawdziwe "#". Kadr nie dostaje odnośnika nakładki, tytuł
+  // i zajawka nie siedzą w `<a href="#">`, a czytelnik nie traci przystanku
+  // fokusu na przejście, którego nie ma. Jawnie wpisane "#" nadal przechodzi -
+  // to świadomy wybór redaktora, nie wartość zastępcza.
+  it.each([
+    ["bez pola href", undefined],
+    ["z adresem odrzuconym przez sanitizer", "javascript:alert(1)"],
+  ])("slajd %s nie udaje odnośnika", (_, href) => {
     const { container } = renderSlider({
-      items: [{ image: "https://obrazy.example.com/x.jpg", title_pl: "Bez adresu" }],
+      items: [{ image: "https://obrazy.example.com/x.jpg", title_pl: "Bez adresu", href }],
     });
     expect(container.querySelector("[data-widget-media]")?.getAttribute("role")).toBeNull();
     expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("h3.cms-post-title")?.textContent).toBe("Bez adresu");
   });
 });
 

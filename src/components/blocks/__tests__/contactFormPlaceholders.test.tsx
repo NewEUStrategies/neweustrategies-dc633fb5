@@ -5,7 +5,7 @@
 // nie docierała do kontrolki. Test pilnuje, że placeholder z ustawień jest w
 // DOM, nie jest spacją, i że mechanizm unoszenia etykiety dalej działa.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, cleanup, fireEvent, waitFor, screen } from "@testing-library/react";
 import { FLOATING_LABEL_SPACER } from "@/components/ui/floating-input";
 
 // Atrapa server fn jest STEROWALNA z testu: bez tego nie da się rozdzielić
@@ -214,6 +214,18 @@ describe("contact-form: walidacja przed wysyłką", () => {
     });
   });
 
+  it("focus na błędnym polu przywraca nazwę pola w etykiecie, blur wraca do komunikatu", async () => {
+    const { form } = renderSubmittable();
+    fireEvent.submit(form);
+    const firstName = document.querySelector('[name="firstName"]') as HTMLInputElement;
+    const label = () => firstName.parentElement?.querySelector("label.user-label")?.textContent;
+    await waitFor(() => expect(label()).toBe("Pole wymagane"));
+    fireEvent.focus(firstName);
+    expect(label()).toBe("Imię");
+    fireEvent.blur(firstName);
+    expect(label()).toBe("Pole wymagane");
+  });
+
   it("komunikat walidacji jest w języku panelu (EN)", async () => {
     const { form } = renderSubmittable({}, "en");
     fireEvent.submit(form);
@@ -280,36 +292,44 @@ describe("contact-form: walidacja przed wysyłką", () => {
     expect(document.querySelector("form")).toBeTruthy();
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - CICHA ODMOWA WYSYŁKI.
-  // `onSubmit` ustawia `errs.consent = t.required` i przerywa wysyłkę, ale blok
-  // zgód renderuje TYLKO etykietę z polem wyboru - nigdzie nie czyta
-  // `errors.consent`. Skutek dla użytkownika: klika „Wyślij", nic się nie
-  // dzieje, nie ma ani komunikatu, ani podświetlenia pola. Pozostałe pola mają
-  // ścieżkę komunikatu przez `Field` (`data-invalid` + tekst w miejscu
-  // etykiety); zgoda RODO jej NIE MA, a jest jednocześnie jedynym polem
-  // wymaganym domyślnie i nieoczywistym (pole wyboru poniżej przycisku).
-  // Naprawa to wyrenderowanie `errors.consent` przy etykiecie zgody - zmiana
-  // zachowania produkcyjnego, więc poza zakresem zadania pokryciowego. Test
-  // STOI jako dowód.
-  it.fails("POWINNO pokazać komunikat, gdy brakuje wymaganej zgody RODO", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): CICHA ODMOWA WYSYŁKI.
+  // `onSubmit` ustawiał `errs.consent = t.required` i przerywał wysyłkę, ale
+  // blok zgód renderował TYLKO etykietę z polem wyboru - nigdzie nie czytał
+  // `errors.consent`, więc użytkownik klikał „Wyślij" i nic się nie działo.
+  // Zgoda nie ma ścieżki `Field` (komunikat w miejscu etykiety), dlatego
+  // komunikat stoi teraz pod polem wyboru jako `role="alert"`, a samo pole
+  // dostaje `aria-invalid` i `aria-describedby` wskazujące na ten komunikat.
+  it("pokazuje komunikat, gdy brakuje wymaganej zgody RODO", async () => {
     const { form, set } = renderSubmittable();
     set("firstName", "Jan");
     set("email", "jan@firma.pl");
     set("message", "Treść");
     fireEvent.submit(form);
-    await waitFor(() => expect(h.submit).not.toHaveBeenCalled());
-    expect(document.body.textContent).toContain("Pole wymagane");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Pole wymagane"));
+    expect(h.submit).not.toHaveBeenCalled();
   });
 
-  it("dziś brak zgody RODO odmawia wysyłki BEZ żadnego komunikatu", async () => {
-    const { form, set } = renderSubmittable();
+  it("pole zgody jest oznaczone jako błędne i opisane komunikatem (a11y)", async () => {
+    const { form, set } = renderSubmittable({}, "en");
     set("firstName", "Jan");
     set("email", "jan@firma.pl");
     set("message", "Treść");
     fireEvent.submit(form);
-    await waitFor(() => expect(h.submit).not.toHaveBeenCalled());
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Required field");
+    const box = screen.getByRole("checkbox");
+    expect(box).toHaveAttribute("aria-invalid", "true");
+    expect(box.getAttribute("aria-describedby")).toBe(alert.id);
+    // Pozostałe pola są poprawne - błąd dotyczy wyłącznie zgody.
     expect(document.querySelector('[data-invalid="true"]')).toBeNull();
-    expect(document.body.textContent).not.toContain("Pole wymagane");
+  });
+
+  it("poprawnie zaznaczona zgoda nie zostawia komunikatu ani aria-invalid", async () => {
+    const { form, set } = renderSubmittable();
+    fillValid(set);
+    fireEvent.submit(form);
+    await waitFor(() => expect(h.submit).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("zgoda NIEwymagana przepuszcza wysyłkę bez zaznaczenia", async () => {
@@ -983,5 +1003,35 @@ describe("contact-form: treść zgody z linkami markdown", () => {
       <ContactFormView data={{ consentText_pl: "", requireConsent: false }} lang="pl" />,
     );
     expect(container.querySelector(".cf-consent")).toBeNull();
+  });
+});
+
+// Licznik znaków pod polem: limit to WSPÓLNY sufit z `CONTACT_FIELD_LIMITS`
+// (ten sam, którym waliduje serwer), a licznik podąża za wpisywaną treścią.
+// `fireEvent.change` nie odpala natywnego `input`, na którym wisi licznik,
+// dlatego tu wpisywanie symuluje `fireEvent.input`.
+describe("contact-form: licznik znaków", () => {
+  it("licznik wiadomości liczy wpisane znaki względem wspólnego limitu i opisuje pole", () => {
+    const { field } = renderForm({});
+    const message = field("message");
+    const counterId = message.getAttribute("aria-describedby") as string;
+    const counter = document.getElementById(counterId);
+    expect(counter?.textContent).toBe("0 / 8000 znaków");
+    fireEvent.input(message, { target: { value: "Dzień dobry" } });
+    expect(counter?.textContent).toBe("11 / 8000 znaków");
+    expect(message).toHaveAttribute("maxLength", "8000");
+  });
+
+  it("pole dodatkowe z własnym maxLength dostaje NIŻSZY z dwóch limitów (EN)", () => {
+    const { field } = renderForm(
+      { customFields: [{ id: "nip", type: "text", labelEn: "Tax ID", maxLength: 12 }] },
+      "en",
+    );
+    const nip = field("custom_nip");
+    expect(nip).toHaveAttribute("maxLength", "12");
+    fireEvent.input(nip, { target: { value: "1234" } });
+    expect(
+      document.getElementById(nip.getAttribute("aria-describedby") as string),
+    ).toHaveTextContent("4 / 12 characters");
   });
 });

@@ -24,15 +24,21 @@ function colorForScore(pct: number): string {
   return "bg-red-500";
 }
 
+/** Skala w granicach pola panelu (`edit/Review.tsx`: 5-10) - ten sam wynik w obu miejscach. */
+function clampScale(scale: number): number {
+  return Number.isFinite(scale) ? Math.max(5, Math.min(10, scale)) : 10;
+}
+
 export function ReviewBlockView({
   title,
   summary,
   criteria,
   ctaLabel,
   ctaHref,
-  scale = 10,
+  scale: rawScale = 10,
   lang = "pl",
 }: Props) {
+  const scale = clampScale(rawScale);
   const L =
     lang === "pl"
       ? { verdict: "Werdykt", overall: "Ocena ogólna", cta: "Sprawdź" }
@@ -85,7 +91,8 @@ export function ReviewBlockView({
       {valid.length > 0 && (
         <div className="px-4 py-3 border-t border-border space-y-2">
           {valid.map((c, i) => {
-            const pct = (c.score / scale) * 100;
+            // Ocena spoza skali (import) nie wypycha paska poza kartę.
+            const pct = Math.max(0, Math.min(100, (c.score / scale) * 100));
             return (
               <div key={i} className="text-xs">
                 <div className="flex justify-between mb-0.5">

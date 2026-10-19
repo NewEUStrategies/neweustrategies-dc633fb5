@@ -383,11 +383,12 @@ describe("SpeakerProfileDialog - tożsamość i odznaki", () => {
     expect(within(panel()).getByText("Languages: PL")).toBeInTheDocument();
   });
 
-  it("odnośnik do pełnego profilu po angielsku", async () => {
+  it("odnośnik do pełnego profilu po angielsku prowadzi do profilu EN", async () => {
+    // Strona EN ma prefiks /en - bez niego czytelnik lądował na profilu PL.
     await dialog({ lang: "en", profile: profileRow({ slug: "anna-kowalska" }) });
     expect(within(panel()).getByRole("link", { name: /View full profile/ })).toHaveAttribute(
       "href",
-      "/author/anna-kowalska",
+      "/en/author/anna-kowalska",
     );
   });
 

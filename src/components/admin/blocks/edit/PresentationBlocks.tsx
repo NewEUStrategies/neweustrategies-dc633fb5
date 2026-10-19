@@ -1,12 +1,16 @@
 // Admin edytory dla Phase 4 batch 10 (prezentacyjne):
 // icon-box, stats-counter, testimonials, pricing-table, timeline.
 
+import { useState } from "react";
 import type { Block, Json } from "@/lib/blocks/types";
 import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
+import { num } from "@/components/blocks/renderer/data";
+import { ClampedNumberInput } from "@/components/admin/builder/ui/atoms/ClampedNumberInput";
+import { clampAnimationMs, STATS_COUNTER_DURATION_RANGE } from "@/lib/blocks/animationRanges";
 
 interface Props {
   block: Block;
@@ -49,6 +53,9 @@ export function IconBoxBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const d = block.data;
+  // Wyrównanie, którego UŻYJE `renderIconBox` (inne niż „left" -> „center").
+  // Natywny `<select>` bez pasującej opcji pokazałby pierwszą, czyli „left".
+  const align = d.align === "left" ? "left" : "center";
   return (
     <Shell label={pb("iconBoxLabel")}>
       <AdminSelect
@@ -90,7 +97,7 @@ export function IconBoxBlock({ block, onChange }: Props) {
       </div>
       <AdminSelect
         className="w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-        value={String(d.align ?? "center")}
+        value={align}
         onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
       >
         <option value="left">{pb("alignLeft")}</option>
@@ -123,21 +130,29 @@ export function StatsCounterBlock({ block, onChange }: Props) {
   const update = (next: StatItem[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
-  const duration = Number(block.data.duration ?? 1500);
+  // Ten sam czytnik co `renderStatsCounter` (śmieć w danych to 1500 ms, a nie
+  // `NaN`) i TEN SAM zakres co `StatsCounterView`: `1e9` z importu pole
+  // pokazuje jako 5000 - czas, którym strona naprawdę animuje.
+  const range = STATS_COUNTER_DURATION_RANGE;
+  const duration = clampAnimationMs(num(block.data, "duration", range.fallback), range);
 
   return (
     <Shell label={pb("statsLabel")}>
       <label className="block text-xs text-muted-foreground">
         {pb("animDuration")}
-        <input
-          type="number"
-          className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          min={300}
-          max={5000}
+        {/* Wspólny atom pola z zakresem: wpis spoza zakresu nie trafia do
+            zapisu (docięcie przy wyjściu z pola), pisanie nie walczy z dolną
+            granicą, a samo przejście przez pole niczego nie zapisuje. */}
+        <ClampedNumberInput
           value={duration}
-          onChange={(e) =>
-            onChange({ ...block, data: { ...block.data, duration: Number(e.target.value) } })
-          }
+          min={range.min}
+          max={range.max}
+          step={100}
+          onCommit={(next) => {
+            if (next === undefined) return;
+            onChange({ ...block, data: { ...block.data, duration: next } });
+          }}
+          className="mt-1 w-full h-9"
         />
       </label>
       {items.map((it, idx) => (
@@ -195,6 +210,17 @@ export function StatsCounterBlock({ block, onChange }: Props) {
 
 // ===== Testimonials =====
 
+/**
+ * Ocena docięta do 0-5, jak w `TestimonialsView`. Odczyt podaje tu wynik `num`
+ * z domyślną 0 (brak albo śmieć = bez gwiazdek - edytor zakładał dla braku 5,
+ * więc zapis dowolnego innego pola opinii dopisywał jej pięć gwiazdek na
+ * stronie), a zapis - `Number()` wpisu z pola liczbowego, które oddaje pusty
+ * napis (0) albo poprawną liczbę, nigdy `NaN`.
+ */
+function clampRating(raw: number): number {
+  return Math.max(0, Math.min(5, raw));
+}
+
 interface Testimonial {
   quote: string;
   author: string;
@@ -214,7 +240,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
       author: String(o.author ?? ""),
       role: String(o.role ?? ""),
       avatar: String(o.avatar ?? ""),
-      rating: Number(o.rating ?? 5),
+      rating: clampRating(num(o, "rating", 0)),
     };
   });
   const update = (next: Testimonial[]) => {
@@ -286,7 +312,7 @@ export function TestimonialsBlock({ block, onChange }: Props) {
                 value={it.rating}
                 onChange={(e) => {
                   const next = [...items];
-                  next[idx] = { ...it, rating: Number(e.target.value) };
+                  next[idx] = { ...it, rating: clampRating(Number(e.target.value)) };
                   update(next);
                 }}
               />
@@ -328,19 +354,72 @@ interface PricingPlan {
   featured: boolean;
 }
 
+/** Tekst pola -> lista funkcji: linia = funkcja, bez spacji na końcu i pustych linii. */
+function toFeatures(text: string): string[] {
+  return text
+    .split("\n")
+    .map((s) => s.trimEnd())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * Funkcje planu z dokumentu. Napis i liczba to treść; `null`, obiekt czy
+ * tablica z importu NIE są funkcją - `String()` zrobiłby z nich „null"
+ * i „[object Object]", a pierwsza edycja planu utrwaliłaby ten napis.
+ */
+function readFeatures(raw: Json | undefined): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f): f is string | number => typeof f === "string" || typeof f === "number")
+    .map(String);
+}
+
+/**
+ * Pole „funkcje, po jednej w linii". Zapis do dokumentu jest OCZYSZCZONY
+ * (`toFeatures`), więc pole nie może czytać wartości z zapisu: edytor jest
+ * sterowany przez dokument i po każdym znaku dostawałby tekst bez spacji
+ * na końcu i bez nowej linii - spacji między słowami i Entera na końcu
+ * linii nie dało się wpisać. Szkic trzyma surowy tekst, ale TYLKO dopóki
+ * zgadza się z dokumentem: zmiana z zewnątrz (cofnięcie) wygrywa.
+ */
+function FeaturesField({
+  features,
+  placeholder,
+  onChange,
+}: {
+  features: string[];
+  placeholder: string;
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const stored = features.join("\n");
+  const value = draft !== null && toFeatures(draft).join("\n") === stored ? draft : stored;
+  return (
+    <textarea
+      className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[60px]"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onChange(toFeatures(e.target.value));
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  );
+}
+
 export function PricingTableBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pb = (k: string) => i18n.editor("presentationBlocks", k);
   const itemsRaw = Array.isArray(block.data.plans) ? (block.data.plans as Json[]) : [];
   const plans: PricingPlan[] = itemsRaw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
-    const feats = Array.isArray(o.features) ? (o.features as Json[]).map((f) => String(f)) : [];
     return {
       name: String(o.name ?? ""),
       price: String(o.price ?? ""),
       period: String(o.period ?? ""),
       description: String(o.description ?? ""),
-      features: feats,
+      features: readFeatures(o.features),
       ctaLabel: String(o.ctaLabel ?? ""),
       ctaHref: String(o.ctaHref ?? ""),
       featured: o.featured === true,
@@ -411,15 +490,10 @@ export function PricingTableBlock({ block, onChange }: Props) {
               update(next);
             }}
           />
-          <textarea
-            className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 min-h-[60px]"
+          <FeaturesField
+            features={p.features}
             placeholder={pb("features")}
-            value={p.features.join("\n")}
-            onChange={(e) => {
-              const features = e.target.value
-                .split("\n")
-                .map((s) => s.trimEnd())
-                .filter((s) => s.length > 0);
+            onChange={(features) => {
               const next = [...plans];
               next[idx] = { ...p, features };
               update(next);

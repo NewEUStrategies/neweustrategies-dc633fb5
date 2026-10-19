@@ -38,6 +38,7 @@ import { BuilderWidgetNode } from "@/components/builder/organisms/BuilderWidgetN
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
+  hiddenOnDevice,
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
@@ -56,6 +57,8 @@ import {
   COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
+import { isThemedValue, pickMode } from "@/lib/builder/themed";
+import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
@@ -137,6 +140,51 @@ function resolveOrder(
  */
 function gridDevice(device: Device): Device {
   return device === "mobile" ? "desktop" : device;
+}
+
+/**
+ * `advanced.hideOn` SEKCJI, SEKCJI ZAGNIEŻDŻONEJ I KOLUMNY. Panel wystawia ten
+ * przełącznik na każdym poziomie, a renderer honorował go dawniej wyłącznie dla
+ * widgetów - „ukryta na telefonie" sekcja jechała do czytelnika z całą treścią.
+ *
+ * Dwie warstwy, obie zgodne z hydratacją:
+ *  1. FILTR na urządzeniu renderera - ten sam predykat co widgety
+ *     (`hiddenOnDevice` w `isRenderedWidget`). SSR i pierwszy render klienta
+ *     liczą TO SAMO urządzenie (prop `device` albo `desktop`), więc HTML serwera
+ *     i hydratacja się zgadzają; korekta po pomiarze kontenera idzie przejściem.
+ *  2. PIERWSZA KLATKA NA TELEFONIE: HTML serwera powstaje dla desktopu, więc
+ *     węzeł ukryty na telefonie w nim JEST. Atrybut `data-hide-on-mobile` i reguła
+ *     `@media (max-width: 767px)` (próg mobilnego układu z `styles.css`) chowają
+ *     go od pierwszego malowania, bez czekania na JS. Druga reguła obejmuje
+ *     kontener mobilny w szerokim oknie (`data-device="mobile"`) na czas, gdy
+ *     wyspa sekcji czeka jeszcze na swoje przejście. Podwójny atrybut podnosi
+ *     specyficzność ponad `[data-device="mobile"] [data-col-id]{display:flex
+ *     !important}` z `styles.css` (slot kolumny nosi `data-col-id`).
+ * Tablet i desktop mają tylko warstwę 1 - dokładnie jak widgety.
+ */
+const HIDE_ON_MOBILE_CSS =
+  "@media (max-width: 767px){[data-builder-renderer] [data-hide-on-mobile][data-hide-on-mobile]{display:none!important}}" +
+  '[data-builder-renderer][data-device="mobile"] [data-hide-on-mobile][data-hide-on-mobile]{display:none!important}';
+
+function hideOnMobileAttr(advanced: AdvancedSettings | undefined): "" | undefined {
+  return advanced?.hideOn?.mobile ? "" : undefined;
+}
+
+/** Czy sekcja albo któreś z jej malowanych dzieci (także kolumna sekcji zagnieżdżonej) jest ukryte na telefonie. */
+function hostsMobileHiddenNode(
+  section: SectionNode,
+  children: ReadonlyArray<ColumnNode | InnerSectionNode>,
+): boolean {
+  return (
+    !!section.advanced?.hideOn?.mobile ||
+    children.some(
+      (c) =>
+        !!c.advanced?.hideOn?.mobile ||
+        (c.kind === "inner-section" &&
+          Array.isArray(c.columns) &&
+          c.columns.some((col) => !!col?.advanced?.hideOn?.mobile)),
+    )
+  );
 }
 
 import { isPeopleSectionKind } from "@/lib/builder/sectionKind";
@@ -965,6 +1013,7 @@ const SectionsList = memo(function SectionsList({
     !safeSections.some((s) => !!s && sectionIslandInfo(s).toc);
   const visible = safeSections.flatMap((s, docIndex) =>
     !!s &&
+    !hiddenOnDevice(s.advanced, device) &&
     evaluateAccess(s.advanced?.access, accessCtx) &&
     (editorPreview || isSectionVisibleForAssignments(s, assignments))
       ? [{ s, docIndex }]
@@ -1183,7 +1232,8 @@ const RenderSection = memo(function RenderSection({
 
   const emptyPicker = useContext(EmptyContainerPickerContext);
   const allChildren = (Array.isArray(section.children) ? section.children : []).filter(
-    (c): c is ColumnNode | InnerSectionNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
+    (c): c is ColumnNode | InnerSectionNode =>
+      !!c && !hiddenOnDevice(c.advanced, device) && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const visibleCols = tabsEnabled
     ? allChildren.filter((c) => !c.tabId || c.tabId === displayTabId)
@@ -1213,10 +1263,11 @@ const RenderSection = memo(function RenderSection({
   // `visibleCols`: kolumna nieaktywnej zakładki nie renderuje widgetu.
   const searchScope = { device, accessCtx };
   const hostsSearch = visibleCols.some((c) => childHostsSearchWidget(c, searchScope));
+  // Adres odrzucony przez sanityzator NIE wraca z surowej wartości: pusty wynik
+  // to brak odtwarzacza, jak przy pustym `videoUrl`.
   const videoUrl =
-    section.background?.type === "video"
-      ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
-      : "";
+    section.background?.type === "video" ? safeImageUrl(section.background.videoUrl) : "";
+  const mobileHidden = hostsMobileHiddenNode(section, visibleCols);
 
   const preloadRef = useSectionPreload(section, lang);
 
@@ -1225,6 +1276,7 @@ const RenderSection = memo(function RenderSection({
       ref={preloadRef as React.Ref<HTMLElement>}
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
+      data-hide-on-mobile={hideOnMobileAttr(section.advanced)}
       data-section-kind={sectionKind || undefined}
       data-search-overflow={searchOverflowAttr(hostsSearch)}
       data-ab-experiment={section.advanced?.abTest?.experimentId}
@@ -1237,6 +1289,7 @@ const RenderSection = memo(function RenderSection({
           dopiero po nich - pierwsza klatka szła bez typografii sekcji i bez
           mobilnej kolejności kolumn, czyli z przesunięciem układu. */}
       {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
+      {mobileHidden && <style dangerouslySetInnerHTML={{ __html: HIDE_ON_MOBILE_CSS }} />}
       {(() => {
         const mobileOrderCss = visibleCols
           .filter((c): c is ColumnNode => c.kind === "column" && !!c.order)
@@ -1338,6 +1391,7 @@ const RenderSection = memo(function RenderSection({
                     key={c.id}
                     data-column-slot
                     data-col-id={c.id}
+                    data-hide-on-mobile={hideOnMobileAttr(c.advanced)}
                     data-search-overflow={searchOverflowAttr(
                       childHostsSearchWidget(c, searchScope),
                     )}
@@ -1383,7 +1437,8 @@ const RenderInner = memo(function RenderInner({
   // SPA. Serwerowy strip w lib/queries/public.ts zdejmuje ten węzeł już przy
   // SSR; to domyka tę samą regułę na ścieżce klienckiej.
   const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter(
-    (c): c is ColumnNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
+    (c): c is ColumnNode =>
+      !!c && !hiddenOnDevice(c.advanced, device) && evaluateAccess(c.advanced?.access, accessCtx),
   );
   const layoutDevice = gridDevice(device);
   const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, layoutDevice, 6), 0) || 12;
@@ -1419,6 +1474,7 @@ const RenderInner = memo(function RenderInner({
             <div
               key={c.id}
               data-column-slot
+              data-hide-on-mobile={hideOnMobileAttr(c.advanced)}
               data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c, searchScope))}
               className="min-w-0 max-w-full overflow-hidden"
               style={{ gridColumn: `span ${resolveSpan(c.span, layoutDevice, 6)}` }}
@@ -1437,6 +1493,24 @@ const RenderInner = memo(function RenderInner({
 });
 
 RenderInner.displayName = "RenderInner";
+
+/**
+ * Kolor kolumny w trzech zapisach, które może zostawić `ColumnProperties`:
+ * brak (dziedziczy), płaski string (oba tryby) albo `{ light, dark }` po
+ * nadpisaniu jednego trybu. Ten ostatni szedł dotąd surowo do `style`, a obiekt
+ * w deklaracji CSS przepada - kolor znikał w OBU trybach. Teraz tryby jadą
+ * zmiennymi inline, a wybiera je reguła `.dark` z `styles.css` (sekcja
+ * „Builder public renderer"). Każda wartość przechodzi przez wspólny whitelist
+ * `safeWidgetColor`, więc do atrybutu `style` nie trafia surowy tekst z bazy.
+ */
+function columnColor(raw: unknown): { flat?: string; light?: string; dark?: string } {
+  if (isThemedValue<string>(raw)) {
+    const light = safeWidgetColor(pickMode<string>(raw, "light")) || undefined;
+    const dark = safeWidgetColor(pickMode<string>(raw, "dark")) || undefined;
+    return light || dark ? { light: light ?? dark, dark: dark ?? light } : {};
+  }
+  return { flat: safeWidgetColor(raw) || undefined };
+}
 
 const RenderColumn = memo(function RenderColumn({
   column,
@@ -1519,6 +1593,9 @@ const RenderColumn = memo(function RenderColumn({
   );
   const onContentChange = inlineEdit ? handleWidgetContentChange : undefined;
 
+  const bg = columnColor(column.style?.bgColor);
+  const fg = columnColor(column.style?.textColor);
+
   return (
     <div
       data-col-id={column.id}
@@ -1531,10 +1608,18 @@ const RenderColumn = memo(function RenderColumn({
         minHeight:
           column.style?.minHeight ??
           (chromeReserve ? estimateChromeColumnHeight(column, device) : undefined),
-        background: column.style?.bgColor,
-        color: column.style?.textColor,
+        background: bg.flat,
+        color: fg.flat,
+        ...((bg.light
+          ? { "--nes-col-bg": bg.light, "--nes-col-bg-dark": bg.dark }
+          : {}) as CSSProperties),
+        ...((fg.light
+          ? { "--nes-col-fg": fg.light, "--nes-col-fg-dark": fg.dark }
+          : {}) as CSSProperties),
         borderRadius: column.style?.borderRadius,
       }}
+      data-col-bg={bg.light ? "" : undefined}
+      data-col-fg={fg.light ? "" : undefined}
     >
       {groups.map((g, gi) => {
         if (g.inline) {

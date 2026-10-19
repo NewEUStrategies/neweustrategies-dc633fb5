@@ -474,7 +474,9 @@ describe("SchemaFieldControl - kolor", () => {
   it("bez nadpisania podpowiada wartość dziedziczoną", () => {
     renderField({ key: "bg", type: "color", label: "Tło", inheritedValue: "#01112f" }, {});
     const field = document.querySelector<HTMLInputElement>("input.font-mono");
-    expect(field?.placeholder).toBe("dziedziczy: #01112f");
+    // Podpowiedź ze słownika (`adminControls.inheritsPh`); atrapa i18n oddaje
+    // klucz z parametrem, brzmienie PL/EN sprawdza `adminColorPicker.test.tsx`.
+    expect(field?.placeholder).toBe("blocks.editors.adminControls.inheritsPh(value=#01112f)");
   });
 
   it("bez dziedziczenia i bez podpowiedzi używa podpowiedzi słownikowej", () => {

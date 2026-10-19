@@ -100,7 +100,15 @@ export function NewsTickerView({ c, lang }: { c: WidgetContent; lang: Lang }) {
         pauseOnHover={pauseOnHover}
       >
         {items.map((p, i) => (
-          <span key={`${p.id}-${i}`} className="inline-flex items-center gap-3 shrink-0">
+          // Druga kopia toru to dekoracja pętli: bez `aria-hidden` czytnik
+          // ogłaszał każdy nagłówek dwa razy, a bez `inert` Tab trafiał
+          // w niewidoczne duplikaty linków.
+          <span
+            key={`${p.id}-${i}`}
+            className="inline-flex items-center gap-3 shrink-0"
+            aria-hidden={i >= rows.length ? true : undefined}
+            inert={i >= rows.length ? true : undefined}
+          >
             <AppLink href={`/post/${p.slug}`} className="cms-post-title whitespace-nowrap">
               {title(p)}
             </AppLink>
@@ -250,7 +258,13 @@ function NewsTickerVertical({
           }}
         >
           {trackItems.map((child, i) => (
-            <div key={`${i}`} aria-hidden={i === count ? true : undefined}>
+            // Duplikat pierwszego wpisu domyka pętlę - `inert` zdejmuje jego
+            // link z kolejności Tab (samo `aria-hidden` go tam zostawiało).
+            <div
+              key={`${i}`}
+              aria-hidden={i === count ? true : undefined}
+              inert={i === count ? true : undefined}
+            >
               {child}
             </div>
           ))}

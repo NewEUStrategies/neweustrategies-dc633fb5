@@ -117,6 +117,35 @@ export function teamGridProjects(raw: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Liczba w treści widgetu albo wartość domyślna - wyłącznie prawdziwa,
+ * skończona liczba (tak zapisuje panel). Napis "4" z importu NIE jest liczbą
+ * kolumn: renderer od zawsze czytał tu tylko `number`, a panel i renderer
+ * muszą widzieć TO SAMO.
+ */
+function num(content: WidgetContent, key: string, fallback: number): number {
+  const v = content[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+/**
+ * Liczba kolumn, którą siatka NAPRAWDĘ rysuje: 2-4, domyślnie 3.
+ *
+ * Jedno źródło dla renderera i panelu. Wcześniej panel czytał treść po swojemu
+ * (`Number(v)` bez zakresu), więc dla `columns: 5` z importu lista wyboru nie
+ * miała zaznaczonej opcji, a strona rysowała 4 kolumny - redakcja nie widziała,
+ * co jest ustawione.
+ */
+export function teamGridColumns(content: WidgetContent): 2 | 3 | 4 {
+  const n = Math.min(4, Math.max(2, Math.round(num(content, "columns", 3))));
+  return n === 2 || n === 4 ? n : 3;
+}
+
+/** Zaokrąglenie w px, które siatka NAPRAWDĘ rysuje: całość 0-48, domyślnie 6. */
+export function teamGridRadius(content: WidgetContent): number {
+  return Math.min(48, Math.max(0, Math.round(num(content, "radius", TEAM_GRID_DEFAULT_RADIUS))));
+}
+
 /** Klasa siatki dla liczby kolumn - literały, bo Tailwind skanuje źródło. */
 export function teamGridColumnsClass(columns: number): string {
   if (columns === 2) return "sm:grid-cols-2";

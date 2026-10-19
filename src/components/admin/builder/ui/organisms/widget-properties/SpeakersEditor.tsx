@@ -17,6 +17,7 @@
 // w rachetcie (dług może tylko maleć), więc NOWY napis nie ma prawa dosypać
 // do niego kolejnego bliźniaka w kodzie. Migracja pozostałych etykiet to osobna
 // zmiana - tutaj byłaby diffem, którego nikt nie przeczyta.
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 import { toJson } from "@/lib/builder/types";
@@ -50,6 +51,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PropField, ItemFrame, ColorField } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { ListShell } from "./ListShell";
 import { EventPicker } from "./EventPicker";
 import { itemsOf, type Item } from "./shared";
@@ -64,6 +66,23 @@ const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
 const numOf = (v: unknown, fb = 0): number => {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : fb;
+};
+
+// Zakresy ustawień listy 1:1 z rendererem: limit katalogu domyka
+// `speakersQuery` (`Math.max(1, Math.min(200, Math.round(numOf(c.limit, 24))))`),
+// paginację - `SpeakersWidget` (`Math.max(0, Math.round(numOf(pageSize, 0)))`).
+// Panel czyta tą samą klamrą, więc pokazuje to, co widget faktycznie pobiera.
+const LIMIT = { fallback: 24, min: 1, max: 200 } as const;
+const readLimit = (v: unknown) =>
+  Math.max(LIMIT.min, Math.min(LIMIT.max, Math.round(numOf(v, LIMIT.fallback))));
+const readPageSize = (v: unknown) => Math.max(0, Math.round(numOf(v, 0)));
+
+// Liczniki i ocena wiersza: walidacja (komunikat przy polu) NIE blokuje zapisu
+// - to decyzja produktowa. Zapis nie może jednak być liczbą nieskończoną:
+// „1e999" z pola `type="number"` to `Infinity`, które JSON zamienia w `null`.
+const finiteOrZero = (raw: string): number => {
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
 };
 
 const URL_RE = /^(https?:\/\/|\/)[^\s]+$/i;
@@ -154,16 +173,29 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
   const accent = strOf(c.accentColor);
   const enableSearch = (c as Record<string, unknown>).enableSearch !== false;
   const enableSort = (c as Record<string, unknown>).enableSort !== false;
-  const pageSize = numOf((c as Record<string, unknown>).pageSize, 0);
+  const pageSize = readPageSize((c as Record<string, unknown>).pageSize);
+  const limit = readLimit((c as Record<string, unknown>).limit);
   const sourceRaw = strOf(c.source);
   const source: "manual" | "directory" | "event" =
     sourceRaw === "directory" || sourceRaw === "event" ? sourceRaw : "manual";
   const openProfile = (c as Record<string, unknown>).openProfile !== false;
 
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  // Etykieta pola liczbowego jest też jego nazwą dostępną - jeden napis na
+  // oba miejsca, bez dokładania bliźniaka `l(pl, en)` w kodzie.
+  const limitLabel = l("Limit profili", "Profile limit");
+  const pageSizeLabel = l("Paginacja (0 = wyłączona)", "Page size (0 = disabled)");
 
   // Podpowiedzi kategorii (datalist) z już wpisanych wartości - pomagają
   // utrzymać spójne nazwy, od których zależą filtry w widoku publicznym.
+  // JEDNA lista na język dla całego panelu (wiersze wskazują ją przez `list`),
+  // a nie kopia w każdym wierszu: N prelegentów dawało 2N identycznych list.
+  // `useId` rozdziela panele, gdyby na stronie były dwa.
+  const listIdBase = useId();
+  const categoryLists = {
+    pl: `${listIdBase}-speakers-cats-pl`,
+    en: `${listIdBase}-speakers-cats-en`,
+  };
   const categorySuggestions = {
     pl: [...new Set(speakers.map((s) => strOf(s.category_pl).trim()).filter(Boolean))],
     en: [...new Set(speakers.map((s) => strOf(s.category_en).trim()).filter(Boolean))],
@@ -229,16 +261,19 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
           </PropField>
         )}
         {source === "directory" && (
-          <PropField label={l("Limit profili", "Profile limit")}>
-            <Input
-              type="number"
-              min={1}
-              max={200}
-              value={numOf((c as Record<string, unknown>).limit, 24)}
-              onChange={(e) =>
-                setContent("limit", Math.max(1, Math.min(200, Number(e.target.value) || 24)))
-              }
-              className="h-8 text-xs"
+          <PropField label={limitLabel}>
+            {/* Wspólny atom liczby: klamra przy wyjściu z pola, nie w każdym
+                `onChange` - wcześniej wyczyszczenie wstawiało 24 i „150"
+                wpisywane od zera dawało „24150". */}
+            <ClampedNumberInput
+              value={limit}
+              min={LIMIT.min}
+              max={LIMIT.max}
+              precision={0}
+              ariaLabel={limitLabel}
+              onCommit={(v) => {
+                if (v !== undefined && v !== limit) setContent("limit", v);
+              }}
             />
           </PropField>
         )}
@@ -276,19 +311,20 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
           <Switch checked={enableSort} onCheckedChange={(v) => setContent("enableSort", v)} />
         </PropField>
         <PropField
-          label={l("Paginacja (0 = wyłączona)", "Page size (0 = disabled)")}
+          label={pageSizeLabel}
           hint={l(
             "Liczba prelegentów na stronę + przycisk Pokaż więcej",
             "Speakers per page + Load more",
           )}
         >
-          <Input
-            type="number"
-            min={0}
-            step={1}
+          <ClampedNumberInput
             value={pageSize}
-            onChange={(e) => setContent("pageSize", Math.max(0, Number(e.target.value) || 0))}
-            className="h-8 text-xs"
+            min={0}
+            precision={0}
+            ariaLabel={pageSizeLabel}
+            onCommit={(v) => {
+              if (v !== undefined && v !== pageSize) setContent("pageSize", v);
+            }}
           />
         </PropField>
         {pageSize > 0 && (
@@ -332,6 +368,16 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
           items={speakers as unknown as Item[]}
           onAdd={add}
         >
+          <datalist id={categoryLists.pl}>
+            {categorySuggestions.pl.map((cat) => (
+              <option key={cat} value={cat} />
+            ))}
+          </datalist>
+          <datalist id={categoryLists.en}>
+            {categorySuggestions.en.map((cat) => (
+              <option key={cat} value={cat} />
+            ))}
+          </datalist>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -346,7 +392,7 @@ export function SpeakersEditor({ c, lang, setContent }: Props) {
                     item={it}
                     index={i}
                     lang={lang}
-                    categorySuggestions={categorySuggestions}
+                    categoryLists={categoryLists}
                     onPatch={(p) => patch(i, p)}
                     onRemove={() => remove(i)}
                     onDuplicate={() => duplicate(i)}
@@ -366,7 +412,8 @@ interface RowProps {
   item: Item;
   index: number;
   lang: "pl" | "en";
-  categorySuggestions: { pl: string[]; en: string[] };
+  /** Identyfikatory wspólnych list podpowiedzi kategorii (jedna na język). */
+  categoryLists: { pl: string; en: string };
   onPatch: (p: Partial<Item>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
@@ -377,7 +424,7 @@ function SortableSpeakerRow({
   item: it,
   index: i,
   lang,
-  categorySuggestions,
+  categoryLists,
   onPatch,
   onRemove,
   onDuplicate,
@@ -492,26 +539,16 @@ function SortableSpeakerRow({
               value={strOf(it.category_pl)}
               onChange={(e) => onPatch({ category_pl: e.target.value })}
               className="h-8 text-xs"
-              list={`speakers-cats-pl-${id}`}
+              list={categoryLists.pl}
             />
-            <datalist id={`speakers-cats-pl-${id}`}>
-              {categorySuggestions.pl.map((cat) => (
-                <option key={cat} value={cat} />
-              ))}
-            </datalist>
           </PropField>
           <PropField label={`${l("Kategoria", "Category")} EN`}>
             <Input
               value={strOf(it.category_en)}
               onChange={(e) => onPatch({ category_en: e.target.value })}
               className="h-8 text-xs"
-              list={`speakers-cats-en-${id}`}
+              list={categoryLists.en}
             />
-            <datalist id={`speakers-cats-en-${id}`}>
-              {categorySuggestions.en.map((cat) => (
-                <option key={cat} value={cat} />
-              ))}
-            </datalist>
           </PropField>
         </div>
 
@@ -521,7 +558,7 @@ function SortableSpeakerRow({
               type="number"
               min={0}
               value={gigs}
-              onChange={(e) => onPatch({ gigs: Number(e.target.value) || 0 })}
+              onChange={(e) => onPatch({ gigs: finiteOrZero(e.target.value) })}
               className={"h-8 text-xs " + (gigsErr ? "border-destructive" : "")}
             />
             {gigsErr && <p className="text-[10px] text-destructive mt-0.5">{gigsErr}</p>}
@@ -533,7 +570,7 @@ function SortableSpeakerRow({
               max={5}
               step={0.1}
               value={rating}
-              onChange={(e) => onPatch({ rating: Number(e.target.value) || 0 })}
+              onChange={(e) => onPatch({ rating: finiteOrZero(e.target.value) })}
               className={"h-8 text-xs " + (ratingErr ? "border-destructive" : "")}
             />
             {ratingErr && <p className="text-[10px] text-destructive mt-0.5">{ratingErr}</p>}
@@ -543,7 +580,7 @@ function SortableSpeakerRow({
               type="number"
               min={0}
               value={reviews}
-              onChange={(e) => onPatch({ reviews: Number(e.target.value) || 0 })}
+              onChange={(e) => onPatch({ reviews: finiteOrZero(e.target.value) })}
               className={"h-8 text-xs " + (reviewsErr ? "border-destructive" : "")}
             />
             {reviewsErr && <p className="text-[10px] text-destructive mt-0.5">{reviewsErr}</p>}

@@ -324,14 +324,6 @@ describe("tłumaczenie szkicu", () => {
 });
 
 describe("uszkodzony dokument bloków", () => {
-  it("dokument spoza schematu degraduje się do PUSTEJ listy bloków (stan faktyczny)", async () => {
-    const out = await translatePostDraft({
-      data: { title_pl: "Tytuł", blocks_doc_pl: { version: 1, blocks: "to nie jest tablica" } },
-    });
-    expect(sentSegments()).toEqual(["Tytuł"]);
-    expect(out.blocks_en).toEqual([]);
-  });
-
   it("blok spoza schematu jest po cichu WYRZUCANY, poprawne bloki zostają", async () => {
     const out = await translatePostDraft({
       data: {
@@ -350,32 +342,36 @@ describe("uszkodzony dokument bloków", () => {
   });
 
   // -------------------------------------------------------------------------
-  // WEJSCIE: `blocks_doc_pl` niezgodny ze schematem, np.
-  //   `{ version: 1, blocks: "to nie jest tablica" }`, albo dokument, w którym
-  //   KAZDY blok jest spoza schematu.
-  // CO PSUJE: `src/lib/content/translate.functions.ts:36-37` zakłada, że
-  //   `safeParseBlocks` zwraca wartość fałszywą dla dokumentu nie do odczytania
-  //   („if (!parsed) throw new Error("Invalid blocks document")"). Tak nie jest:
-  //   `safeParseBlocks` (`src/lib/blocks/schema.ts:149-167`) ma typ zwrotny
-  //   `BlocksDoc` i w najgorszym razie oddaje `{ version: 1, blocks: [] }`.
-  //   Warunek jest więc martwy - komunikat „Invalid blocks document" nie może
-  //   paść nigdy, a uszkodzony dokument przechodzi dalej jako PUSTY.
-  // KONSEKWENCJA: redakcja klika „przetłumacz", dostaje komplet pól EN i
-  //   `blocks_en: []`. Formularz edytora podstawia to do wersji EN, więc
-  //   ZAMIAST błędu („dokument bloków jest uszkodzony") użytkownik ma cichy
-  //   szkic z WYKASOWANĄ treścią blokową - i zapisze go, bo nic nie krzyknęło.
-  //   Ta sama ścieżka zjada pojedyncze bloki z nowszego wdrożenia po rollbacku.
-  // WYMAGANA POPRAWKA (produkcja, poza zakresem tego zadania): bramkować
-  //   wejście `isBlocksDoc(data.blocks_doc_pl)` (`src/lib/blocks/schema.ts:145`)
-  //   i dopiero potem czytać `safeParseBlocks`, albo porównać liczbę bloków
-  //   wejściowych z liczbą sparsowanych i rzucić „Invalid blocks document",
-  //   gdy parser cokolwiek wyrzucił.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): uszkodzony dokument bloków NIE
+  // przechodzi jako pusty.
+  // `safeParseBlocks` ma typ zwrotny `BlocksDoc` i w najgorszym razie oddaje
+  // `{ version: 1, blocks: [] }`, więc dawny warunek `if (!parsed)` był martwy:
+  // redakcja dostawała komplet pól EN i `blocks_en: []`, czyli szkic
+  // z WYKASOWANĄ treścią blokową, który formularz podstawiał do wersji EN.
+  // Kontrakt: dokument, którego `blocks` nie jest tablicą, albo w którym parser
+  // odrzucił KAŻDY blok, kończy się błędem „Invalid blocks document" - zanim
+  // ruszy płatna bramka AI. Pojedynczy blok spoza schematu obok poprawnych
+  // nadal jest pomijany (test wyżej) - to świadoma degradacja parsera.
   // -------------------------------------------------------------------------
-  it.fails("DEFEKT: uszkodzony dokument bloków NIE jest odrzucany błędem", async () => {
+  it.each([
+    ["blocks nie jest tablicą", { version: 1, blocks: "to nie jest tablica" }],
+    ["brak klucza blocks", { version: 1 }],
+    [
+      "KAŻDY blok spoza schematu",
+      { version: 1, blocks: [{ id: "x", type: "typ-z-przyszlosci", data: { html: "A" } }] },
+    ],
+  ])("odrzuca uszkodzony dokument bloków (%s) bez wołania bramki AI", async (_l, doc) => {
     await expect(
-      translatePostDraft({
-        data: { title_pl: "Tytuł", blocks_doc_pl: { version: 1, blocks: "to nie jest tablica" } },
-      }),
+      translatePostDraft({ data: { title_pl: "Tytuł", blocks_doc_pl: doc } }),
     ).rejects.toThrow("Invalid blocks document");
+    expect(h.translateSegmentsPlToEn).not.toHaveBeenCalled();
+  });
+
+  it("dokument z PUSTĄ listą bloków jest poprawny (to nie jest uszkodzenie)", async () => {
+    const out = await translatePostDraft({
+      data: { title_pl: "Tytuł", blocks_doc_pl: { version: 1, blocks: [] } },
+    });
+    expect(sentSegments()).toEqual(["Tytuł"]);
+    expect(out.blocks_en).toEqual([]);
   });
 });

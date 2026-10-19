@@ -13,6 +13,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeLike } from "@/lib/admin/listFilters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -246,7 +247,9 @@ function EntityPicker({
     enabled: q.trim().length >= 2,
     staleTime: 30_000,
     queryFn: async () => {
-      const term = q.trim();
+      // Osłona filtra `.or()` (przecinek, nawias, `%`/`*`) - jak w `PagePicker`.
+      const term = escapeLike(q.trim());
+      if (term.length < 2) return [];
       const { data } = await supabase
         .from(table)
         .select("id, slug, title_pl, title_en")
@@ -355,7 +358,7 @@ function TaxonomyPicker({
     queryKey: ["link-picker-taxonomy", kind, q, lang],
     staleTime: 60_000,
     queryFn: async (): Promise<TaxonomyRow[]> => {
-      const term = q.trim();
+      const term = escapeLike(q.trim());
       if (kind === "category") {
         let query = supabase.from("categories").select("id, slug, name_pl, name_en").limit(50);
         if (term)

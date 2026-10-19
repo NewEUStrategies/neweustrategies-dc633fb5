@@ -6,7 +6,8 @@ import { TimeInput } from "@/components/ui/time-input";
 // userId; widok pobiera wtedy dane zywe z RPC get_public_speakers, a wpis
 // reczny sluzy za fallback SSR/offline). Edycja pracuje na znormalizowanym
 // modelu (parseScheduleDays) i zapisuje calosc przez toJson - odpornosc na
-// smieci w tresci legacy.
+// smieci w tresci legacy. Wyjatek: puste wiersze prelegentow i sponsorow
+// (patrz `parseEditorDays`).
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import {
@@ -39,6 +40,73 @@ interface Props {
 }
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+const recordsOf = (v: unknown): Array<Record<string, unknown>> =>
+  Array.isArray(v) ? v.filter(isRecord) : [];
+
+// Wiersze prelegentow i sponsorow DLA EDYTORA. `parseScheduleDays` odrzuca
+// prelegenta bez profilu i nazwiska oraz sponsora bez nazwy i logo - slusznie
+// dla widoku (nie rysujemy pustych kart), ale edytor czytajacy ten sam model
+// gubil wiersz, ktory „+ Dodaj" wlasnie zapisal: przycisk nie dawal zadnej
+// reakcji, a recznego prelegenta nie dalo sie dodac wcale. Pola i id
+// zastepcze sa tu takie same jak w `parseSpeaker` / `parseSponsor`.
+function editorSpeakers(raw: unknown): ScheduleSpeakerRef[] {
+  const list = Array.isArray(raw) ? raw : [];
+  return list.flatMap((s: unknown, i) =>
+    isRecord(s)
+      ? [
+          {
+            id: strOf(s.id) || `sp-${i}`,
+            userId: strOf(s.userId),
+            name: strOf(s.name),
+            role_pl: strOf(s.role_pl),
+            role_en: strOf(s.role_en),
+            photo: strOf(s.photo),
+          },
+        ]
+      : [],
+  );
+}
+
+function editorSponsors(raw: unknown): ScheduleSponsor[] {
+  const list = Array.isArray(raw) ? raw : [];
+  return list.flatMap((s: unknown, i) =>
+    isRecord(s)
+      ? [
+          {
+            id: strOf(s.id) || `spn-${i}`,
+            name: strOf(s.name),
+            logo: strOf(s.logo),
+            url: strOf(s.url),
+          },
+        ]
+      : [],
+  );
+}
+
+/**
+ * Model redakcyjny: `parseScheduleDays` (dni i sesje - ta sama normalizacja co
+ * widok), ale z podlistami prelegentow i sponsorow czytanymi BEZ odsiewu
+ * pustych wpisow. Dopasowanie po pozycji jest bezpieczne, bo parser pomija
+ * wylacznie dni i sesje niebedace obiektami - dokladnie te, ktore odrzuca
+ * `recordsOf`.
+ */
+function parseEditorDays(c: WidgetNode["content"]): ScheduleDay[] {
+  const rawDays = recordsOf(c.days);
+  return parseScheduleDays(c).map((day, i) => {
+    const rawSessions = recordsOf(rawDays[i]?.sessions);
+    return {
+      ...day,
+      sessions: day.sessions.map((session, j) => ({
+        ...session,
+        speakers: editorSpeakers(rawSessions[j]?.speakers),
+        sponsors: editorSponsors(rawSessions[j]?.sponsors),
+      })),
+    };
+  });
+}
+
 const newLocalId = (prefix: string): string =>
   `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -446,7 +514,7 @@ function SessionEditor({
 
 export function EventScheduleEditor({ c, lang, setContent }: Props) {
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
-  const days = parseScheduleDays(c);
+  const days = parseEditorDays(c);
   const commit = (next: ScheduleDay[]) => setContent("days", toJson(next));
 
   const patchDay = (i: number, patch: Partial<ScheduleDay>) =>
@@ -486,7 +554,11 @@ export function EventScheduleEditor({ c, lang, setContent }: Props) {
     });
   };
 
-  const columns = strOf(c.columns) || String(typeof c.columns === "number" ? c.columns : 2);
+  // Tak samo jak widok (`getNum(c, "columns", 2)`, potem <= 1 -> 1, reszta -> 2):
+  // napis "1" ze starszej treści widok czyta jako brak (2 kolumny), więc panel
+  // nie może pokazywać jednej kolumny, a liczba spoza listy - pustej listy.
+  const columnsRaw = typeof c.columns === "number" ? c.columns : 2;
+  const columns = columnsRaw <= 1 ? "1" : "2";
 
   return (
     <div className="space-y-3">

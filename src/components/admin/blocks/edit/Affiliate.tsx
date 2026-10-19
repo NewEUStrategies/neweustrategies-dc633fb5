@@ -1,6 +1,7 @@
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
+import { bool, num, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { ShoppingBag } from "lucide-react";
 
@@ -9,9 +10,17 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+/** Ocena w zakresie pola 0-5 (słowo zamiast liczby odsiewa wcześniej `num`). */
+function clampRating(value: number): number {
+  return Math.max(0, Math.min(5, value));
+}
+
+// Odczyt idzie przez czytniki renderera (`str`/`num`/`bool`). Zwłaszcza
+// „sponsorowane": strona oznacza produkt jako reklamę, dopóki NIE zapisano
+// `false` (`bool(…, true)`) - i dokładnie to musi pokazać pole w panelu.
 export function AffiliateBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const get = (k: string) => String(block.data[k] ?? "");
+  const get = (k: string) => str(block.data, k);
   const patch = (k: string, v: unknown) =>
     onChange({ ...block, data: { ...block.data, [k]: v as never } });
 
@@ -22,7 +31,7 @@ export function AffiliateBlock({ block, onChange }: Props) {
         <label className="ml-auto flex items-center gap-1 normal-case tracking-normal">
           <input
             type="checkbox"
-            checked={Boolean(block.data.sponsored)}
+            checked={bool(block.data, "sponsored", true)}
             onChange={(e) => patch("sponsored", e.target.checked)}
           />
           {bt.editor("affiliate", "sponsored")}
@@ -68,8 +77,8 @@ export function AffiliateBlock({ block, onChange }: Props) {
           max={5}
           step={0.1}
           placeholder={bt.editor("affiliate", "rating")}
-          value={String(block.data.rating ?? 0)}
-          onChange={(e) => patch("rating", Number(e.target.value))}
+          value={String(clampRating(num(block.data, "rating", 0)))}
+          onChange={(e) => patch("rating", clampRating(Number(e.target.value)))}
         />
       </div>
       <div className="grid grid-cols-2 gap-2">

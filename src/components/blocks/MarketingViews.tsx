@@ -1,11 +1,19 @@
 // Publiczne renderery dla Phase 4 batch 11 (sekcje marketingowe).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { useMotionGate } from "@/lib/performance/motionGate";
-import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { safeImageUrl } from "@/lib/sanitize";
+import { CAROUSEL_INTERVAL_RANGE, clampAnimationMs } from "@/lib/blocks/animationRanges";
+import { MapPin } from "lucide-react";
+import { BlockSliderArrow } from "./BlockSliderArrow";
+import "@/lib/i18n-public";
+
+/** Język treści bloku - napisy interfejsu i ARIA idą w nim, nie w języku panelu. */
+type Lang = "pl" | "en";
 
 // ===== Hero =====
 
@@ -48,6 +56,10 @@ export function HeroView({
   overlay = 40,
   cls,
 }: HeroProps) {
+  // Schemat ograniczony przez safeImageUrl, a wartość cytowana (jak `cover`
+  // w rendererze) - z cudzysłowem zakodowanym, żeby `");position:fixed` nie
+  // stał się drugą deklaracją stylu w HTML z serwera.
+  const bg = safeImageUrl(bgImage).replace(/["\\\n\r]/g, encodeURIComponent);
   const isCenter = align === "center";
   const ov = Math.max(0, Math.min(90, overlay));
   return (
@@ -55,14 +67,12 @@ export function HeroView({
       className={[
         "relative overflow-hidden rounded-2xl",
         HERO_HEIGHT_CLS[height],
-        bgImage
-          ? "bg-cover bg-center"
-          : "bg-gradient-to-br from-primary/15 via-background to-muted",
+        bg ? "bg-cover bg-center" : "bg-gradient-to-br from-primary/15 via-background to-muted",
         cls ?? "",
       ].join(" ")}
-      style={bgImage ? { backgroundImage: `url(${bgImage})` } : undefined}
+      style={bg ? { backgroundImage: `url("${bg}")` } : undefined}
     >
-      {bgImage ? (
+      {bg ? (
         <div className="absolute inset-0 bg-black" style={{ opacity: ov / 100 }} aria-hidden />
       ) : null}
       <div
@@ -76,7 +86,7 @@ export function HeroView({
             <div
               className={[
                 "inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide",
-                bgImage ? "bg-white/10 text-white backdrop-blur" : "bg-primary/10 text-primary",
+                bg ? "bg-white/10 text-white backdrop-blur" : "bg-primary/10 text-primary",
               ].join(" ")}
             >
               {eyebrow}
@@ -86,7 +96,7 @@ export function HeroView({
             <h1
               className={[
                 "font-serif text-3xl md:text-5xl lg:text-6xl font-bold leading-tight",
-                bgImage ? "text-white" : "text-foreground",
+                bg ? "text-white" : "text-foreground",
               ].join(" ")}
             >
               {title}
@@ -96,7 +106,7 @@ export function HeroView({
             <p
               className={[
                 "text-base md:text-lg leading-relaxed",
-                bgImage ? "text-white/90" : "text-muted-foreground",
+                bg ? "text-white/90" : "text-muted-foreground",
               ].join(" ")}
             >
               {subtitle}
@@ -117,7 +127,7 @@ export function HeroView({
                   href={secondaryHref}
                   className={[
                     "inline-flex items-center justify-center px-5 py-3 rounded-lg border text-sm font-semibold transition-colors",
-                    bgImage
+                    bg
                       ? "border-white/30 text-white hover:bg-white/10"
                       : "border-border text-foreground hover:bg-muted",
                   ].join(" ")}
@@ -211,38 +221,52 @@ const ASPECT_CLS: Record<string, string> = {
   "21:9": "aspect-[21/9]",
 };
 
+/** Pole slajdu jako tekst: napis albo liczba; obiekt z importu to brak wartości. */
+function slideText(v: Json | undefined): string {
+  if (typeof v === "string") return v;
+  return typeof v === "number" && Number.isFinite(v) ? String(v) : "";
+}
+
 interface CarouselProps {
   items?: Json[];
   autoplay?: boolean;
   interval?: number;
   aspect?: string;
+  lang?: Lang;
   cls?: string;
 }
 
 export function ImageCarouselView({
   items,
   autoplay,
-  interval = 5000,
+  interval = CAROUSEL_INTERVAL_RANGE.fallback,
   aspect = "16:9",
+  lang = "pl",
   cls,
 }: CarouselProps) {
+  const { t } = useTranslation();
   const parsed: SlideLite[] = useMemo(() => {
     if (!Array.isArray(items)) return [];
     return items
       .map((i) => {
-        const o = (i ?? {}) as Record<string, Json>;
+        const o = (i && typeof i === "object" && !Array.isArray(i) ? i : {}) as Record<
+          string,
+          Json
+        >;
         return {
-          url: String(o.url ?? ""),
-          alt: String(o.alt ?? ""),
-          caption: String(o.caption ?? ""),
-          href: String(o.href ?? ""),
+          url: slideText(o.url),
+          alt: slideText(o.alt),
+          caption: slideText(o.caption),
+          href: slideText(o.href),
         };
       })
       .filter((s) => s.url.length > 0);
   }, [items]);
-  const [idx, setIdx] = useState(0);
+  const [rawIdx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const total = parsed.length;
+  // Lista skrócona w podglądzie na żywo nie może zostawić indeksu poza nią.
+  const idx = total > 0 ? rawIdx % total : 0;
 
   const go = useCallback(
     (d: number) => {
@@ -252,28 +276,30 @@ export function ImageCarouselView({
     [total],
   );
 
+  // Zakres pola edytora (1,5-20 s) obowiązuje też dane z importu i API.
+  // Domykanie tylko od dołu przepuszczało interwał ponad 2^31-1 ms, który
+  // przeglądarka odpala NATYCHMIAST (karuzela skakała w pętli), oraz `NaN`.
+  const intervalMs = clampAnimationMs(interval, CAROUSEL_INTERVAL_RANGE);
+
   // Bramka ruchu (P3.5): automat rusza dopiero po pierwszej interakcji albo w
   // punkcie ciszy strony - pierwszy przeskok = otwarcie + pełny interwał.
   const motion = useMotionGate(Boolean(autoplay) && total > 1);
   useEffect(() => {
     if (!autoplay || !motion || paused || total < 2) return;
-    const t = window.setInterval(
-      () => setIdx((cur) => (cur + 1) % total),
-      Math.max(1500, interval),
-    );
+    const t = window.setInterval(() => setIdx((cur) => (cur + 1) % total), intervalMs);
     return () => window.clearInterval(t);
-  }, [autoplay, motion, paused, interval, total]);
+  }, [autoplay, motion, paused, intervalMs, total]);
 
   if (total === 0) return null;
   const aspectCls = ASPECT_CLS[aspect] ?? ASPECT_CLS["16:9"];
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl ${cls ?? ""}`}
+      className={`eh-block-slider relative overflow-hidden rounded-2xl ${cls ?? ""}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       role="region"
-      aria-roledescription="karuzela"
+      aria-roledescription={t("blocksUi.carouselRole", { lng: lang })}
     >
       <div className={`relative w-full ${aspectCls} bg-muted`}>
         {parsed.map((s, i) => {
@@ -315,29 +341,29 @@ export function ImageCarouselView({
       </div>
       {total > 1 ? (
         <>
-          <button
-            type="button"
+          {/* Wspólny kąt i geometria sliderów; strzałka leży na ZDJĘCIU, więc
+              powierzchnia „media" (jasny kąt na półprzezroczystej czerni). */}
+          <BlockSliderArrow
+            side="left"
+            surface="media"
+            label={t("blocksUi.carouselPrevious", { lng: lang })}
             onClick={() => go(-1)}
-            className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
-            aria-label="Poprzedni slajd"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+          />
+          <BlockSliderArrow
+            side="right"
+            surface="media"
+            label={t("blocksUi.carouselNext", { lng: lang })}
             onClick={() => go(1)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
-            aria-label="Następny slajd"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+            className="absolute right-3 top-1/2 -translate-y-1/2"
+          />
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
             {parsed.map((_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setIdx(i)}
-                aria-label={`Slajd ${i + 1}`}
+                aria-label={t("blocksUi.carouselSlide", { lng: lang, n: i + 1 })}
                 aria-current={i === idx}
                 className={[
                   "h-1.5 rounded-full transition-all",
@@ -360,6 +386,7 @@ interface MapProps {
   zoom?: number;
   height?: number;
   label?: string;
+  lang?: Lang;
   cls?: string;
 }
 
@@ -369,8 +396,10 @@ export function MapView({
   zoom = 13,
   height = 360,
   label,
+  lang = "pl",
   cls,
 }: MapProps) {
+  const { t } = useTranslation();
   // OSM "export" embed - safe, no API key. bbox = ~0.01 degrees around point per zoom level.
   const span = Math.max(0.0008, 0.5 / Math.pow(1.6, Math.max(1, Math.min(18, zoom)) - 1));
   const bbox = `${(lng - span).toFixed(5)},${(lat - span).toFixed(5)},${(lng + span).toFixed(5)},${(lat + span).toFixed(5)}`;
@@ -382,7 +411,7 @@ export function MapView({
           only mounts when the reader scrolls near. The wrapper reserves the
           exact final height - zero layout shift. */}
       <DeferredFrame
-        title={label || "Mapa"}
+        title={label || t("blocksUi.mapTitle", { lng: lang })}
         src={src}
         referrerPolicy="no-referrer-when-downgrade"
         style={{ height: `${Math.max(160, Math.min(800, height))}px` }}
@@ -399,7 +428,7 @@ export function MapView({
           rel="noopener noreferrer"
           className="text-primary hover:underline"
         >
-          Otwórz w OpenStreetMap
+          {t("blocksUi.mapOpen", { lng: lang })}
         </a>
       </figcaption>
     </figure>

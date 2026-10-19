@@ -12,6 +12,7 @@ import { looksLikeInlineHtml, safeCssColor } from "@/lib/blocks/inlineHtml";
 import { decorateCmsStatusIcons } from "@/lib/content/cmsInlineIcons";
 import type { BlockRenderer } from "./context";
 import { bool, num, sanitize, str, strList } from "./data";
+import { blockPaletteVar } from "@/lib/blocks/variants";
 
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
@@ -34,7 +35,9 @@ export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
  * migracja treści bloki↔richtext zerwałaby już opublikowane linki `#`.
  */
 export const renderHeading: BlockRenderer = ({ block, fnHtml, cls, allBlocks }) => {
-  const level = Math.min(Math.max(num(block.data, "level", 2), 2), 5);
+  // Zaokrąglenie PRZED klamrą: poziom ułamkowy z importu (3.6) dawał znacznik
+  // `<h3.6>`, który nie jest nagłówkiem dla czytnika ani wyszukiwarki.
+  const level = Math.min(Math.max(Math.round(num(block.data, "level", 2)), 2), 5);
   const text = str(block.data, "text");
   const anchor = blockAnchor(block, allBlocks);
   const id = anchor.id || undefined;
@@ -102,6 +105,13 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
   const start = num(block.data, "start", 1);
   const levelsRaw = Array.isArray(block.data.levels) ? block.data.levels : [];
   const orderedRaw = Array.isArray(block.data.itemsOrdered) ? block.data.itemsOrdered : [];
+  // Poziom pozycji nie może przeskoczyć więcej niż o 1 w głąb względem
+  // poprzedniej (ani zacząć się poniżej 1. poziomu). `renderLevel` schodzi
+  // dokładnie o jeden poziom, więc pozycja z dziurą (import Worda: poziom 1,
+  // potem od razu 3; lista zaczynająca się od 2. poziomu; poziom ułamkowy)
+  // nie trafiała do żadnej listy i ZNIKAŁA z publikacji. Spłaszczamy ją do
+  // najgłębszego osiągalnego poziomu - treść zostaje, wcięcie się skraca.
+  let prevLevel = 0;
   const kept = items
     .map((it, i) => ({
       it,
@@ -109,7 +119,12 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
       level: typeof levelsRaw[i] === "number" ? Math.max(1, Math.min(6, levelsRaw[i])) : 1,
       ordered: typeof orderedRaw[i] === "boolean" ? orderedRaw[i] : ordered,
     }))
-    .filter(({ it }) => Boolean(it));
+    .filter(({ it }) => Boolean(it))
+    .map((entry) => {
+      const level = Math.min(Math.floor(entry.level), prevLevel + 1);
+      prevLevel = level;
+      return level === entry.level ? entry : { ...entry, level };
+    });
 
   const renderItem = (entry: (typeof kept)[number]) => {
     const withFn = fnHtml.get(`${block.id}:item:${entry.i}`);
@@ -143,7 +158,6 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
         childEntries.push(entries[j]);
         j++;
       }
-      const childLevel = childEntries.find((c) => c.level === level + 1) ?? childEntries[0];
       nodes.push(
         <li key={entry.i} className="cms-list-item" data-list-level={level}>
           {isOrdered ? (
@@ -154,8 +168,10 @@ export const renderList: BlockRenderer = ({ block, fnHtml, cls }) => {
             <span className="cms-list-bullet" aria-hidden="true" />
           )}
           <span className="cms-list-content">{renderItem(entry)}</span>
+          {/* Po normalizacji poziomów pierwsze dziecko leży DOKŁADNIE poziom
+              niżej, więc to ono wyznacza typ zagnieżdżonej listy. */}
           {childEntries.length > 0 &&
-            renderLevel(childEntries, level + 1, childLevel?.ordered ?? isOrdered, false)}
+            renderLevel(childEntries, level + 1, childEntries[0].ordered, false)}
         </li>,
       );
       ordinal += 1;
@@ -189,16 +205,8 @@ export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
   const variant = str(block.data, "variant") || "default";
   const palette = str(block.data, "colorPalette") || "neutral";
 
-  const paletteVar: Record<string, string> = {
-    neutral: "var(--foreground)",
-    brand: "var(--brand, var(--primary))",
-    accent: "var(--accent-foreground, var(--primary))",
-    primary: "var(--primary)",
-    success: "var(--success, #16a34a)",
-    warning: "var(--warning, #FA9346)",
-    danger: "var(--destructive)",
-  };
-  const accent = paletteVar[palette] ?? paletteVar.neutral;
+  // Ten sam katalog co edytor i toolbar (`blockPaletteVar`), a nie lokalna kopia.
+  const accent = blockPaletteVar(palette);
   const tint = `color-mix(in oklab, ${accent} 8%, transparent)`;
 
   const TextEl =

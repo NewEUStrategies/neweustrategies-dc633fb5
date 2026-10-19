@@ -2381,9 +2381,21 @@ export const WIDGET_MAP: Record<WidgetType, WidgetDef> = WIDGETS.reduce(
   {} as Record<WidgetType, WidgetDef>,
 );
 
-export const makeWidget = (type: WidgetType): WidgetNode => ({
-  id: newId(),
-  kind: "widget",
-  type,
-  content: WIDGET_MAP[type].defaults(),
-});
+/**
+ * Nowy węzeł widgetu z domyślną treścią z rejestru.
+ *
+ * Typ spoza rejestru (ładunek przeciągnięcia z innej wersji aplikacji,
+ * literówka, typ usunięty w nowszym wydaniu) daje `null` - ta sama odmowa co
+ * `coerceWidget` w `schema.ts` - zamiast `TypeError` z `WIDGET_MAP[type]`
+ * w środku uchwytu `drop`. Przeciążenie dla `string` zwraca typ nullowalny,
+ * więc wołający z niezaufanym napisem MUSI obsłużyć odmowę.
+ */
+export function makeWidget(type: WidgetType): WidgetNode;
+export function makeWidget(type: string): WidgetNode | null;
+export function makeWidget(type: string): WidgetNode | null {
+  const def = Object.prototype.hasOwnProperty.call(WIDGET_MAP, type)
+    ? WIDGET_MAP[type as WidgetType]
+    : undefined;
+  if (!def) return null;
+  return { id: newId(), kind: "widget", type: def.type, content: def.defaults() };
+}

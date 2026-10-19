@@ -4,7 +4,7 @@ import type * as React from "react";
 // Czytają CurrentPostCtx; bez side-effectów, bezpieczne dla SSR.
 
 import { XIcon } from "@/components/atoms/XIcon";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useSyncExternalStore } from "react";
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { useReadingTimeSettings } from "@/hooks/useReadingTimeSettings";
 import { computeReadingMinutes } from "@/lib/readingTime";
@@ -71,11 +71,13 @@ export function BreadcrumbsView({
 }: BreadcrumbsProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
-  const crumbs = ctx?.breadcrumbs ?? [];
+  // Zależność to tablica z kontekstu (stabilna), nie `?? []` tworzone w każdym
+  // renderze - inaczej memo liczyło się od nowa przy każdym renderze.
+  const crumbs = ctx?.breadcrumbs;
 
   const items = useMemo(() => {
     const base = showHome ? [{ label: t.home, href: "/" }] : [];
-    return [...base, ...crumbs];
+    return [...base, ...(crumbs ?? [])];
   }, [showHome, crumbs, t.home]);
 
   if (items.length === 0) {
@@ -216,6 +218,15 @@ const NETWORK_META: Record<
   copy: { label: "Copy", Icon: Link2, color: "bg-muted text-foreground" },
 };
 
+// Adres strony dla przycisków udostępniania. Serwer go nie zna, a React 19 nie
+// łata różnic atrybutów przy hydratacji - adres przeczytany z `window` w ciele
+// renderu zostawiał w DOM-ie serwerowe `sharer.php?u=` (pusto). Migawka
+// serwera (pusta) obowiązuje więc także w hydratacji, a adres przeglądarki
+// wchodzi zaraz po niej; zwykły render kliencki czyta go od razu.
+const noLocationEvents = () => () => {};
+const readPageUrl = () => window.location.href;
+const serverPageUrl = () => "";
+
 interface ShareProps {
   networks?: string[];
   variant?: "filled" | "outline" | "ghost";
@@ -232,7 +243,7 @@ export function ShareButtonsView({ networks, variant = "filled", lang = "pl", cl
     (n): n is Network => n in NETWORK_META,
   );
 
-  const url = typeof window !== "undefined" ? window.location.href : "";
+  const url = useSyncExternalStore(noLocationEvents, readPageUrl, serverPageUrl);
   const title =
     (lang === "pl" ? ctx?.title_pl : ctx?.title_en) ?? ctx?.title_pl ?? ctx?.title_en ?? "";
 

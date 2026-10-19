@@ -389,11 +389,14 @@ function PostPanel({
             `${pattern.defaultExcerpt?.pl ?? ""} / ${pattern.defaultExcerpt?.en ?? ""}`,
             `${excerptPl.trim()} / ${excerptEn.trim()}`,
           ),
-          diff(
-            lang === "pl" ? "Treść" : "Content",
-            `${pattern.content.pl.length} zn. / ${pattern.content.en.length} zn.`,
-            `${contentPl.length} zn. / ${contentEn.length} zn.`,
-          ),
+          {
+            // Podsumowanie POKAZUJE długości, ale o zmianie decyduje treść:
+            // podmiana na inny tekst tej samej długości też idzie do zapisu.
+            label: lang === "pl" ? "Treść" : "Content",
+            changed: contentPl !== pattern.content.pl || contentEn !== pattern.content.en,
+            before: `${pattern.content.pl.length} zn. / ${pattern.content.en.length} zn.`,
+            after: `${contentPl.length} zn. / ${contentEn.length} zn.`,
+          },
         ]}
         onConfirm={() => {
           setConfirmOpen(false);

@@ -264,6 +264,16 @@ function fields(root: HTMLElement): HTMLInputElement[] {
   return Array.from(root.querySelectorAll<HTMLInputElement>("input, textarea"));
 }
 
+/**
+ * Przecieki widoczne w edytorze (tekst i wartości pól). Ta sama miara, co
+ * `assertNoLeak` - bramka rejestru `COERCION_DEFECTS` sprawdza nią, czy
+ * zwolniony edytor nadal przecieka.
+ */
+export function leaksIn(root: HTMLElement): string[] {
+  const values = [root.textContent ?? "", ...fields(root).map((field) => field.value)];
+  return LEAKS.filter((leak) => values.some((value) => value.includes(leak)));
+}
+
 function assertNoLeak(root: HTMLElement, label: string): void {
   const text = root.textContent ?? "";
   for (const leak of LEAKS) {
@@ -370,27 +380,22 @@ export const PREVIEW_ONLY: readonly string[] = [
 ];
 
 /**
- * EDYTORY Z ZAREJESTROWANYM DEFEKTEM KOERCJI. Na danych spoza dziedziny
- * (`level: "h2"`, `caption: {}`, `height: "wysoko"`) przepuszczają do
- * interfejsu `NaN` albo `[object Object]` - każdy z tych przypadków ma własny
- * `it.fails` z KONKRETNYM wejściem i opisem, co psuje, w
- * `blockEditCoercionDefects.test.tsx` obok. Tabela pomija dla nich asercję
- * wycieku (drugi raz ta sama porażka nic nie dowodzi), ale NADAL sprawdza
- * limity pól, listy wyboru i brak zapisu na renderze.
+ * EDYTORY Z ZAREJESTROWANYM DEFEKTEM KOERCJI. Edytor, który na danych spoza
+ * dziedziny (`level: "h2"`, `caption: {}`, `height: "wysoko"`) przepuszcza do
+ * interfejsu `NaN` albo `[object Object]`, trafia tu RAZEM z `it.fails`
+ * z KONKRETNYM wejściem w `blockEditCoercionDefects.test.tsx` obok. Tabela
+ * pomija dla niego asercję wycieku (drugi raz ta sama porażka nic nie
+ * dowodzi), ale NADAL sprawdza limity pól, listy wyboru i brak zapisu na
+ * renderze.
  *
- * Ta lista jest ZAMKNIĘTA i jest miarą skali defektu: 8 z 98 edytorów. Nowy
- * edytor z tym samym błędem obleje tabelę, zamiast dosiąść się do wyjątku.
+ * PUSTA od napraw z 2026-10-18: wszystkie osiem dawnych wpisów (audio, wideo,
+ * wykres, nagłówek, obraz, lista, pasek postępu, odstęp) przestało przeciekać,
+ * a wpis zostawiony po naprawie zwalniał edytor z asercji, która miała
+ * pilnować powrotu defektu. Lista jest ZAMKNIĘTA: nowy edytor z tym samym
+ * błędem obleje tabelę, zamiast dosiąść się do wyjątku, a wpis po naprawie
+ * oblewa bramkę `blockEditCoercionRegistry.test.tsx`.
  */
-export const COERCION_DEFECTS: readonly string[] = [
-  "AudioBlock",
-  "ChartBlock",
-  "HeadingBlock",
-  "ImageBlock",
-  "ListBlockEdit",
-  "ProgressBlock",
-  "SpacerBlock",
-  "VideoBlock",
-];
+export const COERCION_DEFECTS: readonly string[] = [];
 
 const NOOP = () => undefined;
 const FALSE = () => false;

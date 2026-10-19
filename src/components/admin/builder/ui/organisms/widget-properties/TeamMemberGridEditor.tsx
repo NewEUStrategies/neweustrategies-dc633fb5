@@ -43,6 +43,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PropField, ItemFrame, ColorField } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
+import { teamGridColumns, teamGridRadius } from "@/lib/builder/teamGrid";
 import { ListShell } from "./ListShell";
 import { ImageSlot } from "./ImageSlot";
 import { itemsOf, type Item } from "./shared";
@@ -54,10 +56,6 @@ interface Props {
 }
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
-const numOf = (v: unknown, fb = 0): number => {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : fb;
-};
 
 const LINK_RE = /^(https?:\/\/|\/)[^\s]+$/i;
 
@@ -132,8 +130,11 @@ export function TeamMemberGridEditor({ c, lang, setContent }: Props) {
     commit(arrayMove(members, from, to));
   };
 
-  const columns = numOf(c.columns, 3);
-  const radius = numOf(c.radius, 6);
+  // Kolumny i zaokrąglenie czytamy TĄ SAMĄ funkcją co renderer - panel
+  // pokazuje to, co rysuje siatka (np. `columns: 5` z importu = 4 kolumny),
+  // a lista wyboru zawsze ma zaznaczoną opcję ze swojego zbioru.
+  const columns = teamGridColumns(c);
+  const radius = teamGridRadius(c);
   const accent = strOf(c.accentColor);
   const grayscale = (c as Record<string, unknown>).grayscale !== false;
   const openPopup = (c as Record<string, unknown>).openPopup !== false;
@@ -188,15 +189,20 @@ export function TeamMemberGridEditor({ c, lang, setContent }: Props) {
             </Select>
           </PropField>
           <PropField label={tg("radius")} hint={tg("radiusHint")}>
-            <Input
-              type="number"
+            {/* Wspólny atom pola z zakresem: wyczyszczenie pola w trakcie
+                pisania NIE zapisuje zera (dawny `Number("") || 0` dawał
+                ostre rogi w dokumencie i krok historii), a poza zakresem
+                wartość klampuje się dopiero przy zatwierdzeniu. */}
+            <ClampedNumberInput
+              value={radius}
               min={0}
               max={48}
-              value={radius}
-              onChange={(e) =>
-                setContent("radius", Math.max(0, Math.min(48, Number(e.target.value) || 0)))
-              }
-              className="h-8 text-xs"
+              ariaLabel={tg("radius")}
+              onCommit={(v) => {
+                // Samo wejście i wyjście z pola (blur zatwierdza draft) nie
+                // jest zmianą - bez tego dokument dostawał krok historii.
+                if (v !== undefined && v !== radius) setContent("radius", v);
+              }}
             />
           </PropField>
         </div>

@@ -162,48 +162,28 @@ describe("TocWidget - warianty układu", () => {
 
 describe("TocWidget - scrollspy i postęp czytania", () => {
   it("marks the active item with aria-current in every variant", async () => {
-    // Scrollspy: IntersectionObserver zgłaszający przecięcie od razu przy
-    // observe(). Ostatni obserwowany nagłówek (H2 "Alfa") zostaje aktywny,
-    // więc jedna para pozycji pokrywa obie gałęzie stylowania isActive.
-    const RealIO = globalThis.IntersectionObserver;
-    class ImmediateIO {
-      constructor(private cb: IntersectionObserverCallback) {}
-      observe(target: Element): void {
-        this.cb(
-          [
-            {
-              isIntersecting: true,
-              target,
-              boundingClientRect: target.getBoundingClientRect(),
-            } as IntersectionObserverEntry,
-          ],
-          this as unknown as IntersectionObserver,
-        );
-      }
-      unobserve(): void {}
-      disconnect(): void {}
-      takeRecords(): IntersectionObserverEntry[] {
-        return [];
-      }
-    }
-    globalThis.IntersectionObserver = ImmediateIO as unknown as typeof IntersectionObserver;
-    try {
-      for (const variant of ["list", "grid", "sidebar"] as const) {
-        document.body.innerHTML = "";
-        mountContent(`<h3>Beta pod</h3><h2>Alfa</h2>`);
-        const view = renderWidget({ variant });
-        await waitFor(() => {
-          const activeLink = document.querySelector<HTMLAnchorElement>(
-            'a[aria-current="location"]',
-          );
-          expect(activeLink?.getAttribute("href")).toBe("#alfa");
-        });
-        // Nieaktywna pozycja nie dostaje aria-current.
-        expect(screen.getByRole("link", { name: /Beta pod/ })).not.toHaveAttribute("aria-current");
-        view.unmount();
-      }
-    } finally {
-      globalThis.IntersectionObserver = RealIO;
+    // Scrollspy liczy aktywną pozycję z geometrii nagłówków: aktywny jest
+    // najniższy nagłówek nad linią odniesienia (~20% okna). H2 "Alfa" stoi
+    // nad linią i niżej niż H3 "Beta pod", więc jedna para pozycji pokrywa
+    // obie gałęzie stylowania isActive.
+    const at = (el: Element | null, top: number) =>
+      Object.defineProperty(el!, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ top, bottom: top + 40, left: 0, right: 0, width: 0, height: 40 }),
+      });
+    for (const variant of ["list", "grid", "sidebar"] as const) {
+      document.body.innerHTML = "";
+      const host = mountContent(`<h3>Beta pod</h3><h2>Alfa</h2>`);
+      at(host.querySelector("h3"), -300);
+      at(host.querySelector("h2"), 20);
+      const view = renderWidget({ variant });
+      await waitFor(() => {
+        const activeLink = document.querySelector<HTMLAnchorElement>('a[aria-current="location"]');
+        expect(activeLink?.getAttribute("href")).toBe("#alfa");
+      });
+      // Nieaktywna pozycja nie dostaje aria-current.
+      expect(screen.getByRole("link", { name: /Beta pod/ })).not.toHaveAttribute("aria-current");
+      view.unmount();
     }
   });
 

@@ -18,6 +18,8 @@ import type { BlocksDoc } from "@/lib/blocks/types";
 import type { PublicPoll } from "@/lib/community/publicQueries";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { postsNarrowedToTaxonomy, type TaxonomyNarrowing } from "@/lib/queries/taxonomyPivot";
+import { SITE_TIME_ZONE } from "@/lib/i18n/format";
+import { eventDayKey, instantFromWallClock, wallClockInZone } from "@/lib/events/timezone";
 
 const STALE_TIME = 2 * 60_000;
 const GC_TIME = 10 * 60_000;
@@ -502,10 +504,55 @@ export const morePostsBlockQueryOptions = (input: MorePostsInput) =>
 // ---------------------------------------------------------------------------
 // calendar (published days of a month)
 // ---------------------------------------------------------------------------
+// MIESIĄC I DZIEŃ SĄ WARSZAWSKIE, NIE MASZYNOWE. Strona wpisu datuje
+// publikację w strefie redakcji (`SITE_TIME_ZONE`), a `new Date(rok, mies, 1)`
+// i `getDate()` liczą w strefie procesu: na Workers UTC, w przeglądarce strefa
+// czytelnika. Wpis z 01:30 1 kwietnia (Warszawa) wypadał wtedy z okna
+// kwietnia i zapalał 31 marca, a SSR i klient liczyły różne okna i różny
+// „bieżący miesiąc". Granice, dzień w siatce i miesiąc domyślny idą więc przez
+// wspólne helpery strefy (`lib/events/timezone.ts`) z `SITE_TIME_ZONE`.
 
 export interface CalendarInput {
   year: number;
   month: number;
+}
+
+const pad = (value: number, size = 2): string => String(value).padStart(size, "0");
+
+/** Północ 1. dnia miesiąca w strefie serwisu, jako chwila ISO. */
+function siteMonthStart(year: number, month: number): string {
+  const wall = `${pad(year, 4)}-${pad(month)}-01T00:00`;
+  // Północ zawsze istnieje w Warszawie (zmiana czasu jest o 02:00/03:00), więc
+  // gałąź ratunkowa w UTC jest tylko bezpiecznikiem na rok spoza zakresu `Date`.
+  return (
+    instantFromWallClock(wall, SITE_TIME_ZONE)?.iso ??
+    new Date(Date.UTC(year, month - 1, 1)).toISOString()
+  );
+}
+
+/** Okno `[start, end)` miesiąca w strefie serwisu - granice zapytania kalendarza. */
+function siteMonthWindow(input: CalendarInput): { start: string; end: string } {
+  const next =
+    input.month === 12 ? { year: input.year + 1, month: 1 } : { ...input, month: input.month + 1 };
+  return {
+    start: siteMonthStart(input.year, input.month),
+    end: siteMonthStart(next.year, next.month),
+  };
+}
+
+/**
+ * Dzień miesiąca (1-31), w którym wpis wyszedł - w strefie serwisu, tak jak
+ * datuje go strona wpisu - albo `null`, gdy chwila leży poza miesiącem
+ * `target` albo jest nieczytelna. Klucz doby (YYYY-MM-DD) to początek zegara
+ * `wallClockInZone`, a nie `eventDayKey`: siatka woła to dla każdego z do 500
+ * wierszy, a `eventDayKey` buduje nowy `Intl.DateTimeFormat` przy każdym
+ * wywołaniu (setki ms CPU na render SSR). Formater zegara jest buforowany per
+ * strefa; doba wychodzi ta sama.
+ */
+export function calendarPublishedDay(publishedAt: string, target: CalendarInput): number | null {
+  const key = wallClockInZone(publishedAt, SITE_TIME_ZONE).slice(0, 10);
+  if (!key.startsWith(`${pad(target.year, 4)}-${pad(target.month)}-`)) return null;
+  return Number(key.slice(8, 10));
 }
 
 export const calendarBlockQueryOptions = (input: CalendarInput) =>
@@ -514,8 +561,7 @@ export const calendarBlockQueryOptions = (input: CalendarInput) =>
     staleTime: STALE_TIME,
     gcTime: GC_TIME,
     queryFn: async (): Promise<Array<{ slug: string; published_at: string }>> => {
-      const start = new Date(input.year, input.month - 1, 1).toISOString();
-      const end = new Date(input.year, input.month, 1).toISOString();
+      const { start, end } = siteMonthWindow(input);
       const { data, error } = await supabase
         .from("posts")
         .select("slug, published_at")
@@ -535,9 +581,15 @@ export const calendarBlockQueryOptions = (input: CalendarInput) =>
 /** Resolve the month a `calendar` block targets ("YYYY-MM" or current). */
 export function calendarTarget(month: string): CalendarInput {
   const m = /^(\d{4})-(\d{2})$/.exec(month);
-  if (m) return { year: Number(m[1]), month: Number(m[2]) };
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  // Miesiąc spoza 1-12 to też niepoprawne ustawienie - inaczej okno zapytania
+  // i siatka przewijałyby się na inny rok, a dni nie trafiałyby w żaden klucz.
+  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) {
+    return { year: Number(m[1]), month: Number(m[2]) };
+  }
+  // Bieżący miesiąc W STREFIE SERWISU: SSR i klient muszą trafić w ten sam
+  // klucz zapytania także w godzinach, gdy w UTC trwa jeszcze poprzedni miesiąc.
+  const today = eventDayKey(new Date().toISOString(), SITE_TIME_ZONE);
+  return { year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 // Word-style floating toolbar dla edytora akapitu (TipTap).
-// Wszystkie napisy są lokalizowane (PL/EN) przez useBlocksI18n().
+// Wszystkie napisy są lokalizowane (PL/EN) przez useBlocksI18n() - także nazwy
+// przycisków formatowania; skrót klawiszowy („(⌘B)") dokleja kod do nazwy ze słownika.
 // Layout: dwie linie - wiersz formatowania znaków + wiersz akapitu/koloru/listy.
 import { useState, useRef, useEffect } from "react";
 import type { Editor } from "@tiptap/react";
@@ -191,7 +192,7 @@ export function WordStyleToolbar({ editor }: Props) {
   const promptLink = async () => {
     const current = (editor.getAttributes("link").href as string | undefined) ?? "https://";
     const url = await promptDialog({
-      title: "Link",
+      title: i18n.t("blocks.toolbar.link"),
       label: "URL",
       defaultValue: current,
       confirmLabel: i18n.t("blocks.toolbar.apply"),
@@ -266,49 +267,49 @@ export function WordStyleToolbar({ editor }: Props) {
         <Divider />
 
         <ToolbarBtn
-          title="Bold (⌘B)"
+          title={`${i18n.t("blocks.toolbar.bold")} (⌘B)`}
           active={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
           <Bold className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title="Italic (⌘I)"
+          title={`${i18n.t("blocks.toolbar.italic")} (⌘I)`}
           active={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
           <Italic className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title="Underline (⌘U)"
+          title={`${i18n.t("blocks.toolbar.underline")} (⌘U)`}
           active={editor.isActive("underline")}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
         >
           <UnderlineIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title="Strikethrough"
+          title={i18n.t("blocks.toolbar.strike")}
           active={editor.isActive("strike")}
           onClick={() => editor.chain().focus().toggleStrike().run()}
         >
           <Strikethrough className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title="Subscript"
+          title={i18n.t("blocks.toolbar.subscript")}
           active={editor.isActive("subscript")}
           onClick={() => editor.chain().focus().toggleSubscript().run()}
         >
           <SubscriptIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title="Superscript"
+          title={i18n.t("blocks.toolbar.superscript")}
           active={editor.isActive("superscript")}
           onClick={() => editor.chain().focus().toggleSuperscript().run()}
         >
           <SuperscriptIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <ToolbarBtn
-          title="Code"
+          title={i18n.t("blocks.toolbar.inlineCode")}
           active={editor.isActive("code")}
           onClick={() => editor.chain().focus().toggleCode().run()}
         >
@@ -376,7 +377,11 @@ export function WordStyleToolbar({ editor }: Props) {
 
         <Divider />
 
-        <ToolbarBtn title="Link (⌘K)" active={editor.isActive("link")} onClick={promptLink}>
+        <ToolbarBtn
+          title={`${i18n.t("blocks.toolbar.link")} (⌘K)`}
+          active={editor.isActive("link")}
+          onClick={promptLink}
+        >
           <LinkIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
         {editor.isActive("link") && (

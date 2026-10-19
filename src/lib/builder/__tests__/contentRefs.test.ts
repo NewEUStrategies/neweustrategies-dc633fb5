@@ -431,26 +431,14 @@ describe("mapowanie jezykowe wiersza na wariant PL/EN", () => {
     expect(ref?.publishedAt).toBeNull();
   });
 
-  // DEFEKT: PUSTY TYTUL W ZADANYM JEZYKU NIE SPADA NA DRUGI JEZYK.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): pusty tytul w zadanym jezyku nie
+  // spadal na drugi jezyk, bo `toPostRef` skladal fallback operatorem `??`.
   //
-  // WEJSCIE: wiersz z `title_pl: "Tytul PL"` i `title_en: ""` (redaktor
-  //   zalozyl wariant EN i zostawil pole puste - najczestszy stan tresci,
-  //   ktora zaczyna zycie po polsku), odczytany dla `lang === "en"`.
-  // CO PSUJE: `toPostRef` (src/lib/builder/contentRefs.ts:141) sklada fallback
-  //   miedzyjezykowy operatorem `??`, ktory reaguje WYLACZNIE na `null` oraz
-  //   `undefined`. Pusty string jest wartoscia zdefiniowana, wiec lancuch
-  //   konczy sie na nim i nigdy nie siega po `row.title_pl`.
-  // KONSEKWENCJA: slajd na stronie EN nie ma tytulu dla wpisu, ktory ma pelna
-  //   tresc PL. Konsument tego nie ratuje - `pickStr` w
-  //   `sliderVariants.tsx:716` bierze wartosc "zywa" dopiero wtedy, gdy
-  //   ladunek widgetu jest pusty, a tu ZYWA wartosc jest ta pusta. Redaktor
-  //   widzi dziure w karuzeli i nie ma jak jej powiazac z pustym polem EN.
-  // WYMAGANA POPRAWKA: ten sam fallback, co w jedynym kanonicznym miejscu
-  //   repo - `pickI18n` (src/lib/content-model/contentValue.ts:105-111) oraz
-  //   `postRefsForLang` (src/lib/newsletter/emailDocResolve.ts:134) uzywaja
-  //   `||` i traktuja pusty string jako BRAK tlumaczenia. Sciezka buildera
-  //   musi robic to samo, bo obie opisuja te sama tresc.
-  it.fails("DEFEKT: PUSTY tytul EN POWINIEN spasc na tytul PL", async () => {
+  // KONTRAKT: pusty napis to BRAK tlumaczenia - ten sam fallback `||`, co
+  // `pickI18n` (contentValue.ts) i `postRefsForLang` (emailDocResolve.ts).
+  // Slajd na stronie EN wpisu z pelna trescia PL dostaje tytul PL zamiast
+  // dziury, ktorej `pickStr` w `sliderVariants.tsx` juz nie uratuje.
+  it("PUSTY tytul EN spada na tytul PL", async () => {
     respondByIds({ p1: refRow({ title_en: "" }) });
 
     const ref = await runQueryFn("p1", "en");
@@ -458,23 +446,24 @@ describe("mapowanie jezykowe wiersza na wariant PL/EN", () => {
     expect(ref?.title).toBe("Tytul PL");
   });
 
-  // DEFEKT: PUSTA ZAJAWKA W ZADANYM JEZYKU NIE SPADA NA DRUGI JEZYK.
-  //
-  // WEJSCIE: wiersz z `excerpt_pl: "Zajawka PL"` i `excerpt_en: ""` odczytany
-  //   dla `lang === "en"`.
-  // CO PSUJE: `src/lib/builder/contentRefs.ts:143` - osobna linia i osobny
-  //   lancuch `??` niz tytul, wiec poprawka tytulu nie naprawia zajawki.
-  // KONSEKWENCJA: warianty slidera, ktore renderuja podtytul (`subtitle_en`),
-  //   dostaja pusty tekst mimo wypelnionej wersji PL - karta traci polowe
-  //   swojej tresci na stronie anglojezycznej.
-  // WYMAGANA POPRAWKA: jak wyzej - `||` zamiast `??`, spojnie z `pickI18n`
-  //   i `postRefsForLang`.
-  it.fails("DEFEKT: PUSTA zajawka EN POWINNA spasc na zajawke PL", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): pusta zajawka EN nie spadala na PL
+  // (osobny lancuch `??` niz tytul). KONTRAKT: ten sam fallback `||`, wiec
+  // warianty slidera z podtytulem (`subtitle_en`) nie traca polowy tresci.
+  it("PUSTA zajawka EN spada na zajawke PL", async () => {
     respondByIds({ p1: refRow({ excerpt_en: "" }) });
 
     const ref = await runQueryFn("p1", "en");
 
     expect(ref?.excerpt).toBe("Zajawka PL");
+  });
+
+  it("PUSTE oba warianty daja pusty napis, a PL z samym EN spada na EN", async () => {
+    respondByIds({ p1: refRow({ title_pl: "", title_en: "", excerpt_pl: "", excerpt_en: "X" }) });
+
+    const ref = await runQueryFn("p1", "pl");
+
+    expect(ref?.title).toBe("");
+    expect(ref?.excerpt).toBe("X");
   });
 });
 
@@ -545,30 +534,48 @@ describe("useResolvedPostRefs: dedup, normalizacja i klucze mapy", () => {
     expect(result.current.get("p1")?.title).toBe("Title EN");
   });
 
-  // DEFEKT: MAPA JEST KLUCZOWANA IDENTYFIKATOREM PO TRIM, KONSUMENT CZYTA SUROWYM.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): mapa byla kluczowana id PO trim,
+  // a jedyny konsument (`sliderVariants.tsx`) czyta `refMap.get(it.postId)`
+  // identyfikatorem SUROWYM - dane z bazy byly wyrzucane, a slajd zostawal
+  // przy zamrozonym ladunku z JSON-a.
   //
-  // WEJSCIE: widget, ktorego `items[].postId` to `" p1 "` - identyfikator
-  //   z bialymi znakami, jaki potrafi wpasc do JSON-a z wklejki albo z importu.
-  // CO PSUJE: `useResolvedPostRefs` normalizuje wejscie przez `trim()`
-  //   (src/lib/builder/contentRefs.ts:177) i kluczuje mape wartoscia PO
-  //   normalizacji (:189), natomiast jedyny konsument czyta
-  //   `refMap.get(it.postId)` identyfikatorem SUROWYM
-  //   (src/lib/builder/sliderVariants.tsx:714).
-  // KONSEKWENCJA: zapytanie idzie do bazy, dane wracaja, po czym sa
-  //   WYRZUCANE - widget cicho zostaje przy zamrozonym ladunku z JSON-a,
-  //   czyli traci dokladnie te "zywosc", ktora modul obiecuje w naglowku
-  //   (contentRefs.ts:1-5). Nic tego nie zglasza: round-trip jest platny,
-  //   render sie udaje, tresc jest nieaktualna.
-  // WYMAGANA POPRAWKA: normalizacja musi byc WSPOLNA dla obu stron - albo
-  //   mapa niesie takze klucz w postaci, w jakiej identyfikator przyszedl,
-  //   albo konsument siega po nia ta sama funkcja normalizujaca.
-  it.fails("DEFEKT: identyfikator z bialymi znakami POWINIEN byc odnajdywalny", async () => {
+  // KONTRAKT: zapytanie idzie po id znormalizowanym (jedno na wpis), a mapa
+  // niesie wynik pod identyfikatorem W POSTACI, W JAKIEJ GO PODANO.
+  it("identyfikator z bialymi znakami jest odnajdywalny pod swoja surowa postacia", async () => {
     respondByIds({ p1: refRow() });
 
     const { result } = renderHookWithQueryClient(() => useResolvedPostRefs([" p1 "], "pl"));
     await waitFor(() => expect(result.current.size).toBe(1));
 
     expect(result.current.get(" p1 ")?.title).toBe("Tytul PL");
+  });
+
+  it("surowy i przyciety zapis tego samego id to JEDNO zapytanie i dwa klucze mapy", async () => {
+    respondByIds({ p1: refRow() });
+
+    const { result } = renderHookWithQueryClient(() => useResolvedPostRefs([" p1 ", "p1"], "pl"));
+    await waitFor(() => expect(result.current.size).toBe(2));
+
+    expect(rpc().callsFor("get_post_refs")).toHaveLength(1);
+    expect(result.current.get(" p1 ")).toBe(result.current.get("p1"));
+  });
+
+  it("mapa jest STABILNA referencyjnie miedzy renderami przy tych samych id i danych", async () => {
+    // Konsument liczy slajdy w `useMemo([rawItems, refMap])` - nowa mapa na
+    // kazdym renderze (np. tyknieciu autoplay) przeliczalaby i odmontowywala
+    // memo wszystkich slajdow. Nowa TABLICA o tej samej tresci tez nie moze
+    // zmieniac wyniku, bo konsument buduje ja w `useMemo` z `rawItems`.
+    respondByIds({ p1: refRow() });
+
+    let ids: Array<string | null> = ["p1", null];
+    const { result, rerender } = renderHookWithQueryClient(() => useResolvedPostRefs(ids, "pl"));
+    await waitFor(() => expect(result.current.size).toBe(1));
+    const first = result.current;
+
+    ids = ["p1", null];
+    rerender();
+
+    expect(result.current).toBe(first);
   });
 });
 
@@ -581,5 +588,19 @@ describe("re-eksport WIDGET_LIVE_QUERY_PREFIXES", () => {
 
   it("zbior zawiera korzen, ktory TEN plik realnie wystawia", () => {
     expect(WIDGET_LIVE_QUERY_PREFIXES.has(WIDGET_QUERY_ROOTS.postRef)).toBe(true);
+  });
+});
+
+describe("wyjatek transportu to nie odmowa", () => {
+  it("odrzucone wywolanie RPC (zerwane polaczenie) propaguje sie do react-query", async () => {
+    // Odmowa PostgREST (`{ error }`) degraduje do `null` / fallbacku, ale
+    // WYJATEK nie jest odpowiedzia bazy: ma dac stan bledu z ponowieniem,
+    // a nie "wpisu nie ma" zamrozony w widgecie.
+    rpc().setResponse("get_post_refs", () => {
+      throw new Error("socket hang up");
+    });
+
+    await expect(runQueryFn("p1", "pl")).rejects.toThrow("socket hang up");
+    expect(db().chains).toHaveLength(0);
   });
 });

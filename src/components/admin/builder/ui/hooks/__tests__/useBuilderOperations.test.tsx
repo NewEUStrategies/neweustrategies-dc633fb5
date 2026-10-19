@@ -27,7 +27,10 @@ import type { Selection } from "../../organisms/builder/types";
 import { useBuilderOperations } from "../useBuilderOperations";
 
 const prompt = vi.hoisted(() => vi.fn(async () => "Nazwa"));
-const templateSave = vi.hoisted(() => vi.fn(async () => true));
+// Kontrakt `useSectionTemplates.save`: id nowego szablonu albo `null` przy odmowie.
+const templateSave = vi.hoisted(() =>
+  vi.fn(async (_name: string, _section: unknown): Promise<string | null> => "t-nowy"),
+);
 const globalSave = vi.hoisted(() => vi.fn(async () => "g-new"));
 const experimentCreate = vi.hoisted(() => vi.fn(async () => "exp-1"));
 const experimentSetStatus = vi.hoisted(() => vi.fn(async () => true));
@@ -134,6 +137,7 @@ beforeEach(() => {
   prompt.mockClear();
   prompt.mockResolvedValue("Nazwa");
   templateSave.mockClear();
+  templateSave.mockResolvedValue("t-nowy");
   globalSave.mockClear();
   globalSave.mockResolvedValue("g-new");
   experimentCreate.mockClear();
@@ -712,6 +716,18 @@ describe("useBuilderOperations - szablon sekcji", () => {
     });
     expect(prompt).toHaveBeenCalledTimes(1);
     expect(templateSave).toHaveBeenCalledWith("Nazwa", expect.objectContaining({ id: "s1" }));
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("odrzucony zapis szablonu mówi o tym redaktorowi zamiast milczeć", async () => {
+    // NAPRAWIONE 2026-10-18: `save` oddaje `null` przy odmowie bazy; wcześniej
+    // `void templates.save(...)` gubił wynik i nazwana sekcja znikała bez śladu.
+    templateSave.mockResolvedValue(null);
+    const s = setup();
+    await act(async () => {
+      await s.result.current.saveSectionAsTemplate("s1");
+    });
+    expect(toastError).toHaveBeenCalledWith("builder.ops.saveTplErr");
   });
 
   it("nazwa z samych spacji anuluje zapis", async () => {
@@ -833,12 +849,22 @@ describe("useBuilderOperations - testy A/B", () => {
 
   it.each([["a"], ["b"], ["both"]] as const)(
     "zakończenie testu (%s) domyka eksperyment w bazie",
-    (keep) => {
+    async (keep) => {
       const s = setup();
-      act(() => s.result.current.endAbTest("exp-1", keep));
+      await act(async () => s.result.current.endAbTest("exp-1", keep));
       expect(experimentSetStatus).toHaveBeenCalledWith("exp-1", "completed");
       expect(toastSuccess).toHaveBeenCalledWith("builder.ops.abEnded");
       expect(s.recorded).toHaveLength(1);
     },
   );
+
+  it("odmowa zamknięcia testu w bazie daje błąd, a nie komunikat sukcesu", async () => {
+    experimentSetStatus.mockResolvedValueOnce(false);
+    const s = setup();
+    await act(async () => s.result.current.endAbTest("exp-1", "a"));
+    expect(toastSuccess).not.toHaveBeenCalledWith("builder.ops.abEnded");
+    expect(toastError).toHaveBeenCalledWith("builder.ops.abEndStatusFailed");
+    // Wybór wariantu w dokumencie zostaje - to osobna, udana zmiana.
+    expect(s.recorded).toHaveLength(1);
+  });
 });

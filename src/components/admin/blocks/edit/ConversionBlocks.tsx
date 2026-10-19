@@ -7,6 +7,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
+import { num } from "@/components/blocks/renderer/data";
 
 interface Props {
   block: Block;
@@ -26,6 +27,16 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 
 const inp = "w-full text-xs bg-background border border-border rounded px-2 py-2 h-9";
 const sel = inp;
+
+/**
+ * Nakładka TAK, JAK JĄ NARYSUJE STRONA: ten sam czytnik co renderer (`num` -
+ * liczba skończona albo wartość domyślna) i to samo docięcie do 0-90 co
+ * `BannerImageView`/`VideoHeroView`. Suwak i tak pokazuje wartość w zakresie,
+ * ale podpis obok czytał surową liczbę („150%", „NaN%").
+ */
+function overlayPct(d: Record<string, Json>, fallback: number): number {
+  return Math.max(0, Math.min(90, num(d, "overlay", fallback)));
+}
 
 // ===== Step List (how-it-works) =====
 
@@ -173,7 +184,32 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, rows: toJsonArray(next) } });
   };
 
-  const featuredIdx = Number(block.data.featuredIndex ?? -1);
+  // Ten sam czytnik co renderer publiczny (`renderComparisonTable`): liczba
+  // skończona albo -1, więc śmieć w danych nie zamienia się tu w `NaN`.
+  const featuredIdx = num(block.data, "featuredIndex", -1);
+
+  // Usunięcie kolumny wycina komórkę o TYM SAMYM indeksie z każdego wiersza.
+  // `setColumns` umie tylko dopasować DŁUGOŚĆ (czyta stare wartości po nowych
+  // indeksach), więc przy kolumnie środkowej zostawiałoby wartość usuniętej
+  // kolumny, a gubiło ostatniej. Wyróżnienie jedzie razem ze swoją kolumną -
+  // renderer podświetla wyłącznie po indeksie.
+  const removeColumn = (i: number) => {
+    const nextFeatured = featuredIdx === i ? -1 : featuredIdx > i ? featuredIdx - 1 : featuredIdx;
+    onChange({
+      ...block,
+      data: {
+        ...block.data,
+        columns: toJsonArray(columns.filter((_, k) => k !== i)),
+        rows: toJsonArray(
+          rows.map((r) => ({
+            ...r,
+            values: columns.map((_, k) => r.values[k] ?? "").filter((_, k) => k !== i),
+          })),
+        ),
+        ...(nextFeatured !== featuredIdx ? { featuredIndex: nextFeatured } : {}),
+      },
+    });
+  };
 
   return (
     <Shell label={cb("compareLabel")}>
@@ -212,12 +248,13 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                   : "border-border text-muted-foreground",
               ].join(" ")}
               aria-label={cb("highlightColumn")}
+              aria-pressed={featuredIdx === i}
             >
               {featuredIdx === i ? "★" : "☆"}
             </button>
             <button
               type="button"
-              onClick={() => setColumns(columns.filter((_, k) => k !== i))}
+              onClick={() => removeColumn(i)}
               className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive"
               aria-label={cb("removeColumn")}
             >
@@ -271,7 +308,9 @@ export function ComparisonTableBlock({ block, onChange }: Props) {
                   value={r.values[ci] ?? ""}
                   onChange={(e) => {
                     const next = [...rows];
-                    const v = [...r.values];
+                    // Dopełnienie do liczby kolumn: wiersz krótszy (import)
+                    // dałby tablicę RZADKĄ, a dziura po `JSON.stringify` to `null`.
+                    const v = columns.map((_, k) => r.values[k] ?? "");
                     v[ci] = e.target.value;
                     next[ri] = { ...r, values: v };
                     setRows(next);
@@ -299,6 +338,7 @@ export function BannerImageBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const cb = (k: string) => i18n.editor("conversionBlocks", k);
   const d = block.data;
+  const overlay = overlayPct(d, 35);
   return (
     <Shell label={cb("bannerLabel")}>
       <input
@@ -373,11 +413,11 @@ export function BannerImageBlock({ block, onChange }: Props) {
           type="range"
           min={0}
           max={90}
-          value={Number(d.overlay ?? 35)}
+          value={overlay}
           onChange={(e) => onChange({ ...block, data: { ...d, overlay: Number(e.target.value) } })}
           className="flex-1"
         />
-        <span className="tabular-nums w-10 text-right">{Number(d.overlay ?? 35)}%</span>
+        <span className="tabular-nums w-10 text-right">{overlay}%</span>
         <span>{cb("overlay")}</span>
       </label>
     </Shell>
@@ -390,6 +430,12 @@ export function VideoHeroBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const cb = (k: string) => i18n.editor("conversionBlocks", k);
   const d = block.data;
+  const overlay = overlayPct(d, 45);
+  // Listy pokazują wartość, której UŻYJE `renderVideoHero` - natywny `<select>`
+  // bez pasującej opcji pokazałby pierwszą („md", „left"), a strona rysuje
+  // dla nieznanej wysokości „lg", a dla nieznanego wyrównania „center".
+  const height = d.height === "md" || d.height === "screen" ? d.height : "lg";
+  const align = d.align === "left" ? "left" : "center";
   return (
     <Shell label={cb("videoLabel")}>
       <input
@@ -433,7 +479,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <AdminSelect
           className={sel}
-          value={String(d.height ?? "lg")}
+          value={height}
           onChange={(e) => onChange({ ...block, data: { ...d, height: e.target.value } })}
         >
           <option value="md">{cb("heightMd")}</option>
@@ -442,7 +488,7 @@ export function VideoHeroBlock({ block, onChange }: Props) {
         </AdminSelect>
         <AdminSelect
           className={sel}
-          value={String(d.align ?? "center")}
+          value={align}
           onChange={(e) => onChange({ ...block, data: { ...d, align: e.target.value } })}
         >
           <option value="left">{cb("alignLeft")}</option>
@@ -454,11 +500,11 @@ export function VideoHeroBlock({ block, onChange }: Props) {
           type="range"
           min={0}
           max={90}
-          value={Number(d.overlay ?? 45)}
+          value={overlay}
           onChange={(e) => onChange({ ...block, data: { ...d, overlay: Number(e.target.value) } })}
           className="flex-1"
         />
-        <span className="tabular-nums w-10 text-right">{Number(d.overlay ?? 45)}%</span>
+        <span className="tabular-nums w-10 text-right">{overlay}%</span>
         <span>{cb("overlay")}</span>
       </label>
       <div className="grid grid-cols-2 gap-2">

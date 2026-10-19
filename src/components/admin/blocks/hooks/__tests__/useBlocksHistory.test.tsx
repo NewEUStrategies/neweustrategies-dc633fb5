@@ -23,7 +23,10 @@
 //     po uplywie okna - takze wtedy, gdy trzeba przy nim przyciac stos,
 //   * SPRZATANIE: odmontowanie kanwy w trakcie otwartego okna nie zostawia
 //     wiszacego licznika, ktory strzelalby `setState` w odmontowany hak,
-//   * `reset` czysci OBIE strony stosu (undo i redo).
+//   * `reset` czysci OBIE strony stosu (undo i redo),
+//   * DOMYKANIE OKNA: gest natychmiastowy, `undo` i `redo` w otwartym oknie
+//     najpierw dopisuja krok sprzed pisania do stosu (a nie porzucaja go),
+//     wiec stos zostaje chronologiczny i zaden stan nie znika z historii.
 //
 // CZEGO TU NIE MA
 //   * montazu kanwy. Hak nie dotyka DOM-u ani i18n, wiec `renderHook` jest
@@ -149,13 +152,19 @@ describe("useBlocksHistory - limit stosu", () => {
 });
 
 describe("useBlocksHistory - okno scalajace kolejne edycje", () => {
-  it("druga edycja W OKNIE nie tworzy własnego kroku historii", () => {
+  it("druga edycja W OKNIE nie tworzy własnego kroku - cofnięcie wraca sprzed okna", () => {
+    // ZMIANA 2026-10-18: tu stalo `undo` -> „k0", czyli przypiety defekt
+    // „Ctrl+Z w otwartym oknie cofa dwie zmiany naraz" (krok pisania ginal).
     const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
     act(() => result.current.setDoc(dokument("k1"), true));
     przesunCzas(50);
     act(() => result.current.setDoc(dokument("k2")));
-    // Dokument już widzi „k2", ale stos jeszcze nie dostał kroku.
-    expect(tresc(result.current.doc)).toBe("<p>k2</p>");
+    przesunCzas(50);
+    act(() => result.current.setDoc(dokument("k3")));
+    // Dokument już widzi „k3", a całe okno (k2, k3) to JEDEN krok.
+    expect(tresc(result.current.doc)).toBe("<p>k3</p>");
+    act(() => result.current.undo());
+    expect(tresc(result.current.doc)).toBe("<p>k1</p>");
     act(() => result.current.undo());
     expect(tresc(result.current.doc)).toBe("<p>k0</p>");
   });
@@ -249,73 +258,116 @@ describe("useBlocksHistory - reset i sprzatanie", () => {
   });
 });
 
-// ── DEFEKTY OKNA SCALAJACEGO ────────────────────────────────────────────────
-// Oba dotycza tego samego zaniedbania: `flushPending()` (linie 36-41) jest
-// wolane w `undo`, `redo` i `reset`, ale NIE w `setDoc` - a to `setDoc`
-// decyduje o kolejnosci krokow w stosie.
+// ── DOMYKANIE OKNA SCALAJACEGO ──────────────────────────────────────────────
+// NAPRAWIONE 2026-10-18 (byly dwa `it.fails`). Oba defekty mialy jedno zrodlo:
+// stan sprzed pisania zyl w DOMKNIECIU licznika, a `undo`/`redo` i gest
+// natychmiastowy umialy licznik wylacznie SKASOWAC. Teraz ten stan czeka
+// w `pending` (w stanie haka), a kazde zdarzenie konczace okno przed czasem
+// najpierw DOMYKA krok - dopisuje go do stosu - zamiast go porzucic.
 
-// DEFEKT: NATYCHMIASTOWY COMMIT W OTWARTYM OKNIE MIESZA KOLEJNOSC HISTORII.
-//
-// WEJSCIE: redaktor pisze (edycja debounce'owana), a zaraz po niej wykonuje
-//   gest JAWNY - przestawienie bloku, duplikat, wklejke. Kanwa wola wtedy
-//   `onChange(doc, true)`, czyli `setDoc(next, immediate)` (BlockCanvas.tsx
-//   emituje `immediate: true` dla kazdej operacji na ukladzie dokumentu).
-// CO PSUJE: `setDoc` z `immediate` wchodzi w galaz `shouldCommit`
-//   (useBlocksHistory.ts:50-55) i dokłada krok od razu, ale NIE gasi licznika
-//   zaplanowanego przez poprzednia edycje (:57-68). Licznik dozywa swojego
-//   okna i dokłada do stosu `snapshot` - dokument z PRZED tamtej edycji
-//   (:58, :63). Stos przestaje byc ciagiem chronologicznym: najnowszy krok
-//   opisuje stan STARSZY niz krok pod nim.
-// KONSEKWENCJA: pierwsze Ctrl+Z przeskakuje o dwie zmiany w tyl, a drugie
-//   Ctrl+Z wraca CZESCIOWO w przod. Redaktor traci orientacje w cofaniu i -
-//   co gorsza - nie ma juz jak dojsc do stanu, ktory sam widzial: sciezka
-//   przez stos go pomija.
-// WYMAGANA POPRAWKA: galaz `shouldCommit` w `setDoc` musi najpierw skasowac
-//   odlozony commit (`flushPending()`), bo jego `snapshot` jest juz nieaktualny.
-it.fails(
-  "DEFEKT: natychmiastowy commit w otwartym oknie NIE moze mieszac kolejnosci historii",
-  () => {
-    const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
-    // Krok jawny: stos dostaje k0, dokument pokazuje k1.
-    act(() => result.current.setDoc(dokument("k1"), true));
-    // Pisanie w oknie: licznik trzyma snapshot „k1".
-    przesunCzas(100);
-    act(() => result.current.setDoc(dokument("k2")));
-    // Gest jawny (np. duplikat bloku) NADAL w oknie tamtego licznika.
-    act(() => result.current.setDoc(dokument("k3"), true));
-    przesunCzas(400);
+// KONTRAKT: gest jawny (przestawienie bloku, duplikat, wklejka - kanwa wola
+// wtedy `setDoc(next, true)`) w otwartym oknie pisania najpierw domyka krok
+// pisania, a dopiero potem dokłada wlasny. Stos zostaje chronologiczny:
+// kolejne Ctrl+Z ida wstecz po czasie (k2, k1, k0), a spozniony licznik nie
+// dokłada juz stanu STARSZEGO nad nowszy.
+it("natychmiastowy commit w otwartym oknie zachowuje chronologie historii", () => {
+  const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
+  // Krok jawny: stos dostaje k0, dokument pokazuje k1.
+  act(() => result.current.setDoc(dokument("k1"), true));
+  // Pisanie w oknie: krok sprzed pisania („k1") czeka na domkniecie.
+  przesunCzas(100);
+  act(() => result.current.setDoc(dokument("k2")));
+  // Gest jawny (np. duplikat bloku) NADAL w oknie pisania.
+  act(() => result.current.setDoc(dokument("k3"), true));
+  przesunCzas(400);
 
-    // Oczekiwane: cofanie idzie wstecz po czasie - k2, potem k1, potem k0.
-    act(() => result.current.undo());
-    expect(tresc(result.current.doc)).toBe("<p>k2</p>");
-    act(() => result.current.undo());
-    expect(tresc(result.current.doc)).toBe("<p>k1</p>");
-  },
-);
+  act(() => result.current.undo());
+  expect(tresc(result.current.doc)).toBe("<p>k2</p>");
+  act(() => result.current.undo());
+  expect(tresc(result.current.doc)).toBe("<p>k1</p>");
+  act(() => result.current.undo());
+  expect(tresc(result.current.doc)).toBe("<p>k0</p>");
+  expect(result.current.canUndo).toBe(false);
+  // Licznik okna zostal skasowany razem z domknieciem - nic nie wisi.
+  expect(vi.getTimerCount()).toBe(0);
+});
 
-// DEFEKT: COFNIECIE W OTWARTYM OKNIE ZJADA CALA JEDNA ZMIANE.
-//
-// WEJSCIE: redaktor wykonuje gest jawny (krok w stosie), zaczyna pisac
-//   i - zanim okno `debounceMs` sie domknie - wciska Ctrl+Z.
-// CO PSUJE: `undo` wola `flushPending()` (:76), ktore licznik wyłącznie
-//   KASUJE (:37-40) zamiast domknac jego commit. Granica miedzy tekstem
-//   sprzed pisania a tekstem po nim nigdy nie wchodzi do stosu, wiec `undo`
-//   zdejmuje krok STARSZY.
-// KONSEKWENCJA: jedno Ctrl+Z wycofuje dwie zmiany naraz, a stan pomiedzy nimi
-//   staje sie NIEOSIAGALNY - `redo` prowadzi juz do tekstu po pisaniu.
-//   Redaktor nie ma zadnej drogi (ani wstecz, ani w przod) do tresci, ktora
-//   mial na ekranie sekunde wczesniej.
-// WYMAGANA POPRAWKA: `flushPending` przed `undo`/`redo` musi DOMKNAC odlozony
-//   commit (dopisac `snapshot` do stosu), a nie porzucic go.
-it.fails("DEFEKT: Ctrl+Z w otwartym oknie nie moze cofac dwoch zmian naraz", () => {
+// KONTRAKT: Ctrl+Z w otwartym oknie pisania cofa DOKLADNIE pisanie - wraca do
+// tekstu sprzed niego, a `redo` prowadzi z powrotem do tekstu po nim. Zaden
+// stan widziany przez redaktora nie jest nieosiagalny.
+it("Ctrl+Z w otwartym oknie cofa jedna zmiane, a redo ja przywraca", () => {
   const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
   act(() => result.current.setDoc(dokument("k1"), true));
   przesunCzas(100);
   act(() => result.current.setDoc(dokument("k2")));
   act(() => result.current.undo());
 
-  // Oczekiwane: pierwsze cofniecie wraca do tekstu sprzed pisania („k1").
   expect(tresc(result.current.doc)).toBe("<p>k1</p>");
+  act(() => result.current.redo());
+  expect(tresc(result.current.doc)).toBe("<p>k2</p>");
+  act(() => result.current.undo());
+  act(() => result.current.undo());
+  expect(tresc(result.current.doc)).toBe("<p>k0</p>");
+});
+
+describe("useBlocksHistory - okno scalajace a przyszlosc i dostepnosc cofania", () => {
+  it("pisanie w oknie po cofnieciu kasuje przyszlosc OD RAZU, nie dopiero po licznikach", () => {
+    // Ponowienie po nowej edycji podstawiloby stara galaz NA tekst, ktory
+    // redaktor wlasnie wpisal - przycisk musi zgasnac w chwili edycji.
+    const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
+    act(() => result.current.setDoc(dokument("k1"), true));
+    act(() => result.current.undo());
+    expect(result.current.canRedo).toBe(true);
+
+    act(() => result.current.setDoc(dokument("nowa-galaz")));
+
+    expect(result.current.canRedo).toBe(false);
+  });
+
+  it("redo w otwartym oknie NIE porzuca wlasnie wpisanego tekstu", () => {
+    const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
+    act(() => result.current.setDoc(dokument("k1"), true));
+    act(() => result.current.undo());
+    act(() => result.current.setDoc(dokument("nowa-galaz")));
+
+    act(() => result.current.redo());
+
+    // Nie ma czego ponawiac, a dokument zostaje tam, gdzie redaktor pisal.
+    expect(tresc(result.current.doc)).toBe("<p>nowa-galaz</p>");
+    // Krok pisania zostal domkniety - da sie go cofnac do stanu sprzed niego.
+    act(() => result.current.undo());
+    expect(tresc(result.current.doc)).toBe("<p>k0</p>");
+  });
+
+  it("cofanie jest dostepne od pierwszej litery w oknie, a nie dopiero po licznikach", () => {
+    // Po cofnieciu do poczatku stos jest pusty, a pisanie w oknie odklada krok.
+    // Przycisk „Cofnij" musi sie wlaczyc od razu - jest co cofac.
+    const { result } = zamontuj(dokument("k0"), { debounceMs: 400 });
+    act(() => result.current.setDoc(dokument("k1"), true));
+    act(() => result.current.undo());
+    expect(result.current.canUndo).toBe(false);
+
+    act(() => result.current.setDoc(dokument("k1-bis")));
+
+    expect(result.current.canUndo).toBe(true);
+    act(() => result.current.undo());
+    expect(tresc(result.current.doc)).toBe("<p>k0</p>");
+  });
+});
+
+describe("useBlocksHistory - tozsamosc zwracanego obiektu", () => {
+  it("render bez zmiany stanu oddaje TEN SAM obiekt historii", () => {
+    // `PostBlockEditor` trzyma historie w zaleznosciach efektu skrotow
+    // klawiszowych - nowy obiekt na kazdy render rodzica przepinalby sluchacza
+    // `keydown` przy kazdym przelaczeniu panelu czy zaznaczenia.
+    const { result, rerender } = zamontuj(dokument("k0"));
+    const przed = result.current;
+    rerender();
+    expect(result.current).toBe(przed);
+
+    act(() => result.current.setDoc(dokument("k1"), true));
+    expect(result.current).not.toBe(przed);
+  });
 });
 
 describe("useBlocksHistory - aktualizacja funkcyjna", () => {

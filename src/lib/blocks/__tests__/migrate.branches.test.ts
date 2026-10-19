@@ -202,47 +202,62 @@ describe("htmlToBlocks - obrazy i osadzenia", () => {
     expect(typesOf(htmlToBlocks('<iframe title="brak" />').blocks)).not.toContain("embed");
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - UTRATA TREŚCI.
-  // `BLOCK_RE` wymienia `img|iframe` w OBU alternatywach: parzystej
-  // (`<tag …>…</tag>`) i samodomykającej. Alternatywa parzysta jest pierwsza,
-  // więc dla `<iframe …></iframe>` dopasowuje się ONA - i trafia do `mapBlock`,
-  // które ramienia dla `iframe`/`img` NIE MA i zwraca `null`. Osadzenie znika.
-  // Waga: `<iframe>` NIE JEST elementem void, więc `<iframe …></iframe>` to
-  // JEDYNA poprawna forma w HTML - czyli KAŻDE osadzenie w migrowanej treści
-  // WordPressa jest gubione, a nie tylko przypadek brzegowy. Gdy w dokumencie
-  // jest cokolwiek innego, fallback „pusty dokument -> jeden akapit" też nie
-  // ratuje treści: iframe wypada bez śladu (patrz test niżej).
-  // Naprawa to ramię `img`/`iframe` w `mapBlock` (albo zdjęcie ich z
-  // alternatywy parzystej) - zmiana zachowania produkcyjnego, więc poza
-  // zakresem zadania pokryciowego. Test STOI jako dowód.
-  it.fails("POWINNO dawać osadzenie dla iframe w formie parzystej", () => {
+  // NAPRAWIONE 2026-10-18 (były trzy `it.fails`): UTRATA OSADZEŃ I OBRAZÓW.
+  // `BLOCK_RE` wymieniał `img|iframe` w alternatywie parzystej (`<tag …>…</tag>`),
+  // która wygrywała z samodzielną, a `mapBlock` nie miał dla nich ramienia i
+  // zwracał `null`. `<iframe …></iframe>` to JEDYNA poprawna forma osadzenia
+  // w HTML, więc KAŻDE osadzenie z migrowanego WordPressa przepadało (obok innej
+  // treści - bez śladu). Kontrakt: forma parzysta daje ten sam blok co
+  // samodzielna, z kompletem danych, a znacznik zamykający nie wycieka do
+  // treści jako akapit.
+  it("iframe w formie parzystej daje osadzenie z pełnymi danymi", () => {
     const doc = htmlToBlocks('<iframe src="https://www.youtube.com/embed/x"></iframe>');
-    expect(doc.blocks[0].type).toBe("embed");
-  });
-
-  it.fails("POWINNO zachować iframe obok innej treści (dziś wypada bez śladu)", () => {
-    const doc = htmlToBlocks('<p>a</p><iframe src="https://x.test/e"></iframe>');
-    expect(typesOf(doc.blocks)).toEqual(["paragraph", "embed"]);
-  });
-
-  it.fails("POWINNO dawać obraz dla img w formie parzystej", () => {
-    const doc = htmlToBlocks('<img src="/a.jpg"></img>');
-    expect(doc.blocks[0].type).toBe("image");
-  });
-
-  // Dokumentacja STANU FAKTYCZNEGO tych samych wejść - żeby regresja w drugą
-  // stronę (np. zmiana na cichy pusty dokument) też była widoczna.
-  it("dziś iframe w formie parzystej ląduje jako surowy akapit", () => {
-    const doc = htmlToBlocks('<iframe src="https://x.test/e"></iframe>');
     expect(doc.blocks).toHaveLength(1);
-    expect(doc.blocks[0].type).toBe("paragraph");
-    expect(String(doc.blocks[0].data.html)).toContain("<iframe");
+    expect(doc.blocks[0].type).toBe("embed");
+    expect(doc.blocks[0].data).toEqual({
+      url: "https://www.youtube.com/embed/x",
+      provider: "iframe",
+      html: "",
+    });
   });
 
-  it("dziś iframe obok akapitu jest GUBIONY (utrata treści)", () => {
-    const doc = htmlToBlocks('<p>a</p><iframe src="https://x.test/e"></iframe>');
+  it("iframe obok innej treści zostaje zachowany w kolejności dokumentu", () => {
+    const doc = htmlToBlocks('<p>a</p><iframe src="https://x.test/e"></iframe><p>b</p>');
+    expect(typesOf(doc.blocks)).toEqual(["paragraph", "embed", "paragraph"]);
+    expect(doc.blocks[1].data.url).toBe("https://x.test/e");
+    expect(doc.blocks[2].data.html).toBe("b");
+  });
+
+  it("treść zastępcza wewnątrz iframe nie staje się akapitem wpisu", () => {
+    const doc = htmlToBlocks('<iframe src="https://x.test/e">Twoja przeglądarka…</iframe>');
+    expect(typesOf(doc.blocks)).toEqual(["embed"]);
+  });
+
+  it("iframe w formie parzystej BEZ src jest pomijany, a reszta treści zostaje", () => {
+    const doc = htmlToBlocks('<p>a</p><iframe title="brak"></iframe>');
     expect(typesOf(doc.blocks)).toEqual(["paragraph"]);
-    expect(doc.blocks[0].data.html).toBe("a");
+  });
+
+  it("img w formie parzystej daje obraz, a `</img>` nie wycieka do treści", () => {
+    const doc = htmlToBlocks('<img src="/a.jpg" alt="Wykres"></img><p>po</p>');
+    expect(typesOf(doc.blocks)).toEqual(["image", "paragraph"]);
+    expect(doc.blocks[0].data).toEqual({ url: "/a.jpg", alt: "Wykres", caption: "", href: "" });
+    expect(doc.blocks[1].data.html).toBe("po");
+  });
+
+  it("img NIE połyka treści aż do odległego `</img>` (element void nie ma wnętrza)", () => {
+    const doc = htmlToBlocks('<img src="/a.jpg"><p>środek</p><img src="/b.jpg"></img>');
+    expect(typesOf(doc.blocks)).toEqual(["image", "paragraph", "image"]);
+    expect(doc.blocks[1].data.html).toBe("środek");
+    expect(doc.blocks[2].data.url).toBe("/b.jpg");
+  });
+
+  it("`<hr></hr>` daje separator zamiast znikać", () => {
+    expect(typesOf(htmlToBlocks("<p>a</p><hr></hr><p>b</p>").blocks)).toEqual([
+      "paragraph",
+      "separator",
+      "paragraph",
+    ]);
   });
 
   it("figure z img i figcaption daje obraz z podpisem", () => {
@@ -307,27 +322,48 @@ describe("htmlToBlocks - rozwijanie div", () => {
     expect(doc.blocks.find((b) => b.type === "heading")?.data.text).toBe("T");
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - WYCIEK SUROWEGO ZNACZNIKA.
-  // `([\s\S]*?)<\/\1>` jest NIEZACHŁANNE, więc dla dwóch zagnieżdżonych
-  // `<div>` dopasowanie kończy się na WEWNĘTRZNYM `</div>`. Połówki opakowania
-  // zewnętrznego zostają poza dopasowaniem i lecą przez `pushParagraph` jako
-  // TREŚĆ: dokument dostaje akapity o zawartości `<div>` i `</div>`, które
-  // czytelnik widzi na stronie (albo które sanitizer wycina, zostawiając pusty
-  // akapit). Zagnieżdżone `<div>` to standardowy kształt HTML-a z Gutenberga
-  // (`wp-block-group` > `wp-block-group__inner-container`) i z Elementora,
-  // czyli reguła, nie wyjątek. Naprawa wymaga liczenia zagnieżdżeń zamiast
-  // niezachłannego dopasowania - zmiana zachowania produkcyjnego, poza zakresem
-  // zadania pokryciowego. Test STOI jako dowód.
-  it.fails("POWINNO rozwijać zagnieżdżone div BEZ wycieku znacznika do treści", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): WYCIEK SUROWEGO ZNACZNIKA.
+  // Niezachłanne `([\s\S]*?)<\/\1>` kończyło dopasowanie zewnętrznego `<div>`
+  // na WEWNĘTRZNYM `</div>`, a połówki opakowania szły do dokumentu jako
+  // akapity `<div>` i `</div>`. Zagnieżdżone `<div>` to standardowy kształt
+  // Gutenberga (`wp-block-group` > `__inner-container`) i Elementora. Kontrakt:
+  // kontener domyka się z liczeniem zagnieżdżeń, więc żaden znacznik opakowania
+  // nie staje się treścią.
+  it("rozwija zagnieżdżone div BEZ wycieku znacznika do treści", () => {
     const doc = htmlToBlocks("<div><div><h2>T</h2></div></div>");
     expect(typesOf(doc.blocks)).toEqual(["heading"]);
+    expect(doc.blocks[0].data.text).toBe("T");
   });
 
-  it("dziś zagnieżdżony div wycieka połówkami opakowania do akapitów", () => {
-    const doc = htmlToBlocks("<div><div><h2>T</h2></div></div>");
-    expect(typesOf(doc.blocks)).toEqual(["paragraph", "heading", "paragraph"]);
-    expect(doc.blocks[0].data.html).toBe("<div>");
-    expect(doc.blocks[2].data.html).toBe("</div>");
+  it("grupa Gutenberga z treścią po wewnętrznym kontenerze zachowuje kolejność", () => {
+    const doc = htmlToBlocks(
+      '<div class="wp-block-group"><div class="wp-block-group__inner-container">' +
+        "<h2>T</h2><p>a</p></div><p>b</p></div><p>po grupie</p>",
+    );
+    expect(typesOf(doc.blocks)).toEqual(["heading", "paragraph", "paragraph", "paragraph"]);
+    expect(doc.blocks.map((b) => b.data.html ?? b.data.text)).toEqual(["T", "a", "b", "po grupie"]);
+  });
+
+  it("cytat w cytacie daje JEDEN blok cytatu, bez akapitu z `</blockquote>`", () => {
+    const doc = htmlToBlocks("<blockquote><blockquote>x</blockquote>y</blockquote><p>z</p>");
+    expect(typesOf(doc.blocks)).toEqual(["quote", "paragraph"]);
+    expect(doc.blocks[0].data.text).toBe("xy");
+    expect(doc.blocks[1].data.html).toBe("z");
+  });
+
+  it("lista zagnieżdżona nie wycieka zamknięciem do akapitu i nie gubi dalszych pozycji", () => {
+    const doc = htmlToBlocks("<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>");
+    expect(typesOf(doc.blocks)).toEqual(["list"]);
+    expect(doc.blocks[0].data.items).toContain("c");
+  });
+
+  it("niedomknięty kontener zachowuje dawne dopasowanie zamiast połykać dokument", () => {
+    // Brak pary dla zewnętrznego `<div>`: liczenie zagnieżdżeń nie znajduje
+    // domknięcia, więc zostaje dopasowanie niezachłanne - treść nie znika.
+    const doc = htmlToBlocks("<div><div><p>x</p></div><p>y</p>");
+    const text = doc.blocks.map((b) => String(b.data.html ?? "")).join("|");
+    expect(text).toContain("x");
+    expect(text).toContain("y");
   });
 
   it("każdy blok wynikowy przechodzi walidację schematu", () => {

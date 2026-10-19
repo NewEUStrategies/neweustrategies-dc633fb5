@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { AlertTriangle, Info, CheckCircle2, OctagonAlert } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { readText } from "./dataVizShared";
 
 type Variant = "info" | "warning" | "success" | "danger";
 
@@ -28,7 +29,7 @@ const CALLOUT_STYLES: Record<Variant, { cls: string; Icon: typeof Info }> = {
 export function CalloutBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const variant = String(block.data.variant ?? "info") as Variant;
-  const text = String(block.data.text ?? "");
+  const text = readText(block.data.text);
   const { cls, Icon } = CALLOUT_STYLES[variant] ?? CALLOUT_STYLES.info;
 
   return (

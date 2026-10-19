@@ -134,6 +134,16 @@ describe("PageUrlAutocomplete - kiedy pyta bazę", () => {
     await waitFor(() => expect(db.current.lastChain("pages")).toBeDefined());
     expect(db.current.lastChain("pages")?.argsOf("or")?.[0]).toContain(`%${phrase}%`);
   });
+
+  it("przecinek, nawias i znaki wieloznaczne nie trafiają do filtra `.or()`", async () => {
+    const { input } = renderField();
+    fireEvent.change(input(), { target: { value: "/r,ap)%*" } });
+    await waitFor(() =>
+      expect(db.current.lastChain("posts")?.argsOf("or")).toEqual([
+        "title_pl.ilike.%rap%,title_en.ilike.%rap%,slug.ilike.%rap%",
+      ]),
+    );
+  });
 });
 
 describe("PageUrlAutocomplete - lista podpowiedzi", () => {

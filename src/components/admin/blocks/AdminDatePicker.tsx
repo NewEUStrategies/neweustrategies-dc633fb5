@@ -106,7 +106,7 @@ export function AdminDatePicker({
           <AdminCalendar
             selected={parsed ?? undefined}
             onSelect={(d) => {
-              onChange(d ? toLocalDate(d) : null);
+              onChange(toLocalDate(d));
               setOpen(false);
             }}
             locale={locale}
@@ -187,7 +187,7 @@ export function AdminDateTimePicker({
           <AdminCalendar
             selected={parsed ?? undefined}
             onSelect={(d) => {
-              commit(d ?? null, timeValue || "00:00");
+              commit(d, timeValue || "00:00");
               setOpen(false);
             }}
             locale={locale}

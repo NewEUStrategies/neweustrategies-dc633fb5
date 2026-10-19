@@ -1,5 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -8,7 +9,7 @@ interface Props {
 
 export function VerseBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const text = String(block.data.text ?? "");
+  const text = readText(block.data.text);
   return (
     <textarea
       value={text}

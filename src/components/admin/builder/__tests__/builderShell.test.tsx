@@ -136,7 +136,8 @@ vi.mock("@/lib/builder/experiments", async (importOriginal) => {
       items: [],
       loading: false,
       create: async () => "e-nowy",
-      setStatus: async () => undefined,
+      // Kontrakt hooka: wynik zapisu statusu (odmowa bazy = false).
+      setStatus: async () => true,
       reload: vi.fn(),
     }),
   };
@@ -1008,13 +1009,16 @@ describe("Builder - menu kontekstowe: pełne przejście po działaniach", () => 
     ["a", "builder.contextMenu.endAbKeepA"],
     ["b", "builder.contextMenu.endAbKeepB"],
     ["oba", "builder.contextMenu.endAbKeepBoth"],
-  ])("zakończenie testu A/B z wariantem %s zdejmuje znacznik", (_label, key) => {
+  ])("zakończenie testu A/B z wariantem %s zdejmuje znacznik", async (_label, key) => {
     const { last } = mount({ value: AB_DOC });
     openMenu("data-sec-id", "s1");
-    fireEvent.click(screen.getByText(key));
+    // Komunikat czeka na wynik zapisu statusu w bazie (sukces albo błąd).
+    await act(async () => {
+      fireEvent.click(screen.getByText(key));
+    });
     // Po zakończeniu testu sekcja przestaje być wariantem eksperymentu.
     expect(JSON.stringify(last())).not.toContain("abTest");
-    expect(toasts.messages.length).toBe(1);
+    expect(toasts.messages).toEqual(["builder.ops.abEnded"]);
   });
 
   it("wariant testu jest pokazany w nagłówku menu", () => {

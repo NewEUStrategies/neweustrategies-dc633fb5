@@ -361,23 +361,32 @@ describe("SpeakersEditor - tryby CRM i ich pola", () => {
     expect(map().eventId).toBe("");
   });
 
+  // Limit idzie przez wspólny atom `ClampedNumberInput`: klamra przy wyjściu
+  // z pola (Enter / blur), a nie w każdym `onChange`.
   it("tryb „katalog profili” przycina limit do zakresu 1-200", () => {
     const { container, calls } = renderEditorQ({ source: "directory", limit: 24 });
     const limit = fieldLabelled(container, "Limit profili");
 
+    fireEvent.focus(limit);
     fireEvent.change(limit, { target: { value: "500" } });
+    fireEvent.keyDown(limit, { key: "Enter" });
     expect(calls.at(-1)?.[1]).toBe(200);
 
     fireEvent.change(limit, { target: { value: "-3" } });
+    fireEvent.keyDown(limit, { key: "Enter" });
     // Ujemna liczba profili to widget, którego nie widać - dolna granica
     // MUSI podnieść taki wpis do 1, a nie zapisać go dosłownie.
     expect(calls.at(-1)?.[1]).toBe(1);
   });
 
-  it("limit profili wpisany nie-liczbą wraca do wartości domyślnej", () => {
+  it("limit profili wyczyszczony i opuszczony wraca do zapisanej wartości bez zapisu", () => {
     const { container, calls } = renderEditorQ({ source: "directory", limit: 24 });
-    fireEvent.change(fieldLabelled(container, "Limit profili"), { target: { value: "" } });
-    expect(calls.at(-1)).toEqual(["limit", 24]);
+    const limit = fieldLabelled(container, "Limit profili");
+    fireEvent.focus(limit);
+    fireEvent.change(limit, { target: { value: "" } });
+    fireEvent.blur(limit);
+    expect(calls).toEqual([]);
+    expect((limit as HTMLInputElement).value).toBe("24");
   });
 
   it("tryby z bazy pozwalają WYŁĄCZYĆ dialog profilu prelegenta", () => {
@@ -416,9 +425,10 @@ describe("SpeakersEditor - paginacja listy prelegentów", () => {
     // Ujemna liczba prelegentów na stronę nie istnieje; zero jest UMOWNYM
     // wyłączeniem paginacji, więc dolna granica nie może być 1.
     const { container, calls } = renderEditorQ({ pageSize: 6 });
-    fireEvent.change(fieldLabelled(container, "Paginacja (0 = wyłączona)"), {
-      target: { value: "-5" },
-    });
+    const pageSize = fieldLabelled(container, "Paginacja (0 = wyłączona)");
+    fireEvent.focus(pageSize);
+    fireEvent.change(pageSize, { target: { value: "-5" } });
+    fireEvent.blur(pageSize);
     expect(calls.at(-1)).toEqual(["pageSize", 0]);
   });
 });

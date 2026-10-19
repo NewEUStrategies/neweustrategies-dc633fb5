@@ -27,8 +27,10 @@
 //     nie kosmetyka: renderer publiczny czyta oba miejsca inaczej, wiec
 //     pomylenie ich zmienia to, co widzi czytelnik,
 //   * ODMOWA I PRZYPADKI BRZEGOWE KOTWICY: anulowanie dialogu nie zapisuje nic,
-//     pusta odpowiedz JEST zapisem czyszczacym, a spacje zamieniaja sie na
-//     dywizy z mala litera,
+//     pusta odpowiedz JEST zapisem czyszczacym, a kazdy inny wpis przechodzi
+//     przez kanoniczny slug silnika kotwic (`normalizeAuthorAnchor`),
+//   * RESET KOLORU czysci oba zrodla barwy (mark inline i `data.color`)
+//     jednym zapisem, takze przy zaznaczonej tresci,
 //   * SPIS TRESCI: brak pola znaczy „w spisie", wiec przycisk startuje
 //     wcisniety, a pierwszy klik WYPISUJE naglowek ze spisu,
 //   * pasek nie kradnie zaznaczenia (`preventDefault` na `mousedown`) i nie
@@ -48,7 +50,7 @@ import { HeadingWidgetToolbar } from "../HeadingWidgetToolbar";
 import { HeadingBlock } from "../edit/Heading";
 import { subscribeAppDialog, type PendingDialog } from "@/lib/appDialogs";
 import { resolveBlockAnchors } from "@/lib/blocks/anchors";
-import { slugifyAnchor } from "@/lib/content/anchorSlug";
+import { ANCHOR_MAX_LENGTH, slugifyAnchor } from "@/lib/content/anchorSlug";
 import type { Block, Json } from "@/lib/blocks/types";
 import { realT } from "@/test/i18nReal";
 import { axeViolations, summarize } from "@/test/axe";
@@ -515,38 +517,16 @@ describe("HeadingWidgetToolbar - pasek nie kradnie zaznaczenia ani klikniecia", 
   });
 });
 
-// ── DEFEKTY TEGO PASKA, ZAREJESTROWANE, NIE NAPRAWIONE ───────────────────────
-describe("HeadingWidgetToolbar - defekty zarejestrowane", () => {
-  // DEFEKT: KOTWICA NAGLOWKA POWSTAJE SZOSTYM, NAJSLABSZYM SLUGIFIKATOREM.
-  //
-  // WEJSCIE: redaktor wpisuje w dialogu kotwicy „Sekcja Łączna" - napis
-  //   z polska litera atomowa, dokladnie ten z bledu, dla ktorego powstal
-  //   `src/lib/content/anchorSlug.ts`.
-  // CO PSUJE: HeadingWidgetToolbar.tsx:254 normalizuje wartosc wlasnym
-  //   wyrazeniem `v.trim().replace(/\s+/g, "-").toLowerCase()`. Nie
-  //   transliteruje liter atomowych (`ł` nie ma rozkladu kanonicznego), nie
-  //   przycina do 80 znakow, nie ma fallbacku i NIE usuwa znakow
-  //   niedozwolonych w identyfikatorze (`#`, `/`, `?`, kropka, cudzyslow
-  //   przechodza nietkniete). Dalej `createAnchorAllocator.allocate`
-  //   (anchorSlug.ts:231-233) bierze kotwice JAWNA doslownie - `trimmedExplicit
-  //   || slugifyAnchor(text)` - wiec nikt jej po drodze nie naprawi.
-  // KONSEKWENCJA: tu wazy to wiecej niz w pasku generycznym, bo kotwica
-  //   naglowka NAPRAWDE trafia do atrybutu `id` w HTML. Redaktor dostaje
-  //   `<h2 id="sekcja-łączna">`, a spis tresci i linki glebokie licza slug
-  //   kanonicznie („sekcja-laczna") - odnosnik trafia w pustke, bez zadnego
-  //   komunikatu. Ze znakiem `#` w srodku id nie da sie nawet uzyc
-  //   w `querySelector`.
-  // WYMAGANA POPRAWKA: `set({ anchor: slugifyAnchor(v) })` - identycznie po
-  //   obu stronach, zeby migracja tresci bloki<->richtext nie ruszala kotwic.
-  it("STAN DZIS: kotwica z polska litera zostaje w dokumencie NIEZTRANSLITEROWANA", async () => {
-    const { onChange } = zamontuj({});
-    fireEvent.click(btn(TB("anchor")));
-    await odpowiedz("Sekcja Łączna");
-    expect(ostatnieDane(onChange).anchor).toBe("sekcja-łączna");
-    expect(slugifyAnchor("Sekcja Łączna")).toBe("sekcja-laczna");
-  });
-
-  it.fails("DEFEKT: kotwica naglowka MUSI byc slugowana kanonicznie", async () => {
+// ── DEFEKTY NAPRAWIONE 2026-10-18 (byly `it.fails`) ─────────────────────────
+describe("HeadingWidgetToolbar - kotwica kanoniczna i pelny reset koloru", () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): kotwica naglowka powstawala
+  // szostym, najslabszym slugifikatorem (`v.trim().replace(/\s+/g, "-")
+  // .toLowerCase()`) - bez transliteracji `ł`, bez limitu 80 znakow, z `#`,
+  // `/`, `?` przepuszczonymi wprost do `<h2 id>`. Spis tresci liczy slug
+  // kanonicznie, wiec `href="#sekcja-laczna"` mijal `id="sekcja-łączna"`.
+  // KONTRAKT: wpis z dialogu przechodzi przez `normalizeAuthorAnchor` (ten sam
+  // co w pasku generycznym), a silnik kotwic oddaje go do `id` bez zmiany.
+  it("kotwica naglowka jest slugowana kanonicznie i wychodzi z silnika kotwic bez zmiany", async () => {
     const { onChange } = zamontuj({});
     fireEvent.click(btn(TB("anchor")));
     await odpowiedz("Sekcja Łączna");
@@ -555,42 +535,52 @@ describe("HeadingWidgetToolbar - defekty zarejestrowane", () => {
     // A skoro taka wartosc idzie prosto do `id`, musi tez wyjsc z silnika
     // kotwic bez zmiany - inaczej `href="#..."` i `id` sie rozjezdzaja.
     const blok = { id: "h1", type: "heading", data: { text: "Traktat", anchor } } as Block;
-    expect(resolveBlockAnchors([blok]).get("h1")?.id).toBe(slugifyAnchor("Sekcja Łączna"));
+    expect(resolveBlockAnchors([blok]).get("h1")?.id).toBe("sekcja-laczna");
   });
 
-  // DEFEKT: `Wyczysc kolor` PRZY ZAZNACZENIU NIE ZDEJMUJE KOLORU BLOKU.
-  //
-  // WEJSCIE: naglowek pokolorowany na poziomie bloku (`data.color = "#c0392b"`,
-  //   czyli efekt wyboru barwy przy pustym zaznaczeniu), redaktor zaznacza
-  //   tresc naglowka - odruch przed kazda operacja na tekscie - i klika
-  //   „Wyczysc kolor".
-  // CO PSUJE: `applyColor` (HeadingWidgetToolbar.tsx:98-107) rozgalezia sie
-  //   WYLACZNIE na obecnosc zaznaczenia: przy niepustym zakresie wola
-  //   `unsetColor()` na marku inline i KONCZY (`return`), nie dotykajac
-  //   `data.color`. W tresci nie ma zadnego marku koloru, wiec komenda nie
-  //   zmienia dokumentu, `onUpdate` nie leci i pasek nie zglasza zmiany.
-  // KONSEKWENCJA: naglowek zostaje czerwony, a redaktor dostaje zero
-  //   sprzezenia - klika przycisk czyszczacy tyle razy, ile zechce, i za
-  //   kazdym razem nic sie nie dzieje. Jedyna droga do zdjecia koloru to
-  //   odznaczenie tresci, czego interfejs nigdzie nie komunikuje.
-  // WYMAGANA POPRAWKA: `Wyczysc kolor` (`applyColor(null)`) musi czyscic OBA
-  //   miejsca - mark inline ORAZ `data.color` - bo etykieta obiecuje redaktorowi
-  //   brak koloru, a nie brak jednego z dwoch jego zrodel.
-  it("STAN DZIS: przy zaznaczeniu reset koloru nie zglasza ZADNEJ zmiany bloku", () => {
+  it("kotwica dluzsza niz limit silnika jest przycinana bez myslnika na koncu", async () => {
+    const dlugi = "Rozdział ".repeat(20);
+    const { onChange } = zamontuj({});
+    fireEvent.click(btn(TB("anchor")));
+    await odpowiedz(dlugi);
+    const anchor = String(ostatnieDane(onChange).anchor);
+    expect(anchor).toBe(slugifyAnchor(dlugi));
+    expect(anchor.length).toBeLessThanOrEqual(ANCHOR_MAX_LENGTH);
+    expect(anchor).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+  });
+
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): „Wyczysc kolor" przy zaznaczonej
+  // tresci zdejmowal WYLACZNIE mark inline i konczyl, nie dotykajac
+  // `data.color`. Naglowek pokolorowany na poziomie bloku zostawal czerwony,
+  // a pasek nie zglaszal zadnej zmiany - redaktor klikal bez skutku.
+  // KONTRAKT: reset czysci OBA zrodla koloru (mark inline i `data.color`)
+  // JEDNYM zapisem - drugi zapis z `onUpdate` edytora nadpisalby pierwszy
+  // trescia sprzed resetu.
+  it("reset koloru zdejmuje kolor bloku takze przy zaznaczonej tresci", () => {
     const { onChange } = zamontuj({ color: "#c0392b" });
     zaznaczCalosc();
     otworzPalete();
     fireEvent.click(btn(TB("colorReset")));
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(ostatnieDane(onChange).color).toBe("");
+    // Tresc nie miala marku koloru, wiec zostaje nietknieta.
+    expect(ostatniTekst(onChange)).toBe("Traktat");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it.fails("DEFEKT: reset koloru MUSI zdjac kolor bloku takze przy zaznaczonej tresci", () => {
-    const { onChange } = zamontuj({ color: "#c0392b" });
+  it("kolor w OBU miejscach znika jednym zapisem: mark inline i kolor bloku", () => {
+    const { onChange } = zamontuj({
+      color: "#2980b9",
+      text: '<span style="color: #c0392b">Traktat</span>',
+    });
     zaznaczCalosc();
     otworzPalete();
     fireEvent.click(btn(TB("colorReset")));
-    const dane = onChange.mock.calls.at(-1)?.[0].data;
-    expect(dane && String(dane.color ?? "")).toBe("");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const dane = ostatnieDane(onChange);
+    expect(dane.color).toBe("");
+    expect(String(dane.text)).not.toContain("#c0392b");
+    expect(String(dane.text)).toContain("Traktat");
   });
 });
 

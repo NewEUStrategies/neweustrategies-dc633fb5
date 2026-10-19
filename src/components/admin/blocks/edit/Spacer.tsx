@@ -1,14 +1,30 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { num } from "@/components/blocks/renderer/data";
 
 interface Props {
   block: Block;
   onChange: (next: Block) => void;
 }
 
+/** Zakres suwaka - etykieta i podgląd pokazują wartość, którą suwak umie przedstawić. */
+const HEIGHT_MIN = 8;
+const HEIGHT_MAX = 400;
+const HEIGHT_DEFAULT = 40;
+
 export function SpacerBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const height = Number(block.data.height ?? 40);
+  const label = i18n.editor("spacer", "heightLabel");
+  // Wysokość czyta TEN SAM `num`, co render publiczny (`renderSpacer`): napis,
+  // którego `Number()` nie przeczyta („wysoko", „33,5"), to wartość domyślna,
+  // a liczba spoza zakresu - najbliższy kraniec suwaka. Wcześniej
+  // `Number("wysoko")` dawało `NaN` i w podglądzie (element bez wysokości),
+  // i w etykiecie („NaNpx"), a suwak stał w pozycji domyślnej przeglądarki -
+  // dwie różne wartości tego samego pola naraz.
+  const height = Math.min(
+    HEIGHT_MAX,
+    Math.max(HEIGHT_MIN, num(block.data, "height", HEIGHT_DEFAULT)),
+  );
   return (
     <div className="group relative">
       <div
@@ -16,11 +32,12 @@ export function SpacerBlock({ block, onChange }: Props) {
         style={{ height }}
       />
       <div className="flex items-center gap-2 mt-1 text-xs">
-        <label className="text-muted-foreground">{i18n.editor("spacer", "heightLabel")}</label>
+        <label className="text-muted-foreground">{label}</label>
         <input
           type="range"
-          min={8}
-          max={400}
+          aria-label={label}
+          min={HEIGHT_MIN}
+          max={HEIGHT_MAX}
           value={height}
           onChange={(e) =>
             onChange({ ...block, data: { ...block.data, height: Number(e.target.value) } })
