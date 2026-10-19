@@ -2831,6 +2831,21 @@ select option {
 [data-builder-renderer][data-device="mobile"] [data-section-kind="people"] [data-column-slot] {
   grid-column: auto !important;
 }
+/* Kolor kolumny nadpisany per tryb (`{ light, dark }` z ColumnProperties):
+   wartości przychodzą zmiennymi inline z renderera, tu wybór trybu. */
+[data-col-id][data-col-bg] {
+  background: var(--nes-col-bg);
+}
+.dark [data-col-id][data-col-bg] {
+  background: var(--nes-col-bg-dark);
+}
+[data-col-id][data-col-fg] {
+  color: var(--nes-col-fg);
+}
+.dark [data-col-id][data-col-fg] {
+  color: var(--nes-col-fg-dark);
+}
+
 [data-builder-renderer][data-device="mobile"] [data-col-id] {
   width: 100% !important;
   max-width: 100% !important;

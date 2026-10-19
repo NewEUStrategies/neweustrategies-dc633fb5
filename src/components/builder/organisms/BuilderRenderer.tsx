@@ -57,6 +57,8 @@ import {
   COLUMN_SAFE_AREA_PX,
 } from "@/lib/builder/sectionStyles";
 import { UsedPostIdsProvider } from "@/lib/builder/usedPostIds";
+import { isThemedValue, pickMode } from "@/lib/builder/themed";
+import { safeWidgetColor } from "@/lib/builder/cssColor";
 import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
@@ -1492,6 +1494,24 @@ const RenderInner = memo(function RenderInner({
 
 RenderInner.displayName = "RenderInner";
 
+/**
+ * Kolor kolumny w trzech zapisach, które może zostawić `ColumnProperties`:
+ * brak (dziedziczy), płaski string (oba tryby) albo `{ light, dark }` po
+ * nadpisaniu jednego trybu. Ten ostatni szedł dotąd surowo do `style`, a obiekt
+ * w deklaracji CSS przepada - kolor znikał w OBU trybach. Teraz tryby jadą
+ * zmiennymi inline, a wybiera je reguła `.dark` z `styles.css` (sekcja
+ * „Builder public renderer"). Każda wartość przechodzi przez wspólny whitelist
+ * `safeWidgetColor`, więc do atrybutu `style` nie trafia surowy tekst z bazy.
+ */
+function columnColor(raw: unknown): { flat?: string; light?: string; dark?: string } {
+  if (isThemedValue<string>(raw)) {
+    const light = safeWidgetColor(pickMode<string>(raw, "light")) || undefined;
+    const dark = safeWidgetColor(pickMode<string>(raw, "dark")) || undefined;
+    return light || dark ? { light: light ?? dark, dark: dark ?? light } : {};
+  }
+  return { flat: safeWidgetColor(raw) || undefined };
+}
+
 const RenderColumn = memo(function RenderColumn({
   column,
   lang,
@@ -1573,6 +1593,9 @@ const RenderColumn = memo(function RenderColumn({
   );
   const onContentChange = inlineEdit ? handleWidgetContentChange : undefined;
 
+  const bg = columnColor(column.style?.bgColor);
+  const fg = columnColor(column.style?.textColor);
+
   return (
     <div
       data-col-id={column.id}
@@ -1585,10 +1608,18 @@ const RenderColumn = memo(function RenderColumn({
         minHeight:
           column.style?.minHeight ??
           (chromeReserve ? estimateChromeColumnHeight(column, device) : undefined),
-        background: column.style?.bgColor,
-        color: column.style?.textColor,
+        background: bg.flat,
+        color: fg.flat,
+        ...((bg.light
+          ? { "--nes-col-bg": bg.light, "--nes-col-bg-dark": bg.dark }
+          : {}) as CSSProperties),
+        ...((fg.light
+          ? { "--nes-col-fg": fg.light, "--nes-col-fg-dark": fg.dark }
+          : {}) as CSSProperties),
         borderRadius: column.style?.borderRadius,
       }}
+      data-col-bg={bg.light ? "" : undefined}
+      data-col-fg={fg.light ? "" : undefined}
     >
       {groups.map((g, gi) => {
         if (g.inline) {
