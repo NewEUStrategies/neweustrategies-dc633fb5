@@ -726,6 +726,43 @@ describe("GlobalAudioBar", () => {
     expect(screen.queryByRole("region")).toBeNull();
   });
 
+  it("guests retain a standalone player", async () => {
+    h.player = playerStub({ track, status: "playing", duration: 600 });
+    mount();
+    await waitFor(() => expect(screen.getByRole("region")).toBeInTheDocument());
+    expect(document.querySelector("[data-workspace-audio-slot]")).toBeNull();
+    expect(screen.getByRole("region")).toHaveAttribute("data-audio-placement", "standalone");
+  });
+
+  it("moves controls into a late member dock and back without stopping playback", async () => {
+    const player = playerStub({ track, status: "playing", duration: 600, currentTime: 42 });
+    h.player = player;
+    const { unmount } = mount();
+    const slot = document.createElement("div");
+    slot.setAttribute("data-workspace-audio-slot", "");
+    try {
+      await act(async () => {
+        document.body.appendChild(slot);
+      });
+      await waitFor(() => expect(slot).toContainElement(screen.getByRole("region")));
+      expect(screen.getByRole("slider")).toHaveValue("42");
+      expect(player.close).not.toHaveBeenCalled();
+      expect(player.toggle).not.toHaveBeenCalled();
+      expect(player.loadAndPlay).not.toHaveBeenCalled();
+      await act(async () => {
+        slot.remove();
+      });
+      await waitFor(() =>
+        expect(screen.getByRole("region")).toHaveAttribute("data-audio-placement", "standalone"),
+      );
+      expect(screen.getByRole("slider")).toHaveValue("42");
+      expect(player.close).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      slot.remove();
+    }
+  });
+
   it("z aktywnym materiałem renderuje pasek jako region z nazwą", async () => {
     h.player = playerStub({ track, status: "playing", duration: 600 });
     mount();

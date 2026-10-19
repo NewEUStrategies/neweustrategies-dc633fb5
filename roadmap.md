@@ -1,5 +1,10 @@
 # Roadmap
 
+## Audio w dolnym pasku
+
+- [x] Zachować osobny odtwarzacz gości i połączyć odtwarzacz członków z mierzonym dolnym paskiem bez przenoszenia silnika audio.
+- [x] Sprawdzić odsłuch i nawigację w obu wariantach oraz układ mobilny: 185 testów przechodzi; testowe nagranie kontynuuje odtwarzanie po przejściu do autora dla gościa i zalogowanego; przy 393x852 brak przepełnienia, rezerwacja doku 157px. W podglądzie silnik wymagał testowego wymuszenia montażu; naturalne pierwsze uruchomienie pozostaje niepotwierdzone.
+
 ## Weryfikacja PR #526
 
 - [x] Sprawdzić bazę: 1660 wymaganych obiektów, zero braków; 751 kolumn, zero nowych braków i 7 historycznych rozbieżności; 371 migracji egzekwowanych bez braków. Pasy Drizzle przechodzą, zachowują 22 historyczne braki kopii.
