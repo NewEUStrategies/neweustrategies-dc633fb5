@@ -19,6 +19,7 @@ import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toLocalIsoDate } from "@/lib/analytics/semantic/window";
 import { cn } from "@/lib/utils";
 
 export type TimeRangePresetId = "24h" | "7d" | "30d" | "90d" | "custom";
@@ -31,6 +32,19 @@ export interface TimeRangeValue {
   untilIso: string;
   /** Rounded days span, for labels/display. */
   days: number;
+  /**
+   * Tylko `custom`: wybrane DNI kalendarza (`YYYY-MM-DD`, z lokalnych
+   * komponentów daty, po uporządkowaniu granic), włącznie (D13).
+   *
+   * DLACZEGO OBOK `sinceIso/untilIso`. Instanty niosą lokalną północ, a ta
+   * w Warszawie jest dniem WCZEŚNIEJ w UTC - serwer tnący instanty do dni UTC
+   * liczył „3-9 VIII” jako „2-9 VIII”. Daty mówią, KTÓRE dni wybrano, więc
+   * konsument okna dobowego buduje z nich `resolveCalendarWindow` (i jego
+   * granice wysyła do `getSemanticSnapshot`). Instanty zostają dla
+   * konsumentów kroczących (bez zmian).
+   */
+  fromDate?: string;
+  toDate?: string;
 }
 
 interface PresetSpec {
@@ -90,6 +104,8 @@ function buildCustomRange(from: Date, to: Date): TimeRangeValue {
     sinceIso: new Date(sinceMs).toISOString(),
     untilIso: new Date(untilMs).toISOString(),
     days: Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000)),
+    fromDate: toLocalIsoDate(wczesniej),
+    toDate: toLocalIsoDate(pozniej),
   };
 }
 

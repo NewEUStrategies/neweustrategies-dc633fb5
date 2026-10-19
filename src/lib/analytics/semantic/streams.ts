@@ -16,13 +16,31 @@
  * do rozstrzygnięcia, czy dwie liczby są w ogóle porównywalne - zamiast
  * porównywać je na słowo.
  *
+ * Hub „Przychód i lejek” dokłada trzy strumienie faktów transakcyjnych
+ * (`billing`, `lifecycle`, `community`) - ten sam opis własności sprawia, że
+ * przychód z księgi i przychód z zamówień da się UZGODNIĆ regułą, a nie
+ * wyborem „która liczba ładniej wygląda”.
+ *
  * Plik jest CZYSTY (bez importów runtime'owych, bez I/O): służy zarówno
  * serwerowym funkcjom, komponentom admina, jak i testom.
  */
 
-/** Sześć strumieni, z których platforma czyta liczby. */
+/**
+ * Strumienie, z których platforma czyta liczby: sześć analitycznych (zakres
+ * `analytics_semantic_snapshot` i GA4) oraz trzy strumienie huba „Przychód
+ * i lejek” (`billing`, `lifecycle`, `community`) - fakty transakcyjne
+ * i cyklu życia konta, czytane przez RPC `admin_revenue_*`.
+ */
 export type StreamId =
-  "ga4" | "first_party" | "web_vitals" | "ad_events" | "newsletter" | "content_views";
+  | "ga4"
+  | "first_party"
+  | "web_vitals"
+  | "ad_events"
+  | "newsletter"
+  | "content_views"
+  | "billing"
+  | "lifecycle"
+  | "community";
 
 /**
  * Bramka zgody (RODO) wymagana, żeby zdarzenie w ogóle powstało. To NAJWAŻNIEJSZY
@@ -57,7 +75,19 @@ export type IdentityGrain =
   /** `subscriber_id` z podpisanego HMAC-em tokenu - konkretna osoba. */
   | "email_recipient"
   /** Brak jakiejkolwiek tożsamości - liczymy wyłącznie zdarzenia. */
-  | "anonymous_event";
+  | "anonymous_event"
+  /**
+   * Konto w naszej bazie (`profiles.id` / `user_id`) - osoba albo instytucja
+   * z umową. Jedyne ziarno, w którym „klient” znaczy to samo w księdze MRR,
+   * w zamówieniach i w rejestracjach na wydarzenia.
+   */
+  | "account"
+  /**
+   * Kontakt CRM (`crm_leads.id`) - lead bywa przed kontem (formularz, import)
+   * albo po nim, więc NIE jest tym samym co `account`: jedno konto może mieć
+   * kilka leadów, a lead bez konta nie istnieje w księdze.
+   */
+  | "crm_contact";
 
 /** Zegar, po którym strumień kubkuje dni. */
 export type TimeBasis =
@@ -250,12 +280,110 @@ const STREAM_LIST: readonly StreamDescriptor[] = [
   },
 ];
 
-/** Wszystkie strumienie w deterministycznej kolejności prezentacji. */
+/**
+ * Strumienie huba „Przychód i lejek” (SPEC §5.5, DANE §9.1).
+ *
+ * Wszystkie trzy mają `consentGate: "none"` - i to jest stwierdzenie
+ * PRAWNE, nie techniczne: podstawą przetwarzania jest umowa (sprzedaż,
+ * członkostwo, rejestracja), a nie zgoda cookie. Dlatego ich populacje nie
+ * kurczą się, gdy odwiedzający odmówi analityki - i dlatego ich liczby NIE są
+ * ułamkami liczb z `first_party` ani GA4 (te stoją za zgodą analityczną).
+ */
+const HUB_STREAM_LIST: readonly StreamDescriptor[] = [
+  {
+    id: "billing",
+    labelPl: "Rozliczenia i subskrypcje",
+    labelEn: "Billing and subscriptions",
+    ownership: "first_party",
+    store:
+      "public.subscriptions, public.subscription_state_history, public.mrr_movements, public.billing_documents",
+    producer:
+      "src/lib/billing/billingDocuments.server.ts, tg_subscriptions_revenue_history (SQL), RPC admin_revenue_semantic_snapshot",
+    consentGate: "none",
+    identityGrain: "account",
+    timeBasis: "utc_timestamp",
+    dedupe: "upsert_last_wins",
+    latencyHours: 0,
+    caps: [],
+    caveats: [
+      "Movements recorded before the provider-amount backfill carry CATALOGUE prices (basis_mix.catalog), so MRR before that date can differ from what the payment provider actually charged.",
+      "History starts at data_since: windows that begin earlier are partial, and twelve-month ratios (NRR, GRR, annual churn) stay undefined until a full year of ledger exists.",
+      "Only environment = 'live' rows count - test-mode subscriptions and invoices never reach this stream.",
+      "subscriptions is UPSERTed state (one row per subscription), so the change history lives in subscription_state_history and mrr_movements, never in the state row itself.",
+    ],
+  },
+  {
+    id: "lifecycle",
+    labelPl: "Cykl życia konta",
+    labelEn: "Account lifecycle",
+    ownership: "first_party",
+    store:
+      "public.profiles, public.paywall_hits, public.payment_orders, public.retention_feedback, public.crm_lead_stage_history, public.newsletter_popup_events, public.journey_*",
+    producer:
+      "record_paywall_hit (SQL), src/lib/billing/checkout.functions.ts, src/lib/retention/functions.ts, tg_crm_leads_stage_history (SQL), RPC admin_revenue_funnel",
+    consentGate: "none",
+    identityGrain: "account",
+    timeBasis: "utc_timestamp",
+    dedupe: "none",
+    latencyHours: 0,
+    caps: [],
+    caveats: [
+      "Anonymous visitors are outside this stream: a paywall hit or checkout start counts only for a signed-in account, so its funnel starts at registration, not at the first visit.",
+      "Every count here is per account; a visitor-based rate needs the first-party stream, and the two populations never share a denominator.",
+      "History starts at data_since of each source (paywall_hits and crm_lead_stage_history were introduced with the hub), so earlier windows read as empty, not as zero activity.",
+      "Only environment = 'live' payment orders count - test checkouts are excluded.",
+    ],
+  },
+  {
+    id: "community",
+    labelPl: "Wydarzenia i kluby",
+    labelEn: "Events and clubs",
+    ownership: "first_party",
+    store: "public.event_registrations, public.club_applications, public.club_members",
+    producer:
+      "src/lib/events/ticket.server.ts, RPC admin_revenue_events_summary, RPC admin_revenue_clubs_summary",
+    consentGate: "none",
+    identityGrain: "account",
+    timeBasis: "utc_timestamp",
+    dedupe: "none",
+    latencyHours: 0,
+    caps: [],
+    caveats: [
+      "Legacy event_rsvps are outside this stream: only event_registrations count, so attendance recorded before the registration flow existed is absent from every figure here.",
+      "Ticket amounts recorded before the provider-amount backfill carry catalogue prices, so early ticket revenue can differ from the settled amount.",
+      "History starts at data_since; club applications filed before the application flow are not in club_applications at all.",
+      "Only environment = 'live' ticket payments count towards ticket revenue.",
+    ],
+  },
+];
+
+/**
+ * Sześć strumieni ANALITYCZNYCH - dokładnie zakres `analytics_semantic_snapshot`
+ * i GA4, w deterministycznej kolejności prezentacji.
+ *
+ * DLACZEGO `STREAMS` NIE ROŚNIE DO DZIEWIĘCIU. Po tej liście iterują
+ * `getSemanticSnapshot` (pole `streams`) i `StreamHealthGrid` na zakładce
+ * uzgodnienia: oba opisują MIGAWKĘ ANALITYCZNĄ, której RPC strumieni huba nie
+ * czyta. Dziewięć pozycji pokazałoby trzy fałszywe „odczyt nie powiódł się”
+ * dla źródeł, o które nikt nie pytał. Strumienie huba mają własną listę
+ * (`HUB_STREAMS`) i własne zdrowie w `getRevenueSnapshot`; pełny rejestr to
+ * `ALL_STREAMS`.
+ */
 export const STREAMS: readonly StreamDescriptor[] = STREAM_LIST;
 
-const BY_ID = new Map<StreamId, StreamDescriptor>(STREAM_LIST.map((s) => [s.id, s]));
+/** Strumienie huba: `billing`, `lifecycle`, `community`. */
+export const HUB_STREAMS: readonly StreamDescriptor[] = HUB_STREAM_LIST;
 
-/** Deskryptor strumienia. Rzuca dla nieznanego id - rejestr jest kompletny z definicji. */
+/** Pełny rejestr (9) - jedyna lista, po której wolno szukać deskryptora. */
+export const ALL_STREAMS: readonly StreamDescriptor[] = [...STREAM_LIST, ...HUB_STREAM_LIST];
+
+const BY_ID = new Map<StreamId, StreamDescriptor>(ALL_STREAMS.map((s) => [s.id, s]));
+
+/**
+ * Deskryptor strumienia. Rzuca dla nieznanego id - rejestr jest kompletny
+ * z definicji. Szuka w `ALL_STREAMS`, bo metryki huba wiążą się ze strumieniami
+ * spoza migawki analitycznej.
+ */
 export function streamById(id: StreamId): StreamDescriptor {
   const found = BY_ID.get(id);
   if (!found) throw new Error(`Unknown analytics stream: ${id}`);

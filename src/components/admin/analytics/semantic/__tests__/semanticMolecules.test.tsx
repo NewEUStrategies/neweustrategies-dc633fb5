@@ -34,8 +34,19 @@
 //      nazwy między warsztatami.
 //
 // Napisy sprawdzamy PRAWDZIWYM tłumaczem (`realT`) w PL i EN.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+// „Więcej” w popoverze definicji otwiera pełne objaśnienie, które pobiera
+// treść benchmarku z server fn - atrapa oddaje prawdziwy rejestr.
+vi.mock("@/lib/analytics/semantic/benchmarks/benchmarks.functions", async () => {
+  const { payloadFor } = await import("./benchmarkFixtures");
+  return {
+    getBenchmarkGroup: async ({ data }: { data: { group: never; lang: never } }) =>
+      payloadFor(data.group, data.lang),
+  };
+});
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/test/i18nReal";
 import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -332,6 +343,39 @@ describe("MetricDefinitionPopover - definicja przy każdej liczbie", () => {
       view.unmount();
       cleanup();
     }
+  });
+});
+
+describe("MetricDefinitionPopover - „Więcej” prowadzi do pełnego objaśnienia", () => {
+  it("treść popovera pochodzi z metricHelp: rozwinięcie i definicja z rejestru", async () => {
+    const metric = metricById("mrr");
+    render(<MetricDefinitionPopover metricId="mrr" />);
+    await openDefinition();
+    const text = popperText();
+    expect(text).toContain(metric.labelPl);
+    expect(text).toContain(metric.definitionPl);
+  });
+
+  it("„Więcej” zamyka popover i otwiera arkusz z dźwigniami i źródłami benchmarku", async () => {
+    const t = realT("pl");
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MetricDefinitionPopover metricId="logo_churn_monthly" />
+      </QueryClientProvider>,
+    );
+    await openDefinition();
+    fireEvent.click(
+      screen.getByRole("button", { name: t("adminRevenue.benchmark.explainer.more") }),
+    );
+    await act(async () => {});
+    expect(popperText()).toBe("");
+    const sheet = await screen.findByRole("dialog");
+    expect(sheet.getAttribute("aria-labelledby")).toBeTruthy();
+    expect(
+      await within(sheet).findByText(t("adminRevenue.benchmark.explainer.levers")),
+    ).toBeInTheDocument();
+    expect(sheet.textContent).toContain(t("adminRevenue.benchmark.explainer.sources"));
   });
 });
 

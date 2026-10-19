@@ -1,15 +1,15 @@
-// Molekula: lejek jako lista krokow z paskami.
+// Molekula: lejek reklam wydarzenia jako lista krokow z paskami.
 //
-// DOSTEPNOSC ZAMIAST WYKRESU SVG. Piec liczb w kolejnosci to lista, nie
-// wykres: kazdy krok ma etykiete, wartosc i udzial w poprzednim kroku jako
-// TEKST, a pasek jest `aria-hidden` - czytnik ekranu dostaje to samo, co oko,
-// bez opisywania ksztaltow. Pelne liczby per kampania sa w tabeli obok.
-//
-// SZEROKOSC PASKA JEST WZGLEDEM PIERWSZEGO KROKU, nie wzgledem poprzedniego -
-// inaczej kazdy pasek bylby "prawie pelny" i lejek przestalby sie zwezac.
-// Udzial zerowego mianownika to kreska, nie zero procent.
+// CIENKA NAKLADKA NA `FunnelBars` (SPEC §6.1). Lejek huba, lejek reklam
+// i przejscia krokow sciezki to jeden organizm; tu zostaje wylacznie to, co
+// nalezy do modulu wydarzen: slownik `adminEventAdsFunnel.*` i udzial
+// liczony `stepRate` (ten sam, ktorym liczy tabela kampanii obok).
+// Znacznik jest identyczny z dotychczasowym (lista z nazwa, wiersz
+// „etykieta + wartosc”, pasek `aria-hidden` wzgledem PIERWSZEGO kroku, kreska
+// przy zerowym mianowniku) - przypina go test molekuly.
 import { useTranslation } from "react-i18next";
 
+import { FunnelBars } from "@/components/admin/analytics/FunnelBars";
 import { stepRate } from "@/lib/events/adsFunnel";
 import { ensureAdsFunnelI18n } from "@/lib/i18n-admin-event-ads-funnel";
 
@@ -26,36 +26,19 @@ function percentText(rate: number | null): string {
 export function AdsFunnelBars({ steps }: { steps: readonly AdsFunnelBarStep[] }) {
   ensureAdsFunnelI18n();
   const { t } = useTranslation();
-  const base = steps[0]?.value ?? 0;
-
-  if (steps.every((step) => step.value === 0)) {
-    return <p className="text-sm text-muted-foreground">{t("adminEventAdsFunnel.funnel.empty")}</p>;
-  }
 
   return (
-    <ol className="space-y-3" aria-label={t("adminEventAdsFunnel.funnel.ariaLabel")}>
-      {steps.map((step, index) => {
-        const previous = index === 0 ? null : (steps[index - 1] as AdsFunnelBarStep);
-        const width = base > 0 ? Math.min(100, Math.round((step.value / base) * 100)) : 0;
-        return (
-          <li key={step.key} className="space-y-1">
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="font-medium">{step.label}</span>
-              <span className="tabular-nums">{step.value}</span>
-            </div>
-            <div aria-hidden="true" className="h-2 w-full rounded-[6px] bg-muted">
-              <div className="h-2 rounded-[6px] bg-brand" style={{ width: `${width}%` }} />
-            </div>
-            {previous === null ? null : (
-              <p className="text-[11px] text-muted-foreground">
-                {t("adminEventAdsFunnel.funnel.ofPrevious", {
-                  percent: percentText(stepRate(step.value, previous.value)),
-                })}
-              </p>
-            )}
-          </li>
-        );
-      })}
-    </ol>
+    <FunnelBars
+      steps={steps.map((step, index) => ({
+        ...step,
+        rate: index === 0 ? undefined : stepRate(step.value, steps[index - 1]?.value ?? 0),
+      }))}
+      labels={{
+        list: t("adminEventAdsFunnel.funnel.ariaLabel"),
+        empty: t("adminEventAdsFunnel.funnel.empty"),
+        ofPrevious: (percent) => t("adminEventAdsFunnel.funnel.ofPrevious", { percent }),
+      }}
+      formatRate={percentText}
+    />
   );
 }

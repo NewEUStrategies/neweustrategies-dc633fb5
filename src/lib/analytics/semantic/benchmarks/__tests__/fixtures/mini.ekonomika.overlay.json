@@ -1,0 +1,50 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "economics",
+  "source_file": "ekonomika.json",
+  "metrics": {
+    "rule_of_40": {
+      "metric_id": "rule_of_40",
+      "formula_en": "R40 = YoY growth + EBITDA margin",
+      "levers": { "pl": "Równoważ wzrost i marżę.", "en": "Balance growth and margin." },
+      "caveats_en": ["Meaningful from a larger scale."],
+      "review_by": "2027-01-31",
+      "default_context_by_segment": { "all": "rule_of_40.private_saas" },
+      "contexts": [
+        {
+          "id": "rule_of_40.private_saas",
+          "label_en": "Private SaaS companies",
+          "method_en": "source quartiles",
+          "period_en": "annually (CY-2025)",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year"
+        }
+      ]
+    },
+    "arpu": {
+      "merge_into": "revenue",
+      "caveats_en": ["Gross amounts must be converted to net."],
+      "contexts": [
+        {
+          "id": "arpu.b2c_pl_gross",
+          "label_en": "B2C media, Poland, PLN gross/month",
+          "method_en": "heuristic from market prices",
+          "period_en": "monthly",
+          "segments": ["b2c_individual"],
+          "measure": "level",
+          "unit": "money_minor",
+          "currency": "PLN",
+          "vat": "gross",
+          "window": "month",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    }
+  },
+  "sources": {
+    "S100": { "reliability": "A" },
+    "slug_b": { "reliability": "A" }
+  }
+}

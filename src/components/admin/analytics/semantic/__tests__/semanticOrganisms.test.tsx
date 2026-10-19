@@ -59,6 +59,8 @@ import {
 
 const h = vi.hoisted(() => ({
   fetchSnapshot: vi.fn(),
+  /** `getBenchmarkGroup` - treść grup benchmarków słownika. */
+  fetchGroup: vi.fn(),
   /** Warsztat, w którym stoi panel - zmiana tej wartości to przejście do innego. */
   tenantId: "tenant-alfa" as string | null,
 }));
@@ -83,6 +85,13 @@ vi.mock("@/lib/analytics/semantic/snapshot.functions", () => ({
   getSemanticSnapshot: (...args: unknown[]) => h.fetchSnapshot(...args),
 }));
 
+// Treść benchmarków (kolumny pewności i „stan na”, wiersze wpisów bez metryki)
+// przychodzi z server fn - atrapa oddaje PRAWDZIWY rejestr zlokalizowany tak
+// jak serwer (`payloadFor`).
+vi.mock("@/lib/analytics/semantic/benchmarks/benchmarks.functions", () => ({
+  getBenchmarkGroup: (...args: unknown[]) => h.fetchGroup(...args),
+}));
+
 // `react-i18next` NIE JEST atrapowany: panel jest dwujęzyczny, a przedmiotem
 // dowodu jest to, że napisy przychodzą ZE SŁOWNIKA (patrz `src/test/i18nReal.ts`).
 import "@/test/i18nReal";
@@ -91,7 +100,9 @@ import i18n from "@/lib/i18n";
 import { axeViolations, summarize } from "@/test/axe";
 import "@/lib/i18n-admin-analytics";
 import "@/lib/i18n-admin-semantic";
+import { BENCHMARK_INDEX } from "@/lib/analytics/semantic/benchmarks/index";
 import { MetricDictionary } from "../organisms/MetricDictionary";
+import { localized, payloadFor } from "./benchmarkFixtures";
 import { SemanticReconciliationPanel } from "../organisms/SemanticReconciliationPanel";
 
 // ---------------------------------------------------------------------------
@@ -259,16 +270,36 @@ beforeEach(async () => {
   h.tenantId = TENANT_A;
   h.fetchSnapshot.mockReset();
   h.fetchSnapshot.mockResolvedValue(snapshot());
+  h.fetchGroup.mockReset();
+  h.fetchGroup.mockImplementation(async ({ data }: { data: { group: never; lang: never } }) =>
+    payloadFor(data.group, data.lang),
+  );
 });
 
 afterEach(cleanup);
 
 // ---------------------------------------------------------------------------
 
+/** Słownik z klientem zapytań - kolumny benchmarków czytają treść z cache grup. */
+function dictionary(props: Parameters<typeof MetricDictionary>[0] = {}) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <MetricDictionary {...props} />
+      </QueryClientProvider>,
+    ),
+    queryClient,
+  };
+}
+
+/** Wpisy rejestru benchmarków BEZ metryki - osobne wiersze słownika. */
+const NO_METRIC = BENCHMARK_INDEX.filter((e) => e.metricId === undefined);
+
 describe("MetricDictionary - słownik metryk kanonicznych", () => {
-  it("jest PRAWDZIWĄ tabelą z czterema nagłówkami kolumn ze słownika", () => {
+  it("jest PRAWDZIWĄ tabelą z nagłówkami kolumn ze słownika (bez wartości: bez „teraz” i oceny)", () => {
     const t = realT("pl");
-    render(<MetricDictionary />);
+    dictionary();
 
     // Tabela, nie siatka `div`-ów: czytnik ekranu musi móc powiązać komórkę z
     // nagłówkiem kolumny, inaczej „Definicja” i „Czego nie wolno” zlewają się.
@@ -282,25 +313,46 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
       t("adminAnalytics.semantic.dictionary.colDefinition"),
       t("adminAnalytics.semantic.dictionary.colSource"),
       t("adminAnalytics.semantic.dictionary.colGuards"),
+      t("adminRevenue.benchmark.dictionary.colConfidence"),
+      t("adminRevenue.benchmark.dictionary.colAsOf"),
     ]);
+    expect(table.querySelector("caption")?.textContent).toBe(
+      t("adminRevenue.benchmark.dictionary.caption"),
+    );
   });
 
-  it("ma dokładnie jeden wiersz na metrykę rejestru, w kolejności rejestru", () => {
-    render(<MetricDictionary />);
+  it("z wartościami dochodzą kolumny „teraz” i „ocena”", () => {
+    const t = realT("pl");
+    dictionary({ values: new Map([["logo_churn_monthly", 0.042]]) });
+    const headers = within(screen.getByRole("table"))
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent);
+    expect(headers).toContain(t("adminRevenue.benchmark.dictionary.colNow"));
+    expect(headers).toContain(t("adminRevenue.benchmark.dictionary.colTier"));
+  });
+
+  it("jeden wiersz na metrykę rejestru (w kolejności rejestru) i na wpis benchmarku bez metryki", () => {
+    dictionary();
 
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(METRICS.length);
-    expect(rows.map((r) => r.querySelector("th")?.querySelector("span")?.textContent)).toEqual(
-      METRICS.map((m) => m.labelPl),
+    expect(NO_METRIC).toHaveLength(7);
+    expect(rows).toHaveLength(METRICS.length + NO_METRIC.length);
+    expect(
+      rows
+        .slice(0, METRICS.length)
+        .map((r) => r.querySelector("th")?.querySelector("span")?.textContent),
+    ).toEqual(METRICS.map((m) => m.labelPl));
+    expect(rows.slice(METRICS.length).map((r) => r.getAttribute("data-bench-key"))).toEqual(
+      NO_METRIC.map((e) => e.key),
     );
   });
 
   it("nazwa metryki jest nagłówkiem WIERSZA i niesie jednostkę", () => {
     const t = realT("pl");
-    render(<MetricDictionary />);
+    dictionary();
 
     const rowHeaders = within(screen.getByRole("table")).getAllByRole("rowheader");
-    expect(rowHeaders).toHaveLength(METRICS.length);
+    expect(rowHeaders).toHaveLength(METRICS.length + NO_METRIC.length);
     for (const metric of METRICS) {
       const header = rowHeaders.find((th) => (th.textContent ?? "").startsWith(metric.labelPl));
       expect(header?.textContent).toContain(
@@ -310,7 +362,7 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
   });
 
   it("pokazuje wzór STRUMIENIA AUTORYTATYWNEGO, nie pierwszego z listy powiązań", () => {
-    render(<MetricDictionary />);
+    dictionary();
 
     // Raport cytuje wyłącznie źródło autorytatywne - słownik musi pokazać JEGO
     // wzór, inaczej czytelnik przepisze wzór strumienia potwierdzającego.
@@ -326,7 +378,7 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
 
   it("kolumna źródła wymienia WSZYSTKIE strumienie metryki i bramkę autorytatywnego", () => {
     const t = realT("pl");
-    render(<MetricDictionary />);
+    dictionary();
 
     const sessions = metricById("sessions");
     const row = screen.getByText(sessions.labelPl).closest("tr");
@@ -341,7 +393,7 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
   });
 
   it("definicja i lista „czego nie wolno” jadą z rejestru dla każdej metryki", () => {
-    render(<MetricDictionary />);
+    dictionary();
 
     const table = screen.getByRole("table");
     for (const metric of METRICS) {
@@ -352,10 +404,121 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
     }
   });
 
+  it("pewność i „stan na” z benchmarku; metryka bez benchmarku ma kreski", async () => {
+    const t = realT("pl");
+    const churn = localized("retention", "logo_churn_monthly", "pl");
+    dictionary({ today: "2026-10-19" });
+
+    const row = document.querySelector('[data-metric="logo_churn_monthly"]');
+    await waitFor(() =>
+      expect(row?.querySelector("[data-confidence]")?.textContent).toBe(
+        t(`adminRevenue.benchmark.confidence.${churn.confidence}`),
+      ),
+    );
+    expect(row?.querySelector("[data-as-of]")?.textContent).toContain(churn.asOf);
+    expect(row?.querySelector("[data-stale]")).toBeNull();
+    const sessions = document.querySelector('[data-metric="sessions"]');
+    expect(sessions?.querySelector("[data-confidence]")?.textContent).toBe("-");
+  });
+
+  it("benchmark po terminie przeglądu ma alert, a „tylko nieaktualne” zawęża listę", async () => {
+    const t = realT("pl");
+    const churn = localized("retention", "logo_churn_monthly", "pl");
+    dictionary({ today: "2099-01-01" });
+
+    const row = document.querySelector('[data-metric="logo_churn_monthly"]');
+    await waitFor(() => expect(row?.querySelector("[data-stale]")).not.toBeNull());
+    expect(row?.querySelector("[data-stale]")?.textContent).toBe(
+      t("adminRevenue.benchmark.dictionary.staleAlert", { date: churn.reviewBy }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: t("adminRevenue.benchmark.dictionary.staleOnly") }),
+    );
+    await waitFor(() => expect(document.querySelector('[data-metric="sessions"]')).toBeNull());
+    expect(document.querySelector('[data-metric="logo_churn_monthly"]')).not.toBeNull();
+  });
+
+  it("wiersz wpisu bez metryki: skrót, powód i „system tego nie mierzy”", async () => {
+    const t = realT("pl");
+    const nps = localized("community", "nps", "pl");
+    dictionary();
+
+    const row = document.querySelector('[data-bench-key="nps"]');
+    expect(row?.querySelector("th")?.textContent).toContain(nps.abbr);
+    expect(row?.querySelector("[data-no-metric]")?.textContent).toBe(
+      t("adminRevenue.benchmark.dictionary.noMetric"),
+    );
+    await waitFor(() => expect(row?.textContent).toContain(nps.noMetricReason ?? "∅"));
+  });
+
+  it("filtr grupy zawęża wiersze i odczyty treści do jednej grupy", async () => {
+    const t = realT("pl");
+    dictionary({ groups: ["retention", "revenue"] });
+    await waitFor(() => expect(h.fetchGroup).toHaveBeenCalledTimes(2));
+
+    const select = screen.getByRole("combobox", {
+      name: t("adminRevenue.benchmark.dictionary.filterGroup"),
+    });
+    fireEvent.keyDown(select, { key: "ArrowDown" });
+    fireEvent.click(
+      await screen.findByRole("option", {
+        name: t("adminRevenue.benchmark.metricGroup.retention"),
+      }),
+    );
+    await waitFor(() => expect(document.querySelector('[data-metric="mrr"]')).toBeNull());
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows.every((r) => METRICS.some((m) => m.id === r.getAttribute("data-metric")))).toBe(
+      true,
+    );
+    expect(rows).toHaveLength(13);
+  });
+
+  it("wyszukiwanie po skrócie, nazwie i wzorze; brak trafień mówi to słowem", async () => {
+    const t = realT("pl");
+    dictionary({ groups: ["retention", "revenue"] });
+    const search = screen.getByRole("searchbox", {
+      name: t("adminRevenue.benchmark.dictionary.search"),
+    });
+
+    fireEvent.change(search, { target: { value: "NRR" } });
+    await waitFor(() =>
+      expect(document.querySelector('[data-metric="net_revenue_retention"]')).not.toBeNull(),
+    );
+    expect(document.querySelector('[data-metric="mrr"]')).toBeNull();
+
+    fireEvent.change(search, { target: { value: "customers_churned" } });
+    expect(document.querySelector('[data-metric="logo_churn_monthly"]')).not.toBeNull();
+
+    fireEvent.change(search, { target: { value: "zzz-nic" } });
+    expect(screen.getByText(t("adminRevenue.benchmark.dictionary.empty"))).toBeInTheDocument();
+  });
+
+  it("wartości: „teraz” w jednostce metryki i ocena tą samą regułą co kafel", async () => {
+    dictionary({
+      groups: ["retention"],
+      values: new Map([["logo_churn_monthly", 0.042]]),
+      samples: new Map([["logo_churn_monthly", 400]]),
+      segment: "b2c_individual",
+    });
+    const row = document.querySelector('[data-metric="logo_churn_monthly"]');
+    expect(row?.querySelector("[data-now]")?.textContent).toContain("4,2");
+    await waitFor(() => expect(row?.querySelector('[data-tier="normal"]')).not.toBeNull());
+  });
+
+  it("nazwa w wierszu otwiera arkusz z pełnym objaśnieniem (dźwignie, źródła)", async () => {
+    const t = realT("pl");
+    const churn = localized("retention", "logo_churn_monthly", "pl");
+    dictionary({ groups: ["retention"] });
+    fireEvent.click(screen.getByRole("button", { name: metricById("logo_churn_monthly").labelPl }));
+    const sheet = await screen.findByRole("dialog");
+    await waitFor(() => expect(sheet.textContent).toContain(churn.levers));
+    expect(sheet.textContent).toContain(t("adminRevenue.benchmark.explainer.sources"));
+  });
+
   it("w EN etykiety i definicje są angielskie, bez polskiej awaryjnej treści", async () => {
     await i18n.changeLanguage("en");
     const en = realT("en");
-    const { container } = render(<MetricDictionary />);
+    const { container } = dictionary();
 
     expect(container.textContent).toContain(en("adminAnalytics.semantic.dictionary.title"));
     expect(container.textContent).toContain(metricById("sessions").labelEn);
@@ -364,7 +527,7 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
   });
 
   it("tabela przewija się we WŁASNYM kontenerze, więc strona nie dostaje paska", () => {
-    render(<MetricDictionary />);
+    dictionary();
 
     // Szeroka tabela w panelu admina bez własnego przewijania zmusza całą
     // stronę do przewijania w poziomie - na telefonie to psuje każdy inny panel.
@@ -373,7 +536,8 @@ describe("MetricDictionary - słownik metryk kanonicznych", () => {
   });
 
   it("słownik jest wolny od naruszeń axe", async () => {
-    const { container } = render(<MetricDictionary />);
+    const { container } = dictionary({ groups: ["retention"], values: new Map() });
+    await waitFor(() => expect(h.fetchGroup).toHaveBeenCalled());
 
     expect(summarize(await axeViolations(container))).toBe("");
   });
@@ -717,8 +881,9 @@ describe("SemanticReconciliationPanel - okablowanie okna i odświeżania", () =>
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("table")).toBeInTheDocument();
+    // Metryki rejestru + wpisy benchmarków bez metryki (NPS, aktywacja…).
     expect(within(screen.getByRole("table")).getAllByRole("rowheader")).toHaveLength(
-      METRICS.length,
+      METRICS.length + NO_METRIC.length,
     );
 
     fireEvent.click(toggle);

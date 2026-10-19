@@ -519,8 +519,15 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/revenue/organisms/RevenueHubLayout.tsx",
     "src/lib/admin/revenue/hubTabs.ts",
     "src/lib/admin/revenue/__tests__/{hubTabs,revenueKeysReuse}.test.ts",
-    "src/lib/charts/{waterfall,status,types}.ts",
-    "src/lib/charts/__tests__/{waterfall,status,types}*.test.ts",
+    // `benchmarkTier` (Integrator S6, 2026-10-19): ocena 5-stopniowa poza
+    // `status.ts`, który jedzie we wspólnym chunku wykresów publicznych.
+    "src/lib/charts/{waterfall,status,types,benchmarkTier}.ts",
+    "src/lib/charts/__tests__/{waterfall,status,types,benchmarkTier}*.test.ts",
+    // Z-S6-02 (Integrator S6, 2026-10-19): dymek i tabela mostka czytają
+    // `level` (poziom PO kroku, D1) zamiast krawędzi `to` - bez tego naprawa
+    // modelu nie dociera do ekranu; test D1 w renderze obok.
+    "src/components/charts/{CartesianChart,Chart}.tsx",
+    "src/components/charts/__tests__/waterfallLevel.test.tsx",
     "src/components/charts/MetricTooltip.tsx",
     "src/components/charts/__tests__/MetricTooltip*.test.tsx",
     "src/components/admin/events/molecules/AdsFunnelBars.tsx",

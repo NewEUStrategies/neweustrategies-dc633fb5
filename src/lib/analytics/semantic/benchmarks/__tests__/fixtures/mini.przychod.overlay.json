@@ -1,0 +1,81 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "revenue",
+  "source_file": "przychod.json",
+  "metrics": {
+    "arpu": {
+      "metric_id": "arpu",
+      "formula_en": "ARPU = recurring revenue ÷ average number of payers",
+      "levers": { "pl": "Promuj plany roczne.", "en": "Promote annual plans." },
+      "caveats_en": ["The estimate is uncertain."],
+      "caveat_sources": { "0": ["S2"] },
+      "default_context_by_segment": {
+        "all": "arpu.b2c_pl_net",
+        "b2c_individual": "arpu.b2c_pl_net"
+      },
+      "contexts": [
+        {
+          "id": "arpu.b2c_pl_net",
+          "label_en": "B2C digital media, Poland (PLN/month)",
+          "method_en": "heuristic from price lists",
+          "period_en": "monthly",
+          "segments": ["b2c_individual"],
+          "measure": "level",
+          "unit": "money_minor",
+          "currency": "PLN",
+          "vat": "net",
+          "window": "month",
+          "notes_en": { "3": "market estimate" },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "average_discount": {
+      "metric_id": "average_discount",
+      "formula_en": "ADD = Σ discount ÷ Σ list price",
+      "levers": { "pl": "Skracaj promocje.", "en": "Shorten promotions." },
+      "caveats_en": ["Discount measured from the list price."],
+      "default_context_by_segment": { "all": "average_discount.b2c_intro" },
+      "contexts": [
+        {
+          "id": "average_discount.b2c_intro",
+          "label_en": "B2C introductory offers (%)",
+          "method_en": "thresholds from a study",
+          "period_en": "per campaign",
+          "segments": ["b2c_individual"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": { "0": "heuristic: deep discounts" }
+        }
+      ]
+    },
+    "annual_plan_share": {
+      "metric_id": "annual_plan_share",
+      "formula_en": "APS = annual plans ÷ all plans",
+      "levers": { "pl": "Proponuj plan roczny.", "en": "Offer an annual plan." },
+      "caveats_en": [],
+      "pairs": ["arpu"],
+      "default_context_by_segment": { "all": "annual_plan_share.b2c" },
+      "contexts": [
+        {
+          "id": "annual_plan_share.b2c",
+          "label_en": "B2C media (%)",
+          "method_en": "source averages",
+          "period_en": "monthly",
+          "segments": ["b2c_individual"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": { "0": "too few annual plans", "4": "too tight; check ARPU" }
+        }
+      ]
+    }
+  },
+  "sources": {
+    "S1": { "reliability": "B", "vendor": true },
+    "S100": { "canonical": "vendor_b_2026", "reliability": "B", "vendor": true },
+    "slug_a": { "reliability": "A" },
+    "S2": { "canonical": "firm_d_2017", "reliability": "C" }
+  }
+}

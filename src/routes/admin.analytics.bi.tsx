@@ -8,13 +8,23 @@
 // odkłada. Daje co innego: nagłówek ekranu maluje się bez czekania na kod
 // paneli, a panele dojeżdżają NIEZALEŻNIE, każdy za własnym `Suspense`
 // z rezerwą wysokości (niżej), która trzyma układ, zanim który z nich dojedzie.
-import { createFileRoute } from "@tanstack/react-router";
+//
+// SEKCJA „PRZYCHÓD I LEJEK” (S6) jest TYLKO dla administratora i redaktora:
+// decyzja zapada tu, PRZED leniwym importem, więc autor (i każdy test bez
+// sesji) nie pobiera jej chunku i nie woła `getRevenueSnapshot`. Rola z sesji
+// jest znana dopiero po hydratacji (`useHydrated`) - serwer i pierwszy render
+// klienta rysują to samo. Sekcja stoi NA KOŃCU strony: pojawia się po
+// rozstrzygnięciu roli, a na końcu nie przesuwa żadnego dashboardu (CLS).
+// Trasa nie ma `validateSearch` (chunk wejściowy) - `?metric=` czyta sekcja.
+import { createFileRoute, useHydrated } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { BarChart3, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { useAuth } from "@/hooks/useAuth";
+import { adminPageHead } from "@/lib/adminPageHead";
 import { ensureI18n as ensureAnalyticsI18n } from "@/lib/i18n-admin-analytics";
 import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
 import { ensureI18n as ensureDashboardI18n } from "@/lib/i18n-admin-dashboard";
@@ -60,18 +70,19 @@ const FooterAnalyticsPanel = lazy(() =>
     default: m.FooterAnalyticsPanel,
   })),
 );
+const RevenueInsightSection = lazy(() =>
+  import("@/components/admin/analytics/semantic/organisms/RevenueInsightSection").then((m) => ({
+    default: m.RevenueInsightSection,
+  })),
+);
 
 export const Route = createFileRoute("/admin/analytics/bi")({
-  head: () => ({
-    meta: [
-      { title: "BI - wszystkie dashboardy | Admin" },
-      {
-        name: "description",
-        content:
-          "Web Vitals, audytorium, błędy przeglądarki, Search Console, GA4 i stopka - komplet dashboardów BI.",
-      },
-    ],
-  }),
+  // D14: tytuł sekcji z `adminPageHead` (AGENTS: bez generycznego „| Admin”).
+  head: () =>
+    adminPageHead(
+      "BI - wszystkie dashboardy",
+      "Web Vitals, audytorium, błędy przeglądarki, Search Console, GA4, stopka oraz przychód i lejek - komplet dashboardów BI.",
+    ),
   component: AnalyticsBiPage,
 });
 
@@ -90,6 +101,9 @@ export const Route = createFileRoute("/admin/analytics/bi")({
  * skrócenie po załadowaniu; obie są o rząd wielkości lepsze od 72 px.
  */
 const DASHBOARD_RESERVE_PX = 420;
+
+/** Rezerwa sekcji przychodu: nagłówek, okresy i dwa rzędy kafli KPI. */
+const REVENUE_RESERVE_PX = 520;
 
 function Fallback({ minHeight = DASHBOARD_RESERVE_PX }: { minHeight?: number }) {
   const { t } = useTranslation();
@@ -115,6 +129,9 @@ function AnalyticsBiPage() {
   // Wspólny wpis cache'u z /admin/analytics i /admin/settings/analytics,
   // z najemcą w kluczu (`analyticsStatusKey`).
   const tenantId = useCurrentTenantId();
+  const hydrated = useHydrated();
+  const { roles } = useAuth();
+  const showRevenue = hydrated && (roles.includes("admin") || roles.includes("editor"));
   const statusQ = useQuery({
     queryKey: analyticsStatusKey(tenantId ?? ""),
     queryFn: () => fetchStatus(),
@@ -163,6 +180,12 @@ function AnalyticsBiPage() {
       <Suspense fallback={<Fallback minHeight={280} />}>
         <FooterAnalyticsPanel />
       </Suspense>
+
+      {showRevenue ? (
+        <Suspense fallback={<Fallback minHeight={REVENUE_RESERVE_PX} />}>
+          <RevenueInsightSection />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

@@ -4,8 +4,10 @@
 import { describe, expect, it } from "vitest";
 import {
   chartLangOf,
+  currencyExponent,
   formatDeltaPct,
   formatMetricValue,
+  formatMoneyMinor,
   formatSignedPct,
   formatSpread,
   isoDateOnly,
@@ -51,6 +53,75 @@ describe("formatMetricValue", () => {
     expect(formatMetricValue(0.523, "ratio", "pl")).toMatch(/^52,3\s%$/u);
     expect(formatMetricValue(2478.4, "milliseconds", "pl")).toMatch(/^2\s?478 ms$/u);
     expect(formatMetricValue(0.08, "score", "pl")).toBe("0,080");
+  });
+});
+
+// Spacje w wyjściu ICU bywają nierozdzielające (U+00A0 / U+202F) - porównujemy
+// po normalizacji, żeby test mówił o treści, nie o wersji ICU.
+const sp = (s: string) => s.replace(/[\u00a0\u202f]/g, " ");
+
+describe("formatMetricValue - jednostki huba", () => {
+  it("kwota w groszach z walutą DTO, po polsku i po angielsku", () => {
+    expect(sp(formatMetricValue(123_456, "money_minor", "pl", "-", { currency: "PLN" }))).toBe(
+      "1234,56 zł",
+    );
+    expect(sp(formatMetricValue(123_456, "money_minor", "en", "-", { currency: "PLN" }))).toBe(
+      "PLN 1,234.56",
+    );
+  });
+
+  it("wykładnik waluty pochodzi z ISO 4217 - jen nie ma groszy", () => {
+    // 1235 jenów w jednostkach drobnych to 1235 jenów, nie 12,35.
+    expect(currencyExponent("JPY")).toBe(0);
+    expect(currencyExponent("PLN")).toBe(2);
+    expect(currencyExponent("BHD")).toBe(3);
+    expect(sp(formatMoneyMinor(1235, "JPY", "en"))).toBe("JP¥1,235");
+    expect(sp(formatMoneyMinor(1235, "JPY", "pl"))).toBe("1235 JPY");
+  });
+
+  it("kwota bez waluty to brak kwoty, nie złotówki z domysłu", () => {
+    expect(formatMetricValue(5000, "money_minor", "pl")).toBe("-");
+    expect(formatMetricValue(5000, "money_minor", "pl", "brak", { currency: "pln" })).toBe("brak");
+    expect(formatMoneyMinor(Number.NaN, "PLN", "pl")).toBe("-");
+    expect(formatMoneyMinor(100, "ZŁ", "pl")).toBe("-");
+  });
+
+  it("zero złotych to zmierzone zero, a `null` to brak - dwie różne informacje", () => {
+    expect(sp(formatMetricValue(0, "money_minor", "pl", "-", { currency: "PLN" }))).toBe("0,00 zł");
+    expect(formatMetricValue(null, "money_minor", "pl", "-", { currency: "PLN" })).toBe("-");
+  });
+
+  it("miesiące i dni odmieniają się przez ICU, bez słownika w kodzie", () => {
+    expect(sp(formatMetricValue(5, "months", "pl"))).toBe("5 miesięcy");
+    expect(sp(formatMetricValue(1, "months", "pl"))).toBe("1 miesiąc");
+    expect(sp(formatMetricValue(5, "months", "en"))).toBe("5 months");
+    expect(sp(formatMetricValue(12, "days", "pl"))).toBe("12 dni");
+    expect(sp(formatMetricValue(1, "days", "en"))).toBe("1 day");
+  });
+
+  it("godziny poniżej jednej pokazują się w minutach, od pełnej godziny w godzinach", () => {
+    expect(sp(formatMetricValue(0.75, "hours", "pl"))).toBe("45 minut");
+    expect(sp(formatMetricValue(0.75, "hours", "en"))).toBe("45 minutes");
+    expect(sp(formatMetricValue(5, "hours", "pl"))).toBe("5 godzin");
+    expect(sp(formatMetricValue(2.5, "hours", "en"))).toBe("2.5 hours");
+    // 0,999 h zaokrągla się do 60 minut - to już „1 godzina”, nie „60 minut”.
+    expect(sp(formatMetricValue(0.999, "hours", "pl"))).toBe("1 godzina");
+  });
+
+  it("krotność to liczba ze znakiem ×, nie procent", () => {
+    expect(formatMetricValue(3.2, "multiple", "pl")).toBe("3,2×");
+    expect(formatMetricValue(3.2, "multiple", "en")).toBe("3.2×");
+    expect(formatMetricValue(4.456, "multiple", "en")).toBe("4.46×");
+  });
+
+  it("brak wartości daje myślnik dla każdej nowej jednostki", () => {
+    for (const unit of ["money_minor", "months", "multiple", "hours", "days"] as const) {
+      expect(formatMetricValue(null, unit, "en", "-", { currency: "PLN" }), unit).toBe("-");
+      expect(
+        formatMetricValue(Number.POSITIVE_INFINITY, unit, "pl", "-", { currency: "PLN" }),
+        unit,
+      ).toBe("-");
+    }
   });
 });
 

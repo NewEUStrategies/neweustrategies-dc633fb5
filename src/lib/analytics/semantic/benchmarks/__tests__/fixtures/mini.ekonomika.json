@@ -1,0 +1,85 @@
+{
+  "group": "ekonomika",
+  "metrics": [
+    {
+      "key": "rule_of_40",
+      "abbr": "R40",
+      "name_pl": "Reguła 40",
+      "name_en": "Rule of 40",
+      "expansion_pl": "Rule of 40 – wzrost plus marża",
+      "expansion_en": "Rule of 40",
+      "formula": "R40 = wzrost r/r + marża EBITDA",
+      "unit": "%",
+      "interpretation_pl": "Równowaga wzrostu i rentowności.",
+      "interpretation_en": "Balance of growth and profitability.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Prywatne firmy SaaS",
+          "period": "rocznie (CY-2025)",
+          "method": "kwartyle źródła",
+          "source_ids": ["S100"],
+          "bands": [
+            { "label": "krytyczny", "min": null, "max": 0 },
+            { "label": "słaby", "min": 0, "max": 7 },
+            { "label": "normalny", "min": 7, "max": 25 },
+            { "label": "dobry", "min": 25, "max": 40 },
+            { "label": "optymalny", "min": 40, "max": null }
+          ]
+        }
+      ],
+      "caveats": ["Miarodajny od większej skali."],
+      "confidence": "średnia"
+    },
+    {
+      "key": "arpu",
+      "abbr": "ARPU",
+      "name_pl": "ARPU",
+      "name_en": "ARPU",
+      "expansion_pl": "Average Revenue Per User",
+      "expansion_en": "Average Revenue Per User",
+      "formula": "ARPU = przychody ÷ subskrybenci",
+      "unit": "PLN",
+      "interpretation_pl": "Kwoty brutto.",
+      "interpretation_en": "Gross amounts.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Media B2C, Polska, zł brutto/mies.",
+          "period": "miesięcznie",
+          "method": "heurystyka z cen rynkowych",
+          "source_ids": ["S100", "slug_b"],
+          "bands": [
+            { "label": "krytyczny", "min": null, "max": 8 },
+            { "label": "słaby", "min": 8, "max": 15 },
+            { "label": "normalny", "min": 15, "max": 25 },
+            { "label": "dobry", "min": 25, "max": 35 },
+            { "label": "optymalny", "min": 35, "max": null }
+          ]
+        }
+      ],
+      "caveats": ["Kwoty brutto wymagają przeliczenia na netto."],
+      "confidence": "niska"
+    }
+  ],
+  "sources": [
+    {
+      "id": "S100",
+      "title": "Raport E",
+      "publisher": "Benchmark E (omówienie raportu)",
+      "published": "2026 (strona bez daty)",
+      "url": "https://example.net/e",
+      "excerpt": "Cytat E.",
+      "verification": "tak"
+    },
+    {
+      "id": "slug_b",
+      "title": "Raport A (kopia)",
+      "publisher": "Wydawca A",
+      "published": "2025-06",
+      "url": "https://example.com/report",
+      "excerpt": "Cytat A2.",
+      "verification": "tak"
+    }
+  ]
+}

@@ -1,0 +1,1072 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "email",
+  "source_file": "email.json",
+  "metrics": {
+    "open_rate": {
+      "metric_id": "email_open_rate",
+      "formula_en": "unique opens / (sent − bounces) × 100%",
+      "levers": {
+        "pl": "Popraw dostarczalność, zanim zaczniesz testować treść: uwierzytelnienie domeny (SPF, DKIM, DMARC), regularne czyszczenie nieaktywnych adresów i stały rytm wysyłek. Testuj temat i nadawcę (osoba z zespołu analityków zamiast nazwy organizacji) oraz porę wysyłki dla segmentów. Licz równolegle wskaźnik bez otwarć Apple MPP i oceniaj zaangażowanie głównie po kliknięciach.",
+        "en": "Improve deliverability before you start testing content: domain authentication (SPF, DKIM, DMARC), regular removal of inactive addresses and a steady sending rhythm. Test the subject line and sender name (a person from the analyst team rather than the organisation's name) and the send time by segment. Calculate a parallel rate excluding Apple MPP opens and judge engagement mainly by clicks."
+      },
+      "caveats_en": [
+        "Apple MPP inflates opens (Litmus: Apple Mail 76.56% share of opens, Sep 2026). With a list containing many iPhones, OR can rise without any change in readers' behaviour.",
+        "ESP benchmarks (MailerLite, GetResponse, Mailchimp) are not corrected for MPP (MailerLite itself notes that 'real open rates are lower'). Omnisend and Klaviyo report clearly lower OR (approx. 30–31%), most likely because of a different methodology. Compare only within the same methodology.",
+        "GetResponse publishes an edition 'Updated for 2024' with data from 2023. No newer edition was found.",
+        "In the dashboard it is worth calculating, in parallel, OR excluding opens flagged as Apple MPP, if the ESP allows it.",
+        "Mailchimp (data up to Dec 2023) is the oldest source in the group and carries the lowest weight relative to MailerLite 2025 and Omeda 2026; its FAQ contradicts its own benchmark listing (34.23% overall versus 35.63%).",
+        "Omeda does not state whether it excludes MPP and bot opens ('privacy features and automated inbox activity load images and register opens') and points out that 'Click-to-open and click rate are the most reliable comparison points'."
+      ],
+      "caveat_sources": {
+        "0": ["src_litmus_market_share_2026"],
+        "1": ["src_mailerlite_2025"],
+        "2": ["src_getresponse_2024"],
+        "4": ["src_mailchimp_2023"],
+        "5": ["src_omeda_h1_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "open_rate.poland_all",
+        "newsletter": "open_rate.media_publishers",
+        "b2b_institution": "open_rate.b2b_education_finance"
+      },
+      "contexts": [
+        {
+          "id": "open_rate.media_publishers",
+          "label_en": "Newsletters of media publishers (B2B + B2C); Omeda does not state whether it excludes MPP and bot opens",
+          "method_en": "source quartiles (P25 24.6%, P50 31.6%, P75 38.5%); critical threshold = P25 − (P50 − P25) (heuristic)",
+          "period_en": "per send (publisher median, H1 2026)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "below P25 − (P50−P25)",
+            "1": "below P25",
+            "2": "P25–P50; B2B media median 30.9%",
+            "3": "median (P50) to P75",
+            "4": "above P75; B2C/enthusiast median 40.2%"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "open_rate.poland_all",
+          "label_en": "Poland, all industries (ESP data)",
+          "method_en": "median ± heuristic: PL median 36.05% (MailerLite, Dec 2024–Nov 2025), PL average 38.07% (GetResponse, 2023 data); optimal threshold ≈ the European median of 45.08%",
+          "period_en": "per campaign",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the PL median",
+            "4": "from ≈ the European median of 45.08%"
+          },
+          "basis_e": [0, 1, 2, 3]
+        },
+        {
+          "id": "open_rate.nonprofit_think_tank",
+          "label_en": "Non-profits, think tanks and NGOs",
+          "method_en": "heuristic: the range of source medians/averages (Mailchimp 40.04% [data up to Dec 2023; the oldest source, lowest weight], MailerLite 52.38% [2025 median], GetResponse 54.54% [average, 2023 data]); the MailerLite median of 52.38% falls in the 'good' range rather than on the normal/good boundary as in the quartile contexts (Omeda, GlueLetter)",
+          "period_en": "per campaign",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "open_rate.b2b_education_finance",
+          "label_en": "B2B, higher education, consulting, business and finance",
+          "method_en": "heuristic: MailerLite 2025 (medians: business and finance 43.34%, consulting 45.96%, higher education 43.98%); GetResponse (education 41.33%, 2023 data); Mailchimp (business+finance 31.35%, education 35.64%; data up to Dec 2023 – the oldest source, lowest weight); the MailerLite medians (43–46%) fall in the 'good' range rather than on the normal/good boundary as in the quartile contexts",
+          "period_en": "per campaign",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "open_rate.content_creators",
+          "label_en": "Content newsletters (creators, independent publishers; GlueLetter sample, no MPP filtering)",
+          "method_en": "source quartiles (P25 37.40%, P50 49.3%, P75 61.50%, P90 68.96%; the page text gives the middle 50% as 38.9–60.2% – an inconsistency the source does not explain, the tabulated figures were adopted); critical threshold = P25 − (P50 − P25) (heuristic)",
+          "period_en": "per send (Q1 2025)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "4": "P90 = 68.96%"
+          },
+          "basis_e": [0]
+        }
+      ]
+    },
+    "click_through_rate": {
+      "metric_id": "email_ctr_delivered",
+      "formula_en": "unique clicks / delivered × 100%",
+      "levers": {
+        "pl": "Daj w każdym wydaniu jedno główne wezwanie do działania i umieść je wysoko, z opisowym linkiem zamiast ogólnego „czytaj więcej”. Dopasuj treść do zainteresowań segmentów (tematy, typ odbiorcy: instytucja, czytelnik indywidualny). Testuj układ: krótsze zajawki z linkiem do pełnej analizy zamiast całych tekstów w e-mailu, a w listach B2B filtruj kliknięcia botów.",
+        "en": "Give each issue one main call to action and place it high, with a descriptive link instead of a generic 'read more'. Match the content to segment interests (topics, audience type: institution, individual reader). Test the layout: shorter teasers linking to the full analysis instead of whole articles in the e-mail, and filter out bot clicks on B2B lists."
+      },
+      "caveats_en": [
+        "GetResponse (2023 data) gives a CTR of 5.38% for Poland, while MailerLite (2025) gives 1.46%. The discrepancy stems from a different sample and methodology, so the MailerLite median was taken as the baseline.",
+        "For institutional and B2B lists, enable bot-click filtering (e.g. clicks within a few seconds of delivery).",
+        "The 'fundraising appeals' context concerns sends asking for a donation or a purchase. Do not compare it with the CTR of a content newsletter."
+      ],
+      "caveat_sources": {
+        "0": ["src_getresponse_2024", "src_mailerlite_2025"],
+        "2": ["src_mr_benchmarks_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "click_through_rate.poland_all",
+        "newsletter": "click_through_rate.media_publishers",
+        "b2b_institution": "click_through_rate.b2b_education_finance"
+      },
+      "contexts": [
+        {
+          "id": "click_through_rate.media_publishers",
+          "label_en": "Newsletters of media publishers (B2B + B2C)",
+          "method_en": "source quartiles (P25 0.6%, P50 1.16%, P75 2.0%); critical threshold = half of P25 (heuristic)",
+          "period_en": "per send (publisher median, H1 2026)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "1": "below P25",
+            "2": "P25–P50; B2B media median 1.01%",
+            "3": "median (P50) to P75",
+            "4": "above P75; B2C median 2.86%"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "click_through_rate.poland_all",
+          "label_en": "Poland, all industries (ESP data)",
+          "method_en": "median ± heuristic: PL median 1.46% and global 2.09% (MailerLite 2025); GetResponse PL 5.38% (2023 data, a different sample) as an upper reference point",
+          "period_en": "per campaign",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the PL median"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "click_through_rate.nonprofit_think_tank",
+          "label_en": "Non-profit / think tank: newsletters and general communication",
+          "method_en": "range of sources: MailerLite non-profit 2.90% (2025), Mailchimp 3.27% (data up to Dec 2023; the oldest source, lowest weight), GetResponse 6.70% (2023 data) + heuristic",
+          "period_en": "per campaign",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "click_through_rate.b2b_education_finance",
+          "label_en": "B2B, higher education, consulting, business and finance",
+          "method_en": "median ± heuristic: MailerLite 2025 (business and finance 2.37%, consulting 2.41%, higher education 2.15%); Mailchimp (business+finance 2.78%, education 3.02%; data up to Dec 2023 – the oldest source, lowest weight); GetResponse (education 3.17%)",
+          "period_en": "per campaign",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "click_through_rate.fundraising_appeals",
+          "label_en": "Fundraising / sales appeals in non-profits",
+          "method_en": "M+R typical value (M+R methodology: medians per indicator; fundraising CTR 0.59%, advocacy 2.3%) ± heuristic",
+          "period_en": "per send (M+R typical value for 2025)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the typical value of 0.59%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "click_to_open_rate": {
+      "metric_id": "email_ctr",
+      "formula_en": "unique clicks / unique opens × 100%",
+      "levers": {
+        "pl": "Spełniaj obietnicę tematu w pierwszym akapicie i prowadź do jednego, wyraźnego linku. Ogranicz liczbę równorzędnych linków, testuj przyciski zamiast linków w tekście i sprawdzaj czytelność na telefonie. Oceniaj zmiany przy podobnym udziale klientów pocztowych, bo rosnący udział Apple Mail obniża wynik bez zmiany zachowań.",
+        "en": "Deliver on the subject line's promise in the first paragraph and lead to a single, clear link. Limit the number of equally weighted links, test buttons instead of in-text links and check readability on a phone. Assess changes at a similar mail-client mix, because a rising Apple Mail share lowers the result without any change in behaviour."
+      },
+      "caveats_en": [
+        "As the share of Apple Mail rises, CTOR falls mechanically. Compare periods only when the share of mail clients is similar.",
+        "The Omeda medians for media (3.8%) are clearly lower than the ESP medians (6–13%). Hypothesis (no source states it): this is the effect of a different sample (large publishers, frequent sends), not an error.",
+        "MailerLite: because of MPP the real CTOR is higher than reported, since inflated opens enter the denominator."
+      ],
+      "caveat_sources": {
+        "0": ["src_litmus_market_share_2026"],
+        "1": ["src_omeda_h1_2026"],
+        "2": ["src_mailerlite_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "click_to_open_rate.poland_general",
+        "newsletter": "click_to_open_rate.media_publishers"
+      },
+      "contexts": [
+        {
+          "id": "click_to_open_rate.media_publishers",
+          "label_en": "Newsletters of media publishers (B2B + B2C)",
+          "method_en": "source quartiles (P25 2.3%, P50 3.8%, P75 5.8%); critical threshold = half of P25 (heuristic)",
+          "period_en": "per send (publisher median, H1 2026)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "B2B media median 3.4%",
+            "4": "B2C median 7.6%"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "click_to_open_rate.content_creators",
+          "label_en": "Content newsletters (creators, independent publishers; GlueLetter: clicks/openers, bots excluded)",
+          "method_en": "source quartiles (P25 4.45%, P50 7.65%, P75 12.67%, P90 19.60%); critical threshold = half of P25",
+          "period_en": "per send (Q1 2025)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0]
+        },
+        {
+          "id": "click_to_open_rate.poland_general",
+          "label_en": "Poland and the general market (non-profit, education, B2B, publishing)",
+          "method_en": "median ± heuristic: MailerLite 2025 (overall 6.81%, PL 6.63%, media 12.92%, publishing 9.12%, non-profit 8.24%, higher education 9.15%, business and finance 7.96%); GetResponse (overall 8.62%, PL 14.12%, publishing 14.43%; 2023 data)",
+          "period_en": "per campaign",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the PL and overall medians"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "unsubscribe_rate": {
+      "metric_id": "email_unsubscribe_rate",
+      "formula_en": "unsubscribes / delivered × 100% (per send); annual variant: unsubscribed in the year / list at the start of the year × 100%",
+      "levers": {
+        "pl": "Daj wybór zamiast wypisu: centrum preferencji z tematami i częstotliwością (np. przegląd tygodnia zamiast każdego wydania). Dotrzymuj obietnicy złożonej przy zapisie co do treści i rytmu, a nowe osoby wprowadzaj sekwencją powitalną. Wypis zawsze jednym kliknięciem i realizowany od razu; wypisy z automatyzacji raportuj osobno od kampanii.",
+        "en": "Offer a choice instead of an unsubscribe: a preference centre with topics and frequency (e.g. a weekly digest instead of every issue). Keep the promise made at sign-up about content and rhythm, and introduce newcomers with a welcome sequence. Always make unsubscribing one click and immediate; report automation unsubscribes separately from campaigns."
+      },
+      "caveats_en": [
+        "MailerLite recorded a rise in the median unsubscribe rate from 0.08% (2024) to 0.22% (2025) and links it, probably ('likely'), to Gmail changes that make unsubscribing from the inbox easier. Do not treat this as a decline in content quality.",
+        "Unsubscribes from automated e-mails are naturally higher than from campaigns, so report them separately."
+      ],
+      "caveat_sources": {
+        "0": ["src_mailerlite_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "unsubscribe_rate.poland_campaigns",
+        "newsletter": "unsubscribe_rate.media_publishers"
+      },
+      "contexts": [
+        {
+          "id": "unsubscribe_rate.media_publishers",
+          "label_en": "Newsletters of media publishers (B2B + B2C)",
+          "method_en": "source quartiles (P25 0.05%, P50 0.09%, P75 0.13%); critical threshold ≈ 2× the median (0.18%), rounded to 0.2% (heuristic)",
+          "period_en": "per send (publisher median, H1 2026)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "1": "above P75",
+            "2": "median (P50) to P75",
+            "3": "P25 to median (P50)",
+            "4": "below P25"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "unsubscribe_rate.poland_campaigns",
+          "label_en": "Poland and the general market, campaigns (newsletter, non-profit, B2B, education)",
+          "method_en": "median ± heuristic: MailerLite 2025 (overall 0.22%, PL 0.17%, media 0.10%, publishing 0.20%, non-profit 0.19%); GetResponse (overall 0.15%, PL 0.16%, newsletter 0.12%; 2023 data); Mailchimp 0.22% (data up to Dec 2023; the oldest source, lowest weight); Validity: 0.3% is a level senders 'tend to be comfortable' with, although it erodes the list",
+          "period_en": "per campaign",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the PL and global medians"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "unsubscribe_rate.automated",
+          "label_en": "Automated e-mails (welcome, abandoned cart, autoresponders)",
+          "method_en": "source averages ± heuristic: GetResponse welcome 0.94%, autoresponder 0.37% (2023 data); Omnisend automations 0.59%, welcome 0.87%, abandoned cart 0.45% (2025 data)",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "unsubscribe_rate.nonprofit_annual",
+          "label_en": "Non-profit / think tank, annual list attrition through unsubscribes",
+          "method_en": "M+R typical value of 12% (2025; methodology: medians per indicator), the sector with the highest attrition 21% (Disaster/International Aid) ± heuristic",
+          "period_en": "annually (% of the list at the start of the year)",
+          "segments": ["newsletter"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "the level of the humanitarian aid sector, the only one that recorded a decline in its list",
+            "2": "includes the typical value of 12%"
+          },
+          "basis_e": [1, 2, 3, 4]
+        }
+      ]
+    },
+    "hard_bounce_rate": {
+      "metric_id": "email_hard_bounce_rate",
+      "formula_en": "hard bounces / sent × 100%",
+      "levers": {
+        "pl": "Zbieraj adresy wyłącznie z podwójnym potwierdzeniem i walidacją składni oraz domeny w formularzu. Usuwaj twarde odbicia od razu po pierwszym zdarzeniu i nie importuj starych list bez weryfikacji. Przed wysyłką do kontaktów długo nieaktywnych sprawdź adresy narzędziem walidującym albo wyślij kampanię reaktywacyjną do małej próby.",
+        "en": "Collect addresses only with double confirmation and with syntax and domain validation in the form. Remove hard bounces immediately after the first event and never import old lists without verification. Before sending to long-inactive contacts, check the addresses with a validation tool or send a re-engagement campaign to a small sample."
+      },
+      "caveats_en": [
+        "GetResponse gives a bounce rate without a definition (it is unclear whether it includes soft bounces): 2.33% on average, 1.13% for Poland (2023 data). Do not compare it 1:1 with hard bounces.",
+        "ZeroBounce: at least 23% of the addresses on a list decay within a year (2025 data; the FAQ on the same page gives 25.74%). Before sending to contacts inactive for more than 12 months, verify the addresses."
+      ],
+      "caveat_sources": {
+        "0": ["src_getresponse_2024"],
+        "1": ["src_zerobounce_decay_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "hard_bounce_rate.opt_in_sends",
+        "newsletter": "hard_bounce_rate.opt_in_sends"
+      },
+      "contexts": [
+        {
+          "id": "hard_bounce_rate.opt_in_sends",
+          "label_en": "Any marketing send to an opt-in list (newsletter, campaigns)",
+          "method_en": "provider thresholds + market average + heuristic: AWS SES recommends <2%, ≥5% = account review, ≥10% = sending may be paused (AWS counts only hard bounces to unverified domains in the bounce rate, over a 'representative volume' window); the average share of non-existent addresses (unknown users) in 2025 according to Validity 1.46%; Validity: 0.1% hard bounces is a 'comfortable' level; DeBounce (2026-02-04, no data source): 'Hard bounces should stay under 0.5-1%', which supports the good/normal boundary at 0.5%",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "≥5% = account review in AWS SES, ≥10% = pause",
+            "2": "includes the Validity average of 1.46%"
+          },
+          "basis_e": [1, 3, 4]
+        },
+        {
+          "id": "hard_bounce_rate.nonprofit_annual",
+          "label_en": "Non-profit / think tank, annual attrition through bounces",
+          "method_en": "M+R typical value of 4% (2025; methodology: medians per indicator), the sector with the highest attrition 6% (Disaster/International Aid) ± heuristic",
+          "period_en": "annually (% of the list at the start of the year)",
+          "segments": ["newsletter"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "2": "includes the typical value of 4%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "soft_bounce_rate": {
+      "metric_id": "email_soft_bounce_rate",
+      "formula_en": "soft bounces / sent × 100%",
+      "levers": {
+        "pl": "Monitoruj miękkie odbicia osobno dla każdej domeny odbiorcy, zwłaszcza polskich dostawców poczty, i reaguj na nagłe skoki. Rozkładaj duże wysyłki w czasie, żeby nie przekraczać limitów serwerów odbiorczych, i dbaj o reputację domeny nadawcy. Adresy z powtarzającymi się miękkimi odbiciami wstrzymuj po kilku kolejnych próbach.",
+        "en": "Monitor soft bounces separately for each recipient domain, especially Polish mailbox providers, and react to sudden spikes. Spread large sends over time so as not to exceed receiving-server limits, and look after the sender domain's reputation. Suppress addresses with repeated soft bounces after several consecutive attempts."
+      },
+      "caveats_en": [
+        "There are no reliable, current primary benchmarks for soft bounces. The ranges are an expert heuristic. The Bounceless source (soft <2%) was removed – dead link (HTTP 410).",
+        "Analyse soft bounces separately for each recipient domain. Polish providers (WP, Onet, Interia, o2) do not belong to the MAGY group (Microsoft, Apple, Gmail, Yahoo). According to Validity, regional providers in Europe have an average IPR of 79.7%, i.e. approx. 11.4 pp less than MAGY; 10–25 pp is the global spread across all regions."
+      ],
+      "caveat_sources": {
+        "1": ["src_validity_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "soft_bounce_rate.all_sends"
+      },
+      "contexts": [
+        {
+          "id": "soft_bounce_rate.all_sends",
+          "label_en": "Any marketing send (general market)",
+          "method_en": "heuristic; DeBounce (2026-02-04, no methodology): soft bounces of 1–3% are 'without immediate concern'; the <2% target and the 2–3% weak threshold are stricter than DeBounce – an expert heuristic; the GetResponse bounce rate of 2.33% (2023 data) has no definition – it is unclear whether it includes soft bounces; no public, current primary benchmark",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "spam_complaint_rate": {
+      "metric_id": "email_spam_complaint_rate",
+      "formula_en": "spam complaints / messages delivered to the inbox × 100% (Google Postmaster Tools / Yahoo Sender Hub definition); in an ESP: complaints from feedback loops (FBL) / delivered",
+      "levers": {
+        "pl": "Wysyłaj tylko do osób z wyraźną zgodą i przypominaj na początku wiadomości, skąd odbiorca jest na liście. Uwierzytelnij domenę (SPF, DKIM, DMARC), dodaj wypis jednym kliknięciem i realizuj go od razu. Ogranicz wysyłki do dawno nieaktywnych kontaktów, a skargi czytaj osobno w raporcie ESP i w Google Postmaster Tools.",
+        "en": "Send only to people with explicit consent and remind them at the top of the message why they are on the list. Authenticate the domain (SPF, DKIM, DMARC), add one-click unsubscribe and honour it immediately. Limit sends to long-inactive contacts, and read complaints separately in the ESP report and in Google Postmaster Tools."
+      },
+      "caveats_en": [
+        "Validity (2024 data): only 25% of surveyed senders kept complaints below 0.1%. Validity (2026): people used to talk about 0.2–0.3%, today the expectation is below 0.1%.",
+        "Senders sending more than 5000 messages a day to Gmail must have SPF, DKIM, DMARC and one-click unsubscribe (List-Unsubscribe-Post). Yahoo requires unsubscribes to be honoured within 2 days.",
+        "Values from an ESP and from Postmaster Tools differ by an order of magnitude. Show them as separate indicators in the dashboard."
+      ],
+      "caveat_sources": {
+        "0": ["src_validity_2025", "src_validity_2026"],
+        "1": ["src_google_sender_guidelines", "src_yahoo_sender_hub"]
+      },
+      "default_context_by_segment": {
+        "all": "spam_complaint_rate.esp_fbl_newsletters",
+        "newsletter": "spam_complaint_rate.esp_fbl_newsletters"
+      },
+      "contexts": [
+        {
+          "id": "spam_complaint_rate.mailbox_provider",
+          "label_en": "Mailbox-provider measurement (Google Postmaster Tools / Yahoo Sender Hub), all senders",
+          "method_en": "Google and Yahoo regulatory thresholds (0.10% recommended, 0.30% limit) + Validity market average of 0.06% (2025; the report does not say it comes from Postmaster Tools) + heuristic for the lower ranges; AWS SES: ≥0.1% = account review, ≥0.5% = pause (AWS counts complaints only from domains with an FBL loop, i.e. without Gmail)",
+          "period_en": "daily / rolling 7–30 days",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "snapshot",
+          "notes_en": {
+            "0": "the hard Google/Yahoo limit; risk of blocking",
+            "1": "above the Google recommendation; review in AWS SES",
+            "2": "includes the Validity average of 0.06% (measurement source not stated)"
+          },
+          "basis_e": [3, 4]
+        },
+        {
+          "id": "spam_complaint_rate.esp_fbl_newsletters",
+          "label_en": "ESP report from FBL loops: newsletters of media publishers",
+          "method_en": "source quartiles (P25 0.001%, P50 0.002%, P75 0.004%); critical threshold 0.01% = the GetResponse value for newsletters, Publishing, Non-profits, Poland and Europe (overall <0.01%) (heuristic)",
+          "period_en": "per send (publisher median, H1 2026)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "1": "above P75",
+            "2": "median (P50) to P75",
+            "3": "P25 to median (P50)",
+            "4": "below P25"
+          },
+          "basis_e": [0]
+        }
+      ]
+    },
+    "list_growth_rate": {
+      "metric_id": "newsletter_list_growth_rate",
+      "formula_en": "(new confirmed sign-ups − unsubscribes − addresses removed after bounces and complaints) / active subscribers at the start of the period × 100%",
+      "levers": {
+        "pl": "Dodaj formularze zapisu w miejscach intencji: pod analizami, przy raportach do pobrania, przy rejestracji na wydarzenia i w profilu konta. Promuj newsletter na wydarzeniach i we współpracach partnerskich, z jasną obietnicą treści i rytmu. Równolegle ograniczaj odpływ: higiena listy, wypis z wyborem częstotliwości, kampanie reaktywacyjne; licz wyłącznie kontakty z ważną zgodą.",
+        "en": "Add sign-up forms at points of intent: below analysis, next to downloadable reports, at event registration and in the account profile. Promote the newsletter at events and in partnerships, with a clear promise of content and rhythm. At the same time limit attrition: list hygiene, unsubscribe with a frequency choice, re-engagement campaigns; count only contacts with valid consent."
+      },
+      "caveats_en": [
+        "The M+R data concern US non-profit organisations. There are no public Polish list-growth benchmarks.",
+        "The young-list context is a heuristic with no newsletter-platform benchmark.",
+        "Count only contacts with valid marketing consent towards growth (GDPR, the Electronic Communications Law)."
+      ],
+      "caveat_sources": {
+        "0": ["src_mr_benchmarks_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "list_growth_rate.mature_nonprofit_monthly",
+        "newsletter": "list_growth_rate.mature_nonprofit_monthly"
+      },
+      "contexts": [
+        {
+          "id": "list_growth_rate.mature_nonprofit_annual",
+          "label_en": "Mature non-profits / think tanks (US data)",
+          "method_en": "M+R typical value (median or average) ± heuristic: net growth of 5% in 2025 (4% and 9% in the two previous years; M+R does not assign the years); public media 12% as the optimal threshold",
+          "period_en": "annually",
+          "segments": ["newsletter"],
+          "measure": "change_yoy",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "the list is contracting",
+            "2": "includes the typical value of 5%",
+            "4": "the level of public media"
+          },
+          "basis_e": [1, 2, 3]
+        },
+        {
+          "id": "list_growth_rate.mature_nonprofit_monthly",
+          "label_en": "Mature non-profits / think tanks, monthly view",
+          "method_en": "geometric conversion of the annual thresholds ((1+r)^(1/12) − 1): 3% → 0.25%, 7% → 0.57%, 12% → 0.95%",
+          "period_en": "monthly",
+          "segments": ["newsletter"],
+          "measure": "change_mom_cmgr",
+          "unit": "percent_pt",
+          "window": "month",
+          "basis_e": [1, 2, 3]
+        },
+        {
+          "id": "list_growth_rate.young_list",
+          "label_en": "Young list in the build-up phase (first 24 months)",
+          "method_en": "heuristic: acquisition must clearly exceed natural attrition (M+R approx. 16% a year, ZeroBounce ≥23% of addresses decaying per year)",
+          "period_en": "annually",
+          "segments": ["newsletter"],
+          "measure": "change_yoy",
+          "unit": "percent_pt",
+          "window": "year",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "double_opt_in_confirmation_rate": {
+      "metric_id": "doi_confirmation_rate",
+      "formula_en": "confirmed sign-ups (within a 7-day window) / all sign-ups requiring confirmation × 100%",
+      "levers": {
+        "pl": "Wysyłaj e-mail potwierdzający natychmiast, z jasnym tematem i jednym przyciskiem, od rozpoznawalnego nadawcy. Na stronie po zapisie powiedz wprost, że trzeba potwierdzić adres, i pokaż, gdzie szukać wiadomości (zakładki, spam). Wyślij jedno przypomnienie osobom bez potwierdzenia i sprawdzaj, czy e-mail potwierdzający nie trafia do spamu u głównych dostawców poczty.",
+        "en": "Send the confirmation e-mail immediately, with a clear subject line and a single button, from a recognisable sender. On the post-sign-up page say plainly that the address must be confirmed and show where to look for the message (tabs, spam). Send one reminder to people who have not confirmed, and check that the confirmation e-mail does not land in spam at the main mailbox providers."
+      },
+      "caveats_en": [
+        "The ranges come from tool vendors (vendor blogs), so confidence in them is low. Your own cohort median after 3 months will be a better reference point.",
+        "GetResponse (2022): visitor→subscriber conversion of 0.33% for DOI vs 1.28% for SOI (single opt-in), so the volume cost of DOI can be large.",
+        "AWS SES recommends double opt-in as a way of reducing bounces and complaints.",
+        "There is no independent study of the DOI confirmation share.",
+        "GetResponse notes that spam complaints with DOI were in many cases higher than with SOI (no figures)."
+      ],
+      "caveat_sources": {
+        "0": ["src_truelist_doi_2025"],
+        "1": ["src_getresponse_doi_2024"],
+        "2": ["src_aws_ses_enforcement"],
+        "4": ["src_getresponse_doi_2024"]
+      },
+      "default_context_by_segment": {
+        "all": "double_opt_in_confirmation_rate.signup_forms",
+        "newsletter": "double_opt_in_confirmation_rate.signup_forms"
+      },
+      "contexts": [
+        {
+          "id": "double_opt_in_confirmation_rate.signup_forms",
+          "label_en": "Newsletter sign-up forms (B2C + B2B)",
+          "method_en": "heuristic based on vendor ranges: 65–90% (Truelist citing Nutshell), 70–90% as 'solid' and a 10–35% drop-off (Truelist, no source given); the 'normal' range starts at the lower bound of the typical 65% range; no independent primary benchmarks",
+          "period_en": "per sign-up cohort (7-day window)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_m1",
+          "notes_en": {
+            "2": "from the lower bound of the typical 65–90% range"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "welcome_email_open_rate": {
+      "metric_id": "journey_open_rate",
+      "primary": true,
+      "formula_en": "unique opens of the welcome e-mail / delivered welcome e-mails × 100%",
+      "levers": {
+        "pl": "Wysyłaj wiadomość powitalną natychmiast po zapisie lub potwierdzeniu, od tego samego nadawcy, którego odbiorca zobaczy w kolejnych wydaniach. W temacie zapowiedz konkretną wartość (obiecany raport, najlepsze analizy, najbliższe wydarzenie). Porównuj wynik z otwarciami newslettera na tym samym koncie: niski stosunek wskazuje na problem z dostarczalnością pierwszej wiadomości.",
+        "en": "Send the welcome message immediately after sign-up or confirmation, from the same sender the recipient will see in later issues. Announce a concrete value in the subject line (the promised report, the best analysis, the next event). Compare the result with newsletter opens on the same account: a low ratio points to a deliverability problem with the first message."
+      },
+      "caveats_en": [
+        "Also monitor the ratio of welcome OR to newsletter OR on the same account. A ratio below approx. 1.2× suggests a problem with the deliverability of the first message (derived from the sources: Omnisend 1.17×, GetResponse 2.09×).",
+        "Send the welcome e-mail immediately after sign-up (or after DOI confirmation)."
+      ],
+      "default_context_by_segment": {
+        "all": "welcome_email_open_rate.esp_no_mpp_correction",
+        "newsletter": "welcome_email_open_rate.esp_no_mpp_correction"
+      },
+      "contexts": [
+        {
+          "id": "welcome_email_open_rate.esp_no_mpp_correction",
+          "label_en": "ESPs without MPP correction (e.g. GetResponse, MailerLite): content and newsletter lists",
+          "method_en": "GetResponse average of 83.63% (2023 data; an average, not a median) ± heuristic; the average placed in the 'normal' range",
+          "period_en": "per send",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the average of 83.63%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "welcome_email_open_rate.other_open_methodology",
+          "label_en": "Platforms with a different open methodology (Omnisend, Klaviyo; e-commerce)",
+          "method_en": "Omnisend average of 35.53% (2025) ± heuristic; Klaviyo: 'good' flow OR 32.2%, top 10% 45.8%",
+          "period_en": "per send",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the Omnisend average",
+            "4": "Klaviyo flows top 10%"
+          },
+          "basis_e": [0, 1, 2, 3]
+        }
+      ]
+    },
+    "welcome_email_click_rate": {
+      "metric_id": "journey_click_rate",
+      "primary": true,
+      "formula_en": "unique clicks in the welcome e-mail / delivered welcome e-mails × 100%",
+      "levers": {
+        "pl": "Umieść w e-mailu powitalnym jeden główny link do obiecanego materiału i drugi do najważniejszego pierwszego kroku (wybór tematów, najbliższe wydarzenie). Pokaż, czego odbiorca może się spodziewać i jak często, oraz zaproponuj ustawienie preferencji. Testuj krótką sekwencję kilku wiadomości zamiast jednego długiego e-maila.",
+        "en": "Put one main link to the promised material in the welcome e-mail and a second one to the most important first step (topic selection, the next event). Show what the recipient can expect and how often, and offer to set preferences. Test a short sequence of a few messages instead of one long e-mail."
+      },
+      "caveats_en": [
+        "The benchmarks come mainly from e-commerce. For an expert publisher, the welcome CTR may be higher if the e-mail contains a link to the promised material (lead magnet)."
+      ],
+      "default_context_by_segment": {
+        "all": "welcome_email_click_rate.general_platforms",
+        "newsletter": "welcome_email_click_rate.general_platforms"
+      },
+      "contexts": [
+        {
+          "id": "welcome_email_click_rate.general_platforms",
+          "label_en": "Welcome e-mails (general market, e-mail platform data)",
+          "method_en": "Klaviyo average and top 10% (6.5% / 13.3%, 2026) + Omnisend 3.94% (2025) + GetResponse 16.60% (2023 data) ± heuristic",
+          "period_en": "per send",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the Klaviyo average of 6.5%",
+            "4": "Klaviyo top 10% 13.3%"
+          },
+          "basis_e": [0, 1, 2, 3]
+        }
+      ]
+    },
+    "automation_vs_campaign_rpr_ratio": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "Wymaga przypisania przychodu do wysyłek (okno i model atrybucji), którego system nie prowadzi - przychód z subskrypcji i biletów nie jest łączony z kampaniami ani automatyzacjami. Bez atrybucji mnożnik byłby szacunkiem, a rejestr nie podstawia szacunków.",
+        "en": "It requires attributing revenue to sends (an attribution window and model), which the system does not do – subscription and ticket revenue is not linked to campaigns or automations. Without attribution the multiplier would be an estimate, and the registry does not substitute estimates."
+      },
+      "formula_en": "(automation revenue / automation recipients) ÷ (campaign revenue / campaign recipients)",
+      "levers": {
+        "pl": "Zacznij od automatyzacji o największej intencji zakupu: powitanie nowych kont, porzucony checkout, przypomnienie przed końcem triala i przed wydarzeniem. Pisz je jak treść, nie jak reklamę, i aktualizuj co kwartał. Zanim porównasz mnożnik, ustal jedno okno i model atrybucji dla kampanii i automatyzacji.",
+        "en": "Start with the automations with the highest purchase intent: welcoming new accounts, abandoned checkout, a reminder before the trial ends and before an event. Write them as content, not as advertising, and update them every quarter. Before comparing the multiplier, set one attribution window and model for both campaigns and automations."
+      },
+      "caveats_en": [
+        "Klaviyo: flows are 5.3% of sends and almost 41% of e-mail revenue. Omnisend: automations are 2% of sends and 30% of revenue (2025 data).",
+        "Compare only with the same attribution window and model.",
+        "The publisher and think-tank context is a heuristic (low confidence).",
+        "The Omnisend values (16× and 22×) are calculated per e-mail sent, not strictly per recipient (RPR)."
+      ],
+      "caveat_sources": {
+        "0": ["src_klaviyo_benchmarks_2026", "src_omnisend_report_2026"],
+        "1": ["src_klaviyo_attribution_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "automation_vs_campaign_rpr_ratio.publisher_think_tank",
+        "events": "automation_vs_campaign_rpr_ratio.ecommerce"
+      },
+      "contexts": [
+        {
+          "id": "automation_vs_campaign_rpr_ratio.ecommerce",
+          "label_en": "E-commerce / online sales (Klaviyo and Omnisend data)",
+          "method_en": "source averages ± heuristic: Omnisend 16× (2.87 vs 0.18 USD per e-mail sent, 2026 report) and approx. 22× (3.41 vs 0.155 USD per e-mail sent, 2026 benchmarks) – Omnisend calculates per e-mail sent, not strictly per recipient; Klaviyo 'almost 18×' (RPR); the source values of 16–18× were placed in the 'normal' range and 22× in 'good', consistently with the rest of the dictionary",
+          "period_en": "annually / quarterly",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "multiple",
+          "window": "year",
+          "notes_en": {
+            "2": "includes 16–18× from the sources",
+            "3": "includes approx. 22× (Omnisend, 2026 benchmarks)"
+          },
+          "basis_e": [0, 1, 4]
+        },
+        {
+          "id": "automation_vs_campaign_rpr_ratio.publisher_think_tank",
+          "label_en": "Subscription publisher / think tank (subscriptions, event tickets, membership)",
+          "method_en": "heuristic: no public benchmarks for publishers; approx. 2/3 of the e-commerce thresholds were adopted (5/12/20/28× → 3/8/13/19×) because of fewer purchase triggers and less frequent transactions",
+          "period_en": "annually / quarterly",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "multiple",
+          "window": "year",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "email_conversion_rate": {
+      "metric_id": "journey_goal_rate",
+      "primary": true,
+      "formula_en": "conversions attributed to the send / delivered × 100% (separately for campaigns and automations)",
+      "levers": {
+        "pl": "Łącz każdą wysyłkę z jednym celem i stroną docelową, która go realizuje (zakup planu, rejestracja na wydarzenie, pobranie raportu) bez zbędnych kroków. Dopasuj ofertę do etapu odbiorcy: nowy czytelnik, aktywny subskrybent, uczestnik wydarzeń. Mierz konwersję osobno dla kampanii i automatyzacji, w jednym oknie atrybucji, i porównuj warianty wezwania do działania.",
+        "en": "Tie every send to one goal and a landing page that fulfils it (plan purchase, event registration, report download) without unnecessary steps. Match the offer to the recipient's stage: new reader, active subscriber, event participant. Measure conversion separately for campaigns and automations, in one attribution window, and compare call-to-action variants."
+      },
+      "caveats_en": [
+        "The data concern the USA or global markets (e-commerce, non-profit). There are no public benchmarks for selling expert subscriptions in Poland.",
+        "M+R (typical values, 2025): USD 54 of revenue per 1000 fundraising e-mails and USD 2.40 per subscriber per year (previously USD 1.87).",
+        "The Omnisend benchmark page is internally inconsistent: the industry section gives campaign OR of 30.22% and CTR of 0.88% (versus 30.41% and 0.74% in the main summary); the campaign conversion of 0.08% was taken from the main summary."
+      ],
+      "caveat_sources": {
+        "1": ["src_mr_benchmarks_2026"],
+        "2": ["src_omnisend_benchmarks_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "email_conversion_rate.automations_paid",
+        "newsletter": "email_conversion_rate.mass_campaigns_paid",
+        "events": "email_conversion_rate.free_actions"
+      },
+      "contexts": [
+        {
+          "id": "email_conversion_rate.mass_campaigns_paid",
+          "label_en": "Mass campaigns: paid sales (e-commerce data)",
+          "method_en": "Omnisend average of 0.08% (2025) ± heuristic",
+          "period_en": "per campaign",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "email_conversion_rate.automations_paid",
+          "label_en": "Automations overall: paid sales (e-commerce data)",
+          "method_en": "Omnisend averages (automations 1.49%, welcome 2.11%, abandoned cart 1.72%; 2025) ± heuristic",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "email_conversion_rate.nonprofit_donation_appeals",
+          "label_en": "Non-profit: donation appeals",
+          "method_en": "M+R typical value (M+R methodology: medians per indicator; fundraising response rate 0.05%) ± heuristic",
+          "period_en": "per send (M+R typical value for 2025)",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "email_conversion_rate.free_actions",
+          "label_en": "Free actions (petitions, registrations for free online events; analogous to M+R 'advocacy')",
+          "method_en": "M+R typical value (M+R methodology: medians per indicator; advocacy response rate 1.4%) ± heuristic; the analogy to free registrations is an expert assumption",
+          "period_en": "per send (M+R typical value for 2025)",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "abandoned_cart_email_open_rate": {
+      "metric_id": "journey_open_rate",
+      "formula_en": "unique opens of the sequence e-mails / delivered sequence e-mails × 100%",
+      "levers": {
+        "pl": "Wyślij pierwszą wiadomość wkrótce po przerwaniu płatności, z tematem przypominającym konkretny plan lub wydarzenie. Nadawca i podgląd treści powinny jasno wskazywać, że chodzi o niedokończony zakup, a nie reklamę. Wysyłaj tylko osobom ze zgodą na kontakt, a progi przeskaluj względem własnych otwarć newslettera.",
+        "en": "Send the first message soon after the payment was interrupted, with a subject line recalling the specific plan or event. The sender and preview text should make it clear that this is about an unfinished purchase, not an advertisement. Send only to people who have consented to contact, and rescale the thresholds against your own newsletter opens."
+      },
+      "caveats_en": [
+        "In ESPs without MPP correction (GetResponse, MailerLite), values may be approx. 10–20 pp higher. This is a heuristic from comparing GetResponse with Omnisend: newsletter 40.08% versus campaigns 30.41% (+10 pp), triggered 45.38% versus automations 30.21% (+15 pp); no source states this value directly. Rescale the thresholds against your own newsletter OR.",
+        "There are no benchmarks for abandoned subscription checkouts at publishers. E-commerce data were adopted."
+      ],
+      "default_context_by_segment": {
+        "all": "abandoned_cart_email_open_rate.ecommerce_sequences"
+      },
+      "contexts": [
+        {
+          "id": "abandoned_cart_email_open_rate.ecommerce_sequences",
+          "label_en": "Abandoned-cart sequences (e-commerce data, Omnisend/Klaviyo)",
+          "method_en": "Omnisend averages (37.12% 2026 benchmarks; 35.75% blog Feb 2026; 2025 data) ± heuristic; optimal threshold ≈ the top 10% open rate of Klaviyo flows (45.8%)",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the Omnisend averages"
+          },
+          "basis_e": [0, 1, 2, 3]
+        }
+      ]
+    },
+    "abandoned_cart_email_click_rate": {
+      "metric_id": "journey_click_rate",
+      "formula_en": "unique clicks / delivered sequence e-mails × 100%",
+      "levers": {
+        "pl": "Daj jeden wyraźny przycisk prowadzący prosto do wznowienia płatności z zachowanym wyborem planu lub biletu. Przypomnij korzyść i odpowiedz na typową przeszkodę (cena z VAT, faktura, metody płatności). Raportuj kliknięcia dla każdej pozycji w sekwencji i skróć ją, jeśli kolejne wiadomości nie wnoszą kliknięć.",
+        "en": "Give one clear button leading straight back to the payment with the plan or ticket choice preserved. Recall the benefit and address a typical obstacle (price including VAT, invoice, payment methods). Report clicks for each position in the sequence and shorten it if later messages add no clicks."
+      },
+      "caveats_en": [
+        "Klaviyo gives an example ('a common sequence might involve 3 messages'), not a recommendation of 3 e-mails: an e-mail after 2–4 h, an SMS with a discount after 24 h and a final message after 48 h. Omnisend's text gives 30–60 min, 24 h and 72 h, but its diagram shows the third message after 48 h (the source is inconsistent). Report CTR per position in the sequence."
+      ],
+      "caveat_sources": {
+        "0": ["src_klaviyo_abandoned_cart_2026", "src_omnisend_cart_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "abandoned_cart_email_click_rate.ecommerce_sequences"
+      },
+      "contexts": [
+        {
+          "id": "abandoned_cart_email_click_rate.ecommerce_sequences",
+          "label_en": "Abandoned-cart sequences (e-commerce data)",
+          "method_en": "Klaviyo average and top 10% (6.0% / 11.3%, Oct 2026) + Omnisend CTR 4.13% (2025 data) ± heuristic",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "Omnisend 4.13%",
+            "3": "from the Klaviyo average",
+            "4": "Klaviyo top 10%"
+          },
+          "basis_e": [0, 1, 2]
+        }
+      ]
+    },
+    "abandoned_cart_email_conversion_rate": {
+      "metric_id": "journey_goal_rate",
+      "formula_en": "orders attributed to the sequence / sequence recipients (delivered) × 100%",
+      "levers": {
+        "pl": "Skróć drogę z e-maila do zakończonej płatności: link otwiera checkout z zapamiętanym planem, a nie stronę główną. Daj instytucjom alternatywę (faktura, kontakt z opiekunem) i przypisuj takie konwersje także w CRM. Unikaj automatycznych rabatów w pierwszej wiadomości, żeby nie uczyć odbiorców porzucania koszyka.",
+        "en": "Shorten the path from the e-mail to a completed payment: the link opens the checkout with the plan remembered, not the home page. Give institutions an alternative (invoice, contact with an account manager) and attribute such conversions in the CRM as well. Avoid automatic discounts in the first message, so as not to teach recipients to abandon the cart."
+      },
+      "caveats_en": [
+        "Baymard: the average cart abandonment rate is 70.22% (50 studies, updated Sep 2025). This is a reference point for the checkout funnel, not an e-mail indicator.",
+        "For B2B subscriptions and pro forma invoices, conversion may happen outside e-mail (e.g. through an account manager in the CRM). Take this into account in attribution."
+      ],
+      "caveat_sources": {
+        "0": ["src_baymard_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "abandoned_cart_email_conversion_rate.ecommerce_sequences"
+      },
+      "contexts": [
+        {
+          "id": "abandoned_cart_email_conversion_rate.ecommerce_sequences",
+          "label_en": "Abandoned-cart sequences (e-commerce data)",
+          "method_en": "Omnisend averages (1.72% 2026 benchmarks; 1.51% blog Feb 2026; 2025 data) ± heuristic",
+          "period_en": "per send",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "includes the Omnisend averages"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "inbox_placement_rate": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "Odsetek trafień do skrzynki mierzy się testami na adresach kontrolnych (seed) albo panelem odbiorców - system nie ma takiego narzędzia ani integracji. Do czasu jej dodania korzystaj ze wskaźników zastępczych: miękkich odbić dla każdej domeny i zgłoszeń spamu.",
+        "en": "Inbox placement is measured with tests on seed addresses or a recipient panel – the system has neither such a tool nor an integration. Until one is added, use proxy indicators: soft bounces per domain and spam complaints."
+      },
+      "formula_en": "messages in the inbox folder / sent (measured on seed test addresses or a panel) × 100% = 100% − spam% − missing%",
+      "levers": {
+        "pl": "Uwierzytelnij domenę nadawcy (SPF, DKIM, DMARC) i wysyłaj z jednej, rozgrzanej domeny lub subdomeny, w stałym rytmie. Usuwaj nieaktywnych odbiorców i odbicia, bo zaangażowanie listy wpływa na filtry dostawców poczty. Śledź reputację w Google Postmaster Tools i Microsoft SNDS, a po dużych zmianach wykonaj test na adresach kontrolnych.",
+        "en": "Authenticate the sender domain (SPF, DKIM, DMARC) and send from one warmed-up domain or subdomain, at a steady rhythm. Remove inactive recipients and bounces, because list engagement affects mailbox-provider filters. Track reputation in Google Postmaster Tools and Microsoft SNDS, and run a seed-address test after major changes."
+      },
+      "caveats_en": [
+        "Validity 2025 by mailbox provider: Gmail 89.8%, Microsoft 77.4% (the hardest), Yahoo 87.3%, Apple 82.0%. By sector: Media & Internet 88.1%, organisations 87.7%, education 87.6%, public administration 91.4%.",
+        "Without a seed-testing tool (Validity, GlockApps, etc.), use proxy indicators: Google Postmaster Tools (domain reputation, spam rate), Microsoft SNDS and soft bounces per domain."
+      ],
+      "caveat_sources": {
+        "0": ["src_validity_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "inbox_placement_rate.europe"
+      },
+      "contexts": [
+        {
+          "id": "inbox_placement_rate.europe",
+          "label_en": "Senders sending to recipients in Europe",
+          "method_en": "Validity 2025 averages ± heuristic: Europe 91.1%, Germany 97.5%, France 94.0%, UK 91.5% (of the European countries the report gives only these three; Poland not reported); regional providers in Europe 79.7% (−11.4 pp relative to MAGY); data from the seed test addresses of Validity clients, excluding senders who did not consent to aggregation",
+          "period_en": "quarterly / monthly (seed test)",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "0": "the level of regional providers (79.7%; −11.4 pp relative to MAGY in Europe)",
+            "2": "up to the European average of 91.1%",
+            "4": "Germany 97.5%"
+          },
+          "basis_e": [1, 3]
+        },
+        {
+          "id": "inbox_placement_rate.global_mixed",
+          "label_en": "Globally mixed list (various countries and providers)",
+          "method_en": "Validity global average of 87.2% (2025; 83.5% in 2024) and the sector distribution of 80.1–97.2% ± heuristic; data from the seed test addresses of Validity clients, excluding senders who did not consent to aggregation",
+          "period_en": "quarterly / monthly (seed test)",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "2": "includes the 87.2% average"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "disaffection_rate": {
+      "metric_id": "email_disaffection_rate",
+      "formula_en": "(unsubscribes + spam complaints + bounces) / clicks × 100%",
+      "levers": {
+        "pl": "Traktuj DR jako sygnał zmęczenia listy: przy wzroście ogranicz częstotliwość dla mniej zaangażowanych odbiorców i daj im wybór tematów. Usuwaj odbicia i dawno nieaktywne adresy przed wysyłką, a treść dopasuj tak, by każde wydanie dawało powód do kliknięcia. Analizuj wynik dla każdego segmentu i typu wysyłki.",
+        "en": "Treat DR as a signal of list fatigue: when it rises, reduce frequency for less engaged recipients and let them choose topics. Remove bounces and long-inactive addresses before sending, and shape the content so that every issue gives a reason to click. Analyse the result per segment and per send type."
+      },
+      "caveats_en": [
+        "Validity links a 'crisis situation' to disaffection exceeding clicks (DR ≥100%) and describes the 50% example as losing 1 subscriber for every 2 clicks and half the list in under a year at 2 sends a week. The 50% critical threshold is a cautious heuristic, not a threshold from the source.",
+        "The ranges below 50% are a heuristic (the source gives no distribution)."
+      ],
+      "caveat_sources": {
+        "0": ["src_validity_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "disaffection_rate.all_sends"
+      },
+      "contexts": [
+        {
+          "id": "disaffection_rate.all_sends",
+          "label_en": "Any marketing send (newsletter, campaigns)",
+          "method_en": "heuristic: a cautious 50% threshold from the Validity example (0.3% unsubscribes + 0.1% complaints + 0.1% bounces at a 1% CTR = 50%, i.e. 1 lost subscriber for every 2 clicks); Validity calls it a crisis when disaffection exceeds clicks (DR ≥100%); the lower ranges are a heuristic (the source gives no distribution)",
+          "period_en": "per send / monthly",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "≥50%: the Validity example (1 lost for every 2 clicks); ≥100% = losses exceed clicks, Validity: crisis"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    }
+  },
+  "sources": {
+    "src_mailerlite_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_getresponse_2024": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_getresponse_doi_2024": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "src_mailchimp_2023": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_omeda_h1_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_glueletter_open_q1_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_glueletter_click_q1_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_validity_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_validity_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_google_sender_guidelines": {
+      "reliability": "A"
+    },
+    "src_yahoo_sender_hub": {
+      "reliability": "A"
+    },
+    "src_aws_ses_enforcement": {
+      "reliability": "A"
+    },
+    "src_klaviyo_benchmarks_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_klaviyo_abandoned_cart_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_omnisend_benchmarks_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_omnisend_report_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_omnisend_cart_2026": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "src_baymard_2025": {
+      "reliability": "A"
+    },
+    "src_stripo_welcome_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_litmus_market_share_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_mr_benchmarks_2026": {
+      "reliability": "A"
+    },
+    "src_zerobounce_decay_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "src_truelist_doi_2025": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "src_debounce_bounce": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "src_bounceless_bounce": {
+      "reliability": "C",
+      "vendor": true,
+      "drop_reason": "Martwy link (HTTP 410), strony nie da się sprawdzić; badacze usunęli kotwicę (zastrzeżenie soft_bounce_rate nr 0) - wpis nie kotwiczy pasm ani zastrzeżeń."
+    },
+    "src_klaviyo_attribution_2026": {
+      "reliability": "B",
+      "vendor": true
+    }
+  }
+}

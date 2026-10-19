@@ -3,7 +3,12 @@
 // arytmetycznym, a nie kwestią gustu - i jest jedynym defektem w silniku
 // wykresów, który da się wykryć obliczeniem, więc się go wykrywa.
 import { describe, expect, it } from "vitest";
-import { CHECKSUM_TOLERANCE_RATIO, waterfallExtent, waterfallModel } from "@/lib/charts/waterfall";
+import {
+  CHECKSUM_TOLERANCE_RATIO,
+  waterfallExtent,
+  waterfallLevel,
+  waterfallModel,
+} from "@/lib/charts/waterfall";
 
 const LABELS = ["EBITDA 2024", "Cena", "Wolumen", "Koszty", "EBITDA 2025"];
 
@@ -204,5 +209,46 @@ describe('waterfall - `from`/`to` są KRAWĘDZIAMI prostokąta, nie „przed/po"
 
     // Niezmiennik wprost: dolna krawędź nigdy nie jest wyższa od górnej.
     for (const step of model.steps) expect(step.from).toBeLessThanOrEqual(step.to);
+  });
+});
+
+describe("waterfall - POZIOM po kroku (D1)", () => {
+  it("krok ujemny 100 → −5 ma poziom 95, a nie 100", () => {
+    // REGRESJA D1. Dymek i tabela czytały `to` - górną krawędź prostokąta.
+    // Dla kroku w dół to poziom PRZED spadkiem, więc most MRR po churnie −5
+    // twierdził „Poziom: 100”. `level` to kursor mostka PO kroku.
+    const model = waterfallModel(["MRR start", "Churn", "MRR koniec"], [100, -5, 95]);
+    const churn = model.steps[1];
+    expect(churn.to).toBe(100);
+    expect(churn.level).toBe(95);
+    expect(waterfallLevel(churn)).toBe(95);
+    // Suma kontrolna bez zmian - poziom nie zmienia arytmetyki mostka.
+    expect(model.checksumOk).toBe(true);
+    expect(model.checksumGap).toBe(0);
+  });
+
+  it("filary niosą swoją wartość, składniki - kursor po kroku, w całym mostku", () => {
+    const model = waterfallModel(LABELS, [100, 20, -5, -15, 100]);
+    expect(model.steps.map((s) => s.level)).toEqual([100, 120, 115, 100, 100]);
+    // Geometria i model mówią to samo dla każdego słupka.
+    for (const step of model.steps) expect(waterfallLevel(step), step.label).toBe(step.level);
+  });
+
+  it("krok płaski i luka w danych zostawiają poziom bez zmian", () => {
+    const model = waterfallModel(["S", "Zero", "Luka", "K"], [40, 0, null, 40]);
+    expect(model.steps.map((s) => s.level)).toEqual([40, 40, 40, 40]);
+  });
+
+  it("bez jawnego końca ostatni składnik niesie poziom końcowy mostka", () => {
+    const model = waterfallModel(["Start", "A", "B"], [10, 5, -3], { explicitEnd: false });
+    expect(model.steps.at(-1)?.level).toBe(12);
+    expect(model.stateDelta).toBe(2);
+  });
+
+  it("mostek poniżej zera: poziom po kroku w dół to dolna krawędź", () => {
+    const model = waterfallModel(["S", "Spadek", "K"], [10, -30, -20]);
+    expect(model.steps[1].level).toBe(-20);
+    expect(model.steps[1].from).toBe(-20);
+    expect(waterfallLevel(model.steps[1])).toBe(-20);
   });
 });
