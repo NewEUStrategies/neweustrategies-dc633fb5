@@ -15,9 +15,9 @@ import {
   ANIMATED_MODES,
   ANIMATED_SHAPES,
   AnimatedHeadingRender,
+  resolveAnimatedHeadingShape,
   type AnimatedHeadingConfig,
   type AnimatedHeadingMode,
-  type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { LinkPicker } from "../../molecules/LinkPicker";
 import {
@@ -48,7 +48,9 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   // znacznik dawał podglądowi element bez nazwy, a liczba w tekście padała
   // w `resolveDynamicText` na `indexOf`.
   const mode = (asStr(c.mode) || "highlight") as AnimatedHeadingMode;
-  const shape = (asStr(c.shape) || "underline") as AnimatedHeadingShape;
+  // Kształt przez katalog jak w rendererze: zapis spoza `ANIMATED_SHAPES` to
+  // kształt domyślny trybu, więc zaznaczony kafelek = kształt na stronie.
+  const shape = resolveAnimatedHeadingShape(c.shape, mode);
   const tag = (asStr(c.tag) || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
   const visibleShapes =

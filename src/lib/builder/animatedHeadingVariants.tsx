@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { hardenStyleCss } from "@/lib/sanitize";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { useMotionGate } from "@/lib/performance/motionGate";
+import { asOneOf } from "@/lib/content-model/contentValue";
 
 export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline" | "hover-allsides";
 
@@ -74,6 +75,26 @@ export const ANIMATED_SHAPES: { value: AnimatedHeadingShape; label: string }[] =
   { value: "hover-allsides-7", label: "Allsides: dół + prawo" },
   { value: "hover-allsides-8", label: "Allsides: rogi-segmenty" },
 ];
+
+const ANIMATED_SHAPE_VALUES: readonly AnimatedHeadingShape[] = ANIMATED_SHAPES.map((s) => s.value);
+
+/**
+ * Kształt do narysowania z zapisu treści. `shape` przychodzi z JSON-a (starsze
+ * rewizje, import, szablony), więc bywa napisem spoza katalogu albo nie-napisem
+ * - `switch` w `ShapeSvg` nie rysował wtedy niczego, a panel nie zaznaczał
+ * żadnego kafelka. Spoza katalogu = kształt domyślny trybu, ten sam, który panel
+ * wstawia przy przełączeniu trybu (pierwszy z rodziny hover, inaczej
+ * podkreślenie). Wspólne dla renderera i panelu: panel pokazuje, co narysuje strona.
+ */
+export function resolveAnimatedHeadingShape(shape: unknown, mode: unknown): AnimatedHeadingShape {
+  const fallback: AnimatedHeadingShape =
+    mode === "hover-underline"
+      ? "hover-line-1"
+      : mode === "hover-allsides"
+        ? "hover-allsides-1"
+        : "underline";
+  return asOneOf(shape, ANIMATED_SHAPE_VALUES, fallback);
+}
 
 const HOVER_LINE_CSS = `
 .ah-hu { display: inline-block; padding-bottom: 1px; cursor: pointer; }
@@ -698,7 +719,7 @@ export function AnimatedHeadingRender({
   preview?: boolean;
 }) {
   const mode = config.mode ?? "highlight";
-  const shape = config.shape ?? "underline";
+  const shape = resolveAnimatedHeadingShape(config.shape, mode);
   const Tag = (config.tag ?? "h2") as React.ElementType;
   const align = config.align ?? "left";
 

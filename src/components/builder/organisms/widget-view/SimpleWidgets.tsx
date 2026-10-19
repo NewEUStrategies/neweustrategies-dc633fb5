@@ -1369,7 +1369,11 @@ export function renderSimpleWidget(
       const isDark = theme === "dark";
       const ahCfg: AnimatedHeadingConfig = {
         mode: (getStr(c, "mode") || "highlight") as AnimatedHeadingMode,
-        shape: (getStr(c, "shape") || "underline") as AnimatedHeadingShape,
+        // Zapis bez domyślnej wartości: katalog i kształt domyślny TRYBU (w hover
+        // pierwszy z rodziny, nie podkreślenie) rozstrzyga renderer wspólnym z
+        // panelem `resolveAnimatedHeadingShape` - katalog jedzie w leniwym chunku
+        // nagłówka, a ten moduł siedzi w chunku wejściowym.
+        shape: getStr(c, "shape") as AnimatedHeadingShape,
         tag: asOneOf(c.tag, HEADING_TAGS, "h2"),
         align: (getStr(c, "align") || "left") as "left" | "center" | "right",
         textBefore: getStr(c, `textBefore_${lang}`) || getStr(c, "textBefore_pl"),

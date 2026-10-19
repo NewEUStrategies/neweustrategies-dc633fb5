@@ -338,6 +338,19 @@ const truncate = (s: string, max: number) =>
  * (arkusz wspólny) i przesunięcia toru (`MultiCardVariant`). */
 const MULTI_CARD_GAP_PX = 16;
 
+/** Przesunięcie toru multi-card: krok = szerokość karty + odstęp, czyli
+ *  (100% + odstęp) / kolumny, plus bieżący gest. Jedno źródło dla renderu
+ *  (gest 0) i zapisu w trakcie przeciągania (`paintDrag`). */
+function multiCardTrackTransform(idx: number, dragDx: number): string {
+  return `translateX(calc(${-idx} * (100% + ${MULTI_CARD_GAP_PX}px) / var(--eh-visible-columns) + ${dragDx}px))`;
+}
+
+/** Warstwa obrazów kadru podąża za palcem z 35% ruchu; w spoczynku - bez
+ *  transformacji (pusty napis zdejmuje deklarację inline). */
+function dragLayerTransform(dragDx: number): string {
+  return dragDx ? `translate3d(${dragDx * 0.35}px, 0, 0)` : "";
+}
+
 // DIETA ZNACZNIKÓW (P2.6, HW-6). Dwie deklaracje, które każdy slajd niósł
 // dotąd w `style=""`, żyją tu - w arkuszu wysyłanym RAZ na dokument:
 //  * przejście obrazu `[data-fill-image]` - ta sama deklaracja co dawny inline
@@ -941,7 +954,12 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     pointerId: -1,
     active: false,
   });
-  const [dragDx, setDragDx] = useState(0);
+  // Element, który podąża za palcem: warstwa obrazów kadru albo tor kart.
+  // Przesunięcie gestu NIE jest stanem Reacta - `setState` na każdym
+  // `pointermove` przebudowywał całe drzewo wariantu (wszystkie slajdy i
+  // karty, arkusz instancji) z częstotliwością wskaźnika. Ruch pisze wprost
+  // w styl tego elementu; render zostaje na początku i końcu gestu.
+  const dragLayerRef = useRef<HTMLDivElement | null>(null);
   const [, force] = useState(0);
 
   // Hooks nawigacji PRZED wczesnym returnem pustego slidera - React wymaga
@@ -968,6 +986,15 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     minHeight: 0,
   };
   const SWIPE_THRESHOLD = 48;
+  // Render rysuje warstwę zawsze z gestem 0, a React dotyka DOM-u tylko przy
+  // zmianie propsu - koniec gestu poniżej progu (albo anulowanie) nie zmienia
+  // niczego w renderze, więc pozycję spoczynku przywraca `paintDrag(0)`.
+  const paintDrag = (dx: number) => {
+    const layer = dragLayerRef.current;
+    if (!layer) return;
+    layer.style.transform =
+      variant === "multi-card" ? multiCardTrackTransform(safeIdx, dx) : dragLayerTransform(dx);
+  };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (preview || items.length < 2) return;
@@ -991,14 +1018,16 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
         /* noop */
       }
     }
-    setDragDx(dx);
+    paintDrag(dx);
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = dragRef.current;
     if (!d.active || e.pointerId !== d.pointerId) return;
     const dx = d.lastX - d.startX;
     dragRef.current = { ...d, active: false };
-    setDragDx(0);
+    // Ten sam takt co render zdejmujący `is-dragging`: przeglądarka widzi
+    // przesunięcie -> spoczynek (albo nowy slajd) z przywróconym przejściem.
+    paintDrag(0);
     force((n) => n + 1);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -1072,7 +1101,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
     fallbackImages,
     markImageFailed,
     dragRef,
-    dragDx,
+    dragLayerRef,
     onPointerDown,
     onPointerMove,
     endDrag,
@@ -1143,7 +1172,9 @@ type VariantProps = {
     pointerId: number;
     active: boolean;
   }>;
-  dragDx: number;
+  /** Element podążający za palcem (warstwa kadru albo tor kart) - gest pisze
+   *  w jego styl z pominięciem Reacta, render daje mu pozycję spoczynku. */
+  dragLayerRef: React.RefObject<HTMLDivElement | null>;
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
   endDrag: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -1193,8 +1224,8 @@ function EditorialHeroVariant(p: VariantProps) {
       >
         <div
           className="pointer-events-none absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1388,9 +1419,9 @@ function MultiCardVariant(p: VariantProps) {
   const dragging = p.dragRef.current.active;
   const gapPx = MULTI_CARD_GAP_PX;
   // Szerokość karty (100% - (cols - 1) * gap) / cols siedzi w arkuszu wspólnym
-  // pod `.eh-multi-card-item` (P2.6) - inline zostaje tylko przesunięcie toru.
-  // Krok = szerokość karty + odstęp, czyli (100% + gap) / cols.
-  const trackTransform = `translateX(calc(${-p.safeIdx} * (100% + ${gapPx}px) / var(--eh-visible-columns) + ${p.dragDx}px))`;
+  // pod `.eh-multi-card-item` (P2.6) - inline zostaje tylko przesunięcie toru,
+  // w renderze zawsze w spoczynku; gest dopisuje się poza Reactem (`paintDrag`).
+  const trackTransform = multiCardTrackTransform(p.safeIdx, 0);
   return (
     <div className="relative eh-multi-card">
       <div
@@ -1401,6 +1432,7 @@ function MultiCardVariant(p: VariantProps) {
         onPointerCancel={p.endDrag}
       >
         <div
+          ref={p.dragLayerRef}
           className={`eh-track eh-multi-track ${dragging ? "is-dragging" : ""}`}
           style={{ transform: trackTransform, gap: `${gapPx}px` }}
         >
@@ -1565,8 +1597,8 @@ function CinematicOverlayVariant(p: VariantProps) {
       >
         <div
           className="absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1720,8 +1752,8 @@ function SplitFeatureVariant(p: VariantProps) {
       >
         <div
           className="absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
@@ -1859,8 +1891,8 @@ function MinimalStripVariant(p: VariantProps) {
       >
         <div
           className="absolute inset-0"
+          ref={p.dragLayerRef}
           style={{
-            transform: p.dragDx ? `translate3d(${p.dragDx * 0.35}px, 0, 0)` : undefined,
             transition: p.dragRef.current.active
               ? "none"
               : "transform 320ms cubic-bezier(.22,.61,.36,1)",
