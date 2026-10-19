@@ -38,6 +38,10 @@
 -- KOLEJNOŚĆ WDROŻENIA: po 20261020130200 (`run_workflow_step` v2). Deduplikacja
 -- przed indeksem w tym samym pliku (inaczej CREATE UNIQUE INDEX padnie na
 -- historycznych duplikatach).
+-- Indeks na `workflow_runs` i wyzwalacz na `domain_events` (tabela ruchu -
+-- każde zdarzenie szyny) - `lock_timeout` 5 s, ponowienie całego pliku przy
+-- 55P03 (Integrator S4: blokada bez limitu zatrzymałaby emisję wszystkich
+-- modułów za długą transakcją).
 -- IDEMPOTENTNA: DELETE duplikatów (powtórka nie ma czego usunąć), CREATE
 -- UNIQUE INDEX IF NOT EXISTS, CREATE OR REPLACE, DROP TRIGGER IF EXISTS +
 -- CREATE TRIGGER, bezstanowe REVOKE/GRANT.
@@ -49,6 +53,8 @@
 -- ----------------------------------------------------------------------------
 -- A) Jeden przebieg na parę przepis × zdarzenie.
 -- ----------------------------------------------------------------------------
+SET lock_timeout = '5s';
+
 DELETE FROM public.workflow_runs r
  USING public.workflow_runs older
  WHERE r.workflow_id = older.workflow_id
@@ -57,6 +63,8 @@ DELETE FROM public.workflow_runs r
 
 CREATE UNIQUE INDEX IF NOT EXISTS workflow_runs_workflow_event_uidx
   ON public.workflow_runs (workflow_id, event_id);
+
+RESET lock_timeout;
 
 -- ----------------------------------------------------------------------------
 -- B) Silnik przepisów.
@@ -143,10 +151,12 @@ $$;
 
 REVOKE ALL ON FUNCTION public.tg_run_workflows_for_event() FROM PUBLIC, anon, authenticated, service_role;
 
+SET lock_timeout = '5s';
 DROP TRIGGER IF EXISTS trg_run_workflows_for_event ON public.domain_events;
 CREATE TRIGGER trg_run_workflows_for_event
   AFTER INSERT ON public.domain_events
   FOR EACH ROW EXECUTE FUNCTION public.tg_run_workflows_for_event();
+RESET lock_timeout;
 
 -- ----------------------------------------------------------------------------
 -- C) Instalacja przepisu z katalogu - bramka = RLS definicji (D4).
