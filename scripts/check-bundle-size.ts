@@ -2407,7 +2407,12 @@ const FROZEN_BUDGET_KB = {
   // (LeadTasksPanel +0,9). public 2772,1 (-0,4), chunk 257,9, css 99,7,
   // publicCss 83,8 i boot 471,6 w zamrożonych progach.
   // Host 4979,4 -> 4980 -> +1.
-  overall: 4981,
+  // Korekta 4981 -> 4982 (ten sam wpis): poprawki pełnego vitest
+  // (`crmLifecycleLabels` - etykiety cyklu życia z magazynu i18next) i nowe
+  // hashe w nazwach importów ~1,2 KB po kilkanaście bajtów na chunk (public
+  // 2773,0, czyli +0,5 względem bazy - wyłącznie entropia nazw, zero
+  // modułów). Host na drzewie końcowym 4980,6 -> 4981 -> +1.
+  overall: 4982,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
