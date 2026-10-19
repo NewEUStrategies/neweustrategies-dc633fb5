@@ -261,7 +261,7 @@ describe("NewsTickerView", () => {
       { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
       { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a2" },
     ];
-    db.tables.profiles = [
+    db.tables.profiles_public = [
       { id: "a1", display_name: "Anna", avatar_url: "https://cdn.x/a1.jpg" },
       { id: "a2", display_name: "Jan", avatar_url: null },
     ];
@@ -277,7 +277,7 @@ describe("NewsTickerView", () => {
     db.tables.posts = [
       { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
     ];
-    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+    db.tables.profiles_public = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     const { container } = wrap(
       <NewsTickerView
         c={{ badge_pl: "Najnowsze", limit: 10, direction: "horizontal" }}
@@ -304,7 +304,7 @@ describe("NewsTickerView", () => {
         { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
         { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a1" },
       ];
-      db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+      db.tables.profiles_public = [{ id: "a1", display_name: "Anna", avatar_url: null }];
       const { container } = wrap(
         <NewsTickerView c={{ badge_pl: "Najnowsze", limit: 10, direction }} lang="pl" />,
       );
@@ -324,7 +324,7 @@ describe("TrendingNowView", () => {
       { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
       { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a1" },
     ];
-    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+    db.tables.profiles_public = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     const { container } = wrap(<TrendingNowView c={{ badge_pl: "Na czasie" }} lang="pl" />);
     await screen.findAllByText("Alfa");
     const looping = Array.from(container.querySelectorAll<HTMLElement>("*")).filter((el) =>
@@ -349,7 +349,7 @@ describe.each([
       { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
       { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a1" },
     ];
-    db.tables.profiles = [{ id: "a1", ...profile }];
+    db.tables.profiles_public = [{ id: "a1", ...profile }];
   };
 
   it("autor widoczny: ramka z bylinem, wiersz jest zakresem tytułu", async () => {
@@ -599,7 +599,7 @@ describe("NewsTickerView extra branches", () => {
     db.tables.posts = [
       { id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
     ];
-    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+    db.tables.profiles_public = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     const { container } = wrap(
       <NewsTickerView
         c={{ separator: "-", pauseOnHover: true, speedSeconds: 30, direction: "horizontal" }}
@@ -620,7 +620,7 @@ describe("NewsTickerView extra branches", () => {
     db.tables.posts = [
       { id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
     ];
-    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+    db.tables.profiles_public = [{ id: "a1", display_name: "Anna", avatar_url: null }];
     wrap(<NewsTickerView c={{ categoriesCsv: "ue", uniqueOnPage: true }} lang="en" />);
     expect((await screen.findAllByText("Alpha")).length).toBeGreaterThan(0);
   });
