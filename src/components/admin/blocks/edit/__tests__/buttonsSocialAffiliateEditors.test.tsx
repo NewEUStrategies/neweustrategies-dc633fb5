@@ -74,8 +74,11 @@ describe("buttons", () => {
     expect(changes).toEqual([]);
 
     fireEvent.click(screen.getByRole("button", { name: ed("buttons", "add") }));
+    // Etykieta powstaje w języku DOKUMENTU; bez `BlockEditorProvider` kontekst
+    // edytora to dokument polski (krzyżówkę panel × dokument przypina
+    // `blockEditorsPanelCopyI18n.test.tsx`).
     expect(ostatniZapis(changes).data).toEqual({
-      items: [{ label: "Button", href: "#", variant: "default" }],
+      items: [{ label: "Przycisk", href: "#", variant: "default" }],
     });
   });
 
@@ -169,7 +172,7 @@ describe("social-icons", () => {
   it("„Dodaj” dokłada ikonę facebook z pustym URL-em; render niczego nie zapisuje", () => {
     const { changes } = renderEditor(SocialIconsBlock, blok("social-icons", {}));
     expect(changes).toEqual([]);
-    fireEvent.click(screen.getByRole("button", { name: "Dodaj" }));
+    fireEvent.click(screen.getByRole("button", { name: ed("socialIcons", "add") }));
     expect(ostatniZapis(changes).data).toEqual({ items: [{ platform: "facebook", url: "" }] });
   });
 

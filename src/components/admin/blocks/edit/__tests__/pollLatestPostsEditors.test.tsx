@@ -10,8 +10,8 @@
 //
 // CO MA TU DOWÓD
 //  * ankieta: zapytanie do `polls` (kolumny, najnowsze najpierw, limit 100);
-//    etykiety opcji (PL -> EN -> id, 80 znaków, status po polsku); zapis
-//    `pollId`; komunikaty: brak ankiet, wybrany szkic, ankieta usunięta;
+//    etykiety opcji (PL -> EN -> id, 80 znaków, status ze słownika panelu);
+//    zapis `pollId`; komunikaty: brak ankiet, wybrany szkic, ankieta usunięta;
 //    BŁĄD odczytu ma własny komunikat, a nie fałszywe „ankieta nie istnieje”,
 //  * najnowsze wpisy: liczba pokazuje i zapisuje to, co narysuje strona
 //    (1-50, liczba całkowita), przełączniki i układ czytają dane jak renderer
@@ -20,7 +20,9 @@
 // GRANICE. Klient Supabase to atrapa łańcucha z modułu wspólnego tabeli
 // edytorów (import PIERWSZY) - test ustawia odpowiedź tabeli `polls` i czyta
 // zapisany łańcuch. React Query - świeży klient bez ponowień na każdy render
-// (`renderEditor` -> `renderWithQueryClient`).
+// (`renderEditor` -> `renderWithQueryClient`). i18n PRAWDZIWE (`realT`):
+// komunikaty panelu czytamy ze słownika (`blocks.editors.poll|latestPosts.*`),
+// a wersję angielską przypina `blockEditorsPanelCopyI18n.test.tsx`.
 import { describe, expect, it } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 
@@ -28,10 +30,22 @@ import { renderEditor } from "./blockEditMatrix.shared";
 import type { Block, BlockType, Json } from "@/lib/blocks/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
+import { realT } from "@/test/i18nReal";
+import "@/lib/i18n-admin-blocks";
 import { LatestPostsBlock } from "../LatestPosts";
 import { PollBlockEdit } from "../Poll";
 
 const stub = supabase as unknown as SupabaseFromStub;
+
+const t = realT("pl");
+const ankieta = (key: string) => t(`blocks.editors.poll.${key}`) as string;
+const wpisy = (key: string) => t(`blocks.editors.latestPosts.${key}`) as string;
+const WCZYTYWANIE = ankieta("loading");
+const BRAK = ankieta("empty");
+const SZKIC = ankieta("draftHint");
+const USUNIETA = ankieta("missing");
+const MINIATURA = wpisy("showImage");
+const ZAJAWKA = wpisy("showExcerpt");
 
 function blok(type: BlockType, data: Record<string, Json>): Block {
   return { id: `blk-${type}`, type, data };
@@ -64,7 +78,7 @@ describe("poll", () => {
     expect(zapytanie?.argsOf("limit")).toEqual([100]);
   });
 
-  it("etykieta opcji: pytanie PL, w braku EN, w braku id; 80 znaków; status po polsku", async () => {
+  it("etykieta opcji: pytanie PL, w braku EN, w braku id; 80 znaków; status ze słownika", async () => {
     stub.setResponse("polls", ok(ANKIETY));
     renderEditor(PollBlockEdit, blok("poll", { pollId: "" }));
     await screen.findByRole("option", { name: /wspólną armię/ });
@@ -72,11 +86,12 @@ describe("poll", () => {
       .getAllByRole<HTMLOptionElement>("option")
       .map((o) => o.textContent);
     expect(opcje).toEqual([
-      "- wybierz ankietę -",
-      "Czy UE powinna mieć wspólną armię? (otwarta)",
-      "Energy union by 2030? (szkic)",
+      ankieta("choose"),
+      `Czy UE powinna mieć wspólną armię? (${ankieta("statusOpen")})`,
+      `Energy union by 2030? (${ankieta("statusDraft")})`,
+      // Status spoza słownika zostaje surowy.
       "p-3 (archived)",
-      `${"ą".repeat(80)} (zamknięta)`,
+      `${"ą".repeat(80)} (${ankieta("statusClosed")})`,
     ]);
   });
 
@@ -95,30 +110,30 @@ describe("poll", () => {
   it("w trakcie odczytu pokazuje „Wczytywanie”, a pusta lista - podpowiedź, gdzie tworzyć ankiety", async () => {
     stub.setResponse("polls", ok([]));
     renderEditor(PollBlockEdit, blok("poll", {}));
-    expect(screen.getByText("Wczytywanie ankiet...")).toBeTruthy();
-    expect(await screen.findByText(/Brak ankiet/)).toBeTruthy();
-    expect(screen.queryByText("Wczytywanie ankiet...")).toBeNull();
+    expect(screen.getByText(WCZYTYWANIE)).toBeTruthy();
+    expect(await screen.findByText(BRAK)).toBeTruthy();
+    expect(screen.queryByText(WCZYTYWANIE)).toBeNull();
   });
 
   it("odpowiedź bez danych (`null`) to pusta lista, a nie błąd", async () => {
     stub.setResponse("polls", ok(null));
     renderEditor(PollBlockEdit, blok("poll", {}));
-    expect(await screen.findByText(/Brak ankiet/)).toBeTruthy();
+    expect(await screen.findByText(BRAK)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("wybrany szkic ostrzega, że publicznie pojawi się dopiero po otwarciu", async () => {
     stub.setResponse("polls", ok(ANKIETY));
     renderEditor(PollBlockEdit, blok("poll", { pollId: "p-2" }));
-    expect(await screen.findByText(/To szkic/)).toBeTruthy();
+    expect(await screen.findByText(SZKIC)).toBeTruthy();
     expect(screen.getByRole<HTMLSelectElement>("combobox").value).toBe("p-2");
-    expect(screen.queryByText(/już nie istnieje/)).toBeNull();
+    expect(screen.queryByText(USUNIETA)).toBeNull();
   });
 
   it("wybrana ankieta, której nie ma na liście, daje ostrzeżenie o braku renderu", async () => {
     stub.setResponse("polls", ok(ANKIETY));
     renderEditor(PollBlockEdit, blok("poll", { pollId: "p-usunieta" }));
-    expect(await screen.findByText(/już nie istnieje/)).toBeTruthy();
+    expect(await screen.findByText(USUNIETA)).toBeTruthy();
   });
 
   it("BŁĄD odczytu ma własny komunikat - a nie fałszywe „ankieta już nie istnieje”", async () => {
@@ -129,9 +144,9 @@ describe("poll", () => {
     stub.setResponse("polls", fail("permission denied for table polls", "42501"));
     renderEditor(PollBlockEdit, blok("poll", { pollId: "p-1" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
-    expect(screen.getByRole("alert").textContent).toContain("Nie udało się wczytać ankiet");
-    expect(screen.queryByText(/już nie istnieje/)).toBeNull();
-    expect(screen.queryByText(/Brak ankiet/)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe(ankieta("loadError"));
+    expect(screen.queryByText(USUNIETA)).toBeNull();
+    expect(screen.queryByText(BRAK)).toBeNull();
   });
 
   it("`pollId`-liczba to brak wyboru, jak w `renderPoll` - bez ostrzeżenia o usuniętej ankiecie", async () => {
@@ -142,7 +157,7 @@ describe("poll", () => {
     renderEditor(PollBlockEdit, blok("poll", { pollId: 7 }));
     await screen.findByRole("option", { name: /wspólną armię/ });
     expect(screen.getByRole<HTMLSelectElement>("combobox").value).toBe("");
-    expect(screen.queryByText(/już nie istnieje/)).toBeNull();
+    expect(screen.queryByText(USUNIETA)).toBeNull();
   });
 });
 
@@ -159,8 +174,8 @@ describe("latest-posts", () => {
     const { changes } = renderEditor(LatestPostsBlock, blok("latest-posts", {}));
     expect(liczba().value).toBe("5");
     expect(screen.getByRole<HTMLSelectElement>("combobox").value).toBe("list");
-    expect(przelacznik("Miniatura").checked).toBe(true);
-    expect(przelacznik("Zajawka").checked).toBe(false);
+    expect(przelacznik(MINIATURA).checked).toBe(true);
+    expect(przelacznik(ZAJAWKA).checked).toBe(false);
     expect(changes).toEqual([]);
   });
 
@@ -207,18 +222,18 @@ describe("latest-posts", () => {
     // domyślne: miniatura TAK, zajawka NIE.
     const start = blok("latest-posts", { showImage: 0, showExcerpt: "0" });
     const { changes } = renderEditor(LatestPostsBlock, start);
-    expect(przelacznik("Miniatura").checked).toBe(true);
-    expect(przelacznik("Zajawka").checked).toBe(false);
+    expect(przelacznik(MINIATURA).checked).toBe(true);
+    expect(przelacznik(ZAJAWKA).checked).toBe(false);
 
-    fireEvent.click(przelacznik("Zajawka"));
+    fireEvent.click(przelacznik(ZAJAWKA));
     expect(ostatniZapis(changes).data).toEqual({ ...start.data, showExcerpt: true });
-    fireEvent.click(przelacznik("Miniatura"));
+    fireEvent.click(przelacznik(MINIATURA));
     expect(ostatniZapis(changes).data).toEqual({ ...start.data, showImage: false });
   });
 
   it("slug kategorii zapisuje się pod `category`", () => {
     const { changes } = renderEditor(LatestPostsBlock, blok("latest-posts", { count: 3 }));
-    fireEvent.change(screen.getByPlaceholderText("Slug kategorii (opcjonalnie)"), {
+    fireEvent.change(screen.getByPlaceholderText(wpisy("categoryPh")), {
       target: { value: "energia" },
     });
     expect(ostatniZapis(changes).data).toEqual({ count: 3, category: "energia" });

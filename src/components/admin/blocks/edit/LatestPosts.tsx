@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { bool, num, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -22,6 +23,8 @@ function clampCount(value: number): number {
  * których strona faktycznie użyje, a zapis trzyma się zakresu pola.
  */
 export function LatestPostsBlock({ block, onChange }: Props) {
+  const i18n = useBlocksI18n();
+  const lp = (key: string) => i18n.editor("latestPosts", key);
   const count = clampCount(num(block.data, "count", 5));
   const category = str(block.data, "category");
   const showExcerpt = bool(block.data, "showExcerpt", false);
@@ -31,7 +34,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Latest Posts
+        {lp("shellLabel")}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Input
@@ -57,7 +60,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
       </div>
       <Input
         value={category}
-        placeholder="Slug kategorii (opcjonalnie)"
+        placeholder={lp("categoryPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, category: e.target.value } })}
       />
       <div className="flex gap-4 text-xs">
@@ -69,7 +72,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showImage: e.target.checked } })
             }
           />
-          Miniatura
+          {lp("showImage")}
         </label>
         <label className="flex items-center gap-1">
           <input
@@ -79,7 +82,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showExcerpt: e.target.checked } })
             }
           />
-          Zajawka
+          {lp("showExcerpt")}
         </label>
       </div>
     </div>

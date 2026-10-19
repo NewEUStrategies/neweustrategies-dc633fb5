@@ -7,6 +7,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
+import { useBlockEditorLang } from "../BlockEditorContext";
 
 interface Props {
   block: Block;
@@ -33,6 +34,7 @@ function pick(value: Json | undefined, options: readonly string[]): string {
  */
 export function ButtonsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
+  const docLang = useBlockEditorLang();
   const items: Item[] = objList(block.data, "items", (o) => ({
     ...o,
     label: str(o, "label"),
@@ -108,7 +110,20 @@ export function ButtonsBlock({ block, onChange }: Props) {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => update([...items, { label: "Button", href: "#", variant: "default" }])}
+          onClick={() =>
+            update([
+              ...items,
+              // Etykieta to TREŚĆ dokumentu (rysuje ją `renderButtons`), więc - jak
+              // wzorce bloków (`lib/blocks/patterns.ts`) - powstaje w języku
+              // aktywnego dokumentu, a nie panelu: redaktor z panelem EN składa
+              // też polskie wpisy.
+              {
+                label: i18n.editor("buttons", "newLabel", { lng: docLang }),
+                href: "#",
+                variant: "default",
+              },
+            ])
+          }
         >
           <Plus className="h-4 w-4 mr-1" /> {i18n.editor("buttons", "add")}
         </Button>

@@ -37,7 +37,7 @@ export function AudioBlock({ block, isActive, onChange }: Props) {
         <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
           <Music className="w-8 h-8 mx-auto text-muted-foreground" />
           <MediaUrlDraftInput
-            placeholder="URL pliku audio (mp3, ogg, wav)…"
+            placeholder={i18n.editor("audio", "urlPh")}
             onCommit={(next) => onChange({ ...block, data: { ...block.data, url: next } })}
             className="max-w-md mx-auto"
           />

@@ -53,7 +53,7 @@ export function ReviewBlock({ block, onChange }: Props) {
   return (
     <div className="not-prose rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
-        <Star className="w-3.5 h-3.5" /> Review Box
+        <Star className="w-3.5 h-3.5" /> {bt.editor("review", "shellLabel")}
         <span className="ml-auto text-sm font-semibold text-foreground">
           {total.toFixed(1)} / {scale}
         </span>

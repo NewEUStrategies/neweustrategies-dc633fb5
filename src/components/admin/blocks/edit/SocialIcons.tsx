@@ -61,7 +61,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium uppercase tracking-wide text-muted-foreground">
-          Social Icons
+          {i18n.editor("socialIcons", "shellLabel")}
         </span>
         <div className="flex gap-2">
           <AdminSelect
@@ -128,7 +128,7 @@ export function SocialIconsBlock({ block, onChange }: Props) {
           size="sm"
           onClick={() => update([...items, { platform: "facebook", url: "" }])}
         >
-          <Plus className="h-4 w-4 mr-1" /> Dodaj
+          <Plus className="h-4 w-4 mr-1" /> {i18n.editor("socialIcons", "add")}
         </Button>
       </div>
     </div>

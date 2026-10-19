@@ -58,13 +58,7 @@ function ostatniZapis(changes: Block[]): Block {
 
 describe.each([
   ["video", VideoBlock, ed("video", "urlPh"), "video", "https://cdn.example.com/v.mp4"],
-  [
-    "audio",
-    AudioBlock,
-    "URL pliku audio (mp3, ogg, wav)…",
-    "audio",
-    "https://cdn.example.com/a.mp3",
-  ],
+  ["audio", AudioBlock, ed("audio", "urlPh"), "audio", "https://cdn.example.com/a.mp3"],
 ] as const)("%s", (type, Editor, urlPh, tag, url) => {
   it("pusty blok pokazuje pole URL; wpis zapisuje się pod `url`, render niczego nie zapisuje", () => {
     const start = blok(type, { url: "", caption: "" });
