@@ -1,0 +1,352 @@
+{
+  "schema": "nes-insider-manifest/1",
+  "package": "insider-2026-10-19",
+  "origin": {
+    "app": "Insider marketingowy (lokalna aplikacja HTML właściciela)",
+    "appVersion": "4.17",
+    "extractedOn": "2026-10-19",
+    "sourceAccessedRange": {
+      "from": "2026-10-09",
+      "to": "2026-10-09"
+    }
+  },
+  "language": "pl",
+  "translation": {
+    "en": "brak - tłumaczenie EN do wykonania i akceptacji właściciela (decyzja D-11, SPEC §9.3); do tego czasu UI EN pokazuje treść PL z oznaczeniem albo ją ukrywa"
+  },
+  "license": "Treść redakcyjna pakietu (definicje, opisy, scenariusze) pochodzi z aplikacji właściciela; liczby benchmarków i punktów odniesienia są cytatami/parafrazami publicznych źródeł z sources.json - przy wyświetlaniu zawsze podawaj źródło (id → sources.json). Nie publikować poza panelem administracyjnym bez przeglądu praw do cytatów.",
+  "scope": {
+    "keptDomains": [
+      "email",
+      "saas",
+      "b2b",
+      "event",
+      "ecom",
+      "cx",
+      "brand",
+      "data",
+      "paid",
+      "social",
+      "seo",
+      "mgmt"
+    ],
+    "omittedDomains": [
+      {
+        "domain": "fin",
+        "reason": "Analiza sprawozdań finansowych spółek (rentowność, płynność, zadłużenie, Z-score). Hub liczy ekonomikę subskrypcji z własnych danych (S2/S6), a przykłady tej domeny w źródle były liczone na danych konkretnej firmy.",
+        "kpis": 25
+      },
+      {
+        "domain": "fintech",
+        "reason": "Wskaźniki instytucji płatniczych i kredytowych (TPV, NIM, NPL, koszt ryzyka) - model biznesowy spoza platformy.",
+        "kpis": 6
+      },
+      {
+        "domain": "hr",
+        "reason": "Wskaźniki kadrowe (czas i koszt zatrudnienia, akceptacja ofert, eNPS) - poza zakresem huba przychodu i lejka.",
+        "kpis": 5
+      },
+      {
+        "domain": "perf",
+        "reason": "Wydajność stron (Lighthouse, Core Web Vitals) - obsługują to metryki ruchu (`lcp_p75`, `inp_p75`, `cls_p75`) i osobne audyty CWV; nie jest to obszar huba.",
+        "kpis": 11
+      },
+      {
+        "domain": "aisearch",
+        "reason": "Widoczność w odpowiedziach AI (GEO/AEO) - brak strumienia danych w platformie; poza zakresem huba.",
+        "kpis": 11
+      }
+    ],
+    "omittedMaterials": "Pominięto w całości materiały prywatne właściciela zapisane w aplikacji: dossier konkretnej firmy, materiały aplikacyjne i dopasowanie do ogłoszenia, oczekiwania finansowe, osoby decyzyjne, analizy finansowe konkretnych spółek i audyt ich witryny wraz ze źródłami tych materiałów (81 wpisów spoza biblioteki źródeł)."
+  },
+  "counts": {
+    "kpis": {
+      "kept": 173,
+      "total": 231
+    },
+    "ranges": {
+      "kept": 44,
+      "total": 92
+    },
+    "refs": {
+      "kept": 135,
+      "total": 202
+    },
+    "scenarios": {
+      "kept": 52,
+      "total": 60
+    },
+    "frameworks": {
+      "kept": 69,
+      "total": 87
+    },
+    "trends": {
+      "kept": 35,
+      "total": 55,
+      "kpis": 20
+    },
+    "terms": {
+      "kept": 47,
+      "total": 146
+    },
+    "sources": {
+      "kept": 279,
+      "libraryTotal": 386,
+      "total": 467
+    }
+  },
+  "omitted": {
+    "scenarios": [
+      {
+        "id": "cwv",
+        "domain": "seo",
+        "reason": "warunek na KPI spoza zakresu"
+      },
+      {
+        "id": "slowhire",
+        "domain": "hr",
+        "reason": "domena"
+      },
+      {
+        "id": "offerdecl",
+        "domain": "hr",
+        "reason": "domena"
+      },
+      {
+        "id": "aiov",
+        "domain": "seo",
+        "reason": "warunek na KPI spoza zakresu"
+      },
+      {
+        "id": "aiinvisible",
+        "domain": "aisearch",
+        "reason": "domena"
+      },
+      {
+        "id": "slowsi",
+        "domain": "perf",
+        "reason": "domena"
+      },
+      {
+        "id": "hightbt",
+        "domain": "perf",
+        "reason": "domena"
+      },
+      {
+        "id": "heavypage",
+        "domain": "perf",
+        "reason": "domena"
+      }
+    ],
+    "frameworks": [
+      {
+        "id": "dupontfw",
+        "reason": "fin (przykład liczony na danych spółki)"
+      },
+      {
+        "id": "ratio",
+        "reason": "fin (przykład liczony na danych spółki)"
+      },
+      {
+        "id": "porter",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "ansoff",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "cwv",
+        "reason": "perf"
+      },
+      {
+        "id": "pestel",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "tows",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "bcg",
+        "reason": "brak KPI w zakresie"
+      },
+      {
+        "id": "geo",
+        "reason": "aisearch"
+      },
+      {
+        "id": "aeo",
+        "reason": "aisearch"
+      },
+      {
+        "id": "fanout",
+        "reason": "aisearch"
+      },
+      {
+        "id": "aifeatures",
+        "reason": "aisearch"
+      },
+      {
+        "id": "llmstxt",
+        "reason": "aisearch"
+      },
+      {
+        "id": "lhscore",
+        "reason": "perf"
+      },
+      {
+        "id": "siproc",
+        "reason": "perf"
+      },
+      {
+        "id": "rail",
+        "reason": "perf"
+      },
+      {
+        "id": "labfield",
+        "reason": "perf"
+      },
+      {
+        "id": "msmm",
+        "reason": "perf"
+      }
+    ],
+    "termsByCategory": {
+      "rejestry i forma prawna spółek": 9,
+      "zawody i regulacje branży doradczej": 9,
+      "analiza finansowa (domena fin)": 31,
+      "warsztat roli produktowej i koncepcja produktu z materiałów prywatnych": 17,
+      "rozliczenia osobiste i forma zatrudnienia": 9,
+      "AI search (domena aisearch)": 3,
+      "audyt witryny konkretnej firmy": 6,
+      "narzędzia niewymienione w zachowanych opisach pomiaru": 11,
+      "profil osobowy i dorobek z materiałów prywatnych": 4
+    }
+  },
+  "trimmedReferences": {
+    "note": "Powiązania wskazujące KPI spoza zakresu usunięto z pól `related`, `kpis` i `benchmarkKpis`; lista poniżej pozwala je odtworzyć po rozszerzeniu zakresu.",
+    "kpiRelated": [
+      "roas→gross_margin",
+      "burn_multiple→burn",
+      "burn_multiple→runway",
+      "cart_abandon→lcp",
+      "poas→gross_margin",
+      "lp_cvr→lcp",
+      "site_health→lcp",
+      "ctr_vs_expected→aio_trigger_rate"
+    ],
+    "scenarioKpis": [
+      "burnmult→burn",
+      "burnmult→runway",
+      "zeroclick→aio_trigger_rate",
+      "zeroclick→ai_overview_cited"
+    ],
+    "frameworkKpis": [
+      "eeat→ai_share",
+      "zeroclick→ai_sov",
+      "blueocean→rev_growth",
+      "blueocean→gross_margin",
+      "bmc→gross_margin"
+    ]
+  },
+  "fieldMap": {
+    "kpis.json": {
+      "n": "name",
+      "a": "abbr",
+      "dom": "domain",
+      "def": "definition",
+      "f": "formulaTex",
+      "u": "unit",
+      "dir": "direction",
+      "rel": "related",
+      "KB.why": "why",
+      "KB.how": "howToMeasure",
+      "KB.ex": "example"
+    },
+    "ranges.json": {
+      "kpi_id": "kpiId",
+      "optimal_low": "optimalLow",
+      "optimal_high": "optimalHigh",
+      "source_id": "sourceId",
+      "valid_until": "validUntil",
+      "ref": "referenceOnly",
+      "heur": "heuristic",
+      "needCtx": "requiresContext {pattern, flags, matchOn}",
+      "bands[[pasmo, opis]]": "bands[{band, label}]",
+      "builtin": "(pominięte - zawsze true)"
+    },
+    "refs.json": {
+      "kpi": "kpiId",
+      "ctx": "context",
+      "val": "value",
+      "src": "sourceId"
+    },
+    "scenarios.json": {
+      "n": "name",
+      "dom": "domain",
+      "objawy": "symptoms",
+      "cond": "conditions[{kpiId, state}]",
+      "src": "sourceIds"
+    },
+    "frameworks.json": {
+      "czym": "what",
+      "cel": "goal",
+      "kiedy": "when",
+      "jak": "how",
+      "przyk": "example",
+      "bench": "benchmark",
+      "benchK": "benchmarkKpis",
+      "ogr": "limitations",
+      "find": "furtherReading",
+      "src": "sourceIds",
+      "przykU/przykFn": "(pominięte - flagi aplikacji)"
+    },
+    "trends.json": {
+      "TRENDS[kpi][[kierunek, opis, src]]": "{kpiId, direction, text, sourceId}"
+    },
+    "terms.json": {
+      "f": "full",
+      "d": "description",
+      "w": "formula",
+      "m": "meaning",
+      "czy": "howToRead",
+      "dz": "drivers"
+    },
+    "sources.json": {
+      "rel": "reliability",
+      "valid_until": "validUntil",
+      "(nowe)": "citedBy - pliki pakietu, które cytują źródło"
+    }
+  },
+  "enums": {
+    "direction": {
+      "up": "im więcej, tym lepiej",
+      "down": "im mniej, tym lepiej",
+      "mid": "optimum w środku przedziału"
+    },
+    "band": {
+      "zly": "zły",
+      "slaby": "słaby",
+      "normalny": "normalny",
+      "dobry": "dobry",
+      "bdobry": "bardzo dobry"
+    },
+    "conditionState": {
+      "nisko": "poniżej przedziału",
+      "wysoko": "powyżej przedziału",
+      "ok": "w przedziale"
+    },
+    "trendDirection": {
+      "up": "wzrost",
+      "down": "spadek",
+      "flat": "bez zmian"
+    },
+    "reliability": {
+      "A": "badanie/dane pierwotne lub dokumentacja producenta",
+      "B": "raport branżowy/agregator",
+      "C": "omówienie wtórne"
+    }
+  },
+  "integrity": "Każde sourceId/sourceIds/furtherReading i każdy cytat [id] w tekstach zachowanych rekordów istnieje w sources.json; sources.json nie zawiera źródeł bez cytowania (citedBy). Sprawdza to skrypt budujący i weryfikator (poza repo)."
+}

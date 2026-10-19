@@ -1,0 +1,1282 @@
+{
+  "schema": "nes-insider-scenarios/1",
+  "scenarios": [
+    {
+      "id": "creative",
+      "domain": "paid",
+      "name": "Reklama nie przyciąga uwagi",
+      "symptoms": "CTR poniżej przedziału, CPM w normie",
+      "conditions": [
+        {
+          "kpiId": "ctr_paid",
+          "state": "nisko"
+        },
+        {
+          "kpiId": "cpm",
+          "state": "ok"
+        }
+      ],
+      "cause": "Kreacja nie daje powodu do kliknięcia albo nie pasuje do odbiorców.",
+      "steps": [
+        "Rozbij CTR według kreacji i formatu, odłóż najsłabsze.",
+        "Przygotuj 2-3 nowe wersje: korzyść w nagłówku, inny kadr, liczba w pierwszym zdaniu.",
+        "Testuj jedną zmienną naraz przez 7-14 dni.",
+        "Przenieś budżet na format, który wygrał."
+      ],
+      "success": "CTR wraca do przedziału, CPC spada.",
+      "time": "1-2 tygodnie",
+      "effort": "niski",
+      "kpis": ["ctr_paid", "cpm", "cpc", "ctr_social"],
+      "sourceIds": []
+    },
+    {
+      "id": "audience",
+      "domain": "paid",
+      "name": "Za wąska lub za droga grupa",
+      "symptoms": "CPM powyżej przedziału, CTR w normie lub niski",
+      "conditions": [
+        {
+          "kpiId": "cpm",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Mała grupa i silna konkurencja w aukcji podnoszą koszt dotarcia.",
+      "steps": [
+        "Sprawdź wielkość grupy i nakładające się kryteria.",
+        "Poszerz grupę (podobni odbiorcy, rozszerzenie targetowania), zostaw wykluczenia klientów i pracowników.",
+        "Zmień cel optymalizacji, jeśli kampania nie wychodzi z fazy nauki.",
+        "Porównaj CPM r/r, aby oddzielić sezonowość."
+      ],
+      "success": "CPM spada bez spadku CTR.",
+      "time": "1-3 tygodnie",
+      "effort": "niski",
+      "kpis": ["cpm", "cpc", "frequency", "impression_share"],
+      "sourceIds": []
+    },
+    {
+      "id": "fatigue",
+      "domain": "paid",
+      "name": "Zmęczenie kreacją",
+      "symptoms": "Częstotliwość powyżej przedziału, CTR spada tydzień do tygodnia",
+      "conditions": [
+        {
+          "kpiId": "frequency",
+          "state": "wysoko"
+        },
+        {
+          "kpiId": "ctr_paid",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Te same osoby widzą reklamę zbyt często.",
+      "steps": [
+        "Dodaj 3-5 nowych kreacji w różnych formatach.",
+        "Ustaw limit częstotliwości tam, gdzie platforma pozwala.",
+        "Wyklucz osoby, które kliknęły lub konwertowały.",
+        "Ustal harmonogram odświeżania (pojedynczy obraz na LinkedIn traci skuteczność po kilku tygodniach)."
+      ],
+      "success": "Częstotliwość w przedziale, CTR stabilny.",
+      "time": "1 tydzień",
+      "effort": "niski",
+      "kpis": ["frequency", "ctr_paid", "cpc", "cpm"],
+      "sourceIds": [913, 930, 931]
+    },
+    {
+      "id": "landing",
+      "domain": "paid",
+      "name": "Strona docelowa nie konwertuje",
+      "symptoms": "CTR w normie, CVR poniżej przedziału",
+      "conditions": [
+        {
+          "kpiId": "ctr_paid",
+          "state": "ok"
+        },
+        {
+          "kpiId": "cvr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Obietnica z reklamy nie zgadza się ze stroną albo strona utrudnia działanie.",
+      "steps": [
+        "Sprawdź zgodność nagłówka strony z reklamą.",
+        "Skróć formularz do pól niezbędnych dla sprzedaży.",
+        "Dodaj dowody: opinie, liczby, logotypy klientów.",
+        "Sprawdź szybkość na telefonie (LCP) i jedno główne CTA.",
+        "Uruchom test A/B jednej zmiany."
+      ],
+      "success": "CVR rośnie, CPL spada.",
+      "time": "2-4 tygodnie",
+      "effort": "średni",
+      "kpis": ["cvr", "cpl", "cpa", "ctr_paid"],
+      "sourceIds": [932]
+    },
+    {
+      "id": "offer",
+      "domain": "paid",
+      "name": "Oferta nie pasuje do etapu lejka",
+      "symptoms": "CTR w normie, CPL powyżej przedziału przy niskim CVR",
+      "conditions": [
+        {
+          "kpiId": "cpl",
+          "state": "wysoko"
+        },
+        {
+          "kpiId": "cvr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Zimni odbiorcy dostają ofertę z końca lejka (np. demo).",
+      "steps": [
+        "Dla zimnych odbiorców zaproponuj materiał edukacyjny (checklista, raport, kalkulator).",
+        "Ofertę demo kieruj do retargetingu.",
+        "Użyj formularza natywnego platformy.",
+        "Mierz koszt SQL, nie tylko koszt leada."
+      ],
+      "success": "CPL spada przy stałym odsetku SQL.",
+      "time": "2-4 tygodnie",
+      "effort": "średni",
+      "kpis": ["cpl", "cvr", "sql", "stage_conv"],
+      "sourceIds": []
+    },
+    {
+      "id": "leadquality",
+      "domain": "b2b",
+      "name": "Tanie leady, mało SQL",
+      "symptoms": "CPL w normie, konwersja MQL → SQL poniżej przedziału",
+      "conditions": [
+        {
+          "kpiId": "cpl",
+          "state": "ok"
+        },
+        {
+          "kpiId": "stage_conv",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Kampania optymalizuje na liczbę leadów, nie na ich jakość.",
+      "steps": [
+        "Dodaj w formularzu pytania kwalifikujące (rola, wielkość firmy).",
+        "Wyklucz grupy spoza ICP (studenci, konkurencja).",
+        "Importuj do platformy konwersje offline z CRM (SQL).",
+        "Ustal z handlowcami wspólną definicję MQL i cotygodniowy feedback."
+      ],
+      "success": "Konwersja MQL → SQL wchodzi do przedziału.",
+      "time": "3-6 tygodni",
+      "effort": "średni",
+      "kpis": ["cpl", "stage_conv", "sql", "mql"],
+      "sourceIds": [922, 923]
+    },
+    {
+      "id": "measure",
+      "domain": "paid",
+      "name": "Błąd pomiaru",
+      "symptoms": "Nagły skok lub spadek bez zmian w kampanii, konwersje równe zero",
+      "conditions": [],
+      "cause": "Zmieniony tag, UTM, duplikaty konwersji albo okno atrybucji.",
+      "steps": [
+        "Sprawdź tag platformy (Insight Tag, piksel, Tag Google) w trybie podglądu.",
+        "Porównaj konwersje platformy z CRM.",
+        "Sprawdź duplikaty zdarzeń i okno atrybucji.",
+        "Oznacz okres błędu w danych, żeby nie wpływał na trend."
+      ],
+      "success": "Liczby z platformy i CRM różnią się o mniej niż ustalony próg.",
+      "time": "1-3 dni",
+      "effort": "niski",
+      "kpis": ["cvr", "cpa", "cpl", "roas"],
+      "sourceIds": []
+    },
+    {
+      "id": "learning",
+      "domain": "paid",
+      "name": "Faza nauki lub za mały budżet",
+      "symptoms": "Mało konwersji, duże wahania CPA",
+      "conditions": [
+        {
+          "kpiId": "cpa",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Algorytm ma za mało zdarzeń, aby optymalizować.",
+      "steps": [
+        "Połącz kampanie i grupy reklam z tym samym celem.",
+        "Wybierz cel optymalizacji wyżej w lejku (np. kliknięcie, lead).",
+        "Wydłuż okres i nie zmieniaj ustawień w fazie nauki.",
+        "Sprawdź minimalny budżet rekomendowany przez platformę."
+      ],
+      "success": "CPA stabilizuje się.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["cpa", "cvr", "cpl"],
+      "sourceIds": []
+    },
+    {
+      "id": "season",
+      "domain": "paid",
+      "name": "Sezonowość i konkurencja w aukcji",
+      "symptoms": "CPM i CPC rosną we wszystkich kampaniach jednocześnie",
+      "conditions": [
+        {
+          "kpiId": "cpm",
+          "state": "wysoko"
+        },
+        {
+          "kpiId": "cpc",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Wzrost popytu reklamowego w okresie (np. koniec roku).",
+      "steps": [
+        "Porównaj z tym samym okresem rok wcześniej.",
+        "Przesuń część budżetu poza szczyt.",
+        "Wzmocnij retargeting i kanały własne.",
+        "Uprzedź zarząd o wyższym koszcie dotarcia."
+      ],
+      "success": "Koszt pozyskania wraca do poziomu po szczycie.",
+      "time": "sezon",
+      "effort": "niski",
+      "kpis": ["cpm", "cpc", "cpa"],
+      "sourceIds": [910, 911]
+    },
+    {
+      "id": "orgreach",
+      "domain": "social",
+      "name": "Spada zasięg organiczny",
+      "symptoms": "Zasięg i wyświetlenia spadają, zaangażowanie stabilne",
+      "conditions": [
+        {
+          "kpiId": "reach",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Mniej publikacji, publikacje tylko z profilu firmy albo formaty słabiej dystrybuowane.",
+      "steps": [
+        "Ustal stały rytm publikacji.",
+        "Publikuj przez ekspertów z imienia i nazwiska, firma udostępnia.",
+        "Testuj formaty o wyższym średnim zaangażowaniu (wiele zdjęć, dokumenty).",
+        "Odpowiadaj na komentarze w pierwszej godzinie."
+      ],
+      "success": "Zasięg rośnie przy stabilnym wskaźniku zaangażowania.",
+      "time": "4-8 tygodni",
+      "effort": "średni",
+      "kpis": ["reach", "impressions", "er_reach"],
+      "sourceIds": [917]
+    },
+    {
+      "id": "engage",
+      "domain": "social",
+      "name": "Treść nie angażuje",
+      "symptoms": "Wskaźnik zaangażowania poniżej przedziału",
+      "conditions": [
+        {
+          "kpiId": "er_followers",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Temat lub format nie trafia w problemy odbiorców.",
+      "steps": [
+        "Wypisz 10 pytań, które klienci zadają handlowcom, i zrób z nich tematy.",
+        "Pierwsze zdanie z konkretem lub liczbą.",
+        "Zakończ pytaniem do odbiorców.",
+        "Porównaj formaty i autorów po 8 publikacjach."
+      ],
+      "success": "Wskaźnik zaangażowania co najmniej na poziomie mediany.",
+      "time": "4-6 tygodni",
+      "effort": "niski",
+      "kpis": ["er_reach", "er_followers", "ctr_social"],
+      "sourceIds": [918, 917]
+    },
+    {
+      "id": "followers",
+      "domain": "social",
+      "name": "Brak przyrostu obserwujących",
+      "symptoms": "Przyrost obserwujących bliski zera",
+      "conditions": [
+        {
+          "kpiId": "follower_growth",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Brak powodu, by obserwować, i mała aktywność pracowników.",
+      "steps": [
+        "Zaproś pracowników do udostępniania i obserwowania.",
+        "Dodaj w treściach zaproszenie do obserwowania.",
+        "Rozważ kampanię na obserwujących dla ICP.",
+        "Utrzymaj spójny temat przewodni profilu."
+      ],
+      "success": "Stały miesięczny przyrost obserwujących.",
+      "time": "1-3 miesiące",
+      "effort": "średni",
+      "kpis": ["follower_growth", "reach"],
+      "sourceIds": []
+    },
+    {
+      "id": "spam",
+      "domain": "email",
+      "name": "Wiadomości trafiają do spamu",
+      "symptoms": "Dostarczalność lub otwarcia spadają, rosną skargi",
+      "conditions": [
+        {
+          "kpiId": "deliverability",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Słaba reputacja nadawcy, brak uwierzytelnienia lub nieaktywne adresy.",
+      "steps": [
+        "Skonfiguruj SPF, DKIM i DMARC.",
+        "Usuń twarde odbicia i nieaktywnych od dawna odbiorców.",
+        "Pilnuj skarg na spam poniżej zalecanego progu.",
+        "Wysyłaj najpierw do najbardziej aktywnego segmentu."
+      ],
+      "success": "Wyższe umieszczenie w skrzynce głównej, mniej skarg.",
+      "time": "2-6 tygodni",
+      "effort": "średni",
+      "kpis": ["deliverability", "open_rate", "unsub"],
+      "sourceIds": [915, 916]
+    },
+    {
+      "id": "subject",
+      "domain": "email",
+      "name": "Mało otwarć",
+      "symptoms": "Open rate poniżej punktu odniesienia przy dobrej dostarczalności",
+      "conditions": [
+        {
+          "kpiId": "open_rate",
+          "state": "nisko"
+        },
+        {
+          "kpiId": "deliverability",
+          "state": "ok"
+        }
+      ],
+      "cause": "Nadawca i temat nie zachęcają (pamiętaj o zawyżonych otwarciach).",
+      "steps": [
+        "Nadawca: osoba z imienia i nazwiska.",
+        "Temat z konkretem i korzyścią, preheader jako drugie zdanie.",
+        "Test pory wysyłki.",
+        "Segmentacja według zainteresowań."
+      ],
+      "success": "Więcej otwarć i kliknięć (kliknięcia są pewniejsze).",
+      "time": "2-4 wysyłki",
+      "effort": "niski",
+      "kpis": ["open_rate", "ctr_email", "ctor"],
+      "sourceIds": [914]
+    },
+    {
+      "id": "emailclick",
+      "domain": "email",
+      "name": "Otwierają, ale nie klikają",
+      "symptoms": "CTOR niski",
+      "conditions": [
+        {
+          "kpiId": "ctor",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Treść jest długa, CTA niewidoczne albo niejasne.",
+      "steps": [
+        "Jedno główne CTA w górnej części.",
+        "Krótsza treść z jedną myślą.",
+        "Linki opisowe zamiast „kliknij tutaj”.",
+        "Personalizacja według segmentu."
+      ],
+      "success": "CTOR i CTR rosną.",
+      "time": "2-4 wysyłki",
+      "effort": "niski",
+      "kpis": ["ctor", "ctr_email"],
+      "sourceIds": []
+    },
+    {
+      "id": "unsub",
+      "domain": "email",
+      "name": "Rosnące wypisy",
+      "symptoms": "Wypisy powyżej punktu odniesienia",
+      "conditions": [
+        {
+          "kpiId": "unsub",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Za częste wysyłki albo treść niezgodna z obietnicą zapisu.",
+      "steps": [
+        "Zmniejsz częstotliwość.",
+        "Dodaj centrum preferencji (tematy, częstotliwość).",
+        "Sprawdź źródła zapisów o najwyższych wypisach.",
+        "Przypomnij wartość newslettera w pierwszych wysyłkach."
+      ],
+      "success": "Wypisy poniżej punktu odniesienia.",
+      "time": "1-2 miesiące",
+      "effort": "niski",
+      "kpis": ["unsub", "deliverability"],
+      "sourceIds": [914]
+    },
+    {
+      "id": "serpctr",
+      "domain": "seo",
+      "name": "Wysoka pozycja, mało kliknięć",
+      "symptoms": "CTR z wyników poniżej typowego dla pozycji",
+      "conditions": [
+        {
+          "kpiId": "serp_ctr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Słaby tytuł i opis albo odpowiedzi AI i inne elementy nad wynikami.",
+      "steps": [
+        "Porównaj CTR z typowym dla pozycji.",
+        "Przepisz tytuł: fraza na początku, korzyść, do 60 znaków.",
+        "Opis jako pełne zdanie z odpowiedzią.",
+        "Dodaj dane strukturalne i widoczną datę aktualizacji."
+      ],
+      "success": "CTR zbliża się do typowego dla pozycji.",
+      "time": "4-8 tygodni",
+      "effort": "niski",
+      "kpis": ["serp_ctr", "keyword_positions", "organic_traffic"],
+      "sourceIds": [920, 921]
+    },
+    {
+      "id": "rankdrop",
+      "domain": "seo",
+      "name": "Spadek pozycji i ruchu",
+      "symptoms": "Średnia pozycja rośnie (gorzej), ruch organiczny spada",
+      "conditions": [
+        {
+          "kpiId": "organic_traffic",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Konkurencyjne treści, problemy techniczne albo przestarzała treść.",
+      "steps": [
+        "Search Console: znajdź strony i frazy z największym spadkiem.",
+        "Zaktualizuj treść: odpowiedź na początku, aktualne dane, FAQ.",
+        "Dodaj linki wewnętrzne z mocnych stron.",
+        "Sprawdź indeksację, canonical i szybkość."
+      ],
+      "success": "Powrót pozycji i ruchu w kolejnych tygodniach.",
+      "time": "1-3 miesiące",
+      "effort": "średni",
+      "kpis": ["organic_traffic", "keyword_positions", "backlinks"],
+      "sourceIds": []
+    },
+    {
+      "id": "seoconv",
+      "domain": "seo",
+      "name": "Ruch z treści bez zapytań",
+      "symptoms": "Ruch organiczny w normie, konwersje z treści niskie",
+      "conditions": [
+        {
+          "kpiId": "organic_traffic",
+          "state": "ok"
+        },
+        {
+          "kpiId": "content_conv",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Treści nie prowadzą do oferty.",
+      "steps": [
+        "Dodaj 2-3 linki w treści do właściwych usług.",
+        "Wstaw kontekstowe CTA i materiał do pobrania.",
+        "Rozdziel treści informacyjne i sprzedażowe.",
+        "Mierz konwersje ze stron wejścia na blog."
+      ],
+      "success": "Rosną konwersje z sesji zaczętych na treściach.",
+      "time": "1-2 miesiące",
+      "effort": "niski",
+      "kpis": ["content_conv", "organic_traffic", "engagement_time"],
+      "sourceIds": []
+    },
+    {
+      "id": "mqlsql",
+      "domain": "b2b",
+      "name": "MQL nie przechodzą do SQL",
+      "symptoms": "Konwersja MQL → SQL poniżej przedziału",
+      "conditions": [
+        {
+          "kpiId": "stage_conv",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Różne definicje, wolna reakcja albo leady spoza ICP.",
+      "steps": [
+        "Spisz wspólną definicję MQL i SQL.",
+        "Wprowadź scoring behawioralny.",
+        "Ustal maksymalny czas reakcji sprzedaży.",
+        "Leady niegotowe kieruj do nurturingu."
+      ],
+      "success": "Konwersja MQL → SQL w przedziale.",
+      "time": "1-2 miesiące",
+      "effort": "średni",
+      "kpis": ["stage_conv", "mql", "sql"],
+      "sourceIds": [922, 923]
+    },
+    {
+      "id": "winrate",
+      "domain": "b2b",
+      "name": "Niski win rate",
+      "symptoms": "Win rate poniżej typowego zakresu",
+      "conditions": [
+        {
+          "kpiId": "win_rate",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Słaba kwalifikacja, brak dowodów albo cena.",
+      "steps": [
+        "Przeanalizuj 10 ostatnich przegranych: powód, etap, konkurent.",
+        "Wzmocnij kwalifikację (budżet, decydent, potrzeba, termin).",
+        "Przygotuj studia przypadków dla głównych branż.",
+        "Rozmawiaj z kilkoma osobami w firmie klienta."
+      ],
+      "success": "Win rate w typowym zakresie.",
+      "time": "1-3 miesiące",
+      "effort": "średni",
+      "kpis": ["win_rate", "avg_deal", "cycle"],
+      "sourceIds": [923]
+    },
+    {
+      "id": "longcycle",
+      "domain": "b2b",
+      "name": "Wydłużony cykl sprzedaży",
+      "symptoms": "Cykl powyżej typowego zakresu",
+      "conditions": [
+        {
+          "kpiId": "cycle",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Wiele osób decyduje, brak materiałów dla komitetu zakupowego.",
+      "steps": [
+        "Zmapuj decydentów i ich obawy.",
+        "Przygotuj materiały dla finansów, IT i prawników.",
+        "Rozmawiaj o budżecie i terminie wcześniej.",
+        "Uzgodnij z klientem wspólny plan kroków."
+      ],
+      "success": "Krótszy cykl w nowych szansach.",
+      "time": "kwartał",
+      "effort": "średni",
+      "kpis": ["cycle", "win_rate", "pipeline_cov"],
+      "sourceIds": [923]
+    },
+    {
+      "id": "churn",
+      "domain": "saas",
+      "name": "Wysoki churn",
+      "symptoms": "Churn powyżej typowego zakresu dla segmentu",
+      "conditions": [
+        {
+          "kpiId": "churn",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Klienci nie dochodzą do wartości albo produkt nie pasuje do segmentu.",
+      "steps": [
+        "Analiza kohort: kiedy odchodzą klienci.",
+        "Onboarding prowadzący do pierwszej wartości.",
+        "Wskaźnik zdrowia klienta i kontakt przy spadku użycia.",
+        "Plany roczne z rabatem."
+      ],
+      "success": "Churn w typowym zakresie dla segmentu.",
+      "time": "1-2 kwartały",
+      "effort": "wysoki",
+      "kpis": ["churn", "retention", "nrr", "ltv"],
+      "sourceIds": [928]
+    },
+    {
+      "id": "nrr",
+      "domain": "saas",
+      "name": "NRR poniżej 100%",
+      "symptoms": "Przychód obecnych klientów maleje",
+      "conditions": [
+        {
+          "kpiId": "nrr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Brak ekspansji, kontrakcja i odejścia.",
+      "steps": [
+        "Znajdź klientów z rosnącym użyciem do dosprzedaży.",
+        "Rozważ cennik zależny od użycia.",
+        "Customer success dla największych klientów.",
+        "Analiza powodów kontrakcji."
+      ],
+      "success": "NRR co najmniej 100%.",
+      "time": "2-4 kwartały",
+      "effort": "wysoki",
+      "kpis": ["nrr", "churn", "arpu"],
+      "sourceIds": [924, 925]
+    },
+    {
+      "id": "payback",
+      "domain": "saas",
+      "name": "Długi zwrot CAC",
+      "symptoms": "Zwrot CAC powyżej przedziału",
+      "conditions": [
+        {
+          "kpiId": "cac_payback",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Drogie kanały, niska marża albo niskie ARPU.",
+      "steps": [
+        "Policz CAC i zwrot według kanału.",
+        "Przesuń budżet do kanałów z krótszym zwrotem.",
+        "Podnieś ARPU (pakiety, cennik).",
+        "Popraw konwersję próbna → płatna."
+      ],
+      "success": "Zwrot CAC w przedziale.",
+      "time": "2-3 kwartały",
+      "effort": "wysoki",
+      "kpis": ["cac_payback", "cac", "arpu"],
+      "sourceIds": [925, 926]
+    },
+    {
+      "id": "ltvcac",
+      "domain": "saas",
+      "name": "LTV/CAC poniżej 3:1",
+      "symptoms": "LTV/CAC poniżej minimum",
+      "conditions": [
+        {
+          "kpiId": "ltv_cac",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Za wysoki CAC albo za krótkie życie klienta.",
+      "steps": [
+        "Najpierw obniż churn: to najszybciej podnosi LTV.",
+        "Ogranicz kanały z najwyższym CAC.",
+        "Podnieś ARPU.",
+        "Licz LTV na marży brutto."
+      ],
+      "success": "LTV/CAC co najmniej 3:1.",
+      "time": "2-4 kwartały",
+      "effort": "wysoki",
+      "kpis": ["ltv_cac", "ltv", "cac", "churn"],
+      "sourceIds": [927]
+    },
+    {
+      "id": "nps",
+      "domain": "brand",
+      "name": "Niski NPS",
+      "symptoms": "NPS poniżej 0 albo spadek",
+      "conditions": [
+        {
+          "kpiId": "nps",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Problemy w doświadczeniu klienta.",
+      "steps": [
+        "Pogrupuj komentarze krytyków według tematów.",
+        "Oddzwoń do krytyków i zamknij pętlę.",
+        "Napraw dwa najczęstsze problemy.",
+        "Mierz co kwartał tą samą metodą."
+      ],
+      "success": "NPS powyżej 0, rośnie.",
+      "time": "2 kwartały",
+      "effort": "średni",
+      "kpis": ["nps", "churn"],
+      "sourceIds": [929]
+    },
+    {
+      "id": "sos",
+      "domain": "brand",
+      "name": "Marka słabo obecna w wyszukiwaniach",
+      "symptoms": "Share of search spada lub jest niski",
+      "conditions": [
+        {
+          "kpiId": "sos",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Za mało zasięgu i przerwy w komunikacji.",
+      "steps": [
+        "Zapewnij ciągłą obecność, nie tylko kampanie akcyjne.",
+        "Wzmocnij dystynktywne aktywa marki.",
+        "PR i treści eksperckie w mediach branżowych.",
+        "Mierz share of search co miesiąc."
+      ],
+      "success": "Rosnący share of search.",
+      "time": "2-4 kwartały",
+      "effort": "wysoki",
+      "kpis": ["sos", "sov", "unaided_aw"],
+      "sourceIds": []
+    },
+    {
+      "id": "leadspeed",
+      "domain": "b2b",
+      "name": "Za wolna reakcja na leady",
+      "symptoms": "Czas reakcji powyżej godziny",
+      "conditions": [
+        {
+          "kpiId": "lead_response",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Leady pobierane z CRM raz dziennie albo przydzielane ręcznie.",
+      "steps": [
+        "Ustaw automatyczny przydział leadów i powiadomienie dla handlowca.",
+        "Wprowadź cel: pierwsza próba kontaktu w ciągu godziny w godzinach pracy.",
+        "Zapewnij dyżur dla leadów spoza godzin pracy.",
+        "Raportuj medianę i 90. percentyl czasu reakcji co tydzień."
+      ],
+      "success": "Mediana czasu reakcji poniżej godziny i wyższa konwersja MQL → SQL.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["lead_response", "stage_conv", "sql"],
+      "sourceIds": [1004, 1005]
+    },
+    {
+      "id": "activation",
+      "domain": "saas",
+      "name": "Użytkownicy nie dochodzą do pierwszej wartości",
+      "symptoms": "Aktywacja poniżej mediany",
+      "conditions": [
+        {
+          "kpiId": "activation",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Za długi onboarding albo kamień milowy wymagający zbyt wiele pracy na start.",
+      "steps": [
+        "Zmierz czas od rejestracji do aktywacji i miejsce, gdzie ludzie odpadają.",
+        "Skróć onboarding: domyślne dane, szablon, import.",
+        "Wyślij przypomnienie z jednym krokiem do wykonania.",
+        "Dla kont firmowych zaproponuj krótką rozmowę wdrożeniową."
+      ],
+      "success": "Aktywacja powyżej mediany dla SaaS.",
+      "time": "1-2 miesiące",
+      "effort": "średni",
+      "kpis": ["activation", "retention", "trial_conv"],
+      "sourceIds": [1006]
+    },
+    {
+      "id": "spamrate",
+      "domain": "email",
+      "name": "Skargi na spam powyżej progu Google",
+      "symptoms": "Wskaźnik skarg co najmniej 0,10%",
+      "conditions": [
+        {
+          "kpiId": "spam_rate",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Wysyłki do osób, które nie pamiętają zapisu, albo zbyt częste wiadomości.",
+      "steps": [
+        "Wstrzymaj wysyłki do nieaktywnych od 6 miesięcy.",
+        "Dodaj widoczny link wypisu i nagłówek wypisu jednym kliknięciem.",
+        "Zmniejsz częstotliwość wysyłek.",
+        "Sprawdzaj Postmaster Tools codziennie przez miesiąc."
+      ],
+      "success": "Skargi poniżej 0,10% przez kolejne tygodnie.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["spam_rate", "deliverability", "unsub"],
+      "sourceIds": [1003]
+    },
+    {
+      "id": "burnmult",
+      "domain": "saas",
+      "name": "Wzrost kosztuje za dużo gotówki",
+      "symptoms": "Burn multiple powyżej 1 i rośnie",
+      "conditions": [
+        {
+          "kpiId": "burn_multiple",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Drogie kanały pozyskania albo koszty stałe rosnące szybciej niż przychód.",
+      "steps": [
+        "Policz burn multiple kwartalnie i zwrot CAC według kanału.",
+        "Ogranicz kanały z najdłuższym zwrotem CAC.",
+        "Wstrzymaj zatrudnienia niezwiązane z przychodem.",
+        "Zaplanuj runway na co najmniej 18 miesięcy."
+      ],
+      "success": "Burn multiple spada kwartał do kwartału.",
+      "time": "2-3 kwartały",
+      "effort": "wysoki",
+      "kpis": ["burn_multiple", "cac_payback"],
+      "sourceIds": [1008]
+    },
+    {
+      "id": "reviews",
+      "domain": "brand",
+      "name": "Za mało opinii",
+      "symptoms": "Mniej niż 5 opinii przy produktach lub usługach",
+      "conditions": [
+        {
+          "kpiId": "review_count",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Brak prośby o opinię po zakupie.",
+      "steps": [
+        "Wyślij prośbę o opinię po wdrożeniu lub dostawie.",
+        "Ułatw dodanie opinii: bezpośredni link.",
+        "Odpowiadaj na opinie, także krytyczne.",
+        "Pokazuj opinie przy formularzu kontaktowym."
+      ],
+      "success": "Co najmniej 5 opinii przy kluczowych ofertach.",
+      "time": "1-2 miesiące",
+      "effort": "niski",
+      "kpis": ["review_count", "review_rating", "cvr"],
+      "sourceIds": [1012]
+    },
+    {
+      "id": "cartaband",
+      "domain": "ecom",
+      "name": "Klienci porzucają koszyki",
+      "symptoms": "Porzucenia wyższe niż w poprzednich okresach",
+      "conditions": [
+        {
+          "kpiId": "cart_abandon",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Nieoczekiwane koszty, wymóg zakładania konta, długi formularz albo mało metod płatności.",
+      "steps": [
+        "Pokaż koszt dostawy przed koszykiem.",
+        "Dodaj zakup bez zakładania konta.",
+        "Skróć formularz do niezbędnych pól.",
+        "Uruchom e-mail o porzuconym koszyku w ciągu kilku godzin."
+      ],
+      "success": "Porzucenia spadają, a konwersja rośnie w kolejnych tygodniach.",
+      "time": "2-6 tygodni",
+      "effort": "średni",
+      "kpis": ["cart_abandon", "cvr", "aov"],
+      "sourceIds": [1030]
+    },
+    {
+      "id": "effort",
+      "domain": "cx",
+      "name": "Załatwienie sprawy wymaga za dużo wysiłku",
+      "symptoms": "CES rośnie albo spada odsetek spraw rozwiązanych za pierwszym razem",
+      "conditions": [
+        {
+          "kpiId": "ces",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Przekazywanie spraw między działami, brak bazy wiedzy, konieczność powtarzania informacji.",
+      "steps": [
+        "Sprawdź 20 spraw z najwyższą oceną wysiłku i zapisz przyczyny.",
+        "Daj konsultantom uprawnienia do rozwiązania typowych spraw.",
+        "Uzupełnij bazę wiedzy o 10 najczęstszych pytań.",
+        "Przekazuj historię sprawy, aby klient nie powtarzał informacji."
+      ],
+      "success": "CES spada, a odsetek spraw rozwiązanych za pierwszym razem rośnie.",
+      "time": "1-3 miesiące",
+      "effort": "średni",
+      "kpis": ["ces", "fcr", "csat"],
+      "sourceIds": [1031]
+    },
+    {
+      "id": "quickratio",
+      "domain": "saas",
+      "name": "Wzrost nadrabia odejścia",
+      "symptoms": "Quick ratio SaaS poniżej 4",
+      "conditions": [
+        {
+          "kpiId": "saas_quick",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Wysoki churn lub zmniejszenia planów zjadają nową sprzedaż.",
+      "steps": [
+        "Rozbij utracone MRR na odejścia i zmniejszenia.",
+        "Przeanalizuj powody odejść z ostatniego kwartału.",
+        "Wprowadź program dla kont z ryzykiem odejścia.",
+        "Zaplanuj dosprzedaż dla aktywnych klientów."
+      ],
+      "success": "Quick ratio rośnie, a GRR się poprawia.",
+      "time": "2-3 kwartały",
+      "effort": "wysoki",
+      "kpis": ["saas_quick", "grr", "churn"],
+      "sourceIds": [1036]
+    },
+    {
+      "id": "lowattend",
+      "domain": "event",
+      "name": "Mało osób przychodzi na wydarzenie",
+      "symptoms": "Frekwencja poniżej punktu odniesienia",
+      "conditions": [
+        {
+          "kpiId": "attendance_rate",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Brak przypomnień, zły termin albo temat zbyt ogólny.",
+      "steps": [
+        "Wyślij przypomnienia dzień przed i godzinę przed startem.",
+        "Dodaj wydarzenie do kalendarza przy rejestracji.",
+        "Sprawdź godziny: unikaj poniedziałków rano i piątków po południu.",
+        "Zapowiedz nagranie i materiały tylko dla uczestników."
+      ],
+      "success": "Frekwencja rośnie przy kolejnym wydarzeniu.",
+      "time": "1-2 wydarzenia",
+      "effort": "niski",
+      "kpis": ["attendance_rate", "reg_conv", "cost_per_attendee"],
+      "sourceIds": [1066]
+    },
+    {
+      "id": "inbox",
+      "domain": "email",
+      "name": "E-maile trafiają do spamu",
+      "symptoms": "Trafienie do skrzynki odbiorczej poniżej punktu odniesienia",
+      "conditions": [
+        {
+          "kpiId": "inbox_placement",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Brak uwierzytelnienia domeny, nieaktywne adresy, skargi na spam.",
+      "steps": [
+        "Sprawdź SPF, DKIM i DMARC dla domeny wysyłkowej.",
+        "Usuń twarde odbicia i nieaktywnych od 6 miesięcy.",
+        "Zmniejsz częstotliwość wysyłek do nieaktywnych.",
+        "Mierz trafienie do skrzynki testem co miesiąc."
+      ],
+      "success": "Trafienie do skrzynki rośnie, skargi poniżej 0,10%.",
+      "time": "1-2 miesiące",
+      "effort": "średni",
+      "kpis": ["inbox_placement", "spam_rate", "hard_bounce"],
+      "sourceIds": [1063, 1003]
+    },
+    {
+      "id": "viewab",
+      "domain": "paid",
+      "name": "Reklamy nie pojawiają się na ekranie",
+      "symptoms": "Widoczność poniżej typowego poziomu",
+      "conditions": [
+        {
+          "kpiId": "viewability",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Miejsca reklamowe na dole stron, ciężkie kreacje, wątpliwe witryny.",
+      "steps": [
+        "Wyklucz miejsca docelowe o niskiej widoczności.",
+        "Ustaw kupowanie za widoczne wyświetlenia (vCPM), jeśli platforma pozwala.",
+        "Odchudź kreacje.",
+        "Sprawdź listę witryn i aplikacji, gdzie wyświetla się reklama."
+      ],
+      "success": "Widoczność rośnie bez wzrostu kosztu widocznego wyświetlenia.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["viewability", "cpm"],
+      "sourceIds": [1060, 1062]
+    },
+    {
+      "id": "abmcold",
+      "domain": "b2b",
+      "name": "Konta docelowe nie reagują",
+      "symptoms": "Niski odsetek zaangażowanych kont",
+      "conditions": [
+        {
+          "kpiId": "account_engagement",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Lista kont zbyt szeroka, komunikaty ogólne, brak współpracy ze sprzedażą.",
+      "steps": [
+        "Zawęź listę do kont z najlepszym dopasowaniem.",
+        "Przygotuj treści pod problemy branży lub firmy.",
+        "Uzgodnij ze sprzedażą, kto i kiedy kontaktuje się z każdym kontem.",
+        "Mierz zaangażowanie co dwa tygodnie."
+      ],
+      "success": "Więcej kont z co najmniej dwiema zaangażowanymi osobami.",
+      "time": "1-2 kwartały",
+      "effort": "średni",
+      "kpis": ["account_engagement", "mkt_influenced", "meeting_rate"],
+      "sourceIds": [1079]
+    },
+    {
+      "id": "budgetlost",
+      "domain": "paid",
+      "name": "Kampania traci wyświetlenia przez budżet",
+      "symptoms": "Wysoki utracony udział na górze z powodu budżetu",
+      "conditions": [
+        {
+          "kpiId": "lost_top_budget",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Budżet dzienny za mały względem popytu albo rozłożony na zbyt wiele słów kluczowych.",
+      "steps": [
+        "Sprawdź, które słowa kluczowe dają konwersje po akceptowalnym koszcie.",
+        "Przenieś budżet z najsłabszych grup reklam do najlepszych.",
+        "Rozważ ograniczenie godzin lub regionów zamiast obniżania stawek wszędzie.",
+        "Jeśli koszt konwersji jest dobry, zwiększ budżet i obserwuj utratę udziału."
+      ],
+      "success": "Utrata udziału z powodu budżetu spada przy stabilnym koszcie konwersji.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["lost_top_budget", "budget_pacing", "cpa"],
+      "sourceIds": [1090]
+    },
+    {
+      "id": "lplow",
+      "domain": "paid",
+      "name": "Strona docelowa słabo konwertuje",
+      "symptoms": "Konwersja strony poniżej mediany dla branży",
+      "conditions": [
+        {
+          "kpiId": "lp_cvr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Obietnica z reklamy nie pasuje do strony, za długi formularz albo trudny tekst.",
+      "steps": [
+        "Porównaj nagłówek strony z treścią reklamy.",
+        "Skróć formularz do niezbędnych pól.",
+        "Uprość tekst: krótsze zdania, konkretne korzyści.",
+        "Testuj jedną zmianę naraz testem A/B."
+      ],
+      "success": "Konwersja strony rośnie przy tym samym ruchu.",
+      "time": "2-6 tygodni",
+      "effort": "średni",
+      "kpis": ["lp_cvr", "form_abandon", "cvr"],
+      "sourceIds": [1092, 1093]
+    },
+    {
+      "id": "unassigned",
+      "domain": "data",
+      "name": "Dane o źródłach ruchu są niekompletne",
+      "symptoms": "Rosnący udział ruchu nieprzypisanego w GA4",
+      "conditions": [
+        {
+          "kpiId": "unassigned_share",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Nietypowe wartości utm_medium, brak trybu zgody, przekierowania gubiące parametry.",
+      "steps": [
+        "Sprawdź wiersz Unassigned w wymiarze źródło / medium.",
+        "Spisz konwencję UTM zgodną z grupami kanałów GA4.",
+        "Popraw linki w aktywnych kampaniach.",
+        "Jeśli potrzebne, utwórz własną grupę kanałów."
+      ],
+      "success": "Udział ruchu nieprzypisanego spada w kolejnym miesiącu.",
+      "time": "1-2 tygodnie",
+      "effort": "niski",
+      "kpis": ["unassigned_share", "click_session"],
+      "sourceIds": [1095, 1096]
+    },
+    {
+      "id": "lowsends",
+      "domain": "social",
+      "name": "Treści nie docierają do nowych odbiorców",
+      "symptoms": "Niski odsetek wysyłek w wiadomościach i mały zasięg wśród nieobserwujących",
+      "conditions": [
+        {
+          "kpiId": "sends_per_reach",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Treści skierowane do obecnych obserwujących, bez powodu, by wysłać je komuś dalej.",
+      "steps": [
+        "Sprawdź 10 postów z najwyższą liczbą wysyłek i ich wspólne cechy.",
+        "Przygotuj treści praktyczne lub zaskakujące, które warto komuś przesłać.",
+        "Skróć wstęp wideo, aby zwiększyć czas oglądania.",
+        "Porównuj wysyłki na zasięg co tydzień."
+      ],
+      "success": "Rośnie odsetek wysyłek i zasięg wśród nieobserwujących.",
+      "time": "1-2 miesiące",
+      "effort": "niski",
+      "kpis": ["sends_per_reach", "reach", "avg_watch_time"],
+      "sourceIds": [1120]
+    },
+    {
+      "id": "mppinfl",
+      "domain": "email",
+      "name": "Otwarcia e-maili są zawyżone",
+      "symptoms": "Wysoki udział automatycznych otwarć Apple MPP",
+      "conditions": [
+        {
+          "kpiId": "mpp_share",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Apple MPP wczytuje e-maile automatycznie, więc otwarcie nie oznacza przeczytania.",
+      "steps": [
+        "Oceniaj kampanie po kliknięciach i konwersjach, nie po otwarciach.",
+        "Wyklucz otwarcia MPP z testów tematów.",
+        "Definiuj aktywnych subskrybentów po kliknięciach w 90 dni.",
+        "Pokazuj w raporcie open rate bez otwarć MPP, jeśli narzędzie to umożliwia."
+      ],
+      "success": "Raporty opierają się na kliknięciach, a segmenty na rzeczywistej aktywności.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["mpp_share", "active_subscribers", "ctr_email"],
+      "sourceIds": [1129]
+    },
+    {
+      "id": "ytctr",
+      "domain": "social",
+      "name": "Miniatury nie zachęcają do obejrzenia",
+      "symptoms": "CTR miniatur poniżej wyników kanału i źródła ruchu",
+      "conditions": [
+        {
+          "kpiId": "yt_impr_ctr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Miniatura nieczytelna na telefonie albo tytuł niezgodny z treścią.",
+      "steps": [
+        "Porównuj CTR według źródła ruchu (wyszukiwanie, propozycje, strona główna).",
+        "Testuj miniatury z dużym, czytelnym elementem i krótkim tekstem.",
+        "Sprawdzaj CTR po zebraniu odpowiedniej liczby wyświetleń, nie zaraz po publikacji.",
+        "Pilnuj, by tytuł i miniatura obiecywały to, co jest w filmie."
+      ],
+      "success": "CTR rośnie bez spadku średniego czasu oglądania.",
+      "time": "1-2 miesiące",
+      "effort": "niski",
+      "kpis": ["yt_impr_ctr", "avg_watch_time"],
+      "sourceIds": [1127]
+    },
+    {
+      "id": "keyev",
+      "domain": "seo",
+      "name": "Ruch nie wykonuje kluczowych działań",
+      "symptoms": "Niski współczynnik kluczowych zdarzeń sesji",
+      "conditions": [
+        {
+          "kpiId": "key_event_rate",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Brak jasnego następnego kroku na stronach z ruchem albo źle ustawione kluczowe zdarzenia.",
+      "steps": [
+        "Sprawdź listę kluczowych zdarzeń w GA4 i czy działają.",
+        "Wybierz 10 stron z największym ruchem i dodaj na nich jasne wezwanie do działania.",
+        "Porównaj współczynnik według kanałów i stron docelowych.",
+        "Testuj zmiany na stronach z największym ruchem."
+      ],
+      "success": "Współczynnik kluczowych zdarzeń rośnie przy podobnym ruchu.",
+      "time": "1-2 miesiące",
+      "effort": "średni",
+      "kpis": ["key_event_rate", "lp_cvr", "engaged_rate"],
+      "sourceIds": [1125, 1126]
+    },
+    {
+      "id": "slowresp",
+      "domain": "social",
+      "name": "Wolne odpowiedzi w social media",
+      "symptoms": "Czas odpowiedzi dłuższy niż 24 godziny",
+      "conditions": [
+        {
+          "kpiId": "social_response_time",
+          "state": "wysoko"
+        }
+      ],
+      "cause": "Brak dyżurów, rozproszone skrzynki, brak gotowych odpowiedzi.",
+      "steps": [
+        "Połącz wiadomości z platform w jednej skrzynce.",
+        "Ustal dyżur i cel: odpowiedź w ciągu jednego dnia roboczego.",
+        "Przygotuj odpowiedzi na 10 najczęstszych pytań.",
+        "Przekazuj zapytania handlowe do CRM tego samego dnia."
+      ],
+      "success": "Czas odpowiedzi poniżej 24 godzin i więcej zapytań w CRM.",
+      "time": "2-4 tygodnie",
+      "effort": "niski",
+      "kpis": ["social_response_time", "dm_inquiries"],
+      "sourceIds": [1140, 1141]
+    },
+    {
+      "id": "tagcov",
+      "domain": "data",
+      "name": "Część stron bez tagu Google",
+      "symptoms": "Pokrycie tagiem poniżej 100%",
+      "conditions": [
+        {
+          "kpiId": "tag_coverage",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Nowe podstrony, osobne szablony, strony docelowe na innych narzędziach.",
+      "steps": [
+        "Otwórz raport pokrycia tagów i pobierz listę nieoznaczonych stron.",
+        "Sprawdź szablony i narzędzia do stron docelowych.",
+        "Dodaj tag lub kontener Tag Managera na brakujących stronach.",
+        "Sprawdź diagnostykę tagu po tygodniu."
+      ],
+      "success": "Pokrycie tagiem bliskie 100%, brak ostrzeżeń w diagnostyce.",
+      "time": "1-2 tygodnie",
+      "effort": "niski",
+      "kpis": ["tag_coverage", "click_session"],
+      "sourceIds": [1142, 1143]
+    },
+    {
+      "id": "lowread",
+      "domain": "email",
+      "name": "E-maile są otwierane, ale nie czytane",
+      "symptoms": "Niski odsetek przeczytanych e-maili",
+      "conditions": [
+        {
+          "kpiId": "read_rate",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Za długi wstęp, treść niedopasowana do tematu wiadomości, zła czytelność na telefonie.",
+      "steps": [
+        "Skróć wstęp i zacznij od najważniejszej informacji.",
+        "Sprawdź, czy treść spełnia obietnicę z tematu.",
+        "Przetestuj wersję na telefonie.",
+        "Porównuj odsetek przeczytanych dla kolejnych wydań."
+      ],
+      "success": "Rośnie odsetek przeczytanych i kliknięć.",
+      "time": "1-2 miesiące",
+      "effort": "niski",
+      "kpis": ["read_rate", "ctor", "ctr_email"],
+      "sourceIds": [1144, 1145]
+    },
+    {
+      "id": "zeroclick",
+      "domain": "seo",
+      "name": "Wyświetlenia stoją, kliknięcia spadają",
+      "symptoms": "Spadek CTR z wyników przy stabilnych wyświetleniach",
+      "conditions": [
+        {
+          "kpiId": "serp_ctr",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Podsumowania AI, fragmenty polecane i inne elementy wyników odpowiadają na pytanie bez kliknięcia.",
+      "steps": [
+        "Porównaj w Search Console wyświetlenia i kliknięcia dla fraz informacyjnych.",
+        "Sprawdź, które frazy mają podsumowanie AI lub fragment polecany.",
+        "Dodaj treści, których nie da się streścić (kalkulatory, dane, przykłady).",
+        "Mierz obecność marki w podsumowaniach AI, nie tylko kliknięcia.",
+        "Przesuń część celów na frazy transakcyjne i markowe."
+      ],
+      "success": "Stabilne kliknięcia z fraz transakcyjnych i więcej cytowań w podsumowaniach AI.",
+      "time": "1-3 miesiące",
+      "effort": "niski",
+      "kpis": ["serp_ctr"],
+      "sourceIds": [1238, 1232]
+    },
+    {
+      "id": "techhealth",
+      "domain": "seo",
+      "name": "Niska kondycja techniczna witryny",
+      "symptoms": "Wynik audytu technicznego poniżej oczekiwań",
+      "conditions": [
+        {
+          "kpiId": "site_health",
+          "state": "nisko"
+        }
+      ],
+      "cause": "Błędy 4xx i 5xx, łańcuchy przekierowań, zduplikowane tytuły, strony zablokowane dla robotów.",
+      "steps": [
+        "Uruchom audyt i zacznij od błędów, potem ostrzeżenia.",
+        "Napraw błędy w szablonach i na stronach z ruchem.",
+        "Uruchom audyt ponownie i porównaj skany.",
+        "Ustaw audyt cykliczny, np. co tydzień."
+      ],
+      "success": "Wynik audytu rośnie, liczba błędów spada.",
+      "time": "2-6 tygodni",
+      "effort": "niski",
+      "kpis": ["site_health", "indexation_rate"],
+      "sourceIds": [1214, 1222, 1223]
+    }
+  ]
+}

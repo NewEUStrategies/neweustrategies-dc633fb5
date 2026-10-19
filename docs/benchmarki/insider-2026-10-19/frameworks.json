@@ -1,0 +1,1335 @@
+{
+  "schema": "nes-insider-frameworks/1",
+  "frameworks": [
+    {
+      "id": "955",
+      "origin": "John Dawes, Ehrenberg-Bass Institute, raport dla The B2B Institute (LinkedIn) z maja 2021 r. [966]; popularyzacja: Weinberg i Lombardo [967].",
+      "sourceIds": [966, 967],
+      "what": "Obserwacja, że w danym kwartale tylko część nabywców B2B jest gotowa do zakupu (około 5%), a reszta kupi za miesiące lub lata.",
+      "goal": "Pomaga ustawić realistyczne cele reklamy B2B i podział budżetu między budowanie pamięci marki a pozyskanie popytu.",
+      "when": "Przy planowaniu budżetu B2B, ocenie kampanii leadowych i rozmowie z zarządem o tym, kiedy reklama działa.",
+      "how": [
+        "Oszacuj, co ile lat klienci zmieniają dostawcę lub produkt.",
+        "Policz odsetek „na rynku” w roku i w kwartale.",
+        "Docieraj do całej kategorii, nie tylko do osób gotowych dziś.",
+        "Mierz zapamiętanie marki: świadomość, share of search."
+      ],
+      "example": "Dawes: jeśli firmy zmieniają dostawcę mniej więcej co 5 lat, w ciągu roku na rynku jest około 20% z nich, a w kwartale około 5% [966].",
+      "benchmark": "Około 5% nabywców na rynku w kwartale; autor zaznacza, że 95% nie jest dokładną regułą [966].",
+      "benchmarkKpis": ["aided_aw", "unaided_aw", "sos"],
+      "limitations": "Odsetek zależy od cyklu zakupu w kategorii; dla zakupów częstych jest wyższy.",
+      "furtherReading": [966, 967]
+    },
+    {
+      "id": "aida",
+      "origin": "Edward K. Strong (1925) przypisał formułę E. St. Elmo Lewisowi z 1898 r. [950]. Badanie historyczne z 2024 r. podważa tę atrybucję i za twórcę uznaje Arthura F. Sheldona [951].",
+      "sourceIds": [950, 951],
+      "what": "Model hierarchii reakcji: odbiorca przechodzi kolejno przez uwagę (Attention), zainteresowanie (Interest), pożądanie (Desire) i działanie (Action).",
+      "goal": "Układa przekaz reklamy, strony lub rozmowy handlowej tak, żeby każdy etap prowadził do następnego, i pomaga dobrać wskaźnik do etapu.",
+      "when": "Przy projektowaniu jednego komunikatu (reklama, strona docelowa, e-mail sprzedażowy) i przy diagnozie, na którym etapie przekaz traci odbiorców.",
+      "how": [
+        "Uwaga: nagłówek lub kadr, który zatrzymuje właściwą grupę; mierz zasięg i CTR.",
+        "Zainteresowanie: problem odbiorcy i obietnica rozwiązania; mierz czas zaangażowania.",
+        "Pożądanie: dowody, korzyść i różnica wobec alternatyw.",
+        "Działanie: jedno jasne CTA; mierz konwersję."
+      ],
+      "example": "Reklama usług księgowych na LinkedIn: liczba godzin oszczędzanych miesięcznie w nagłówku (uwaga), opis kłopotu z zamknięciem miesiąca (zainteresowanie), opinia klienta z tej samej branży (pożądanie), przycisk „Umów rozmowę” (działanie).",
+      "benchmark": "Model nie ma własnych progów. Etapy ocenisz wskaźnikami z przyjętymi przedziałami.",
+      "benchmarkKpis": ["ctr_paid", "cvr", "engagement_time"],
+      "limitations": "Zakłada liniową ścieżkę i nie opisuje zakupów rutynowych ani budowania pamięci marki u osób, które dziś nie kupują (zob. model 95-5). Autorstwo modelu jest sporne [951].",
+      "furtherReading": [950, 951, 952]
+    },
+    {
+      "id": "stdc",
+      "origin": "Avinash Kaushik, wpis na blogu Occam's Razor z 22 lipca 2013 r. [952]. Etap Care (obecni klienci) dołączył do modelu później [983].",
+      "sourceIds": [952, 983],
+      "what": "Ramy planowania treści, marketingu i pomiaru według intencji odbiorcy: See (wszyscy, którzy mogą kupić w kategorii), Think (rozważający potrzebę), Do (gotowi do zakupu) i Care (obecni klienci).",
+      "goal": "Dopasowuje treści, kanały i wskaźniki sukcesu do etapu intencji, zamiast oceniać każdą aktywność sprzedażą.",
+      "when": "Przy planowaniu strategii treści i kanałów, ustalaniu KPI dla etapów i audycie, czy firma ma treści dla każdego etapu.",
+      "how": [
+        "Zdefiniuj grupę See: wszyscy, którzy mogą kupić w kategorii.",
+        "Przypisz treści i kanały do etapów.",
+        "Wybierz wskaźnik dla etapu: See zasięg, Think zaangażowanie, Do konwersja, Care retencja i NPS.",
+        "Nie oceniaj działań z etapu See sprzedażą."
+      ],
+      "example": "Kaushik omawia sklep ModCloth: obok przycisków zakupu strona ma elementy dla osób z etapów See i Think [952].",
+      "benchmark": "Model nie podaje progów. Dla etapów użyj przedziałów wskaźników.",
+      "benchmarkKpis": ["reach", "er_reach", "cvr", "churn", "nps"],
+      "limitations": "Wymaga rozpoznania intencji, którego nie zawsze da się zmierzyć; granice etapów są umowne.",
+      "furtherReading": [952, 983]
+    },
+    {
+      "id": "race",
+      "origin": "Dave Chaffey, współzałożyciel Smart Insights, opracował RACE w 2010 r. [953].",
+      "sourceIds": [953],
+      "what": "Ramy planowania marketingu cyfrowego w etapach (Plan), Reach, Act, Convert i Engage, obejmujące cały cykl życia klienta.",
+      "goal": "Porządkuje plan marketingu cyfrowego, cele i wskaźniki dla każdego etapu.",
+      "when": "Przy rocznym lub 90-dniowym planie marketingu i przy przypisywaniu działań kanałów do etapów lejka.",
+      "how": [
+        "Plan: cele, budżet, stan obecny.",
+        "Reach: zasięg i ruch z wyszukiwarki, mediów płatnych, własnych i zdobytych.",
+        "Act: interakcje i leady na stronie.",
+        "Convert: sprzedaż online i offline.",
+        "Engage: lojalność, ponowne zakupy, polecenia; dla każdego etapu cel SMART."
+      ],
+      "example": "Przykładowy plan Smart Insights zawiera cel SMART: wzrost leadów cyfrowych o 5% r/r, oraz test przesunięcia części budżetu z Google Ads do reklam w mediach społecznościowych [954].",
+      "benchmark": "Smart Insights zaleca mierniki dla każdego etapu; progi ocen weź z przedziałów wskaźników.",
+      "benchmarkKpis": ["reach", "cvr", "nps"],
+      "limitations": "Część narzędzi metody jest płatna; model mniej mówi o budowaniu marki poza kanałami cyfrowymi.",
+      "furtherReading": [953, 954]
+    },
+    {
+      "id": "aarrr",
+      "origin": "Dave McClure, prezentacja „Startup Metrics for Pirates: AARRR!” z 2007 r. [955]; pierwsze wystąpienie na Ignite Seattle 8 sierpnia 2007 r. [956].",
+      "sourceIds": [955, 956],
+      "what": "Pięć etapów metryk startupu: Acquisition (pozyskanie), Activation (aktywacja), Retention (powroty), Referral (polecenia) i Revenue (przychód).",
+      "goal": "Skupia zespół na kilku mierzalnych konwersjach w cyklu życia użytkownika.",
+      "when": "W produktach cyfrowych i SaaS, przy wyborze 1-5 kluczowych konwersji i diagnozie, gdzie użytkownicy odpadają.",
+      "how": [
+        "Zdefiniuj zdarzenie dla każdego etapu.",
+        "Policz konwersję między etapami.",
+        "Testuj zmiany na etapie z największym spadkiem.",
+        "Utrzymuj 1-5 metryk, na które zespół reaguje."
+      ],
+      "example": "McClure podaje przykład aktywacji: odwiedzający, którzy oglądają co najmniej 2 strony albo zostają 10 sekund [955].",
+      "benchmark": "Model nie ma własnych progów; retencję i przychód ocenisz przedziałami wskaźników.",
+      "benchmarkKpis": ["retention", "churn", "nrr", "cac"],
+      "limitations": "Etapy nie zawsze są liniowe (polecenie bywa przed przychodem); łatwo wybrać metryki próżności.",
+      "furtherReading": [955, 956]
+    },
+    {
+      "id": "nsm",
+      "origin": "Ramy North Star opisane przez Amplitude w „North Star Playbook”, współautor John Cutler [957].",
+      "sourceIds": [957],
+      "what": "Jeden wskaźnik, który najlepiej oddaje wartość, jaką klienci dostają z produktu, razem z kilkoma wskaźnikami wejściowymi, na które zespoły mają wpływ.",
+      "goal": "Ustawia zespoły wokół wartości dla klienta i pomaga przewidywać przyszłe wyniki.",
+      "when": "W produktach cyfrowych, gdy zespoły optymalizują sprzeczne cele albo raportują dziesiątki wskaźników.",
+      "how": [
+        "Nazwij wskaźnik i zapisz precyzyjną definicję.",
+        "Wybierz 3-5 wskaźników wejściowych.",
+        "Sprawdź, czy nie jest to metryka próżności ani wskaźnik opóźniony, np. MRR lub ARPU [958].",
+        "Ustal sygnał do rewizji wskaźnika."
+      ],
+      "example": "Amplitude: „Frequent Content Sharers”, czyli liczba subskrybentów, którzy przez ostatnie 12 tygodni udostępniali średnio co najmniej 2 artykuły tygodniowo [957].",
+      "benchmark": "Brak progów liczbowych. Test jakości od autorów: jeśli możesz zmienić wskaźnik bezpośrednio, prawdopodobnie nie jest dobrym North Star [958].",
+      "benchmarkKpis": ["active_users", "retention"],
+      "limitations": "Jeden wskaźnik upraszcza obraz; potrzebne są wskaźniki kontrolne.",
+      "furtherReading": [957, 958]
+    },
+    {
+      "id": "okr",
+      "origin": "Andy Grove wprowadził OKR w Intelu w latach 70. i opisał je w „High Output Management” (1983) [959], [960]. John Doerr przeniósł metodę do Google w 1999 r. [959] i opisał ją w „Measure What Matters” (2018) [961].",
+      "sourceIds": [959, 960, 961],
+      "what": "System celów: cel (Objective) mówi, co chcemy osiągnąć, a kluczowe rezultaty (Key Results) mierzalnie określają, po czym poznamy sukces w danym czasie.",
+      "goal": "Skupia zespoły na priorytetach i łączy cele firmy z celami zespołów w krótkich cyklach.",
+      "when": "Przy planowaniu kwartalnym i rocznym, gdy zespołów jest kilka i trzeba uzgodnić priorytety.",
+      "how": [
+        "Wybierz 3-5 celów.",
+        "Dla każdego 2-4 kluczowe rezultaty opisujące wynik, nie zadanie.",
+        "Przeglądaj postęp co tydzień.",
+        "Oceń realizację na koniec cyklu i ustal nowe OKR."
+      ],
+      "example": "Cel: „Zostać pierwszym wyborem firm produkcyjnych w kategorii”. Rezultaty: share of search z 12% do 18%; 30 SQL z branży produkcyjnej w kwartale; NPS powyżej 40.",
+      "benchmark": "Doerr zaleca docelowy poziom realizacji kluczowych rezultatów około 70% [959]. Google w 1999 r. miał około 40 pracowników, gdy wprowadzał OKR [962].",
+      "benchmarkKpis": ["sos", "sql", "nps"],
+      "limitations": "OKR mylone z listą zadań tracą sens; łączenie OKR z ocenami pracowników zniekształca cele [959].",
+      "furtherReading": [959, 960, 961, 962]
+    },
+    {
+      "id": "rice",
+      "origin": "Sean McBride, menedżer produktu w zespole wzrostu Intercom; opis na blogu Intercom [963].",
+      "sourceIds": [963],
+      "what": "Metoda punktowania pomysłów: zasięg × wpływ × pewność, podzielone przez wysiłek.",
+      "goal": "Porównuje projekty w spójny sposób i ogranicza wpływ intuicji jednej osoby.",
+      "when": "Przy priorytetyzacji backlogu produktu, testów marketingowych i kroków planu naprawy.",
+      "how": [
+        "Zasięg: liczba osób lub zdarzeń w ustalonym okresie.",
+        "Wpływ: skala 3 (ogromny), 2 (duży), 1 (średni), 0,5 (mały), 0,25 (minimalny) [963].",
+        "Pewność: odsetek (np. 100%, 80%, 50%).",
+        "Wysiłek: osobomiesiące całego zespołu.",
+        "Wynik = zasięg × wpływ × pewność / wysiłek."
+      ],
+      "example": "Nowy formularz kontaktowy: zasięg 800 osób miesięcznie, wpływ 2, pewność 80%, wysiłek 2 osobomiesiące. Wynik: 800 × 2 × 0,8 / 2 = 640.",
+      "benchmark": "Wynik RICE nie ma progu bezwzględnego; służy do porównania projektów między sobą.",
+      "benchmarkKpis": [],
+      "limitations": "Wszystkie składniki to szacunki; porównuj projekty o tym samym celu.",
+      "furtherReading": [963]
+    },
+    {
+      "id": "jtbd",
+      "origin": "Clayton M. Christensen, Taddy Hall, Karen Dillon i David S. Duncan, Harvard Business Review, wrzesień 2016 [964]; wcześniejszy opis przykładu z koktajlem w HBS Working Knowledge [965].",
+      "sourceIds": [964, 965],
+      "what": "Teoria, według której klienci „zatrudniają” produkt, żeby wykonać zadanie, czyli zrobić postęp w konkretnej sytuacji. Zadanie ma wymiar funkcjonalny, społeczny i emocjonalny.",
+      "goal": "Wyjaśnia, dlaczego klienci wybierają albo porzucają produkt, i pomaga projektować ofertę oraz komunikację.",
+      "when": "W badaniach klientów, pozycjonowaniu, projektowaniu nowych ofert i analizie odejść.",
+      "how": [
+        "Rozmawiaj z osobami, które niedawno kupiły lub zrezygnowały.",
+        "Pytaj o sytuację, alternatywy, przeszkody i kryteria wyboru.",
+        "Zapisz zadanie: gdy [sytuacja], chcę [motywacja], aby [rezultat].",
+        "Sprawdź, z czym naprawdę konkurujesz."
+      ],
+      "example": "Koktajl mleczny kupowany rano okazał się „zatrudniany” do umilenia długiej drogi do pracy, a nie dla smaku [965].",
+      "benchmark": "Teoria jest jakościowa i nie ma progów liczbowych; skutki sprawdzisz w retencji i churnie.",
+      "benchmarkKpis": ["retention", "churn"],
+      "limitations": "Wyniki zależą od jakości wywiadów; trudno je skalować na duże próby.",
+      "furtherReading": [964, 965]
+    },
+    {
+      "id": "longshort",
+      "origin": "Les Binet i Peter Field, metaanaliza bazy IPA Effectiveness Databank, IPA, 2013 [968].",
+      "sourceIds": [968, 1199],
+      "what": "Wynik badań skuteczności reklamy: aktywacja sprzedaży daje szybki, krótki efekt, a budowanie marki wolniejszy i trwały; najlepsze wyniki daje połączenie obu.",
+      "goal": "Pomaga podzielić budżet między markę a aktywację i dobrać mierniki krótko- i długoterminowe.",
+      "when": "Przy planowaniu rocznego budżetu i rozmowie o proporcji działań wizerunkowych do sprzedażowych.",
+      "how": [
+        "Ustal udział budżetu na markę i na aktywację.",
+        "Mierz efekty krótkie (sprzedaż, leady) i długie (świadomość, cena, udział w rynku).",
+        "Nie oceniaj kampanii marki po kilku tygodniach.",
+        "Porównuj udział w głosie z udziałem w rynku."
+      ],
+      "example": "Optymalny podział w danych IPA to około 60% na markę i 40% na aktywację [968]; w raporcie „Effectiveness in Context” 62:38 [969]. Dla B2B LinkedIn B2B Institute podaje 46% na markę i 54% na aktywację [1199]; na stronie badania opisuje to jako podział zbliżony do 50/50 [1200].",
+      "benchmark": "60:40 [968]; 62:38 [969]; B2B około 46:54 [1199].",
+      "benchmarkKpis": ["sos", "sov", "roas"],
+      "limitations": "Dane pochodzą z kampanii zgłaszanych do nagród IPA; proporcja to średnia, nie reguła dla każdej marki. Dane B2B pochodzą z niewielkiej próby, głównie z Wielkiej Brytanii i z dużymi budżetami [1201].",
+      "furtherReading": [968, 969, 1199, 1200, 1201]
+    },
+    {
+      "id": "dba",
+      "origin": "Jenni Romaniuk (Ehrenberg-Bass Institute), „Building Distinctive Brand Assets”, Oxford University Press, 2018 [971].",
+      "sourceIds": [971, 972],
+      "what": "Dystynktywne aktywa to elementy (kolor, logo, postać, dźwięk, hasło), które kupujący kojarzą z marką bez jej nazwy. Mierzy się je sławą (fame) i unikalnością (uniqueness), a wyniki zestawia na siatce [971].",
+      "goal": "Pomaga budować i chronić rozpoznawalność marki oraz podejmować decyzje o rebrandingu.",
+      "when": "Przed rebrandingiem, przy nowych kreacjach i w regularnym audycie identyfikacji.",
+      "how": [
+        "Pokaż element bez nazwy marki osobom kupującym w kategorii.",
+        "Sława: odsetek, który poprawnie wskazuje markę.",
+        "Unikalność: jak rzadko element kojarzy się z konkurencją.",
+        "Zestaw wyniki na siatce: chroń silne aktywa, rozwijaj obiecujące."
+      ],
+      "example": "Kolor marki rozpoznaje 40% kupujących, ale połowa z nich wskazuje konkurenta: wysoka sława, niska unikalność. Nie opieraj na nim komunikacji bez logo.",
+      "benchmark": "Książka opisuje mierniki sława, unikalność i siatkę [971]; otwarte źródła nie podają uniwersalnych progów.",
+      "benchmarkKpis": ["aided_aw"],
+      "limitations": "Wymaga badań na kupujących z kategorii; wyniki różnią się między kategoriami.",
+      "furtherReading": [971, 972]
+    },
+    {
+      "id": "b2bfunnel",
+      "origin": "Model Demand Waterfall firmy SiriusDecisions, pierwsza wersja z 2006 r., kolejne w 2012 i 2017 r. [973]; model wprowadził pojęcia MQL i SQL [974].",
+      "sourceIds": [973, 974],
+      "what": "Model etapów popytu B2B: zapytanie, MQL, SAL, SQL, szansa i wygrana. Daje marketingowi i sprzedaży wspólny język.",
+      "goal": "Pomaga zdefiniować etapy, mierzyć konwersje i przekazanie leadów między działami.",
+      "when": "W B2B z dłuższym cyklem sprzedaży i przy ustalaniu zasad współpracy marketingu ze sprzedażą.",
+      "how": [
+        "Spisz definicje etapów (np. czym jest MQL i SAL) [973].",
+        "Mierz konwersję i czas między etapami.",
+        "Rozbij wyniki według źródła leadów.",
+        "Przeglądaj powody odrzucenia leadów."
+      ],
+      "example": "Typowa konwersja MQL → SQL to 13-26% [923], średnia dla B2B SaaS 13% [922].",
+      "benchmark": "Przedziały konwersji etapów, win rate i długości cyklu są w Bibliotece wskaźników.",
+      "benchmarkKpis": ["stage_conv", "win_rate", "cycle", "mql", "sql"],
+      "limitations": "Klasyczny lejek liczy pojedyncze leady i pomija komitet zakupowy; wersja z 2017 r. liczy grupy zakupowe [973].",
+      "furtherReading": [973, 974, 922, 923]
+    },
+    {
+      "id": "unit",
+      "origin": "David Skok, „SaaS Metrics 2.0”, blog forEntrepreneurs [979].",
+      "sourceIds": [979],
+      "what": "Ekonomia pojedynczego klienta: koszt pozyskania (CAC), wartość klienta w czasie (LTV) i czas zwrotu CAC.",
+      "goal": "Pokazuje, czy wzrost jest rentowny i ile kapitału pochłonie skalowanie.",
+      "when": "W SaaS, subskrypcjach i e-commerce, przy decyzjach o skalowaniu kanałów.",
+      "how": [
+        "CAC = koszty sprzedaży i marketingu / nowi klienci.",
+        "LTV = ARPU × marża brutto / churn.",
+        "Zwrot CAC = CAC / (ARPU × marża).",
+        "Licz osobno dla kanałów i segmentów."
+      ],
+      "example": "ARPU 500 zł, marża 80%, churn 2% miesięcznie: LTV 20 000 zł. Przy CAC 5 000 zł LTV/CAC wynosi 4, a zwrot CAC 12,5 miesiąca.",
+      "benchmark": "Skok: LTV powyżej 3 × CAC i zwrot CAC poniżej 12 miesięcy przy marży co najmniej 80%; w modelu land-and-expand około 20 miesięcy bywa w porządku [979]. Mediana zwrotu w 2025 r.: 16 miesięcy [925].",
+      "benchmarkKpis": ["cac", "ltv", "ltv_cac", "cac_payback", "arpu"],
+      "limitations": "LTV jest wrażliwe na założony churn; bez pełnych kosztów CAC jest zaniżony.",
+      "furtherReading": [979, 925, 927]
+    },
+    {
+      "id": "liq",
+      "origin": "Jeff Jordan, Li Jin, D'Arcy Coolican i Andrew Chen, „13 Metrics for Marketplace Companies”, a16z, 21 lutego 2020 r. [980].",
+      "sourceIds": [980],
+      "what": "Zdolność platformy do łączenia popytu i podaży: jaki odsetek wyszukiwań lub ofert kończy się transakcją (match rate) i jak szybko.",
+      "goal": "Pozwala ocenić zdrowie platformy dwustronnej lepiej niż sama wartość transakcji.",
+      "when": "W marketplace'ach, serwisach ogłoszeniowych i giełdach pracy.",
+      "how": [
+        "Mierz match rate i czas do dopasowania [980].",
+        "Śledź take rate, czyli udział platformy w wartości transakcji [980].",
+        "Sprawdzaj, czy match rate rośnie wraz ze skalą.",
+        "Licz wyszukiwania bez wyniku."
+      ],
+      "example": "TaskRabbit traktuje fill rate (udział zleceń zakończonych fakturą) jako główny wskaźnik zdrowia marketplace'u [981].",
+      "benchmark": "a16z nie podaje jednego progu; lista 13 metryk służy do kalibracji [980].",
+      "benchmarkKpis": ["liquidity", "gmv", "take_rate"],
+      "limitations": "Wartość transakcji (GMV) nie mówi o przychodzie platformy; trzeba ją czytać z take rate.",
+      "furtherReading": [980, 981]
+    },
+    {
+      "id": "hbg",
+      "origin": "Byron Sharp, „How Brands Grow”, Oxford University Press, 1 marca 2010 r. [1013]; zastosowanie w B2B: The B2B Institute [1014].",
+      "sourceIds": [1013, 1014],
+      "what": "Teoria wzrostu marek oparta na danych o zakupach: marki rosną przez zdobywanie nowych klientów, a kupujący wybierają marki, które łatwo przychodzą na myśl (dostępność mentalna) i łatwo je kupić (dostępność fizyczna) [1014].",
+      "goal": "Ustawia priorytety marketingu: szeroki zasięg wśród wszystkich kupujących kategorię, rozpoznawalne aktywa marki i łatwy dostęp do zakupu.",
+      "when": "Przy planowaniu budżetu, wyborze grupy docelowej (szeroko czy wąsko) i ocenie, dlaczego marka nie rośnie mimo dobrych wskaźników kampanii.",
+      "how": [
+        "Dotrzyj do wszystkich kupujących kategorię, nie tylko do obecnych klientów.",
+        "Buduj dystynktywne aktywa i używaj ich konsekwentnie.",
+        "Połącz markę z jak największą liczbą sytuacji zakupowych (zob. Category Entry Points).",
+        "Usuń bariery zakupu: dostępność, wyszukiwarka, szybki kontakt."
+      ],
+      "example": "Producent systemu ERP: dostępność mentalna to obecność marki w myślach, gdy firma zmienia przepisy lub rośnie; dostępność fizyczna to obecność w porównywarkach, u partnerów wdrożeniowych i szybka odpowiedź na zapytanie.",
+      "benchmark": "Teoria nie podaje progów; mierniki to mentalny udział w rynku, świadomość i share of search.",
+      "benchmarkKpis": ["mms", "aided_aw", "sos", "lead_response"],
+      "limitations": "Wnioski pochodzą głównie z rynków konsumenckich; w B2B z małą liczbą klientów część zależności słabnie. Teoria dyskusyjnie podchodzi do lojalności i różnicowania.",
+      "furtherReading": [1013, 1014, 1015]
+    },
+    {
+      "id": "cep",
+      "origin": "Jenni Romaniuk, „Better Brand Health: Measures and Metrics for a How Brands Grow World”, Oxford University Press, 2023 [1015].",
+      "sourceIds": [1015, 1016],
+      "what": "Category Entry Points (CEP) to sytuacje, potrzeby i okazje, w których kupujący zaczynają myśleć o kategorii. Marka, która jest z nimi skojarzona, częściej trafia na listę wyboru.",
+      "goal": "Pozwala zmierzyć dostępność mentalną i wybrać sytuacje, z którymi marka powinna się kojarzyć w komunikacji.",
+      "when": "Przy badaniu marki, wyborze tematów kampanii i ocenie pozycji wobec konkurencji.",
+      "how": [
+        "Zbierz sytuacje zakupowe z wywiadów (kiedy, gdzie, z kim, po co kupują).",
+        "Wybierz 10-15 najczęstszych.",
+        "W badaniu zapytaj, które marki pasują do każdej sytuacji.",
+        "Policz mentalny udział w rynku, zasięg mentalny, liczbę skojarzeń i udział w umysłach [1016]."
+      ],
+      "example": "Oprogramowanie księgowe: „zmiana przepisów podatkowych”, „zatrudnienie pierwszego pracownika”, „zamknięcie roku”, „kontrola z urzędu”. Kampania łączy markę z dwiema sytuacjami, w których konkurenci są słabi.",
+      "benchmark": "Romaniuk opisuje cztery miary dostępności mentalnej; główną jest mentalny udział w rynku [1016].",
+      "benchmarkKpis": ["mms", "sos"],
+      "limitations": "Wymaga badania ilościowego na kupujących z kategorii; lista sytuacji musi być stała, aby porównywać wyniki w czasie.",
+      "furtherReading": [1015, 1016, 1013]
+    },
+    {
+      "id": "hoe",
+      "origin": "Robert J. Lavidge i Gary A. Steiner, „A Model for Predictive Measurements of Advertising Effectiveness”, Journal of Marketing, 1961 [1017].",
+      "sourceIds": [1017],
+      "what": "Model opisujący drogę od nieznajomości produktu do zakupu w sześciu krokach: świadomość, wiedza, sympatia, preferencja, przekonanie, zakup [1017].",
+      "goal": "Pomaga ustawić cel reklamy na właściwym etapie i mierzyć jej efekt także wtedy, gdy sprzedaż przychodzi później.",
+      "when": "Przy planowaniu kampanii, która ma budować wiedzę lub preferencję, a nie natychmiastową sprzedaż.",
+      "how": [
+        "Ustal, na którym etapie jest grupa docelowa.",
+        "Wybierz cel komunikacji dla tego etapu.",
+        "Dobierz miernik etapu (świadomość, znajomość cech, preferencja).",
+        "Mierz przed kampanią i po niej."
+      ],
+      "example": "Autorzy zauważają, że zakup pod wpływem impulsu może pominąć wcześniejsze etapy, a reklama przemysłowa często nie ma wywołać natychmiastowego zakupu [1017].",
+      "benchmark": "Model nie podaje progów liczbowych.",
+      "benchmarkKpis": ["aided_aw", "unaided_aw", "cvr"],
+      "limitations": "Zakłada kolejność etapów, której nie potwierdza część badań; zakupy rutynowe i impulsowe przebiegają inaczej.",
+      "furtherReading": [1017, 950]
+    },
+    {
+      "id": "meddic",
+      "origin": "MEDDIC opracowali Dick Dunkel i Jack Napoli w firmie PTC w 1996 r. [1018]. BANT przypisuje się IBM w latach 50. [1019].",
+      "sourceIds": [1018, 1019],
+      "what": "Listy kontrolne kwalifikacji szans sprzedażowych. MEDDIC: Metrics (mierniki korzyści), Economic Buyer (osoba z budżetem), Decision Criteria (kryteria), Decision Process (proces decyzji), Identify Pain (problem), Champion (sojusznik). BANT: Budget, Authority, Need, Timeline.",
+      "goal": "Pozwala ocenić, czy szansa ma realną szansę zamknięcia, i pokazuje, czego brakuje.",
+      "when": "W sprzedaży B2B z kilkoma decydentami; BANT przy prostszych, krótszych sprzedażach.",
+      "how": [
+        "Dla każdej szansy uzupełnij sześć pól MEDDIC w CRM.",
+        "Oznacz pola potwierdzone przez klienta, a nie zgadywane.",
+        "Nie przesuwaj szansy dalej bez osoby z budżetem i znanego procesu decyzji.",
+        "Przeglądaj przegrane według brakujących pól."
+      ],
+      "example": "Twórcy MEDDIC analizowali wygrane, przegrane i opóźnione transakcje PTC i za każdym razem przypisywali wynik tym samym sześciu obszarom [1018].",
+      "benchmark": "Metoda nie ma progów; skutki widać w win rate i długości cyklu.",
+      "benchmarkKpis": ["win_rate", "cycle", "stage_conv"],
+      "limitations": "Wymaga dyscypliny w CRM; przy małych transakcjach koszt kwalifikacji bywa wyższy niż korzyść.",
+      "furtherReading": [1018, 1019]
+    },
+    {
+      "id": "ice",
+      "origin": "Model spopularyzował Sean Ellis, założyciel GrowthHackers; w pierwotnym opisie oceny się sumowało, dziś częściej mnoży się je [1020].",
+      "sourceIds": [1020],
+      "what": "Szybka metoda priorytetyzacji: każdy pomysł dostaje ocenę 1-10 za wpływ (Impact), pewność (Confidence) i łatwość (Ease).",
+      "goal": "Pozwala szybko uporządkować długą listę testów i pomysłów.",
+      "when": "Przy backlogu eksperymentów marketingowych i produktowych, gdy nie ma danych do pełnego RICE.",
+      "how": [
+        "Ustal wspólnie, co znaczy 1, 5 i 10 dla każdej oceny.",
+        "Oceń pomysły osobno, potem porównaj.",
+        "Policz wynik (iloczyn albo średnią, zawsze tak samo).",
+        "Wracaj do ocen po każdym teście."
+      ],
+      "example": "Trzy testy: nowy nagłówek strony (8 × 6 × 9 = 432), program poleceń (7 × 4 × 5 = 140), chat na stronie (5 × 5 × 7 = 175). Kolejność: nagłówek, chat, polecenia.",
+      "benchmark": "Skala 1-10 dla każdej oceny [1020].",
+      "benchmarkKpis": [],
+      "limitations": "Oceny są subiektywne; bez zasięgu (jak w RICE) małe zmiany dla wielu osób przegrywają z dużymi dla nielicznych.",
+      "furtherReading": [1020, 963]
+    },
+    {
+      "id": "pmf",
+      "origin": "Sean Ellis opisał ankietę w 2010 r. w tekście „How to Measure Product-Market Fit” [1010].",
+      "sourceIds": [1010, 1011],
+      "what": "Ankieta z jednym głównym pytaniem: „Jak byś się czuł, gdybyś nie mógł dalej korzystać z produktu?” z odpowiedziami: bardzo rozczarowany, trochę rozczarowany, nie byłbym rozczarowany.",
+      "goal": "Daje szybki sygnał, czy produkt jest koniecznością dla określonej grupy, zanim firma zacznie skalować wydatki.",
+      "when": "Przed zwiększeniem budżetu na pozyskanie, po dużej zmianie produktu, co kwartał w fazie szukania dopasowania.",
+      "how": [
+        "Wyślij ankietę do aktywnych użytkowników z grupy docelowej.",
+        "Policz odsetek odpowiedzi „bardzo rozczarowany”.",
+        "Zapytaj tę grupę o główną korzyść i typ użytkownika.",
+        "Rozwijaj produkt dla podobnych osób i powtórz pomiar."
+      ],
+      "example": "Superhuman w pierwszym badaniu miał 22% odpowiedzi „bardzo rozczarowany”; w badaniu użytkowników Slacka z 2015 r. było ich 51% [1011].",
+      "benchmark": "Próg 40% odpowiedzi „bardzo rozczarowany” [1010]; poniżej 25% to brak dopasowania [1011].",
+      "benchmarkKpis": ["pmf_score", "retention", "activation"],
+      "limitations": "Ellis podkreśla, że 40% nie jest magiczną granicą; wynik to wskaźnik wyprzedzający, który trzeba potwierdzić retencją [1011].",
+      "furtherReading": [1010, 1011]
+    },
+    {
+      "id": "kano",
+      "origin": "Noriaki Kano, Nobuhiko Seraku, Fumio Takahashi i Shinichi Tsuji, „Attractive Quality and Must-Be Quality”, Journal of the Japanese Society for Quality Control, 1984 [1022].",
+      "sourceIds": [1022, 1021],
+      "what": "Model dzielący cechy produktu według wpływu na zadowolenie: obowiązkowe (brak wywołuje niezadowolenie), jednowymiarowe (im więcej, tym lepiej), atrakcyjne (zachwycają, ich brak nie przeszkadza) i obojętne [1021].",
+      "goal": "Pomaga wybrać, które cechy dodać, których nie można pominąć i które nie mają znaczenia.",
+      "when": "Przy planowaniu rozwoju produktu lub usługi i przy tworzeniu pakietów oferty.",
+      "how": [
+        "Wypisz cechy do oceny.",
+        "Zadaj klientom dwa pytania o każdą: jak się czujesz, gdy cecha jest, i gdy jej nie ma.",
+        "Przypisz cechy do kategorii według tabeli Kano.",
+        "Najpierw spełnij cechy obowiązkowe, potem inwestuj w jednowymiarowe i wybrane atrakcyjne."
+      ],
+      "example": "Kano na przykładzie telewizora: bezpieczeństwo to cecha obowiązkowa, zużycie energii jednowymiarowa, pilot atrakcyjna, a dźwięk stereo był w swoim czasie obojętny [1023].",
+      "benchmark": "Model nie podaje progów liczbowych.",
+      "benchmarkKpis": ["csat", "nps"],
+      "limitations": "Cechy atrakcyjne z czasem stają się obowiązkowe; klasyfikację trzeba powtarzać.",
+      "furtherReading": [1022, 1021, 1023]
+    },
+    {
+      "id": "eeat",
+      "origin": "Google, wytyczne dla oceniających jakość wyników wyszukiwania; litera „E” (doświadczenie) dodana w grudniu 2022 r. [1026].",
+      "sourceIds": [1026, 1027],
+      "what": "Kryteria oceny jakości treści: doświadczenie (Experience), wiedza ekspercka (Expertise), autorytet (Authoritativeness) i wiarygodność (Trust). Wiarygodność jest najważniejsza [1026].",
+      "goal": "Pomaga tworzyć treści, którym ludzie i systemy wyszukiwania mogą ufać.",
+      "when": "Przy audycie bloga i stron ofertowych, zwłaszcza w tematach finansów, zdrowia i prawa.",
+      "how": [
+        "Podpisuj teksty autorem z opisem doświadczenia.",
+        "Podawaj źródła i datę aktualizacji.",
+        "Pokaż firmę: dane kontaktowe, zespół, opinie.",
+        "Zdobywaj wzmianki i linki z wiarygodnych miejsc w branży."
+      ],
+      "example": "Artykuł o zmianach w VAT podpisany przez doradcę podatkowego z numerem wpisu, z linkami do ustawy i datą aktualizacji, zamiast tekstu bez autora.",
+      "benchmark": "E-E-A-T nie jest bezpośrednim czynnikiem rankingu i nie ma punktacji; oceny ludzi służą do testowania systemów Google [1027].",
+      "benchmarkKpis": ["organic_traffic", "backlinks"],
+      "limitations": "Wytyczne opisują ocenę ludzi, nie algorytm; poprawa E-E-A-T nie gwarantuje wzrostu pozycji.",
+      "furtherReading": [1026, 1027]
+    },
+    {
+      "id": "mix",
+      "origin": "E. Jerome McCarthy ujął marketing mix w 4P w podręczniku z 1960 r., na bazie pojęcia Neila Bordena; Booms i Bitner dodali w 1981 r. ludzi, procesy i dowody fizyczne dla usług [1042,1043].",
+      "sourceIds": [1042, 1043],
+      "what": "Lista decyzji marketingowych: produkt, cena, dystrybucja i promocja (4P), a w usługach także ludzie, procesy i dowody fizyczne (7P).",
+      "goal": "Sprawdza, czy wszystkie elementy oferty są spójne z grupą docelową i pozycjonowaniem.",
+      "when": "Przy starcie produktu, zmianie cennika albo audycie oferty usługowej.",
+      "how": [
+        "Zapisz obecny stan każdego P.",
+        "Sprawdź, czy elementy do siebie pasują (np. cena a obsługa).",
+        "Wskaż najsłabszy element.",
+        "Zaplanuj zmianę i miernik dla tego elementu."
+      ],
+      "example": "Usługa wdrożenia systemu: produkt (zakres wdrożenia), cena (pakiety), dystrybucja (sprzedaż bezpośrednia i partnerzy), promocja (webinary), ludzie (konsultanci z certyfikatem), proces (plan wdrożenia w 6 tygodni), dowody (studia przypadków, referencje).",
+      "benchmark": "Model jakościowy.",
+      "benchmarkKpis": ["aov", "cvr"],
+      "limitations": "Patrzy z perspektywy firmy, nie klienta; nie mówi, który element jest najważniejszy.",
+      "furtherReading": [1042, 1043]
+    },
+    {
+      "id": "diffusion",
+      "origin": "Everett Rogers, „Diffusion of Innovations”, 1962 [1044]; Geoffrey Moore opisał w 1991 r. przepaść między wczesnymi użytkownikami a wczesną większością [1045].",
+      "sourceIds": [1044, 1045],
+      "what": "Teoria opisująca, jak nowe produkty rozchodzą się w grupie: najpierw innowatorzy, potem wcześni użytkownicy, wczesna i późna większość, na końcu maruderzy.",
+      "goal": "Pomaga dopasować przekaz i dowody do grupy, do której produkt właśnie trafia.",
+      "when": "Przy starcie nowego produktu lub technologii, zwłaszcza w B2B.",
+      "how": [
+        "Ustal, która grupa kupuje teraz.",
+        "Dla wczesnej większości przygotuj referencje z podobnych firm.",
+        "Zacznij od jednej niszy w wczesnej większości.",
+        "Zbieraj polecenia w tej niszy, zanim wejdziesz do kolejnej."
+      ],
+      "example": "Rogers podaje podział: innowatorzy 2,5%, wcześni użytkownicy 13,5%, wczesna większość 34%, późna większość 34%, maruderzy 16% [1044].",
+      "benchmark": "Podział 2,5 / 13,5 / 34 / 34 / 16% [1044].",
+      "benchmarkKpis": ["activation", "pmf_score"],
+      "limitations": "Proporcje są modelem statystycznym, nie pomiarem konkretnego rynku.",
+      "furtherReading": [1044, 1045]
+    },
+    {
+      "id": "cbbe",
+      "origin": "Kevin Lane Keller, artykuł w Journal of Marketing z 1993 r. i raport Marketing Science Institute nr 01-107 z 2001 r. [1046,1047].",
+      "sourceIds": [1046, 1047],
+      "what": "Model budowania marki w czterech poziomach i sześciu blokach: wyrazistość, wydajność i wizerunek, oceny i uczucia, rezonans [1046].",
+      "goal": "Pokazuje, na którym poziomie marka ma braki i co mierzyć na każdym z nich.",
+      "when": "Przy strategii marki, badaniu wizerunku i planie komunikacji na rok.",
+      "how": [
+        "Zmierz rozpoznawalność (wyrazistość).",
+        "Zbadaj, co klienci wiedzą o produkcie i jak postrzegają markę.",
+        "Sprawdź oceny (jakość, wiarygodność) i uczucia.",
+        "Mierz rezonans: lojalność, zaangażowanie, polecenia."
+      ],
+      "example": "Keller opisuje rezonans jako najcenniejszy blok, który pojawia się dopiero wtedy, gdy pozostałe są zbudowane [1046].",
+      "benchmark": "Model jakościowy; mierniki to m.in. świadomość, NPS i sentyment.",
+      "benchmarkKpis": ["aided_aw", "nps", "net_sentiment"],
+      "limitations": "Zakłada kolejność poziomów; część badaczy (np. Ehrenberg-Bass) kwestionuje rolę lojalności i więzi emocjonalnej.",
+      "furtherReading": [1046, 1047]
+    },
+    {
+      "id": "cialdini",
+      "origin": "Robert Cialdini, „Influence: The Psychology of Persuasion”, 1984; siódma zasada (jedność) w „Pre-Suasion”, 2016 [1048].",
+      "sourceIds": [1048, 1049],
+      "what": "Siedem zasad, które zwiększają szansę, że ktoś powie „tak”: wzajemność, zaangażowanie i konsekwencja, społeczny dowód słuszności, autorytet, sympatia, niedostępność i jedność [1048].",
+      "goal": "Pomaga projektować komunikaty, strony i oferty, które łatwiej przekonują, oraz rozpoznawać manipulację.",
+      "when": "Przy pisaniu stron ofertowych, e-maili sprzedażowych, formularzy i scenariuszy rozmów.",
+      "how": [
+        "Sprawdź, które zasady już działają w komunikacie.",
+        "Dodaj prawdziwe dowody: opinie, liczby klientów, ekspertów.",
+        "Używaj niedostępności tylko wtedy, gdy jest prawdziwa.",
+        "Testuj zmiany A/B."
+      ],
+      "example": "Na konferencji ASU w 2024 r. zasady pogrupowano w trzy cele: budowanie relacji (wzajemność, sympatia, jedność), zmniejszanie niepewności (autorytet, dowód społeczny) i skłanianie do działania (konsekwencja, niedostępność) [1049].",
+      "benchmark": "Model jakościowy.",
+      "benchmarkKpis": ["cvr", "review_count"],
+      "limitations": "Fałszywa niedostępność albo zmyślone opinie łamią prawo konsumenckie i niszczą zaufanie.",
+      "furtherReading": [1048, 1049]
+    },
+    {
+      "id": "fogg",
+      "origin": "BJ Fogg, „A Behavior Model for Persuasive Design”, Persuasive '09, 26 kwietnia 2009 r. [1050].",
+      "sourceIds": [1050, 1051],
+      "what": "Model, według którego zachowanie występuje, gdy w tym samym momencie są motywacja, zdolność (łatwość) i bodziec. Gdy zachowania nie ma, brakuje co najmniej jednego z nich [1051].",
+      "goal": "Pozwala ustalić, dlaczego użytkownicy nie wykonują kroku (rejestracji, aktywacji, zakupu), i wybrać właściwą poprawkę.",
+      "when": "Przy onboardingu, formularzach, przypomnieniach i projektowaniu nawyków w produkcie.",
+      "how": [
+        "Nazwij jedno konkretne zachowanie.",
+        "Sprawdź, czy jest bodziec we właściwym momencie.",
+        "Ułatw zachowanie: mniej kroków, mniej pól.",
+        "Dopiero potem zwiększaj motywację."
+      ],
+      "example": "Formularz demo ma 11 pól i nikt nie przypomina o nim po pobraniu raportu. Według modelu brakuje zdolności (za trudno) i bodźca; zespół skraca formularz do 4 pól i dodaje przycisk w e-mailu z raportem.",
+      "benchmark": "Model jakościowy.",
+      "benchmarkKpis": ["activation", "ttv", "feature_adoption"],
+      "limitations": "Nie mierzy motywacji ani zdolności liczbowo; to narzędzie diagnozy, nie prognozy.",
+      "furtherReading": [1050, 1051]
+    },
+    {
+      "id": "mmm",
+      "origin": "Marketing mix modeling to metoda statystyczna znana od dziesięcioleci; Google udostępnił otwarty model Meridian wszystkim użytkownikom w styczniu 2025 r. [1053].",
+      "sourceIds": [1052, 1053],
+      "what": "Model statystyczny, który szacuje wpływ każdego kanału na sprzedaż na podstawie danych historycznych, bez śledzenia pojedynczych użytkowników. Testy przyrostowe (z grupą kontrolną) sprawdzają wpływ kanału eksperymentem.",
+      "goal": "Pomaga dzielić budżet między kanały, gdy atrybucja oparta na kliknięciach przestaje wystarczać.",
+      "when": "Przy większym budżecie w kilku kanałach i co najmniej 2-3 latach danych tygodniowych.",
+      "how": [
+        "Zbierz dane tygodniowe: wydatki na kanały, sprzedaż, ceny, sezonowość.",
+        "Przeprowadź testy przyrostowe dla największych kanałów.",
+        "Dodaj wyniki testów do modelu jako założenia [1052].",
+        "Planuj budżet na podstawie krzywych zwrotu z modelu."
+      ],
+      "example": "Forrester zaleca pomiar warstwowy: pomiar kampanii i testy przyrostowe zasilają model marketing mix [1053].",
+      "benchmark": "Metoda nie ma progów; wynik to krzywe zwrotu i przyrostowy ROAS kanałów.",
+      "benchmarkKpis": ["iroas", "mer", "roas"],
+      "limitations": "Wymaga długiej historii danych, analityka i zmienności wydatków; przy małych budżetach daje szerokie przedziały niepewności.",
+      "furtherReading": [1052, 1053]
+    },
+    {
+      "id": "effortless",
+      "origin": "Matthew Dixon, Karen Freeman i Nicholas Toman, „Stop Trying to Delight Your Customers”, Harvard Business Review, lipiec-sierpień 2010 [1031].",
+      "sourceIds": [1031, 1032, 1033],
+      "what": "Podejście do obsługi klienta, według którego lojalność buduje przede wszystkim ograniczanie wysiłku klienta, a nie przekraczanie oczekiwań. Miernikiem jest Customer Effort Score.",
+      "goal": "Pomaga wybrać inwestycje w obsłudze: mniej przekazywania spraw, lepsza samoobsługa, rozwiązanie za pierwszym razem.",
+      "when": "Przy planie obsługi klienta, projektowaniu procesu reklamacji i samoobsługi.",
+      "how": [
+        "Mierz CES po każdym zamkniętym zgłoszeniu.",
+        "Znajdź sprawy o najwyższym wysiłku.",
+        "Usuń powody ponownego kontaktu.",
+        "Mierz odsetek spraw rozwiązanych za pierwszym razem."
+      ],
+      "example": "W pierwotnym badaniu CES mierzono w skali 1-5, gdzie 5 oznacza bardzo duży wysiłek [1031].",
+      "benchmark": "94% klientów z małym wysiłkiem deklaruje ponowny zakup [1032]; 96% po dużym wysiłku staje się bardziej nielojalnych wobec 9% po małym [1033].",
+      "benchmarkKpis": ["ces", "fcr", "csat"],
+      "limitations": "Część liczb pochodzi z badań firmy doradczej CEB; skale CES różnią się między narzędziami.",
+      "furtherReading": [1031, 1032, 1033]
+    },
+    {
+      "id": "positioning",
+      "origin": "Al Ries i Jack Trout opisali pozycjonowanie w trzyczęściowej serii w Advertising Age w kwietniu i maju 1972 r., a w 1981 r. w książce „Positioning: The Battle for Your Mind” [1073]. Część badaczy wskazuje, że praktyka była znana wcześniej [1074].",
+      "sourceIds": [1073, 1074],
+      "what": "Pozycjonowanie to wybór jednego, prostego miejsca, które marka ma zajmować w umyśle klienta względem konkurentów.",
+      "goal": "Pomaga wyróżnić markę, gdy ofert jest dużo i są do siebie podobne, oraz ustala, czego marka nie będzie obiecywać.",
+      "when": "Przy starcie marki lub produktu, wejściu do nowej kategorii albo gdy klienci nie potrafią powiedzieć, czym firma się różni.",
+      "how": [
+        "Wypisz alternatywy, które klient realnie rozważa.",
+        "Ustal cechy, które masz tylko Ty.",
+        "Przełóż cechy na korzyść dla wybranej grupy.",
+        "Zapisz zdanie pozycjonujące i sprawdzaj z nim każdy komunikat."
+      ],
+      "example": "Ries i Trout opisali w 1972 r. przejście reklamy od ery produktu przez erę wizerunku do ery pozycjonowania, w której liczy się strategia [1073].",
+      "benchmark": "Model jakościowy; efekt widać w rozważaniu marki, mentalnym udziale w rynku i świadomości.",
+      "benchmarkKpis": ["consideration", "mms", "aided_aw"],
+      "limitations": "Pozycja zbyt wąska ogranicza wzrost; jedno zdanie nie zastąpi badań, czy klienci rozumieją ją tak samo.",
+      "furtherReading": [1073, 1074]
+    },
+    {
+      "id": "zmot",
+      "origin": "Google ogłosił pojęcie i e-book Jima Lecinskiego „Winning the Zero Moment of Truth” w czerwcu 2011 r. [1070,1071].",
+      "sourceIds": [1070, 1071],
+      "what": "ZMOT to moment, w którym klient po zetknięciu z reklamą, a przed zakupem, szuka informacji w internecie: opinii, porównań, filmów. Uzupełnia wcześniejsze pojęcia P&G: pierwszy moment prawdy (przy półce) i drugi (używanie produktu) [1070].",
+      "goal": "Pokazuje, że decyzja zapada przed kontaktem z ofertą, więc marka musi być obecna tam, gdzie klient szuka informacji.",
+      "when": "Przy planowaniu treści, opinii, SEO i obecności w porównywarkach.",
+      "how": [
+        "Wypisz pytania, które klienci zadają przed zakupem.",
+        "Sprawdź, co widzą w wyszukiwarce i w opiniach.",
+        "Uzupełnij brakujące treści i odpowiedzi.",
+        "Zbieraj opinie i odpowiadaj na nie."
+      ],
+      "example": "Google opisał, że kiedyś za kluczowy uznawano kilka sekund przy półce sklepowej (pierwszy moment prawdy według P&G), a dziś decyzja zapada wcześniej, w internecie [1070].",
+      "benchmark": "Model jakościowy; mierniki to opinie, ruch z wyszukiwarki i udział w wynikach.",
+      "benchmarkKpis": ["review_rating", "review_count", "organic_traffic"],
+      "limitations": "Model z 2011 r. nie opisuje asystentów AI i wideo krótkiego formatu, które dziś zmieniają sposób szukania.",
+      "furtherReading": [1070, 1071]
+    },
+    {
+      "id": "messy",
+      "origin": "Badanie Google i The Behavioural Architects „Decoding Decisions: Making sense of the messy middle”, 2020 [1072].",
+      "sourceIds": [1072],
+      "what": "Model decyzji zakupowej, w którym między impulsem a zakupem jest pętla dwóch stanów: eksploracji (poszerzanie listy opcji) i ewaluacji (zawężanie) [1072].",
+      "goal": "Pomaga projektować komunikację tak, by marka przetrwała pętlę porównań i trafiła na krótką listę.",
+      "when": "Przy planowaniu kampanii, treści porównawczych i stron ofertowych.",
+      "how": [
+        "Ustal, gdzie klienci eksplorują (wyszukiwarka, opinie, wideo).",
+        "Sprawdź, na podstawie czego zawężają wybór.",
+        "Dostarcz dowody w miejscach ewaluacji: opinie, ceny, porównania.",
+        "Usuń przeszkody między decyzją a zakupem."
+      ],
+      "example": "Google nagrywał uczestników badania podczas wykonywania zadań zakupowych i analizował nagrania z pomocą nauk behawioralnych [1072].",
+      "benchmark": "Model jakościowy.",
+      "benchmarkKpis": ["consideration", "cvr", "review_rating"],
+      "limitations": "Badanie dotyczyło głównie zakupów konsumenckich; w B2B pętla trwa dłużej i obejmuje kilka osób.",
+      "furtherReading": [1072]
+    },
+    {
+      "id": "hook",
+      "origin": "Nir Eyal z Ryanem Hooverem, „Hooked: How to Build Habit-Forming Products”, Portfolio, 2014 [1075].",
+      "sourceIds": [1075, 1076],
+      "what": "Czterostopniowa pętla budowania nawyku: wyzwalacz, działanie, zmienna nagroda, inwestycja. Inwestycja użytkownika przygotowuje kolejny wyzwalacz [1076].",
+      "goal": "Pomaga projektować produkty i treści, do których ludzie wracają bez kosztownej reklamy.",
+      "when": "Przy projektowaniu aplikacji, newslettera, społeczności albo programu lojalnościowego.",
+      "how": [
+        "Nazwij wewnętrzny wyzwalacz (potrzebę) i zewnętrzny (powiadomienie).",
+        "Uprość działanie do minimum.",
+        "Daj nagrodę, która nie jest za każdym razem taka sama.",
+        "Poproś o małą inwestycję (dane, treść), która zwiększy wartość kolejnej wizyty."
+      ],
+      "example": "Newsletter z cotygodniowym zestawieniem przetargów: wyzwalacz to e-mail w poniedziałek rano, działanie to kliknięcie, zmienna nagroda to nowe przetargi, inwestycja to zapisanie filtrów branży.",
+      "benchmark": "Model jakościowy; mierniki to DAU/MAU, retencja i adopcja funkcji.",
+      "benchmarkKpis": ["stickiness", "retention", "feature_adoption"],
+      "limitations": "Krytykowany za podobieństwo do mechanizmów uzależnień; sam autor podkreśla potrzebę etycznego stosowania [1075].",
+      "furtherReading": [1075, 1076]
+    },
+    {
+      "id": "peso",
+      "origin": "Gini Dietrich stworzyła model w 2009 r. w swojej agencji i opublikowała w książce „Spin Sucks” w 2014 r. [1077]; autorstwo podobnego podziału przypisuje się też Donowi Bartholomew [1078].",
+      "sourceIds": [1077, 1078],
+      "what": "Podział mediów na cztery typy: płatne (reklamy), pozyskane (publikacje w mediach), udostępniane (social media) i własne (treści na stronie, newsletter), połączone w jeden program komunikacji.",
+      "goal": "Pomaga planować komunikację, w której typy mediów wzajemnie się wzmacniają, zamiast działać osobno.",
+      "when": "Przy planie komunikacji, PR i kampanii eksperckiej.",
+      "how": [
+        "Zacznij od treści własnych (raport, artykuł).",
+        "Wykorzystaj je do pozyskania publikacji w mediach.",
+        "Rozpowszechnij w social media przez firmę i ekspertów.",
+        "Wzmocnij najlepsze treści reklamą."
+      ],
+      "example": "Dietrich podaje, że z perspektywy komunikacji kolejność ważności to treści własne, pozyskane, udostępniane i na końcu płatne [1077].",
+      "benchmark": "Model jakościowy; mierniki to publikacje w mediach, udział głosu i zasięg ekspertów.",
+      "benchmarkKpis": ["earned_mentions", "sov", "employee_reach"],
+      "limitations": "Granice między typami się zacierają (np. promowany post eksperta); model nie mówi, jak dzielić budżet.",
+      "furtherReading": [1077, 1078]
+    },
+    {
+      "id": "abm",
+      "origin": "Pojęcie ukuła w 2003 r. Bev Burgess w ITSMA [1079].",
+      "sourceIds": [1079, 1080],
+      "what": "Strategia B2B, w której marketing i sprzedaż wspólnie traktują wybrane konta (firmy) jak osobne rynki i przygotowują dla nich dopasowane działania.",
+      "goal": "Skupia budżet na firmach z największym potencjałem i łączy pracę marketingu ze sprzedażą.",
+      "when": "Przy sprzedaży o dużej wartości, z kilkoma decydentami i ograniczoną liczbą potencjalnych klientów.",
+      "how": [
+        "Wybierz konta według dopasowania i potencjału.",
+        "Podziel je na trzy poziomy personalizacji.",
+        "Zmapuj osoby decyzyjne w każdym koncie.",
+        "Mierz zaangażowanie kont i pipeline, nie liczbę leadów."
+      ],
+      "example": "Burgess wyróżnia trzy typy: strategiczny (jedno konto), ABM lite (mała grupa kont o podobnych problemach) i programatyczny (dziesiątki lub setki kont z pomocą technologii) [1079].",
+      "benchmark": "Model nie podaje progów; mierniki to zaangażowanie kont, pipeline z udziałem marketingu i win rate.",
+      "benchmarkKpis": ["account_engagement", "mkt_influenced", "win_rate"],
+      "limitations": "Wymaga ścisłej współpracy ze sprzedażą i dobrych danych o kontach; przy małej wartości transakcji jest za drogi.",
+      "furtherReading": [1079, 1080]
+    },
+    {
+      "id": "dj",
+      "origin": "William McPhee opisał zjawisko w 1963 r., a Andrew Ehrenberg, Gerald Goodhardt i Patrick Barwise w „Double Jeopardy Revisited”, Journal of Marketing 54, nr 3 (1990): 82-91 [1081].",
+      "sourceIds": [1081, 1082],
+      "what": "Prawo empiryczne: marki o mniejszym udziale w rynku mają znacznie mniej kupujących, a ci kupujący są dodatkowo nieco mniej lojalni [1081].",
+      "goal": "Pokazuje, że wzrost marki zależy głównie od zdobywania nowych kupujących, a nie od zwiększania lojalności obecnych.",
+      "when": "Przy planowaniu budżetu między pozyskaniem a retencją i przy ocenie programów lojalnościowych.",
+      "how": [
+        "Porównaj marki w kategorii: udział, odsetek kupujących, częstotliwość zakupów.",
+        "Sprawdź, czy Twoja marka odstaje od wzoru.",
+        "Planuj wzrost przez zasięg wśród wszystkich kupujących kategorię.",
+        "Traktuj wzrost lojalności jako skutek wzrostu udziału, nie przyczynę."
+      ],
+      "example": "Ehrenberg i współautorzy zauważyli, że w towarach paczkowanych mniej popularne marki miały mniej lojalnych kupujących, a sytuacja odwrotna, czyli mała marka z wyjątkowo lojalnymi kupującymi, prawie się nie zdarzała [1081].",
+      "benchmark": "Wzór jest stały w wielu kategoriach; zróżnicowanie lojalności między markami jest niewielkie [1082].",
+      "benchmarkKpis": ["repeat_rate", "sov", "mms"],
+      "limitations": "Wyjątkami są marki niszowe i marki własne sieci handlowych; w B2B z kilkoma dużymi klientami wzór bywa słabszy.",
+      "furtherReading": [1081, 1082, 1013]
+    },
+    {
+      "id": "attribution",
+      "origin": "Google usunął w 2023 r. z Google Ads i GA4 modele: pierwsze kliknięcie, liniowy, spadek w czasie i oparty na pozycji; zostały: oparty na danych i ostatnie kliknięcie [1100].",
+      "sourceIds": [1100, 1101],
+      "what": "Model atrybucji to zasada podziału zasługi za konwersję między punkty kontaktu na ścieżce klienta: reklamy, e-maile, wyszukiwania.",
+      "goal": "Wpływa na to, które kanały wyglądają na skuteczne i dokąd przesuwa się budżet.",
+      "when": "Przy raportowaniu kampanii, ustawianiu strategii stawek i porównywaniu kanałów.",
+      "how": [
+        "Sprawdź, jaki model mają konwersje w Google Ads i GA4.",
+        "Porównaj wyniki kanałów w modelu ostatniego kliknięcia i opartym na danych.",
+        "Zapisz model przy każdym raporcie.",
+        "Weryfikuj wnioski testami przyrostowymi."
+      ],
+      "example": "Według Google mniej niż 3% konwersji w Google Ads było przypisywanych modelami opartymi na regułach, gdy ogłaszano ich wycofanie [1100].",
+      "benchmark": "Model nie ma progów; ten sam kanał może wyglądać różnie w różnych modelach.",
+      "benchmarkKpis": ["roas", "cpa", "mkt_influenced"],
+      "limitations": "Model oparty na danych nie pokazuje dokładnie, jak dzieli zasługę; żaden model atrybucji nie mierzy przyrostu, tylko przypisuje zasługę.",
+      "furtherReading": [1100, 1101]
+    },
+    {
+      "id": "abtest",
+      "origin": "Ron Kohavi, Diane Tang i Ya Xu, „Trustworthy Online Controlled Experiments: A Practical Guide to A/B Testing”, Cambridge University Press, 2020 [1102,1103].",
+      "sourceIds": [1102, 1103, 1104],
+      "what": "Kontrolowany eksperyment: losowo dzielisz odbiorców na grupy, pokazujesz im różne wersje i porównujesz wynik w wybranej metryce.",
+      "goal": "Pozwala ustalić, czy zmiana (nagłówek, cena, formularz) naprawdę poprawia wynik, a nie tylko zbiegła się w czasie z innym zjawiskiem.",
+      "when": "Przy zmianach stron docelowych, e-maili, reklam i produktu, gdy ruch wystarcza do wykrycia różnicy.",
+      "how": [
+        "Zapisz hipotezę i jedną główną metrykę przed startem.",
+        "Policz wielkość próby i czas testu.",
+        "Prowadź test pełnymi tygodniami i nie przerywaj go po pierwszym dobrym wyniku.",
+        "Sprawdź zgodność proporcji grup (SRM), zanim ocenisz wynik [1102]."
+      ],
+      "example": "Autorzy opierają książkę na doświadczeniach firm, z których każda prowadzi ponad 20 000 kontrolowanych eksperymentów rocznie [1103].",
+      "benchmark": "Rozbieżność proporcji grup (SRM) jest jednym z najczęstszych sygnałów problemów z jakością danych w testach [1104].",
+      "benchmarkKpis": ["lp_cvr", "cvr", "ctr_paid"],
+      "limitations": "Przy małym ruchu test trwa za długo albo nie wykrywa różnic; wiele testów naraz zwiększa ryzyko fałszywych wyników.",
+      "furtherReading": [1102, 1103, 1104]
+    },
+    {
+      "id": "cdj",
+      "origin": "David Court, Dave Elzinga, Susan Mulder i Ole Jørgen Vetvik, „The consumer decision journey”, McKinsey Quarterly, 2009 [1105].",
+      "sourceIds": [1105],
+      "what": "Model, w którym decyzja zakupowa to krąg z czterema fazami: wstępne rozważanie, aktywna ocena, zakup i doświadczenie po zakupie, z pętlą lojalności [1105].",
+      "goal": "Pokazuje, że marka może wejść na listę także w trakcie oceny, i że doświadczenie po zakupie wpływa na kolejną decyzję.",
+      "when": "Przy planowaniu budżetu między świadomość, ocenę i obsługę klienta.",
+      "how": [
+        "Zbadaj, które marki są na wstępnej liście klientów.",
+        "Sprawdź, gdzie klienci szukają informacji w fazie oceny.",
+        "Zmierz doświadczenie po zakupie i polecenia.",
+        "Przesuń budżet do fazy, w której marka traci najwięcej klientów."
+      ],
+      "example": "Model zastąpił w raporcie McKinsey liniowy lejek (świadomość, znajomość, rozważanie, zakup, lojalność) okręgiem z pętlą lojalności [1105].",
+      "benchmark": "Model jakościowy.",
+      "benchmarkKpis": ["consideration", "repeat_rate", "review_rating"],
+      "limitations": "Badania dotyczyły rynków konsumenckich (np. samochody, kosmetyki, telekomunikacja); w B2B ocena trwa dłużej i obejmuje kilka osób.",
+      "furtherReading": [1105]
+    },
+    {
+      "id": "frequency",
+      "origin": "Herbert Krugman, „Why Three Exposures May Be Enough”, Journal of Advertising Research, 1972 [1114]; od lat 90. teorię kwestionowali m.in. John Philip Jones i Erwin Ephron [1114].",
+      "sourceIds": [1114, 1115],
+      "what": "Pytanie, ile razy osoba musi zobaczyć reklamę, aby zadziałała. Krugman opisał trzy psychologiczne reakcje na kolejne ekspozycje [1115]; późniejsza praktyka (recency planning) stawia na zasięg i ciągłość emisji [1114].",
+      "goal": "Pomaga ustawić limity częstotliwości i podział budżetu między zasięg a powtórzenia.",
+      "when": "Przy planowaniu mediów, ustawianiu limitów częstotliwości i ocenie zmęczenia kreacji.",
+      "how": [
+        "Ustal cykl zakupowy kategorii.",
+        "Zaplanuj ciągłą obecność zamiast krótkich, intensywnych zrywów.",
+        "Ustaw limit częstotliwości w platformach.",
+        "Obserwuj spadek CTR i rosnącą częstotliwość jako sygnał zmęczenia."
+      ],
+      "example": "Według opisu WARC Krugman zakładał, że pierwsza reklama budzi uwagę, druga pozwala rozpoznać przekaz, a trzecia go domyka [1115].",
+      "benchmark": "Ehrenberg-Bass Institute uważa, że zasięg jest ważniejszy niż częstotliwość, a emisja ciągła skuteczniejsza niż zrywy z długimi przerwami [1114].",
+      "benchmarkKpis": ["frequency", "reach", "ctr_decay"],
+      "limitations": "Krugman mówił o ekspozycjach psychologicznych, nie o liczbie emisji w mediach; reguła „trzech kontaktów” to uproszczenie jego tezy.",
+      "furtherReading": [1114, 1115]
+    },
+    {
+      "id": "fivekeys",
+      "origin": "Analiza Nielsen i Nielsen Catalina Solutions (NCSolutions) „Five Keys to Advertising Effectiveness”, 2017 [1106], aktualizacja w 2023 r. [1107].",
+      "sourceIds": [1106, 1107],
+      "what": "Zestawienie, jaka część wzrostu sprzedaży z reklamy wynika z kreacji, zasięgu, marki, targetowania, momentu emisji i kontekstu.",
+      "goal": "Pomaga ustalić, gdzie szukać poprawy skuteczności: w kreacji i zasięgu, a nie tylko w precyzji targetowania.",
+      "when": "Przy podziale budżetu między produkcję kreacji a media i przy ocenie kampanii.",
+      "how": [
+        "Oceń kreację przed emisją (test lub ocena według wytycznych).",
+        "Sprawdź, czy kampania ma wystarczający zasięg w grupie docelowej.",
+        "Nie zawężaj targetowania kosztem zasięgu.",
+        "Mierz efekt w sprzedaży lub testem przyrostowym."
+      ],
+      "example": "W analizie z 2017 r. kreacja odpowiadała za 47% wzrostu sprzedaży z reklamy, zasięg za 22%, czynniki marki za 15%, targetowanie za 9%, moment emisji za 5% i kontekst za 2% [1106].",
+      "benchmark": "W aktualizacji z 2023 r. udział kreacji wyniósł 49%, a marki 21% [1107]; zasięg spadł do 14%, a targetowanie wzrosło do 11% [1183].",
+      "benchmarkKpis": ["reach", "ad_recall_lift", "ctr_paid"],
+      "limitations": "Dane pochodzą głównie z kampanii dóbr konsumpcyjnych w USA mierzonych sprzedażą w sklepach; w B2B proporcje mogą być inne.",
+      "furtherReading": [1106, 1107, 1183]
+    },
+    {
+      "id": "abcd",
+      "origin": "Google (YouTube), wytyczne ABCD; skuteczność potwierdzona badaniem Google i Kantar z kwietnia 2021 r. [1108].",
+      "sourceIds": [1108, 1109],
+      "what": "Cztery zasady reklam wideo: Attention (przyciągnij uwagę), Branding (pokaż markę wcześnie i często), Connection (wywołaj myśl lub emocję), Direction (powiedz, co zrobić) [1108].",
+      "goal": "Pomaga projektować i oceniać reklamy wideo przed emisją.",
+      "when": "Przy pisaniu scenariuszy, ocenie gotowych filmów i wyborze wersji do testów.",
+      "how": [
+        "Zacznij od mocnego obrazu lub dźwięku w pierwszych sekundach.",
+        "Pokaż i wypowiedz nazwę marki na początku.",
+        "Opowiedz historię z jedną emocją lub myślą.",
+        "Zakończ jasnym wezwaniem do działania."
+      ],
+      "example": "Kantar ocenił ponad 11 000 reklam i 180 cech kreacji, aby sprawdzić wpływ zasad ABCD [1109].",
+      "benchmark": "Reklamy zgodne z ABCD dawały średnio 30% wzrostu prawdopodobieństwa krótkoterminowej sprzedaży i 17% wzrostu długoterminowego wkładu marki [1108].",
+      "benchmarkKpis": ["hook_rate", "vtr", "avg_watch_time"],
+      "limitations": "Wytyczne i badanie pochodzą od Google, który sprzedaje reklamy na YouTube; to zasady wykonania, nie zastępują dobrego pomysłu.",
+      "furtherReading": [1108, 1109]
+    },
+    {
+      "id": "intent",
+      "origin": "Andrei Broder, „A taxonomy of web search”, SIGIR Forum 36, nr 2 (2002): 3-10 [1110].",
+      "sourceIds": [1110, 1111],
+      "what": "Podział zapytań na trzy typy według celu: nawigacyjne (dotarcie do konkretnej strony), informacyjne (szukanie wiedzy) i transakcyjne (wykonanie działania, np. zakup, pobranie) [1110].",
+      "goal": "Pomaga dobrać treść i reklamę do celu osoby szukającej oraz ocenić, które frazy prowadzą do sprzedaży.",
+      "when": "Przy planie treści SEO, doborze słów kluczowych w kampaniach i ocenie wyników fraz.",
+      "how": [
+        "Przypisz frazy do jednego z trzech typów.",
+        "Dla informacyjnych twórz poradniki i odpowiedzi.",
+        "Dla transakcyjnych przygotuj strony ofert i reklamy z ceną.",
+        "Dla nawigacyjnych chroń frazy z nazwą marki."
+      ],
+      "example": "W danych AltaVista z 2002 r. zapytania nawigacyjne stanowiły 20-24,5%, informacyjne 39-48%, a transakcyjne 22-36% [1111].",
+      "benchmark": "Proporcje zależą od wyszukiwarki i sposobu klasyfikacji; inne badanie (Rose i Levinson, 2004) dało 61-63% zapytań informacyjnych [1111].",
+      "benchmarkKpis": ["serp_ctr", "organic_traffic", "nonbrand_share"],
+      "limitations": "Wiele zapytań ma mieszaną intencję; podsumowania AI zmieniają, ile zapytań informacyjnych kończy się kliknięciem.",
+      "furtherReading": [1110, 1111]
+    },
+    {
+      "id": "consentmode",
+      "origin": "Google wprowadził tryb zgody w wersji 2 pod koniec 2023 r., dodając sygnały ad_user_data i ad_personalization; od marca 2024 r. są wymagane do personalizacji reklam dla użytkowników z EOG [1112].",
+      "sourceIds": [1112, 1113],
+      "what": "Mechanizm, który przekazuje tagom Google decyzję użytkownika z banera zgód i zmienia sposób zbierania danych; brakujące konwersje Google szacuje modelowaniem [1112].",
+      "goal": "Pozwala mierzyć kampanie zgodnie z prawem i ograniczyć utratę danych przy braku zgody.",
+      "when": "Przy każdej stronie, która prowadzi reklamy Google lub korzysta z GA4 dla użytkowników z Europy.",
+      "how": [
+        "Wybierz platformę do zarządzania zgodami zgodną z trybem zgody.",
+        "Ustaw domyślny brak zgody dla wszystkich czterech sygnałów.",
+        "Wybierz wariant podstawowy (tagi czekają na zgodę) albo zaawansowany (tagi wysyłają sygnały bez plików cookie) [1113].",
+        "Sprawdź w Tag Assistant, czy sygnały zmieniają się po decyzji."
+      ],
+      "example": "Wariant zaawansowany pozwala Google modelować konwersje i zachowania na podstawie sygnałów bez plików cookie, wariant podstawowy daje ogólniejsze modelowanie [1113].",
+      "benchmark": "Mechanizm nie ma progów; sprawdzaj odsetek zgód i zgodność kliknięć z sesjami.",
+      "benchmarkKpis": ["consent_rate", "click_session", "unassigned_share"],
+      "limitations": "Modelowane konwersje to szacunek, nie pomiar; wybór wariantu wymaga oceny prawnej.",
+      "furtherReading": [1112, 1113]
+    },
+    {
+      "id": "dmmm",
+      "origin": "Avinash Kaushik opisał model na blogu Occam's Razor jako pięcioetapowy proces [1130].",
+      "sourceIds": [1130],
+      "what": "Plan pomiaru, który zaczyna się od celów biznesowych, a dopiero na końcu dochodzi do wskaźników: cele biznesowe, cele działań cyfrowych, KPI, wartości docelowe i segmenty [1130].",
+      "goal": "Chroni przed raportowaniem wszystkiego, co da się zmierzyć, i łączy dane z GA4, social media i newslettera z celami firmy.",
+      "when": "Przed wdrożeniem GA4, przed startem kampanii i przy porządkowaniu raportów miesięcznych.",
+      "how": [
+        "Ustal z zarządem, po co istnieje strona, kampania albo newsletter.",
+        "Dla każdego celu biznesowego zapisz konkretne cele działań cyfrowych.",
+        "Do każdego celu dobierz jeden lub dwa KPI.",
+        "Ustal wartości docelowe i segmenty, w których będziesz oceniać wyniki."
+      ],
+      "example": "Kaushik definiuje cele działań cyfrowych jako konkretne strategie, którymi firma realizuje cele biznesowe [1130].",
+      "benchmark": "Model nie podaje progów; wartości docelowe ustala się z planu, historii lub benchmarków.",
+      "benchmarkKpis": ["key_event_rate", "engaged_rate", "email_conv"],
+      "limitations": "Wymaga zgody zarządu na cele; bez niej plan pomiaru zamienia się w listę wskaźników.",
+      "furtherReading": [1130]
+    },
+    {
+      "id": "hhh",
+      "origin": "Google i YouTube opisali podział w poradnikach dla marek (YouTube Creator Playbook for Brands, ok. 2013-2014) [1131,1132].",
+      "sourceIds": [1131, 1132],
+      "what": "Podział treści na trzy typy: Hygiene lub Help (odpowiedzi na to, czego ludzie szukają), Hub (regularne treści dla stałych widzów) i Hero (duże wydarzenia dla szerokiej publiczności) [1131].",
+      "goal": "Pomaga zaplanować rytm treści wideo i całego kanału, tak by przyciągać nowych widzów i utrzymywać stałych.",
+      "when": "Przy planie kanału YouTube, podcastu, bloga albo newslettera na rok.",
+      "how": [
+        "Zbierz pytania, które klienci wpisują w wyszukiwarkę: to treści Help.",
+        "Zaplanuj stały cykl (np. co dwa tygodnie): to treści Hub.",
+        "Wybierz 1-3 duże momenty w roku: to treści Hero.",
+        "Dobierz promocję do typu: Hero szeroko, Hub do subskrybentów, Help przez wyszukiwarkę."
+      ],
+      "example": "Google zalecał promowanie treści Hero dużą kampanią w wielu kanałach, a treści Hub działaniami bardziej ukierunkowanymi [1131].",
+      "benchmark": "Model nie podaje progów.",
+      "benchmarkKpis": ["yt_impr_ctr", "returning_viewers", "organic_traffic"],
+      "limitations": "Nazwy typów różnią się w źródłach (Hygiene i Help); model nie mówi, ile budżetu przeznaczyć na każdy typ.",
+      "furtherReading": [1131, 1132]
+    },
+    {
+      "id": "permission",
+      "origin": "Seth Godin, „Permission Marketing”, Simon & Schuster; książka ukazała się 6 maja 1999 r. [1133].",
+      "sourceIds": [1133, 1134],
+      "what": "Marketing oparty na zgodzie odbiorcy: wiadomości oczekiwane, osobiste i istotne, wysyłane do osób, które chcą je dostawać [1134].",
+      "goal": "Buduje kanał własny (newsletter, społeczność), który działa bez płacenia za każdy kontakt.",
+      "when": "Przy budowie newslettera, programu treści eksperckich i komunikacji z klientami.",
+      "how": [
+        "Daj powód do zapisu: wartość, nie tylko „bądź na bieżąco”.",
+        "Powiedz, co i jak często będziesz wysyłać, i dotrzymuj tego.",
+        "Personalizuj według zainteresowań, nie tylko imienia.",
+        "Usuwaj nieaktywnych zamiast wysyłać im kolejne wiadomości."
+      ],
+      "example": "Godin opisał ofertę promocyjną książki: kto zostawił adres na stronie, dostawał za darmo pierwsze cztery rozdziały [1133].",
+      "benchmark": "Model nie podaje progów; mierniki to przyrost listy, aktywni subskrybenci i wypisy.",
+      "benchmarkKpis": ["list_growth", "active_subscribers", "unsub"],
+      "limitations": "Przyzwolenie w rozumieniu Godina to więcej niż zgoda prawna; RODO i przepisy o komunikacji elektronicznej stawiają osobne wymagania.",
+      "furtherReading": [1133, 1134]
+    },
+    {
+      "id": "darksocial",
+      "origin": "Alexis Madrigal, The Atlantic, październik 2012 r.; omówienie w The Scholarly Kitchen [1135].",
+      "sourceIds": [1135],
+      "what": "Ruch z udostępnień w kanałach prywatnych (komunikatory, e-mail, wiadomości), który narzędzia analityczne widzą jako ruch bezpośredni bez źródła.",
+      "goal": "Pomaga zrozumieć, że duża część poleceń jest niewidoczna, i zaplanować pomiar oraz treści, które ludzie przesyłają dalej.",
+      "when": "Przy ocenie social media, analizie ruchu bezpośredniego i planowaniu treści do udostępniania.",
+      "how": [
+        "Sprawdź wejścia bezpośrednie na głębokie podstrony (to rzadko ktoś wpisuje ręcznie).",
+        "Dodaj przyciski udostępniania z parametrami UTM.",
+        "Mierz wysyłki w wiadomościach w statystykach platform.",
+        "Pytaj w formularzach, skąd ktoś się dowiedział o firmie."
+      ],
+      "example": "W The Atlantic 56,5% ruchu społecznościowego przychodziło z kanałów niewidocznych w analityce, a w zbiorze stron korzystających z Chartbeat było to 69% [1135].",
+      "benchmark": "Udział dark social zależy od serwisu; dane z 2012 r. dotyczyły głównie wydawców.",
+      "benchmarkKpis": ["sends_per_reach", "social_traffic_share", "unassigned_share"],
+      "limitations": "Część ruchu bezpośredniego to naprawdę wejścia bezpośrednie (zakładki, wpisany adres); dark social da się tylko szacować.",
+      "furtherReading": [1135]
+    },
+    {
+      "id": "igsignals",
+      "origin": "Adam Mosseri, szef Instagrama, w serii wideo ze stycznia 2025 r. [1120].",
+      "sourceIds": [1120],
+      "what": "Trzy najważniejsze sygnały rankingu treści na Instagramie: czas oglądania, polubienia i wysyłki; w statystykach odpowiadają im średni czas oglądania, polubienia na zasięg i wysyłki na zasięg [1120].",
+      "goal": "Pomaga wybrać mierniki, które wpływają na zasięg, zamiast liczyć same polubienia.",
+      "when": "Przy planowaniu treści na Instagram i ocenie postów i rolek.",
+      "how": [
+        "Dla każdej rolki zapisz średni czas oglądania, polubienia na zasięg i wysyłki na zasięg.",
+        "Rozdziel wyniki wśród obserwujących i nieobserwujących.",
+        "Dla wzrostu zasięgu wśród nowych osób pracuj nad wysyłkami.",
+        "Dla obserwujących pracuj nad polubieniami i czasem oglądania."
+      ],
+      "example": "Mosseri podał, że polubienia są nieco ważniejsze dla treści pokazywanych obserwującym, a wysyłki dla treści pokazywanych nowym osobom [1120].",
+      "benchmark": "Platforma nie podaje progów liczbowych.",
+      "benchmarkKpis": ["sends_per_reach", "likes_per_reach", "avg_watch_time"],
+      "limitations": "Dotyczy Instagrama w 2025 r.; platformy zmieniają algorytmy, a wypowiedzi przedstawicieli to uproszczenie działania systemów.",
+      "furtherReading": [1120]
+    },
+    {
+      "id": "attention",
+      "origin": "IAB i MRC opublikowały projekt wytycznych 12 maja 2025 r. [1136], a wersję 1.0 w listopadzie 2025 r. [1137].",
+      "sourceIds": [1136, 1137],
+      "what": "Standard pomiaru uwagi poświęcanej reklamie, oparty na czterech podejściach: sygnałach danych, śledzeniu wzroku, obserwacjach fizjologicznych i neurologicznych oraz panelach i ankietach [1136].",
+      "goal": "Uzupełnia widoczność i zasięg o informację, czy reklama została naprawdę zauważona.",
+      "when": "Przy wyborze miejsc reklamowych, porównaniu formatów i ocenie dostawców pomiaru uwagi.",
+      "how": [
+        "Zapytaj dostawcę, którą z czterech metod stosuje.",
+        "Sprawdź, czy metoda ma niezależną weryfikację.",
+        "Używaj uwagi razem z widocznością i wynikami, nie zamiast nich.",
+        "Porównuj formaty i miejsca w tej samej metodzie."
+      ],
+      "example": "IAB i MRC podkreślają, że uwaga ma uzupełniać, a nie zastępować wskaźniki emisji i wyników [1136].",
+      "benchmark": "Wytyczne nie podają progów; określają wymagania wobec metod i przejrzystości [1137].",
+      "benchmarkKpis": ["viewability", "avg_watch_time", "ad_recall_lift"],
+      "limitations": "Metody różnią się i dają nieporównywalne wyniki; wiele narzędzi nie ma jeszcze akredytacji.",
+      "furtherReading": [1136, 1137]
+    },
+    {
+      "id": "barcelona",
+      "origin": "Zasady przyjęto w 2010 r. na szczycie AMEC w Barcelonie, aktualizowano w 2015 i 2020 r. (wersja 3.0) [1148,1149].",
+      "sourceIds": [1148, 1149],
+      "what": "Siedem dobrowolnych zasad pomiaru komunikacji i PR. Najważniejsze: wyznaczenie celów jest warunkiem planowania i pomiaru; pomiar ma obejmować produkty, efekty i możliwy wpływ; ekwiwalent reklamowy (AVE) nie jest wartością komunikacji [1149].",
+      "goal": "Pomaga raportować social media i PR przez efekty i wpływ na cele, a nie przez liczbę publikacji czy ekwiwalent reklamowy.",
+      "when": "Przy planowaniu i raportowaniu PR, social media i komunikacji eksperckiej.",
+      "how": [
+        "Zapisz cel komunikacji powiązany z celem organizacji.",
+        "Dobierz mierniki na trzech poziomach: produkty, efekty, wpływ.",
+        "Łącz dane ilościowe z oceną jakościową.",
+        "Nie raportuj ekwiwalentu reklamowego jako wartości."
+      ],
+      "example": "AMEC podkreśla w wersji 3.0, że efekty i wpływ należy oceniać z perspektywy interesariuszy, społeczeństwa i organizacji [1149].",
+      "benchmark": "Zasady nie podają progów liczbowych.",
+      "benchmarkKpis": ["earned_mentions", "sov", "net_sentiment"],
+      "limitations": "Zasady są dobrowolne i ogólne; nie podają gotowych wskaźników dla każdego kanału.",
+      "furtherReading": [1148, 1149]
+    },
+    {
+      "id": "usesgrat",
+      "origin": "Elihu Katz, Jay G. Blumler i Michael Gurevitch, „Uses and Gratifications Research”, Public Opinion Quarterly 37, nr 4 (1973): 509-523 [1150].",
+      "sourceIds": [1150, 1151],
+      "what": "Teoria, według której odbiorcy aktywnie wybierają media, aby zaspokoić własne potrzeby; pytanie brzmi, co ludzie robią z mediami, a nie co media robią z ludźmi [1151].",
+      "goal": "Pomaga projektować treści w social media, newsletterze i wideo pod potrzeby odbiorców, a nie pod formaty platform.",
+      "when": "Przy planie treści, wyborze formatów i badaniu odbiorców.",
+      "how": [
+        "Zapytaj odbiorców, po co korzystają z kanału.",
+        "Przypisz treści do potrzeb (informacja, rozrywka, tożsamość, kontakt).",
+        "Sprawdź, które potrzeby zaspokajają najlepsze posty.",
+        "Uzupełnij brakujące typy treści."
+      ],
+      "example": "Opis artykułu z 1973 r. wymienia m.in. takie potrzeby: oderwanie od rutyny, rozładowanie emocji, towarzystwo, tożsamość osobista i potwierdzenie wartości [1150].",
+      "benchmark": "Teoria nie podaje progów.",
+      "benchmarkKpis": ["save_rate", "sends_per_reach", "avg_watch_time"],
+      "limitations": "Zakłada świadomy wybór mediów, a algorytmy platform w dużej mierze decydują, co ludzie widzą.",
+      "furtherReading": [1150, 1151]
+    },
+    {
+      "id": "twostep",
+      "origin": "Paul Lazarsfeld, Bernard Berelson i Hazel Gaudet, „The People's Choice” (badanie wyborów w USA w 1940 r.); rozwinięcie: Elihu Katz i Paul Lazarsfeld, „Personal Influence” (1955) [1152].",
+      "sourceIds": [1152, 1153],
+      "what": "Model, w którym przekaz z mediów trafia najpierw do liderów opinii, a od nich, w rozmowach, do pozostałych osób [1152].",
+      "goal": "Uzasadnia pracę z ekspertami, liderami opinii i twórcami jako pośrednikami, którzy przekazują komunikat dalej.",
+      "when": "Przy programach eksperckich na LinkedIn, współpracy z twórcami i PR branżowym.",
+      "how": [
+        "Wskaż liderów opinii w swojej branży.",
+        "Daj im materiały wartościowe dla ich odbiorców (dane, raporty).",
+        "Mierz zasięg i wysyłki ich publikacji.",
+        "Sprawdzaj w zapytaniach, kto polecił firmę."
+      ],
+      "example": "Badacze ustalili, że większość wyborców w 1940 r. dowiadywała się o kandydatach od innych osób, które czytały o kampanii w gazetach [1152].",
+      "benchmark": "Model nie podaje progów.",
+      "benchmarkKpis": ["employee_reach", "sends_per_reach", "earned_mentions"],
+      "limitations": "Krytycy wskazują, że model upraszcza przepływ informacji do dwóch poziomów i jednego kierunku [1153]; badania krajowe pokazują też, że ludzie częściej polegają na mediach niż na rozmowach [1152].",
+      "furtherReading": [1152, 1153]
+    },
+    {
+      "id": "mereexp",
+      "origin": "Robert B. Zajonc, „Attitudinal Effects of Mere Exposure”, Journal of Personality and Social Psychology, Monograph Supplement 9, nr 2, cz. 2 (1968) [1154].",
+      "sourceIds": [1154, 1155, 1156],
+      "what": "Hipoteza, że samo powtarzane zetknięcie z bodźcem poprawia nastawienie do niego, nawet bez świadomego zapamiętania [1154].",
+      "goal": "Wyjaśnia, dlaczego regularna obecność marki w social media, wideo i reklamie buduje sympatię, zanim pojawi się potrzeba zakupu.",
+      "when": "Przy planowaniu częstotliwości kampanii i rytmu publikacji.",
+      "how": [
+        "Zapewnij regularną obecność w tych samych kanałach.",
+        "Używaj spójnych wyróżników marki (kolor, logo, dźwięk).",
+        "Ustaw limit częstotliwości, aby uniknąć znużenia.",
+        "Mierz rozpoznawalność i zapamiętanie, nie tylko kliknięcia."
+      ],
+      "example": "Zajonc badał m.in. ocenę znaczenia słów bez sensu i symboli, które badani widzieli z różną częstotliwością [1154].",
+      "benchmark": "Metaanaliza Bornsteina z 1989 r. objęła ponad 200 badań [1155].",
+      "benchmarkKpis": ["frequency", "aided_aw", "ctr_decay"],
+      "limitations": "Efekt słabnie przy bardzo częstych powtórzeniach i znanych bodźcach; badania nad muzyką pokazują, że wzrost sympatii po powtórzeniach jest bardzo powtarzalny, a znużenie trudniej uchwycić [1156].",
+      "furtherReading": [1154, 1155, 1156]
+    },
+    {
+      "id": "maturity",
+      "origin": "Badanie BCG na zlecenie Google, „Dividends from Digital Marketing Maturity”, 2019 [1157].",
+      "sourceIds": [1157],
+      "what": "Skala czterech poziomów dojrzałości marketingu opartego na danych: początkowy (nascent), rozwijający się (emerging), połączony (connected) i wielomomentowy (multimoment), czyli zdolność do dostarczania dopasowanych treści w wielu momentach ścieżki zakupowej [1157].",
+      "goal": "Pomaga ocenić, na jakim etapie jest pomiar i wykorzystanie danych w firmie i co blokuje następny krok.",
+      "when": "Przy planie rozwoju analityki, wdrożeniu GA4, CRM i automatyzacji.",
+      "how": [
+        "Oceń, czy dane z kanałów są połączone (GA4, CRM, newsletter, reklamy).",
+        "Sprawdź jakość pomiaru: tagi, zgody, UTM.",
+        "Wybierz jeden krok do kolejnego poziomu.",
+        "Mierz efekt w kosztach i przychodach."
+      ],
+      "example": "Z 200 marek w badaniu ok. 90% było prawie po równo w grupach rozwijającej się i połączonej [1157].",
+      "benchmark": "Firmy na najwyższym poziomie raportowały oszczędności kosztów do 30% i wzrost przychodów do 20% [1157].",
+      "benchmarkKpis": ["tag_coverage", "consent_rate", "click_session"],
+      "limitations": "Badanie zlecił Google, a wyniki pochodzą z deklaracji firm; poziomy są opisowe, bez prostego testu.",
+      "furtherReading": [1157]
+    },
+    {
+      "id": "toolmetrics",
+      "origin": "Dokumentacja Ahrefs, Semrush, AnswerThePublic i Google Data Studio, stan na październik 2026 [1211,1219,1224,1227].",
+      "sourceIds": [
+        1210, 1211, 1212, 1214, 1216, 1219, 1221, 1222, 1224, 1227, 1243, 1244, 1260, 1274
+      ],
+      "what": "Zestawienie metod liczenia: wskaźniki narzędzi to modele (szacunki z pozycji, wolumenów i krzywej CTR, graf linków, zbiór pytań do AI), a nie pomiar ruchu na Twojej stronie. Ahrefs sam zaleca traktować swoje szacunki ruchu jako szacunki [1212].",
+      "goal": "Pomaga wybrać właściwe źródło liczby: narzędzie zewnętrzne do porównań z konkurencją, dane własne (GA4, Search Console) do oceny wyników.",
+      "when": "Przy raportach SEO, analizie konkurencji i rozmowach z agencją.",
+      "how": [
+        "Zapisz przy każdej liczbie źródło i metodę.",
+        "Do oceny własnych wyników używaj Search Console i GA4.",
+        "Narzędzi zewnętrznych używaj do trendów i porównań z konkurencją.",
+        "Nie porównuj wskaźników różnych narzędzi (DR, Authority Score, KD) między sobą.",
+        "Raz na kwartał porównaj szacunek ruchu z danymi własnymi."
+      ],
+      "example": "W badaniu 641 stron szacunki Semrush korelowały z GA4 na poziomie 0,79, a Ahrefs 0,50; Ahrefs mierzy jednak tylko ruch organiczny i z Search Console korelacja wynosiła ok. 0,75 [1243].",
+      "benchmark": "Szacunki częściej zaniżają ruch: w badaniu z 2016 r. Ahrefs zaniżył łączny ruch 25 stron o 17%, a Semrush o 30% [1244].",
+      "benchmarkKpis": ["traffic_est_ratio", "dr", "authority_score"],
+      "limitations": "Metody narzędzi zmieniają się bez zapowiedzi, a badania dokładności szybko się starzeją; jedno z nich pochodzi z 2016 r.",
+      "furtherReading": [1211, 1219, 1243, 1244, 1245]
+    },
+    {
+      "id": "zeroclick",
+      "origin": "Rand Fishkin i SparkToro: badania wyszukiwań bez kliknięcia od 2019 r.; najnowsze na danych Similarweb za I-IV 2026 [1238].",
+      "sourceIds": [1238, 1239],
+      "what": "Podejście, w którym część celów marketingu to wpływ i rozpoznawalność marki bez wizyty na stronie, bo coraz więcej wyszukiwań kończy się bez kliknięcia: w USA w I-IV 2026 było to 68,01% wyszukiwań w Google [1238]. SparkToro zaleca inwestować w budowanie wpływu, które nie wymaga wizyty [1238].",
+      "goal": "Pomaga ustawić cele i mierniki, gdy ruch z wyszukiwarki maleje mimo obecności w wynikach.",
+      "when": "Przy spadku CTR, planie treści i raportowaniu SEO dla zarządu.",
+      "how": [
+        "Mierz obecność (wyświetlenia, cytowania w AI, wzmianki), a nie tylko kliknięcia.",
+        "Publikuj pełną wartość także tam, gdzie są odbiorcy (LinkedIn, YouTube, newsletter).",
+        "Kliknięcia oceniaj głównie na frazach markowych i transakcyjnych.",
+        "Śledź wyszukiwania marki jako efekt obecności."
+      ],
+      "example": "Odsetek wyszukiwań z co najmniej jednym kliknięciem spadł o 9,51 pp między 2024 a 2026 r. [1239].",
+      "benchmark": "68,01% wyszukiwań bez kliknięcia (USA, I-IV 2026); 60,45% w 2024 r. [1238].",
+      "benchmarkKpis": ["serp_ctr", "branded_search"],
+      "limitations": "Dane z 2024 i 2026 r. pochodzą z różnych paneli (Datos i Similarweb), więc porównanie jest przybliżone; badanie nie obejmuje aplikacji Google [1239].",
+      "furtherReading": [1238, 1239]
+    },
+    {
+      "id": "dstudio",
+      "origin": "Google: Data Studio, od października 2022 r. Looker Studio [1250], od 16 kwietnia 2026 r. ponownie Data Studio [1226].",
+      "sourceIds": [1226, 1227, 1228, 1229, 1250],
+      "what": "Opis, jak Data Studio pobiera i pokazuje dane: konektor, źródło danych z polami, zapytanie każdego elementu raportu i pamięć podręczna z progiem odświeżania. Nowy filtr lub zakres dat wysyła nowe zapytanie do źródła [1227].",
+      "goal": "Pomaga zrozumieć, dlaczego liczby w dashboardzie różnią się od tych w GA4 lub Search Console, i ograniczyć te różnice.",
+      "when": "Przy budowie dashboardu marketingowego i wyjaśnianiu różnic w raportach.",
+      "how": [
+        "Dla Search Console utwórz dwa źródła: agregację witryny (trendy) i adresów URL (tabela stron) [1228].",
+        "Ustal próg odświeżania i pokaż w raporcie datę danych.",
+        "Przy GA4 pilnuj limitów zapytań do API [1229].",
+        "Opisz definicję każdego wskaźnika w raporcie."
+      ],
+      "example": "Dane z produktów marketingowych Google (Ads, Analytics, Search Console, YouTube Analytics) odświeżają się co 12 godzin [1227].",
+      "benchmark": "Konektory Google: co 12 godz.; inne: od 1 do 12 godz. [1227].",
+      "benchmarkKpis": ["dashboard_freshness", "click_session", "tag_coverage"],
+      "limitations": "Pamięć podręczna i limity API powodują różnice przy dużych raportach; dane łączone mają osobne zasady odświeżania [1227].",
+      "furtherReading": [1226, 1227, 1228, 1229]
+    },
+    {
+      "id": "listening",
+      "origin": "Podejście, które AnswerThePublic nazywa nasłuchem wyszukiwań: podpowiedzi autouzupełniania jako sygnał, czego ludzie szukają [1224,1225].",
+      "sourceIds": [1224, 1225],
+      "what": "Zbieranie podpowiedzi wyszukiwarek i grupowanie ich w pytania, przyimki, porównania, frazy alfabetyczne i powiązane [1224]. Narzędzie obejmuje dziś także YouTube, TikTok, Instagram i Amazon oraz osobne raporty z sekcji Podobne pytania i modeli AI [1225].",
+      "goal": "Pomaga znaleźć pytania i porównania, na które warto odpowiedzieć w treściach, FAQ i wideo.",
+      "when": "Przed planem treści, przy FAQ, stronach usług i scenariuszach wideo.",
+      "how": [
+        "Wpisz temat główny i zbierz pytania, przyimki i porównania.",
+        "Usuń powtórzenia i pytania bez związku z ofertą.",
+        "Pogrupuj pytania według etapu decyzji.",
+        "Sprawdź, które mają odpowiedź na stronie (pokrycie pytań).",
+        "Uzupełnij braki i mierz efekt w Search Console."
+      ],
+      "example": "Porównania typu „X czy Y” wskazują moment wyboru, więc są dobrym tematem dla stron porównawczych i FAQ.",
+      "benchmark": "Narzędzie nie podaje progów; plany płatne pokazują wolumen wyszukiwań i CPC [1224].",
+      "benchmarkKpis": ["question_coverage", "featured_snippet_share", "paa_presence"],
+      "limitations": "To w dużej mierze przetworzone dane autouzupełniania [1225]; podpowiedź nie mówi, ile osób naprawdę zadaje pytanie.",
+      "furtherReading": [1224, 1225]
+    },
+    {
+      "id": "elm",
+      "origin": "Richard E. Petty i John T. Cacioppo; rozdział „The Elaboration Likelihood Model of Persuasion” w Advances in Experimental Social Psychology, t. 19 (1986), s. 123-205, oraz monografia Communication and Persuasion (Springer, 1986) [1290,1291,1292].",
+      "sourceIds": [1290, 1291, 1292],
+      "what": "Model opisuje dwie drogi zmiany postaw. Droga centralna działa, gdy odbiorca ma motywację i możliwość, by uważnie ocenić argumenty. Droga peryferyczna działa, gdy tej motywacji lub możliwości brakuje: o postawie decydują wtedy proste wskazówki, np. kto mówi, ile jest opinii, jak wygląda przekaz [1291,1292].",
+      "goal": "Pomaga dobrać argumenty do zaangażowania odbiorcy: dane i porównania dla osób, które analizują, a czytelne sygnały zaufania dla osób, które tylko przeglądają.",
+      "when": "Przy stronach ofertowych, reklamach, mailach sprzedażowych i treściach B2B, gdzie część odbiorców czyta dokładnie, a część tylko przegląda.",
+      "how": [
+        "Oceń motywację odbiorcy (waga decyzji, ryzyko) i jego możliwość analizy (czas, wiedza).",
+        "Dla osób analizujących przygotuj mocne argumenty: dane, porównania, studia przypadków.",
+        "Dla osób przeglądających zadbaj o proste wskazówki: opinie klientów, znaki jakości, jasny nagłówek.",
+        "Na jednej stronie połącz oba poziomy: krótki przekaz u góry, szczegóły niżej.",
+        "Mierz osobno zachowanie osób czytających dokładnie (czas, przewinięcie) i szybko przeglądających."
+      ],
+      "example": "Strona programu księgowego ma u góry liczbę klientów i średnią ocenę (wskazówki peryferyczne), a niżej rozwijane porównanie funkcji i kalkulator oszczędności (argumenty dla drogi centralnej).",
+      "benchmark": "Model nie podaje progów liczbowych. Główny wniosek autorów: postawy zmienione drogą centralną są trwalsze, bardziej odporne na kontrargumenty i lepiej przewidują zachowanie niż postawy zmienione drogą peryferyczną [1291].",
+      "benchmarkKpis": ["engagement_time", "scroll_depth", "cvr"],
+      "limitations": "Model ma potwierdzenie w wielu badaniach, ale budzi też zastrzeżenia badaczy [1292]. Opisuje zmianę postaw, a nie bezpośrednio zakup, więc wpływ na sprzedaż trzeba sprawdzić testem.",
+      "furtherReading": [1290, 1291, 1292]
+    },
+    {
+      "id": "prospect",
+      "origin": "Daniel Kahneman i Amos Tversky, „Prospect Theory: An Analysis of Decision under Risk”, Econometrica 47, nr 2 (1979), s. 263-292 [1293]. Kahneman otrzymał za te prace Nagrodę Nobla z ekonomii w 2002 r. [1294].",
+      "sourceIds": [1293, 1294],
+      "what": "Teoria opisuje, jak ludzie naprawdę wybierają w warunkach ryzyka. Zyski i straty oceniają względem punktu odniesienia, a nie stanu końcowego. Funkcja wartości jest bardziej stroma dla strat niż dla zysków, więc strata boli bardziej, niż cieszy zysk tej samej wielkości. Ludzie przeceniają też wyniki pewne w porównaniu z tylko prawdopodobnymi [1293].",
+      "goal": "Pomaga układać ceny, oferty i komunikaty z uwzględnieniem punktu odniesienia klienta i jego niechęci do strat.",
+      "when": "Przy cennikach, okresach próbnych, gwarancjach, komunikatach przy rezygnacji i porównaniach ofert.",
+      "how": [
+        "Ustal punkt odniesienia klienta: obecną cenę, ofertę konkurencji, to, co już ma.",
+        "Opisz korzyść także jako uniknięcie straty, jeśli to zgodne z prawdą (np. koszt dalszego zwlekania).",
+        "Zmniejsz odczuwane ryzyko: gwarancja zwrotu, okres próbny, jasne warunki rezygnacji.",
+        "Nie stosuj fałszywej presji (sztuczne liczniki, zmyślone braki): narusza to prawo konsumenckie i zaufanie.",
+        "Testuj wersje komunikatu i mierz konwersję oraz zwroty."
+      ],
+      "example": "Serwis subskrypcyjny przy rezygnacji pokazuje, co klient straci (zapisane projekty, historię), a obok prosty przycisk rezygnacji. Porównuje odsetek rezygnacji przed zmianą i po niej.",
+      "benchmark": "Funkcja wartości jest bardziej stroma dla strat niż dla zysków [1293]. W późniejszych badaniach współczynnik niechęci do strat szacuje się zwykle na ok. 2-2,5: strata waży mniej więcej dwa razy więcej niż zysk tej samej wielkości [1294].",
+      "benchmarkKpis": ["churn", "trial_conv", "cvr"],
+      "limitations": "Teoria powstała na eksperymentach z wyborami pieniężnymi w warunkach ryzyka; siła efektu w konkretnej kampanii zależy od kontekstu i wymaga testu. Wartość współczynnika niechęci do strat pochodzi z omówienia, nie z artykułu z 1979 r. [1294].",
+      "furtherReading": [1293, 1294]
+    },
+    {
+      "id": "nudge",
+      "origin": "Richard H. Thaler i Cass R. Sunstein, książka „Nudge: Improving Decisions About Health, Wealth, and Happiness” (2008). Thaler otrzymał w 2017 r. Nagrodę Nobla z ekonomii [1295,1296].",
+      "sourceIds": [1295, 1296],
+      "what": "Architektura wyboru to sposób przedstawienia opcji: kolejność, wartość domyślna, opis, liczba kroków. Autorzy nazywają impulsem (nudge) każdy element tej architektury, który przewidywalnie zmienia zachowanie bez zakazywania jakiejkolwiek opcji i bez istotnej zmiany bodźców ekonomicznych [1295]. Utrudnienia działające przeciw klientowi, np. trudną rezygnację z subskrypcji, Thaler nazywa „sludge” [1296].",
+      "goal": "Pomaga projektować formularze, cenniki i ścieżki zakupu tak, by ułatwiały dobrą decyzję, a nie ją utrudniały.",
+      "when": "Przy formularzach, koszyku, zgodach, wyborze pakietu i procesie rezygnacji.",
+      "how": [
+        "Rozpisz kroki decyzji i wskaż miejsca, w których klienci się zatrzymują.",
+        "Ustal sensowne wartości domyślne (np. najczęściej wybierany wariant), zawsze z łatwą zmianą.",
+        "Usuń zbędne pola i kroki, czyli „sludge”.",
+        "Pokazuj informacje w chwili decyzji (koszt dostawy, termin), a nie na końcu.",
+        "Sprawdź zgodność z prawem: zgoda marketingowa nie może być zaznaczona domyślnie (RODO).",
+        "Mierz efekt testem A/B."
+      ],
+      "example": "Sklep pokazuje koszt dostawy już na karcie produktu i skraca formularz zamówienia z 14 do 8 pól. Odsetek porzuceń formularza spada, a pytań do obsługi o koszt dostawy jest mniej.",
+      "benchmark": "Źródła nie podają progów liczbowych. Kryterium z definicji: impuls nie zakazuje żadnej opcji i nie zmienia istotnie bodźców ekonomicznych [1295].",
+      "benchmarkKpis": ["form_abandon", "cart_abandon", "cvr"],
+      "limitations": "Thaler zaznacza, że impuls może nie działać albo zostać nadużyty, także dla zysku kosztem klienta [1296]. W UE domyślne zgody i utrudniona rezygnacja mogą naruszać RODO i prawo konsumenckie.",
+      "furtherReading": [1295, 1296]
+    },
+    {
+      "id": "decoy",
+      "origin": "Joel Huber, John W. Payne i Christopher Puto, „Adding Asymmetrically Dominated Alternatives: Violations of Regularity and the Similarity Hypothesis”, Journal of Consumer Research 9, nr 1 (1982), s. 90-98 [1297,1298].",
+      "sourceIds": [1297, 1298, 1299],
+      "what": "Gdy do dwóch opcji dodasz trzecią, wyraźnie gorszą od jednej z nich we wszystkich cechach (wabik), więcej osób wybiera opcję, która wabika przewyższa [1297]. Efekt opisano w wielu dziedzinach; przegląd badań opublikowało czasopismo Akademii Leona Koźmińskiego [1298].",
+      "goal": "Pomaga ułożyć cennik i zestaw pakietów tak, by klient łatwiej zobaczył wartość wybranej opcji.",
+      "when": "Przy cennikach z kilkoma pakietami, porównywarkach i stronach z wariantami produktu.",
+      "how": [
+        "Wybierz opcję docelową, którą chcesz wyróżnić.",
+        "Sprawdź, czy klienci dziś wahają się między nią a inną opcją.",
+        "Rozważ wariant bliski docelowemu, ale wyraźnie od niego gorszy (np. mniej za podobną cenę).",
+        "Pokaż opcje obok siebie w tych samych cechach.",
+        "Testuj, czy wabik zmienia wybory, i mierz satysfakcję po zakupie."
+      ],
+      "example": "W badaniu z 1982 r. 153 studentów wybierało produkty z sześciu kategorii, m.in. samochody, restauracje, piwo i telewizory; dodanie wabika przesuwało wybory w stronę opcji dominującej [1299].",
+      "benchmark": "Badanie oryginalne: 6 kategorii produktów i 153 badanych [1299]. Źródła nie podają uniwersalnej wielkości efektu; zależy ona od tego, jak łatwo porównać opcje.",
+      "benchmarkKpis": ["aov", "cvr", "avg_deal"],
+      "limitations": "Część badań wskazuje, że w realistycznych zakupach efekt słabnie albo nie występuje; autorzy podkreślali, że działa tylko przy wyraźnie zdominowanym wabiku [1297]. Wabik bez realnej wartości może zostać uznany za wprowadzanie w błąd.",
+      "furtherReading": [1297, 1298, 1299]
+    },
+    {
+      "id": "psm",
+      "origin": "Peter van Westendorp, „NSS-Price Sensitivity Meter (PSM): A new approach to study consumer perception of price”, materiały 29. kongresu ESOMAR, 1976, s. 139-167 [1300,1301].",
+      "sourceIds": [1300, 1301],
+      "what": "Metoda ankietowa. Respondent podaje cztery ceny: przy której produkt jest za tani (budzi wątpliwość co do jakości), tani, drogi i za drogi. Z odpowiedzi powstają krzywe skumulowane, a ich przecięcia wyznaczają akceptowalny przedział cen, cenę optymalną i punkt obojętności [1300].",
+      "goal": "Daje szybkie oszacowanie przedziału cen akceptowalnego dla grupy docelowej przed wprowadzeniem produktu lub zmianą cennika.",
+      "when": "Przy nowym produkcie, usłudze lub pakiecie, gdy brak danych sprzedażowych do analizy elastyczności cenowej.",
+      "how": [
+        "Opisz produkt tak samo dla wszystkich respondentów.",
+        "Zadaj cztery pytania o cenę: za tani, tani, drogi, za drogi.",
+        "Odrzuć odpowiedzi niespójne (np. „za tani” wyższe niż „drogi”).",
+        "Narysuj krzywe skumulowane, w tym odwrócone „nie tani” i „nie drogi”.",
+        "Odczytaj dolną granicę, górną granicę, cenę optymalną i punkt obojętności.",
+        "Potwierdź wynik pytaniem o chęć zakupu przy wybranych cenach albo testem."
+      ],
+      "example": "Ankieta wśród 300 osób dla kursu online daje akceptowalny przedział 290-490 zł i cenę optymalną 350 zł. Firma testuje na stronie kursu dwie ceny z tego przedziału.",
+      "benchmark": "Metoda nie ma progów branżowych: wynikiem jest przedział i punkty przecięcia krzywych dla badanej grupy [1300].",
+      "benchmarkKpis": ["aov", "arpu"],
+      "limitations": "Metoda mierzy deklaracje, a nie zakupy, i nie pokazuje, ile osób kupi przy danej cenie; wersja Newtona, Millera i Smitha dodaje więc pytania o prawdopodobieństwo zakupu [1301]. Wynik zależy od opisu produktu i od tego, czy respondenci znają ceny konkurencji.",
+      "furtherReading": [1300, 1301]
+    },
+    {
+      "id": "servqual",
+      "origin": "A. Parasuraman, Valarie A. Zeithaml i Leonard L. Berry, „SERVQUAL: A Multiple-Item Scale for Measuring Consumer Perceptions of Service Quality”, Journal of Retailing 64, nr 1 (1988), s. 12-40 [1302].",
+      "sourceIds": [1302, 1303, 1304],
+      "what": "Skala 22 par twierdzeń: w każdej parze klient ocenia oczekiwanie wobec usługi i jej wykonanie. Jakość usługi to różnica między wykonaniem a oczekiwaniem w pięciu wymiarach: materialność, niezawodność, reagowanie, pewność i empatia [1302,1303]. Autorzy zaczęli od 97 twierdzeń i zredukowali je do 22; rzetelność skali przekraczała 0,90 [1303].",
+      "goal": "Pokazuje, w którym wymiarze obsługa najbardziej rozmija się z oczekiwaniami klientów, i porządkuje plan poprawy.",
+      "when": "W firmach usługowych: agencjach, bankach, szkołach, przychodniach, obsłudze posprzedażowej i e-commerce.",
+      "how": [
+        "Dostosuj twierdzenia do branży, zachowując pięć wymiarów.",
+        "Zbierz oceny oczekiwań i wykonania w skali 1-7.",
+        "Policz lukę (wykonanie minus oczekiwanie) dla każdego twierdzenia i wymiaru.",
+        "Zacznij poprawę od wymiaru z największą luką, który klienci uważają za ważny.",
+        "Powtarzaj badanie co pół roku i zestawiaj z CSAT i NPS."
+      ],
+      "example": "Biuro rachunkowe ma największą lukę w reagowaniu (-1,4 pkt): klienci oczekują odpowiedzi tego samego dnia, a czekają trzy dni. Firma wprowadza dyżur i mierzy czas pierwszej odpowiedzi.",
+      "benchmark": "Skala ma 22 twierdzenia w 5 wymiarach, a jej rzetelność w badaniu autorów przekraczała 0,90 [1303]. Brak uniwersalnych progów luki: porównuj wyniki w czasie i między oddziałami.",
+      "benchmarkKpis": ["csat", "frt", "fcr"],
+      "limitations": "Krytycy wskazują, że pięć wymiarów nie jest uniwersalnych, liczba wymiarów zależy od branży, a pomiar różnicy między oczekiwaniem i oceną ma słabości metodyczne [1304]. Alternatywą jest SERVPERF, który mierzy tylko ocenę wykonania [1303].",
+      "furtherReading": [1302, 1303, 1304]
+    },
+    {
+      "id": "blueocean",
+      "origin": "W. Chan Kim i Renée Mauborgne (INSEAD); artykuł „Blue Ocean Strategy” w Harvard Business Review z października 2004 r. i książka Harvard Business School Press z 2005 r. [1305,1306].",
+      "sourceIds": [1305, 1306],
+      "what": "Zamiast walczyć z konkurentami na istniejącym rynku (czerwony ocean), firma tworzy nową przestrzeń rynkową dzięki innowacji wartości, czyli jednoczesnemu wyróżnieniu i obniżeniu kosztów. Dwa główne narzędzia to kanwa strategii (profil wartości firmy na tle branży) i siatka czterech działań: eliminuj, ogranicz, podnieś, stwórz [1305].",
+      "goal": "Pomaga znaleźć ofertę, która nie konkuruje wyłącznie ceną i tymi samymi cechami co reszta rynku.",
+      "when": "Przy strategii nowej oferty, wejściu na nasycony rynek albo gdy marże spadają przez walkę cenową.",
+      "how": [
+        "Wypisz czynniki, którymi konkuruje branża (np. cena, zakres, obsługa, prestiż).",
+        "Narysuj kanwę strategii: oceń siebie i konkurentów na każdym czynniku.",
+        "Dla każdego czynnika zdecyduj: eliminuj, ogranicz, podnieś albo stwórz.",
+        "Sprawdź, czy nowa krzywa wartości wyraźnie odróżnia się od konkurencji i obniża koszty.",
+        "Przetestuj ofertę na małej grupie klientów, zanim zmienisz cały model."
+      ],
+      "example": "Przykład z książki: wino [yellow tail] zmieniło zestaw czynników, którymi konkurowała branża win, poszerzyło rynek i w ciągu dwóch lat stało się winem importowanym numer jeden [1305].",
+      "benchmark": "Brak progów liczbowych. Kanwa strategii pokazuje, czy krzywa wartości firmy odróżnia się od konkurencji; efekt biznesowy oceniaj wzrostem sprzedaży i marży [1305].",
+      "benchmarkKpis": ["sos"],
+      "limitations": "Przykłady sukcesu opisuje się wstecz, a nowy rynek szybko przyciąga naśladowców. Bez badań klientów kanwa odzwierciedla opinie zespołu, nie rynku.",
+      "furtherReading": [1305, 1306]
+    },
+    {
+      "id": "bmc",
+      "origin": "Alexander Osterwalder i Yves Pigneur, „Business Model Generation” (Wiley, 2010); kanwa wyrosła z doktoratu Osterwaldera na Uniwersytecie w Lozannie (2004), a książkę współtworzyło 470 praktyków z 45 krajów [1307,1308]. Uzupełnieniem jest „Value Proposition Design” (2014) [1309].",
+      "sourceIds": [1307, 1308, 1309],
+      "what": "Model biznesowy opisuje, jak organizacja tworzy, dostarcza i przechwytuje wartość [1307]. Kanwa ma 9 bloków: segmenty klientów, propozycja wartości, kanały, relacje z klientami, strumienie przychodów, kluczowe zasoby, kluczowe działania, kluczowi partnerzy i struktura kosztów [1308]. Value Proposition Canvas rozkłada propozycję wartości na profil klienta (zadania, problemy, oczekiwane korzyści) i mapę wartości [1309].",
+      "goal": "Pozwala opisać model biznesowy oferty na jednej stronie i sprawdzić, czy marketing, sprzedaż i koszty do siebie pasują.",
+      "when": "Przy nowej ofercie, zmianie modelu przychodów, wejściu na nowy rynek i warsztacie z zarządem.",
+      "how": [
+        "Zacznij od segmentów klientów i propozycji wartości dla każdego z nich.",
+        "Dla propozycji wartości wypełnij profil klienta: zadania, problemy, oczekiwane korzyści.",
+        "Opisz kanały i relacje, a potem strumienie przychodów.",
+        "Uzupełnij zasoby, działania, partnerów i koszty.",
+        "Oznacz założenia niesprawdzone i zaplanuj dla nich testy (rozmowy, strona testowa, pilotaż).",
+        "Połącz bloki z liczbami: CAC, LTV, marża."
+      ],
+      "example": "Agencja rysuje kanwę nowej usługi abonamentowej SEO dla gabinetów lekarskich. Najsłabszym założeniem jest kanał pozyskania; agencja testuje go kampanią do 200 gabinetów, zanim zatrudni nową osobę.",
+      "benchmark": "Brak progów liczbowych. Każdy blok kanwy to założenie do sprawdzenia; liczby, np. relacja LTV do CAC, pochodzą z Twoich danych.",
+      "benchmarkKpis": ["ltv_cac", "cac_payback"],
+      "limitations": "Kanwa pokazuje model w jednej chwili i nie obejmuje konkurencji ani otoczenia rynku; wypełniona bez badań jest zbiorem domysłów zespołu.",
+      "furtherReading": [1307, 1308, 1309]
+    },
+    {
+      "id": "tpb",
+      "origin": "Icek Ajzen, „The Theory of Planned Behavior”, Organizational Behavior and Human Decision Processes 50, nr 2 (1991), s. 179-211 [1310]. Teoria rozwija wcześniejszą teorię uzasadnionego działania i jest omawiana w podręcznikach marketingu jako teoria motywacji [1311].",
+      "sourceIds": [1310, 1311],
+      "what": "Zachowanie zależy od intencji, a intencja od trzech czynników: postawy wobec zachowania (czy uważam je za dobre), normy subiektywnej (czy ważni dla mnie ludzie tego oczekują) i postrzeganej kontroli (czy dam radę). Według przeglądu Ajzena intencje można przewidywać z tych czynników z dużą trafnością, a intencje razem z postrzeganą kontrolą wyjaśniają znaczną część zmienności zachowania [1310].",
+      "goal": "Pomaga ustalić, dlaczego ludzie nie robią tego, do czego zachęca kampania (zakup, rejestracja, zmiana nawyku), i dopasować przekaz do najsłabszego czynnika.",
+      "when": "Przy kampaniach zmieniających zachowanie, nowej kategorii produktu, badaniach przed kampanią i w marketingu społecznym.",
+      "how": [
+        "Określ zachowanie precyzyjnie: kto, co, kiedy (np. rejestracja konta w ciągu tygodnia).",
+        "Zbadaj ankietą trzy czynniki i intencję w grupie docelowej.",
+        "Sprawdź, który czynnik najsłabiej wspiera intencję.",
+        "Słaba postawa: pokaż korzyści i dowody. Słaba norma: pokaż, że podobni ludzie to robią. Słaba kontrola: uprość działanie i pokaż je krok po kroku.",
+        "Mierz zmianę intencji i rzeczywistego zachowania po kampanii."
+      ],
+      "example": "Bank promuje aplikację mobilną wśród seniorów. Ankieta pokazuje dobrą postawę, ale niską postrzeganą kontrolę („nie umiem”). Zamiast reklamy korzyści bank organizuje instruktaż w oddziałach i film krok po kroku; aktywacji w tej grupie przybywa.",
+      "benchmark": "Brak progów branżowych; w przeglądzie z 1991 r. teoria jest oceniona jako dobrze potwierdzona empirycznie [1310].",
+      "benchmarkKpis": ["activation", "consideration", "cvr"],
+      "limitations": "Sam Ajzen wskazuje kwestie nierozstrzygnięte, m.in. dokładny związek przekonań z trzema czynnikami i rolę dawnych zachowań [1310]. Intencja nie zawsze przechodzi w działanie, zwłaszcza przy utrwalonych nawykach.",
+      "furtherReading": [1310, 1311]
+    },
+    {
+      "id": "peakend",
+      "origin": "Daniel Kahneman, Barbara L. Fredrickson, Charles A. Schreiber i Donald A. Redelmeier, „When More Pain Is Preferred to Less: Adding a Better End”, Psychological Science 4, nr 6 (1993), s. 401-405 [1312,1313].",
+      "sourceIds": [1312, 1313],
+      "what": "Pamięć doświadczenia nie jest średnią odczuć z całego czasu. Ludzie oceniają je głównie po najsilniejszym momencie (szczycie) i po zakończeniu, a długość trwania ma mały wpływ [1313]. W eksperymencie badani woleli powtórzyć dłuższą próbę z ręką w zimnej wodzie, jeśli pod jej koniec temperatura lekko rosła do 15 °C [1312].",
+      "goal": "Pomaga projektować doświadczenie klienta: usunąć najgorszy moment, wzmocnić najlepszy i zadbać o dobre zakończenie zakupu, wizyty lub rozmowy z obsługą.",
+      "when": "Przy projektowaniu ścieżki klienta, wdrożenia nowego użytkownika, obsługi reklamacji, wydarzeń i dostawy.",
+      "how": [
+        "Rozpisz etapy doświadczenia klienta i jego odczucia na każdym.",
+        "Wskaż najgorszy moment i usuń go lub złagodź.",
+        "Zaprojektuj jeden wyraźny pozytywny moment (np. szybkie rozwiązanie, drobna niespodzianka).",
+        "Zadbaj o zakończenie: podsumowanie, podziękowanie, jasny następny krok.",
+        "Mierz satysfakcję zaraz po zakończeniu i porównuj wersje."
+      ],
+      "example": "Sklep internetowy dodaje do paczki odręczną kartkę i prostą instrukcję zwrotu, a mail po dostawie zawiera krótką ankietę. CSAT po dostawie rośnie przy tym samym czasie dostawy.",
+      "benchmark": "Brak progów liczbowych. Główny wynik: łagodniejsze zakończenie może poprawić ocenę całego doświadczenia, nawet gdy trwa ono dłużej [1312].",
+      "benchmarkKpis": ["csat", "nps", "ces"],
+      "limitations": "Wyniki pochodzą głównie z krótkich doświadczeń w warunkach laboratoryjnych. Dobre zakończenie nie zastępuje usunięcia problemów w środku ścieżki klienta.",
+      "furtherReading": [1312, 1313]
+    }
+  ]
+}

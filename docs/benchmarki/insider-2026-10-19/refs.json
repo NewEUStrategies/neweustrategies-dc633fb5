@@ -1,0 +1,950 @@
+{
+  "schema": "nes-insider-refs/1",
+  "refs": [
+    {
+      "kpiId": "ctr_paid",
+      "context": "Meta Ads, kampanie leadowe (USA, dane 2025)",
+      "value": "2,59% średnio",
+      "sourceId": 911,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_paid",
+      "context": "LinkedIn Ads, pojedynczy obraz (2025)",
+      "value": "0,56% mediana",
+      "sourceId": 912,
+      "note": null
+    },
+    {
+      "kpiId": "cpc",
+      "context": "LinkedIn Ads, środek lejka (2025)",
+      "value": "5,90 USD mediana",
+      "sourceId": 912,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "LinkedIn Ads, kampanie zasięgowe (2025)",
+      "value": "31 USD mediana",
+      "sourceId": 912,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "Meta Ads, wszystkie branże (2026)",
+      "value": "7,47 USD średnio",
+      "sourceId": 939,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Strony docelowe, wszystkie branże (IV kw. 2024)",
+      "value": "6,6% mediana",
+      "sourceId": 932,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Strony docelowe, SaaS (IV kw. 2024)",
+      "value": "3,8% mediana",
+      "sourceId": 932,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Strony docelowe, usługi finansowe (IV kw. 2024)",
+      "value": "8,4% mediana",
+      "sourceId": 932,
+      "note": null
+    },
+    {
+      "kpiId": "cpl",
+      "context": "LinkedIn Ads, reklamy dokumentowe (2025)",
+      "value": "255,81 USD średnio",
+      "sourceId": 913,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 1 (2025)",
+      "value": "39,8% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 2 (2025)",
+      "value": "18,7% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 3 (2025)",
+      "value": "10,2% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 4 (2025)",
+      "value": "7,2% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 5 (2025)",
+      "value": "5,1% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycje 6-10 (2025)",
+      "value": "od 4,4% do 1,6%",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "deliverability",
+      "context": "Skrzynki odbiorcze, globalnie, 2025",
+      "value": "87,2% wiadomości w skrzynce głównej",
+      "sourceId": 915,
+      "note": "to wskaźnik umieszczenia w skrzynce (inbox placement), nie dostarczenia"
+    },
+    {
+      "kpiId": "deliverability",
+      "context": "Skargi na spam",
+      "value": "zalecane poniżej 0,1%",
+      "sourceId": 916,
+      "note": null
+    },
+    {
+      "kpiId": "stage_conv",
+      "context": "B2B SaaS, MQL → SQL",
+      "value": "13% średnio",
+      "sourceId": 922,
+      "note": null
+    },
+    {
+      "kpiId": "stage_conv",
+      "context": "B2B SaaS, SQL → szansa, według kanału",
+      "value": "38-49%",
+      "sourceId": 922,
+      "note": null
+    },
+    {
+      "kpiId": "nrr",
+      "context": "SaaS z ceną zależną od użycia",
+      "value": "108% mediana",
+      "sourceId": 925,
+      "note": null
+    },
+    {
+      "kpiId": "nrr",
+      "context": "SaaS z ceną za stanowisko",
+      "value": "98% mediana",
+      "sourceId": 925,
+      "note": null
+    },
+    {
+      "kpiId": "cac_payback",
+      "context": "SaaS, 2025",
+      "value": "16 mies. mediana",
+      "sourceId": 925,
+      "note": null
+    },
+    {
+      "kpiId": "activation",
+      "context": "Wszystkie produkty (ankieta 500+ firm)",
+      "value": "34% średnio, 25% mediana",
+      "sourceId": 1006,
+      "note": null
+    },
+    {
+      "kpiId": "activation",
+      "context": "SaaS",
+      "value": "36% średnio, 30% mediana",
+      "sourceId": 1006,
+      "note": null
+    },
+    {
+      "kpiId": "trial_conv",
+      "context": "Okres próbny bez automatycznej płatności",
+      "value": "ok. 25%",
+      "sourceId": 1007,
+      "note": null
+    },
+    {
+      "kpiId": "grr",
+      "context": "SaaS B2B, 2025",
+      "value": "91% mediana",
+      "sourceId": 924,
+      "note": null
+    },
+    {
+      "kpiId": "grr",
+      "context": "SaaS i AI, 2025",
+      "value": "84% mediana",
+      "sourceId": 925,
+      "note": null
+    },
+    {
+      "kpiId": "magic_number",
+      "context": "SaaS B2B, 2025",
+      "value": "0,85 mediana",
+      "sourceId": 1009,
+      "note": null
+    },
+    {
+      "kpiId": "review_count",
+      "context": "Produkt z 5 opiniami wobec braku opinii",
+      "value": "o 270% wyższa skłonność do zakupu",
+      "sourceId": 1012,
+      "note": null
+    },
+    {
+      "kpiId": "lead_response",
+      "context": "Średni czas reakcji w badaniu HBR (2011)",
+      "value": "42 godziny",
+      "sourceId": 1005,
+      "note": null
+    },
+    {
+      "kpiId": "ces",
+      "context": "Niski wysiłek: deklarujący ponowny zakup (HBR 2010)",
+      "value": "94%",
+      "sourceId": 1032,
+      "note": null
+    },
+    {
+      "kpiId": "ces",
+      "context": "Bardziej nielojalni po kontakcie z dużym wysiłkiem wobec małego",
+      "value": "96% wobec 9%",
+      "sourceId": 1033,
+      "note": null
+    },
+    {
+      "kpiId": "viewability",
+      "context": "Typowy poziom widoczności reklam displayowych",
+      "value": "50-70%",
+      "sourceId": 1062,
+      "note": null
+    },
+    {
+      "kpiId": "inbox_placement",
+      "context": "Świat, 2024",
+      "value": "83,5%",
+      "sourceId": 1063,
+      "note": null
+    },
+    {
+      "kpiId": "inbox_placement",
+      "context": "Europa, 2024",
+      "value": "89,1%",
+      "sourceId": 1063,
+      "note": null
+    },
+    {
+      "kpiId": "inbox_placement",
+      "context": "Świat, 2025",
+      "value": "87,2%",
+      "sourceId": 1064,
+      "note": null
+    },
+    {
+      "kpiId": "attendance_rate",
+      "context": "Webinary B2B na platformie ON24, dane 2024",
+      "value": "57%",
+      "sourceId": 1066,
+      "note": null
+    },
+    {
+      "kpiId": "reg_conv",
+      "context": "Dobra strona rejestracji na webinar",
+      "value": "35-45%",
+      "sourceId": 1067,
+      "note": null
+    },
+    {
+      "kpiId": "paid_media_share",
+      "context": "Udział mediów płatnych w kosztach marketingu, 2025 (Gartner)",
+      "value": "30,6%",
+      "sourceId": 1068,
+      "note": null
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "Mediana dla wszystkich branż (Unbounce, analiza z IV kw. 2024, 41 000 stron; nowszej edycji brak)",
+      "value": "6,6%",
+      "sourceId": 1092,
+      "note": null
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "SaaS",
+      "value": "3,8%",
+      "sourceId": 1092,
+      "note": null
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "E-commerce",
+      "value": "4,2%",
+      "sourceId": 1092,
+      "note": null
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "Usługi finansowe",
+      "value": "8,3%",
+      "sourceId": 1092,
+      "note": null
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "Ruch z e-maili (średnia)",
+      "value": "19,3%",
+      "sourceId": 1093,
+      "note": null
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Deklaracja LinkedIn (bez podanego okresu i próby, wpis z 2017 r.)",
+      "value": "13%",
+      "sourceId": 1091,
+      "note": null
+    },
+    {
+      "kpiId": "automation_rev_share",
+      "context": "Klienci Klaviyo (e-commerce)",
+      "value": "ok. 41% przychodu z 5,3% wysyłek",
+      "sourceId": 1099,
+      "note": null
+    },
+    {
+      "kpiId": "yt_impr_ctr",
+      "context": "Połowa kanałów i filmów na YouTube",
+      "value": "2-10%",
+      "sourceId": 1127,
+      "note": null
+    },
+    {
+      "kpiId": "mpp_share",
+      "context": "Wszystkie otwarcia (Litmus, 2026)",
+      "value": "ok. 55-60%",
+      "sourceId": 1129,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "Instagram, mediana w danych Buffer (inna metoda: od zasięgu)",
+      "value": "4,3%",
+      "sourceId": 1122,
+      "note": null
+    },
+    {
+      "kpiId": "social_response_time",
+      "context": "Oczekiwanie konsumentów (Sprout Social Index)",
+      "value": "odpowiedź w 24 godz. lub szybciej: prawie 3 z 4 osób",
+      "sourceId": 1140,
+      "note": null
+    },
+    {
+      "kpiId": "watch_hours",
+      "context": "Próg programu partnerskiego YouTube (wraz z 1 000 subskrybentów)",
+      "value": "4 000 godz. w 12 miesięcy",
+      "sourceId": 1146,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_paid",
+      "context": "Google Ads, wyszukiwarka, wszystkie branże (USA, 2026)",
+      "value": "6,64% średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_paid",
+      "context": "Meta Ads, kampanie ruchu (USA, 2026)",
+      "value": "1,93% mediana",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_social",
+      "context": "Meta Ads, kampanie ruchu (USA, 2026)",
+      "value": "1,93% mediana",
+      "sourceId": 1162,
+      "note": "płatne posty, nie zasięg organiczny"
+    },
+    {
+      "kpiId": "cpc",
+      "context": "Google Ads, wszystkie branże (USA, 2026)",
+      "value": "5,42 USD średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "cpc",
+      "context": "Meta Ads, kampanie ruchu (USA, 2026)",
+      "value": "0,60 USD",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "cpc",
+      "context": "Meta Ads, kampanie leadowe (USA, 2026)",
+      "value": "1,80 USD",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "LinkedIn Ads, pojedynczy obraz (2026)",
+      "value": "59,15 USD średnio",
+      "sourceId": 1165,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "LinkedIn Ads, wideo (2026)",
+      "value": "38,94 USD średnio",
+      "sourceId": 1165,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Google Ads, wszystkie branże (USA, 2026)",
+      "value": "8,18% średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Meta Ads, kampanie leadowe (USA, 2026)",
+      "value": "8,54%",
+      "sourceId": 1162,
+      "note": "raport podaje sprzeczne opisy zmiany rok do roku"
+    },
+    {
+      "kpiId": "cpl",
+      "context": "Google Ads, wszystkie branże (USA, 2026)",
+      "value": "66,69 USD średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "cpl",
+      "context": "Meta Ads, kampanie leadowe (USA, 2026)",
+      "value": "27,39 USD",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, wszystkie formaty, 2026",
+      "value": "5,20% średnio",
+      "sourceId": 1175,
+      "note": "liczony od wyświetleń, nie od zasięgu"
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, dokumenty natywne, 2026",
+      "value": "7,00% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, posty z wieloma zdjęciami, II kw. 2026",
+      "value": "6,90% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, dokumenty natywne, II kw. 2026",
+      "value": "6,60% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, wideo, II kw. 2026",
+      "value": "5,90% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, pojedynczy obraz, II kw. 2026",
+      "value": "5,20% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, ankiety, II kw. 2026",
+      "value": "4,50% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, posty z linkiem, II kw. 2026",
+      "value": "3,30% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "Instagram, marki ze wszystkich branż (2026)",
+      "value": "0,30% mediana",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "TikTok, marki ze wszystkich branż (2026)",
+      "value": "2,01% mediana",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "YouTube, marki ze wszystkich branż (2026)",
+      "value": "0,21% mediana",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "posting_frequency",
+      "context": "Instagram, marki (2026)",
+      "value": "3,7 posta tygodniowo",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "posting_frequency",
+      "context": "TikTok, marki (2026)",
+      "value": "ok. 2 filmy tygodniowo",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "posting_frequency",
+      "context": "Facebook, marki (2026)",
+      "value": "nieco poniżej 3 postów tygodniowo",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Pozycja 1 przy podsumowaniu AI (dane z grudnia 2025)",
+      "value": "CTR niższy o ok. 58%",
+      "sourceId": 1168,
+      "note": "porównanie z prognozą bez podsumowania AI"
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Zapytania z podsumowaniem AI (dane Seer Interactive)",
+      "value": "1,31% w XII 2025, 2,36% w II 2026",
+      "sourceId": 1169,
+      "note": "średni CTR organiczny; częściowe odbicie"
+    },
+    {
+      "kpiId": "open_rate",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "43,46% mediana",
+      "sourceId": 1166,
+      "note": "zawyżone przez automatyczne otwarcia (Apple MPP)"
+    },
+    {
+      "kpiId": "ctr_email",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "2,09% mediana",
+      "sourceId": 1166,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_email",
+      "context": "MailerLite, produkcja przemysłowa, 2025",
+      "value": "4,22% mediana",
+      "sourceId": 1166,
+      "note": null
+    },
+    {
+      "kpiId": "ctor",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "6,81% mediana",
+      "sourceId": 1166,
+      "note": null
+    },
+    {
+      "kpiId": "unsub",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "0,22% mediana",
+      "sourceId": 1166,
+      "note": null
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "context": "Duże firmy w Ameryce Płn. i Europie, 2026 (Gartner)",
+      "value": "7,8% przychodów",
+      "sourceId": 1170,
+      "note": null
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "context": "Organizacje najlepiej przygotowane do AI, 2026 (Gartner)",
+      "value": "8,9% przychodów",
+      "sourceId": 1170,
+      "note": null
+    },
+    {
+      "kpiId": "attendance_rate",
+      "context": "Webinary na platformie ON24, dane 2025 (na żywo i z nagrania)",
+      "value": "60%",
+      "sourceId": 1171,
+      "note": null
+    },
+    {
+      "kpiId": "attendance_rate",
+      "context": "Webinary B2B, udział na żywo (Contrast, III kw. 2025 - I kw. 2026)",
+      "value": "41,6% mediana",
+      "sourceId": 1172,
+      "note": null
+    },
+    {
+      "kpiId": "nrr",
+      "context": "SaaS bez finansowania zewnętrznego, ARR 3-20 mln USD (2026)",
+      "value": "103% mediana; 117,9% w 90. percentylu",
+      "sourceId": 1176,
+      "note": null
+    },
+    {
+      "kpiId": "grr",
+      "context": "SaaS bez finansowania zewnętrznego, ARR 3-20 mln USD (2026)",
+      "value": "91% mediana; 100% w 90. percentylu",
+      "sourceId": 1176,
+      "note": null
+    },
+    {
+      "kpiId": "paid_media_share",
+      "context": "Udział mediów płatnych w kosztach marketingu, 2026 (Gartner)",
+      "value": "31,4%",
+      "sourceId": 1191,
+      "note": "najwyższy poziom od pięciu lat"
+    },
+    {
+      "kpiId": "paid_media_share",
+      "context": "Dla porównania: udział kosztów zespołu w budżecie, 2026 (Gartner)",
+      "value": "24,5%",
+      "sourceId": 1192,
+      "note": null
+    },
+    {
+      "kpiId": "cart_abandon",
+      "context": "Średnia z 50 badań (Baymard Institute, aktualizacja 22 IX 2025)",
+      "value": "70,22%",
+      "sourceId": 1193,
+      "note": null
+    },
+    {
+      "kpiId": "cart_abandon",
+      "context": "Najnowsze badanie w zestawieniu Baymard (Uptain 2025)",
+      "value": "71,72%",
+      "sourceId": 1193,
+      "note": null
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Feed, oferta treści (np. raport), mediana kont",
+      "value": "10,8%",
+      "sourceId": 1196,
+      "note": "ukończenie = wysłane / otwarcia formularza"
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Feed, prośba o demo, mediana kont",
+      "value": "2,2%",
+      "sourceId": 1196,
+      "note": null
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Reklama w wiadomości lub rozmowie, mediana kont",
+      "value": "40,7%",
+      "sourceId": 1197,
+      "note": null
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Udział ukończenia formularza w różnicach kosztu leada między kontami",
+      "value": "51%",
+      "sourceId": 1196,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Sklepy internetowe, nowi odwiedzający, zamówienia (Contentsquare 2026)",
+      "value": "1,7%",
+      "sourceId": 1202,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Sklepy internetowe, powracający odwiedzający (Contentsquare 2026)",
+      "value": "2,9%",
+      "sourceId": 1202,
+      "note": null
+    },
+    {
+      "kpiId": "kd",
+      "context": "KD 0-5 (skala Ahrefs)",
+      "value": "strony z top 10 prawie bez linków",
+      "sourceId": 1213,
+      "note": null
+    },
+    {
+      "kpiId": "kd",
+      "context": "KD ok. 50 (skala Ahrefs)",
+      "value": "strony z top 10 mają po kilkaset linków",
+      "sourceId": 1213,
+      "note": null
+    },
+    {
+      "kpiId": "kd",
+      "context": "KD 90+ (skala Ahrefs)",
+      "value": "strony z top 10 mają tysiące linków",
+      "sourceId": 1213,
+      "note": null
+    },
+    {
+      "kpiId": "pkd",
+      "context": "Filtr fraz o wysokim potencjale (Semrush)",
+      "value": "10-50%",
+      "sourceId": 1220,
+      "note": null
+    },
+    {
+      "kpiId": "site_health",
+      "context": "Ahrefs: wynik uznawany za dobry",
+      "value": "powyżej 80",
+      "sourceId": 1215,
+      "note": "zasada producenta, nie badanie"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Ahrefs, 25 stron, suma ruchu (2016)",
+      "value": "83% (zaniżenie o 17%)",
+      "sourceId": 1244,
+      "note": "dane stare"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Semrush, te same 25 stron (2016)",
+      "value": "70% (zaniżenie o 30%)",
+      "sourceId": 1244,
+      "note": "dane stare"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Korelacja z GA4, 641 stron: Semrush / Similarweb / Ahrefs",
+      "value": "0,79 / 0,66 / 0,50",
+      "sourceId": 1243,
+      "note": "Ahrefs mierzy tylko ruch organiczny; z Search Console ok. 0,75"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Jedna strona z ok. 100 000 sesji (2023): Ahrefs / Semrush / Similarweb",
+      "value": "37 tys. / 39 tys. / 80 tys. sesji",
+      "sourceId": 1245,
+      "note": null
+    },
+    {
+      "kpiId": "dashboard_freshness",
+      "context": "Konektory Google (Ads, Analytics, Search Console, YouTube Analytics)",
+      "value": "odświeżanie co 12 godz.",
+      "sourceId": 1227,
+      "note": null
+    },
+    {
+      "kpiId": "dashboard_freshness",
+      "context": "Inne konektory (np. BigQuery, Arkusze)",
+      "value": "co 1-12 godz., domyślnie 12",
+      "sourceId": 1227,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Wyszukiwania Google w USA bez kliknięcia (I-IV 2026)",
+      "value": "68,01%",
+      "sourceId": 1238,
+      "note": "bez aplikacji Google; inny panel niż w 2024"
+    },
+    {
+      "kpiId": "ga4_quota",
+      "context": "Standardowa usługa GA4: tokeny dziennie / na godzinę / na godzinę na projekt",
+      "value": "200 000 / 40 000 / 14 000",
+      "sourceId": 1274,
+      "note": null
+    },
+    {
+      "kpiId": "ga4_quota",
+      "context": "GA4 360: tokeny dziennie / na godzinę",
+      "value": "2 000 000 / 400 000",
+      "sourceId": 1274,
+      "note": null
+    },
+    {
+      "kpiId": "ga4_quota",
+      "context": "Równoczesne zapytania na usługę (standard / 360)",
+      "value": "10 / 50",
+      "sourceId": 1274,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_vs_expected",
+      "context": "Pozycja 1 bez odpowiedzi AI / z odpowiedzią AI (First Page Sage, IX 2026, omówienie)",
+      "value": "22,6% / 3,6%",
+      "sourceId": 1276,
+      "note": "wyniki badań CTR bardzo się różnią"
+    },
+    {
+      "kpiId": "ctr_vs_expected",
+      "context": "Pozycja 1, frazy markowe / niemarkowe (Advanced Web Ranking, VII 2026, omówienie)",
+      "value": "27,3% / 19,4%",
+      "sourceId": 1277,
+      "note": null
+    },
+    {
+      "kpiId": "open_rate",
+      "context": "Polska, kampanie MailerLite (XII 2024 - XI 2025)",
+      "value": "36,05%",
+      "sourceId": 1343,
+      "note": null
+    },
+    {
+      "kpiId": "open_rate",
+      "context": "Globalnie, 3,6 mln kampanii MailerLite (2025)",
+      "value": "43,46% mediana",
+      "sourceId": 1343,
+      "note": null
+    },
+    {
+      "kpiId": "ctor",
+      "context": "Globalnie, kampanie MailerLite (2025)",
+      "value": "6,81%",
+      "sourceId": 1343,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_email",
+      "context": "Globalnie, kampanie MailerLite (2025)",
+      "value": "2,09%",
+      "sourceId": 1343,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "Meta Ads, około 35 000 kont e-commerce, 2025 (USD)",
+      "value": "14,19 USD mediana, +20,03% rok do roku",
+      "sourceId": 1355,
+      "note": null
+    },
+    {
+      "kpiId": "roas",
+      "context": "Meta Ads, e-commerce, 2025",
+      "value": "1,86 mediana platformy; branże od 1,17 do 2,54",
+      "sourceId": 1356,
+      "note": null
+    },
+    {
+      "kpiId": "stickiness",
+      "context": "Wszystkie branże, Mixpanel Benchmarks 2024 (dane 2023)",
+      "value": "37% średnio",
+      "sourceId": 1377,
+      "note": null
+    },
+    {
+      "kpiId": "stickiness",
+      "context": "SaaS, Mixpanel 2017",
+      "value": "13% średnio; 25% poziom najlepszych",
+      "sourceId": 1377,
+      "note": null
+    },
+    {
+      "kpiId": "form_abandon",
+      "context": "Formularze online, dane narzędzia Zuko",
+      "value": "67% osób, które zaczęły wypełniać, nie kończy",
+      "sourceId": 1381,
+      "note": null
+    },
+    {
+      "kpiId": "consent_rate",
+      "context": "UE, cookies marketingowe, dane Usercentrics (cytowanie wtórne)",
+      "value": "38-45% średnio; dobrze zaprojektowany baner daje 15-25 pkt proc. więcej",
+      "sourceId": 1382,
+      "note": null
+    },
+    {
+      "kpiId": "avg_pct_viewed",
+      "context": "Filmy hostowane w Wistia, długość 6-12 minut",
+      "value": "ok. 50%; spadek między 1. a 3. minutą, stabilnie do 12. minuty, potem dalszy spadek",
+      "sourceId": 1383,
+      "note": null
+    },
+    {
+      "kpiId": "feature_adoption",
+      "context": "Pendo, ponad 1000 produktów (inna definicja: odsetek funkcji, które generują 80% kliknięć)",
+      "value": "percentyle 25/50/75/90: 7%, 11%, 18%, 28%",
+      "sourceId": 1376,
+      "note": null
+    },
+    {
+      "kpiId": "retention",
+      "context": "SaaS, retencja po 1. miesiącu (Pendo)",
+      "value": "percentyle 25/50/75/90: 23%, 39%, 54%, 64%",
+      "sourceId": 1376,
+      "note": null
+    },
+    {
+      "kpiId": "save_rate",
+      "context": "Instagram, średnie na post (Semrush 2025), wyliczone na wyświetlenia, nie na zasięg",
+      "value": "obrazy ok. 0,21%, karuzele ok. 0,42%, Reels ok. 0,46% (W)",
+      "sourceId": 1386,
+      "note": null
+    },
+    {
+      "kpiId": "likes_per_reach",
+      "context": "Instagram, średnie na post (Semrush 2025), wyliczone na wyświetlenia, nie na zasięg",
+      "value": "obrazy ok. 3,4%, karuzele ok. 3,0%, Reels ok. 3,6% (W)",
+      "sourceId": 1386,
+      "note": null
+    },
+    {
+      "kpiId": "comment_rate",
+      "context": "Instagram, średnie na post (Semrush 2025), wyliczone na wyświetlenia, nie na zasięg",
+      "value": "obrazy ok. 0,22%, karuzele ok. 0,11%, Reels ok. 0,13% (W)",
+      "sourceId": 1386,
+      "note": null
+    },
+    {
+      "kpiId": "list_churn",
+      "context": "Bazy B2B (HubSpot, za MarketingSherpa)",
+      "value": "22,5% rocznie (ok. 2,1% miesięcznie)",
+      "sourceId": 1387,
+      "note": null
+    },
+    {
+      "kpiId": "list_churn",
+      "context": "Adresy e-mail, ponad 11 mld weryfikacji (ZeroBounce, 2025)",
+      "value": "co najmniej 23% rocznie (28% w 2024 r.)",
+      "sourceId": 1387,
+      "note": null
+    }
+  ]
+}

@@ -1,0 +1,1545 @@
+{
+  "schema": "nes-insider-ranges/1",
+  "ranges": [
+    {
+      "id": "b-ctr-li",
+      "kpiId": "ctr_paid",
+      "channel": "LinkedIn Ads",
+      "industry": "B2B",
+      "region": "globalnie",
+      "audience": "zimni odbiorcy, górna część lejka",
+      "low": 0.3,
+      "optimalLow": 0.4,
+      "optimalHigh": 0.6,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 913,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 0,30%"
+        },
+        {
+          "band": "normalny",
+          "label": "0,40-0,60%"
+        },
+        {
+          "band": "dobry",
+          "label": "powyżej 0,60%"
+        }
+      ],
+      "note": "Sponsored Content. Mediana dla pojedynczego obrazu: 0,56% [912]. Zestawienia z 2026 r. podają zwykle 0,44-0,65% [1165].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-cpc-li",
+      "kpiId": "cpc",
+      "channel": "LinkedIn Ads",
+      "industry": "B2B",
+      "region": "globalnie",
+      "audience": null,
+      "low": null,
+      "optimalLow": 5,
+      "optimalHigh": 7,
+      "high": null,
+      "unit": "USD",
+      "period": "2025",
+      "sourceId": 913,
+      "bands": [
+        {
+          "band": "dobry",
+          "label": "poniżej 5 USD"
+        },
+        {
+          "band": "normalny",
+          "label": "5-7 USD"
+        },
+        {
+          "band": "zly",
+          "label": "powyżej 8 USD"
+        }
+      ],
+      "note": "Kwoty w USD: nie porównujemy automatycznie z wartościami w zł. Przelicz po kursie NBP.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": true,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-fr-li-cold",
+      "kpiId": "frequency",
+      "channel": "LinkedIn Ads",
+      "industry": null,
+      "region": null,
+      "audience": "zimni odbiorcy (świadomość)",
+      "low": null,
+      "optimalLow": 3,
+      "optimalHigh": 5,
+      "high": null,
+      "unit": "× na tydzień",
+      "period": "2026",
+      "sourceId": 930,
+      "bands": [
+        {
+          "band": "normalny",
+          "label": "3-5 wyświetleń na osobę tygodniowo"
+        }
+      ],
+      "note": "Akceptowalne przy zróżnicowanych, edukacyjnych kreacjach.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-fr-li-warm",
+      "kpiId": "frequency",
+      "channel": "LinkedIn Ads",
+      "industry": null,
+      "region": null,
+      "audience": "ciepli odbiorcy (retargeting)",
+      "low": null,
+      "optimalLow": 1,
+      "optimalHigh": 3,
+      "high": null,
+      "unit": "× na tydzień",
+      "period": "2026",
+      "sourceId": 930,
+      "bands": [
+        {
+          "band": "normalny",
+          "label": "1-3 wyświetlenia na osobę tygodniowo"
+        }
+      ],
+      "note": "Mniejsza grupa, która już zna markę.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-fr-meta",
+      "kpiId": "frequency",
+      "channel": "Meta Ads",
+      "industry": null,
+      "region": null,
+      "audience": "zimni odbiorcy (prospecting)",
+      "low": null,
+      "optimalLow": null,
+      "optimalHigh": 3,
+      "high": 5,
+      "unit": "× w 7 dni",
+      "period": "2026",
+      "sourceId": 931,
+      "bands": [
+        {
+          "band": "dobry",
+          "label": "do 3,0 w 7 dni"
+        },
+        {
+          "band": "slaby",
+          "label": "3,0-5,0: ostrzeżenie"
+        },
+        {
+          "band": "zly",
+          "label": "powyżej 5,0: przerwij i odśwież"
+        }
+      ],
+      "note": "Sygnał razem ze spadkiem CTR tydzień do tygodnia.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-erf-li",
+      "kpiId": "er_followers",
+      "channel": "LinkedIn",
+      "industry": null,
+      "region": null,
+      "audience": "strony firmowe małe i średnie",
+      "low": null,
+      "optimalLow": 0.48,
+      "optimalHigh": 1.1,
+      "high": null,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 918,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 0,48%: poniżej mediany"
+        },
+        {
+          "band": "normalny",
+          "label": "0,48-1,1%: między medianą a górnym kwartylem"
+        },
+        {
+          "band": "bdobry",
+          "label": "1,1% i więcej: górny kwartyl"
+        }
+      ],
+      "note": "Interakcje na post jako odsetek obserwujących.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-mqlsql",
+      "kpiId": "stage_conv",
+      "channel": "B2B",
+      "industry": null,
+      "region": null,
+      "audience": "MQL → SQL",
+      "low": 10,
+      "optimalLow": 13,
+      "optimalHigh": 26,
+      "high": 35,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 923,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 10%: sygnał alarmowy"
+        },
+        {
+          "band": "normalny",
+          "label": "13-26%: typowo"
+        },
+        {
+          "band": "bdobry",
+          "label": "35% i więcej: najlepsi"
+        }
+      ],
+      "note": "Średnia dla B2B SaaS: 13% [922]. Porównuj tylko przy tej samej definicji MQL.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-sqlopp",
+      "kpiId": "stage_conv",
+      "channel": "B2B",
+      "industry": null,
+      "region": null,
+      "audience": "SQL → szansa",
+      "low": 30,
+      "optimalLow": 50,
+      "optimalHigh": 62,
+      "high": 70,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 923,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 30%: sygnał alarmowy"
+        },
+        {
+          "band": "normalny",
+          "label": "50-62%: typowo"
+        },
+        {
+          "band": "bdobry",
+          "label": "70% i więcej: najlepsi"
+        }
+      ],
+      "note": null,
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-win",
+      "kpiId": "win_rate",
+      "channel": "B2B",
+      "industry": null,
+      "region": null,
+      "audience": "szansa → wygrana",
+      "low": null,
+      "optimalLow": 15,
+      "optimalHigh": 30,
+      "high": 35,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 923,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 15%: poniżej typowego zakresu"
+        },
+        {
+          "band": "normalny",
+          "label": "15-30%: typowo"
+        },
+        {
+          "band": "bdobry",
+          "label": "35% i więcej: najlepsi"
+        }
+      ],
+      "note": null,
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-cycle",
+      "kpiId": "cycle",
+      "channel": "B2B",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": null,
+      "optimalLow": 60,
+      "optimalHigh": 120,
+      "high": null,
+      "unit": "dni",
+      "period": "2026",
+      "sourceId": 923,
+      "bands": [
+        {
+          "band": "normalny",
+          "label": "60-120 dni: typowa długość cyklu"
+        }
+      ],
+      "note": "Zakres typowy, nie cel. Krótszy cykl jest korzystny.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-nrr",
+      "kpiId": "nrr",
+      "channel": "SaaS B2B",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": 100,
+      "optimalLow": 101,
+      "optimalHigh": 120,
+      "high": null,
+      "unit": "%",
+      "period": "2025",
+      "sourceId": 924,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 100%: baza klientów traci przychód (z definicji)"
+        },
+        {
+          "band": "normalny",
+          "label": "101%: mediana 2025"
+        },
+        {
+          "band": "bdobry",
+          "label": "powyżej 120%: poziom liderów [926]"
+        }
+      ],
+      "note": "W 2026 r. mediana dla firm bez finansowania zewnętrznego z ARR 3-20 mln USD wynosi 103% [1176].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-churn-ent",
+      "kpiId": "churn",
+      "channel": "SaaS",
+      "industry": null,
+      "region": null,
+      "audience": "enterprise",
+      "low": null,
+      "optimalLow": 0.5,
+      "optimalHigh": 1.5,
+      "high": null,
+      "unit": "% mies.",
+      "period": "2026",
+      "sourceId": 928,
+      "bands": [
+        {
+          "band": "normalny",
+          "label": "0,5-1,5% miesięcznie: typowo"
+        }
+      ],
+      "note": null,
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-churn-smb",
+      "kpiId": "churn",
+      "channel": "SaaS",
+      "industry": null,
+      "region": null,
+      "audience": "SMB",
+      "low": null,
+      "optimalLow": 3,
+      "optimalHigh": 7,
+      "high": null,
+      "unit": "% mies.",
+      "period": "2026",
+      "sourceId": 928,
+      "bands": [
+        {
+          "band": "normalny",
+          "label": "3-7% miesięcznie: typowo w trudnym rynku"
+        }
+      ],
+      "note": "Zakres opisuje typowy churn małych firm, nie cel.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-ltvcac",
+      "kpiId": "ltv_cac",
+      "channel": "SaaS",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": 3,
+      "optimalLow": 3,
+      "optimalHigh": 5,
+      "high": null,
+      "unit": "×",
+      "period": "2025",
+      "sourceId": 927,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 3:1: poniżej minimum"
+        },
+        {
+          "band": "dobry",
+          "label": "3-5:1: zdrowo"
+        },
+        {
+          "band": "bdobry",
+          "label": "5:1 i więcej: górny kwartyl [928]"
+        }
+      ],
+      "note": "Heurystyka branżowa ze źródłem. Zbyt wysoki wynik może oznaczać zbyt małe inwestycje we wzrost.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": true,
+      "requiresContext": null
+    },
+    {
+      "id": "b-payback",
+      "kpiId": "cac_payback",
+      "channel": "SaaS",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": null,
+      "optimalLow": 6,
+      "optimalHigh": 12,
+      "high": 18,
+      "unit": "mies.",
+      "period": "2025",
+      "sourceId": 926,
+      "bands": [
+        {
+          "band": "bdobry",
+          "label": "poniżej 6 mies."
+        },
+        {
+          "band": "dobry",
+          "label": "6-12 mies."
+        },
+        {
+          "band": "slaby",
+          "label": "12-18 mies.: akceptowalnie"
+        },
+        {
+          "band": "zly",
+          "label": "powyżej 18 mies."
+        }
+      ],
+      "note": "Mediana 2025: 16 miesięcy [925].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-nps",
+      "kpiId": "nps",
+      "channel": "ogólnie",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": 0,
+      "optimalLow": 20,
+      "optimalHigh": 50,
+      "high": 80,
+      "unit": "pkt",
+      "period": "b.d.",
+      "sourceId": 929,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 0: więcej krytyków niż promotorów"
+        },
+        {
+          "band": "normalny",
+          "label": "powyżej 0: dobrze"
+        },
+        {
+          "band": "dobry",
+          "label": "powyżej 20: korzystnie"
+        },
+        {
+          "band": "bdobry",
+          "label": "powyżej 50: doskonale; powyżej 80: poziom światowy"
+        }
+      ],
+      "note": "Skala absolutna. Porównanie z branżą bywa ważniejsze.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-spam",
+      "kpiId": "spam_rate",
+      "channel": "Gmail",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": null,
+      "optimalLow": null,
+      "optimalHigh": 0.1,
+      "high": 0.3,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1003,
+      "bands": [
+        {
+          "band": "dobry",
+          "label": "poniżej 0,10%"
+        },
+        {
+          "band": "slaby",
+          "label": "0,10-0,30%: ryzyko"
+        },
+        {
+          "band": "zly",
+          "label": "0,30% i więcej: nie dopuszczać"
+        }
+      ],
+      "note": "Progi bez zmian. Od listopada 2025 r. Gmail odrzuca niezgodną pocztę masową [1180]; Microsoft egzekwuje podobne wymagania od 5 maja 2025 r. [1181].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-lead",
+      "kpiId": "lead_response",
+      "channel": "B2B i B2C, leady z internetu",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": null,
+      "optimalLow": null,
+      "optimalHigh": 1,
+      "high": 24,
+      "unit": "h",
+      "period": "2011",
+      "sourceId": 1004,
+      "bands": [
+        {
+          "band": "dobry",
+          "label": "do 1 godziny: ok. 7 razy większa szansa kwalifikacji niż godzinę później"
+        },
+        {
+          "band": "slaby",
+          "label": "1-24 godziny"
+        },
+        {
+          "band": "zly",
+          "label": "24 godziny i więcej: ponad 60 razy mniejsza szansa niż w ciągu godziny"
+        }
+      ],
+      "note": "Średni czas reakcji firm w badaniu wynosił 42 godziny [1005].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-burn",
+      "kpiId": "burn_multiple",
+      "channel": "SaaS",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": null,
+      "optimalLow": null,
+      "optimalHigh": 1,
+      "high": null,
+      "unit": "×",
+      "period": "b.d.",
+      "sourceId": 1008,
+      "bands": [
+        {
+          "band": "bdobry",
+          "label": "poniżej 1: doskonale"
+        }
+      ],
+      "note": "Źródło podaje tylko próg doskonałego wyniku.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-pmf",
+      "kpiId": "pmf_score",
+      "channel": "produkty cyfrowe",
+      "industry": null,
+      "region": null,
+      "audience": "aktywni użytkownicy z grupy docelowej",
+      "low": 25,
+      "optimalLow": 40,
+      "optimalHigh": null,
+      "high": null,
+      "unit": "%",
+      "period": "2010",
+      "sourceId": 1010,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 25%: brak dopasowania [1011]"
+        },
+        {
+          "band": "dobry",
+          "label": "40% i więcej: prawdopodobne dopasowanie"
+        }
+      ],
+      "note": "Reguła 40% Seana Ellisa to wskaźnik wyprzedzający, nie dowód [1011].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": true,
+      "requiresContext": null
+    },
+    {
+      "id": "b-rating",
+      "kpiId": "review_rating",
+      "channel": "sklepy internetowe",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": null,
+      "optimalLow": 4,
+      "optimalHigh": 4.7,
+      "high": null,
+      "unit": "gw.",
+      "period": "b.d.",
+      "sourceId": 1012,
+      "bands": [
+        {
+          "band": "normalny",
+          "label": "poniżej 4,0: niższa skłonność do zakupu"
+        },
+        {
+          "band": "bdobry",
+          "label": "4,0-4,7: najwyższa skłonność do zakupu"
+        },
+        {
+          "band": "slaby",
+          "label": "powyżej 4,7: skłonność spada"
+        }
+      ],
+      "note": null,
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-quick",
+      "kpiId": "saas_quick",
+      "channel": "SaaS",
+      "industry": null,
+      "region": null,
+      "audience": null,
+      "low": 2,
+      "optimalLow": 4,
+      "optimalHigh": null,
+      "high": null,
+      "unit": "×",
+      "period": "2015",
+      "sourceId": 1036,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 2: niepokojąco [1037]"
+        },
+        {
+          "band": "slaby",
+          "label": "2-4: przeciętnie"
+        },
+        {
+          "band": "dobry",
+          "label": "4 i więcej: zdrowy wzrost"
+        }
+      ],
+      "note": "Próg 4 to kryterium inwestycyjne Mamoona Hamida, nie norma dla każdej fazy firmy.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-lgf-content",
+      "kpiId": "leadform_cr",
+      "channel": "LinkedIn Lead Gen Forms",
+      "industry": null,
+      "region": null,
+      "audience": "formularz w feedzie, oferta treści",
+      "low": null,
+      "optimalLow": 10.8,
+      "optimalHigh": 18.7,
+      "high": null,
+      "unit": "%",
+      "period": "IX 2025 - IX 2026",
+      "sourceId": 1196,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 10,8%: poniżej mediany"
+        },
+        {
+          "band": "normalny",
+          "label": "10,8-18,7%: od mediany do górnego kwartyla"
+        },
+        {
+          "band": "dobry",
+          "label": "18,7-31,6%: górne 25%"
+        },
+        {
+          "band": "bdobry",
+          "label": "31,6% i więcej: górne 10%"
+        }
+      ],
+      "note": "Pole z numerem telefonu obniża ukończenie o 66% w tym samym koncie [1197].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-lgf-demo",
+      "kpiId": "leadform_cr",
+      "channel": "LinkedIn Lead Gen Forms",
+      "industry": null,
+      "region": null,
+      "audience": "formularz w feedzie, prośba o demo",
+      "low": null,
+      "optimalLow": 2.2,
+      "optimalHigh": 4.2,
+      "high": null,
+      "unit": "%",
+      "period": "IX 2025 - IX 2026",
+      "sourceId": 1196,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 2,2%: poniżej mediany"
+        },
+        {
+          "band": "normalny",
+          "label": "2,2-4,2%: od mediany do górnego kwartyla"
+        },
+        {
+          "band": "dobry",
+          "label": "4,2-9,5%: górne 25%"
+        },
+        {
+          "band": "bdobry",
+          "label": "9,5% i więcej: górne 10%"
+        }
+      ],
+      "note": "Prośba o demo ma ok. 80% niższe ukończenie niż oferta treści w tym samym koncie [1197].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-unsub",
+      "kpiId": "unsub",
+      "channel": "e-mail",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "listy z zapisem na zgodę, pojedyncza kampania",
+      "low": null,
+      "optimalLow": null,
+      "optimalHigh": 0.5,
+      "high": 1,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 1345,
+      "bands": [
+        {
+          "band": "bdobry",
+          "label": "poniżej 0,2%"
+        },
+        {
+          "band": "normalny",
+          "label": "0,2-0,5%"
+        },
+        {
+          "band": "slaby",
+          "label": "0,5-1,0%"
+        },
+        {
+          "band": "zly",
+          "label": "powyżej 1,0%"
+        }
+      ],
+      "note": "Źródło dostawcy usług e-mail (C); trend ważniejszy niż pojedyncza kampania.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-hbounce",
+      "kpiId": "hard_bounce",
+      "channel": "e-mail",
+      "industry": null,
+      "region": "globalnie",
+      "audience": null,
+      "low": null,
+      "optimalLow": null,
+      "optimalHigh": 0.5,
+      "high": 2,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1344,
+      "bands": [
+        {
+          "band": "dobry",
+          "label": "do 0,5%"
+        },
+        {
+          "band": "slaby",
+          "label": "0,5-2,0%: wyczyść listę"
+        },
+        {
+          "band": "zly",
+          "label": "powyżej 2,0% (próg dla wszystkich odbić)"
+        }
+      ],
+      "note": "Całkowity odsetek odbić powinien być poniżej 2%, twarde odbicia poniżej 0,5% [1344].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-deliv",
+      "kpiId": "deliverability",
+      "channel": "e-mail",
+      "industry": null,
+      "region": "globalnie",
+      "audience": null,
+      "low": 95,
+      "optimalLow": 97,
+      "optimalHigh": 100,
+      "high": null,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 1346,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 95%: problem z jakością listy lub reputacją"
+        },
+        {
+          "band": "slaby",
+          "label": "95-97%"
+        },
+        {
+          "band": "dobry",
+          "label": "97-99% i więcej"
+        }
+      ],
+      "note": "Źródło dostawcy narzędzi (C).",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-cvr-ecom-pl",
+      "kpiId": "cvr",
+      "channel": "sklep internetowy (wszystkie sesje)",
+      "industry": "e-commerce",
+      "region": "Polska",
+      "audience": "sesje zakończone zamówieniem",
+      "low": null,
+      "optimalLow": 1,
+      "optimalHigh": 3,
+      "high": null,
+      "unit": "%",
+      "period": "2026",
+      "sourceId": 1347,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 1%"
+        },
+        {
+          "band": "normalny",
+          "label": "1-3%: typowa średnia sklepu"
+        },
+        {
+          "band": "dobry",
+          "label": "powyżej 3%"
+        }
+      ],
+      "note": "Szerokie uśrednienie: branża, cena i model sprzedaży mocno zmieniają wynik [1347]. Przedział używany tylko w zadaniach e-commerce.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "e-?commerce|sklep|handel|retail",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-pipecov",
+      "kpiId": "pipeline_cov",
+      "channel": "sprzedaż B2B",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "kwalifikowany lejek na początku kwartału",
+      "low": 3,
+      "optimalLow": 3,
+      "optimalHigh": 4,
+      "high": null,
+      "unit": "×",
+      "period": "2025-2026",
+      "sourceId": 1349,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 3×: sygnał ostrzegawczy"
+        },
+        {
+          "band": "normalny",
+          "label": "3-4×: standard"
+        },
+        {
+          "band": "dobry",
+          "label": "4-5×: mocne pokrycie albo niska skuteczność"
+        }
+      ],
+      "note": "Klasyczna norma 3-4× [1348]. Potrzebne pokrycie liczy się jako 1 ÷ skuteczność zamykania: przy 25% to 4× [1349].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-qs",
+      "kpiId": "quality_score",
+      "channel": "Google Ads",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "słowa kluczowe w sieci wyszukiwania",
+      "low": 5,
+      "optimalLow": 7,
+      "optimalHigh": 10,
+      "high": null,
+      "unit": "pkt",
+      "period": "2025-2026",
+      "sourceId": 1351,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "1-4"
+        },
+        {
+          "band": "normalny",
+          "label": "5-6: średnia kont"
+        },
+        {
+          "band": "dobry",
+          "label": "7-10"
+        }
+      ],
+      "note": "Średnia w 15 666 kontach to 5-6 [1351]. Google nie publikuje oficjalnego progu; dla fraz markowych celuj w 8+ [1350].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-engr",
+      "kpiId": "engaged_rate",
+      "channel": "GA4",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "wszystkie sesje witryny",
+      "low": null,
+      "optimalLow": 50,
+      "optimalHigh": null,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1352,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 50%: poniżej mediany (51%)"
+        },
+        {
+          "band": "normalny",
+          "label": "50-55%"
+        },
+        {
+          "band": "dobry",
+          "label": "powyżej 55%"
+        }
+      ],
+      "note": "Mediana ponad 500 witryn: 51% [1352]. Blogi SaaS i ruch płatny mają zwykle niżej.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-csat",
+      "kpiId": "csat",
+      "channel": "obsługa klienta",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "odsetek ocen 4 i 5 w skali 1-5",
+      "low": 70,
+      "optimalLow": 75,
+      "optimalHigh": 85,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1353,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 70%: problem strukturalny"
+        },
+        {
+          "band": "slaby",
+          "label": "70-75%"
+        },
+        {
+          "band": "dobry",
+          "label": "75-85%"
+        },
+        {
+          "band": "bdobry",
+          "label": "powyżej 85%; ponad 90% sprawdź, czy ankieta nie jest stronnicza"
+        }
+      ],
+      "note": "Dobry wynik 75-85% [1353]; poniżej 70% sygnał problemu, powyżej 90% możliwe skrzywienie ankiety [1354].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-lpcvr-ecom",
+      "kpiId": "lp_cvr",
+      "channel": "strony docelowe",
+      "industry": "e-commerce",
+      "region": "globalnie",
+      "audience": "dedykowane strony docelowe",
+      "low": null,
+      "optimalLow": 4.2,
+      "optimalHigh": 11.4,
+      "high": null,
+      "unit": "%",
+      "period": "IV kw. 2024",
+      "sourceId": 1358,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 4,2% (poniżej mediany)"
+        },
+        {
+          "band": "normalny",
+          "label": "4,2-11,4%"
+        },
+        {
+          "band": "dobry",
+          "label": "11,4% i więcej (górne 25%)"
+        }
+      ],
+      "note": "Mediana i 75. percentyl dla e-commerce [1358].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "e-?commerce|sklep|handel|retail",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-lpcvr-saas",
+      "kpiId": "lp_cvr",
+      "channel": "strony docelowe",
+      "industry": "SaaS",
+      "region": "globalnie",
+      "audience": "dedykowane strony docelowe",
+      "low": null,
+      "optimalLow": 3.8,
+      "optimalHigh": 11.6,
+      "high": null,
+      "unit": "%",
+      "period": "IV kw. 2024",
+      "sourceId": 1358,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 3,8% (poniżej mediany)"
+        },
+        {
+          "band": "normalny",
+          "label": "3,8-11,6%"
+        },
+        {
+          "band": "dobry",
+          "label": "11,6% i więcej (górne 25%)"
+        }
+      ],
+      "note": "Mediana i 75. percentyl dla SaaS [1358].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "saas|oprogramowan|software|aplikacj",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-open-ecom",
+      "kpiId": "open_rate",
+      "channel": "e-mail, kampanie",
+      "industry": "e-commerce",
+      "region": "globalnie",
+      "audience": "kampanie (nie automatyzacje)",
+      "low": null,
+      "optimalLow": 37.93,
+      "optimalHigh": 54.78,
+      "high": null,
+      "unit": "%",
+      "period": "2025",
+      "sourceId": 1359,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 37,93% (poniżej średniej)"
+        },
+        {
+          "band": "normalny",
+          "label": "37,93-54,78%"
+        },
+        {
+          "band": "dobry",
+          "label": "54,78% i więcej (górne 10%)"
+        }
+      ],
+      "note": "Średnia i próg górnych 10% kampanii w Klaviyo [1359]. Otwarcia zawyża ochrona prywatności Apple: czytaj razem z kliknięciami.",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "e-?commerce|sklep|handel|retail",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-ctr-mail-ecom",
+      "kpiId": "ctr_email",
+      "channel": "e-mail, kampanie",
+      "industry": "e-commerce",
+      "region": "globalnie",
+      "audience": "kampanie (nie automatyzacje)",
+      "low": null,
+      "optimalLow": 1.29,
+      "optimalHigh": 4.74,
+      "high": null,
+      "unit": "%",
+      "period": "2025",
+      "sourceId": 1359,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 1,29% (poniżej średniej)"
+        },
+        {
+          "band": "normalny",
+          "label": "1,29-4,74%"
+        },
+        {
+          "band": "dobry",
+          "label": "4,74% i więcej (górne 10%)"
+        }
+      ],
+      "note": "Średnia i próg górnych 10% kampanii w Klaviyo [1359].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "e-?commerce|sklep|handel|retail",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-activation-b2b",
+      "kpiId": "activation",
+      "channel": "produkt",
+      "industry": "SaaS B2B",
+      "region": "globalnie",
+      "audience": "nowi użytkownicy po rejestracji",
+      "low": null,
+      "optimalLow": 33,
+      "optimalHigh": 40,
+      "high": null,
+      "unit": "%",
+      "period": "2022",
+      "sourceId": 1361,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 33% (poniżej mediany)"
+        },
+        {
+          "band": "normalny",
+          "label": "33-40%"
+        },
+        {
+          "band": "dobry",
+          "label": "40% i więcej (60. percentyl)"
+        }
+      ],
+      "note": "Mediana dla SaaS B2B enterprise 33%, 60. percentyl 40% [1361]. Dla wszystkich produktów mediana 25%, średnia 34% [1360].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "saas|oprogramowan|software|aplikacj",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-fcr",
+      "kpiId": "fcr",
+      "channel": "obsługa klienta",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "kontakty rozwiązane przy pierwszej interakcji",
+      "low": 70,
+      "optimalLow": 70,
+      "optimalHigh": 79,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1363,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 70% (średnia branży ok. 70-71%)"
+        },
+        {
+          "band": "dobry",
+          "label": "70-79%"
+        },
+        {
+          "band": "bdobry",
+          "label": "80% i więcej (osiąga ok. 5% centrów)"
+        }
+      ],
+      "note": "Klasyfikacja SQM Group; mierz tak samo w czasie (ankieta po kontakcie lub ocena jakości) [1363].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-hook-meta",
+      "kpiId": "hook_rate",
+      "channel": "Meta Ads",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "wideo, 3-sekundowe odtworzenia / wyświetlenia",
+      "low": 25,
+      "optimalLow": 25,
+      "optimalHigh": 30,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1373,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 25%"
+        },
+        {
+          "band": "normalny",
+          "label": "25-30%: poziom bazowy"
+        },
+        {
+          "band": "dobry",
+          "label": "30-40%"
+        },
+        {
+          "band": "bdobry",
+          "label": "powyżej 40%"
+        }
+      ],
+      "note": "Średnia w przeglądzie reklam Meta ok. 24%; 25% to minimum, 30% i więcej to najlepsze kreacje [1372][1373].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-hook-tt",
+      "kpiId": "hook_rate",
+      "channel": "TikTok Ads",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "wideo, 2-sekundowe wyświetlenia / wyświetlenia",
+      "low": 30,
+      "optimalLow": 30,
+      "optimalHigh": 35,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1374,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 30%"
+        },
+        {
+          "band": "normalny",
+          "label": "30-35%: poziom bazowy"
+        },
+        {
+          "band": "dobry",
+          "label": "35-40%"
+        },
+        {
+          "band": "bdobry",
+          "label": "40% i więcej"
+        }
+      ],
+      "note": "Na TikToku progi są wyższe niż w Meta [1374].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "tiktok",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-vtr-yt",
+      "kpiId": "vtr",
+      "channel": "YouTube Ads (TrueView)",
+      "industry": null,
+      "region": "globalnie",
+      "audience": "krótsze kreacje wideo",
+      "low": 15,
+      "optimalLow": 15,
+      "optimalHigh": 30,
+      "high": null,
+      "unit": "%",
+      "period": "2025-2026",
+      "sourceId": 1375,
+      "bands": [
+        {
+          "band": "slaby",
+          "label": "poniżej 15%"
+        },
+        {
+          "band": "normalny",
+          "label": "15-30%"
+        },
+        {
+          "band": "dobry",
+          "label": "powyżej 30%"
+        }
+      ],
+      "note": "Dla długich form docelowo 2-10% [1375].",
+      "validUntil": "2027-10-09",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": null
+    },
+    {
+      "id": "b-stick-saas",
+      "kpiId": "stickiness",
+      "channel": "produkt",
+      "industry": "SaaS",
+      "region": "globalnie",
+      "audience": "DAU/MAU, ponad 1000 produktów cyfrowych",
+      "low": 11,
+      "optimalLow": 20,
+      "optimalHigh": 31,
+      "high": null,
+      "unit": "%",
+      "period": "dane Pendo (edycja z ok. 2019 r.)",
+      "sourceId": 1376,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 11% (25. percentyl)"
+        },
+        {
+          "band": "slaby",
+          "label": "11-20%: poniżej mediany"
+        },
+        {
+          "band": "normalny",
+          "label": "20-31%"
+        },
+        {
+          "band": "dobry",
+          "label": "31-45% (powyżej 75. percentyla)"
+        },
+        {
+          "band": "bdobry",
+          "label": "45% i więcej (90. percentyl)"
+        }
+      ],
+      "note": "Percentyle 25/50/75/90: 11%, 20%, 31%, 45% [1376]. Nowsze dane Mixpanel podają średnią 37% dla wszystkich branż w 2023 r. [1377].",
+      "validUntil": "2026-12-31",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "saas|oprogramowan|software|aplikacj",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-ret3-saas",
+      "kpiId": "retention",
+      "channel": "produkt, retencja po 3 miesiącach",
+      "industry": "SaaS",
+      "region": "globalnie",
+      "audience": "użytkownicy aplikacji, ponad 1000 produktów",
+      "low": 15,
+      "optimalLow": 28,
+      "optimalHigh": 42,
+      "high": null,
+      "unit": "%",
+      "period": "dane Pendo (edycja z ok. 2019 r.)",
+      "sourceId": 1376,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 15% (25. percentyl)"
+        },
+        {
+          "band": "slaby",
+          "label": "15-28%: poniżej mediany"
+        },
+        {
+          "band": "normalny",
+          "label": "28-42%"
+        },
+        {
+          "band": "dobry",
+          "label": "42-54% (powyżej 75. percentyla)"
+        },
+        {
+          "band": "bdobry",
+          "label": "54% i więcej (90. percentyl)"
+        }
+      ],
+      "note": "Przedział dotyczy retencji po 3 miesiącach. Po 1. miesiącu percentyle to 23%, 39%, 54% i 64% [1376].",
+      "validUntil": "2026-12-31",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "saas|oprogramowan|software|aplikacj",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    },
+    {
+      "id": "b-nps-saas",
+      "kpiId": "nps",
+      "channel": "produkt, NPS na poziomie kont",
+      "industry": "SaaS",
+      "region": "globalnie",
+      "audience": "średni wynik kont, ponad 1000 produktów",
+      "low": 4,
+      "optimalLow": 25,
+      "optimalHigh": 49,
+      "high": null,
+      "unit": "pkt",
+      "period": "dane Pendo (edycja z ok. 2019 r.)",
+      "sourceId": 1376,
+      "bands": [
+        {
+          "band": "zly",
+          "label": "poniżej 4 (25. percentyl)"
+        },
+        {
+          "band": "slaby",
+          "label": "4-25: poniżej mediany"
+        },
+        {
+          "band": "normalny",
+          "label": "25-49"
+        },
+        {
+          "band": "dobry",
+          "label": "49-65"
+        },
+        {
+          "band": "bdobry",
+          "label": "65 i więcej (90. percentyl)"
+        }
+      ],
+      "note": "Percentyle 25/50/75/90: 4, 25, 49, 65; w firmach dużych 11, 28, 51, 73 [1376].",
+      "validUntil": "2026-12-31",
+      "referenceOnly": false,
+      "heuristic": false,
+      "requiresContext": {
+        "pattern": "saas|oprogramowan|software|aplikacj",
+        "flags": "i",
+        "matchOn": ["industry", "channel", "channels"]
+      }
+    }
+  ]
+}
