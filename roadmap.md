@@ -1,5 +1,11 @@
 # Roadmap
 
+## Weryfikacja PR #520
+
+- [ ] Potwierdzić integrację wszystkich commitów i zakres zmian PR #520.
+- [ ] Sprawdzić wymagane tabele, widoki, RPC i rejestry w żywej bazie; wdrożyć brakujące elementy PR.
+- [ ] Uruchomić testy zakresowe i zweryfikować działanie modułu Przychód i lejek.
+
 ## Audio w dolnym pasku
 
 - [x] Zachować osobny odtwarzacz gości i połączyć odtwarzacz członków z mierzonym dolnym paskiem bez przenoszenia silnika audio.
