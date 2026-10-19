@@ -10,10 +10,21 @@
 //  * zapis wartości identycznej z obecną nie tworzy nowego obiektu (brak
 //    zbędnej zmiany dokumentu, a więc i wpisu w historii cofania).
 //
-// Moduł jest czysty (bez I/O), więc nie ma czego mockować. Ostatni opis
-// rejestruje defekt styku z `resolveColorForMode` (ramka widgetu).
+// Moduł jest czysty (bez I/O), więc nie ma czego mockować. Ostatnie opisy
+// dotyczą styku z `resolveColorForMode` (ramka widgetu): kolory ramki zapisuje
+// rodzina `*Invertible*`, w której wartość płaska = jasny + odwrócenie w dark.
 import { describe, expect, it } from "vitest";
-import { isModeOverridden, isThemedValue, pickMode, resetMode, setMode } from "../themed";
+import {
+  isInvertibleModeOverridden,
+  isModeOverridden,
+  isThemedValue,
+  pickInvertibleOverride,
+  pickMode,
+  resetInvertibleMode,
+  resetMode,
+  setInvertibleMode,
+  setMode,
+} from "../themed";
 import { resolveColorForMode } from "../autoInvertColor";
 import { parseColorChannels } from "../cssColor";
 import type { Themed } from "../types";
@@ -42,6 +53,14 @@ describe("setMode - zapis jednego trybu", () => {
   it("ta sama wartość nie tworzy nowego zapisu (ta sama referencja)", () => {
     const flat = "#111";
     expect(setMode<string>(flat, "dark", "#111")).toBe(flat);
+  });
+
+  it("edycja light na wartości płaskiej zostawia dark jego dotychczasową wartość", () => {
+    // Semantyka rendererów BEZ odwracania (kolumna, hover): płaska obowiązywała
+    // w obu trybach, więc dark musi dalej wyglądać tak samo.
+    const next = setMode<string>("#111", "light", "#222");
+    expect(pickMode(next, "light")).toBe("#222");
+    expect(pickMode(next, "dark")).toBe("#111");
   });
 
   it("na wartości per tryb zmienia tylko aktywny tryb, a pusty wynik znika", () => {
@@ -102,7 +121,70 @@ describe("pickMode i isThemedValue - odczyt", () => {
   });
 });
 
-describe("setMode + resolveColorForMode - styk panelu z ramką widgetu", () => {
+describe("setInvertibleMode - kolory ramki: płaska = light + odwrócenie w dark", () => {
+  it("pierwszy zapis w light jest płaski, pierwszy zapis w dark dotyczy tylko dark", () => {
+    expect(setInvertibleMode<string>(undefined, "light", "#111")).toBe("#111");
+    expect(setInvertibleMode<string>(undefined, "dark", "#eee")).toEqual({ dark: "#eee" });
+    expect(setInvertibleMode<string>(undefined, "dark", undefined)).toBeUndefined();
+  });
+
+  it("edycja light na płaskiej zostaje płaska, na `{ light, dark }` nie rusza dark", () => {
+    expect(setInvertibleMode<string>("#111", "light", "#222")).toBe("#222");
+    expect(setInvertibleMode<string>({ light: "#111", dark: "#eee" }, "light", "#222")).toEqual({
+      light: "#222",
+      dark: "#eee",
+    });
+  });
+
+  it("edycja dark na płaskiej zachowuje light", () => {
+    expect(setInvertibleMode<string>("#111", "dark", "#333")).toEqual({
+      light: "#111",
+      dark: "#333",
+    });
+  });
+
+  it("wyczyszczenie i reset dark wracają do wartości płaskiej", () => {
+    const themed = { light: "#111", dark: "#333" };
+    expect(setInvertibleMode<string>(themed, "dark", undefined)).toBe("#111");
+    expect(resetInvertibleMode<string>(themed, "dark")).toBe("#111");
+    expect(resetInvertibleMode<string>({ dark: "#333" }, "dark")).toBeUndefined();
+  });
+
+  it("reset light na płaskiej usuwa ją całą - dark był z niej tylko wyliczany", () => {
+    expect(resetInvertibleMode<string>("#111", "light")).toBeUndefined();
+    expect(resetInvertibleMode<string>({ light: "#111", dark: "#333" }, "light")).toEqual({
+      dark: "#333",
+    });
+  });
+
+  it("brak zmiany zwraca tę samą referencję", () => {
+    const flat = "#111";
+    expect(setInvertibleMode<string>(flat, "light", "#111")).toBe(flat);
+    // Dark płaskiej nie był jawny - czyszczenie go nic nie zmienia.
+    expect(resetInvertibleMode<string>(flat, "dark")).toBe(flat);
+    expect(setInvertibleMode<string>(flat, "dark", undefined)).toBe(flat);
+  });
+
+  it("ten sam kolor jawnie w dark to prawdziwe nadpisanie (wyłącza odwrócenie)", () => {
+    expect(setInvertibleMode<string>("#111", "dark", "#111")).toEqual({
+      light: "#111",
+      dark: "#111",
+    });
+  });
+
+  it("wartość jawna i wskaźnik „nadpisane”: płaska należy tylko do light", () => {
+    expect(pickInvertibleOverride<string>("#111", "light")).toBe("#111");
+    expect(pickInvertibleOverride<string>("#111", "dark")).toBeUndefined();
+    expect(pickInvertibleOverride<string>({ dark: "#333" }, "light")).toBeUndefined();
+    expect(pickInvertibleOverride<string>(undefined, "light")).toBeUndefined();
+    expect(isInvertibleModeOverridden<string>("#111", "light")).toBe(true);
+    expect(isInvertibleModeOverridden<string>("#111", "dark")).toBe(false);
+    expect(isInvertibleModeOverridden<string>({ light: "#111", dark: "#333" }, "dark")).toBe(true);
+    expect(isInvertibleModeOverridden<string>(undefined, "dark")).toBe(false);
+  });
+});
+
+describe("setInvertibleMode + resolveColorForMode - styk panelu z ramką widgetu", () => {
   /** Jasność koloru wyrenderowanego w dark (0 = czerń, 1 = biel). */
   const darkLightness = (v: Color): number => {
     const rgba = parseColorChannels(resolveColorForMode(v, "dark") ?? "");
@@ -114,23 +196,35 @@ describe("setMode + resolveColorForMode - styk panelu z ramką widgetu", () => {
     expect(darkLightness("#111111")).toBeGreaterThan(0.5);
   });
 
-  // DEFEKT (zarejestrowany 2026-10-18 przy pisaniu testów, poza zakresem pakietu).
-  // WEJSCIE: widget ma płaski kolor tekstu `#111111` (pierwszy zapis w light jest
-  //   płaski). Ramka (`frame.ts` -> `resolveColorForMode`) traktuje wartość płaską
-  //   jako zapis light i w dark ODWRACA ją na `rgb(238, 238, 238)` - czytelnie.
-  //   Redakcja, wciąż w light, zmienia kolor na `#222222`.
-  // CO PSUJE: `setMode` migruje płaską wartość do `{ dark: "#111111", light:
-  //   "#222222" }`, zakładając, że dark „miał" `#111111` (semantyka `pickMode`).
-  //   Ramka widzi teraz JAWNE dark i go nie odwraca: dark mode pokazuje ciemny
-  //   tekst na ciemnym tle, choć nikt dark nie edytował.
-  // WYMAGANA POPRAWKA: decyzja produktowa, co znaczy wartość płaska koloru -
-  //   „light + odwrócenie w dark" (ramka widgetu) czy „ta sama w obu trybach"
-  //   (`pickMode`, panel, `BuilderRenderer` kolumn). Po niej `setMode` dla zapisu
-  //   strony autorskiej (light) powinno zostawić wartość płaską albo stemplować
-  //   dark wartością, którą ramka faktycznie rysowała. Zmiana dotyka paneli
-  //   widgetu i kolumny oraz renderera kolumn - poza tym pakietem.
-  it.fails("DEFEKT: edycja light nie może zgasić odwrócenia w dark", () => {
-    const next = setMode<string>("#111111", "light", "#222222");
+  // NAPRAWIONE 2026-10-19 (był `it.fails`, zarejestrowany 2026-10-18): płaski
+  // kolor `#111111` ramka rysuje w dark odwrócony, a edycja light na `#222222`
+  // przez `setMode` stemplowała `{ dark: "#111111", light: "#222222" }` - ramka
+  // widziała jawne dark i przestawała odwracać (ciemny tekst na ciemnym tle).
+  // Decyzja produktowa: płaska = light + odwrócenie w dark. Panel widgetu
+  // zapisuje kolory ramki przez `setInvertibleMode`, które zostawia wartość
+  // płaską. Ogólne `setMode` NIE zmieniło semantyki: kolumna (`columnColor`)
+  // i hover (`hoverCss`) czytają płaską bez odwracania, więc dla nich
+  // stemplowanie dark zachowuje wygląd ciemnego trybu (test wyżej).
+  it("edycja light nie gasi odwrócenia w dark", () => {
+    const next = setInvertibleMode<string>("#111111", "light", "#222222");
     expect(darkLightness(next)).toBeGreaterThan(0.5);
+  });
+
+  it("płaska i `{ light }` bez dark rysują się w obu trybach identycznie", () => {
+    for (const mode of ["light", "dark"] as const) {
+      expect(resolveColorForMode({ light: "#222222" }, mode)).toBe(
+        resolveColorForMode("#222222", mode),
+      );
+    }
+  });
+
+  it("cykl panelu: dark jawny wyłącza odwrócenie, jego wyczyszczenie je przywraca", () => {
+    let v: Color = setInvertibleMode<string>("#111111", "light", "#222222");
+    v = setInvertibleMode<string>(v, "dark", "#333333");
+    expect(resolveColorForMode(v, "dark")).toBe("#333333");
+    expect(resolveColorForMode(v, "light")).toBe("#222222");
+    v = setInvertibleMode<string>(v, "dark", undefined);
+    expect(darkLightness(v)).toBeGreaterThan(0.5);
+    expect(resolveColorForMode(v, "light")).toBe("#222222");
   });
 });
