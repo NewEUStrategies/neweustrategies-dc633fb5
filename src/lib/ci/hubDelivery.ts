@@ -530,6 +530,9 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (Integrator S4, 2026-10-19): Z-S6-16 - wpięcie `events` i `clubs`
     // w migawkę huba razem z migracją 20261020130700 (plik S6).
     "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
+    // (Integrator S4, 2026-10-19): test end-to-end webhooka przypinał martwy
+    // `?retention=1`, który karta S4 każe usunąć z dzwonka rezygnacji.
+    "src/routes/api/public/payments/-webhook.test.ts",
   ],
   S5: [
     "supabase/migrations/2026102014????_*.sql",
