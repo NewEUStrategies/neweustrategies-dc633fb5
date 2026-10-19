@@ -3,7 +3,8 @@
 ## Audio w dolnym pasku
 
 - [x] Zachować osobny odtwarzacz gości i połączyć odtwarzacz członków z mierzonym dolnym paskiem bez przenoszenia silnika audio.
-- [x] Sprawdzić odsłuch i nawigację w obu wariantach oraz układ mobilny: 185 testów przechodzi; testowe nagranie kontynuuje odtwarzanie po przejściu do autora dla gościa i zalogowanego; przy 393x852 brak przepełnienia, rezerwacja doku 157px. W podglądzie silnik wymagał testowego wymuszenia montażu; naturalne pierwsze uruchomienie pozostaje niepotwierdzone.
+- [x] Dodać dymek udostępniania w pasku audio: atom `AudioSharePopover` (7 kanałów + „Skopiuj link", kafelki BrandIcon/brandTileStyle jak w FloatingShareBar, PL/EN) podpięty pod ikonę udostępniania w `GlobalAudioBar`; 64/64 testów audioOrganisms, typecheck czysty. Weryfikacja w podglądzie: dymek otwiera się z 7 kanałami i kanonicznym adresem wpisu, kopiowanie zamyka dymek; pasek pojawia się po drugim kliku „Odtwórz" (zimny start silnika na podglądzie).
+- [x] Sprawdzić odsłuch i nawigację w obu wariantach oraz układ mobilny: 185 testów przechodzi; testowe nagranie kontynuuje odtwarzanie po przejściu do autora dla gościa i zalogowanego; przy 393x852 brak przepełnienia, rezerwacja doku 157px. Naturalne uruchomienie w podglądzie potwierdzone na artykule Sikorskiego (pasek widoczny po hydratacji, drugi klik „Odtwórz").
 
 ## Weryfikacja PR #526
 

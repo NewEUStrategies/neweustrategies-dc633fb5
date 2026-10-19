@@ -16,9 +16,9 @@ import { audioContentPath } from "@/lib/audio/contentPath";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
-import { promptDialog } from "@/lib/appDialogs";
 import { downloadKey, transportLabelKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
 import { AUDIO_FOCUS_RING, AudioIconButton } from "@/components/audio/atoms/AudioIconButton";
+import { AudioSharePopover } from "@/components/audio/atoms/AudioSharePopover";
 import { uiLang } from "@/lib/i18n/format";
 import "@/lib/i18n-tts-player";
 function ActionTip({ label, children }: { label: string; children: ReactNode }) {
@@ -139,28 +139,10 @@ export function GlobalAudioBar() {
     }
   };
 
-  const onShare = async () => {
-    // Zawsze udostępniamy link do materiału (artykułu), nie plik audio.
-    // Origin publiczny (domena marki), nigdy host podglądu.
-    const url = new URL(track.postHref, browserPublicOrigin()).toString();
-    const shareData = { title: track.title, url } as ShareData;
-    try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-        await navigator.share(shareData);
-        return;
-      }
-    } catch (err) {
-      // Użytkownik anulował — nie fallbackujemy.
-      if (err instanceof DOMException && err.name === "AbortError") return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(copy("copied"));
-    } catch {
-      // Ostateczny fallback: dialog z adresem do skopiowania.
-      void promptDialog({ title: copy("share"), defaultValue: url, confirmLabel: "OK" });
-    }
-  };
+  // Adres udostępniania: zawsze link do materiału (artykułu), nie plik audio,
+  // i zawsze origin publiczny (domena marki), nigdy host podglądu. Dymek z
+  // kanałami i kopiowaniem otwiera atom `AudioSharePopover`.
+  const shareUrl = new URL(track.postHref, browserPublicOrigin()).toString();
 
   const embedded = dockSlot !== null;
   const bar = (
@@ -388,13 +370,15 @@ export function GlobalAudioBar() {
                     <AnimatedDownloadIcon downloading={downloading} className="h-4 w-4" />
                   </AudioIconButton>
                 </ActionTip>
-                <ActionTip label={copy("share")}>
-                  <AudioIconButton
-                    label={copy("share")}
-                    onClick={() => void onShare()}
-                    icon={Share2}
-                  />
-                </ActionTip>
+                <AudioSharePopover
+                  lang={track.lang}
+                  label={copy("share")}
+                  title={track.title}
+                  url={shareUrl}
+                  copiedMessage={copy("copied")}
+                >
+                  <AudioIconButton label={copy("share")} icon={Share2} />
+                </AudioSharePopover>
                 <ActionTip label={copy("close")}>
                   <AudioIconButton
                     label={copy("close")}
