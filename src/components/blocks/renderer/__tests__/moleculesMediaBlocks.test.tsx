@@ -15,7 +15,7 @@
 // sprawdzamy w znacznikach SSR (`renderToStaticMarkup`), bo happy-dom ładuje
 // stronę osadzonej ramki prawdziwym żądaniem sieciowym.
 import { afterEach, describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import i18n from "@/lib/i18n";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
@@ -26,6 +26,9 @@ const draw = (blocks: Block[]) => render(<BlocksRenderer doc={doc(blocks)} lang=
 const IMG = "https://cdn.example.com/a.jpg";
 
 afterEach(async () => {
+  // Najpierw odmontowanie: zmiana języka przy zamontowanym drzewie to
+  // aktualizacja `useTranslation` poza `act`.
+  cleanup();
   await i18n.changeLanguage("pl");
 });
 
