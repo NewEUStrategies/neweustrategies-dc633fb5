@@ -6,6 +6,7 @@
 // Colors are split into two: `color` (static text - non-animated) and
 // `accentColor` (animated text + the shape stroke - duo tone).
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useHydrated } from "@tanstack/react-router";
 import { hardenStyleCss } from "@/lib/sanitize";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { useMotionGate } from "@/lib/performance/motionGate";
@@ -96,8 +97,14 @@ export function resolveAnimatedHeadingShape(shape: unknown, mode: unknown): Anim
   return asOneOf(shape, ANIMATED_SHAPE_VALUES, fallback);
 }
 
+// GEOMETRIA efektów hover NIE stoi w arkuszach niżej, tylko w atrybucie `style`
+// segmentu (`hoverPadding` w `AnimatedHeadingRender`): `position: relative`
+// i `inline-block` segment ma tam od zawsze, a odstęp ramki allsides (8px)
+// i miejsce na kreskę podkreślenia (1px) jadą z nimi w HTML-u serwera. Arkusze
+// niosą wyłącznie malowanie (tła, maski, przejścia, kursor), które nie przesuwa
+// układu, więc mogą dojść dopiero po hydratacji (komentarz przy `hoverSheet`).
 const HOVER_LINE_CSS = `
-.ah-hu { display: inline-block; padding-bottom: 1px; cursor: pointer; }
+.ah-hu { cursor: pointer; }
 .ah-hu-1 { background: linear-gradient(currentColor 0 0) var(--p,50%) 100%/var(--d,10%) var(--cms-underline-thickness, 2px) no-repeat; transition: .3s, background-position .3s .3s; }
 .ah-hu-1:hover { --d:100%; --p:0%; transition: .3s, background-size .3s .3s; }
 .ah-hu-2 { background: linear-gradient(currentColor 0 0) left var(--p,50%) bottom 0/var(--d,10%) var(--cms-underline-thickness, 2px) no-repeat, linear-gradient(currentColor 0 0) right var(--p,50%) bottom 0/var(--d,10%) var(--cms-underline-thickness, 2px) no-repeat; transition: .3s, background-position .3s .3s; }
@@ -116,13 +123,25 @@ const HOVER_LINE_CSS = `
 .ah-hu-8:hover { --p:10.1%; transition: .5s cubic-bezier(0,800,1,800); }
 `;
 
+/**
+ * Odstęp segmentu w trybie hover - GEOMETRIA efektu w znacznikach od pierwszego
+ * HTML-a serwera, nie w arkuszu. Ramka allsides rysuje `::before` z `inset: 0`
+ * wokół tekstu, więc potrzebuje 8px z każdej strony; podkreślenie tła siedzi
+ * na dolnej krawędzi i potrzebuje 1px pod tekstem. Gdy odstęp przychodził
+ * z arkuszem po hydratacji, nagłówek rósł o 16px na oczach (CLS, test boot-home).
+ * Wartości są wspólne dla jasnego i ciemnego motywu (AGENTS.md: motyw zmienia
+ * wyłącznie kolory).
+ */
+const HOVER_ALLSIDES_PADDING = "8px";
+const HOVER_LINE_PADDING = "0 0 1px";
+
 // Ramka rysowana JEDNYM pudełkiem z prawdziwym `border`, a odsłaniana maską.
 // Wcześniej każdy bok był osobnym gradientem tła - przy ułamkowej wysokości
 // tekstu poziome i pionowe kreski trafiały na różne piksele i „przecinały się"
 // w rogach. Border jednego elementu ma zawsze idealny, zeszlifowany narożnik
 // 90 stopni, a maska tylko odsłania kolejne fragmenty tej samej ramki.
 const HOVER_ALLSIDES_CSS = `
-.ah-as { position: relative; display: inline-block; padding: 8px; cursor: pointer; --ah-bw: var(--cms-underline-thickness, 2px); --ah-t: 0.3s; }
+.ah-as { cursor: pointer; --ah-bw: var(--cms-underline-thickness, 2px); --ah-t: 0.3s; }
 .ah-as::before {
   content: "";
   position: absolute;
@@ -796,13 +815,27 @@ export function AnimatedHeadingRender({
       ? `ah-as allsides-${shape.slice("hover-allsides-".length)}`
       : "";
 
-  // Arkusz efektu hover jako ZASÓB React 19 (`<style href precedence>`), jak
-  // `nes-slider-shared-v1` slidera: React hoistuje go do `<head>` razem z HTML-em
-  // serwera, raz na dokument. Wstrzykiwany dawniej w `useEffect` przychodził
-  // dopiero po hydratacji, a klasa `ah-as` (padding 8px) stała w znacznikach od
-  // początku - nagłówek rósł o 16px po załadowaniu (CLS w obszarze
-  // content-visibility, test boot-home). Zasób nie ląduje wewnątrz `<h*>`.
-  const hoverSheet = isHoverLine ? (
+  // Odstęp efektu hover w atrybucie `style` (komentarz przy stałych `HOVER_*_PADDING`).
+  const hoverPadding = isHoverLine
+    ? HOVER_LINE_PADDING
+    : isHoverAllsides
+      ? HOVER_ALLSIDES_PADDING
+      : undefined;
+
+  // Arkusz efektu hover jako ZASÓB React 19 (`<style href precedence>`, jak
+  // `nes-slider-shared-v1` slidera: raz na dokument, w `<head>`, nigdy wewnątrz
+  // `<h*>`), ale renderowany DOPIERO PO HYDRATACJI (`useHydrated`). W HTML-u
+  // serwera arkusz allsides (6,5 KB, w tym komentarze) przewracał bramkę wagi
+  // dokumentu `/` (first-visit.yml: `headRawBytes` 30 156 B przy progu 23 921,
+  // `inlineStyleBytes`, `inlineCssCommentBytes`), a reguły jednego wariantu po
+  // minifikacji (~1,1 KB) też nie mieszczą się w zapasie `<head>` (470 B).
+  // Przesunięcie układu nie wraca: geometrię (`hoverPadding`) niesie atrybut
+  // `style` od pierwszego HTML-a, a arkusz dokłada wyłącznie malowanie (maski,
+  // tła, spoczynkowy znacznik części wariantów) i reakcję na hover. Przy
+  // nawigacji klienckiej `useHydrated` zwraca `true` od pierwszego renderu,
+  // więc arkusz jest od razu.
+  const hydrated = useHydrated();
+  const hoverSheet = !hydrated ? null : isHoverLine ? (
     <style href="ah-hover-line-v1" precedence="builder">
       {HOVER_LINE_CSS}
     </style>
@@ -833,7 +866,7 @@ export function AnimatedHeadingRender({
           position: "relative",
           display: "inline-block",
           color: accent,
-          padding: shape === "circle" || shape === "framed" ? "0 .2em" : undefined,
+          padding: shape === "circle" || shape === "framed" ? "0 .2em" : hoverPadding,
         }}
       >
         <span style={{ position: "relative", zIndex: 1 }}>

@@ -330,6 +330,11 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
   // Konwersje analityki: importuje je karta wpisu ORAZ formularze kontaktowe. Osobno, bo jako
   // zależność karty wciągnęłyby formularzom kod karty (+2,7 KB gzip na stronach z formularzem).
   group("conversions", CHUNK_PRIORITY.lazyBase, endsWith("/src/lib/analytics/conversions.ts")),
+  // Paleta wykresów (~14 KB): importuje ją rdzeń wykresów niżej (`parse.ts`), ale też moduły
+  // spoza wykresów - bilet w portfelu (`contrastRatio`), plan sali, rejestr bloków. Osobno, bo
+  // jako zależność `dataviz-core` dawałaby tamtym stronom cały model wykresów (+~23 KB surowo).
+  // Priorytet wyższy od `dataviz-core`, który ją importuje (zasada priorytetów).
+  group("chart-palette", CHUNK_PRIORITY.lazyBase, endsWith("/src/lib/charts/palette.ts")),
   // Treść wpisu i strony: przypisy, przygotowanie treści, ręczny spis treści, nagłówki.
   group(
     "post-content",
@@ -367,6 +372,54 @@ export const CLIENT_CHUNK_GROUPS: readonly Group[] = [
     "club-thread-kind-icon",
     CHUNK_PRIORITY.lazy,
     endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx"),
+  ),
+  // RODZINY SERII BOOTU WPISU (`/$`, bramka `bootBurstCount` w
+  // scripts/performance/document-weight-budgets.post.json, 2026-10-19). Bez grup Rolldown dzieli
+  // rodzinę modułów według ZBIORU IMPORTERÓW każdego modułu, więc nowy importer jednego pliku
+  // gdziekolwiek w aplikacji odrywa ten plik od reszty rodziny w osobny chunk - a wpis, który
+  // ładuje całą rodzinę, dostaje o jedno żądanie więcej. Seria wpisu urosła tak ze 115 do 121
+  // plików (artefakt origin/main e6620f60 wobec ba84bcc4): panel analityki huba
+  // (`BenchmarkTierBadge`, `biChart`) oderwał `charts/roles` i `charts/status`, dymek
+  // udostępniania odsłuchu (`AudioSharePopover`) - słownik `i18n-share`; doszły też nowe moduły
+  // (`access/keys`, `billing/enquiryPlans`, `sectionLabelVariants` przez `BlockSliderArrow`).
+  // Dwie grupy niżej trzymają rodziny ładowane na wpisie zawsze razem w JEDNYM pliku każda.
+  //
+  // Rdzeń wykresów: model (typy, role kolorów, statusy, wygładzanie, źródła, styl serii,
+  // parser konfiguracji) i hook odsłaniania wykresu przy przewijaniu. Czyste moduły bez efektów
+  // ubocznych, importujące wyłącznie siebie nawzajem, paletę (`chart-palette`, wyżej) i kod
+  // bootu. Treść wpisu potrzebuje parsera zawsze (bibliografia źródeł w przypisach bloków), więc
+  // wpis pobierał sześć plików (`types`, `sources`, `roles`, `status`, `palette`,
+  // `useRevealOnScroll`) - teraz dwa.
+  group(
+    "dataviz-core",
+    CHUNK_PRIORITY.lazy,
+    anyOf(
+      "/src/lib/charts/types.ts",
+      "/src/lib/charts/roles.ts",
+      "/src/lib/charts/status.ts",
+      "/src/lib/charts/smooth.ts",
+      "/src/lib/charts/sources.ts",
+      "/src/lib/charts/seriesStyle.ts",
+      "/src/lib/charts/parse.ts",
+      "/src/hooks/useRevealOnScroll.ts",
+    ),
+  ),
+  // Powierzchnie udostępniania i zapisu wpisu (`FloatingShareBar` w pasku bocznym,
+  // `ReadingHeader`, dymek udostępniania odsłuchu): słownik `i18n-share`, przycisk zapisu z hookami
+  // zapisu i zakładek, `rafThrottle`. Ten sam skład co chunk bazy sprzed dymka (`rafThrottle-*`)
+  // plus `useBookmarks`, którego grupa i tak zabiera jako zależność `useSaveArticle`: wpis pobiera
+  // jeden plik zamiast trzech. Pasek odsłuchu (leniwy, po starcie odtwarzania) i lista zapisanych
+  // pobierają ~8 KB surowo więcej - na wpisie, skąd zwykle startuje odsłuch, plik już jest.
+  group(
+    "share-surface",
+    CHUNK_PRIORITY.lazy,
+    anyOf(
+      "/src/lib/i18n-share.ts",
+      "/src/components/atoms/SaveArticleButton.tsx",
+      "/src/hooks/useSaveArticle.ts",
+      "/src/hooks/useBookmarks.ts",
+      "/src/lib/rafThrottle.ts",
+    ),
   ),
   // Siatka archiwum ze stronicowaniem i reklamą w strumieniu - importuje kartę wpisu.
   group(
