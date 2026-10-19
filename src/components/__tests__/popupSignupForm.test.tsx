@@ -134,12 +134,23 @@ function consentBoxes(): HTMLElement[] {
 
 const type = (el: HTMLInputElement, value: string) => fireEvent.change(el, { target: { value } });
 
+/**
+ * P08: newsletter jest domyślnie ODZNACZONY, więc testy ścieżki zapisu na
+ * listę zaznaczają go jawnie. Jedyny checkbox bez `aria-required` to opt-in
+ * newslettera; brak takiego pola (opt-in wyłączony) = nic do kliknięcia.
+ */
+function optInNewsletter() {
+  const box = consentBoxes().find((el) => el.getAttribute("aria-required") !== "true");
+  if (box && box.getAttribute("aria-checked") !== "true") fireEvent.click(box);
+}
+
 /** Minimalny komplet danych, przy którym rejestracja przechodzi walidację. */
-function fillMinimal(overrideEmail = "jan@firma.pl") {
+function fillMinimal(overrideEmail = "jan@firma.pl", { newsletter = true } = {}) {
   type(emailInput(), overrideEmail);
   const [password, confirm] = passwordInputs();
   type(password, "TajneHaslo1");
   type(confirm, "TajneHaslo1");
+  if (newsletter) optInNewsletter();
 }
 
 /** Przechodzi barierę antybotową bez wprowadzania niedeterminizmu. */
@@ -314,9 +325,10 @@ describe("PopupSignupForm: zgoda RODO jest warunkiem, nie ozdobą", () => {
 
   it("zgoda OPCJONALNA odznaczona: konto powstaje, ale na listę mailingową nic nie leci", async () => {
     renderForm();
-    fillMinimal();
+    fillMinimal(undefined, { newsletter: false });
     const [newsletter, privacy] = consentBoxes();
-    fireEvent.click(newsletter);
+    // P08 (RODO): opt-in newslettera startuje odznaczony - bez kliknięcia nie ma zgody.
+    expect(newsletter).toHaveAttribute("aria-checked", "false");
     fireEvent.click(privacy);
     actLikeHuman();
     await submit();
@@ -394,6 +406,7 @@ describe("PopupSignupForm: walidacja pól zatrzymuje śmieciowe konta", () => {
     const [password, confirm] = passwordInputs();
     type(password, "TajneHaslo1");
     type(confirm, "TajneHaslo1");
+    optInNewsletter();
     acceptPrivacy();
     actLikeHuman();
     await submit();

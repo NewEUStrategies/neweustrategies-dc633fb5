@@ -548,12 +548,16 @@ describe("NewsletterPopup: zamykanie ma trzy drogi i jest zapamiętywane", () =>
 
     const email = dialog().querySelector<HTMLInputElement>('input[type="email"]');
     const passwords = Array.from(dialog().querySelectorAll<HTMLInputElement>("input[minlength]"));
-    const privacy = dialog().querySelectorAll<HTMLElement>('[role="checkbox"]')[1];
+    const [newsletter, privacy] = Array.from(
+      dialog().querySelectorAll<HTMLElement>('[role="checkbox"]'),
+    );
     expect(email).not.toBeNull();
 
     fireEvent.change(email as HTMLInputElement, { target: { value: "jan@firma.pl" } });
     fireEvent.change(passwords[0], { target: { value: "TajneHaslo1" } });
     fireEvent.change(passwords[1], { target: { value: "TajneHaslo1" } });
+    // P08: opt-in newslettera startuje odznaczony - zapis na listę wymaga kliknięcia.
+    fireEvent.click(newsletter);
     fireEvent.click(privacy);
 
     // Bariera antybotowa formularza: wypełnienie musi zająć ponad 1,2 s.

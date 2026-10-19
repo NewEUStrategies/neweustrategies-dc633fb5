@@ -79,7 +79,9 @@ const empty: SignupFields = {
   password: "",
   passwordConfirm: "",
   list: "",
-  newsletter: true,
+  // P08 (RODO): zgoda marketingowa nie może być domyślnie zaznaczona -
+  // brak aktywnego kliknięcia oznacza brak zgody (tak samo jak w ClubAccessGate).
+  newsletter: false,
   terms: false,
   privacy: false,
 };
