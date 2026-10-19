@@ -371,17 +371,19 @@ interface WpPostsResponse {
 // ---------- text helpers ----------
 
 function decodeEntities(s: string): string {
+  // `&amp;` OSTATNIE: tytuł z dosłownym tekstem „&lt;b&gt;" przychodzi z WP
+  // jako `&amp;lt;b&amp;gt;` i nie może się rozwinąć dwa razy do znacznika.
   return s
     .replace(/&nbsp;/g, " ")
     .replace(/&#8211;/g, "-")
     .replace(/&#8212;/g, "-")
     .replace(/&#8216;|&#8217;/g, "'")
     .replace(/&#8220;|&#8221;/g, '"')
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, ""))

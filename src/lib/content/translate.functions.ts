@@ -34,7 +34,18 @@ export const translatePostDraft = createServerFn({ method: "POST" })
     let blocks: Block[] | null = null;
     if (data.blocks_doc_pl) {
       const parsed = safeParseBlocks(data.blocks_doc_pl);
-      if (!parsed) throw new Error("Invalid blocks document");
+      // `safeParseBlocks` DEGRADUJE zamiast odrzucać: dokument nie do odczytania
+      // (np. `blocks` nie jest tablicą) albo z samymi blokami spoza schematu
+      // wraca jako PUSTY. Tłumaczenie podstawiłoby wtedy do wersji EN szkic
+      // z wykasowaną treścią blokową - więc odrzucamy go błędem, zanim
+      // ruszy płatna bramka AI. Pojedynczy blok spoza schematu obok
+      // poprawnych nadal jest pomijany (degradacja parsera).
+      const rawBlocks = (data.blocks_doc_pl as { blocks?: unknown }).blocks;
+      const unreadable =
+        !parsed ||
+        !Array.isArray(rawBlocks) ||
+        (rawBlocks.length > 0 && parsed.blocks.length === 0);
+      if (unreadable) throw new Error("Invalid blocks document");
       blocks = parsed.blocks;
     }
 

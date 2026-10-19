@@ -57,7 +57,10 @@ export const BLOCK_VARIANTS: Record<string, BlockVariantOption[]> = {
 };
 
 export function getBlockVariants(type: string): BlockVariantOption[] | null {
-  return BLOCK_VARIANTS[type] ?? null;
+  // Tylko WŁASNE klucze katalogu: `BLOCK_VARIANTS[type]` czytane wprost szło
+  // przez łańcuch prototypów i dla `constructor` / `toString` oddawało funkcję,
+  // na której `.map` toolbara wywracał render (typ bloku przychodzi z bazy).
+  return Object.hasOwn(BLOCK_VARIANTS, type) ? BLOCK_VARIANTS[type] : null;
 }
 
 /** Tokeny kolorystyki bloku (block.data.colorPalette) - te same, których

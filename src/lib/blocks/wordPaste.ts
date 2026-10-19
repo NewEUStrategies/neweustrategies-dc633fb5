@@ -249,12 +249,15 @@ function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): 
   let node = root.lastElementChild;
   while (node) {
     const prev = node.previousElementSibling;
+    // Separator PRZED testem pustego tekstu: `<hr>` nie ma treści, więc
+    // pomijany jako pusty nigdy nie zatrzymywał zbierania i akapit treści
+    // nad separatorem („1. Wniosek") mógł zostać zjedzony jako definicja.
+    if (node.tagName === "HR") break;
     const text = (node.textContent ?? "").replace(/\u00A0/g, " ").trim();
     if (!text) {
       node = prev;
       continue;
     }
-    if (node.tagName === "HR") break;
     if (!FOOTNOTE_DEF_TAGS.test(node.tagName)) break;
     const m = text.match(/^[[(]?\s*(\d{1,3})\s*[\])]?[.):\s]\s*(.+)$/s);
     if (!m) break;
@@ -314,14 +317,30 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// Własności CSS czytamy WYŁĄCZNIE od granicy deklaracji (`^`, `;`, biały
+// znak). Word pisze obok zwykłych własności ich warianty `mso-bidi-*` /
+// `mso-ansi-*` (np. `<b style='mso-bidi-font-weight:normal'>` na tekście
+// REALNIE pogrubionym - opisują krój pism złożonych, nie łacińskiego), a wzorzec
+// bez kotwicy znajdował `font-weight:normal` jako podciąg i zdejmował
+// pogrubienie całej wklejki z Worda.
+const STYLE_BOLD = /(?:^|[;\s])font-weight\s*:\s*(bold|[6-9]00)/;
+const STYLE_ITALIC = /(?:^|[;\s])font-style\s*:\s*italic/;
+const STYLE_UNDERLINE = /(?:^|[;\s])text-decoration[^;]*underline/;
+const STYLE_STRIKE = /(?:^|[;\s])text-decoration[^;]*line-through/;
+const STYLE_SUPER = /(?:^|[;\s])vertical-align\s*:\s*super/;
+const STYLE_SUB = /(?:^|[;\s])vertical-align\s*:\s*sub/;
+const STYLE_NOT_BOLD = /(?:^|[;\s])font-weight\s*:\s*(normal|[1-5]00)\b/;
+const STYLE_NOT_ITALIC = /(?:^|[;\s])font-style\s*:\s*normal/;
+const STYLE_NO_DECORATION = /(?:^|[;\s])text-decoration\s*:\s*none/;
+
 function styleImpliedTag(el: Element): string | null {
   const style = (el.getAttribute("style") ?? "").toLowerCase();
-  if (/font-weight\s*:\s*(bold|[6-9]00)/.test(style)) return "strong";
-  if (/font-style\s*:\s*italic/.test(style)) return "em";
-  if (/text-decoration[^;]*underline/.test(style)) return "u";
-  if (/text-decoration[^;]*line-through/.test(style)) return "s";
-  if (/vertical-align\s*:\s*super/.test(style)) return "sup";
-  if (/vertical-align\s*:\s*sub/.test(style)) return "sub";
+  if (STYLE_BOLD.test(style)) return "strong";
+  if (STYLE_ITALIC.test(style)) return "em";
+  if (STYLE_UNDERLINE.test(style)) return "u";
+  if (STYLE_STRIKE.test(style)) return "s";
+  if (STYLE_SUPER.test(style)) return "sup";
+  if (STYLE_SUB.test(style)) return "sub";
   return null;
 }
 
@@ -331,9 +350,9 @@ function styleImpliedTag(el: Element): string | null {
  */
 function styleSuppressesTag(el: Element, tag: string): boolean {
   const style = (el.getAttribute("style") ?? "").toLowerCase();
-  if (tag === "strong") return /font-weight\s*:\s*(normal|[1-5]00)\b/.test(style);
-  if (tag === "em") return /font-style\s*:\s*normal/.test(style);
-  if (tag === "u" || tag === "s") return /text-decoration\s*:\s*none/.test(style);
+  if (tag === "strong") return STYLE_NOT_BOLD.test(style);
+  if (tag === "em") return STYLE_NOT_ITALIC.test(style);
+  if (tag === "u" || tag === "s") return STYLE_NO_DECORATION.test(style);
   return false;
 }
 
@@ -603,7 +622,7 @@ function looksLikeHeaderRow(cells: Element[]): boolean {
     const cls = c.getAttribute("class") ?? "";
     if (/MsoTableHeader|heading/i.test(cls)) return true;
     const style = (c.getAttribute("style") ?? "").toLowerCase();
-    if (/font-weight\s*:\s*(bold|[6-9]00)/.test(style)) return true;
+    if (STYLE_BOLD.test(style)) return true;
     const bold = c.querySelector("b,strong");
     return Boolean(bold) && plainText(bold as Element) === plainText(c);
   });
@@ -855,9 +874,12 @@ function convertChildren(parent: Element, out: Block[]): void {
         const images = extractImages(child);
         const html = inlineHtml(child).trim();
         if (!isBlank(html)) out.push(paragraph(html));
-        const { caption, skip } = images.length ? takeCaption(i) : { caption: "", skip: 0 };
-        pushImages(out, images, isBlank(html) ? caption : "");
-        if (images.length) i += skip;
+        // Podpis konsumujemy TYLKO wtedy, gdy trafia do obrazu (kontener bez
+        // tekstu) - jak w gałęzi `P`. Inaczej akapit podpisu znikał bez śladu.
+        const { caption, skip } =
+          images.length && isBlank(html) ? takeCaption(i) : { caption: "", skip: 0 };
+        pushImages(out, images, caption);
+        i += skip;
       } else {
         convertChildren(child, out);
       }

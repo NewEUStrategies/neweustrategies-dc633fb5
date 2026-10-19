@@ -149,36 +149,55 @@ describe("docToLines - wejście patologiczne", () => {
     expect(docToLines(cykliczny)).toEqual(["Raz"]);
   });
 
-  it("pomija węzły, które są gołymi napisami w tablicy pod kluczem tekstowym", () => {
-    // Stan faktyczny (przypięty, żeby zmiana zachowania była widoczna w diffie
-    // testów): tablica napisów pod `items` nie wnosi ANI JEDNEJ linii.
-    expect(docToLines({ blocks: [{ type: "list", items: ["Pierwszy", "Drugi"] }] })).toEqual([]);
-  });
-
-  // DEFEKT: POZYCJE LISTY BLOKOWEJ NIE TRAFIAJĄ DO DIFFA REWIZJI.
-  //
-  // WEJSCIE: dokument bloków z listą punktowaną zapisaną kanonicznie jako
-  //   tablica napisów - {blocks:[{type:"list", items:["Pierwszy","Drugi"]}]}.
-  // CO PSUJE: klucz `items` PRZECHODZI TEXTY_KEY (revisionDiff.ts:112,
-  //   alternatywa `items?`), ale jego wartością jest tablica, a nie napis,
-  //   więc warunek `typeof value === "string"` (:125) jest fałszywy i
-  //   sterowanie idzie do gałęzi else (:133) -> collectDocLines(tablica)
-  //   (:117-119) -> dla KAŻDEGO elementu wchodzi strażnik
-  //   `if (typeof node === "string") return;` (:116) i element wypada.
-  //   Strażnik istnieje po to, żeby nie zbierać napisów spod kluczy
-  //   nietekstowych (url, kolor), ale kasuje też tablice pozycji listy.
-  // KONSEKWENCJA: redaktor porównujący rewizje NIE WIDZI, że zmienił,
-  //   dodał albo usunął punkty listy - diff pokazuje "brak różnic" dla
-  //   zmiany, która realnie poszła na produkcję. To odmowa fałszywie
-  //   negatywna: panel rewizji milczy zamiast ostrzec.
-  // WYMAGANA POPRAWKA: collectDocLines musi przyjąć kontekst klucza - gdy
-  //   wchodzi w tablicę spod klucza pasującego do TEXTY_KEY, elementy
-  //   będące napisami mają być zbierane (przez tę samą normalizację co
-  //   wartości napisowe w :126-131), a nie odrzucane w :116.
-  it.fails("DEFEKT: pozycje listy blokowej MUSZĄ trafiać do linii diffa", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): POZYCJE LISTY BLOKOWEJ W DIFFIE.
+  // Klucz `items` przechodził TEXTY_KEY, ale jego wartością jest tablica,
+  // a strażnik `typeof node === "string" -> return` odrzucał KAŻDY jej element.
+  // Redaktor porównujący rewizje nie widział, że zmienił, dodał albo usunął
+  // punkty listy - diff milczał o zmianie, która poszła na produkcję.
+  // Kontrakt: napisy w tablicy spod klucza tekstowego są liniami treści (ta
+  // sama normalizacja co pojedyncze wartości), napisy spod kluczy nietekstowych
+  // (adresy, kolory) nadal są szumem.
+  it("pozycje listy blokowej trafiają do linii diffa", () => {
     expect(docToLines({ blocks: [{ type: "list", items: ["Pierwszy", "Drugi"] }] })).toEqual([
       "Pierwszy",
       "Drugi",
+    ]);
+  });
+
+  it("pozycje listy z HTML-em i nadmiarem spacji są normalizowane jak inne wartości", () => {
+    expect(
+      docToLines({ items_pl: ["  <strong>Gruby</strong>  punkt ", "a\n  b", "   ", 42] }),
+    ).toEqual(["Gruby punkt", "a b"]);
+  });
+
+  it("napisy w tablicach spod kluczy NIETEKSTOWYCH nadal są pomijane", () => {
+    expect(
+      docToLines({
+        type: "gallery",
+        urls: ["https://example.org/a.jpg"],
+        colors: ["#fff", "#000"],
+        caption: "Podpis",
+      }),
+    ).toEqual(["Podpis"]);
+  });
+
+  it("zmiana pozycji listy jest widoczna w diffie snapshotów", () => {
+    const doc = (items: string[]) => ({ pl: { blocks: [{ type: "list", items }] } });
+    const out = diffRevisionSnapshots(
+      { blocks_data: doc(["Pierwszy", "Drugi"]) },
+      { blocks_data: doc(["Pierwszy", "Trzeci"]) },
+    );
+    expect(out).toEqual([
+      {
+        field: "content:pl",
+        labelKey: "contentPl",
+        kind: "text",
+        lines: [
+          { kind: "same", text: "Pierwszy" },
+          { kind: "removed", text: "Drugi" },
+          { kind: "added", text: "Trzeci" },
+        ],
+      },
     ]);
   });
 });

@@ -28,11 +28,11 @@
 //   8. DOSTĘPNOŚĆ. `axe-core` na oknie głównym (obie ścieżki: strona i wpis)
 //      oraz na oknie potwierdzenia.
 //
-// ZAREJESTROWANY DEFEKT (`it.fails`). Wiersz „Treść" w podsumowaniu wpisu
-// porównuje wyłącznie DŁUGOŚCI tekstów, więc podmiana treści na inną o tej
-// samej długości raportuje „bez zmian" - a mimo to zostaje zastosowana.
-// Podsumowanie ma być bramką przed nieodwracalną operacją, więc milczenie
-// o realnej zmianie jest defektem, nie kosmetyką.
+// NAPRAWIONY DEFEKT (2026-10-18, był `it.fails`). Wiersz „Treść" w
+// podsumowaniu wpisu porównywał wyłącznie DŁUGOŚCI tekstów, więc podmiana
+// treści na inną o tej samej długości raportowała „bez zmian" - a mimo to
+// zostawała zastosowana. Podsumowanie jest bramką przed nieodwracalną
+// operacją; dziś o zmianie decyduje treść, a długości są tylko opisem.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 //   - `BuilderRenderer` - osobny organizm z własnymi testami; tutaj podmieniony
@@ -537,19 +537,26 @@ describe("PatternPicker - panel wpisu", () => {
     expect(content.textContent).toContain("13 zn.");
   });
 
-  // DEFEKT: wiersz „Treść" porównuje tylko DŁUGOŚCI, więc podmiana treści na
-  // inną o identycznej długości raportuje „bez zmian", choć zostanie zapisana.
-  // Podsumowanie jest bramką przed operacją opisaną w oknie jako niecofalna
-  // automatycznie, więc zamilczenie realnej zmiany to defekt, nie kosmetyka.
-  it.fails("podsumowanie oznacza podmianę treści o tej samej długości", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): wiersz „Treść" porównywał tylko
+  // DŁUGOŚCI, więc podmiana treści na inną o identycznej długości raportowała
+  // „bez zmian", choć szła do zapisu. Kontrakt: o „zmieniono" decyduje treść
+  // (PL lub EN), licznik zmienionych pól to uwzględnia, a opis nadal podaje
+  // długości przed/po.
+  it("podsumowanie oznacza podmianę treści o tej samej długości", () => {
     openPicker("post", "pl", handlers());
-    const original = POST_PATTERNS[0].content.pl;
+    const post = POST_PATTERNS[0];
     switchTab("Treść (PL / EN)");
-    fireEvent.change(screen.getAllByRole("textbox")[0], {
-      target: { value: "x".repeat(original.length) },
+    fireEvent.change(screen.getAllByRole("textbox")[1], {
+      target: { value: "x".repeat(post.content.en.length) },
     });
     fireEvent.click(screen.getByRole("button", { name: "Przejrzyj zmiany" }));
-    expect(within(summaryRow("Treść")).getByText("zmieniono")).toBeInTheDocument();
+    const content = summaryRow("Treść");
+    expect(within(content).getByText("zmieniono")).toBeInTheDocument();
+    const lengths = `${post.content.pl.length} zn. / ${post.content.en.length} zn.`;
+    expect(within(content).getAllByText(lengths)).toHaveLength(2);
+    expect(screen.getByText("Zmienionych pól:", { exact: false })).toHaveTextContent(
+      "Zmienionych pól: 1.",
+    );
   });
 
   it("zatwierdzenie przycina tytuł i lead, ale nie treść", () => {
