@@ -940,7 +940,9 @@ describe("GlobalAudioBar", () => {
       shareButton().click();
     });
 
-    expect(screen.getByRole("dialog", { name: "Udostępnij" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Udostępnij link do artykułu" }),
+    ).toBeInTheDocument();
     for (const channel of ["X", "Facebook", "LinkedIn", "E-mail", "WhatsApp", "Telegram", "Reddit"]) {
       expect(screen.getByRole("link", { name: channel })).toBeInTheDocument();
     }
