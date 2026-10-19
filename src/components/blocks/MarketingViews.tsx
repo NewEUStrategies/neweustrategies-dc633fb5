@@ -1,12 +1,17 @@
 // Publiczne renderery dla Phase 4 batch 11 (sekcje marketingowe).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { useMotionGate } from "@/lib/performance/motionGate";
 import { safeImageUrl } from "@/lib/sanitize";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import "@/lib/i18n-public";
+
+/** Język treści bloku - napisy interfejsu i ARIA idą w nim, nie w języku panelu. */
+type Lang = "pl" | "en";
 
 // ===== Hero =====
 
@@ -225,6 +230,7 @@ interface CarouselProps {
   autoplay?: boolean;
   interval?: number;
   aspect?: string;
+  lang?: Lang;
   cls?: string;
 }
 
@@ -233,8 +239,10 @@ export function ImageCarouselView({
   autoplay,
   interval = 5000,
   aspect = "16:9",
+  lang = "pl",
   cls,
 }: CarouselProps) {
+  const { t } = useTranslation();
   const parsed: SlideLite[] = useMemo(() => {
     if (!Array.isArray(items)) return [];
     return items
@@ -287,7 +295,7 @@ export function ImageCarouselView({
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       role="region"
-      aria-roledescription="karuzela"
+      aria-roledescription={t("blocksUi.carouselRole", { lng: lang })}
     >
       <div className={`relative w-full ${aspectCls} bg-muted`}>
         {parsed.map((s, i) => {
@@ -333,7 +341,7 @@ export function ImageCarouselView({
             type="button"
             onClick={() => go(-1)}
             className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
-            aria-label="Poprzedni slajd"
+            aria-label={t("blocksUi.carouselPrevious", { lng: lang })}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -341,7 +349,7 @@ export function ImageCarouselView({
             type="button"
             onClick={() => go(1)}
             className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
-            aria-label="Następny slajd"
+            aria-label={t("blocksUi.carouselNext", { lng: lang })}
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -351,7 +359,7 @@ export function ImageCarouselView({
                 key={i}
                 type="button"
                 onClick={() => setIdx(i)}
-                aria-label={`Slajd ${i + 1}`}
+                aria-label={t("blocksUi.carouselSlide", { lng: lang, n: i + 1 })}
                 aria-current={i === idx}
                 className={[
                   "h-1.5 rounded-full transition-all",
@@ -374,6 +382,7 @@ interface MapProps {
   zoom?: number;
   height?: number;
   label?: string;
+  lang?: Lang;
   cls?: string;
 }
 
@@ -383,8 +392,10 @@ export function MapView({
   zoom = 13,
   height = 360,
   label,
+  lang = "pl",
   cls,
 }: MapProps) {
+  const { t } = useTranslation();
   // OSM "export" embed - safe, no API key. bbox = ~0.01 degrees around point per zoom level.
   const span = Math.max(0.0008, 0.5 / Math.pow(1.6, Math.max(1, Math.min(18, zoom)) - 1));
   const bbox = `${(lng - span).toFixed(5)},${(lat - span).toFixed(5)},${(lng + span).toFixed(5)},${(lat + span).toFixed(5)}`;
@@ -396,7 +407,7 @@ export function MapView({
           only mounts when the reader scrolls near. The wrapper reserves the
           exact final height - zero layout shift. */}
       <DeferredFrame
-        title={label || "Mapa"}
+        title={label || t("blocksUi.mapTitle", { lng: lang })}
         src={src}
         referrerPolicy="no-referrer-when-downgrade"
         style={{ height: `${Math.max(160, Math.min(800, height))}px` }}
@@ -413,7 +424,7 @@ export function MapView({
           rel="noopener noreferrer"
           className="text-primary hover:underline"
         >
-          Otwórz w OpenStreetMap
+          {t("blocksUi.mapOpen", { lng: lang })}
         </a>
       </figcaption>
     </figure>

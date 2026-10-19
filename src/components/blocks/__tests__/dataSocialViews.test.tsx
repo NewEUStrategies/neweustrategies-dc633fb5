@@ -14,6 +14,8 @@
 //
 // GRANICE. Bez atrap: widoki są czysto prezentacyjne, `AppLink` bez routera
 // renderuje zwykłe `<a>`.
+// Napisy interfejsu widoków idą przez słownik `i18n-public` - prawdziwe i18n.
+import "@/test/i18nReal";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 

@@ -10,11 +10,13 @@ import {
   useCallback,
   type KeyboardEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import type { Json } from "@/lib/blocks/types";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
 import { MOTION_IDLE_TICK_MS, useMotionGate } from "@/lib/performance/motionGate";
 import { ChevronDown } from "lucide-react";
+import "@/lib/i18n-public";
 
 type Lang = "pl" | "en";
 
@@ -47,10 +49,13 @@ function parseItems(raw: Json[] | undefined, key: "title" | "label"): ItemLite[]
 interface AccordionProps {
   items?: Json[];
   allowMultiple?: boolean;
+  /** Język treści - napisy zastępcze idą w języku bloku, nie interfejsu. */
+  lang?: Lang;
   cls?: string;
 }
 
-export function AccordionView({ items, allowMultiple = false, cls }: AccordionProps) {
+export function AccordionView({ items, allowMultiple = false, lang = "pl", cls }: AccordionProps) {
+  const { t } = useTranslation();
   const parsed = useMemo(() => parseItems(items, "title"), [items]);
   const [open, setOpen] = useState<Set<number>>(() => new Set());
 
@@ -84,7 +89,7 @@ export function AccordionView({ items, allowMultiple = false, cls }: AccordionPr
               aria-expanded={isOpen}
               className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-foreground hover:bg-muted/40 transition-colors"
             >
-              <span>{it.label || `Sekcja ${idx + 1}`}</span>
+              <span>{it.label || t("blocksUi.accordionSection", { lng: lang, n: idx + 1 })}</span>
               <ChevronDown
                 className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
                 aria-hidden
@@ -108,10 +113,13 @@ export function AccordionView({ items, allowMultiple = false, cls }: AccordionPr
 interface TabsProps {
   items?: Json[];
   orientation?: "horizontal" | "vertical";
+  /** Język treści - napisy zastępcze idą w języku bloku, nie interfejsu. */
+  lang?: Lang;
   cls?: string;
 }
 
-export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) {
+export function TabsView({ items, orientation = "horizontal", lang = "pl", cls }: TabsProps) {
+  const { t } = useTranslation();
   const parsed = useMemo(() => parseItems(items, "label"), [items]);
   const [active, setActive] = useState(0);
   const uid = useId();
@@ -175,7 +183,7 @@ export function TabsView({ items, orientation = "horizontal", cls }: TabsProps) 
                   : "text-muted-foreground border-transparent hover:text-foreground",
               ].join(" ")}
             >
-              {it.label || `Tab ${idx + 1}`}
+              {it.label || t("blocksUi.tabFallback", { lng: lang, n: idx + 1 })}
             </button>
           );
         })}
@@ -253,6 +261,7 @@ function Cell({ value, unit }: { value: number; unit: string }) {
 
 export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }: CountdownProps) {
   const t = L[lang];
+  const labelId = useId();
   const target = useMemo(() => {
     if (!targetAt) return null;
     const ms = new Date(targetAt).getTime();
@@ -288,13 +297,28 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
 
   if (target === null) return null;
 
+  // Wzorzec WAI-ARIA `timer`: wartość zmieniająca się co sekundę NIE jest
+  // regionem na żywo. Wcześniejsze `aria-live="polite"` kazało czytnikowi
+  // ogłaszać każdy takt, więc zagłuszał resztę strony; `timer` ma domyślnie
+  // `aria-live="off"` (wpisane jawnie dla czytników bez wartości domyślnej),
+  // a czytelnik sprawdza licznik sam. Nazwa z etykiety bloku.
+  const timerProps = {
+    role: "timer",
+    "aria-live": "off",
+    "aria-labelledby": label ? labelId : undefined,
+  } as const;
+
   // Pierwsze przejście (serwer + hydratacja): struktura ta sama, wartości
   // nieznane. Bez tego kroku placeholder i wynik miałyby różne drzewa.
   if (now === null) {
     return (
       <div className={`flex flex-col items-start gap-2 ${cls ?? ""}`}>
-        {label ? <span className="text-sm text-muted-foreground">{label}</span> : null}
-        <div className="flex items-center gap-2" aria-live="polite">
+        {label ? (
+          <span id={labelId} className="text-sm text-muted-foreground">
+            {label}
+          </span>
+        ) : null}
+        <div className="flex items-center gap-2" {...timerProps}>
           <PlaceholderCell unit={t.days} />
           <PlaceholderCell unit={t.hours} />
           <PlaceholderCell unit={t.minutes} />
@@ -308,8 +332,12 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
   const finished = expiredText && expiredText.trim() ? expiredText : t.expired;
 
   if (done) {
+    // Koniec odliczania to jednorazowa zmiana stanu - `status` (uprzejmy region
+    // na żywo) ogłasza go raz; kolejne takty renderują ten sam tekst, więc
+    // drzewo dostępności się nie zmienia i nic nie jest powtarzane.
     return (
       <div
+        role="status"
         className={`inline-flex items-center justify-center px-4 py-3 rounded-lg bg-muted text-sm font-medium text-foreground ${cls ?? ""}`}
       >
         {finished}
@@ -319,8 +347,12 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
 
   return (
     <div className={`flex flex-col items-start gap-2 ${cls ?? ""}`}>
-      {label ? <span className="text-sm text-muted-foreground">{label}</span> : null}
-      <div className="flex items-center gap-2" aria-live="polite">
+      {label ? (
+        <span id={labelId} className="text-sm text-muted-foreground">
+          {label}
+        </span>
+      ) : null}
+      <div className="flex items-center gap-2" {...timerProps}>
         <Cell value={d} unit={t.days} />
         <Cell value={h} unit={t.hours} />
         <Cell value={m} unit={t.minutes} />

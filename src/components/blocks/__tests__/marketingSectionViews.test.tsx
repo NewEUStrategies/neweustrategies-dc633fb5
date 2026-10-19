@@ -14,6 +14,8 @@
 // ruchu (otwierany ręcznie jak w mediaMotionGate) oraz `DeferredFrame` -
 // prawdziwa ramka w happy-dom POBIERA adres z sieci, a kontraktem mapy są
 // właśnie parametry przekazane ramce (adres, tytuł, wysokość).
+// Napisy interfejsu widoków idą przez słownik `i18n-public` - prawdziwe i18n.
+import "@/test/i18nReal";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";

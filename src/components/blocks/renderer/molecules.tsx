@@ -810,20 +810,25 @@ export const renderResetPasswordForm: BlockRenderer = ({ block, cls, lang }) => 
 // Interaktywne
 // ---------------------------------------------------------------------------
 
-export const renderAccordion: BlockRenderer = ({ block, cls }) => (
+// `lang` trafia do widoków z napisami interfejsu (strzałki, etykiety ARIA,
+// teksty zastępcze): idą w języku TREŚCI, więc strona /en nie pokazuje już
+// zaszytej polszczyzny, a podgląd w panelu - tego samego co strona publiczna.
+export const renderAccordion: BlockRenderer = ({ block, cls, lang }) => (
   <AccordionView
     items={jsonList(block.data, "items")}
     allowMultiple={block.data.allowMultiple === true}
+    lang={lang}
     cls={cls}
   />
 );
 
-export const renderTabs: BlockRenderer = ({ block, cls }) => {
+export const renderTabs: BlockRenderer = ({ block, cls, lang }) => {
   const orient = str(block.data, "orientation", "horizontal");
   return (
     <TabsView
       items={jsonList(block.data, "items")}
       orientation={orient === "vertical" ? "vertical" : "horizontal"}
+      lang={lang}
       cls={cls}
     />
   );
@@ -888,19 +893,20 @@ export const renderStatsCounter: BlockRenderer = ({ block, cls, lang }) => (
   />
 );
 
-export const renderTestimonials: BlockRenderer = ({ block, cls }) => {
+export const renderTestimonials: BlockRenderer = ({ block, cls, lang }) => {
   const l = str(block.data, "layout", "grid");
   return (
     <TestimonialsView
       items={jsonList(block.data, "items")}
       layout={l === "slider" ? "slider" : "grid"}
+      lang={lang}
       cls={cls}
     />
   );
 };
 
-export const renderPricingTable: BlockRenderer = ({ block, cls }) => (
-  <PricingTableView plans={jsonList(block.data, "plans")} cls={cls} />
+export const renderPricingTable: BlockRenderer = ({ block, cls, lang }) => (
+  <PricingTableView plans={jsonList(block.data, "plans")} lang={lang} cls={cls} />
 );
 
 export const renderTimeline: BlockRenderer = ({ block, cls }) => (
@@ -944,12 +950,13 @@ export const renderCtaSection: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-export const renderImageCarousel: BlockRenderer = ({ block, cls }) => (
+export const renderImageCarousel: BlockRenderer = ({ block, cls, lang }) => (
   <ImageCarouselView
     items={jsonList(block.data, "items")}
     autoplay={block.data.autoplay === true}
     interval={num(block.data, "interval", 5000)}
     aspect={str(block.data, "aspect", "16:9")}
+    lang={lang}
     cls={cls}
   />
 );
@@ -968,18 +975,19 @@ export const renderContactForm: BlockRenderer = ({ block, cls, lang }) => (
   />
 );
 
-export const renderMap: BlockRenderer = ({ block, cls }) => (
+export const renderMap: BlockRenderer = ({ block, cls, lang }) => (
   <MapView
     lat={num(block.data, "lat", 52.2297)}
     lng={num(block.data, "lng", 21.0122)}
     zoom={num(block.data, "zoom", 13)}
     height={num(block.data, "height", 360)}
     label={str(block.data, "label")}
+    lang={lang}
     cls={cls}
   />
 );
 
-export const renderTeamGrid: BlockRenderer = ({ block, cls }) => {
+export const renderTeamGrid: BlockRenderer = ({ block, cls, lang }) => {
   const s = str(block.data, "shape", "circle");
   return (
     <TeamGridView
@@ -987,6 +995,7 @@ export const renderTeamGrid: BlockRenderer = ({ block, cls }) => {
       items={jsonList(block.data, "items")}
       columns={num(block.data, "columns", 3)}
       shape={s === "square" ? "square" : "circle"}
+      lang={lang}
       cls={cls}
     />
   );
@@ -1003,7 +1012,7 @@ export const renderLogoGrid: BlockRenderer = ({ block, cls }) => (
   />
 );
 
-export const renderFeatureGrid: BlockRenderer = ({ block, cls }) => {
+export const renderFeatureGrid: BlockRenderer = ({ block, cls, lang }) => {
   const st = str(block.data, "style", "card");
   const style = st === "minimal" || st === "bordered" ? st : "card";
   return (
@@ -1013,12 +1022,13 @@ export const renderFeatureGrid: BlockRenderer = ({ block, cls }) => {
       items={jsonList(block.data, "items")}
       columns={num(block.data, "columns", 3)}
       style={style}
+      lang={lang}
       cls={cls}
     />
   );
 };
 
-export const renderAlertBanner: BlockRenderer = ({ block, cls }) => {
+export const renderAlertBanner: BlockRenderer = ({ block, cls, lang }) => {
   const v = str(block.data, "variant", "info");
   const variant =
     v === "success" || v === "warning" || v === "danger" || v === "neutral" ? v : "info";
@@ -1031,6 +1041,7 @@ export const renderAlertBanner: BlockRenderer = ({ block, cls }) => {
       ctaHref={str(block.data, "ctaHref")}
       dismissible={block.data.dismissible === true}
       showIcon={bool(block.data, "showIcon", true)}
+      lang={lang}
       cls={cls}
     />
   );

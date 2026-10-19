@@ -15,6 +15,8 @@
 //
 // GRANICE. Fałszywy zegar (`setInterval`/`Date`) i atrapa
 // `IntersectionObserver`; sanityzacja i bramka ruchu są prawdziwe.
+// Napisy interfejsu widoków idą przez słownik `i18n-public` - prawdziwe i18n.
+import "@/test/i18nReal";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { Json } from "@/lib/blocks/types";
@@ -106,7 +108,7 @@ describe("TabsView", () => {
     expect(panel).toHaveTextContent("Panel opisu");
     expect(panel).toHaveAttribute("aria-labelledby", tab("Opis").id);
     expect(tab("Opis")).toHaveAttribute("aria-controls", panel.id);
-    expect(tab("Tab 3")).toBeInTheDocument();
+    expect(tab("Zakładka 3")).toBeInTheDocument();
   });
 
   it("klik przełącza panel", () => {
@@ -127,12 +129,12 @@ describe("TabsView", () => {
     expect(screen.getByRole("tabpanel")).toHaveTextContent("Panel danych");
 
     fireEvent.keyDown(tab("Dane"), { key: "End" });
-    expect(tab("Tab 3")).toHaveFocus();
-    fireEvent.keyDown(tab("Tab 3"), { key: "ArrowRight" });
+    expect(tab("Zakładka 3")).toHaveFocus();
+    fireEvent.keyDown(tab("Zakładka 3"), { key: "ArrowRight" });
     expect(selected()).toEqual(["Opis"]);
     fireEvent.keyDown(tab("Opis"), { key: "ArrowLeft" });
-    expect(selected()).toEqual(["Tab 3"]);
-    fireEvent.keyDown(tab("Tab 3"), { key: "Home" });
+    expect(selected()).toEqual(["Zakładka 3"]);
+    fireEvent.keyDown(tab("Zakładka 3"), { key: "Home" });
     expect(selected()).toEqual(["Opis"]);
     expect(tab("Opis")).toHaveFocus();
   });
@@ -147,14 +149,14 @@ describe("TabsView", () => {
     expect(selected()).toEqual(["Dane"]);
     fireEvent.keyDown(tab("Dane"), { key: "ArrowUp" });
     fireEvent.keyDown(tab("Opis"), { key: "ArrowUp" });
-    expect(selected()).toEqual(["Tab 3"]);
+    expect(selected()).toEqual(["Zakładka 3"]);
   });
 
   // NAPRAWIONE 2026-10-18: po usunięciu wybranej (ostatniej) zakładki na
   // kanwie żadna nie była wybrana, a wszystkie miały `tabIndex=-1`.
   it("lista skurczona pod wybraną zakładką wybiera ostatnią pozostałą", () => {
     const { rerender } = render(<TabsView items={items} />);
-    fireEvent.click(tab("Tab 3"));
+    fireEvent.click(tab("Zakładka 3"));
     rerender(<TabsView items={items.slice(0, 2)} />);
     expect(selected()).toEqual(["Dane"]);
     expect(tab("Dane").tabIndex).toBe(0);

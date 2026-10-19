@@ -15,6 +15,8 @@
 // GRANICE. Jedyna atrapa to `IntersectionObserver` (w teście licznika
 // sterujemy wejściem w viewport) i zegar klatek (fałszywe rAF/performance).
 // `AppLink` bez routera renderuje zwykłe `<a>` - tego właśnie potrzebujemy.
+// Napisy interfejsu widoków idą przez słownik `i18n-public` - prawdziwe i18n.
+import "@/test/i18nReal";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";

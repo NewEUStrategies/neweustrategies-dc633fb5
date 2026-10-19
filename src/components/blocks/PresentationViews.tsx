@@ -2,6 +2,7 @@
 import { htmlToPlainText } from "@/lib/sanitize";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import type { Json } from "@/lib/blocks/types";
 import { useRevealOnScroll, type RevealState } from "@/hooks/useRevealOnScroll";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -26,6 +27,10 @@ import {
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
+import "@/lib/i18n-public";
+
+/** Język treści bloku - napisy interfejsu idą w nim, nie w języku panelu. */
+type Lang = "pl" | "en";
 
 const ICON_MAP: Record<string, LucideIcon> = {
   star: Star,
@@ -274,13 +279,16 @@ function parseTestimonials(items: Json[] | undefined): TestimonialLite[] {
   });
 }
 
-function TestimonialCard({ t }: { t: TestimonialLite }) {
+function TestimonialCard({ t, ratingLabel }: { t: TestimonialLite; ratingLabel: string }) {
   return (
     <figure className="h-full rounded-2xl border border-border bg-card p-6 flex flex-col">
       {t.rating > 0 ? (
+        // `role="img"`: sam `aria-label` na `<div>` bez roli czytniki pomijają,
+        // a gwiazdki są `aria-hidden` - ocena nie docierała do nikogo.
         <div
           className="flex items-center gap-0.5 mb-3 text-brand"
-          aria-label={`Ocena: ${t.rating}/5`}
+          role="img"
+          aria-label={ratingLabel}
         >
           {Array.from({ length: 5 }).map((_, i) => (
             <Star
@@ -319,10 +327,13 @@ function TestimonialCard({ t }: { t: TestimonialLite }) {
 interface TestimonialsProps {
   items?: Json[];
   layout?: "grid" | "slider";
+  lang?: Lang;
   cls?: string;
 }
 
-export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsProps) {
+export function TestimonialsView({ items, layout = "grid", lang = "pl", cls }: TestimonialsProps) {
+  const { t: translate } = useTranslation();
+  const ratingLabel = (value: number) => translate("blocksUi.ratingLabel", { lng: lang, value });
   const parsed = useMemo(() => parseTestimonials(items), [items]);
   const [idx, setIdx] = useState(0);
   const total = parsed.length;
@@ -342,14 +353,14 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
     const t = parsed[current];
     return (
       <div className={`relative ${cls ?? ""}`}>
-        <TestimonialCard t={t} />
+        <TestimonialCard t={t} ratingLabel={ratingLabel(t.rating)} />
         {total > 1 ? (
           <div className="flex items-center justify-between mt-3">
             <button
               type="button"
               onClick={() => go(-1)}
               className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted"
-              aria-label="Poprzednia"
+              aria-label={translate("blocksUi.testimonialsPrevious", { lng: lang })}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -360,7 +371,7 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
               type="button"
               onClick={() => go(1)}
               className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted"
-              aria-label="Następna"
+              aria-label={translate("blocksUi.testimonialsNext", { lng: lang })}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -373,7 +384,7 @@ export function TestimonialsView({ items, layout = "grid", cls }: TestimonialsPr
   return (
     <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${cls ?? ""}`}>
       {parsed.map((t, i) => (
-        <TestimonialCard key={i} t={t} />
+        <TestimonialCard key={i} t={t} ratingLabel={ratingLabel(t.rating)} />
       ))}
     </div>
   );
@@ -392,11 +403,23 @@ interface PricingPlanLite {
   featured: boolean;
 }
 
+/**
+ * Cechy planu: napis i liczba to treść; `null`, obiekt czy tablica z importu
+ * nie są cechą - `String()` malował z nich „null" i „[object Object]". Ten sam
+ * filtr co `readFeatures` w edytorze bloku, więc strona pokazuje to, co panel.
+ */
+function readFeatures(raw: Json | undefined): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f): f is string | number => typeof f === "string" || typeof f === "number")
+    .map(String);
+}
+
 function parsePlans(raw: Json[] | undefined): PricingPlanLite[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((i) => {
     const o = (i ?? {}) as Record<string, Json>;
-    const feats = Array.isArray(o.features) ? (o.features as Json[]).map((f) => String(f)) : [];
+    const feats = readFeatures(o.features);
     return {
       name: String(o.name ?? ""),
       price: String(o.price ?? ""),
@@ -410,16 +433,32 @@ function parsePlans(raw: Json[] | undefined): PricingPlanLite[] {
   });
 }
 
+/**
+ * Kolumny siatki cennika jako PEŁNE literały. Tailwind generuje tylko klasy,
+ * które znajdzie dosłownie w źródłach - `md:grid-cols-${n}` składane w runtime
+ * działało wyłącznie dlatego, że te same klasy przypadkiem stały gdzieś
+ * indziej w kodzie; ich usunięcie tam po cichu łamałoby cennik.
+ */
+const PRICING_COLS_CLS: Record<number, string> = {
+  1: "md:grid-cols-1",
+  2: "md:grid-cols-2",
+  3: "md:grid-cols-3",
+  4: "md:grid-cols-4",
+};
+
 interface PricingProps {
   plans?: Json[];
+  lang?: Lang;
   cls?: string;
 }
 
-export function PricingTableView({ plans, cls }: PricingProps) {
+export function PricingTableView({ plans, lang = "pl", cls }: PricingProps) {
+  const { t } = useTranslation();
   const parsed = useMemo(() => parsePlans(plans), [plans]);
   if (parsed.length === 0) return null;
+  const colsCls = PRICING_COLS_CLS[Math.min(parsed.length, 4)];
   return (
-    <div className={`grid gap-4 md:grid-cols-${Math.min(parsed.length, 4)} ${cls ?? ""}`}>
+    <div className={`grid gap-4 ${colsCls} ${cls ?? ""}`}>
       {parsed.map((p, idx) => {
         const featured = p.featured;
         return (
@@ -432,7 +471,7 @@ export function PricingTableView({ plans, cls }: PricingProps) {
           >
             {featured ? (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold uppercase tracking-wide">
-                Polecane
+                {t("blocksUi.pricingFeatured", { lng: lang })}
               </div>
             ) : null}
             {p.name ? (
