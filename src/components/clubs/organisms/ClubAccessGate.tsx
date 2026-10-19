@@ -9,8 +9,8 @@
 //   * anonim              -> wartość klubu + formularz rejestracji inline,
 //   * zalogowany za nisko -> wartość klubu + upsell do wymaganego planu,
 //   * zalogowany, nie-członek -> prośba o dostęp (plan już wystarcza).
-import { Fragment, useMemo, useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Link, useHydrated } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -59,6 +59,9 @@ import { ensureClubI18n } from "@/lib/i18n-club";
 import "@/lib/i18n-club-gate";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { uiLang } from "@/lib/i18n/format";
+import { currentReturnPath, loginSearch } from "@/lib/access/paywallLinks";
+import { track } from "@/lib/analytics/track";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -84,7 +87,10 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
 
   const name = pickLocalized(club, "name", lang) || club.name_pl;
   const tagline = pickLocalized(club, "tagline", lang);
-  const signedIn = session !== null && !loading;
+  // AGENTS: bramka klubu czeka na hydratację - serwer renderuje gościa, więc
+  // ustalona sesja nie może podmienić znaczników SSR przed hydratacją.
+  const hydrated = useHydrated();
+  const signedIn = hydrated && session !== null && !loading;
   const badgesQ = useUserBadges(session?.user.id);
   const isExpert = (badgesQ.data ?? []).includes("expert");
 
@@ -98,6 +104,34 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
   const notSold = useMemo(() => clubPlanTiersNotSold(tiersQ.data), [tiersQ.data]);
   const view = clubGateView({ club, signedIn, isExpert, notSold });
   const plan = t(view.planLabelKey);
+
+  // POMIAR (P18, AD-16): bramka klubu to uderzenie w paywall - gość (konto)
+  // albo zalogowany z planem za niskim (upgrade). Licznik serwera bez zgody,
+  // zdarzenie klienta tylko przy zgodzie analitycznej; raz na klub i stan.
+  const blocked = hydrated && !loading && view.tierTooLow;
+  const hitReason = signedIn ? "tier_rank" : "members";
+  useEffect(() => {
+    if (!blocked) return;
+    if (hasAnalyticsConsent()) {
+      track({
+        type: "paywall_view",
+        name: "paywall_view",
+        entityType: "club",
+        entityId: club.id,
+        meta: { reason: hitReason, surface: "club_gate" },
+      });
+    }
+    void import("@/lib/access/paywallOffer").then((m) =>
+      m.recordPaywallHit(signedIn, {
+        entityType: "club",
+        entityId: club.id,
+        reason: hitReason,
+        requiredTierKey: view.sellTier,
+        variant: "default",
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocked, club.id, hitReason, view.sellTier]);
 
   return (
     <Card className="overflow-hidden rounded-xl border-border/70">
@@ -185,6 +219,24 @@ function MemberActions({
   view: ClubGateView;
 }) {
   const { t } = useTranslation();
+  // Kontekst planu w lejku: kasa po zakupie wraca do tego klubu
+  // („kontynuuj" na stronie sukcesu - ten sam klucz co paywall artykułu),
+  // a klik mierzy się z wymaganym progiem (tylko przy zgodzie analitycznej).
+  const onPlanCta = (cta: string) => () => {
+    try {
+      sessionStorage.setItem("checkout:returnTo", window.location.pathname);
+    } catch {
+      /* tryb prywatny - powrót spada na profil */
+    }
+    if (!hasAnalyticsConsent()) return;
+    track({
+      type: "paywall_cta_click",
+      name: "paywall_cta_click",
+      entityType: "club",
+      entityId: club.id,
+      meta: { cta, plan: view.sellTier, surface: "club_gate" },
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -197,7 +249,7 @@ function MemberActions({
         if (action.kind === "upgrade") {
           return (
             <Button key={action.kind} asChild className="w-full rounded-lg">
-              <Link to="/pricing">
+              <Link to="/pricing" onClick={onPlanCta("upgrade")}>
                 {t(action.ctaKey, { plan })}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
@@ -207,7 +259,7 @@ function MemberActions({
         if (action.kind === "plans") {
           return (
             <Button key={action.kind} asChild variant="outline" className="w-full rounded-lg">
-              <Link to="/pricing" hash="plans">
+              <Link to="/pricing" hash="plans" onClick={onPlanCta("plans")}>
                 {t(action.ctaKey)}
               </Link>
             </Button>
@@ -250,6 +302,7 @@ function MemberActions({
 
 function GateSignupForm({ plan }: { plan: string }) {
   const { t, i18n } = useTranslation();
+  const hydrated = useHydrated();
   const lang = uiLang(i18n.language);
   const runPreAuthGuard = useServerFn(preAuthGuard);
   // Te same pola, etykiety i wymagalność co popup rejestracji i /login -
@@ -269,7 +322,9 @@ function GateSignupForm({ plan }: { plan: string }) {
     list: "",
     newsletter_optin: "",
   });
-  const [newsletterOptIn, setNewsletterOptIn] = useState(true);
+  // P08 (RODO): zgoda marketingowa domyślnie ODZNACZONA - brak zaznaczenia
+  // to brak zgody, a nie zgoda „z rozpędu".
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -500,7 +555,13 @@ function GateSignupForm({ plan }: { plan: string }) {
         {t("clubGate.haveAccount")}{" "}
         <Link
           to="/login"
-          search={{ mode: "signin" }}
+          // Logowanie wraca na ten klub (P15). Ścieżka po hydratacji: SSR nie
+          // zna `window`, a różny `href` serwera i klienta to błąd hydratacji.
+          search={loginSearch({
+            mode: "signin",
+            next: hydrated ? currentReturnPath() : undefined,
+            intent: "club",
+          })}
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
           {t("clubGate.signIn")}

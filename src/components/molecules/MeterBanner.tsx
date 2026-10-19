@@ -23,6 +23,9 @@ import {
   type MeterState,
 } from "@/lib/access/metering";
 import { QuotaMeter } from "@/components/atoms/QuotaMeter";
+import { currentReturnPath, loginSearch } from "@/lib/access/paywallLinks";
+import { track } from "@/lib/analytics/track";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import "@/lib/i18n-paywall";
 
 export function MeterBanner({ meter }: { meter: MeterState }) {
@@ -31,8 +34,17 @@ export function MeterBanner({ meter }: { meter: MeterState }) {
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const visible = meterCounterVisible(meter);
   const { data: quota } = useMeterQuota(visible);
-
   if (!visible) return null;
+
+  // Pomiar CTA licznika (P18) - wyłącznie przy zgodzie analitycznej.
+  const measure = (cta: string) => () => {
+    if (!hasAnalyticsConsent()) return;
+    track({
+      type: "paywall_cta_click",
+      name: "paywall_cta_click",
+      meta: { cta, surface: "meter", remaining },
+    });
+  };
 
   const { used, monthlyLimit, remaining } = latestMeterNumbers(meter, quota ?? null);
   const shownUsed = Math.min(used, monthlyLimit);
@@ -80,7 +92,12 @@ export function MeterBanner({ meter }: { meter: MeterState }) {
           {!session && (
             <Link
               to="/login"
-              search={{ mode: "signup" }}
+              // Rejestracja z licznika wraca na ten artykuł (P15). Ścieżka
+              // czytana w renderze: baner istnieje wyłącznie po konsumpcji
+              // limitu w przeglądarce (SSR nie ma stanu licznika), więc nie
+              // ma hydratacji, którą `window` mógłby rozjechać.
+              search={loginSearch({ mode: "signup", next: currentReturnPath(), intent: "meter" })}
+              onClick={measure("signup")}
               className="text-sm font-medium text-brand-ink hover:underline"
             >
               {t("paywall.meter.createAccount")}
@@ -88,6 +105,7 @@ export function MeterBanner({ meter }: { meter: MeterState }) {
           )}
           <Link
             to="/pricing"
+            onClick={measure("pricing")}
             className="inline-flex h-8 shrink-0 items-center justify-center rounded-[5px] border border-border bg-background px-3 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted hover:text-brand"
           >
             {t("paywall.meter.seePlans")}

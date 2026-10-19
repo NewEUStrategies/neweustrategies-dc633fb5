@@ -29,6 +29,7 @@ type Entry = {
   id: string;
   priority: number;
   marketing: boolean;
+  invite: boolean;
   resolve: (release: () => void) => void;
 };
 
@@ -126,11 +127,20 @@ function recordMarketingGrant(now: number): void {
   writeBudget({ day: today, count: countToday + 1, lastTs: now });
 }
 
-/** True if a marketing entry is currently blocked (consent denied or budget). */
-function marketingBlocked(now: number): boolean {
+/**
+ * True if a marketing entry is currently blocked (consent denied or budget).
+ *
+ * ZAPROSZENIE DO KONTA (`invite`, P17) to nie marketing cookies: odmowa zgody
+ * marketingowej na banerze dotyczy śledzenia i reklam, a nie propozycji
+ * założenia konta na tej stronie. Dotąd ta sama odmowa wygaszała popup
+ * rejestracji na zawsze, więc czytelnik, który kliknął „odrzuć" w cookies,
+ * nie dostawał już zaproszenia do konta. Zaproszenie nadal czeka, aż baner
+ * zgłosi stan, i nadal liczy się do budżetu przerw.
+ */
+function marketingBlocked(entry: Entry, now: number): boolean {
   // Dopóki baner nie zgłosił stanu, o zgodzie nie wiemy NIC - patrz `consentReported`.
   if (!consentReported) return true;
-  return marketingConsent === false || !marketingBudgetAllows(now);
+  return (marketingConsent === false && !entry.invite) || !marketingBudgetAllows(now);
 }
 
 /** Index of the highest-priority grantable waiter (FIFO within a priority). */
@@ -139,7 +149,7 @@ function pickIndex(now: number): number {
   let bestPriority = Number.NEGATIVE_INFINITY;
   for (let i = 0; i < queue.length; i++) {
     const e = queue[i];
-    if (e.marketing && marketingBlocked(now)) continue;
+    if (e.marketing && marketingBlocked(e, now)) continue;
     if (e.priority > bestPriority) {
       best = i;
       bestPriority = e.priority;
@@ -201,7 +211,9 @@ export function setMarketingConsent(value: boolean | null): void {
   // żyje i tyle wie o zgodzie". Dopiero ono zdejmuje bramę `consentReported`.
   consentReported = true;
   marketingConsent = value;
-  if (value !== false) pump();
+  // Także przy odmowie: zaproszenie do konta (`invite`, P17) nie zależy od
+  // zgody marketingowej, a reszta marketingu i tak odpada w `pickIndex`.
+  pump();
 }
 
 /**
@@ -221,6 +233,13 @@ export function reportConsentSurface(visible: boolean, marketing: boolean | null
   if (!visible) setConsentOverlayVisible(false);
 }
 
+/**
+ * Sloty, które są zaproszeniem do KONTA, a nie marketingiem cookies (P17).
+ * `newsletter-popup` to historyczna nazwa popupu REJESTRACJI konta (newsletter
+ * jest w nim tylko opcjonalnym polem) - patrz `NewsletterPopup.tsx`.
+ */
+const ACCOUNT_INVITE_SLOTS = new Set(["newsletter-popup"]);
+
 export type OverlaySlotOptions = {
   /** Higher wins when several requests wait. Default 0. */
   priority?: number;
@@ -229,6 +248,11 @@ export type OverlaySlotOptions = {
    * persisted cross-session interruption budget. Default false.
    */
   marketing?: boolean;
+  /**
+   * Zaproszenie do konta (popup rejestracji): nakładka marketingowa w sensie
+   * budżetu przerw, ale NIE wygaszana odmową zgody marketingowej (P17).
+   */
+  invite?: boolean;
 };
 
 /**
@@ -244,6 +268,7 @@ export function requestOverlaySlot(id: string, opts: OverlaySlotOptions = {}): P
       id,
       priority: opts.priority ?? 0,
       marketing: opts.marketing ?? false,
+      invite: opts.invite ?? ACCOUNT_INVITE_SLOTS.has(id),
       resolve,
     });
     pump();

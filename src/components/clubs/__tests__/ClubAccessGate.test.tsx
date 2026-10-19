@@ -86,11 +86,25 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, ...rest }: { children?: unknown; to?: string }) => (
+  Link: ({
+    children,
+    to,
+    search: _search,
+    hash: _hash,
+    ...rest
+  }: {
+    children?: unknown;
+    to?: string;
+    search?: unknown;
+    hash?: unknown;
+  }) => (
     <a href={to} {...rest}>
       {children as never}
     </a>
   ),
+  // Testy renderują stan PO hydratacji (AGENTS: bramka klubu czeka na
+  // `useHydrated`; stan przed hydratacją ma własny test w ClubAccessGate.funnel).
+  useHydrated: () => true,
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.preAuthGuard }));
 vi.mock("sonner", () => ({ toast: { error: h.toastError, success: vi.fn() } }));
@@ -479,13 +493,13 @@ describe("pola rejestracji sterowane z panelu", () => {
     expect(czyJestPole("first_name")).toBe(false);
   });
 
-  it("zgoda newsletterowa jest domyślnie ZAZNACZONA i daje się wyłączyć", () => {
+  it("zgoda newsletterowa jest domyślnie ODZNACZONA (P08, RODO) i daje się włączyć", () => {
     h.enabled = [...WSZYSTKIE_POLA];
     gate();
     const checkbox = screen.getByRole("checkbox");
-    expect(checkbox.getAttribute("data-state")).toBe("checked");
-    fireEvent.click(checkbox);
     expect(checkbox.getAttribute("data-state")).toBe("unchecked");
+    fireEvent.click(checkbox);
+    expect(checkbox.getAttribute("data-state")).toBe("checked");
   });
 
   it("wyłączona zgoda newsletterowa nie renderuje pola wyboru", () => {
@@ -650,6 +664,7 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
     wpisz("email", "kandydat@example.org");
     wpisz("password", "haslo12345");
     wpisz("password_confirm", "haslo12345");
+    // Zaznaczenie przez użytkownika - jedyna droga do zgody (domyślnie brak).
     fireEvent.click(screen.getByRole("checkbox"));
     wyslij();
     await waitFor(() => {
@@ -658,7 +673,7 @@ describe("walidacja formularza - cztery wyjścia, nie dwa", () => {
     const call = h.signUp.mock.calls[0]?.[0] as {
       options: { data: { newsletterOptIn: boolean; source: string } };
     };
-    expect(call.options.data.newsletterOptIn).toBe(false);
+    expect(call.options.data.newsletterOptIn).toBe(true);
     expect(call.options.data.source).toBe("club_gate");
   });
 
