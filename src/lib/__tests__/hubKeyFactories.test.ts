@@ -156,6 +156,14 @@ const PARY: readonly Para[] = [
     expected: ["admin", "crm-partner-endpoints"],
     zrodlo: "src/components/admin/crm/CrmPartnerEndpointsPanel.tsx:131",
   },
+  {
+    // Integrator S4: klucz zespołu CRM żył w S4 jako `crmStaffUsersKey()`
+    // w `leadMutations.ts` (fabryka I0 nie miała wpisu) - ten sam kształt.
+    fn: "crmKeys.staffUsers",
+    actual: crmKeys.staffUsers(),
+    expected: ["crm-staff-users"],
+    zrodlo: "src/lib/crm/leadMutations.ts:148 (hub/s4-crm-spolecznosc przed integracją)",
+  },
 
   // ── Newsletter (`src/lib/newsletter/keys.ts`) ─────────────────────────────
   {

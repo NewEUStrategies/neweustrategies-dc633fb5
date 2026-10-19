@@ -139,14 +139,6 @@ export interface CrmStaffUser {
   label: string;
 }
 
-/**
- * Klucz listy zespołu CRM. Fabryka `crmKeys` (I0) nie ma jeszcze wpisu dla
- * tej listy - do czasu dopisania `crmKeys.staffUsers()` (integration request
- * S4) klucz żyje tu jako funkcja, nie literał w komponencie, więc zamiana
- * będzie jedną linią.
- */
-export const crmStaffUsersKey = () => ["crm-staff-users"] as const;
-
 function staffLabel(row: Record<string, unknown>): string {
   const display = typeof row.display_name === "string" ? row.display_name.trim() : "";
   if (display) return display;
@@ -177,7 +169,7 @@ export function parseStaffUsers(raw: { json: string } | null | undefined): CrmSt
 
 export function crmStaffUsersQueryOptions() {
   return queryOptions({
-    queryKey: crmStaffUsersKey(),
+    queryKey: crmKeys.staffUsers(),
     queryFn: async () => parseStaffUsers(await listStaffUsers()),
     // Skład zespołu zmienia się rzadko; karta i edytor otwierane kilka razy
     // pod rząd nie muszą pytać serwera za każdym razem.

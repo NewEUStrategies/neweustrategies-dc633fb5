@@ -67,6 +67,10 @@ const LEGACY_KEY_ALIASES: readonly (readonly string[])[] = [["admin-access-plans
  * Pliki, w których literały kluczy fabryk wolno jeszcze trzymać - stan po I0,
  * posortowany, z wycinkiem-właścicielem w komentarzu. Wycinek usuwa literały
  * ze swoich plików; listę czyści I9.
+ *
+ * Integrator S4 (2026-10-19): zdjęte wszystkie 19 plików S4 - są bez literałów
+ * (Z-S4-04), więc od teraz literał w nich zaczerwienia bramkę jak w każdym
+ * innym pliku.
  */
 const QUERY_KEY_LITERAL_DEBT: readonly string[] = [
   "src/components/admin/AccessSettingsPane.tsx", // S1
@@ -75,41 +79,22 @@ const QUERY_KEY_LITERAL_DEBT: readonly string[] = [
   "src/components/admin/billing/AdminPaymentOrdersPanel.tsx", // S2
   "src/components/admin/billing/AdminPaymentsDiagnosticsPanel.tsx", // S2
   "src/components/admin/coupons/organisms/CampaignsPage.tsx", // S1
-  "src/components/admin/crm/CrmPartnerEndpointsPanel.tsx", // S4
-  "src/components/admin/crm/FollowUpsPanel.tsx", // S4
-  "src/components/admin/crm/ImportLeadsCsvDialog.tsx", // S4
-  "src/components/admin/crm/LeadTasksPanel.tsx", // S4
-  "src/components/admin/crm/MeteringUsageCard.tsx", // S4
-  "src/components/admin/crm/NewCompanyDialog.tsx", // S4
-  "src/components/admin/crm/ScoreBreakdownCard.tsx", // S4
-  "src/components/admin/crm/ScoringSettingsDialog.tsx", // S4
   "src/components/admin/newsletter/OverviewPanel.tsx", // S1
   "src/components/admin/newsletter/PopupEventsPanel.tsx", // S1
   "src/components/admin/newsletter/SubscribersPanel.tsx", // S1
   "src/components/admin/newsletter/subscribers/ImportCsvDialog.tsx", // S1
-  "src/components/admin/post-editor/molecules/OrganizationCreateForm.tsx", // S4
   "src/components/admin/pricing/organisms/RetentionTab.tsx", // S1
-  "src/components/admin/workflows/CorrelationTracePanel.tsx", // S4
-  "src/components/admin/workflows/WorkflowRunsPanel.tsx", // S4
-  "src/components/admin/workflows/WorkflowTemplatesPanel.tsx", // S4
   "src/hooks/useCheckoutSettings.ts", // S1
   "src/hooks/useNewsletterSettings.ts", // S1
   "src/lib/access/metering.ts", // S1
   "src/lib/admin/couponQueries.ts", // S1
-  "src/lib/crm/leadMutations.ts", // S4
   "src/lib/retention/queries.ts", // S1
-  "src/routes/admin.companies.$id.tsx", // S4
-  "src/routes/admin.companies.index.tsx", // S4
   "src/routes/admin.coupons.redemptions.tsx", // S1
-  "src/routes/admin.crm.$id.tsx", // S4
-  "src/routes/admin.crm.funnel.index.tsx", // S4
-  "src/routes/admin.crm.index.tsx", // S4
   "src/routes/admin.monetization.tsx", // S1
   "src/routes/admin.newsletter.campaigns.$id.tsx", // S1
   "src/routes/admin.newsletter.campaigns.index.tsx", // S1
   "src/routes/admin.newsletter.overview.tsx", // S1
   "src/routes/admin.paywall.tsx", // S1
-  "src/routes/admin.workflows.tsx", // S4
 ];
 
 /* ------------------------------------------------------------ sygnatury */
