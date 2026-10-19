@@ -274,7 +274,8 @@ i `[poza-manifestem]`).
 **Stan na 2026-10-19, po scaleniu PR #520 (`cb7a18df`).** Ostatni bliźniak to
 `0328_membership_grants_single_path` (idx 328, `when` = 1792419770669).
 Bliźniaki huba: I0 `0318…0323`, S1 `0324…0328`. **Następny wolny numer:
-`0329`** (idx 329, `when` > 1792419770669). Ten numer nie jest rezerwacją dla
+`0330`** (idx 330; `0329_pr520_deployment_completion` dołożył Lovable w
+`e6620f60`, `when` = 1792426305539). Ten numer nie jest rezerwacją dla
 żadnego wycinka. `main` dokłada własne migracje (np. `0312` z `97d936f4`),
 więc numer nadaje Integrator przy scaleniu wycinka - pierwszy wolny na `main`
 w tej chwili, w kolejności wersji.
@@ -432,12 +433,12 @@ przebiegu i błędy środowiska - §13.2.
 
 ## 10. Dziennik wdrożeń
 
-| Data       | Wycinek / fala                             | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                           | Odchylenia / uwagi                                                                                                |
-| ---------- | ------------------------------------------ | --------------------------- | ----------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 2026-10-19 | I0 (gałąź)                                 | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                     | weryfikacja §9; Z-01…Z-09 do decyzji                                                                              |
-|            | M0                                         | `20261020090000…090500`     | `0318…0323`       | do wdrożenia przez właściciela (I0 na `main` od `cb7a18df`, §4)         | warunek wstępny wdrożenia S1                                                                                      |
-| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)              | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                        | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18) |
-| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`) | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9) | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                       |
+| Data       | Wycinek / fala                             | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                     | Odchylenia / uwagi                                                                                                |
+| ---------- | ------------------------------------------ | --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 2026-10-19 | I0 (gałąź)                                 | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                               | weryfikacja §9; Z-01…Z-09 do decyzji                                                                              |
+|            | M0                                         | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`) | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)     |
+| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)              | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                  | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18) |
+| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`) | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                           | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                       |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -724,7 +725,7 @@ i `src/lib/ci/hubDelivery.ts`. Obie zmiany są integratorskie. Poprawki Codex
 `cmp` supabase ⇄ drizzle dla `0324…0328` (i I0 `0318…0323`) na `cb7a18df`
 zwraca: bajt w bajt. Po scaleniu `main` (`a303246e`) dziennik zgubił wpisy
 cennika, I0 i S1. Commit `4549a6f1` przeniósł je na koniec z rosnącym `when`.
-Następny wolny numer to `0329` (§6).
+Następny wolny numer to `0330` (§6; `0329` zajął Lovable w `e6620f60`).
 
 ### 12.7 Pomiar bundla
 
@@ -854,8 +855,9 @@ statusu kampanii ani nie nada członkostwa.
 - Dalsze wycinki - S4, S2, S3, S5, S7, S8 i I9, w kolejności z §8.2 - idą
   w **nowym PR** z gałęzi `claude/elegant-fermat-xwfca1` (świeży
   `origin/main` po scaleniu). Bliźniaki drizzle numeruje Integrator od
-  `0329` przy scaleniu każdego wycinka (§6).
-- Produkcja: M0 (§4) i wdrożenie S1 (§12.9) czekają na właściciela.
+  `0330` przy scaleniu każdego wycinka (§6).
+- Produkcja: M0 (§4) i S1 (§12.9) wdrożone 2026-10-19 przez Lovable
+  migratorem Drizzle (0313…0328 + potwierdzenie `0329`, commit `e6620f60`).
   Wiersze M0 i S1 w §10 uzupełnić po `post-deploy`.
 
 ### 13.2 pgTAP na `cb7a18df` (lokalnie, orkiestrator)
@@ -884,13 +886,26 @@ Pliki huba są zielone. I0: `hub_schema_rls_test` 58, `hub_shared_helpers_test` 
   „Gate document weight of the candidate (blocking)” i „… candidate post
   (blocking)”. Pozostałe joby ✓ (test-shards 1-4, build, pgtap, pg-harness,
   e2e, e2e-seeded, lighthouse, cms-widgets), `post-deploy` ✓.
-  Przyczyna i naprawa: _(uzupełni orkiestrator)_.
+  Przyczyna i naprawa: na `cb7a18df` `verify` (Format, Lint, Typecheck) jest
+  już zielony - lokalnie `format:check` ✓ i `lint` 0 błędów (279 ostrzeżeń
+  sprzed PR). `First visit…` (waga dokumentu kandydata) był czerwony na samym
+  `main` przed scaleniem huba (`9f6173f2`) - nie jest skutkiem PR #520,
+  zostaje zgłoszony właścicielowi (Z-13-01).
 - **PR #520:** na `a303246e` ✗ `Migration lanes` i `supabaseLaneCoverage.test.ts`
   (zgubione wpisy dziennika, naprawione w `4549a6f1`). Na `4549a6f1` joby
   były w kolejce w chwili scalenia.
 - **Po scaleniu** - `cb7a18df`: workflow `CI`, `E2E`, `Lighthouse CI`,
   `CMS widget performance` i `First visit…` w kolejce od 16:02 UTC.
-  Wynik: _(uzupełni orkiestrator)_.
+  Wynik: `verify`, `test-shards` 1-4, `pgtap`, `pg-harness`, `post-deploy`
+  ✓; `build` ✗ wyłącznie w kroku „Bundle size budget”: `overall` 4970,7 >
+  4959 (lokalny pomiar tego samego commitu: public 2772,5 / 2881, chunk 257,5 /
+  286, css 99,7 / 100, public CSS 83,8 / 85, boot 471,3 / 579). Przyrost +13,4
+  KB to scalenie `main` w `a303246e` (PR #525 i commit Lovable); naprawa:
+  ratchet `overall` 4959 → 4972 z wpisem w kronice (D-08, commit `8cbd4a53`
+  w nowym PR). Ten sam wynik na `e6620f60` („Wdrożono PR #520”, Lovable:
+  bliźniak `0329`, regeneracja `types.ts`, wpis pasa w
+  `migrationLaneParity.ts`) - scalone do gałęzi `claude/elegant-fermat-xwfca1`
+  w `732b8837`; następny wolny numer drizzle to **0330**.
 
 ### 13.4 Otwarte kwestie spoza PR (z rozmowy właściciela)
 
