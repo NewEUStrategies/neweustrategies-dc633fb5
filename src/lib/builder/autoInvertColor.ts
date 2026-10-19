@@ -11,32 +11,19 @@ import { parseColorChannels, type RgbaChannels } from "./cssColor";
 import { isThemedValue } from "./themed";
 import type { Mode, Themed } from "./types";
 
-// Słowa kluczowe, które da się policzyć bez layoutu. `transparent`,
-// `currentcolor` i `inherit` celowo NIE są tu wpisane: ich wartość zna
-// dopiero przeglądarka, więc wracają bez zmian.
-const NAMED: Readonly<Record<string, readonly [number, number, number]>> = {
-  white: [255, 255, 255],
-  black: [0, 0, 0],
-};
-
 const clamp = (value: number, max: number): number => Math.min(Math.max(value, 0), max);
 
 /**
  * Kanały koloru albo `null`, gdy zapisu nie da się policzyć lokalnie. Parser
  * jest wspólny z luminancją podświetlenia ikon social (`parseColorChannels`),
  * więc odwracanie rozumie te same zapisy, które `safeWidgetColor` przepuszcza
- * do `style`: procenty kanałów i alfy oraz `hsl()`. Słowa kluczowe szukamy
- * WYŁĄCZNIE po kluczach własnych - „constructor" z prototypu `Object` nie może
- * udawać koloru.
+ * do `style`: nazwy kolorów CSS (jedna tabela z whitelistą), procenty kanałów
+ * i alfy oraz `hsl()`. `transparent`, `currentcolor` i `inherit` zna dopiero
+ * przeglądarka, więc wracają bez zmian.
  */
 function parseColor(input: string): RgbaChannels | null {
   if (!input) return null;
-  const s = input.trim().toLowerCase();
-  if (Object.hasOwn(NAMED, s)) {
-    const [r, g, b] = NAMED[s];
-    return { r, g, b, a: 1 };
-  }
-  const rgba = parseColorChannels(s);
+  const rgba = parseColorChannels(input.trim().toLowerCase());
   if (!rgba) return null;
   // CSS przycina kanały i alfę spoza zakresu - liczymy na wartościach, które
   // przeglądarka faktycznie narysuje.

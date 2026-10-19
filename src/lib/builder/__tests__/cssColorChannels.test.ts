@@ -50,12 +50,17 @@ describe("parseColorChannels - ta sama barwa w każdej składni", () => {
     expect(rgb("RGB(255,0,0)")).toEqual(rgb("#f00"));
     expect(rgb("HSL(0, 100%, 50%)")).toEqual(rgb("#f00"));
   });
+
+  it("nazwa koloru, którą whitelist przepuszcza do `style`, ma kanały", () => {
+    expect(rgb("red")).toEqual([255, 0, 0, 1]);
+    expect(rgb(" Red ")).toEqual(rgb("#f00"));
+    expect(rgb("rebeccapurple")).toEqual(rgb("#663399"));
+  });
 });
 
 describe("parseColorChannels - zapisy niepoliczalne lokalnie", () => {
   it.each([
     "",
-    "red",
     "var(--brand)",
     "transparent",
     "oklch(0.6 0.2 30)",
