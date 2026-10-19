@@ -1,26 +1,66 @@
-// Współdzielony edytor benefitów warstwy (panel Członkostwo + panel Cennik):
-// para PL/EN + opcjonalne rozwinięcie (detail_*) i nagłówek grupy (group_*)
-// w stylu NYT/FT. Oba panele zapisują przez serializeTierBenefits z
-// lib/billing/tiers - żaden edytor nie gubi pól zapisanych przez drugi.
-import { useState } from "react";
+// Edytor benefitów warstwy - od hubu S1 WYŁĄCZNIE w panelu Cennik (właściciel
+// kolumny `benefits`, `syncManifest.ts`; Członkostwo pokazuje je do odczytu):
+// para PL/EN + opcjonalne rozwinięcie (detail_*), nagłówek grupy (group_*)
+// w stylu NYT/FT i klucz uprawnienia (`capability_key`, P20). Zapis idzie
+// przez serializeTierBenefits z lib/billing/tiers - żadne pole nie ginie.
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ArrowDown, ArrowUp, ChevronDown, Eye, Plus, X } from "lucide-react";
+import { FormSelect, type FormSelectOption } from "@/components/atoms/FormSelect";
 import { Button } from "@/components/ui/button";
 import { BenefitPreviewDialog } from "@/components/admin/membership/molecules/BenefitPreviewDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { TIER_CAPABILITIES } from "@/lib/billing/capabilities";
 import type { TierBenefit } from "@/lib/billing/tiers";
+import { ensureI18n as ensureAdminMembershipI18n } from "@/lib/i18n-admin-membership";
 import { ensureI18n as ensureAdminPricingI18n } from "@/lib/i18n-admin-pricing";
 import { shiftExpandedAfterRemove, swapExpanded, type ExpandedRows } from "@/lib/ui/expandedRows";
+
+/** „Bez powiązania” - Radix Select nie przyjmuje pustego napisu jako wartości. */
+const NO_CAPABILITY = "__none__";
 
 function hasExtras(benefit: TierBenefit): boolean {
   return Boolean(
     (benefit.detail_pl ?? "").trim() ||
     (benefit.detail_en ?? "").trim() ||
     (benefit.group_pl ?? "").trim() ||
-    (benefit.group_en ?? "").trim(),
+    (benefit.group_en ?? "").trim() ||
+    (benefit.capability_key ?? "").trim(),
   );
+}
+
+/**
+ * Opcje klucza uprawnienia: rejestr `capabilities.ts` z etykietą panelu
+ * Członkostwa i znacznikiem „egzekwowane / deklarowane” - redakcja od razu
+ * widzi, że wiąże obietnicę z flagą bez realnej bramki. Klucz spoza rejestru
+ * (zapis z innej wersji panelu) zostaje na liście pod surową nazwą, inaczej
+ * pole pokazałoby pustkę, choć powiązanie w bazie istnieje.
+ */
+function capabilityOptions(t: TFunction, current: string | undefined): FormSelectOption[] {
+  const options: FormSelectOption[] = [
+    { value: NO_CAPABILITY, label: t("adminPricing.benefits.capabilityNone") },
+    ...TIER_CAPABILITIES.map((meta) => ({
+      value: meta.key,
+      label: `${t(`adminMembership.capabilities.labels.${meta.key}`)} · ${t(
+        meta.enforced
+          ? "adminMembership.capabilities.enforcedBadge"
+          : "adminMembership.capabilities.decorativeBadge",
+      )}`,
+    })),
+  ];
+  if (current && !TIER_CAPABILITIES.some((meta) => meta.key === current)) {
+    options.push({ value: current, label: current });
+  }
+  return options;
+}
+
+/** Benefit z nowym kluczem uprawnienia; „bez powiązania” usuwa pole z obiektu. */
+function withCapability(benefit: TierBenefit, value: string): TierBenefit {
+  const { capability_key: _previous, ...rest } = benefit;
+  return value === NO_CAPABILITY ? rest : { ...rest, capability_key: value };
 }
 
 export function TierBenefitsEditor({
@@ -31,8 +71,13 @@ export function TierBenefitsEditor({
   onChange: (next: TierBenefit[]) => void;
 }) {
   ensureAdminPricingI18n();
+  // Etykiety uprawnień są w słowniku Członkostwa (jedno źródło nazw flag).
+  ensureAdminMembershipI18n();
   const { t } = useTranslation();
   const tb = (k: string) => t(`adminPricing.benefits.${k}`);
+  // Kilka edytorów na jednej stronie (karta per warstwa) - identyfikatory pól
+  // muszą być unikalne, żeby etykieta wskazywała własne pole.
+  const fieldId = useId();
   // Ręcznie rozwinięte wiersze; wiersze z wypełnionymi polami dodatkowymi
   // są otwarte zawsze (nic edytowalnego nie znika z oczu).
   const [expanded, setExpanded] = useState<ExpandedRows>({});
@@ -203,6 +248,27 @@ export function TierBenefitsEditor({
                     <p className="text-[10px] leading-snug text-muted-foreground sm:col-span-2">
                       {tb("groupHint")}
                     </p>
+                    <div className="sm:col-span-2">
+                      <Label
+                        htmlFor={`${fieldId}-capability-${i}`}
+                        className="text-[10px] font-medium text-muted-foreground"
+                      >
+                        {tb("capability")}
+                      </Label>
+                      <FormSelect
+                        id={`${fieldId}-capability-${i}`}
+                        aria-label={`${tb("capability")} #${i + 1}`}
+                        value={benefit.capability_key || NO_CAPABILITY}
+                        onValueChange={(next) =>
+                          onChange(value.map((b, idx) => (idx === i ? withCapability(b, next) : b)))
+                        }
+                        options={capabilityOptions(t, benefit.capability_key)}
+                        className="mt-1 h-8 text-sm"
+                      />
+                      <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                        {tb("capabilityHint")}
+                      </p>
+                    </div>
                   </div>
                 )}
               </li>

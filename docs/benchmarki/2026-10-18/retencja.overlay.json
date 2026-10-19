@@ -1,0 +1,1117 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "retention",
+  "source_file": "retencja.json",
+  "metrics": {
+    "logo_churn_monthly": {
+      "metric_id": "logo_churn_monthly",
+      "formula_en": "Paying customers active at the start of the month who left during that month (cancellation, expiry, unrecovered payment), divided by paying customers at the start of the month, × 100%. Customers acquired during the month enter neither the numerator nor the denominator. Annual conversion: 1 − (1 − churn_M)^12.",
+      "levers": {
+        "pl": "Wzmacniaj nawyk w pierwszych tygodniach: newsletter z analizami, zaproszenia na webinary i wydarzenia, przypomnienia o raportach w abonamencie. Ograniczaj churn mimowolny: ponawianie płatności, aktualizacja kart, cykliczny BLIK, przypomnienie przed odnowieniem. Proponuj plan roczny osobom z planem miesięcznym. Rezygnację udostępniaj jasną, krótką ścieżką z opcjonalną propozycją pauzy lub tańszego planu - bez utrudnień (DSA art. 25, UOKiK).",
+        "en": "Build the habit in the first weeks: a newsletter with analysis, invitations to webinars and events, reminders of reports included in the subscription. Reduce involuntary churn: payment retries, card updates, recurring BLIK, a reminder before renewal. Offer an annual plan to monthly subscribers. Keep cancellation a clear, short path with an optional offer of a pause or a cheaper plan – without obstacles (DSA Art. 25, UOKiK)."
+      },
+      "caveats_en": [
+        "The Recurly page describes the benchmarks as 'annual', but the Recurly documentation states plainly: 'Benchmarks apply only to monthly periods'. Values of 3–5% are realistic only as monthly figures, so that is how we treat them.",
+        "The Mather report for Q1 2025 (4.62%) does not state the period. Earlier Mather reports measure monthly churn, so a monthly period has been assumed.",
+        "News B2C data come mainly from the USA. There is no public churn benchmark for Polish publishers. RASP/Onet states only that it reduced churn 'by more than half y/y', without absolute values. In Poland 11% of people pay for online news (DNR 2026, −2 pp), so the base is smaller and more price-sensitive.",
+        "The thresholds for mid-market, enterprise and memberships are heuristics converted from annual and revenue-based values (GRR, ARR churn). Direct logo-churn medians for these segments were not found in primary sources.",
+        "The INMA value (a median of 4.6%/month for national news brands in 4Q 2024) is unverified: the page returns HTTP 403 (confirmed again), and the figure comes only from search results. It is consistent with Antenna (4.6%) and Mather Q1 2025 (4.62%), but no range boundary relies on it."
+      ],
+      "caveat_sources": {
+        "0": ["recurly_churn_benchmarks_2026", "recurly_docs_churn_benchmarks"],
+        "1": ["mather_q1_2025"],
+        "2": ["rasp_inma_2026", "dnr_2026_poland"],
+        "4": ["inma_churn_growth_engine"]
+      },
+      "default_context_by_segment": {
+        "all": "logo_churn_monthly.news_b2c",
+        "b2c_individual": "logo_churn_monthly.news_b2c",
+        "b2c_reduced": "logo_churn_monthly.news_b2c",
+        "b2b_institution": "logo_churn_monthly.b2b_smb",
+        "membership_club": "logo_churn_monthly.membership"
+      },
+      "contexts": [
+        {
+          "id": "logo_churn_monthly.news_b2c",
+          "label_en": "Digital news/media B2C subscriptions (paid monthly plans, web sales, no trial)",
+          "method_en": "Mather Economics medians (USA, 2022–2025) and Mather's 'Best-in-Class' level (the average of the markets with the highest 'subscription success index', not the P75 percentile), confirmed by the Recurly median (2026) and the Antenna weighted average (2025; period not stated on the page). The weak/critical boundary is a heuristic. To be updated once the Mather Q1 2026 report (May 2026) is obtained.",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "Mather's 'Best-in-Class' level (2.70%/month, 2022; the average of the markets with the highest 'subscription success index', not a percentile)",
+            "1": "Mather's 'Leading publisher' is 3.1%/month (2023)",
+            "2": "medians: Mather 3.53% (2022), 3.8% (2023), 4.62% (Q1 2025); Recurly digital media 4.14%; Antenna SVOD 4.6% (2025 weighted average; the page does not state the period, monthly according to Antenna's methodology – not confirmed on the page); INMA 4.6% unverified (HTTP 403)",
+            "3": "above market medians; annually approx. 45–58%",
+            "4": "heuristic: above 58% annually; the level of 'leaky' newsletter categories (sport 7.76%, AI 13.33%)"
+          }
+        },
+        {
+          "id": "logo_churn_monthly.b2b_smb",
+          "label_en": "SaaS / B2B SMB subscriptions (ARPA below approx. USD 1k/month, card payment, monthly plan)",
+          "method_en": "Recurly top quartile and median (July 2026), ChartMogul medians by ARPA (historical data Nov 2021–Jan 2022) and the Stripe average for 2024 (via Churnkey). The critical boundary is a heuristic.",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "Recurly top quartile for SaaS: 1.78% or less",
+            "2": "Recurly medians: SaaS 3.04–3.22%, B2B services 3.21–3.44%; Stripe average for B2B 3.82%",
+            "3": "ChartMogul median at ARPA < USD 25 is 6.1% (historical data Nov 2021–Jan 2022)",
+            "4": "heuristic: above 55% annually"
+          }
+        },
+        {
+          "id": "logo_churn_monthly.b2b_mid_market",
+          "label_en": "B2B mid-market (ACV approx. USD 12–100k, annual contracts); monthly equivalent",
+          "method_en": "Heuristic: conversion of the annual thresholds of 6/10/15/22% into monthly ones. Thresholds anchored in ARR churn of 10% for annual contracts (KeyBanc 2024) and the median GRR of 90–91% for ACV USD 12–250k (SaaS Capital 2025). Logo churn tends to be higher than dollar churn, because smaller customers leave more often.",
+          "period_en": "monthly (equivalent; assess as a rolling 12-month average)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "below approx. 6% annually",
+            "1": "approx. 6–10% annually",
+            "2": "approx. 10–15% annually; ARR churn for annual contracts is 10% (KeyBanc)",
+            "3": "approx. 15–22% annually",
+            "4": "above approx. 22% annually"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "logo_churn_monthly.b2b_enterprise",
+          "label_en": "B2B enterprise (ACV above USD 100k, multi-year contracts); monthly equivalent",
+          "method_en": "Heuristic: conversion of the annual thresholds of 3/5/8/12% into monthly ones. Anchors: GRR of 95% for ACV above USD 250k (SaaS Capital 2025) and ARR churn of 6% for 2-year contracts and 3% for 3+ year contracts (KeyBanc 2024).",
+          "period_en": "monthly (equivalent; assess as a rolling 12-month average)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "below 3% annually (ARR churn for 3+ year contracts: 3%)",
+            "1": "3–5% annually (median GRR above USD 250k ACV: 95%)",
+            "2": "5–8% annually",
+            "3": "8–12% annually",
+            "4": "above 12% annually"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "logo_churn_monthly.membership",
+          "label_en": "Memberships (annual fee); monthly equivalent",
+          "method_en": "Conversion of the annual thresholds of 10/15/20/28% into monthly ones. Thresholds anchored in MGI renewal medians (2025: 84% overall and 74% after the 1st year; 2026: 82% and 72%). The remaining boundaries are a heuristic.",
+          "period_en": "monthly (equivalent; with an annual fee, use a rolling 12 months)",
+          "segments": ["membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "below 10% annually (renewals of 90%+ are the level of top trade associations)",
+            "1": "10–15% annually",
+            "2": "15–20% annually; the MGI median is 82–84% renewals, i.e. 16–18% churn",
+            "3": "20–28% annually, the churn level of 1st-year members (renewals 72–74%)",
+            "4": "above 28% annually"
+          },
+          "basis_e": [0, 1, 4]
+        }
+      ]
+    },
+    "logo_churn_annual": {
+      "metric_id": "logo_churn_annual",
+      "abbr": "Logo churn (12M)",
+      "formula_en": "Customers active at the start of a 12-month period who are not active at its end, divided by customers active at the start of the period, × 100%. Alternatively: 1 − (1 − churn_M)^12. For memberships: 1 − (renewed members / members whose fee expired).",
+      "levers": {
+        "pl": "Przygotuj odnowienie z wyprzedzeniem: podsumowanie wartości z roku (raporty, wydarzenia, briefingi) i przypomnienie przed terminem. Kończąc długą promocję, zapowiedz pełną cenę wcześniej i zaproponuj plan roczny. Członkom pierwszego roku zapewnij wejście do społeczności: spotkanie powitalne, kontakt z ekspertami, pierwsze wydarzenie. Raportuj churn osobno dla planów miesięcznych i rocznych; rezygnacja ma pozostać prosta (DSA, UOKiK).",
+        "en": "Prepare renewals in advance: a summary of the year's value (reports, events, briefings) and a reminder before the due date. When a long promotion ends, announce the full price early and offer an annual plan. Give first-year members a way into the community: a welcome meeting, contact with experts, a first event. Report churn separately for monthly and annual plans; cancellation must remain simple (DSA, UOKiK)."
+      },
+      "caveats_en": [
+        "MGI benchmarks concern mainly associations in the USA. A think-tank membership with events and clubs is closer to professional societies (typically 75–85% renewals according to i4a).",
+        "The MGI 2026 data (82%/72%) come from a secondary source (i4a), because the original report could not be opened.",
+        "Long promotions (e.g. 52 weeks) shift churn to the moment of return to the full price. According to Mather (Q2 2025, 86 brands), even the best-performing promotional cohort, the 52-week one, has approx. 33% still active in week 80.",
+        "Do not combine monthly and annual plans into one figure without revenue weighting. Report them separately."
+      ],
+      "caveat_sources": {
+        "0": ["mgi_2025_memberjungle", "mgi_2026_i4a"],
+        "1": ["mgi_2026_i4a"],
+        "2": ["mather_q2_2025_promo"]
+      },
+      "default_context_by_segment": {
+        "all": "logo_churn_annual.news_b2c_all",
+        "b2c_individual": "logo_churn_annual.news_b2c_all",
+        "b2c_reduced": "logo_churn_annual.news_b2c_all",
+        "b2b_institution": "logo_churn_annual.b2b_smb",
+        "membership_club": "logo_churn_annual.membership"
+      },
+      "contexts": [
+        {
+          "id": "logo_churn_annual.news_b2c_all",
+          "label_en": "Digital news/media B2C – entire base (mix of monthly and annual plans)",
+          "method_en": "Conversion of the monthly thresholds 1 − (1 − m)^12, verified with cohort data (Piano 2021, FTI 2023).",
+          "period_en": "annually (rolling 12 months)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "corresponds to below 2.7%/month",
+            "2": "converted Mather medians of 3.53–4.62%/month, i.e. approx. 35–43% annually",
+            "3": "after the 1st year 46% of monthly subscribers remain (Piano 2021; a cohort of new subscribers, not the entire base)"
+          },
+          "basis_e": [4]
+        },
+        {
+          "id": "logo_churn_annual.news_b2c_annual_plans",
+          "label_en": "Digital news/media B2C – annual plans (churn at first renewal)",
+          "method_en": "Piano median (2021) and the FTI Consulting range (2022/23). The weak/critical boundaries are a heuristic.",
+          "period_en": "annually (per renewal)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "upper end of the FTI range: 80% retention after 52 weeks",
+            "1": "Piano 2021 median: after a year 74% of annual subscribers remain",
+            "2": "FTI: 65–80%; Aftenposten: 71% of new subscribers stay longer than a year",
+            "4": "heuristic"
+          }
+        },
+        {
+          "id": "logo_churn_annual.b2b_smb",
+          "label_en": "SaaS / B2B SMB subscriptions (monthly plans, card)",
+          "method_en": "Conversion of monthly quartiles and medians (Recurly 2026, ChartMogul – historical data Nov 2021–Jan 2022) and the Stripe 2024 annual average.",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "corresponds to the Recurly top quartile (≤1.78%/month)",
+            "2": "the Recurly SaaS median of 3.22%/month is approx. 32.5% annually; Stripe B2B: 38%",
+            "3": "ChartMogul median at ARPA < USD 25: 6.1%/month (historical data Nov 2021–Jan 2022), i.e. approx. 53% annually"
+          },
+          "basis_e": [4]
+        },
+        {
+          "id": "logo_churn_annual.b2b_mid_market",
+          "label_en": "B2B mid-market (ACV approx. USD 12–100k)",
+          "method_en": "Heuristic anchored in ARR churn by contract length (KeyBanc 2024: churn data for 2023; median ARR of the sample USD 22.5m in 2022 and USD 26m in 2023) and in GRR medians by ACV (SaaS Capital 2025).",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "1": "ARR churn for annual contracts: 10%; overall: 7% (KeyBanc 2024; churn data for 2023)",
+            "2": "a median GRR of 90–91% means a 9–10% gross revenue loss (SaaS Capital)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "logo_churn_annual.b2b_enterprise",
+          "label_en": "B2B enterprise (ACV above USD 100k, multi-year contracts)",
+          "method_en": "Heuristic anchored in KeyBanc 2024 (churn by contract length, 2023 data) and SaaS Capital 2025 (GRR by ACV).",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "ARR churn for 3+ year contracts: 3%",
+            "1": "GRR of 95% for ACV above USD 250k",
+            "2": "ARR churn for 2-year contracts: 6%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "logo_churn_annual.membership",
+          "label_en": "Memberships (associations, clubs, paid think-tank membership)",
+          "method_en": "MGI medians (2025 and 2026) as the midpoint of the 'normal' range. The remaining boundaries are a heuristic based on i4a ranges.",
+          "period_en": "annually",
+          "segments": ["membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "renewals of 90%+ (top trade associations according to i4a)",
+            "2": "MGI median: 84% renewals (2025) and 82% (2026)",
+            "3": "churn level of new members (renewals after the 1st year 72–74%)",
+            "4": "within the range typical of non-profits (60–75% renewals according to i4a)"
+          },
+          "basis_e": [1]
+        }
+      ]
+    },
+    "gross_revenue_churn": {
+      "metric_id": "gross_revenue_churn",
+      "formula_en": "(MRR lost through cancellations + MRR lost through downgrades or new discounts) in the period, divided by MRR at the start of the period, × 100%. For B2B on an annual basis: GRC = 1 − GRR.",
+      "levers": {
+        "pl": "Ograniczaj utratę przychodu z odejść: odzyskuj nieudane płatności i odnawiaj umowy instytucjonalne z wyprzedzeniem. Ograniczaj kontrakcję: przy zmniejszaniu liczby licencji proponuj elastyczny zakres zamiast rezygnacji. Podwyżki przy odnowieniu wprowadzaj z uzasadnieniem wartości i obserwuj jednocześnie churn logo, bo spadek GRC może ukrywać odejścia klientów. Czytaj GRC razem z QR.",
+        "en": "Limit revenue lost to cancellations: recover failed payments and renew institutional contracts ahead of time. Limit contraction: when the number of licences is reduced, offer a flexible scope instead of cancellation. Introduce renewal price increases with a clear value case and watch logo churn at the same time, because a falling GRC can hide customer departures. Read GRC together with QR."
+      },
+      "caveats_en": [
+        "ChartMogul gross MRR churn data date from 2022. No newer medians for B2C were found.",
+        "Piano: a price increase at renewal of 15–20% reduced retention by 5–8% while raising revenue by 6–14%. A falling GRC can therefore coexist with rising logo churn.",
+        "The KeyBanc medians (n=52–55; median ARR of the sample USD 22.5m in 2022 and USD 26m in 2023) and Aleph×Benchmarkit (n=226, many AI/PLG companies) differ by 5–7 pp. The ranges average them. In the KeyBanc/Sapphire 2025 edition, the median GRR for 2023 is 86%."
+      ],
+      "pairs": ["saas_quick_ratio"],
+      "default_context_by_segment": {
+        "all": "gross_revenue_churn.b2c_monthly",
+        "b2c_individual": "gross_revenue_churn.b2c_monthly",
+        "b2c_reduced": "gross_revenue_churn.b2c_monthly",
+        "b2b_institution": "gross_revenue_churn.b2b_annual"
+      },
+      "contexts": [
+        {
+          "id": "gross_revenue_churn.b2b_annual",
+          "label_en": "B2B SaaS / institutional subscriptions (ARR, annual basis)",
+          "method_en": "GRR quartiles from KeyBanc 2024 (P25 82, median 89–91, P75 93–95) and Aleph×Benchmarkit CY2025 (76/84/91), converted as 1 − GRR. Check: the SaaS Capital 2025 median is 91%. Newer check: KeyBanc/Sapphire 2025 (16th edition, 13.11.2025) – the median GRR fell to 86% (2023) and is expected to approach 90%, which supports the normal/good boundary at a GRC of 12%. Thresholds unchanged.",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "above P75 GRR (91–95%)",
+            "1": "between P50 and P75: median GRR 89–91% (KeyBanc 2024E, SaaS Capital 2025); Aleph sales-led 88%",
+            "2": "between P25 and P50: Aleph×Benchmarkit 84%, KeyBanc P25 82%",
+            "3": "below P25 (Aleph×Benchmarkit P25 GRR: 76%)",
+            "4": "heuristic"
+          }
+        },
+        {
+          "id": "gross_revenue_churn.b2c_monthly",
+          "label_en": "B2C digital subscriptions (low ARPA, MRR, monthly basis)",
+          "method_en": "Heuristic: news logo-churn medians (Mather) increased by typical downgrades. Upper boundary per the ChartMogul gross MRR churn median (2022) for the lowest ARPA.",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "close to news logo-churn medians (3.5–4.6%) plus downgrades",
+            "4": "the ChartMogul median at ARPA USD 0–10 is 8.9%/month (historical data Jan–Mar 2022)"
+          },
+          "basis_e": [0, 1, 2, 3]
+        }
+      ]
+    },
+    "net_revenue_retention": {
+      "metric_id": "net_revenue_retention",
+      "formula_en": "(ARR at the start of the period + ARR from expansion, upsell, cross-sell and price increases − ARR from downgrades − ARR lost through departures), counting only customers present at the start of the period, divided by ARR at the start of the period, × 100%. The standard window is 12 months (e.g. MRR in December against December of the previous year).",
+      "levers": {
+        "pl": "Rozwijaj klientów instytucjonalnych: dodatkowe licencje dla zespołów, pakiety wydarzeń i raporty w abonamencie. Planuj rozmowę odnowieniową z podsumowaniem wykorzystania i propozycją rozszerzenia. Podwyżki cen przy odnowieniu wiąż z nową wartością. Nie wliczaj jednorazowych sponsoringów do NRR - mierz je osobno.",
+        "en": "Develop institutional customers: additional licences for teams, event packages and reports included in the subscription. Plan a renewal conversation with a usage summary and an expansion proposal. Link price increases at renewal to new value. Do not count one-off sponsorships towards NRR – measure them separately."
+      },
+      "caveats_en": [
+        "High confidence applies to the B2B contexts (SaaS Capital, KeyBanc, Aleph×Benchmarkit). The B2C context is a low-confidence heuristic.",
+        "The medians differ in methodology: SaaS Capital calculates on MRR December to December, KeyBanc on ARR. Aleph×Benchmarkit shows that a usage-based pricing model has a median of 108% and a seat-based one 98%.",
+        "For a think tank, B2B NRR rises mainly through additional licences, event packages and reports included in the subscription. One-off sponsorships should not raise NRR.",
+        "The ChartMogul AI Retention Report (2025) covers companies with at least USD 250k ARR; the B2C SaaS median of 49% is the latest public reference point for B2C.",
+        "SaaS Capital 2025: the data by ACV and the quartiles exclude companies below USD 1m ARR; the measurement window is MRR Dec 2023 → Dec 2024 (2024 data, published 18.09.2025)."
+      ],
+      "default_context_by_segment": {
+        "all": "net_revenue_retention.b2c_low_arpa",
+        "b2c_individual": "net_revenue_retention.b2c_low_arpa",
+        "b2c_reduced": "net_revenue_retention.b2c_low_arpa",
+        "b2b_institution": "net_revenue_retention.b2b_smb"
+      },
+      "contexts": [
+        {
+          "id": "net_revenue_retention.b2b_all",
+          "label_en": "B2B SaaS / B2B subscriptions – overall",
+          "method_en": "Aleph×Benchmarkit CY2025 quartiles (P25 92, P50 102, P75 108–110 – the page is inconsistent), checked against KeyBanc 2024E (96/101/109) and the SaaS Capital 2025 median (101%). The 'optimal' boundary was left at 110 (consistent with KeyBanc 109 and SaaS Capital). KeyBanc/Sapphire 2025: NRR still 'above 100%'.",
+          "period_en": "annually (12-month window)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "heuristic; companies with NRR below 90% grew by a median of 15% (SaaS Capital)",
+            "1": "below P25 (Aleph×Benchmarkit CY2025: 92%)",
+            "2": "P25–P50; median 101–102% (SaaS Capital, KeyBanc, Aleph×Benchmarkit)",
+            "3": "median (P50) to P75",
+            "4": "above P75 (Aleph×Benchmarkit P75 108–110% – the page gives 110% once and 108% once; KeyBanc 2024E 109%)"
+          }
+        },
+        {
+          "id": "net_revenue_retention.b2b_smb",
+          "label_en": "B2B ACV below USD 12k (SMB; typical institutional think-tank subscriptions)",
+          "method_en": "SaaS Capital 2025 quartiles for ACV < USD 12k (P25 90, P50 98, P75 106).",
+          "period_en": "annually (12-month window)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below P25 (90%)",
+            "2": "P25–P50; median 98% (Aleph×Benchmarkit for ACV < USD 5k: also 98%)",
+            "3": "median (P50) to P75",
+            "4": "above P75 (106%)"
+          }
+        },
+        {
+          "id": "net_revenue_retention.b2b_mid_market",
+          "label_en": "B2B mid-market (ACV USD 12–100k)",
+          "method_en": "Averaged SaaS Capital 2025 quartiles: ACV USD 12–25k (98/103/115), 25–50k (97/102/111) and 50–100k (96/104/110).",
+          "period_en": "annually (12-month window)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below P25 (96–98%)",
+            "2": "P25–P50 (medians 102–104%)",
+            "3": "median (P50) to P75",
+            "4": "above P75 (110–115%)"
+          }
+        },
+        {
+          "id": "net_revenue_retention.b2b_enterprise",
+          "label_en": "B2B enterprise (ACV above USD 100k)",
+          "method_en": "SaaS Capital 2025 quartiles: ACV USD 100–250k (94/102/109) and above USD 250k (102/106/110).",
+          "period_en": "annually (12-month window)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below P25 (94–102%)",
+            "2": "P25–P50 (medians 102–106%)",
+            "3": "median (P50) to P75",
+            "4": "above P75 (109–110%)"
+          }
+        },
+        {
+          "id": "net_revenue_retention.b2c_low_arpa",
+          "label_en": "B2C digital subscriptions (low ARPA)",
+          "method_en": "B2C SaaS NRR median from the ChartMogul AI Retention Report (2025 data: 49%; for comparison B2B SaaS 82%) and the ChartMogul 2023 top quartile (65.1% at ARPA < USD 10/month; only 2.7% of such companies exceed 100%). The remaining boundaries are a heuristic; low confidence.",
+          "period_en": "annually (12-month window)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "ChartMogul 2025 median for B2C SaaS: 49% (on the weak/normal boundary); a publisher with churn of approx. 3.8–4.6%/month and price increases at renewal has approx. 57–65%",
+            "3": "ChartMogul 2023 top quartile at ARPA < USD 10: 65.1%",
+            "4": "achievable with price increases at renewal and low churn"
+          },
+          "basis_e": [4]
+        }
+      ]
+    },
+    "gross_revenue_retention": {
+      "metric_id": "gross_revenue_retention",
+      "formula_en": "(ARR at the start of the period − ARR lost through departures − ARR lost through downgrades) / ARR at the start of the period × 100%. Expansion, upsell and price increases are not included, so the result does not exceed 100%.",
+      "levers": {
+        "pl": "Proponuj instytucjom umowy roczne i wieloletnie zamiast miesięcznych - długość kontraktu wyraźnie wpływa na GRR. Monitoruj wykorzystanie licencji i reaguj, zanim klient zmniejszy zakres. Ograniczaj churn mimowolny sprawną windykacją i fakturami z przypomnieniem. Raportuj GRR osobno dla B2C i B2B, bo poziomy obu segmentów nie są porównywalne.",
+        "en": "Offer institutions annual and multi-year contracts instead of monthly ones – contract length clearly affects GRR. Monitor licence usage and act before a customer reduces scope. Limit involuntary churn with efficient dunning and invoices with reminders. Report GRR separately for B2C and B2B, because the levels of the two segments are not comparable."
+      },
+      "caveats_en": [
+        "Aleph×Benchmarkit (CY2025) shows the median GRR falling from 88% to 84%, and KeyBanc (2024E) 91%. The difference stems from the sample: Aleph×Benchmarkit has more PLG and AI-native companies, KeyBanc more companies with large enterprise sales.",
+        "The B2C context is a heuristic (low confidence). News churn medians (3.8–4.62%/month) correspond to a GRR of approx. 57–63%, i.e. the normal/good boundary.",
+        "SaaS Capital: multi-year contracts have a GRR of 94%, annual ones 90% and monthly ones 89%. Contract length in a think tank's B2B offer has a significant effect on GRR.",
+        "KeyBanc/Sapphire 2025 (13.11.2025): the median GRR for 2023 is 86% (against 89% in the 2024 edition), with an expected return to around 90%.",
+        "SaaS Capital 2025: medians by ACV exclude companies below USD 1m ARR; the measurement window is MRR Dec 2023 → Dec 2024 (2024 data)."
+      ],
+      "default_context_by_segment": {
+        "all": "gross_revenue_retention.b2c_low_arpa",
+        "b2c_individual": "gross_revenue_retention.b2c_low_arpa",
+        "b2c_reduced": "gross_revenue_retention.b2c_low_arpa",
+        "b2b_institution": "gross_revenue_retention.b2b_smb"
+      },
+      "contexts": [
+        {
+          "id": "gross_revenue_retention.b2b_all",
+          "label_en": "B2B SaaS / B2B subscriptions – overall",
+          "method_en": "Aleph×Benchmarkit CY2025 (76/84/91) and KeyBanc 2024E (82/91/95) quartiles and the SaaS Capital 2025 median (91%). Newer check: KeyBanc/Sapphire 2025 (16th edition, 13.11.2025) – the median GRR fell to 86% (2023) and is expected to approach 90%. Thresholds unchanged.",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "heuristic; below the Aleph×Benchmarkit lower quartile",
+            "1": "lower quartile (P25): 76% (Aleph×Benchmarkit), 82% (KeyBanc)",
+            "2": "P25–P50: median 84% (Aleph×Benchmarkit CY2025), sales-led 88%",
+            "3": "median 89–91% (KeyBanc, SaaS Capital); 90% as the minimum entry threshold",
+            "4": "upper quartile (P75): 91% (Aleph×Benchmarkit), 93–95% (KeyBanc)"
+          }
+        },
+        {
+          "id": "gross_revenue_retention.b2b_smb",
+          "label_en": "B2B ACV below USD 12k (SMB, institutional subscriptions)",
+          "method_en": "SaaS Capital 2025 and Aleph×Benchmarkit CY2025 medians for the lowest ACVs. The boundaries are a heuristic, because quartiles for this bracket were not published.",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "median for ACV < USD 5k: 80% (Aleph×Benchmarkit)",
+            "3": "SaaS Capital median for ACV < USD 12k: 90%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "gross_revenue_retention.b2b_enterprise",
+          "label_en": "B2B enterprise (ACV above USD 100k)",
+          "method_en": "SaaS Capital 2025 medians by ACV and the KeyBanc 2024 top quartile. The extreme boundaries are a heuristic.",
+          "period_en": "annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "2": "median 91% (ACV USD 100–250k); Aleph×Benchmarkit for USD 50–100k: 91%",
+            "3": "median 95% (ACV above USD 250k); KeyBanc P75 93–95%"
+          },
+          "basis_e": [0, 4]
+        },
+        {
+          "id": "gross_revenue_retention.b2c_low_arpa",
+          "label_en": "B2C digital subscriptions (low ARPA)",
+          "method_en": "The ChartMogul 2023 top GRR quartile for ARPA < USD 50/month (60–70%) defines the 'good' range, and its upper boundary (70%) the 'optimal' threshold (convention: P75 = 'optimal' threshold). Mather news churn medians (3.8–4.62%/month) converted to an annual figure give a GRR of approx. 57–63%. Heuristic, low confidence.",
+          "period_en": "annually",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "heuristic; ChartMogul 2025: GRR of AI-native products < USD 50 is 23%, '20 points worse' than B2B/B2C SaaS",
+            "1": "heuristic",
+            "2": "news churn medians (3.8–4.62%/month) give a GRR of approx. 57–63%",
+            "3": "ChartMogul 2023 top quartile at ARPA < USD 50: 60–70%",
+            "4": "from the upper boundary of the ChartMogul 2023 top quartile (70%)"
+          }
+        }
+      ]
+    },
+    "involuntary_churn_share": {
+      "metric_id": "involuntary_churn_share",
+      "formula_en": "Subscriptions ended because of an unrecovered payment in the period / all subscriptions ended in the period × 100%. Supplementary: monthly involuntary churn = departures caused by payment / paying base at the start of the month.",
+      "levers": {
+        "pl": "Włącz inteligentne ponawianie płatności i automatyczną aktualizację kart. Wysyłaj przypomnienie przed odnowieniem i po nieudanej płatności, z linkiem do zmiany metody. Oferuj metody popularne w Polsce: cykliczny BLIK i fakturę z terminem dla instytucji. Mierz osobno nieopłacone faktury B2B, bo ich odzyskanie wymaga kontaktu, a nie ponowienia obciążenia karty.",
+        "en": "Enable smart payment retries and automatic card updates. Send a reminder before renewal and after a failed payment, with a link to change the payment method. Offer methods popular in Poland: recurring BLIK and invoices with payment terms for institutions. Measure unpaid B2B invoices separately, because recovering them requires contact rather than another card charge attempt."
+      },
+      "caveats_en": [
+        "Recurly (2026) estimates the share of involuntary churn at 20–40% of all churn. The spread depends on payment methods and price.",
+        "In Poland BLIK, bank transfer and invoices are popular. Without card tokenisation or recurring BLIK, involuntary churn has to be measured as an 'unpaid renewal' or an 'overdue invoice'. There is no public PL benchmark.",
+        "The WAN-IFRA data (Seattle Times, Boston Globe) date from 2018 and are historical."
+      ],
+      "default_context_by_segment": {
+        "all": "involuntary_churn_share.news_b2c",
+        "b2c_individual": "involuntary_churn_share.news_b2c",
+        "b2c_reduced": "involuntary_churn_share.news_b2c",
+        "b2b_institution": "involuntary_churn_share.b2b_card"
+      },
+      "contexts": [
+        {
+          "id": "involuntary_churn_share.news_b2c",
+          "label_en": "Digital news/media B2C (recurring card payments)",
+          "method_en": "Distribution of shares from Piano (2024 and 2026; the passive share calculated from the stated share of active churn), Recurly 2026 (calculated: involuntary / total), Stripe 2024 (via Churnkey) and publisher cases (WAN-IFRA 2018).",
+          "period_en": "monthly or quarterly (share of departures in the period)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "1": "the Boston Globe cut the share from 50% to 20% (2018)",
+            "2": "Piano 2024: 29% passive churn; Stripe: digital goods 29%, B2C 24%; Piano 2026: approx. 25% at sites with active churn prevention (calculated: 100 − 75% active churn)",
+            "3": "Recurly digital media: 1.59/4.14 ≈ 38%; Piano 2026: approx. 42% at sites without active prevention (calculated: 100 − 58% active churn)",
+            "4": "Seattle Times: 62% of digital churn was card failures (2018)"
+          }
+        },
+        {
+          "id": "involuntary_churn_share.b2b_card",
+          "label_en": "B2B SaaS / B2B subscriptions (card)",
+          "method_en": "Stripe 2024 averages (via Churnkey) by model and AOV (average order value) and shares calculated from Recurly 2026 medians. The boundaries are a heuristic.",
+          "period_en": "monthly or quarterly",
+          "segments": ["b2b_institution"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "Recurly ARPC above USD 250: 0.18/3.07–3.54 ≈ 5–6% (the page gives total churn once as 3.07% and once as 3.54%)",
+            "1": "Stripe: B2B 16%, AOV (average order value) USD 1–10k: 15%",
+            "2": "Stripe: 22% for SaaS",
+            "3": "Recurly SaaS: 1.06/3.22 ≈ 33%",
+            "4": "heuristic; Stripe: AOV (average order value) below USD 10: 35%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "dunning_recovery_rate": {
+      "metric_id": "dunning_recovery_rate",
+      "formula_en": "Value (or number) of failed recurring payments recovered within the recovery window (e.g. 30 days) / value (or number) of all failed recurring payments in that period × 100%. Calculate by cohort after the window closes and state whether you count by value or by number.",
+      "levers": {
+        "pl": "Łącz metody odzysku: inteligentne ponawianie, aktualizację kart, e-mail lub SMS z linkiem do płatności i komunikat po zalogowaniu. Ustal harmonogram kontaktów w oknie odzysku i zakończ go jasną informacją o zawieszeniu dostępu. Dla instytucji prowadź osobny proces faktur z przypomnieniami terminów. Licz odzysk kohortowo po zamknięciu okna - raz według wartości, raz według liczby.",
+        "en": "Combine recovery methods: smart retries, card updates, email or SMS with a payment link and an in-product message after login. Set a contact schedule within the recovery window and end it with clear notice that access will be suspended. For institutions, run a separate invoice process with due-date reminders. Calculate recovery by cohort after the window closes – once by value and once by number."
+      },
+      "caveats_en": [
+        "Almost all figures come from tool vendors (Stripe, Recurly, Churnkey) and are declarations without a full methodology.",
+        "Churnkey (State of Retention 2025): email/SMS campaigns on their own recover 42% on average.",
+        "For B2B invoices (bank transfer), instead of this rate calculate the share of invoices paid within 30/60 days of the due date.",
+        "No public benchmarks were found for Polish payment operators (PayU, Przelewy24, recurring BLIK).",
+        "Stripe: in 2025, USD 8.2bn of failed payments were recovered (an absolute value, not a recovery rate)."
+      ],
+      "caveat_sources": {
+        "0": ["stripe_billing", "recurly_failed_payment_2026", "churnkey_sor_2025"],
+        "1": ["churnkey_sor_2025"],
+        "4": ["stripe_billing"]
+      },
+      "default_context_by_segment": {
+        "all": "dunning_recovery_rate.card_subscriptions"
+      },
+      "contexts": [
+        {
+          "id": "dunning_recovery_rate.card_subscriptions",
+          "label_en": "B2C and B2B card subscriptions (all methods combined: retries, account updater, email/SMS, in-product message)",
+          "method_en": "Averages declared by vendors (Stripe, Churnkey/Stripe 2024), Recurly 2026 ranges and cases: FT (2025) and a large enterprise retailer at Recurly (71%). The weak/critical boundaries are a heuristic.",
+          "period_en": "monthly (cohort of failed payments, 30-day window)",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic: no smart retries or communication",
+            "1": "heuristic; below the level of default retries alone",
+            "2": "Stripe: 55% on average; Smart Retries alone 51%; a starting point in the 'low-to-mid 50s' (Recurly)",
+            "3": "FT: 66%",
+            "4": "Recurly: 71% after optimisation is a single case of a large enterprise retailer, not an average; achievable level according to Recurly 'high 60s to low 70s'; Churnkey: approx. 70% with three methods"
+          }
+        }
+      ]
+    },
+    "cancellation_save_rate": {
+      "metric_id": "cancellation_save_rate",
+      "formula_en": "Cancellation sessions ending with an accepted offer after which the customer is still active after 30 (or 60) days / all started cancellation sessions × 100%.",
+      "levers": {
+        "pl": "W ścieżce rezygnacji zapytaj o powód i dopasuj jedną uczciwą propozycję: pauzę, tańszy plan albo zmianę zakresu - zawsze z widocznym przyciskiem rezygnacji (DSA art. 25, UOKiK). Testuj warianty propozycji, mierząc zatrzymanych aktywnych po 30-60 dniach, a nie samą akceptację. Licz koszt rabatów retencyjnych w ARPU. Wnioski z powodów rezygnacji przekazuj redakcji i zespołowi wydarzeń.",
+        "en": "In the cancellation flow, ask for the reason and match one fair offer: a pause, a cheaper plan or a change of scope – always with a visible cancel button (DSA Art. 25, UOKiK). Test offer variants by measuring customers still active after 30–60 days, not acceptance alone. Count the cost of retention discounts in ARPU. Pass insights from cancellation reasons on to the editorial and events teams."
+      },
+      "caveats_en": [
+        "The SaaS/apps context is a heuristic with no anchor in data (low confidence). The news context is based on verified but individual reference points (FT 3% → 6%, Piano 6–16%, Star Tribune 18.5%).",
+        "Churnkey: discounts dominate among accepted offers (53–54%; the page gives 53.9% and 53%), a pause is approx. 19% and a plan change approx. 7%. Discounts lower ARPU, so also measure net revenue from retained customers.",
+        "EU and PL law restricts making cancellation difficult (ban on dark patterns, e.g. Art. 25 DSA for platforms; consumer law, UOKiK). It is worth consulting a lawyer about the cancellation flow.",
+        "According to Recurly, use of pausing rose by 337% at leading merchants (the page gives neither the period nor the comparison base). It is worth measuring pausing separately (share of returns after a pause)."
+      ],
+      "caveat_sources": {
+        "1": ["churnkey_sor_2025"]
+      },
+      "pairs": ["arpu"],
+      "default_context_by_segment": {
+        "all": "cancellation_save_rate.news_b2c",
+        "b2c_individual": "cancellation_save_rate.news_b2c",
+        "b2c_reduced": "cancellation_save_rate.news_b2c",
+        "b2b_institution": "cancellation_save_rate.saas_cancel_flow"
+      },
+      "contexts": [
+        {
+          "id": "cancellation_save_rate.news_b2c",
+          "label_en": "Digital news/media B2C (self-service online cancellation)",
+          "method_en": "Publisher reference points: FT (2025), Piano (2024) and Star Tribune (ProsperStack case study). The boundaries combine these values.",
+          "period_en": "monthly (cohort of cancellation sessions)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "FT level before the redesign of the flow (3%); Piano: a survey alone yields 0%",
+            "2": "FT after the redesign: 6%; Piano: downgrade offer 6–16%",
+            "3": "Piano: up to 16% retained",
+            "4": "Star Tribune: 18.5% after 15 A/B tests"
+          }
+        },
+        {
+          "id": "cancellation_save_rate.saas_cancel_flow",
+          "label_en": "SaaS and subscription apps with a dedicated cancel-flow tool (B2C, B2B SMB)",
+          "method_en": "Heuristic (low confidence). No independent data on net save rate (active after 30–60 days). Churnkey gives only aggregate values (approx. 3 million cancellation sessions, 'nearly two million' saved subscriptions; saving 20–40% of revenue at risk of churn). These proportions are not a save rate in the sense of the metric's definition, so they do not anchor the thresholds.",
+          "period_en": "monthly",
+          "segments": ["b2b_institution", "b2c_individual"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "4": "heuristic (low confidence); no public anchor for net save rate"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "winback_rate_12m": {
+      "metric_id": "winback_rate_12m",
+      "formula_en": "Former subscribers from the cohort of departures in month M who bought a paid subscription again within 12 months / number of departures in cohort M × 100%.",
+      "levers": {
+        "pl": "Zbuduj ścieżkę powrotu dla byłych subskrybentów: przypomnienia o nowych raportach i wydarzeniach w pierwszych tygodniach po rezygnacji, potem rzadziej. Proponuj powrót bez kary - z zachowaną historią konta i preferencjami newslettera. Segmentuj według powodu odejścia: cena, brak czasu, wartość treści. Identyfikuj byłych klientów w CRM po adresie e-mail, aby nie liczyć powrotów jako nowych klientów.",
+        "en": "Build a return path for former subscribers: reminders of new reports and events in the first weeks after cancellation, then less often. Offer a return without penalty – with account history and newsletter preferences preserved. Segment by reason for leaving: price, lack of time, value of content. Identify former customers in the CRM by email address so that returns are not counted as new customers."
+      },
+      "caveats_en": [
+        "RevenueCat concerns mobile and web apps and does not state the reactivation time window. There is no public winback benchmark for news publishers.",
+        "In its modelling INMA used a monthly reactivation of 4.8% taken from telecommunications, not from publisher data. The value is unverified (the page returns HTTP 403, confirmed again).",
+        "Deduplicating 'former' customers requires identifying the person (email, login, card token) in the CRM.",
+        "The INMA values (1.7x, approx. 21 months, 136 brands) are unverified (HTTP 403); no range boundary relies on them.",
+        "ChartMogul (The SaaS Winbacks Report, 2026) defines neither the window nor the denominator of the winback rate, so the B2B SaaS context is a low-confidence heuristic."
+      ],
+      "caveat_sources": {
+        "1": ["inma_churn_growth_engine"],
+        "3": ["inma_past_subscribers_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "winback_rate_12m.b2c_monthly_plans",
+        "b2c_individual": "winback_rate_12m.b2c_monthly_plans",
+        "b2c_reduced": "winback_rate_12m.b2c_monthly_plans",
+        "b2b_institution": "winback_rate_12m.b2b_saas"
+      },
+      "contexts": [
+        {
+          "id": "winback_rate_12m.b2c_monthly_plans",
+          "label_en": "B2C digital subscriptions – monthly plans",
+          "method_en": "The RevenueCat SOSA 2026 average (20.1%) as the normal/good boundary, the level of expensive monthly plans (28.9%) as the 'optimal' threshold. The SOSA 2025 value (13.7%) falls within the 'normal' range. Boundaries below the average are a heuristic.",
+          "period_en": "departure cohort; window up to 12 months",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_12m",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "RevenueCat SOSA 2025: 13.7% (previous average level)",
+            "3": "RevenueCat SOSA 2026: 20.1% (typically 18–24%) as the normal/good boundary",
+            "4": "expensive monthly plans: 28.9%; productivity category: 36.1%"
+          }
+        },
+        {
+          "id": "winback_rate_12m.b2c_annual_plans",
+          "label_en": "B2C digital subscriptions – annual plans",
+          "method_en": "Typical RevenueCat range (SOSA 2026). The remaining boundaries are a heuristic.",
+          "period_en": "departure cohort; window up to 12 months",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_12m",
+          "notes_en": {
+            "2": "RevenueCat: typically 4–6% for annual plans"
+          },
+          "basis_e": [0, 1, 3, 4]
+        },
+        {
+          "id": "winback_rate_12m.b2b_saas",
+          "label_en": "B2B SaaS (logo; departure cohort)",
+          "method_en": "Heuristic around the winback-rate medians by ARR (ChartMogul, The SaaS Winbacks Report 2026: 7/9/11/13%). The report defines neither the window nor the denominator; the median time to return is 38 days, 66% of returners come back within 90 days, approx. 10% after a year. Low confidence.",
+          "period_en": "departure cohort; window undefined in the source (compare with a window of up to 12 months)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_12m",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "ChartMogul medians: ARR < USD 500k 7%, ARR USD 0.5–10m 9%",
+            "3": "ChartMogul median at ARR USD 10–30m: 11%",
+            "4": "ChartMogul median at ARR > USD 30m: 13%"
+          }
+        }
+      ]
+    },
+    "returning_subscriber_share": {
+      "metric_id": "returning_subscriber_share",
+      "formula_en": "New paid activations from people who previously had a paid subscription / all new paid activations in the period × 100%.",
+      "levers": {
+        "pl": "Utrzymuj kontakt z byłymi subskrybentami przez newsletter i zaproszenia na otwarte wydarzenia, aby pula powrotów nie wygasała. Pilnuj równowagi: przy wysokim udziale powrotów wzmacniaj akwizycję nowych czytelników. Odróżniaj powroty po promocji od powrotów po pełnej cenie, aby wykryć seryjnie rezygnujących. Powracającym proponuj plan roczny.",
+        "en": "Stay in touch with former subscribers through the newsletter and invitations to open events so that the pool of potential returns does not dry up. Keep the balance: with a high share of returns, strengthen acquisition of new readers. Distinguish returns after a promotion from returns at full price in order to detect serial churners. Offer returning customers an annual plan."
+      },
+      "caveats_en": [
+        "Recurly does not give a breakdown by industry on its public page. The 1 in 4 value concerns the whole network (approx. 76 million subscribers), and the page states neither its period nor its base.",
+        "There are no public data for news publishers or for Poland."
+      ],
+      "default_context_by_segment": {
+        "all": "returning_subscriber_share.b2c_digital",
+        "b2c_individual": "returning_subscriber_share.b2c_digital",
+        "b2c_reduced": "returning_subscriber_share.b2c_digital"
+      },
+      "contexts": [
+        {
+          "id": "returning_subscriber_share.b2c_digital",
+          "label_en": "B2C digital subscriptions (media, news, expert content)",
+          "method_en": "The Recurly network average (State of Subscriptions 2026, all industries) as the midpoint of the target range. The remaining boundaries are a heuristic.",
+          "period_en": "monthly or quarterly",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "untapped pool of former customers",
+            "2": "Recurly 2026: approx. 1 in 4 new sign-ups are returning subscribers",
+            "3": "check whether the share of serial churners is rising",
+            "4": "dependence on returns; weak acquisition of new customers"
+          },
+          "basis_e": [0, 1, 3, 4]
+        }
+      ]
+    },
+    "cohort_retention_m1": {
+      "metric_id": "cohort_retention_m1",
+      "formula_en": "Subscribers from the start cohort (month of the first paid transaction) still active and paying after the first renewal (day 30–35) / cohort size × 100%. Count trials and introductory offers as separate cohorts.",
+      "levers": {
+        "pl": "Zaplanuj pierwsze 30 dni: powitanie, przewodnik po raportach i archiwum, zaproszenie na najbliższe wydarzenie lub webinar. Przed pierwszym odnowieniem przypomnij, co subskrybent otrzymał, i jasno podaj kwotę, jeśli kończy się oferta wprowadzająca. Mierz kohorty z ofert wprowadzających osobno. Rezygnacja w pierwszym miesiącu ma być równie prosta jak zakup.",
+        "en": "Plan the first 30 days: a welcome, a guide to reports and the archive, an invitation to the next event or webinar. Before the first renewal, remind subscribers what they have received and state the amount clearly if an introductory offer is ending. Measure cohorts from introductory offers separately. Cancelling in the first month must be as simple as buying."
+      },
+      "caveats_en": [
+        "RevenueCat data concern apps (often with introductory offers) and are a lower reference point, not a norm for a publisher's web subscriptions.",
+        "Piano 2026: paid trials account for over 60% of monthly offers (typically USD 1/EUR 1 for a month). Count their M1 up to the first payment at full price.",
+        "Reuters Institute (2023): low introductory offers attract effectively, but many subscribers do not see the value at renewal at full price."
+      ],
+      "caveat_sources": {
+        "2": ["reuters_paying_news_2023"]
+      },
+      "default_context_by_segment": {
+        "all": "cohort_retention_m1.news_b2c_monthly",
+        "b2c_individual": "cohort_retention_m1.news_b2c_monthly",
+        "b2c_reduced": "cohort_retention_m1.news_b2c_monthly"
+      },
+      "contexts": [
+        {
+          "id": "cohort_retention_m1.news_b2c_monthly",
+          "label_en": "Digital news/media B2C – monthly plan, web sales, full price or moderate discount",
+          "method_en": "Heuristic: steady-state churn of 3.8–4.62%/month (Mather medians 2023–2025) increased by the typically higher outflow in the first weeks (Piano 2024; WAN-IFRA/Die Welt 2018). No public M1 median for publishers.",
+          "period_en": "monthly cohort",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m1",
+          "notes_en": {
+            "4": "close to 'steady-state' churn (3–5%/month)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "cohort_retention_m1.media_apps",
+          "label_en": "Media & Entertainment subscription apps – monthly plan, first renewal (reference point)",
+          "method_en": "RevenueCat quartiles (SOSA 2026): P25 41%, median 58%, P75 72%. The critical boundary is a heuristic.",
+          "period_en": "monthly cohort",
+          "segments": ["b2c_individual"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m1",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below P25",
+            "2": "P25 to median (P50)",
+            "3": "median (P50) to P75",
+            "4": "above P75"
+          }
+        }
+      ]
+    },
+    "cohort_retention_m3": {
+      "metric_id": "cohort_retention_m3",
+      "formula_en": "Subscribers from the start cohort still active and paying after 3 months (approx. day 90) / cohort size × 100%.",
+      "levers": {
+        "pl": "Utrwalaj nawyk do trzeciego miesiąca: regularny newsletter z analizami, powiadomienia o nowych raportach z obszarów zainteresowań, udział w wydarzeniu lub klubie dyskusyjnym. Wykrywaj nieaktywnych subskrybentów i zapraszaj ich do konkretnych treści. Dla instytucji mierz aktywację licencji w pierwszych 90 dniach i zorganizuj krótkie szkolenie z korzystania z serwisu.",
+        "en": "Reinforce the habit up to the third month: a regular newsletter with analysis, notifications about new reports in areas of interest, participation in an event or a discussion club. Detect inactive subscribers and invite them to specific content. For institutions, measure licence activation in the first 90 days and run a short onboarding session on using the service."
+      },
+      "caveats_en": [
+        "There is no current (2024–2026) public M3 median for news publishers. The Die Welt data date from 2018.",
+        "The ChartMogul report covers the 2021–2022 cohorts.",
+        "For B2B with annual contracts, M3 is of little informative value. It is better to measure activation and licence usage in the first 90 days."
+      ],
+      "default_context_by_segment": {
+        "all": "cohort_retention_m3.news_b2c_monthly",
+        "b2c_individual": "cohort_retention_m3.news_b2c_monthly",
+        "b2c_reduced": "cohort_retention_m3.news_b2c_monthly",
+        "b2b_institution": "cohort_retention_m3.b2b_new_logos"
+      },
+      "contexts": [
+        {
+          "id": "cohort_retention_m3.news_b2c_monthly",
+          "label_en": "Digital news/media B2C – monthly plan (paying)",
+          "method_en": "Heuristic anchored in the Die Welt case (WAN-IFRA 2018), publishers' steady-state churn (Mather) and the distribution of auto-renewal opt-outs (Piano 2024).",
+          "period_en": "monthly cohort",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m3",
+          "notes_en": {
+            "0": "Die Welt 2018: approx. half of new subscribers left within 3 months"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "cohort_retention_m3.b2b_new_logos",
+          "label_en": "B2B SaaS / B2B subscriptions – new customers (logo)",
+          "method_en": "The ChartMogul 2023 top quartile as the 'optimal' threshold. The remaining boundaries are a heuristic.",
+          "period_en": "monthly cohort",
+          "segments": ["b2b_institution"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m3",
+          "notes_en": {
+            "2": "ASP (average selling price) < USD 10/month: 87% (for comparison)",
+            "4": "ChartMogul top quartile: 90%; 93% at ARR USD 15–30m; 98% at ASP (average selling price) > USD 500/month"
+          },
+          "basis_e": [0, 1, 2, 3]
+        }
+      ]
+    },
+    "cohort_retention_m12": {
+      "metric_id": "cohort_retention_m12",
+      "formula_en": "Subscribers from the start cohort still active and paying after 12 months / cohort size × 100%. For annual plans and memberships: renewed after the 1st year / all whose 1st year has ended.",
+      "levers": {
+        "pl": "Prowadź subskrybenta przez cały pierwszy rok: plan treści i wydarzeń, kwartalne podsumowanie wartości, zaproszenia do klubów dyskusyjnych. Zaproponuj plan roczny osobom, które zostały z nami przez pierwsze miesiące. Członkom pierwszego roku przypisz opiekuna i zaproś ich na spotkanie członkowskie przed odnowieniem. Długie promocje oceniaj w horyzoncie dłuższym niż 12 miesięcy.",
+        "en": "Guide subscribers through the whole first year: a plan of content and events, a quarterly summary of value, invitations to discussion clubs. Offer an annual plan to those who have stayed through the first months. Assign first-year members a contact person and invite them to a members' meeting before renewal. Assess long promotions over a horizon longer than 12 months."
+      },
+      "caveats_en": [
+        "The Piano median comes from the 2021 report. The 2024 report confirms only qualitatively that annual plans have 'almost twice' the retention after the first year.",
+        "Mather (Q2 2025, 86 brands): even the best-performing promotional cohort, the one with a 52-week introductory offer, has approx. 33% still active in week 80. Measure long promotions over a horizon beyond 12 months.",
+        "App data (RevenueCat) are much lower than for publishers' web subscriptions and serve only as a lower reference point.",
+        "According to INMA, the median lifetime of a news subscription is approx. 21 months (unverified value: the page returns HTTP 403). According to Beehiiv (confirmed value), the average lifetime of a paid news-newsletter subscriber is 18 months."
+      ],
+      "caveat_sources": {
+        "1": ["mather_q2_2025_promo"],
+        "3": ["inma_past_subscribers_2025", "beehiiv_pressgazette_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "cohort_retention_m12.news_b2c_monthly",
+        "b2c_individual": "cohort_retention_m12.news_b2c_monthly",
+        "b2c_reduced": "cohort_retention_m12.news_b2c_monthly",
+        "b2b_institution": "cohort_retention_m12.b2b_new_logos",
+        "membership_club": "cohort_retention_m12.membership_first_year"
+      },
+      "contexts": [
+        {
+          "id": "cohort_retention_m12.news_b2c_monthly",
+          "label_en": "Digital news/media B2C – monthly plan",
+          "method_en": "Piano median (2021) and the FTI Consulting range (2022/23). The extreme boundaries are a heuristic.",
+          "period_en": "monthly cohort, measured after 12 months",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m12",
+          "notes_en": {
+            "2": "Piano 2021 median: 46%",
+            "3": "FTI: approx. 50–60%"
+          },
+          "basis_e": [0, 4]
+        },
+        {
+          "id": "cohort_retention_m12.news_b2c_annual",
+          "label_en": "Digital news/media B2C – annual plan (first renewal)",
+          "method_en": "Piano median (2021), the FTI Consulting range and the Aftenposten case (DNR 2025 via Reporterzy.info).",
+          "period_en": "annually (first renewal)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m12",
+          "notes_en": {
+            "2": "FTI: from 65%; Aftenposten: 71%",
+            "3": "Piano 2021 median: 74%",
+            "4": "upper end of the FTI range: 80%"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "cohort_retention_m12.membership_first_year",
+          "label_en": "Memberships – renewal after the first year (first-year renewal)",
+          "method_en": "MGI medians (2025 and 2026) as the upper boundary of the 'normal' range. The remaining boundaries are a heuristic.",
+          "period_en": "annually",
+          "segments": ["membership_club"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "2": "MGI medians: 72% (2026), 74% (2025)",
+            "4": "at the level of the renewal median for the entire base (82–84%)"
+          },
+          "basis_e": [0, 1, 3]
+        },
+        {
+          "id": "cohort_retention_m12.b2b_new_logos",
+          "label_en": "B2B SaaS / B2B subscriptions – new customers (logo)",
+          "method_en": "The ChartMogul 2023 top quartile (70%) as the 'optimal' threshold (convention: P75 = 'optimal' threshold, as for M3); 77% at ARR USD 15–30m is an ambitious level. The lower boundaries are a heuristic.",
+          "period_en": "monthly cohort, measured after 12 months",
+          "segments": ["b2b_institution"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "cohort_m12",
+          "notes_en": {
+            "4": "ChartMogul top quartile (new customers): 70%; 77% at ARR USD 15–30m as an ambitious level"
+          },
+          "basis_e": [0, 1, 2, 3]
+        },
+        {
+          "id": "cohort_retention_m12.media_apps_annual",
+          "label_en": "Media & Entertainment apps – annual plan, first renewal (reference point)",
+          "method_en": "RevenueCat SOSA 2026 quartiles (P25 20%, median 37%, P75 56%).",
+          "period_en": "annually",
+          "segments": ["b2c_individual"],
+          "measure": "cohort_survival",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below P25",
+            "2": "P25 to median (P50)",
+            "3": "median (P50) to P75",
+            "4": "above P75"
+          }
+        }
+      ]
+    }
+  },
+  "sources": {
+    "recurly_churn_benchmarks_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "recurly_docs_churn_benchmarks": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "saascapital_retention_2025": {
+      "reliability": "A"
+    },
+    "keybanc_sapphire_2024": {
+      "reliability": "A"
+    },
+    "aleph_benchmarkit_grr_2026": {
+      "reliability": "A"
+    },
+    "aleph_benchmarkit_nrr_2026": {
+      "reliability": "A"
+    },
+    "chartmogul_retention_report_2023": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "chartmogul_good_churn_2022": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "chartmogul_churn_cheatsheet_2022": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_q3_2023": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_sep_2022": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_q1_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_q2_2025_promo": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "piano_benchmarks_2024": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "piano_benchmark_update_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "digiday_monthly_annual_2023": {
+      "reliability": "C"
+    },
+    "ftstrategies_retention_2025": {
+      "reliability": "B"
+    },
+    "stripe_billing": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "churnkey_involuntary_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "churnkey_sor_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "recurly_failed_payment_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "prosperstack_startribune": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "revenuecat_reactivation_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "recurly_sos_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "revenuecat_renewal_rates_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mgi_2025_memberjungle": {
+      "reliability": "C"
+    },
+    "mgi_2026_i4a": {
+      "reliability": "C"
+    },
+    "twipe_wanifra_2018": {
+      "reliability": "C"
+    },
+    "dnr_2026_poland": {
+      "reliability": "A"
+    },
+    "rasp_inma_2026": {
+      "reliability": "B"
+    },
+    "antenna_svod_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "beehiiv_pressgazette_2026": {
+      "reliability": "C"
+    },
+    "inma_past_subscribers_2025": {
+      "reliability": "C"
+    },
+    "inma_churn_growth_engine": {
+      "reliability": "C"
+    },
+    "reporterzy_dnr2025": {
+      "reliability": "C"
+    },
+    "reuters_paying_news_2023": {
+      "reliability": "A"
+    },
+    "keybanc_sapphire_2025": {
+      "reliability": "A"
+    },
+    "chartmogul_ai_retention_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "chartmogul_saas_winbacks_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_q1_2026": {
+      "reliability": "C",
+      "vendor": true
+    }
+  }
+}

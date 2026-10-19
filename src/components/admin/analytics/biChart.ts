@@ -15,10 +15,38 @@
 // kilkanaście pól, a nowe dochodzą. Literał przestałby się kompilować przy
 // każdym dopisaniu pola - albo, gorzej, ktoś rozluźniłby typ i panel
 // renderowałby wykres z niezdefiniowanymi ustawieniami uczciwości.
+//
+// OBJAŚNIENIE I BENCHMARK Z REJESTRU (SPEC §5.5). Panel podaje `metricId`
+// (i opcjonalnie zlokalizowany benchmark z `useBenchmark`), a ten plik
+// wypełnia pola uczciwości, które silnik już renderuje: `metric` (dymek
+// objaśnienia `MetricTooltip`), `band`/`target` (strefa „dobry + optymalny”),
+// `sources` (przypisy AKTYWNEGO kontekstu), `direction` i `provenance` (B,
+// gdy każde pasmo pochodzi z kwartyli źródła; E, gdy choć jedno jest
+// heurystyką). Bez tych pól wynik jest identyczny jak dotąd - wstecznie zgodny.
 import { defaultChartConfig } from "@/lib/charts/parse";
 import { type ChartConfig, type ChartKind, type ChartSeries } from "@/lib/charts/types";
 import type { BarStyle } from "@/lib/charts/palette";
 import { slotForSeries } from "@/lib/charts/palette";
+import type { ChartLang } from "@/lib/charts/format";
+import type { ChartBand, ChartTarget, MetricDirection } from "@/lib/charts/status";
+import type { Provenance } from "@/lib/charts/sources";
+import {
+  citationsFor,
+  toChartMetric,
+  type LocalizedBenchmark,
+  type LocalizedContext,
+  type LocalizedSource,
+} from "@/lib/analytics/semantic/benchmarks/adapter";
+import { normalizeToUnit } from "@/lib/analytics/semantic/benchmarks/evaluate";
+import { metricHelp } from "@/lib/analytics/semantic/metricHelp";
+import { metricById, type MetricId } from "@/lib/analytics/semantic/metrics";
+
+/** Benchmark wykresu: wpis, AKTYWNY kontekst i źródła grupy (z `useBenchmark`). */
+export interface BiChartBenchmark {
+  bench: LocalizedBenchmark;
+  context: LocalizedContext;
+  sources: readonly LocalizedSource[];
+}
 
 export interface BiChartInput {
   kind: ChartKind;
@@ -40,6 +68,61 @@ export interface BiChartInput {
   /** Źródło danych do podpisu - panel zna je lepiej niż silnik. */
   source?: string;
   height?: number;
+  /** Wskaźnik z rejestru - dymek objaśnienia (`metricHelp`) i skala jednostek pasma. */
+  metricId?: MetricId;
+  /** Benchmark: strefa dobra, przypisy, kierunek i pochodzenie liczb. */
+  benchmark?: BiChartBenchmark;
+  /** Kierunek wskaźnika; domyślnie z aktywnego kontekstu benchmarku. */
+  direction?: MetricDirection;
+  /** Język objaśnienia z rejestru; domyślnie polski. */
+  lang?: ChartLang;
+}
+
+/** Miary, dla których zero jest naturalną dolną granicą (poziomy, udziały, przeżycie kohorty). */
+const NON_NEGATIVE = new Set<LocalizedContext["measure"]>([
+  "level",
+  "share_of_base",
+  "cohort_survival",
+]);
+/** Miary-udziały: górną granicą jest całość (100 pp). */
+const SHARE = new Set<LocalizedContext["measure"]>(["share_of_base", "cohort_survival"]);
+
+/**
+ * Strefa „dobry + optymalny” aktywnego kontekstu w jednostkach SERII.
+ *
+ * Pasma rejestru są w jednostce kontekstu (punkty procentowe, grosze,
+ * godziny), a seria - w jednostce metryki (udział jako ułamek, dni); skalę
+ * daje ta sama normalizacja co ocena (`normalizeToUnit`), więc wykres
+ * i kafel nie mogą rozjechać się o rząd wielkości. Bez przeliczenia
+ * (inna wielkość, kwota wobec procentu) strefy nie ma.
+ *
+ * OTWARTE KOŃCE. `ChartBand` jest przedziałem domkniętym. Koniec otwarty
+ * zamykamy tylko tam, gdzie granica jest FAKTEM, a nie twierdzeniem: zero
+ * dla poziomów i udziałów, 100 pp dla udziałów. Gdy strefa dalej jest
+ * otwarta („NRR ≥ 110 %”), rysujemy LINIĘ PROGU (`target`) zamiast pasma -
+ * dorysowana górna granica optimum byłaby liczbą bez źródła.
+ */
+export function benchmarkZone(
+  context: LocalizedContext,
+  metricId: MetricId | undefined,
+): { band: { min: number; max: number } | null; target: number | null } {
+  const none = { band: null, target: null };
+  const good = context.bands
+    .map((b, i) => ({ b, i }))
+    .filter(({ b }) => b.tier === "good" || b.tier === "optimal");
+  if (good.length === 0) return none;
+  const first = good[0].b;
+  const last = good[good.length - 1].b;
+  const scale = metricId ? normalizeToUnit(1, metricById(metricId).unit, context.unit) : 1;
+  if (scale === null || scale === 0) return none;
+  const natural = context.displayUnit !== "score" && NON_NEGATIVE.has(context.measure);
+  const lo = first.min ?? (natural ? 0 : null);
+  const ceiling = context.unit === "fraction" ? 1 : 100;
+  const hi = last.max ?? (SHARE.has(context.measure) ? ceiling : null);
+  if (lo !== null && hi !== null)
+    return { band: { min: lo / scale, max: hi / scale }, target: null };
+  const threshold = lo ?? hi;
+  return threshold === null ? none : { band: null, target: threshold / scale };
 }
 
 /**
@@ -62,6 +145,47 @@ function zeSlotami(series: BiChartInput["series"]): ChartSeries[] {
     values: [...s.values],
     colorSlot: s.colorSlot ?? slotForSeries(i),
   }));
+}
+
+/** Pola uczciwości z rejestru: objaśnienie, strefa, przypisy, kierunek, pochodzenie. */
+function registryFields(
+  input: BiChartInput,
+  base: ChartConfig,
+): Pick<ChartConfig, "metric" | "band" | "target" | "sources" | "direction" | "provenance"> {
+  const lang = input.lang ?? "pl";
+  const bench = input.benchmark;
+  const metric = input.metricId
+    ? metricHelp(input.metricId, lang, bench?.bench ?? null)
+    : bench
+      ? toChartMetric(bench.bench)
+      : base.metric;
+  if (!bench) {
+    return {
+      metric,
+      band: base.band,
+      target: base.target,
+      sources: base.sources,
+      direction: input.direction ?? base.direction,
+      provenance: base.provenance,
+    };
+  }
+  const sources = citationsFor(bench.context, bench.sources);
+  const zone = benchmarkZone(bench.context, input.metricId);
+  // Pasmo bez przypisu `effectiveBand` i tak by odrzucił - wskazujemy
+  // pierwsze źródło aktywnego kontekstu (to ono wyznacza granice pasm).
+  const sourceId = sources[0]?.id ?? null;
+  const band: ChartBand | null =
+    zone.band && sourceId !== null ? { ...zone.band, sourceId, demo: false } : null;
+  const target: ChartTarget | null = zone.target !== null ? { value: zone.target } : base.target;
+  const provenance: Provenance = bench.context.bands.every((b) => b.basis === "B") ? "B" : "E";
+  return {
+    metric,
+    band,
+    target,
+    sources,
+    direction: input.direction ?? bench.context.direction,
+    provenance,
+  };
 }
 
 /** Konfiguracja dla `<Chart>` / `<ChartCard>`. */
@@ -92,5 +216,6 @@ export function biChart(input: BiChartInput): ChartConfig {
     // sekund, a wykres wjeżdżający przy każdym odświeżeniu czyta się jako
     // zmiana danych - czyli animacja kłamałaby o tym, co się stało.
     animate: false,
+    ...registryFields(input, base),
   };
 }

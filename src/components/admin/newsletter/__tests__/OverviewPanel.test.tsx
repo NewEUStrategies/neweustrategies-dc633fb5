@@ -10,19 +10,31 @@
 // pozostałych paneli modułu, które chodzą przez słownik). Testy opisują stan
 // obecny; przejście na i18n to osobna zmiana - wymaga kilkudziesięciu nowych
 // kluczy w PL i EN.
+//
+// ZAPIS (S1 def. 9). Panel NIE robi już UPDATE pełnym wierszem - woła RPC
+// `admin_newsletter_settings_patch` z grupą `overview`, patchem zmienionych
+// kolumn i tokenem `updated_at`. Asercje zapisu czytają więc argumenty RPC
+// (`sentPatch`), a nie treść `update` - zmiana świadoma, bo dawny UPDATE
+// pełnym wierszem był defektem (cofał zmiany innych edytorów).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { supabaseFromStub, ok, type RecordedChain } from "@/test/supabaseChain";
+import { supabaseFromStub, ok } from "@/test/supabaseChain";
 
-const h = vi.hoisted(() => ({ from: (_t: string): unknown => ({}) }));
+const h = vi.hoisted(() => ({
+  from: (_t: string): unknown => ({}),
+  rpc: vi.fn(),
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (table: string) => h.from(table) },
+  supabase: {
+    from: (table: string) => h.from(table),
+    rpc: (fn: string, args: unknown) => h.rpc(fn, args),
+  },
 }));
 // Blokada wyjścia z niezapisanymi zmianami wymaga routera i ma własne testy.
 vi.mock("@/hooks/useUnsavedChangesGuard", () => ({ useUnsavedChangesGuard: () => {} }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // Formularz zapisu, podgląd popupu i raport zdarzeń mają WŁASNE testy - tutaj
 // liczy się tylko to, czy panel je pokazuje i z jakim językiem.
 vi.mock("@/components/NewsletterForm", () => ({
@@ -36,12 +48,52 @@ vi.mock("@/components/admin/newsletter/PopupEventsPanel", () => ({
 }));
 
 import { toast } from "sonner";
+import i18n from "@/lib/i18n";
 import { clearEdgeTtlCache } from "@/lib/ssrCache";
 import { OverviewPanel } from "@/components/admin/newsletter/OverviewPanel";
 import { defaultNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
 
 let stub: ReturnType<typeof supabaseFromStub>;
-let saveResult: (chain: RecordedChain) => ReturnType<typeof ok>;
+
+/** Surowe tokeny `updated_at` z PostgREST (mikrosekundy - nigdy przez `Date`). */
+const T0 = "2026-10-19T10:00:00.100001+00:00";
+const T1 = "2026-10-19T10:00:05.200002+00:00";
+const T2 = "2026-10-19T10:00:09.300003+00:00";
+
+/**
+ * Atrapa SERWERA ustawień: jeden wiersz z tokenem i RPC z CAS jak
+ * `admin_newsletter_settings_patch` (stary token -> 40001, inaczej zapis
+ * patchu i nowy token). Odczyt panelu widzi zawsze bieżący stan serwera -
+ * tak jak po prawdziwym odświeżeniu zapytania.
+ */
+const server = {
+  row: null as unknown as NewsletterSettings,
+  tokens: [T1, T2],
+  /** Zmiana z „drugiej karty": nowy stan wiersza z nowym tokenem. */
+  editElsewhere(patch: Partial<NewsletterSettings>, token: string) {
+    server.row = { ...server.row, ...patch, updated_at: token };
+  },
+};
+
+interface PatchArgs {
+  p_group: string;
+  p_patch: Record<string, unknown>;
+  p_expected_updated_at: string | null;
+}
+
+/** Wywołania RPC zapisu ustawień, w kolejności. */
+function patchCalls(): PatchArgs[] {
+  return h.rpc.mock.calls
+    .filter(([fn]) => fn === "admin_newsletter_settings_patch")
+    .map(([, args]) => args as PatchArgs);
+}
+
+/** Patch, który poszedł do bazy (ostatnie wywołanie RPC). */
+function sentPatch(): Record<string, unknown> {
+  const calls = patchCalls();
+  expect(calls.length, "brak wywołania RPC zapisu").toBeGreaterThan(0);
+  return calls[calls.length - 1]!.p_patch;
+}
 
 /** Wiersz subskrybenta - adresy nie są tu potrzebne, liczą się statusy i daty. */
 function subscriber(status: string, createdDaysAgo: number, unsubDaysAgo: number | null = null) {
@@ -55,13 +107,13 @@ function subscriber(status: string, createdDaysAgo: number, unsubDaysAgo: number
 }
 
 function mount(args: { settings?: Partial<NewsletterSettings>; subscribers?: unknown[] } = {}) {
-  const row = { ...defaultNewsletterSettings(), tenant_id: "tenant-1", ...args.settings };
-  stub.setResponse("newsletter_settings", (chain) => {
-    if (chain.has("update") || chain.has("insert")) return saveResult(chain);
-    if ((chain.argsOf("select")?.[0] as string) === "tenant_id")
-      return ok({ tenant_id: "tenant-1" });
-    return ok(row);
-  });
+  server.row = {
+    ...defaultNewsletterSettings(),
+    tenant_id: "tenant-1",
+    updated_at: T0,
+    ...args.settings,
+  };
+  stub.setResponse("newsletter_settings", () => ok(server.row));
   stub.setResponse("newsletter_subscribers", () => ok(args.subscribers ?? []));
   return renderWithQueryClient(<OverviewPanel />);
 }
@@ -93,9 +145,18 @@ function kpi(label: string): string {
 beforeEach(() => {
   stub = supabaseFromStub();
   h.from = stub.from;
-  saveResult = () => ok(null);
   clearEdgeTtlCache();
   vi.clearAllMocks();
+  h.rpc.mockReset();
+  server.tokens = [T1, T2];
+  h.rpc.mockImplementation(async (_fn: string, args: PatchArgs) => {
+    if (args.p_expected_updated_at !== server.row.updated_at) {
+      return { data: null, error: Object.assign(new Error("stale_write"), { code: "40001" }) };
+    }
+    const token = server.tokens.shift() ?? "2026-10-19T11:00:00.000001+00:00";
+    server.row = { ...server.row, ...args.p_patch, updated_at: token };
+    return { data: { updated_at: token, changed: Object.keys(args.p_patch).sort() }, error: null };
+  });
 });
 
 afterEach(() => {
@@ -249,8 +310,7 @@ describe("ustawienia logiki", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect((update.argsOf("update")![0] as { double_opt_in: boolean }).double_opt_in).toBe(false);
+    expect(sentPatch().double_opt_in).toBe(false);
   });
 
   it("włączenie popupu jest osobnym przełącznikiem od trybu", async () => {
@@ -261,8 +321,7 @@ describe("ustawienia logiki", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect((update.argsOf("update")![0] as { popup_enabled: boolean }).popup_enabled).toBe(true);
+    expect(sentPatch().popup_enabled).toBe(true);
   });
 
   it("adres nadawcy wyczyszczony do pusta zapisuje NULL, nie pusty napis", async () => {
@@ -275,8 +334,7 @@ describe("ustawienia logiki", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect((update.argsOf("update")![0] as { sender_email: unknown }).sender_email).toBeNull();
+    expect(sentPatch()).toHaveProperty("sender_email", null);
   });
 
   it("nazwa nadawcy trafia do zapisu", async () => {
@@ -288,10 +346,7 @@ describe("ustawienia logiki", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect((update.argsOf("update")![0] as { sender_name: string }).sender_name).toBe(
-      "Redakcja NES",
-    );
+    expect(sentPatch().sender_name).toBe("Redakcja NES");
   });
 });
 
@@ -346,10 +401,7 @@ describe("reguły wyświetlania popupu", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect(
-      (update.argsOf("update")![0] as { popup_frequency_days: number }).popup_frequency_days,
-    ).toBe(0);
+    expect(sentPatch().popup_frequency_days).toBe(0);
   });
 
   it("próg przewinięcia wyczyszczony schodzi na 1%, nie na zero", async () => {
@@ -363,10 +415,7 @@ describe("reguły wyświetlania popupu", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect(
-      (update.argsOf("update")![0] as { popup_scroll_percent: number }).popup_scroll_percent,
-    ).toBe(1);
+    expect(sentPatch().popup_scroll_percent).toBe(1);
   });
 
   it("opóźnienie wyczyszczone schodzi na 1 sekundę, nie na zero", async () => {
@@ -380,10 +429,7 @@ describe("reguły wyświetlania popupu", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect(
-      (update.argsOf("update")![0] as { popup_delay_seconds: number }).popup_delay_seconds,
-    ).toBe(1);
+    expect(sentPatch().popup_delay_seconds).toBe(1);
   });
 });
 
@@ -393,7 +439,19 @@ describe("zapis", () => {
     await mounted();
 
     expect(saveButton()).toHaveProperty("disabled", true);
-    expect(stub.chainsFor("newsletter_settings").some((c) => c.has("update"))).toBe(false);
+    expect(patchCalls()).toHaveLength(0);
+  });
+
+  it("zmiana cofnięta do stanu z bazy NIE jest zmianą - zapis wraca do blokady", async () => {
+    // Znacznik „niezapisane" liczy różnicę względem bazy szkicu, nie fakt
+    // kliknięcia: inaczej panel straszyłby blokadą wyjścia bez powodu.
+    await mounted({ settings: { mode: "inline" } });
+
+    fireEvent.click(screen.getByText("Tylko popup"));
+    expect(saveButton()).toHaveProperty("disabled", false);
+    fireEvent.click(screen.getByText("Tylko inline"));
+
+    expect(saveButton()).toHaveProperty("disabled", true);
   });
 
   it("dokumenty builderów NIE jadą w zapisie ustawień logiki", async () => {
@@ -405,10 +463,8 @@ describe("zapis", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    const body = update.argsOf("update")![0] as Record<string, unknown>;
-    expect(Object.keys(body)).not.toContain("inline_doc");
-    expect(Object.keys(body)).not.toContain("popup_doc");
+    expect(Object.keys(sentPatch())).not.toContain("inline_doc");
+    expect(Object.keys(sentPatch())).not.toContain("popup_doc");
   });
 
   it("identyfikator tenanta też nie jedzie w treści zapisu", async () => {
@@ -418,8 +474,7 @@ describe("zapis", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect(Object.keys(update.argsOf("update")![0] as object)).not.toContain("tenant_id");
+    expect(Object.keys(sentPatch())).not.toContain("tenant_id");
   });
 
   it("zapisany tryb to ten, który operator wybrał", async () => {
@@ -429,8 +484,161 @@ describe("zapis", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect((update.argsOf("update")![0] as { mode: string }).mode).toBe("both");
+    expect(sentPatch().mode).toBe("both");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// def. 9 / D-S1-03: zapis GRUPĄ `overview`, patch = WYŁĄCZNIE kolumny zmienione,
+// token = surowe `updated_at` wiersza. Dawny UPDATE pełnym wierszem cofał
+// zmiany zrobione w międzyczasie w edytorze popupu albo w kreatorze.
+describe("zapis grupą overview (def. 9)", () => {
+  it("wysyła WYŁĄCZNIE zmienione kolumny, grupę `overview` i surowy token", async () => {
+    await mounted({ settings: { sender_name: null, double_opt_in: true } });
+
+    fireEvent.change(screen.getByPlaceholderText("New European Strategies"), {
+      target: { value: "Redakcja NES" },
+    });
+    fireEvent.click(screen.getAllByRole("checkbox")[1]!);
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(patchCalls()).toEqual([
+      {
+        p_group: "overview",
+        p_patch: { sender_name: "Redakcja NES", double_opt_in: false },
+        p_expected_updated_at: T0,
+      },
+    ]);
+    // Żadnej bezpośredniej zmiany tabeli - jedyną drogą zapisu jest RPC.
+    expect(
+      stub.chainsFor("newsletter_settings").some((c) => c.has("update") || c.has("insert")),
+    ).toBe(false);
+  });
+
+  it("po zapisie kolejna zmiana leci z NOWYM tokenem i tylko z nową kolumną", async () => {
+    // Nowa baza = zapisany stan: druga zmiana nie powtarza pierwszej i nie
+    // zderza się z własnym zapisem starym tokenem.
+    await mounted({ settings: { mode: "off" } });
+    fireEvent.click(screen.getByText("Tylko popup"));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(patchCalls()).toHaveLength(1));
+    await waitFor(() => expect(saveButton()).toHaveProperty("disabled", true));
+
+    fireEvent.click(screen.getByText("Inline + popup"));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(patchCalls()).toHaveLength(2));
+    expect(patchCalls()[1]).toEqual({
+      p_group: "overview",
+      p_patch: { mode: "both" },
+      p_expected_updated_at: T1,
+    });
+  });
+
+  it("PRAWDZIWY konflikt (ktoś zmienił to samo pole) - komunikat i ZACHOWANY szkic", async () => {
+    await mounted({ settings: { sender_name: "Stara nazwa" } });
+    fireEvent.change(screen.getByDisplayValue("Stara nazwa"), {
+      target: { value: "Moja nazwa" },
+    });
+    // W międzyczasie druga karta zmieniła NAZWĘ NADAWCY - scalić się nie da,
+    // decyzja należy do operatora.
+    server.editElsewhere({ sender_name: "Nazwa z drugiej karty" }, T1);
+    server.tokens = [T2];
+
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        i18n.t("adminPaywall.sync.staleWrite"),
+        expect.objectContaining({
+          action: expect.objectContaining({ label: i18n.t("adminPaywall.sync.reload") }),
+        }),
+      ),
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    // Jedno wywołanie - bez ponowienia, które nadpisałoby cudzą zmianę.
+    expect(patchCalls()).toHaveLength(1);
+    expect(server.row.sender_name).toBe("Nazwa z drugiej karty");
+    // Szkic przeżył: pole ma wartość operatora, zapis dalej możliwy.
+    expect(screen.getByDisplayValue("Moja nazwa")).toBeTruthy();
+    expect(saveButton()).toHaveProperty("disabled", false);
+  });
+
+  it("„Wczytaj aktualne” nakłada szkic na stan serwera - następny zapis z nowym tokenem", async () => {
+    await mounted({ settings: { sender_name: "Stara nazwa", mode: "inline" } });
+    fireEvent.change(screen.getByDisplayValue("Stara nazwa"), {
+      target: { value: "Moja nazwa" },
+    });
+    server.editElsewhere({ sender_name: "Nazwa z drugiej karty", mode: "popup" }, T1);
+    server.tokens = [T2];
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+
+    const opts = vi.mocked(toast.error).mock.calls[0]![1] as unknown as {
+      action: { onClick: () => void };
+    };
+    await act(async () => {
+      opts.action.onClick();
+    });
+
+    // Cudza zmiana trybu jest widoczna, a nazwa operatora przetrwała.
+    await waitFor(() =>
+      expect(screen.getByText("Tylko popup").closest("button")!.className).toContain("ring-2"),
+    );
+    expect(screen.getByDisplayValue("Moja nazwa")).toBeTruthy();
+    expect(toast.info).toHaveBeenCalledWith(i18n.t("adminPaywall.sync.reloaded"));
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(patchCalls()).toHaveLength(2));
+    // Świadome nadpisanie: tylko pole operatora, z tokenem stanu, który widział.
+    expect(patchCalls()[1]).toEqual({
+      p_group: "overview",
+      p_patch: { sender_name: "Moja nazwa" },
+      p_expected_updated_at: T1,
+    });
+    expect(server.row).toMatchObject({ sender_name: "Moja nazwa", mode: "popup" });
+  });
+
+  it("konflikt z cudzą zmianą INNYCH kolumn scala się sam - zapis przechodzi", async () => {
+    await mounted({ settings: { sender_name: "Stara nazwa" } });
+    fireEvent.change(screen.getByDisplayValue("Stara nazwa"), {
+      target: { value: "Moja nazwa" },
+    });
+    // Druga karta zmieniła treść popupu - kolumnę spoza grupy `overview`.
+    server.editElsewhere({ popup_title_pl: "Tytuł z drugiej karty" }, T1);
+    server.tokens = [T2];
+
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(i18n.t("adminPaywall.sync.merged")),
+    );
+    expect(patchCalls().map((c) => c.p_expected_updated_at)).toEqual([T0, T1]);
+    expect(patchCalls()[1]!.p_patch).toEqual({ sender_name: "Moja nazwa" });
+    // Obie zmiany są w bazie.
+    expect(server.row).toMatchObject({
+      sender_name: "Moja nazwa",
+      popup_title_pl: "Tytuł z drugiej karty",
+    });
+  });
+
+  it("inny błąd zapisu nie udaje konfliktu ani sukcesu", async () => {
+    await mounted();
+    h.rpc.mockResolvedValueOnce({ data: null, error: new Error("baza padła") });
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    fireEvent.click(screen.getByText("Tylko popup"));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalledWith(
+      i18n.t("adminPaywall.sync.staleWrite"),
+      expect.anything(),
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(saveButton()).toHaveProperty("disabled", false);
+    quiet.mockRestore();
   });
 });
 

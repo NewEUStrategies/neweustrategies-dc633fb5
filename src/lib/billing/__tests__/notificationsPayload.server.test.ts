@@ -667,20 +667,24 @@ describe("zwrot płatności", () => {
 });
 
 describe("przypomnienia o końcu okresu", () => {
-  it("przypomnienie o odnowieniu podaje plan, kwotę i datę odnowienia", async () => {
+  it("przypomnienie o odnowieniu podaje plan, kwotę Z ŻYWEJ subskrypcji i datę odnowienia", async () => {
+    // Katalog (plan) mówi 49 zł, operator pobierze 59 zł (stara cena sprzed
+    // zmiany cennika) - mail musi podać kwotę, którą operator pobierze.
     givenDb();
     await notifyReminderEmail({
       kind: "subscription_renewal_reminder",
       userId: "user-me",
       planId: PLAN_ID,
       periodEnd: "2026-09-18T10:00:00.000Z",
+      charge: { amountCents: 5900, currency: "PLN" },
       idempotencySeed: "sub_1:2026-09-18",
     });
 
     const sent = onlyMail();
     const L = labelsOf("subscription_renewal_reminder");
     expect(detailLabels(sent)).toEqual([L.plan, L.price, L.renewsAt]);
-    expect(detailValue(sent, L.price)).toMatch(moneyPattern(4900));
+    expect(detailValue(sent, L.price)).toMatch(moneyPattern(5900));
+    expect(sent.bodyVars?.amount).toMatch(moneyPattern(5900));
     expect(sent.bodyVars?.interval).toBe("miesięcznie");
   });
 
@@ -691,6 +695,7 @@ describe("przypomnienia o końcu okresu", () => {
       userId: "user-me",
       planId: PLAN_ID,
       periodEnd: "2026-09-18T10:00:00.000Z",
+      charge: { amountCents: 5900, currency: "PLN" },
       idempotencySeed: "sub_1:2026-09-18",
     });
 
@@ -700,13 +705,14 @@ describe("przypomnienia o końcu okresu", () => {
     expect(detailValue(sent, L.price)).toBeUndefined();
   });
 
-  it("plan bez ceny nie dokłada wiersza kwoty do przypomnienia o odnowieniu", async () => {
-    givenDb({ plans: { [PLAN_ID]: planRow({ price_cents: null }) } });
+  it("kwota nieustalona u operatora: przypomnienie BEZ kwoty, nigdy z ceny katalogu", async () => {
+    givenDb();
     await notifyReminderEmail({
       kind: "subscription_renewal_reminder",
       userId: "user-me",
       planId: PLAN_ID,
       periodEnd: "2026-09-18T10:00:00.000Z",
+      charge: null,
       idempotencySeed: "sub_2:2026-09-18",
     });
     const L = labelsOf("subscription_renewal_reminder");
@@ -721,6 +727,7 @@ describe("przypomnienia o końcu okresu", () => {
       userId: "user-me",
       planId: "plan-nieistniejacy",
       periodEnd: "2026-09-18T10:00:00.000Z",
+      charge: null,
       idempotencySeed: "sub_3:2026-09-18",
     });
 

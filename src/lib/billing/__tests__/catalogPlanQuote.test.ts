@@ -27,7 +27,8 @@ describe("catalogPriceForPlan - bez zapasowego „pierwszego wpisu progu”", ()
     // Dawniej: `pro/quarter` -> `pro_monthly`, czyli subskrypcja miesięczna
     // po cenie miesięcznej przy zamówieniu „kwartalnym".
     expect(catalogPriceForPlan({ tier_key: "pro", interval: "quarter" })).toBeNull();
-    expect(catalogPriceForPlan({ tier_key: "student", interval: "year" })).toBeNull();
+    // Student ma od v6.2 parę roczną (190 zł) - plan bez rocznej pozycji to dziś kadra.
+    expect(catalogPriceForPlan({ tier_key: "educator", interval: "year" })).toBeNull();
   });
 
   it("brak cyklu w wierszu znaczy „miesięczny” - jak w bazie sprzed kolumny", () => {

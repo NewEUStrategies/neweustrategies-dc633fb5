@@ -19,6 +19,7 @@ import { intervalLabelKey } from "@/lib/billing/intervalLabel";
 import type { AccessPlan } from "@/lib/billing/types";
 import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
 import {
+  benefitDetail,
   benefitText,
   intervalPair,
   pickPlanForInterval,
@@ -53,7 +54,12 @@ export type PriceDisplay =
       cents: number;
       currency: string;
       intervalKey: string;
-      /** Cena „od" - plan rozliczany za miejsce. */
+      /**
+       * Cena „od". Dziś zawsze `false`: plan za miejsce (Zespół) pokazuje
+       * stawkę podstawową za miejsce, a próg wolumenowy niesie nota ceny
+       * („od 11 miejsc 79 zł") - „od 89 zł" obok „79 zł od 11 miejsc"
+       * sugerowało, że 89 zł to minimum, choć najniższa stawka to 79 zł.
+       */
       fromPrefix: boolean;
       /** Dopisek „za miejsce" przy okresie. */
       perSeat: boolean;
@@ -100,7 +106,7 @@ export function priceDisplay(
     cents: plan.price_cents,
     currency: plan.currency,
     intervalKey: intervalSuffixKey(plan.interval),
-    fromPrefix: tier.per_seat,
+    fromPrefix: false,
     perSeat: tier.per_seat,
     savingsPct,
     note,
@@ -184,6 +190,25 @@ export function ctaDescriptor(input: {
     : { kind: "contactDialog" };
 }
 
+/**
+ * Liczba dni okresu próbnego ogłaszana pod ceną karty; 0 = bez linii.
+ *
+ * Trial przyznaje WYŁĄCZNIE kasa, więc karta obiecuje go tylko przy zakupie
+ * samoobsługowym (`ctaDescriptor` -> `checkout`) planu w sprzedaży
+ * i cyklicznego - ten sam strażnik co strona planu (`plans.$planId`).
+ * Zespół v6.2 ma w bazie `trial_days = 7` (20260801184937, seed v6.2), ale
+ * sprzedaje się przez rozmowę (`for_sale = false`, `cta_mode = 'contact'`):
+ * „7 dni za darmo" nad przyciskiem „Porozmawiajmy" było obietnicą, której
+ * kasa (`plan_not_for_sale`) nie zrealizuje.
+ */
+export function cardTrialDays(input: Parameters<typeof ctaDescriptor>[0]): number {
+  const cta = ctaDescriptor(input);
+  if (cta.kind !== "checkout") return 0;
+  const plan = input.plans.find((p) => p.id === cta.planId);
+  if (!plan || plan.for_sale === false || plan.interval === "one_time") return 0;
+  return plan.trial_days > 0 ? plan.trial_days : 0;
+}
+
 /** Wariant wizualny przycisku - wyróżniona warstwa dostaje pełny kolor. */
 export function ctaVariant(tier: Pick<MembershipTierRow, "highlight">): "default" | "outline" {
   return tier.highlight ? "default" : "outline";
@@ -191,27 +216,105 @@ export function ctaVariant(tier: Pick<MembershipTierRow, "highlight">): "default
 
 // --- BENEFITY ---------------------------------------------------------------
 
-/** Ile pozycji zostaje pod spotlightem - z wyróżnieniami mniej, bez nich więcej. */
-const REST_CAP_WITH_HIGHLIGHTS = 4;
+/**
+ * Ile pozycji zostaje widocznych pod spotlightem. KRÓTKA reszta (do czterech
+ * pozycji: Krąg Założycieli 2, Kadra Akademicka 1) zostaje na karcie
+ * w całości - „Pokaż więcej (1)" nic nie porządkuje. DŁUŻSZA (Członek Pro 9,
+ * Członek 8, Rada 5) idzie do rozwijanej listy szczegółowej: v6.2,
+ * „Komunikacja karty" - różnicę wobec progu niżej komunikują trzy pozycje
+ * spotlightu, „fence zbudowany z dwunastu elementów nie jest czytelny".
+ * Dawny limit 4 zostawiał na karcie Pro siedem stałych punktów zamiast trzech.
+ * Wyjątek: pozycja z `detail_*` (granica wpływu Rady i Kręgu) - patrz
+ * `splitBenefits`. Bez spotlightu karta nie ma czym się wyróżnić inaczej,
+ * więc lista zostaje.
+ */
+const SHORT_REST_WITH_HIGHLIGHTS = 4;
 const REST_CAP_WITHOUT_HIGHLIGHTS = 8;
 
+/** Nagłówek grupy benefitu (`group_*`) w języku strony; `null` = brak. */
+function groupLabel(benefit: TierBenefit, lang: string): string | null {
+  const raw =
+    lang === "en" ? benefit.group_en || benefit.group_pl : benefit.group_pl || benefit.group_en;
+  return raw && raw.trim() ? raw : null;
+}
+
 /**
- * Podział benefitów na spotlight („Co wyróżnia ten plan") i pozostałe.
+ * Podział benefitów na spotlight („Co wyróżnia ten plan"), listę widoczną od
+ * razu (`rest`) i rozwijaną listę szczegółową (`more`).
  *
- * Reguła, o którą tu chodzi: benefit użyty w spotlighcie NIE MOŻE wrócić na
- * pełnej liście - klient widzi każdy punkt dokładnie raz. Porównanie idzie po
- * znormalizowanym tekście W JĘZYKU STRONY, bo to ten tekst czyta klient (ta sama
- * obietnica wpisana raz z wielką, raz z małą literą to jedna obietnica).
+ * Reguły:
+ *   1. benefit użyty w spotlighcie NIE WRACA na liście - klient widzi każdy
+ *      punkt dokładnie raz. Porównanie idzie po znormalizowanym tekście
+ *      W JĘZYKU STRONY (ta sama obietnica wpisana raz z wielką, raz z małą
+ *      literą to jedna obietnica);
+ *   2. ŻADEN benefit nie znika: ponad limit widocznej listy trafia do `more`
+ *      (v6.2, „Komunikacja karty": pozostałe pozycje Pro „trafiają do
+ *      rozwijanej listy szczegółowej"). Dawniej lista była obcinana, więc
+ *      z karty Pro znikały m.in. Chatham House i wydarzenia z limitem miejsc;
+ *   3. nagłówek grupy (`group_*`) benefitu przeniesionego do spotlightu
+ *      przechodzi na pierwszą pozycję listy bez własnego nagłówka - inaczej
+ *      ginęło np. zastrzeżenie Pro „ten sam jeden bilet rocznie - nie drugi";
+ *   4. gdy widoczna lista jest pusta (karta ze spotlightem), nagłówek
+ *      pierwszej pozycji rozwinięcia wychodzi PRZED przycisk (`moreLead`):
+ *      zastrzeżenie wiążące nie może się chować za „Pokaż więcej";
+ *   5. pozycja z `detail_*` NIGDY nie trafia do rozwinięcia - to treść
+ *      wiążąca (granica wpływu: „zgłoszenie jest wnioskiem, nie zleceniem",
+ *      „zapis nie podlega negocjacji"), którą v6.2 każe pokazać w katalogu.
+ *      Gdy wyprzedza ją pozycja z nagłówkiem grupy schowana w rozwinięciu,
+ *      nagłówek przechodzi na nią (jak w regule 3).
  */
 export function splitBenefits(
   all: TierBenefit[],
   highlights: TierBenefit[] | undefined,
   lang: string,
-): { highlights: TierBenefit[]; rest: TierBenefit[] } {
+): {
+  highlights: TierBenefit[];
+  rest: TierBenefit[];
+  more: TierBenefit[];
+  /** Nagłówek grupy nad przyciskiem rozwinięcia (język strony); `null` = brak. */
+  moreLead: string | null;
+} {
   const spotlight = highlights ?? [];
   const norm = (value: string): string => value.trim().toLowerCase();
   const shown = new Set(spotlight.map((benefit) => norm(benefitText(benefit, lang))));
-  const rest = all.filter((benefit) => !shown.has(norm(benefitText(benefit, lang))));
-  const cap = spotlight.length > 0 ? REST_CAP_WITH_HIGHLIGHTS : REST_CAP_WITHOUT_HIGHLIGHTS;
-  return { highlights: spotlight, rest: rest.slice(0, cap) };
+  const remaining: TierBenefit[] = [];
+  let pendingGroup: TierBenefit | null = null;
+  for (const benefit of all) {
+    if (shown.has(norm(benefitText(benefit, lang)))) {
+      if (groupLabel(benefit, lang)) pendingGroup ??= benefit;
+      continue;
+    }
+    if (pendingGroup && !groupLabel(benefit, lang)) {
+      remaining.push({
+        ...benefit,
+        group_pl: pendingGroup.group_pl,
+        group_en: pendingGroup.group_en,
+      });
+    } else {
+      remaining.push(benefit);
+    }
+    pendingGroup = null;
+  }
+  let rest: TierBenefit[];
+  let more: TierBenefit[];
+  if (spotlight.length === 0) {
+    rest = remaining.slice(0, REST_CAP_WITHOUT_HIGHLIGHTS);
+    more = remaining.slice(REST_CAP_WITHOUT_HIGHLIGHTS);
+  } else if (remaining.length <= SHORT_REST_WITH_HIGHLIGHTS) {
+    rest = remaining;
+    more = [];
+  } else {
+    rest = remaining.filter((benefit) => benefitDetail(benefit, lang) !== null);
+    more = remaining.filter((benefit) => benefitDetail(benefit, lang) === null);
+  }
+  const headed = more[0] && more[0] === remaining[0] ? groupLabel(more[0], lang) : null;
+  const lead = rest.length === 0 ? headed : null;
+  if (headed) {
+    const carrier = more[0];
+    more[0] = { ...carrier, group_pl: undefined, group_en: undefined };
+    if (!lead && !groupLabel(rest[0], lang)) {
+      rest[0] = { ...rest[0], group_pl: carrier.group_pl, group_en: carrier.group_en };
+    }
+  }
+  return { highlights: spotlight, rest, more, moreLead: lead };
 }

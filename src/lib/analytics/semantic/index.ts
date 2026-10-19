@@ -3,7 +3,9 @@
  *
  * Sześć strumieni (GA4, zdarzenia first-party, Web Vitals, reklamy, newsletter,
  * odsłony treści i kliknięcia rekomendacji) miało sześć niezależnych definicji
- * „odsłony”, „sesji” i „unikalnych”. Ten moduł nadaje im jedną semantykę:
+ * „odsłony”, „sesji” i „unikalnych”. Ten moduł nadaje im jedną semantykę - i tę
+ * samą trzem strumieniom huba „Przychód i lejek” (rozliczenia, cykl życia
+ * konta, wydarzenia i kluby):
  *
  *  - `streams`   - CO każdy strumień mierzy (bramka zgody, tożsamość, deduplikacja, zegar),
  *  - `metrics`   - słownik metryk kanonicznych z JEDNYM strumieniem autorytatywnym na metrykę,
@@ -12,8 +14,15 @@
  *
  * Importuj z tego barrela - poszczególne pliki mogą się przegrupować, kontrakt
  * publiczny zostaje tutaj.
+ *
+ * CZEGO TU NIE MA, CELOWO: `metricHelp` i rejestru benchmarków. Z barrela
+ * importuje m.in. `Ga4BiDashboard`, więc wszystko, co stąd wychodzi, jedzie do
+ * jego chunku - objaśnienia i benchmarki ładują się dopiero przy otwarciu
+ * arkusza wskaźnika, z własnych modułów.
  */
 export {
+  ALL_STREAMS,
+  HUB_STREAMS,
   STREAMS,
   streamById,
   sharesConsentPopulation,
@@ -27,7 +36,9 @@ export {
 } from "./streams";
 
 export {
+  HUB_METRIC_IDS,
   METRICS,
+  METRIC_GROUP,
   assertSameStreamRatio,
   authoritativeBinding,
   bindingFor,
@@ -39,16 +50,20 @@ export {
   type MetricAggregation,
   type MetricBinding,
   type MetricDefinition,
+  type MetricGroup,
   type MetricId,
   type MetricUnit,
+  type MetricWindowKind,
 } from "./metrics";
 
 export {
   ga4RangeFromInstants,
   legacyRpcWindow,
   previousWindow,
+  resolveCalendarWindow,
   resolveCustomWindow,
   resolveWindow,
+  toLocalIsoDate,
   utcDateString,
   windowsOverlap,
   type CanonicalWindow,

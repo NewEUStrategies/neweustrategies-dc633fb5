@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { contentAccessRuleQueryOptions } from "@/lib/access/contentAccessQueries";
 import "@/lib/i18n-admin-post-panes";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -216,26 +217,12 @@ export function PostGeneralOverview({
     access: t("adminPostPanes.general.titleAccess"),
     revisions: t("adminPostPanes.general.titleRevisions"),
   };
-  const { data: accessRule } = useQuery({
-    queryKey: ["content_access", "post", entityId],
-    enabled: !!entityId,
-    queryFn: async () => {
-      const [{ data }, { data: hp }] = await Promise.all([
-        supabase
-          .from("content_access")
-          .select("mode, plan_ids, one_time_price_cents, one_time_currency")
-          .eq("entity_type", "post")
-          .eq("entity_id", entityId)
-          .maybeSingle(),
-        supabase.rpc("content_access_has_password", {
-          _entity_type: "post",
-          _entity_id: entityId,
-        }),
-      ]);
-      return data ? { ...data, has_password: !!hp } : null;
-    },
-    staleTime: 15_000,
-  });
+  // Ta sama reguła i ten sam wpis cache co panel „Dostęp" (`AccessSettingsPane`)
+  // i wyjątki licznika w `/admin/paywall` (S1 def. 3): zapis w którymkolwiek
+  // z nich - i zdarzenie szyny `content_access.changed.v1` - odświeża kafel.
+  // Dawniej kafel miał własny literał klucza i własne zapytanie, które
+  // połykało błędy odczytu (błąd wyglądał jak „dostęp publiczny").
+  const { data: accessRule } = useQuery(contentAccessRuleQueryOptions("post", entityId || null));
 
   const { data: revisionsCount } = useQuery({
     queryKey: ["content_revisions_count", "post", entityId],

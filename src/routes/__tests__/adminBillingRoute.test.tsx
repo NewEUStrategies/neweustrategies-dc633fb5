@@ -31,8 +31,12 @@ import { Route as AdminBillingRoute } from "@/routes/admin.billing";
 
 const PATH = "/admin/billing";
 
-async function mount() {
-  const view = await renderRoute({ route: AdminBillingRoute, path: PATH, initialEntry: PATH });
+async function mount(search = "") {
+  const view = await renderRoute({
+    route: AdminBillingRoute,
+    path: PATH,
+    initialEntry: `${PATH}${search}`,
+  });
   // Router domyka przejście asynchronicznie - asercje stoją na osiadłym ekranie.
   await screen.findByRole("heading", { level: 1 });
   return view;
@@ -52,14 +56,33 @@ describe("/admin/billing - nagłówek dokumentu", () => {
     const view = await mount();
 
     expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+    // ZMIANA ZAMIERZONA (S1, AGENTS `adminPageHead`): tytuł w jednym formacie
+    // całego panelu zamiast ręcznie składanego „| Panel …".
     expect(view.meta()).toContainEqual({
-      title: "Rozliczenia subskrypcji | Panel New European Strategies",
+      title: "Rozliczenia subskrypcji | New European Strategies",
     });
     expect(view.meta()).toContainEqual({
       name: "description",
       content:
-        "Podgląd aktywnych subskrypcji, nieudanych płatności i historii zdarzeń operatora płatności.",
+        "Podgląd aktywnych subskrypcji, zamówień, nieudanych płatności i historii zdarzeń operatora płatności.",
     });
+  });
+});
+
+describe("/admin/billing - adres (SPEC §2.6, kontrakt z S2)", () => {
+  it("poprawna zakładka i status z huba przechodzą walidację adresu", async () => {
+    const view = await mount("?tab=orders&status=past_due");
+
+    expect(view.search()).toMatchObject({ tab: "orders", status: "past_due" });
+    expect(screen.getByTestId("panel-rozliczen")).toBeInTheDocument();
+  });
+
+  it("nieznana zakładka i status w złym kształcie znikają, zamiast wywracać stronę", async () => {
+    const view = await mount("?tab=faktury&status=DROP%20TABLE");
+
+    expect(view.search().tab).toBeUndefined();
+    expect(view.search().status).toBeUndefined();
+    expect(screen.getByTestId("panel-rozliczen")).toBeInTheDocument();
   });
 });
 

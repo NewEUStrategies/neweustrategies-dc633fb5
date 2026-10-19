@@ -13,9 +13,11 @@ import { FieldsTab } from "@/components/admin/popups/signup/FieldsTab";
 import {
   defaultNewsletterSettings,
   useNewsletterSettings,
-  useSaveNewsletterSettings,
   type NewsletterSettings,
 } from "@/hooks/useNewsletterSettings";
+// Zapis przez szew grup (S1, D-S1-04): patch zmienionych kolumn, RPC
+// `admin_newsletter_settings_patch` - nie cały wiersz ustawień.
+import { useSaveNewsletterSettings } from "@/lib/newsletter/settingsQueries";
 import "@/lib/i18n-admin-popup-signup";
 
 export function RegistrationFieldsSection() {

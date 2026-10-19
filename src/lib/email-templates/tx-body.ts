@@ -36,6 +36,8 @@ export interface TxBodyVars {
   orgName?: string | null;
   /** Wiadomość darczyńcy z formularza darowizny (już przycięta). */
   donorMessage?: string | null;
+  /** Sformatowana kwota przed obniżką ceny (cennik v6.2), np. "59,00 zł". */
+  previousAmount?: string | null;
 }
 
 export interface TxBodyCopy {
@@ -57,6 +59,17 @@ const plDays = (n: number): string =>
 type Builder = (v: TxBodyVars, gender: PolishGender) => TxBodyCopy;
 
 const PL: Partial<Record<TxEmailType, Builder>> = {
+  // Konstrukcja „za X zapłacisz" zamiast „X będzie kosztował": bez rodzaju
+  // gramatycznego, więc zdanie jest poprawne także bez nazwy planu.
+  subscription_price_lowered: (v) => {
+    const subject = v.planName?.trim() ? `plan ${v.planName.trim()}` : "członkostwo";
+    const amount = v.amount ? `${v.amount}${v.interval ? ` ${v.interval}` : ""}` : "mniej";
+    const previous = v.amount && v.previousAmount ? ` zamiast ${v.previousAmount}` : "";
+    return {
+      intro: `Wprowadziliśmy nowy cennik członkostwa. Od najbliższego odnowienia${v.renewsAt ? ` (${v.renewsAt})` : ""} za ${subject} zapłacisz ${amount}${previous}. Zmiana działa automatycznie, a zakres Twojego członkostwa pozostaje bez zmian.`,
+      note: "Bieżący, opłacony okres rozliczamy bez zmian - nowa kwota pojawi się dopiero na kolejnej fakturze. Członkostwo możesz zmienić lub zakończyć w profilu w każdej chwili.",
+    };
+  },
   donation_received: (v, gender) => ({
     intro:
       `Dziękujemy za darowiznę${v.amount ? ` w kwocie ${v.amount}` : ""}. Twoje wsparcie finansuje niezależne analizy polityki europejskiej - bez paywalla tam, gdzie to możliwe.` +
@@ -183,6 +196,15 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
 };
 
 const EN: Partial<Record<TxEmailType, Builder>> = {
+  subscription_price_lowered: (v) => {
+    const subject = v.planName?.trim() ? `your ${v.planName.trim()} plan` : "your membership";
+    const amount = v.amount ? `${v.amount}${v.interval ? ` ${v.interval}` : ""}` : "less";
+    const previous = v.amount && v.previousAmount ? ` instead of ${v.previousAmount}` : "";
+    return {
+      intro: `We have introduced a new membership price list. From your next renewal${v.renewsAt ? ` (${v.renewsAt})` : ""} you will pay ${amount} for ${subject}${previous}. Nothing to do on your side; your membership scope stays the same.`,
+      note: "The current, paid period is not affected - the new amount appears on your next invoice. You can change or end your membership in your profile at any time.",
+    };
+  },
   payment_refunded: (v) => ({
     intro: `We are confirming a refund${v.amount ? ` of ${v.amount}` : ""}${v.planName ? ` for your ${plan(v, "en")} plan` : ""}. The funds are returning to the payment method used for the purchase.`,
     extra: `Premium access tied to this payment has ended${v.accessUntil ? ` (${v.accessUntil})` : ""}. Your account, saved items and reading history stay intact - you can subscribe again at any time.`,

@@ -51,4 +51,15 @@ describe("Stat", () => {
     const naruszenia = await axeViolations(container);
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });
+
+  it("podpowiedź definicji (`help`) stoi w wierszu etykiety, a wartość zostaje osobno", () => {
+    // S1 (P10): kafel konwersji niesie definicję - bez zmiany geometrii kafla
+    // i bez sklejenia etykiety z wartością.
+    render(
+      <Stat label="Konwersja" value="25.0%" help={<button type="button">Co to znaczy?</button>} />,
+    );
+    const etykieta = screen.getByText("Konwersja");
+    expect(etykieta).toContainElement(screen.getByRole("button", { name: "Co to znaczy?" }));
+    expect(etykieta).not.toContainElement(screen.getByText("25.0%"));
+  });
 });

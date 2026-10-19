@@ -24,6 +24,7 @@ import {
   type SuppressionScope,
 } from "@/lib/email/suppressionPolicy";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
+import { isRepriceLookupKey } from "@/lib/billing/subscriptionRepricing";
 
 export interface PurchaseContext {
   userId: string;
@@ -864,6 +865,29 @@ function proratedDifferenceCents(
   return Math.round(diff * share);
 }
 
+/**
+ * Dopłata do maila o upgradzie.
+ *
+ * Szacunek z różnicy cen katalogu (`proratedDifferenceCents`) jest prawdą
+ * tylko wtedy, gdy klient płacił cenę katalogu za POPRZEDNI plan. Dla kluczy
+ * objętych zmianą cennika v6.2 (Członek, Członek Pro, Zespół) nie da się tego
+ * stwierdzić z samego zdarzenia: `access_plans` ma już 39 / 119 / 89 zł, a
+ * subskrypcja do akcji przeniesienia (u pominiętych na stałe) płaciła
+ * 59 / 129 / 99 zł - mail liczyłby dopłatę z 119-39 zamiast z 119-59. Zdania
+ * o dopłacie wtedy nie ma („lepiej pominąć niż podać kwotę niezgodną
+ * z fakturą"); kwotę i tak pokazuje faktura operatora. Webhook nie pyta
+ * operatora o fakturę - odczyt w trakcie obsługi zdarzenia wydłużałby ją
+ * i mieszał się z odczytem żywego stanu strażnika kolejności.
+ */
+function upgradeProrationCents(
+  ctx: PurchaseContext & { previousPriceId: string | null },
+  previous: ResolvedPlan,
+  plan: ResolvedPlan,
+): number | null {
+  if (isRepriceLookupKey(ctx.previousPriceId)) return null;
+  return proratedDifferenceCents(previous, plan, ctx.periodEnd);
+}
+
 /** Zmiana planu: aktualizacja dostępu + mail o upgrade/downgrade. */
 export async function applyPlanChangeEffects(
   ctx: PurchaseContext & { previousPriceId: string | null; direction: "upgrade" | "downgrade" },
@@ -895,9 +919,7 @@ export async function applyPlanChangeEffects(
   // realna kwota dopłaty, którą pokazujemy w mailu (bez niej klient widzi samą
   // nową cenę i zgłasza reklamację o "podwójne obciążenie").
   const prorationCents =
-    ctx.direction === "upgrade" && previous
-      ? proratedDifferenceCents(previous, plan, ctx.periodEnd)
-      : null;
+    ctx.direction === "upgrade" && previous ? upgradeProrationCents(ctx, previous, plan) : null;
 
   await announce(ctx.announcements, async () => {
     await notifySubscriptionEmail({
@@ -1038,6 +1060,13 @@ export interface StatusTransitionContext {
   eventAt?: string | null;
   /** Kolejka komunikatów odroczonych (patrz `AnnouncementQueue`). */
   announcements?: AnnouncementQueue;
+  /**
+   * Kwota pozycji z ładunku zdarzenia (cena, na której subskrypcja JEST
+   * u operatora, × ilość). Brak = cena planu z katalogu wyłącznie dla kluczy
+   * spoza zmiany cennika v6.2; dla Członka, Członka Pro i Zespołu - mail bez
+   * kwoty (katalog nie musi być ich ceną).
+   */
+  charge?: { amountCents: number; currency: string } | null;
 }
 
 /**
@@ -1098,13 +1127,18 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
         icon: "badge-check",
         since: ctx.eventAt,
       });
+      // Kwota z ceny, na której subskrypcja JEST u operatora (ładunek
+      // zdarzenia), nie z katalogu: po zmianie cennika wznowiona subskrypcja
+      // odnawia się po swojej (np. starej) cenie.
+      const catalogTrusted = !isRepriceLookupKey(ctx.priceId);
+      const charge = ctx.charge ?? null;
       await notifySubscriptionEmail({
         kind: "subscription_resumed",
         userId: ctx.userId,
         planId: plan.planId,
         periodEnd: ctx.periodEnd,
-        amountCents: plan.priceCents,
-        currency: plan.currency,
+        amountCents: charge ? charge.amountCents : catalogTrusted ? plan.priceCents : null,
+        currency: charge?.currency ?? plan.currency,
         idempotencySeed: `${ctx.subscriptionId}:resumed:${ctx.periodEnd ?? ""}`,
       });
     });

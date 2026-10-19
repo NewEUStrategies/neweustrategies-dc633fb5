@@ -35,6 +35,32 @@ export interface WaterfallStep {
   kind: "start" | "step" | "end";
   /** Znak wkładu - decyduje o kolorze semantycznym I o kierunku wzrostu. */
   direction: "up" | "down" | "flat";
+  /**
+   * POZIOM po tym słupku (D1): dla filara - sama wartość, dla składnika -
+   * kursor mostka PO kroku. To jest liczba „Poziom” w dymku i w tabeli.
+   *
+   * DLACZEGO NIE `to`. `to` to GÓRNA KRAWĘDŹ prostokąta (geometria, łączniki
+   * zaczepiają się o nią), a dla kroku W DÓŁ górna krawędź to poziom PRZED
+   * spadkiem: MRR 100 → churn −5 pokazywał „Poziom: 100” zamiast 95. Znaczenia
+   * `to` nie da się zmienić bez zerwania łączników, więc poziom jest osobnym
+   * polem. Czytają je dymek (`components/charts/CartesianChart.tsx`) i tabela
+   * danych (`components/charts/Chart.tsx`) - test renderu
+   * `components/charts/__tests__/waterfallLevel.test.tsx`.
+   */
+  level: number;
+}
+
+/**
+ * Poziom po słupku wyliczony z GEOMETRII kroku - dla konsumentów, którzy mają
+ * krawędzie, a nie pełny model. Dla kroku w dół poziom po kroku to dolna
+ * krawędź (`from`), dla kroku w górę i płaskiego - górna (`to`); filar to sama
+ * wartość. Zgodność z `level` z modelu pilnuje `waterfall.test.ts`.
+ */
+export function waterfallLevel(
+  step: Pick<WaterfallStep, "kind" | "direction" | "from" | "to" | "value">,
+): number {
+  if (step.kind !== "step") return step.value;
+  return step.direction === "down" ? step.from : step.to;
 }
 
 export interface WaterfallModel {
@@ -115,6 +141,7 @@ export function waterfallModel(
     to: Math.max(0, start),
     kind: "start",
     direction: start >= 0 ? "up" : "down",
+    level: start,
   });
 
   let cursor = start;
@@ -132,6 +159,7 @@ export function waterfallModel(
       to: Math.max(from, cursor),
       kind: "step",
       direction: value > 0 ? "up" : value < 0 ? "down" : "flat",
+      level: cursor,
     });
   }
 
@@ -145,6 +173,7 @@ export function waterfallModel(
       to: Math.max(0, end),
       kind: "end",
       direction: end >= start ? "up" : "down",
+      level: end,
     });
     const stateDelta = end - start;
     const gap = Math.abs(componentSum - stateDelta);

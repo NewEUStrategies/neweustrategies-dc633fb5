@@ -107,6 +107,9 @@ const SERVICE_ROLE_READERS = [
   "src/lib/server/jobScheduler.server.ts",
   "src/lib/server/publishedContent.server.ts",
   "src/lib/server/rate-limit.server.ts",
+  // Dziennik przeniesienia subskrypcji na cenę katalogu v6.2 (akcja admina
+  // najemcy): każde zapytanie po `tenant_id` z sesji, nigdy z ładunku.
+  "src/lib/server/subscriptionRepricingStore.server.ts",
   "src/lib/server/tenant.server.ts",
   "src/lib/server/tts.server.ts",
   "src/lib/server/wp-media.server.ts",

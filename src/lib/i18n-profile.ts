@@ -829,6 +829,14 @@ const pl = {
       "Ten plan jest rozliczany inaczej niż Twoja obecna subskrypcja (za miejsce zamiast indywidualnie albo odwrotnie), więc kupujesz go osobno. Obecna subskrypcja zostaje aktywna i dalej się odnawia - jeśli nie jest już potrzebna, zrezygnujesz z niej w portalu płatności.",
     sessionSuperseded:
       "Ta płatność została zastąpiona nowszą, otwartą w innej karcie lub oknie. Dokończ ją tam albo zacznij od nowa.",
+    // Cennik v6.2: plan poza sprzedażą samoobsługową - serwer odmawia zakupu
+    // (`planPurchaseRefusal`), a strona nie udaje, że da się zapłacić.
+    notForSale:
+      "Tego planu nie kupisz online: został wycofany ze sprzedaży albo sprzedajemy go po rozmowie (np. plan Zespół, 3-20 miejsc). Obecni członkowie zachowują swoje warunki - aktualną ofertę i kontakt znajdziesz w cenniku.",
+    notForSaleCta: "Zobacz cennik",
+    enquiryOnly:
+      "Ta oferta jest wyceniana indywidualnie i nie da się jej kupić online. Wyślij zgłoszenie, a przygotujemy propozycję.",
+    enquiryOnlyCta: "Przejdź do zgłoszenia",
     promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
@@ -1694,6 +1702,12 @@ const en: ProfileEn = {
       "This plan is billed differently from your current subscription (per seat instead of individually, or the other way round), so you buy it separately. Your current subscription stays active and keeps renewing - if you no longer need it, cancel it in the payment portal.",
     sessionSuperseded:
       "This payment was replaced by a newer one opened in another tab or window. Finish it there or start again.",
+    notForSale:
+      "This plan can't be bought online: it has been withdrawn from sale or is sold after a conversation (e.g. the Team plan, 3-20 seats). Current members keep their terms - the pricing page has the current offer and a contact option.",
+    notForSaleCta: "See pricing",
+    enquiryOnly:
+      "This offer is priced individually and can't be bought online. Send an enquiry and we will prepare a proposal.",
+    enquiryOnlyCta: "Go to the enquiry",
     promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",

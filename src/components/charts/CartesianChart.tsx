@@ -749,7 +749,9 @@ function CartesianPlot({
         s.kind === "step"
           ? [
               { label: t("tip.change"), value: formatSignedValue(s.value, lang, config.unit) },
-              { label: t("tip.level"), value: formatChartValue(s.to, lang, config.unit) },
+              // POZIOM PO KROKU (D1), nie górna krawędź słupka: dla spadku
+              // `to` to poziom sprzed spadku (MRR 100 → churn −5 dawało „100”).
+              { label: t("tip.level"), value: formatChartValue(s.level, lang, config.unit) },
             ]
           : [{ label: t("tip.level"), value: formatChartValue(s.value, lang, config.unit) }],
       );

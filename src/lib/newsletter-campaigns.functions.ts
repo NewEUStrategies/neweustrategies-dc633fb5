@@ -1,11 +1,24 @@
 // Newsletter campaigns — admin CRUD + wysyłka paczkami przez Resend.
 //
 // Bezpieczeństwo:
-//  - wszystkie funkcje wymagają `requireStaff` (admin/editor w ramach tenanta),
+//  - każda funkcja ma bramkę roli; odczyt - `requireStaff`, a ZAPIS i WYSYŁKA
+//    są wyłącznie dla admina i editora (def. 10: autor nie wysyła kampanii) -
+//    `requireAdminEditor` na zapisie, wysyłce, ticku z panelu i tworzeniu
+//    kampanii kuponowej. Handler dodatkowo czyta kampanię klientem
+//    UŻYTKOWNIKA (RLS `campaigns_staff_select`), więc edycja niewidocznej
+//    kampanii kończy się jawną odmową, a nie cichym „zapisano";
 //  - wysyłka i log wysyłek idą przez `supabaseAdmin` z pinowaniem po `tenant_id`
 //    pochodzącym z profilu wywołującego (nigdy z inputu klienta),
 //  - kampania nie może być wysłana ponownie po statusie `sent`; świeże
 //    `sending` też jest zablokowane (wyjątek: crash recovery, patrz niżej).
+//
+// Kampania KUPONOWA (P04) = kampania newslettera, na którą wskazuje
+// `b2b_coupon_campaigns.newsletter_campaign_id` tego najemcy. Wysyłka jest
+// wtedy fail-closed: segment (lista mailingowa) musi być poprawny i znany,
+// każdy odbiorca dostaje WŁASNY kod (`{{coupon_code}}`, przypisanie zapisane
+// w `b2b_coupons.metadata`, wznowienie używa tego samego kodu), a za mało
+// kodów zatrzymuje porcję przed pierwszym mailem. Status `sent` kampanii
+// kuponowej ustawia wyłącznie ten serwer - dopiero po zakończonej wysyłce.
 //
 // Wysyłka:
 //  - `sendCampaign` przełącza status → `sending`, materializuje odbiorców
@@ -36,10 +49,15 @@
 //    przy wejściu admina na listę kampanii / overview + przycisk ręczny.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireStaff } from "@/integrations/supabase/require-staff";
+import { requireAdminEditor, requireStaff } from "@/integrations/supabase/require-staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Tables } from "@/integrations/supabase/types";
-import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
+import { readPreferences } from "@/lib/newsletter/preferences";
+import {
+  SAMPLE_COUPON_CODE,
+  esc,
+  renderCampaignHtml,
+} from "@/lib/newsletter/renderCampaign.server";
 import { signTrackingToken, signTrackingLink } from "@/lib/newsletter/trackingToken.server";
 import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
 import { parseEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
@@ -99,6 +117,11 @@ const AudienceFilter = z.object({
   // o randze warstwy >= min_tier_rank (np. tylko członkowie). 0/undefined = bez
   // ograniczenia. Przecięcie po e-mailu (newsletter_min_tier_emails).
   min_tier_rank: z.number().int().min(0).max(1000).optional(),
+  // Lista mailingowa (`id` z `newsletter_settings.popup_mailing_lists`):
+  // tylko subskrybenci, którzy ją wybrali (`meta.mailing_lists`). Wcześniej
+  // klucza nie było w schemacie, więc zod go po cichu odrzucał, a kampania
+  // „do segmentu" szła do całej listy (P04, R-25).
+  segment: z.string().trim().min(1).max(120).optional(),
 });
 export type AudienceFilter = z.infer<typeof AudienceFilter>;
 
@@ -129,6 +152,246 @@ export function readAudienceFilter(raw: unknown): AudienceFilter {
  */
 function normalizeEmail(email: string | null | undefined): string {
   return (email ?? "").trim().toLowerCase();
+}
+
+/**
+ * Czy subskrybent wybrał listę mailingową `segment`. Czyta preferencje tym
+ * samym normalizatorem co profil i CRM (`readPreferences`): listy leżą
+ * w `meta.mailing_lists` jako napis „a,b", a stare popupy zapisywały
+ * `meta.mailing_list` w liczbie pojedynczej - porównanie surowego JSON-a
+ * gubiłoby tych drugich.
+ */
+function onMailingList(meta: unknown, segment: string): boolean {
+  const bag =
+    typeof meta === "object" && meta !== null && !Array.isArray(meta)
+      ? (meta as Record<string, unknown>)
+      : null;
+  return readPreferences(bag).mailingLists.includes(segment);
+}
+
+/** Identyfikatory list mailingowych najemcy (`newsletter_settings.popup_mailing_lists`). */
+async function tenantMailingListIds(admin: DbClient, tenantId: string): Promise<Set<string>> {
+  const { data, error } = await admin
+    .from("newsletter_settings")
+    .select("popup_mailing_lists")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const lists = Array.isArray(data?.popup_mailing_lists) ? data.popup_mailing_lists : [];
+  const ids = new Set<string>();
+  for (const entry of lists) {
+    if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
+      const id = (entry as Record<string, unknown>).id;
+      if (typeof id === "string" && id.trim() !== "") ids.add(id.trim());
+    }
+  }
+  return ids;
+}
+
+// ----------------------------------------------------------------------------
+// Kampania kuponowa (P04)
+// ----------------------------------------------------------------------------
+
+/**
+ * Kody błędów trybu kuponowego - komunikat = kod maszynowy, panel tłumaczy
+ * go po prefiksie (`COUPON_CODES_INSUFFICIENT:<potrzeba>:<dostępne>`).
+ */
+export const COUPON_SEND_ERRORS = {
+  /** Filtr nieparsowalny, lista nieznana albo niezgodna z kampanią kuponową. */
+  segmentInvalid: "COUPON_SEGMENT_INVALID",
+  /** Za mało wolnych kodów dla porcji odbiorców. */
+  codesInsufficient: "COUPON_CODES_INSUFFICIENT",
+  /** Treść z `{{coupon_code}}`, ale kampania nie jest podpięta pod kuponową. */
+  notLinked: "COUPON_CAMPAIGN_NOT_LINKED",
+  /** Pod jedną kampanię newslettera podpięto kilka kampanii kuponowych. */
+  ambiguous: "COUPON_CAMPAIGN_AMBIGUOUS",
+  /** Kampania kuponowa, ale wersja językowa z treścią nie ma `{{coupon_code}}`. */
+  missingTag: "COUPON_TAG_MISSING",
+} as const;
+
+const COUPON_TAG = "{{coupon_code}}";
+
+/**
+ * Embed kampanii kuponowej przy odczycie kampanii newslettera (relacja
+ * `b2b_coupon_campaigns.newsletter_campaign_id`). Jedno zapytanie zamiast
+ * dwóch: przejęcie kampanii do wysyłki i sprawdzenie trybu kuponowego dzieją
+ * się atomowo, a błąd odczytu powiązania wywraca przejęcie (fail-closed),
+ * zamiast po cichu potraktować kampanię jak zwykłą.
+ */
+const COUPON_LINK_EMBED =
+  "coupon_link:b2b_coupon_campaigns!b2b_coupon_campaigns_newsletter_campaign_id_fkey(id, tenant_id, name, status, newsletter_segment)";
+
+interface CouponLink {
+  id: string;
+  tenant_id: string;
+  name: string;
+  status: string;
+  newsletter_segment: string | null;
+}
+
+function readCouponLinks(raw: unknown): CouponLink[] {
+  const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const links: CouponLink[] = [];
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.id !== "string" || typeof r.tenant_id !== "string") continue;
+    links.push({
+      id: r.id,
+      tenant_id: r.tenant_id,
+      name: typeof r.name === "string" ? r.name : "",
+      status: typeof r.status === "string" ? r.status : "",
+      newsletter_segment: typeof r.newsletter_segment === "string" ? r.newsletter_segment : null,
+    });
+  }
+  return links;
+}
+
+/**
+ * Kampania kuponowa podpięta pod kampanię newslettera albo `null` (zwykła
+ * kampania). Powiązanie z cudzym najemcą albo kilka powiązań to konfiguracja
+ * niepoprawna - wyjątek, nigdy „zwykła kampania do całej listy".
+ */
+function couponLinkOf(raw: unknown, tenantId: string): CouponLink | null {
+  const links = readCouponLinks(raw);
+  if (links.length === 0) return null;
+  if (links.some((link) => link.tenant_id !== tenantId)) {
+    throw new Error(COUPON_SEND_ERRORS.segmentInvalid);
+  }
+  if (links.length > 1) throw new Error(COUPON_SEND_ERRORS.ambiguous);
+  return links[0]!;
+}
+
+/**
+ * Filtr odbiorców kampanii KUPONOWEJ - fail-closed (w przeciwieństwie do
+ * `readAudienceFilter`): nieparsowalny filtr, lista spoza
+ * `popup_mailing_lists` najemcy albo segment inny niż ustawiony na kampanii
+ * kuponowej zatrzymują wysyłkę. Kody rabatowe wysłane do całej listy zamiast
+ * do segmentu to incydent (R-25), którego nie da się cofnąć.
+ */
+async function couponAudienceFilter(
+  admin: DbClient,
+  tenantId: string,
+  rawFilter: unknown,
+  coupon: CouponLink,
+): Promise<AudienceFilter> {
+  const parsed = AudienceFilter.safeParse(rawFilter ?? {});
+  if (!parsed.success) throw new Error(COUPON_SEND_ERRORS.segmentInvalid);
+  const filter = parsed.data;
+  if ((coupon.newsletter_segment ?? undefined) !== filter.segment) {
+    throw new Error(COUPON_SEND_ERRORS.segmentInvalid);
+  }
+  if (filter.segment) {
+    const known = await tenantMailingListIds(admin, tenantId);
+    if (!known.has(filter.segment)) throw new Error(COUPON_SEND_ERRORS.segmentInvalid);
+  }
+  return filter;
+}
+
+interface CouponCode {
+  id: string;
+  code: string;
+  metadata: Record<string, unknown>;
+}
+
+function readCouponCodes(raw: unknown): CouponCode[] {
+  if (!Array.isArray(raw)) return [];
+  const codes: CouponCode[] = [];
+  for (const row of raw) {
+    if (typeof row !== "object" || row === null) continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.id !== "string" || typeof r.code !== "string") continue;
+    const meta =
+      typeof r.metadata === "object" && r.metadata !== null && !Array.isArray(r.metadata)
+        ? (r.metadata as Record<string, unknown>)
+        : {};
+    codes.push({ id: r.id, code: r.code, metadata: meta });
+  }
+  return codes;
+}
+
+/** Ile identyfikatorów idzie w jednym `in.(…)` - adres zapytania ma limit długości. */
+const COUPON_ASSIGNED_LOOKUP_CHUNK = 50;
+
+/**
+ * Pula kodów dla porcji odbiorców kampanii kuponowej.
+ *
+ * `assigned` - kody JUŻ przypisane odbiorcom tej porcji (wznowienie po
+ * przerwanej wysyłce dostaje ten sam kod, a nie drugi); `free` - kody
+ * aktywne, jeszcze bez odbiorcy, w kolejności generacji. Warunek z SPEC:
+ * `free + assigned >= liczba odbiorców porcji`, inaczej porcja nie wysyła
+ * NIC (lepiej zatrzymać kampanię niż wysłać części odbiorców maila bez kodu).
+ */
+async function loadCouponPool(
+  admin: DbClient,
+  tenantId: string,
+  couponCampaignId: string,
+  recipientIds: readonly string[],
+): Promise<{ assigned: Map<string, CouponCode>; free: CouponCode[]; freeCount: number }> {
+  const assigned = new Map<string, CouponCode>();
+  for (let i = 0; i < recipientIds.length; i += COUPON_ASSIGNED_LOOKUP_CHUNK) {
+    const chunk = recipientIds.slice(i, i + COUPON_ASSIGNED_LOOKUP_CHUNK);
+    const { data, error } = await admin
+      .from("b2b_coupons")
+      .select("id, code, metadata")
+      .eq("tenant_id", tenantId)
+      .eq("campaign_id", couponCampaignId)
+      .in("metadata->>assigned_subscriber_id", chunk);
+    if (error) throw new Error(error.message);
+    for (const code of readCouponCodes(data)) {
+      const subscriberId = code.metadata.assigned_subscriber_id;
+      if (typeof subscriberId === "string" && !assigned.has(subscriberId)) {
+        assigned.set(subscriberId, code);
+      }
+    }
+  }
+  const needFree = recipientIds.filter((id) => !assigned.has(id)).length;
+  if (needFree === 0) return { assigned, free: [], freeCount: 0 };
+  const { data, error, count } = await admin
+    .from("b2b_coupons")
+    .select("id, code, metadata", { count: "exact" })
+    .eq("tenant_id", tenantId)
+    .eq("campaign_id", couponCampaignId)
+    .eq("active", true)
+    .is("metadata->>assigned_subscriber_id", null)
+    .order("created_at", { ascending: true })
+    .limit(needFree);
+  if (error) throw new Error(error.message);
+  const free = readCouponCodes(data);
+  return { assigned, free, freeCount: Math.max(count ?? 0, free.length) };
+}
+
+/**
+ * Przypisanie wolnego kodu odbiorcy - warunkowy UPDATE („nadal wolny"),
+ * więc dwa procesy nie przypiszą jednego kodu dwóm osobom. Przegrany wyścig
+ * bierze kolejny kod z puli. `metadata` jest scalane, nie nadpisywane;
+ * zmiana samego `metadata` nie emituje `coupon.changed.v1` (D-S1-07).
+ */
+async function claimCouponCode(
+  admin: DbClient,
+  tenantId: string,
+  newsletterCampaignId: string,
+  subscriberId: string,
+  pool: CouponCode[],
+): Promise<CouponCode | null> {
+  for (let next = pool.shift(); next; next = pool.shift()) {
+    const metadata = {
+      ...next.metadata,
+      assigned_subscriber_id: subscriberId,
+      assigned_newsletter_campaign_id: newsletterCampaignId,
+      assigned_at: new Date().toISOString(),
+    };
+    const { data, error } = await admin
+      .from("b2b_coupons")
+      .update({ metadata } as never)
+      .eq("id", next.id)
+      .eq("tenant_id", tenantId)
+      .is("metadata->>assigned_subscriber_id", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (Array.isArray(data) && data.length > 0) return { ...next, metadata };
+  }
+  return null;
 }
 
 const CampaignUpsert = z.object({
@@ -183,13 +446,6 @@ export type CampaignRow = Pick<
   | "updated_at"
 >;
 
-function esc(v: string): string {
-  return v.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
-  );
-}
-
 async function originFromRequest(): Promise<string> {
   const envUrl = process.env.PUBLIC_SITE_URL ?? process.env.SITE_URL ?? process.env.URL;
   if (envUrl) return envUrl.replace(/\/+$/, "");
@@ -218,6 +474,30 @@ async function getTenantId(context: { supabase: DbClient; userId: string }): Pro
   return profile.tenant_id;
 }
 
+/**
+ * Bramka roli w handlerze (def. 10, wariant bez Z-S1-P1): odczyt kampanii
+ * klientem UŻYTKOWNIKA. Polityka RLS `campaigns_staff_select` przepuszcza
+ * wyłącznie admina i editora najemcy, więc autor (wpuszczony przez
+ * `requireStaff`) dostaje `campaign_not_found`, zanim klient serwisowy
+ * cokolwiek przejmie albo wyśle. Ta sama baza rozstrzyga o roli, która trzyma
+ * zapis kampanii - bez drugiej, ręcznie utrzymywanej listy ról.
+ */
+async function readCampaignAsUser(
+  context: { supabase: DbClient },
+  campaignId: string,
+  tenantId: string,
+): Promise<{ status: string }> {
+  const { data, error } = await context.supabase
+    .from("newsletter_campaigns")
+    .select("status")
+    .eq("id", campaignId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("campaign_not_found");
+  return data;
+}
+
 // ----------------------------------------------------------------------------
 // LIST
 // ----------------------------------------------------------------------------
@@ -236,17 +516,71 @@ export const listCampaigns = createServerFn({ method: "GET" })
 // ----------------------------------------------------------------------------
 // GET
 // ----------------------------------------------------------------------------
+/** Kampania kuponowa podpięta pod kampanię newslettera (podgląd w edytorze). */
+export interface CampaignCouponInfo {
+  couponCampaignId: string;
+  name: string;
+  /** Kody aktywne, jeszcze nieprzypisane odbiorcy - tyle osób można obsłużyć. */
+  codesAvailable: number;
+  codesTotal: number;
+  /** Status kampanii kuponowej (`draft|generated|sent|archived`). */
+  status: string;
+}
+
+export type CampaignWithCoupon = CampaignRow & { coupon: CampaignCouponInfo | null };
+
+/**
+ * Liczniki kodów kampanii kuponowej klientem UŻYTKOWNIKA (RLS
+ * `b2b_coupons_staff_all`) - edytor pokazuje je przed wysyłką, żeby brak kodów
+ * był widoczny, zanim wysyłka się zatrzyma.
+ */
+async function couponInfo(client: DbClient, link: CouponLink): Promise<CampaignCouponInfo> {
+  const [total, free] = await Promise.all([
+    client
+      .from("b2b_coupons")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", link.tenant_id)
+      .eq("campaign_id", link.id),
+    client
+      .from("b2b_coupons")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", link.tenant_id)
+      .eq("campaign_id", link.id)
+      .eq("active", true)
+      .is("metadata->>assigned_subscriber_id", null),
+  ]);
+  if (total.error) throw new Error(total.error.message);
+  if (free.error) throw new Error(free.error.message);
+  return {
+    couponCampaignId: link.id,
+    name: link.name,
+    codesAvailable: free.count ?? 0,
+    codesTotal: total.count ?? 0,
+    status: link.status,
+  };
+}
+
 export const getCampaign = createServerFn({ method: "GET" })
   .middleware([requireStaff])
   .validator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
-  .handler(async ({ data, context }): Promise<CampaignRow | null> => {
+  .handler(async ({ data, context }): Promise<CampaignWithCoupon | null> => {
     const { data: row, error } = await context.supabase
       .from("newsletter_campaigns")
-      .select("*")
+      .select(`*, ${COUPON_LINK_EMBED}`)
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return (row ?? null) as CampaignRow | null;
+    if (!row) return null;
+    const { coupon_link: rawLink, ...campaign } = row as unknown as CampaignRow & {
+      coupon_link?: unknown;
+    };
+    // Powiązanie z cudzym najemcą nie jest „kampanią kuponową tej kampanii" -
+    // wysyłka i tak je odrzuci (fail-closed), edytor go nie pokazuje.
+    const link = readCouponLinks(rawLink).find((l) => l.tenant_id === campaign.tenant_id) ?? null;
+    return {
+      ...campaign,
+      coupon: link ? await couponInfo(context.supabase, link) : null,
+    };
   });
 
 // ----------------------------------------------------------------------------
@@ -330,7 +664,7 @@ export const getCampaignEngagement = createServerFn({ method: "GET" })
 // UPSERT
 // ----------------------------------------------------------------------------
 export const upsertCampaign = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .validator((data: unknown) => CampaignUpsert.parse(data))
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const tenantId = await getTenantId(context);
@@ -360,6 +694,11 @@ export const upsertCampaign = createServerFn({ method: "POST" })
       status: data.scheduled_at ? "scheduled" : "draft",
     };
     if (data.id) {
+      // RLS zapisu przepuszcza tylko admina i editora, ale UPDATE bez
+      // widocznego wiersza kończy się po cichu sukcesem - autor dostawałby
+      // „zapisano" bez zapisu. Odczyt klientem użytkownika zamienia to
+      // w jawną odmowę (def. 10).
+      await readCampaignAsUser(context, data.id, tenantId);
       const { error } = await context.supabase
         .from("newsletter_campaigns")
         // editor/content_doc są nowsze niż wygenerowane typy -> cast payloadu.
@@ -405,21 +744,29 @@ export const countCampaignAudience = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const statuses = data.statuses?.length ? data.statuses : ["subscribed"];
 
-    // Segment po warstwie (min_tier_rank) wymaga przecięcia po e-mailu, więc
-    // zamiast szybkiego head-count pobieramy e-maile i liczymy część wspólną.
-    if (data.min_tier_rank && data.min_tier_rank > 0) {
+    // Segment po warstwie (min_tier_rank) i lista mailingowa (segment)
+    // wymagają przecięcia po wierszach, więc zamiast szybkiego head-count
+    // pobieramy e-maile (i preferencje) i liczymy część wspólną - tym samym
+    // predykatem co wysyłka, inaczej podgląd „do ilu osób pójdzie" kłamałby.
+    const tierRank = data.min_tier_rank && data.min_tier_rank > 0 ? data.min_tier_rank : 0;
+    if (tierRank > 0 || data.segment) {
       let q = supabaseAdmin
         .from("newsletter_subscribers")
-        .select("email")
+        .select(data.segment ? "email, meta" : "email")
         .eq("tenant_id", tenantId)
         .in("status", statuses);
       if (data.languages?.length) q = q.in("language", data.languages);
       if (data.source) q = q.eq("source", data.source);
       const { data: subs, error } = await q;
       if (error) throw new Error(error.message);
-      const tierSet = await minTierEmailSet(supabaseAdmin, tenantId, data.min_tier_rank);
-      const count = (subs ?? []).filter((s) => tierSet.has(normalizeEmail(s.email))).length;
-      return { count };
+      let rows = (subs ?? []) as unknown as { email: string; meta?: unknown }[];
+      const segment = data.segment;
+      if (segment) rows = rows.filter((s) => onMailingList(s.meta, segment));
+      if (tierRank > 0) {
+        const tierSet = await minTierEmailSet(supabaseAdmin, tenantId, tierRank);
+        rows = rows.filter((s) => tierSet.has(normalizeEmail(s.email)));
+      }
+      return { count: rows.length };
     }
 
     let q = supabaseAdmin
@@ -477,9 +824,12 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
       // testowej (czytelny błąd zamiast "wysłano" z pustą treścią).
       if (!rawHtml) throw new Error("missing_content_for_language");
     }
+    // Wysyłka testowa nie przypisuje prawdziwego kodu (pula kodów to
+    // odbiorcy kampanii), ale tag nigdy nie wychodzi surowy - podstawiamy
+    // czytelny kod przykładowy.
     const html = renderCampaignHtml(
       rawHtml,
-      { email: data.toEmail, firstName: "", lastName: "" },
+      { email: data.toEmail, firstName: "", lastName: "", couponCode: SAMPLE_COUPON_CODE },
       data.language,
       null,
       null,
@@ -500,7 +850,7 @@ export const sendCampaignTest = createServerFn({ method: "POST" })
 // SEND CAMPAIGN
 // ----------------------------------------------------------------------------
 export const sendCampaign = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .validator((data: unknown) =>
     z
       .object({
@@ -518,6 +868,9 @@ export const sendCampaign = createServerFn({ method: "POST" })
       context,
     }): Promise<{ ok: true; sent: number; failed: number; done: boolean; remaining: number }> => {
       const tenantId = await getTenantId(context);
+      // Rola PRZED klientem serwisowym (def. 10): status czytany klientem
+      // użytkownika - autor kampanii nie widzi (RLS), więc nie wyśle.
+      const current = await readCampaignAsUser(context, data.id, tenantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       // Bramka reputacji PRZED przejęciem kampanii: przekroczony próg skarg
@@ -526,13 +879,7 @@ export const sendCampaign = createServerFn({ method: "POST" })
       // przerwanie wysyłki w połowie zostawia część listy z wiadomością, a
       // część bez - gorzej niż dokończenie. Poszczególne adresy i tak chroni
       // lista wykluczeń, sprawdzana przy każdej porcji.
-      const { data: current } = await supabaseAdmin
-        .from("newsletter_campaigns")
-        .select("status")
-        .eq("id", data.id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (current?.status !== "sending") {
+      if (current.status !== "sending") {
         const gate = await evaluateSendGate(supabaseAdmin, tenantId, data.acknowledgeReputation);
         if (!gate.allowed) throw new Error(gate.errorCode ?? "reputation_blocked");
       }
@@ -552,12 +899,143 @@ export const sendCampaign = createServerFn({ method: "POST" })
 // Odpala zaległe kampanie `scheduled` z `scheduled_at <= now()` - wywoływane
 // przy wejściu admina na listę kampanii / overview (fallback zamiast pg_cron,
 // bo wysyłka wymaga env HTTP: RESEND_API_KEY / LOVABLE_API_KEY).
+// Tick WYSYŁA pocztę, więc stoi za tą samą bramką co wysyłka (def. 10).
 export const processDueCampaigns = createServerFn({ method: "POST" })
-  .middleware([requireStaff])
+  .middleware([requireAdminEditor])
   .handler(async ({ context }): Promise<{ fired: number; continued: number; sent: number }> => {
     const tenantId = await getTenantId(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return tickNewsletterCampaigns(supabaseAdmin, { tenantId });
+  });
+
+// ----------------------------------------------------------------------------
+// KAMPANIA NEWSLETTERA DLA KAMPANII KUPONOWEJ (P04)
+// ----------------------------------------------------------------------------
+
+/** Data ważności kodu w języku listu - strefa redakcji (Warszawa). */
+function couponValidUntil(validUntil: string | null, lang: "pl" | "en"): string {
+  if (!validUntil) {
+    return lang === "pl" ? "Kod nie ma terminu ważności." : "The code does not expire.";
+  }
+  const date = new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", {
+    dateStyle: "long",
+    timeZone: "Europe/Warsaw",
+  }).format(new Date(validUntil));
+  return lang === "pl" ? `Kod jest ważny do ${date}.` : `The code is valid until ${date}.`;
+}
+
+/**
+ * Szablon PL/EN kampanii kuponowej. `{{coupon_code}}` podstawia wysyłka - każdy
+ * odbiorca dostaje własny kod; nazwa kampanii idzie przez `esc` (wpisuje ją
+ * redakcja, ale trafia do HTML-a wiadomości).
+ */
+export function couponNewsletterTemplate(coupon: { name: string; valid_until: string | null }): {
+  name: string;
+  subject_pl: string;
+  subject_en: string;
+  html_pl: string;
+  html_en: string;
+} {
+  const name = esc(coupon.name);
+  return {
+    name: `Kupony: ${coupon.name}`,
+    subject_pl: `Twój kod rabatowy - ${coupon.name}`,
+    subject_en: `Your discount code - ${coupon.name}`,
+    html_pl:
+      `<p>Dzień dobry,</p><p>w ramach akcji „${name}” mamy dla Ciebie osobisty kod rabatowy:</p>` +
+      `<p style="font-size:20px;letter-spacing:2px"><strong>${COUPON_TAG}</strong></p>` +
+      `<p>${couponValidUntil(coupon.valid_until, "pl")} Kod jest jednorazowy i przypisany do Ciebie.</p>`,
+    html_en:
+      `<p>Hello,</p><p>as part of "${name}" we have a personal discount code for you:</p>` +
+      `<p style="font-size:20px;letter-spacing:2px"><strong>${COUPON_TAG}</strong></p>` +
+      `<p>${couponValidUntil(coupon.valid_until, "en")} The code is single-use and assigned to you.</p>`,
+  };
+}
+
+/**
+ * Tworzy (albo zwraca istniejącą) kampanię newslettera dla kampanii kuponowej.
+ *
+ * Zastępuje zapis z przeglądarki, który tworzył kampanię newslettera i od razu
+ * ustawiał kuponowej `status = 'sent'` (P04): tu kampania newslettera powstaje
+ * jako SZKIC z szablonem `{{coupon_code}}` i segmentem z kampanii kuponowej,
+ * a status `sent` ustawi dopiero zakończona wysyłka. Powiązanie
+ * (`newsletter_campaign_id`) zapisuje klient serwisowy - kolumna nie ma
+ * grantu dla `authenticated` (D-S1-06). Idempotentne: kampania już podpięta
+ * zwraca tę samą kampanię newslettera, a przegrany wyścig dwóch kart sprząta
+ * własny szkic i zwraca zwycięzcę.
+ */
+export const createCouponNewsletterCampaign = createServerFn({ method: "POST" })
+  .middleware([requireAdminEditor])
+  .validator((data: unknown) => z.object({ couponCampaignId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }): Promise<{ newsletterCampaignId: string }> => {
+    const tenantId = await getTenantId(context);
+    const { data: coupon, error } = await context.supabase
+      .from("b2b_coupon_campaigns")
+      .select("id, name, status, valid_until, newsletter_segment, newsletter_campaign_id")
+      .eq("id", data.couponCampaignId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!coupon) throw new Error("campaign_not_found");
+    if (coupon.newsletter_campaign_id) {
+      return { newsletterCampaignId: coupon.newsletter_campaign_id };
+    }
+    if (coupon.status !== "generated") throw new Error("coupon_campaign_not_generated");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Ten sam warunek co wysyłka (fail-closed) - lepiej odmówić teraz niż
+    // utworzyć szkic, który i tak się nie wyśle.
+    if (coupon.newsletter_segment) {
+      const known = await tenantMailingListIds(supabaseAdmin, tenantId);
+      if (!known.has(coupon.newsletter_segment)) {
+        throw new Error(COUPON_SEND_ERRORS.segmentInvalid);
+      }
+    }
+
+    const template = couponNewsletterTemplate(coupon);
+    const { data: inserted, error: insertError } = await context.supabase
+      .from("newsletter_campaigns")
+      .insert({
+        tenant_id: tenantId,
+        ...template,
+        editor: "html",
+        audience_filter: coupon.newsletter_segment ? { segment: coupon.newsletter_segment } : {},
+        status: "draft",
+        created_by: context.userId,
+      } as never)
+      .select("id")
+      .single();
+    if (insertError || !inserted) throw new Error(insertError?.message ?? "insert_failed");
+    const newsletterCampaignId = (inserted as { id: string }).id;
+
+    const { data: linked, error: linkError } = await supabaseAdmin
+      .from("b2b_coupon_campaigns")
+      .update({ newsletter_campaign_id: newsletterCampaignId })
+      .eq("id", coupon.id)
+      .eq("tenant_id", tenantId)
+      .is("newsletter_campaign_id", null)
+      .select("id");
+    if (!linkError && Array.isArray(linked) && linked.length > 0) {
+      return { newsletterCampaignId };
+    }
+
+    // Wyścig albo błąd powiązania: szkic bez kampanii kuponowej byłby
+    // zwykłą kampanią z tagiem kuponu - sprzątamy go.
+    await supabaseAdmin
+      .from("newsletter_campaigns")
+      .delete()
+      .eq("id", newsletterCampaignId)
+      .eq("tenant_id", tenantId);
+    if (linkError) throw new Error(linkError.message);
+    const { data: winner, error: winnerError } = await supabaseAdmin
+      .from("b2b_coupon_campaigns")
+      .select("newsletter_campaign_id")
+      .eq("id", coupon.id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (winnerError) throw new Error(winnerError.message);
+    if (!winner?.newsletter_campaign_id) throw new Error("coupon_campaign_link_failed");
+    return { newsletterCampaignId: winner.newsletter_campaign_id };
   });
 
 /**
@@ -680,7 +1158,7 @@ async function claimCampaign(
   campaignId: string,
   tenantId: string,
   mode: "manual" | "due" | "continue",
-): Promise<CampaignRow | null> {
+): Promise<ClaimedCampaign | null> {
   const nowIso = new Date().toISOString();
   const leaseIso = new Date(Date.now() + LEASE_MS).toISOString();
   // lease_until jest nowsze niż wygenerowane typy -> cast payloadu.
@@ -703,10 +1181,15 @@ async function claimCampaign(
       `status.in.(draft,scheduled,failed),and(status.eq.sending,lease_until.is.null),and(status.eq.sending,lease_until.lt.${nowIso})`,
     );
   }
-  const { data: claimed, error } = await q.select("*").maybeSingle();
+  // Powiązanie z kampanią kuponową czytane RAZEM z przejęciem: tryb wysyłki
+  // (zwykła / kuponowa) wynika z tego samego odczytu, który oddał dzierżawę.
+  const { data: claimed, error } = await q.select(`*, ${COUPON_LINK_EMBED}`).maybeSingle();
   if (error) throw new Error(error.message);
-  return (claimed ?? null) as CampaignRow | null;
+  return (claimed ?? null) as unknown as ClaimedCampaign | null;
 }
+
+/** Kampania przejęta do wysyłki + surowe powiązanie z kampanią kuponową. */
+type ClaimedCampaign = CampaignRow & { coupon_link?: unknown };
 
 interface AudienceSubscriber {
   id: string;
@@ -715,6 +1198,8 @@ interface AudienceSubscriber {
   last_name: string | null;
   language: string;
   unsubscribe_token: string | null;
+  /** Tylko przy filtrze listy mailingowej (`segment`). */
+  meta?: unknown;
 }
 
 /**
@@ -737,12 +1222,15 @@ interface AudienceSubscriber {
  */
 async function runCampaignSend(
   admin: DbClient,
-  camp: CampaignRow,
+  camp: ClaimedCampaign,
   tenantId: string,
   opts: { maxEmails?: number } = {},
 ): Promise<{ sent: number; failed: number; done: boolean; remaining: number; processed: number }> {
   const maxEmails = Math.max(1, opts.maxEmails ?? MAX_EMAILS_PER_INVOCATION);
   try {
+    // Tryb kuponowy (P04) rozstrzyga powiązanie odczytane razem z przejęciem.
+    const coupon = couponLinkOf(camp.coupon_link, tenantId);
+
     // Fetch audience.
     //
     // `audience_filter` jest kolumną `jsonb`, więc jej typem jest `Json` - także
@@ -752,18 +1240,30 @@ async function runCampaignSend(
     // (`AudienceFilter`) - ładunek uszkodzony przez ręczną edycję w bazie daje
     // wtedy filtr pusty (wysyłka do statusu `subscribed`), a nie wyjątek
     // w połowie kampanii ani ciche `undefined` w warunku `in()`.
-    const filter = readAudienceFilter(camp.audience_filter);
+    // WYJĄTEK: kampania kuponowa jest fail-closed (`couponAudienceFilter`) -
+    // filtr pusty znaczyłby kody rabatowe dla całej listy zamiast segmentu.
+    const filter = coupon
+      ? await couponAudienceFilter(admin, tenantId, camp.audience_filter, coupon)
+      : readAudienceFilter(camp.audience_filter);
     const statuses = filter.statuses?.length ? filter.statuses : ["subscribed"];
     let q = admin
       .from("newsletter_subscribers")
-      .select("id, email, first_name, last_name, language, unsubscribe_token")
+      .select(
+        filter.segment
+          ? "id, email, first_name, last_name, language, unsubscribe_token, meta"
+          : "id, email, first_name, last_name, language, unsubscribe_token",
+      )
       .eq("tenant_id", tenantId)
       .in("status", statuses);
     if (filter.languages?.length) q = q.in("language", filter.languages);
     if (filter.source) q = q.eq("source", filter.source);
     const { data: subs, error: subsErr } = await q;
     if (subsErr) throw new Error(subsErr.message);
-    let audience = (subs ?? []) as AudienceSubscriber[];
+    let audience = (subs ?? []) as unknown as AudienceSubscriber[];
+
+    // Lista mailingowa: ten sam predykat co licznik audiencji w panelu.
+    const segment = filter.segment;
+    if (segment) audience = audience.filter((sub) => onMailingList(sub.meta, segment));
 
     // Segment członkowski: zostaw tylko subskrybentów, których e-mail należy do
     // konta o randze warstwy >= min_tier_rank (personalizacja komunikacji).
@@ -874,7 +1374,7 @@ async function runCampaignSend(
     // Kreator treści (editor='doc'): dokument renderuje się RAZ per język na
     // wywołanie - blok "najnowsze wpisy" jest świeży w momencie WYSYŁKI, nie
     // zapisu. Per odbiorca zostaje tylko personalizacja zmiennych + tracking
-    // (renderCampaignHtml niżej, wspólny z trybem html).
+    // (renderCampaignHtml z `newsletter/renderCampaign.server`, wspólny z trybem html).
     // Absolutny origin jest wymagany dla KAZDEGO trybu (doc i html): bez niego
     // stopka "Wypisz sie" i naglowki RFC-8058 (List-Unsubscribe) nie zostana
     // doklejone (patrz nizej: unsubscribeUrl wymaga origin), wiec mail wyszedlby
@@ -893,6 +1393,40 @@ async function runCampaignSend(
       // Pusty render w OBU językach = brak treści do wysłania (inaczej kampania
       // skończyłaby jako "sent" z zerem maili). Zatrzymujemy z jasnym błędem.
       if (!docHtmlPl && !docHtmlEn) throw new Error("empty_content_doc");
+    }
+
+    // Tag kuponu w kampanii BEZ kampanii kuponowej wyszedłby do odbiorców
+    // surowy („{{coupon_code}}") - zatrzymujemy, zanim cokolwiek wyjdzie.
+    if (!coupon && [docHtmlPl, docHtmlEn].some((html) => (html ?? "").includes(COUPON_TAG))) {
+      throw new Error(COUPON_SEND_ERRORS.notLinked);
+    }
+    // I odwrotnie: kampania kuponowa, której wersja językowa z treścią nie ma
+    // znacznika, przydzieliłaby odbiorcy kod, którego mail nie pokaże - kod
+    // przepada, a kampania mogłaby skończyć jako `sent`. Zatrzymujemy PRZED
+    // przydziałem kodów.
+    if (
+      coupon &&
+      [docHtmlPl, docHtmlEn].some((html) => !!html?.trim() && !html.includes(COUPON_TAG))
+    ) {
+      throw new Error(COUPON_SEND_ERRORS.missingTag);
+    }
+
+    // Pula kodów porcji (tryb kuponowy), sprawdzana PRZED pierwszym mailem:
+    // za mało kodów = porcja nie wysyła nic (mail bez kodu jest gorszy niż
+    // wstrzymana kampania, a drugi mail „tym razem z kodem" - jeszcze gorszy).
+    let couponPool: { assigned: Map<string, CouponCode>; free: CouponCode[] } | null = null;
+    if (coupon && pending.length > 0) {
+      const pool = await loadCouponPool(
+        admin,
+        tenantId,
+        coupon.id,
+        pending.map((sub) => sub.id),
+      );
+      const available = pool.assigned.size + pool.freeCount;
+      if (available < pending.length) {
+        throw new Error(`${COUPON_SEND_ERRORS.codesInsufficient}:${pending.length}:${available}`);
+      }
+      couponPool = pool;
     }
 
     for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -914,6 +1448,30 @@ async function runCampaignSend(
             });
             return;
           }
+          // Kod odbiorcy: najpierw ten JUŻ przypisany (wznowienie wysyła ten
+          // sam kod, nie drugi), potem wolny z puli - przypisany warunkowo, więc
+          // przegrany wyścig bierze następny. Pusta pula w trakcie porcji (kody
+          // zabrane równolegle) = odbiorca `failed`, ponawiany przy wznowieniu.
+          let couponCode: string | null = null;
+          if (couponPool) {
+            const code =
+              couponPool.assigned.get(sub.id) ??
+              (await claimCouponCode(admin, tenantId, camp.id, sub.id, couponPool.free));
+            if (!code) {
+              failed++;
+              await logRecipient(admin, {
+                tenantId,
+                campaignId: camp.id,
+                subscriberId: sub.id,
+                email: sub.email,
+                language: lang,
+                status: "failed",
+                error: "coupon_code_unavailable",
+              });
+              return;
+            }
+            couponCode = code.code;
+          }
           // Ten sam adres idzie do stopki i do nagłówka List-Unsubscribe, a
           // wskazuje ENDPOINT (handler POST), nie stronę: klient pocztowy
           // POST-uje one-click (RFC 8058) wprost na adres z nagłówka, a strona
@@ -925,7 +1483,12 @@ async function runCampaignSend(
               : null;
           const html = renderCampaignHtml(
             rawHtml,
-            { email: sub.email, firstName: sub.first_name ?? "", lastName: sub.last_name ?? "" },
+            {
+              email: sub.email,
+              firstName: sub.first_name ?? "",
+              lastName: sub.last_name ?? "",
+              couponCode,
+            },
             lang,
             unsubscribeUrl,
             // Token trackingu jest ODDZIELNY od tokenu wypisu: podpisany HMAC-em
@@ -1004,7 +1567,10 @@ async function runCampaignSend(
       return { sent, failed, done: false, remaining, processed: pending.length };
     }
 
-    const finalStatus = failed > 0 && sent === 0 ? "failed" : "sent";
+    // Kampania kuponowa z nieudanymi odbiorcami zostaje `failed`, czyli do
+    // podjęcia przez `claimCampaign`: nieudani dostali już przydzielony kod,
+    // a status `sent` zamknąłby ponowienie na zawsze (kod by przepadł).
+    const finalStatus = failed > 0 && (sent === 0 || coupon) ? "failed" : "sent";
     await admin
       .from("newsletter_campaigns")
       .update({
@@ -1016,6 +1582,13 @@ async function runCampaignSend(
       } as never)
       .eq("id", camp.id)
       .eq("tenant_id", tenantId);
+
+    // `sent` kampanii kuponowej = kody naprawdę wyszły (D-S1-06: ustawia go
+    // wyłącznie ten serwer). Nie przy `failed` bez wysłanych i nie przy
+    // kampanii bez ani jednego maila.
+    if (coupon && finalStatus === "sent" && sent > 0) {
+      await markCouponCampaignSent(admin, tenantId, camp.id);
+    }
 
     return { sent, failed, done: true, remaining: 0, processed: pending.length };
   } catch (err) {
@@ -1034,52 +1607,29 @@ function buildFrom(c: CampaignRow): string | undefined {
   return c.from_name ? `${c.from_name} <${c.from_email}>` : c.from_email;
 }
 
-function renderCampaignHtml(
-  rawHtml: string,
-  vars: { email: string; firstName: string; lastName: string },
-  lang: "pl" | "en",
-  unsubscribeUrl: string | null,
-  // When present, body links are rewritten through the click-tracking redirect
-  // and an open-tracking pixel is appended. `token` is the SIGNED tracking token
-  // (HMAC per campaign+subscriber, see trackingToken.server) - NOT the
-  // unsubscribe token. Null for test sends (no tracking).
-  tracking: {
-    origin: string;
-    campaignId: string;
-    token: string;
-    signLink?: (target: string) => string;
-  } | null = null,
-): string {
-  const replaced = rawHtml
-    .replaceAll("{{email}}", esc(vars.email))
-    .replaceAll("{{firstName}}", esc(vars.firstName))
-    .replaceAll("{{lastName}}", esc(vars.lastName));
-  // Rewrite body links BEFORE the unsubscribe footer is appended, so the
-  // one-click unsubscribe link (and List-Unsubscribe / RFC-8058) is never
-  // routed through the tracker.
-  const content = tracking
-    ? rewriteTrackingLinks(
-        replaced,
-        tracking.origin,
-        tracking.campaignId,
-        tracking.token,
-        tracking.signLink,
-      )
-    : replaced;
-  const footer = unsubscribeUrl
-    ? `<hr style="border:none;border-top:1px solid #eee;margin:24px 0" />
-       <p style="color:#888;font-size:12px;text-align:center">
-         ${
-           lang === "pl"
-             ? `Nie chcesz otrzymywać tych wiadomości? <a href="${esc(unsubscribeUrl)}" style="color:#888">Wypisz się jednym kliknięciem</a>.`
-             : `No longer want these emails? <a href="${esc(unsubscribeUrl)}" style="color:#888">Unsubscribe with one click</a>.`
-         }
-       </p>`
-    : "";
-  const pixel = tracking
-    ? trackingPixelImg(tracking.origin, tracking.campaignId, tracking.token)
-    : "";
-  return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${content}${footer}${pixel}</div>`;
+/**
+ * Kampania kuponowa po zakończonej wysyłce -> `sent` (klient `service_role`,
+ * kolumna bez grantu dla przeglądarki). Błąd NIE wywraca wysyłki: maile już
+ * wyszły, a oznaczenie kampanii newslettera jako `failed` byłoby kłamstwem;
+ * zostaje ślad w logu, a kampania kuponowa w `generated`.
+ */
+async function markCouponCampaignSent(
+  admin: DbClient,
+  tenantId: string,
+  newsletterCampaignId: string,
+): Promise<void> {
+  const { error } = await admin
+    .from("b2b_coupon_campaigns")
+    .update({ status: "sent" })
+    .eq("tenant_id", tenantId)
+    .eq("newsletter_campaign_id", newsletterCampaignId)
+    .neq("status", "archived");
+  if (error) {
+    console.error("[newsletter-campaigns] coupon campaign status not set to sent", {
+      newsletterCampaignId,
+      message: error.message,
+    });
+  }
 }
 
 /**

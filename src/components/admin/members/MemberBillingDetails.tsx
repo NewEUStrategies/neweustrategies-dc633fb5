@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { getMemberBilling } from "@/lib/admin/membersDirectory.functions";
+import { billingKeys } from "@/lib/billing/keys";
 import { uiLocale } from "@/lib/i18n/format";
 import { memberMoney as money } from "./memberMoney";
 
@@ -17,7 +18,7 @@ export function MemberBillingDetails({ userId }: Props) {
   const billingFn = useServerFn(getMemberBilling);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["admin-member-billing", userId],
+    queryKey: billingKeys.admin.memberBilling(userId),
     queryFn: () => billingFn({ data: { userId } }),
   });
 

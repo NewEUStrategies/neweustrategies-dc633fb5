@@ -25,6 +25,7 @@ import {
   syncMembersWithCrm,
   type MemberDirectoryRow,
 } from "@/lib/admin/membersDirectory.functions";
+import { billingKeys } from "@/lib/billing/keys";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { uiLocale } from "@/lib/i18n/format";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -65,7 +66,7 @@ export function MembersDirectoryPanel() {
   );
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["admin-members", params],
+    queryKey: billingKeys.admin.membersDirectory(params),
     queryFn: () => membersFn({ data: params }),
   });
 

@@ -14,7 +14,10 @@
 //      do działania brzmi jak zaproszenie donikąd. Etykieta idzie ze SŁOWNIKA
 //      progów, nie z lokalnej mapy: po rozszerzeniu katalogu o rangi 30-60
 //      (corporate, partner, partner_general, presidents_circle) lokalna mapa
-//      pokazywała „PRO" albo puste miejsce.
+//      pokazywała „PRO" albo puste miejsce. Od cennika v6.2 bramka sprzedaje
+//      wyłącznie próg z kartą na /pricing i zaokrągla rangę W GÓRĘ
+//      (`sellableClubTierForRank`): klub z rangą 30 woła „Partner
+//      Instytucjonalny", bo karty Enterprise na cenniku już nie ma.
 //
 //   2. KTO MOŻE PROSIĆ O DOSTĘP. Ekspert to JEDYNA ścieżka wejścia bez planu:
 //      odznaka `expert` jest nadawana redakcyjnie, więc prośba ma wtedy sens.
@@ -28,7 +31,7 @@
 //
 // Deskryptor zwraca KLUCZE i18n, nie gotowe zdania - odmiana i copy zostają
 // w słowniku PL/EN, a test reguły nie zależy od treści.
-import { DEFAULT_CLUB_PLAN_TIER, planTierFromRank, type ClubPlanTier } from "./planTiers";
+import { DEFAULT_CLUB_PLAN_TIER, sellableClubTierForRank, type ClubPlanTier } from "./planTiers";
 
 /** Minimum, którego bramka potrzebuje z karty klubu. */
 export interface ClubGateClub {
@@ -46,6 +49,11 @@ export interface ClubGateInput {
   signedIn: boolean;
   /** Odznaka `expert` na profilu - redakcyjna ścieżka wejścia bez planu. */
   isExpert: boolean;
+  /**
+   * Progi bez karty na /pricing (`clubPlanTiersNotSold` z katalogu najemcy);
+   * brak = stan po migracji v6.2 (`CLUB_PLAN_TIERS_NOT_SOLD`).
+   */
+  notSold?: ReadonlySet<ClubPlanTier>;
 }
 
 /** Akcja pokazywana w kolumnie działania. Kolejność listy = kolejność na ekranie. */
@@ -78,9 +86,12 @@ export interface ClubGateView {
  * na ekranie - pierwszą pozycją jest zawsze ta, którą chcemy, żeby kliknięto.
  */
 export function clubGateView(input: ClubGateInput): ClubGateView {
-  const { club, signedIn, isExpert } = input;
+  const { club, signedIn, isExpert, notSold } = input;
 
-  const tier = planTierFromRank(club.min_tier_rank ?? 0);
+  // Najniższy próg z kartą na /pricing, który klub OTWIERA (w górę, bez
+  // progów ukrytych - cennik v6.2: klub z rangą 30 sprzedaje Partnera
+  // Instytucjonalnego, nie Enterprise).
+  const tier = sellableClubTierForRank(club.min_tier_rank ?? 0, notSold);
   // Progi poniżej domyślnego nie są ofertą: klub „za darmo" i tak nie
   // bramkowałby wejścia, więc sprzedajemy najniższy próg, który coś znaczy.
   const sellTier: ClubPlanTier = tier === "free" || tier === "plus" ? DEFAULT_CLUB_PLAN_TIER : tier;

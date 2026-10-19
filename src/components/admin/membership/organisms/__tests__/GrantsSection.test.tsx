@@ -12,8 +12,13 @@
 //   ODWOŁANIE. Odwołane nadanie NIE ZNIKA - schodzi do sekcji „odwołane",
 //   bo historia dostępu musi zostać czytelna po fakcie.
 //
+//   JEDNA ŚCIEŻKA (S1 def. 6, D-S1-09). Adres rozwiązujemy w katalogu członków
+//   ORGANIZACJI (`findTenantMemberByEmail`), a nadanie idzie RPC
+//   `admin_membership_grant_set` z `user_id` i terminem w miesiącach
+//   kalendarzowych. Konto spoza organizacji to komunikat, nie wyjątek SQL.
+//
 // Dane są syntetyczne: adresy w domenie `.test`, żadnych prawdziwych osób.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { membershipTier, radixSelectStub, reactI18nextStub } from "@/test/admin/pricingFixtures";
@@ -36,16 +41,35 @@ interface GrantRow {
 const h = {
   grants: [] as GrantRow[],
   fetch: vi.fn(),
+  find: vi.fn(),
   grant: vi.fn(),
   revoke: vi.fn(),
+  prompt: vi.fn(),
+  toastErrorKind: vi.fn(),
 };
+
+/** Członek organizacji zwracany przez katalog członków. */
+const MEMBER = {
+  userId: "user-42",
+  email: "osoba@example.test",
+  displayName: null,
+  tierKey: "free",
+};
+
+/** Zegar testu - termin nadania liczy się od „teraz" w miesiącach kalendarzowych. */
+const NOW = new Date("2026-01-31T12:00:00.000Z");
 
 vi.mock("react-i18next", () => reactI18nextStub());
 vi.mock("@/components/ui/select", async () => radixSelectStub(await import("react")));
 vi.mock("@/lib/admin/membership-admin", () => ({
   fetchMembershipGrants: () => h.fetch(),
-  grantMembership: (input: unknown) => h.grant(input),
-  revokeGrant: (id: string) => h.revoke(id),
+  findTenantMemberByEmail: (email: string) => h.find(email),
+  setMembershipGrant: (input: unknown) => h.grant(input),
+  revokeMembershipGrant: (input: unknown) => h.revoke(input),
+}));
+vi.mock("@/lib/appDialogs", () => ({ promptDialog: (opts: unknown) => h.prompt(opts) }));
+vi.mock("@/lib/toastError", () => ({
+  toastError: (err: unknown, kind: string) => h.toastErrorKind(err, kind),
 }));
 
 const toastSuccess = vi.fn();
@@ -91,13 +115,26 @@ function fillGrantForm(email: string, tierKey: string, months: string | null) {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   h.grants = [];
   h.fetch.mockImplementation(() => Promise.resolve(h.grants));
+  h.find
+    .mockReset()
+    .mockImplementation((email: string) =>
+      Promise.resolve({ ...MEMBER, email: email.trim().toLowerCase() }),
+    );
   h.grant.mockReset().mockResolvedValue("grant-new");
-  h.revoke.mockReset().mockResolvedValue(undefined);
+  h.revoke.mockReset().mockResolvedValue("grant-1");
+  h.prompt.mockReset().mockResolvedValue("");
+  h.toastErrorKind.mockReset();
   h.fetch.mockClear();
   toastSuccess.mockClear();
   toastError.mockClear();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("GrantsSection - warunek nadania", () => {
@@ -148,18 +185,22 @@ describe("GrantsSection - warunek nadania", () => {
 });
 
 describe("GrantsSection - NADANIE i jego termin", () => {
-  it("nadaje na wskazaną liczbę miesięcy, z przyciętym adresem", async () => {
+  it("adres trafia do katalogu ORGANIZACJI, a nadanie idzie po `user_id` z terminem kalendarzowym", async () => {
     renderSection();
     await waitFor(() => expect(h.fetch).toHaveBeenCalled());
 
-    fillGrantForm("  osoba@example.test  ", "patron", "6");
+    fillGrantForm("  Osoba@Example.test  ", "patron", "1");
     fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
 
     await waitFor(() => expect(h.grant).toHaveBeenCalledTimes(1));
+    // Dopasowanie (bez wielkości liter, bez spacji) robi `findTenantMemberByEmail`.
+    expect(String(h.find.mock.calls[0][0]).trim()).toBe("Osoba@Example.test");
+    // 31 stycznia + 1 miesiąc = 28 lutego (miesiąc kalendarzowy, nie 30 dni) -
+    // ta sama reguła co katalog członków (`addCalendarMonthsUtc`).
     expect(h.grant).toHaveBeenCalledWith({
-      email: "osoba@example.test",
+      userId: "user-42",
       tierKey: "patron",
-      months: 6,
+      expiresAt: "2026-02-28T12:00:00.000Z",
       note: null,
     });
   });
@@ -174,7 +215,19 @@ describe("GrantsSection - NADANIE i jego termin", () => {
     fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
 
     await waitFor(() => expect(h.grant).toHaveBeenCalledTimes(1));
-    expect(h.grant.mock.calls[0][0]).toMatchObject({ months: null });
+    expect(h.grant.mock.calls[0][0]).toMatchObject({ expiresAt: null });
+  });
+
+  it("liczba miesięcy spoza 1-120 albo ułamek blokuje nadanie", async () => {
+    renderSection();
+    await waitFor(() => expect(h.fetch).toHaveBeenCalled());
+
+    fillGrantForm("osoba@example.test", "member", "0");
+    expect(screen.getByRole("button", { name: /grants\.grant/ })).toBeDisabled();
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "1.5" } });
+    expect(screen.getByRole("button", { name: /grants\.grant/ })).toBeDisabled();
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "121" } });
+    expect(screen.getByRole("button", { name: /grants\.grant/ })).toBeDisabled();
   });
 
   it("pusta notatka schodzi na `null`, nie na pusty napis", async () => {
@@ -202,20 +255,58 @@ describe("GrantsSection - NADANIE i jego termin", () => {
     expect(screen.getByRole("combobox")).toHaveValue("member");
   });
 
-  it("BRAK KONTA o podanym adresie daje własny komunikat, nie surowy błąd bazy", async () => {
-    h.grant.mockRejectedValue(new Error("user not found for email"));
+  it("po nadaniu odświeża WSZYSTKICH czytelników warstwy osoby (lista, katalog, pulpit, kluby)", async () => {
+    const { queryClient } = renderSection();
+    await waitFor(() => expect(h.fetch).toHaveBeenCalled());
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    fillGrantForm("osoba@example.test", "member", "12");
+    fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    const keys = invalidate.mock.calls.map(([filters]) => JSON.stringify(filters?.queryKey));
+    for (const key of [
+      ["admin", "membership-grants"],
+      ["admin-members"],
+      ["admin-member-billing"],
+      ["admin", "monetization"],
+      ["my-grants"],
+      ["current-tier"],
+      ["clubs"],
+    ]) {
+      expect(keys).toContain(JSON.stringify(key));
+    }
+  });
+
+  it("BRAK KONTA w organizacji to komunikat, nie wyjątek - i zero prób nadania", async () => {
+    h.find.mockResolvedValue(null);
     renderSection();
     await waitFor(() => expect(h.fetch).toHaveBeenCalled());
 
-    fillGrantForm("nieznana@example.test", "member", "12");
+    fillGrantForm("obca@example.test", "member", "12");
+    fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("adminMembership.toast.noAccount"));
+    expect(h.grant).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+    // Adres zostaje do poprawienia.
+    expect(screen.getByPlaceholderText("osoba@instytucja.eu")).toHaveValue("obca@example.test");
+  });
+
+  it("użytkownik spoza organizacji odrzucony przez SQL (`user_not_in_tenant`) daje ten sam komunikat", async () => {
+    h.grant.mockRejectedValue(Object.assign(new Error("user_not_in_tenant"), { code: "P0002" }));
+    renderSection();
+    await waitFor(() => expect(h.fetch).toHaveBeenCalled());
+
+    fillGrantForm("osoba@example.test", "member", "12");
     fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("adminMembership.toast.noAccount"));
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it("NIEZNANA WARSTWA daje własny komunikat", async () => {
-    h.grant.mockRejectedValue(new Error("tier not found"));
+  it("warstwa NIEAKTYWNA (`tier_inactive`) daje własny komunikat", async () => {
+    h.grant.mockRejectedValue(Object.assign(new Error("tier_inactive"), { code: "22023" }));
     renderSection();
     await waitFor(() => expect(h.fetch).toHaveBeenCalled());
 
@@ -223,23 +314,24 @@ describe("GrantsSection - NADANIE i jego termin", () => {
     fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("adminMembership.toast.unknownTier"),
+      expect(toastError).toHaveBeenCalledWith("adminMembership.toast.tierInactive"),
     );
   });
 
-  it("inny błąd przechodzi treścią, żeby nie zgubić powodu odmowy", async () => {
-    h.grant.mockRejectedValue(new Error("permission denied for function"));
+  it("inny błąd idzie wspólnym kanałem błędów z kategorią zapisu", async () => {
+    const failure = Object.assign(new Error("permission denied for function"), { code: "42501" });
+    h.grant.mockRejectedValue(failure);
     renderSection();
     await waitFor(() => expect(h.fetch).toHaveBeenCalled());
 
     fillGrantForm("osoba@example.test", "member", "12");
     fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("permission denied for function"));
+    await waitFor(() => expect(h.toastErrorKind).toHaveBeenCalledWith(failure, "save"));
   });
 
   it("nieudane nadanie NIE czyści wpisanego adresu", async () => {
-    h.grant.mockRejectedValue(new Error("user not found"));
+    h.grant.mockRejectedValue(new Error("user_not_in_tenant"));
     renderSection();
     await waitFor(() => expect(h.fetch).toHaveBeenCalled());
 
@@ -318,7 +410,8 @@ describe("GrantsSection - lista nadań", () => {
     expect(screen.queryByRole("button", { name: /grants\.revoke/ })).not.toBeInTheDocument();
   });
 
-  it("odwołanie aktywnego nadania woła operację z jego identyfikatorem", async () => {
+  it("cofnięcie pyta o OPCJONALNY powód i woła operację z identyfikatorem i powodem", async () => {
+    h.prompt.mockResolvedValue("  koniec umowy  ");
     h.grants = [grantRow({ id: "grant-7" })];
     renderSection();
     await waitFor(() =>
@@ -327,12 +420,39 @@ describe("GrantsSection - lista nadań", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /grants\.revoke/ }));
 
-    await waitFor(() => expect(h.revoke).toHaveBeenCalledWith("grant-7"));
-    expect(toastSuccess).toHaveBeenCalledWith("adminMembership.toast.grantRevoked");
+    await waitFor(() =>
+      expect(h.revoke).toHaveBeenCalledWith({ grantId: "grant-7", reason: "koniec umowy" }),
+    );
+    expect(h.prompt).toHaveBeenCalledWith(
+      expect.objectContaining({ label: "adminMembership.grants.revokeReason" }),
+    );
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("adminMembership.toast.grantRevoked"),
+    );
+  });
+
+  it("cofnięcie bez powodu wysyła `null`, a anulowanie okna nie cofa niczego", async () => {
+    h.grants = [grantRow({ id: "grant-7" })];
+    renderSection();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /grants\.revoke/ })).toBeInTheDocument(),
+    );
+
+    h.prompt.mockResolvedValueOnce(null);
+    fireEvent.click(screen.getByRole("button", { name: /grants\.revoke/ }));
+    await waitFor(() => expect(h.prompt).toHaveBeenCalledTimes(1));
+    expect(h.revoke).not.toHaveBeenCalled();
+
+    h.prompt.mockResolvedValueOnce("   ");
+    fireEvent.click(screen.getByRole("button", { name: /grants\.revoke/ }));
+    await waitFor(() =>
+      expect(h.revoke).toHaveBeenCalledWith({ grantId: "grant-7", reason: null }),
+    );
   });
 
   it("nieudane odwołanie zgłasza błąd, zamiast udawać sukces", async () => {
-    h.revoke.mockRejectedValue(new Error("row level security"));
+    const failure = new Error("row level security");
+    h.revoke.mockRejectedValue(failure);
     h.grants = [grantRow()];
     renderSection();
     await waitFor(() =>
@@ -341,8 +461,23 @@ describe("GrantsSection - lista nadań", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /grants\.revoke/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("row level security"));
+    await waitFor(() => expect(h.toastErrorKind).toHaveBeenCalledWith(failure, "delete"));
     expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("nadanie cofnięte w innej karcie (`grant_not_found`) odświeża listę z komunikatem", async () => {
+    h.revoke.mockRejectedValue(Object.assign(new Error("grant_not_found"), { code: "P0002" }));
+    h.grants = [grantRow()];
+    renderSection();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /grants\.revoke/ })).toBeInTheDocument(),
+    );
+    const readsBefore = h.fetch.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: /grants\.revoke/ }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("adminMembership.toast.grantGone"));
+    await waitFor(() => expect(h.fetch.mock.calls.length).toBeGreaterThan(readsBefore));
   });
 
   it("brak nadań nie pokazuje sekcji odwołanych", async () => {

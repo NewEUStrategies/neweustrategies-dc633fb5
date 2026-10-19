@@ -15,7 +15,11 @@ export type MembershipTierRow = Database["public"]["Tables"]["membership_tiers"]
  * Pojedynczy benefit warstwy. Rdzeń to para pl/en; pola opcjonalne rozszerzają
  * prezentację na /pricing (wzorce prasy cyfrowej):
  *  - detail_*  jednozdaniowe rozwinięcie pod benefitem (styl NYT),
- *  - group_*   nagłówek sekcji grupujący kolejne benefity (styl FT).
+ *  - group_*   nagłówek sekcji grupujący kolejne benefity (styl FT),
+ *  - capability_key  klucz uprawnienia z rejestru `capabilities.ts`, którego
+ *    dotyczy obietnica (P20, hub S1). Łączy punkt karty cennika z bramką:
+ *    macierz plan × benefit i reguła diagnostyki `catalog.promise_without_gate`
+ *    porównują to, co sprzedajemy, z tym, co warstwa realnie odblokowuje.
  * Format w bazie pozostaje jsonb [{pl,en,...}] - starsi konsumenci ignorują
  * dodatkowe pola, a serializacja (serializeTierBenefits) nigdy ich nie gubi.
  */
@@ -26,7 +30,17 @@ export interface TierBenefit {
   detail_en?: string;
   group_pl?: string;
   group_en?: string;
+  capability_key?: string;
 }
+
+/**
+ * Kształt klucza uprawnienia w benefitach. Sprawdzamy FORMAT, nie przynależność
+ * do rejestru: ten moduł jedzie w publicznym cenniku, a rejestr (z opisami
+ * bramek) do publicznej paczki nie należy. Klucz spoza rejestru przechodzi
+ * nietknięty (zapis z innej wersji panelu), a śmieci - spacje, wielkie
+ * litery, wartość nie-tekstowa - odpadają już przy odczycie.
+ */
+const CAPABILITY_KEY_FORMAT = /^[a-z0-9_.:-]{1,64}$/;
 
 export interface CurrentTier {
   key: string;
@@ -64,6 +78,8 @@ export function parseTierBenefits(benefits: Json): TierBenefit[] {
         out.group_pl = groupPl || groupEn;
         out.group_en = groupEn || groupPl;
       }
+      const capability = str(rec, "capability_key").trim();
+      if (CAPABILITY_KEY_FORMAT.test(capability)) out.capability_key = capability;
       return [out];
     }
     return [];
@@ -95,6 +111,8 @@ export function serializeTierBenefits(list: TierBenefit[]): Json {
       rec.group_pl = groupPl || groupEn;
       rec.group_en = groupEn || groupPl;
     }
+    const capability = (b.capability_key ?? "").trim();
+    if (CAPABILITY_KEY_FORMAT.test(capability)) rec.capability_key = capability;
     out.push(rec);
   }
   return out;
@@ -111,6 +129,22 @@ export function tierName(
 export function tierHasFeature(features: Json, key: string): boolean {
   if (!features || typeof features !== "object" || Array.isArray(features)) return false;
   return (features as Record<string, unknown>)[key] === true;
+}
+
+/**
+ * Pula zapytań do eksperta progu - TA SAMA reguła co bramka
+ * `my_expert_request_quota()` (20260812102000): GREATEST(`expert_request_quota`,
+ * dawne flagi `chat_inmail_quota_5` -> 5 / `chat_inmail_quota_2` -> 2). Najemca
+ * istniejący z dawną flagą daje Członkowi 2, choć karta v6.2 mówi 1 - macierz
+ * pokazuje prawdę bramki, a rozjazd jest zgłoszony w raporcie wdrożenia v6.2.
+ */
+export function tierExpertRequestQuota(features: Json): number {
+  const legacy = tierHasFeature(features, "chat_inmail_quota_5")
+    ? 5
+    : tierHasFeature(features, "chat_inmail_quota_2")
+      ? 2
+      : 0;
+  return Math.max(tierFeatureNumber(features, "expert_request_quota"), legacy);
 }
 
 /**

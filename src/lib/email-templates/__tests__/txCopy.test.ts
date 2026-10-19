@@ -147,7 +147,9 @@ describe("tx-copy - kompletność słownika obu języków", () => {
     // bez miejsca (`event_ticket_paid_waitlisted`, `event_ticket_paid_pending`).
     // 50 -> 52: zapis na zajęty adres (`event_registration_already_registered`)
     // i double opt-in zgód (`event_consent_confirm`) - REG-04/REG-14.
-    expect(zeSlownika).toHaveLength(52);
+    // 52 -> 53: niższa cena członkostwa od odnowienia (`subscription_price_lowered`,
+    // cennik v6.2).
+    expect(zeSlownika).toHaveLength(53);
   });
 
   it.each(TX_EMAIL_TYPES)("%s ma komplet treści w PL i w EN", (type) => {
@@ -271,8 +273,8 @@ describe("tx-copy - temat wiadomości", () => {
     );
 
     expect(braki).toEqual([]);
-    // 52 typy razy dwa języki.
-    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(104);
+    // 53 typy razy dwa języki.
+    expect(TX_EMAIL_TYPES.length * LANGS.length).toBe(106);
   });
 
   it("temat nie przekracza długości, po której klient pocztowy go urywa", () => {

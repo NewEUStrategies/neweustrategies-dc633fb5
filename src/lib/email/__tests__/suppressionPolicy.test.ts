@@ -74,7 +74,9 @@ describe("TX_EMAIL_CATEGORY", () => {
     // 47 -> 50: `event_ticket_revoked`, `event_ticket_paid_waitlisted`, `event_ticket_paid_pending`.
     // 50 -> 52: zapis na zajęty adres (`event_registration_already_registered`)
     // i double opt-in zgód (`event_consent_confirm`) - REG-04/REG-14.
-    expect(TX_EMAIL_TYPES.length).toBe(52);
+    // 52 -> 53: niższa cena członkostwa od odnowienia (`subscription_price_lowered`,
+    // cennik v6.2).
+    expect(TX_EMAIL_TYPES.length).toBe(53);
     expect(Object.keys(TX_EMAIL_CATEGORY).sort()).toEqual([...TX_EMAIL_TYPES].sort());
     for (const type of TX_EMAIL_TYPES) {
       expect(TX_EMAIL_CATEGORY[type]).toMatch(/^(transactional|bulk)$/);

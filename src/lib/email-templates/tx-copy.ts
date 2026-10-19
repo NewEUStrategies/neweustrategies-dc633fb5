@@ -19,6 +19,11 @@ export type TxEmailType =
   | "payment_refunded"
   | "subscription_renewal_reminder"
   | "subscription_expiring"
+  // Cennik v6.2: obecny subskrybent przechodzi na NIŻSZĄ cenę od najbliższego
+  // odnowienia (akcja admina). Osobny typ, bo „przypomnienie o odnowieniu"
+  // pokazuje kwotę bez porównania, a tu sednem jest różnica: dotychczas X,
+  // od odnowienia Y - i to, że klient nie musi nic robić.
+  | "subscription_price_lowered"
   | "team_seat_grace"
   | "team_seat_grace_reminder"
   | "team_seat_access_ended"
@@ -180,6 +185,14 @@ export interface TxCopy {
     sender: string;
     /** Zgoda do potwierdzenia - wiersz na cel w mailu double opt-in. */
     consent: string;
+    /** Kwota przed obniżką ceny - mail o niższej cenie od odnowienia. */
+    previousPrice: string;
+    /** Kwota po obniżce ceny. */
+    newPrice: string;
+    /** Data pierwszej faktury po nowej cenie. */
+    effectiveFrom: string;
+    /** Liczba miejsc (Zespół) - tylko gdy większa niż jedno. */
+    seats: string;
   };
   footerHelp: string;
 }
@@ -222,6 +235,10 @@ const LABELS_PL: TxCopy["labels"] = {
   recipient: "Odbiorca",
   sender: "Nadawca",
   consent: "Zgoda",
+  previousPrice: "Dotychczasowa cena",
+  newPrice: "Nowa cena",
+  effectiveFrom: "Obowiązuje od",
+  seats: "Liczba miejsc",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -256,6 +273,10 @@ const LABELS_EN: TxCopy["labels"] = {
   recipient: "Recipient",
   sender: "From",
   consent: "Consent",
+  previousPrice: "Previous price",
+  newPrice: "New price",
+  effectiveFrom: "Effective from",
+  seats: "Seats",
 };
 
 const HELP_PL =
@@ -415,6 +436,22 @@ const PL: Dict = {
       "Dziękujemy - zaległa płatność została rozliczona, a Twoja subskrypcja wróciła do normalnego trybu. Nie musisz podejmować żadnych działań.",
     cta: "Zobacz szczegóły subskrypcji",
     note: "Fakturę za rozliczony okres znajdziesz w profilu w zakładce Zamówienia.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  // Słowo „subskrypcja" celowo poza treścią: katalog v6.2 mówi o członkostwie
+  // (zakładka „Wdrożenie"), a mechanizm u operatora nie jest tu tematem.
+  subscription_price_lowered: {
+    subject: (v) =>
+      `💶 Niższa cena członkostwa${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "Od najbliższego odnowienia zapłacisz mniej - nie musisz nic robić.",
+    eyebrow: "Cennik",
+    heading: "Obniżamy cenę Twojego członkostwa",
+    intro:
+      "Wprowadziliśmy nowy cennik członkostwa. Od najbliższego odnowienia Twoje członkostwo będzie kosztować mniej, a jego zakres pozostaje bez zmian.",
+    cta: "Zobacz szczegóły członkostwa",
+    note: "Bieżący, opłacony okres rozliczamy bez zmian. Członkostwo możesz zmienić lub zakończyć w profilu w każdej chwili.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -1144,6 +1181,20 @@ const EN: Dict = {
       "Thank you - the outstanding payment has cleared and your subscription is back to normal. No further action is needed.",
     cta: "View subscription details",
     note: "The invoice for this period is available in your profile under Orders.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  subscription_price_lowered: {
+    subject: (v) =>
+      `💶 A lower membership price${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-check",
+    preview: "From your next renewal you pay less - nothing to do on your side.",
+    eyebrow: "Pricing",
+    heading: "We are lowering the price of your membership",
+    intro:
+      "We have introduced a new membership price list. From your next renewal your membership will cost less, and its scope stays exactly the same.",
+    cta: "See membership details",
+    note: "The current, paid period is not affected. You can change or end your membership in your profile at any time.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

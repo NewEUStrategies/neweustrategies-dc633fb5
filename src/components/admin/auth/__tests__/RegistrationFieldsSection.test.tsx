@@ -69,15 +69,19 @@ vi.mock("@/hooks/useNewsletterSettings", async () => {
   return {
     defaultNewsletterSettings: actual.defaultNewsletterSettings,
     useNewsletterSettings: () => ({ data: h.data }),
-    useSaveNewsletterSettings: () => ({
-      mutateAsync: (value: NewsletterSettings) => {
-        h.savePayloads.push(value);
-        return h.saveError === null ? Promise.resolve() : Promise.reject(h.saveError);
-      },
-      isPending: h.savePending,
-    }),
   };
 });
+// Zapis idzie szwem grup z modułu panelu (S1, D-S1-04) - atrapa przyjmuje
+// ładunek sekcji; rozkład na grupy i RPC przypina `settingsQueries.test.ts`.
+vi.mock("@/lib/newsletter/settingsQueries", () => ({
+  useSaveNewsletterSettings: () => ({
+    mutateAsync: (value: NewsletterSettings) => {
+      h.savePayloads.push(value);
+      return h.saveError === null ? Promise.resolve() : Promise.reject(h.saveError);
+    },
+    isPending: h.savePending,
+  }),
+}));
 
 import { RegistrationFieldsSection } from "@/components/admin/auth/RegistrationFieldsSection";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";

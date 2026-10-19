@@ -31,6 +31,21 @@
 // `@/components/admin/coupons/*`).
 //
 // ZERO SIECI, ZERO danych osobowych - agregaty nie niosą tożsamości.
+//
+// ZMIANA ŚWIADOMA (S1, P10, D-S1-08). Kafle liczyły się z funkcji
+// `b2b_coupons_analytics`, która NIE zna waluty ani płatności: przychód
+// sumował grosze PLN z centami EUR, a „konwersja" liczyła kupony z jakimkolwiek
+// wykorzystaniem - także rezerwacją bez płatności. Teraz:
+//   * kafle idą z podsumowania `couponAnalyticsSummaryQueryOptions` (atrapa
+//     na granicy modułu danych - jego zapytania mają własne testy w
+//     `couponQueries.test.ts`): wydane, konwersja opłacona z definicją,
+//     wykorzystania opłacone, rezerwacje, przychód i rabat PER WALUTA;
+//   * funkcja agregująca zostaje źródłem RANKINGU (wykres, tabela liczby
+//     wykorzystań) - bez kwot, które mieszały waluty;
+//   * kwoty czyta wyłącznie administrator (RLS zamówień), stąd atrapa ról;
+//   * napisy idą ze słownika (`t`), więc asercje mierzą KLUCZE (echo atrapy
+//     i18n), a nie polskie literały dawnego bliźniaka `L(pl, en)`;
+//   * granice zakresu to pełne doby LOKALNE.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
@@ -39,7 +54,31 @@ const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   lang: "pl",
   tenantId: null as string | null,
+  roles: ["admin"] as string[],
+  /** Podsumowanie P10 (`fetchCouponAnalyticsSummary`) - atrapa granicy danych. */
+  summary: vi.fn(),
 }));
+
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ roles: h.roles }) }));
+vi.mock("@/lib/admin/couponQueries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/admin/couponQueries")>();
+  const { queryOptions } = await import("@tanstack/react-query");
+  const { analyticsCouponsPrefixKey } = await import("@/lib/analytics/queryKeys");
+  return {
+    ...actual,
+    couponAnalyticsSummaryQueryOptions: (
+      tenantId: string | null,
+      fromIso: string | null,
+      toIso: string | null,
+    ) =>
+      queryOptions({
+        queryKey: [...analyticsCouponsPrefixKey(tenantId ?? ""), "summary", fromIso, toIso],
+        enabled: Boolean(tenantId),
+        retry: false,
+        queryFn: () => h.summary(tenantId, fromIso, toIso),
+      }),
+  };
+});
 
 // Najemca jako ATRAPA (wzór: `vitalsBiDashboard.test.tsx`): klucz zapytania
 // niesie najemcę, a odczyt rusza dopiero przy ustalonym najemcy.
@@ -111,6 +150,31 @@ function wiersz(over: Partial<WierszAnalityki> = {}): WierszAnalityki {
 
 function zBazy(rows: WierszAnalityki[]): void {
   h.rpc.mockResolvedValue({ data: rows, error: null });
+}
+
+interface Podsumowanie {
+  issued: number;
+  issuedConverted: number;
+  conversion: number | null;
+  paidRedemptions: number;
+  reservedRedemptions: number;
+  revenueNet: { currency: string; amountMinor: number }[];
+  discount: { currency: string; amountMinor: number }[];
+  truncated: boolean;
+}
+
+function podsumowanie(over: Partial<Podsumowanie> = {}): Podsumowanie {
+  return {
+    issued: 4,
+    issuedConverted: 1,
+    conversion: 0.25,
+    paidRedemptions: 3,
+    reservedRedemptions: 2,
+    revenueNet: [{ currency: "PLN", amountMinor: 40_000 }],
+    discount: [{ currency: "PLN", amountMinor: 10_000 }],
+    truncated: false,
+    ...over,
+  };
 }
 
 async function zamontuj() {
@@ -212,7 +276,10 @@ function daneWykresu(): { kody: string[]; wartosci: number[] } {
 beforeEach(() => {
   h.lang = "pl";
   h.tenantId = TENANT;
+  h.roles = ["admin"];
   h.rpc.mockReset();
+  h.summary.mockReset();
+  h.summary.mockResolvedValue(podsumowanie());
   zBazy([]);
 });
 
@@ -220,28 +287,38 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
   it("montuje się POD SWOIM ADRESEM i pyta funkcję agregującą bazy", async () => {
     const view = await zamontuj();
     expect(view.currentPath()).toBe(PATH);
-    expect(screen.getByText("TOP 10 kuponów")).toBeInTheDocument();
+    expect(screen.getByText("adminCoupons.analytics.rankingTitle")).toBeInTheDocument();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
     expect(h.rpc.mock.calls[0][0]).toBe(RPC);
     cleanup();
   });
 
-  it("domyślne okno to OSTATNIE 90 DNI i jedzie do bazy jako `_from`/`_to`", async () => {
+  it("domyślne okno to OSTATNIE 90 DNI PEŁNYMI DOBAMI i jedzie do bazy jako `_from`/`_to`", async () => {
     // Analityka patrzy szerzej niż rejestr realizacji (tam 30 dni): kampanie
     // kuponowe rozliczają się kwartałami. Okno liczone po stronie panelu, ale
     // filtrowane po stronie BAZY - stąd dowód dotyczy parametrów wywołania.
+    // Granice to pełne doby lokalne (S1): od północy 90 dni temu do końca dziś.
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalled());
     const { _from, _to } = argumentyRpc();
-    const dni = (Date.parse(_to) - Date.parse(_from)) / (24 * 3600 * 1000);
-    expect(Math.round(dni)).toBe(90);
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - 90);
+    const koniec = new Date();
+    koniec.setHours(23, 59, 59, 999);
+    expect(Date.parse(_from)).toBe(start.getTime());
+    expect(Date.parse(_to)).toBe(koniec.getTime());
+    // To samo okno dostaje podsumowanie kafli - jeden zakres na ekranie.
+    await waitFor(() =>
+      expect(h.summary).toHaveBeenCalledWith(TENANT, start.toISOString(), koniec.toISOString()),
+    );
     cleanup();
   });
 
   it("zmiana daty OD wysyła NOWE wywołanie z nowym początkiem zakresu", async () => {
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
-    fireEvent.click(poleDaty("Od"));
+    fireEvent.click(poleDaty("adminCoupons.analytics.from"));
     await klikDzien(DZIEN, 1);
     expect(new Date(argumentyRpc()._from).getDate()).toBe(Number(DZIEN));
     cleanup();
@@ -257,7 +334,7 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
     // z niego - inaczej test zależałby od dzisiejszej daty).
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
-    fireEvent.click(poleDaty("Od"));
+    fireEvent.click(poleDaty("adminCoupons.analytics.from"));
     await klikDzien(DZIEN, 1);
     await klikDzien(DZIEN, h.rpc.mock.calls.length);
     expect(Date.parse(argumentyRpc()._from)).toBe(0);
@@ -270,7 +347,7 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
     // pustą wartość, wywołanie odbiłoby się błędem typu zamiast pokazać dane.
     await zamontuj();
     await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
-    fireEvent.click(poleDaty("Do"));
+    fireEvent.click(poleDaty("adminCoupons.analytics.to"));
     await klikDzien(DZIEN, 1);
     await klikDzien(DZIEN, h.rpc.mock.calls.length);
     const doChwili = Date.parse(argumentyRpc()._to);
@@ -304,21 +381,23 @@ describe("trasa /admin/coupons/analytics - najemca w kluczu", () => {
     await act(async () => {});
 
     expect(h.rpc).not.toHaveBeenCalled();
-    expect(screen.getByText("Wczytywanie…")).toBeInTheDocument();
+    expect(h.summary).not.toHaveBeenCalled();
+    expect(screen.getByText("adminCoupons.loading")).toBeInTheDocument();
     expect(within(view.container).queryByTestId("wykres")).toBeNull();
     cleanup();
   });
 });
 
-describe("trasa /admin/coupons/analytics - liczby i kontrakt kolumn", () => {
+describe("trasa /admin/coupons/analytics - ranking i tabela szczegółów", () => {
   it("NULL zamiast tablicy z funkcji agregującej nie wywraca panelu", async () => {
     // Funkcja bez wierszy potrafi oddać `data: null`. Bez zabezpieczenia
-    // `rows.reduce` na `null` daje biały ekran całej zakładki zamiast napisu
+    // `rows.slice` na `null` daje biały ekran całej zakładki zamiast napisu
     // o braku danych.
     h.rpc.mockResolvedValue({ data: null, error: null });
     await zamontuj();
-    await waitFor(() => expect(screen.getAllByText("Brak danych.")).toHaveLength(2));
-    expect(within(kafel("Kupony")).getByText("0")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getAllByText("adminCoupons.analytics.noData")).toHaveLength(2),
+    );
     cleanup();
   });
 
@@ -328,7 +407,9 @@ describe("trasa /admin/coupons/analytics - liczby i kontrakt kolumn", () => {
     await waitFor(() => expect(h.rpc).toHaveBeenCalled());
     // Dwa razy: pod wykresem i pod tabelą szczegółów. Czekamy na OBA napisy,
     // bo w trakcie wczytywania miejsce wykresu zajmuje jeszcze spinner.
-    await waitFor(() => expect(screen.getAllByText("Brak danych.")).toHaveLength(2));
+    await waitFor(() =>
+      expect(screen.getAllByText("adminCoupons.analytics.noData")).toHaveLength(2),
+    );
     expect(within(view.container).queryByTestId("wykres")).toBeNull();
     cleanup();
   });
@@ -339,64 +420,145 @@ describe("trasa /admin/coupons/analytics - liczby i kontrakt kolumn", () => {
     // byłby nieodróżnialny od odpowiedzi „nic nie znaleziono".
     h.rpc.mockReturnValue(new Promise<never>(() => {}));
     await zamontuj();
-    expect(screen.getByText("Wczytywanie…")).toBeInTheDocument();
+    expect(screen.getByText("adminCoupons.loading")).toBeInTheDocument();
     cleanup();
   });
 
-  it("kafle czytają przychód NETTO, a nie sumę rabatów", async () => {
-    // Kontrakt migracji 20260725090200: `revenue_cents` = przychód netto,
-    // `discount_cents_total` = rabat. Odwrócenie ich w panelu (albo w SQL)
-    // pokazuje kupon o największym rabacie jako najbardziej dochodowy.
-    zBazy([
-      wiersz(),
-      wiersz({
-        coupon_id: "22222222-2222-4222-8222-222222222222",
-        code: "NES-BBB222",
-        name: null,
-        redemptions: 2,
-        revenue_cents: 16_000,
-        discount_cents_total: 4_000,
-      }),
-    ]);
-    await zamontuj();
-    await screen.findByText("NES-AAA111");
-    expect(within(kafel("Kupony")).getByText("2")).toBeInTheDocument();
-    expect(within(kafel("Realizacje")).getByText("5")).toBeInTheDocument();
-    // 240,00 + 160,00 = 400,00 przychodu netto (a NIE 60,00 + 40,00 rabatu).
-    expect(within(kafel("Przychód netto")).getByText("400.00")).toBeInTheDocument();
-    cleanup();
-  });
-
-  it("tabela szczegółów pokazuje rabat ze znakiem minus i sumę rabatów pod spodem", async () => {
+  it("tabela szczegółów pokazuje WYŁĄCZNIE liczbę wykorzystań - bez kwot mieszających waluty", async () => {
+    // Kwoty funkcji agregującej nie znają waluty i obejmują rezerwacje bez
+    // płatności. W wierszu kuponu zostaje kod, nazwa i liczba wykorzystań;
+    // dawna suma „Łączny rabat udzielony" (PLN + EUR w jednej liczbie) znika.
     zBazy([wiersz()]);
     await zamontuj();
     await screen.findByText("NES-AAA111");
     const wierszKuponu = wierszTabeli("NES-AAA111");
     expect(within(wierszKuponu).getByText("Partner A")).toBeInTheDocument();
     expect(within(wierszKuponu).getByText("3")).toBeInTheDocument();
-    expect(within(wierszKuponu).getByText("240.00")).toBeInTheDocument();
-    expect(within(wierszKuponu).getByText("-60.00")).toBeInTheDocument();
-    // Łączny rabat stoi osobno pod tabelą - to on jest kosztem kampanii.
-    expect(screen.getByText("Łączny rabat udzielony", { exact: false })).toBeInTheDocument();
+    expect(within(wierszKuponu).queryByText("240.00")).toBeNull();
+    expect(within(wierszKuponu).queryByText("-60.00")).toBeNull();
+    expect(screen.queryByText("Łączny rabat udzielony", { exact: false })).toBeNull();
+    expect(screen.getByText("adminCoupons.analytics.detailNote")).toBeInTheDocument();
+    cleanup();
+  });
+});
+
+describe("trasa /admin/coupons/analytics - P10: kafle per waluta i konwersja opłacona", () => {
+  it("DWIE WALUTY = DWA kafle przychodu i DWA kafle rabatu - nigdy jedna suma", async () => {
+    h.summary.mockResolvedValue(
+      podsumowanie({
+        revenueNet: [
+          { currency: "PLN", amountMinor: 40_000 },
+          { currency: "EUR", amountMinor: 5_000 },
+        ],
+        discount: [
+          { currency: "PLN", amountMinor: 10_000 },
+          { currency: "EUR", amountMinor: 1_000 },
+        ],
+      }),
+    );
+    const view = await zamontuj();
+    await screen.findByText("adminCoupons.analytics.revenueNet(currency=PLN)");
+
+    const kafle = within(screen.getByTestId("kafle-walut"));
+    expect(kafle.getByText("adminCoupons.analytics.revenueNet(currency=EUR)")).toBeInTheDocument();
+    expect(kafle.getByText("adminCoupons.analytics.discount(currency=PLN)")).toBeInTheDocument();
+    expect(kafle.getByText("adminCoupons.analytics.discount(currency=EUR)")).toBeInTheDocument();
+    // Każda kwota niesie SWOJĄ walutę; 400 zł i 50 € nie skleja się w 450.
+    const pln = kafel("adminCoupons.analytics.revenueNet(currency=PLN)").textContent ?? "";
+    const eur = kafel("adminCoupons.analytics.revenueNet(currency=EUR)").textContent ?? "";
+    expect(pln).toMatch(/400/);
+    expect(pln).not.toMatch(/€|EUR/);
+    expect(eur).toMatch(/50/);
+    expect(eur).toMatch(/€|EUR/);
+    expect(view.container.textContent ?? "").not.toMatch(/450[,.]00/);
     cleanup();
   });
 
-  it("konwersja liczy UDZIAŁ kuponów, które ktokolwiek zrealizował", async () => {
-    // Kupon wystawiony i nietknięty to koszt kampanii bez zwrotu. Ten kafel
-    // jest jedynym miejscem, w którym widać, jaka część puli w ogóle ruszyła.
-    zBazy([
-      wiersz(),
-      wiersz({
-        coupon_id: "33333333-3333-4333-8333-333333333333",
-        code: "NES-CCC333",
-        redemptions: 0,
-        revenue_cents: 0,
-        discount_cents_total: 0,
-      }),
-    ]);
+  it("konwersja = kohorta wydanych z OPŁACONYM wykorzystaniem, z definicją przy kaflu", async () => {
+    // 1 z 4 wydanych ma opłacone wykorzystanie = 25%, choć funkcja agregująca
+    // (rezerwacje też) widzi wykorzystanie przy WSZYSTKICH czterech.
+    zBazy([wiersz(), wiersz({ coupon_id: "c-2", code: "NES-BBB222", redemptions: 1 })]);
+    h.summary.mockResolvedValue(podsumowanie({ issued: 4, issuedConverted: 1, conversion: 0.25 }));
+    await zamontuj();
+    await waitFor(() =>
+      expect(within(kafel("adminCoupons.analytics.conversion")).getByText("25.0%")).toBeTruthy(),
+    );
+    // Definicja jest w drzewie dostępności (tekst `sr-only`) i za przyciskiem
+    // z nazwą - nie tylko w dymku po najechaniu.
+    expect(screen.getByText("adminCoupons.analytics.conversionDefinition")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "adminCoupons.analytics.conversionHelp" }),
+    ).toBeInTheDocument();
+    cleanup();
+  });
+
+  it("brak wydanych kuponów to KRESKA konwersji, a nie 0%", async () => {
+    h.summary.mockResolvedValue(podsumowanie({ issued: 0, issuedConverted: 0, conversion: null }));
+    await zamontuj();
+    await waitFor(() =>
+      expect(within(kafel("adminCoupons.analytics.issued")).getByText("0")).toBeTruthy(),
+    );
+    expect(within(kafel("adminCoupons.analytics.conversion")).getByText("-")).toBeTruthy();
+    cleanup();
+  });
+
+  it("rezerwacje bez płatności stoją OSOBNO od wykorzystań opłaconych", async () => {
+    h.summary.mockResolvedValue(podsumowanie({ paidRedemptions: 3, reservedRedemptions: 2 }));
+    await zamontuj();
+    await waitFor(() =>
+      expect(within(kafel("adminCoupons.analytics.paid")).getByText("3")).toBeTruthy(),
+    );
+    expect(within(kafel("adminCoupons.analytics.reserved")).getByText("2")).toBeTruthy();
+    cleanup();
+  });
+
+  it("okres bez opłaconych wykorzystań pokazuje zero przychodu - bez waluty", async () => {
+    h.summary.mockResolvedValue(podsumowanie({ revenueNet: [], discount: [] }));
+    await zamontuj();
+    await waitFor(() =>
+      expect(within(kafel("adminCoupons.analytics.revenueNone")).getByText("0")).toBeTruthy(),
+    );
+    expect(within(kafel("adminCoupons.analytics.discountNone")).getByText("0")).toBeTruthy();
+    cleanup();
+  });
+
+  it("obcięta próbka (`truncated`) jest PODPISANA - kafle nie udają pełnych sum", async () => {
+    h.summary.mockResolvedValue(podsumowanie({ truncated: true }));
+    await zamontuj();
+    expect(
+      await screen.findByText("adminCoupons.analytics.truncated(limit=5000)"),
+    ).toBeInTheDocument();
+    cleanup();
+  });
+
+  it("REDAKTOR nie pyta o kwoty - widzi adnotację i kreski, nie zera", async () => {
+    // RLS zamówień wpuszcza wyłącznie administratora: redaktor dostałby zera
+    // albo WŁASNE zamówienia udające wynik organizacji.
+    h.roles = ["editor"];
+    zBazy([wiersz()]);
     await zamontuj();
     await screen.findByText("NES-AAA111");
-    expect(within(kafel("Konwersja")).getByText("50.0%")).toBeInTheDocument();
+    expect(h.summary).not.toHaveBeenCalled();
+    expect(screen.getByText("adminCoupons.analytics.adminOnly")).toBeInTheDocument();
+    expect(within(kafel("adminCoupons.analytics.revenueNone")).getByText("-")).toBeTruthy();
+    expect(within(kafel("adminCoupons.analytics.conversion")).getByText("-")).toBeTruthy();
+    cleanup();
+  });
+
+  it("AWARIA podsumowania melduje się alertem i kreskami - ranking dalej działa", async () => {
+    h.summary.mockRejectedValue(new Error("permission denied"));
+    zBazy([wiersz()]);
+    await zamontuj();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(within(kafel("adminCoupons.analytics.issued")).getByText("-")).toBeTruthy();
+    expect(screen.getByText("NES-AAA111")).toBeInTheDocument();
+    cleanup();
+  });
+
+  it("ma SEKCYJNY tytuł karty i jest wyłączona z indeksu (D14)", async () => {
+    const view = await zamontuj();
+    expect(view.meta()).toContainEqual({ title: "Analityka kuponów | New European Strategies" });
+    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
     cleanup();
   });
 });
@@ -445,15 +607,17 @@ describe("trasa /admin/coupons/analytics - wykres", () => {
 });
 
 describe("trasa /admin/coupons/analytics - język i dostępność", () => {
-  it("wersja angielska opisuje kafle i nagłówki po angielsku", async () => {
-    h.lang = "en";
+  it("napisy idą ze słownika `adminCoupons.analytics.*`, a nie z bliźniaka `L(pl, en)`", async () => {
+    // Parytet PL/EN pilnuje bramka słowników - tu dowód, że panel w ogóle po
+    // nie sięga (atrapa i18n oddaje klucze).
     zBazy([wiersz()]);
     await zamontuj();
-    expect(await screen.findByText("TOP 10 coupons")).toBeInTheDocument();
-    expect(kafel("Net revenue")).toBeInTheDocument();
-    expect(kafel("Conversion")).toBeInTheDocument();
-    expect(screen.getByText("Per-coupon detail")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Total discount" })).toBeInTheDocument();
+    expect(await screen.findByText("adminCoupons.analytics.rankingTitle")).toBeInTheDocument();
+    expect(kafel("adminCoupons.analytics.conversion")).toBeInTheDocument();
+    expect(screen.getByText("adminCoupons.analytics.detailTitle")).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "adminCoupons.analytics.detailRedemptions" }),
+    ).toBeInTheDocument();
     cleanup();
   });
 
@@ -461,6 +625,7 @@ describe("trasa /admin/coupons/analytics - język i dostępność", () => {
     zBazy([wiersz()]);
     const view = await zamontuj();
     await screen.findByText("NES-AAA111");
+    await screen.findByText("adminCoupons.analytics.revenueNet(currency=PLN)");
     const naruszenia = await axeViolations(view.container);
     expect(summarize(naruszenia)).toBe("");
     cleanup();
@@ -495,9 +660,10 @@ describe("trasa /admin/coupons/analytics - DEFEKTY (naprawione)", () => {
     await zamontuj();
     // Awaria melduje się sama i nie udaje zakresu bez realizacji.
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText("Brak danych.")).toBeNull();
-    expect(within(kafel("Przychód netto")).getByText("-")).toBeInTheDocument();
-    expect(within(kafel("Realizacje")).getByText("-")).toBeInTheDocument();
+    expect(screen.queryByText("adminCoupons.analytics.noData")).toBeNull();
+    expect(screen.getAllByText("adminCoupons.loadError.placeholder")).toHaveLength(2);
+    // Kafle: kreski, nie zera - także te z podsumowania (jeden ekran, jeden stan).
+    expect(within(kafel("adminCoupons.analytics.issued")).getByText("-")).toBeInTheDocument();
     cleanup();
   });
 });

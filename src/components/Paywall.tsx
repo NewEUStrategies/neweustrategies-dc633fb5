@@ -30,6 +30,7 @@ import type { PasswordUnlockFailure, PasswordVerifyResult } from "@/hooks/usePas
 // /pricing i checkout (poprzedni, lokalny formatMoney hardkodował pl-PL, więc
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
@@ -138,7 +139,19 @@ export function Paywall({
       .eq("active", true)
       .order("sort_order")
       .then(
-        ({ data, error }) => settle(error ? [] : ((data as AccessPlan[]) ?? []), !!error),
+        ({ data, error }) =>
+          // Każda karta ściany prowadzi do kasy, więc odpadają plany, których
+          // kasa nie sprzeda (cennik v6.2): wycofane (`for_sale = false`)
+          // i wyłącznie na zapytanie. Reguła wskazująca taki plan pokaże
+          // pozostałe - albo uczciwy brak oferty.
+          settle(
+            error
+              ? []
+              : ((data as AccessPlan[] | null) ?? []).filter(
+                  (plan) => plan.for_sale !== false && !isEnquiryOnlyPlan(plan),
+                ),
+            !!error,
+          ),
         () => settle([], true),
       );
     return () => {

@@ -41,7 +41,9 @@ export type SwitchTargetRef = { planId: string } | { lookupKey: string };
 export type SwitchTargetResult =
   { ok: true; target: OfferedSwitchTarget } | { ok: false; error: PlanSwitchRefusal };
 
-const PLAN_COLUMNS = "id, tenant_id, active, interval, tier_key, sort_order";
+// `for_sale` (cennik v6.2): plan wycofany ze sprzedaży nie jest celem zmiany -
+// ta sama reguła `planSwitchRefusal`, którą UI filtruje listę celów.
+const PLAN_COLUMNS = "id, tenant_id, active, interval, tier_key, sort_order, for_sale";
 
 /**
  * Rozstrzyga cel zmiany planu w ofercie najemcy WOŁAJĄCEGO.

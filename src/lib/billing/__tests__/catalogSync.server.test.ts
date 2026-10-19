@@ -45,7 +45,7 @@ const h = vi.hoisted(() => ({
   /** Filtry `eq` nałożone na odczyt `access_plans` (zawężenie do najemcy). */
   planFilters: [] as Array<[string, unknown]>,
   /** Produkty widoczne u operatora, kluczowane po `lovable_external_id`. */
-  remoteProducts: {} as Record<string, { id: string } | undefined>,
+  remoteProducts: {} as Record<string, { id: string; name?: string } | undefined>,
   /** Ceny widoczne u operatora, kluczowane po `lookup_key`. */
   remotePrices: {} as Record<string, Record<string, unknown> | undefined>,
   /** Awarie wyszukiwania produktu wstrzykiwane po `lovable_external_id`. */
@@ -54,6 +54,7 @@ const h = vi.hoisted(() => ({
   indexNewProducts: true,
   productSearch: vi.fn(),
   productCreate: vi.fn(),
+  productUpdate: vi.fn(),
   priceList: vi.fn(),
   priceCreate: vi.fn(),
   priceUpdate: vi.fn(),
@@ -65,7 +66,7 @@ vi.mock("@/lib/stripe.server", () => ({
     if (h.clientError) throw h.clientError;
     h.envs.push(env);
     return {
-      products: { search: h.productSearch, create: h.productCreate },
+      products: { search: h.productSearch, create: h.productCreate, update: h.productUpdate },
       prices: { list: h.priceList, create: h.priceCreate, update: h.priceUpdate },
     };
   },
@@ -191,14 +192,19 @@ beforeEach(() => {
     const found = h.remoteProducts[externalId];
     return Promise.resolve({ data: found ? [found] : [] });
   });
-  h.productCreate.mockImplementation((params: { metadata: Record<string, string> }) => {
-    const externalId = params.metadata["lovable_external_id"] ?? "";
-    const created = { id: `prod_${externalId}` };
-    // Wyszukiwarka operatora jest spójna dopiero po chwili - flagą odwzorowujemy
-    // oba warianty (patrz test o opóźnionym indeksie).
-    if (h.indexNewProducts) h.remoteProducts[externalId] = created;
-    return Promise.resolve(created);
-  });
+  h.productCreate.mockImplementation(
+    (params: { name: string; metadata: Record<string, string> }) => {
+      const externalId = params.metadata["lovable_external_id"] ?? "";
+      const created = { id: `prod_${externalId}`, name: params.name };
+      // Wyszukiwarka operatora jest spójna dopiero po chwili - flagą odwzorowujemy
+      // oba warianty (patrz test o opóźnionym indeksie).
+      if (h.indexNewProducts) h.remoteProducts[externalId] = created;
+      return Promise.resolve(created);
+    },
+  );
+  h.productUpdate.mockImplementation((id: string, params: { name: string }) =>
+    Promise.resolve({ id, name: params.name }),
+  );
   h.priceList.mockImplementation((params: { lookup_keys?: string[] }) => {
     const found = h.remotePrices[params.lookup_keys?.[0] ?? ""];
     return Promise.resolve({ data: found ? [found] : [] });
@@ -213,6 +219,19 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+/**
+ * Archiwizacja zastąpionej ceny: `active: false` RAZEM ze stemplem
+ * `metadata.lovable_external_id` (cennik v6.2) - cena traci `lookup_key` przez
+ * `transfer_lookup_key`, a webhook odnowień trwających subskrypcji musi ją dalej
+ * odwzorować na plan.
+ */
+function archivedWithStamp(lookupKey: string) {
+  return {
+    active: false,
+    metadata: expect.objectContaining({ lovable_external_id: lookupKey }),
+  };
+}
 
 describe("syncBillingCatalog - zakładanie brakujących pozycji", () => {
   it("zakłada produkt i cenę, gdy operator nie ma jeszcze katalogu", async () => {
@@ -300,7 +319,7 @@ describe("syncBillingCatalog - zakładanie brakujących pozycji", () => {
   });
 
   it("istniejący produkt jest ponownie użyty zamiast zakładany od nowa", async () => {
-    h.remoteProducts["plan_plus"] = { id: "prod_istniejacy" };
+    h.remoteProducts["plan_plus"] = { id: "prod_istniejacy", name: "Plus" };
 
     const report = await syncBillingCatalog("sandbox");
 
@@ -430,7 +449,7 @@ describe("syncBillingCatalog - korekta rozjechanych pozycji", () => {
       transfer_lookup_key: true,
     });
     // Stara cena znika z oferty, ale NIE jest kasowana (historia transakcji).
-    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", archivedWithStamp("plus_monthly"));
     expect(itemFor(report, "plus_monthly")?.price).toBe("updated");
     expect(report.updated).toBe(1);
   });
@@ -458,21 +477,48 @@ describe("syncBillingCatalog - korekta rozjechanych pozycji", () => {
     expect(priceCreateFor("plus_monthly")).toMatchObject({ nickname: "Plus 2026 (month)" });
   });
 
-  it("sama zmiana nazwy planu NIE dociera do operatora", async () => {
-    // DEFEKT UTRWALONY: produkt jest zakładany tylko wtedy, gdy go nie ma -
-    // nazwa/opis istniejącego produktu nigdy nie są korygowane, a `nickname`
-    // ceny zmienia się wyłącznie przy odtwarzaniu ceny (zmiana kwoty/waluty).
-    // Po zmianie nazwy planu w `access_plans` operator dalej pokazuje starą.
-    h.plans = [plan({ name_pl: "Zupełnie nowa nazwa" })];
-    h.remoteProducts["plan_plus"] = { id: "prod_istniejacy" };
+  it("zmiana nazwy planu dociera do PRODUKTU operatora (Checkout, faktury, portal)", async () => {
+    // Dawny defekt: produkt był tylko zakładany, więc po zmianie nazw v6.2
+    // („Plus" -> „Członek") Checkout i faktury mówiły „Plus - miesięcznie",
+    // a cennik i mail o obniżce - „Członek". Cena bez zmian kwoty zostaje.
+    h.plans = [plan({ name_pl: "Członek - miesięcznie" })];
+    h.remoteProducts["plan_plus"] = { id: "prod_istniejacy", name: "Plus - miesięcznie" };
     h.remotePrices["plus_monthly"] = remotePlusMonthly();
 
     const report = await syncBillingCatalog("sandbox");
 
     expect(h.productCreate).not.toHaveBeenCalled();
+    // Nazwa produktu bez cyklu - produkt jest wspólny dla ceny mies. i rocznej.
+    expect(h.productUpdate).toHaveBeenCalledWith("prod_istniejacy", { name: "Członek" });
     expect(priceCreateFor("plus_monthly")).toBeUndefined();
     expect(h.priceUpdate).not.toHaveBeenCalled();
+    expect(itemFor(report, "plus_monthly")).toMatchObject({ product: "updated", price: "ok" });
+    expect(report.updated).toBeGreaterThan(0);
+  });
+
+  it("nazwa produktu zgodna z planem: bez zapisu u operatora (idempotencja)", async () => {
+    h.plans = [plan({ name_pl: "Członek - miesięcznie" })];
+    h.remoteProducts["plan_plus"] = { id: "prod_istniejacy", name: "Członek" };
+    h.remotePrices["plus_monthly"] = remotePlusMonthly();
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(h.productUpdate).not.toHaveBeenCalled();
     expect(itemFor(report, "plus_monthly")).toMatchObject({ product: "ok", price: "ok" });
+  });
+
+  it("produkt wspólny dla cykli dostaje jedną nazwę - pierwszego planu katalogu", async () => {
+    // Nazwy bez myślnika różne dla cykli nie mogą przepisywać produktu na
+    // zmianę przy każdym przebiegu.
+    h.plans = [
+      plan({ name_pl: "Członek miesięczny" }),
+      plan({ interval: "year", name_pl: "Członek roczny", price_cents: 39000 }),
+    ];
+    h.remoteProducts["plan_plus"] = { id: "prod_istniejacy", name: "Członek miesięczny" };
+
+    await syncBillingCatalog("sandbox");
+
+    expect(h.productUpdate).not.toHaveBeenCalled();
   });
 
   // Ten test przybijał dawniej DEFEKT („rozjechany cykl NIE jest wykrywany"):
@@ -493,7 +539,7 @@ describe("syncBillingCatalog - korekta rozjechanych pozycji", () => {
       lookup_key: "plus_monthly",
       transfer_lookup_key: true,
     });
-    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", archivedWithStamp("plus_monthly"));
     expect(itemFor(report, "plus_monthly")?.price).toBe("updated");
   });
 });
@@ -528,7 +574,10 @@ describe("syncBillingCatalog - dryf cyklu i kształtu ceny (audyt #21)", () => {
     const created = priceCreateFor("decision_lab_seat");
     expect(created).toMatchObject({ unit_amount: 1_600_000, transfer_lookup_key: true });
     expect(created).not.toHaveProperty("recurring");
-    expect(h.priceUpdate).toHaveBeenCalledWith("price_dl_recurring", { active: false });
+    expect(h.priceUpdate).toHaveBeenCalledWith(
+      "price_dl_recurring",
+      archivedWithStamp("decision_lab_seat"),
+    );
     expect(itemFor(report, "decision_lab_seat")?.price).toBe("updated");
   });
 
@@ -550,7 +599,10 @@ describe("syncBillingCatalog - dryf cyklu i kształtu ceny (audyt #21)", () => {
       recurring: { interval: "month", interval_count: 3 },
       transfer_lookup_key: true,
     });
-    expect(h.priceUpdate).toHaveBeenCalledWith("price_biz_q", { active: false });
+    expect(h.priceUpdate).toHaveBeenCalledWith(
+      "price_biz_q",
+      archivedWithStamp("business_quarterly"),
+    );
     expect(itemFor(report, "business_quarterly")?.price).toBe("updated");
   });
 
@@ -571,7 +623,7 @@ describe("syncBillingCatalog - dryf cyklu i kształtu ceny (audyt #21)", () => {
       recurring: { interval: "month", interval_count: 1 },
       transfer_lookup_key: true,
     });
-    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", archivedWithStamp("plus_monthly"));
     expect(itemFor(report, "plus_monthly")?.price).toBe("updated");
   });
 
@@ -588,7 +640,7 @@ describe("syncBillingCatalog - dryf cyklu i kształtu ceny (audyt #21)", () => {
       const report = await syncBillingCatalog("sandbox");
 
       expect(itemFor(report, "plus_monthly")?.price, JSON.stringify(drift)).toBe("updated");
-      expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+      expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", archivedWithStamp("plus_monthly"));
     }
   });
 
@@ -906,7 +958,7 @@ describe("cena jednorazowa (interval one_time)", () => {
     expect(created?.["unit_amount"]).toBe(1_600_000);
     expect(created?.["transfer_lookup_key"]).toBe(true);
     expect(created).not.toHaveProperty("recurring");
-    expect(h.priceUpdate).toHaveBeenCalledWith("price_dl", { active: false });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_dl", archivedWithStamp("decision_lab_seat"));
   });
 });
 

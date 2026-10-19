@@ -103,6 +103,15 @@
 import type Stripe from "stripe";
 import { BILLING_CATALOG, catalogEntryByPriceId } from "@/lib/billing/catalog";
 import { catalogSwitchRefusal } from "@/lib/billing/planSwitch";
+import {
+  amountForQuantity,
+  linePriceTarget,
+  repriceDecision,
+  type PriceShape,
+  type RepriceDecision,
+  type RepriceInput,
+  type RepriceLine,
+} from "@/lib/billing/subscriptionRepricing";
 import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
 
 /**
@@ -565,8 +574,20 @@ const SCHEDULE_BASIS_KEY = "nes_basis";
  * w porównaniu z migawką zdarzenia.
  */
 async function scheduleBasis(items: readonly Stripe.SubscriptionItem[]): Promise<string> {
-  const lines = items.map((item) => `${refOf(item.price) ?? ""}*${item.quantity ?? 1}`);
-  return (await sha256Hex(lines.join(","))).slice(0, 40);
+  return basisOfLines(
+    items.map((item) => ({ price: refOf(item.price) ?? "", quantity: item.quantity ?? 1 })),
+  );
+}
+
+/**
+ * Ten sam odcisk z pozycji podanych wprost - dla zapisu faz, które ZMIENIAJĄ
+ * pozycje bieżącej fazy (przeniesienie na cenę katalogu, `proration_behavior:
+ * none`): po nim subskrypcja niesie już nowe ceny, więc odcisk musi opisywać
+ * je, a nie pozycje sprzed zapisu.
+ */
+async function basisOfLines(lines: readonly PhaseLine[]): Promise<string> {
+  const parts = lines.map((line) => `${line.price}*${line.quantity}`);
+  return (await sha256Hex(parts.join(","))).slice(0, 40);
 }
 
 /** Identyfikatory z listy pól SDK (napis albo rozwinięty obiekt z `id`). */
@@ -1881,4 +1902,460 @@ export async function clearCancelDateAfterAppliedUpgrade(
   }
   warnIfPeriodExtended(subscriptionId, live, cleared);
   return "cleared";
+}
+
+// --- przeniesienie na cenę katalogu (cennik v6.2) ----------------------------
+//
+// Obecni subskrybenci Członka, Członka Pro i Zespołu przechodzą na NIŻSZĄ cenę
+// v6.2 od najbliższego odnowienia (decyzja właściciela 18.10.2026). Reguły
+// „czy i na co" są czyste (`subscriptionRepricing.ts`); tu zapada odczyt
+// żywego stanu i JEDNO wywołanie mutujące u operatora:
+//
+//   * bez harmonogramu - pozycja subskrypcji dostaje nową cenę z
+//     `proration_behavior: "none"`: cykl ten sam, więc okres i kotwica
+//     rozliczeń zostają, nie powstaje faktura ani płatność, a nowa kwota
+//     wchodzi od następnej faktury (także pierwszej po trialu);
+//   * z WŁASNYM harmonogramem (zaplanowany downgrade, zmniejszenie miejsc) -
+//     przepisujemy jego fazy. Następna faza wskazuje STARĄ cenę (np. dawny
+//     Członek za 59 zł), więc samo przepięcie pozycji nic by nie dało:
+//     odnowienie poszłoby fazą harmonogramu po starej kwocie. Gdy zmiana
+//     już weszła (bieżąca faza jest ostatnia), harmonogram dalej wisi do
+//     końca fazy - przepisujemy wtedy samą bieżącą fazę na nową cenę,
+//     bo po jej końcu subskrypcja odnowi się po cenie pozycji.
+//
+// Harmonogram OBCY (panel operatora, portal klienta) nie jest nasz do
+// przepisywania - decyzja `schedule_foreign`, obsługa ręczna.
+
+/** Metadane subskrypcji: kampania, która przepięła cenę (ślad u operatora). */
+const REPRICED_KEY = "nes_repriced";
+
+const PRICE_INTERVALS = new Set<PriceShape["interval"]>(["day", "week", "month", "year"]);
+
+/**
+ * Cykl ceny w słowniku reguły. Typy SDK dopuszczają dowolny napis (`OtherString`)
+ * - nieznany cykl schodzi na „month" z krotnością 0, czyli na cykl, który
+ * nie pasuje do żadnej ceny katalogu (`cycle_mismatch`), zamiast zgadywać.
+ */
+function shapeCycle(recurring: Stripe.Price.Recurring | null): {
+  interval: PriceShape["interval"];
+  intervalCount: number;
+} {
+  const interval = recurring?.interval as PriceShape["interval"] | undefined;
+  if (!recurring || !interval || !PRICE_INTERVALS.has(interval)) {
+    return { interval: "month", intervalCount: 0 };
+  }
+  return { interval, intervalCount: recurring.interval_count ?? 1 };
+}
+
+/** Cena operatora sprowadzona do kształtu, z którego reguła liczy kwotę i cykl. */
+function priceShapeOf(price: Stripe.Price): PriceShape {
+  const recurring = price.recurring;
+  const tiered = price.billing_scheme === "tiered";
+  // Literały wprost: porównanie z `OtherString` z SDK nie zawęża typu.
+  const mode: PriceShape["tiersMode"] =
+    price.tiers_mode === "volume"
+      ? "volume"
+      : price.tiers_mode === "graduated"
+        ? "graduated"
+        : null;
+  return {
+    id: price.id,
+    currency: price.currency ?? "",
+    ...shapeCycle(recurring),
+    // Cena jednorazowa nie ma cyklu (krotność 0 w `shapeCycle`), a bez
+    // `unit_amount` jej kwota i tak wychodzi jako niepoliczalna.
+    unitAmount: recurring && !tiered ? (price.unit_amount ?? null) : null,
+    tiersMode: tiered ? mode : null,
+    tiers: tiered
+      ? (price.tiers ?? []).map((tier) => ({
+          upTo: tier.up_to ?? null,
+          unitAmount: tier.unit_amount ?? null,
+          flatAmount: tier.flat_amount ?? null,
+        }))
+      : null,
+  };
+}
+
+/**
+ * Cena z progami. `tiers` operator zwraca wyłącznie po rozwinięciu, a w fazie
+ * harmonogramu nie da się go rozwinąć (limit czterech poziomów `expand`) -
+ * cenę schodkową (Zespół) doczytujemy wtedy osobno, bez niej kwota byłaby
+ * niepoliczalna.
+ */
+async function priceWithTiers(stripe: Stripe, price: unknown): Promise<Stripe.Price | null> {
+  if (!price || typeof price !== "object") {
+    const id = refOf(price);
+    return id ? stripe.prices.retrieve(id, { expand: ["tiers"] }) : null;
+  }
+  const p = price as Stripe.Price;
+  if (p.billing_scheme === "tiered" && !p.tiers) {
+    return stripe.prices.retrieve(p.id, { expand: ["tiers"] });
+  }
+  return p;
+}
+
+/**
+ * Aktywne ceny katalogu dla podanych `lookup_key` - nowe ceny v6.2 po
+ * synchronizacji. Brak ceny = brak klucza w wyniku (`target_price_missing`).
+ */
+export async function loadRepricingTargets(
+  env: StripeEnv,
+  lookupKeys: readonly string[],
+): Promise<Partial<Record<string, PriceShape>>> {
+  const stripe = await getStripeClient(env);
+  const out: Partial<Record<string, PriceShape>> = {};
+  for (const key of lookupKeys) {
+    const res = await stripe.prices.list({
+      lookup_keys: [key],
+      active: true,
+      limit: 1,
+      expand: ["data.tiers"],
+    });
+    const price = res.data[0];
+    if (price) out[key] = priceShapeOf(price);
+  }
+  return out;
+}
+
+/** Linia reguły z pozycji operatora (subskrypcji albo fazy). */
+function lineOf(price: Stripe.Price, quantity: number | null | undefined): RepriceLine {
+  return {
+    lookupKey: readableLookupKey(price),
+    price: priceShapeOf(price),
+    quantity: Math.max(1, quantity ?? 1),
+  };
+}
+
+/** Własny harmonogram: założony i opisany przez ten moduł (odcisk albo licznik). */
+function isOwnSchedule(schedule: Stripe.SubscriptionSchedule): boolean {
+  const meta = schedule.metadata ?? {};
+  return SCHEDULE_BASIS_KEY in meta || OPS_REVISION_KEY in meta;
+}
+
+interface RepricingLiveState {
+  sub: Stripe.Subscription;
+  input: Omit<RepriceInput, "targets">;
+  /** Pozycje fazy wchodzącej przy odnowieniu (z cenami), gdy harmonogram ją ma. */
+  nextPhaseItems: Stripe.SubscriptionSchedule.Phase.Item[] | null;
+}
+
+/**
+ * Żywy stan subskrypcji w kształcie wejścia reguły. Lustro w bazie bywa
+ * spóźnione (webhook), więc decyzja zawsze zapada na odczycie od operatora -
+ * w podglądzie i ponownie tuż przed mutacją.
+ */
+async function repricingLiveState(
+  stripe: Stripe,
+  subscriptionId: string,
+): Promise<RepricingLiveState> {
+  const sub = await retrieveLive(stripe, subscriptionId, [
+    "items.data.price.tiers",
+    "schedule.phases.items.price",
+  ]);
+  const items = sub.items?.data ?? [];
+  const lines: RepriceLine[] = [];
+  for (const item of items) {
+    const price = await priceWithTiers(stripe, item.price);
+    if (price) lines.push(lineOf(price, item.quantity));
+  }
+
+  let schedule: RepriceInput["schedule"] = null;
+  let nextPhaseItems: Stripe.SubscriptionSchedule.Phase.Item[] | null = null;
+  const attached = attachedSchedule(sub);
+  if (refOf(sub.schedule)) {
+    const own = attached ? isOwnSchedule(attached) : false;
+    let nextLines: RepriceLine[] | null = null;
+    let extraPhases = false;
+    const current = attached?.current_phase;
+    const phases = attached?.phases ?? [];
+    const index = current ? phases.findIndex((p) => p.start_date === current.start_date) : -1;
+    const next = index >= 0 ? phases[index + 1] : undefined;
+    // Bieżąca faza jest OSTATNIA: zaplanowany downgrade albo zmniejszenie
+    // miejsc już weszło, a harmonogram wisi do jej końca (operator odłącza go
+    // dopiero po ostatniej fazie). Odnowienie pójdzie wtedy po cenie pozycji
+    // subskrypcji - regułę liczymy z niej, nie z nieistniejącej fazy następnej.
+    const finalPhase = own && index >= 0 && next === undefined;
+    if (own && next?.items?.length) {
+      extraPhases = phases.length > index + 2;
+      nextLines = [];
+      for (const phaseItem of next.items) {
+        const price = await priceWithTiers(stripe, phaseItem.price);
+        if (!price) {
+          nextLines = null;
+          break;
+        }
+        nextLines.push(lineOf(price, phaseItem.quantity));
+      }
+      nextPhaseItems = nextLines ? next.items : null;
+    }
+    schedule = {
+      own,
+      nextLines,
+      extraPhases,
+      finalPhase,
+      endBehavior: attached?.end_behavior ?? null,
+    };
+  }
+
+  return {
+    sub,
+    nextPhaseItems,
+    input: {
+      status: sub.status,
+      pauseCollection: !!sub.pause_collection,
+      pendingUpdate: !!sub.pending_update,
+      items: lines.length === items.length ? lines : [],
+      schedule,
+      cancelScheduled: scheduledCancellation(sub) !== null,
+      trialEnd: sub.trial_end ?? null,
+      periodEnd: items[0]?.current_period_end ?? null,
+    },
+  };
+}
+
+/**
+ * Podgląd przeniesienia - odczyt żywego stanu i decyzja, BEZ mutacji.
+ */
+export async function inspectSubscriptionRepricing(
+  env: StripeEnv,
+  subscriptionId: string,
+  targets: Partial<Record<string, PriceShape>>,
+): Promise<SubscriptionOpResult<{ decision: RepriceDecision }>> {
+  let stripe: Stripe | null = null;
+  try {
+    stripe = await getStripeClient(env);
+    const live = await repricingLiveState(stripe, subscriptionId);
+    return { ok: true, decision: repriceDecision({ ...live.input, targets }) };
+  } catch (e) {
+    return failureOf(null, subscriptionId, e);
+  }
+}
+
+/**
+ * Przeniesienie subskrypcji na aktualną cenę katalogu od najbliższej faktury.
+ *
+ * Decyzję liczymy JESZCZE RAZ na stanie odczytanym tuż przed mutacją - podgląd
+ * mógł być sprzed minuty, a klient w międzyczasie zmienić plan albo anulować.
+ * Wynik `skip` nie dotyka operatora.
+ *
+ * IDEMPOTENCJA: klucz z odcisku żywego stanu i ceny docelowej. Dwuklik albo
+ * ponowienie sieciowe dostaje zapamiętaną odpowiedź; po udanej zmianie odcisk
+ * jest inny, a reguła i tak zwraca wtedy `already_current`.
+ */
+export async function repriceSubscriptionToCatalog(
+  env: StripeEnv,
+  subscriptionId: string,
+  params: { targets: Partial<Record<string, PriceShape>>; campaign: string },
+): Promise<SubscriptionOpResult<{ decision: RepriceDecision }>> {
+  let stripe: Stripe | null = null;
+  try {
+    stripe = await getStripeClient(env);
+    const live = await repricingLiveState(stripe, subscriptionId);
+    const decision = repriceDecision({ ...live.input, targets: params.targets });
+    if (decision.action !== "apply" || !decision.toPriceId) return { ok: true, decision };
+    const { sub } = live;
+
+    if (decision.mode === "item") {
+      const item = sub.items.data[0];
+      if (!item?.id) return { ok: false, error: "no_subscription_item" };
+      await stripe.subscriptions.update(
+        subscriptionId,
+        {
+          items: [{ id: item.id, price: decision.toPriceId, quantity: decision.quantity }],
+          proration_behavior: "none",
+          metadata: { ...nextRevision(sub.metadata), [REPRICED_KEY]: params.campaign },
+        },
+        {
+          idempotencyKey: await idempotencyKey("reprice", [
+            ...stateFingerprint(subscriptionId, sub),
+            decision.toPriceId,
+            params.campaign,
+          ]),
+        },
+      );
+      return { ok: true, decision };
+    }
+
+    await repriceOwnSchedule(stripe, subscriptionId, live, params.targets, params.campaign);
+    return { ok: true, decision };
+  } catch (e) {
+    return failureOf(null, subscriptionId, e);
+  }
+}
+
+/**
+ * Pozycja fazy po przeniesieniu. Rabat pozycji przenosimy także na NOWĄ cenę
+ * tego samego produktu - to wyjątek wobec `phaseItem`, świadomy: cena katalogu
+ * po synchronizacji wisi na tym samym produkcie (`lovable_external_id`), więc
+ * kupon ograniczony do produktu nadal pasuje, a zgubienie go podniosłoby
+ * klientowi cenę zamiast ją obniżyć.
+ */
+function repricedPhaseItem(
+  price: string,
+  quantity: number | undefined,
+  source: Stripe.SubscriptionItem | undefined,
+  sourcePriceAfter: string | null,
+): PhaseItemParams {
+  const item: PhaseItemParams = { price, quantity };
+  const taxRates = idsOf(source?.tax_rates);
+  if (taxRates.length > 0) item.tax_rates = taxRates;
+  const discounts = source && sourcePriceAfter === price ? idsOf(source.discounts) : [];
+  if (discounts.length > 0) item.discounts = discounts.map((discount) => ({ discount }));
+  return item;
+}
+
+/**
+ * Przepisanie faz WŁASNEGO harmonogramu: bieżąca i następna faza (albo sama
+ * bieżąca, gdy jest ostatnia) dostają
+ * nowe ceny tam, gdzie pozwala reguła (`linePriceTarget`); data przejścia
+ * (koniec bieżącego okresu) i warunki rozliczenia (rabat, podatek, trial)
+ * zostają. Fazy zapisujemy w kształcie, w jakim zakłada je
+ * `scheduleFromNextPeriod`: następna faza otwarta, `end_behavior: release`.
+ * To jest bezpieczne WYŁĄCZNIE dlatego, że reguła wpuszcza tu tylko
+ * harmonogram z `end_behavior: release` i bez zaplanowanego końca
+ * subskrypcji (`cancel_scheduled` / `schedule_foreign` w `repriceDecision`) -
+ * inaczej zapis odwołałby rezygnację klienta. Bieżąca faza zmienia się
+ * z `proration_behavior: "none"`, więc subskrypcja od razu wskazuje aktualny
+ * obiekt ceny bez faktury proporcjonalnej. Odcisk `nes_basis` opisuje pozycje
+ * PO zapisie - od nich webhook rozpozna później nasz harmonogram; znacznik
+ * kampanii (`nes_repriced`) zostaje na harmonogramie jak na subskrypcji
+ * w trybie pozycji.
+ */
+async function repriceOwnSchedule(
+  stripe: Stripe,
+  subscriptionId: string,
+  live: RepricingLiveState,
+  targets: Partial<Record<string, PriceShape>>,
+  campaign: string,
+): Promise<void> {
+  const { sub, input, nextPhaseItems } = live;
+  const schedule = attachedSchedule(sub);
+  const scheduleId = refOf(sub.schedule);
+  const nextLines = input.schedule?.nextLines;
+  const finalPhase = input.schedule?.finalPhase === true;
+  if (!schedule || !scheduleId || (!finalPhase && (!nextPhaseItems || !nextLines))) {
+    throw new Error("schedule_unreadable");
+  }
+  const items = sub.items.data;
+  const fingerprint = stateFingerprint(subscriptionId, sub);
+  const periodEnd = items[0]?.current_period_end ?? 0;
+  const terms = carriedPhaseTerms(sub);
+  const phaseStart = schedule.current_phase?.start_date ?? items[0]?.current_period_start ?? 0;
+
+  const currentAfter = items.map(
+    (item, index) => linePriceTarget(input.items[index], targets)?.id ?? refOf(item.price) ?? "",
+  );
+  const currentLines: PhaseLine[] = items.map((item, index) => ({
+    price: currentAfter[index],
+    quantity: Math.max(1, item.quantity ?? 1),
+  }));
+
+  // Ostatnia faza kończy się tam, gdzie zapisał ją operator (domyślnie jedna
+  // iteracja ceny - koniec bieżącego okresu); tej daty nie przesuwamy.
+  const currentEnd = finalPhase ? (schedule.current_phase?.end_date ?? periodEnd) : periodEnd;
+  const phases: PhaseParams[] = [
+    {
+      items: items.map((item, index) =>
+        repricedPhaseItem(currentAfter[index], item.quantity, item, currentAfter[index]),
+      ),
+      start_date: phaseStart,
+      end_date: currentEnd,
+      ...terms,
+      ...trialTerms(sub, currentEnd),
+    },
+  ];
+  // Bez fazy następnej (bieżąca jest ostatnia) zapisujemy WYŁĄCZNIE bieżącą
+  // fazę: nowa cena wchodzi na pozycję od razu (`proration_behavior: none`),
+  // a po końcu fazy harmonogram się zwalnia i subskrypcja odnawia się po
+  // nowej cenie pozycji - nie po starej, zarchiwizowanej.
+  if (!finalPhase && nextPhaseItems && nextLines) {
+    phases.push({
+      items: nextPhaseItems.map((phaseItem, index) => {
+        const price =
+          linePriceTarget(nextLines[index], targets)?.id ?? refOf(phaseItem.price) ?? "";
+        return repricedPhaseItem(
+          price,
+          phaseItem.quantity ?? 1,
+          items[index],
+          currentAfter[index] ?? null,
+        );
+      }),
+      ...terms,
+    });
+  }
+
+  await stripe.subscriptionSchedules.update(
+    scheduleId,
+    {
+      end_behavior: "release",
+      phases,
+      proration_behavior: "none",
+      metadata: {
+        ...nextRevision(schedule.metadata),
+        [SCHEDULE_BASIS_KEY]: await basisOfLines(currentLines),
+        [REPRICED_KEY]: campaign,
+      },
+    },
+    {
+      idempotencyKey: await idempotencyKey("reprice-schedule", [
+        scheduleId,
+        revisionOf(schedule.metadata),
+        ...fingerprint,
+        JSON.stringify(phases),
+      ]),
+    },
+  );
+}
+
+// --- kwota, którą operator FAKTYCZNIE pobierze (maile, profil) ---------------
+//
+// Cennik w `access_plans` to cena NOWEGO zakupu. Trwająca subskrypcja odnawia
+// się po obiekcie ceny, na którym jest u operatora - po v6.2 do akcji admina
+// (a u pominiętych na stałe) to stara, zarchiwizowana cena 59/590, 129/1290
+// albo 99 zł. Kwota w przypomnieniu o odnowieniu (cron) i na karcie w profilu
+// pochodzi więc z ŻYWEJ subskrypcji, a gdy jej nie da się ustalić
+// jednoznacznie - nie ma jej wcale. Zła kwota w komunikacji z konsumentem
+// jest gorsza niż brak kwoty. (Maile z webhooka biorą kwotę z ładunku
+// zdarzenia - `stripeEvents.server`, bez dodatkowego odczytu.)
+
+/** Kwota w groszach z walutą ISO (wielkie litery). */
+export interface ProviderCharge {
+  amountCents: number;
+  currency: string;
+}
+
+/**
+ * Kwota pozycji, po której subskrypcja odnowi się przy najbliższej fakturze:
+ * cena pozycji × ilość (z progiem wolumenowym), przed rabatem i podatkiem -
+ * ta sama konwencja co „Cena" w mailach i cena planu na karcie.
+ *
+ * `null`, gdy kwoty nie da się podać uczciwie: harmonogram (odnowienie może
+ * pójść inną pozycją - zaplanowany downgrade, zmniejszenie miejsc), więcej
+ * niż jedna pozycja, cena bez cyklu albo niepoliczalna, błąd odczytu.
+ * Nigdy nie rzuca - wołają ją maile i karta profilu, dla których brak kwoty
+ * jest bezpiecznym zachowaniem.
+ */
+export async function renewalListCharge(
+  env: StripeEnv,
+  subscriptionId: string,
+): Promise<ProviderCharge | null> {
+  // Identyfikator spoza operatora (atrapa, import) - nie ma czego pytać.
+  if (!isProviderSubscriptionRef(subscriptionId)) return null;
+  try {
+    const stripe = await getStripeClient(env);
+    const sub = await stripe.subscriptions.retrieve(subscriptionId, {
+      expand: ["items.data.price.tiers"],
+    });
+    if (refOf(sub.schedule)) return null;
+    const items = sub.items?.data ?? [];
+    if (items.length !== 1) return null;
+    const price = await priceWithTiers(stripe, items[0].price);
+    if (!price?.recurring) return null;
+    const amount = amountForQuantity(priceShapeOf(price), items[0].quantity ?? 1);
+    if (amount === null) return null;
+    return { amountCents: amount, currency: (price.currency ?? "").toUpperCase() };
+  } catch (e) {
+    console.warn("[billing] renewal charge unavailable", subscriptionId, getStripeErrorMessage(e));
+    return null;
+  }
 }

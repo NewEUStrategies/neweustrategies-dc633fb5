@@ -117,13 +117,15 @@ describe("obudowa", () => {
       listCampaigns,
       getCampaign,
       getCampaignEngagement,
-      upsertCampaign,
       deleteCampaign,
       countCampaignAudience,
       sendCampaignTest,
     ]) {
       expect(serverFnMeta(fn)?.middleware).toEqual([{ __mw: "requireStaff" }]);
     }
+    // Zapis kampanii tylko admin/editor (def. 10, hub S1): autor ma
+    // podgląd, ale nie zmienia treści ani audiencji tego, co wyjdzie z domeny.
+    expect(serverFnMeta(upsertCampaign)?.middleware).toEqual([{ __mw: "requireAdminEditor" }]);
     expect(serverFnMeta(listCampaigns)?.method).toBe("GET");
   });
 

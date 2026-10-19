@@ -3,12 +3,31 @@
 // realtime - konsument (useModuleRealtime / useDomainEventInvalidation)
 // czyta regułę stąd. Test jednostkowy pilnuje, żeby każdy typ zdarzenia
 // z katalogu miał regułę.
+//
+// RDZEŃ I ROZSZERZENIA. Ta mapa jedzie w chunku szyny, który ładuje każdy
+// zalogowany (także czytelnik na stronie publicznej), więc trzyma wyłącznie
+// klucze modułów. Klucze panelu huba przychodu (`["admin-revenue", …]`,
+// `["admin", "journeys", …]`) dokłada rozszerzenie rejestrowane przez układ
+// `/admin` (`eventInvalidationMap.admin.ts`) - nie trafiają do bundla `public`,
+// a `invalidationKeysFor` zwraca sumę obu.
+//
+// FABRYKI ZAMIAST LITERAŁÓW tam, gdzie fabryka jest liściem bez importów
+// runtime (`crmKeys`, `newsletterKeys`, `accessKeys`…): klucz ekranu i klucz
+// reguły to wtedy jedno wywołanie, a nie dwa napisy, które rozjeżdżają się
+// po cichu (bramka `queryKeyLiterals.gate.test.ts`).
 import type { QueryKey } from "@tanstack/react-query";
+import { accessKeys, checkoutKeys, meteringKeys } from "@/lib/access/keys";
+import { couponKeys } from "@/lib/admin/couponKeys";
+import { workflowKeys } from "@/lib/admin/workflowKeys";
+import { analyticsCouponsPrefixKey } from "@/lib/analytics/queryKeys";
 import { billingKeys } from "@/lib/billing/keys";
 import { chatKeys } from "@/lib/chat/keys";
 import { pendingCounterKeys } from "@/lib/counters/keys";
+import { crmKeys } from "@/lib/crm/keys";
 import { linkedItemsKeys } from "@/lib/links/keys";
 import { clubKeys } from "@/lib/clubs/queryKeys";
+import { newsletterKeys } from "@/lib/newsletter/keys";
+import { retentionKeys } from "@/lib/retention/keys";
 import { eventPayloadText, type DomainEventRow, type DomainEventType } from "./domainEvents";
 
 export interface InvalidationContext {
@@ -40,48 +59,63 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     pendingCounterKeys.user(ctx.userId),
   ],
 
+  // Lead CRM. Każda zmiana leada przesuwa też lejek CRM (D8): liczności
+  // etapów (`funnelAll`) i kafle konwersji (`funnelStats`) liczą się z tych
+  // samych wierszy, więc bez tych kluczy lejek w drugiej karcie stał do
+  // końca `staleTime`. Zmiana etapu i cyklu życia dopisuje wiersz historii.
   "crm_lead.created.v1": (event) => [
-    ["crm-leads"],
-    ["crm-lead", event.aggregate_id],
+    ...crmLeadKeys(event),
+    ...crmFunnelKeys(),
     pendingCounterKeys.tenant(),
   ],
   "crm_lead.stage_changed.v1": (event) => [
-    ["crm-leads"],
-    ["crm-lead", event.aggregate_id],
+    ...crmLeadKeys(event),
+    crmKeys.leadStageHistory(event.aggregate_id),
+    ...crmFunnelKeys(),
     pendingCounterKeys.tenant(),
   ],
-  "crm_lead.updated.v1": (event) => [["crm-leads"], ["crm-lead", event.aggregate_id]],
+  "crm_lead.updated.v1": (event) => [...crmLeadKeys(event), ...crmFunnelKeys()],
+  // Oś marketingowa (`lifecycle_stage`) nie rusza etapu sprzedaży, więc nie
+  // zmienia licznika nowych leadów - tylko listę, kartę, historię i lejek.
+  "crm_lead.lifecycle_changed.v1": (event) => [
+    ...crmLeadKeys(event),
+    crmKeys.leadStageHistory(event.aggregate_id),
+    ...crmFunnelKeys(),
+  ],
   "crm_note.created.v1": (event) => [
-    ["crm-lead", eventPayloadText(event, "lead_id")],
+    crmKeys.lead(eventPayloadText(event, "lead_id")),
     linkedItemsKeys.all,
   ],
   // Follow-upy CRM: lista zadań leada + panel "do zrobienia" + skrzynka
   // (follow_up_at na leadzie utrzymuje trigger, więc odświeżamy też leady).
+  // Kafel „zaległe zadania" w statystykach lejka (D8) liczy te same wiersze.
   "crm_task.created.v1": (event) => [
-    ["crm-tasks"],
-    ["crm-lead", eventPayloadText(event, "lead_id")],
-    ["crm-leads"],
+    crmKeys.tasksAll(),
+    crmKeys.lead(eventPayloadText(event, "lead_id")),
+    crmKeys.leadsAll(),
+    crmKeys.funnelStats(),
   ],
   "crm_task.completed.v1": (event) => [
-    ["crm-tasks"],
-    ["crm-lead", eventPayloadText(event, "lead_id")],
-    ["crm-leads"],
+    crmKeys.tasksAll(),
+    crmKeys.lead(eventPayloadText(event, "lead_id")),
+    crmKeys.leadsAll(),
+    crmKeys.funnelStats(),
   ],
   "crm_task.due.v1": (event, ctx) => [
-    ["crm-tasks"],
-    ["crm-lead", eventPayloadText(event, "lead_id")],
+    crmKeys.tasksAll(),
+    crmKeys.lead(eventPayloadText(event, "lead_id")),
     ["notifications"],
     pendingCounterKeys.user(ctx.userId),
+    crmKeys.funnelStats(),
   ],
 
-  "newsletter_subscriber.subscribed.v1": () => [["newsletter-subscribers"], ["newsletter-kpis"]],
-  "newsletter_subscriber.confirmed.v1": () => [
-    ["newsletter-subscribers"],
-    ["newsletter-kpis"],
-    // Przepis workflow "confirmed -> lead CRM" zmienia też listę leadów.
-    ["crm-leads"],
-  ],
-  "newsletter_subscriber.unsubscribed.v1": () => [["newsletter-subscribers"], ["newsletter-kpis"]],
+  // Subskrybent newslettera zasila lejek CRM (D8): przepis „confirmed → lead"
+  // i sync `newsletter_status` zmieniają listę leadów, a każde przejście -
+  // górę lejka. Powrót po wypisie (`resubscribed`) to ta sama powierzchnia.
+  "newsletter_subscriber.subscribed.v1": () => newsletterSubscriberKeys(),
+  "newsletter_subscriber.confirmed.v1": () => newsletterSubscriberKeys(),
+  "newsletter_subscriber.unsubscribed.v1": () => newsletterSubscriberKeys(),
+  "newsletter_subscriber.resubscribed.v1": () => newsletterSubscriberKeys(),
 
   "mention.created.v1": (_event, ctx) => [
     ["notifications"],
@@ -109,17 +143,37 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // /pricing i panele we WSZYSTKICH kartach staffu (nie tylko tej, która
   // zapisała). Zmiana warstwy dotyka też rozstrzygniętej warstwy użytkowników
   // (rank/features/nazwa) i podsumowań członkostwa przy leadach CRM.
+  //
+  // Warstwę czytają też ekrany, które dotąd nie słuchały szyny (S1): katalog
+  // warstw formularza kuponu, kolumny macierzy uprawnień, wybór warstwy przy
+  // domenach weryfikacji, katalog członków (nazwa warstwy w wierszu) i kluby
+  // (próg rangi dostępu). Dwa z tych kluczy nie mają fabryki-liścia, więc
+  // stoją literałem przypiętym w `revenueInvalidation.test.ts`:
+  //   * `["authz", "permission-matrix", "tiers"]` - prefiks
+  //     `permissionMatrixKeys.tenantTiers` (plik hooków - import wciągnąłby
+  //     React Query i klienta Supabase do chunku szyny);
+  //   * `["admin-membership-tiers"]` - zapytanie `VerificationDomainsCard`.
   "membership_tier.changed.v1": () => [
     billingKeys.membershipTiers(),
     billingKeys.admin.membershipTiers(),
     billingKeys.currentTierAll(),
     billingKeys.crmLeadMembershipAll(),
+    couponKeys.tiers(),
+    ["authz", "permission-matrix", "tiers"],
+    ["admin-membership-tiers"],
+    billingKeys.admin.members(),
+    clubKeys.all,
   ],
+  // Plan czytają także: wspólna lista planów paywalla i huba (`plansAll`,
+  // S1), katalog planów formularza kuponu i plany testowe diagnostyki płatności.
   "access_plan.changed.v1": () => [
     billingKeys.plansActive(),
     billingKeys.admin.plans(),
     billingKeys.admin.monetization(),
     billingKeys.mySubscriptionAll(),
+    billingKeys.admin.plansAll(),
+    couponKeys.plans(),
+    billingKeys.admin.testPlans(),
   ],
   "pricing_audience.changed.v1": () => [
     billingKeys.pricingAudiences(),
@@ -134,6 +188,8 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "subscription.started.v1": () => subscriptionKeys(),
   "subscription.status_changed.v1": () => subscriptionKeys(),
   "subscription.updated.v1": () => subscriptionKeys(),
+  "subscription.renewed.v1": () => subscriptionKeys(),
+  "subscription.expired.v1": () => subscriptionKeys(),
 
   "membership_grant.granted.v1": () => membershipGrantKeys(),
   "membership_grant.revoked.v1": () => membershipGrantKeys(),
@@ -236,7 +292,22 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.decided.v1": (event) => registrationInvoiceEventKeys(event),
   "event.registration.cancelled.v1": (event) => registrationInvoiceEventKeys(event),
   "event.registration.promoted.v1": (event) => registrationInvoiceEventKeys(event),
-  "event.registration.payment.v1": (event) => registrationInvoiceEventKeys(event),
+  // Wpłata za bilet to TAKŻE przychód (D5): pulpit monetyzacji, lista zamówień
+  // biletowych w /admin/billing (`AdminTicketOrdersPanel` - zapytania w pliku
+  // komponentu, stąd literał przypięty testem) i lejek reklam wydarzenia,
+  // który liczy przychód netto z tych samych zamówień.
+  "event.registration.payment.v1": (event) => [
+    ...registrationInvoiceEventKeys(event),
+    billingKeys.admin.monetization(),
+    ["admin", "ticket-orders"],
+    eventScopedKey("event-ads-funnel", event),
+  ],
+  // Obecność zmienia listę zgłoszeń (plakietka „był") i moduł na miejscu
+  // (licznik wejść) - faktury i pieniądze zostają bez zmian.
+  "event.registration.attended.v1": (event) => [
+    ...registrationEventKeys(event),
+    ...onsiteEventKeys(event),
+  ],
   // Uniewaznienie kodu zmienia stan identyfikatora w module na miejscu.
   "event.registration.code_invalidated.v1": (event) => onsiteEventKeys(event),
 
@@ -300,6 +371,72 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // Klon edycji: nowy wiersz na liscie wydarzen i nowa pozycja na liscie
   // edycji zrodla.
   "event.cloned.v1": (event) => cloneEventKeys(event),
+
+  // ── HUB „PRZYCHÓD I LEJEK" - rdzeń (klucze modułów) ─────────────────────
+  // Klucze panelu huba dla tych samych typów dokłada `ADMIN_HUB_INVALIDATION`.
+
+  // Rejestracja konta: nowy wiersz w katalogu członków, nowy lead (sync
+  // profilu → CRM) i góra lejka.
+  "account.registered.v1": () => [
+    billingKeys.admin.members(),
+    crmKeys.leadsAll(),
+    crmKeys.funnelStats(),
+  ],
+  // Paywall i limit: karta zużycia limitu przy leadzie CRM (`MeteringUsageCard`).
+  "paywall.hit.v1": () => [crmKeys.leadMeteringAll()],
+  "metering.quota_exhausted.v1": () => [crmKeys.leadMeteringAll()],
+  // Kasa: historia zamówień kupującego i lista zamówień w /admin/billing.
+  "checkout.started.v1": () => checkoutOrderKeys(),
+  "checkout.completed.v1": () => checkoutOrderKeys(),
+  "checkout.failed.v1": () => checkoutOrderKeys(),
+  "checkout.abandoned.v1": () => checkoutOrderKeys(),
+  // Subskrypcja u operatora: panel subskrypcji (/admin/billing), karta
+  // subskrypcji w profilu właściciela i członkostwo przy leadzie CRM.
+  "billing_subscription.status_changed.v1": () => providerSubscriptionKeys(),
+  "billing_subscription.payment_failed.v1": () => providerSubscriptionKeys(),
+  "billing_subscription.payment_recovered.v1": () => providerSubscriptionKeys(),
+  "billing_subscription.trial_ending.v1": () => providerSubscriptionKeys(),
+  // Przepływ anulowania: odpowiedzi ankiety w zakładce Retencja cennika.
+  "retention_flow.started.v1": () => [retentionKeys.admin.feedback()],
+  "retention_flow.completed.v1": () => [retentionKeys.admin.feedback()],
+  // Zgłoszenie do klubu: skrzynka zgłoszeń (`applicationInboxKeys.all`),
+  // kluby (licznik zgłoszeń), historia własnych zgłoszeń na /club/apply
+  // i lead CRM (`club_application_crm_sync`). Inbox i historia mają klucze
+  // w plikach z logiką (inbox) albo w trasie, więc stoją literałem przypiętym
+  // w `revenueInvalidation.test.ts`.
+  "club_application.submitted.v1": () => clubApplicationKeys(),
+  "club_application.decided.v1": () => clubApplicationKeys(),
+
+  // Ustawienia modułów źródłowych (S1). Zapis w jednej karcie odświeża
+  // edytory w pozostałych i to, co z ustawień wynika dla czytelnika
+  // (`["public", "resolved"]` - rozstrzygnięty dostęp do treści).
+  "metering_settings.changed.v1": () => [
+    meteringKeys.settings(),
+    meteringKeys.impactPreviewAll(),
+    crmKeys.leadMeteringAll(),
+    ["public", "resolved"],
+  ],
+  "checkout_settings.changed.v1": () => [checkoutKeys.settings(), billingKeys.admin.monetization()],
+  "content_access.changed.v1": (event) => contentAccessKeys(event),
+  // `settings()` jest prefiksem projekcji formularzy inline (`settingsInline`).
+  "newsletter_settings.changed.v1": () => [newsletterKeys.settings()],
+  "retention_settings.changed.v1": () => retentionSettingsKeys(),
+  "retention_reason.changed.v1": () => retentionSettingsKeys(),
+  // Kupony: lista panelu z katalogami, kampanie i analityka kuponów najemcy
+  // - ta sama para co `invalidateCouponQueries`, tylko dla innych kart.
+  "coupon.changed.v1": (event) => couponEventKeys(event),
+  "coupon_campaign.changed.v1": (event) => couponEventKeys(event),
+  "coupon.redeemed.v1": (event) => [...couponEventKeys(event), couponKeys.redemptionsAll()],
+  "workflow_definition.changed.v1": () => [workflowKeys.definitions(), workflowKeys.templates()],
+
+  // TYPY CZYSTO PANELOWE: ich jedynymi czytelnikami są ekrany huba, więc
+  // rdzeń (bundle `public`) nie ma dla nich ani jednego klucza - całą regułę
+  // niesie rozszerzenie panelu. Wpis zostaje, bo katalog i mapa muszą być
+  // kompletne (`hubEventCatalog.test.ts`).
+  "journey.changed.v1": () => [],
+  "journey.stats_changed.v1": () => [],
+  "revenue_input.changed.v1": () => [],
+  "revenue_diagnostic.snoozed.v1": () => [],
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,
@@ -379,8 +516,16 @@ function sponsorReportLinkKeys(event: DomainEventRow): QueryKey[] {
   ];
 }
 
+/**
+ * Dokument rozliczeniowy: profil kupującego i pulpit monetyzacji (S2) -
+ * prefiks `monetization()` obejmuje rejestr `monetizationLedger(env)`.
+ */
 function billingDocumentKeys(): QueryKey[] {
-  return [billingKeys.myBillingDocumentsAll(), billingKeys.myOrdersAll()];
+  return [
+    billingKeys.myBillingDocumentsAll(),
+    billingKeys.myOrdersAll(),
+    billingKeys.admin.monetization(),
+  ];
 }
 
 function profileBadgeKeys(ctx: InvalidationContext): QueryKey[] {
@@ -398,7 +543,9 @@ function profileBadgeKeys(ctx: InvalidationContext): QueryKey[] {
 
 // Subskrypcja zmienia: warstwę i paywall właściciela, jego profilowe widoki
 // (subskrypcja/zamówienia), listę subskrypcji w /admin/users, pulpit
-// monetyzacji i podsumowanie członkostwa przy leadzie CRM.
+// monetyzacji i podsumowanie członkostwa przy leadzie CRM. Od D6 także panel
+// subskrypcji operatora, katalog członków (warstwa w wierszu) i kluby -
+// dostęp do klubu wynika z warstwy, więc wygaśnięcie zamyka go w tej chwili.
 function subscriptionKeys(): QueryKey[] {
   return [
     billingKeys.mySubscriptionAll(),
@@ -409,16 +556,99 @@ function subscriptionKeys(): QueryKey[] {
     billingKeys.admin.allUserSubscriptions(),
     billingKeys.admin.monetization(),
     billingKeys.crmLeadMembershipAll(),
+    billingKeys.admin.stripeSubscriptions(),
+    billingKeys.admin.members(),
+    clubKeys.all,
   ];
 }
 
+// Nadanie warstwy (D6): oprócz profilu i panelu członkostwa - katalog
+// członków z rozwinięciem płatności, rejestr monetyzacji i kluby.
 function membershipGrantKeys(): QueryKey[] {
   return [
     billingKeys.myGrantsAll(),
     billingKeys.currentTierAll(),
     billingKeys.admin.membershipGrants(),
     billingKeys.crmLeadMembershipAll(),
+    billingKeys.admin.members(),
+    billingKeys.admin.memberBillingAll(),
+    billingKeys.admin.monetization(),
+    clubKeys.all,
   ];
+}
+
+/** Lead CRM: listy (każdy filtr) i karta tego leada. */
+function crmLeadKeys(event: DomainEventRow): QueryKey[] {
+  return [crmKeys.leadsAll(), crmKeys.lead(event.aggregate_id)];
+}
+
+/** Lejek CRM: liczności etapów (każdy filtr) i kafle konwersji. */
+function crmFunnelKeys(): QueryKey[] {
+  return [crmKeys.funnelAll(), crmKeys.funnelStats()];
+}
+
+function newsletterSubscriberKeys(): QueryKey[] {
+  return [
+    newsletterKeys.subscribersAll(),
+    newsletterKeys.kpis(),
+    crmKeys.leadsAll(),
+    ...crmFunnelKeys(),
+  ];
+}
+
+function checkoutOrderKeys(): QueryKey[] {
+  return [billingKeys.myOrdersAll(), billingKeys.admin.paymentOrders()];
+}
+
+function providerSubscriptionKeys(): QueryKey[] {
+  return [
+    billingKeys.admin.stripeSubscriptions(),
+    billingKeys.myStripeSubscriptionAll(),
+    billingKeys.crmLeadMembershipAll(),
+  ];
+}
+
+function clubApplicationKeys(): QueryKey[] {
+  return [
+    ["admin", "club-applications"],
+    clubKeys.all,
+    ["club-applications", "mine"],
+    crmKeys.leadsAll(),
+  ];
+}
+
+/**
+ * Reguła dostępu jednej encji: edytor wpisu czyta `accessKeys.rule(typ, id)`.
+ * Brak któregokolwiek pola w payloadzie (uszkodzony wiersz, starszy emiter)
+ * degraduje do WSZYSTKICH reguł - `rule("", "")` nie trafiłby w nic, a szersza
+ * inwalidacja jest tańsza niż edytor ze starą regułą.
+ */
+function contentAccessKeys(event: DomainEventRow): QueryKey[] {
+  const entityType = eventPayloadText(event, "entity_type");
+  const entityId = eventPayloadText(event, "entity_id");
+  return [
+    entityType === "" || entityId === ""
+      ? accessKeys.ruleAll()
+      : accessKeys.rule(entityType, entityId),
+    accessKeys.overrides(),
+    ["public", "resolved"],
+    ["unlocked-body"],
+  ];
+}
+
+/** Ustawienia i powody retencji: dialog anulowania czytelnika i panel cennika. */
+function retentionSettingsKeys(): QueryKey[] {
+  return [
+    retentionKeys.settingsPublic(),
+    retentionKeys.reasonsPublic(),
+    retentionKeys.admin.settings(),
+    retentionKeys.admin.reasons(),
+  ];
+}
+
+/** Analityka kuponów klucza po najemcy - prefiks trafia w każdy zakres dat. */
+function couponEventKeys(event: DomainEventRow): QueryKey[] {
+  return [couponKeys.admin(), couponKeys.campaigns(), analyticsCouponsPrefixKey(event.tenant_id)];
 }
 
 // Darowizna nadaje status wspierającego przez osobne zdarzenie
@@ -597,13 +827,55 @@ function eventKeys(): QueryKey[] {
   return eventKeysList;
 }
 
+/* ------------------------------------------------- rejestr rozszerzeń */
+
+/** Dodatkowe reguły warstwy, która ładuje się później niż rdzeń (panel admina). */
+export type InvalidationExtension = Partial<Record<DomainEventType, InvalidationRule>>;
+
 /**
- * Klucze do inwalidacji dla zdarzenia; nieznany typ (nowszy backend, starszy
- * bundle) nie wywraca konsumenta - zwracamy pustą listę.
+ * Zarejestrowane rozszerzenia z licznikiem właścicieli. Licznik, a nie sam
+ * zbiór: podwójny montaż efektu w StrictMode (rejestracja → sprzątanie →
+ * rejestracja) i dwóch niezależnych właścicieli tego samego rozszerzenia
+ * muszą dać ten sam wynik - rozszerzenie znika dopiero z ostatnim właścicielem.
+ */
+const extensions = new Map<InvalidationExtension, number>();
+
+/**
+ * Dokłada reguły rozszerzenia do `invalidationKeysFor`; zwraca funkcję
+ * wyrejestrowania (wprost do zwrotu z `useEffect`). Wielokrotne wywołanie
+ * zwróconej funkcji zdejmuje JEDNĄ rejestrację - sprzątanie wołane dwa razy
+ * nie odbiera rozszerzenia innemu właścicielowi.
+ */
+export function registerInvalidationExtension(ext: InvalidationExtension): () => void {
+  extensions.set(ext, (extensions.get(ext) ?? 0) + 1);
+  let registered = true;
+  return () => {
+    if (!registered) return;
+    registered = false;
+    const owners = (extensions.get(ext) ?? 1) - 1;
+    if (owners > 0) extensions.set(ext, owners);
+    else extensions.delete(ext);
+  };
+}
+
+/**
+ * Klucze do inwalidacji dla zdarzenia: rdzeń ∪ zarejestrowane rozszerzenia.
+ * Nieznany typ (nowszy backend, starszy bundle) nie wywraca konsumenta -
+ * zwracamy pustą listę; rozszerzenie nie może „ożywić" typu spoza katalogu.
  */
 export function invalidationKeysFor(event: DomainEventRow, ctx: InvalidationContext): QueryKey[] {
-  const rule = (eventInvalidationMap as Partial<Record<string, InvalidationRule>>)[
-    event.event_type
-  ];
-  return rule ? rule(event, ctx) : [];
+  const type = event.event_type as DomainEventType;
+  const rule = (eventInvalidationMap as Partial<Record<string, InvalidationRule>>)[type];
+  if (!rule) return [];
+  const core = rule(event, ctx);
+  if (extensions.size === 0) return core;
+  // KOPIA, nie `push` w wynik reguły: część reguł oddaje tablicę wspólną dla
+  // wszystkich wywołań (`eventKeysList`) - dopisanie do niej rozszerzałoby
+  // rdzeń na stałe, także po wyrejestrowaniu.
+  const keys = [...core];
+  for (const ext of extensions.keys()) {
+    const extra = ext[type];
+    if (extra) keys.push(...extra(event, ctx));
+  }
+  return keys;
 }

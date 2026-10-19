@@ -1,0 +1,1093 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "community",
+  "source_file": "spolecznosc.json",
+  "metrics": {
+    "dau_mau": {
+      "metric_id": "dau_mau",
+      "formula_en": "DAU/MAU = (average daily number of unique active users in the month) / (number of unique active users in that month) × 100%. Auxiliary: DAU/MAU × 30 ≈ the average number of active days per active user in the month.",
+      "levers": {
+        "pl": "Daj zalogowanym powód do częstszych powrotów: codzienny lub tygodniowy przegląd analiz, alerty o nowych tekstach w obserwowanych tematach, powiadomienia o wątkach w klubie. Ułatwiaj powrót bez tarcia (pamiętane logowanie, linki z newslettera prowadzące do pełnej treści). Dla treści o rytmie tygodniowym oceniaj równolegle WAU/MAU i rozkład dni aktywności, zamiast gonić wynik dzienny.",
+        "en": "Give signed-in users a reason to come back more often: a daily or weekly digest of analysis, alerts about new pieces on followed topics, notifications about club threads. Make returning frictionless (remembered sign-in, newsletter links leading to the full content). For content with a weekly rhythm, assess WAU/MAU and the distribution of active days in parallel instead of chasing a daily figure."
+      },
+      "caveats_en": [
+        "The Mixpanel averages concern fully instrumented products (often apps with sign-in), so for a website with anonymous traffic they will be overstated.",
+        "European data (Mixpanel 2026, data year and definition not given): e-commerce in EMEA 21%, creative agencies (Media & Entertainment) in EMEA 31%. No Polish benchmarks were found.",
+        "The 50%+ threshold ('world class' according to A. Chen) concerns social apps. Chen himself cautions that for products used less often DAU/MAU is not the right measure.",
+        "For content with a weekly rhythm (newsletter, clubs), it is better to track WAU/MAU and the distribution of active days (power user curve / L30) in parallel.",
+        "DAU/MAU has a mathematical minimum of approx. 3.3% (1/30): every user active in the month was active on at least one day, so the 'critical' band actually covers 3.3–5%. A lower value means the DAU and MAU definitions are inconsistent."
+      ],
+      "caveat_sources": {
+        "0": ["S1"],
+        "1": ["S2"],
+        "2": ["S3"]
+      },
+      "default_context_by_segment": {
+        "all": "dau_mau.expert_content",
+        "b2c_individual": "dau_mau.expert_content",
+        "b2c_reduced": "dau_mau.expert_content",
+        "membership_club": "dau_mau.expert_content",
+        "b2b_institution": "dau_mau.b2b_portal"
+      },
+      "contexts": [
+        {
+          "id": "dau_mau.expert_content",
+          "label_en": "Expert content service / digital media (signed-in readers, subscribers, members)",
+          "method_en": "Heuristic anchored in the sources: the 'good' threshold = 20% (A. Chen), the 'optimal' threshold = the Mixpanel average for Media & Entertainment of 36% (instrumented products, mainly apps). The lower bands were derived from the usage rhythm (10% ≈ 3 active days a month). Ranges closed on the left [min, max).",
+          "period_en": "monthly (average over the days of the calendar month)",
+          "segments": ["b2c_individual", "b2c_reduced", "membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "<1.5 active days a month per active user – mainly one-off traffic; the mathematical minimum of DAU/MAU is ≈3.3% (1/30), so in practice the band covers 3.3–5%",
+            "1": "1.5–3 days a month",
+            "2": "3–6 days a month, a roughly weekly rhythm",
+            "3": "≥20% is the 'good' threshold according to A. Chen",
+            "4": "the level of the Mixpanel average for Media & Entertainment (36%, 2023 data), usually reached by apps with a daily rhythm"
+          },
+          "basis_e": [0, 1, 2]
+        },
+        {
+          "id": "dau_mau.b2b_portal",
+          "label_en": "B2B portal/product (institutional client panel, tools for corporate members)",
+          "method_en": "Reference points from the sources: Mixpanel 2026 – B2B in North America 31% (data year and definition not given), Mixpanel 2024 – Technology 41% (2023 data), D. Sacks – approx. 40% as an excellent level in SaaS (peaks of 40–45% among paying customers, approx. 8 working days a month). The lower bands (<20%) are a heuristic.",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "up to the Mixpanel North America B2B level of 31% (Mixpanel, 2026 report; data year and definition not given)",
+            "4": "~40% DAU/MAU among paying customers = 'excellent engagement' according to D. Sacks – peaks of 40–45% among paying customers, approx. 8 working days a month; Mixpanel Technology 41% (2023 data)"
+          },
+          "basis_e": [0, 1]
+        }
+      ]
+    },
+    "wau_mau": {
+      "metric_id": "wau_mau",
+      "formula_en": "WAU/MAU = (average number of unique active users in the weeks of the month or in a rolling 7-day window) / (unique active users in the month or in a rolling 28–30-day window) × 100%",
+      "levers": {
+        "pl": "Zbuduj stały tygodniowy rytm: newsletter w ten sam dzień, cotygodniowe spotkanie lub wątek w klubie, cykl wydarzeń z zapowiedzią kolejnego. Przypominaj osobom, które opuściły tydzień, o nowościach w ich tematach. Śledź wskaźnik jako trend i w kohortach, a wartości poniżej minimum matematycznego traktuj jako błąd definicji okien.",
+        "en": "Build a steady weekly rhythm: the newsletter on the same day, a weekly club meeting or thread, an event series that announces the next instalment. Remind people who skipped a week about what is new in their topics. Track the indicator as a trend and by cohort, and treat values below the mathematical minimum as a window-definition error."
+      },
+      "caveats_en": [
+        "No reliable public WAU/MAU benchmark from Mixpanel, Amplitude or Sequoia was found. Vendor blogs give contradictory ranges (20–40% and 60–80%), so they were not used.",
+        "The indicator is best treated as an internal trend (month on month, cohorts) rather than for comparisons with the market.",
+        "WAU/MAU is always ≥ DAU/MAU. With rolling 7-day windows the practical minimum is approx. 23% (7/30) – that is the result when every user is active once a month; lower values indicate a definition or window error."
+      ],
+      "default_context_by_segment": {
+        "all": "wau_mau.weekly_content",
+        "b2c_individual": "wau_mau.weekly_content",
+        "b2c_reduced": "wau_mau.weekly_content",
+        "membership_club": "wau_mau.weekly_content",
+        "newsletter": "wau_mau.weekly_content",
+        "b2b_institution": "wau_mau.b2b_workdays"
+      },
+      "contexts": [
+        {
+          "id": "wau_mau.weekly_content",
+          "label_en": "Expert content service / digital media with a weekly rhythm (newsletter, clubs, event series)",
+          "method_en": "Heuristic. Mathematical minimum: every user active in the month falls into at least 7 of 30 rolling 7-day windows, so the average WAU/MAU is ≥ approx. 23% (7/30); lower values indicate a definition or window error. The 'critical' band reaches 30% (almost everyone active in only one week of the month), and approx. 2 visits in different weeks give approx. 47% (14/30). The upper bands are an expert judgement consistent with Sacks's relationship (DAU/WAU ≈ 60% with excellent engagement in SaaS).",
+          "period_en": "monthly (rolling 7/28-day windows)",
+          "segments": ["b2c_individual", "b2c_reduced", "membership_club", "newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "almost everyone active in only one week of the month; values <23% indicate a definition or window error",
+            "2": "approx. 2 visits in different weeks give approx. 47% (14/30)",
+            "3": "most of the monthly audience returns every week"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "wau_mau.b2b_workdays",
+          "label_en": "B2B portal/product used on working days (institutional clients)",
+          "method_en": "Expert heuristic with an anchor derived from Sacks: among paying SaaS customers, DAU/MAU of approx. 40% and DAU/WAU of approx. 60% ('excellent engagement') give WAU/MAU ≈ 0.40/0.60 ≈ 67% (own calculation; Sacks does not give WAU/MAU) – the 'optimal' threshold. A SaaS product should be used on all 5 working days. Thresholds below 60% are a heuristic.",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "4": "WAU/MAU ≈ 67% derived from Sacks: DAU/MAU ~40% / DAU/WAU ~60% with 'excellent engagement' (own calculation; Sacks does not give WAU/MAU)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "nps": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "System nie zbiera ankiet NPS (status N) - nie ma źródła odpowiedzi w skali 0-10, więc nie da się policzyć promotorów i krytyków. Wskaźnik wymaga osobnego badania z udokumentowaną próbą.",
+        "en": "The system does not collect NPS surveys (status N) – there is no source of 0–10 responses, so promoters and detractors cannot be counted. The indicator needs a separate survey with a documented sample."
+      },
+      "formula_en": "NPS = % promoters (9–10) − % detractors (0–6). Passives (7–8) appear only in the denominator. The range runs from −100 (detractors only) to +100 (promoters only).",
+      "levers": {
+        "pl": "Zbieraj NPS regularnie w tych samych falach i zawsze pytaj o powód oceny, a odpowiedzi krytyków kieruj do konkretnej osoby z terminem reakcji. Zamykaj pętlę: informuj respondentów, co zmieniono dzięki ich uwagom. Analizuj wynik osobno dla czytelników, subskrybentów, członków klubów i klientów instytucjonalnych, z liczbą odpowiedzi przy każdym wyniku.",
+        "en": "Collect NPS regularly in the same waves and always ask for the reason behind the score, and route detractors' answers to a named person with a response deadline. Close the loop: tell respondents what was changed thanks to their feedback. Analyse the result separately for readers, subscribers, club members and institutional clients, with the number of responses next to each result."
+      },
+      "caveats_en": [
+        "Bain (nps.bain.com) defines promoters, passives and detractors but gives no absolute thresholds, only relative comparisons with competitors. The bands in common use are quoted by HelloCustomer (2026): 'A good NPS score is anything above 0, because it means promoters outnumber detractors.' and 'The bands in common use run on from there: above 20 is favourable, above 50 is excellent, above 80 is world class.' The article does not attribute these bands to Bain.",
+        "Vendor benchmarks differ in method, e.g. Software: 30 (Survicate) vs 41 (Retently), Consulting: 59 vs 68.",
+        "No Polish or European NPS benchmarks for media and think tanks were found.",
+        "With n < 100 responses, show NPS together with the number of responses and do not assess the band for a very small sample.",
+        "The SurveyMonkey quartiles for professional services (42 / 48 / 72) are listed as 'consultancy as proxy' – an approximation via consulting, not a separate category for think tanks."
+      ],
+      "caveat_sources": {
+        "0": ["S5", "S9"],
+        "1": ["S7", "S8"],
+        "4": ["S6"]
+      },
+      "default_context_by_segment": {
+        "all": "nps.cross_industry",
+        "b2c_individual": "nps.digital_media",
+        "b2c_reduced": "nps.digital_media",
+        "b2b_institution": "nps.b2b_professional"
+      },
+      "contexts": [
+        {
+          "id": "nps.cross_industry",
+          "label_en": "Cross-industry (all sectors, a general reference point)",
+          "method_en": "SurveyMonkey 2025 quartiles (P25 = 0, P50 = +44, P75 = +72) combined with the commonly used bands of 0/20/50/80, which divide the lower half of the distribution. Cross-check: Survicate 2025 (P10 = −4, median 42, P90 = 78).",
+          "period_en": "per survey wave (quarterly/half-yearly) or rolling 90 days",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "display_unit": "score",
+          "window": "quarter",
+          "notes_en": {
+            "0": "more detractors than promoters; the SurveyMonkey lower quartile (P25 = 0), approx. the Survicate P10 (−4)",
+            "1": "positive, but below the 'favourable' threshold (20) of the commonly used bands",
+            "2": "up to the median (SurveyMonkey +44, Survicate 42)",
+            "3": "median – upper quartile",
+            "4": "SurveyMonkey upper quartile (≥ +72); Survicate P90 = 78; 'world class' in the common bands > 80"
+          }
+        },
+        {
+          "id": "nps.digital_media",
+          "label_en": "Digital media / content publishers (readers, individual B2C subscribers)",
+          "method_en": "Median ±20 points: Survicate 2025 – Media median 40, B2C median 49; Retently 2026 – Communication & Media 39 (5-year average 19).",
+          "period_en": "per survey wave (quarterly/half-yearly)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "display_unit": "score",
+          "window": "quarter",
+          "notes_en": {
+            "1": "around the Retently 5-year average for Communication & Media (19)",
+            "2": "up to the industry median (Survicate Media 40, Retently 39)",
+            "3": "above the media median; overall B2C median 49 (Survicate)"
+          },
+          "basis_e": [0, 1, 3, 4]
+        },
+        {
+          "id": "nps.b2b_professional",
+          "label_en": "B2B: expert/advisory services, institutional and corporate clients",
+          "method_en": "SurveyMonkey 2025 quartiles for professional services (listed as 'consultancy as proxy': P25 = 42, P50 = 48, P75 = 72) set the boundaries of the 'good' (48) and 'optimal' (72) bands. The 'normal' band of 30–48 is deliberately wide: it covers the Survicate 2025 B2B median (38) and the SurveyMonkey P25 (42), and with a few dozen responses the sampling error exceeds several points. Cross-check: Survicate 2025 (B2B 38, Agency & Consulting 59, Software 30) and Retently 2026 (Consulting 68, B2B SaaS 41). The 0 and 30 thresholds are a heuristic.",
+          "period_en": "per survey wave (half-yearly/annually, relational)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "display_unit": "score",
+          "window": "year",
+          "notes_en": {
+            "0": "more detractors than promoters",
+            "1": "heuristic: positive, but clearly below the B2B median (Survicate 38)",
+            "2": "covers the B2B median (Survicate 38) and the professional-services P25 (SurveyMonkey 42), up to the professional-services median (48)",
+            "3": "professional services P50–P75 (SurveyMonkey, 'consultancy as proxy'); Survicate Agency & Consulting 59",
+            "4": "≥ professional-services P75 (SurveyMonkey 72); Retently Consulting 68"
+          },
+          "basis_e": [0]
+        }
+      ]
+    },
+    "event_attendance_rate": {
+      "metric_id": "event_attendance_rate",
+      "abbr": "EAR",
+      "formula_en": "AR = attendees (check-in / joining the live stream) / valid registrations (excluding cancellations) × 100%. For online events report 'live' and 'live + on-demand' separately.",
+      "levers": {
+        "pl": "Wysyłaj przypomnienia z dodaniem do kalendarza tydzień, dzień i godzinę przed wydarzeniem, z konkretnym powodem, by przyjść (prelegenci, temat, networking). Przy wydarzeniach bezpłatnych proś o potwierdzenie udziału dzień wcześniej i zwalniaj miejsca z listy rezerwowej. Online wysyłaj link bez logowania i nagranie po wydarzeniu, a obecność raportuj osobno na żywo i łącznie z odtworzeniami.",
+        "en": "Send reminders with an add-to-calendar option a week, a day and an hour before the event, with a concrete reason to attend (speakers, topic, networking). For free events ask for confirmation of attendance the day before and release places to the waiting list. For online events send a link that needs no sign-in and the recording afterwards, and report attendance separately for live viewing and for live plus replays."
+      },
+      "caveats_en": [
+        "The PheedLoop data set comes from a single platform (over 1,070 events), with no geographical breakdown. No Polish or European attendance benchmarks were found.",
+        "According to PheedLoop (report #06), the difference between paying and non-paying attendees at the same event is only 2–4 percentage points, so most of the gap between free and paid events stems from the type of event, not from the fee itself.",
+        "The Goldcast average of 33% may be an average of per-webinar rates. The ratio of sums (51/238) gives approx. 21%. The data year is ambiguous – the report describes many figures as 2024.",
+        "The ON24 figures (57% in the 2025 report, 60% in the 2026 report) are unverified: on24.com and marketingprofs.com return 403, and Voxbooster is a secondary source. They concern an enterprise platform with high-intent audiences and include on-demand viewing. They are not a band anchor and must not be compared with live-only attendance.",
+        "The Eventbrite data (2018) are anecdotal, with no methodology.",
+        "The Contrast values of 41.6% (median) and 46.2% (average) quoted by Voxbooster do not appear on the Contrast page that Voxbooster cites as its source – they were removed from the bands. The Contrast data (live 44–50%, live or on-demand 61%) come from a single platform (over 1 million registrants)."
+      ],
+      "caveat_sources": {
+        "0": ["S10"],
+        "1": ["S11"],
+        "2": ["S13"],
+        "3": ["S16", "S15"],
+        "4": ["S12"],
+        "5": ["S15", "S100"]
+      },
+      "default_context_by_segment": {
+        "all": "event_attendance_rate.in_person_free",
+        "events": "event_attendance_rate.in_person_free",
+        "membership_club": "event_attendance_rate.small_free_meetings"
+      },
+      "contexts": [
+        {
+          "id": "event_attendance_rate.in_person_free",
+          "label_en": "Free in-person events (debates, report presentations)",
+          "method_en": "PheedLoop Event Data Lab quartile and median (2026): the median no-show for free events ~28% (N = 389), the worst 25% ≥47%. The optimal threshold is the median of paid events (83%). Eventbrite: no-show 'as high as 50%' for free events.",
+          "period_en": "per event (quarterly aggregate as the median of events)",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "0": "≈ the worst 25% of free events (no-show ≥47%)",
+            "2": "up to the median (no-show ~28% → attendance ~72%)",
+            "4": "the median level of paid events or better"
+          },
+          "basis_e": [1, 3]
+        },
+        {
+          "id": "event_attendance_rate.in_person_paid",
+          "label_en": "Paid in-person events (conferences, galas, training)",
+          "method_en": "PheedLoop quartile and median (2026): the median no-show for paid events ~17% (N = 683), the worst 25% ≥32%. The upper threshold follows Eventbrite (no-show for paid events even ~10%).",
+          "period_en": "per event",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "≈ the worst 25% of paid events (no-show ≥32%)",
+            "2": "up to the median (no-show ~17% → attendance ~83%)",
+            "4": "no-show rate ≤10% (Eventbrite: 'as low as 10%')"
+          },
+          "basis_e": [1, 3]
+        },
+        {
+          "id": "event_attendance_rate.small_free_meetings",
+          "label_en": "Small free meetings (10–49 people, e.g. discussion club meetings)",
+          "method_en": "PheedLoop median (2026) for small free events: no-show ~37%, i.e. attendance ~63%. Other bands: median ± heuristic.",
+          "period_en": "per meeting (monthly aggregate)",
+          "segments": ["events", "membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "median ~63% (no-show ~37%)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "event_attendance_rate.online_live",
+          "label_en": "Online events / B2B webinars – live attendance",
+          "method_en": "Contrast (own platform data, over 1 million registrants, updated 16.04.2026): good live attendance of 44–50% of registrants – the 'good' band; a 14:00 start – 55% – the 'optimal' threshold. Goldcast 2025: 33% on average (19 thousand webinars, data described mainly as 2024; calculation method not given). Goldcast 2026: approx. 32% from the ratio of sums (2.2 million / 6.8 million, own calculation). ON24 57% / 60% unverified (403 on on24.com and marketingprofs.com) – not a band anchor. The 20 and 30 thresholds are a heuristic.",
+          "period_en": "per webinar (quarterly aggregate)",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "2": "Goldcast: 33% on average (data approx. 2024); Goldcast 2026: approx. 32% from the ratio of sums (own calculation)",
+            "3": "Contrast: live attendance of 44–50% of registrants ('a good webinar attendance rate', updated 16.04.2026)",
+            "4": "Contrast: webinars starting at 14:00 – 55%; ON24 (57–60%) unverified and includes on-demand – not an anchor"
+          },
+          "basis_e": [0, 1]
+        },
+        {
+          "id": "event_attendance_rate.online_total",
+          "label_en": "Online events – total attendance (live + on-demand replay)",
+          "method_en": "Heuristic (low context confidence). The normal/good boundary of 57% came from the ON24 average (57% in the 2025 report, 60% in the 2026 report), which cannot be verified (on24.com and marketingprofs.com return 403, Voxbooster is a secondary source). Confirmed anchor: Contrast (own platform data, updated 16.04.2026) – 61% of registrants watch live or on-demand, in the 'good' band. The other thresholds are a heuristic.",
+          "period_en": "per webinar (with an on-demand window of e.g. 30 days)",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "3": "Contrast: 61% of registrants watch live or on-demand (updated 16.04.2026); ON24 57% (2024) / 60% (2025) – unverified (403)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "no_show_rate": {
+      "metric_id": "no_show_rate",
+      "formula_en": "NSR = (valid registrations − attendees) / valid registrations × 100% = 100% − attendance rate (AR)",
+      "levers": {
+        "pl": "Zmniejszaj nieobecności tymi samymi działaniami co frekwencję: przypomnienia z kalendarzem, potwierdzenie udziału przed wydarzeniem, lista rezerwowa. Przy bezpłatnych wydarzeniach rozważ niewielki krok zobowiązania (wybór sesji, pytanie do prelegenta) zamiast samego kliknięcia. Analizuj nieobecnych według źródła rejestracji i typu wydarzenia i zaproś ich do nagrania lub na kolejną edycję.",
+        "en": "Reduce no-shows with the same actions as for attendance: calendar reminders, confirmation of attendance before the event, a waiting list. For free events consider a small commitment step (choosing a session, a question for the speaker) rather than a single click. Analyse no-shows by registration source and event type, and invite them to the recording or to the next edition."
+      },
+      "caveats_en": [
+        "The indicator is calculated from the same data as attendance, so show it in the dashboard as the other side of the same measure, not as a separate assessment.",
+        "There are no Polish or European no-show data. PheedLoop is data from a single platform.",
+        "PheedLoop (report #06): free events have a higher share of completed registrations (~96% vs ~86%) and a higher no-show. Easier registration also attracts less committed people.",
+        "PheedLoop (report #05) by event size: 50–149 / 150–499 / 500–999 / 1,000+ attendees – no-show approx. 23 / 19 / 18 / 19%."
+      ],
+      "caveat_sources": {
+        "2": ["S11"],
+        "3": ["S10"]
+      },
+      "default_context_by_segment": {
+        "all": "no_show_rate.in_person_free",
+        "events": "no_show_rate.in_person_free",
+        "membership_club": "no_show_rate.small_free_meetings"
+      },
+      "contexts": [
+        {
+          "id": "no_show_rate.in_person_free",
+          "label_en": "Free in-person events",
+          "method_en": "PheedLoop (2026): median ~28%, worst 25% ≥47%. Eventbrite: up to 50%.",
+          "period_en": "per event",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "the median level of paid events or better",
+            "2": "from the median (~28%) upwards",
+            "4": "the worst 25% of free events"
+          },
+          "basis_e": [1, 3]
+        },
+        {
+          "id": "no_show_rate.in_person_paid",
+          "label_en": "Paid in-person events",
+          "method_en": "PheedLoop (2026): median ~17%, worst 25% ≥32%. Eventbrite: 'as low as 10%'.",
+          "period_en": "per event",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "from the median (~17%) upwards",
+            "4": "the worst 25% of paid events"
+          },
+          "basis_e": [1, 3]
+        },
+        {
+          "id": "no_show_rate.small_free_meetings",
+          "label_en": "Small free meetings (10–49 people, discussion clubs)",
+          "method_en": "PheedLoop (2026): median for small free events ~37%. Bands: median ± heuristic.",
+          "period_en": "per meeting",
+          "segments": ["events", "membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "2": "median ~37%"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "no_show_rate.online_webinar",
+          "label_en": "B2B webinars / online events (live no-show)",
+          "method_en": "The complement of the live attendance benchmarks: Contrast (own platform data, updated 16.04.2026) – live attendance of 44–50%, i.e. no-show of 50–56%; Goldcast 2025 – attendance of 33%, i.e. no-show of approx. 67%. The 70 and 80 thresholds and the 'optimal' threshold (<45%, the mirror of attendance ≥55%) are a heuristic. ON24 unverified (403) – not an anchor.",
+          "period_en": "per webinar",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "the mirror of the 'optimal' live attendance threshold (≥55%; Contrast: 14:00 start – 55%)",
+            "1": "Contrast: live attendance of 44–50% → no-show of 50–56%",
+            "2": "Goldcast: average attendance of 33% → no-show of approx. 67%"
+          },
+          "basis_e": [0, 3, 4]
+        }
+      ]
+    },
+    "event_registration_conversion": {
+      "metric_id": "event_registration_conversion",
+      "formula_en": "RCR = completed registrations / unique visitors to the registration page (event landing page) × 100%. Report separately by traffic source.",
+      "levers": {
+        "pl": "Uprość stronę wydarzenia: na górze data, miejsce, temat i prelegenci, krótki formularz z minimum pól i jeden przycisk rejestracji. Zalogowanym członkom i subskrybentom wypełniaj dane automatycznie. Mierz konwersję osobno według źródła ruchu i testuj imienne zaproszenia do własnej bazy, które zwykle konwertują lepiej niż ruch zewnętrzny.",
+        "en": "Simplify the event page: date, venue, topic and speakers at the top, a short form with the minimum of fields and a single registration button. Pre-fill details for signed-in members and subscribers. Measure conversion separately by traffic source and test personal invitations to your own base, which usually convert better than external traffic."
+      },
+      "caveats_en": [
+        "No primary 'visitor → registration' conversion benchmark for events was found (Eventbrite, Cvent and Bizzabo do not publish one openly). The values are Unbounce landing-page conversions, and the Entertainment category includes sweepstakes with a median of 47.5%.",
+        "The search limit in this session ran out before further searching for Eventbrite, Splash and Cvent data on event-page conversion. This is worth completing in a later step.",
+        "The ON24 landing-page data (25%) come from a MarketingProfs summary; marketingprofs.com and on24.com return 403, so the figure is unverified, and the 'optimal' threshold for mixed traffic is a heuristic.",
+        "There are no Polish or European data.",
+        "Unbounce attributes the median for e-mail traffic in the Entertainment category (46.2%) mainly to sweepstakes promoted by e-mail. The bands for traffic from your own base are a heuristic."
+      ],
+      "caveat_sources": {
+        "0": ["S18"],
+        "2": ["S16"],
+        "4": ["S18"]
+      },
+      "default_context_by_segment": {
+        "all": "event_registration_conversion.mixed_traffic",
+        "events": "event_registration_conversion.mixed_traffic",
+        "newsletter": "event_registration_conversion.own_base"
+      },
+      "contexts": [
+        {
+          "id": "event_registration_conversion.mixed_traffic",
+          "label_en": "Mixed traffic (social media, search, ads, referrals)",
+          "method_en": "Unbounce 2024 medians: all industries 6.6% (industry medians 3.8–12.3%), Entertainment 12.3%, Publishing 9.8%; Unbounce has no category for events or webinars. The 'optimal' threshold of 25% is a heuristic: ON24 2025 (via MarketingProfs) gives approx. 25% for personalised landing pages, but the figure cannot be verified (403). Other bands: median and heuristic deviations.",
+          "period_en": "per event / campaign",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "below the lowest Unbounce industry median (3.8%)",
+            "1": "below the all-industry median (6.6%)",
+            "2": "Publishing 9.8%",
+            "3": "Entertainment 12.3%",
+            "4": "heuristic; ON24 (via MarketingProfs): personalised webinar landing pages approx. 25% – figure unverified (403)"
+          },
+          "basis_e": [3]
+        },
+        {
+          "id": "event_registration_conversion.own_base",
+          "label_en": "Traffic from your own base (newsletter, CRM, personal invitations to members and clients)",
+          "method_en": "Heuristic (low confidence), with no benchmark for events. According to Unbounce itself, its 2024 median for e-mail traffic on Entertainment pages (46.2%) stems mainly from sweepstakes promoted to mailing lists, so it is not an anchor for event registrations; the upper thresholds were set below this value (good 30–45, optimal ≥45).",
+          "period_en": "per send / event",
+          "segments": ["events", "newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "3": "heuristic",
+            "4": "heuristic; Unbounce: the median for e-mail traffic on Entertainment pages is 46.2%, driven mainly by sweepstakes promoted by e-mail – not an anchor for event registrations"
+          },
+          "basis_e": [0, 1, 2]
+        }
+      ]
+    },
+    "event_nps": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "Ankiety po wydarzeniach nie są jeszcze zbierane w systemie (D-02) - bez odpowiedzi w skali 0-10 od uczestników, prelegentów i partnerów nie da się policzyć NPS wydarzenia.",
+        "en": "Post-event surveys are not yet collected in the system (D-02) – without 0–10 responses from attendees, speakers and partners, the event NPS cannot be calculated."
+      },
+      "formula_en": "Event NPS = % promoters − % detractors among respondents to the post-event survey (sent 24–72 h after the end). Separately for attendees, speakers and partners/sponsors.",
+      "levers": {
+        "pl": "Wysyłaj krótką ankietę w ciągu doby lub dwóch po wydarzeniu, z pytaniem o powód oceny i o temat kolejnej edycji. Zbieraj osobno opinie uczestników, prelegentów i partnerów, bo każda grupa ocenia co innego. Porównuj wynik między edycjami tego samego cyklu i informuj uczestników, co zmieniono dzięki ich uwagom.",
+        "en": "Send a short survey within a day or two of the event, asking for the reason behind the score and for the topic of the next edition. Collect feedback from attendees, speakers and partners separately, because each group judges different things. Compare the result between editions of the same series and tell attendees what was changed thanks to their feedback."
+      },
+      "caveats_en": [
+        "There are no current public NPS benchmarks for conferences. Explori's databases are available to clients only, and the available figures concern trade shows (2017) and a trend (2022).",
+        "The partner and sponsor data date from before the pandemic (2017). Explori reports a later rise in the average trade-show NPS of almost 20 points but does not specify whether it concerns exhibitors or visitors and gives no absolute values – the thresholds may be too low today, but they were not shifted; any shift (e.g. by +15) would be a heuristic.",
+        "Trade shows are a different format from think-tank debates. Treat the bands as indicative and assess mainly the trend between editions of the same series."
+      ],
+      "caveat_sources": {
+        "0": ["S19", "S20"],
+        "1": ["S19", "S20"]
+      },
+      "default_context_by_segment": {
+        "all": "event_nps.in_person_attendees",
+        "events": "event_nps.in_person_attendees",
+        "b2b_institution": "event_nps.partners_sponsors"
+      },
+      "contexts": [
+        {
+          "id": "event_nps.in_person_attendees",
+          "label_en": "Attendees of in-person events (conferences, debates, report presentations)",
+          "method_en": "Heuristic: trade-show visitor NPS of +11 / +17 (UFI/Explori 2017, depending on the novelty strategy), a rise in the average trade-show NPS of almost 20 points since 2021 (Explori 2022 – without stating the respondent group or absolute values, so shifting the bands is a heuristic, not a fact), overall NPS median of 42–44 (Survicate/SurveyMonkey).",
+          "period_en": "per event",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "display_unit": "score",
+          "window": "per_campaign",
+          "notes_en": {
+            "1": "around the pre-pandemic trade-show visitor NPS (+11…+17)",
+            "2": "heuristic; Explori 2022: the average trade-show NPS rose by almost 20 points since 2021, without stating whether this concerns exhibitors or visitors",
+            "3": "around the overall NPS median (42–44)"
+          },
+          "basis_e": [0, 1, 3, 4]
+        },
+        {
+          "id": "event_nps.online_attendees",
+          "label_en": "Attendees of online events (webinars, streamed debates)",
+          "method_en": "Heuristic: bands shifted by +5 points relative to in-person events, because Explori reports that 'advocacy is higher for virtual events than live events' (no figures). The reference point is the overall NPS median.",
+          "period_en": "per event",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "display_unit": "score",
+          "window": "per_campaign",
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "event_nps.partners_sponsors",
+          "label_en": "Partners, sponsors, exhibitors",
+          "method_en": "2017 baseline (trade shows, exhibitors): UFI & Explori 2017 quartiles for exhibitor NPS – 25% of events below −36, 50% below −17 (median; also −17 in Europe), 25% above 0. Explori 2022 ('a rise of almost 20 points since 2021') does not state whether this concerns exhibitors or visitors and gives no absolute values, so the bands were not shifted; any shift (e.g. by +15) would be a heuristic.",
+          "period_en": "per event / edition",
+          "segments": ["events", "b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "display_unit": "score",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "lower quartile of events (P25 ≈ −36)",
+            "1": "P25–median (−17; 50% of events have exhibitor NPS below −17)",
+            "2": "median–P75 (25% of events have a positive NPS)",
+            "3": "upper quartile"
+          },
+          "basis_e": [4]
+        }
+      ]
+    },
+    "community_active_member_rate": {
+      "metric_id": "club_active_member_rate",
+      "formula_en": "AMR = unique active members in the period (month or 120 days) / all members with active access at the end of the period × 100%",
+      "levers": {
+        "pl": "Zaplanuj stały kalendarz klubu (spotkania, wątki tygodniowe, materiały przed spotkaniem) i zapraszaj członków imiennie do tematów zbieżnych z ich zainteresowaniami. Licz aktywność także na spotkaniach stacjonarnych, nie tylko na platformie. Kontaktuj się osobiście z członkami nieaktywnymi przez dłuższy czas, na długo przed odnowieniem członkostwa.",
+        "en": "Plan a steady club calendar (meetings, weekly threads, pre-meeting materials) and invite members by name to topics that match their interests. Count activity at in-person meetings as well, not only on the platform. Reach out personally to members who have been inactive for a longer time, well before their membership renewal."
+      },
+      "caveats_en": [
+        "Higher Logic covers approx. 1,500 associations and non-profits from the USA, Canada and the APAC region (Jun 2024 – May 2025). These are not European think tanks.",
+        "Include participation in in-person meetings, which the online platform cannot see, in club activity as well.",
+        "There are no Polish data.",
+        "The Higher Logic report is internally inconsistent for XL communities ('10% of users' versus 1,297 unique logins with over 50 thousand accounts, i.e. ≤2.6%). The large-community bands are a heuristic with the denominator 'all accounts with access'; the dashboard must clearly choose one denominator."
+      ],
+      "caveat_sources": {
+        "0": ["S23"],
+        "3": ["S23"]
+      },
+      "default_context_by_segment": {
+        "all": "community_active_member_rate.small_curated_club",
+        "membership_club": "community_active_member_rate.small_curated_club"
+      },
+      "contexts": [
+        {
+          "id": "community_active_member_rate.large_open_community",
+          "label_en": "Large, open online community (thousands of accounts), monthly activity; denominator: all accounts with access",
+          "method_en": "Heuristic (denominator: all accounts with access, in line with the formula). Higher Logic 2025: on average 563 unique monthly logins with a median of 12,040 accounts (average 69,982) – of the order of a few per cent; 13% of accounts active within 120 days. The report's statement 'XL: 10% of users log in each month' is internally contradictory (1,297 unique logins with over 50 thousand accounts gives ≤2.6%), so it is not an anchor. With the denominator 'accounts active in the last 120 days' (563 / 9.3 thousand ≈ 6%) a different scale would apply – choose one denominator in the dashboard.",
+          "period_en": "monthly (120 days as an auxiliary window)",
+          "segments": ["membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "the Higher Logic order of magnitude: on average 563 unique monthly logins with a median of 12,040 accounts (≈4.7%, approximate calculation)",
+            "4": "heuristic; for comparison 13% of accounts active within a 120-day window (Higher Logic)"
+          },
+          "basis_e": [0, 1, 2, 3]
+        },
+        {
+          "id": "community_active_member_rate.small_curated_club",
+          "label_en": "Small, paid or curated discussion club (up to approx. 100 members); activity = login, taking part in a thread or meeting",
+          "method_en": "Expert heuristic with no direct benchmark. Rationale: membership is paid and selective, and Higher Logic shows that smaller communities have a higher relative share of active members.",
+          "period_en": "monthly",
+          "segments": ["membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "community_contributor_rate": {
+      "metric_id": "club_contributor_rate",
+      "formula_en": "CR = unique contributors in the month (new thread, reply, comment, talk) / unique active (signed-in) members in the month × 100%. Auxiliary: the share of the top 1% of authors in the number of posts.",
+      "levers": {
+        "pl": "Obniż próg pierwszego wpisu: pytania otwierające przed spotkaniem, prośba o krótki komentarz do analizy, przedstawienie się nowych członków. Moderator powinien odpowiadać szybko i imiennie zapraszać osoby z doświadczeniem w danym temacie. Pokazuj wkład członków (cytaty w podsumowaniach, wystąpienia na spotkaniach), żeby spłaszczyć nierówność udziału.",
+        "en": "Lower the threshold for the first post: opening questions before a meeting, a request for a short comment on an analysis, introductions from new members. The moderator should reply quickly and invite people with experience in the topic by name. Showcase members' contributions (quotes in summaries, talks at meetings) to flatten participation inequality."
+      },
+      "caveats_en": [
+        "The 90-9-1 rule is a heuristic from 2006, not a law. Nielsen stresses that participation inequality cannot be removed – the curve can only be flattened, e.g. to 80-16-4.",
+        "Higher Logic: 'Unique Contributors… represents just 6% of the average monthly login base' (68 / 1,156 total logins). Relative to unique logins it is approx. 12%, so the dashboard must define the denominator unambiguously.",
+        "The data concern association communities (USA, Canada, APAC). Chat and event communities may have a different distribution. There are no Polish data.",
+        "Higher Logic does not define the denominator unambiguously for values by community size and age ('44 logins, but 36% of those are contributors'), so these may be logins rather than unique users logging in."
+      ],
+      "caveat_sources": {
+        "0": ["S22"],
+        "1": ["S23"],
+        "3": ["S23"]
+      },
+      "default_context_by_segment": {
+        "all": "community_contributor_rate.small_club",
+        "membership_club": "community_contributor_rate.small_club"
+      },
+      "contexts": [
+        {
+          "id": "community_contributor_rate.large_community",
+          "label_en": "Medium or large online community (over approx. 1,000 accounts)",
+          "method_en": "The 90-9-1 rule (Nielsen 2006): ~10% contributors, target 80-16-4 (~20%), blogs 95-5-0.1 (~5%). Higher Logic 2025: on average 68 contributors per 563 unique logins (~12%, own calculation), communities aged 3–5 years 7–10%, M communities 17%.",
+          "period_en": "monthly",
+          "segments": ["membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "the level of blogs (95-5-0.1)",
+            "1": "mature communities aged 3–5 years: 7–10%",
+            "2": "the 90-9-1 rule ≈ 10%; Higher Logic on average ~12%",
+            "3": "M communities (Higher Logic) 17%",
+            "4": "the 80-16-4 target (Nielsen)"
+          }
+        },
+        {
+          "id": "community_contributor_rate.small_club",
+          "label_en": "Small discussion club (up to a few hundred members)",
+          "method_en": "Higher Logic 2025: contributors as a share of logins – S communities 36%, S/M 21%, M 17%, new (<2 years) 16%. The bands for smaller clubs are a heuristic extrapolation.",
+          "period_en": "monthly",
+          "segments": ["membership_club"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "S/M communities 21%",
+            "4": "S communities (500–1,000 accounts) 36%"
+          },
+          "basis_e": [0, 1, 3]
+        }
+      ]
+    },
+    "lead_to_mql_rate": {
+      "metric_id": "lead_to_mql_rate",
+      "formula_en": "Lead→MQL = leads from the month-M cohort that reached MQL status (within a window of e.g. 90 days) / all new leads from month M × 100%",
+      "levers": {
+        "pl": "Spisz w CRM definicję MQL (dopasowanie profilu i zachowania: pobranie raportu, udział w wydarzeniu, wizyta na stronie oferty) i stosuj ją jednakowo do wszystkich źródeł. Prowadź nowe leady sekwencją treści dopasowaną do sektora i stanowiska. Analizuj konwersję według kanału, bo wydarzenia dla kadry zarządzającej i polecenia dają inne wyniki niż webinary.",
+        "en": "Write down the MQL definition in the CRM (profile fit and behaviour: report download, event attendance, a visit to the offer page) and apply it equally to all sources. Nurture new leads with a content sequence matched to sector and job title. Analyse conversion by channel, because executive events and referrals produce different results from webinars."
+      },
+      "caveats_en": [
+        "A single source: the client data of one agency (approx. 70% B2B, mainly SEO, US market). The report is inconsistent about the number of industries (30 / 15 / 29) and does not give the data period ('Our data has been built over 10 years').",
+        "There are no Polish or European benchmarks. The indicator makes sense only once the MQL definition has been written down in the CRM (e.g. fit and behaviour scoring).",
+        "The same agency gives an Entertainment Lead→MQL of 34% (Lead-to-MQL report 2025, S24) and 19% (Sales Funnel Benchmarks 2026, S26), which further justifies caution: medium confidence, bordering on low."
+      ],
+      "caveat_sources": {
+        "0": ["S24"],
+        "2": ["S24", "S26"]
+      },
+      "default_context_by_segment": {
+        "all": "lead_to_mql_rate.b2b_general",
+        "b2b_institution": "lead_to_mql_rate.b2b_general",
+        "events": "lead_to_mql_rate.events_webinars"
+      },
+      "contexts": [
+        {
+          "id": "lead_to_mql_rate.b2b_general",
+          "label_en": "B2B in general (institutional offer, corporate memberships, partnerships)",
+          "method_en": "The First Page Sage average of 31% (all industries and channels) as the normal/good boundary. Industries: B2B SaaS 39%, business consulting 28%, financial services 29%, higher education 45%. The lower bands are a heuristic.",
+          "period_en": "monthly (by cohort)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "up to the all-industry average (31%); business consulting 28%",
+            "3": "39% in B2B SaaS",
+            "4": "higher education 45%"
+          },
+          "basis_e": [0, 1]
+        },
+        {
+          "id": "lead_to_mql_rate.events_webinars",
+          "label_en": "Leads from events and webinars",
+          "method_en": "First Page Sage channel benchmarks: webinar 19%, conferences 28%, trade shows 24%, executive events 54%, e-mail 38%, customer referrals 56%.",
+          "period_en": "per event / monthly",
+          "segments": ["events", "b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "2": "webinars 19%, trade shows 24%",
+            "3": "conferences 28%",
+            "4": "executive events 54%"
+          },
+          "basis_e": [0, 1]
+        }
+      ]
+    },
+    "mql_to_sql_rate": {
+      "metric_id": "mql_to_sql_rate",
+      "formula_en": "MQL→SQL = MQLs from the month-M cohort accepted by sales as SQLs / all MQLs from month M × 100%",
+      "levers": {
+        "pl": "Uzgodnij ze sprzedażą jedną definicję MQL i SQL oraz termin, w którym handlowiec musi zakwalifikować albo odrzucić lead z podaniem powodu. Przekazuj leady z pełnym kontekstem (pobrane materiały, wydarzenia, rozmowy), a odrzucone kieruj z powrotem do sekwencji treści. Co kwartał przeglądaj powody odrzuceń i koryguj scoring.",
+        "en": "Agree a single MQL and SQL definition with sales, and a deadline by which a salesperson must qualify or reject a lead, giving a reason. Hand over leads with full context (downloaded materials, events, conversations), and send rejected ones back to the content sequence. Review rejection reasons every quarter and adjust the scoring."
+      },
+      "caveats_en": [
+        "The same agency (First Page Sage) gives 13% for B2B SaaS in one report and 38% in another, which proves the dependence on the definition. Choose one context in the dashboard that matches your own definition.",
+        "Ebsta's 68% comes from data of technology companies with a mature SDR process. For a think tank with a small volume of leads, the result will be highly variable.",
+        "There are no Polish data."
+      ],
+      "caveat_sources": {
+        "0": ["S25", "S26"],
+        "1": ["S27"]
+      },
+      "default_context_by_segment": {
+        "all": "mql_to_sql_rate.broad_mql",
+        "b2b_institution": "mql_to_sql_rate.broad_mql"
+      },
+      "contexts": [
+        {
+          "id": "mql_to_sql_rate.broad_mql",
+          "label_en": "Broad MQL definition (behaviour scoring: report download, sign-up, webinar attendance + profile fit)",
+          "method_en": "First Page Sage, MQL→SQL report 2026 (data 2019–2025): the range of industry medians 10–26%, B2B SaaS 13%, Entertainment 16%, Higher Education 21%. The simple average of 30 industries ≈ 16% (own calculation).",
+          "period_en": "monthly (by cohort)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "1": "below the lowest industry median (10%)",
+            "2": "B2B SaaS 13%, financial services 13%, average of 30 industries ≈16%",
+            "3": "higher education 21%",
+            "4": "the highest industry medians 26%"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "mql_to_sql_rate.narrow_mql",
+          "label_en": "Narrow MQL definition (declared intent: request for an offer, demo, sales contact, partnership enquiry)",
+          "method_en": "First Page Sage, Sales Funnel Benchmarks 2026: range 32–58% (B2B SaaS 38%, Financial Services 38%, Higher Education 46%). Ebsta x Pavilion 2025: MQL→SQL 68% (CRM data from over 655 thousand opportunities).",
+          "period_en": "monthly (by cohort)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "1": "below the lowest value in the funnel listing (32%)",
+            "2": "B2B SaaS 38%, financial services 38%",
+            "3": "higher education 46%",
+            "4": "68% according to Ebsta x Pavilion 2025"
+          },
+          "basis_e": [0]
+        }
+      ]
+    },
+    "win_rate": {
+      "metric_id": "win_rate",
+      "formula_en": "Win rate = won / (won + lost, including 'no decision') among opportunities closed in the period × 100%. Cohort variant: won from SQLs created in month M / all SQLs from month M.",
+      "levers": {
+        "pl": "Kwalifikuj szanse wcześnie (budżet, decydent, termin, potrzeba) i zamykaj te bez perspektyw, zamiast trzymać je w lejku. Przygotuj materiały pod konkretne zastrzeżenia instytucji (zamówienia publiczne, faktura, zakres licencji) i angażuj ekspertów merytorycznych w kluczowych rozmowach. Analizuj powody przegranych, w tym brak decyzji, i raportuj osobno nowych klientów oraz rozszerzenia.",
+        "en": "Qualify opportunities early (budget, decision-maker, timing, need) and close those without prospects rather than keeping them in the pipeline. Prepare materials for institutions' specific objections (public procurement, invoicing, licence scope) and involve subject-matter experts in key conversations. Analyse the reasons for losses, including no decision, and report new clients and expansions separately."
+      },
+      "caveats_en": [
+        "Ebsta is data from technology and service companies (deals in USD), not think tanks. There are no Polish or European data.",
+        "The Ebsta 2025 report gives a 10% relative y/y decline in win rate. Other secondary sources give divergent values for 2024, so treat the y/y figures with caution.",
+        "The Gong and HubSpot reports (approx. 21%) are known only from secondary summaries and were not used."
+      ],
+      "caveat_sources": {
+        "0": ["S27"],
+        "1": ["S27"]
+      },
+      "default_context_by_segment": {
+        "all": "win_rate.new_logo",
+        "b2b_institution": "win_rate.new_logo"
+      },
+      "contexts": [
+        {
+          "id": "win_rate.new_logo",
+          "label_en": "New B2B clients (new logo: institutional memberships, sponsorship, commissioned research)",
+          "method_en": "Ebsta x Pavilion 2025: new-client win rate 19% (18% on p. 22), top performers have a 43% higher relative win rate (≈27%, own calculation). First Page Sage 2026 for B2B SaaS: SQL→opportunity 42% × opportunity→win 37% ≈ 16% (own calculation). Ebsta 2023: a typical expectation of a 20–25% chance of closing. The lower bands are a heuristic.",
+          "period_en": "quarterly (rolling 12 months at low volume)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "2": "FPS B2B SaaS SQL→customer ≈16% (calculation)",
+            "3": "from the Ebsta 2025 average (19%)",
+            "4": "≈ the level of top performers (+43% relative to the average)"
+          },
+          "basis_e": [0, 1]
+        },
+        {
+          "id": "win_rate.expansions",
+          "label_en": "Expansions and renewals with existing clients (upsell, cross-sell, further sponsorship editions)",
+          "method_en": "Ebsta x Pavilion 2025: expansion win rate 45% ('Selling to existing customers is 2.5x easier'). The bands are a heuristic around this value.",
+          "period_en": "quarterly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "3": "from the Ebsta average for expansions (45%)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "lead_response_time": {
+      "metric_id": "lead_response_time",
+      "formula_en": "STL = median (time of first contact − time of lead creation) in working minutes for high-intent leads in the period. Additionally report the % of leads handled in ≤5 min and ≤60 min, and the share with no contact.",
+      "levers": {
+        "pl": "Ustal i monitoruj SLA pierwszego kontaktu dla leadów o wysokiej intencji, z dyżurem w godzinach pracy i automatycznym przydziałem opiekuna. Wysyłaj natychmiastowe potwierdzenie z propozycją terminu rozmowy, a powiadomienie o nowym leadzie kieruj do konkretnej osoby, nie na ogólną skrzynkę. Raportuj odsetek leadów obsłużonych w progach czasowych i bez kontaktu.",
+        "en": "Set and monitor a first-contact SLA for high-intent leads, with a rota during working hours and automatic assignment of an account manager. Send an immediate acknowledgement proposing a call slot, and route the new-lead notification to a named person rather than a shared inbox. Report the share of leads handled within the time thresholds and the share with no contact."
+      },
+      "caveats_en": [
+        "The key HBR data date from 2011 and come from the US market. The full text is behind a paywall, and the figures were confirmed in the SmartCompany summary (2011).",
+        "The five-minute rule rests on older vendor studies (InsideSales) and is sometimes questioned. The Blazeo 2026 data (74% outside the 5-minute window; SLA 54.9% vs 29.5% within 15 min) are confirmed only in a LeanData summary (15.04.2026) – the primary report was not verified.",
+        "There are no Polish data. For public-sector clients, quick contact does not shorten procurement procedures, but it still affects qualification.",
+        "The analysis of 1.25 million leads (multipliers of ≈7× and >60×) covered 29 B2C companies and only 13 B2B ones, while the indicator concerns B2B leads."
+      ],
+      "caveat_sources": {
+        "0": ["S30", "S29"],
+        "1": ["S31"]
+      },
+      "default_context_by_segment": {
+        "all": "lead_response_time.high_intent_inbound",
+        "b2b_institution": "lead_response_time.high_intent_inbound"
+      },
+      "contexts": [
+        {
+          "id": "lead_response_time.high_intent_inbound",
+          "label_en": "High-intent inbound leads (offer enquiry, sponsorship, institutional subscription), during working hours",
+          "method_en": "Time thresholds from the sources. HBR 2011 (2,241 US companies): 37% respond within an hour, 16% within 1–24 h, 24% after >24 h, 23% not at all, average 42 h. Contact within an hour gives a ≈7 times higher chance of qualification, and >60 times higher than after 24 h. Blazeo 2026 (573 companies): 74% miss the 5-minute window, and with an SLA 54.9% respond within 15 min (vs 29.5% without an SLA).",
+          "period_en": "monthly (median + shares within thresholds)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "hours",
+          "display_unit": "minutes",
+          "window": "month",
+          "notes_en": {
+            "0": "the 'five-minute' standard; 74% of companies do not meet it (Blazeo 2026, data from the LeanData summary)",
+            "1": "within an hour (37% of companies in the HBR study)",
+            "2": "the same working day",
+            "3": "contact on the next working day",
+            "4": ">24 h – according to HBR a >60 times lower chance of qualification than with contact within an hour"
+          },
+          "basis_e": [2, 3]
+        }
+      ]
+    },
+    "sales_cycle_length": {
+      "metric_id": "sales_cycle_length",
+      "formula_en": "SCL = median (win date − opportunity creation date) in days for deals won in the period, separately for new clients and expansions and by deal size. Auxiliary: % of open opportunities older than 2× your own median cycle (Ebsta: opportunities open for >2× the average cycle have approx. a 3% chance).",
+      "levers": {
+        "pl": "Ustal z klientem plan decyzji na pierwszym spotkaniu: osoby decyzyjne, budżet, wymagane dokumenty i terminy, w tym procedury zamówień publicznych. Przygotuj gotowe pakiety dokumentów (umowa wzorcowa, opis licencji, dane do faktury), żeby skrócić etap formalny. Monitoruj szanse otwarte dłużej niż dwukrotność własnej mediany cyklu i decyduj, czy je aktywnie domknąć, czy zamknąć jako przegrane.",
+        "en": "Agree a decision plan with the client at the first meeting: decision-makers, budget, required documents and deadlines, including public-procurement procedures. Prepare ready document packs (template contract, licence description, invoicing details) to shorten the formal stage. Monitor opportunities open for longer than twice your own median cycle and decide whether to push them to a close or mark them as lost."
+      },
+      "caveats_en": [
+        "Ebsta segments deals by USD value in a mainly technology market. Assigning think-tank products to the small, medium and large segments is heuristic.",
+        "Public-sector clients (public procurement) and institutions' annual budgets can lengthen the cycle regardless of sales quality. It is worth having a separate context for them.",
+        "There are no Polish data. Ebsta 2025 reports cycles 9% shorter y/y and 36% of deals slipping."
+      ],
+      "caveat_sources": {
+        "0": ["S28"],
+        "2": ["S27"]
+      },
+      "default_context_by_segment": {
+        "all": "sales_cycle_length.mid_new_logo",
+        "b2b_institution": "sales_cycle_length.mid_new_logo"
+      },
+      "contexts": [
+        {
+          "id": "sales_cycle_length.small_deals",
+          "label_en": "Small B2B deals (e.g. corporate subscriptions, single packages)",
+          "method_en": "Ebsta 2023 (3.2 million opportunities): the 'golden period' for closing small deals is 31–60 days (a 165% higher win rate) – it falls entirely within the 'optimal' band. Opportunities open for longer than 2× the AVERAGE cycle have approx. a 3% chance of closing; calculate the 'critical' threshold dynamically as 2× your own median (120 days is the default). The 75 and 90 thresholds are a heuristic.",
+          "period_en": "quarterly (median of deals won)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "hours",
+          "display_unit": "days",
+          "window": "quarter",
+          "notes_en": {
+            "0": "up to the end of the 31–60-day 'golden period' (Ebsta 2023: a 165% higher win rate)",
+            "1": "just after the 'golden period' – heuristic",
+            "4": "Ebsta: opportunities open for >2× the AVERAGE cycle have approx. a 3% chance; calculate the threshold dynamically as 2× your own median"
+          },
+          "basis_e": [2, 3]
+        },
+        {
+          "id": "sales_cycle_length.mid_new_logo",
+          "label_en": "Medium deals with new clients (e.g. sponsorship packages, institutional memberships)",
+          "method_en": "Ebsta x Pavilion 2025: new clients 91 days on average, and top performers have a 42% shorter cycle (≈53 days, own calculation) – the rationale for the 'optimal' band. Ebsta 2023: a 'golden period' of 61–90 days for medium deals.",
+          "period_en": "quarterly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "hours",
+          "display_unit": "days",
+          "window": "quarter",
+          "notes_en": {
+            "0": "Ebsta 2025 top performers: a cycle 42% shorter than 91 days ≈ 53 days (own calculation)",
+            "1": "the 61–90-day 'golden period'",
+            "2": "from the Ebsta 2025 average for new clients (91 days)",
+            "4": "≈2× the average cycle"
+          },
+          "basis_e": [3]
+        },
+        {
+          "id": "sales_cycle_length.large_deals",
+          "label_en": "Large deals (strategic partnerships, commissioned research projects)",
+          "method_en": "Ebsta 2023: a 'golden period' of 150–180 days for large deals. The critical threshold is a 2× cycle heuristic.",
+          "period_en": "half-yearly / annually",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "hours",
+          "display_unit": "days",
+          "window": "year",
+          "notes_en": {
+            "1": "the 150–180-day 'golden period'",
+            "4": "≈2× the 'golden period'"
+          },
+          "basis_e": [0, 2, 3, 4]
+        },
+        {
+          "id": "sales_cycle_length.expansions",
+          "label_en": "Expansions and renewals with existing clients",
+          "method_en": "Ebsta x Pavilion 2025: expansions closed in 52 days on average (vs 91 days for new clients). The bands are a heuristic.",
+          "period_en": "quarterly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "hours",
+          "display_unit": "days",
+          "window": "quarter",
+          "notes_en": {
+            "2": "from the Ebsta average (52 days)",
+            "4": "2× the average expansion cycle"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    }
+  },
+  "sources": {
+    "S1": {
+      "canonical": "mixpanel_benchmarks_2024",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S2": {
+      "canonical": "mixpanel_digital_analytics_2026",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S3": {
+      "canonical": "andrewchen_dau_mau_2018",
+      "reliability": "C"
+    },
+    "S4": {
+      "canonical": "sacks_saas_engagement_2020",
+      "reliability": "C"
+    },
+    "S5": {
+      "canonical": "bain_nps_measuring",
+      "reliability": "A"
+    },
+    "S6": {
+      "canonical": "surveymonkey_nps_2025",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S7": {
+      "canonical": "survicate_nps_2025",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S8": {
+      "canonical": "retently_nps_2026",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S9": {
+      "canonical": "hellocustomer_nps_2026",
+      "reliability": "C",
+      "vendor": true
+    },
+    "S10": {
+      "canonical": "pheedloop_event_data_lab_05_2026",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S11": {
+      "canonical": "pheedloop_event_data_lab_06_2026",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S12": {
+      "canonical": "eventbrite_no_shows_2018",
+      "reliability": "C",
+      "vendor": true
+    },
+    "S13": {
+      "canonical": "goldcast_webinar_statistics_2025",
+      "reliability": "C",
+      "vendor": true
+    },
+    "S14": {
+      "canonical": "goldcast_webinar_benchmark_2026",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S15": {
+      "canonical": "voxbooster_webinar_statistics_2026",
+      "reliability": "C"
+    },
+    "S16": {
+      "canonical": "marketingprofs_on24_webinars_2025",
+      "reliability": "C"
+    },
+    "S17": {
+      "canonical": "unbounce_conversion_benchmark_2024",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S18": {
+      "canonical": "unbounce_entertainment_2024",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S19": {
+      "canonical": "ufi_explori_exhibitor_insights_2017",
+      "reliability": "A"
+    },
+    "S20": {
+      "canonical": "explori_pandemic_effect_2022",
+      "reliability": "C",
+      "vendor": true
+    },
+    "S21": {
+      "canonical": "explori_nps_for_events_2020",
+      "reliability": "C",
+      "vendor": true
+    },
+    "S22": {
+      "canonical": "nngroup_participation_inequality_2006",
+      "reliability": "B"
+    },
+    "S23": {
+      "canonical": "higherlogic_association_community_2025",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S24": {
+      "canonical": "fps_lead_to_mql_2025",
+      "reliability": "C"
+    },
+    "S25": {
+      "canonical": "fps_mql_to_sql_2026",
+      "reliability": "C"
+    },
+    "S26": {
+      "canonical": "fps_sales_funnel_2026",
+      "reliability": "C"
+    },
+    "S27": {
+      "canonical": "ebsta_pavilion_gtm_2025",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S28": {
+      "canonical": "ebsta_b2b_sales_2023",
+      "reliability": "B",
+      "vendor": true
+    },
+    "S29": {
+      "canonical": "smartcompany_hbr_leads_2011",
+      "reliability": "C"
+    },
+    "S30": {
+      "canonical": "hbr_online_sales_leads_2011",
+      "reliability": "A"
+    },
+    "S31": {
+      "canonical": "leandata_speed_to_lead_2026",
+      "reliability": "C",
+      "vendor": true
+    },
+    "S100": {
+      "canonical": "contrast_webinar_benchmarks_2026",
+      "reliability": "B",
+      "vendor": true
+    }
+  }
+}

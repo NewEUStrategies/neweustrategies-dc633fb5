@@ -1,0 +1,944 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "funnel",
+  "source_file": "lejek.json",
+  "metrics": {
+    "visitor_to_registration_rate": {
+      "metric_id": "visitor_to_registration_rate",
+      "formula_en": "Flow: new registrations in the period / unique visitors in the period × 100%. Stock variant (known users): recognised/logged-in unique users in the month / all unique users in the month × 100%. Registration-wall variant: registrations / unique views of the registration modal × 100%.",
+      "levers": {
+        "pl": "Pokaż korzyść z konta przed prośbą o rejestrację: zapisane artykuły, alerty tematyczne, newsletter ekspercki, dostęp do zapisu wydarzenia. Testuj miejsce i moment zaproszenia (po kilku tekstach, na końcu artykułu, przy zapisie na wydarzenie) i ogranicz formularz do adresu e-mail z logowaniem społecznościowym. Mierz V2R razem z odsetkiem trafiających na paywall, żeby rejestracja nie zabierała ekspozycji ofert płatnych; odfiltruj boty i konta jednorazowe.",
+        "en": "Show the benefit of an account before asking people to register: saved articles, topic alerts, an expert newsletter, access to event recordings. Test the placement and timing of the prompt (after a few articles, at the end of an article, at event sign-up) and cut the form down to an e-mail address plus social login. Track V2R together with the paywall hit rate so that registration does not take exposure away from paid offers; filter out bots and throwaway accounts."
+      },
+      "caveats_en": [
+        "Piano (2023): introducing a registration wall in front of the paywall reduced the share of users who see a paid offer by 36% on average – measure V2R together with the share of users reaching the paywall.",
+        "The registration-wall context rests on a single Mather case study (article of 10.02.2022) – the ranges are heuristic.",
+        "The SaaS benchmarks (ChartMogul, First Page Sage) concern product websites, not content services – apply them to B2B paths (institutional account, trial for organisations).",
+        "There are no public data for Poland; the Piano and Mather medians come mainly from the US and global markets.",
+        "The SaaS contexts (freemium, opt-in trial, opt-out trial) have low confidence: the ChartMogul values of 9% / 4.5% / 3.5% are an illustrative example, not a median, and First Page Sage relies on agency clients (an unrepresentative sample)."
+      ],
+      "caveat_sources": {
+        "0": ["piano_inma_2023"],
+        "1": ["mather_regwall"],
+        "4": ["chartmogul_2026", "fps_2025"]
+      },
+      "pairs": ["paywall_hit_rate"],
+      "default_context_by_segment": {
+        "all": "visitor_to_registration_rate.publisher_known_users",
+        "b2c_individual": "visitor_to_registration_rate.publisher_known_users",
+        "b2c_reduced": "visitor_to_registration_rate.publisher_known_users",
+        "paywall": "visitor_to_registration_rate.registration_wall",
+        "b2b_institution": "visitor_to_registration_rate.b2b_freemium"
+      },
+      "contexts": [
+        {
+          "id": "visitor_to_registration_rate.publisher_known_users",
+          "label_en": "Digital publisher (metered/freemium) – share of known (registered/logged-in) users among monthly unique users",
+          "method_en": "Piano median of 1.2% (data Jan 2022–Sep 2024, global) as the normal/good boundary – consistent with V2P (median = normal/good boundary); the Mather Q2 2022 median of 1.5% (103 markets, mainly US local press) falls within the good range; Mather best-in-class 3.3% (the average of benchmark markets selected by a subscription success index, not a percentile) as the optimal threshold; the 0.5 and 0.8 thresholds are heuristic",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "practically no reader identification – heuristic",
+            "1": "heuristic",
+            "2": "up to the Piano median (1.2%; data Jan 2022–Sep 2024)",
+            "3": "from the Piano median to Mather best-in-class; the Mather Q2 2022 median (1.5%) falls within this range",
+            "4": "Mather best-in-class (3.3%) – the average of benchmark markets selected by a subscription success index, not a percentile"
+          }
+        },
+        {
+          "id": "visitor_to_registration_rate.registration_wall",
+          "label_en": "Registration wall – unique registration-modal views → registration",
+          "method_en": "heuristic anchored in a Mather case study (3.14% on average, a small North American publisher); no public cross-sectional benchmark",
+          "period_en": "monthly / the whole period the registration wall is active",
+          "segments": ["paywall"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "around the 3.14% from the Mather case study",
+            "3": "heuristic",
+            "4": "heuristic – typical of direct/newsletter traffic"
+          },
+          "basis_e": [2]
+        },
+        {
+          "id": "visitor_to_registration_rate.b2b_freemium",
+          "label_en": "B2B SaaS / freemium account (e.g. a free institutional account) – visitor → freemium account sign-up",
+          "method_en": "heuristic (context confidence: low): the upper bound of normal = ChartMogul 2026 illustrative example for freemium (9%; not a median); First Page Sage 2025: visitor→freemium 13.3% organic / 15.9% paid (86 companies, agency clients – an unrepresentative sample) as the optimal threshold; lower thresholds heuristic",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "heuristic; up to the ChartMogul illustrative example for freemium (9%, not a median)",
+            "3": "up to the First Page Sage visitor→freemium average (organic 13.3%)",
+            "4": "at least the First Page Sage organic average (13.3%; paid 15.9%; agency clients)"
+          },
+          "basis_e": [3, 4]
+        },
+        {
+          "id": "visitor_to_registration_rate.b2b_trial_opt_in",
+          "label_en": "B2B SaaS / opt-in trial (no card, e.g. institutional test access) – visitor → trial start",
+          "method_en": "heuristic (context confidence: low): the lower bound of normal = ChartMogul 2026 illustrative example for a trial (4.5%; not a median); First Page Sage 2025: visitor→opt-in trial 8.5% organic / 7.1% paid (agency clients) as the good boundary; the critical threshold <2 carried over heuristically from the previous SaaS set; no basis for an optimal threshold",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic; below the ChartMogul illustrative example for a trial (4.5%)",
+            "2": "from the ChartMogul example (4.5%) to the First Page Sage organic average (8.5%)",
+            "3": "at least the First Page Sage organic average (8.5%; paid 7.1%; agency clients)"
+          },
+          "basis_e": [2, 3]
+        },
+        {
+          "id": "visitor_to_registration_rate.b2b_trial_opt_out",
+          "label_en": "B2B SaaS / opt-out trial (card required upfront) – visitor → trial start",
+          "method_en": "heuristic (context confidence: low): First Page Sage 2025 visitor→opt-out trial 2.5% organic / 2.2% paid (agency clients) as the lower bound of normal; ChartMogul 2026 illustrative example for a card-required trial (3.5%; not a median) as the good boundary; no basis for critical and optimal thresholds",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "below the First Page Sage organic average (2.5%); paid 2.2% – heuristic",
+            "1": "from the First Page Sage organic average (2.5%) to the ChartMogul example for a card-required trial (3.5%)",
+            "2": "at least the ChartMogul example for a card-required trial (3.5%)"
+          },
+          "basis_e": [1, 2]
+        }
+      ]
+    },
+    "registered_to_paid_rate": {
+      "metric_id": "registered_to_paid_rate",
+      "formula_en": "Cohort: users registered in month M who bought paid access within 12 months / all users registered in month M × 100%. Stock variant (freemium newsletter): paying subscribers / all newsletter subscribers × 100%.",
+      "levers": {
+        "pl": "Zbuduj sekwencję powitalną dla nowych kont: najlepsze analizy, zaproszenie na wydarzenie, a potem jasna oferta płatna z argumentem wartości. Pokazuj ofertę w momentach intencji (limit tekstów, raport premium, zapis na zamknięte spotkanie), a nie w przypadkowych miejscach. Segmentuj po zainteresowaniach i źródle rejestracji, a konwersję śledź w oknach czasu do zakupu, bo młode kohorty zaniżają wynik.",
+        "en": "Build a welcome sequence for new accounts: the best analysis, an invitation to an event, then a clear paid offer with a value argument. Show the offer at moments of intent (article limit, premium report, sign-up for a closed meeting) rather than in random places. Segment by interests and registration source, and track conversion by time-to-purchase windows, because young cohorts understate the result."
+      },
+      "caveats_en": [
+        "Piano's cohort data come from the 2022 report – no newer public R2P figure over 12 months was found; Piano's 2025 presentation (NYPA) gives only a multiplier of 30× versus anonymous users (attributed to Piano 2024 data; it does not appear on the Piano 2024 report page).",
+        "In Piano's test (INMA, 2023) registered users converted at 12.52% versus 0.07% of anonymous users on the same offer – this is a selection effect, not proof that forcing registration will lift sales: the registration path lost in 3 of 4 tests (3× 'Result: NO', 1× 'YES').",
+        "The beehiiv benchmark concerns paid newsletters on the beehiiv platform (mostly English-language), not think tanks; it measures a stock, not a cohort.",
+        "For the dashboard: show the distribution of time to conversion (0–30, 31–90, 91–365 days), because the measurement window changes the result."
+      ],
+      "caveat_sources": {
+        "0": ["piano_nypa_2025"],
+        "1": ["piano_inma_2023"],
+        "2": ["beehiiv_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "registered_to_paid_rate.publisher_cohort_12m",
+        "b2c_individual": "registered_to_paid_rate.publisher_cohort_12m",
+        "b2c_reduced": "registered_to_paid_rate.publisher_cohort_12m",
+        "newsletter": "registered_to_paid_rate.newsletter_paid_share"
+      },
+      "contexts": [
+        {
+          "id": "registered_to_paid_rate.publisher_cohort_12m",
+          "label_en": "Digital publisher – cohort of registered users, purchase within 12 months of registration",
+          "method_en": "heuristic anchored in an average of approx. 3% (Piano 2022 via Digiday – an average/overall rate, not a median; with a right-skewed 0.5–12% distribution the median is probably lower) and a range from approx. 0.5% to over 12% across publishers (the 2022 Piano press release does not say explicitly that the range concerns the registered-user cohort); intermediate thresholds interpolated heuristically; context confidence: medium/low",
+          "period_en": "12-month cohort",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_12m",
+          "notes_en": {
+            "0": "below the lower end of the Piano range",
+            "1": "heuristic",
+            "2": "up to the Piano average (approx. 3%) – an average, not a median",
+            "3": "above the Piano average (approx. 3%; an average, not a median)",
+            "4": "approaching the best services (>12%)"
+          },
+          "basis_e": [2, 3, 4]
+        },
+        {
+          "id": "registered_to_paid_rate.newsletter_paid_share",
+          "label_en": "Freemium newsletter – paying / all list subscribers (stock)",
+          "method_en": "beehiiv 2026 quartiles: median 0.62%, top 25% approx. 2–5%, top 10% in finance/economics 18.7–30.8% (Investing 18.69%, Finance 20.00%, Economy 30.80%); the formula paying / all subscribers is implied; critical threshold heuristic",
+          "period_en": "stock at month end",
+          "segments": ["newsletter"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "snapshot",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below the beehiiv median",
+            "2": "median – lower bound of P75",
+            "3": "P75 range (top 25%)",
+            "4": "above P75; P90 in finance/economics 18.7–30.8%"
+          }
+        }
+      ]
+    },
+    "visitor_to_paid_rate": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "Licznik (płacący, strumień rozliczeń) i mianownik (unikalni odwiedzający, strumień first-party za zgodą analityczną) pochodzą z dwóch strumieni o różnych populacjach - iloraz byłby nieporównywalny. Czytaj V2P jako złożenie PHR × PSCR albo osobno V2R i R2P.",
+        "en": "The numerator (paying customers, billing stream) and the denominator (unique visitors, first-party stream behind analytics consent) come from two streams with different populations, so the ratio would be incomparable. Read V2P as PHR × PSCR, or V2R and R2P separately."
+      },
+      "formula_en": "Stock: active paying digital subscribers / average monthly reach of unique users × 100% (publishers' definitions differ). Flow: new paid subscriptions in the month / unique users in the month × 100% (Mather reports this as conversions per 1 million users).",
+      "levers": {
+        "pl": "Rozłóż wynik na składowe: zasięg paywalla (PHR), konwersję paywalla (PSCR) i konwersję zarejestrowanych - poprawiaj najsłabsze ogniwo zamiast całego lejka naraz. Zwiększaj udział czytelników powracających (newsletter, alerty, wydarzenia), bo to oni kupują. Dopasuj ofertę do polskiego rynku: lokalne metody płatności, plan roczny, oferty ulgowe dla studentów i nauczycieli.",
+        "en": "Break the result down into its components: paywall hit rate (PHR), paywall conversion (PSCR) and registered-user conversion – fix the weakest link rather than the whole funnel at once. Increase the share of returning readers (newsletter, alerts, events), because they are the ones who buy. Fit the offer to the Polish market: local payment methods, an annual plan, reduced offers for students and teachers."
+      },
+      "caveats_en": [
+        "The demand ceiling in Poland is lower: according to the Reuters Institute DNR 2026, 11% of Poles pay for online news (−2 pp y/y, but under the DNR methodology a change of 2 pp or less is not statistically significant) versus 17% in the so-called pay basket of 20 countries where paywalls are common (18% in 2025).",
+        "The latest public INMA median refers to the end of 2022; newer INMA Subscription Benchmarks data are available to members only.",
+        "Do not compare the stock variant with the flow variant – they differ by an order of magnitude.",
+        "For a think tank with a small, expert reach a stock value above 1.4% is achievable; assess the trend together with the number of unique users."
+      ],
+      "caveat_sources": {
+        "0": ["dnr_2026_pl", "dnr_2026"],
+        "1": ["pressgazette_2024"]
+      },
+      "default_context_by_segment": {
+        "all": "visitor_to_paid_rate.publisher_stock",
+        "b2c_individual": "visitor_to_paid_rate.publisher_stock",
+        "b2c_reduced": "visitor_to_paid_rate.publisher_stock",
+        "paywall": "visitor_to_paid_rate.publisher_flow"
+      },
+      "contexts": [
+        {
+          "id": "visitor_to_paid_rate.publisher_stock",
+          "label_en": "Digital publisher – stock: paying digital subscribers / average monthly reach (publishers' definitions differ)",
+          "method_en": "median 0.6% and upper quartile ≥1.4% (INMA, 166 publishers, end of 2022 – the latest publicly available; via Press Gazette 2024, the article does not give the INMA definition): P50–P75 = good, >P75 = optimal; thresholds below the median heuristic",
+          "period_en": "monthly stock",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "share_of_base",
+          "unit": "percent_pt",
+          "window": "snapshot",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "up to the INMA median",
+            "3": "median – INMA upper quartile",
+            "4": "INMA upper quartile; specialist leaders in the Press Gazette ranking (subscribers / average monthly visitors according to Similarweb – a different definition): The Athletic approx. 26%, Barron's approx. 19%"
+          },
+          "basis_e": [2]
+        },
+        {
+          "id": "visitor_to_paid_rate.publisher_flow",
+          "label_en": "Digital publisher – flow: new paid subscriptions in the month / monthly unique users",
+          "method_en": "Mather Q2 2022: median 513 conversions per 1 million users (0.051%), best-in-class 1263 (0.126%; the average of benchmark markets, not a percentile; sample mainly US local press); the product of Piano Dec 2024 exposure and conversion (16.3% × 0.20% ≈ 0.033%) as the anchor of the normal range (own calculation)",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced", "paywall"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "below 100 conversions per 1 million users – heuristic",
+            "1": "heuristic",
+            "2": "from the level implied by Piano data to the Mather median",
+            "3": "median – Mather best-in-class",
+            "4": "Mather best-in-class (1263 / million; the average of benchmark markets, not a percentile)"
+          }
+        }
+      ]
+    },
+    "paywall_conversion_rate": {
+      "metric_id": "paywall_conversion_rate",
+      "formula_en": "unique users who bought a subscription after seeing the paywall/paid offer / unique users who saw ≥1 paywall or paid offer × 100% (monthly)",
+      "levers": {
+        "pl": "Testuj szablon i treść oferty na paywallu: konkretna korzyść (analizy, raporty, wydarzenia), cena miesięczna obok rocznej i wyraźny przycisk zakupu. Skróć drogę od paywalla do płatności: zapamiętane dane, BLIK i szybkie przelewy, bez wymogu hasła. Dopasuj ofertę do źródła ruchu i tematu artykułu, a zmiany szczelności paywalla oceniaj razem z PHR, bo niższa konwersja przy większej ekspozycji może dać więcej subskrypcji.",
+        "en": "Test the paywall offer template and copy: a concrete benefit (analysis, reports, events), the monthly price next to the annual one and a clear purchase button. Shorten the path from paywall to payment: saved details, BLIK and fast bank transfers, no password requirement. Match the offer to the traffic source and article topic, and judge changes in paywall tightness together with PHR, because lower conversion at higher exposure can yield more subscriptions."
+      },
+      "caveats_en": [
+        "Piano (data Feb 2025), median conversion by offer template: landing page 2.73%, hard paywall 0.11%, soft paywall 0.011%, ribbon (banner) 0.005% – other templates need separate thresholds.",
+        "Europe converts less well than the USA (Piano Dec 2024: 0.15% vs 0.34%) – for a Polish publisher the realistic reference point is the European median.",
+        "Mather (24.06.2024, 118 sites after a paywall change in Mar 2023): tightening the paywall doubled the number of sales attempts (+100%) while conversion fell by 20%, which netted more subscriptions.",
+        "Notre Dame/Georgia Tech study: about 1 in 10 stopped users successfully circumvents the paywall, 81% of them through a new browser identity (81% is the share among successful circumventions, not among all stops) – paywall tightness affects the denominator.",
+        "Piano trend: the median paywall conversion fell from 0.44% (early 2021) to approx. 0.11–0.12% (Jan 2023) and stood at 0.20% in Dec 2024 – compare the result with the median from the same period."
+      ],
+      "caveat_sources": {
+        "0": ["piano_nypa_2025"],
+        "2": ["mather_intercept_2024"],
+        "3": ["notre_dame_2026"]
+      },
+      "pairs": ["paywall_hit_rate"],
+      "default_context_by_segment": {
+        "all": "paywall_conversion_rate.metered_freemium",
+        "paywall": "paywall_conversion_rate.metered_freemium",
+        "b2c_individual": "paywall_conversion_rate.metered_freemium",
+        "b2c_reduced": "paywall_conversion_rate.metered_freemium"
+      },
+      "contexts": [
+        {
+          "id": "paywall_conversion_rate.metered_freemium",
+          "label_en": "Metered/freemium/hybrid paywall of a digital publisher – unique stopped users → purchase",
+          "method_en": "medians: Piano Dec 2024 0.20% globally (Europe 0.15%, USA 0.34%), Mather Q2 2022 0.22%, Mather best-in-class 0.58% (the average of benchmark markets, not a percentile); trend: the Piano median fell in Jan 2023 to approx. 0.11–0.12% (from 0.44% in early 2021) and rebounded to 0.20% in Dec 2024; confirmation: Notre Dame/Georgia Tech 2026 (~0.2% of stops end in a purchase); critical threshold heuristic",
+          "period_en": "monthly",
+          "segments": ["paywall", "b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic; the lowest value (Bottom) in the Piano distribution, Jan 2023: 0.02%",
+            "1": "below the Piano European median",
+            "2": "European median – Mather/Piano global median",
+            "3": "above the median up to Mather best-in-class",
+            "4": "Mather best-in-class (0.58%); the highest value (Top) in the Piano distribution, Jan 2023: 3.95%"
+          }
+        }
+      ]
+    },
+    "trial_to_paid_rate": {
+      "metric_id": "trial_to_paid_rate",
+      "formula_en": "users who made a first payment after the trial ended / users who started a trial in the cohort × 100% (separately for opt-in and opt-out)",
+      "levers": {
+        "pl": "Prowadź użytkownika triala do pierwszej wartości w pierwszych dniach: sekwencja e-maili z najlepszymi analizami, zaproszenie na wydarzenie, przypomnienie o raportach w pakiecie. Przed końcem triala wyślij jasne przypomnienie o odnowieniu z ceną i łatwą rezygnacją. Mierz osobno opt-in i opt-out, a dla dostępu instytucjonalnego wyznacz opiekuna, który zbiera opinie i przygotowuje ofertę.",
+        "en": "Guide the trial user to first value in the first days: an e-mail sequence with the best analysis, an event invitation, a reminder of the reports included in the package. Before the trial ends, send a clear renewal reminder with the price and an easy way to cancel. Measure opt-in and opt-out separately, and for institutional access assign an account manager who gathers feedback and prepares the offer."
+      },
+      "caveats_en": [
+        "In media, trials are the exception: according to Piano (2025 presentation) only 8% of publisher clients offer a free trial, and subscriptions without a trial retain better than paid trials.",
+        "First Page Sage counts opt-out conversion after just one paid month – the result is inflated relative to lasting conversion.",
+        "Western Europe (RevenueCat, apps, 2025 data): median trial→paid 29.7%, lower than North America (34.2%); 17–32-day trials: 42.5% vs ≤4 days: 25.5%.",
+        "Requiring a card upfront reduces sign-ups (ChartMogul illustrative example, not a median: 3.5% vs 4.5% of visitors) but yields 10.5 vs 3.6 paying customers per 1000 visitors."
+      ],
+      "caveat_sources": {
+        "0": ["piano_nypa_2025"],
+        "1": ["fps_2025"],
+        "2": ["revenuecat_2026"],
+        "3": ["chartmogul_2026"]
+      },
+      "default_context_by_segment": {
+        "all": "trial_to_paid_rate.opt_out",
+        "b2c_individual": "trial_to_paid_rate.opt_out",
+        "b2c_reduced": "trial_to_paid_rate.opt_out",
+        "b2b_institution": "trial_to_paid_rate.opt_out"
+      },
+      "contexts": [
+        {
+          "id": "trial_to_paid_rate.opt_in",
+          "label_en": "Opt-in trial (no card) – SaaS/B2B, including institutional access",
+          "method_en": "ChartMogul 2026 (200 products, 22% of them mainly B2C/hybrid; Jan 2026, 6-month window): no-card trial good = P50 4–6%, great = P75 10–15%; 20% of trial products are below 2.5%; the 8% median covers all models including card-required trials and is not an anchor for opt-in; First Page Sage 2025 (18.2% organic / 17.4% paid; agency clients) only as an upper anchor",
+          "period_en": "trial cohort (measured up to 6 months from sign-up)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_12m",
+          "notes_en": {
+            "0": "bottom 20% of trial products (<2.5%, ChartMogul)",
+            "1": "below the ChartMogul P50 range (good 4–6%)",
+            "2": "ChartMogul P50 range (good 4–6%)",
+            "3": "from ChartMogul P50 to P75 (great 10–15%)",
+            "4": "middle of the ChartMogul P75 range (10–15%) and above; First Page Sage 18.2% as the upper anchor (agency clients)"
+          }
+        },
+        {
+          "id": "trial_to_paid_rate.opt_out",
+          "label_en": "Opt-out trial (card required upfront)",
+          "method_en": "ChartMogul 2026: good = P50 (25–35%, median 30%), great = P75 (50–60%); First Page Sage 2025: 48.8% organic / 51% paid (agency clients; conversion counted after one paid month); RevenueCat (apps, 2025 data, publication date unconfirmed): 25.5–42.5% by trial length",
+          "period_en": "trial cohort",
+          "segments": ["b2c_individual", "b2c_reduced", "b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_m1",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below the good threshold",
+            "2": "good = ChartMogul P50 (25–35%); median 30%",
+            "3": "up to the First Page Sage level",
+            "4": "great = ChartMogul P75 (50–60%)"
+          }
+        }
+      ]
+    },
+    "checkout_abandonment_rate": {
+      "metric_id": "checkout_abandonment_rate",
+      "formula_en": "Subscription checkout: (1 − completed payments / started checkouts) × 100%. E-commerce/tickets (Baymard): (1 − orders placed / carts created) × 100%.",
+      "levers": {
+        "pl": "Usuń przeszkody wskazane w danych Baymard: wymóg zakładania konta i hasła, długi formularz, ukryte koszty, brak zaufania przy podawaniu karty. Dodaj lokalne metody płatności (BLIK, szybkie przelewy) i pokaż pełną cenę z VAT przed płatnością. Popraw ścieżkę mobilną osobno od desktopowej i wyślij przypomnienie o porzuconym checkoucie, jeśli osoba zgodziła się na kontakt.",
+        "en": "Remove the obstacles named in the Baymard data: mandatory account creation and passwords, a long form, hidden costs, lack of trust when entering card details. Add local payment methods (BLIK, fast bank transfers) and show the full price including VAT before payment. Improve the mobile path separately from desktop and send an abandoned-checkout reminder when the person has consented to contact."
+      },
+      "caveats_en": [
+        "The INMA data (approx. 2024: 18%, Q2 2026: 38% completions) come from article snippets available in search results; the INMA page returns HTTP 403 (Cloudflare), so the figures are unverified – confirm them in a browser when updating the thresholds.",
+        "Baymard: 18% abandon because they are required to create an account, 17% because the process is too long/complicated, 19% because they do not trust the site with their card details, 40% because of extra costs; fixing checkout usability can raise conversion by 35.26%.",
+        "INMA (unverified, HTTP 403): in a 2019 US study, 85% of users gave up when the checkout asked for a password.",
+        "Mobile abandons much more often: Piano 2022 – 19.7% completions on mobile vs 42.4% on desktop.",
+        "There are no benchmarks for Polish payment methods (BLIK, fast transfers) – heuristic: the absence of local methods increases abandonment."
+      ],
+      "caveat_sources": {
+        "0": ["inma_checkout_2026", "inma_7reasons"],
+        "1": ["baymard_2025"],
+        "3": ["piano_2022_pr"]
+      },
+      "pairs": ["checkout_conversion_rate"],
+      "default_context_by_segment": {
+        "all": "checkout_abandonment_rate.subscription",
+        "b2c_individual": "checkout_abandonment_rate.subscription",
+        "b2c_reduced": "checkout_abandonment_rate.subscription",
+        "b2b_institution": "checkout_abandonment_rate.subscription",
+        "paywall": "checkout_abandonment_rate.subscription",
+        "events": "checkout_abandonment_rate.ecommerce"
+      },
+      "contexts": [
+        {
+          "id": "checkout_abandonment_rate.subscription",
+          "label_en": "Digital subscription checkout (checkout start → no payment)",
+          "method_en": "heuristic to be verified (context confidence: low): the inverse of the INMA Q2 2026 median (38% completions → 62% abandonment; 149 brands) and of the INMA approx. 2024 median (18% completions → 82%) – both unverified (the INMA page returns HTTP 403, Cloudflare); the only verified anchor: Piano 2022 – 42.4% completions on desktop (57.6% abandonment) and 19.7% on mobile (80.3% abandonment); extreme thresholds heuristic",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced", "b2b_institution", "paywall"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic – the level of good e-commerce checkouts",
+            "1": "better than the INMA 2026 median (62%, unverified); Piano 2022 desktop: 57.6%",
+            "2": "around the INMA 2026 median (62%, unverified)",
+            "3": "the level of the INMA median from approx. 2 years earlier (82%, unverified); Piano 2022 mobile: 80.3%",
+            "4": "heuristic"
+          },
+          "basis_e": [1, 2, 3]
+        },
+        {
+          "id": "checkout_abandonment_rate.ecommerce",
+          "label_en": "E-commerce / sale of tickets and publications – cart abandonment (Baymard definition)",
+          "method_en": "average of 70.22% from 50 studies, Baymard (updated 22.09.2025); the 55.00% (Forrester 2010) – 84.27% (SaleCycle 2020) range is the spread of averages from different studies (some more than 10 years old), not store percentiles; thresholds around the average and the extreme study values",
+          "period_en": "monthly",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "below the lowest average in the Baymard compilation (55.00%)",
+            "1": "better than the average",
+            "2": "around the 70.22% average",
+            "3": "up to the highest average in the compilation (84.27%)",
+            "4": "above the highest average in the compilation (84.27%)"
+          },
+          "basis_e": [1, 2, 3]
+        }
+      ]
+    },
+    "checkout_conversion_rate": {
+      "metric_id": "checkout_conversion_rate",
+      "formula_en": "completed payments / started checkouts (e.g. a click on Subscribe on the paywall or entry to the payment page) × 100%",
+      "levers": {
+        "pl": "Skróć checkout do niezbędnych pól i pozwól kupić bez zakładania hasła, z logowaniem przez e-mail. Udostępnij BLIK, szybkie przelewy i portfele, a instytucjom fakturę z odroczonym terminem. Pokaż na stronie płatności podsumowanie korzyści i warunki rezygnacji, a błędy płatności tłumacz zrozumiale z możliwością ponowienia. Raportuj wynik osobno dla mobile i desktopu oraz dla B2C i B2B.",
+        "en": "Cut the checkout down to the essential fields and allow purchase without creating a password, with e-mail sign-in. Offer BLIK, fast bank transfers and wallets, and give institutions an invoice with deferred payment terms. Show a summary of benefits and the cancellation terms on the payment page, and explain payment errors clearly with an option to retry. Report the result separately for mobile and desktop, and for B2C and B2B."
+      },
+      "caveats_en": [
+        "Cartylabs is a vendor source with no period, sample or percentile method ('aggregated 2026 medians'); values are given as ranges – low confidence.",
+        "The INMA data (Q2 2026: 38%; approx. 2024: 18%) come from article snippets; the INMA page returns HTTP 403 (Cloudflare) – the figures are unverified, confirm them in a browser when updating.",
+        "INMA 2026 (unverified, HTTP 403): at the paywall stop → purchase stage, the best 10% of brands convert a 5× larger share of stopped users than the weakest 10%.",
+        "Report desktop/mobile and B2C/B2B (invoice, deferred transfer) separately."
+      ],
+      "caveat_sources": {
+        "0": ["cartylabs_2026"],
+        "1": ["inma_checkout_2026", "inma_7reasons"]
+      },
+      "pairs": ["checkout_abandonment_rate"],
+      "default_context_by_segment": {
+        "all": "checkout_conversion_rate.subscription",
+        "b2c_individual": "checkout_conversion_rate.subscription",
+        "b2c_reduced": "checkout_conversion_rate.subscription",
+        "b2b_institution": "checkout_conversion_rate.subscription",
+        "paywall": "checkout_conversion_rate.subscription",
+        "events": "checkout_conversion_rate.ecommerce"
+      },
+      "contexts": [
+        {
+          "id": "checkout_conversion_rate.subscription",
+          "label_en": "Digital subscription checkout (checkout start → payment)",
+          "method_en": "heuristic to be verified (context confidence: low): INMA Q2 2026 median 38% (149 of 318 brands) and approx. 2024 18% – unverified (HTTP 403, Cloudflare); verified anchors: Piano 2022 42.4% desktop / 19.7% mobile; upper thresholds heuristic, anchored in Cartylabs e-commerce quartiles (a vendor source with no methodology)",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced", "b2b_institution", "paywall"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "around the INMA median from approx. 2024 (18%, unverified) and Piano 2022 mobile (19.7%)",
+            "2": "up to the INMA Q2 2026 median (38%, unverified)",
+            "3": "median – upper quartile (heuristic); Piano 2022 desktop: 42.4%",
+            "4": "the upper-quartile level of e-commerce checkouts (Cartylabs 52–60%; vendor source)"
+          },
+          "basis_e": [1, 2, 4]
+        },
+        {
+          "id": "checkout_conversion_rate.ecommerce",
+          "label_en": "E-commerce (e.g. a publications shop, tickets) – checkout start → order",
+          "method_en": "Cartylabs May 2026 quartiles (declared >5000 Shopify stores; a vendor source with no period, sample or percentile method – 'aggregated 2026 medians'): bottom 10% <28%, bottom 25% 28–38% (a band of approx. P10–P25), median 38–48%, top 25% 52–60%, top 10% 60–75%",
+          "period_en": "monthly",
+          "segments": ["events"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "bottom 10% (<28%)",
+            "1": "the 'bottom 25%' band (approx. P10–P25)",
+            "2": "median range",
+            "3": "up to the upper quartile",
+            "4": "the top 10% of stores"
+          }
+        }
+      ]
+    },
+    "pricing_page_conversion_rate": {
+      "metric_id": "pricing_page_conversion_rate",
+      "formula_en": "unique pricing-page visitors who, in the same session (or attribution window, e.g. 7 days), bought / started a trial / sent an enquiry / unique pricing-page visitors × 100%",
+      "levers": {
+        "pl": "Uprość stronę oferty: dwa lub trzy plany z wyraźnie wskazanym rekomendowanym, porównanie korzyści językiem odbiorcy i jeden główny przycisk. Dodaj dowody wartości (przykładowe analizy, partnerzy, opinie uczestników wydarzeń) i odpowiedzi na typowe obawy (rezygnacja, faktura, VAT). Instytucjom daj krótki formularz zapytania z szybką odpowiedzią opiekuna i mierz osobno konwersję do zapytania.",
+        "en": "Simplify the offer page: two or three plans with the recommended one clearly marked, a comparison of benefits in the reader's language and a single main button. Add proof of value (sample analysis, partners, testimonials from event participants) and answers to common concerns (cancellation, invoice, VAT). Give institutions a short enquiry form with a quick reply from an account manager, and measure conversion to enquiry separately."
+      },
+      "caveats_en": [
+        "There is no independent public study of pricing-page conversion; SaasDash gives neither methodology nor sample – treat it as a heuristic.",
+        "The Piano median of 2.73% concerns the landing-page template in the Piano tool (denominator: unique users who saw the offer), not any pricing page.",
+        "For a B2B offer with price on request, measure conversion to enquiry and enquiry → contract (CRM) separately.",
+        "The SaasDash median depends on the sales type – do not assess a price-on-request offer with self-serve thresholds (the enterprise median with a demo-only CTA of 1–3% would come out as weak there)."
+      ],
+      "caveat_sources": {
+        "0": ["saasdash_2026"],
+        "1": ["piano_nypa_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "pricing_page_conversion_rate.publisher_offer_page",
+        "b2c_individual": "pricing_page_conversion_rate.publisher_offer_page",
+        "b2c_reduced": "pricing_page_conversion_rate.publisher_offer_page",
+        "paywall": "pricing_page_conversion_rate.publisher_offer_page",
+        "b2b_institution": "pricing_page_conversion_rate.b2b_price_on_request"
+      },
+      "contexts": [
+        {
+          "id": "pricing_page_conversion_rate.publisher_offer_page",
+          "label_en": "Publisher – offer page / subscription landing page (unique users seeing the offer → purchase)",
+          "method_en": "Piano median (data Feb 2025) for the landing-page template: 2.73%; other thresholds heuristic (approx. 0.25×, 0.5× and approx. 2× the median)",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced", "paywall"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "up to the Piano median",
+            "3": "above the median",
+            "4": "heuristic – approx. 2× the median"
+          },
+          "basis_e": [2, 3]
+        },
+        {
+          "id": "pricing_page_conversion_rate.b2b_price_on_request",
+          "label_en": "B2B SaaS / institutional offer with price on request (demo/contact CTA, e.g. NES institutional packages) – pricing page → enquiry or demo",
+          "method_en": "heuristic anchored in SaasDash May 2026 (a source with no sources or methodology): enterprise segment with a demo-only CTA – median 1–3%, upper quartile 4–6%; the 0.5 and 6 thresholds heuristic; context confidence: low",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic",
+            "2": "the enterprise demo-only CTA median range according to SaasDash (1–3%)",
+            "3": "up to the enterprise upper quartile according to SaasDash (4–6%)",
+            "4": "above the enterprise upper quartile – heuristic"
+          },
+          "basis_e": [2, 3]
+        },
+        {
+          "id": "pricing_page_conversion_rate.b2b_self_serve",
+          "label_en": "B2B SaaS / self-serve offer (purchase or trial without contacting sales) – pricing page → trial, sign-up or purchase",
+          "method_en": "heuristic anchored in SaasDash May 2026 (a source with no sources or methodology): self-serve – median 4–6%, upper quartile 10–14%; for comparison mid-market 3–5% / 7–10%, freemium 8–15% / 20–30%; critical and weak thresholds carried over heuristically from the previous set; context confidence: low",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "below the self-serve median range (4–6%) – heuristic",
+            "2": "the self-serve median range according to SaasDash (4–6%)",
+            "3": "up to the lower bound of the self-serve upper quartile (10–14%)",
+            "4": "the self-serve upper quartile according to SaasDash (10–14%) and above"
+          },
+          "basis_e": [2, 3, 4]
+        }
+      ]
+    },
+    "signup_form_conversion_rate": {
+      "metric_id": "signup_form_conversion_rate",
+      "formula_en": "sign-ups collected (e-mail addresses) / form views × 100% (Wisepops and Omnisend definition: e-mails / views)",
+      "levers": {
+        "pl": "Daj konkretną zachętę opartą na treści: przegląd tygodnia, raport do pobrania, zaproszenie na wydarzenie. Testuj wyzwalacz (przewinięcie, czas, exit-intent) i częstotliwość wyświetleń, żeby nie zniechęcać stałych czytelników, oraz formularz wieloetapowy zamiast jednego długiego. Dopasuj komunikat do tematu strony, a wyniki raportuj osobno dla popupów automatycznych i otwieranych kliknięciem.",
+        "en": "Offer a concrete content-based incentive: a weekly briefing, a downloadable report, an event invitation. Test the trigger (scroll, time, exit-intent) and display frequency so as not to put off regular readers, and a multi-step form instead of one long form. Match the message to the page topic, and report results separately for automatic and click-triggered popups."
+      },
+      "caveats_en": [
+        "The Omnisend and Wisepops data come mainly from e-commerce (the incentive is often a discount); for a publisher the incentive is content, so results may be lower.",
+        "Omnisend 2025: popups shown on desktop and mobile at the same time 2.2%, desktop only 1.4% (1.3% on the chart); wheel of fortune 3.5%; Wisepops: exit-intent 3.94%, multi-step 5.17% vs single-step 4.62%.",
+        "The Wisepops top 10% (57.7%) includes click-triggered popups – do not compare with automatic popups."
+      ],
+      "caveat_sources": {
+        "1": ["omnisend_2026", "wisepops_2025"],
+        "2": ["wisepops_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "signup_form_conversion_rate.auto_popup",
+        "newsletter": "signup_form_conversion_rate.auto_popup"
+      },
+      "contexts": [
+        {
+          "id": "signup_form_conversion_rate.auto_popup",
+          "label_en": "Automatically displayed sign-up popup/modal (entry, scroll, time, exit-intent)",
+          "method_en": "Omnisend 2026 rating thresholds (<1.5% poor, 1.5–3% average, 3–5% good, ≥5% excellent) with an average of 2.1% from 1.24 billion views in 2025; Wisepops average 4.82%; critical threshold heuristic",
+          "period_en": "monthly",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic – half the weak threshold",
+            "1": "underperforming according to Omnisend",
+            "2": "average according to Omnisend; average 2.1%",
+            "3": "good according to Omnisend; Wisepops average 4.82%",
+            "4": "excellent according to Omnisend"
+          }
+        },
+        {
+          "id": "signup_form_conversion_rate.click_modal",
+          "label_en": "Click-triggered sign-up modal (e.g. a 'Subscribe to the newsletter' button)",
+          "method_en": "Wisepops (Sep 2025): average CVR for the click trigger 54.42%, top 10% 63.35%; lower thresholds heuristic",
+          "period_en": "monthly",
+          "segments": ["newsletter"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic – the form discourages after the click",
+            "1": "heuristic",
+            "2": "up to the Wisepops average",
+            "3": "average – top 10%",
+            "4": "Wisepops top 10%"
+          }
+        }
+      ]
+    },
+    "activation_rate": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "System nie rejestruje jeszcze zdarzenia aktywacji - definicja (np. kilka artykułów premium i zapis do newslettera, rejestracja na wydarzenie, dołączenie do klubu) wymaga decyzji dla każdego segmentu (D-02). Do czasu jej przyjęcia wskaźnik ma status braku danych.",
+        "en": "The system does not yet record an activation event – the definition (e.g. a few premium articles plus a newsletter sign-up, an event registration, joining a club) needs a decision for each segment (D-02). Until it is adopted the indicator has a no-data status."
+      },
+      "abbr": "ACT",
+      "formula_en": "new users in the cohort who performed the activation event within X days (e.g. 3 premium articles + newsletter sign-up; event registration; joining a club) / all new registered users in the cohort × 100%",
+      "levers": {
+        "pl": "Zdefiniuj zdarzenie aktywacji osobno dla czytelnika, subskrybenta płatnego i członka klubu, a potem prowadź nowe osoby do niego krótką ścieżką: wybór tematów, pierwszy newsletter, polecany raport lub wydarzenie. Usuń kroki, które nie przybliżają do pierwszej wartości, i przypominaj e-mailem o niedokończonym kroku. Porównuj kohorty według źródła pozyskania, bo aktywacja zapowiada późniejszą retencję.",
+        "en": "Define the activation event separately for a reader, a paying subscriber and a club member, then guide newcomers to it along a short path: topic selection, the first newsletter, a recommended report or event. Remove steps that do not bring people closer to first value, and send an e-mail reminder about an unfinished step. Compare cohorts by acquisition source, because activation predicts later retention."
+      },
+      "caveats_en": [
+        "Userpilot is its customers' own data (62 B2B companies), Lenny a 2022 survey (over 500 responses, self-reported); neither concerns publishers.",
+        "Amplitude: 69% of the products with the best D7 activation were also among the retention leaders after 3 months – activation is an early predictor of retention.",
+        "For a think tank, define separate activation events for a registered reader, a paying subscriber and a club member; there are no public benchmarks for these definitions."
+      ],
+      "caveat_sources": {
+        "0": ["userpilot_2025", "lenny_2022"],
+        "1": ["amplitude_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "activation_rate.d7_return",
+        "b2b_institution": "activation_rate.b2b_value_milestone"
+      },
+      "contexts": [
+        {
+          "id": "activation_rate.b2b_value_milestone",
+          "label_en": "Digital product / B2B SaaS – new users who reached a value milestone",
+          "method_en": "Lenny 2022 median for SaaS 30% (a 2022 survey, self-reported; 25% overall) and Userpilot 2025 (median 37.04%, average 37.5%; 62 B2B companies); upper threshold = the best Userpilot industry (AI&ML 54.8%); critical threshold heuristic (the weakest industries 5–8.3%)",
+          "period_en": "cohort (7–14-day window)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_m1",
+          "notes_en": {
+            "0": "the level of the weakest Userpilot industries",
+            "1": "below the Lenny median for SaaS (30%)",
+            "2": "Lenny median for SaaS (30%) – Userpilot median (37.04%)",
+            "3": "above the Userpilot median",
+            "4": "above the best Userpilot industry"
+          },
+          "basis_e": [0]
+        },
+        {
+          "id": "activation_rate.d7_return",
+          "label_en": "Activation measured as a return on day 7 (Amplitude definition: the share of a new-user cohort active on D7)",
+          "method_en": "Amplitude 2025 (over 2600 companies): 7% = the upper-quartile threshold (P75) for all industries – the only firm threshold; the 2.1% median and the 12.4% top 10% concern enterprise products only (a different population); the article gives neither a cross-sectional median nor D7 values for media and B2B; other thresholds heuristic; context confidence: low",
+          "period_en": "D7 cohort",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "cohort_m1",
+          "notes_en": {
+            "0": "heuristic",
+            "1": "heuristic; below the median of enterprise products (2.1)",
+            "2": "from the median of enterprise products (2.1) to the all-industry P75 (7)",
+            "3": "all-industry P75 (7) – the only firm threshold",
+            "4": "top 10% of enterprise products (12.4) – a different population, heuristic"
+          },
+          "basis_e": [2]
+        }
+      ]
+    },
+    "time_to_value": {
+      "metric_id": null,
+      "no_metric_reason": {
+        "pl": "Czas do wartości wymaga zdarzenia wartości spójnego z definicją aktywacji, którego system jeszcze nie rejestruje (D-02). Bez niego mediana czasu byłaby liczona do niezdefiniowanego punktu końcowego.",
+        "en": "Time to value needs a value event consistent with the activation definition, which the system does not yet record (D-02). Without it the median time would be measured to an undefined end point."
+      },
+      "formula_en": "median (time of the value event − time of registration/purchase) in the cohort, in hours; users without a value event reported separately as a share",
+      "levers": {
+        "pl": "Pokaż wartość w pierwszej sesji: po rejestracji lub zakupie od razu otwórz pełny artykuł premium albo raport, który skłonił do decyzji. Wyślij newsletter powitalny natychmiast, a nie z najbliższym wydaniem, i zaproponuj najbliższe wydarzenie lub spotkanie klubu. Dla dostępu instytucjonalnego przygotuj krótkie wdrożenie z listą materiałów i kontaktem do opiekuna.",
+        "en": "Deliver value in the first session: right after registration or purchase, open the full premium article or the report that prompted the decision. Send the welcome newsletter immediately rather than with the next issue, and suggest the next event or club meeting. For institutional access, prepare a short onboarding with a list of materials and a contact to the account manager."
+      },
+      "caveats_en": [
+        "Userpilot gives neither a described median nor a TTV measurement methodology (an undescribed value of approx. 25.9 h may be the median); data from 62 B2B companies – low comparability with a content service.",
+        "The publisher context is entirely heuristic – there is no public TTV benchmark for media and think tanks.",
+        "The value event must be consistent with the activation definition (activation_rate)."
+      ],
+      "caveat_sources": {
+        "0": ["userpilot_2025"]
+      },
+      "default_context_by_segment": {
+        "all": "time_to_value.publisher_think_tank",
+        "b2c_individual": "time_to_value.publisher_think_tank",
+        "b2c_reduced": "time_to_value.publisher_think_tank",
+        "b2b_institution": "time_to_value.b2b_saas"
+      },
+      "contexts": [
+        {
+          "id": "time_to_value.b2b_saas",
+          "label_en": "B2B SaaS / institutional access – registration → first value event",
+          "method_en": "Userpilot 2025 average: 1 d 12 h 23 min (approx. 36.4 h; 62 B2B companies); best industry CRM 1 d 4 h 43 min, weakest HR 3 d 18 h 59 min; the 7-day boundary follows Amplitude's recommendation (value is best delivered in the first week) – heuristic; next to the 36.4 h average the Userpilot page shows an undescribed value of 1 d 1 h 54 min (approx. 25.9 h), possibly the median – once confirmed, move the good/normal boundary from 36.4 h to approx. 26 h (the optimal/good boundary of 24 h unchanged); for now the thresholds are unchanged",
+          "period_en": "cohort",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "hours",
+          "window": "cohort_m1",
+          "notes_en": {
+            "0": "below the best Userpilot industry (approx. 28.7 h)",
+            "1": "up to the Userpilot average",
+            "2": "average – approx. 3 days",
+            "3": "3–7 days; the level of the weakest industry (HR)",
+            "4": "more than a week"
+          },
+          "basis_e": [0, 3, 4]
+        },
+        {
+          "id": "time_to_value.publisher_think_tank",
+          "label_en": "Publisher / think tank – registration or purchase → first moment of value (a full premium article, an opened welcome newsletter, an event sign-up)",
+          "method_en": "expert heuristic; rationale: Piano 2024 data on early cancellations (13% of auto-renewal opt-outs on day 1, 40% within 60 days)",
+          "period_en": "cohort",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "hours",
+          "window": "cohort_m1",
+          "notes_en": {
+            "0": "value in the same session",
+            "1": "within a day",
+            "2": "1–3 days",
+            "3": "3–7 days",
+            "4": "more than a week"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "paywall_hit_rate": {
+      "metric_id": "paywall_hit_rate",
+      "formula_en": "unique users who saw the paywall/paid offer at least once in the month / all unique users in the month × 100%",
+      "levers": {
+        "pl": "Traktuj PHR jako przedział, a nie cel do maksymalizacji: zmieniaj limit darmowych tekstów i reguły paywalla małymi krokami i oceniaj je razem z PSCR i zasięgiem. Pokazuj ofertę przy treściach o najwyższej skłonności do zakupu (analizy, raporty), a materiały budujące zasięg zostaw otwarte. Sprawdzaj wycieki (tryb prywatny, nowe tożsamości przeglądarki) i pilnuj, by bramka rejestracji nie odbierała ekspozycji ofert płatnych.",
+        "en": "Treat PHR as a range, not a target to maximise: change the free-article limit and paywall rules in small steps and judge them together with PSCR and reach. Show the offer on content with the highest purchase propensity (analysis, reports) and keep reach-building material open. Check for leaks (private mode, new browser identities) and make sure the registration wall does not take exposure away from paid offers."
+      },
+      "caveats_en": [
+        "The INMA data (31%, ≥56%, ≤25%, +67% reach) come from article snippets available in search results (the INMA page returns HTTP 403, Cloudflare) – unverified; the figure 'fewer than 30% of the users of the median site ever see a paywall' (inma_ceiling_2026) comes from a teaser on X and serves only as context, not as a range anchor.",
+        "INMA Q2 2026 (unverified): freemium/hybrid sites had 67% higher reach (household penetration) than hard paywalls.",
+        "Mather 2024: tightening the paywall gave +100% sales attempts at −20% conversion; lowering the limit from 3 to 2 free articles affects more readers than raising it from 3 to 4.",
+        "Piano (Jan 2023): exposure ranges across publishers from 0.01% (Bottom) to 87.4% (Top), median approx. 8.8% – the median makes sense only within the same paywall model.",
+        "Europe (Piano Dec 2024: 20.4%) exposes offers more often than the USA (13.8%)."
+      ],
+      "caveat_sources": {
+        "0": ["inma_ceiling_2026"],
+        "2": ["mather_intercept_2024"]
+      },
+      "pairs": ["paywall_conversion_rate", "visitor_to_registration_rate"],
+      "default_context_by_segment": {
+        "all": "paywall_hit_rate.metered_freemium",
+        "paywall": "paywall_hit_rate.metered_freemium",
+        "b2c_individual": "paywall_hit_rate.metered_freemium",
+        "b2c_reduced": "paywall_hit_rate.metered_freemium"
+      },
+      "contexts": [
+        {
+          "id": "paywall_hit_rate.metered_freemium",
+          "label_en": "Freemium/metered/hybrid publisher (NES model)",
+          "method_en": "verified medians: Mather Jun 2025 22.8% (Jun 2024: 15.1%), Piano Dec 2024 16.3% (Europe 20.4%), Mather Q2 2022 14.3% (best-in-class 20.3% – the average of benchmark markets, not a percentile); auxiliary, unverified (INMA, HTTP 403): median 31% (317 brands), freemium/hybrid ≤25%, hard ≥56%; the optimal range of 18–30 is a heuristic consistent with the verified anchors; newer Mather reports (Q1 2026 North America, the monthly German/UK Audience Benchmarks 2026; behind a form) to be obtained at the next update – the German ones are closer to the Polish market",
+          "period_en": "monthly",
+          "segments": ["paywall", "b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "paywall practically never seen – no opportunity to sell",
+            "1": "too little exposure; well below the verified Mather/Piano 2022–2025 medians (14.3–22.8%)",
+            "2": "around the Piano Dec 2024 median (16.3%), Mather Jun 2024 (15.1%) and Q2 2022 (14.3%)",
+            "3": "Mather Jun 2025 median (22.8%), Piano Europe Dec 2024 (20.4%), Mather best-in-class 2022 (20.3%); INMA: freemium/hybrid ≤25% (unverified)",
+            "4": "above the INMA median (31%, unverified) – monitor the loss of reach",
+            "5": "too tight; too tight for freemium – approaching a hard paywall (INMA ≥56%, unverified)"
+          },
+          "basis_e": [0, 1, 3, 4, 5]
+        },
+        {
+          "id": "paywall_hit_rate.hard_wall",
+          "label_en": "Hard paywall (hard wall)",
+          "method_en": "heuristic based solely on unverified INMA data (the page returns HTTP 403, Cloudflare; context confidence: low): Q2 2026 (318 brands) most hard-paywall sites stop ≥56% of users monthly; paywalls launched before 2019 stop approx. 50%",
+          "period_en": "monthly",
+          "segments": ["paywall"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "direction": "higher",
+          "notes_en": {
+            "0": "unusually low for a hard paywall – check the rules and leaks",
+            "1": "heuristic",
+            "2": "typical of a hard paywall according to INMA (unverified)"
+          },
+          "basis_e": [0, 2]
+        }
+      ]
+    }
+  },
+  "sources": {
+    "piano_nypa_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "piano_inma_2023": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "piano_2024": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "piano_2022_pr": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "digiday_2022": {
+      "reliability": "C"
+    },
+    "mather_2022": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_q2_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "mather_regwall": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "mather_intercept_2024": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "pressgazette_2024": {
+      "reliability": "B"
+    },
+    "inma_checkout_2026": {
+      "reliability": "C"
+    },
+    "inma_7reasons": {
+      "reliability": "C"
+    },
+    "inma_nyt_reach": {
+      "reliability": "C"
+    },
+    "inma_shadow_2026": {
+      "reliability": "C"
+    },
+    "inma_ceiling_2026": {
+      "reliability": "C"
+    },
+    "notre_dame_2026": {
+      "reliability": "A"
+    },
+    "dnr_2026": {
+      "reliability": "A"
+    },
+    "dnr_2026_pl": {
+      "reliability": "A"
+    },
+    "beehiiv_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "chartmogul_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "fps_2025": {
+      "reliability": "C"
+    },
+    "revenuecat_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "baymard_2025": {
+      "reliability": "A"
+    },
+    "cartylabs_2026": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "omnisend_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "wisepops_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "userpilot_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "lenny_2022": {
+      "reliability": "C"
+    },
+    "amplitude_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "amplitude_media_2025": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "saasdash_2026": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "mather_q1_2026": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "mather_de_2026_07": {
+      "reliability": "C",
+      "vendor": true
+    },
+    "mather_uk_2026_07": {
+      "reliability": "C",
+      "vendor": true
+    }
+  }
+}

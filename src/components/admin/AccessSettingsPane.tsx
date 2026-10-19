@@ -1,6 +1,23 @@
+// Panel dostępu treści (wpis/strona): tryb, plany, próg warstwy, licznik
+// artykułów, zajawka i hasło.
+//
+// JEDNA REGUŁA, JEDEN PISARZ (S1 def. 3). Regułę czyta `contentAccessRuleQueryOptions`
+// - ten sam wpis cache co podsumowanie w zakładce „Ogólne" (`PostGeneralOverview`)
+// i ten, który unieważnia szyna `content_access.changed.v1`. Zapis idzie
+// `useSaveContentAccessRule` - tym samym mutatorem co wyjątki licznika
+// w `/admin/paywall`, więc blokada wersji (INSERT → 23505, UPDATE z
+// `updated_at`) obowiązuje w obu miejscach, a zapis tutaj odświeża listę
+// wyjątków tam (i odwrotnie). Dawniej panel miał własny literał klucza
+// podsumowania i własny zapis, a paywall pisał tę samą regułę ślepo po `id`.
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  contentAccessRuleQueryOptions,
+  invalidateContentAccessQueries,
+  useSaveContentAccessRule,
+} from "@/lib/access/contentAccessQueries";
+import { isStaleWriteError } from "@/lib/billing/planQueries";
 import { convertToDisplayCurrency } from "@/lib/billing/displayCurrency";
 
 import type {
@@ -82,27 +99,22 @@ interface LoadedAccess {
  * `public` na istniejący paywall.
  */
 async function loadAccess(
+  queryClient: QueryClient,
   entityType: AccessEntityType,
   entityId: string | null,
 ): Promise<LoadedAccess> {
-  const [plansRes, ruleRes, hasPasswordRes, hintsRes] = await Promise.all([
+  const [plansRes, ruleState, hintsRes] = await Promise.all([
     supabase.from("access_plans").select("*").eq("active", true).order("sort_order"),
+    // Reguła z flagą hasła - wspólne `queryOptions` (wiersz + RPC
+    // `content_access_has_password`, oba błędy rzucają). `staleTime: 0`:
+    // formularz, względem którego pójdzie UPDATE z wersją, czyta bazę TERAZ,
+    // a nie wpis cache sprzed minuty; przy okazji odświeża podsumowanie.
     entityId
-      ? supabase
-          .from("content_access")
-          .select(
-            "id, entity_type, entity_id, mode, plan_ids, one_time_price_cents, one_time_currency, teaser_pl, teaser_en, min_tier_rank, metering_policy, tenant_id, updated_at",
-          )
-          .eq("entity_type", entityType)
-          .eq("entity_id", entityId)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    entityId
-      ? supabase.rpc("content_access_has_password", {
-          _entity_type: entityType,
-          _entity_id: entityId,
+      ? queryClient.fetchQuery({
+          ...contentAccessRuleQueryOptions(entityType, entityId),
+          staleTime: 0,
         })
-      : Promise.resolve({ data: false, error: null }),
+      : Promise.resolve(null),
     // Kolumny password_hint_* są odebrane rolom klienckim (REVOKE
     // 20260801121000 - kontrakt security_hardening_rls_test) - hinty
     // czytamy przez SECURITY DEFINER get_password_hint, jak Paywall.
@@ -114,11 +126,11 @@ async function loadAccess(
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ]);
-  for (const res of [plansRes, ruleRes, hasPasswordRes, hintsRes]) {
+  for (const res of [plansRes, hintsRes]) {
     if (res.error) throw res.error;
   }
-  const version = ruleRes.data?.updated_at ?? null;
-  const rule = (ruleRes.data as ContentAccessRule | null) ?? null;
+  const version = ruleState?.updated_at ?? null;
+  const rule = (ruleState as ContentAccessRule | null) ?? null;
   const hintRow = hintsRes.data as { hint_pl?: string | null; hint_en?: string | null } | null;
   return {
     plans: (plansRes.data as AccessPlan[] | null) ?? [],
@@ -128,7 +140,7 @@ async function loadAccess(
     // pokazywać, niezależnie od tego, co odda RPC.
     password: rule
       ? {
-          hasPassword: !!hasPasswordRes.data,
+          hasPassword: !!ruleState?.has_password,
           newPassword: "",
           hintPl: hintRow?.hint_pl ?? "",
           hintEn: hintRow?.hint_en ?? "",
@@ -170,6 +182,7 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
   // międzyczasie podbijają go, a efekt czyta wtedy wszystko od nowa.
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
+  const saveRule = useSaveContentAccessRule();
 
   useEffect(() => {
     // Ponowny odczyt („Spróbuj ponownie", reguła zmieniona w międzyczasie)
@@ -178,7 +191,7 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
     // odmontowanego) nie ma prawa nadpisać stanu.
     let superseded = false;
     setLoadState("loading");
-    loadAccess(entityType, entityId).then(
+    loadAccess(queryClient, entityType, entityId).then(
       (loaded) => {
         if (superseded) return;
         setPlans(loaded.plans);
@@ -197,12 +210,12 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
     return () => {
       superseded = true;
     };
-  }, [entityType, entityId, loadAttempt]);
+  }, [queryClient, entityType, entityId, loadAttempt]);
 
-  // Podsumowanie dostępu w zakładce „Ogólne" (PostGeneralOverview) trzyma tę
-  // samą regułę w cache ze `staleTime` - po zapisie ma ją przeczytać od nowa.
-  const invalidateSummary = () =>
-    void queryClient.invalidateQueries({ queryKey: ["content_access", entityType, entityId] });
+  // RPC hasła zmieniają regułę (hash, wersja) poza mutatorem - podsumowanie
+  // w „Ogólne" i lista wyjątków paywalla mają ją przeczytać od nowa.
+  const invalidateRule = () =>
+    void invalidateContentAccessQueries(queryClient, entityType, entityId ?? undefined);
 
   // Baza ma inną regułę niż ta, którą panel przeczytał. Zapis byłby ślepy,
   // więc wczytujemy aktualny stan i każemy powtórzyć zmianę.
@@ -250,38 +263,34 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
       };
       // ZAPIS ODPOWIADA TEMU, CO PANEL PRZECZYTAŁ - nie ślepy upsert.
       // Upsert po (typ, byt) nadpisywał KAŻDĄ regułę, także taką, której
-      // panel nie widział (inna karta, ukryta przed odczytem). Teraz:
+      // panel nie widział (inna karta, ukryta przed odczytem). Wspólny mutator
+      // (`saveContentAccessRule`) robi:
       //   - reguły nie było -> INSERT: istniejący wiersz kończy się 23505
-      //     (UNIQUE (entity_type, entity_id)) zamiast cichego nadpisania;
-      //   - reguła była -> UPDATE warunkowany WERSJĄ z odczytu (optimistic
-      //     lock jak `updateOrganization`, `updated_at` bumpuje trigger
-      //     trg_content_access_updated). Zero wierszy = reguła zmieniła się w
-      //     międzyczasie (inna karta, wyjątki meteringu w /admin/paywall),
-      //     zniknęła albo RLS odciął zapis bez błędu - to NIE jest sukces.
-      //     Bez warunku wersji karta z nieaktualnym „public" zdejmowała
-      //     paywall ustawiony chwilę wcześniej gdzie indziej.
-      const { data: written, error } = version
-        ? await supabase
-            .from("content_access")
-            .update(fields)
-            .eq("entity_type", entityType)
-            .eq("entity_id", entityId)
-            .eq("updated_at", version)
-            .select("updated_at")
-        : await supabase
-            .from("content_access")
-            .insert({ ...fields, entity_type: entityType, entity_id: entityId })
-            .select("updated_at");
-      if (error) {
-        if (!version && error.code === "23505") return reloadStaleRule();
+      //     (UNIQUE (entity_type, entity_id)) = konflikt `40001`;
+      //   - reguła była -> UPDATE warunkowany WERSJĄ z odczytu (`updated_at`
+      //     bumpuje trigger trg_content_access_updated). Zero wierszy = reguła
+      //     zmieniła się w międzyczasie (inna karta, wyjątki licznika
+      //     w /admin/paywall), zniknęła albo RLS odciął zapis bez błędu =
+      //     konflikt `40001`, NIE sukces.
+      // Po sukcesie mutator unieważnia regułę (podsumowanie „Ogólne"), listę
+      // wyjątków paywalla i rozstrzygnięty dostęp czytelnika.
+      let savedVersion: string | null;
+      try {
+        const written = await saveRule.mutateAsync({
+          entityType,
+          entityId,
+          fields,
+          expectedUpdatedAt: version,
+        });
+        savedVersion = written.updated_at ?? null;
+      } catch (error) {
+        if (isStaleWriteError(error)) return reloadStaleRule();
         return toastError(error, "save");
       }
-      const savedVersion = written?.[0]?.updated_at;
       if (!savedVersion) return reloadStaleRule();
       // Nowa baza optimistic-locka - bez niej drugi zapis w tej samej sesji
       // zgłaszałby FAŁSZYWY konflikt z własnym zapisem.
       setVersion(savedVersion);
-      invalidateSummary();
 
       // Password mutations run through SECURITY DEFINER RPCs so the plaintext is
       // bcrypt-hashed server-side and never stored in the base write path.
@@ -296,6 +305,7 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
         if (rpcErr) return toastError(rpcErr, "save");
         setPwd((s) => ({ ...s, hasPassword: true, newPassword: "" }));
         await refreshVersion(entityId);
+        invalidateRule();
       } else if (rule.mode !== "password" && pwd.hasPassword) {
         // Leaving password mode clears the stored hash so it can't be reused later.
         // Błąd był tu połykany: panel meldował sukces i „zapominał" o haśle,
@@ -307,6 +317,7 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
         if (clearErr) return toastError(clearErr, "save");
         setPwd(NO_PASSWORD);
         await refreshVersion(entityId);
+        invalidateRule();
       }
 
       toast.success(t("adminPostPanes.access.accessSaved"));
@@ -324,7 +335,7 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
     if (error) return toastError(error, "delete");
     setPwd(NO_PASSWORD);
     await refreshVersion(entityId);
-    invalidateSummary();
+    invalidateRule();
     toast.success(t("adminPostPanes.access.passwordRemoved"));
   };
 

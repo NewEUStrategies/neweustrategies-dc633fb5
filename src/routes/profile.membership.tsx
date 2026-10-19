@@ -71,8 +71,12 @@ function MembershipHub() {
   // Porównanie zawężone do segmentu bieżącej warstwy (ta sama publiczność co
   // /pricing), per tenant - użytkownik widzi swoją kolumnę wyróżnioną i ścieżkę
   // w górę. Bez segmentu (np. brak dopasowania) domyślnie ścieżka indywidualna.
+  // Progi ukryte na cenniku (v6.2: Enterprise, Partner Biznesowy) są w
+  // porównaniu WYŁĄCZNIE wtedy, gdy to próg użytkownika - obecny klient widzi
+  // swoją kolumnę („Twój plan"), a ścieżka w górę to oferta z /pricing.
   const audienceKey = fullTier?.audience_key ?? "individual";
   const segmentTiers = (tiers.data ?? [])
+    .filter((x) => x.pricing_visible !== false || x.key === tier?.key)
     .filter((x) => (x.audience_key ?? "individual") === audienceKey && x.key !== "supporter")
     .sort((a, b) => a.rank - b.rank || a.sort_order - b.sort_order);
 

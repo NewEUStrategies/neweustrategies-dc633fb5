@@ -12,7 +12,20 @@
 //   „odwołane". Historia dostępu musi zostać czytelna po fakcie: kto miał
 //   dostęp, na jakiej podstawie i do kiedy.
 //
-// Wyniesione z pliku trasy `/admin/membership` (898 linii) bez zmiany zachowania.
+// JEDNA ŚCIEŻKA NADAŃ (S1 def. 6, D-S1-09). Dawne `admin_grant_membership`
+// szukało e-maila GLOBALNIE w `auth.users` (bez sprawdzenia organizacji), nie
+// wygaszało poprzedniego nadania i nie zostawiało audytu. Teraz:
+//   1. adres rozwiązujemy w katalogu członków ORGANIZACJI
+//      (`findTenantMemberByEmail`, najemca z sesji) - konto spoza organizacji to
+//      komunikat dla admina, a nie wyjątek SQL;
+//   2. nadanie i cofnięcie idą RPC `admin_membership_grant_set|revoke`, które
+//      w jednej transakcji wygaszają ręczne nadania tej osoby, piszą audyt
+//      i outbox CRM (to samo RPC woła katalog członków - `setMemberTier`);
+//   3. cofnięcie pyta o opcjonalny powód - trafia do audytu, bo „kto zabrał
+//      dostęp i dlaczego" jest pytaniem, które ktoś zada po fakcie.
+// Po sukcesie odświeżamy WSZYSTKICH czytelników warstwy osoby: listę nadań,
+// katalog członków, rozliczenia członka, pulpit monetyzacji, „moje nadania"
+// i bieżącą warstwę czytelnika oraz kluby (dostęp do klubu zależy od warstwy).
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,25 +35,69 @@ import { Plus, Settings2, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { FormSelect } from "@/components/atoms/FormSelect";
 import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
 import { SectionCard } from "@/components/admin/membership/atoms/SectionCard";
+import { adminMembershipGrantsQueryOptions } from "@/components/admin/membership/grantsQuery";
+import { promptDialog } from "@/lib/appDialogs";
 import {
-  fetchMembershipGrants,
-  grantMembership,
-  revokeGrant,
+  findTenantMemberByEmail,
+  revokeMembershipGrant,
+  setMembershipGrant,
   type AdminGrantRow,
 } from "@/lib/admin/membership-admin";
+import { addCalendarMonthsUtc } from "@/lib/admin/membersDirectory.functions";
 import { billingKeys } from "@/lib/billing/keys";
 import type { MembershipTierRow } from "@/lib/billing/tiers";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { uiLocale } from "@/lib/i18n/format";
+import { toastError } from "@/lib/toastError";
+
+/** Najdłuższe nadanie terminowe (10 lat) - dłuższe to w praktyce bezterminowe. */
+const GRANT_MONTHS_MAX = 120;
+
+/** Czytelnicy warstwy osoby - unieważniani po nadaniu i cofnięciu. */
+const GRANT_READER_KEYS = [
+  billingKeys.admin.membershipGrants(),
+  billingKeys.admin.members(),
+  billingKeys.admin.memberBillingAll(),
+  billingKeys.admin.monetization(),
+  billingKeys.myGrantsAll(),
+  billingKeys.currentTierAll(),
+  clubKeys.all,
+] as const;
+
+/**
+ * Kod maszynowy błędu RPC nadań (`tier_inactive`, `user_not_in_tenant`…).
+ * Funkcje SQL S1 podnoszą wyjątek z komunikatem = kodem (PLAN S1 §4.1), więc
+ * szukamy go w treści, a nie zgadujemy po SQLSTATE (22023 ma kilka powodów).
+ */
+function grantErrorCode(err: unknown): string | null {
+  const message =
+    typeof err === "object" &&
+    err !== null &&
+    typeof (err as { message?: unknown }).message === "string"
+      ? (err as { message: string }).message
+      : "";
+  for (const code of [
+    "tier_inactive",
+    "user_not_in_tenant",
+    "expires_in_past",
+    "grant_not_found",
+  ]) {
+    if (message.includes(code)) return code;
+  }
+  return null;
+}
+
+/** Liczba miesięcy z pola: `null` = bezterminowo (puste), `NaN` = niepoprawna. */
+function parseMonths(raw: string): number | null {
+  const text = raw.trim();
+  if (text === "") return null;
+  const value = Number(text);
+  return Number.isInteger(value) && value >= 1 && value <= GRANT_MONTHS_MAX ? value : Number.NaN;
+}
 
 export function GrantsSection({
   lang,
@@ -53,48 +110,85 @@ export function GrantsSection({
   const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const qc = useQueryClient();
 
-  const grantsQ = useQuery({
-    queryKey: billingKeys.admin.membershipGrants(),
-    queryFn: fetchMembershipGrants,
-  });
+  const grantsQ = useQuery(adminMembershipGrantsQueryOptions());
 
   const [email, setEmail] = useState("");
   const [tierKey, setTierKey] = useState("");
   const [months, setMonths] = useState("12");
   const [note, setNote] = useState("");
 
+  const refreshReaders = () =>
+    Promise.all(GRANT_READER_KEYS.map((queryKey) => qc.invalidateQueries({ queryKey })));
+
   const grantM = useMutation({
-    mutationFn: () =>
-      grantMembership({
-        email: email.trim(),
+    mutationFn: async (): Promise<"granted" | "no_account"> => {
+      const member = await findTenantMemberByEmail(email);
+      // Brak konta w TEJ organizacji to odpowiedź, nie awaria: admin ma
+      // poprawić adres albo zaprosić osobę - a nie czytać wyjątku SQL.
+      if (!member) return "no_account";
+      const length = parseMonths(months);
+      await setMembershipGrant({
+        userId: member.userId,
         tierKey,
-        months: months.trim() === "" ? null : Number(months),
+        // Miesiące kalendarzowe w UTC (31 stycznia + 1 = 28/29 lutego), ta sama
+        // reguła co katalog członków - dwie ścieżki nie mogą liczyć terminu inaczej.
+        expiresAt: length === null ? null : addCalendarMonthsUtc(new Date(), length).toISOString(),
         note: note.trim() || null,
-      }),
-    onSuccess: () => {
+      });
+      return "granted";
+    },
+    onSuccess: async (result) => {
+      if (result === "no_account") {
+        toast.error(tm("toast.noAccount"));
+        return;
+      }
       toast.success(tm("toast.grantSuccess"));
       setEmail("");
       setNote("");
-      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipGrants() });
+      await refreshReaders();
     },
-    onError: (e: Error) => {
-      const msg = e.message || "";
-      if (msg.includes("user not found")) toast.error(tm("toast.noAccount"));
-      else if (msg.includes("tier not found")) toast.error(tm("toast.unknownTier"));
-      else toast.error(msg);
+    onError: (err: unknown) => {
+      const code = grantErrorCode(err);
+      if (code === "user_not_in_tenant") toast.error(tm("toast.noAccount"));
+      else if (code === "tier_inactive") toast.error(tm("toast.tierInactive"));
+      else if (code === "expires_in_past") toast.error(tm("toast.expiresInPast"));
+      else toastError(err, "save");
     },
   });
 
   const revokeM = useMutation({
-    mutationFn: (id: string) => revokeGrant(id),
-    onSuccess: () => {
+    mutationFn: (input: { grantId: string; reason: string | null }) => revokeMembershipGrant(input),
+    onSuccess: async () => {
       toast.success(tm("toast.grantRevoked"));
-      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipGrants() });
+      await refreshReaders();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (err: unknown) => {
+      // Nadanie cofnięte w innej karcie - lista na ekranie jest nieaktualna.
+      if (grantErrorCode(err) === "grant_not_found") {
+        toast.error(tm("toast.grantGone"));
+        void grantsQ.refetch();
+        return;
+      }
+      toastError(err, "delete");
+    },
   });
 
-  const canGrant = /.+@.+\..+/.test(email.trim()) && tierKey !== "";
+  const askRevoke = async (grant: AdminGrantRow) => {
+    const reason = await promptDialog({
+      title: tm("grants.revokeTitle", { tier: grant.tier_key, email: grant.email }),
+      description: tm("grants.revokeDescription"),
+      label: tm("grants.revokeReason"),
+      placeholder: tm("grants.revokeReasonPlaceholder"),
+      confirmLabel: tm("grants.revokeConfirm"),
+    });
+    // `null` = anulowane; pusty napis = cofnięcie bez powodu (powód jest opcjonalny).
+    if (reason === null) return;
+    revokeM.mutate({ grantId: grant.id, reason: reason.trim() || null });
+  };
+
+  const monthsValue = parseMonths(months);
+  const canGrant =
+    /.+@.+\..+/.test(email.trim()) && tierKey !== "" && !Number.isNaN(monthsValue ?? 0);
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString(uiLocale(lang)) : "—";
   const sourceLabel = (s: string) =>
@@ -129,7 +223,7 @@ export function GrantsSection({
           variant="ghost"
           className="text-muted-foreground hover:text-destructive"
           disabled={revokeM.isPending}
-          onClick={() => revokeM.mutate(g.id)}
+          onClick={() => void askRevoke(g)}
         >
           <Trash2 className="mr-1 h-4 w-4" aria-hidden="true" />
           {tm("grants.revoke")}
@@ -156,18 +250,16 @@ export function GrantsSection({
             </LabeledField>
             <LabeledField label={tm("grants.tier")} className="space-y-1">
               {(field) => (
-                <Select value={tierKey} onValueChange={setTierKey}>
-                  <SelectTrigger {...field}>
-                    <SelectValue placeholder={tm("grants.tierSelect")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tierOptions.map((tier) => (
-                      <SelectItem key={tier.key} value={tier.key}>
-                        {tier.key} ({lang === "pl" ? tier.name_pl : tier.name_en})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormSelect
+                  id={field.id}
+                  value={tierKey}
+                  onValueChange={setTierKey}
+                  placeholder={tm("grants.tierSelect")}
+                  options={tierOptions.map((tier) => ({
+                    value: tier.key,
+                    label: `${tier.key} (${lang === "pl" ? tier.name_pl : tier.name_en})`,
+                  }))}
+                />
               )}
             </LabeledField>
             <LabeledField label={tm("grants.months")} className="space-y-1">
@@ -176,8 +268,9 @@ export function GrantsSection({
                   {...field}
                   type="number"
                   min={1}
-                  max={120}
+                  max={GRANT_MONTHS_MAX}
                   value={months}
+                  aria-invalid={Number.isNaN(monthsValue ?? 0) || undefined}
                   onChange={(e) => setMonths(e.target.value)}
                   placeholder="∞"
                 />

@@ -144,6 +144,7 @@ function plan(over: Partial<AccessPlan> = {}): AccessPlan {
     highlighted: false,
     trial_days: 0,
     tier_key: "pro",
+    for_sale: true,
     ...over,
   };
 }
@@ -372,6 +373,33 @@ describe("trasa /checkout/$planId - podsumowanie zamówienia", () => {
     expect(screen.getByText("lok. 12")).toBeInTheDocument();
     expect(screen.getByText(/00-001\s+Warszawa/)).toBeInTheDocument();
   });
+});
+
+// Cennik v6.2: plan poza sprzedażą samoobsługową (Partner Biznesowy wycofany,
+// Zespół przez rozmowę, Decision Lab na zapytanie) bywa otwierany ze starego
+// linku albo zakładki. Serwer odmawia zakupu (`planPurchaseRefusal`), więc
+// strona nie może prosić o dane do faktury z „Zapisz i kontynuuj", po którym
+// nic się nie dzieje - zostaje samo podsumowanie z drogą dalej.
+describe("trasa /checkout/$planId - plan poza sprzedażą", () => {
+  it.each([
+    ["wycofany / przez rozmowę", { tier_key: "business", for_sale: false }, /nie kupisz online/],
+    ["na zapytanie (Decision Lab)", { tier_key: "decision_lab" }, /wyceniana indywidualnie/],
+  ] as const)(
+    "%s: bez formularza danych do faktury i metody płatności",
+    async (_label, over, message) => {
+      h.session = { user: { id: "u-1" } };
+      h.tenantId = TENANT;
+      h.billing = null;
+      h.plan = plan(over);
+      await mount();
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.queryByText("Dane do faktury")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Zapisz i kontynuuj" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Metoda płatności")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Zapłać/ })).not.toBeInTheDocument();
+    },
+  );
 });
 
 describe("trasa /checkout/$planId - izolacja obszarów roboczych", () => {

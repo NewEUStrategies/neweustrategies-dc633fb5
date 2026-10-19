@@ -1,21 +1,29 @@
 // Organizm: cały panel warstw członkostwa.
 //
 // Cztery obszary w zakładkach:
-//   Katalog warstw    nazwy, opisy, ranga, benefity i możliwości maszynowe,
+//   Katalog warstw    ranga, status i bramki (rdzeń warstwy),
 //   Mapowanie planów  `access_plans.tier_key` - co klient dostaje za zakup,
 //   Nadania           członkostwo poza planem (darowizna, faktura, import),
 //   Organizacje       skok do panelu organizacji i uzgodnienie z Confluence.
 //
-// Marketing warstw (badge, wyróżnienie, segment, benefity na stronie cennika)
-// należy do `/admin/pricing` - tutaj go NIE MA świadomie, żeby dwa panele nie
-// zapisywały tych samych kolumn.
+// PODZIAŁ WŁASNOŚCI KOLUMN (S1 def. 11, `syncManifest.ts`). Ten panel pisze
+// WYŁĄCZNIE rdzeń warstwy (`useSaveTierCore`: ranga, bramki, aktywność,
+// domyślność) i przypięcie planu (`useSaveAccessPlanPatch("membership")`:
+// tylko `tier_key`). Nazwy, opisy i benefity należą do Cennika - tutaj są do
+// odczytu z odnośnikiem. Dawniej panel zapisywał całą warstwę i przy okazji
+// zmiany rangi cofał benefity ustawione w Cenniku, a zapis mapowania nie znał
+// tokenu - cena zmieniona w Paywallu i przypięcie zmienione tutaj nadpisywały
+// się nawzajem bez śladu. Teraz oba zapisy idą patchem z tokenem `updated_at`,
+// a cudzy zapis po naszym odczycie to jawny konflikt (`40001`) z akcją
+// „Wczytaj aktualne".
 //
-// Tu mieszkają WYŁĄCZNIE trzy zapytania wspólne dla zakładek, mutacje katalogu
-// i kompozycja; zawartość zakładek to osobne molekuły i organizmy.
+// ADRES = STAN (SPEC §2.6). Trasa podaje zakładkę (`?tab=`) i klucz otwartej
+// warstwy (`?tier=`) i zapisuje wybór z powrotem. Bez propsów (test organizmu,
+// osadzenie bez routera) oba żyją w stanie komponentu.
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Crown, Gift, Landmark, Layers, ShieldCheck, Tag } from "lucide-react";
 
@@ -23,152 +31,235 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiTile } from "@/components/admin/membership/atoms/KpiTile";
 import { SectionCard } from "@/components/admin/membership/atoms/SectionCard";
+import { adminMembershipTiersQueryOptions } from "@/components/admin/membership/membershipQueries";
 import { NewTierDialog } from "@/components/admin/membership/molecules/NewTierDialog";
 import { PlanTierMappingList } from "@/components/admin/membership/molecules/PlanTierMappingList";
 import { TierSummaryCard } from "@/components/admin/membership/molecules/TierSummaryCard";
-import { TierEditorDialog } from "@/components/admin/membership/organisms/TierEditorDialog";
+import { adminMembershipGrantsQueryOptions } from "@/components/admin/membership/grantsQuery";
 import { GrantsSection } from "@/components/admin/membership/organisms/GrantsSection";
-import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
-import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
-import { fetchMembershipGrants } from "@/lib/admin/membership-admin";
+import { TierEditorDialog } from "@/components/admin/membership/organisms/TierEditorDialog";
 import {
-  draftFromTier,
-  parseFeaturesJson,
-  InvalidFeaturesJsonError,
-  type TierDraft,
-} from "@/lib/admin/membershipDrafts";
+  coreDraftFromTier,
+  corePatch,
+  rebaseCoreDraft,
+  type TierCoreDraft,
+} from "@/components/admin/membership/tierCoreDraft";
+import { ConfluenceReconciliationCard } from "@/components/admin/pricing/ConfluenceReconciliationCard";
+import { showSaveError } from "@/components/admin/pricing/saveErrorToast";
+import { InvalidFeaturesJsonError } from "@/lib/admin/membershipDrafts";
+import { isMembershipTab, type MembershipTabId } from "@/lib/admin/pricingTabs";
 import { summarizeCapabilities } from "@/lib/admin/membership/capabilityModel";
-import { billingKeys } from "@/lib/billing/keys";
-import { fetchActivePlans } from "@/lib/billing/queries";
-import { serializeTierBenefits } from "@/lib/billing/tiers";
-import { toJson } from "@/lib/builder/types";
+import {
+  adminPlansAllQueryOptions,
+  useSaveAccessPlanPatch,
+  type AccessPlanRow,
+} from "@/lib/billing/planQueries";
+import {
+  useCreateTier,
+  useDeleteTier,
+  useSaveTierCore,
+  type MembershipTierRow,
+  type TierCorePatch,
+} from "@/lib/billing/tierMutations";
+import { parseTierBenefits } from "@/lib/billing/tiers";
+import { ensureI18n as ensurePaywallSyncI18n } from "@/lib/i18n-admin-paywall-sync";
+import { toastError } from "@/lib/toastError";
 
-export function AdminMembershipWorkspace() {
+const TAB_TRIGGER =
+  "h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8";
+
+/**
+ * Szkic rdzenia razem z wierszem, na którym admin zaczął edycję. Baza jest
+ * zamrożona w szkicu: odświeżenie katalogu (szyna, druga karta) NIE podmienia
+ * tokenu pod niezapisanymi zmianami - inaczej zapis przeszedłby bez konfliktu
+ * i nadpisał cudzą zmianę, której admin nie widział.
+ */
+interface TierEdit {
+  base: MembershipTierRow;
+  draft: TierCoreDraft;
+}
+
+/** Szkic różni się od bazy; niedokończony JSON bramek to też zmiana (zapis powie, co jest nie tak). */
+function editIsDirty(edit: TierEdit | null): boolean {
+  if (!edit) return false;
+  try {
+    return Object.keys(corePatch(edit.draft, edit.base)).length > 0;
+  } catch {
+    return true;
+  }
+}
+
+export function AdminMembershipWorkspace({
+  tab,
+  onTabChange,
+  tierKey,
+  onTierKeyChange,
+}: {
+  /** Zakładka z `?tab=`; brak = stan lokalny (domyślnie katalog warstw). */
+  tab?: MembershipTabId;
+  onTabChange?: (tab: MembershipTabId) => void;
+  /** Klucz warstwy z `?tier=` - otwiera jej edytor. */
+  tierKey?: string | null;
+  onTierKeyChange?: (key: string | null) => void;
+} = {}) {
+  // Konflikt zapisu mówi słowami wspólnego słownika synchronizacji S1.
+  ensurePaywallSyncI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const qc = useQueryClient();
 
-  const tiersQ = useQuery({
-    queryKey: billingKeys.admin.membershipTiers(),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("membership_tiers")
-        .select("*")
-        .order("rank", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
-  });
-  const plansQ = useQuery({ queryKey: billingKeys.admin.plans(), queryFn: fetchActivePlans });
-  const grantsPreviewQ = useQuery({
-    queryKey: billingKeys.admin.membershipGrants(),
-    queryFn: fetchMembershipGrants,
-  });
+  const tiersQ = useQuery(adminMembershipTiersQueryOptions());
+  // WSZYSTKIE plany (także nieaktywne i wycofane) - ten sam wpis cache co
+  // katalog w Paywallu, więc zmiana ceny tam odświeża tę listę i odwrotnie.
+  const plansQ = useQuery(adminPlansAllQueryOptions());
+  const grantsPreviewQ = useQuery(adminMembershipGrantsQueryOptions());
 
-  const [drafts, setDrafts] = useState<Record<string, TierDraft>>({});
-  // Edycja mieszka w oknie - katalog trzyma tylko identyfikator otwartej warstwy.
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const saveTierM = useSaveTierCore();
+  const deleteTierM = useDeleteTier();
+  const createTierM = useCreateTier();
+  const savePlanTierM = useSaveAccessPlanPatch("membership");
+
+  const [edits, setEdits] = useState<Record<string, TierEdit>>({});
+  const [localTab, setLocalTab] = useState<MembershipTabId>("tiers");
+  // Klucz otwartej warstwy trzymamy też lokalnie: adres przyjmuje klucze
+  // `[a-z0-9_]`, a formularz nowej warstwy dopuszcza myślnik - okno musi się
+  // otworzyć także wtedy, gdy adresu nie da się takim kluczem zapisać.
+  const [localKey, setLocalKey] = useState<string | null>(null);
+  const activeTab = tab ?? localTab;
+  const editingKey = localKey ?? tierKey ?? null;
+
+  const selectTab = (next: string) => {
+    if (!isMembershipTab(next)) return;
+    setLocalTab(next);
+    onTabChange?.(next);
+  };
+  const openTier = (key: string | null) => {
+    setLocalKey(key);
+    onTierKeyChange?.(key);
+  };
+
   const tierOptions = useMemo(
     () => (tiersQ.data ?? []).filter((tier) => tier.active),
     [tiersQ.data],
   );
-
   const tiers = tiersQ.data ?? [];
+  const plans = plansQ.data ?? [];
   const activeTiersCount = tiers.filter((tt) => tt.active).length;
   const defaultTier = tiers.find((tt) => tt.is_default);
-  const mappedPlansCount = (plansQ.data ?? []).filter((p) => p.tier_key).length;
+  const mappedPlansCount = plans.filter((p) => p.tier_key).length;
   const activeGrantsCount = (grantsPreviewQ.data ?? []).filter((g) => !g.revoked_at).length;
-  const editingTier = tiers.find((tt) => tt.id === editingId) ?? null;
-  const editingDraft = editingTier ? (drafts[editingTier.id] ?? draftFromTier(editingTier)) : null;
 
-  const saveTier = useMutation({
-    mutationFn: async ({ id, draft }: { id: string; draft: TierDraft }) => {
-      // Niepoprawny JSON PRZERYWA zapis - reguła rzuca, tu tylko tłumaczymy
-      // komunikat na język panelu.
-      let features: Json;
-      try {
-        features = parseFeaturesJson(draft.features);
-      } catch (err) {
-        if (err instanceof InvalidFeaturesJsonError) throw new Error(tm("toast.featuresInvalid"));
-        throw err;
+  const editingRow = tiers.find((tt) => tt.key === editingKey) ?? null;
+  const editing: TierEdit | null = editingRow
+    ? (edits[editingRow.id] ?? { base: editingRow, draft: coreDraftFromTier(editingRow) })
+    : null;
+
+  const dropEdit = (id: string) =>
+    setEdits((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+
+  // „Wczytaj aktualne" po konflikcie: świeży wiersz staje się nową bazą (nowy
+  // token), a pola zmienione przez admina są nakładane na niego.
+  const reloadTier = async (id: string, key: string) => {
+    try {
+      const rows = await qc.fetchQuery({ ...adminMembershipTiersQueryOptions(), staleTime: 0 });
+      const fresh = rows.find((row) => row.id === id);
+      if (!fresh) {
+        dropEdit(id);
+        toast.error(tm("editDialog.notFound", { key }));
+        return;
       }
-      const { error } = await supabase
-        .from("membership_tiers")
-        .update({
-          name_pl: draft.name_pl.trim(),
-          name_en: draft.name_en.trim(),
-          description_pl: draft.description_pl.trim() || null,
-          description_en: draft.description_en.trim() || null,
-          rank: draft.rank,
-          benefits: serializeTierBenefits(draft.benefits),
-          features,
-          active: draft.active,
-          is_default: draft.is_default,
-        })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success(tm("toast.tierSaved"));
-      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
-      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const deleteTier = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("membership_tiers").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success(tm("toast.tierDeleted"));
-      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
-      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const createTier = useMutation({
-    mutationFn: async (input: { key: string; rank: number; name_pl: string; name_en: string }) => {
-      // tenant_id wymuszony przez politykę RLS - pobierz z istniejącej warstwy
-      const existing = tiersQ.data?.[0];
-      if (!existing) throw new Error(tm("toast.noTenant"));
-      const { error } = await supabase.from("membership_tiers").insert({
-        tenant_id: existing.tenant_id,
-        key: input.key.trim(),
-        rank: input.rank,
-        name_pl: input.name_pl.trim(),
-        name_en: input.name_en.trim(),
-        benefits: toJson([]),
-        features: {} as Json,
+      setEdits((current) => {
+        const edit = current[id];
+        if (!edit) return current;
+        return {
+          ...current,
+          [id]: { base: fresh, draft: rebaseCoreDraft(edit.draft, edit.base, fresh) },
+        };
       });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success(tm("toast.tierCreated"));
-      void qc.invalidateQueries({ queryKey: billingKeys.admin.membershipTiers() });
-      void qc.invalidateQueries({ queryKey: billingKeys.membershipTiers() });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+      toast.info(t("adminPaywall.sync.reloaded"));
+    } catch (err) {
+      toastError(err, "load");
+    }
+  };
 
-  const savePlanTier = useMutation({
-    mutationFn: async ({ planId, tierKey }: { planId: string; tierKey: string | null }) => {
-      const { error } = await supabase
-        .from("access_plans")
-        .update({ tier_key: tierKey })
-        .eq("id", planId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
+  const saveTier = async (edit: TierEdit) => {
+    let patch: TierCorePatch;
+    try {
+      patch = corePatch(edit.draft, edit.base);
+    } catch (err) {
+      // Niepoprawny JSON PRZERYWA zapis - warstwa z połamanymi bramkami nie
+      // otwiera nic, za co klient zapłacił. Zero zapytań do bazy.
+      if (err instanceof InvalidFeaturesJsonError) {
+        toast.error(tm("toast.featuresInvalid"));
+        return;
+      }
+      throw err;
+    }
+    if (Object.keys(patch).length === 0) return;
+    try {
+      await saveTierM.mutateAsync({
+        id: edit.base.id,
+        expectedUpdatedAt: edit.base.updated_at,
+        patch,
+      });
+      toast.success(tm("toast.tierSaved"));
+      dropEdit(edit.base.id);
+    } catch (err) {
+      showSaveError(err, t, () => void reloadTier(edit.base.id, edit.base.key));
+    }
+  };
+
+  const deleteTier = async (row: MembershipTierRow) => {
+    openTier(null);
+    try {
+      await deleteTierM.mutateAsync({ id: row.id });
+      toast.success(tm("toast.tierDeleted"));
+      dropEdit(row.id);
+    } catch (err) {
+      toastError(err, "delete");
+    }
+  };
+
+  const createTier = async (input: {
+    key: string;
+    rank: number;
+    name_pl: string;
+    name_en: string;
+  }) => {
+    try {
+      await createTierM.mutateAsync(input);
+      toast.success(tm("toast.tierCreated"));
+    } catch (err) {
+      // Najemca z SESJI (S1 def. 13) - dawniej brany z pierwszej warstwy, więc
+      // pusty katalog blokował utworzenie pierwszej. `tenant_unresolved` znaczy
+      // tylko, że sesja jeszcze się nie ustaliła.
+      if (err instanceof Error && err.message === "tenant_unresolved") {
+        toast.error(tm("toast.noTenant"));
+        return;
+      }
+      toastError(err, "save");
+    }
+  };
+
+  const assignPlanTier = async (plan: AccessPlanRow, nextKey: string | null) => {
+    try {
+      await savePlanTierM.mutateAsync({
+        id: plan.id,
+        expectedUpdatedAt: plan.updated_at,
+        patch: { tier_key: nextKey },
+      });
       toast.success(tm("toast.planMappingSaved"));
-      void qc.invalidateQueries({ queryKey: billingKeys.admin.plans() });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+    } catch (err) {
+      // Wybór z listy jest natychmiastowy, więc „szkicem" jest sam wybór -
+      // po wczytaniu aktualnego katalogu admin wybiera ponownie świadomie.
+      showSaveError(err, t, () => void plansQ.refetch());
+    }
+  };
 
   return (
     <div className="space-y-6 p-6 font-sans">
@@ -185,8 +276,8 @@ export function AdminMembershipWorkspace() {
           <NewTierDialog
             existingKeys={tiers.map((tt) => tt.key)}
             suggestedRank={(tiers.at(-1)?.rank ?? 0) + 10}
-            onCreate={(v) => createTier.mutate(v)}
-            isPending={createTier.isPending}
+            onCreate={(v) => void createTier(v)}
+            isPending={createTierM.isPending}
           />
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -203,46 +294,34 @@ export function AdminMembershipWorkspace() {
           <KpiTile
             icon={Tag}
             label={tm("kpi.mappedPlans")}
-            value={`${mappedPlansCount} / ${(plansQ.data ?? []).length}`}
+            value={`${mappedPlansCount} / ${plans.length}`}
           />
           <KpiTile icon={Gift} label={tm("kpi.activeGrants")} value={String(activeGrantsCount)} />
         </div>
       </header>
 
       {/* Tabs porządkują 4 obszary: katalog warstw | mapowanie planów | nadania | organizacje. */}
-      <Tabs defaultValue="tiers" className="w-full">
+      <Tabs value={activeTab} onValueChange={selectTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 gap-2 rounded-[6px] border border-border/60 bg-muted/50 p-1.5 shadow-sm sm:inline-flex sm:h-11 sm:w-auto sm:grid-cols-none sm:gap-1">
-          <TabsTrigger
-            value="tiers"
-            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
-          >
+          <TabsTrigger value="tiers" className={TAB_TRIGGER}>
             <Layers className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{tm("tabs.tiers")}</span>
             <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums">
               {tiers.length}
             </span>
           </TabsTrigger>
-          <TabsTrigger
-            value="mapping"
-            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
-          >
+          <TabsTrigger value="mapping" className={TAB_TRIGGER}>
             <Tag className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{tm("tabs.mapping")}</span>
           </TabsTrigger>
-          <TabsTrigger
-            value="grants"
-            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
-          >
+          <TabsTrigger value="grants" className={TAB_TRIGGER}>
             <Gift className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{tm("tabs.grants")}</span>
             <span className="ml-0.5 rounded-[4px] bg-muted px-1.5 py-0 text-[10px] font-semibold tabular-nums">
               {activeGrantsCount}
             </span>
           </TabsTrigger>
-          <TabsTrigger
-            value="orgs"
-            className="h-10 gap-2 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm sm:h-8"
-          >
+          <TabsTrigger value="orgs" className={TAB_TRIGGER}>
             <Landmark className="h-4 w-4 shrink-0" aria-hidden />
             <span className="truncate">{tm("tabs.orgs")}</span>
           </TabsTrigger>
@@ -259,20 +338,18 @@ export function AdminMembershipWorkspace() {
             {/* Kompaktowa siatka kafli - pełna edycja w oknie, bez przewijania. */}
             <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
               {tiers.map((tier) => {
-                const draft = drafts[tier.id] ?? draftFromTier(tier);
+                const draft = edits[tier.id]?.draft ?? coreDraftFromTier(tier);
                 const summary = summarizeCapabilities(draft.features);
                 return (
                   <TierSummaryCard
                     key={tier.id}
                     tier={tier}
                     name={lang === "pl" ? tier.name_pl : tier.name_en}
-                    description={
-                      (lang === "pl" ? draft.description_pl : draft.description_en) || ""
-                    }
-                    benefitsCount={draft.benefits.length}
+                    description={(lang === "pl" ? tier.description_pl : tier.description_en) || ""}
+                    benefitsCount={parseTierBenefits(tier.benefits).length}
                     enabledCount={summary.enabled}
                     enforcedCount={summary.enforced}
-                    onOpen={() => setEditingId(tier.id)}
+                    onOpen={() => openTier(tier.key)}
                   />
                 );
               })}
@@ -284,11 +361,14 @@ export function AdminMembershipWorkspace() {
         <TabsContent value="mapping" className="mt-4 space-y-4">
           <SectionCard icon={Tag} title={tm("mapping.heading")} description={tm("mapping.hint")}>
             <PlanTierMappingList
-              plans={plansQ.data ?? []}
+              plans={plans}
               tierOptions={tierOptions}
               lang={lang}
-              saving={savePlanTier.isPending}
-              onAssign={(planId, tierKey) => savePlanTier.mutate({ planId, tierKey })}
+              saving={savePlanTierM.isPending}
+              onAssign={(planId, key) => {
+                const plan = plans.find((p) => p.id === planId);
+                if (plan) void assignPlanTier(plan, key);
+              }}
             />
           </SectionCard>
         </TabsContent>
@@ -314,31 +394,31 @@ export function AdminMembershipWorkspace() {
       </Tabs>
 
       <TierEditorDialog
-        tier={editingTier}
-        draft={editingDraft}
-        saving={saveTier.isPending}
-        deleting={deleteTier.isPending}
+        tierKey={editingKey}
+        tier={editing?.base ?? null}
+        draft={editing?.draft ?? null}
+        loading={tiersQ.isPending}
+        saving={saveTierM.isPending}
+        deleting={deleteTierM.isPending}
+        canSave={editIsDirty(editing)}
         onOpenChange={(next) => {
-          if (!next) setEditingId(null);
+          if (!next) openTier(null);
         }}
         onChange={(patch) => {
-          if (!editingTier || !editingDraft) return;
-          setDrafts((d) => ({ ...d, [editingTier.id]: { ...editingDraft, ...patch } }));
+          if (!editing) return;
+          const id = editing.base.id;
+          setEdits((current) => {
+            const prev = current[id] ?? editing;
+            return { ...current, [id]: { ...prev, draft: { ...prev.draft, ...patch } } };
+          });
         }}
         onSave={() => {
-          if (editingTier && editingDraft) {
-            saveTier.mutate({ id: editingTier.id, draft: editingDraft });
-          }
+          if (editing) void saveTier(editing);
         }}
         onDelete={() => {
-          if (editingTier) {
-            deleteTier.mutate(editingTier.id);
-            setEditingId(null);
-          }
+          if (editing) void deleteTier(editing.base);
         }}
       />
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------

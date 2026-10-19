@@ -69,6 +69,11 @@ vi.mock("@/components/admin/billing/AdminTicketOrdersPanel", () => ({
 vi.mock("@/components/admin/billing/LegacyNonPaymentReconcileCard", () => ({
   LegacyNonPaymentReconcileCard: () => null,
 }));
+// Karta przeniesienia na cennik v6.2 ma własny test - tu jej server functions
+// (z middleware admina) nie mają czego szukać.
+vi.mock("@/components/admin/billing/SubscriptionRepricingCard", () => ({
+  SubscriptionRepricingCard: () => null,
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { AdminBillingPanel } from "@/components/admin/billing/AdminBillingPanel";

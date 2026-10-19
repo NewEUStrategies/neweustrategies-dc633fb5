@@ -1,0 +1,133 @@
+{
+  "group": "przychod",
+  "metrics": [
+    {
+      "key": "arpu",
+      "abbr": "ARPU",
+      "name_pl": "Średni przychód na płacącego użytkownika",
+      "name_en": "Average revenue per paying user",
+      "expansion_pl": "Average Revenue Per User – średni przychód na użytkownika",
+      "expansion_en": "Average Revenue Per User",
+      "formula": "ARPU = przychód powtarzalny ÷ średnia liczba płacących",
+      "unit": "PLN/mies.",
+      "interpretation_pl": "Poziom przychodu z jednego płacącego.",
+      "interpretation_en": "Revenue level from one paying user.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Media cyfrowe B2C, Polska (PLN/mies.)",
+          "period": "miesięcznie",
+          "method": "heurystyka z cenników",
+          "source_ids": ["S1"],
+          "bands": [
+            { "label": "krytyczny", "min": null, "max": 8 },
+            { "label": "słaby", "min": 8, "max": 12 },
+            { "label": "normalny", "min": 12, "max": 18 },
+            { "label": "dobry", "min": 18, "max": 25, "note": "szacunek rynkowy" },
+            { "label": "optymalny", "min": 25, "max": null }
+          ]
+        }
+      ],
+      "caveats": ["Szacunek jest niepewny."],
+      "confidence": "niska"
+    },
+    {
+      "key": "average_discount",
+      "abbr": "ADD",
+      "name_pl": "Średnia głębokość rabatu",
+      "name_en": "Average discount depth",
+      "expansion_pl": "Average Discount Depth – średni rabat",
+      "expansion_en": "Average Discount Depth",
+      "formula": "ADD = Σ rabat ÷ Σ cena katalogowa",
+      "unit": "%",
+      "interpretation_pl": "Im głębszy rabat, tym mniejsza wartość klienta.",
+      "interpretation_en": "The deeper the discount, the lower the customer value.",
+      "direction": "lower_better",
+      "contexts": [
+        {
+          "context": "Oferty wejściowe B2C (%)",
+          "period": "na kampanię",
+          "method": "progi z badania",
+          "source_ids": ["S100"],
+          "bands": [
+            { "label": "krytyczny", "min": 50, "max": null, "note": "heurystyka: głębokie rabaty" },
+            { "label": "słaby", "min": 35, "max": 50 },
+            { "label": "normalny", "min": 25, "max": 35 },
+            { "label": "dobry", "min": 15, "max": 25 },
+            { "label": "optymalny", "min": 0, "max": 15 }
+          ]
+        }
+      ],
+      "caveats": ["Rabat liczony od ceny katalogowej."],
+      "confidence": "niska"
+    },
+    {
+      "key": "annual_plan_share",
+      "abbr": "APS",
+      "name_pl": "Udział planów rocznych",
+      "name_en": "Annual plan share",
+      "expansion_pl": "Annual Plan Share – udział planów rocznych",
+      "expansion_en": "Annual Plan Share",
+      "formula": "APS = plany roczne ÷ wszystkie plany",
+      "unit": "%",
+      "interpretation_pl": "Zakres docelowy, nie maksimum.",
+      "interpretation_en": "A target range, not a maximum.",
+      "direction": "target_range",
+      "contexts": [
+        {
+          "context": "Media B2C (%)",
+          "period": "miesięcznie",
+          "method": "średnie źródeł",
+          "source_ids": ["slug_a"],
+          "bands": [
+            { "label": "słaby (za mało rocznych)", "min": 0, "max": 15 },
+            { "label": "normalny", "min": 15, "max": 40 },
+            { "label": "optymalny", "min": 40, "max": 60 },
+            { "label": "normalny", "min": 60, "max": 80 },
+            { "label": "słaby (zbyt szczelnie)", "min": 80, "max": 100, "note": "sprawdź ARPU" }
+          ]
+        }
+      ],
+      "caveats": [],
+      "confidence": "średnia"
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Raport A",
+      "publisher": "Wydawca A",
+      "published": "2025-06",
+      "url": "https://www.Example.com/report/",
+      "excerpt": "Cytat A.",
+      "verification": "tak"
+    },
+    {
+      "id": "S100",
+      "title": "Raport B",
+      "publisher": "Dostawca B",
+      "published": "2026",
+      "url": "https://example.org/b?utm_source=newsletter&id=7",
+      "excerpt": "Cytat B.",
+      "verification": "częściowo"
+    },
+    {
+      "id": "slug_a",
+      "title": "Raport C",
+      "publisher": "Instytut C",
+      "published": "b.d.",
+      "url": "https://example.org/c#wyniki",
+      "excerpt": "Cytat C.",
+      "verification": "nie da się sprawdzić"
+    },
+    {
+      "id": "S2",
+      "title": "Raport D",
+      "publisher": "Firma D",
+      "published": "2017-10",
+      "url": "https://example.org/d",
+      "excerpt": "Cytat D.",
+      "verification": "tak"
+    }
+  ]
+}

@@ -25,6 +25,25 @@ const pl = {
         errorsDailySub: "Grupowanie po znormalizowanym komunikacie.",
       },
       cols: { day: "Dzień", value: "Wartość", count: "Liczba" },
+      // Sekcja „Przychód i lejek” na /admin/analytics/bi (wycinek S6). Słowa
+      // ocen, skali i objaśnień są w słowniku powłoki huba
+      // (`adminRevenue.benchmark.*`); tu wyłącznie napisy samej sekcji BI.
+      revenue: {
+        title: "Przychód i lejek - kluczowe wskaźniki",
+        subtitle:
+          "Kafle z rejestru wskaźników z oceną na tle rynku. Pełne liczby, wykresy i diagnozy są w hubie.",
+        openHub: "Otwórz hub przychodu",
+        finance: "Finanse i retencja",
+        engagement: "Lejek, komunikacja i społeczność",
+        dictionaryShow: "Pokaż słownik wskaźników przychodu",
+        dictionaryHide: "Ukryj słownik wskaźników przychodu",
+        error: "Nie udało się wczytać wskaźników przychodu.",
+        retry: "Spróbuj ponownie",
+        loading: "Wczytywanie wskaźników przychodu…",
+        reconciliation: "Uzgodnienie przychodu: księga dokumentów i zamówienia",
+        sourcesPending:
+          "Część źródeł nie jest jeszcze podłączona - ich kafle pokażą liczby po wdrożeniu migracji huba.",
+      },
     },
 
     common: {
@@ -918,6 +937,22 @@ const en = {
         errorsDailySub: "Grouped by normalized message.",
       },
       cols: { day: "Day", value: "Value", count: "Count" },
+      revenue: {
+        title: "Revenue and funnel - key indicators",
+        subtitle:
+          "Tiles from the indicator registry, rated against the market. Full figures, charts and diagnostics are in the hub.",
+        openHub: "Open the revenue hub",
+        finance: "Finance and retention",
+        engagement: "Funnel, communication and community",
+        dictionaryShow: "Show the revenue indicator dictionary",
+        dictionaryHide: "Hide the revenue indicator dictionary",
+        error: "Could not load revenue indicators.",
+        retry: "Try again",
+        loading: "Loading revenue indicators…",
+        reconciliation: "Revenue reconciliation: document ledger versus orders",
+        sourcesPending:
+          "Some sources are not connected yet - their tiles will show figures once the hub migrations are deployed.",
+      },
     },
 
     common: {

@@ -21,6 +21,7 @@ import {
   reactI18nextStub,
 } from "@/test/admin/pricingFixtures";
 import { accessPlan } from "@/test/billing/fixtures";
+import { RouterLinkStub } from "@/test/routerLinkStub";
 
 let lang: "pl" | "en" = "pl";
 
@@ -28,6 +29,8 @@ vi.mock("react-i18next", () => reactI18nextStub(() => lang));
 vi.mock("@/components/ui/select", async () => radixSelectStub(await import("react")));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
 vi.mock("@/components/ui/tabs", async () => radixTabsStub(await import("react")));
+// Karta prowadzi do Cennika (`LinkedSourceHeader`) - link sprawdzamy po adresie.
+vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub }));
 
 /** Karta warstwy ma trzy zakładki - test wchodzi w tę, której dotyczy. */
 function openTierTab(key: "basics" | "benefits" | "capabilities") {
@@ -38,7 +41,9 @@ const { TierEditorCard } = await import("@/components/admin/membership/molecules
 const { PlanTierMappingList } =
   await import("@/components/admin/membership/molecules/PlanTierMappingList");
 const { NewTierDialog } = await import("@/components/admin/membership/molecules/NewTierDialog");
-const { draftFromTier } = await import("@/lib/admin/membershipDrafts");
+// Od S1 karta edytuje wyłącznie RDZEŃ warstwy (def. 11) - szkic bez nazw i benefitów.
+const { coreDraftFromTier: draftFromTier } =
+  await import("@/components/admin/membership/tierCoreDraft");
 
 beforeEach(() => {
   lang = "pl";
@@ -180,44 +185,64 @@ describe("TierEditorCard - pola formularza", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
-  it("zmiana każdej z czterech nazw i opisów zgłasza swoje pole", () => {
-    const { onChange } = renderCard();
-
-    fireEvent.change(screen.getByDisplayValue("Członek"), { target: { value: "Czytelnik" } });
-    expect(onChange).toHaveBeenCalledWith({ name_pl: "Czytelnik" });
-
-    fireEvent.change(screen.getByDisplayValue("Member"), { target: { value: "Reader" } });
-    expect(onChange).toHaveBeenCalledWith({ name_en: "Reader" });
-  });
-
-  it("opisy w obu językach mają osobne pola wielowierszowe", () => {
-    const tier = membershipTier({ description_pl: "Opis PL", description_en: "Description EN" });
-    const onChange = vi.fn();
+  it("ZMIANA ZAMIERZONA (def. 11): nazwy i opisy są do ODCZYTU, z odnośnikiem do Cennika", () => {
+    // Charakteryzacja przypinała edycję czterech pól nazw i opisów w tej
+    // karcie. Właścicielem tych kolumn jest od S1 Cennik - karta Członkostwa,
+    // która je zapisywała, cofała przy zapisie rangi zmiany z Cennika.
+    const tier = membershipTier({
+      name_pl: "Członek",
+      name_en: "Member",
+      description_pl: "Opis PL",
+      description_en: null,
+    });
     render(
       <TierEditorCard
         tier={tier}
         draft={draftFromTier(tier)}
         saving={false}
         deleting={false}
-        onChange={onChange}
+        onChange={vi.fn()}
         onSave={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
 
-    const pl = screen.getByDisplayValue("Opis PL");
-    const en = screen.getByDisplayValue("Description EN");
+    expect(screen.getByText("Członek")).toBeInTheDocument();
+    expect(screen.getByText("Opis PL")).toBeInTheDocument();
+    expect(screen.getByText("adminMembership.readOnly.descriptionEmpty")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Członek")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+    expect(screen.getByRole("link", { name: /linkedSource\.manage/ })).toHaveAttribute(
+      "href",
+      "/admin/pricing?tab=tiers",
+    );
+  });
 
-    expect(pl).toHaveAttribute("rows", "4");
-    expect(en).toHaveAttribute("rows", "4");
-    expect(pl).toHaveClass("min-h-[88px]");
-    expect(en).toHaveClass("min-h-[88px]");
+  it("ZMIANA ZAMIERZONA (def. 11): benefity są listą do odczytu, edytuje je Cennik", () => {
+    const tier = membershipTier({
+      benefits: [
+        { pl: "Briefing", en: "Briefing EN" },
+        { pl: "Debaty", en: "Debates" },
+      ],
+    });
+    render(
+      <TierEditorCard
+        tier={tier}
+        draft={draftFromTier(tier)}
+        saving={false}
+        deleting={false}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    openTierTab("benefits");
 
-    fireEvent.change(pl, { target: { value: "Nowy opis" } });
-    expect(onChange).toHaveBeenCalledWith({ description_pl: "Nowy opis" });
-
-    fireEvent.change(en, { target: { value: "New" } });
-    expect(onChange).toHaveBeenCalledWith({ description_en: "New" });
+    const group = screen.getByRole("group", { name: /groups\.benefits/ });
+    expect(within(group).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(group).getByText("Debates")).toBeInTheDocument();
+    expect(within(group).queryAllByRole("textbox")).toHaveLength(0);
+    expect(within(group).queryByRole("button", { name: /benefits\.add/ })).not.toBeInTheDocument();
   });
 
   it("przełącznik aktywności i flagi domyślności zgłaszają osobne pola", () => {
@@ -468,7 +493,7 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
   // czterech z nich były TWARDYMI polskimi napisami - wersja angielska panelu
   // pokazywała „Nazwa PL" i „Opis PL". Klucze słownika istniały od początku;
   // komponent ich nie używał.
-  it("nazwy i opisy warstwy dają się znaleźć po etykiecie ZE SŁOWNIKA", () => {
+  it("pola rdzenia dają się znaleźć po etykiecie ZE SŁOWNIKA, nazwy mają etykiety odczytu", () => {
     const tier = membershipTier();
     render(
       <TierEditorCard
@@ -488,14 +513,16 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
     ).toBeInTheDocument();
     openTierTab("basics");
 
+    expect(screen.getByLabelText("adminMembership.fields.rank")).toBeInTheDocument();
+    // Nazwy i opisy są tylko do odczytu (def. 11) - etykieta stoi przy
+    // wartości w parze `dt`/`dd`, bez pola do wpisania.
     for (const key of [
       "fields.namePl",
       "fields.nameEn",
       "fields.descriptionPl",
       "fields.descriptionEn",
-      "fields.rank",
     ]) {
-      expect(screen.getByLabelText(`adminMembership.${key}`)).toBeInTheDocument();
+      expect(screen.getByText(`adminMembership.${key}`).tagName).toBe("DT");
     }
   });
 

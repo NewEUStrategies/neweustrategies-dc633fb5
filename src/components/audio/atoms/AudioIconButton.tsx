@@ -31,11 +31,10 @@ export const AUDIO_ICON_BUTTON_VARIANTS = {
 
 export type AudioIconButtonVariant = keyof typeof AUDIO_ICON_BUTTON_VARIANTS;
 
-export interface AudioIconButtonProps
-  extends Omit<
-    ButtonHTMLAttributes<HTMLButtonElement>,
-    "children" | "className" | "disabled" | "onClick" | "type"
-  > {
+export interface AudioIconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "children" | "className" | "disabled" | "onClick" | "type"
+> {
   /** Etykieta dostępna - JEDYNA nazwa przycisku (ikona jest dekoracją). */
   label: string;
   /** Klik własny atomu; wyzwalacz Radix (asChild) dokłada swój przez Slot. */

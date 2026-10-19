@@ -2,9 +2,10 @@
 // (framing miesięczny dla planów rocznych + realny % oszczędności), benefity
 // w stylu NYT/FT, CTA zależne od danych: checkout, rejestracja (warstwa
 // bezpłatna), wsparcie fundacji albo rozmowa z zespołem (oferty offline).
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
-import { Check, HandHeart, MessageCircle } from "lucide-react";
+import { Check, ChevronDown, HandHeart, MessageCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -19,12 +20,13 @@ import {
   type TierBenefit,
 } from "@/lib/billing/tiers";
 import {
+  benefitDetail,
   benefitText,
-  pickPlanForInterval,
   tierBadge,
   type BillingInterval,
 } from "@/lib/pricing/selectors";
 import {
+  cardTrialDays,
   ctaDescriptor,
   ctaVariant,
   priceDisplay,
@@ -295,13 +297,24 @@ export function TierCard({
   highlights?: TierBenefit[];
 }) {
   const { t } = useTranslation();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreId = useId();
   const badge = tierBadge(tier, lang);
   const allBenefits = parseTierBenefits(tier.benefits);
   const description = lang === "en" ? tier.description_en : tier.description_pl;
-  const plan = pickPlanForInterval(plans, interval);
+  // Okres próbny tylko przy zakupie przez kasę - reguła `cardTrialDays`.
+  const trialDays = cardTrialDays({
+    tier,
+    plans,
+    interval,
+    isCurrentTier,
+    currentPlanId,
+    isAuthenticated,
+  });
 
-  // Podział na spotlight i pozostałe (bez powtórzeń, z limitem) jest regułą -
-  // patrz `splitBenefits`. Klient widzi każdą obietnicę dokładnie raz.
+  // Podział na spotlight, listę widoczną i rozwijaną listę szczegółową jest
+  // regułą - patrz `splitBenefits`. Klient widzi każdą obietnicę dokładnie raz
+  // i żadna nie znika z karty.
   const split = splitBenefits(allBenefits, highlights, lang);
 
   return (
@@ -349,10 +362,8 @@ export function TierCard({
             wszystkich kartach (Bezpłatnie / kwota / Oferta na zapytanie). */}
         <div className="min-h-[6rem]">
           <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
-          {plan && plan.trial_days > 0 && (
-            <p className="mt-1 text-xs text-primary">
-              {t("pricing.trial", { count: plan.trial_days })}
-            </p>
+          {trialDays > 0 && (
+            <p className="mt-1 text-xs text-primary">{t("pricing.trial", { count: trialDays })}</p>
           )}
         </div>
       </CardHeader>
@@ -374,19 +385,61 @@ export function TierCard({
               {t("pricing.highlightsHeading")}
             </p>
             <ul className="space-y-1">
-              {highlights.map((benefit, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2 text-[13px] font-medium text-foreground"
-                >
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
-                  <span>{benefitText(benefit, lang)}</span>
-                </li>
-              ))}
+              {highlights.map((benefit, i) => {
+                // Rozwinięcie benefitu jest częścią obietnicy - v6.2 każe
+                // pokazać granicę wpływu (sounding board Rady) W KATALOGU,
+                // a spotlight był jedynym miejscem, gdzie ten benefit stał.
+                const detail = benefitDetail(benefit, lang);
+                return (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-[13px] font-medium text-foreground"
+                  >
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
+                    <span>
+                      {benefitText(benefit, lang)}
+                      {detail && (
+                        <span className="mt-0.5 block text-xs font-normal leading-snug text-muted-foreground">
+                          {detail}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
         <TierBenefitList benefits={split.rest} lang={lang} />
+        {split.more.length > 0 && (
+          <div className="mt-3">
+            {/* Nagłówek grupy (np. „ten sam jeden bilet rocznie - nie drugi")
+                stoi NAD przyciskiem: zastrzeżenie nie chowa się w rozwinięciu. */}
+            {split.moreLead && (
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {split.moreLead}
+              </p>
+            )}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs font-medium text-brand-ink underline-offset-2 hover:underline"
+              aria-expanded={moreOpen}
+              aria-controls={moreId}
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              {moreOpen
+                ? t("pricing.benefitsLess")
+                : t("pricing.benefitsMore", { count: split.more.length })}
+              <ChevronDown
+                className={cn("h-3.5 w-3.5 transition-transform", moreOpen && "rotate-180")}
+                aria-hidden="true"
+              />
+            </button>
+            <div id={moreId} hidden={!moreOpen} className="mt-3">
+              <TierBenefitList benefits={split.more} lang={lang} />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -63,7 +63,7 @@ export const clubPl = {
         title: "Zaaplikuj do klubu dyskusyjnego",
         lead: "Dostęp do zamkniętej debaty, briefingów i wydarzeń klubowych.",
         requirement:
-          "Wymagane: konto oraz aktywne członkostwo PRO lub wyższe. Formularz wypełniają również obecni członkowie PRO+.",
+          "Wymagane: konto oraz aktywny próg Członek Pro lub wyższy. Formularz wypełniają również obecni członkowie progu Członek Pro i wyższych.",
         sectionPersonal: "Dane osobowe",
         sectionProfessional: "Profil zawodowy",
         sectionClub: "Klub i motywacja",
@@ -110,13 +110,13 @@ export const clubPl = {
           signInLead:
             "Zgłoszenie wiążemy z kontem, a nie z adresem e-mail - dzięki temu widzisz jego status i historię decyzji.",
           signIn: "Zaloguj się",
-          proTitle: "Wymagane członkostwo PRO lub wyższe",
+          proTitle: "Wymagany próg Członek Pro lub wyższy",
           proLead:
-            "Kluby dyskusyjne są dostępne od warstwy PRO wzwyż. Twoja obecna warstwa: {{tier}}.",
+            "Kluby dyskusyjne są dostępne od progu Członek Pro wzwyż. Twój obecny próg: {{tier}}.",
           proCta: "Zobacz plany członkostwa",
           okTitle: "Członkostwo potwierdzone",
           okLead:
-            "Warstwa {{tier}} spełnia wymóg PRO+. Zgłoszenie i tak jest wymagane - komisja ocenia profil zawodowy, nie płatność.",
+            "Próg {{tier}} spełnia wymóg progu Członek Pro. Zgłoszenie i tak jest wymagane - komisja ocenia profil zawodowy, nie płatność.",
           tierFilteredNote:
             "Lista pokazuje tylko kluby w zasięgu Twojego obecnego planu. Kluby o wyższym progu zobaczysz po zmianie planu.",
         },
@@ -170,7 +170,7 @@ export const clubPl = {
         },
         submitErrors: {
           auth_required: "Zaloguj się, aby wysłać zgłoszenie.",
-          pro_required: "Zgłoszenie wymaga aktywnego członkostwa PRO lub wyższego.",
+          pro_required: "Zgłoszenie wymaga aktywnego progu Członek Pro lub wyższego.",
           // Inny przypadek niż `pro_required`: plan wystarcza na zgłoszenie,
           // ale nie na próg WYBRANEGO klubu - dlatego osobny komunikat.
           club_tier_too_low:
@@ -275,9 +275,9 @@ export const clubPl = {
       aboutTitle: "O tym klubie",
       readingTitle: "Do przeczytania",
       empty: "W tym klubie nie ma jeszcze tematów do pokazania.",
-      lockedTitle: "Minisite jest dla planu Pro i osób zaproszonych",
+      lockedTitle: "Minisite jest dla progu Członek Pro i osób zaproszonych",
       lockedBody:
-        "Fragmenty rozmów pokazujemy członkom klubu, osobom z czekającym zaproszeniem oraz planom Pro i wyższym.",
+        "Fragmenty rozmów pokazujemy członkom klubu, osobom z czekającym zaproszeniem oraz progom Członek Pro i wyższym.",
       noReadTitle: "Ten klub nie udostępnia treści",
       noReadBody:
         "Karta klubu jest widoczna, treść nie. Poproś prowadzącego o zaproszenie albo o dostęp.",
@@ -502,7 +502,7 @@ export const clubPl = {
       clubsCount_few: "{{count}} kluby",
       clubsCount_many: "{{count}} klubów",
       clubsCount_other: "{{count}} klubów",
-      lead: "Kluby dyskusyjne to zamknięte przestrzenie rozmowy wokół konkretnych obszarów polityki. Dostęp mają osoby z planem Pro i wyżej oraz zaproszeni.",
+      lead: "Kluby dyskusyjne to zamknięte przestrzenie rozmowy wokół konkretnych obszarów polityki. Dostęp mają osoby z progiem Członek Pro i wyżej oraz zaproszeni.",
       editorialSubtitle:
         "Stałe przestrzenie debaty z własnymi zasadami, archiwum i wyselekcjonowanym składem.",
       valueAccess: "Dostęp",
@@ -520,7 +520,7 @@ export const clubPl = {
         entitled: "Twój plan obejmuje kluby",
         locked: "Dostęp ograniczony",
       },
-      upgradeTitle: "Kluby są częścią planu Pro i wyższych",
+      upgradeTitle: "Kluby są częścią progu Członek Pro i wyższych",
       upgradeBody:
         "Rozmowy w klubach toczą się pod regułą Chatham House, w gronie osób, które podpisały się pod zasadami. Podnieś plan albo poproś o zaproszenie prowadzącego klub.",
       upgradeCta: "Zobacz plany",
@@ -640,25 +640,28 @@ export const clubPl = {
     },
     // Nazwy handlowe progów są brane z katalogu cenowego (`membership_tiers`),
     // żeby droplista w panelu mówiła tym samym językiem co strona z planami.
+    // Cennik v6.2: Członek (10), Członek Pro (20), Rada Instytutu i Zespół (25),
+    // Enterprise (30, karta ukryta na /pricing, próg działa), Partner
+    // Instytucjonalny (40), Partner Strategiczny (50), Krąg Założycieli (60).
     planTier: {
       free: "Darmowy",
-      plus: "Plus",
-      pro: "Pro",
-      vip: "VIP",
+      plus: "Członek",
+      pro: "Członek Pro",
+      vip: "Rada Instytutu",
       corporate: "Enterprise",
-      partner: "Strategic Partner",
-      partner_general: "Partner Generalny",
-      presidents_circle: "President's Circle",
+      partner: "Partner Instytucjonalny",
+      partner_general: "Partner Strategiczny",
+      presidents_circle: "Krąg Założycieli",
     },
     planTierHint: {
       free: "Dostęp bez wymagań planu.",
-      plus: "Wymaga planu Plus lub wyższego.",
-      pro: "Wymaga planu Pro lub wyższego.",
-      vip: "Wymaga planu VIP.",
-      corporate: "Wymaga planu Enterprise lub wyższego.",
-      partner: "Wymaga planu Strategic Partner lub wyższego.",
-      partner_general: "Wymaga planu Partner Generalny lub wyższego.",
-      presidents_circle: "Wymaga planu President's Circle.",
+      plus: "Wymaga progu Członek lub wyższego.",
+      pro: "Wymaga progu Członek Pro lub wyższego.",
+      vip: "Wymaga rangi 25: Rada Instytutu i Zespół.",
+      corporate: "Wymaga progu Enterprise lub wyższego.",
+      partner: "Wymaga progu Partner Instytucjonalny lub wyższego.",
+      partner_general: "Wymaga progu Partner Strategiczny lub wyższego.",
+      presidents_circle: "Wymaga progu Krąg Założycieli.",
     },
     joinPolicy: {
       open: "Wejście otwarte",
@@ -2125,7 +2128,7 @@ export const clubEn = {
         title: "Apply to join a discussion club",
         lead: "Access to curated peer debate, closed briefings and club events.",
         requirement:
-          "Required: an account and an active PRO or higher membership. Current PRO+ members must complete the form as well.",
+          "Required: an account and an active Member Pro tier or higher. Current Member Pro and higher members must complete the form as well.",
         sectionPersonal: "Personal details",
         sectionProfessional: "Professional profile",
         sectionClub: "Club and motivation",
@@ -2174,13 +2177,13 @@ export const clubEn = {
           signInLead:
             "Applications are tied to an account, not an email address - so you can track status and decisions.",
           signIn: "Sign in",
-          proTitle: "PRO membership or higher required",
+          proTitle: "Member Pro or higher required",
           proLead:
-            "Discussion clubs are available from the PRO tier upwards. Your current tier: {{tier}}.",
+            "Discussion clubs are available from the Member Pro tier upwards. Your current tier: {{tier}}.",
           proCta: "See membership plans",
           okTitle: "Membership confirmed",
           okLead:
-            "The {{tier}} tier meets the PRO+ requirement. The application is still required - the committee reviews your professional profile, not your payment.",
+            "The {{tier}} tier meets the Member Pro requirement. The application is still required - the committee reviews your professional profile, not your payment.",
           tierFilteredNote:
             "The list shows only clubs within reach of your current plan. Clubs with a higher threshold appear once you change plan.",
         },
@@ -2236,7 +2239,7 @@ export const clubEn = {
         },
         submitErrors: {
           auth_required: "Please sign in to submit your application.",
-          pro_required: "An active PRO or higher membership is required.",
+          pro_required: "An active Member Pro tier or higher is required.",
           // Not the same case as `pro_required`: the plan is enough to apply,
           // but not for the threshold of the CHOSEN club - hence its own text.
           club_tier_too_low:
@@ -2343,9 +2346,9 @@ export const clubEn = {
       aboutTitle: "About this club",
       readingTitle: "Worth reading",
       empty: "This club has no topics to show yet.",
-      lockedTitle: "The minisite is for Pro plans and invited guests",
+      lockedTitle: "The minisite is for Member Pro and invited guests",
       lockedBody:
-        "Conversation excerpts are shown to club members, people with a pending invitation, and Pro plans and above.",
+        "Conversation excerpts are shown to club members, people with a pending invitation, and Member Pro and above.",
       noReadTitle: "This club does not share its content",
       noReadBody:
         "The club card is visible, its content is not. Ask a club lead for an invitation or for access.",
@@ -2551,7 +2554,7 @@ export const clubEn = {
       eyebrow: "Members' space",
       clubsCount_one: "{{count}} club",
       clubsCount_other: "{{count}} clubs",
-      lead: "Discussion clubs are closed spaces for conversation around specific policy areas. Open to Pro plans and above, and to invited guests.",
+      lead: "Discussion clubs are closed spaces for conversation around specific policy areas. Open to Member Pro and above, and to invited guests.",
       editorialSubtitle:
         "Permanent debate spaces with their own rules, archive and curated membership.",
       valueAccess: "Access",
@@ -2569,7 +2572,7 @@ export const clubEn = {
         entitled: "Your plan includes clubs",
         locked: "Limited access",
       },
-      upgradeTitle: "Clubs are part of Pro and higher plans",
+      upgradeTitle: "Clubs are part of Member Pro and higher tiers",
       upgradeBody:
         "Club conversations run under the Chatham House rule, among people who signed up to the rules. Upgrade your plan or ask a club lead for an invitation.",
       upgradeCta: "See plans",
@@ -2675,23 +2678,23 @@ export const clubEn = {
     // the public plans page.
     planTier: {
       free: "Free",
-      plus: "Plus",
-      pro: "Pro",
-      vip: "VIP",
+      plus: "Member",
+      pro: "Member Pro",
+      vip: "Institute Council",
       corporate: "Enterprise",
-      partner: "Strategic Partner",
-      partner_general: "General Partner",
-      presidents_circle: "President's Circle",
+      partner: "Institutional Partner",
+      partner_general: "Strategic Partner",
+      presidents_circle: "Founders' Circle",
     },
     planTierHint: {
       free: "No plan requirement.",
-      plus: "Requires the Plus plan or higher.",
-      pro: "Requires the Pro plan or higher.",
-      vip: "Requires the VIP plan.",
-      corporate: "Requires the Enterprise plan or higher.",
-      partner: "Requires the Strategic Partner plan or higher.",
-      partner_general: "Requires the General Partner plan or higher.",
-      presidents_circle: "Requires the President's Circle plan.",
+      plus: "Requires the Member tier or higher.",
+      pro: "Requires the Member Pro tier or higher.",
+      vip: "Requires rank 25: Institute Council and Team.",
+      corporate: "Requires the Enterprise tier or higher.",
+      partner: "Requires the Institutional Partner tier or higher.",
+      partner_general: "Requires the Strategic Partner tier or higher.",
+      presidents_circle: "Requires the Founders' Circle tier.",
     },
     joinPolicy: {
       open: "Open entry",

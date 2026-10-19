@@ -208,6 +208,94 @@ export function resolveCustomWindow(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Okno z DAT KALENDARZOWYCH (D13)
+// ---------------------------------------------------------------------------
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * `YYYY-MM-DD` z LOKALNYCH komponentów daty (rok, miesiąc, dzień w strefie
+ * przeglądarki). Nigdy `toISOString().slice(0, 10)`: dla lokalnej północy
+ * w Warszawie (22:00/23:00 UTC dnia poprzedniego) tamten napis podaje dzień
+ * WCZEŚNIEJ - dokładnie ten dzień, którego admin nie wybierał (AGENTS: daty
+ * lokalne, zero przesunięć).
+ */
+export function toLocalIsoDate(d: Date): string {
+  const y = String(d.getFullYear()).padStart(4, "0");
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Początek dnia UTC dla napisu `YYYY-MM-DD` - liczony z PÓL napisu, bez
+ * przejścia przez instant lokalny. Data spoza kalendarza (`2026-02-30`) rzuca:
+ * `Date.UTC` po cichu przeskoczyłby w marzec i okno objęłoby inne dni, niż
+ * wybrano.
+ */
+function utcDayStartOfDate(date: string): number {
+  const m = ISO_DATE.exec(date);
+  if (!m) throw new Error(`resolveCalendarWindow: expected YYYY-MM-DD, got "${date}"`);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const ms = Date.UTC(y, mo - 1, d);
+  const back = new Date(ms);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) {
+    throw new Error(`resolveCalendarWindow: "${date}" is not a calendar date`);
+  }
+  return ms;
+}
+
+/**
+ * Okno z dat kalendarzowych wybranych w kalendarzu (D13).
+ *
+ * PRZYCZYNA, KTÓRĄ TO USUWA. `TimeRangeFilter` zamienia wybrane dni na LOKALNE
+ * 00:00 i 23:59:59.999, a `resolveCustomWindow` tnie instanty do dni UTC.
+ * W Europe/Warsaw lokalna północ 3 sierpnia to 2 sierpnia 22:00 UTC, więc okno
+ * „3-9 VIII” stawało się „2-9 VIII”: dzień więcej w Postgresie, dzień więcej
+ * w GA4, a delta liczona do okna poprzedniego - przesunięta o dobę.
+ *
+ * Tu granice wynikają WYŁĄCZNIE z napisów dat: wybrany dzień kalendarza jest
+ * dniem UTC Postgresa i dniem GA4 (`ga4` = te same daty), bez przejścia przez
+ * instant i strefę przeglądarki. Odwrócone granice są porządkowane (jak
+ * w `resolveCustomWindow`), noty i `crossStreamSafe` - identyczne: okno
+ * kończące się w bieżącej dobie UTC traci porównywalność, bo GA4 jej nie
+ * domknęło. `previousWindow` działa bez zmian (okno dobowe UTC).
+ *
+ * BEZSTRATNIE PRZEZ ISTNIEJĄCE API. Granice wyniku leżą na północy UTC, więc
+ * `resolveCustomWindow(w.sinceIso, w.untilIso)` po stronie serwera odtwarza
+ * DOKŁADNIE to okno - konsument `getSemanticSnapshot` przekazuje
+ * `sinceIso/untilIso` z tego wyniku i dostaje wybrane dni bez zmiany kontraktu
+ * server fn (test w `window.test.ts`).
+ */
+export function resolveCalendarWindow(
+  fromDate: string,
+  toDate: string,
+  nowMs: number = Date.now(),
+): CanonicalWindow {
+  const a = utcDayStartOfDate(fromDate);
+  const b = utcDayStartOfDate(toDate);
+  const firstDayStart = Math.min(a, b);
+  const lastDayStart = Math.max(a, b);
+  const days = Math.round((lastDayStart - firstDayStart) / DAY_MS) + 1;
+  const touchesOpenDay = lastDayStart >= utcDayStart(nowMs);
+
+  const notes: WindowNote[] = ["ga4_property_timezone"];
+  notes.push(touchesOpenDay ? "ga4_open_day" : "excludes_open_day");
+
+  return {
+    presetId: "custom",
+    sinceIso: new Date(firstDayStart).toISOString(),
+    untilIso: new Date(lastDayStart + DAY_MS - 1).toISOString(),
+    days,
+    grain: "day",
+    crossStreamSafe: !touchesOpenDay,
+    ga4: ga4RangeFromInstants(firstDayStart, lastDayStart),
+    rpcDays: days,
+    notes,
+  };
+}
+
 /**
  * Okno poprzednie: ta sama długość, ROZŁĄCZNE z bieżącym.
  *

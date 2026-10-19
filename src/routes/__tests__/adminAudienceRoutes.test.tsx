@@ -123,7 +123,6 @@ const h = vi.hoisted(() => ({
   tenantId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" as string | null,
   /** `newsletter_settings` widziane przez wiersz wbudowanego popupu. */
   newsletter: undefined as Record<string, unknown> | undefined,
-  newsletterSaves: [] as unknown[],
   /** Przejścia zlecone przez trasę popupów. */
   navigations: [] as { to: string; params?: Record<string, unknown> }[],
   /** Propsy zapisane przez atrapy organizmów. */
@@ -448,12 +447,6 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 vi.mock("@/hooks/useNewsletterSettings", () => ({
   useNewsletterSettings: () => ({ data: h.newsletter }),
-  useSaveNewsletterSettings: () => ({
-    mutateAsync: async (patch: unknown) => {
-      h.newsletterSaves.push(patch);
-      return patch;
-    },
-  }),
 }));
 
 vi.mock("@/components/admin/AdminShell", () => ({ AdminShell: AdminShellMock }));
@@ -845,7 +838,6 @@ beforeEach(() => {
   h.stats = {};
   h.tenantId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   h.newsletter = newsletterRow();
-  h.newsletterSaves = [];
   h.navigations = [];
   h.props = {};
   h.ensureAudienceI18n = 0;
@@ -918,12 +910,20 @@ const ALL_ROUTES = [
 
 describe("cztery trasy panelu - reguła wspólna", () => {
   it.each(ALL_ROUTES)(
-    "$name: NIE deklaruje nagłówka SEO - panel nie jest stroną publiczną",
+    "$name: nagłówek, jeśli jest, to sekcyjny `adminPageHead` z `noindex` - panel nie jest stroną publiczną",
     async ({ route }) => {
       // Panel jest `noindex` z definicji (layout `/admin`). Trasa, która
-      // dokłada sobie `head()` z tytułem, wchodzi do wyników wyszukiwania
-      // jako treść serwisu - i wygląda tam jak strona dla czytelnika.
-      expect(await routeMeta(route)).toEqual([]);
+      // dokłada sobie `head()` z tytułem BEZ `noindex`, wchodzi do wyników
+      // wyszukiwania jako treść serwisu - i wygląda tam jak strona dla
+      // czytelnika. Od hubu S1 (AGENTS: sekcyjne `adminPageHead` na prywatnych
+      // ekranach) `/admin/popups` ma własny tytuł karty - dopuszczalny jest
+      // więc WYŁĄCZNIE nagłówek ze wspólnego pomocnika: tytuł sekcji
+      // i `robots: noindex, nofollow`. Brak nagłówka nadal jest poprawny.
+      const meta = (await routeMeta(route)) as Record<string, unknown>[];
+      if (meta.length === 0) return;
+      expect(meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+      const title = meta.find((entry) => typeof entry.title === "string")?.title;
+      expect(title).toMatch(/^\S.* \| New European Strategies$/);
     },
   );
 });
@@ -1589,16 +1589,37 @@ describe("admin.popups - wbudowany popup rejestracji", () => {
     // nie ścieżką interfejsu.
   });
 
-  it("przełącznik wbudowanego popupu wysyła CAŁY wiersz z podmienioną flagą", async () => {
-    // `save.mutateAsync({ ...data, popup_enabled: on })` - ładunek musi
-    // nieść resztę ustawień, inaczej zapis wyzerowałby treść popupu.
-    h.newsletter = newsletterRow({ popup_enabled: false, popup_title_pl: "Zapisz się" });
+  it("przełącznik wbudowanego popupu wysyła WYŁĄCZNIE `popup_enabled` grupą `popup` z tokenem wiersza", async () => {
+    // Do hubu S1 przełącznik wysyłał `{ ...ustawienia, popup_enabled }` -
+    // całe ustawienia z chwili ostatniego odczytu, cofając równoległe zmiany
+    // treści popupu z innej karty (S1 def. 9). Teraz patch niesie jedną
+    // kolumnę, a token `updated_at` idzie SUROWO (mikrosekundy - `new Date()`
+    // by je zgubił i każdy zapis kończyłby się konfliktem). Pozostałe
+    // ramiona (scalenie, konflikt) przypina `adminPopupsListRoute.test.tsx`.
+    const token = "2026-10-19T10:00:00.100001+00:00";
+    h.newsletter = newsletterRow({
+      popup_enabled: false,
+      popup_title_pl: "Zapisz się",
+      updated_at: token,
+    });
+    setRpc(
+      "admin_newsletter_settings_patch",
+      ok({ updated_at: "2026-10-19T10:00:05.200002+00:00", changed: ["popup_enabled"] }),
+    );
     await mountPopups();
     await waitFor(() => expect(switches().length).toBeGreaterThan(0));
     fireEvent.click(switches()[0]);
-    await waitFor(() => expect(h.newsletterSaves).toHaveLength(1));
-    expect(h.newsletterSaves[0]).toEqual(
-      newsletterRow({ popup_enabled: true, popup_title_pl: "Zapisz się" }),
+    await waitFor(() =>
+      expect(h.rpcCalls.filter((call) => call.name === "admin_newsletter_settings_patch")).toEqual([
+        {
+          name: "admin_newsletter_settings_patch",
+          args: {
+            p_group: "popup",
+            p_patch: { popup_enabled: true },
+            p_expected_updated_at: token,
+          },
+        },
+      ]),
     );
   });
 

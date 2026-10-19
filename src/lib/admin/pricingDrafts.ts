@@ -76,6 +76,11 @@ export interface TierMarketingDraft {
   badge_pl: string;
   badge_en: string;
   highlight: boolean;
+  /**
+   * Karta na publicznym cenniku (`membership_tiers.pricing_visible`, v6.2).
+   * Wyłączona chowa ofertę, nie próg - ranga i uprawnienia działają dalej.
+   */
+  pricing_visible: boolean;
   contact_url: string;
   cta_mode: string;
   per_seat: boolean;
@@ -90,6 +95,8 @@ export function draftFromTier(tier: MembershipTierRow): TierMarketingDraft {
     badge_pl: tier.badge_pl ?? "",
     badge_en: tier.badge_en ?? "",
     highlight: tier.highlight,
+    // Brak kolumny (odczyt sprzed migracji v6.2) = karta widoczna.
+    pricing_visible: tier.pricing_visible !== false,
     contact_url: tier.contact_url ?? "",
     // Nieznany tryb z bazy schodzi na „auto": panel nie może zablokować
     // przycisku zakupu tylko dlatego, że ktoś dopisał wartość ręcznie w SQL.

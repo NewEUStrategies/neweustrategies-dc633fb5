@@ -1,0 +1,1799 @@
+{
+  "group": "przychod",
+  "metrics": [
+    {
+      "key": "mrr",
+      "abbr": "MRR",
+      "name_pl": "Miesięczny przychód powtarzalny",
+      "name_en": "Monthly Recurring Revenue",
+      "expansion_pl": "Monthly Recurring Revenue – miesięczny przychód powtarzalny z aktywnych subskrypcji",
+      "expansion_en": "Monthly Recurring Revenue",
+      "formula": "MRR = Σ (kwota fakturowana netto, bez VAT, po rabatach za aktywną płatną subskrypcję ÷ liczba miesięcy okresu rozliczeniowego); plan roczny 600 zł = 50 zł MRR; bez opłat jednorazowych (bilety, sponsoring, zlecenia raportów)",
+      "unit": "PLN",
+      "interpretation_pl": "Znormalizowany miesięczny przychód z aktywnych subskrypcji (osoby, firmy/instytucje, studenci/NGO) – baza dla wszystkich wskaźników przychodu. Czytaj go jako trend i w rozbiciu na ruchy: nowy, ekspansja, kontrakcja, churn, reaktywacja; sam poziom kwotowy nie ma uniwersalnego benchmarku. Pułapki: wliczanie biletów na wydarzenia lub całej kwoty planu rocznego w miesiącu zakupu, liczenie triali za 0 zł i pomijanie rabatów czasowych zawyżają MRR.",
+      "interpretation_en": "Normalised monthly revenue from active paid subscriptions (individual, corporate/institutional, student/NGO) – the base for every revenue metric. Read it as a trend and decomposed into new, expansion, contraction, churn and reactivation movements; the absolute level has no universal benchmark. Pitfalls: counting event tickets or the full annual-plan payment in the month of purchase, counting free trials and ignoring time-limited discounts all inflate MRR.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Realizacja planu MRR (MRR rzeczywisty ÷ MRR budżetowany, %) – wszystkie segmenty",
+          "period": "miesięcznie",
+          "method": "heurystyka – brak zewnętrznych benchmarków poziomu MRR; definicja i normalizacja wg ChartMogul",
+          "source_ids": ["S6"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 85,
+              "note": "luka >15% – rewizja planu i lejka akwizycji"
+            },
+            {
+              "label": "słaby",
+              "min": 85,
+              "max": 95
+            },
+            {
+              "label": "normalny",
+              "min": 95,
+              "max": 100
+            },
+            {
+              "label": "dobry",
+              "min": 100,
+              "max": 110
+            },
+            {
+              "label": "optymalny",
+              "min": 110,
+              "max": null,
+              "note": "sprawdź, czy nadwyżka nie wynika z wpływów jednorazowych lub złej normalizacji planów rocznych"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Poziom MRR oceniaj przez dynamikę (wzrost m/m, r/r) i Net New MRR – benchmarki zewnętrzne dotyczą tempa, nie kwoty.",
+        "Przychody z wydarzeń, sponsoringu i zleceń raportów prezentuj osobno jako przychód niepowtarzalny.",
+        "Raportuj MRR osobno dla B2C, B2B i planów ulgowych (studenci/NGO), aby efekt miksu nie maskował trendów.",
+        "Przedziały realizacji planu to heurystyka – dostosuj je do historycznej trafności własnego budżetowania."
+      ],
+      "confidence": "niska"
+    },
+    {
+      "key": "arr",
+      "abbr": "ARR",
+      "name_pl": "Roczny przychód powtarzalny (run-rate)",
+      "name_en": "Annual Recurring Revenue",
+      "expansion_pl": "Annual Recurring Revenue – roczny przychód powtarzalny w ujęciu run-rate",
+      "expansion_en": "Annual Recurring Revenue (run-rate)",
+      "formula": "ARR = MRR × 12 (stan na koniec okresu); przedziały dotyczą wzrostu ARR r/r = (ARR_t − ARR_t−12) ÷ ARR_t−12 × 100%",
+      "unit": "PLN",
+      "interpretation_pl": "Roczna wartość bieżącej bazy powtarzalnej – miara skali i podstawa porównań z benchmarkami wzrostu. Przedziały dotyczą tempa wzrostu ARR r/r, bo to ono różnicuje firmy podobnej wielkości; im mniejsza baza, tym wyższy wymagany wzrost (efekt mianownika). Pułapka: ARR to run-rate, nie przychód księgowy roku – nie dodawaj biletów ani jednorazowych projektów.",
+      "interpretation_en": "Annualised value of the current recurring base – a measure of scale and the basis for growth benchmarks. Bands apply to year-over-year ARR growth, because growth differentiates companies of similar size; the smaller the base, the higher the growth required (denominator effect). Pitfall: ARR is a run-rate, not booked annual revenue – never add tickets or one-off projects.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "B2B SaaS prywatne, ARR < 1 mln USD – wzrost ARR r/r (%)",
+          "period": "rocznie",
+          "method": "kwartyle źródła (SaaS Capital, dane za 2024): P25 20%, P50 40%, P75 100%; wzrost ≤ 0 = krytyczny",
+          "source_ids": ["S1", "S2"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0,
+              "note": "6,9% (2024) i 7,3% (2025) firm w badaniu miało wzrost płaski lub ujemny"
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 20
+            },
+            {
+              "label": "normalny",
+              "min": 20,
+              "max": 40
+            },
+            {
+              "label": "dobry",
+              "min": 40,
+              "max": 100
+            },
+            {
+              "label": "optymalny",
+              "min": 100,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "B2B SaaS prywatne, ARR 1–3 mln USD – wzrost ARR r/r (%)",
+          "period": "rocznie",
+          "method": "kwartyle źródła (SaaS Capital, dane za 2024): P25 14%, P50 28%, P75 50%",
+          "source_ids": ["S1"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 14
+            },
+            {
+              "label": "normalny",
+              "min": 14,
+              "max": 28
+            },
+            {
+              "label": "dobry",
+              "min": 28,
+              "max": 50
+            },
+            {
+              "label": "optymalny",
+              "min": 50,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Subskrypcje o niskim ARPA (< 25 USD/mies., typowo B2C) – wzrost ARR r/r (%)",
+          "period": "rocznie",
+          "method": "kwartyle źródła (ChartMogul, LTM do 03.2023): dolny 2%, mediana 24%, górny 70%; dane LTM do 03.2023 – brak nowszych publicznych kwartyli wg ARPA (ChartMogul 2026, S100, to próba selekcjonowana firm rosnących ≥ 20% w 2024: mediana 65% → 28% w 2025 – nie zastępuje kwartyli)",
+          "source_ids": ["S3", "S100"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 2
+            },
+            {
+              "label": "normalny",
+              "min": 2,
+              "max": 24
+            },
+            {
+              "label": "dobry",
+              "min": 24,
+              "max": 70
+            },
+            {
+              "label": "optymalny",
+              "min": 70,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Wydawcy cyfrowi / media subskrypcyjne – wzrost przychodu lub bazy subskrypcji cyfrowych r/r (%)",
+          "period": "rocznie",
+          "method": "heurystyka z punktów odniesienia: Mather (wydawcy prasowi USA, Q2 2025: cyfrowe subskrypcje ok. −6% r/r; nowszy raport Q1 2026 za formularzem – niezweryfikowany), Zuora (+25% subskrybentów w 2 lata; indeks wszystkich branż, nie mediów), NYT/WSJ +13% r/r; próg 20% = ok. 1,5 × NYT/WSJ (heurystyka). Agregat 100k Club (+21%) nie kotwiczy progu – porównuje listy o różnym składzie",
+          "source_ids": ["S27", "S104", "S26", "S14"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": -5,
+              "note": "poziom spadku cyfrowych subskrypcji (Mather: wydawcy prasowi USA, Q2 2025); nowszy raport Mather Q1 2026 (05.2026) jest za formularzem – zweryfikuj"
+            },
+            {
+              "label": "słaby",
+              "min": -5,
+              "max": 0
+            },
+            {
+              "label": "normalny",
+              "min": 0,
+              "max": 10,
+              "note": "ok. 11–12% r/r to średnie tempo przyrostu subskrybentów w indeksie Zuora – indeks obejmuje wszystkie branże, nie media"
+            },
+            {
+              "label": "dobry",
+              "min": 10,
+              "max": 20,
+              "note": "NYT i WSJ: +13% r/r"
+            },
+            {
+              "label": "optymalny",
+              "min": 20,
+              "max": null,
+              "note": "próg heurystyczny ok. 1,5 × NYT/WSJ (+13% r/r); 100k Club (+21%) to porównanie list o różnym składzie (59 → 62 wydawców) i częściowo nieaktualnych danych – nie jest to wzrost organiczny"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Ogólna mediana wzrostu prywatnych firm B2B SaaS spadła do 22% za 2025 r. (SaaS Capital 2026); kwartyle wg wielkości ARR pochodzą z edycji 2025 (dane za 2024), bo strona edycji 2026 nie publikuje percentyli wg ARR ani PDF – pozostają najnowszymi publicznymi.",
+        "Benchmarki SaaS są w USD – porównując wzrost, przeliczaj ARR po stałym kursie, aby wahania PLN/USD nie fałszowały wyniku.",
+        "Dla think tanku z przewagą B2C bardziej adekwatne są konteksty niskiego ARPA i mediów niż B2B SaaS."
+      ],
+      "confidence": "średnia"
+    },
+    {
+      "key": "arpa",
+      "abbr": "ARPA",
+      "name_pl": "Średni przychód na konto (klienta)",
+      "name_en": "Average Revenue Per Account",
+      "expansion_pl": "Average Revenue Per Account – średni miesięczny przychód powtarzalny na jedno konto klienta",
+      "expansion_en": "Average Revenue Per Account",
+      "formula": "ARPA = MRR ÷ liczba aktywnych płatnych kont na koniec okresu (instytucja z wieloma licencjami = 1 konto); zmiana r/r = (ARPA_t − ARPA_t−12) ÷ ARPA_t−12 × 100%",
+      "unit": "PLN",
+      "interpretation_pl": "Średni miesięczny przychód na konto, kluczowy w B2B: rosnące ARPA oznacza skuteczny upsell, większe pakiety licencji lub lepszą realizację ceny. Czytaj w podziale na segmenty i razem z medianą – średnią łatwo zawyża kilka dużych instytucji. Pułapka: zmiana miksu (np. napływ tanich kont studenckich) obniża ARPA mimo zdrowego biznesu.",
+      "interpretation_en": "Average monthly revenue per account, key in B2B: rising ARPA signals successful upsell, larger seat packages or better price realisation. Read it by segment and alongside the median – a few large institutions easily inflate the mean. Pitfall: mix shifts (e.g. an influx of cheap student accounts) lower ARPA even when the business is healthy.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "B2B – firmy i instytucje: zmiana ARPA r/r (%)",
+          "period": "rocznie",
+          "method": "heurystyka; punkty odniesienia (ChartMogul): ARPA firm, które doszły do 20 mln USD ARR (outliers), +82% (564 → 1 024 USD); u firm, które utknęły między 1 a 20 mln USD (normies), +63%; 72% firm poprawiło ARPA o >10%. SaaS Capital (RB33): sam poziom ACV nie koreluje ze wzrostem – powyżej średniej rosną tylko firmy z ACV > 250 tys. USD (związek rosnącego ACV z szybszym wzrostem pochodzi z osobnej analizy SaaS Capital 'Changing ACVs', niepodpiętej tutaj)",
+          "source_ids": ["S4", "S1"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": -10
+            },
+            {
+              "label": "słaby",
+              "min": -10,
+              "max": 0
+            },
+            {
+              "label": "normalny",
+              "min": 0,
+              "max": 5
+            },
+            {
+              "label": "dobry",
+              "min": 5,
+              "max": 15
+            },
+            {
+              "label": "optymalny",
+              "min": 15,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Mieszany portfel B2C + B2B: zmiana ARPA r/r przy stałym miksie segmentów (%)",
+          "period": "rocznie",
+          "method": "heurystyka; punkty odniesienia: standardowe ceny cyfrowe w UK +3% r/r (2026), ARPU NYT +0,7%, Newsquest ok. −8,7%",
+          "source_ids": ["S13", "S14"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": -10
+            },
+            {
+              "label": "słaby",
+              "min": -10,
+              "max": -2
+            },
+            {
+              "label": "normalny",
+              "min": -2,
+              "max": 3
+            },
+            {
+              "label": "dobry",
+              "min": 3,
+              "max": 10
+            },
+            {
+              "label": "optymalny",
+              "min": 10,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Niskie ARPA ogranicza potencjał retencji przychodu: tylko 2,7% firm z ARPA < 10 USD/mies. ma NRR > 100%, wobec 41,1% przy ARPA > 500 USD/mies. (ChartMogul).",
+        "ARPA liczy konta, ARPU – użytkowników; w B2B z wieloma licencjami ARPA jest wielokrotnie wyższe od ARPU.",
+        "Brak wiarygodnych publicznych benchmarków poziomu ARPA dla członkostw instytucjonalnych think tanków – przedziały dotyczą wyłącznie dynamiki."
+      ],
+      "confidence": "niska"
+    },
+    {
+      "key": "arpu",
+      "abbr": "ARPU",
+      "name_pl": "Średni przychód na płacącego użytkownika",
+      "name_en": "Average Revenue Per User",
+      "expansion_pl": "Average Revenue Per User – średni miesięczny przychód na płacącego użytkownika",
+      "expansion_en": "Average Revenue Per User",
+      "formula": "ARPU = przychód powtarzalny z subskrypcji w okresie ÷ średnia liczba płacących użytkowników w okresie (na miesiąc); wariant medialny ARPU/MAU = przychód ÷ wszyscy aktywni użytkownicy – zawsze oznacz mianownik",
+      "unit": "PLN/mies.",
+      "interpretation_pl": "Średni miesięczny przychód na płacącego użytkownika – mierzy skuteczność cennika i promocji w B2C. Spadek ARPU przy rosnącej bazie zwykle oznacza napływ subskrybentów z głębokimi ofertami wejściowymi, wzrost – wygasanie promocji lub podwyżki. Pułapka: mieszanie mianowników (płacący vs wszyscy zarejestrowani) i porównywanie z rynkami o innej sile nabywczej bez korekty.",
+      "interpretation_en": "Average monthly revenue per paying user – measures pricing and promotion effectiveness in B2C. Falling ARPU with a growing base usually means an influx of deeply discounted introductory subscribers; rising ARPU means promotions rolling off or price increases. Pitfall: mixing denominators (paying vs all registered users) and comparing with markets of different purchasing power without adjustment.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Media cyfrowe B2C, rynki rozwinięte – ARPU na płacącego subskrybenta (USD/mies.)",
+          "period": "miesięcznie",
+          "method": "heurystyka z punktów odniesienia: Piano 2026 (6,57–9,69 USD wg okresu planu), NYT 9,72 USD, USA Today Co 10,22 USD, Newsquest 5,67 USD, Mather (12,64 USD plany miesięczne)",
+          "source_ids": ["S15", "S14", "S16"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 4
+            },
+            {
+              "label": "słaby",
+              "min": 4,
+              "max": 6,
+              "note": "Newsquest 5,67 USD"
+            },
+            {
+              "label": "normalny",
+              "min": 6,
+              "max": 8,
+              "note": "Piano 2026: 6,57 USD (miesięczne) i 6,62 USD (roczne)"
+            },
+            {
+              "label": "dobry",
+              "min": 8,
+              "max": 11,
+              "note": "NYT 9,72 USD; USA Today Co 10,22 USD"
+            },
+            {
+              "label": "optymalny",
+              "min": 11,
+              "max": null,
+              "note": "Mather: ARPU planów miesięcznych 12,64 USD"
+            }
+          ]
+        },
+        {
+          "context": "Media cyfrowe B2C, Polska – ARPU na płacącego subskrybenta (PLN/mies.)",
+          "period": "miesięcznie",
+          "method": "heurystyka; jedyny polski punkt odniesienia: 18,1 mln zł przychodów cyfrowych dziennika w Q3 2025 ÷ 317,6 tys. prenumerat ÷ 3 ≈ 19 zł/mies.; Agora w tym komunikacie nie definiuje przychodów cyfrowych; 78% subskrybentów w PL poniżej pełnej ceny (DNR 2024); kontekst rynkowy: DNR 2026",
+          "source_ids": ["S25", "S12", "S105"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 8
+            },
+            {
+              "label": "słaby",
+              "min": 8,
+              "max": 12
+            },
+            {
+              "label": "normalny",
+              "min": 12,
+              "max": 18
+            },
+            {
+              "label": "dobry",
+              "min": 18,
+              "max": 25,
+              "note": "obejmuje szacunek ok. 19 zł/mies. dla Gazety Wyborczej (definicja przychodów cyfrowych niezweryfikowana)"
+            },
+            {
+              "label": "optymalny",
+              "min": 25,
+              "max": null,
+              "note": "realne dla niszowych treści eksperckich z mocną propozycją wartości"
+            }
+          ]
+        },
+        {
+          "context": "Zmiana ARPU r/r – B2C (%)",
+          "period": "rocznie",
+          "method": "heurystyka z punktów odniesienia: NYT +0,7%, ceny standardowe UK +3%, Newsquest ok. −8,7%, USA Today Co +27% (Q4)",
+          "source_ids": ["S14", "S13"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": -10
+            },
+            {
+              "label": "słaby",
+              "min": -10,
+              "max": 0,
+              "note": "Newsquest ok. −8,7%"
+            },
+            {
+              "label": "normalny",
+              "min": 0,
+              "max": 5,
+              "note": "NYT +0,7%; ceny standardowe UK +3%"
+            },
+            {
+              "label": "dobry",
+              "min": 5,
+              "max": 15
+            },
+            {
+              "label": "optymalny",
+              "min": 15,
+              "max": null,
+              "note": "USA Today Co +27% w Q4 – efekt wygaszania promocji"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Przedziały poziomu ARPU to heurystyka z pojedynczych punktów odniesienia – kwartyle INMA są dostępne tylko w płatnym serwisie benchmarkowym.",
+        "Szacunek polski jest niepewny: licznik może obejmować reklamę cyfrową (definicja niezweryfikowana), a mianownik to stan na koniec kwartału.",
+        "W Polsce 78% subskrybentów nie płaci pełnej ceny (DNR 2024), więc ARPU jest naturalnie niższe od cen katalogowych.",
+        "Rynek płacących jest w Polsce wąski: za wiadomości online płaci 11% (−2 pp r/r; DNR 2026)."
+      ],
+      "confidence": "niska"
+    },
+    {
+      "key": "mrr_growth_mom",
+      "abbr": "MoM MRR",
+      "name_pl": "Wzrost MRR miesiąc do miesiąca",
+      "name_en": "Month-over-Month MRR Growth",
+      "expansion_pl": "Month-over-Month MRR growth – miesięczna dynamika przychodu powtarzalnego",
+      "expansion_en": "Month-over-Month Monthly Recurring Revenue growth",
+      "formula": "Wzrost m/m = (MRR_koniec − MRR_początek) ÷ MRR_początek × 100%; trend: CMGR = (MRR_t ÷ MRR_t−n)^(1/n) − 1; ekwiwalent miesięczny wzrostu rocznego g = (1+g)^(1/12) − 1",
+      "unit": "%",
+      "interpretation_pl": "Tempo zmiany bazy przychodu powtarzalnego miesiąc do miesiąca. Pojedynczy miesiąc jest zaszumiony (sezonowość, odnowienia roczne, kampanie), dlatego oceniaj średnią z 3 miesięcy (CMGR). Pułapka: porównywanie z wartościami rocznymi bez procentu składanego – 2% m/m to ok. 27% r/r, nie 24%.",
+      "interpretation_en": "Month-over-month rate of change of the recurring revenue base. A single month is noisy (seasonality, annual renewals, campaigns), so judge the 3-month compounded average (CMGR). Pitfall: comparing with annual figures without compounding – 2% MoM is about 27% YoY, not 24%.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "B2B SaaS prywatne, ARR < 1 mln USD (% m/m)",
+          "period": "miesięcznie (średnia 3-miesięczna)",
+          "method": "kwartyle SaaS Capital r/r (P25 20%, P50 40%, P75 100%) przeliczone na ekwiwalent miesięczny: 1,53% / 2,84% / 5,95%",
+          "source_ids": ["S1"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 1.5
+            },
+            {
+              "label": "normalny",
+              "min": 1.5,
+              "max": 2.8
+            },
+            {
+              "label": "dobry",
+              "min": 2.8,
+              "max": 6
+            },
+            {
+              "label": "optymalny",
+              "min": 6,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "B2B SaaS prywatne, ARR 1–3 mln USD (% m/m)",
+          "period": "miesięcznie (średnia 3-miesięczna)",
+          "method": "kwartyle SaaS Capital r/r (14% / 28% / 50%) przeliczone: 1,10% / 2,08% / 3,44% m/m",
+          "source_ids": ["S1"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 1.1
+            },
+            {
+              "label": "normalny",
+              "min": 1.1,
+              "max": 2.1
+            },
+            {
+              "label": "dobry",
+              "min": 2.1,
+              "max": 3.4
+            },
+            {
+              "label": "optymalny",
+              "min": 3.4,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Subskrypcje B2C, ARPA < 25 USD/mies. (% m/m)",
+          "period": "miesięcznie (średnia 3-miesięczna)",
+          "method": "kwartyle ChartMogul r/r (2% / 24% / 70%) przeliczone: 0,17% / 1,81% / 4,52% m/m; kwartyle pochodzą z 2023 r. (LTM do 03.2023) – brak nowszych publicznych kwartyli wg ARPA (S100 to próba selekcjonowana)",
+          "source_ids": ["S3", "S100"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 0.17
+            },
+            {
+              "label": "normalny",
+              "min": 0.17,
+              "max": 1.8
+            },
+            {
+              "label": "dobry",
+              "min": 1.8,
+              "max": 4.5
+            },
+            {
+              "label": "optymalny",
+              "min": 4.5,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Wydawcy cyfrowi / media subskrypcyjne (% m/m)",
+          "period": "miesięcznie (średnia 3-miesięczna)",
+          "method": "heurystyka: −5% / 10% / 20% r/r przeliczone na miesiąc (Mather: wydawcy prasowi USA, Q2 2025, cyfrowe −6% r/r; NYT/WSJ +13%; próg 20% ≈ 1,5 × NYT/WSJ – 100k Club +21% to porównanie list o różnym składzie, nie kotwica); nowszy raport Mather Q1 2026 za formularzem – zweryfikuj",
+          "source_ids": ["S27", "S104", "S14"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": -0.4
+            },
+            {
+              "label": "słaby",
+              "min": -0.4,
+              "max": 0
+            },
+            {
+              "label": "normalny",
+              "min": 0,
+              "max": 0.8
+            },
+            {
+              "label": "dobry",
+              "min": 0.8,
+              "max": 1.5
+            },
+            {
+              "label": "optymalny",
+              "min": 1.5,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Sezonowość: Q1 jest najsilniejszy dla akwizycji, Q4 najsłabszy (ChartMogul Billing Report 2025) – porównuj także r/r.",
+        "Wzrost m/m naturalnie spada ze skalą: u firm, które doszły do 20 mln USD ARR (outliers ChartMogul), z 16,7% przy 1 mln USD do 5,1% przy 20 mln USD; normies przy 1 mln USD: 8,7% m/m (ChartMogul Growth Levers).",
+        "Przy małej bazie pojedyncza umowa instytucjonalna zmienia wynik o kilka punktów procentowych."
+      ],
+      "confidence": "średnia"
+    },
+    {
+      "key": "net_new_mrr",
+      "abbr": "NNMRR",
+      "name_pl": "Przyrost netto MRR",
+      "name_en": "Net New MRR",
+      "expansion_pl": "Net New MRR – przyrost netto miesięcznego przychodu powtarzalnego po uwzględnieniu utraty",
+      "expansion_en": "Net New Monthly Recurring Revenue",
+      "formula": "Net New MRR = New MRR + Expansion MRR + Reactivation MRR − Contraction MRR − Churned MRR; względnie: Net New MRR ÷ MRR z początku miesiąca × 100%; efektywność: Net New MRR ÷ (New + Expansion + Reactivation MRR) × 100% = 1 − 1/QR (równość zachodzi, gdy QR zawiera reaktywacje; progi QR ChartMogul liczono bez nich)",
+      "unit": "PLN",
+      "interpretation_pl": "Bilans przyrostu bazy w złotych: ile MRR faktycznie przybyło po odjęciu utraty. Wartość diagnostyczna leży w rozbiciu – ten sam wynik może wynikać z mocnej akwizycji i dużego churnu albo ze słabej akwizycji i świetnej retencji. Pułapka: raportowanie samej sumy bez składowych oraz liczenie zmian planów o tej samej cenie (MRR neutralny) jako ekspansji.",
+      "interpretation_en": "Net balance of the recurring base in currency: how much MRR was actually added after subtracting losses. Its diagnostic value lies in the decomposition – the same total can come from strong acquisition with heavy churn or weak acquisition with excellent retention. Pitfall: reporting only the total without components, or counting same-price plan switches (neutral MRR) as expansion.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Wczesny etap subskrypcji, ARR < 300 tys. USD – Net New MRR jako % MRR z początku miesiąca",
+          "period": "miesięcznie (średnia 3-miesięczna)",
+          "method": "kwartyle ChartMogul r/r (LTM do 03.2023: −5% / 37% / 153%) przeliczone na miesiąc: −0,43% / 2,66% / 8,04%; granica słaby/normalny (1%) heurystyczna",
+          "source_ids": ["S3"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": -0.43,
+              "note": "poniżej dolnego kwartyla – baza się kurczy"
+            },
+            {
+              "label": "słaby",
+              "min": -0.43,
+              "max": 1
+            },
+            {
+              "label": "normalny",
+              "min": 1,
+              "max": 2.66
+            },
+            {
+              "label": "dobry",
+              "min": 2.66,
+              "max": 8
+            },
+            {
+              "label": "optymalny",
+              "min": 8,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Efektywność wzrostu – Net New MRR ÷ brutto pozyskany MRR (%) – wszystkie segmenty",
+          "period": "kwartalnie",
+          "method": "przeliczenie progów SaaS Quick Ratio wg ChartMogul (<2 niski, 2–4 przeciętny, ≥4 wysoki) wzorem 1 − 1/QR; progi QR ChartMogul liczono BEZ Reactivation MRR, więc efektywność z reaktywacją w mianowniku nie jest w pełni porównywalna – do porównań z progami licz wariant bez reaktywacji; skala reaktywacji: S101–S103 (zob. zastrzeżenia)",
+          "source_ids": ["S8", "S101", "S102", "S103"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0,
+              "note": "utrata większa niż pozyskanie (QR < 1)"
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 30,
+              "note": "QR ok. 1–1,4"
+            },
+            {
+              "label": "normalny",
+              "min": 30,
+              "max": 50,
+              "note": "QR 1,4–2"
+            },
+            {
+              "label": "dobry",
+              "min": 50,
+              "max": 75,
+              "note": "QR 2–4"
+            },
+            {
+              "label": "optymalny",
+              "min": 75,
+              "max": null,
+              "note": "QR > 4"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Reaktywacje raportuj osobno. U firm, które doszły do 20 mln USD ARR (outliers ChartMogul), stanowiły 1,7% net-new MRR przy 1 mln USD i 3,8% przy 20 mln USD ARR. Nowsze dane: ChartMogul Winbacks Report (21.04.2026) – mediana winback 7% przy ARR < 500 tys. USD, 9% przy 0,5–10 mln USD; 45% powrotów w 30 dni, 66% w 90 dni. ChartMogul '30-day upsell window' (30.09.2026) – 2,67% reaktywacji w 1. miesiącu po rezygnacji, > 5% w 3 miesiące. Recurly 2026 – w B2C ok. 1 na 4 nowe zapisy to powracający subskrybenci. Wysoki udział reaktywacji w B2C jest więc normalny i nie musi być sygnałem alarmowym.",
+        "Przy planach rocznych churn ujawnia się skokowo w miesiącach odnowień – oceniaj sumy 3- lub 12-miesięczne.",
+        "Klasyfikację ruchów (new/expansion/contraction/churn/reactivation/neutral) stosuj zgodnie z definicją ChartMogul, inaczej porównania z benchmarkami są niemiarodajne."
+      ],
+      "confidence": "średnia"
+    },
+    {
+      "key": "saas_quick_ratio",
+      "abbr": "QR",
+      "name_pl": "Wskaźnik szybkości wzrostu SaaS (Quick Ratio)",
+      "name_en": "SaaS Quick Ratio",
+      "expansion_pl": "SaaS Quick Ratio – stosunek pozyskanego MRR do utraconego MRR (nie mylić z księgowym wskaźnikiem płynności szybkiej)",
+      "expansion_en": "SaaS Quick Ratio (growth efficiency, not the accounting acid-test ratio)",
+      "formula": "QR = (New MRR + Expansion MRR [+ Reactivation MRR]) ÷ (Churned MRR + Contraction MRR); progi ChartMogul (< 2, 2–4, ≥ 4) liczono BEZ Reactivation MRR – jeśli panel dodaje reaktywacje do licznika, do porównań z progami pokazuj wariant zgodny z definicją ChartMogul (bez reaktywacji); przy zerowej utracie wynik nieokreślony – pokazuj 'n/d'",
+      "unit": "ratio",
+      "interpretation_pl": "Ile złotych nowego MRR przypada na każdy utracony złoty – mierzy jakość wzrostu, nie jego skalę. Wartość 4 to klasyczny próg zdrowego wzrostu młodej firmy B2B, ale wysoki wzrost potrafi maskować churn: przy QR = 4 i wzroście 15% m/m churn może sięgać 5% miesięcznie. Pułapka: QR z jednego miesiąca przy rocznych odnowieniach skacze – używaj okna kwartalnego lub rocznego.",
+      "interpretation_en": "How many units of new MRR are gained per unit lost – measures growth quality, not scale. A value of 4 is the classic threshold for healthy growth in a young B2B company, but fast growth can mask churn: with QR = 4 and 15% monthly growth, churn can still be 5% per month. Pitfall: a single-month QR jumps around with annual renewals – use a quarterly or annual window.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "B2B SaaS / subskrypcje firm i instytucji (okno kwartalne)",
+          "period": "kwartalnie",
+          "method": "progi ChartMogul (<2 niski, 2–4 przeciętny, ≥4 wysoki; definicja bez Reactivation MRR) i próg 4 jako poziom inwestycyjny (parafraza stanowiska M. Hamida we wpisie ChartMogul); kontrola: przy wzroście ok. 20% r/r i GRR ok. 90% (KeyBanc/Sapphire 2025) QR ≈ 1 + 0,20/0,10 = 3 – 20% to prognoza KeyBanc/Sapphire na 2025, nie wynik; przy wyniku za 2024 (15%) QR ≈ 2,5",
+          "source_ids": ["S8", "S9", "S28"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 1,
+              "note": "baza się kurczy"
+            },
+            {
+              "label": "słaby",
+              "min": 1,
+              "max": 2
+            },
+            {
+              "label": "normalny",
+              "min": 2,
+              "max": 4
+            },
+            {
+              "label": "dobry",
+              "min": 4,
+              "max": 6
+            },
+            {
+              "label": "optymalny",
+              "min": 6,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "B2C subskrypcje / media cyfrowe (okno roczne)",
+          "period": "rocznie",
+          "method": "heurystyka wyprowadzona ze wzoru QR = 1 + wzrost ÷ utrata: przy rocznej utracie 35–45% przychodu (dane Piano: 12-miesięczna przeżywalność 34% planów miesięcznych i 70% rocznych) i wzroście 10–20% r/r QR ≈ 1,2–1,6",
+          "source_ids": ["S17", "S15", "S14"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 1
+            },
+            {
+              "label": "słaby",
+              "min": 1,
+              "max": 1.2
+            },
+            {
+              "label": "normalny",
+              "min": 1.2,
+              "max": 1.5
+            },
+            {
+              "label": "dobry",
+              "min": 1.5,
+              "max": 2
+            },
+            {
+              "label": "optymalny",
+              "min": 2,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Brak publicznych kwartyli QR z badań pierwotnych; krążące w sieci 'mediany' (np. 2,5) pochodzą z nieweryfikowalnych agregatorów.",
+        "W pierwszym roku działania wskaźnik jest mało informatywny (ChartMogul).",
+        "Zawsze pokazuj obok QR churn brutto – ten sam QR może oznaczać 1% albo 6% churnu miesięcznie (Tunguz)."
+      ],
+      "confidence": "średnia"
+    },
+    {
+      "key": "expansion_share_new_mrr",
+      "abbr": "EXP %",
+      "name_pl": "Udział ekspansji w nowym MRR",
+      "name_en": "Expansion Share of New MRR",
+      "expansion_pl": "Expansion share – udział przychodu z rozszerzeń u obecnych klientów w całym pozyskanym MRR",
+      "expansion_en": "Expansion MRR share of total new MRR",
+      "formula": "Udział ekspansji = Expansion MRR ÷ (New MRR + Expansion MRR [+ Reactivation MRR]) × 100% w okresie (Benchmarkit: Expansion ARR ÷ Total New ARR)",
+      "unit": "%",
+      "interpretation_pl": "Jaka część nowego przychodu pochodzi od istniejących klientów (wyższy plan, więcej licencji instytucjonalnych, dodatki, przejście z planu indywidualnego na firmowy). Rośnie naturalnie ze skalą i szerokością oferty; zbyt niski oznacza brak ścieżki rozwoju klienta, zbyt wysoki – słabnącą akwizycję nowych. Pułapka: liczenie zmiany z planu miesięcznego na roczny o tej samej wartości miesięcznej jako ekspansji.",
+      "interpretation_en": "Share of new revenue coming from existing customers (higher tier, more institutional seats, add-ons, moving from individual to corporate plans). It rises naturally with scale and product breadth; too low means no customer growth path, too high means weakening new-customer acquisition. Pitfall: counting a monthly-to-annual switch at the same monthly value as expansion.",
+      "direction": "target_range",
+      "contexts": [
+        {
+          "context": "B2B SaaS ogółem (%)",
+          "period": "rocznie",
+          "method": "mediana Benchmarkit 2025 (40%, N=81; 25% w 2022) + heurystyka zakresu docelowego",
+          "source_ids": ["S10", "S11"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 0,
+              "max": 10
+            },
+            {
+              "label": "słaby",
+              "min": 10,
+              "max": 25,
+              "note": "poniżej mediany z 2022 r. (25%)"
+            },
+            {
+              "label": "normalny",
+              "min": 25,
+              "max": 40
+            },
+            {
+              "label": "dobry",
+              "min": 40,
+              "max": 55,
+              "note": "mediana 2024: 40%"
+            },
+            {
+              "label": "optymalny",
+              "min": 55,
+              "max": 70,
+              "note": "poziom firm 50–100 mln USD ARR (58%) i >100 mln USD (67% – kohorta tylko 6 firm, statystycznie słaba; Benchmarkit); mediana ogółem 40% pochodzi z N = 81"
+            },
+            {
+              "label": "normalny",
+              "min": 70,
+              "max": 100,
+              "note": "ryzyko zależności od bazy – sprawdź akwizycję nowych klientów"
+            }
+          ]
+        },
+        {
+          "context": "Mała firma subskrypcyjna, ok. 1 mln USD ARR (%)",
+          "period": "kroczące 12 miesięcy",
+          "method": "heurystyka wokół punktów ChartMogul dla firm, które później doszły do 20 mln USD ARR (outliers): 15,4% przy 1 mln USD ARR i 34,7% przy 20 mln USD ARR; okres kroczący 12 mies., bo ok. 40% upgrade'ów planu w 1. roku następuje przy odnowieniu w 12. miesiącu (ChartMogul/Growth Unhinged 2026) – okno kwartalne byłoby skokowe",
+          "source_ids": ["S4", "S3", "S102"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 0,
+              "max": 5
+            },
+            {
+              "label": "słaby",
+              "min": 5,
+              "max": 10
+            },
+            {
+              "label": "normalny",
+              "min": 10,
+              "max": 15
+            },
+            {
+              "label": "dobry",
+              "min": 15,
+              "max": 25,
+              "note": "outliers (firmy, które później doszły do 20 mln USD ARR) przy 1 mln USD ARR: 15,4%"
+            },
+            {
+              "label": "optymalny",
+              "min": 25,
+              "max": 40,
+              "note": "outliers przy 20 mln USD ARR: 34,7%"
+            },
+            {
+              "label": "normalny",
+              "min": 40,
+              "max": 100,
+              "note": "na tym etapie zwykle sygnał słabej akwizycji"
+            }
+          ]
+        },
+        {
+          "context": "Media / B2C (upgrade planu, dodatki, przejście na plan instytucjonalny) (%)",
+          "period": "kroczące 12 miesięcy",
+          "method": "heurystyka – brak publicznych benchmarków dla wydawców; uzasadnienie: w B2C o niskim ARPA ekspansja jest strukturalnie mała; okres kroczący 12 mies., bo upgrade'y kumulują się przy odnowieniu rocznym (ChartMogul/Growth Unhinged 2026: ok. 40% upgrade'ów w 1. roku w 12. miesiącu)",
+          "source_ids": ["S7", "S102"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 0,
+              "max": 2,
+              "note": "brak ścieżki ekspansji w ofercie"
+            },
+            {
+              "label": "słaby",
+              "min": 2,
+              "max": 5
+            },
+            {
+              "label": "normalny",
+              "min": 5,
+              "max": 10
+            },
+            {
+              "label": "dobry",
+              "min": 10,
+              "max": 20
+            },
+            {
+              "label": "optymalny",
+              "min": 20,
+              "max": 40
+            },
+            {
+              "label": "normalny",
+              "min": 40,
+              "max": 100,
+              "note": "sprawdź, czy akwizycja nowych subskrybentów nie zamiera"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Starsze dane ChartMogul (2023): ekspansja stanowiła 32,3% pozyskanego ARR w firmach 1–30 mln USD ARR (28,8% w 2020).",
+        "Tylko 2,7% firm z ARPA < 10 USD/mies. ma NRR > 100% (ChartMogul) – w B2C nie oczekuj poziomów B2B.",
+        "Pełne dane KeyBanc/Sapphire 2025 o podziale nowy/ekspansja są dostępne po rejestracji – nieuwzględnione liczbowo."
+      ],
+      "confidence": "średnia"
+    },
+    {
+      "key": "price_realization",
+      "abbr": "PR",
+      "name_pl": "Realizacja ceny",
+      "name_en": "Price Realization",
+      "expansion_pl": "Price Realization – odsetek ceny katalogowej faktycznie zrealizowany w przychodzie",
+      "expansion_en": "Price Realization",
+      "formula": "PR = Σ przychód zafakturowany netto (po rabatach, kuponach, promocjach) ÷ Σ przychód według cennika katalogowego dla tych samych planów i okresów × 100%; wariant: realizacja podwyżki = faktyczny wzrost średniej ceny ÷ planowany wzrost × 100%",
+      "unit": "%",
+      "interpretation_pl": "Jaki procent ceny katalogowej faktycznie trafia do firmy – syntetyczna miara wycieku przez rabaty, oferty wejściowe i negocjacje. Spadek przy rosnącej sprzedaży oznacza kupowanie wolumenu ceną; rozbijaj na segmenty i kohorty (oferta wejściowa vs odnowienie po pełnej cenie). Pułapka: porównywanie z cennikiem sztucznie zawyżonym lub pomijanie rabatu za płatność roczną.",
+      "interpretation_en": "Share of the list price that actually reaches the company – a summary measure of leakage through discounts, introductory offers and negotiation. A decline while sales grow means buying volume with price; break it down by segment and cohort (introductory offer vs full-price renewal). Pitfall: benchmarking against an artificially inflated list price or ignoring the annual-prepay discount.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Media cyfrowe B2C (PL/UE) – cała aktywna baza (%)",
+          "period": "miesięcznie",
+          "method": "heurystyka: miks 50/25/25 (50% pełna cena, 25% oferty wejściowe, 25% roczne) cytowany przez Mather za N. Hunshikattim (Mather zastrzega: no one-size-fits-all) daje ok. 72–75% przy rabatach ofert wejściowych rzędu 70–80%, typowych dla UK (S13); przy rabatach wejściowych ok. 50% ten sam miks daje ok. 79–82%; DNR 2024: 78% subskrybentów w Polsce i 41% w 20 krajach poniżej pełnej ceny (deklaracje ankietowe); rabaty 1. roku w UK 17–89%",
+          "source_ids": ["S16", "S12", "S13"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 50
+            },
+            {
+              "label": "słaby",
+              "min": 50,
+              "max": 65,
+              "note": "np. FT w 1. roku: 279 vs 468 GBP ≈ 60%"
+            },
+            {
+              "label": "normalny",
+              "min": 65,
+              "max": 75
+            },
+            {
+              "label": "dobry",
+              "min": 75,
+              "max": 85
+            },
+            {
+              "label": "optymalny",
+              "min": 85,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "B2B – umowy z firmami i instytucjami (%)",
+          "period": "kwartalnie",
+          "method": "heurystyka z punktów odniesienia: średni rabat ok. 10% (Vendr wg SaaStr, dane z 2023 r., definicja rabatu niepodana; typowo 10–15%) i 33,8% od cennika w korporacyjnych zakupach oprogramowania (Vertice, Q2 2026)",
+          "source_ids": ["S19", "S20"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 65,
+              "note": "gorzej niż średnia korporacyjnych zakupów IT (−33,8%)"
+            },
+            {
+              "label": "słaby",
+              "min": 65,
+              "max": 80
+            },
+            {
+              "label": "normalny",
+              "min": 80,
+              "max": 88
+            },
+            {
+              "label": "dobry",
+              "min": 88,
+              "max": 95,
+              "note": "odpowiada typowemu rabatowi 10–15%"
+            },
+            {
+              "label": "optymalny",
+              "min": 95,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Realizacja planowanej podwyżki cen – dowolny segment (%)",
+          "period": "na kampanię cenową",
+          "method": "średnia źródła (Simon-Kucher 2025: 43%, spadek o 5 pp w 2 lata) ± heurystyka",
+          "source_ids": ["S18"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 20
+            },
+            {
+              "label": "słaby",
+              "min": 20,
+              "max": 35
+            },
+            {
+              "label": "normalny",
+              "min": 35,
+              "max": 50,
+              "note": "średnia globalna 43%"
+            },
+            {
+              "label": "dobry",
+              "min": 50,
+              "max": 70
+            },
+            {
+              "label": "optymalny",
+              "min": 70,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "DNR mierzy odsetek subskrybentów poniżej pełnej ceny, a nie poziom realizacji – przedziały B2C to heurystyka.",
+        "Podwyżki niosą ryzyko churnu: 47% rezygnujących z subskrypcji wskazało podwyżkę ceny jako powód (Zuora/Harris Poll, USA, 2024).",
+        "Realizacja zaplanowanej podwyżki (Simon-Kucher) to inna definicja niż realizacja ceny katalogowej – nie mieszaj wariantów na jednym wykresie."
+      ],
+      "confidence": "niska"
+    },
+    {
+      "key": "average_discount",
+      "abbr": "ADD",
+      "name_pl": "Średni rabat (głębokość rabatu)",
+      "name_en": "Average Discount Depth",
+      "expansion_pl": "Average Discount Depth – średnia głębokość rabatu w transakcjach objętych rabatem lub kuponem",
+      "expansion_en": "Average Discount Depth",
+      "formula": "ADD = Σ (cena katalogowa − cena zapłacona) ÷ Σ cena katalogowa, dla transakcji z rabatem lub kuponem w okresie × 100%; osobno: penetracja rabatów = transakcje z rabatem ÷ wszystkie transakcje × 100%",
+      "unit": "%",
+      "interpretation_pl": "Jak głęboko obniżamy cenę, gdy już dajemy rabat. Głębokie rabaty wejściowe przyspieszają akwizycję, ale przyciągają klientów o niższej wartości: na danych gazety i internetowego sklepu spożywczego (Lewis 2006) rabat akwizycyjny 35% dawał klientów o ok. połowę niższej wartości długoterminowej. Pułapka: uśrednianie strukturalnego rabatu za płatność roczną z promocjami i ignorowanie penetracji – 10% dla wszystkich kosztuje więcej niż 50% dla nielicznych.",
+      "interpretation_en": "How deep the price cut is when a discount is granted. Deep introductory discounts speed up acquisition but attract lower-value customers: in newspaper and online grocery data (Lewis 2006) a 35% acquisition discount produced customers worth about half as much over the long term. Pitfall: averaging the structural annual-prepay discount with promotions and ignoring penetration – 10% for everyone costs more than 50% for a few.",
+      "direction": "lower_better",
+      "contexts": [
+        {
+          "context": "Oferty wejściowe B2C – media i subskrypcje indywidualne (%)",
+          "period": "na kampanię / miesięcznie",
+          "method": "heurystyka: Lewis 2006 (rabat 35% ≈ połowa wartości klienta) oraz rabaty 1. roku wydawców UK 17–89% (dziesięć tytułów ≥ 70%, 2026); mediany kuponowe Recurly (2017) odpięte – źródło niesprawdzalne",
+          "source_ids": ["S21", "S13"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 50,
+              "max": null,
+              "note": "duzi wydawcy UK dają 70–89%, ale przy masowej skali i silnej marce"
+            },
+            {
+              "label": "słaby",
+              "min": 35,
+              "max": 50,
+              "note": "≥35%: ok. połowa wartości długoterminowej klienta"
+            },
+            {
+              "label": "normalny",
+              "min": 25,
+              "max": 35,
+              "note": "heurystyka między rabatami 17–89% wydawców UK (S13) a progiem 35% z badania Lewisa (S21)"
+            },
+            {
+              "label": "dobry",
+              "min": 15,
+              "max": 25
+            },
+            {
+              "label": "optymalny",
+              "min": 0,
+              "max": 15
+            }
+          ]
+        },
+        {
+          "context": "B2B – rabaty negocjowane dla firm i instytucji (%)",
+          "period": "kwartalnie",
+          "method": "heurystyka z punktów odniesienia: ok. 10% (Vendr wg SaaStr, dane z 2023 r., definicja rabatu niepodana; typowo 10–15%) i 33,8% od cennika w korporacyjnych zakupach IT (Vertice, Q2 2026)",
+          "source_ids": ["S19", "S20"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 30,
+              "max": null,
+              "note": "poziom korporacyjnych działów zakupów (33,8%)"
+            },
+            {
+              "label": "słaby",
+              "min": 20,
+              "max": 30
+            },
+            {
+              "label": "normalny",
+              "min": 12,
+              "max": 20
+            },
+            {
+              "label": "dobry",
+              "min": 5,
+              "max": 12,
+              "note": "typowo 10–15% (SaaStr/Vendr, dane z 2023 r.)"
+            },
+            {
+              "label": "optymalny",
+              "min": 0,
+              "max": 5
+            }
+          ]
+        },
+        {
+          "context": "Rabat za płatność roczną – strukturalny (%)",
+          "period": "przy zmianie cennika",
+          "method": "heurystyka z przykładów: 'Save 20%' (ChartMogul) i pogłębiony rabat roczny 33% (FT Strategies)",
+          "source_ids": ["S5", "S17", "S15"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 40,
+              "max": null
+            },
+            {
+              "label": "słaby",
+              "min": 33,
+              "max": 40
+            },
+            {
+              "label": "normalny",
+              "min": 25,
+              "max": 33,
+              "note": "przykład pogłębionego rabatu rocznego 33% (FT Strategies)"
+            },
+            {
+              "label": "dobry",
+              "min": 17,
+              "max": 25,
+              "note": "typowe 'Save 20%'"
+            },
+            {
+              "label": "optymalny",
+              "min": 0,
+              "max": 17,
+              "note": "≈ 2 miesiące gratis; jeśli udział planów rocznych spada, rozważ wyższy rabat. TechCrunch po obniżce ceny planu rocznego (150 → 99 USD – obniżka ceny planu, nie rabat względem 12 × ceny miesięcznej) podwoił konwersję na plan roczny i zwiększył przychód z planów rocznych o 28% (Piano 2026)"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Mediany rabatów kuponowych Recurly (badanie z 2017 r.) są niesprawdzalne – URL nie zawiera badania – i nie kotwiczą przedziałów; nowszy raport Recurly 2026 nie publikuje danych o rabatach kuponowych.",
+        "SaaStr nie podaje definicji rabatu Vendr (dane z 2023 r.); Vertice mierzy rabat od cennika (Q2 2026).",
+        "Ceny dla studentów/NGO raportuj jako osobne plany cenowe, nie jako rabat promocyjny."
+      ],
+      "confidence": "niska"
+    },
+    {
+      "key": "coupon_redemption_rate",
+      "abbr": "CpRR",
+      "name_pl": "Wskaźnik realizacji kuponów",
+      "name_en": "Coupon Redemption Rate",
+      "expansion_pl": "Coupon Redemption Rate – odsetek wydanych kodów rabatowych wykorzystanych przy zakupie",
+      "expansion_en": "Coupon Redemption Rate",
+      "formula": "CpRR = liczba wykorzystanych kodów ÷ liczba wydanych (doręczonych) kodów × 100%, w kohorcie kampanii i stałym oknie (np. 30 dni); uzupełniająco: udział zamówień z kuponem",
+      "unit": "%",
+      "interpretation_pl": "Jaka część rozesłanych kodów rabatowych zamienia się w zakup – miara trafności oferty i kanału. Kody spersonalizowane (win-back, oferta B2B, uczestnicy wydarzeń) powinny realizować się kilkukrotnie lepiej niż kody masowe. Pułapka: wysoka realizacja kodu publicznego może oznaczać wyciek do serwisów kuponowych i kanibalizację sprzedaży po pełnej cenie.",
+      "interpretation_en": "Share of distributed discount codes that turn into a purchase – a measure of offer and channel fit. Personalised codes (win-back, B2B offers, event attendees) should redeem several times better than mass codes. Pitfall: high redemption of a public code may signal leakage to coupon sites and cannibalisation of full-price sales.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "Kupony w e-mailu masowym / newsletterze (%)",
+          "period": "na kampanię",
+          "method": "typowy zakres źródła 1–5% (Yotpo) podzielony heurystycznie",
+          "source_ids": ["S23"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0.5
+            },
+            {
+              "label": "słaby",
+              "min": 0.5,
+              "max": 1
+            },
+            {
+              "label": "normalny",
+              "min": 1,
+              "max": 3
+            },
+            {
+              "label": "dobry",
+              "min": 3,
+              "max": 5
+            },
+            {
+              "label": "optymalny",
+              "min": 5,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Kupony on-site (pop-up, paywall, exit intent) (%)",
+          "period": "na kampanię",
+          "method": "zakres źródła 2–10% (Yotpo) podzielony heurystycznie",
+          "source_ids": ["S23"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 1
+            },
+            {
+              "label": "słaby",
+              "min": 1,
+              "max": 2
+            },
+            {
+              "label": "normalny",
+              "min": 2,
+              "max": 5
+            },
+            {
+              "label": "dobry",
+              "min": 5,
+              "max": 10
+            },
+            {
+              "label": "optymalny",
+              "min": 10,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "Kody spersonalizowane 1:1 (win-back, oferty B2B, polecenia, program lojalnościowy) (%)",
+          "period": "na kampanię",
+          "method": "zakresy źródła: polecenia 5–20%, SMS 5–15%, programy lojalnościowe 10–30%+ (Yotpo) + heurystyka",
+          "source_ids": ["S23"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 3
+            },
+            {
+              "label": "słaby",
+              "min": 3,
+              "max": 5
+            },
+            {
+              "label": "normalny",
+              "min": 5,
+              "max": 10
+            },
+            {
+              "label": "dobry",
+              "min": 10,
+              "max": 20
+            },
+            {
+              "label": "optymalny",
+              "min": 20,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Źródła to materiały dostawców, nie niezależne badania – Yotpo sam zaznacza, że zakresy są orientacyjne, a najlepszym punktem odniesienia jest własna historia.",
+        "Zakresy Yotpo pochodzą z kontekstu e-commerce, nie subskrypcji – w subskrypcjach traktuj je kierunkowo.",
+        "Dla porównania: w masowej dystrybucji kuponów CPG w USA wykorzystano 1,3% wydanych kuponów (Inmar, 2024).",
+        "W mianowniku licz także kody wygasłe; w przeciwnym razie wskaźnik jest zawyżony. Skrót CpRR celowo odróżnia od CRR (Customer Retention Rate)."
+      ],
+      "confidence": "niska"
+    },
+    {
+      "key": "annual_plan_share",
+      "abbr": "APS",
+      "name_pl": "Udział planów rocznych",
+      "name_en": "Annual Plan Share",
+      "expansion_pl": "Annual Plan Share – udział subskrypcji z okresem rozliczeniowym 12 miesięcy lub dłuższym",
+      "expansion_en": "Annual Plan Share",
+      "formula": "APS = aktywne płatne subskrypcje z okresem rozliczeniowym ≥ 12 mies. ÷ wszystkie aktywne płatne subskrypcje × 100%; wariant przychodowy: MRR z planów ≥ 12 mies. ÷ MRR całkowity × 100%",
+      "unit": "%",
+      "interpretation_pl": "Jaka część bazy jest zobowiązana na rok lub dłużej – wskaźnik stabilności przychodu i gotówki z przedpłat. Plany roczne retencjonują znacznie lepiej (Piano: po 4 latach aktywnych 18,0% subskrypcji rocznych vs 4,4% miesięcznych), ale zwykle konwertują wolniej i bywają tańsze. Pułapka: wymuszanie planów rocznych głębokimi rabatami kupuje retencję kosztem realizacji ceny, a na wczesnym etapie zbyt wysoki udział rocznych spowalnia wzrost.",
+      "interpretation_en": "Share of the base committed for a year or longer – an indicator of revenue stability and prepaid cash. Annual plans retain far better (Piano: after 4 years 18.0% of annual vs 4.4% of monthly subscriptions remain active) but usually convert more slowly and can be cheaper. Pitfall: pushing annual plans with deep discounts buys retention at the cost of price realisation, and at an early stage too high an annual share slows growth.",
+      "direction": "target_range",
+      "contexts": [
+        {
+          "context": "Media cyfrowe B2C – udział w aktywnej bazie subskrybentów (%)",
+          "period": "miesięcznie",
+          "method": "średnie źródeł (Piano 2026: 49%, 181 serwisów; FT Strategies: 46%, próba 4 europejskich wydawców prasowych) + heurystyka zakresu docelowego; ARPU planów rocznych vs miesięcznych – sprzeczne punkty odniesienia (Mather 2024, Piano 2026, Recurly 2026), zob. zastrzeżenia",
+          "source_ids": ["S15", "S17", "S16", "S103"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 0,
+              "max": 15
+            },
+            {
+              "label": "słaby",
+              "min": 15,
+              "max": 30
+            },
+            {
+              "label": "normalny",
+              "min": 30,
+              "max": 40
+            },
+            {
+              "label": "dobry",
+              "min": 40,
+              "max": 45
+            },
+            {
+              "label": "optymalny",
+              "min": 45,
+              "max": 60,
+              "note": "Piano 2026: 49% aktywnych i 49% przychodu; FT Strategies: 46% (próba 4 europejskich wydawców prasowych)"
+            },
+            {
+              "label": "dobry",
+              "min": 60,
+              "max": 75
+            },
+            {
+              "label": "normalny",
+              "min": 75,
+              "max": 100,
+              "note": "sprawdź ARPU i tempo akwizycji"
+            }
+          ]
+        },
+        {
+          "context": "B2B – firmy i instytucje: udział ARR z planów rocznych (%)",
+          "period": "kwartalnie",
+          "method": "punkty ChartMogul Billing Report 2025: wzrost stabilizuje się powyżej 25% ARR z planów rocznych (dotyczy firm 1–10 mln USD ARR); przy ARPA ≥ 1 tys. USD 55% ARR z rocznych",
+          "source_ids": ["S5"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": 0,
+              "max": 10
+            },
+            {
+              "label": "słaby",
+              "min": 10,
+              "max": 25
+            },
+            {
+              "label": "normalny",
+              "min": 25,
+              "max": 45,
+              "note": "powyżej 25% wzrost się stabilizuje (firmy 1–10 mln USD ARR)"
+            },
+            {
+              "label": "dobry",
+              "min": 45,
+              "max": 55,
+              "note": "szczyt 47% przy 3–8 mln USD ARR"
+            },
+            {
+              "label": "optymalny",
+              "min": 55,
+              "max": 100,
+              "note": "ARPA ≥ 1 tys. USD: 55% ARR z planów rocznych; instytucje preferują roczne umowy"
+            }
+          ]
+        },
+        {
+          "context": "Wczesny etap, ARR < 1 mln USD, miks planów – udział ARR z planów rocznych (%)",
+          "period": "kwartalnie",
+          "method": "heurystyka na podstawie ChartMogul Billing Report 2025: mediana wzrostu firm < 1 mln USD ARR opartych w 50–75% / ≥ 75% na planach rocznych spadła do 15% / 18%; zdanie 'wzrost stabilizuje się powyżej 25%' ChartMogul odnosi do firm 1–10 mln USD ARR, a w górnym kwartylu firm wczesnego etapu najszybciej rosły te z < 25% ARR z planów rocznych (zakres 25–50% to heurystyczny kompromis między retencją a tempem wzrostu); etykieta 'słaby' dla 0–10% wynika z retencji: przy ARPA < 25 USD retencja klientów 62% (roczne) vs 41% (miesięczne)",
+          "source_ids": ["S5"],
+          "bands": [
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 10,
+              "note": "przy ARPA < 25 USD retencja klientów: 62% (roczne) vs 41% (miesięczne)"
+            },
+            {
+              "label": "normalny",
+              "min": 10,
+              "max": 25
+            },
+            {
+              "label": "optymalny",
+              "min": 25,
+              "max": 50
+            },
+            {
+              "label": "normalny",
+              "min": 50,
+              "max": 75,
+              "note": "mediana wzrostu takich firm: 15%"
+            },
+            {
+              "label": "słaby",
+              "min": 75,
+              "max": 100,
+              "note": "mediana wzrostu takich firm: 18%; w górnym kwartylu firm wczesnego etapu najszybciej rosły te z < 25% ARR z planów rocznych"
+            }
+          ]
+        }
+      ],
+      "caveats": [
+        "Udział wśród nowych subskrypcji jest dużo niższy niż w aktywnej bazie (Mather: 14% nowych subskrypcji to plany roczne, 71% miesięczne) – raportuj oba warianty.",
+        "Sprzeczne punkty odniesienia dla ARPU planów rocznych: Recurly 2026 State of Subscriptions podaje, że plany roczne dają 50–60% wyższy przychód na użytkownika, Mather 2024 – ARPU niższe (7,36 vs 12,64 USD), Piano 2026 – zbliżone (6,62 vs 6,57 USD). Wynik zależy od cennika.",
+        "Najwięcej przejść z planu miesięcznego na roczny następuje w 2.–4. miesiącu subskrypcji (ChartMogul) – wtedy kieruj ofertę upgrade'u."
+      ],
+      "confidence": "średnia"
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "title": "2025 B2B Benchmarking Private SaaS Company Growth Rates (Research Brief 33)",
+      "publisher": "SaaS Capital",
+      "published": "2025-06",
+      "url": "https://www.saas-capital.com/wp-content/uploads/2025/06/RB33WS5-2025-B2B-Benchmarking-Private-SaaS-Company-Growth-Rates.pdf",
+      "excerpt": "Ponad 1 000 prywatnych firm B2B SaaS: mediana wzrostu 25% (2024) vs 30% (2023); 6,9% firm z płaskim/ujemnym wzrostem. Fig. 2 – percentyle wzrostu r/r wg ARR: <1 mln USD P25 20%, mediana 40%, P75 100%; 1–3 mln: 14%/28%/50%; 3–5 mln: 10%/24%/40%; 5–10 mln: 13%/24%/42%; 10–20 mln: 8%/20%/37%; >20 mln: 10%/20%/31%. 'A $2 million SaaS company needs to be growing more than 50% year-over-year to be in the top 25% of its peers'. Sam poziom ACV NIE koreluje ze wzrostem (powyżej średniej rosną tylko firmy z ACV > 250 tys. USD); związek rosnącego ACV z szybszym wzrostem pochodzi z osobnej analizy SaaS Capital ('Changing ACVs'), nie z tego raportu. Częstotliwość rozliczeń od czterech lat ma niewielki wpływ na medianę wzrostu. Strona edycji 2026 (S2) nie publikuje percentyli wg ARR, więc kwartyle z tej edycji pozostają najnowszymi publicznymi.",
+      "verification": "tak"
+    },
+    {
+      "id": "S2",
+      "title": "2026 Private B2B SaaS Company Growth Rate Benchmarks",
+      "publisher": "SaaS Capital",
+      "published": "2026 (strona bez daty publikacji; widoczne tylko 'Copyright 2026')",
+      "url": "https://www.saas-capital.com/research/private-saas-company-growth-rate-benchmarks/",
+      "excerpt": "15. doroczne badanie (>1 000 firm): 'The median growth rate for all companies in the survey registered 22%, down from a population median of 25% in 2024'; 7,3% firm z płaskim/ujemnym wzrostem w 2025; bootstrapped 20%, equity-backed 25%; podniesienie NRR z 90–100% do 100–110% zwiększa wzrost o 5 pp. Strona nie publikuje percentyli wzrostu wg ARR ani linku do PDF.",
+      "verification": "tak"
+    },
+    {
+      "id": "S3",
+      "title": "SaaS Benchmarks Report 2023 (2nd edition)",
+      "publisher": "ChartMogul",
+      "published": "2023-05",
+      "url": "https://chartmogul.com/reports/saas-benchmarks-report/saas-benchmarks-report-2023.pdf",
+      "excerpt": "Ponad 2 100 firm, LTM do 03.2023. Kwartyle wzrostu ARR r/r wg ARR: <300 tys. USD dolny −5%, mediana 37%, górny 153%; 300 tys.–1 mln: 4%/32%/97%; 1–3 mln: 7%/27%/70%. Wg ARPA/mies.: <25 USD 2%/24%/70%; 25–100 USD 4%/31%/81%. 'The proportion of ARR gained from expansion has increased from 28.8% in 2020 to 32.3% now', nowy biznes spadł z 62,0% do 57,9% (firmy 1–30 mln USD ARR). Dane przestarzałe (LTM do 03.2023); kolejne raporty ChartMogul nie publikują już kwartyli wg ARPA (nowszy, selekcjonowany kontekst: S100).",
+      "verification": "tak"
+    },
+    {
+      "id": "S4",
+      "title": "Growth Levers: The Path from $1M to $20M ARR",
+      "publisher": "ChartMogul (Kyle Poyar)",
+      "published": "2025-11-05",
+      "url": "https://chartmogul.com/reports/saas-growth-levers/",
+      "excerpt": "Próba 6 525 firm. 'Outliers' = firmy, które doszły do 20 mln USD ARR; 'normies' = firmy, które doszły do 1 mln USD, ale utknęły przed 20 mln USD ARR. Outliers przy 1 mln USD ARR: 'Net-new MRR primarily from acquisition with 15.4% coming from expansion and 1.7% from reactivation'; przy 20 mln USD – 34,7% z ekspansji i 3,8% z reaktywacji. ARPA outliers wzrosło z 564 do 1 024 USD (+82%), u normies +63%; 72% firm poprawiło ARPA o >10%. Wzrost m/m outliers spadł z 16,7% (1 mln USD ARR) do 5,1% (20 mln USD ARR); normies przy 1 mln USD ARR: 8,7% m/m.",
+      "verification": "tak"
+    },
+    {
+      "id": "S5",
+      "title": "SaaS Billing Report 2025: Billing is the invisible force behind your growth",
+      "publisher": "ChartMogul",
+      "published": "2025-03",
+      "url": "https://chartmogul.com/reports/saas-billing-report/saas-billing-report-2025.pdf",
+      "excerpt": "Dane za 2024, 2 500+ firm. Udział ARR z planów rocznych szczytuje przy 3–8 mln USD ARR (47%); przy 15–30 mln USD – 28% vs 72% z miesięcznych; przy ARPA ≥1 tys. USD 55% ARR z rocznych i 34% z miesięcznych. Mediana wzrostu firm <1 mln USD ARR opartych w 50–75% / ≥75% na planach rocznych spadła do 15% / 18%; 'Growth stabilizes once annual plans make up more than 25% of your ARR' – zdanie dotyczy firm 1–10 mln USD ARR, nie < 1 mln; w górnym kwartylu firm wczesnego etapu najszybciej rosły te z < 25% ARR z planów rocznych. Przy ARPA <25 USD mediana retencji klientów 62% (roczne) vs 41% (miesięczne). Upgrade do planu rocznego szczytuje w 2. miesiącu; Q1 najsilniejszy, Q4 najsłabszy. Przykład zachęty: 'Save 20% when you pay annually'.",
+      "verification": "tak"
+    },
+    {
+      "id": "S6",
+      "title": "MRR (Monthly Recurring Revenue) – SaaS metrics",
+      "publisher": "ChartMogul",
+      "published": "2026-09-08",
+      "url": "https://chartmogul.com/saas-metrics/mrr/",
+      "excerpt": "MRR = kwota za subskrypcję ÷ liczba miesięcy okresu rozliczeniowego (60 USD rocznie = 5 USD MRR); 'MRR should only include the recurring portion of the revenue' – opłaty jednorazowe wyłączone; rabaty czasowe ujmowane w kwocie faktycznie fakturowanej. Ruchy MRR: new, expansion, contraction, churn, reactivation, neutral.",
+      "verification": "tak"
+    },
+    {
+      "id": "S7",
+      "title": "Retention benchmarks and insights",
+      "publisher": "ChartMogul (Sid Jain)",
+      "published": "2023-03-01",
+      "url": "https://chartmogul.com/blog/retention-benchmarks-and-insights/",
+      "excerpt": "'Only 2.7% of SaaS businesses with an ARPA less than $10/month have net retention rates over 100%' wobec 41,1% firm z ARPA >500 USD/mies.; przyczyną jest wyższy churn i mniej okazji do ekspansji w B2C.",
+      "verification": "tak"
+    },
+    {
+      "id": "S8",
+      "title": "SaaS Quick Ratio",
+      "publisher": "ChartMogul",
+      "published": "2016-03-09",
+      "url": "https://chartmogul.com/blog/saas-quick-ratio/",
+      "excerpt": "QR = (New MRR + Expansion MRR) ÷ (Churned MRR + Contraction MRR); autor wpisu, parafrazując stanowisko inwestora M. Hamida (to nie jest cytat M. Hamida): 'a SaaS Quick Ratio of 4 indicates a healthy-enough growth rate for him to invest'; przedziały: niski <2, przeciętny 2–4, wysoki ≥4; 'For companies in the first year of business, SaaS Quick Ratio isn't so helpful'. Wzór ChartMogul NIE zawiera Reactivation MRR – progi dotyczą definicji bez reaktywacji (wariant z reaktywacją w liczniku daje nieco wyższe wartości).",
+      "verification": "tak"
+    },
+    {
+      "id": "S9",
+      "title": "What is the optimal quick ratio for your SaaS startup? Is it 4?",
+      "publisher": "Tomasz Tunguz",
+      "published": "2015-11-03",
+      "url": "https://tomtunguz.com/what-is-quick-ratio-hiding/",
+      "excerpt": "Przy QR = 4 'a SaaS startup growing at 15% can sustain a monthly customer contraction & churn rate of 5.0% per month' (46% rocznie); 'High growth rates can mask high dollar churn rates'.",
+      "verification": "tak"
+    },
+    {
+      "id": "S10",
+      "title": "2025 B2B SaaS Performance Metrics Benchmarks",
+      "publisher": "Benchmarkit (Ray Rike)",
+      "published": "2025-06",
+      "url": "https://www.hibob.com/wp-content/uploads/2025-SaaS-Performance-Metrics-Benchmarks.pdf",
+      "excerpt": "N = 583 (mediany wzrostu liczone na N = 149). Mediana wzrostu 26% w 2024, P75 50% (60% w 2023); 'Expansion ARR represents 40% of Total New ARR - a 5% increase' (mediana, N = 81; w opisie: 5 pp); firmy 50–100 mln USD ARR – 58%, >100 mln USD – 67% (kohorta tylko 6 firm – statystycznie słaba); mediana NRR 101%. PDF hostowany na hibob.com.",
+      "verification": "tak"
+    },
+    {
+      "id": "S11",
+      "title": "What are the Latest SaaS Metrics Benchmarks Telling Us? 'The Trends are the Insights'",
+      "publisher": "Maxio (Ray Rike)",
+      "published": "2025-07-03",
+      "url": "https://www.maxio.com/blog/2025-saas-benchmark-report-trends",
+      "excerpt": "'B2B SaaS companies generate 40% of their Total New ARR from existing customers' – 'a material level of increase from the 25% median in 2022'; mediana NRR spadła ze 105% (2021) do 101% (2024).",
+      "verification": "tak"
+    },
+    {
+      "id": "S12",
+      "title": "How much do people pay for online news and what might encourage others to pay (Digital News Report 2024)",
+      "publisher": "Reuters Institute for the Study of Journalism",
+      "published": "2024-06-17",
+      "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2024/how-much-do-people-pay-online-news-what-might-encourage-others-pay",
+      "excerpt": "'Across all 20 markets, 41% of subscribers say they are not paying the full sticker price'; 'the majority in Poland (78%) seeming not to pay the full amount'; UK 42%, USA 46%; w Szwecji 65% płaci pełną cenę lub więcej. Porównanie deklarowanej płatności z pełną ceną standardowej subskrypcji cyfrowej. Deklaracje ankietowe obciążone błędem pamięci; dane z ankiety 2024 – nowszych danych o pełnej cenie brak (DNR 2026 dla Polski: S105).",
+      "verification": "tak"
+    },
+    {
+      "id": "S13",
+      "title": "News subscription prices 2026 (UK digital subscription price tracker)",
+      "publisher": "Press Gazette",
+      "published": "2026-02-12",
+      "url": "https://pressgazette.co.uk/media-audience-and-business-data/news-subcriptions-prices-2026/",
+      "excerpt": "Średnia zmiana standardowych rocznych cen cyfrowych 23 tytułów: +3% (drugi rok z rzędu); styczniowe rabaty do 89% (Telegraph, Mail+), Business Insider 81%, WSJ 80%, dziesięć tytułów z rabatem ≥ 70% (cztery wymienione + sześć innych) i dziesięć kolejnych ≥ 17%; FT 1. rok 279 vs 468 GBP; Bloomberg 115 vs 299 GBP.",
+      "verification": "częściowo"
+    },
+    {
+      "id": "S14",
+      "title": "100k Club: biggest subscription news websites 2026",
+      "publisher": "Press Gazette",
+      "published": "2026-03-12 (aktualizacja 2026-06-25)",
+      "url": "https://pressgazette.co.uk/paywalls/biggest-subscription-news-websites-2026/",
+      "excerpt": "54 mln subskrypcji cyfrowych vs 44,7 mln – 'This suggests growth of 21%' (porównanie list o różnym składzie: 59 → 62 wydawców; część danych nieaktualna, metody raportowania się zmieniły – nie jest to wzrost organiczny); NYT +13% r/r, WSJ +13%, USA Today Co −30%; ARPU cyfrowe: NYT 9,72 USD (+0,7% r/r), USA Today Co 10,22 USD (+27% w Q4), Newsquest 5,67 USD (z 6,21; ok. −8,7%).",
+      "verification": "tak"
+    },
+    {
+      "id": "S15",
+      "title": "Monthly vs. annual subscriptions: why the answer isn't either-or",
+      "publisher": "Piano",
+      "published": "2026-10-14",
+      "url": "https://www.piano.io/resources/monthly-vs-annual-subscriptions-why-the-answer-isnt-either-or",
+      "excerpt": "181 serwisów: plany roczne 49% aktywnych subskrybentów (miesięczne 40%) i 49% przychodu (42%); aktywni po 4 latach: dwuletnie 27,3%, roczne 18,0%, kwartalne 9,2%, miesięczne 4,4%; ARPU/mies.: dwuletnie 9,69 USD, kwartalne 7,97, roczne 6,62, miesięczne 6,57; TechCrunch obniżył cenę planu rocznego ze 150 do 99 USD – to obniżka ceny planu, nie rabat względem 12 × ceny miesięcznej (tej strona nie podaje); efekt: konwersja na plan roczny ok. 2×, przychód z planów rocznych +28%. Plany kwartalne i dwuletnie mają małe próby.",
+      "verification": "tak"
+    },
+    {
+      "id": "S16",
+      "title": "Decoding Subscription Value: Annual vs. Monthly Terms",
+      "publisher": "Mather Economics",
+      "published": "2024-07-08 (wg URL; strona bez daty)",
+      "url": "https://www.mathereconomics.com/2024/07/08/decoding-subscription-value-annual-vs-monthly-terms/",
+      "excerpt": "'71% of new digital subscriptions are monthly, compared to 14% for annual subscriptions'; ARPU subskrybentów miesięcznych 12,64 USD vs rocznych 7,36 USD (1,7×); 'optymalny' miks 50% miesięcznych po pełnej cenie, 25% na ofertach wejściowych, 25% rocznych to cytat eksperta N. Hunshikattiego, nie rekomendacja Mather; strona zastrzega: 'There is no one-size-fits-all model'.",
+      "verification": "tak"
+    },
+    {
+      "id": "S17",
+      "title": "Are monthly subscribers practically worthless? (Part 2)",
+      "publisher": "FT Strategies",
+      "published": "2024-06 (niepotwierdzona – strona bez daty)",
+      "url": "https://www.ftstrategies.com/en-gb/insights/part-2-are-monthly-subscribers-practically-worthless/",
+      "excerpt": "Próba czterech anonimowych europejskich wydawców prasowych (nie dane FT): 'Monthly subscribers make up 54% of total subscribers with 46% being on an annual subscription'; po korekcie o churn i rabaty próbne plany roczne dają ok. 75% przychodu; dane Piano: 'a median 12-month survival rate for new monthly contracts is 34%, as opposed to 70% for new annual contracts'; przykład pogłębionego rabatu rocznego FT: 33%.",
+      "verification": "tak"
+    },
+    {
+      "id": "S18",
+      "title": "Global Pricing Study 2025 (brochure)",
+      "publisher": "Simon-Kucher",
+      "published": "2025-06",
+      "url": "https://www.simon-kucher.com/sites/default/files/media-document/2025-06/COR_GPS_2025_Brochure_Digital_Final.pdf",
+      "excerpt": "Ponad 2 200 menedżerów, 28 krajów, 39 branż: 'Over the past two years, average price realization has dropped by 5pp and now sits at 43%'; główne przyczyny: opór klientów (23%) i presja konkurencji (22%).",
+      "verification": "tak"
+    },
+    {
+      "id": "S19",
+      "title": "Vendr: The Average SaaS Discount is About 10% (and Trending Down)",
+      "publisher": "SaaStr (dane Vendr)",
+      "published": "2023-07 (niepotwierdzona – strona bez daty; dane Vendr za Q2 2023)",
+      "url": "https://www.saastr.com/vendr-the-average-saas-discount-is-about-10-and-trending-down",
+      "excerpt": "Dane Vendr pokazują 'average discount across its customer base of about 10% — and coming down'; autor: '10%-15% is where most of us land, typically'; rabaty szczytowały w 2020 r. i spadają od połowy 2022. Strona nie definiuje, od czego liczony jest rabat Vendr. Dane przestarzałe; nowszy punkt odniesienia: Vertice, Q2 2026 (S20).",
+      "verification": "częściowo"
+    },
+    {
+      "id": "S20",
+      "title": "Average discount from list price (software pricing benchmarks)",
+      "publisher": "Vertice",
+      "published": "2026-07",
+      "url": "https://www.vertice.one/insights/average-discount-from-list-price",
+      "excerpt": "'As of Q2 2026, the average discount across all software categories is 33.8% off list price'; zakres 19–44% wg kategorii (ERP 44%, AI 43%, Design 19%); dane z ponad 75 mld USD przetworzonych wydatków na oprogramowanie.",
+      "verification": "tak"
+    },
+    {
+      "id": "S21",
+      "title": "Customer Acquisition Promotions and Customer Asset Value",
+      "publisher": "Journal of Marketing Research 43(2): 195–203 (M. Lewis)",
+      "published": "2006-05",
+      "url": "https://doi.org/10.1509/jmkr.43.2.195",
+      "excerpt": "Na danych klientów gazety i internetowego sklepu spożywczego głębokość rabatu akwizycyjnego jest ujemnie związana z ponownymi zakupami i wartością klienta: 'a 35% acquisition discount results in customers with about one-half the long-term value of non-promotionally acquired customers'. (Metadane i abstrakt potwierdzone przez Crossref; strona SAGE niedostępna dla automatycznej weryfikacji.)",
+      "verification": "tak"
+    },
+    {
+      "id": "S22",
+      "title": "Subscriber Acquisition Benchmarks (coupons and free trials)",
+      "publisher": "Recurly Research",
+      "published": "2017-10",
+      "url": "https://recurly.com/research/subscriber-acquisition-benchmarks",
+      "excerpt": "[NIEZWERYFIKOWANE – URL prowadzi do ogólnej strony zasobów Recurly bez badania, wpis blogowy z 2017 r. zwraca 404; liczby niesprawdzalne i odpięte od przedziałów] Badanie >1 200 serwisów subskrypcyjnych (zapowiedź na blogu Recurly 30.10.2017). Wg indeksu wyszukiwarki (strona obecnie przekierowuje, liczb nie zweryfikowano bezpośrednio): mediana rabatu kuponowego B2C 30%, SaaS i OTT/SVOD 37%, B2B 42%, Media & Entertainment 43%; kupony 100% (ok. 32% próby) wyłączone.",
+      "verification": "nie da się sprawdzić"
+    },
+    {
+      "id": "S23",
+      "title": "What is redemption rate? (benchmarks and formula)",
+      "publisher": "Yotpo",
+      "published": "2025-09-29",
+      "url": "https://www.yotpo.com/blog/redemption-rate/",
+      "excerpt": "Wzór: wykorzystane oferty ÷ wydane oferty × 100; 'Typical ranges are 1-5% for email, 5-15% for SMS, and 10-30%+ for loyalty programs'; polecenia 5–20%, pop-upy on-site 2–10%; zakresy orientacyjne – najlepszym odniesieniem jest własna historia. Materiał dostawcy z kontekstu e-commerce, nie subskrypcji: 'Use these as a directional guide, not an absolute measure of success'.",
+      "verification": "tak"
+    },
+    {
+      "id": "S24",
+      "title": "As grocery costs increase, coupon use rises for the second straight year",
+      "publisher": "Coupons in the News (raport Inmar Intelligence)",
+      "published": "2025-02-24",
+      "url": "https://couponsinthenews.com/2025/02/24/as-grocery-costs-increase-coupon-use-rises-for-the-second-straight-year/",
+      "excerpt": "'1.3% of all coupons issued last year were used'; 67 mld wydanych i 871 mln wykorzystanych kuponów (USA, CPG, 2024); ponad połowa wykorzystanych kuponów była cyfrowa.",
+      "verification": "tak"
+    },
+    {
+      "id": "S25",
+      "title": "Wyniki finansowe Grupy Agora w 3 kwartale 2025 r.",
+      "publisher": "Strefa Inwestorów",
+      "published": "2025-11-19",
+      "url": "https://strefainwestorow.pl/wiadomosci/20251119/wyniki-finansowe-grupy-agora-w-3-kwartale-2025-r",
+      "excerpt": "Liczba aktywnych i płatnych prenumerat cyfrowych 'Gazety Wyborczej' na koniec września 2025 r. – blisko 317,6 tys.; przychody cyfrowe dziennika w Q3 2025 – blisko 18,1 mln zł (komunikat nie definiuje 'przychodów cyfrowych' – nie wiadomo, czy obejmują reklamę cyfrową). Wyliczenie własne: 18,1 mln zł ÷ 317,6 tys. ÷ 3 ≈ 19 zł/mies.; status górnej granicy ARPU zależy od niezweryfikowanej definicji licznika.",
+      "verification": "częściowo"
+    },
+    {
+      "id": "S26",
+      "title": "Zuora Subscription Economy Index 2025 (komunikat prasowy)",
+      "publisher": "Zuora",
+      "published": "2025-04-15",
+      "url": "https://www.zuora.com/company/news/zuora-subscription-economy-index/",
+      "excerpt": "Firmy z indeksu (>600) rosły przez 2 lata o 11% szybciej niż S&P 500; 'a 25% increase in unique subscribers over the past two years'; 47% rezygnujących z subskrypcji wskazało podwyżki cen (Harris Poll, 3 087 dorosłych w USA). Indeks obejmuje wszystkie branże, nie media.",
+      "verification": "tak"
+    },
+    {
+      "id": "S27",
+      "title": "Q2 2025 U.S. Subscription Benchmarking Report (strona pobierania)",
+      "publisher": "Mather Economics",
+      "published": "2025-08 (niepotwierdzona – strona bez daty; dane za Q2 2025)",
+      "url": "https://www.mathereconomics.com/download-mathers-q2-2025-u-s-benchmarking-report-2/",
+      "excerpt": "'Total paid subscriptions are down 14.3% year-over-year, with digital subscriptions down ~6% and print facing steep declines' (wydawcy prasowi w USA). Nowszy raport Mather Q1 2026 (S104) jest za formularzem.",
+      "verification": "tak"
+    },
+    {
+      "id": "S28",
+      "title": "2025 KeyBanc Capital Markets & Sapphire Ventures SaaS Survey",
+      "publisher": "KeyBanc Capital Markets / Sapphire Ventures",
+      "published": "2025-11 (niepotwierdzona – strona bez daty)",
+      "url": "https://info.sapphireventures.com/2025-keybanc-capital-markets-sapphire-ventures-saas-survey",
+      "excerpt": "'ARR growth is projected to accelerate from 15% in 2024 to 20% in 2025' (20% to PROGNOZA na 2025, nie wynik); 'SaaS companies are maintaining gross retention near 90% and net retention above 100%'. Strona nie podaje podziału nowy/ekspansja.",
+      "verification": "tak"
+    },
+    {
+      "id": "S100",
+      "title": "The Slow Decay of Growth (SaaS Growth Decay Report)",
+      "publisher": "ChartMogul",
+      "published": "2026-04-15",
+      "url": "https://chartmogul.com/reports/saas-growth-decay-report/",
+      "excerpt": "Ponad 700 firm, które w 2024 r. rosły ≥ 20%: mediana wzrostu spadła z 65% (2024) do 28% (2025); mediana 'growth endurance' 43%; 18% firm utrzymało lub poprawiło tempo. Próba selekcjonowana – nie zastępuje kwartyli wzrostu wg ARR/ARPA z raportu 2023 (S3).",
+      "verification": "tak"
+    },
+    {
+      "id": "S101",
+      "title": "The SaaS Winbacks Report: Why Winbacks Signal Growth",
+      "publisher": "ChartMogul (Olga Berezovsky)",
+      "published": "2026-04-21",
+      "url": "https://chartmogul.com/reports/saas-winbacks-report/",
+      "excerpt": "3 974 firmy, ok. 4,78 mln powracających klientów. Mediana winback rate: 7% przy ARR < 500 tys. USD, 9% przy 0,5–10 mln USD; '45% happen within 30 days, and 66% happen within 90 days'. Strona nie podaje wzoru (mianownika) winback rate.",
+      "verification": "tak"
+    },
+    {
+      "id": "S102",
+      "title": "The 30-day upsell window",
+      "publisher": "Growth Unhinged (Kyle Poyar, dane ChartMogul)",
+      "published": "2026-09-30",
+      "url": "https://www.growthunhinged.com/p/the-30-day-upsell-window",
+      "excerpt": "10,5 mln zakupów w 4 029 prywatnych firmach software (dane ChartMogul): '40% of first-year plan upgrades happen during month 12 at annual renewal'; 'Churners had a 2.67% reactivation rate in month one after cancellation'; 'more than 5% of churners can be reactivated within three months post-cancellation'.",
+      "verification": "tak"
+    },
+    {
+      "id": "S103",
+      "title": "2026 State of Subscriptions",
+      "publisher": "Recurly",
+      "published": "2026",
+      "url": "https://recurly.com/research/state-of-subscriptions/",
+      "excerpt": "Raport za formularzem (76 mln subskrybentów). Na stronie: ok. 1 na 4 nowe zapisy to powracający subskrybenci; plany roczne dają 50–60% wyższy przychód na użytkownika. Brak publicznych danych o rabatach kuponowych.",
+      "verification": "tak"
+    },
+    {
+      "id": "S104",
+      "title": "Q1 2026 Audience & Subscription Benchmarking Report",
+      "publisher": "Mather Economics",
+      "published": "2026-05-26",
+      "url": "https://www.mathereconomics.com/north-america-media-benchmarking-report-q1-2026/",
+      "excerpt": "Najnowszy raport benchmarkowy Mather dla wydawców w Ameryce Północnej (następca raportu Q2 2025 – S27). Raport za formularzem – liczb nie zweryfikowano; nie kotwiczy przedziałów.",
+      "verification": "nie da się sprawdzić"
+    },
+    {
+      "id": "S105",
+      "title": "Digital News Report 2026 – Poland",
+      "publisher": "Reuters Institute for the Study of Journalism (V. Makarenko)",
+      "published": "2026-06-16",
+      "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/poland",
+      "excerpt": "Za wiadomości online płaci w Polsce 11% (−2 pp r/r; 13% w DNR 2025). Brak danych o płaceniu pełnej ceny.",
+      "verification": "tak"
+    }
+  ],
+  "changelog": [
+    "S1: poprawiono excerpt – sam poziom ACV nie koreluje ze wzrostem (tylko ACV > 250 tys. USD); 'rosnące ACV → szybszy wzrost' przypisano osobnej analizie SaaS Capital 'Changing ACVs'; dopisano, że kwartyle wg ARR z edycji 2025 pozostają najnowszymi publicznymi.",
+    "S2: data '2026-07-22' niesprawdzalna – zmieniono published na '2026' z adnotacją; dopisano brak percentyli wg ARR na stronie.",
+    "S3: dopisano w excerpt przestarzałość danych (LTM do 03.2023) i brak nowszych publicznych kwartyli wg ARPA; wskazano S100.",
+    "S4: excerpt – 'firmy najszybciej rosnące'/'pozostałe' zastąpiono definicjami raportu: outliers (doszły do 20 mln USD ARR) i normies (utknęły między 1 a 20 mln USD); dodano 8,7% m/m normies.",
+    "S5: doprecyzowano w excerpt, że próg 25% ('growth stabilizes') dotyczy firm 1–10 mln USD ARR, a w górnym kwartylu wczesnego etapu najszybciej rosły firmy z < 25% ARR z planów rocznych.",
+    "S8: excerpt – fraza o progu 4 oznaczona jako parafraza autora, nie cytat M. Hamida; dopisano, że wzór i progi ChartMogul nie zawierają Reactivation MRR.",
+    "S10: excerpt uzupełniony o N = 149 dla median wzrostu, '5 pp' w opisie i zastrzeżenie, że kohorta > 100 mln USD ARR (67%) to tylko 6 firm.",
+    "S12: dopisano w excerpt, że to deklaracje ankietowe z 2024 r. bez nowszych danych o pełnej cenie; wskazano S105 (DNR 2026).",
+    "S13: poprawiono błąd w excerpt – 'sześć tytułów ≥70%, dziesięć ≥17%' → 'dziesięć tytułów ≥ 70% (cztery wymienione + sześć innych) i dziesięć kolejnych ≥ 17%'.",
+    "S14: excerpt – +21% oznaczono jako porównanie list o różnym składzie (59 → 62 wydawców), nie wzrost organiczny; Newsquest −9% → ok. −8,7%.",
+    "S15: excerpt – TechCrunch 150→99 USD opisano jako obniżkę ceny planu rocznego (nie rabat roczny) z efektem 2× konwersji i +28% przychodu z planów rocznych; dopisano małe próby planów kwartalnych/dwuletnich.",
+    "S16: miks 50/25/25 przypisano N. Hunshikattiemu (nie rekomendacja Mather, 'no one-size-fits-all'); published doprecyzowano jako 2024-07-08 wg URL.",
+    "S17: excerpt – 54/46% i ok. 75% przychodu przypisano próbie 4 anonimowych europejskich wydawców (nie FT); oznaczono brak daty na stronie.",
+    "S19: oznaczono brak daty i definicji rabatu Vendr oraz przestarzałość danych (Q2 2023); wskazano nowsze S20.",
+    "S21: excerpt – 'sklep internetowy' doprecyzowano jako internetowy sklep spożywczy; dopisano sposób weryfikacji (Crossref).",
+    "S22: martwy link (brak badania pod URL) – źródło oznaczone jako niezweryfikowane i odpięte od wszystkich przedziałów (pozostawione w sources tylko dla przejrzystości).",
+    "S23: dopisano w excerpt, że to materiał dostawcy z kontekstu e-commerce, nie subskrypcji.",
+    "S25: usunięto nieoparty dopisek '(z reklamą cyfrową)'; wyliczenie ≈ 19 zł/mies. zostaje, a status 'górnej granicy ARPU' oznaczono jako zależny od niezweryfikowanej definicji.",
+    "S26: dopisano, że indeks Zuora obejmuje wszystkie branże, nie media.",
+    "S27: oznaczono brak daty na stronie (dane za Q2 2025) i wskazano nowszy raport Mather Q1 2026 (S104).",
+    "S28: oznaczono 20% jako prognozę na 2025 (nie wynik) i brak daty na stronie.",
+    "Dodano nowsze źródła wskazane przez weryfikatora: S100 (ChartMogul Slow Decay of Growth, 04.2026), S101 (ChartMogul Winbacks Report, 04.2026), S102 (Growth Unhinged/ChartMogul '30-day upsell window', 09.2026), S103 (Recurly 2026 State of Subscriptions), S104 (Mather Q1 2026 – za formularzem, 'nie da się sprawdzić'), S105 (Reuters DNR 2026 – Polska).",
+    "arr: caveat o SaaS Capital 2026 – zamiast 'pełny raport dostępny po rejestracji' wpisano, że strona 2026 nie publikuje percentyli wg ARR, więc kwartyle 2025 są najnowszymi publicznymi.",
+    "arr / niskie ARPA: dopisano w method 'dane LTM do 03.2023 – brak nowszych publicznych kwartyli wg ARPA'; podpięto S100 jako kontekst (bez zmiany granic).",
+    "arr / wydawcy cyfrowi: nota 'optymalny' – usunięto kotwicę 100k Club +21% (listy o różnym składzie 59 → 62, nie wzrost organiczny), próg 20% oparto na heurystyce ok. 1,5 × NYT/WSJ (+13%).",
+    "arr / wydawcy cyfrowi: nota 'krytyczny' – doprecyzowano 'wydawcy prasowi USA, Q2 2025' i dopisano, że nowszy raport Mather Q1 2026 jest za formularzem (podpięto S104).",
+    "arr / wydawcy cyfrowi: nota 'normalny' i method – indeks Zuora obejmuje wszystkie branże, nie media.",
+    "arpa / B2B: method – 'firmy najszybciej rosnące/pozostałe' zastąpiono outliers (+82%, 564 → 1 024 USD) i normies (+63%).",
+    "arpa / B2B: method – usunięto przypisanie RB33 tezy 'rosnące ACV koreluje z szybszym wzrostem'; wpisano, że w RB33 sam poziom ACV nie koreluje ze wzrostem (poza ACV > 250 tys. USD).",
+    "arpa / portfel mieszany: Newsquest −9% → ok. −8,7% (wartość z weryfikacji S14).",
+    "arpu / Polska: method – usunięto '(przychody cyfrowe z reklamą ÷ prenumeraty)', wpisano wyliczenie 18,1 mln zł ÷ 317,6 tys. ÷ 3 ≈ 19 zł/mies. i brak definicji przychodów cyfrowych u Agory.",
+    "arpu / Polska: nota 'dobry' – 'powyżej szacunku dla największego wydawcy' zastąpiono 'obejmuje szacunek ok. 19 zł/mies. (definicja niezweryfikowana)', bo status górnej granicy jest niepotwierdzony.",
+    "arpu: caveat – 'licznik obejmuje reklamę cyfrową' → 'licznik może obejmować reklamę cyfrową (definicja niezweryfikowana), a mianownik to stan na koniec kwartału'.",
+    "arpu: dodano caveat z DNR 2026 (11% płacących w Polsce, −2 pp r/r) i podpięto S105 do kontekstu polskiego.",
+    "arpu / zmiana r/r: Newsquest −9% → ok. −8,7% w method i nocie 'słaby'.",
+    "mrr_growth_mom / B2C: dopisano, że kwartyle ChartMogul pochodzą z 2023 r.; podpięto S100 jako kontekst.",
+    "mrr_growth_mom / wydawcy cyfrowi: spójnie z arr – usunięto kotwicę 100k Club +21% (próg 20% ≈ 1,5 × NYT/WSJ), doprecyzowano Mather Q2 2025 i podpięto S104.",
+    "mrr_growth_mom: caveat – 'firmy najszybciej rosnące' → outliers (16,7% → 5,1%), dodano normies 8,7% m/m przy 1 mln USD ARR.",
+    "net_new_mrr: we wzorze zaznaczono, że równość z 1 − 1/QR zachodzi przy QR z reaktywacjami, a progi ChartMogul liczono bez nich.",
+    "net_new_mrr / wczesny etap: oznaczono datę kwartyli ChartMogul (LTM do 03.2023).",
+    "net_new_mrr / efektywność: method – zaznaczono, że progi QR ChartMogul liczono bez reaktywacji, więc wariant z reaktywacją w mianowniku nie jest w pełni porównywalny; podpięto S101–S103.",
+    "net_new_mrr: caveat o reaktywacjach – przypisano 1,7–3,8% do outliers ChartMogul i uzupełniono nowszymi danymi (Winbacks 04.2026: 7%/9%, 45%/66%; '30-day upsell window' 09.2026: 2,67%, >5%; Recurly 2026: ok. 1 na 4 zapisy w B2C); usunięto tezę o alarmowym charakterze wysokiego udziału.",
+    "saas_quick_ratio: we wzorze zaznaczono, że progi ChartMogul liczono bez Reactivation MRR i do porównań trzeba pokazywać wariant bez reaktywacji.",
+    "saas_quick_ratio / B2B: method – 20% wzrostu KeyBanc/Sapphire oznaczono jako prognozę na 2025 (przy wyniku 2024, 15%, QR ≈ 2,5); próg 4 opisano jako parafrazę stanowiska M. Hamida.",
+    "expansion_share_new_mrr / B2B ogółem: nota 'optymalny' – dopisano, że kohorta > 100 mln USD (67%) to 6 firm, a mediana 40% pochodzi z N = 81.",
+    "expansion_share_new_mrr / mała firma: 15,4% i 34,7% nazwano danymi outliers (firm, które doszły do 20 mln USD ARR) w method i notach.",
+    "expansion_share_new_mrr / mała firma: okres 'kwartalnie' → 'kroczące 12 miesięcy' (ok. 40% upgrade'ów w 1. roku przy odnowieniu w 12. mies.); podpięto S102.",
+    "expansion_share_new_mrr / media B2C: okres 'kwartalnie' → 'kroczące 12 miesięcy' z uzasadnieniem z S102.",
+    "price_realization / media B2C: 'miks rekomendowany przez Mather' → miks 50/25/25 cytowany za N. Hunshikattim (no one-size-fits-all); dopisano, że 72–75% zakłada rabaty wejściowe 70–80% (UK), a przy ok. 50% wynik to ok. 79–82%.",
+    "price_realization / B2B: usunięto nieoparte określenie 'rabat negocjacyjny' dla Vendr; oznaczono dane z 2023 r. i brak definicji.",
+    "average_discount: interpretacja PL/EN – 'na danych gazety' → 'na danych gazety i internetowego sklepu spożywczego (Lewis 2006)'.",
+    "average_discount / B2C: usunięto S22 (martwy link, liczby niesprawdzalne) z source_ids i method; nota 'normalny' 25–35 oparta na heurystyce S13/S21 zamiast 'mediana B2C ok. 30% (Recurly, 2017)'; granice bez zmian, confidence pozostaje 'niska'.",
+    "average_discount / B2B: oznaczono dane Vendr jako z 2023 r. bez definicji rabatu (method, nota 'dobry').",
+    "average_discount / rabat roczny: usunięto kotwicę 'TechCrunch 150→99 USD ≈ 34%' z method i noty 'normalny' (to obniżka ceny planu, nie rabat roczny); zostają 'Save 20%' (S5) i 33% (FT, S17).",
+    "average_discount / rabat roczny: do noty 'optymalny' dodano efekt obniżki ceny planu rocznego TechCrunch (2× konwersja, +28% przychodu z planów rocznych, Piano 2026).",
+    "average_discount: caveat o medianach Recurly oznaczono jako niesprawdzalny i usunięto z niego liczby.",
+    "average_discount: caveat 'Vendr mierzy różnicę między pierwszą ofertą a ceną końcową' (bez oparcia w źródle) zastąpiono 'SaaStr nie podaje definicji rabatu Vendr (dane z 2023 r.); Vertice mierzy rabat od cennika (Q2 2026)'.",
+    "coupon_redemption_rate: dodano caveat, że zakresy Yotpo dotyczą e-commerce, nie subskrypcji.",
+    "annual_plan_share / media B2C: 'FT Strategies: 46%' → '46% (próba 4 europejskich wydawców prasowych)' w nocie 'optymalny' i method; podpięto S103.",
+    "annual_plan_share / B2B: doprecyzowano, że próg 25% ('wzrost się stabilizuje') dotyczy firm 1–10 mln USD ARR.",
+    "annual_plan_share / wczesny etap: method – dopisano, że próg 25% dotyczy firm 1–10 mln USD ARR, a w górnym kwartylu wczesnego etapu najszybciej rosły firmy z < 25% ARR z rocznych; granice bez zmian.",
+    "annual_plan_share / wczesny etap: etykietę 'słaby' dla 0–10% uzasadniono retencją 62% vs 41% przy ARPA < 25 USD (nota i method).",
+    "annual_plan_share: caveat o ARPU planów rocznych zastąpiono zestawieniem sprzecznych punktów odniesienia (Recurly 2026 +50–60%, Mather 2024 niższe, Piano 2026 zbliżone)."
+  ]
+}

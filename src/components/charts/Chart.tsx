@@ -1261,7 +1261,8 @@ function WaterfallDataTable({ config, lang }: { config: ChartConfig; lang: Chart
                 {formatChartValue(step.value, lang, config.unit)}
               </td>
               <td className={CHART_TABLE_CLS.tdNum}>
-                {formatChartValue(step.kind === "step" ? step.to : step.value, lang, config.unit)}
+                {/* Poziom PO kroku (D1) - `to` to krawędź słupka, nie poziom. */}
+                {formatChartValue(step.level, lang, config.unit)}
               </td>
             </tr>
           ))}

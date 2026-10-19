@@ -130,6 +130,12 @@ export interface SubscriptionNotifyInput {
   /** Poprzedni plan - tylko dla zmiany planu (upgrade/downgrade). */
   previousPlanId?: string | null;
   periodEnd?: string | null;
+  /**
+   * Kwota do maila. Brak pola = cena planu z katalogu (nowy zakup, zmiana
+   * na aktualną cenę katalogu); `null` = kwota nieustalona, mail BEZ kwoty
+   * (np. wznowienie subskrypcji, której cena u operatora nie dała się
+   * odczytać - po zmianie cennika katalog nie jest jej ceną).
+   */
   amountCents?: number | null;
   currency?: string | null;
   /** Dopłata proporcjonalna przy upgrade w trakcie okresu (w groszach/centach). */
@@ -167,7 +173,7 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
       details.push({ label: copy.labels.plan, value: plan.name });
     }
 
-    const amount = input.amountCents ?? plan?.priceCents ?? null;
+    const amount = input.amountCents !== undefined ? input.amountCents : (plan?.priceCents ?? null);
     const currency = input.currency ?? plan?.currency ?? "PLN";
     const skipsAmount =
       input.kind === "subscription_canceled" || input.kind === "subscription_paused";
@@ -489,6 +495,13 @@ export interface ReminderNotifyInput {
   planId: string | null;
   /** Data odnowienia (renewal) albo końca dostępu (expiring). */
   periodEnd: string;
+  /**
+   * Kwota najbliższego odnowienia z ŻYWEJ subskrypcji u operatora
+   * (`renewalListCharge`). `null` = kwota nieustalona - mail wychodzi bez niej.
+   * Nigdy z `access_plans.price_cents`: po zmianie cennika trwająca
+   * subskrypcja odnawia się po swojej, starej cenie.
+   */
+  charge: { amountCents: number; currency: string } | null;
   idempotencySeed: string;
 }
 
@@ -512,16 +525,11 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<b
     const copy = txCopy(input.kind, lang);
     const plan = await loadPlan(supabase, input.planId, lang);
 
+    const charge = input.kind === "subscription_renewal_reminder" ? input.charge : null;
+    const amount = charge ? formatMoney(charge.amountCents, charge.currency, lang) : null;
     const details: TxDetail[] = [];
-    if (plan) {
-      details.push({ label: copy.labels.plan, value: plan.name });
-      if (plan.priceCents !== null && input.kind === "subscription_renewal_reminder") {
-        details.push({
-          label: copy.labels.price,
-          value: formatMoney(plan.priceCents, plan.currency, lang),
-        });
-      }
-    }
+    if (plan) details.push({ label: copy.labels.plan, value: plan.name });
+    if (amount) details.push({ label: copy.labels.price, value: amount });
     details.push({
       label:
         input.kind === "subscription_renewal_reminder" ? copy.labels.renewsAt : copy.labels.endsAt,
@@ -550,7 +558,7 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<b
       details,
       bodyVars: {
         planName: plan?.name ?? null,
-        amount: plan?.priceCents != null ? formatMoney(plan.priceCents, plan.currency, lang) : null,
+        amount,
         interval: plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null,
       },
 
@@ -561,5 +569,97 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<b
   } catch (err) {
     console.error("[billing-emails] reminder notify failed", input.kind, err);
     return false;
+  }
+}
+
+export interface PriceLoweredNotifyInput {
+  userId: string;
+  /** Najemca subskrypcji - z sesji admina wykonującego akcję, nie z ładunku. */
+  tenantId: string;
+  /** Plan v6.2 najemcy dla ceny docelowej - nazwa w języku odbiorcy. */
+  planId: string | null;
+  /** Kwota pozycji przed i po obniżce (cena × miejsca), w groszach. */
+  previousAmountCents: number;
+  newAmountCents: number;
+  currency: string;
+  /** Cykl z katalogu aplikacji (`month`, `year`). */
+  interval: string | null;
+  quantity: number;
+  /** ISO: pierwsza faktura po nowej cenie. */
+  effectiveAt: string | null;
+  /** `${provider_subscription_id}:${to_provider_price_id}` - jeden mail na przeniesienie. */
+  idempotencySeed: string;
+}
+
+/** Wynik zakolejkowania maila o niższej cenie - trafia do dziennika przeniesień. */
+export type PriceLoweredEmailOutcome = "queued" | "skipped" | "failed";
+
+/**
+ * Zawiadomienie „od najbliższego odnowienia płacisz mniej" (cennik v6.2).
+ * Idzie kolejką maili transakcyjnych (`sendTxEmail` -> pgmq
+ * `transactional_emails`), tą samą drogą co pozostałe maile cyklu życia
+ * subskrypcji - z listą wykluczeń, logiem wysyłki i kluczem idempotencji.
+ *
+ * Nigdy nie rzuca. `skipped` = nie ma do kogo pisać albo adres jest na liście
+ * wykluczeń; `failed` = awaria odczytu albo kolejki - dziennik przeniesień
+ * zapisuje ją, a ponowne „Wykonaj" ponawia WYŁĄCZNIE mail (cena już przepięta).
+ */
+export async function notifyPriceLoweredEmail(
+  input: PriceLoweredNotifyInput,
+): Promise<PriceLoweredEmailOutcome> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabase = supabaseAdmin as unknown as SupabaseClient;
+
+    const recipient = await resolveRecipient(supabase, input.userId);
+    if (!recipient) return "skipped";
+
+    const { lang } = recipient;
+    const copy = txCopy("subscription_price_lowered", lang);
+    const plan = await loadPlan(supabase, input.planId, lang);
+    const previous = formatMoney(input.previousAmountCents, input.currency, lang);
+    const next = formatMoney(input.newAmountCents, input.currency, lang);
+    const effective = input.effectiveAt ? formatDate(input.effectiveAt, lang) : null;
+    const interval = input.interval ? (INTERVAL_LABEL[lang][input.interval] ?? null) : null;
+
+    const details: TxDetail[] = [];
+    if (plan?.name) details.push({ label: copy.labels.plan, value: plan.name });
+    details.push({ label: copy.labels.previousPrice, value: previous });
+    details.push({ label: copy.labels.newPrice, value: next });
+    if (effective) details.push({ label: copy.labels.effectiveFrom, value: effective });
+    if (input.quantity > 1) {
+      details.push({ label: copy.labels.seats, value: String(input.quantity) });
+    }
+
+    // Link na host NAJEMCY subskrypcji (katalog najemców), jak przypomnienia.
+    const { tenantPublicUrl } = await import("@/lib/events/tenantPublicOrigin.server");
+    const ctaUrl = await tenantPublicUrl(input.tenantId, PROFILE_PLAN_PATH, lang);
+
+    const result = await sendTxEmail({
+      type: "subscription_price_lowered",
+      to: recipient.email,
+      lang,
+      metaName: recipient.name,
+      subjectName: plan?.name ?? null,
+      details,
+      bodyVars: {
+        planName: plan?.name ?? null,
+        amount: next,
+        previousAmount: previous,
+        interval,
+        renewsAt: effective,
+      },
+      ctaUrl,
+      tenantId: input.tenantId,
+      idempotencyKey: `subscription_price_lowered:${input.idempotencySeed}`,
+    });
+    // `ok` obejmuje też duplikat (`skipped: "duplicate"`) - mail zakolejkowany
+    // wcześniej tym samym kluczem to sukces, nie powód do ponowienia.
+    if (result.ok) return "queued";
+    if (result.skipped === "suppressed" || result.skipped === "no_recipient") return "skipped";
+    return "failed";
+  } catch (err) {
+    console.error("[billing-emails] price lowered notify failed", err);
+    return "failed";
   }
 }

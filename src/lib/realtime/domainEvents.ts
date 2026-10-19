@@ -174,6 +174,88 @@ export const DOMAIN_EVENT_TYPES = [
   // Klon edycji (migracja 20260927000800): nowe wydarzenie z konfiguracji
   // poprzedniej edycji. Payload: event_id (kopia) i source_event_id (zrodlo).
   "event.cloned.v1",
+
+  // ── HUB „PRZYCHÓD I LEJEK" (SPEC §4.5) - 34 typy zamrożone w I0 ──────────
+  //
+  // KATALOG WYPRZEDZA EMITERY. Triggery i RPC, które te zdarzenia emitują,
+  // wchodzą w wycinkach S1-S7, a wycinki pracują równolegle. Gdyby każdy
+  // dopisywał tu swoje typy sam, lista byłaby plikiem współdzielonym siedmiu
+  // gałęzi naraz - dlatego I0 deklaruje wszystkie z góry, a
+  // `hubEventCatalog.test.ts` pilnuje, że żaden literał nie zniknie ani nie
+  // zmieni nazwy przed scaleniem emitera. Bramka `domainEventCatalog.test.ts`
+  // patrzy w drugą stronę (emiter w migracji → wpis tutaj).
+  //
+  // Payload każdego z nich niesie WYŁĄCZNIE identyfikatory i enumy (kwoty
+  // tylko w zdarzeniach rozliczeniowych, w jednostkach minor): `domain_events`
+  // czyta cały staff najemcy, a e-mail czy notatka nie są jego sprawą.
+
+  // Konto i lejek czytelnika (S3): AFTER INSERT ON profiles,
+  // `record_paywall_hit` (pierwsze uderzenie użytkownika w dobie UTC) i
+  // `_metered_view_consume` (wyczerpanie limitu - raz na użytkownika w miesiącu).
+  "account.registered.v1",
+  "paywall.hit.v1",
+  "metering.quota_exhausted.v1",
+  // Kasa (S3): AFTER INSERT / UPDATE OF status ON payment_orders, tylko `live`
+  // i nigdy `mock` - inaczej zamówienia testowe pompowałyby lejek.
+  // `abandoned` = anulowanie z `cancel_reason = 'session_expired'`.
+  "checkout.started.v1",
+  "checkout.completed.v1",
+  "checkout.failed.v1",
+  "checkout.abandoned.v1",
+  // Subskrypcja u operatora (S2): `tg_subscriptions_revenue_history` (status,
+  // pauza, `cancel_at_period_end`, licznik nieudanych płatności) i skaner
+  // `run_revenue_lifecycle_scanner()` (koniec triala za 3 dni). Agregat
+  // `billing_subscription`, a nie `subscription`, bo tamten nazywa UPRAWNIENIE
+  // (`user_subscriptions`), a ten - pieniądze (`subscriptions`).
+  "billing_subscription.status_changed.v1",
+  "billing_subscription.payment_failed.v1",
+  "billing_subscription.payment_recovered.v1",
+  "billing_subscription.trial_ending.v1",
+  // Uprawnienie subskrypcyjne (S2): odnowienie z AFTER INSERT ON
+  // billing_documents (opłacona faktura bez zamówienia), wygaśnięcie ze
+  // skanera. `expired` niesie `reason` - pauza nie jest odejściem (D13).
+  "subscription.renewed.v1",
+  "subscription.expired.v1",
+  // Przepływ anulowania (S2): INSERT / UPDATE OF outcome ON retention_feedback.
+  "retention_flow.started.v1",
+  "retention_flow.completed.v1",
+  // Dane wejściowe planu i kosztów (S2): `admin_revenue_input_upsert`.
+  "revenue_input.changed.v1",
+  // Ustawienia modułów źródłowych (S1): AFTER INSERT/UPDATE z `IS DISTINCT
+  // FROM`, payload `keys` = nazwy zmienionych kolumn. Bez nich hub w drugiej
+  // karcie pokazywałby diagnozę sprzed naprawy wykonanej w pierwszej.
+  "metering_settings.changed.v1",
+  "checkout_settings.changed.v1",
+  "newsletter_settings.changed.v1",
+  "retention_settings.changed.v1",
+  "retention_reason.changed.v1",
+  // Reguła dostępu treści (S1): payload `entity_type`, `entity_id`, `mode`,
+  // `metering_policy`, `op` - inwalidacja schodzi do jednej encji.
+  "content_access.changed.v1",
+  // Kupony B2B (S1, kontrakt nazw N2): kupon, kampania, realizacja.
+  "coupon.changed.v1",
+  "coupon_campaign.changed.v1",
+  "coupon.redeemed.v1",
+  // Newsletter (S1): `tg_newsletter_subscribers_emit_events` przy przejściu
+  // `unsubscribed → subscribed|confirmed` - powrót to inny fakt niż zapis.
+  "newsletter_subscriber.resubscribed.v1",
+  // CRM, automatyzacje, społeczność (S4): `tg_crm_leads_stage_history`
+  // (zmiana `lifecycle_stage`), AFTER INSERT/UPDATE/DELETE ON
+  // workflow_definitions, zgłoszenia do klubów (bez klubów `secret`, jak
+  // pozostałe zdarzenia klubowe) i obecność na wydarzeniu (`attended_at`
+  // NULL → wartość; agregatem jest zgłoszenie, payload niesie `event_id`).
+  "crm_lead.lifecycle_changed.v1",
+  "workflow_definition.changed.v1",
+  "club_application.submitted.v1",
+  "club_application.decided.v1",
+  "event.registration.attended.v1",
+  // Ścieżki komunikacji (S5, kontrakt N3): RPC `admin_journey_*` oraz
+  // `journey_tick_emit_stats` - RAZ na ścieżkę na tick, nie na kontakt
+  // (wolumen realtime). Silnik ignoruje własne agregaty (zakaz pętli).
+  "journey.changed.v1",
+  "journey.stats_changed.v1",
+  // Wyciszenie diagnozy (S7): `admin_revenue_diagnostic_snooze/unsnooze`.
+  "revenue_diagnostic.snoozed.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -228,6 +310,29 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "event_participant_settings",
   "event_certificate",
   "event_survey",
+  // Hub „Przychód i lejek" (SPEC §4.5): agregaty typów zamrożonych w I0.
+  // Typy na istniejących agregatach (`subscription.renewed`,
+  // `crm_lead.lifecycle_changed`, `newsletter_subscriber.resubscribed`,
+  // `event.registration.attended` → `event_registration`) nowych nie wnoszą.
+  "account",
+  "paywall",
+  "metering",
+  "checkout",
+  "billing_subscription",
+  "retention_flow",
+  "club_application",
+  "journey",
+  "revenue_input",
+  "revenue_diagnostic",
+  "metering_settings",
+  "checkout_settings",
+  "content_access",
+  "newsletter_settings",
+  "retention_settings",
+  "retention_reason",
+  "coupon",
+  "coupon_campaign",
+  "workflow_definition",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

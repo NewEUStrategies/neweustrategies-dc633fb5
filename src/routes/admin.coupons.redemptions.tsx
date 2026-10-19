@@ -1,44 +1,50 @@
 // Zakładka Realizacje - historia użyć kuponów + CRM/subskrypcja context.
+//
+// S1: odczyt przez `couponRedemptionsQueryOptions` (klucz z fabryki
+// `couponKeys`, stronicowanie do sufitu z jawną flagą `truncated` zamiast
+// cichego `limit(500)`), a granice zakresu to pełne doby LOKALNE
+// (`dayRange.ts`) - „do 19 października" obejmuje cały 19 października.
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2, Download } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
+import {
+  localDayEndIso,
+  localDayStartIso,
+  localDaysAgo,
+} from "@/components/admin/coupons/dayRange";
+import { adminPageHead } from "@/lib/adminPageHead";
+import {
+  COUPON_READ_LIMIT,
+  couponRedemptionsQueryOptions,
+  type CouponRedemptionRow,
+} from "@/lib/admin/couponQueries";
 import { couponPaidCents, sumCouponTotals, type CouponTotals } from "@/lib/billing/couponMoney";
 import { Stat } from "@/components/admin/coupons/atoms/Stat";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 
 export const Route = createFileRoute("/admin/coupons/redemptions")({
+  head: () =>
+    adminPageHead(
+      "Realizacje kuponów",
+      "Historia użyć kuponów B2B z kwotą przed rabatem, rabatem i zapłatą w walucie realizacji oraz eksport CSV.",
+    ),
   component: RedemptionsPage,
 });
 
-interface RedRow {
-  id: string;
-  coupon_id: string;
-  user_id: string | null;
-  order_id: string | null;
-  /**
-   * RABAT zastosowany przy realizacji - NIE kwota zapłacona (pisarzem jest
-   * `redeem_b2b_coupon(_applied_cents := couponDiscountCents)`).
-   * Niezmiennik i obliczenia: `@/lib/billing/couponMoney`.
-   */
-  applied_cents: number;
-  original_cents: number;
-  currency: string;
-  created_at: string;
-  /**
-   * Znacznik zastosowania efektów kuponu (warstwa + CRM) - ustawiany przez
-   * `apply_b2b_coupon_effects` PO potwierdzonej płatności. NULL przy kuponie
-   * nadającym plan oznacza, że zamówienie nie zostało (jeszcze) opłacone.
-   */
-  effects_applied_at: string | null;
-  b2b_coupons: { code: string; name: string | null; grants_tier_key: string | null } | null;
-}
+/**
+ * Wiersz realizacji. `applied_cents` to RABAT zastosowany przy realizacji -
+ * NIE kwota zapłacona (pisarzem jest `redeem_b2b_coupon(_applied_cents :=
+ * couponDiscountCents)`; niezmiennik: `@/lib/billing/couponMoney`).
+ * `effects_applied_at` ustawia `apply_b2b_coupon_effects` PO potwierdzonej
+ * płatności - NULL przy kuponie nadającym plan = zamówienie (jeszcze) nieopłacone.
+ */
+type RedRow = CouponRedemptionRow;
 
 function RedemptionsPage() {
   // Słownik modułu kuponów w chunku trasy - patrz komentarz przy ensureI18n
@@ -49,35 +55,15 @@ function RedemptionsPage() {
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
-  const [from, setFrom] = useState<Date | undefined>(
-    () => new Date(Date.now() - 30 * 24 * 3600 * 1000),
-  );
-  const [to, setTo] = useState<Date | undefined>(() => new Date());
+  // Domyślnie: ostatnie 30 dni PEŁNYMI dobami (od północy 30 dni temu do
+  // końca dzisiejszej doby) - stały klucz zapytania, niezależny od godziny.
+  const [from, setFrom] = useState<Date | undefined>(() => localDaysAgo(30));
+  const [to, setTo] = useState<Date | undefined>(() => localDaysAgo(0));
 
-  const q = useQuery({
-    queryKey: [
-      "admin",
-      "b2b-coupon-redemptions",
-      from?.toISOString() ?? null,
-      to?.toISOString() ?? null,
-    ],
-    queryFn: async (): Promise<RedRow[]> => {
-      let qy = supabase
-        .from("b2b_coupon_redemptions")
-        .select(
-          "id, coupon_id, user_id, order_id, applied_cents, original_cents, currency, created_at, effects_applied_at, b2b_coupons(code, name, grants_tier_key)",
-        )
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (from) qy = qy.gte("created_at", from.toISOString());
-      if (to) qy = qy.lte("created_at", to.toISOString());
-      const { data, error } = await qy;
-      if (error) throw error;
-      return (data ?? []) as unknown as RedRow[];
-    },
-  });
+  const q = useQuery(couponRedemptionsQueryOptions(localDayStartIso(from), localDayEndIso(to)));
 
-  const rows = useMemo<RedRow[]>(() => q.data ?? [], [q.data]);
+  const rows = useMemo<RedRow[]>(() => q.data?.rows ?? [], [q.data]);
+  const truncated = q.data?.truncated === true;
   const totals = useMemo(() => sumCouponTotals(rows), [rows]);
 
   /**
@@ -180,6 +166,12 @@ function RedemptionsPage() {
           <p className="font-medium text-destructive">{t("adminCoupons.loadError.title")}</p>
           <p className="mt-1 text-muted-foreground">{t("adminCoupons.loadError.hint")}</p>
         </div>
+      )}
+
+      {truncated && !failed && (
+        <p className="text-xs text-muted-foreground" role="note">
+          {t("adminCoupons.redemptionsTruncated", { limit: COUPON_READ_LIMIT })}
+        </p>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

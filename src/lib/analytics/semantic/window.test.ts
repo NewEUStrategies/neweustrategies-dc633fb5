@@ -4,13 +4,15 @@
 //  2. zakres dat GA4 jest wyprowadzony z TYCH SAMYCH instantów co granice ISO,
 //  3. okno, na którym porównanie międzystrumieniowe jest nieuczciwe (dzień
 //     otwarty, ziarno godzinowe), jest jawnie oznaczone.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   ga4RangeFromInstants,
   legacyRpcWindow,
   previousWindow,
+  resolveCalendarWindow,
   resolveCustomWindow,
   resolveWindow,
+  toLocalIsoDate,
   utcDateString,
   windowsOverlap,
 } from ".";
@@ -198,5 +200,175 @@ describe("ga4RangeFromInstants", () => {
         Date.parse("2026-02-01T00:00:00.000Z"),
       ),
     ).toEqual({ startDate: "2026-01-31", endDate: "2026-02-01" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D13: okno z DAT kalendarzowych. Dwie strefy procesu (UTC i Europe/Warsaw),
+// bo błąd „lokalna północ przez instant” jest w UTC NIEWIDOCZNY - wychodzi
+// dopiero tam, gdzie północ lokalna nie jest północą UTC (wzór:
+// `src/lib/revenue/__tests__/window.test.ts`). Daty lokalne budujemy
+// konstruktorem `new Date(r, m, d)` WEWNĄTRZ strefy.
+// ---------------------------------------------------------------------------
+
+const ORIGINAL_TZ = process.env.TZ;
+
+/** Uruchamia `fn` pod wskazaną strefą PROCESU. */
+function underTimeZone<T>(tz: string, fn: () => T): T {
+  process.env.TZ = tz;
+  try {
+    return fn();
+  } finally {
+    process.env.TZ = ORIGINAL_TZ;
+  }
+}
+
+afterEach(() => {
+  process.env.TZ = ORIGINAL_TZ;
+});
+
+const STREFY = ["UTC", "Europe/Warsaw"] as const;
+
+/** Czwartek, 2026-08-13 10:00 UTC - po wybranym tygodniu, więc okno jest domknięte. */
+const PO_TYGODNIU = Date.parse("2026-08-13T10:00:00.000Z");
+
+describe("toLocalIsoDate - data z lokalnych komponentów", () => {
+  it.each(STREFY)("%s: lokalna północ zostaje TYM SAMYM dniem", (tz) => {
+    underTimeZone(tz, () => {
+      expect(toLocalIsoDate(new Date(2026, 7, 3))).toBe("2026-08-03");
+      expect(toLocalIsoDate(new Date(2026, 7, 9, 23, 59, 59, 999))).toBe("2026-08-09");
+      expect(toLocalIsoDate(new Date(2026, 0, 1))).toBe("2026-01-01");
+    });
+  });
+
+  it("w Warszawie `toISOString().slice(0, 10)` dla lokalnej północy podaje dzień WCZEŚNIEJ", () => {
+    // Dowód, że pomocnik nie jest kosmetyką: to jest dokładnie ten błąd, który usuwa.
+    underTimeZone("Europe/Warsaw", () => {
+      const polnoc = new Date(2026, 7, 3);
+      expect(polnoc.toISOString().slice(0, 10)).toBe("2026-08-02");
+      expect(toLocalIsoDate(polnoc)).toBe("2026-08-03");
+    });
+  });
+});
+
+describe("resolveCalendarWindow - granice z napisów dat", () => {
+  it.each(STREFY)("%s: 3-9 VIII to te same dni w Postgresie i w GA4", (tz) => {
+    underTimeZone(tz, () => {
+      const w = resolveCalendarWindow("2026-08-03", "2026-08-09", PO_TYGODNIU);
+      expect(w.sinceIso).toBe("2026-08-03T00:00:00.000Z");
+      expect(w.untilIso).toBe("2026-08-09T23:59:59.999Z");
+      expect(w.ga4).toEqual({ startDate: "2026-08-03", endDate: "2026-08-09" });
+      expect(w.days).toBe(7);
+      expect(w.rpcDays).toBe(7);
+      expect(w.presetId).toBe("custom");
+      expect(w.grain).toBe("day");
+      expect(w.crossStreamSafe).toBe(true);
+      expect(w.notes).toEqual(["ga4_property_timezone", "excludes_open_day"]);
+    });
+  });
+
+  it("REGRESJA D13: lokalne 00:00 przez `resolveCustomWindow` przesuwa dzień, przez daty - nie", () => {
+    underTimeZone("Europe/Warsaw", () => {
+      // Tak `TimeRangeFilter` buduje granice zakresu „3-9 sierpnia”.
+      const od = new Date(2026, 7, 3, 0, 0, 0, 0);
+      const doo = new Date(2026, 7, 9, 23, 59, 59, 999);
+
+      const przezInstant = resolveCustomWindow(od.toISOString(), doo.toISOString(), PO_TYGODNIU);
+      // Lokalna północ 3 VIII to 2 VIII 22:00 UTC - okno zyskuje dzień z przodu.
+      expect(przezInstant.ga4.startDate).toBe("2026-08-02");
+      expect(przezInstant.days).toBe(8);
+
+      const przezDaty = resolveCalendarWindow(toLocalIsoDate(od), toLocalIsoDate(doo), PO_TYGODNIU);
+      expect(przezDaty.ga4).toEqual({ startDate: "2026-08-03", endDate: "2026-08-09" });
+      expect(przezDaty.days).toBe(7);
+    });
+  });
+
+  it("w UTC obie drogi dają to samo okno - stąd defekt był utajony", () => {
+    underTimeZone("UTC", () => {
+      const od = new Date(2026, 7, 3, 0, 0, 0, 0);
+      const doo = new Date(2026, 7, 9, 23, 59, 59, 999);
+      const przezInstant = resolveCustomWindow(od.toISOString(), doo.toISOString(), PO_TYGODNIU);
+      const przezDaty = resolveCalendarWindow(toLocalIsoDate(od), toLocalIsoDate(doo), PO_TYGODNIU);
+      expect(przezDaty).toEqual(przezInstant);
+    });
+  });
+
+  it("zmiana czasu CEST → CET (25 X 2026) nie gubi ani nie dubluje dnia", () => {
+    underTimeZone("Europe/Warsaw", () => {
+      // Doba 25 października ma 25 godzin; jej ostatnia lokalna godzina to wciąż ten dzień.
+      expect(toLocalIsoDate(new Date(2026, 9, 25, 23, 30))).toBe("2026-10-25");
+      const od = new Date(2026, 9, 24);
+      const doo = new Date(2026, 9, 26, 23, 59, 59, 999);
+
+      const w = resolveCalendarWindow(
+        toLocalIsoDate(od),
+        toLocalIsoDate(doo),
+        Date.parse("2026-11-02T08:00:00Z"),
+      );
+      expect(w.ga4).toEqual({ startDate: "2026-10-24", endDate: "2026-10-26" });
+      expect(w.days).toBe(3);
+      expect(w.sinceIso).toBe("2026-10-24T00:00:00.000Z");
+      expect(w.untilIso).toBe("2026-10-26T23:59:59.999Z");
+
+      // Ta sama para przez instanty: początek w CEST (−2 h) przesuwa się na 23 X.
+      const przezInstant = resolveCustomWindow(
+        od.toISOString(),
+        doo.toISOString(),
+        Date.parse("2026-11-02T08:00:00Z"),
+      );
+      expect(przezInstant.ga4.startDate).toBe("2026-10-23");
+    });
+  });
+
+  it("odwrócone granice są porządkowane, nie oddawane na wspak", () => {
+    const w = resolveCalendarWindow("2026-08-09", "2026-08-03", PO_TYGODNIU);
+    expect(w.ga4).toEqual({ startDate: "2026-08-03", endDate: "2026-08-09" });
+    expect(w.days).toBe(7);
+  });
+
+  it("jeden dzień to okno jednodniowe, nie zerowe", () => {
+    const w = resolveCalendarWindow("2026-08-05", "2026-08-05", PO_TYGODNIU);
+    expect(w.days).toBe(1);
+    expect(Date.parse(w.untilIso) - Date.parse(w.sinceIso)).toBe(86_399_999);
+  });
+
+  it("data spoza kalendarza albo zły format rzuca, zamiast przeskoczyć w inny dzień", () => {
+    expect(() => resolveCalendarWindow("2026-02-30", "2026-03-02", PO_TYGODNIU)).toThrow(
+      /not a calendar date/,
+    );
+    expect(() => resolveCalendarWindow("2026-8-3", "2026-08-09", PO_TYGODNIU)).toThrow(
+      /expected YYYY-MM-DD/,
+    );
+    expect(() =>
+      resolveCalendarWindow("2026-08-03T00:00:00Z", "2026-08-09", PO_TYGODNIU),
+    ).toThrow();
+  });
+
+  it("okno kończące się w bieżącej dobie UTC traci porównywalność międzystrumieniową", () => {
+    const dzis = Date.parse("2026-08-09T15:00:00.000Z");
+    const w = resolveCalendarWindow("2026-08-03", "2026-08-09", dzis);
+    expect(w.crossStreamSafe).toBe(false);
+    expect(w.notes).toEqual(["ga4_property_timezone", "ga4_open_day"]);
+  });
+
+  it.each(STREFY)(
+    "%s: granice wyniku odtwarza `resolveCustomWindow` - konsument server fn nic nie traci",
+    (tz) => {
+      underTimeZone(tz, () => {
+        // `getSemanticSnapshot` przyjmuje `sinceIso/untilIso` i tnie je do dni UTC.
+        // Okno z dat leży na północy UTC, więc ta droga jest bezstratna.
+        const w = resolveCalendarWindow("2026-10-24", "2026-10-26", PO_TYGODNIU);
+        expect(resolveCustomWindow(w.sinceIso, w.untilIso, PO_TYGODNIU)).toEqual(w);
+      });
+    },
+  );
+
+  it("okno poprzednie jest rozłączne i tej samej długości", () => {
+    const w = resolveCalendarWindow("2026-08-03", "2026-08-09", PO_TYGODNIU);
+    const prev = previousWindow(w);
+    expect(prev.ga4).toEqual({ startDate: "2026-07-27", endDate: "2026-08-02" });
+    expect(prev.days).toBe(7);
+    expect(windowsOverlap(w, prev)).toBe(false);
   });
 });

@@ -1,27 +1,36 @@
 // /admin/billing - rozliczenia subskrypcji i audyt zdarzeń operatora płatności.
+//
+// ADRES (SPEC §2.6): `?tab=subscriptions|orders|tickets|events|diagnostics&status=`.
+// Trasa waliduje adres liściem bez importów (`billingTabs.ts` - powłoka trasy
+// jedzie w chunku wejściowym), więc link z huba „Przychód i lejek" nie kończy
+// się stroną błędu. Zakładka jedzie w adresie (`tab`/`onTabChange`), więc deep
+// link ląduje na właściwej zakładce, a przełączenie zapisuje się w historii.
+// Filtr `status` podpina wycinek S2 (PLAN S1 §3.3).
+//
+// NAGŁÓWEK SEKCYJNY (`adminPageHead`, AGENTS.md) zamiast ręcznie składanego
+// `meta` - ten sam format tytułu i te same znaczniki `noindex` co w całym panelu.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CreditCard } from "lucide-react";
 
 import { AdminBillingPanel } from "@/components/admin/billing/AdminBillingPanel";
+import { adminPageHead } from "@/lib/adminPageHead";
+import { parseBillingSearch } from "@/lib/admin/billingTabs";
 
 export const Route = createFileRoute("/admin/billing")({
+  validateSearch: parseBillingSearch,
   component: AdminBillingPage,
-  head: () => ({
-    meta: [
-      { title: "Rozliczenia subskrypcji | Panel New European Strategies" },
-      {
-        name: "description",
-        content:
-          "Podgląd aktywnych subskrypcji, nieudanych płatności i historii zdarzeń operatora płatności.",
-      },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () =>
+    adminPageHead(
+      "Rozliczenia subskrypcji",
+      "Podgląd aktywnych subskrypcji, zamówień, nieudanych płatności i historii zdarzeń operatora płatności.",
+    ),
 });
 
 function AdminBillingPage() {
   const { i18n } = useTranslation();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -41,7 +50,12 @@ function AdminBillingPage() {
           </p>
         </div>
       </header>
-      <AdminBillingPanel />
+      <AdminBillingPanel
+        tab={search.tab}
+        onTabChange={(tab) =>
+          void navigate({ search: (prev) => ({ ...prev, tab }), replace: true })
+        }
+      />
     </div>
   );
 }

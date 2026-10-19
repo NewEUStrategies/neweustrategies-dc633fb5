@@ -6,7 +6,11 @@ import { codeProbeRpcError, parseCouponVerdict } from "@/lib/billing/coupons";
 import { isBelowMinimumCharge, minimumChargeCents } from "@/lib/billing/chargeMinimum";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
-import { planCheckoutPricing, type PlanCheckoutPricing } from "@/lib/billing/planPricing";
+import {
+  planCheckoutPricing,
+  planPurchaseRefusal,
+  type PlanCheckoutPricing,
+} from "@/lib/billing/planPricing";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 
@@ -145,12 +149,17 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const { data: plan, error } = await supabase
         .from("access_plans")
         .select(
-          "price_cents, currency, name_pl, name_en, active, interval, trial_days, tier_key, volume_threshold_seats, volume_price_cents",
+          "price_cents, currency, name_pl, name_en, active, for_sale, interval, trial_days, tier_key, volume_threshold_seats, volume_price_cents",
         )
         .eq("id", data.plan_id)
         .maybeSingle();
       if (error) throw error;
-      if (!plan || !plan.active) throw new Error("plan_not_found");
+      if (!plan) throw new Error("plan_not_found");
+      // Plan nieaktywny, wyłącznie na zapytanie (Decision Lab) albo wycofany ze
+      // sprzedaży (Partner Biznesowy, v6.2) - odmowa PRZED kuponem i zamówieniem.
+      // Bezpośredni adres `/checkout/<id>` nie omija już karty „na zapytanie".
+      const refusal = planPurchaseRefusal(plan);
+      if (refusal) throw new Error(refusal);
       // Zakup jednorazowy daje dostęp DOŻYWOTNI (`current_period_end = NULL`),
       // więc wolno nim kupić wyłącznie plan jednorazowy. Plan miesięczny
       // kupiony tą ścieżką był subskrypcją bez końca za cenę jednego okresu

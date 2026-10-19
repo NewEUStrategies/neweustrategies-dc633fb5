@@ -195,6 +195,60 @@ describe("serializeTierBenefits - jedyne miejsce zapisu benefitów", () => {
   });
 });
 
+describe("capability_key - powiązanie obietnicy z bramką (P20, hub S1)", () => {
+  // Klucz uprawnienia łączy punkt karty cennika z bramką. Ryzyko jest jedno:
+  // pole, którego odczyt albo zapis nie zna, znika przy PIERWSZYM zapisie
+  // warstwy z panelu - i macierz plan × benefit traci powiązanie po cichu.
+  it("odczyt zachowuje poprawny klucz (także spoza rejestru) i przycina spacje", () => {
+    expect(
+      parseTierBenefits([
+        { pl: "Linki", en: "Links", capability_key: " gift_links " },
+        { pl: "Własny", en: "Custom", capability_key: "custom.flag:v2" },
+      ]),
+    ).toEqual([
+      { pl: "Linki", en: "Links", capability_key: "gift_links" },
+      { pl: "Własny", en: "Custom", capability_key: "custom.flag:v2" },
+    ]);
+  });
+
+  it("klucz w złym formacie albo nie-tekstowy odpada przy odczycie - benefit zostaje", () => {
+    for (const raw of ["Gift Links", "", "a".repeat(65), "linki/prezent", 7, true, null]) {
+      const [benefit] = parseTierBenefits([{ pl: "A", en: "A", capability_key: raw }] as Json);
+      expect(benefit, String(raw)).toEqual({ pl: "A", en: "A" });
+    }
+  });
+
+  it("zapis niesie klucz tylko w poprawnym formacie, pusty nie trafia do JSON-a", () => {
+    expect(
+      serializeTierBenefits([
+        { pl: "A", en: "A", capability_key: " premium_content " },
+        { pl: "B", en: "B", capability_key: "" },
+        { pl: "C", en: "C", capability_key: "Zły klucz" },
+      ]),
+    ).toEqual([
+      { pl: "A", en: "A", capability_key: "premium_content" },
+      { pl: "B", en: "B" },
+      { pl: "C", en: "C" },
+    ]);
+  });
+
+  it("zapis i odczyt są odwrotne razem z kluczem - edytor go nie gubi", () => {
+    const list = [
+      { pl: "Nagrania", en: "Recordings", group_pl: "Wydarzenia", capability_key: "recordings" },
+    ];
+
+    expect(parseTierBenefits(serializeTierBenefits(list))).toEqual([
+      {
+        pl: "Nagrania",
+        en: "Recordings",
+        group_pl: "Wydarzenia",
+        group_en: "Wydarzenia",
+        capability_key: "recordings",
+      },
+    ]);
+  });
+});
+
 describe("tierName - nazwa warstwy w języku strony", () => {
   it("po angielsku bierze nazwę angielską, a bez niej - polską", () => {
     expect(tierName({ name_pl: "Członek", name_en: "Member" }, "en")).toBe("Member");

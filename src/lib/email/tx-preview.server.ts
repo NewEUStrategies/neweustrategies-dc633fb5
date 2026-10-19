@@ -48,6 +48,7 @@ export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
   "payment_refunded",
   "subscription_renewal_reminder",
   "subscription_expiring",
+  "subscription_price_lowered",
   "team_seat_grace",
   "team_seat_grace_reminder",
   "team_seat_access_ended",
@@ -336,6 +337,17 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         details: [
           { label: l.plan, value: plan },
           { label: l.endsAt, value: lang === "pl" ? "5 sierpnia 2026" : "5 August 2026" },
+        ],
+        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
+      };
+    case "subscription_price_lowered":
+      return {
+        subjectName: plan,
+        details: [
+          { label: l.plan, value: plan },
+          { label: l.previousPrice, value: "59,00 PLN" },
+          { label: l.newPrice, value: "39,00 PLN" },
+          { label: l.effectiveFrom, value: lang === "pl" ? "5 listopada 2026" : "5 November 2026" },
         ],
         ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
       };

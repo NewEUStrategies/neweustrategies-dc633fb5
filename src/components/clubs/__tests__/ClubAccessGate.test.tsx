@@ -74,6 +74,8 @@ const h = vi.hoisted(() => ({
   enabled: ["first_name", "email", "password"] as readonly string[],
   /** Pola WYMAGANE - podzbiór włączonych; `email` i `password` zawsze. */
   required: ["first_name", "email", "password"] as readonly string[],
+  /** Katalog progów (`useMembershipTiers`); `undefined` = jeszcze się nie wczytał. */
+  tiers: undefined as { key: string; pricing_visible: boolean }[] | undefined,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -94,6 +96,11 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.preAuthGuard }));
 vi.mock("sonner", () => ({ toast: { error: h.toastError, success: vi.fn() } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("@/lib/profile/badges", () => ({ useUserBadges: () => ({ data: h.badges }) }));
+// Katalog progów (widoczność na cenniku) - bez danych bramka bierze stan po
+// migracji v6.2; reguła ma własne testy w `lib/clubs/__tests__/gateView`.
+// Atrapa jest STEROWANA Z TESTU: stała `undefined` dawała ten sam wynik co
+// bramka ignorująca katalog, więc nic nie dowodziło połączenia z panelem.
+vi.mock("@/lib/billing/tiers", () => ({ useMembershipTiers: () => ({ data: h.tiers }) }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { signUp: h.signUp } },
 }));
@@ -135,6 +142,7 @@ function hasKey(key: string): boolean {
 
 beforeEach(() => {
   h.auth = { session: null, loading: false };
+  h.tiers = undefined;
   h.badges = [];
   h.enabled = [...MINIMUM_POL];
   h.required = [...MINIMUM_POL];
@@ -258,8 +266,38 @@ describe("warianty bramki", () => {
     gate({ name_pl: "Klub transportowy", min_tier_rank: 30 });
 
     expect(screen.getByText("Klub transportowy")).toBeTruthy();
-    // Ranga 30 to `corporate` - lokalna mapa pokazywałaby tu „PRO".
+    // Ranga 30 to `corporate` - lokalna mapa pokazywałaby tu „PRO". Od cennika
+    // v6.2 karty Enterprise nie ma na /pricing, więc bramka sprzedaje
+    // najniższy próg z kartą, który klub otwiera: Partnera Instytucjonalnego.
+    expect(hasKey("club.planTier.partner")).toBe(true);
+    expect(hasKey("club.planTier.corporate")).toBe(false);
+  });
+
+  // Przełącznik „Widoczna w cenniku" z panelu (`membership_tiers.
+  // pricing_visible`) - bramka czyta ŻYWY katalog, nie stałą z kodu.
+  it("Rada ukryta w panelu: klub z rangą 25 sprzedaje Partnera, nie Radę", () => {
+    h.tiers = [
+      { key: "pro", pricing_visible: true },
+      { key: "vip", pricing_visible: false },
+      { key: "corporate", pricing_visible: false },
+      { key: "partner", pricing_visible: true },
+    ];
+    gate({ min_tier_rank: 25 });
+
+    expect(hasKey("club.planTier.partner")).toBe(true);
+    expect(hasKey("club.planTier.vip")).toBe(false);
+  });
+
+  it("Enterprise pokazany w panelu: klub z rangą 30 sprzedaje Enterprise", () => {
+    h.tiers = [
+      { key: "vip", pricing_visible: true },
+      { key: "corporate", pricing_visible: true },
+      { key: "partner", pricing_visible: true },
+    ];
+    gate({ min_tier_rank: 30 });
+
     expect(hasKey("club.planTier.corporate")).toBe(true);
+    expect(hasKey("club.planTier.partner")).toBe(false);
   });
 });
 

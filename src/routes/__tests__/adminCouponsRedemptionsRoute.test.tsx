@@ -303,25 +303,49 @@ describe("trasa /admin/coupons/redemptions - kupon nadający plan", () => {
 });
 
 describe("trasa /admin/coupons/redemptions - zakres dat", () => {
-  it("domyślne okno to OSTATNIE 30 DNI i jedzie do bazy jako `gte`/`lte`", async () => {
+  it("domyślne okno to OSTATNIE 30 DNI PEŁNYMI DOBAMI i jedzie do bazy jako `gte`/`lte`", async () => {
+    // ZMIANA ŚWIADOMA (S1, AGENTS: lokalne daty bez przesunięć doby). Dawniej
+    // oba końce niosły bieżącą godzinę: „od" zaczynał się w połowie doby
+    // sprzed 30 dni, a wybrany w kalendarzu „do" kończył się o północy -
+    // cała ostatnia doba wypadała z sum. Teraz: od północy 30 dni temu do
+    // 23:59:59.999 dziś, w strefie przeglądarki.
     zBazy([]);
     await zamontuj();
     await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
     const od = argDaty("gte");
     const doDaty = argDaty("lte");
-    const dni = (doDaty.getTime() - od.getTime()) / (24 * 3600 * 1000);
-    expect(Math.round(dni)).toBe(30);
+    const oczekiwanyStart = new Date();
+    oczekiwanyStart.setHours(0, 0, 0, 0);
+    oczekiwanyStart.setDate(oczekiwanyStart.getDate() - 30);
+    expect(od.getTime()).toBe(oczekiwanyStart.getTime());
+    const koniecDzis = new Date();
+    koniecDzis.setHours(23, 59, 59, 999);
+    expect(doDaty.getTime()).toBe(koniecDzis.getTime());
     cleanup();
   });
 
-  it("rejestr czyta się od NAJNOWSZYCH i z sufitem 500 wierszy", async () => {
-    // Sufit chroni panel przed wciągnięciem całej historii do przeglądarki;
-    // kolejność malejąca sprawia, że po wejściu widać ostatnie zdarzenia.
+  it("rejestr czyta się od NAJNOWSZYCH, STRONAMI - bez cichego sufitu 500", async () => {
+    // ZMIANA ŚWIADOMA (S1): dawny `limit(500)` liczył kafle z próbki i nikt
+    // o tym nie wiedział. Odczyt idzie stronami (`range`) do sufitu modułu,
+    // a jego przekroczenie jest podpisane na ekranie (test niżej).
     zBazy([]);
     await zamontuj();
     await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
     expect(ostatnieZapytanie().argsOf("order")).toEqual(["created_at", { ascending: false }]);
-    expect(ostatnieZapytanie().argsOf("limit")).toEqual([500]);
+    expect(ostatnieZapytanie().argsOf("range")).toEqual([0, 999]);
+    expect(ostatnieZapytanie().has("limit")).toBe(false);
+    cleanup();
+  });
+
+  it("wybrana data DO obejmuje CAŁĄ dobę - nie kończy się o północy", async () => {
+    zBazy([]);
+    await zamontuj();
+    await waitFor(() => expect(db().chainsFor(TABELA).length).toBe(1));
+    fireEvent.click(poleDaty("Do"));
+    await klikDzien(DZIEN, 1);
+    const doDaty = argDaty("lte");
+    expect(doDaty.getDate()).toBe(Number(DZIEN));
+    expect([doDaty.getHours(), doDaty.getMinutes(), doDaty.getSeconds()]).toEqual([23, 59, 59]);
     cleanup();
   });
 
@@ -537,6 +561,16 @@ describe("trasa /admin/coupons/redemptions - DEFEKTY (naprawione)", () => {
     expect(przychod.textContent ?? "").not.toContain("120.00");
     // Kwota w kaflu niesie walutę, tak jak w tabeli.
     expect(przychod.textContent ?? "").toMatch(/PLN|EUR/);
+    cleanup();
+  });
+});
+
+describe("trasa /admin/coupons/redemptions - S1 (nagłówek sekcji)", () => {
+  it("ma SEKCYJNY tytuł karty i jest wyłączona z indeksu (D14)", async () => {
+    zBazy([]);
+    const view = await zamontuj();
+    expect(view.meta()).toContainEqual({ title: "Realizacje kuponów | New European Strategies" });
+    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
     cleanup();
   });
 });

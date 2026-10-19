@@ -227,13 +227,14 @@ function contentAccessDb(initial: StoredRule | null) {
       if (!row || eqValue(chain, "updated_at") !== row.updated_at) return ok([]);
       const patch = chain.argsOf("update")?.[0] as Partial<StoredRule>;
       row = { ...row, ...patch, updated_at: nextVersion() };
-      return ok([{ updated_at: row.updated_at }]);
+      return ok([row]);
     }
     if (chain.has("insert")) {
       if (row) return fail("duplicate key value violates unique constraint", "23505");
       const payload = chain.argsOf("insert")?.[0] as Partial<StoredRule>;
       row = { ...rule(), ...payload, updated_at: nextVersion() };
-      return ok([{ updated_at: row.updated_at }]);
+      // `.single()` (wspólny mutator S1) oddaje OBIEKT, lista bez niego - tablicę.
+      return chain.has("single") ? ok(row) : ok([{ updated_at: row.updated_at }]);
     }
     if (isWriteChain(chain)) return ok(null);
     if (chain.argsOf("select")?.[0] === "updated_at") {
@@ -774,7 +775,8 @@ describe("AccessSettingsPane - zapis", () => {
     sb().setTableResponder("content_access", (chain) => {
       if (!chain.has("insert")) return { data: null, error: null };
       return new Promise((resolve) => {
-        deferred.release = () => resolve(ok([{ updated_at: READ_VERSION }]));
+        // INSERT wspólnego mutatora kończy się `.single()` - wiersz jako obiekt.
+        deferred.release = () => resolve(ok({ updated_at: READ_VERSION }));
       });
     });
 
@@ -800,9 +802,12 @@ describe("AccessSettingsPane - zapis", () => {
     expect(eqValue(write as RecordedChain, "entity_id")).toBe("post-42");
     // Warunek wersji: UPDATE trafia tylko w wiersz, który panel PRZECZYTAŁ.
     expect(eqValue(write as RecordedChain, "updated_at")).toBe(READ_VERSION);
-    // `select("updated_at")` to dowód, że UPDATE czegokolwiek dotknął, i nowa
-    // baza dla kolejnego zapisu.
-    expect(write?.argsOf("select")).toEqual(["updated_at"]);
+    // `select(...)` z `updated_at` to dowód, że UPDATE czegokolwiek dotknął,
+    // i nowa baza dla kolejnego zapisu. Od S1 zapis idzie wspólnym mutatorem
+    // (`saveContentAccessRule`), który oddaje kolumny reguły BEZ hasła.
+    const selected = String(write?.argsOf("select")?.[0]).split(", ");
+    expect(selected).toContain("updated_at");
+    expect(selected).not.toContain("password_hash");
     const payload = sb().lastWrite("content_access", "update") as Record<string, unknown>;
     expect(payload.mode).toBe("members");
     expect(Object.keys(payload)).not.toContain("entity_type");
@@ -900,6 +905,28 @@ describe("AccessSettingsPane - zapis", () => {
 
     await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
     expect(view.queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true);
+  });
+
+  it("S1: zapis odświeża też listę wyjątków licznika w /admin/paywall (ten sam pisarz reguły)", async () => {
+    const view = await mountPane({ rule: null });
+    const overridesKey = ["metering-overrides", "", 0];
+    view.queryClient.setQueryData(overridesKey, { rows: [], total: 0, page: 0, pageSize: 50 });
+
+    fireEvent.change(modeSelect(view.container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    expect(view.queryClient.getQueryState(overridesKey)?.isInvalidated).toBe(true);
+  });
+
+  it("S1: odczyt panelu zasila WSPÓLNY wpis reguły (podsumowanie „Ogólne” widzi to samo)", async () => {
+    const view = await mountPane({ rule: rule({ mode: "paid" }), hasPassword: true });
+
+    expect(view.queryClient.getQueryData(["content_access", "post", "post-42"])).toMatchObject({
+      mode: "paid",
+      has_password: true,
+      updated_at: READ_VERSION,
+    });
   });
 });
 

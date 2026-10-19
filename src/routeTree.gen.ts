@@ -133,6 +133,7 @@ import { Route as AdminReadingTimeRouteImport } from './routes/admin.reading-tim
 import { Route as AdminRedirectsRouteImport } from './routes/admin.redirects'
 import { Route as AdminRelatedPostsRouteImport } from './routes/admin.related-posts'
 import { Route as AdminResearchProgramsRouteImport } from './routes/admin.research-programs'
+import { Route as AdminRevenueRouteImport } from './routes/admin.revenue'
 import { Route as AdminSeoRouteImport } from './routes/admin.seo'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminTagsRouteImport } from './routes/admin.tags'
@@ -276,6 +277,8 @@ import { Route as AdminPopupsIdRouteImport } from './routes/admin.popups.$id'
 import { Route as AdminPostsSlugRouteImport } from './routes/admin.posts.$slug'
 import { Route as AdminPostsCalendarRouteImport } from './routes/admin.posts.calendar'
 import { Route as AdminPostsNewRouteImport } from './routes/admin.posts.new'
+import { Route as AdminRevenueIndexRouteImport } from './routes/admin.revenue.index'
+import { Route as AdminRevenueTabRouteImport } from './routes/admin.revenue.$tab'
 import { Route as AdminSeoIndexRouteImport } from './routes/admin.seo.index'
 import { Route as AdminSeoContentRouteImport } from './routes/admin.seo.content'
 import { Route as AdminSeoHomepageRouteImport } from './routes/admin.seo.homepage'
@@ -379,6 +382,7 @@ import { Route as AdminEventsEventIdSponsorsRouteImport } from './routes/admin.e
 import { Route as AdminEventsEventIdTermsRouteImport } from './routes/admin.events_.$eventId.terms'
 import { Route as AdminNewsletterCampaignsIndexRouteImport } from './routes/admin.newsletter.campaigns.index'
 import { Route as AdminNewsletterCampaignsIdRouteImport } from './routes/admin.newsletter.campaigns.$id'
+import { Route as AdminRevenueJourneysJourneyIdRouteImport } from './routes/admin.revenue_.journeys.$journeyId'
 import { Route as ApiPublicHooksRefreshOgImageRouteImport } from './routes/api/public/hooks.refresh-og-image'
 import { Route as ApiPublicNewsletterConfirmRouteImport } from './routes/api.public.newsletter.confirm'
 import { Route as ApiPublicNewsletterUnsubscribeRouteImport } from './routes/api.public.newsletter.unsubscribe'
@@ -1059,6 +1063,11 @@ const AdminRelatedPostsRoute = AdminRelatedPostsRouteImport.update({
 const AdminResearchProgramsRoute = AdminResearchProgramsRouteImport.update({
   id: '/research-programs',
   path: '/research-programs',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRevenueRoute = AdminRevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSeoRoute = AdminSeoRouteImport.update({
@@ -1793,6 +1802,16 @@ const AdminPostsNewRoute = AdminPostsNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AdminPostsRoute,
 } as any)
+const AdminRevenueIndexRoute = AdminRevenueIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRevenueRoute,
+} as any)
+const AdminRevenueTabRoute = AdminRevenueTabRouteImport.update({
+  id: '/$tab',
+  path: '/$tab',
+  getParentRoute: () => AdminRevenueRoute,
+} as any)
 const AdminSeoIndexRoute = AdminSeoIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -2334,6 +2353,12 @@ const AdminNewsletterCampaignsIdRoute =
     path: '/$id',
     getParentRoute: () => AdminNewsletterCampaignsRoute,
   } as any)
+const AdminRevenueJourneysJourneyIdRoute =
+  AdminRevenueJourneysJourneyIdRouteImport.update({
+    id: '/revenue_/journeys/$journeyId',
+    path: '/revenue/journeys/$journeyId',
+    getParentRoute: () => AdminRoute,
+  } as any)
 const ApiPublicHooksRefreshOgImageRoute =
   ApiPublicHooksRefreshOgImageRouteImport.update({
     id: '/api/public/hooks/refresh-og-image',
@@ -2772,6 +2797,7 @@ export interface FileRoutesByFullPath {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
+  '/admin/revenue': typeof AdminRevenueRouteWithChildren
   '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -2909,6 +2935,7 @@ export interface FileRoutesByFullPath {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/revenue/$tab': typeof AdminRevenueTabRoute
   '/admin/seo/content': typeof AdminSeoContentRoute
   '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
@@ -2991,6 +3018,7 @@ export interface FileRoutesByFullPath {
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
+  '/admin/revenue/': typeof AdminRevenueIndexRoute
   '/admin/seo/': typeof AdminSeoIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -3015,6 +3043,7 @@ export interface FileRoutesByFullPath {
   '/admin/events/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
+  '/admin/revenue/journeys/$journeyId': typeof AdminRevenueJourneysJourneyIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
@@ -3315,6 +3344,7 @@ export interface FileRoutesByTo {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/revenue/$tab': typeof AdminRevenueTabRoute
   '/admin/seo/content': typeof AdminSeoContentRoute
   '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
@@ -3397,6 +3427,7 @@ export interface FileRoutesByTo {
   '/admin/crm': typeof AdminCrmIndexRoute
   '/admin/events': typeof AdminEventsIndexRoute
   '/admin/newsletter': typeof AdminNewsletterIndexRoute
+  '/admin/revenue': typeof AdminRevenueIndexRoute
   '/admin/seo': typeof AdminSeoIndexRoute
   '/admin/settings': typeof AdminSettingsIndexRoute
   '/admin/users': typeof AdminUsersIndexRoute
@@ -3421,6 +3452,7 @@ export interface FileRoutesByTo {
   '/admin/events/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
+  '/admin/revenue/journeys/$journeyId': typeof AdminRevenueJourneysJourneyIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
@@ -3604,6 +3636,7 @@ export interface FileRoutesById {
   '/admin/redirects': typeof AdminRedirectsRoute
   '/admin/related-posts': typeof AdminRelatedPostsRoute
   '/admin/research-programs': typeof AdminResearchProgramsRoute
+  '/admin/revenue': typeof AdminRevenueRouteWithChildren
   '/admin/seo': typeof AdminSeoRouteWithChildren
   '/admin/settings': typeof AdminSettingsRouteWithChildren
   '/admin/tags': typeof AdminTagsRoute
@@ -3741,6 +3774,7 @@ export interface FileRoutesById {
   '/admin/posts/$slug': typeof AdminPostsSlugRoute
   '/admin/posts/calendar': typeof AdminPostsCalendarRoute
   '/admin/posts/new': typeof AdminPostsNewRoute
+  '/admin/revenue/$tab': typeof AdminRevenueTabRoute
   '/admin/seo/content': typeof AdminSeoContentRoute
   '/admin/seo/homepage': typeof AdminSeoHomepageRoute
   '/admin/seo/search-console': typeof AdminSeoSearchConsoleRoute
@@ -3823,6 +3857,7 @@ export interface FileRoutesById {
   '/admin/crm/': typeof AdminCrmIndexRoute
   '/admin/events/': typeof AdminEventsIndexRoute
   '/admin/newsletter/': typeof AdminNewsletterIndexRoute
+  '/admin/revenue/': typeof AdminRevenueIndexRoute
   '/admin/seo/': typeof AdminSeoIndexRoute
   '/admin/settings/': typeof AdminSettingsIndexRoute
   '/admin/users/': typeof AdminUsersIndexRoute
@@ -3847,6 +3882,7 @@ export interface FileRoutesById {
   '/admin/events_/$eventId/sponsors': typeof AdminEventsEventIdSponsorsRoute
   '/admin/events_/$eventId/terms': typeof AdminEventsEventIdTermsRoute
   '/admin/newsletter/campaigns/$id': typeof AdminNewsletterCampaignsIdRoute
+  '/admin/revenue_/journeys/$journeyId': typeof AdminRevenueJourneysJourneyIdRoute
   '/api/public/hooks/refresh-og-image': typeof ApiPublicHooksRefreshOgImageRoute
   '/api/public/newsletter/confirm': typeof ApiPublicNewsletterConfirmRoute
   '/api/public/newsletter/unsubscribe': typeof ApiPublicNewsletterUnsubscribeRoute
@@ -4031,6 +4067,7 @@ export interface FileRouteTypes {
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/research-programs'
+    | '/admin/revenue'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/tags'
@@ -4168,6 +4205,7 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/revenue/$tab'
     | '/admin/seo/content'
     | '/admin/seo/homepage'
     | '/admin/seo/search-console'
@@ -4250,6 +4288,7 @@ export interface FileRouteTypes {
     | '/admin/crm/'
     | '/admin/events/'
     | '/admin/newsletter/'
+    | '/admin/revenue/'
     | '/admin/seo/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -4274,6 +4313,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/sponsors'
     | '/admin/events/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
+    | '/admin/revenue/journeys/$journeyId'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
@@ -4574,6 +4614,7 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/revenue/$tab'
     | '/admin/seo/content'
     | '/admin/seo/homepage'
     | '/admin/seo/search-console'
@@ -4656,6 +4697,7 @@ export interface FileRouteTypes {
     | '/admin/crm'
     | '/admin/events'
     | '/admin/newsletter'
+    | '/admin/revenue'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/users'
@@ -4680,6 +4722,7 @@ export interface FileRouteTypes {
     | '/admin/events/$eventId/sponsors'
     | '/admin/events/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
+    | '/admin/revenue/journeys/$journeyId'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
@@ -4862,6 +4905,7 @@ export interface FileRouteTypes {
     | '/admin/redirects'
     | '/admin/related-posts'
     | '/admin/research-programs'
+    | '/admin/revenue'
     | '/admin/seo'
     | '/admin/settings'
     | '/admin/tags'
@@ -4999,6 +5043,7 @@ export interface FileRouteTypes {
     | '/admin/posts/$slug'
     | '/admin/posts/calendar'
     | '/admin/posts/new'
+    | '/admin/revenue/$tab'
     | '/admin/seo/content'
     | '/admin/seo/homepage'
     | '/admin/seo/search-console'
@@ -5081,6 +5126,7 @@ export interface FileRouteTypes {
     | '/admin/crm/'
     | '/admin/events/'
     | '/admin/newsletter/'
+    | '/admin/revenue/'
     | '/admin/seo/'
     | '/admin/settings/'
     | '/admin/users/'
@@ -5105,6 +5151,7 @@ export interface FileRouteTypes {
     | '/admin/events_/$eventId/sponsors'
     | '/admin/events_/$eventId/terms'
     | '/admin/newsletter/campaigns/$id'
+    | '/admin/revenue_/journeys/$journeyId'
     | '/api/public/hooks/refresh-og-image'
     | '/api/public/newsletter/confirm'
     | '/api/public/newsletter/unsubscribe'
@@ -6175,6 +6222,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminResearchProgramsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/revenue': {
+      id: '/admin/revenue'
+      path: '/revenue'
+      fullPath: '/admin/revenue'
+      preLoaderRoute: typeof AdminRevenueRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/seo': {
       id: '/admin/seo'
       path: '/seo'
@@ -7176,6 +7230,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsNewRouteImport
       parentRoute: typeof AdminPostsRoute
     }
+    '/admin/revenue/': {
+      id: '/admin/revenue/'
+      path: '/'
+      fullPath: '/admin/revenue/'
+      preLoaderRoute: typeof AdminRevenueIndexRouteImport
+      parentRoute: typeof AdminRevenueRoute
+    }
+    '/admin/revenue/$tab': {
+      id: '/admin/revenue/$tab'
+      path: '/$tab'
+      fullPath: '/admin/revenue/$tab'
+      preLoaderRoute: typeof AdminRevenueTabRouteImport
+      parentRoute: typeof AdminRevenueRoute
+    }
     '/admin/seo/': {
       id: '/admin/seo/'
       path: '/'
@@ -7897,6 +7965,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminNewsletterCampaignsIdRouteImport
       parentRoute: typeof AdminNewsletterCampaignsRoute
     }
+    '/admin/revenue_/journeys/$journeyId': {
+      id: '/admin/revenue_/journeys/$journeyId'
+      path: '/revenue/journeys/$journeyId'
+      fullPath: '/admin/revenue/journeys/$journeyId'
+      preLoaderRoute: typeof AdminRevenueJourneysJourneyIdRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/api/public/hooks/refresh-og-image': {
       id: '/api/public/hooks/refresh-og-image'
       path: '/api/public/hooks/refresh-og-image'
@@ -8535,6 +8610,20 @@ const AdminPostsRouteWithChildren = AdminPostsRoute._addFileChildren(
   AdminPostsRouteChildren,
 )
 
+interface AdminRevenueRouteChildren {
+  AdminRevenueTabRoute: typeof AdminRevenueTabRoute
+  AdminRevenueIndexRoute: typeof AdminRevenueIndexRoute
+}
+
+const AdminRevenueRouteChildren: AdminRevenueRouteChildren = {
+  AdminRevenueTabRoute: AdminRevenueTabRoute,
+  AdminRevenueIndexRoute: AdminRevenueIndexRoute,
+}
+
+const AdminRevenueRouteWithChildren = AdminRevenueRoute._addFileChildren(
+  AdminRevenueRouteChildren,
+)
+
 interface AdminSeoRouteChildren {
   AdminSeoContentRoute: typeof AdminSeoContentRoute
   AdminSeoHomepageRoute: typeof AdminSeoHomepageRoute
@@ -8792,6 +8881,7 @@ interface AdminRouteChildren {
   AdminRedirectsRoute: typeof AdminRedirectsRoute
   AdminRelatedPostsRoute: typeof AdminRelatedPostsRoute
   AdminResearchProgramsRoute: typeof AdminResearchProgramsRoute
+  AdminRevenueRoute: typeof AdminRevenueRouteWithChildren
   AdminSeoRoute: typeof AdminSeoRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRouteWithChildren
   AdminTagsRoute: typeof AdminTagsRoute
@@ -8808,6 +8898,7 @@ interface AdminRouteChildren {
   AdminEventsEventIdRoute: typeof AdminEventsEventIdRouteWithChildren
   AdminEventsNewRoute: typeof AdminEventsNewRoute
   AdminSuperMobileDrawerRoute: typeof AdminSuperMobileDrawerRoute
+  AdminRevenueJourneysJourneyIdRoute: typeof AdminRevenueJourneysJourneyIdRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -8873,6 +8964,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminRedirectsRoute: AdminRedirectsRoute,
   AdminRelatedPostsRoute: AdminRelatedPostsRoute,
   AdminResearchProgramsRoute: AdminResearchProgramsRoute,
+  AdminRevenueRoute: AdminRevenueRouteWithChildren,
   AdminSeoRoute: AdminSeoRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRouteWithChildren,
   AdminTagsRoute: AdminTagsRoute,
@@ -8889,6 +8981,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminEventsEventIdRoute: AdminEventsEventIdRouteWithChildren,
   AdminEventsNewRoute: AdminEventsNewRoute,
   AdminSuperMobileDrawerRoute: AdminSuperMobileDrawerRoute,
+  AdminRevenueJourneysJourneyIdRoute: AdminRevenueJourneysJourneyIdRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

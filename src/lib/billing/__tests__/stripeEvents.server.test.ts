@@ -86,6 +86,28 @@ describe("mapStripeSubscription", () => {
     });
   });
 
+  it("niesie kwotę ceny, na której subskrypcja JEST (per_unit), ale nie zgaduje ceny schodkowej", () => {
+    // Po zmianie cennika (v6.2) cena pozycji nie musi być ceną planu w
+    // katalogu - mail o wznowieniu bierze kwotę stąd, nie z `access_plans`.
+    const item = (price: Record<string, unknown>) =>
+      mapStripeSubscription(
+        stripeSubscription({
+          items: { data: [{ quantity: 1, price: { id: "price_1", ...price } }] },
+        }),
+      ).items[0]?.price;
+
+    expect(
+      item({ unit_amount: 5900, currency: "pln", recurring: { interval: "month" } }),
+    ).toMatchObject({ unitAmount: 5900, currency: "PLN" });
+    const tiered = item({
+      billing_scheme: "tiered",
+      currency: "pln",
+      recurring: { interval: "month" },
+    });
+    expect(tiered).not.toHaveProperty("unitAmount");
+    expect(item({ unit_amount: 1_600_000, currency: "pln" })).not.toHaveProperty("unitAmount");
+  });
+
   it("czyta okres rozliczeniowy z pozycji (Basil), nie z subskrypcji", () => {
     const data = mapStripeSubscription(
       stripeSubscription({

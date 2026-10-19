@@ -9,7 +9,8 @@
 //      zobaczy „zapisano", przestaje sprawdzać, co klient widzi na ekranie
 //      rezygnacji.
 //   2. BRAK TENANTA = BRAK ZAPISU. Powód bez właściciela byłby wierszem
-//      niewidocznym dla żadnego tenanta (albo widocznym dla złego).
+//      niewidocznym dla żadnego tenanta (albo widocznym dla złego). Od S1
+//      najemca pochodzi z sesji, nie z pierwszego wiersza danych.
 //   3. AWARIA JEDNEGO ODCZYTU NIE ZABIERA RESZTY ZAKŁADKI. Trzy zapytania są
 //      niezależne - padnięty przegląd odpowiedzi nie może zablokować edycji
 //      katalogu powodów.
@@ -38,16 +39,29 @@ freezeClock(ADMIN_NOW);
 
 let chain: SupabaseFromStub;
 
+let tenant: string | null = "tenant-1";
+
 vi.mock("react-i18next", () => reactI18nextStub());
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (table: string) => chain.from(table) },
+  supabase: {
+    from: (table: string) => chain.from(table),
+    auth: { getSession: async () => ({ data: { session: { user: { id: "staff" } } } }) },
+  },
 }));
+// S1 def. 13: najemca zapisu przychodzi z SESJI (`useCurrentTenantId`), nie
+// z pierwszego wiersza ustawień, powodów albo odpowiedzi.
+vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => tenant }));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const toastInfo = vi.fn();
+// Błędy zapisu idą przez wspólny `toastError(err, rodzaj)` (S1) - atrapa
+// przechwytuje BŁĄD z treścią odmowy i rodzaj operacji.
+const toastErrorKind = vi.fn();
 const confirmStub = vi.fn(() => true);
-vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError, info: toastInfo } }));
+vi.mock("@/lib/toastError", () => ({ toastError: toastErrorKind }));
 
 const { RetentionTab } = await import("@/components/admin/pricing/organisms/RetentionTab");
 
@@ -75,6 +89,8 @@ beforeEach(() => {
   chain.setResponse("retention_feedback", ok([]));
   toastSuccess.mockClear();
   toastError.mockClear();
+  toastErrorKind.mockClear();
+  tenant = "tenant-1";
   confirmStub.mockReturnValue(true);
   vi.stubGlobal("confirm", confirmStub);
 });
@@ -98,7 +114,7 @@ describe("RetentionTab - awaria jednego odczytu nie zabiera reszty zakładki", (
     );
     expect(queryClient.getQueryData(["admin", "retention-settings"])).toBeUndefined();
     // Zakładka nie wysyła żadnego zapisu sama z siebie po nieudanym odczycie.
-    expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(false);
+    expect(chain.chainsFor("retention_settings").some((c) => c.has("update"))).toBe(false);
   });
 
   it("padnięty przegląd odpowiedzi nie blokuje wczytania ustawień kontroferty", async () => {
@@ -109,10 +125,12 @@ describe("RetentionTab - awaria jednego odczytu nie zabiera reszty zakładki", (
     await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(25));
     expect(screen.getByRole("button", { name: /retention\.addReason/ })).toBeInTheDocument();
     // Przekroczony czas odczytu to błąd zapytania, nie „zero odpowiedzi".
-    await waitFor(() =>
-      expect(queryClient.getQueryState(["admin", "retention-feedback"])?.status).toBe("error"),
-    );
-    expect(queryClient.getQueryData(["admin", "retention-feedback"])).toBeUndefined();
+    // Klucz niesie okno i limit (`retentionFeedbackQueryOptions`) - szukamy
+    // po prefiksie rodziny, tak jak unieważnia go szyna.
+    const feedbackQuery = () =>
+      queryClient.getQueryCache().findAll({ queryKey: ["admin", "retention-feedback"] })[0];
+    await waitFor(() => expect(feedbackQuery()?.state.status).toBe("error"));
+    expect(feedbackQuery()?.state.data).toBeUndefined();
   });
 
   it("`null` zamiast listy z PostgREST to pusty katalog i pusty przegląd, nie wywrotka", async () => {
@@ -128,10 +146,11 @@ describe("RetentionTab - awaria jednego odczytu nie zabiera reszty zakładki", (
   });
 });
 
-// Ustawienia, których panel NIE ZNA, nie mogą wyglądać jak domyślne 30/3/14.
-// Zapis idzie `upsert`-em po tenancie i nadpisuje CAŁY wiersz - redakcja, która
-// po padniętym odczycie poprawi tylko ważność kodu, po cichu zmieniłaby też
-// prawdziwy rabat (np. 15%) na domyślne 30%.
+// Ustawienia, których panel NIE ZNA, nie mogą wyglądać jak domyślne 30/3/14 -
+// redakcja, która po padniętym odczycie poprawi tylko ważność kodu, po cichu
+// zmieniłaby też prawdziwy rabat (np. 15%) na domyślne 30%. Od S1 zapis idzie
+// UPDATE-em z tokenem `updated_at` (a przy braku wiersza INSERT-em), ale
+// pierwsza obrona zostaje ta sama: nieznanych ustawień nie ma na ekranie.
 describe("RetentionTab - nieznane ustawienia nie dają się nadpisać domyślnymi", () => {
   it("padnięty odczyt ustawień: komunikat z ponowieniem zamiast pól 30/3/14", async () => {
     chain.setResponse("retention_settings", fail("permission denied for table retention_settings"));
@@ -148,7 +167,7 @@ describe("RetentionTab - nieznane ustawienia nie dają się nadpisać domyślnym
 
     await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(15));
     expect(screen.queryByText("adminPricing.retention.settingsLoadError")).toBeNull();
-    expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(false);
+    expect(chain.chainsFor("retention_settings").some((c) => c.has("update"))).toBe(false);
   });
 
   it("dopóki ustawienia się wczytują, panel nie pokazuje domyślnych wartości do zapisu", async () => {
@@ -181,21 +200,52 @@ describe("RetentionTab - nieznane ustawienia nie dają się nadpisać domyślnym
 });
 
 describe("RetentionTab - brak tenanta blokuje dodanie powodu", () => {
-  it("pusta baza: dodanie powodu odmawia i NIE wysyła INSERT bez właściciela", async () => {
+  it("sesja bez najemcy: dodanie powodu odmawia i NIE wysyła INSERT bez właściciela", async () => {
+    // ZMIANA ZAMIERZONA (S1 def. 13): najemca z SESJI, nie z wierszy - pusta
+    // baza przy znanym najemcy już nie blokuje; blokuje brak najemcy w sesji.
+    tenant = null;
     chain.setResponse("retention_settings", ok(null));
     renderWithQueryClient(<RetentionTab />);
-    await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(30));
+    await screen.findByText("adminPricing.retention.missingTitle");
 
     const [pl, en] = screen.getAllByRole("textbox");
     fireEvent.change(pl, { target: { value: "Za drogo" } });
     fireEvent.change(en, { target: { value: "Too expensive" } });
     fireEvent.click(screen.getByRole("button", { name: /retention\.addReason/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("adminPricing.toast.noTenant"));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "tenant_unresolved" }),
+        "save",
+      ),
+    );
     expect(chain.chainsFor("retention_reasons").some((c) => c.has("insert"))).toBe(false);
     // Wpisany tekst zostaje - odmowa nie kasuje pracy redakcji.
     expect(screen.getAllByRole("textbox")[0]).toHaveValue("Za drogo");
     expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("pusta baza przy znanym najemcy: powód zapisuje się z najemcą z sesji", async () => {
+    chain.setResponse("retention_settings", ok(null));
+    chain.setResponse("retention_reasons", (c: RecordedChain) =>
+      c.has("insert") ? ok(retentionReason({ id: "nowy" })) : ok([]),
+    );
+    renderWithQueryClient(<RetentionTab />);
+    await screen.findByText("adminPricing.retention.missingTitle");
+
+    const [pl, en] = screen.getAllByRole("textbox");
+    fireEvent.change(pl, { target: { value: "Za drogo" } });
+    fireEvent.change(en, { target: { value: "Too expensive" } });
+    fireEvent.click(screen.getByRole("button", { name: /retention\.addReason/ }));
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("adminPricing.toast.reasonAdded"),
+    );
+    const insert = chain.chainsFor("retention_reasons").find((c) => c.has("insert"))!;
+    expect(insert.argsOf("insert")?.[0]).toMatchObject({
+      tenant_id: "tenant-1",
+      label_pl: "Za drogo",
+    });
   });
 });
 
@@ -208,7 +258,12 @@ describe("RetentionTab - odmowa zapisu nigdy nie wygląda jak sukces", () => {
     fireEvent.change(screen.getByDisplayValue("Za drogo"), { target: { value: "Cena" } });
     fireEvent.click(within(rowOf("Cena")).getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(DENIED));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: DENIED }),
+        "save",
+      ),
+    );
     expect(toastSuccess).not.toHaveBeenCalledWith("adminPricing.toast.reasonSaved");
     // Szkic zostaje na ekranie - redakcja może ponowić zapis.
     expect(screen.getByDisplayValue("Cena")).toBeInTheDocument();
@@ -221,7 +276,12 @@ describe("RetentionTab - odmowa zapisu nigdy nie wygląda jak sukces", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /retention\.reasonDelete/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(DENIED));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: DENIED }),
+        "delete",
+      ),
+    );
     const deleted = chain.chainsFor("retention_reasons").find((c) => c.has("delete"))!;
     expect(deleted.argsOf("eq")).toEqual(["id", "r1"]);
     expect(toastSuccess).not.toHaveBeenCalledWith("adminPricing.toast.reasonDeleted");
@@ -241,7 +301,12 @@ describe("RetentionTab - odmowa zapisu nigdy nie wygląda jak sukces", () => {
 
     fireEvent.click(within(rowOf("Brak czasu")).getByRole("button", { name: /retention\.moveUp/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith(DENIED));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: DENIED }),
+        "save",
+      ),
+    );
     expect(toastSuccess).not.toHaveBeenCalledWith("adminPricing.toast.reordered");
     // Pierwszy odrzucony UPDATE przerywa renumerację - drugi wiersz nie jest już ruszany.
     expect(reasonUpdates()).toHaveLength(1);

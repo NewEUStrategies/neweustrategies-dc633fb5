@@ -20,6 +20,15 @@
 // najemcy - z dowolnym wyprzedzeniem, które ZUŻYWAŁO klucz idempotencji
 // właściwego przypomnienia (3 dni przed odnowieniem mail już nie wychodził).
 //
+// KWOTA W PRZYPOMNIENIU O ODNOWIENIU pochodzi z ŻYWEJ subskrypcji u operatora
+// (`renewalListCharge`), nie z `access_plans`. Cennik w bazie to cena nowego
+// zakupu: po zmianie cennika (v6.2 obniża 59 -> 39 zł przy deployu) trwające
+// subskrypcje odnawiają się po swojej starej cenie, dopóki admin nie wykona
+// akcji przeniesienia - a pominięte przez nią (obcy harmonogram, kilka pozycji,
+// zaległość) na stałe. Mail „Cena: 39 zł" przed pobraniem 59 zł to błędna
+// informacja o kwocie obciążenia. Gdy kwoty nie da się ustalić jednoznacznie,
+// przypomnienie wychodzi BEZ niej (data odnowienia jest ważniejsza niż kwota).
+//
 // Moduł server-only - importuj wyłącznie z handlera crona i z funkcji panelu
 // operatora platformy.
 import { accessPeriodFromEvent, effectiveCancellationReason } from "@/lib/billing/accessPeriod";
@@ -220,6 +229,13 @@ export async function runBillingReminders(
           tenantId: row.tenant_id,
           userId: row.user_id,
         });
+        // Kwota tylko w przypomnieniu o ODNOWIENIU (wygaśnięcie nie pobiera
+        // płatności) i wyłącznie z żywej subskrypcji - patrz nagłówek.
+        const charge = ending
+          ? null
+          : await (
+              await import("@/lib/billing/subscriptionProvider.server")
+            ).renewalListCharge(environment, row.provider_subscription_id);
         // Liczymy WIADOMOŚCI, KTÓRE POSZŁY, a nie wywołania wysyłki. Wcześniej
         // licznik rósł zaraz po wywołaniu fail-soft `notifyReminderEmail`, więc
         // przy padniętej poczcie przebieg raportował dziesiątki przypomnień,
@@ -233,6 +249,7 @@ export async function runBillingReminders(
           tenantId: row.tenant_id,
           planId: plan?.planId ?? null,
           periodEnd,
+          charge,
           idempotencySeed: reminderSeed(row.provider_subscription_id, periodEnd, leadDays),
         });
         if (!sent) {

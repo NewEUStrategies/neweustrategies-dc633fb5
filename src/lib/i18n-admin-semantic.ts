@@ -127,6 +127,8 @@ export const semanticAnalyticsPl = {
         viewer_hash: "hash czytelnika",
         email_recipient: "odbiorca maila",
         anonymous_event: "zdarzenie anonimowe",
+        account: "konto",
+        crm_contact: "kontakt CRM",
       },
       dedupe: {
         none: "brak",
@@ -149,6 +151,11 @@ export const semanticAnalyticsPl = {
           ratio: "wskaźnik",
           milliseconds: "ms",
           score: "wynik",
+          money_minor: "kwota",
+          months: "miesiące",
+          multiple: "krotność",
+          hours: "godziny",
+          days: "dni",
         },
       },
       ratios: {
@@ -315,6 +322,8 @@ export const semanticAnalyticsEn = {
         viewer_hash: "reader hash",
         email_recipient: "email recipient",
         anonymous_event: "anonymous event",
+        account: "account",
+        crm_contact: "CRM contact",
       },
       dedupe: {
         none: "none",
@@ -337,6 +346,11 @@ export const semanticAnalyticsEn = {
           ratio: "ratio",
           milliseconds: "ms",
           score: "score",
+          money_minor: "amount",
+          months: "months",
+          multiple: "multiple",
+          hours: "hours",
+          days: "days",
         },
       },
       ratios: {

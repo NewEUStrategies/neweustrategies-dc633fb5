@@ -79,6 +79,9 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
       );
       void qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
+      // Kwota odnowienia: upgrade zmienia pozycję u operatora, zaplanowany
+      // downgrade - harmonogram (kwota nieustalona), choć plan zostaje ten sam.
+      void qc.invalidateQueries({ queryKey: billingKeys.renewalChargeAll() });
       void qc.invalidateQueries({ queryKey: billingKeys.myOrdersAll() });
       void qc.invalidateQueries({ queryKey: billingKeys.myBillingDocumentsAll() });
       void qc.invalidateQueries({ queryKey: ["public", "resolved"] });

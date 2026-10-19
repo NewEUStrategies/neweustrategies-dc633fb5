@@ -20,6 +20,9 @@ const CATALOG_FILE = "20260722230000_pricing_catalog_v3_retention.sql";
 const CATALOG_SOURCES: ReadonlyArray<{ file: string; fn: string }> = [
   { file: CATALOG_FILE, fn: "pricing_catalog_v3_rows" },
   { file: "20260730191000_business_partner_catalog.sql", fn: "pricing_catalog_business_rows" },
+  // Katalog v6.2 - od 18.10.2026 jedyne źródło seedu nowych najemców (pełne
+  // features), więc jego flagi i rangi muszą zgadzać się ze stałymi TS.
+  { file: "20261018160100_pricing_v62_catalog_rows.sql", fn: "pricing_catalog_v62_rows" },
 ];
 
 /** Ciało funkcji katalogowej (od CREATE do zamykającego $$;). */

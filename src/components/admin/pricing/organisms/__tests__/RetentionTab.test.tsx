@@ -46,16 +46,27 @@ freezeClock(ADMIN_NOW);
 
 let chain: SupabaseFromStub;
 
+let tenant: string | null = "tenant-1";
+
 vi.mock("react-i18next", () => reactI18nextStub());
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (table: string) => chain.from(table) },
+  supabase: {
+    from: (table: string) => chain.from(table),
+    auth: { getSession: async () => ({ data: { session: { user: { id: "staff" } } } }) },
+  },
 }));
+// S1 def. 13: najemca zapisu z SESJI, nie z pierwszego wiersza danych.
+vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => tenant }));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const toastInfo = vi.fn();
+// Błędy zapisu idą przez wspólny `toastError(err, rodzaj)` (S1).
+const toastErrorKind = vi.fn();
 const confirmStub = vi.fn(() => true);
-vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError, info: toastInfo } }));
+vi.mock("@/lib/toastError", () => ({ toastError: toastErrorKind }));
 
 const { RetentionTab } = await import("@/components/admin/pricing/organisms/RetentionTab");
 
@@ -74,15 +85,23 @@ async function settingsLoaded(discountPct: number): Promise<void> {
 }
 
 /**
- * Wysłany `upsert` ustawień. Szukamy PO METODZIE, nie „ostatniego" łańcucha:
- * po udanym zapisie panel unieważnia zapytanie, więc ostatnim wywołaniem bywa
- * ponowny ODCZYT, a nie zapis.
+ * Wysłany zapis ustawień (UPDATE z tokenem albo INSERT przy braku wiersza).
+ * Szukamy PO METODZIE, nie „ostatniego" łańcucha: po udanym zapisie panel
+ * unieważnia zapytanie, więc ostatnim wywołaniem bywa ponowny ODCZYT.
  */
-function settingsUpsert(): { payload: Record<string, unknown>; options: unknown } {
-  const call = chain.chainsFor("retention_settings").find((c) => c.has("upsert"))!;
-  const args = call.argsOf("upsert")!;
-  return { payload: args[0] as Record<string, unknown>, options: args[1] };
+function settingsWrite(method: "update" | "insert" = "update"): {
+  payload: Record<string, unknown>;
+  filter: unknown;
+} {
+  const call = chain.chainsFor("retention_settings").find((c) => c.has(method))!;
+  return {
+    payload: call.argsOf(method)![0] as Record<string, unknown>,
+    filter: call.argsOf("eq"),
+  };
 }
+
+const wrote = (method: "update" | "insert" = "update") =>
+  chain.chainsFor("retention_settings").some((c) => c.has(method));
 
 beforeEach(() => {
   chain = supabaseFromStub();
@@ -91,6 +110,8 @@ beforeEach(() => {
   chain.setResponse("retention_feedback", ok([]));
   toastSuccess.mockClear();
   toastError.mockClear();
+  toastErrorKind.mockClear();
+  tenant = "tenant-1";
   confirmStub.mockReturnValue(true);
   vi.stubGlobal("confirm", confirmStub);
 });
@@ -108,12 +129,32 @@ describe("RetentionTab - ustawienia kontroferty", () => {
     expect(numberField(2)).toHaveValue(10);
   });
 
-  it("BRAK wiersza ustawień nie wyłącza kontroferty - pokazuje domyślne 30/3/14", async () => {
-    chain.setResponse("retention_settings", ok(null));
+  it("ZMIANA ZAMIERZONA (def. 13): BRAK wiersza = kontroferta wyłączona, a 30/3/14 to tylko propozycja", async () => {
+    // Charakteryzacja przypinała „brak wiersza = włączona 30/3/14" - serwer
+    // (`acceptRetentionOffer`) przy braku wiersza zwraca `offer_disabled`,
+    // więc tamten ekran kłamał. Teraz stan serwera, a pola dopiero po
+    // świadomym „Skonfiguruj".
+    chain.setResponse("retention_settings", (c) =>
+      c.has("insert") ? ok(retentionSettings()) : ok(null),
+    );
     renderWithQueryClient(<RetentionTab />);
 
-    await waitFor(() => expect(numberField(0)).toHaveValue(30));
+    expect(await screen.findByText("adminPricing.retention.missingTitle")).toBeInTheDocument();
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "adminPricing.retention.configure" }));
+    expect(numberField(0)).toHaveValue(30);
     expect(numberField(2)).toHaveValue(14);
+    expect(wrote("insert")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
+    await waitFor(() => expect(wrote("insert")).toBe(true));
+    expect(settingsWrite("insert").payload).toMatchObject({
+      tenant_id: "tenant-1",
+      enabled: true,
+      discount_pct: 30,
+      discount_periods: 3,
+      coupon_valid_days: 14,
+    });
   });
 
   it("RABAT 900% jest PRZYCINANY do maksimum, a nie zapisywany", async () => {
@@ -124,10 +165,8 @@ describe("RetentionTab - ustawienia kontroferty", () => {
     fireEvent.change(numberField(0), { target: { value: "900" } });
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() =>
-      expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(true),
-    );
-    expect(settingsUpsert().payload.discount_pct).toBe(90);
+    await waitFor(() => expect(wrote()).toBe(true));
+    expect(settingsWrite().payload.discount_pct).toBe(90);
   });
 
   it("rabat ujemny schodzi do minimum (rabat -30% to podwyżka)", async () => {
@@ -138,24 +177,40 @@ describe("RetentionTab - ustawienia kontroferty", () => {
     fireEvent.change(numberField(0), { target: { value: "-30" } });
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() =>
-      expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(true),
-    );
-    expect(settingsUpsert().payload.discount_pct).toBe(1);
+    await waitFor(() => expect(wrote()).toBe(true));
+    expect(settingsWrite().payload.discount_pct).toBe(1);
   });
 
-  it("zapis idzie przez `upsert` po tenancie (jeden wiersz ustawień, nie kolejny)", async () => {
-    chain.setResponse("retention_settings", ok(retentionSettings({ discount_pct: 25 })));
+  it("ZMIANA ZAMIERZONA: zapis to UPDATE warunkowany tokenem wiersza, nie `upsert` całego wiersza", async () => {
+    // Dawny `upsert(onConflict: tenant_id)` cofał rabat zapisany w drugiej
+    // karcie; teraz 0 wierszy przy starym tokenie = konflikt `40001`.
+    const row = retentionSettings({ discount_pct: 25 });
+    chain.setResponse("retention_settings", (c) => (c.has("update") ? ok([row]) : ok(row)));
     renderWithQueryClient(<RetentionTab />);
     await settingsLoaded(25);
 
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
+    await waitFor(() => expect(wrote()).toBe(true));
+    expect(settingsWrite().filter).toEqual(["updated_at", row.updated_at]);
+    expect(settingsWrite().payload).not.toHaveProperty("tenant_id");
+    expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(false);
+  });
+
+  it("konflikt tokenu daje wspólny komunikat „zmienione w innym miejscu”, szkic zostaje", async () => {
+    const row = retentionSettings({ discount_pct: 25 });
+    chain.setResponse("retention_settings", (c) => (c.has("update") ? ok([]) : ok(row)));
+    renderWithQueryClient(<RetentionTab />);
+    await settingsLoaded(25);
+
+    fireEvent.change(numberField(0), { target: { value: "40" } });
+    fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
+
     await waitFor(() =>
-      expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(true),
+      expect(toastError).toHaveBeenCalledWith("adminPaywall.sync.staleWrite", expect.anything()),
     );
-    expect(settingsUpsert().options).toEqual({ onConflict: "tenant_id" });
-    expect(settingsUpsert().payload.tenant_id).toBeDefined();
+    expect(numberField(0)).toHaveValue(40);
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it("WYŁĄCZENIE kontroferty zapisuje się jako `false`", async () => {
@@ -166,10 +221,8 @@ describe("RetentionTab - ustawienia kontroferty", () => {
     fireEvent.click(screen.getAllByRole("switch")[0]);
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() =>
-      expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(true),
-    );
-    expect(settingsUpsert().payload.enabled).toBe(false);
+    await waitFor(() => expect(wrote()).toBe(true));
+    expect(settingsWrite().payload.enabled).toBe(false);
   });
 
   it("liczba okresów i ważność kodu też są przycinane do zakresu", async () => {
@@ -181,11 +234,9 @@ describe("RetentionTab - ustawienia kontroferty", () => {
     fireEvent.change(numberField(2), { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() =>
-      expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(true),
-    );
-    expect(settingsUpsert().payload.discount_periods).toBe(24);
-    expect(settingsUpsert().payload.coupon_valid_days).toBe(1);
+    await waitFor(() => expect(wrote()).toBe(true));
+    expect(settingsWrite().payload.discount_periods).toBe(24);
+    expect(settingsWrite().payload.coupon_valid_days).toBe(1);
   });
 
   it("BŁĄD zapisu ustawień trafia do komunikatu, a szkic zostaje na ekranie", async () => {
@@ -200,18 +251,32 @@ describe("RetentionTab - ustawienia kontroferty", () => {
     fireEvent.change(numberField(0), { target: { value: "40" } });
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("permission denied"));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "permission denied" }),
+        "save",
+      ),
+    );
     expect(numberField(0)).toHaveValue(40);
   });
 
-  it("bez tenanta (pusta baza) zapis odmawia zamiast wysłać wiersz bez właściciela", async () => {
+  it("bez najemcy w sesji zapis odmawia zamiast wysłać wiersz bez właściciela", async () => {
+    tenant = null;
     chain.setResponse("retention_settings", ok(null));
     renderWithQueryClient(<RetentionTab />);
-    await settingsLoaded(30);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "adminPricing.retention.configure" }),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /retention\.save/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("adminPricing.toast.noTenant"));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "tenant_unresolved" }),
+        "save",
+      ),
+    );
+    expect(wrote("insert")).toBe(false);
   });
 });
 
@@ -277,6 +342,32 @@ describe("RetentionTab - skuteczność kontroferty", () => {
   });
 });
 
+describe("RetentionTab - okno statystyk w zapytaniu (Z-08)", () => {
+  it("odczyt odpowiedzi filtruje okno i puste powody PO STRONIE BAZY, bez `limit(100)` próbki", async () => {
+    renderWithQueryClient(<RetentionTab />);
+    await waitFor(() => expect(chain.chainsFor("retention_feedback")).toHaveLength(1));
+    const read = chain.chainsFor("retention_feedback")[0];
+    expect(read.argsOf("not")).toEqual(["reason_label", "is", null]);
+    const since = read.argsOf("gte")?.[1] as string;
+    expect(read.argsOf("gte")?.[0]).toBe("created_at");
+    // Okno 90 dni od początku doby UTC - pełne okno, nie najnowsze 100 wierszy.
+    expect(Date.parse(since)).toBeLessThanOrEqual(ADMIN_NOW - 90 * 24 * 60 * 60 * 1000);
+    expect(read.argsOf("limit")?.[0]).toBeGreaterThan(100);
+  });
+
+  it("okno większe niż limit odczytu mówi to wprost zamiast udawać pełną statystykę", async () => {
+    const many = Array.from({ length: 2001 }, (_, i) => retentionFeedback({ id: `f${i}` }));
+    chain.setResponse("retention_feedback", ok(many));
+    renderWithQueryClient(<RetentionTab />);
+
+    expect(
+      await screen.findByText('adminPricing.retention.truncated {"limit":2000}'),
+    ).toBeInTheDocument();
+    // Statystyka liczy pobrane 2000 (najnowsze), nie 2001 - i mówi o tym.
+    expect(screen.queryByText("2001")).not.toBeInTheDocument();
+  });
+});
+
 describe("RetentionTab - katalog powodów rezygnacji", () => {
   it("nowy powód wymaga etykiety w OBU językach", async () => {
     renderWithQueryClient(<RetentionTab />);
@@ -328,7 +419,12 @@ describe("RetentionTab - katalog powodów rezygnacji", () => {
     fireEvent.change(en, { target: { value: "New reason" } });
     fireEvent.click(screen.getByRole("button", { name: /retention\.addReason/ }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith("permission denied"));
+    await waitFor(() =>
+      expect(toastErrorKind).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "permission denied" }),
+        "save",
+      ),
+    );
     expect(screen.getAllByRole("textbox")[0]).toHaveValue("Nowy powód");
   });
 

@@ -134,10 +134,10 @@ describe("TierCard - CENA, którą widzi klient", () => {
     expect(screen.queryByText("pricing.onRequest")).not.toBeInTheDocument();
   });
 
-  it("plan ZA MIEJSCE pokazuje „od” przed kwotą", () => {
+  it("plan ZA MIEJSCE pokazuje stawkę za miejsce BEZ „od” (próg wolumenowy jest w nocie)", () => {
     renderCard({ tier: membershipTier({ per_seat: true }), plans: [monthly] });
 
-    expect(screen.getByText("pricing.fromPrefix")).toBeInTheDocument();
+    expect(screen.queryByText("pricing.fromPrefix")).not.toBeInTheDocument();
     expect(screen.getByText(/pricing\.perSeat/)).toBeInTheDocument();
   });
 
@@ -156,6 +156,19 @@ describe("TierCard - CENA, którą widzi klient", () => {
   it("plan bez okresu próbnego nie pokazuje pustej obietnicy", () => {
     renderCard({ plans: [accessPlan({ id: "p", interval: "month", trial_days: 0 })] });
 
+    expect(screen.queryByText(/pricing\.trial/)).not.toBeInTheDocument();
+  });
+
+  // Zespół v6.2: `trial_days = 7` w bazie, ale sprzedaż przez rozmowę
+  // (`for_sale = false`, `cta_mode = 'contact'`) - kasa odmawia zakupu, więc
+  // „7 dni za darmo" nad „Porozmawiajmy" byłoby obietnicą bez pokrycia.
+  it("plan sprzedawany PRZEZ ROZMOWĘ nie ogłasza okresu próbnego", () => {
+    renderCard({
+      tier: membershipTier({ key: "team", cta_mode: "contact", per_seat: true }),
+      plans: [accessPlan({ id: "p-team", interval: "month", trial_days: 7, for_sale: false })],
+    });
+
+    expect(screen.getByText(/pricing\.perSeat/)).toBeInTheDocument();
     expect(screen.queryByText(/pricing\.trial/)).not.toBeInTheDocument();
   });
 });

@@ -16,6 +16,9 @@
 //      identyfikator zamiast pustego miejsca; liczba miejsc `null` to jedno
 //      miejsce, nie zero.
 //   4. PORTAL BEZ ADRESU NIE OTWIERA PUSTEJ KARTY i mówi o błędzie.
+//   5. KWOTA = KWOTA ODNOWIENIA U OPERATORA. Po zmianie cennika (v6.2) cena
+//      planu w katalogu nie jest ceną trwającej subskrypcji Członka, Członka
+//      Pro i Zespołu - bez odczytu operatora karta nie pokazuje dla nich kwoty.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
@@ -39,6 +42,12 @@ const h = vi.hoisted(() => ({
   session: { current: null as { user: { id: string } } | null },
   plans: { current: [] as unknown[] },
   preview: { current: null as Record<string, unknown> | null },
+  renewal: {
+    current: { amountCents: null, currency: null } as {
+      amountCents: number | null;
+      currency: string | null;
+    },
+  },
   chain: null as unknown as SupabaseFromStub,
   changePlan: vi.fn(),
   cancel: vi.fn(),
@@ -80,6 +89,7 @@ vi.mock("@/utils/payments.functions", () => ({
   updateStripeSubscriptionSeats: (arg: unknown) => h.seats(arg),
   createStripePortalSession: (arg: unknown) => h.portal(arg),
   previewStripePlanChange: () => Promise.resolve(h.preview.current),
+  getStripeRenewalCharge: () => Promise.resolve(h.renewal.current),
 }));
 
 vi.mock("sonner", () => ({
@@ -122,6 +132,7 @@ beforeEach(() => {
   h.session.current = { user: { id: "user-me" } };
   h.plans.current = planLadder();
   h.preview.current = null;
+  h.renewal.current = { amountCents: null, currency: null };
   h.chain = supabaseFromStub();
   h.changePlan.mockReset().mockResolvedValue({ ok: true, direction: "upgrade" });
   h.cancel.mockReset().mockResolvedValue({ ok: true });
@@ -216,22 +227,43 @@ describe("SubscriptionCard - braki w danych nie udają wartości", () => {
   });
 
   it("plan zespołowy na kilka miejsc pokazuje cenę z mnożnikiem miejsc", async () => {
+    // Operator odnowi 3 miejsca po 99 zł (stara cena), choć katalog ma 39 zł.
+    h.renewal.current = { amountCents: 29700, currency: "PLN" };
     h.plans.current = [
       accessPlan({ id: "plan-team", tier_key: "team", name_pl: "Zespół", price_cents: 3900 }),
     ];
     renderCard({ price_id: "team_monthly_seat", quantity: 3 });
 
-    await waitFor(() => expect(screen.getByText("Zespół")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Zespół").nextElementSibling).toBeTruthy());
     const price = screen.getByText("Zespół").nextElementSibling!.textContent!;
-    expect(price).toMatch(moneyPattern(3900));
+    expect(price).toMatch(moneyPattern(9900));
+    expect(price).not.toMatch(moneyPattern(3900));
     expect(price).toContain(" × 3");
   });
 
   it("pojedyncze miejsce nie dostaje mnożnika", async () => {
+    h.renewal.current = { amountCents: 5900, currency: "PLN" };
     renderCard();
 
-    await waitFor(() => expect(screen.getByText("Członek")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Członek").nextElementSibling).toBeTruthy());
+    expect(screen.getByText("Członek").nextElementSibling!.textContent).toMatch(moneyPattern(5900));
     expect(screen.getByText("Członek").nextElementSibling!.textContent).not.toContain("×");
+  });
+
+  it("klucz objęty zmianą cennika bez odczytu operatora: karta BEZ kwoty, nie z ceną katalogu", async () => {
+    renderCard();
+
+    await awaitPlans();
+    expect(screen.getByText("Członek")).toBeTruthy();
+    expect(screen.getByText("Członek").nextElementSibling).toBeNull();
+    expect(document.body.textContent).not.toMatch(moneyPattern(4900));
+  });
+
+  it("klucz spoza zmiany cennika bez odczytu operatora: zapas z ceny katalogu", async () => {
+    renderCard({ price_id: "student_monthly" });
+
+    await waitFor(() => expect(screen.getByText("Student").nextElementSibling).toBeTruthy());
+    expect(screen.getByText("Student").nextElementSibling!.textContent).toMatch(moneyPattern(1900));
   });
 
   it("liczba miejsc `null` to jedno miejsce - nie da się zejść niżej ani zapisać zera", () => {
@@ -290,6 +322,7 @@ describe("SubscriptionCard - wznowienie zaplanowanego anulowania", () => {
     const keys = invalidate.mock.calls.map((call) => JSON.stringify(call[0]?.queryKey));
     expect(keys).toContain(JSON.stringify(["my-stripe-subscription"]));
     expect(keys).toContain(JSON.stringify(["current-tier"]));
+    expect(keys).toContain(JSON.stringify(["renewal-charge"]));
   });
 });
 

@@ -5,14 +5,16 @@
 // rangi zaczyna sie Pro", placil za to calym drzewem zaleznosci danych - a
 // czysta logika dostepu przestawala byc testowalna bez srodowiska.
 //
-// Rangi kanoniczne (seed DB, katalog v3): Essential=0, wspierajacy=5,
-// Plus=10 (student/kadra akademicka rowniez 10), Pro=20 (NGO=20), VIP=25
-// (zespol=25), Enterprise=30, Strategic Partner=40, Partner Generalny=50,
-// President's Circle=60.
+// Rangi kanoniczne (seed DB, katalog v6.2 - nazwy zmienily sie od v3, rangi
+// nie): Czytelnik=0, wspierajacy=5, Czlonek=10 (student/kadra akademicka
+// rowniez 10), Czlonek Pro=20 (NGO=20), Rada Instytutu=25 (Zespol=25),
+// Partner Biznesowy=28 (wycofany ze sprzedazy, obecni klienci zostaja),
+// Enterprise=30 (karta ukryta, prog klubow), Partner Instytucjonalny=40,
+// Partner Strategiczny=50, Krag Zalozycieli=60.
 //
-// Parzystosc z seedem pricing_catalog_v3_rows() wymusza test
-// tierCatalogParity.test.ts - edycja seedu bez aktualizacji tej mapy
-// (i odwrotnie) obleje CI zamiast cicho dryfowac.
+// Parzystosc z seedem (pricing_catalog_v3_rows(), pricing_catalog_v62_rows())
+// wymusza test tierCatalogParity.test.ts - edycja seedu bez aktualizacji tej
+// mapy (i odwrotnie) obleje CI zamiast cicho dryfowac.
 export const TIER_RANKS = {
   reader: 0,
   supporter: 5,

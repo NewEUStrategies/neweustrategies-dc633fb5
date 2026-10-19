@@ -44,6 +44,17 @@ export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
     interval: "month",
     rank: 10,
   },
+  // Cennik v6.2: stawka studencka 190 zł/rok obok 19 zł/mies. Ten sam produkt
+  // (`plan_student`), ranga 11 - przejście z miesięcznej na roczną liczy się
+  // jak upgrade z proratą, tak samo jak Członek 30 -> 31. Rangi zostają
+  // unikalne, bo po nich `planChangeDirection` rozstrzyga kierunek zmiany.
+  {
+    priceId: "student_annual",
+    productId: "plan_student",
+    tierKey: "student",
+    interval: "year",
+    rank: 11,
+  },
   {
     priceId: "educator_monthly",
     productId: "plan_educator",
@@ -86,6 +97,12 @@ export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
   },
   // Partner Biznesowy: subskrypcja dla firm (zamiast sprzedaży reklam - AUP
   // operatora). Trzy cykle; dłuższy cykl = wyższa ranga (jak plus/pro yearly).
+  //
+  // WYCOFANY ZE SPRZEDAŻY w cenniku v6.2 (`access_plans.for_sale = false`) -
+  // ale wpisy ZOSTAJĄ: webhook odwzorowuje po nich odnowienia trwających
+  // subskrypcji (`catalogEntryByPriceId`), a synchronizacja nie archiwizuje
+  // cen aktywnych planów. Usunięcie wpisu odcięłoby obecnym klientom dostęp
+  // przy najbliższym odnowieniu. Nowy zakup blokuje `planPurchaseRefusal`.
   {
     priceId: "business_2w",
     productId: "plan_business",
@@ -247,7 +264,11 @@ export interface CatalogPlanQuote {
   amountCents: number;
 }
 
-/** Górny limit miejsc w jednym zamówieniu planu (zgodny z limitem pozycji sesji). */
+/**
+ * Górny limit miejsc w jednym zamówieniu planu (zgodny z limitem pozycji sesji).
+ * Katalog v6.2 opisuje Zespół jako „3-20 miejsc" - kasa tego zakresu nie
+ * egzekwuje (decyzja otwarta), a karta Zespołu prowadzi do rozmowy.
+ */
 export const MAX_PLAN_SEATS = 100;
 
 /**

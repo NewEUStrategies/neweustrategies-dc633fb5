@@ -1,10 +1,12 @@
 // Molekuła: karta marketingu JEDNEJ warstwy członkostwa.
 //
-// Cztery grupy pól, które decydują o tym, co klient widzi na `/pricing`:
-// przypisanie do segmentu i badge, tryb przycisku zakupu z linkiem
-// kontaktowym, nota cenowa i przełącznik „za miejsce", oraz lista benefitów.
-// Rangi, ceny i bramki dostępu należą do `/admin/membership` - tutaj ich NIE MA
-// świadomie, żeby dwa panele nie zapisywały tych samych kolumn.
+// Pięć grup pól, które decydują o tym, co klient widzi na `/pricing`: nazwa
+// i opis warstwy (od S1 właścicielem jest cennik - Członkostwo pokazuje je
+// tylko do odczytu, def. 11), przypisanie do segmentu i badge, tryb przycisku
+// zakupu z linkiem kontaktowym, nota cenowa i przełącznik „za miejsce", oraz
+// lista benefitów. Rangi, ceny i bramki dostępu należą do `/admin/membership`
+// i `/admin/paywall` - tutaj ich NIE MA świadomie, żeby dwa panele nie
+// zapisywały tych samych kolumn.
 //
 // Karta nie ma własnego stanu: szkic i zapis wstrzykuje zakładka, więc
 // „niezapisane zmiany" żyją w jednym miejscu dla wszystkich warstw.
@@ -12,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import {
   Award,
   Crown,
+  FileText,
   Link2,
   ListChecks,
   MessageSquare,
@@ -33,12 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroup } from "@/components/admin/pricing/atoms/FieldGroup";
 import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
 import type { MembershipTierRow } from "@/lib/billing/tiers";
 import type { PricingAudienceRow } from "@/lib/pricing/queries";
-import { CTA_MODES, NO_AUDIENCE, type TierMarketingDraft } from "@/lib/admin/pricingDrafts";
+import type { TierMarketingEditorDraft } from "@/components/admin/pricing/tierMarketingDraft";
+import { CTA_MODES, NO_AUDIENCE } from "@/lib/admin/pricingDrafts";
 import { rankTone as toneForRank } from "@/lib/admin/rankTone";
 
 export function TierMarketingCard({
@@ -46,20 +51,24 @@ export function TierMarketingCard({
   draft,
   audiences,
   saving,
+  canSave = true,
   onChange,
   onSave,
 }: {
   tier: MembershipTierRow;
-  draft: TierMarketingDraft;
+  draft: TierMarketingEditorDraft;
   audiences: PricingAudienceRow[];
   saving: boolean;
-  onChange: (patch: Partial<TierMarketingDraft>) => void;
+  /** Szkic różni się od bazy i ma nazwy w obu językach - inaczej zapis nie ma sensu. */
+  canSave?: boolean;
+  onChange: (patch: Partial<TierMarketingEditorDraft>) => void;
   onSave: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const ta = (k: string, opts?: Record<string, unknown>) => t(`adminPricing.${k}`, opts);
   const tierName = lang === "en" ? tier.name_en : tier.name_pl;
+  const namesMissing = !draft.name_pl.trim() || !draft.name_en.trim();
   const badgeText = lang === "en" ? draft.badge_en : draft.badge_pl;
   const rankTone = toneForRank(tier.rank);
   return (
@@ -111,6 +120,56 @@ export function TierMarketingCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 pt-4">
+        <FieldGroup icon={FileText} title={ta("tiers.naming")} accent={rankTone.dot}>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <LabeledField label={ta("tiers.namePl")}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.name_pl}
+                  aria-invalid={!draft.name_pl.trim() || undefined}
+                  onChange={(e) => onChange({ name_pl: e.target.value })}
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={ta("tiers.nameEn")}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={draft.name_en}
+                  aria-invalid={!draft.name_en.trim() || undefined}
+                  onChange={(e) => onChange({ name_en: e.target.value })}
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={ta("tiers.descriptionPl")} className="sm:col-span-2">
+              {(field) => (
+                <Textarea
+                  {...field}
+                  rows={2}
+                  value={draft.description_pl}
+                  onChange={(e) => onChange({ description_pl: e.target.value })}
+                />
+              )}
+            </LabeledField>
+            <LabeledField label={ta("tiers.descriptionEn")} className="sm:col-span-2">
+              {(field) => (
+                <Textarea
+                  {...field}
+                  rows={2}
+                  value={draft.description_en}
+                  onChange={(e) => onChange({ description_en: e.target.value })}
+                />
+              )}
+            </LabeledField>
+          </div>
+          {namesMissing && (
+            <p role="alert" className="mt-1 text-[11px] text-destructive">
+              {ta("tiers.nameRequired")}
+            </p>
+          )}
+        </FieldGroup>
+
         <FieldGroup icon={Users} title={ta("tiers.audience")} accent={rankTone.dot}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <LabeledField label={ta("tiers.audience")} className="sm:col-span-1">
@@ -160,6 +219,20 @@ export function TierMarketingCard({
             <span className="flex flex-col">
               <span className="text-xs font-medium">{ta("tiers.highlight")}</span>
               <span className="text-[11px] text-muted-foreground">{ta("tiers.highlightHint")}</span>
+            </span>
+          </label>
+          {/* Cennik v6.2: Enterprise i Partner Biznesowy działają (ranga,
+              uprawnienia, kluby), ale nie są oferowane publicznie. */}
+          <label className="mt-2 flex items-start gap-2 rounded-[6px] border border-border/60 bg-muted/30 px-2.5 py-2">
+            <Switch
+              checked={draft.pricing_visible}
+              onCheckedChange={(v) => onChange({ pricing_visible: v })}
+            />
+            <span className="flex flex-col">
+              <span className="text-xs font-medium">{ta("tiers.pricingVisible")}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {ta("tiers.pricingVisibleHint")}
+              </span>
             </span>
           </label>
         </FieldGroup>
@@ -233,7 +306,7 @@ export function TierMarketingCard({
           </div>
         </FieldGroup>
 
-        <FieldGroup icon={ListChecks} title="Benefity (PL/EN)" accent={rankTone.dot}>
+        <FieldGroup icon={ListChecks} title={ta("benefits.heading")} accent={rankTone.dot}>
           <TierBenefitsEditor
             value={draft.benefits}
             onChange={(benefits) => onChange({ benefits })}
@@ -241,7 +314,7 @@ export function TierMarketingCard({
         </FieldGroup>
 
         <div className="pt-1">
-          <Button size="sm" className="w-full" disabled={saving} onClick={onSave}>
+          <Button size="sm" className="w-full" disabled={saving || !canSave} onClick={onSave}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {ta("tiers.save")}
           </Button>

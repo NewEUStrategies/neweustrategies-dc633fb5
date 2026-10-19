@@ -12,6 +12,7 @@
 // więc klucz dziennika: zapytanie wykona panel, który je zna, i tylko gdy jest
 // otwarty.
 import { useMemo, useState } from "react";
+import { isBillingTab, type BillingTabId } from "@/lib/admin/billingTabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-billing";
@@ -36,6 +37,7 @@ import { AdminPaymentOrdersPanel } from "@/components/admin/billing/AdminPayment
 
 import { AdminWebhookLogPanel } from "@/components/admin/billing/AdminWebhookLogPanel";
 import { LegacyNonPaymentReconcileCard } from "@/components/admin/billing/LegacyNonPaymentReconcileCard";
+import { SubscriptionRepricingCard } from "@/components/admin/billing/SubscriptionRepricingCard";
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
 import { uiLocale } from "@/lib/i18n/format";
@@ -102,10 +104,23 @@ function StatusBadge({ value }: { value: string }) {
   );
 }
 
-export function AdminBillingPanel() {
+/**
+ * Zakładka może pochodzić z adresu (`?tab=`, deep link z huba „Przychód i
+ * lejek”): trasa podaje `tab` i `onTabChange`, a panel bez nich (testy,
+ * osadzenia) trzyma zakładkę w stanie lokalnym jak dotąd.
+ */
+export function AdminBillingPanel({
+  tab: tabFromUrl,
+  onTabChange,
+}: { tab?: BillingTabId; onTabChange?: (tab: BillingTabId) => void } = {}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const [tab, setTab] = useState("subscriptions");
+  const [localTab, setLocalTab] = useState<string>("subscriptions");
+  const tab = tabFromUrl ?? localTab;
+  const setTab = (next: string) => {
+    if (onTabChange && isBillingTab(next)) onTabChange(next);
+    else setLocalTab(next);
+  };
   const queryClient = useQueryClient();
 
   const subsQ = useQuery({
@@ -347,6 +362,9 @@ export function AdminBillingPanel() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Cennik v6.2: obecni członkowie na niższą cenę od odnowienia (admin najemcy). */}
+      <SubscriptionRepricingCard />
 
       {/* Jednorazowe uzgodnienie anulowań sprzed reguły karencji (operator platformy). */}
       <LegacyNonPaymentReconcileCard />

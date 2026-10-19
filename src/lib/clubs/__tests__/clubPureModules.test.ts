@@ -527,4 +527,17 @@ describe("buildClubApplyHead", () => {
 
     expect(JSON.stringify(buildClubApplyHead())).toContain("/club/apply");
   });
+
+  // Opis trafia do wyników wyszukiwania i podglądów udostępnień - nazwa progu
+  // musi być ta z cennika v6.2 („Członek Pro"), w obu językach.
+  it.each([
+    ["https://nes.test/club/apply", "Członek Pro"],
+    ["https://nes.test/en/club/apply", "Member Pro"],
+  ])("opis %s nazywa próg jak cennik v6.2", (url, tier) => {
+    requestUrl.value = url;
+
+    const description = buildClubApplyHead().meta?.find((m) => m.name === "description")?.content;
+    expect(description).toContain(tier);
+    expect(description).not.toMatch(/\bPRO\b/);
+  });
 });

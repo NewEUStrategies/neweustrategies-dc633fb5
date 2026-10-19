@@ -1,0 +1,421 @@
+{
+  "schema": "nes-benchmark-overlay/1",
+  "group": "economics",
+  "source_file": "ekonomika.json",
+  "metrics": {
+    "ltv": {
+      "metric_id": "ltv",
+      "formula_en": "LTV = monthly ARPU (net, after discounts) × gross margin % ÷ monthly customer churn. B2B variant (Benchmarkit): (average ARR per account × gross margin of recurring revenue ÷ annual churn). Expected lifetime ≈ 1 ÷ monthly churn (Lenfest).",
+      "levers": {
+        "pl": "LTV rośnie przede wszystkim dzięki dłuższemu życiu klienta: wzmacniaj retencję pierwszych miesięcy i przenoś czytelników na plany roczne. Podnoś ARPU wartością - pakiety z raportami, wydarzeniami i dostępem eksperckim. Chroń marżę: ograniczaj prowizje pośredników i koszty płatności. Licz LTV od ARPU netto i skracaj horyzont dla młodych kohort, aby nie zawyżać wyniku.",
+        "en": "LTV rises above all through a longer customer lifetime: strengthen retention in the first months and move readers to annual plans. Raise ARPU through value – packages with reports, events and expert access. Protect the margin: limit intermediary commissions and payment costs. Calculate LTV from net ARPU and cap the horizon for young cohorts so as not to overstate the result."
+      },
+      "caveats_en": [
+        "There are no public, current LTV benchmarks for Polish digital publishers; the thresholds are a heuristic – a multiple of the monthly gross margin per customer m (8/17/33/50 × m). Amounts in PLN are given for m ≈ PLN 15; for a different m, convert the thresholds using the same multiple.",
+        "Reference point (old, USA): Lenfest Institute 2019 – a publisher at the 80th percentile (a daily with active subscription sales) had a CLV of approx. USD 217 per digital subscriber; Lenfest CLV is calculated on REVENUE (ARPU × lifetime), not on gross margin – do not compare it directly with the margin-based LTV thresholds.",
+        "For cohorts with a history of <12 months, cap the LTV horizon (e.g. at 24–36 months), because the 1/churn formula extrapolates too optimistically.",
+        "Assess the B2B segment (institutional licences) through LTV/CAC and CAC payback, not through PLN thresholds – contract values vary too widely.",
+        "Calculate separately for monthly and annual plans and for student/NGO rates; otherwise the average will hide the problem.",
+        "Calculate LTV from net ARPU (excluding VAT), not from gross prices in B2C price lists; at a 23% rate, PLN 20 gross is approx. PLN 16.3 net (m ≈ PLN 13.8 at an 85% margin) – then convert the thresholds by the multiple of m."
+      ],
+      "default_context_by_segment": {
+        "all": "ltv.b2c_media_pl",
+        "b2c_individual": "ltv.b2c_media_pl",
+        "b2c_reduced": "ltv.b2c_media_pl"
+      },
+      "contexts": [
+        {
+          "id": "ltv.b2c_media_pl",
+          "label_en": "B2C digital media – individual subscription to expert content (Poland), LTV on gross margin in PLN",
+          "method_en": "Heuristic: thresholds as a multiple of the monthly gross margin per customer m (multiple = expected lifetime in months): critical <8×m (churn >12.5%/month), weak 8–17×m, normal 17–33×m, good 33–50×m, optimal >50×m (churn <2%/month); amounts in PLN for m ≈ PLN 15 net (assumption: net ARPU approx. PLN 17–18, i.e. approx. PLN 20 gross after deducting VAT, × margin ≈85%). ARPU calculated net, excluding VAT; real ARPU may be lower than the 'PLN 15–20' opinion, because 78% of payers in Poland do not pay the full price (DNR 2024)",
+          "period_en": "per customer (entire lifecycle)",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "money_minor",
+          "currency": "PLN",
+          "vat": "net",
+          "window": "per_customer",
+          "notes_en": {
+            "0": "<8×m – churn >12.5%/month, the customer stays <8 months on average",
+            "1": "8–17×m – churn ~6–12.5%/month",
+            "2": "17–33×m – churn ~3–6%/month",
+            "3": "33–50×m – churn ~2–3%/month",
+            "4": ">50×m – churn <2%/month or a clearly higher ARPU (annual/premium plans)"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "cac": {
+      "metric_id": "cac",
+      "formula_en": "CAC = (marketing and sales costs attributed to acquisition in the period: paid media, campaigns, tools, a proportional share of team salaries, partner commissions) ÷ number of new paying customers in the same period. Variants: blended (all new payers, including organic) and paid (paid channels only).",
+      "levers": {
+        "pl": "Obniżaj CAC kanałami własnymi: newsletter, otwarte wydarzenia i webinary jako wejście do subskrypcji, polecenia od obecnych członków. Mierz CAC osobno dla kanałów płatnych i organicznych, a budżet przesuwaj do kanałów o najkrótszym zwrocie. Poprawiaj konwersję na paywallu i w checkoucie, zanim zwiększysz wydatki na reklamę. Księguj rabaty i okresy próbne konsekwentnie.",
+        "en": "Lower CAC with owned channels: the newsletter, open events and webinars as an entry point to the subscription, and referrals from current members. Measure CAC separately for paid and organic channels and shift budget to the channels with the shortest payback. Improve conversion at the paywall and checkout before increasing advertising spend. Account for discounts and trial periods consistently."
+      },
+      "caveats_en": [
+        "There are no reliable public CAC benchmarks for publishers in PLN; the thresholds derive from net ARPU and margin – with a different ARPU, recalculate them using CAC = payback months × net ARPU (excluding VAT) × margin.",
+        "For B2B/institutions use normalised measures: New CAC Ratio (S&M cost per PLN 1 of new ARR) and CAC payback – absolute CAC depends on contract value.",
+        "The frequently cited CAC range for news publishers of approx. USD 40–60 (INMA, 2021) has not been verified in the primary source (the page returns 403) – do not use it as a threshold.",
+        "Account for the cost of discounts and free trials consistently (revenue reduction or acquisition cost) – a change of convention changes CAC abruptly.",
+        "Calculate from net ARPU: at a 23% VAT rate, PLN 20 gross is approx. PLN 16.3 net (m ≈ PLN 13.8) – the thresholds fall proportionally."
+      ],
+      "default_context_by_segment": {
+        "all": "cac.b2c_media_pl",
+        "b2c_individual": "cac.b2c_media_pl",
+        "b2c_reduced": "cac.b2c_media_pl"
+      },
+      "contexts": [
+        {
+          "id": "cac.b2c_media_pl",
+          "label_en": "B2C digital media – new paying individual subscriber (Poland), PLN",
+          "method_en": "Heuristic: CAC = target payback period (3 / 6 / 9 / 12 months, consistent with the B2C context of cac_payback_months) × monthly gross margin per customer m ≈ PLN 15 net (assumption: net ARPU approx. PLN 17–18, i.e. approx. PLN 20 gross after deducting VAT, × margin ≈85%)",
+          "period_en": "per new paying customer",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "money_minor",
+          "currency": "PLN",
+          "vat": "net",
+          "window": "per_customer",
+          "notes_en": {
+            "0": "payback ≤~3 months",
+            "1": "payback ~3–6 months",
+            "2": "payback ~6–9 months",
+            "3": "payback ~9–12 months",
+            "4": "payback >12 months – with typical B2C churn many customers will leave before payback"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "new_cac_ratio": {
+      "metric_id": "new_cac_ratio",
+      "formula_en": "New CAC Ratio = sales and marketing costs in the period ÷ new ARR from new customers in that period (Benchmarkit). Blended CAC Ratio = S&M ÷ (new ARR + expansion ARR).",
+      "levers": {
+        "pl": "Kieruj sprzedaż instytucjonalną do organizacji, które już znają markę: uczestników wydarzeń, czytelników newslettera, partnerów raportów. Skracaj cykl sprzedaży gotowymi pakietami licencji i jasnym cennikiem dla zespołów. Mierz koszt sprzedaży i marketingu na złotówkę nowego ARR osobno dla nowych klientów i rozszerzeń. Wykorzystuj wydarzenia jako kanał pozyskania, który obniża koszt kontaktu.",
+        "en": "Direct institutional sales at organisations that already know the brand: event participants, newsletter readers, report partners. Shorten the sales cycle with ready-made licence packages and clear team pricing. Measure sales and marketing cost per PLN 1 of new ARR separately for new customers and expansion. Use events as an acquisition channel that lowers the cost of each contact."
+      },
+      "caveats_en": [
+        "Small sample (N=73) and self-reported data; quartile values read off a chart in the report.",
+        "Strong dependence on ACV: for ACV USD 1–5k P25 0.46 / median 2.00 / P75 2.46; for USD 5–10k 1.50 / 1.60 / 1.80.",
+        "For a purely consumer subscription (B2C) the ratio makes less sense – use CAC payback.",
+        "The quartiles concern CY-2024; there are no public New CAC Ratio quartiles for CY-2025 – the Benchmarkit 2026 page (S100) gives only a Blended CAC Ratio of USD 1.30 (a different definition: S&M ÷ (new ARR + expansion ARR)).",
+        "The thresholds are not mechanically consistent with CAC payback: the median of 2.00 ÷ margin of 81% × 12 gives approx. 30 months, while the reported median payback is 18 months – this stems from different subsamples (N=73 vs N=148).",
+        "The weak range (2.82–3.0) is narrow: the critical boundary of 3.0 is a heuristic matched to the CAC payback thresholds, not a source quartile."
+      ],
+      "caveat_sources": { "3": ["S100"] },
+      "default_context_by_segment": {
+        "all": "new_cac_ratio.b2b_saas",
+        "b2b_institution": "new_cac_ratio.b2b_saas"
+      },
+      "contexts": [
+        {
+          "id": "new_cac_ratio.b2b_saas",
+          "label_en": "B2B SaaS / institutional subscriptions (private companies, mainly USA)",
+          "method_en": "Source quartiles (CY-2024): P25 1.50 / median 2.00 / P75 2.82 (N=73); optimal ≤P25, good P25–P50, normal P50–P75, weak P75–3.0; critical >3.0 – heuristic (at an 80% margin, payback ≈45 months; lowered from 4.0 ≈60 months, because the critical CAC payback threshold of >36 months corresponds to a ratio of ≈2.4). There are no public quartiles for CY-2025 – Benchmarkit 2026 (S100) gives only a Blended CAC Ratio of USD 1.30",
+          "period_en": "annually (CY-2024)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "multiple",
+          "window": "year",
+          "notes_en": { "4": "heuristic – at an 80% margin, payback ≈45 months or longer" },
+          "basis_e": [3]
+        }
+      ]
+    },
+    "ltv_cac_ratio": {
+      "metric_id": "ltv_cac_ratio",
+      "formula_en": "LTV/CAC = LTV (on gross margin) ÷ CAC; in Benchmarkit: (average ARR per account × gross margin of recurring revenue ÷ churn) ÷ CAC per new customer",
+      "levers": {
+        "pl": "Rozkładaj LTV/CAC na składowe i poprawiaj najsłabszą: ARPU (pakiety z wydarzeniami i raportami), churn (onboarding, plany roczne), marżę (koszty płatności i pośredników) albo CAC (kanały własne). Licz LTV ostrożnie, z ograniczonym horyzontem dla młodych kohort. Bardzo wysoki wynik traktuj jako sygnał, że można śmielej inwestować w pozyskanie.",
+        "en": "Break LTV/CAC down into its components and improve the weakest: ARPU (packages with events and reports), churn (onboarding, annual plans), margin (payment and intermediary costs) or CAC (owned channels). Calculate LTV conservatively, with a capped horizon for young cohorts. Treat a very high result as a signal that you can invest more boldly in acquisition."
+      },
+      "caveats_en": [
+        "Divergence of sources: in the Benchmarkit 2025 report (CY-2024), P25 by ARR bracket was 2.2–3.0x (e.g. USD 5–20m 3.0/4.0/6.5; USD 50–100m 2.5/2.9/5.0), while in the 2026 edition the lower quartile of the whole sample is approx. 1.1x – Aleph refers to the 'bottom quartile' without defining whether it is the P25 boundary or the average of the bottom quartile, and gives no P25 for 2024.",
+        "Early-stage companies (<USD 1m ARR) report overstated LTV/CAC (Benchmarkit 2025: P25 3.0 / median 5.0 / P75 9.5) – a short churn history.",
+        "The median for 2022–2024 stood at 3.6–3.7x and rose to 4.1x in 2025; the source (Aleph) gives no reason for the increase – attribute it neither to cost cutting nor to improved retention.",
+        "For B2C there are no public publisher benchmarks – the B2C context is a heuristic with thresholds as for B2B.",
+        "Skok (For Entrepreneurs) is an undated classic heuristic, not a benchmark from a sample."
+      ],
+      "pairs": ["arpu", "logo_churn_monthly", "subscription_gross_margin", "cac"],
+      "default_context_by_segment": {
+        "all": "ltv_cac_ratio.b2c_media_pl",
+        "b2c_individual": "ltv_cac_ratio.b2c_media_pl",
+        "b2c_reduced": "ltv_cac_ratio.b2c_media_pl",
+        "b2b_institution": "ltv_cac_ratio.b2b_saas"
+      },
+      "contexts": [
+        {
+          "id": "ltv_cac_ratio.b2b_saas",
+          "label_en": "B2B SaaS / institutional subscriptions (private B2B SaaS and AI companies, global)",
+          "method_en": "Source quartiles: lower quartile ≈1.1x (Aleph: 'bottom quartile' – with no definition of whether this is the P25 boundary or the average of the bottom quartile) / median 4.1x / P75 7.8x (n=146) + the 3:1 threshold (Skok – an undated classic heuristic; Bessemer 2021) + an 8x boundary as a signal of underinvestment (Aleph)",
+          "period_en": "annually (CY-2025)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "multiple",
+          "window": "year",
+          "notes_en": {
+            "0": "the customer does not pay back the acquisition cost",
+            "1": "below the 3:1 threshold; lower quartile ≈1.1x (Aleph – quartile boundary undefined)",
+            "2": "from the 3:1 threshold to around the 4.1x median",
+            "4": "P75 = 7.8x; '7x+ best-in-class'",
+            "5": "good – check for underinvestment in growth or too short a churn history (high efficiency)"
+          },
+          "basis_e": [3]
+        },
+        {
+          "id": "ltv_cac_ratio.b2c_media_pl",
+          "label_en": "B2C digital media / individual memberships (Poland)",
+          "method_en": "Heuristic: the same thresholds as for B2B (3:1 as the minimum), LTV calculated conservatively (horizon ≤36 months for young cohorts)",
+          "period_en": "per monthly cohort",
+          "segments": ["b2c_individual", "b2c_reduced", "membership_club"],
+          "measure": "level",
+          "unit": "multiple",
+          "window": "per_customer",
+          "notes_en": {
+            "0": "the customer does not pay back the acquisition cost",
+            "1": "below the 3:1 minimum",
+            "5": "good – check whether LTV is overstated by a short churn history"
+          },
+          "basis_e": [0, 1, 2, 3, 4, 5]
+        }
+      ]
+    },
+    "cac_payback_months": {
+      "metric_id": "cac_payback_months",
+      "formula_en": "CAC payback (months) = CAC ÷ (monthly ARPU × gross margin %). Benchmarkit variant: S&M costs ÷ (ARR from new customers × subscription gross margin) × 12",
+      "levers": {
+        "pl": "Skracaj zwrot z dwóch stron: obniżaj CAC (kanały własne, wydarzenia, polecenia) i podnoś miesięczną marżę z klienta (plany roczne płatne z góry, pakiety premium). Instytucjom proponuj płatność roczną z góry, która przyspiesza zwrot. Mierz zwrot osobno dla kohort miesięcznych w B2C i dla umów w B2B. Gdy zwrot przekracza oczekiwany czas życia klienta, wstrzymaj skalowanie kanału.",
+        "en": "Shorten payback from both sides: lower CAC (owned channels, events, referrals) and raise the monthly margin per customer (annual plans paid upfront, premium packages). Offer institutions annual payment upfront, which speeds up payback. Measure payback separately for monthly cohorts in B2C and for contracts in B2B. When payback exceeds the expected customer lifetime, stop scaling the channel."
+      },
+      "caveats_en": [
+        "2024 quartiles (CY-2024, N=148): P25 12 / median 18 / P75 24 months; in 2025 the median fell to 16 and P25 to 10.",
+        "Benchmarkit 2025 by ACV (P25/median/P75): USD 5–10k 13/14/18; 10–25k 15/18/22; 25–50k 13/22/26; 50–100k 16/24/33; 100–250k 20/24/37 months – read off a chart.",
+        "Bessemer targets (2021, VC portfolio): SMB <12, mid-market <18, enterprise <24 months.",
+        "The B2C context is a heuristic – there are no public CAC payback benchmarks for publishers.",
+        "The Aleph 2026 page also states 'Top-quartile companies do it in 6 months or fewer', which contradicts P25 = 10 months on the same page – do not use '≤6 months' as the top quartile of the whole sample.",
+        "Low-ACV context: the thresholds are based on the CY-2025 median (11 months; CY-2024: 8 months), and the 14-month boundary is a heuristic; the Bessemer target for SMB (<12 months) falls within the normal range.",
+        "Skok (the 12-month threshold in the B2C context) is an undated classic heuristic, not a benchmark from a sample."
+      ],
+      "default_context_by_segment": {
+        "all": "cac_payback_months.b2c_media_pl",
+        "b2c_individual": "cac_payback_months.b2c_media_pl",
+        "b2c_reduced": "cac_payback_months.b2c_media_pl",
+        "b2b_institution": "cac_payback_months.b2b_low_acv"
+      },
+      "contexts": [
+        {
+          "id": "cac_payback_months.b2b_saas_all",
+          "label_en": "B2B SaaS – whole sample (private B2B SaaS and AI companies)",
+          "method_en": "Source quartiles: P25 10 / median 16 / P75 24 months (n=198); optimal ≤P25, good P25–P50, normal P50–P75, weak 24–36; critical >36 – heuristic",
+          "period_en": "annually (CY-2025)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "months",
+          "window": "year",
+          "notes_en": { "4": "heuristic – payback longer than 3 years" },
+          "basis_e": [3]
+        },
+        {
+          "id": "cac_payback_months.b2b_low_acv",
+          "label_en": "Institutional / B2B subscriptions with low contract value (ACV <USD 5k, approx. <PLN 20k per year)",
+          "method_en": "Benchmarkit 2025 quartiles (CY-2024) for ACV <USD 1k (5/8/10) and USD 1–5k (6/8/12) + the CY-2025 median for ACV <USD 5k = 11 months (Aleph 2026; CY-2024: 8) + the Bessemer target for SMB <12 months; optimal ≤6 (P25 CY-2024), good 6–11 (up to the CY-2025 median), normal 11–14 – heuristic (no P75 for 2025), weak 14–18, critical >18 – heuristic",
+          "period_en": "annually (CY-2024/CY-2025)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "months",
+          "window": "year",
+          "notes_en": {
+            "1": "up to the CY-2025 median for ACV <USD 5k",
+            "2": "boundary of 14 – heuristic (no P75 for 2025)",
+            "4": "heuristic"
+          },
+          "basis_e": [3]
+        },
+        {
+          "id": "cac_payback_months.b2c_media_pl",
+          "label_en": "B2C digital media – individual subscription (Poland)",
+          "method_en": "Heuristic: B2C has a shorter customer lifetime than B2B SMB, so the threshold must be stricter than the Bessemer target for SMB (<12 months); payback should occur within the first 1/3 of the expected lifetime",
+          "period_en": "per monthly cohort",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "months",
+          "window": "per_customer",
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "subscription_gross_margin": {
+      "metric_id": "subscription_gross_margin",
+      "formula_en": "Subscription gross margin = (net subscription revenue − direct costs: payment and billing fees, hosting/CDN, proportional paywall/CRM/email licences, platform/app-store commissions, customer service) ÷ subscription revenue × 100%",
+      "levers": {
+        "pl": "Ograniczaj koszty płatności: plany roczne zamiast miesięcznych zmniejszają udział stałych opłat od transakcji. Kieruj sprzedaż do własnego kanału zamiast platform pośredniczących i sklepów z aplikacjami. Przeglądaj licencje narzędzi (paywall, CRM, e-mail) pod kątem rzeczywistego wykorzystania. Trzymaj jedną definicję kosztów bezpośrednich, aby marża była porównywalna w czasie.",
+        "en": "Limit payment costs: annual plans instead of monthly ones reduce the share of fixed per-transaction fees. Direct sales to your own channel rather than intermediary platforms and app stores. Review tool licences (paywall, CRM, email) for actual usage. Keep one definition of direct costs so that the margin is comparable over time."
+      },
+      "caveats_en": [
+        "Benchmarkit 2025 (CY-2024): subscription margin – whole sample P25 72% / median 81% / P75 86% (N=76, chart p. 44), total 77%, professional services 30%; by ARR USD 1–5m P25 40% / median 77% / P75 90%; USD 5–20m 75/81/86%.",
+        "Models billed purely on usage have a median of 62% (compute/AI costs) – AI features in the product can lower the margin.",
+        "If editorial costs (authors, experts) are included in COGS, a publisher's margin will be much lower and the SaaS thresholds do not apply.",
+        "Patronage platforms charge a commission (Patronite 6.5% net + payment operator) – take it into account for indirect channels.",
+        "The 'Bottom quartile: 50%' in Aleph 2026 is not defined (P25 boundary or average of the bottom quartile) and deviates sharply from P25 = 72% in Benchmarkit CY-2024 – the critical/weak boundary of 50% is therefore uncertain."
+      ],
+      "default_context_by_segment": { "all": "subscription_gross_margin.publisher_think_tank" },
+      "contexts": [
+        {
+          "id": "subscription_gross_margin.b2b_saas",
+          "label_en": "B2B SaaS – gross margin on software/subscription revenue",
+          "method_en": "Source quartiles: lower quartile 50% (Aleph 2026 – boundary not defined) / median 80% / upper quartile 86%+ (n=228–232, CY-2025); the weak/normal boundary of 72% = P25 of the subscription margin for the whole Benchmarkit CY-2024 sample (72/81/86%), consistent with the median of companies <USD 5m ARR according to Aleph (72%); context: average cloud margin according to Bessemer 65–70%",
+          "period_en": "annually (CY-2025)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year"
+        },
+        {
+          "id": "subscription_gross_margin.publisher_think_tank",
+          "label_en": "Digital publisher / think tank – content subscriptions (editorial costs outside COGS)",
+          "method_en": "Heuristic: Stripe PL fees (1.5% + PLN 1 EEA card, BLIK 1.6% + PLN 1, Billing 0.7%) amount to approx. 7% on a PLN 20 payment and approx. 2.7% on PLN 200 per year; after tools and customer service, the real margin is 80–90%",
+          "period_en": "monthly / quarterly",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "quarter",
+          "notes_en": {
+            "0": "e.g. predominant sales through intermediary platforms or app stores"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    },
+    "rule_of_40": {
+      "metric_id": "rule_of_40",
+      "formula_en": "R40 = annual growth in revenue or ARR (%) + EBITDA margin (%) [alternatively FCF margin – free cash flow]",
+      "levers": {
+        "pl": "Licz R40 tylko dla linii komercyjnej (subskrypcje i płatne wydarzenia) i równoważ wzrost z rentownością: rozwijaj przychody powtarzalne zamiast jednorazowych i ograniczaj koszty pozyskania o długim zwrocie. Ustal z zarządem, czy priorytetem jest tempo wzrostu, czy marża, i raportuj obie składowe osobno. W organizacji non-profit używaj marży nadwyżki operacyjnej.",
+        "en": "Calculate R40 only for the commercial line (subscriptions and paid events) and balance growth with profitability: develop recurring rather than one-off revenue and limit acquisition costs with long payback. Agree with the board whether growth pace or margin is the priority, and report both components separately. In a non-profit organisation, use the operating surplus margin."
+      },
+      "caveats_en": [
+        "The metric becomes meaningful from approx. USD 15–20m ARR (Benchmarkit, Aleph); for a small-scale think tank/publisher, treat it as informative and calculate it only for the commercial line (subscriptions + paid events).",
+        "Benchmarkit 2025 (CY-2024): whole sample P25 −4% / median 15% / P75 35%; companies from EMEA −9% / 25% / 38%, from the USA −19% / 9% / 35%.",
+        "On an FCF basis, the median for public companies is 39.1%, and 46% exceed the 40 threshold – do not mix definitions.",
+        "Companies exceeding 40 (FCF) are valued at a median of 4.8x EV/revenue against 2.7x for the rest.",
+        "For non-profit organisations, use the operating surplus margin instead of EBITDA and flag this in the dashboard."
+      ],
+      "default_context_by_segment": { "all": "rule_of_40.private_saas" },
+      "contexts": [
+        {
+          "id": "rule_of_40.private_saas",
+          "label_en": "Private B2B SaaS and AI companies (global)",
+          "method_en": "Source quartiles: P25 7% / median 25% / P75 43% (n=110); optimal from the classic 40% threshold; critical <0% – heuristic (growth does not cover the loss); the median of 25% and the upper quartile of 43% are confirmed in Benchmarkit 2026 (S100)",
+          "period_en": "annually (CY-2025)",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "year",
+          "notes_en": { "4": "P75 = 43%" },
+          "basis_e": [0]
+        },
+        {
+          "id": "rule_of_40.public_saas",
+          "label_en": "Public SaaS companies – EBITDA margin",
+          "method_en": "Source median 22.6%, 15% of companies ≥40; weak 0–10% – heuristic",
+          "period_en": "LTM, as at 5.05.2026",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "ltm",
+          "notes_en": { "4": "approx. 15% of companies" },
+          "basis_e": [0, 1]
+        }
+      ]
+    },
+    "arpu": {
+      "merge_into": "revenue",
+      "caveats_en": [
+        "Polish publishers do not disclose ARPU (Agora does not report Wyborcza subscription revenue separately) – the PLN thresholds are a heuristic based on price lists and attitude surveys.",
+        "Poland stands out for discounting: 78% of payers in Poland do not pay the full price against an average of 41% across 20 countries (DNR 2024; data more than 2 years old, no newer measurement) – ARPU will be clearly lower than list prices.",
+        "In Poland 11% of internet users pay for online news (DNR 2026, −2 pp – a statistically insignificant change; 2025: 13%) against an average of 17% across 20 countries; 10–20% is a practical ceiling in most markets.",
+        "Europe 2025: the average price of the cheapest plan is EUR 10.08 (CEE EUR 7.84, Western Europe EUR 13.01); annual plans are approx. 22% cheaper on average; list prices only, without discounts.",
+        "Count the student/NGO segments and group licences as separate ARPU – 21 of 101 European publishers offer student discounts, 35 offer multi-account discounts (company and family plans).",
+        "B2C amounts are gross (as in consumer price lists), while LTV and CAC require net ARPU – show both values or a converter in the UI (net = gross ÷ (1 + VAT rate)), so that LTV and CAC are not calculated from amounts including VAT.",
+        "The B2B context is in PLN net, while the anchors (RP.PL, DGP) are gross 'from' prices; the Chatham House anchor was removed as unverified – to be replaced with a verifiable price list of a Polish think tank or expert service.",
+        "PIE 2021 (survey from Dec 2020) is a historical anchor from before the 2022–2023 inflation – its values (PLN 10/20) do not set the thresholds."
+      ],
+      "caveat_sources": {
+        "1": ["risj_dnr2024_pay"],
+        "2": ["risj_dnr2026_pl", "risj_dnr2025_pl", "risj_dnr2026_exec"],
+        "3": ["mfm_pricing_2025"],
+        "4": ["mfm_pricing_2025"],
+        "7": ["pie_2021"]
+      },
+      "contexts": [
+        {
+          "id": "arpu.b2c_media_pl_gross",
+          "label_en": "B2C digital media – individual digital subscription (Poland), PLN gross/month after discounts",
+          "method_en": "Heuristic anchored in market prices: the Wyborcza promotion of PLN 89/year ≈ PLN 7.4/month; RP.PL promo PLN 9.90 'instead of PLN 39' (the page does not name the product explicitly; 'from' prices may apply to annual plans); 'PLN 15–20' as a typical subscription – an expert opinion (Wirtualnemedia 2026), not a measured average; Radio Nowy Swiat ≤ approx. PLN 26.7 per person (own calculation: almost PLN 800k ÷ over 30k people); average list price of the cheapest plan in CEE EUR 7.84 ≈ PLN 33 (own conversion ~4.25 PLN/EUR); PIE 2021 ('fair price': mode PLN 10, median PLN 20; survey from Dec 2020, before the 2022–2023 inflation) – solely a historical anchor, does not set the thresholds",
+          "period_en": "monthly",
+          "segments": ["b2c_individual", "b2c_reduced"],
+          "measure": "level",
+          "unit": "money_minor",
+          "currency": "PLN",
+          "vat": "gross",
+          "window": "month",
+          "notes_en": {
+            "0": "base dominated by deep promotions",
+            "2": "PLN 15–20 – an expert opinion (Wirtualnemedia 2026), not a measured market level",
+            "3": "close to the average list price in CEE",
+            "4": "close to the RP.PL 'instead of PLN 39' price or premium plans"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        },
+        {
+          "id": "arpu.b2b_seat_pl_net",
+          "label_en": "B2B / professional – per-seat licence or expert access, PLN net/month",
+          "method_en": "Heuristic anchored in price lists (gross 'from' prices – may apply to annual plans converted to a monthly amount): PRO.RP.PL from PLN 39/month; the 'Rzeczpospolita' e-subscription from PLN 174.50/month; DGP Premium PLN 196/month after the first month. The Chatham House anchor (GBP 345/year) was removed – unverified (the page returns 403) and it concerns individual membership, not a per-seat licence",
+          "period_en": "monthly",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "money_minor",
+          "currency": "PLN",
+          "vat": "net",
+          "window": "month",
+          "notes_en": {
+            "0": "no B2B premium over the consumer price",
+            "3": "level of DGP Premium / the RP e-subscription"
+          },
+          "basis_e": [0, 1, 2, 3, 4]
+        }
+      ]
+    }
+  },
+  "sources": {
+    "bm2025": { "reliability": "A" },
+    "aleph_payback_2026": { "reliability": "A" },
+    "aleph_ltvcac_2026": { "reliability": "A" },
+    "aleph_gm_2026": { "reliability": "A" },
+    "aleph_r40_2026": { "reliability": "A" },
+    "bvp_2021": { "reliability": "B" },
+    "skok_saasmetrics": { "reliability": "C" },
+    "aventis_r40_2026": { "reliability": "B" },
+    "risj_dnr2026_exec": { "reliability": "A" },
+    "risj_dnr2026_pl": { "reliability": "A" },
+    "risj_dnr2025_pl": { "reliability": "A" },
+    "risj_dnr2024_pay": { "reliability": "A" },
+    "mfm_pricing_2025": { "reliability": "A" },
+    "nyt_q2_2026": {
+      "reliability": "A",
+      "drop_reason": "Cytowane tylko we wzorze ARPU (normalizacja NYT); URL to kopia komunikatu na serwerze trzecim, oryginał w investors.nytco.com niezweryfikowany - wpis nie kotwiczy pasm ani zastrzeżeń."
+    },
+    "rp_offer_2026": { "reliability": "B" },
+    "wyborcza_blik_2026": { "reliability": "B" },
+    "wm_anatomia_2026": { "reliability": "C" },
+    "pie_2021": { "reliability": "A" },
+    "stripe_pl_pricing": { "reliability": "B" },
+    "lenfest_2019": { "reliability": "B" },
+    "chatham_membership": {
+      "reliability": "C",
+      "drop_reason": "Kotwica usunięta przez badaczy (zastrzeżenie arpu nr 6): strona zwraca 403 i dotyczy członkostwa indywidualnego, nie licencji B2B na stanowisko."
+    },
+    "S100": { "canonical": "benchmarkit_2026", "reliability": "A" }
+  }
+}

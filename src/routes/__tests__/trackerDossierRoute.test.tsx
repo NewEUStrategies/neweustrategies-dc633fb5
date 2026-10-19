@@ -742,7 +742,7 @@ describe("trasa /tracker/$slug - obserwowanie za bramką planu", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Obserwuj" }));
 
     expect(h.followInserts).toEqual([]);
-    expect(h.toasts).toContain("Monitoring regulacyjny z alertami jest częścią planu Pro.");
+    expect(h.toasts).toContain("Monitoring regulacyjny z alertami jest częścią progu Członek Pro.");
   });
 
   it("oferta w komunikacie PROWADZI na cennik - akcja toastu nawiguje na /pricing", async () => {

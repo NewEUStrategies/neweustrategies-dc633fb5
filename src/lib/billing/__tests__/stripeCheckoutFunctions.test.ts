@@ -81,6 +81,22 @@ const h = vi.hoisted(() => {
   return { calls, state, record, catalogPrice };
 });
 
+// Decision Lab jest od v6.2 wyłącznie na zapytanie - `planPurchaseRefusal`
+// odmawia go w obu silnikach, zanim kasa dojdzie do wyceny. Mechanika kasy
+// JEDNORAZOWEJ zostaje jednak gotowa na produkt samoobsługowy, a jedyną
+// pozycją jednorazową katalogu jest dziś Decision Lab. Testy tej mechaniki
+// zdejmują więc zamek „na zapytanie" JAWNIE (`enquiry.locked = false`);
+// sam zamek dowodzą osobne przypadki i `catalogV62.test.ts`.
+const enquiry = vi.hoisted(() => ({ locked: true }));
+vi.mock("@/lib/billing/enquiryPlans", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/enquiryPlans")>();
+  return {
+    ...actual,
+    isEnquiryOnlyPlan: (plan: Parameters<typeof actual.isEnquiryOnlyPlan>[0]) =>
+      enquiry.locked && actual.isEnquiryOnlyPlan(plan),
+  };
+});
+
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
 );
@@ -202,6 +218,7 @@ type PlanQuote = Pick<
   | "price_cents"
   | "currency"
   | "active"
+  | "for_sale"
   | "trial_days"
   | "tier_key"
   | "interval"
@@ -240,6 +257,7 @@ function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
     price_cents: 4900,
     currency: "PLN",
     active: true,
+    for_sale: true,
     trial_days: 0,
     tier_key: "member",
     interval: "month",
@@ -373,6 +391,7 @@ function adhocCall(over: Record<string, unknown> = {}): Promise<SessionResult> {
 }
 
 beforeEach(() => {
+  enquiry.locked = true;
   h.calls.length = 0;
   h.state.prices = [h.catalogPrice()];
   h.state.remoteSubscriptions = [];
@@ -449,6 +468,41 @@ describe("createPlanCheckoutSession - odmowy na planie", () => {
 
     expect(result).toEqual({ ok: false, error: "plan_not_found" });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("plan WYCOFANY ZE SPRZEDAŻY (v6.2) - odmowa bez sesji i bez zamówienia", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({ tier_key: "business", interval: "month", price_cents: 99000, for_sale: false }),
+      ),
+    );
+
+    const result = await planCall();
+
+    expect(result).toEqual({ ok: false, error: "plan_not_for_sale" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("Decision Lab (na zapytanie) - odmowa także przy for_sale=true", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({
+          tier_key: "decision_lab",
+          interval: "one_time",
+          price_cents: 1_600_000,
+          for_sale: true,
+        }),
+      ),
+    );
+
+    const result = await planCall();
+
+    expect(result).toEqual({ ok: false, error: "plan_enquiry_only" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
   });
 
   it("plan INNEGO NAJEMCY jest niewidoczny pod RLS - handler odmawia", async () => {
@@ -1140,6 +1194,8 @@ describe("createPlanCheckoutSession - druga subskrypcja i ponowny trial (audyt S
   });
 
   it("plan jednorazowy (Decision Lab) nie przechodzi przez strażnika subskrypcji", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
@@ -1322,6 +1378,8 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
   });
 
   it("plan JEDNORAZOWY zakłada zamówienie `one_time` i sesję `payment` bez okresu próbnego", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", trial_days: 14 })),
@@ -1513,6 +1571,8 @@ describe("createPlanCheckoutSession - minimum operatora po kuponie (przegląd PA
   );
 
   it("kupon 100% na plan JEDNORAZOWY też jest odmową - nie ma darmowego dożywotniego zakupu", async () => {
+    // Mechanika produktu jednorazowego, nie oferta Decision Labu (patrz `enquiry`).
+    enquiry.locked = false;
     chain.setResponse(
       "access_plans",
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),

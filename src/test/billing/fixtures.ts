@@ -140,6 +140,7 @@ export function accessPlan(overrides: Partial<AccessPlan> = {}): AccessPlan {
     highlighted: false,
     trial_days: 0,
     tier_key: "member",
+    for_sale: true,
     ...overrides,
   };
 }

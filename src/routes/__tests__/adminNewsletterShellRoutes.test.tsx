@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
   processDue: vi.fn(),
   toastSuccess: vi.fn(),
   ensureI18n: vi.fn(),
+  roles: ["admin"] as string[],
 }));
 
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
@@ -33,6 +34,10 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: vi.fn() } }));
 vi.mock("@/lib/i18n-newsletter-admin", () => ({ ensureI18n: h.ensureI18n }));
 vi.mock("@/lib/newsletter-campaigns.functions", () => ({ processDueCampaigns: {} }));
+// ZMIANA ŚWIADOMA (S1 def. 10): tick WYSYŁA pocztę, więc serwer wpuszcza go
+// wyłącznie administratorowi i redaktorowi, a przegląd nie odpala go autorowi.
+// Dotychczasowe przypadki biegną jako administrator; autor ma własny test.
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ roles: h.roles }) }));
 vi.mock("@/components/admin/newsletter/OverviewPanel", () => ({
   OverviewPanel: () => <div data-testid="panel-overview" />,
 }));
@@ -80,6 +85,7 @@ function klientZPodgladem() {
 }
 
 beforeEach(() => {
+  h.roles = ["admin"];
   h.processDue.mockReset();
   h.processDue.mockResolvedValue({ fired: 0 });
   h.toastSuccess.mockClear();
@@ -165,6 +171,31 @@ describe("przegląd newslettera - okazjonalny tick zaległych kampanii", () => {
     const { getByTestId } = await renderOverview();
 
     expect(getByTestId("panel-overview")).toBeTruthy();
+  });
+
+  it("AUTOR nie odpala ticku - serwer i tak by go odrzucił (def. 10)", async () => {
+    h.roles = ["author"];
+
+    const { getByTestId } = await renderOverview();
+
+    expect(getByTestId("panel-overview")).toBeTruthy();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(h.processDue).not.toHaveBeenCalled();
+  });
+
+  it("REDAKTOR odpala tick tak samo jak administrator", async () => {
+    h.roles = ["editor"];
+
+    await renderOverview();
+
+    await waitFor(() => expect(h.processDue).toHaveBeenCalledTimes(1));
+  });
+
+  it("ma SEKCYJNY tytuł karty i jest wyłączony z indeksu (D14)", async () => {
+    const { meta } = await renderOverview();
+
+    expect(meta()).toContainEqual({ title: "Newsletter - podsumowanie | New European Strategies" });
+    expect(meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 });
 

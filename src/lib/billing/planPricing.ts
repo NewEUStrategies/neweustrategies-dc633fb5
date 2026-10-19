@@ -26,6 +26,7 @@ import {
   type CatalogPriceEntry,
   type CatalogRecurring,
 } from "@/lib/billing/catalog";
+import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 
 // Dokładna para i limit miejsc żyją w `catalog.ts` (wspólne z synchronizacją
 // katalogu i wyceną `catalogPlanQuote`); tu re-eksport, żeby kasa i testy
@@ -98,4 +99,45 @@ export function planCheckoutPricing(
     mode: kind === "one_time" ? "payment" : "subscription",
     recurring: catalogRecurringFor(entry),
   };
+}
+
+/**
+ * Powód odmowy NOWEGO zakupu planu - kod błędu kontraktu kasy (oba silniki
+ * rzucają go albo zwracają w `{ ok: false, error }`, a UI tłumaczy go przez
+ * `checkout.errors.*`).
+ * - `plan_not_found`    - plan nieaktywny (nie zdradzamy, że istnieje),
+ * - `plan_enquiry_only` - oferta wyłącznie przez rozmowę (Decision Lab),
+ * - `plan_not_for_sale` - plan poza sprzedażą samoobsługową (v6.2): wycofany
+ *                         (Partner Biznesowy) albo sprzedawany przez rozmowę
+ *                         (Zespół, 3-20 miejsc - kasa nie zna liczby miejsc).
+ */
+export type PlanPurchaseRefusal = "plan_not_found" | "plan_not_for_sale" | "plan_enquiry_only";
+
+/**
+ * Czy plan wolno KUPIĆ w kasie samoobsługowej. `null` = wolno.
+ *
+ * JEDNA REGUŁA DLA OBU SILNIKÓW KASY (`checkout.functions.ts`,
+ * `stripeCheckout.functions.ts`), wołana PRZED kuponem i zamówieniem. Do v6.2
+ * Decision Lab, choć „na zapytanie" na karcie i stronie planu, dawał się kupić
+ * bezpośrednim adresem `/checkout/<id>`: UI chowało przycisk, a serwer
+ * sprawdzał tylko `active`.
+ *
+ * Kolejność ma znaczenie. `isEnquiryOnlyPlan` to stała w kodzie, niezależna od
+ * danych - zamyka Decision Lab nawet u najemcy, któremu ktoś przestawił
+ * `for_sale` z powrotem na `true`. `for_sale = false` (kolumna, 20261018160000)
+ * zamyka resztę: Partnera Biznesowego wycofanego ze sprzedaży i Zespół
+ * sprzedawany przez rozmowę (dotąd widżet cennika i paywall sprzedawały go
+ * po jednym miejscu, a bezpośredni `seats` - ponad zakres 3-20). Trzeci zamek to
+ * strażnik `payment_orders_secure_insert` w bazie. Obecni subskrybenci planu
+ * poza sprzedażą tej reguły nie dotykają - odnowienie nie przechodzi przez kasę.
+ */
+export function planPurchaseRefusal(plan: {
+  active?: boolean | null;
+  for_sale?: boolean | null;
+  tier_key?: string | null;
+}): PlanPurchaseRefusal | null {
+  if (!plan.active) return "plan_not_found";
+  if (isEnquiryOnlyPlan(plan)) return "plan_enquiry_only";
+  if (plan.for_sale === false) return "plan_not_for_sale";
+  return null;
 }

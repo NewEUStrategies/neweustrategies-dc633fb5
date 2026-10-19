@@ -261,6 +261,7 @@ describe("czy powiadomienie w ogóle wychodzi", () => {
       userId: "user-me",
       planId: null,
       periodEnd: "2026-09-01T10:00:00.000Z",
+      charge: null,
       idempotencySeed: "sub_0:2026-09-01",
     });
     await notifyEventRegistration({
@@ -393,6 +394,7 @@ describe("idempotencja - jedno zdarzenie, jedna wiadomość", () => {
       userId: "user-me",
       planId: "plan-member",
       periodEnd: "2026-09-01T10:00:00.000Z",
+      charge: null,
       idempotencySeed: "sub_1:2026-09-01",
     } as const;
     await notifyReminderEmail({ ...input });
@@ -508,6 +510,7 @@ describe("awaria dostawcy poczty", () => {
           userId: "user-me",
           planId: null,
           periodEnd: "2026-09-01T10:00:00.000Z",
+          charge: null,
           idempotencySeed: "sub_2:2026-09-01",
         }),
         notifyEventRegistration({ userId: "user-me", eventId: "evt-1", idempotencySeed: "reg-1" }),

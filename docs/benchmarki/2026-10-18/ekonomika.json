@@ -1,0 +1,960 @@
+{
+  "group": "ekonomika",
+  "metrics": [
+    {
+      "key": "ltv",
+      "abbr": "LTV / CLV",
+      "name_pl": "Wartość klienta w cyklu życia",
+      "name_en": "Customer Lifetime Value",
+      "expansion_pl": "LTV – Lifetime Value; CLV/CLTV – Customer Lifetime Value: wartość (na marży brutto), jaką przeciętny płacący klient wnosi przez cały okres relacji",
+      "expansion_en": "LTV – Lifetime Value; CLV/CLTV – Customer Lifetime Value: the gross-margin value an average paying customer generates over the whole relationship",
+      "formula": "LTV = ARPU miesięczne (netto, po rabatach) × marża brutto % ÷ miesięczny churn klientów. Wariant B2B (Benchmarkit): (średni ARR na konto × marża brutto przychodów powtarzalnych ÷ roczny churn). Oczekiwany czas życia ≈ 1 ÷ miesięczny churn (Lenfest).",
+      "unit": "PLN",
+      "interpretation_pl": "Pokazuje, ile marży brutto przyniesie przeciętny płacący klient przez cały okres subskrypcji – to górna granica tego, ile można wydać na jego pozyskanie i utrzymanie. Licz w kohortach (miesiąc startu, kanał, plan, segment: osoby / instytucje / studenci-NGO) i zawsze na marży, nie na przychodzie. Pułapki: wzór 1/churn przy krótkiej historii i niskim, niestabilnym churnie młodego produktu daje zawyżone LTV, a promocyjne ceny pierwszego okresu zniekształcają ARPU – dlatego czytaj LTV razem z CAC (LTV/CAC).",
+      "interpretation_en": "Shows how much gross margin an average paying customer generates over the subscription lifetime – the ceiling for what you can spend to acquire and retain them. Compute it by cohort (start month, channel, plan, segment: individuals / institutions / students-NGOs) and always on margin, not revenue. Pitfalls: the 1/churn shortcut inflates LTV when churn history is short and unstable, and introductory prices distort ARPU – so read LTV together with CAC (LTV/CAC).",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "media cyfrowe B2C – indywidualna subskrypcja treści eksperckich (Polska), LTV na marży brutto w zł",
+          "period": "na klienta (cały cykl życia)",
+          "method": "heurystyka: progi jako krotność miesięcznej marży brutto z klienta m (krotność = oczekiwany czas życia w mies.): krytyczny <8×m (churn >12,5%/mies.), słaby 8–17×m, normalny 17–33×m, dobry 33–50×m, optymalny >50×m (churn <2%/mies.); kwoty w zł dla m ≈ 15 zł netto (założenie: ARPU netto ok. 17–18 zł, tj. ok. 20 zł brutto po odjęciu VAT, × marża ≈85%). ARPU liczone netto, bez VAT; realne ARPU może być niższe od opinii ‘15–20 zł’, bo 78% płacących w Polsce nie płaci pełnej ceny (DNR 2024)",
+          "source_ids": [
+            "wm_anatomia_2026",
+            "risj_dnr2024_pay",
+            "lenfest_2019",
+            "stripe_pl_pricing"
+          ],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 120,
+              "note": "<8×m – churn >12,5%/mies., klient zostaje średnio <8 mies."
+            },
+            {
+              "label": "słaby",
+              "min": 120,
+              "max": 250,
+              "note": "8–17×m – churn ~6–12,5%/mies."
+            },
+            {
+              "label": "normalny",
+              "min": 250,
+              "max": 500,
+              "note": "17–33×m – churn ~3–6%/mies."
+            },
+            {
+              "label": "dobry",
+              "min": 500,
+              "max": 750,
+              "note": "33–50×m – churn ~2–3%/mies."
+            },
+            {
+              "label": "optymalny",
+              "min": 750,
+              "max": null,
+              "note": ">50×m – churn <2%/mies. lub wyraźnie wyższe ARPU (plany roczne/premium)"
+            }
+          ]
+        }
+      ],
+      "confidence": "niska",
+      "caveats": [
+        "Brak publicznych, aktualnych benchmarków LTV dla polskich wydawców cyfrowych; progi to heurystyka – krotność miesięcznej marży brutto z klienta m (8/17/33/50 × m). Kwoty w zł podano dla m ≈ 15 zł; przy innym m przelicz progi tą samą krotnością.",
+        "Punkt odniesienia (stary, USA): Lenfest Institute 2019 – wydawca z 80. percentyla (dziennik z aktywną sprzedażą subskrypcji) miał CLV ok. 217 USD na subskrybenta cyfrowego; CLV Lenfest liczone jest na PRZYCHODZIE (ARPU × czas życia), nie na marży brutto – nie porównuj go wprost z progami LTV na marży.",
+        "Dla kohort z historią <12 mies. ogranicz horyzont LTV (np. do 24–36 mies.), bo wzór 1/churn ekstrapoluje zbyt optymistycznie.",
+        "Segment B2B (licencje instytucjonalne) oceniaj przez LTV/CAC i CAC payback, nie przez progi w zł – wartości kontraktów są zbyt zróżnicowane.",
+        "Licz osobno dla planów miesięcznych i rocznych oraz dla taryf studenckich/NGO, inaczej średnia ukryje problem.",
+        "Licz LTV od ARPU netto (bez VAT), nie od cen brutto z cenników B2C; przy stawce 23% 20 zł brutto to ok. 16,3 zł netto (m ≈ 13,8 zł przy marży 85%) – wtedy przelicz progi krotnością m."
+      ]
+    },
+    {
+      "key": "cac",
+      "abbr": "CAC",
+      "name_pl": "Koszt pozyskania klienta",
+      "name_en": "Customer Acquisition Cost",
+      "expansion_pl": "CAC – Customer Acquisition Cost: średni koszt sprzedaży i marketingu poniesiony na pozyskanie jednego nowego płacącego klienta",
+      "expansion_en": "CAC – Customer Acquisition Cost: average sales and marketing cost incurred to win one new paying customer",
+      "formula": "CAC = (koszty marketingu i sprzedaży przypisane do pozyskania w okresie: media płatne, kampanie, narzędzia, wynagrodzenia zespołu proporcjonalnie, prowizje partnerów) ÷ liczba nowych płacących klientów w tym samym okresie. Warianty: blended (wszyscy nowi płacący, także organiczni) i paid (tylko z kanałów płatnych).",
+      "unit": "PLN",
+      "interpretation_pl": "Mówi, ile kosztuje zdobycie jednego nowego płacącego subskrybenta lub instytucji; sam w sobie nie mówi, czy to drogo – trzeba go odnieść do ARPU i marży (CAC payback, LTV/CAC). Licz osobno per kanał (newsletter, wydarzenia, social, płatne media, partnerzy) i per segment. Pułapki: pomijanie wynagrodzeń i narzędzi (zaniża CAC), liczenie przejść z darmowego triala jako ‘organicznych’ oraz mieszanie okresów (koszty z kwartału, konwersje z miesiąca).",
+      "interpretation_en": "Tells you how much it costs to win one new paying subscriber or institution; on its own it does not say whether that is expensive – relate it to ARPU and margin (CAC payback, LTV/CAC). Track it per channel (newsletter, events, social, paid media, partners) and per segment. Pitfalls: leaving out salaries and tools (understates CAC), counting trial conversions as ‘organic’, and mismatching periods (costs per quarter, conversions per month).",
+      "direction": "lower_better",
+      "contexts": [
+        {
+          "context": "media cyfrowe B2C – nowy płacący subskrybent indywidualny (Polska), zł",
+          "period": "na nowego płacącego klienta",
+          "method": "heurystyka: CAC = docelowy okres zwrotu (3 / 6 / 9 / 12 mies., spójnie z kontekstem B2C wskaźnika cac_payback_months) × miesięczna marża brutto z klienta m ≈ 15 zł netto (założenie: ARPU netto ok. 17–18 zł, tj. ok. 20 zł brutto po odjęciu VAT, × marża ≈85%)",
+          "source_ids": ["wm_anatomia_2026", "risj_dnr2024_pay", "bvp_2021"],
+          "bands": [
+            {
+              "label": "optymalny",
+              "min": null,
+              "max": 45,
+              "note": "zwrot ≤~3 mies."
+            },
+            {
+              "label": "dobry",
+              "min": 45,
+              "max": 90,
+              "note": "zwrot ~3–6 mies."
+            },
+            {
+              "label": "normalny",
+              "min": 90,
+              "max": 135,
+              "note": "zwrot ~6–9 mies."
+            },
+            {
+              "label": "słaby",
+              "min": 135,
+              "max": 180,
+              "note": "zwrot ~9–12 mies."
+            },
+            {
+              "label": "krytyczny",
+              "min": 180,
+              "max": null,
+              "note": "zwrot >12 mies. – przy typowym churnie B2C wielu klientów odejdzie przed zwrotem"
+            }
+          ]
+        }
+      ],
+      "confidence": "niska",
+      "caveats": [
+        "Brak wiarygodnych, publicznych benchmarków CAC dla wydawców w PLN; progi są pochodną ARPU netto i marży – przy innym ARPU przelicz je wzorem CAC = miesiące zwrotu × ARPU netto (bez VAT) × marża.",
+        "Dla B2B/instytucji używaj znormalizowanych miar: New CAC Ratio (koszt S&M na 1 zł nowego ARR) i CAC payback – absolutny CAC zależy od wartości kontraktu.",
+        "Często cytowany przedział CAC wydawców informacyjnych ok. 40–60 USD (INMA, 2021) nie został zweryfikowany w źródle pierwotnym (strona zwraca 403) – nie używać jako progu.",
+        "Koszt rabatów i darmowych okresów próbnych księguj konsekwentnie (obniżka przychodu albo koszt pozyskania) – zmiana konwencji zmienia CAC skokowo.",
+        "Licz od ARPU netto: przy stawce VAT 23% 20 zł brutto to ok. 16,3 zł netto (m ≈ 13,8 zł) – progi spadają proporcjonalnie."
+      ]
+    },
+    {
+      "key": "new_cac_ratio",
+      "abbr": "New CAC Ratio",
+      "name_pl": "Wskaźnik kosztu pozyskania nowego ARR",
+      "name_en": "New Customer CAC Ratio",
+      "expansion_pl": "New CAC Ratio – stosunek wydatków na sprzedaż i marketing do nowego rocznego przychodu powtarzalnego (ARR – Annual Recurring Revenue) od nowych klientów",
+      "expansion_en": "New CAC Ratio – sales & marketing expense divided by new Annual Recurring Revenue (ARR) from new customers",
+      "formula": "New CAC Ratio = koszty sprzedaży i marketingu w okresie ÷ nowy ARR od nowych klientów w tym okresie (Benchmarkit). Blended CAC Ratio = S&M ÷ (nowy ARR + ARR z rozszerzeń).",
+      "unit": "ratio",
+      "interpretation_pl": "Ile złotych wydatków na sprzedaż i marketing trzeba ponieść, by pozyskać 1 zł nowego rocznego przychodu powtarzalnego od nowych klientów; normalizuje CAC do wartości kontraktu, więc pozwala porównywać segmenty o różnych cenach (np. licencje instytucjonalne vs. indywidualne). Mediana B2B SaaS w 2024 r. to 2,00 zł na 1 zł nowego ARR. Pułapki: nie dodawaj ARR z rozszerzeń u obecnych klientów (to osobny Expansion CAC Ratio, mediana 1,00) i stosuj ten sam okres dla kosztów i ARR.",
+      "interpretation_en": "How many units of sales & marketing spend are needed to win one unit of new ARR from new customers; it normalises CAC by contract value, so segments with different prices (institutional vs individual licences) can be compared. The 2024 B2B SaaS median was $2.00 per $1.00 of new ARR. Pitfalls: do not mix in expansion ARR from existing customers (that is the separate Expansion CAC Ratio, median $1.00) and use the same period for costs and ARR.",
+      "direction": "lower_better",
+      "contexts": [
+        {
+          "context": "SaaS B2B / subskrypcje instytucjonalne (prywatne firmy, głównie USA)",
+          "period": "rocznie (CY-2024)",
+          "method": "kwartyle źródła (CY-2024): P25 1,50 / mediana 2,00 / P75 2,82 (N=73); optymalny ≤P25, dobry P25–P50, normalny P50–P75, słaby P75–3,0; krytyczny >3,0 – heurystyka (przy marży 80% zwrot ≈45 mies.; obniżono z 4,0 ≈60 mies., bo próg krytyczny CAC payback >36 mies. odpowiada ratio ≈2,4). Publicznych kwartyli za CY-2025 brak – Benchmarkit 2026 (S100) podaje tylko Blended CAC Ratio 1,30 USD",
+          "source_ids": ["bm2025", "S100"],
+          "bands": [
+            {
+              "label": "optymalny",
+              "min": null,
+              "max": 1.5
+            },
+            {
+              "label": "dobry",
+              "min": 1.5,
+              "max": 2
+            },
+            {
+              "label": "normalny",
+              "min": 2,
+              "max": 2.82
+            },
+            {
+              "label": "słaby",
+              "min": 2.82,
+              "max": 3
+            },
+            {
+              "label": "krytyczny",
+              "min": 3,
+              "max": null,
+              "note": "heurystyka – przy marży 80% zwrot ≈45 mies. i dłużej"
+            }
+          ]
+        }
+      ],
+      "confidence": "średnia",
+      "caveats": [
+        "Mała próba (N=73) i dane deklaratywne; wartości kwartyli odczytane z wykresu w raporcie.",
+        "Silna zależność od ACV: dla ACV 1–5 tys. USD P25 0,46 / mediana 2,00 / P75 2,46; dla 5–10 tys. USD 1,50 / 1,60 / 1,80.",
+        "Dla czysto konsumenckiej subskrypcji (B2C) wskaźnik ma mniejszy sens – użyj CAC payback.",
+        "Kwartyle dotyczą CY-2024; publicznych kwartyli New CAC Ratio za CY-2025 nie ma – strona Benchmarkit 2026 (S100) podaje jedynie Blended CAC Ratio 1,30 USD (inna definicja: S&M ÷ (nowy ARR + ARR z rozszerzeń)).",
+        "Progi nie są mechanicznie spójne z CAC payback: z mediany 2,00 ÷ marża 81% × 12 wychodzi ok. 30 mies., a raportowana mediana zwrotu to 18 mies. – wynika to z innych podprób (N=73 vs N=148).",
+        "Przedział słaby (2,82–3,0) jest wąski: granica krytyczna 3,0 to heurystyka dopasowana do progów CAC payback, nie kwartyl źródła."
+      ]
+    },
+    {
+      "key": "ltv_cac_ratio",
+      "abbr": "LTV/CAC",
+      "name_pl": "Relacja wartości klienta do kosztu pozyskania",
+      "name_en": "LTV to CAC Ratio",
+      "expansion_pl": "LTV/CAC (CLTV:CAC) – stosunek wartości klienta w cyklu życia (Lifetime Value) do kosztu jego pozyskania (Customer Acquisition Cost)",
+      "expansion_en": "LTV/CAC (CLTV:CAC) – ratio of Customer Lifetime Value to Customer Acquisition Cost",
+      "formula": "LTV/CAC = LTV (na marży brutto) ÷ CAC; w Benchmarkit: (średni ARR na konto × marża brutto przychodów powtarzalnych ÷ churn) ÷ CAC na nowego klienta",
+      "unit": "ratio",
+      "interpretation_pl": "Ile razy wartość klienta (na marży) przewyższa koszt jego pozyskania; poniżej 1 każdy nowy klient pogłębia stratę. Za próg minimalny uznaje się 3:1, mediana B2B SaaS w 2025 r. to 4,1x, a górny kwartyl 7,8x. Pułapki: to wskaźnik złożony – zawsze rozbijaj go na ARPU, churn, marżę i CAC; bardzo wysoki wynik (8x+) bywa sygnałem niedoinwestowania wzrostu albo zbyt krótkiej historii churnu.",
+      "interpretation_en": "How many times the customer’s gross-margin value exceeds the cost to acquire them; below 1 every new customer deepens the loss. 3:1 is the accepted floor, the 2025 B2B SaaS median was 4.1x and the top quartile 7.8x. Pitfalls: it is a compound metric – always decompose it into ARPU, churn, margin and CAC; very high values (8x+) can signal under-investment in growth or a too-short churn history.",
+      "direction": "target_range",
+      "contexts": [
+        {
+          "context": "SaaS B2B / subskrypcje instytucjonalne (prywatne firmy B2B SaaS i AI, globalnie)",
+          "period": "rocznie (CY-2025)",
+          "method": "kwartyle źródła: dolny kwartyl ≈1,1x (Aleph: ‘bottom quartile’ – bez definicji, czy to granica P25, czy średnia dolnego kwartyla) / mediana 4,1x / P75 7,8x (n=146) + próg 3:1 (Skok – heurystyka klasyczna bez daty; Bessemer 2021) + granica 8x jako sygnał niedoinwestowania (Aleph)",
+          "source_ids": ["aleph_ltvcac_2026", "bm2025", "skok_saasmetrics", "bvp_2021"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 1,
+              "note": "klient nie zwraca kosztu pozyskania"
+            },
+            {
+              "label": "słaby",
+              "min": 1,
+              "max": 3,
+              "note": "poniżej progu 3:1; dolny kwartyl ≈1,1x (Aleph – granica kwartyla niezdefiniowana)"
+            },
+            {
+              "label": "normalny",
+              "min": 3,
+              "max": 4,
+              "note": "od progu 3:1 do okolic mediany 4,1x"
+            },
+            {
+              "label": "dobry",
+              "min": 4,
+              "max": 5
+            },
+            {
+              "label": "optymalny",
+              "min": 5,
+              "max": 8,
+              "note": "P75 = 7,8x; ‘7x+ best-in-class’"
+            },
+            {
+              "label": "dobry",
+              "min": 8,
+              "max": null,
+              "note": "dobry – sprawdź niedoinwestowanie wzrostu lub zbyt krótką historię churnu (wysoka efektywność)"
+            }
+          ]
+        },
+        {
+          "context": "media cyfrowe B2C / członkostwa indywidualne (Polska)",
+          "period": "na kohortę miesięczną",
+          "method": "heurystyka: te same progi co B2B (3:1 jako minimum), LTV liczone konserwatywnie (horyzont ≤36 mies. dla młodych kohort)",
+          "source_ids": ["skok_saasmetrics", "lenfest_2019"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 1,
+              "note": "klient nie zwraca kosztu pozyskania"
+            },
+            {
+              "label": "słaby",
+              "min": 1,
+              "max": 3,
+              "note": "poniżej minimum 3:1"
+            },
+            {
+              "label": "normalny",
+              "min": 3,
+              "max": 4
+            },
+            {
+              "label": "dobry",
+              "min": 4,
+              "max": 5
+            },
+            {
+              "label": "optymalny",
+              "min": 5,
+              "max": 8
+            },
+            {
+              "label": "dobry",
+              "min": 8,
+              "max": null,
+              "note": "dobry – sprawdź, czy LTV nie jest zawyżone przez krótką historię churnu"
+            }
+          ]
+        }
+      ],
+      "confidence": "średnia",
+      "caveats": [
+        "Rozbieżność źródeł: w raporcie Benchmarkit 2025 (CY-2024) P25 wg przedziałów ARR wynosił 2,2–3,0x (np. 5–20 mln USD 3,0/4,0/6,5; 50–100 mln USD 2,5/2,9/5,0), a w edycji 2026 dolny kwartyl całej próby to ok. 1,1x – Aleph mówi o ‘bottom quartile’ bez definicji, czy to granica P25, czy średnia dolnego kwartyla, i nie podaje P25 za 2024.",
+        "Wczesne firmy (<1 mln USD ARR) raportują zawyżone LTV/CAC (Benchmarkit 2025: P25 3,0 / mediana 5,0 / P75 9,5) – krótka historia churnu.",
+        "Mediana 2022–2024 stała na poziomie 3,6–3,7x, w 2025 r. wzrosła do 4,1x; źródło (Aleph) nie podaje przyczyny wzrostu – nie przypisuj go ani cięciu kosztów, ani poprawie retencji.",
+        "Dla B2C brak publicznych benchmarków wydawców – kontekst B2C to heurystyka z progami jak w B2B.",
+        "Skok (For Entrepreneurs) to heurystyka klasyczna bez daty publikacji, nie benchmark z próby."
+      ]
+    },
+    {
+      "key": "cac_payback_months",
+      "abbr": "CAC Payback",
+      "name_pl": "Okres zwrotu kosztu pozyskania klienta",
+      "name_en": "CAC Payback Period",
+      "expansion_pl": "CAC Payback (CPP) – liczba miesięcy potrzebna, by marża brutto z nowych klientów zwróciła koszt ich pozyskania (Customer Acquisition Cost)",
+      "expansion_en": "CAC Payback Period (CPP) – months needed for gross margin from new customers to recover their Customer Acquisition Cost",
+      "formula": "CAC payback (mies.) = CAC ÷ (ARPU miesięczne × marża brutto %). Wariant Benchmarkit: koszty S&M ÷ (ARR od nowych klientów × marża brutto subskrypcji) × 12",
+      "unit": "months",
+      "interpretation_pl": "Po ilu miesiącach nowy klient ‘spłaca’ koszt swojego pozyskania z marży brutto; im krócej, tym mniej kapitału zamrożonego we wzroście i mniejsze ryzyko, że klient odejdzie przed zwrotem. Mediana B2B SaaS w 2025 r. to 16 mies., ale silnie zależy od wartości kontraktu (dla ACV <5 tys. USD ok. 8–11 mies.). Pułapki: liczenie na przychodzie zamiast na marży, wliczanie ARR z rozszerzeń oraz porównywanie z firmami publicznymi, które liczą zwrot na ‘net new ARR’ (inna metodologia).",
+      "interpretation_en": "How many months it takes a new customer to ‘repay’ their acquisition cost from gross margin; shorter means less capital tied up in growth and less risk of churn before payback. The 2025 B2B SaaS median was 16 months, but it depends heavily on contract value (about 8–11 months for ACV under $5K). Pitfalls: computing on revenue instead of margin, mixing in expansion ARR, and comparing with public companies that use ‘net new ARR’ (different methodology).",
+      "direction": "lower_better",
+      "contexts": [
+        {
+          "context": "SaaS B2B – cała próba (prywatne firmy B2B SaaS i AI)",
+          "period": "rocznie (CY-2025)",
+          "method": "kwartyle źródła: P25 10 / mediana 16 / P75 24 mies. (n=198); optymalny ≤P25, dobry P25–P50, normalny P50–P75, słaby 24–36; krytyczny >36 – heurystyka",
+          "source_ids": ["aleph_payback_2026", "bm2025"],
+          "bands": [
+            {
+              "label": "optymalny",
+              "min": null,
+              "max": 10
+            },
+            {
+              "label": "dobry",
+              "min": 10,
+              "max": 16
+            },
+            {
+              "label": "normalny",
+              "min": 16,
+              "max": 24
+            },
+            {
+              "label": "słaby",
+              "min": 24,
+              "max": 36
+            },
+            {
+              "label": "krytyczny",
+              "min": 36,
+              "max": null,
+              "note": "heurystyka – zwrot dłuższy niż 3 lata"
+            }
+          ]
+        },
+        {
+          "context": "subskrypcje instytucjonalne / B2B o niskiej wartości kontraktu (ACV <5 tys. USD, ok. <20 tys. zł rocznie)",
+          "period": "rocznie (CY-2024/CY-2025)",
+          "method": "kwartyle Benchmarkit 2025 (CY-2024) dla ACV <1 tys. USD (5/8/10) i 1–5 tys. USD (6/8/12) + mediana CY-2025 dla ACV <5 tys. USD = 11 mies. (Aleph 2026; CY-2024: 8) + cel Bessemer dla SMB <12 mies.; optymalny ≤6 (P25 CY-2024), dobry 6–11 (do mediany CY-2025), normalny 11–14 – heurystyka (brak P75 za 2025), słaby 14–18, krytyczny >18 – heurystyka",
+          "source_ids": ["bm2025", "aleph_payback_2026", "bvp_2021"],
+          "bands": [
+            {
+              "label": "optymalny",
+              "min": null,
+              "max": 6
+            },
+            {
+              "label": "dobry",
+              "min": 6,
+              "max": 11,
+              "note": "do mediany CY-2025 dla ACV <5 tys. USD"
+            },
+            {
+              "label": "normalny",
+              "min": 11,
+              "max": 14,
+              "note": "granica 14 – heurystyka (brak P75 za 2025)"
+            },
+            {
+              "label": "słaby",
+              "min": 14,
+              "max": 18
+            },
+            {
+              "label": "krytyczny",
+              "min": 18,
+              "max": null,
+              "note": "heurystyka"
+            }
+          ]
+        },
+        {
+          "context": "media cyfrowe B2C – subskrypcja indywidualna (Polska)",
+          "period": "na kohortę miesięczną",
+          "method": "heurystyka: B2C ma krótszy czas życia klienta niż SMB B2B, więc próg musi być ostrzejszy niż cel Bessemer dla SMB (<12 mies.); zwrot powinien nastąpić w pierwszej 1/3 oczekiwanego czasu życia",
+          "source_ids": ["bvp_2021", "skok_saasmetrics"],
+          "bands": [
+            {
+              "label": "optymalny",
+              "min": null,
+              "max": 3
+            },
+            {
+              "label": "dobry",
+              "min": 3,
+              "max": 6
+            },
+            {
+              "label": "normalny",
+              "min": 6,
+              "max": 9
+            },
+            {
+              "label": "słaby",
+              "min": 9,
+              "max": 12
+            },
+            {
+              "label": "krytyczny",
+              "min": 12,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "confidence": "średnia",
+      "caveats": [
+        "Kwartyle 2024 (CY-2024, N=148): P25 12 / mediana 18 / P75 24 mies.; w 2025 r. mediana spadła do 16, P25 do 10.",
+        "Benchmarkit 2025 wg ACV (P25/mediana/P75): 5–10 tys. USD 13/14/18; 10–25 tys. 15/18/22; 25–50 tys. 13/22/26; 50–100 tys. 16/24/33; 100–250 tys. 20/24/37 mies. – odczyt z wykresu.",
+        "Cele Bessemer (2021, portfel VC): SMB <12, mid-market <18, enterprise <24 mies.",
+        "Kontekst B2C to heurystyka – brak publicznych benchmarków zwrotu CAC dla wydawców.",
+        "Strona Aleph 2026 podaje też ‘Top-quartile companies do it in 6 months or fewer’, co przeczy P25 = 10 mies. na tej samej stronie – nie używaj ‘≤6 mies.’ jako górnego kwartyla całej próby.",
+        "Kontekst niskiego ACV: progi oparto na medianie CY-2025 (11 mies.; CY-2024: 8 mies.), granica 14 mies. to heurystyka; cel Bessemer dla SMB (<12 mies.) mieści się w przedziale normalnym.",
+        "Skok (próg 12 mies. w kontekście B2C) to heurystyka klasyczna bez daty publikacji, nie benchmark z próby."
+      ]
+    },
+    {
+      "key": "subscription_gross_margin",
+      "abbr": "GM",
+      "name_pl": "Marża brutto subskrypcji cyfrowych",
+      "name_en": "Subscription Gross Margin",
+      "expansion_pl": "GM – Gross Margin: udział przychodu z subskrypcji, który zostaje po odjęciu kosztów bezpośredniego dostarczenia usługi (COGS – Cost of Goods Sold)",
+      "expansion_en": "GM – Gross Margin: share of subscription revenue left after direct cost of delivery (COGS – Cost of Goods Sold)",
+      "formula": "Marża brutto subskrypcji = (przychody z subskrypcji netto − koszty bezpośrednie: opłaty płatnicze i billing, hosting/CDN, licencje paywall/CRM/e-mail proporcjonalnie, prowizje platform/sklepów aplikacji, obsługa klienta) ÷ przychody z subskrypcji × 100%",
+      "unit": "%",
+      "interpretation_pl": "Jaka część przychodu z subskrypcji zostaje po pokryciu kosztów bezpośredniego dostarczenia usługi; wysoka marża oznacza, że wzrost skali poprawia rentowność. Mediana marży oprogramowania B2B SaaS w 2025 r. to 80%, górny kwartyl 86%+. Pułapki: niespójne księgowanie kosztów redakcyjnych (w mediach zwykle koszt operacyjny, nie COGS) – trzymaj jedną definicję; stała opłata za transakcję (np. 1 zł) mocno obniża marżę tanich planów miesięcznych.",
+      "interpretation_en": "The share of subscription revenue left after direct delivery costs; a high margin means scale improves profitability. The 2025 B2B SaaS software gross-margin median was 80%, top quartile 86%+. Pitfalls: inconsistent treatment of editorial costs (in media usually opex, not COGS) – keep one definition; fixed per-transaction fees (e.g. PLN 1) heavily erode the margin of cheap monthly plans.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "SaaS B2B – marża brutto przychodów z oprogramowania/subskrypcji",
+          "period": "rocznie (CY-2025)",
+          "method": "kwartyle źródła: dolny kwartyl 50% (Aleph 2026 – bez definicji granicy) / mediana 80% / górny kwartyl 86%+ (n=228–232, CY-2025); granica słaby/normalny 72% = P25 marży subskrypcji całej próby Benchmarkit CY-2024 (72/81/86%), zbieżna z medianą firm <5 mln USD ARR wg Aleph (72%); kontekst: średnia marża chmury wg Bessemer 65–70%",
+          "source_ids": ["aleph_gm_2026", "bm2025", "bvp_2021"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 50
+            },
+            {
+              "label": "słaby",
+              "min": 50,
+              "max": 72
+            },
+            {
+              "label": "normalny",
+              "min": 72,
+              "max": 80
+            },
+            {
+              "label": "dobry",
+              "min": 80,
+              "max": 86
+            },
+            {
+              "label": "optymalny",
+              "min": 86,
+              "max": null
+            }
+          ]
+        },
+        {
+          "context": "wydawca cyfrowy / think tank – subskrypcje treści (koszty redakcyjne poza COGS)",
+          "period": "miesięcznie / kwartalnie",
+          "method": "heurystyka: obciążenie opłatami Stripe PL (1,5% + 1 zł karta EEA, BLIK 1,6% + 1 zł, Billing 0,7%) to ok. 7% przy płatności 20 zł i ok. 2,7% przy 200 zł rocznie; po narzędziach i obsłudze klienta realna marża 80–90%",
+          "source_ids": ["stripe_pl_pricing", "wm_anatomia_2026"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 70,
+              "note": "np. dominująca sprzedaż przez platformy pośredniczące lub sklepy aplikacji"
+            },
+            {
+              "label": "słaby",
+              "min": 70,
+              "max": 80
+            },
+            {
+              "label": "normalny",
+              "min": 80,
+              "max": 85
+            },
+            {
+              "label": "dobry",
+              "min": 85,
+              "max": 90
+            },
+            {
+              "label": "optymalny",
+              "min": 90,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "confidence": "średnia",
+      "caveats": [
+        "Benchmarkit 2025 (CY-2024): marża subskrypcji – cała próba P25 72% / mediana 81% / P75 86% (N=76, wykres s. 44), całkowita 77%, usługi profesjonalne 30%; wg ARR 1–5 mln USD P25 40% / mediana 77% / P75 90%; 5–20 mln USD 75/81/86%.",
+        "Modele rozliczane wyłącznie za użycie mają medianę 62% (koszty mocy obliczeniowej/AI) – funkcje AI w produkcie mogą obniżać marżę.",
+        "Jeśli koszty redakcyjne (autorzy, eksperci) są ujmowane w COGS, marża wydawcy będzie znacznie niższa i progi SaaS nie mają zastosowania.",
+        "Platformy patronackie pobierają prowizję (Patronite 6,5% netto + operator płatności) – uwzględnij przy kanałach pośrednich.",
+        "‘Bottom quartile: 50%’ w Aleph 2026 nie jest zdefiniowany (granica P25 czy średnia dolnego kwartyla) i mocno odstaje od P25 = 72% w Benchmarkit CY-2024 – granica krytyczny/słaby 50% jest przez to niepewna."
+      ]
+    },
+    {
+      "key": "rule_of_40",
+      "abbr": "R40",
+      "name_pl": "Reguła 40",
+      "name_en": "Rule of 40",
+      "expansion_pl": "Rule of 40 – reguła, według której suma tempa wzrostu przychodów i marży zysku powinna wynosić co najmniej 40%",
+      "expansion_en": "Rule of 40 – the principle that revenue growth rate plus profit margin should be at least 40%",
+      "formula": "R40 = roczna dynamika przychodów lub ARR (%) + marża EBITDA (%) [alternatywnie marża FCF – wolnych przepływów pieniężnych]",
+      "unit": "%",
+      "interpretation_pl": "Mierzy równowagę między wzrostem a rentownością: szybki wzrost może usprawiedliwiać stratę, a wolny wzrost wymaga wysokiej marży. Wynik ≥40% uchodzi za wzorcowy, ale mediana prywatnych firm B2B SaaS w 2025 r. to 25%, a próg 40 przekracza ok. 15% spółek publicznych (na bazie EBITDA). Pułapki: zawsze podawaj, którą marżę użyto (EBITDA vs FCF różni medianę spółek publicznych o ok. 16 pp), a w małych organizacjach wskaźnik jest niestabilny i ma głównie charakter informacyjny.",
+      "interpretation_en": "Measures the balance between growth and profitability: fast growth can justify losses, slow growth needs high margins. 40%+ is the reference bar, but the 2025 private B2B SaaS median was 25% and only about 15% of public SaaS companies clear 40 on an EBITDA basis. Pitfalls: always state which margin is used (EBITDA vs FCF shifts the public median by ~16 pp), and in small organisations the metric is volatile and mostly informational.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "prywatne firmy B2B SaaS i AI (globalnie)",
+          "period": "rocznie (CY-2025)",
+          "method": "kwartyle źródła: P25 7% / mediana 25% / P75 43% (n=110); optymalny od klasycznego progu 40%; krytyczny <0% – heurystyka (wzrost nie pokrywa straty); mediana 25% i górny kwartyl 43% potwierdzone w Benchmarkit 2026 (S100)",
+          "source_ids": ["aleph_r40_2026", "bm2025", "S100"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 7
+            },
+            {
+              "label": "normalny",
+              "min": 7,
+              "max": 25
+            },
+            {
+              "label": "dobry",
+              "min": 25,
+              "max": 40
+            },
+            {
+              "label": "optymalny",
+              "min": 40,
+              "max": null,
+              "note": "P75 = 43%"
+            }
+          ]
+        },
+        {
+          "context": "spółki publiczne SaaS – marża EBITDA",
+          "period": "LTM, stan na 5.05.2026",
+          "method": "mediana źródła 22,6%, 15% spółek ≥40; słaby 0–10% – heurystyka",
+          "source_ids": ["aventis_r40_2026"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0
+            },
+            {
+              "label": "słaby",
+              "min": 0,
+              "max": 10
+            },
+            {
+              "label": "normalny",
+              "min": 10,
+              "max": 22.6
+            },
+            {
+              "label": "dobry",
+              "min": 22.6,
+              "max": 40
+            },
+            {
+              "label": "optymalny",
+              "min": 40,
+              "max": null,
+              "note": "ok. 15% spółek"
+            }
+          ]
+        }
+      ],
+      "confidence": "średnia",
+      "caveats": [
+        "Wskaźnik staje się miarodajny od ok. 15–20 mln USD ARR (Benchmarkit, Aleph); dla think tanku/wydawcy niewielkiej skali traktuj go informacyjnie i licz tylko dla komercyjnej linii (subskrypcje + wydarzenia płatne).",
+        "Benchmarkit 2025 (CY-2024): cała próba P25 −4% / mediana 15% / P75 35%; firmy z EMEA −9% / 25% / 38%, z USA −19% / 9% / 35%.",
+        "Na bazie FCF mediana spółek publicznych to 39,1%, a próg 40 przekracza 46% – nie mieszaj definicji.",
+        "Spółki przekraczające 40 (FCF) wyceniane są na medianę 4,8x EV/przychody wobec 2,7x pozostałych.",
+        "Dla organizacji non-profit zamiast EBITDA użyj marży nadwyżki operacyjnej i oznacz to w panelu."
+      ]
+    },
+    {
+      "key": "arpu",
+      "abbr": "ARPU",
+      "name_pl": "Średni przychód na użytkownika (płacącego)",
+      "name_en": "Average Revenue Per User",
+      "expansion_pl": "ARPU – Average Revenue Per User: średni przychód z jednego płacącego subskrybenta w okresie (zwykle miesiąc); w B2B także ARPA – Average Revenue Per Account (na konto/instytucję) lub na stanowisko (seat)",
+      "expansion_en": "ARPU – Average Revenue Per User: average revenue per paying subscriber per period (usually a month); in B2B also ARPA – Average Revenue Per Account, or per seat",
+      "formula": "ARPU = przychody subskrypcyjne w okresie (po rabatach) ÷ średnia liczba płacących subskrybentów w okresie; normalizuj do miesiąca (NYT: przychód kwartału ÷ średnia liczba subskrybentów ÷ liczba dni × 28)",
+      "unit": "PLN",
+      "interpretation_pl": "Pokazuje realną, a nie cennikową cenę, jaką płaci przeciętny subskrybent po promocjach i rabatach. Wzrost ARPU przy stabilnej bazie to zwykle efekt wychodzenia klientów z cen promocyjnych, podwyżek dla stałych klientów lub upsellu (np. NYT: 9,94 USD za 28 dni w II kw. 2026, +3,1% r/r). Pułapki: liczenie na wszystkich zarejestrowanych zamiast na płacących, mieszanie segmentów (osoby, firmy, studenci/NGO) i kwot brutto/netto VAT; wzrost ARPU kosztem wolumenu (USA Today: −30% subskrybentów, +27% ARPU po zakończeniu intensywnego rabatowania – ‘an end to heavy discounting’) nie zawsze jest korzystny.",
+      "interpretation_en": "Shows the real, not list, price the average subscriber pays after promotions and discounts. ARPU growth on a stable base usually comes from subscribers rolling off introductory prices, price increases for tenured subscribers or upsell (e.g. NYT: $9.94 per 28 days in Q2 2026, +3.1% YoY). Pitfalls: dividing by all registered users instead of payers, mixing segments (individuals, companies, students/NGOs) and gross/net of VAT; raising ARPU at the expense of volume (USA Today: −30% subscribers, +27% ARPU after ‘an end to heavy discounting’) is not always a win.",
+      "direction": "higher_better",
+      "contexts": [
+        {
+          "context": "media cyfrowe B2C – indywidualna subskrypcja cyfrowa (Polska), zł brutto/mies. po rabatach",
+          "period": "miesięcznie",
+          "method": "heurystyka zakotwiczona w cenach rynkowych: promocja Wyborcza 89 zł/rok ≈7,4 zł/mies.; RP.PL promo 9,90 zł ‘zamiast 39 zł’ (strona nie wskazuje wprost produktu; ceny ‘od’ mogą dotyczyć planów rocznych); ‘15–20 zł’ jako typowa subskrypcja – opinia eksperta (Wirtualnemedia 2026), nie zmierzona średnia; Radio Nowy Świat ≤ ok. 26,7 zł na osobę (obliczenie własne: prawie 800 tys. zł ÷ ponad 30 tys. osób); średnia cena katalogowa najtańszego planu w CEE 7,84 EUR ≈33 zł (przeliczenie własne ~4,25 PLN/EUR); PIE 2021 (‘uczciwa cena’: dominanta 10 zł, mediana 20 zł; badanie z XII 2020, sprzed inflacji 2022–2023) – wyłącznie historyczna kotwica, nie wyznacza progów",
+          "source_ids": [
+            "wyborcza_blik_2026",
+            "rp_offer_2026",
+            "pie_2021",
+            "wm_anatomia_2026",
+            "mfm_pricing_2025",
+            "risj_dnr2024_pay"
+          ],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 8,
+              "note": "baza zdominowana przez głębokie promocje"
+            },
+            {
+              "label": "słaby",
+              "min": 8,
+              "max": 15
+            },
+            {
+              "label": "normalny",
+              "min": 15,
+              "max": 25,
+              "note": "15–20 zł – opinia eksperta (Wirtualnemedia 2026), nie zmierzony poziom rynkowy"
+            },
+            {
+              "label": "dobry",
+              "min": 25,
+              "max": 35,
+              "note": "blisko średniej ceny katalogowej w CEE"
+            },
+            {
+              "label": "optymalny",
+              "min": 35,
+              "max": null,
+              "note": "blisko ceny ‘zamiast 39 zł’ RP.PL lub plany premium"
+            }
+          ]
+        },
+        {
+          "context": "B2B / profesjonalne – licencja na stanowisko (seat) lub dostęp ekspercki, zł netto/mies.",
+          "period": "miesięcznie",
+          "method": "heurystyka zakotwiczona w cennikach (ceny brutto ‘od’ – mogą dotyczyć planów rocznych przeliczonych na miesiąc): PRO.RP.PL od 39 zł/mies.; e-prenumerata ‘Rzeczpospolitej’ od 174,50 zł/mies.; DGP Premium 196 zł/mies. po pierwszym miesiącu. Kotwicę Chatham House (345 GBP/rok) usunięto – niezweryfikowana (strona zwraca 403) i dotyczy członkostwa indywidualnego, nie licencji na stanowisko",
+          "source_ids": ["rp_offer_2026", "wm_anatomia_2026"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 40,
+              "note": "brak premii B2B ponad cenę konsumencką"
+            },
+            {
+              "label": "słaby",
+              "min": 40,
+              "max": 80
+            },
+            {
+              "label": "normalny",
+              "min": 80,
+              "max": 150
+            },
+            {
+              "label": "dobry",
+              "min": 150,
+              "max": 250,
+              "note": "poziom DGP Premium / e-prenumeraty RP"
+            },
+            {
+              "label": "optymalny",
+              "min": 250,
+              "max": null
+            }
+          ]
+        }
+      ],
+      "confidence": "niska",
+      "caveats": [
+        "Polscy wydawcy nie ujawniają ARPU (Agora nie podaje osobno przychodów z prenumerat Wyborczej) – progi w zł to heurystyka oparta na cennikach i badaniach postaw.",
+        "Polska wyróżnia się rabatowaniem: 78% płacących w Polsce nie płaci pełnej ceny wobec 41% średnio w 20 krajach (DNR 2024; dane sprzed ponad 2 lat, nowszego pomiaru brak) – ARPU będzie wyraźnie niższe od cen katalogowych.",
+        "Za newsy online płaci w Polsce 11% internautów (DNR 2026, −2 pp – zmiana nieistotna statystycznie; 2025: 13%) wobec 17% średnio w 20 krajach; 10–20% to praktyczny sufit w większości rynków.",
+        "Europa 2025: średnia cena najtańszego planu 10,08 EUR (CEE 7,84 EUR, Europa Zachodnia 13,01 EUR); plany roczne średnio ok. 22% taniej; ceny wyłącznie katalogowe, bez rabatów.",
+        "Segmenty studenci/NGO i licencje grupowe licz jako osobne ARPU – 21 na 101 europejskich wydawców ma zniżki studenckie, 35 ma rabaty dla wielu kont (plany firmowe i rodzinne).",
+        "Kwoty B2C są brutto (jak w cennikach konsumenckich), a LTV i CAC wymagają ARPU netto – w UI pokazuj obie wartości lub przelicznik (netto = brutto ÷ (1 + stawka VAT)), żeby LTV i CAC nie były liczone od kwot z VAT.",
+        "Kontekst B2B jest w zł netto, a kotwice (RP.PL, DGP) to ceny brutto ‘od’; kotwicę Chatham House usunięto jako niezweryfikowaną – do zastąpienia sprawdzalnym cennikiem polskiego think tanku lub serwisu eksperckiego.",
+        "PIE 2021 (badanie z XII 2020) to historyczna kotwica sprzed inflacji 2022–2023 – jej wartości (10/20 zł) nie wyznaczają progów."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "bm2025",
+      "title": "2025 B2B SaaS Performance Metrics Benchmarks",
+      "publisher": "Benchmarkit (PDF udostępniony przez partnera badania HiBob)",
+      "published": "2025 (PDF bez daty publikacji – ‘II kw. 2025’ to przybliżenie; dane CY-2024, N=583)",
+      "url": "https://www.hibob.com/wp-content/uploads/2025-SaaS-Performance-Metrics-Benchmarks.pdf",
+      "excerpt": "CAC payback CY-24: P25 12 / mediana 18 / P75 24 mies. (N=148); wg ACV <1 tys. USD 5/8/10, 1–5 tys. 6/8/12, 5–10 tys. 13/14/18, 10–25 tys. 15/18/22, 25–50 tys. 13/22/26, 50–100 tys. 16/24/33, 100–250 tys. 20/24/37. ‘New CAC Ratio increased by 14% in 2024 to a median of $2.00’; P25 1,50 / P75 2,82 (N=73); wg ACV 1–5 tys. USD 0,46/2,00/2,46, 5–10 tys. 1,50/1,60/1,80; Expansion CAC Ratio – mediana 1,00. CLTV:CAC wg ARR (N=101): <1 mln USD 3,0/5,0/9,5; 1–5 mln 2,9/3,3/6,0; 5–20 mln 3,0/4,0/6,5; 20–50 mln 2,2/3,3/5,0; 50–100 mln 2,5/2,9/5,0. ‘Subscription Gross Margin is 81% (median)’ (N=76), całkowita 77%, usługi 30%; kwartyle marży subskrypcji całej próby 72/81/86% (wykres s. 44); wg ARR 1–5 mln USD 40/77/90%, 5–20 mln 75/81/86%. Rule of 40 CY-24: −4%/15%/35%; EMEA −9%/25%/38%; USA −19%/9%/35% (‘median Rule of 40 in the 23% - 25% range’). ‘VC firms begin to start use Rule of 40 … at ~ $15M.’ Wzory w glosariuszu (CAC payback = S&M ÷ (nowy ARR × marża subskrypcji) × 12; CLTV = ARR na konto × marża ÷ churn). Kwartyle odczytane z wykresów. Nowsza edycja (CY-2025, S100) nie ma publicznie dostępnego pełnego PDF.",
+      "verification": "tak"
+    },
+    {
+      "id": "aleph_payback_2026",
+      "title": "CAC payback period benchmarks: what's good for SaaS in 2026? (2026 SaaS & AI Performance Benchmarks)",
+      "publisher": "Aleph × Benchmarkit",
+      "published": "2026-06-01 (strona aktualizowana 2026-10)",
+      "url": "https://www.getaleph.com/answers/cac-payback-period-saas-2026",
+      "excerpt": "‘The median B2B SaaS company recovers its customer acquisition cost in 16 months’ (dane CY-2025, 198 z 342 firm); poprawa z 18 mies. w 2024; ‘The 25th percentile dropped from 12 to 10 months’; dolny kwartyl ‘24 months or more’; ACV <5 tys. USD: mediana 11 mies.; ACV 50–100 tys. USD: mediana 22 mies. (P25 15). Uwaga: zdanie strony ‘Top-quartile companies do it in 6 months or fewer’ jest niespójne z P25 = 10 mies. na tej samej stronie – nie używać ‘≤6 mies.’ jako górnego kwartyla.",
+      "verification": "tak"
+    },
+    {
+      "id": "aleph_ltvcac_2026",
+      "title": "CLTV:CAC ratio benchmarks for SaaS in 2026",
+      "publisher": "Aleph × Benchmarkit",
+      "published": "2026-06-01",
+      "url": "https://getaleph.com/answers/cltv-cac-ratio-saas-2026",
+      "excerpt": "‘The median B2B SaaS company has a CLTV:CAC ratio of 4.1x’; P75 wzrósł z 6,0x do 7,8x; ‘the bottom quartile sits at just 1.1x’; mediana 3,6–3,7x w latach 2022–2024; dobry poziom ‘at least 3:1, with 4–5x healthy and 7x+ best-in-class’; 8x+ może sygnalizować niedoinwestowanie wzrostu (n=146, CY-2025). Strona nie podaje przyczyny wzrostu mediany do 4,1x (jedyne zdanie przyczynowe dotyczy liderów: ‘efficiency gains compound on strong retention’), nie definiuje, czy 1,1x to granica P25, czy średnia dolnego kwartyla, i nie podaje P25 za 2024.",
+      "verification": "częściowo"
+    },
+    {
+      "id": "aleph_gm_2026",
+      "title": "SaaS gross margin benchmarks 2026",
+      "publisher": "Aleph × Benchmarkit",
+      "published": "2026-06-01",
+      "url": "https://www.getaleph.com/answers/saas-gross-margin-2026",
+      "excerpt": "‘The 2025 median software gross margin is 80%’, marża całkowita 76%; górny kwartyl 86%+ (software); dolny kwartyl 50%; od 72% przy <5 mln USD ARR do 86% przy 50–100 mln USD; modele wyłącznie za użycie 62%; n=228–232, dane CY-2025. Strona nie wyjaśnia, czy 50% to granica P25, czy średnia dolnego kwartyla – wartość mocno odstaje od P25 = 72% marży subskrypcji w Benchmarkit CY-2024 (bm2025).",
+      "verification": "tak"
+    },
+    {
+      "id": "aleph_r40_2026",
+      "title": "Rule of 40 benchmarks for SaaS in 2026",
+      "publisher": "Aleph × Benchmarkit",
+      "published": "2026-06-01",
+      "url": "https://getaleph.com/answers/rule-of-40-saas-2026",
+      "excerpt": "‘The median B2B SaaS company posted a Rule of 40 score of 25% in 2025’ (wzrost z 15%); ‘Top-quartile companies clear 43%’; P25 z −4% (2024) do +7% (2025); n=110; miarodajny od ok. 20 mln USD ARR.",
+      "verification": "tak"
+    },
+    {
+      "id": "bvp_2021",
+      "title": "Scaling to $100 Million",
+      "publisher": "Bessemer Venture Partners (Atlas)",
+      "published": "2021-09-21",
+      "url": "https://www.bvp.com/atlas/scaling-to-100-million",
+      "excerpt": "Cele zwrotu CAC: SMB ‘target CAC payback <12 months’, mid-market <18, enterprise <24 mies.; inwestować w pozyskanie przy CLTV/CAC ≥3x; ‘the average gross margin for a cloud business regardless of maturity is 65-70%’; top performerzy: ‘Gross Margins of 85%+’ przy 1–10 mln USD ARR i ‘80%+’ przy 50 mln+ ARR. Dane portfela BVP 2010–1H21 – portfel VC, nie losowa próba (źródło samo to zaznacza); dane sprzed 5 lat.",
+      "verification": "częściowo"
+    },
+    {
+      "id": "skok_saasmetrics",
+      "title": "SaaS Metrics 2.0 – A Guide to Measuring and Improving What Matters",
+      "publisher": "David Skok, For Entrepreneurs",
+      "published": "brak daty publikacji (‘Update 05/2016’ dotyczy innego artykułu; stopka ©2000–2021)",
+      "url": "https://www.forentrepreneurs.com/saas-metrics-2/",
+      "excerpt": "‘The best SaaS businesses have a LTV to CAC ratio that is higher than 3, sometimes as high as 7 or 8.’ ‘…profitability is anemic if the time to recover CAC extends beyond 12 months.’ Heurystyka klasyczna bez daty publikacji, nie benchmark z próby.",
+      "verification": "tak"
+    },
+    {
+      "id": "aventis_r40_2026",
+      "title": "Rule of 40 in SaaS (2026)",
+      "publisher": "Aventis Advisors",
+      "published": "2026-05-06",
+      "url": "https://aventis-advisors.com/rule-of-40-in-saas-2026/",
+      "excerpt": "Próba 55 spółek publicznych SaaS (stan 5.05.2026): mediana R40 na bazie EBITDA 22,6%, na bazie FCF 39,1%; ‘only 8 of 55 companies (15%) clear the Rule of 40 on an EBITDA basis’, na FCF 25 z 55 (46%); spółki ≥40 (FCF) – mediana 4,8x EV/przychody vs 2,7x. Premia wyceny podana w artykule jako 74% (z liczb 4,8x/2,7x wychodzi ok. 78%).",
+      "verification": "tak"
+    },
+    {
+      "id": "risj_dnr2026_exec",
+      "title": "Digital News Report 2026 – Executive summary",
+      "publisher": "Reuters Institute for the Study of Journalism",
+      "published": "2026-06-16",
+      "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/dnr-executive-summary",
+      "excerpt": "Odsetek płacących za newsy online w 20 krajach: 17% (18% w 2025); ‘10–20% appearing to represent a ceiling in most markets’; Norwegia 40%, Szwecja 32%; USA Today Co.: spadek liczby subskrybentów o 30% w 2025 przy wzroście ARPU o 27% m.in. dzięki ‘an end to heavy discounting’ (zakończeniu intensywnego rabatowania).",
+      "verification": "tak"
+    },
+    {
+      "id": "risj_dnr2026_pl",
+      "title": "Digital News Report 2026 – Poland",
+      "publisher": "Reuters Institute for the Study of Journalism (Vadim Makarenko)",
+      "published": "2026-06-16",
+      "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2026/poland",
+      "excerpt": "Płaci za newsy online: 11% (−2 pp r/r; zmiany ≤2 pp nie są istotne statystycznie).",
+      "verification": "tak"
+    },
+    {
+      "id": "risj_dnr2025_pl",
+      "title": "Digital News Report 2025 – Poland",
+      "publisher": "Reuters Institute for the Study of Journalism (Vadim Makarenko)",
+      "published": "2025-06-17",
+      "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2025/poland",
+      "excerpt": "Płaci za newsy online: 13%; XYZ.pl wprowadził paywall w styczniu 2025 (start w październiku w modelu freemium).",
+      "verification": "tak"
+    },
+    {
+      "id": "risj_dnr2024_pay",
+      "title": "How much do people pay for online news? And what might encourage others to pay?",
+      "publisher": "Reuters Institute for the Study of Journalism (Craig T. Robertson), Digital News Report 2024",
+      "published": "2024-06-17",
+      "url": "https://reutersinstitute.politics.ox.ac.uk/digital-news-report/2024/how-much-do-people-pay-online-news-what-might-encourage-others-pay",
+      "excerpt": "‘Across all 20 markets, 41% of subscribers say they are not paying the full sticker price’, ‘with the majority in Poland (78%) seeming not to pay the full amount’; El País ok. 11 EUR/mies., Público ok. 7 EUR; 57% niepłacących nie rozważa żadnej opłaty. Dane z 2024 r. (ponad 2 lata) – nowszego pomiaru udziału płacących poniżej ceny katalogowej dla Polski nie znaleziono.",
+      "verification": "tak"
+    },
+    {
+      "id": "mfm_pricing_2025",
+      "title": "2025 European Digital News Pricing Report",
+      "publisher": "Media Finance Monitor / Center for Sustainable Media (P. Erdelyi i in.)",
+      "published": "2025-07-03",
+      "url": "https://www.funds4media.org/p/2025-european-digital-news-pricing",
+      "excerpt": "101 wydawców z 19 krajów (12 z CEE, w tym Polska; bez listy polskich tytułów); ‘The average undiscounted monthly price for the lowest tier subscription in our sample is €10.08’; ‘The CEE average price is €7.84 and the WE average price is €13.01’; rabat roczny dla najtańszego planu średnio 22,15%; 21 wydawców ma zniżki studenckie, 35 ma rabaty dla wielu kont (plany firmowe i rodzinne).",
+      "verification": "tak"
+    },
+    {
+      "id": "nyt_q2_2026",
+      "title": "The New York Times Company Reports Second-Quarter 2026 Results",
+      "publisher": "The New York Times Company (kopia komunikatu na poder360.com.br; oficjalne źródło: investors.nytco.com)",
+      "published": "2026-08-05",
+      "url": "https://static.poder360.com.br/uploads/2026/08/New-York-Times-2Q26.pdf",
+      "excerpt": "‘Digital-only ARPU was $9.94 for the second quarter of 2026, an increase of 3.1 percent… driven primarily by subscribers transitioning from promotional to higher prices and price increases on certain tenured subscribers’; ARPU = przychód kwartału ÷ średnia liczba subskrybentów ÷ liczba dni w kwartale × 28; Q1 2026 9,77 USD, Q4 2025 9,72 USD. URL to kopia zapasowa – przy publikacji podawaj komunikat z investors.nytco.com (dokładnego adresu komunikatu nie zweryfikowano).",
+      "verification": "tak"
+    },
+    {
+      "id": "rp_offer_2026",
+      "title": "Oferta subskrypcji Rzeczpospolitej (czytaj.rp.pl)",
+      "publisher": "Gremi Media / Rzeczpospolita",
+      "published": "dostęp 2026-10-18",
+      "url": "https://czytaj.rp.pl/",
+      "excerpt": "‘Teraz miesięczna subskrypcja już od 9,90 zł (zamiast 39 zł)’; PRO.RP.PL od 39,00 zł/mies.; e-prenumerata ‘Rzeczpospolitej’ od 174,50 zł/mies. (ceny brutto). Strona nie mówi wprost, którego produktu dotyczy cena 39 zł; ceny ‘od’ mogą dotyczyć planów rocznych przeliczonych na miesiąc.",
+      "verification": "tak"
+    },
+    {
+      "id": "wyborcza_blik_2026",
+      "title": "Regulamin Akcji Marketingowej ‘Wyborcza.pl Wiosna z BLIKIEM 2026’",
+      "publisher": "Wyborcza sp. z o.o. / BLIK",
+      "published": "2026-04-14 (promocja 27.04–31.05.2026)",
+      "url": "https://www.blik.com/media/regulaminy/Płatności%20powtarzalne%20BLIK/regulamin%20Wyborcza%20x%20BLIK%202026%20(1).pdf",
+      "excerpt": "Pakiet Premium cyfrowej rocznej prenumeraty: ‘cenę promocyjną w kwocie 89 zł za pierwszy rok subskrypcji’; kolejne okresy wg ceny ze strony sprzedażowej; tylko dla osób bez aktywnej prenumeraty cyfrowej.",
+      "verification": "tak"
+    },
+    {
+      "id": "wm_anatomia_2026",
+      "title": "Anatomia subskrypcji. Dlaczego Polacy wciąż nie chcą płacić za treści",
+      "publisher": "Wirtualnemedia.pl (Rafał Badowski)",
+      "published": "2026-05-13",
+      "url": "https://www.wirtualnemedia.pl/anatomia-subskrypcji-dlaczego-polacy-wciaz-nie-chca-placic-za-tresci,7269873205061760a",
+      "excerpt": "DGP Premium: ‘za pierwszy miesiąc trzeba zapłacić 14,90 zł, ale za każdy następny już 196 zł’; ‘15-20 złotych miesięcznie’ jako typowy koszt subskrypcji – opinia eksperta, nie zmierzona średnia rynkowa; Wyborcza ponad 320 tys. subskrypcji cyfrowych na koniec 2025; TOK FM Premium 55,5 tys.; Radio Nowy Świat – ponad 30 tys. osób, prawie 800 tys. zł miesięcznie (≤ ok. 26,7 zł na osobę); auto-odnowienie wybiera 60–70% klientów; prowizja Patronite 6,5% netto + operator płatności.",
+      "verification": "tak"
+    },
+    {
+      "id": "pie_2021",
+      "title": "76 proc. internautów nie rozumie, czemu miałoby płacić za dostęp do artykułów w sieci (raport ‘Modele biznesowe mediów po pandemii’)",
+      "publisher": "Polski Instytut Ekonomiczny",
+      "published": "2021-06-08 (badanie CAWI 7–10.12.2020, N=1017)",
+      "url": "https://pie.net.pl/wp-content/uploads/2021/12/2021_06_08_76-proc.-internautow-nie-rozumie-czemu-mialoby-placic-za-dostep-do-artykulow-w-sieci.pdf",
+      "excerpt": "‘Najpopularniejszą odpowiedzią było 10 PLN (uznało tak 19 proc. ankietowanych), natomiast wartością środkową (medianą) było 20 PLN’ – uczciwa miesięczna cena za dostęp do wszystkich treści portalu; 84% uważa, że artykuły powinny być bezpłatne; 11% korzysta z co najmniej jednego płatnego serwisu informacyjnego. Mediana bez odpowiedzi ‘trudno powiedzieć’; wiek 13–74. Dane PRZESTARZAŁE (badanie z XII 2020, sprzed inflacji 2022–2023) – wyłącznie historyczna kotwica, nie wyznacza progów (ceny opieraj na MFM 2025 i bieżących cennikach).",
+      "verification": "tak"
+    },
+    {
+      "id": "stripe_pl_pricing",
+      "title": "Stripe Pricing – Poland",
+      "publisher": "Stripe",
+      "published": "dostęp 2026-10-18",
+      "url": "https://stripe.com/en-pl/pricing",
+      "excerpt": "Karty EEA: 1,5% + 1,00 zł; karty UK 2,5% + 1,00 zł; karty międzynarodowe 3,25% + 1,00 zł (+2% przy przewalutowaniu); BLIK 1,6% + 1,00 zł; Przelewy24 1,9% + 1,00 zł; Stripe Billing 0,7% wolumenu w modelu pay-as-you-go (alternatywnie plan od 2500 zł/mies. przy kontrakcie rocznym). Narzut karta EEA + Billing: ok. 7,2% przy płatności 20 zł i ok. 2,7% przy 200 zł.",
+      "verification": "tak"
+    },
+    {
+      "id": "lenfest_2019",
+      "title": "One subscriber or 48,000 page views? Why journalists should know the ‘unit economics’ of digital news",
+      "publisher": "The Lenfest Institute for Journalism (Matt Skibinski)",
+      "published": "2019-10-07",
+      "url": "https://www.lenfestinstitute.org/solutions-resources/one-subscriber-or-48000-page-views-why-journalists-should-know-the-unit-economics-of-digital-news/",
+      "excerpt": "‘Our benchmarks show that a publisher performing in the 80th percentile … has a CLV of $217 for a digital subscriber’; CLV = średni miesięczny przychód na subskrybenta × oczekiwany czas życia; czas życia ≈ ‘1 / Monthly Churn Rate’. 80. percentyl opisany jako typowy dla dziennika, który wkłada choć trochę wysiłku w sprzedaż subskrypcji cyfrowych. CLV liczone na PRZYCHODZIE (ARPU × czas życia), nie na marży brutto – nieporównywalne wprost z LTV na marży. Dane z USA z 2019 r.",
+      "verification": "tak"
+    },
+    {
+      "id": "chatham_membership",
+      "title": "Individual membership – Chatham House",
+      "publisher": "Chatham House (Royal Institute of International Affairs)",
+      "published": "dostęp 2026-10 (odczyt z wyników wyszukiwania; strona zwraca 403 dla automatów)",
+      "url": "https://www.chathamhouse.org/become-member/individual-membership",
+      "excerpt": "NIEZWERYFIKOWANE (strona i /become-member zwracają 403 dla WebFetch i curl; brak potwierdzenia przez wyszukiwarkę): członkostwo pełne 345 GBP/rok + 50 GBP wpisowego; Associate 195 GBP; poniżej 30 lat 220 GBP; student 190 GBP. Dotyczy członkostwa INDYWIDUALNEGO, nie licencji B2B na stanowisko – nie kotwiczy progów.",
+      "verification": "nie da się sprawdzić"
+    },
+    {
+      "id": "S100",
+      "title": "2026 B2B SaaS & AI-Native Metrics",
+      "publisher": "Benchmarkit",
+      "published": "2026 (dane CY-2025)",
+      "url": "https://www.benchmarkit.ai/2026-saas-ai-native-metrics",
+      "excerpt": "Nowsza edycja raportu bm2025. Strona publiczna podaje tylko część median CY-2025: Blended CAC Ratio 1,30 USD; marża software 80%; Rule of 40 – mediana 25%, górny kwartyl 43%. Kwartyli New CAC Ratio za CY-2025 nie ma publicznie; pełny PDF nie jest dostępny pod znanym adresem.",
+      "verification": "tak"
+    }
+  ],
+  "changelog": [
+    "Wszystkie źródła: dodano pole verification zgodnie z numbers_confirmed weryfikatora (tak: 18, częściowo: aleph_ltvcac_2026 i bvp_2021, nie da się sprawdzić: chatham_membership).",
+    "bm2025: published oznaczono jako przybliżenie (PDF bez daty); excerpt uzupełniono o kwartyle marży subskrypcji całej próby 72/81/86% (s. 44), CLTV:CAC dla 5–20 mln (3,0/4,0/6,5) i 50–100 mln USD ARR (2,5/2,9/5,0), New CAC Ratio wg ACV, Expansion CAC Ratio 1,00, brakujące przedziały ACV dla CAC payback i R40 USA; dopisano odesłanie do nowszej edycji S100.",
+    "aleph_payback_2026: usunięto z excerptu ‘górny kwartyl ≤6 mies.’ jako górny kwartyl i oznaczono to zdanie strony jako niespójne z P25 = 10 mies.; dopisano P25 15 mies. dla ACV 50–100 tys. USD.",
+    "aleph_ltvcac_2026 (częściowo): dopisano w excerpt, że źródło nie podaje przyczyny wzrostu mediany i nie definiuje granicy dolnego kwartyla 1,1x ani P25 za 2024.",
+    "aleph_gm_2026: dopisano w excerpt, że ‘Bottom quartile: 50%’ nie jest zdefiniowany (granica P25 czy średnia) i odstaje od P25 = 72% w bm2025.",
+    "bvp_2021 (częściowo): poprawiono cytat – zamiast ‘najlepsi 80–85%+’ wpisano ‘Gross Margins of 85%+’ przy 1–10 mln USD ARR i ‘80%+’ przy 50 mln+ ARR; dopisano, że to portfel VC sprzed 5 lat, nie losowa próba.",
+    "skok_saasmetrics: published zmieniono na ‘brak daty publikacji’ (‘Update 05/2016’ dotyczy innego artykułu); źródło oznaczono jako heurystykę klasyczną, nie benchmark.",
+    "aventis_r40_2026: dopisano rozbieżność premii wyceny (artykuł 74%, z liczb 4,8x/2,7x ok. 78%).",
+    "risj_dnr2026_exec: poprawiono cytat – ‘an end to heavy discounting’ zamiast ‘głębokiego (deep) rabatowania’; dopisano 18% w 2025.",
+    "risj_dnr2025_pl: dopisano autora (V. Makarenko) i doprecyzowano start XYZ.pl (październik, freemium; paywall od stycznia 2025).",
+    "risj_dnr2024_pay: oznaczono wiek danych (2024) i brak nowszego pomiaru dla Polski.",
+    "mfm_pricing_2025: ‘35 rabaty wielostanowiskowe’ zmieniono na ‘35 ma rabaty dla wielu kont (plany firmowe i rodzinne)’; dopisano brak listy polskich tytułów.",
+    "nyt_q2_2026: dodano dosłowny cytat o przyczynach wzrostu ARPU; oznaczono URL poder360 jako kopię zapasową i wskazano oficjalne źródło investors.nytco.com (bez zmyślania dokładnego adresu).",
+    "rp_offer_2026: dopisano, że strona nie wskazuje produktu ceny 39 zł, a ceny ‘od’ mogą dotyczyć planów rocznych przeliczonych na miesiąc.",
+    "wm_anatomia_2026: ‘15–20 zł’ oznaczono jako opinię eksperta, nie zmierzoną średnią; Radio Nowy Świat doprecyzowano do ≤ ok. 26,7 zł na osobę.",
+    "pie_2021: oznaczono jako przestarzałą, historyczną kotwicę sprzed inflacji 2022–2023, która nie wyznacza progów.",
+    "stripe_pl_pricing: doprecyzowano, że Billing 0,7% dotyczy modelu pay-as-you-go (alternatywa: plan od 2500 zł/mies.); dopisano potwierdzone wyliczenia narzutu 7,2% / 2,7%.",
+    "lenfest_2019: URL zmieniono na kanoniczny; dopisano, że CLV 217 USD jest liczone na przychodzie, nie na marży, i że to dane USA z 2019 r.",
+    "chatham_membership (url_ok=false, nie da się sprawdzić): excerpt oznaczono jako NIEZWERYFIKOWANY i jako członkostwo indywidualne, nie licencję na stanowisko.",
+    "Dodano źródło S100 (Benchmarkit, 2026 B2B SaaS & AI-Native Metrics, CY-2025) wskazane przez weryfikatora jako nowsza edycja bm2025.",
+    "ltv: usunięto błędne uzasadnienie bazy (22,5 zł nie jest środkiem przedziału 15–20 zł ani medianą PIE 20 zł, a było kwotą brutto); metodę przepisano na krotność miesięcznej marży netto m (8/17/33/50 × m) z m ≈ 15 zł.",
+    "ltv: z source_ids usunięto pie_2021 (historyczna kotwica, nie wyznacza progów) i dodano risj_dnr2024_pay (78% płacących poniżej ceny katalogowej – argument za niższym ARPU).",
+    "ltv: przedziały zmieniono z 150/300/600/1000 zł na 120/250/500/750 zł (m ≈ 15 zł) wg propozycji weryfikatora; notatki opisują krotność m i odpowiadający churn.",
+    "ltv: caveat o Lenfest 2019 uzupełniono – CLV 217 USD liczone na przychodzie, nie na marży; caveat o skalowaniu progów przepisano na krotność m.",
+    "ltv: dodano caveat o liczeniu LTV od ARPU netto i o wpływie stawki VAT na m.",
+    "cac: bazę zmieniono na m ≈ 15 zł netto (zamiast ≈19 zł z ARPU 22,5 zł brutto); przedziały 60/115/170/230 zł zmieniono na 45/90/135/180 zł (3/6/9/12 × m), spójnie z cac_payback_months B2C.",
+    "cac: z source_ids usunięto pie_2021 (historyczna kotwica) i dodano risj_dnr2024_pay – jak w ltv.",
+    "cac: caveats – wzór przeliczenia oparto na ARPU netto; dodano caveat o wpływie stawki VAT.",
+    "new_cac_ratio: próg krytyczny obniżono z >4,0 (≈60 mies. zwrotu) do >3,0 (≈45 mies.) wg sugestii weryfikatora; słaby = 2,82–3,0.",
+    "new_cac_ratio: podpięto S100 (Benchmarkit 2026) – w metodzie zaznaczono, że daje tylko Blended CAC Ratio 1,30 USD, a kwartyle pozostają z CY-2024.",
+    "new_cac_ratio: dodano caveats o braku kwartyli CY-2025, o niespójności z CAC payback (≈30 vs 18 mies., różne podpróby) i o wąskim przedziale słabym.",
+    "ltv_cac_ratio (B2B): przy ‘P25 ≈1,1x’ dopisano w metodzie i notatce, że Aleph mówi o ‘bottom quartile’ bez definicji granicy; Skok oznaczony jako heurystyka klasyczna bez daty.",
+    "ltv_cac_ratio: drugi przedział ‘dobry’ (≥8x) w obu kontekstach rozróżniono notatką ‘dobry – sprawdź …’ (etykietę zostawiono ze standardowego słownika, by nie łamać mapowania w UI).",
+    "ltv_cac_ratio (B2C): przedziały wyrównano do B2B zgodnie z metodą ‘te same progi co B2B’ – słaby 1–3 (był 1–2), normalny 3–4 (był 2–3), dobry 4–5 (był 3–5); poprzednie progi oceniały wyniki poniżej minimum 3:1 jako normalne.",
+    "ltv_cac_ratio: usunięto niepopartą tezę, że wzrost mediany do 4,1x ‘wynika głównie z cięcia kosztów, nie z poprawy retencji’ – źródło nie podaje przyczyny.",
+    "ltv_cac_ratio: caveat o rozbieżności źródeł uzupełniono o CLTV:CAC 5–20 mln i 50–100 mln USD ARR (bm2025) i brak definicji dolnego kwartyla; dodano caveat o Skoku jako heurystyce bez daty.",
+    "cac_payback_months (niskie ACV): granicę dobry/normalny przesunięto z 9 na 11 mies. (mediana CY-2025 dla ACV <5 tys. USD), normalny/słaby z 12 na 14 (heurystyka – brak P75 za 2025); optymalny ≤6 i krytyczny >18 bez zmian.",
+    "cac_payback_months: dodano caveats o niespójnym ‘≤6 mies.’ w Aleph, o podstawie nowych progów dla niskiego ACV i o Skoku jako heurystyce bez daty.",
+    "subscription_gross_margin (SaaS): granicę słaby/normalny przesunięto z 70% (heurystyka) na 72% (P25 marży subskrypcji Benchmarkit CY-2024); słaby = 50–72%.",
+    "subscription_gross_margin: dopisano kwartyle marży subskrypcji całej próby CY-2024 (72/81/86%) i caveat o niezdefiniowanym ‘Bottom quartile: 50%’ w Aleph.",
+    "rule_of_40: podpięto S100 (Benchmarkit 2026) do kontekstu firm prywatnych – potwierdza medianę 25% i górny kwartyl 43%; liczby i przedziały bez zmian (weryfikator: brak poprawek).",
+    "arpu: w interpretacji PL/EN dopisano przyczynę wzrostu ARPU USA Today wg źródła – ‘an end to heavy discounting’.",
+    "arpu (B2C): w metodzie i notatce ‘15–20 zł’ oznaczono jako opinię eksperta; PIE 2021 oznaczono jako historyczną kotwicę niewyznaczającą progów; Radio Nowy Świat poprawiono z ≈27 na ≤ ok. 26,7 zł; dopisano niejednoznaczność ceny 39 zł RP.PL.",
+    "arpu (B2B): usunięto chatham_membership z source_ids i z metody (url_ok=false, kwoty niezweryfikowane, członkostwo indywidualne, nie licencja na stanowisko); przedziały zachowują podstawę w rp_offer_2026 i wm_anatomia_2026, metoda pozostaje heurystyką, confidence już ‘niska’.",
+    "arpu: caveat MFM poprawiono na ‘35 ma rabaty dla wielu kont (plany firmowe i rodzinne)’; caveat brutto/netto rozszerzono o wymóg pokazania w UI obu wartości lub przelicznika dla LTV/CAC.",
+    "arpu: caveats DNR 2024 i DNR 2026 uzupełniono o wiek danych i nieistotność zmiany −2 pp; dodano caveats o brutto ‘od’ w kontekście B2B (usunięty Chatham) i o PIE 2021 jako historycznej kotwicy."
+  ]
+}

@@ -338,6 +338,37 @@ describe("krok 3: wysyłka", () => {
     expect(keys.some((k) => k.includes("newsletter-subscribers"))).toBe(true);
     expect(keys.some((k) => k.includes("newsletter-kpis"))).toBe(true);
   });
+
+  it("po sukcesie odświeża też leady i lejek CRM - import zakłada leady (def. 17)", async () => {
+    // Trigger `newsletter_to_lead` robi z każdego importowanego adresu lead
+    // CRM. Bez tego otwarta obok lista leadów i lejek pokazywałyby stan sprzed
+    // importu aż do `staleTime`.
+    const { queryClient } = mount();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    await uploadCsv(CSV);
+
+    fireEvent.click(importButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    const keys = spy.mock.calls.map((c) =>
+      JSON.stringify((c[0] as { queryKey: unknown }).queryKey),
+    );
+    for (const key of [["crm-leads"], ["crm-funnel"], ["crm-funnel-stats"]]) {
+      expect(keys).toContain(JSON.stringify(key));
+    }
+  });
+
+  it("AWARIA importu niczego nie unieważnia - lista się nie zmieniła", async () => {
+    h.importFn.mockRejectedValue(new Error("baza niedostępna"));
+    const { queryClient } = mount();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    await uploadCsv(CSV);
+
+    fireEvent.click(importButton());
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
 
 describe("anulowanie", () => {

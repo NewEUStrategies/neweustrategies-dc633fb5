@@ -22,8 +22,10 @@ import {
   audienceTrust,
   availableIntervals,
   distinguishingBenefits,
+  listedTiers,
   maxYearlySavingsPct,
   plansByTierKey,
+  publicOfferPlans,
   sortTiers,
   tiersForAudience,
   type BillingInterval,
@@ -56,8 +58,13 @@ export function JoinTiers({ isAuthenticated }: { isAuthenticated: boolean }) {
   const [contactOpen, setContactOpen] = useState(false);
 
   const audiences = useMemo(() => audiencesQ.data ?? [], [audiencesQ.data]);
-  const tiersAll = useMemo(() => tiersQ.data ?? [], [tiersQ.data]);
-  const plansAll = useMemo(() => plansQ.data ?? [], [plansQ.data]);
+  // Ten sam filtr oferty publicznej co /pricing (cennik v6.2): bez kart
+  // ukrytych progów i bez planów wycofanych ze sprzedaży.
+  const tiersAll = useMemo(() => listedTiers(tiersQ.data ?? []), [tiersQ.data]);
+  const plansAll = useMemo(
+    () => publicOfferPlans(plansQ.data ?? [], tiersAll),
+    [plansQ.data, tiersAll],
+  );
 
   const defaultAudienceKey = audiences[0]?.key ?? null;
   const activeKey =
@@ -210,7 +217,11 @@ export function JoinTiers({ isAuthenticated }: { isAuthenticated: boolean }) {
             </div>
           )}
 
-          {supporterTier && <SupporterStrip tier={supporterTier} lang={lang} />}
+          {/* Bez warunku na warstwę, jak na /pricing: v6.2 ukrywa próg
+              Wspierający (`pricing_visible = false`), więc `listedTiers` go
+              odfiltrowuje - warunek zabierał stronie dołączania jedyne stałe
+              wejście do darowizn. Warstwa daje wyłącznie nazwę i opis. */}
+          <SupporterStrip tier={supporterTier} lang={lang} />
         </div>
       )}
 
