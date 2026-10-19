@@ -71,8 +71,8 @@ const FIELDS = biFields();
 describe("parytet PL/EN pól Bi rejestru benchmarków", () => {
   it("zbiór pól jest pełny: 76 wpisów × pola stałe + konteksty, zastrzeżenia i noty", () => {
     expect(ALL).toHaveLength(76);
-    // Dolna granica: 5 pól stałych na wpis + 2 na każdy z 191 kontekstów.
-    expect(FIELDS.length).toBeGreaterThan(76 * 5 + 191 * 2);
+    // Dolna granica: 5 pól stałych na wpis + 2 na każdy z 193 kontekstów.
+    expect(FIELDS.length).toBeGreaterThan(76 * 5 + 193 * 2);
   });
 
   it("każde pole ma niepusty tekst PL i EN", () => {

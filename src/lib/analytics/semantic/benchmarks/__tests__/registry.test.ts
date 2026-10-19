@@ -5,7 +5,7 @@
 //
 // PO CO OSOBNO OD TESTÓW IMPORTERA. `importer.test.ts` sprawdza reguły na
 // fiksturach i trzech grupach toru T2; tu pilnujemy całości (76 wpisów,
-// 191 kontekstów, 188 wpisów źródłowych) i ZGODNOŚCI PLIKÓW W REPO z danymi:
+// 193 kontekstów, 189 wpisów źródłowych) i ZGODNOŚCI PLIKÓW W REPO z danymi:
 // ręczna poprawka liczby w wygenerowanym pliku albo zmiana nakładki bez
 // ponownego importu zapala ostatni blok (zastępuje osobny krok CI `--check`).
 //
@@ -208,7 +208,7 @@ describe("rejestr źródeł", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("188 wpisów źródłowych badaczy: każdy rozwiązany aliasem <grupa>:<id> albo jawnie odrzucony", () => {
+  it("189 wpisów źródłowych badaczy: każdy rozwiązany aliasem <grupa>:<id> albo jawnie odrzucony", () => {
     let total = 0;
     let resolved = 0;
     let dropped = 0;
@@ -228,8 +228,8 @@ describe("rejestr źródeł", () => {
       }
     }
     expect(unresolved).toEqual([]);
-    expect(total).toBe(188);
-    expect(resolved + dropped).toBe(188);
+    expect(total).toBe(189);
+    expect(resolved + dropped).toBe(189);
     expect(BENCHMARK_SOURCES.reduce((n, s) => n + s.aliases.length, 0)).toBe(resolved);
   });
 
@@ -251,9 +251,9 @@ describe("rejestr źródeł", () => {
 });
 
 describe("pasma kontekstów", () => {
-  it("191 kontekstów, 958 pasm; identyfikatory <key>.<slug> unikalne", () => {
-    expect(CONTEXTS).toHaveLength(191);
-    expect(CONTEXTS.reduce((n, c) => n + c.bands.length, 0)).toBe(958);
+  it("193 konteksty, 968 pasm; identyfikatory <key>.<slug> unikalne", () => {
+    expect(CONTEXTS).toHaveLength(193);
+    expect(CONTEXTS.reduce((n, c) => n + c.bands.length, 0)).toBe(968);
     const ids = CONTEXTS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const b of ALL) {

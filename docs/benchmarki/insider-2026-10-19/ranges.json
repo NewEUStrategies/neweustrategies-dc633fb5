@@ -1,5 +1,5 @@
 {
-  "schema": "nes-insider-ranges/1",
+  "schema": "nes-insider-ranges/2",
   "ranges": [
     {
       "id": "b-ctr-li",
@@ -221,7 +221,23 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "mql_to_sql_rate",
+        "s6Key": "mql_to_sql_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "mql_to_sql_rate.broad_mql",
+        "reason": "Ten sam kontekst (B2B, MQL → SQL). Wygrywa S6 wg (a): Insider (SyncGTM, C) nie podaje definicji MQL, a jego 13-26% to mediany First Page Sage, które S6 bierze wprost ze źródła z definicją (szeroka 10-26%, wąska 32-58%); przy równej wiarygodności (C) decyduje zgodność definicji."
+      },
+      "hubAlso": [
+        {
+          "metricId": "lead_to_mql_rate",
+          "s6Key": "lead_to_mql_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny etap lejka (MQL → SQL, nie lead → MQL); S6 lead_to_mql_rate ma własne pasma First Page Sage."
+        }
+      ]
     },
     {
       "id": "b-sqlopp",
@@ -289,7 +305,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "win_rate",
+        "s6Key": "win_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "win_rate.new_logo",
+        "reason": "Ten sam kontekst (B2B, szansa → wygrana). Wygrywa S6 wg (b): Ebsta x Pavilion 2025 (B, dane CRM) wobec SyncGTM (C); Insider nie rozdziela nowych klientów i rozszerzeń (S6: osobny kontekst expansions)."
+      }
     },
     {
       "id": "b-cycle",
@@ -315,7 +338,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "sales_cycle_length",
+        "s6Key": "sales_cycle_length",
+        "status": "zastapione_przez_s6",
+        "s6Context": "sales_cycle_length.mid_new_logo",
+        "reason": "Ten sam kontekst (B2B). Wygrywa S6 wg (a) i (b): hub liczy medianę do wygranej, Insider średnią do zamknięcia (wygrane i przegrane); Ebsta (B) wobec SyncGTM (C). Insider ma jedno pasmo bez podziału na wielkość transakcji, S6 ocenia w 4 kontekstach."
+      }
     },
     {
       "id": "b-nrr",
@@ -349,7 +379,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "net_revenue_retention",
+        "s6Key": "net_revenue_retention",
+        "status": "zastapione_przez_s6",
+        "s6Context": "net_revenue_retention.b2b_all",
+        "reason": "Ten sam kontekst (SaaS B2B). Wygrywa S6 wg (b) i (d): kwartyle Aleph×Benchmarkit CY2025, KeyBanc i SaaS Capital 2025 (A) wobec progów Insidera, z których 100% jest definicyjne, a 120% pochodzi ze źródła C [926]. Mediana 101% (SaaS Capital) leży w S6 na granicy normalny/dobry, zgodnie z konwencją kwartylową."
+      }
     },
     {
       "id": "b-churn-ent",
@@ -375,7 +412,23 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "logo_churn_monthly",
+        "s6Key": "logo_churn_monthly",
+        "status": "zastapione_przez_s6",
+        "s6Context": "logo_churn_monthly.b2b_enterprise",
+        "reason": "Ten sam kontekst (enterprise). Wygrywa S6 wg (b): przeliczenia z KeyBanc 2024 i SaaS Capital 2025 (A) wobec Stealth Agents (C); jedno pasmo 0,5-1,5%/mies. bez rozkładu. Ekwiwalent miesięczny S6 jest spięty testem z churnem rocznym."
+      },
+      "hubAlso": [
+        {
+          "metricId": "logo_churn_annual",
+          "s6Key": "logo_churn_annual",
+          "status": "zastapione_przez_s6",
+          "s6Context": "logo_churn_annual.b2b_enterprise",
+          "reason": "Przeliczenie 1 − (1 − m)^12: 0,5-1,5%/mies. = 5,84-16,59% rocznie; zostaje S6 (normalny 5-8%)."
+        }
+      ]
     },
     {
       "id": "b-churn-smb",
@@ -401,7 +454,23 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "logo_churn_monthly",
+        "s6Key": "logo_churn_monthly",
+        "status": "zastapione_przez_s6",
+        "s6Context": "logo_churn_monthly.b2b_smb",
+        "reason": "Ten sam kontekst (SaaS SMB, churn miesięczny). Wygrywa S6 wg (b): kwartyle Recurly 2026 (B), ChartMogul i Stripe wobec Stealth Agents (C); Insider ma jedno pasmo „normalny” 3-7% bez rozkładu."
+      },
+      "hubAlso": [
+        {
+          "metricId": "logo_churn_annual",
+          "s6Key": "logo_churn_annual",
+          "status": "zastapione_przez_s6",
+          "s6Context": "logo_churn_annual.b2b_smb",
+          "reason": "Przeliczenie 1 − (1 − m)^12: 3-7%/mies. = 30,62-58,14% rocznie; zostaje S6 (normalny 31-43%) z tych samych powodów co dla churnu miesięcznego."
+        }
+      ]
     },
     {
       "id": "b-ltvcac",
@@ -435,7 +504,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": true,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "ltv_cac_ratio",
+        "s6Key": "ltv_cac_ratio",
+        "status": "zastapione_przez_s6",
+        "s6Context": "ltv_cac_ratio.b2b_saas",
+        "reason": "Ten sam kontekst (SaaS). Wygrywa S6 wg (b) i (d): kwartyle Aleph×Benchmarkit (A, n = 146) i próg 3:1 wobec heurystyki MarketerHire/Stealth Agents (C). S6 traktuje ≥8× jako sygnał niedoinwestowania (pasmo zakresowe), Insider nie ma górnej granicy."
+      }
     },
     {
       "id": "b-payback",
@@ -473,7 +549,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "cac_payback_months",
+        "s6Key": "cac_payback_months",
+        "status": "zastapione_przez_s6",
+        "s6Context": "cac_payback_months.b2b_saas_all",
+        "reason": "Ten sam kontekst (SaaS). Wygrywa S6 wg (b) i (d): kwartyle Aleph×Benchmarkit 2026 (A, n = 198: 10/16/24 mies.) wobec Sales-mind.ai (C). Mediana 16 mies. [925] jest w S6 granicą dobry/normalny; progi Insidera są bliskie kontekstowi S6 b2b_low_acv."
+      }
     },
     {
       "id": "b-nps",
@@ -511,7 +594,23 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "nps",
+        "status": "zastapione_przez_s6",
+        "s6Context": "nps.cross_industry",
+        "reason": "Ten sam kontekst (ogólny). Wygrywa S6 wg (c) i (d): kwartyle SurveyMonkey 2025 i Survicate 2025 (B, z rozkładem) wobec skali bezwzględnej Qualtrics (B, bez daty); S6 już używa progów 0/20/50/80 dla dolnej połowy rozkładu."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "event_nps",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "NPS ogólny lub produktu, nie NPS wydarzenia; S6 event_nps ma własne konteksty (UFI/Explori)."
+        }
+      ]
     },
     {
       "id": "b-spam",
@@ -545,7 +644,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "email_spam_complaint_rate",
+        "s6Key": "spam_complaint_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "spam_complaint_rate.mailbox_provider",
+        "reason": "Te same progi Google 0,10% i 0,30%. Wygrywa S6 wg (b): wymagania Google i Yahoo (A) wprost zamiast omówienia OneSignal (B); S6 dzieli strefę poniżej 0,10% na normalny, dobry i optymalny (średnia Validity 0,06%)."
+      }
     },
     {
       "id": "b-lead",
@@ -579,7 +685,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "lead_response_time",
+        "s6Key": "lead_response_time",
+        "status": "zastapione_przez_s6",
+        "s6Context": "lead_response_time.high_intent_inbound",
+        "reason": "To samo badanie HBR 2011 (S6 cytuje HBR (A) i streszczenie SmartCompany). Wygrywa S6 wg (a): hub mierzy medianę minut roboczych dla leadów o wysokiej intencji, Insider pierwszą próbę kontaktu bez agregacji. Progi 1 h i 24 h zgodne; „słaby” 1-24 h to interpretacja Insidera, S6 dzieli zakres na normalny (do 8 h) i słaby (8-24 h)."
+      }
     },
     {
       "id": "b-burn",
@@ -703,7 +816,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "saas_quick_ratio",
+        "s6Key": "saas_quick_ratio",
+        "status": "zastapione_przez_s6",
+        "s6Context": "saas_quick_ratio.b2b_quarterly",
+        "reason": "To samo źródło pierwotne (ChartMogul: <2 niski, 2-4 przeciętny, ≥4 wysoki). Wygrywa S6: „przeciętny” 2-4 to w skali S6 „normalny” (Insider: „słaby”), co potwierdza kontrola KeyBanc/Sapphire 2025 (A): typowy wzrost i GRR dają QR ≈ 2,5-3. S6 ma też definicję bez reaktywacji i kontekst B2C; dane Insidera z 2015 r."
+      }
     },
     {
       "id": "b-lgf-content",
@@ -741,7 +861,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "kontekst_s6",
+        "s6Context": "signup_form_conversion_rate.linkedin_lgf_content",
+        "reason": "Nowy kontekst S6 (reguła 2): inny kanał (LinkedIn Lead Gen Forms), istotny dla NES (lead B2B → oferta, raporty do pobrania); ta sama konstrukcja co hub (wysłane / otwarcia formularza). Pasma metodą S6 z kwartyli Kiin Labs 2026 (P25 4,6, P50 10,8, P75 18,7%; krytyczny poniżej połowy P25 - heurystyka); etykiety Insidera (P50-P75 normalny) zastąpione konwencją S6 (P50-P75 dobry)."
+      }
     },
     {
       "id": "b-lgf-demo",
@@ -779,7 +906,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "kontekst_s6",
+        "s6Context": "signup_form_conversion_rate.linkedin_lgf_demo",
+        "reason": "Nowy kontekst S6 (reguła 2): inny kanał (LinkedIn Lead Gen Forms), istotny dla NES (lead B2B → oferta: prośba o demo lub kontakt handlowy); ta sama konstrukcja co hub (wysłane / otwarcia formularza). Pasma metodą S6 z kwartyli Kiin Labs 2026 (P25 1,0, P50 2,2, P75 4,2%; krytyczny poniżej połowy P25 - heurystyka); etykiety Insidera zastąpione konwencją S6."
+      }
     },
     {
       "id": "b-unsub",
@@ -817,7 +951,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "email_unsubscribe_rate",
+        "s6Key": "unsubscribe_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "unsubscribe_rate.poland_campaigns",
+        "reason": "Ten sam kontekst (kampanie, rynek ogólny, wypisy / dostarczone). Wygrywa S6 wg (b) i (d): mediany MailerLite 2025 (B, 3,6 mln kampanii; ogółem 0,22%, PL 0,17%), GetResponse i Validity wobec DeBounce (C, bez metodologii). Mediana MailerLite leży w S6 w paśmie normalnym, a w Insiderze na granicy b. dobry/normalny."
+      }
     },
     {
       "id": "b-hbounce",
@@ -851,7 +992,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "email_hard_bounce_rate",
+        "s6Key": "hard_bounce_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "hard_bounce_rate.opt_in_sends",
+        "reason": "Ten sam kontekst. Wygrywa S6 wg (a) i (b): próg 2% Spotlera dotyczy wszystkich odbić, nie twardych; S6 opiera się na AWS SES (A, <2%) i średniej Validity 1,46% (normalny 0,5-1,5%). Granice 0,5% i 2% są zgodne."
+      }
     },
     {
       "id": "b-deliv",
@@ -885,7 +1033,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "email_soft_bounce_rate",
+        "s6Key": "soft_bounce_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Dostarczalność (dostarczone / wysłane) obejmuje odbicia twarde i miękkie; S6 nie ma wpisu dostarczalności, a progów nie przenosi się na odbicia miękkie (reguła 5). Źródło C."
+      }
     },
     {
       "id": "b-cvr-ecom-pl",
@@ -923,7 +1078,23 @@
         "pattern": "e-?commerce|sklep|handel|retail",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny licznik (zamówienia w sklepie internetowym, nie rejestracje) i kontekst e-commerce spoza profilu NES (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
     },
     {
       "id": "b-pipecov",
@@ -1101,7 +1272,23 @@
         "pattern": "e-?commerce|sklep|handel|retail",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Konwersja dedykowanych stron docelowych e-commerce - inny mianownik i branża spoza profilu NES (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "pricing_page_conversion_rate",
+          "s6Key": "pricing_page_conversion_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Strona docelowa kampanii e-commerce, nie strona cennika (reguła 5)."
+        }
+      ]
     },
     {
       "id": "b-lpcvr-saas",
@@ -1139,7 +1326,23 @@
         "pattern": "saas|oprogramowan|software|aplikacj",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "pricing_page_conversion_rate",
+        "s6Key": "pricing_page_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna strona i mianownik (reguła 5): Unbounce mierzy dedykowane strony docelowe kampanii SaaS z dowolnym celem konwersji, hub - odwiedzających stronę cennika; branża SaaS spoza profilu NES. Zostaje kontekst S6 b2b_self_serve (definicja strony cennika)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "visitor_to_registration_rate",
+          "s6Key": "visitor_to_registration_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Konwersja strony docelowej lub reklamy, nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+        }
+      ]
     },
     {
       "id": "b-open-ecom",
@@ -1177,7 +1380,23 @@
         "pattern": "e-?commerce|sklep|handel|retail",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "email_open_rate",
+        "s6Key": "open_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny kontekst (kampanie sklepów e-commerce, Klaviyo) spoza profilu NES (reguła 2); źródło podaje tylko średnią i próg górnych 10%, bez kwartyli. Hub ocenia OR w kontekstach PL, wydawców, non-profit i B2B."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_open_rate",
+          "s6Key": "welcome_email_open_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
     },
     {
       "id": "b-ctr-mail-ecom",
@@ -1215,7 +1434,23 @@
         "pattern": "e-?commerce|sklep|handel|retail",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "email_ctr_delivered",
+        "s6Key": "click_through_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny kontekst (kampanie sklepów e-commerce, Klaviyo) spoza profilu NES (reguła 2); źródło podaje tylko średnią i próg górnych 10%, bez kwartyli. Hub ocenia CTR w kontekstach PL, wydawców, non-profit i B2B."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_click_rate",
+          "s6Key": "welcome_email_click_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
     },
     {
       "id": "b-activation-b2b",
@@ -1253,6 +1488,13 @@
         "pattern": "saas|oprogramowan|software|aplikacj",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
+      },
+      "hub": {
+        "metricId": null,
+        "s6Key": "activation_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "activation_rate.b2b_value_milestone",
+        "reason": "Ten sam kontekst (SaaS B2B, nowi użytkownicy). Wygrywa S6 wg (b) i (c): Userpilot 2025 (B, mediana 37,04%) i ankieta Lenny 2022 wprost wobec omówienia 365Talents (C) danych z 2022 r. Definicja aktywacji czeka na D-02."
       }
     },
     {
@@ -1447,7 +1689,23 @@
         "pattern": "saas|oprogramowan|software|aplikacj",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "dau_mau",
+        "s6Key": "dau_mau",
+        "status": "zastapione_przez_s6",
+        "s6Context": "dau_mau.b2b_portal",
+        "reason": "Ten sam kontekst (produkt cyfrowy B2B). Wygrywa S6 wg (c): Mixpanel 2026 i 2024 (B) wobec Pendo ok. 2019 r. (ważność do 2026-12-31). Granice 20% i 31% występują w obu zestawach; S6 wyznacza pasma z nowszych danych Mixpanel (B2B 31%, Technology 41%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "wau_mau",
+          "s6Key": "wau_mau",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Insider ma tylko DAU/MAU; WAU/MAU nie przelicza się z DAU/MAU jednoznacznym wzorem (reguła 5)."
+        }
+      ]
     },
     {
       "id": "b-ret3-saas",
@@ -1493,7 +1751,30 @@
         "pattern": "saas|oprogramowan|software|aplikacj",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": "cohort_retention_m3",
+        "s6Key": "cohort_retention_m3",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna definicja (reguła 5): Pendo mierzy aktywność użytkowników aplikacji SaaS po 3 miesiącach, hub - płacących subskrybentów z kohorty; dane ok. 2019 r. (ważność do 2026-12-31). Nie jest kontekstem oceny metryki płatnej (D-02)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "cohort_retention_m1",
+          "s6Key": "cohort_retention_m1",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Percentyle po 1. miesiącu w nocie - ta sama różnica definicji (aktywność, nie płatność)."
+        },
+        {
+          "metricId": "cohort_retention_m12",
+          "s6Key": "cohort_retention_m12",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Brak przedziału 12-miesięcznego; inna definicja (aktywność, nie płatność)."
+        }
+      ]
     },
     {
       "id": "b-nps-saas",
@@ -1539,7 +1820,23 @@
         "pattern": "saas|oprogramowan|software|aplikacj",
         "flags": "i",
         "matchOn": ["industry", "channel", "channels"]
-      }
+      },
+      "hub": {
+        "metricId": null,
+        "s6Key": "nps",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny kontekst (NPS kont w produktach SaaS, Pendo) spoza profilu NES (reguła 2) i nieaktualny: dane ok. 2019 r., ważność do 2026-12-31. Klientów instytucjonalnych S6 ocenia w kontekście b2b_professional."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "event_nps",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "NPS ogólny lub produktu, nie NPS wydarzenia; S6 event_nps ma własne konteksty (UFI/Explori)."
+        }
+      ]
     }
   ]
 }

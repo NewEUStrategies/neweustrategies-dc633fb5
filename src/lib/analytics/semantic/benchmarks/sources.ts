@@ -1,6 +1,6 @@
 // PLIK GENEROWANY przez scripts/benchmarks/import-benchmarks.ts - nie edytuj ręcznie.
 // Wejście: docs/benchmarki/2026-10-18/przychod.json, docs/benchmarki/2026-10-18/przychod.overlay.json, docs/benchmarki/2026-10-18/retencja.json, docs/benchmarki/2026-10-18/retencja.overlay.json, docs/benchmarki/2026-10-18/ekonomika.json, docs/benchmarki/2026-10-18/ekonomika.overlay.json, docs/benchmarki/2026-10-18/lejek.json, docs/benchmarki/2026-10-18/lejek.overlay.json, docs/benchmarki/2026-10-18/email.json, docs/benchmarki/2026-10-18/email.overlay.json, docs/benchmarki/2026-10-18/spolecznosc.json, docs/benchmarki/2026-10-18/spolecznosc.overlay.json
-// SHA-256 treści kanonicznej wejść: f40855c3676f80385251a8a4172362ed06d28919332eeba0c259395b78137ea0
+// SHA-256 treści kanonicznej wejść: 01ea9b7ae231ed07137a1b36542ed3be26b687eb6d0e986f8742150f98949ca3
 // Zmiana treści = poprawka danych albo nakładki w docs/benchmarki i ponowny import;
 // `--check` wykrywa ręczną edycję tego pliku i nieuruchomiony importer.
 //
@@ -1597,6 +1597,20 @@ export const BENCHMARK_SOURCES: readonly BenchSource[] = [
     vendor: true,
     excerpt:
       "Miesięczny raport benchmarków odbiorców dla rynku brytyjskiego (seria 2026; edycja lipcowa). Raport za formularzem; na stronie brak liczb – wartości niezweryfikowane, do pozyskania przy aktualizacji progów PHR.",
+  },
+  {
+    id: "kiin_lgf_benchmarks_2026",
+    aliases: ["lejek:kiin_lgf_benchmarks_2026"],
+    title: "LinkedIn Lead Gen Forms Benchmarks 2026",
+    publisher: "Kiin Labs (Kiin; autor: Phil Ilic)",
+    published: "2026-09-15",
+    url: "https://kiin.co/research/linkedin-lead-gen-forms-benchmarks",
+    accessed: "2026-10-18",
+    reliability: "B",
+    verification: "full",
+    vendor: true,
+    excerpt:
+      "Ukończenie formularza = wysłane / otwarcia formularza („Submissions divided by form opens”); mediana konta, konta ze 100+ otwarciami formularza; 489 kont reklamodawców, 4010 kampanii z celem generowania leadów, 8 IX 2025 – 7 IX 2026. Feed, oferta treści (173 konta): P25 4,6%, mediana 10,8%, P75 18,7%, P90 31,6%. Feed, prośba o demo (87 kont): P25 1,0%, mediana 2,2%, P75 4,2%, P90 9,5%. Reklamy w wiadomości lub rozmowie (wszystkie oferty): mediana 40,7%. Źródło przejęte z pakietu Insider marketingowy (id 1196, autor Kiin Labs, wiarygodność B, dostęp 2026-10-09); P25 i liczby kont odczytano ze strony 2026-10-19 (pakiet ich nie zawiera). Raport dostawcy narzędzia do reklam LinkedIn.",
   },
   {
     id: "src_mailerlite_2025",

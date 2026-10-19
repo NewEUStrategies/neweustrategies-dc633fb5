@@ -972,12 +972,89 @@
               "note": "top 10% Wisepops"
             }
           ]
+        },
+        {
+          "context": "LinkedIn Lead Gen Forms – formularz w feedzie z ofertą treści (raport, analiza do pobrania); ukończenie = wysłane / otwarcia formularza",
+          "period": "na kampanię (mediana kont, 8 IX 2025 – 7 IX 2026)",
+          "method": "kwartyle źródła (Kiin Labs 2026: 173 konta ze 100+ otwarciami formularza): P25 4,6%, P50 10,8%, P75 18,7%, P90 31,6%; poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny; próg krytyczny = połowa P25 (heurystyka). Kontekst dodany 2026-10-19 z pakietu Insider marketingowy (przedział b-lgf-content, źródło id 1196 w sources.json pakietu); P25 i liczbę kont odczytano ze strony źródła",
+          "source_ids": ["kiin_lgf_benchmarks_2026"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 2.3,
+              "note": "heurystyka: połowa P25 (4,6%)"
+            },
+            {
+              "label": "słaby",
+              "min": 2.3,
+              "max": 4.6,
+              "note": "poniżej P25"
+            },
+            {
+              "label": "normalny",
+              "min": 4.6,
+              "max": 10.8,
+              "note": "P25–P50 (od dolnego kwartyla do mediany)"
+            },
+            {
+              "label": "dobry",
+              "min": 10.8,
+              "max": 18.7,
+              "note": "P50–P75 (mediana kont 10,8%)"
+            },
+            {
+              "label": "optymalny",
+              "min": 18.7,
+              "max": null,
+              "note": "powyżej P75; P90 = 31,6%"
+            }
+          ]
+        },
+        {
+          "context": "LinkedIn Lead Gen Forms – formularz w feedzie z prośbą o demo lub kontakt handlowy (np. zapytanie o ofertę instytucjonalną); ukończenie = wysłane / otwarcia formularza",
+          "period": "na kampanię (mediana kont, 8 IX 2025 – 7 IX 2026)",
+          "method": "kwartyle źródła (Kiin Labs 2026: 87 kont ze 100+ otwarciami formularza): P25 1,0%, P50 2,2%, P75 4,2%, P90 9,5%; poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny; próg krytyczny = połowa P25 (heurystyka). Kontekst dodany 2026-10-19 z pakietu Insider marketingowy (przedział b-lgf-demo, źródło id 1196 w sources.json pakietu); P25 i liczbę kont odczytano ze strony źródła",
+          "source_ids": ["kiin_lgf_benchmarks_2026"],
+          "bands": [
+            {
+              "label": "krytyczny",
+              "min": null,
+              "max": 0.5,
+              "note": "heurystyka: połowa P25 (1,0%)"
+            },
+            {
+              "label": "słaby",
+              "min": 0.5,
+              "max": 1.0,
+              "note": "poniżej P25"
+            },
+            {
+              "label": "normalny",
+              "min": 1.0,
+              "max": 2.2,
+              "note": "P25–P50 (od dolnego kwartyla do mediany)"
+            },
+            {
+              "label": "dobry",
+              "min": 2.2,
+              "max": 4.2,
+              "note": "P50–P75 (mediana kont 2,2%)"
+            },
+            {
+              "label": "optymalny",
+              "min": 4.2,
+              "max": null,
+              "note": "powyżej P75; P90 = 9,5%"
+            }
+          ]
         }
       ],
       "caveats": [
         "Dane Omnisend i Wisepops pochodzą głównie z e-commerce (zachętą bywa rabat); u wydawcy zachętą jest treść, więc wyniki mogą być niższe.",
         "Omnisend 2025: popupy wyświetlane jednocześnie na desktopie i mobile 2,2%, tylko na desktopie 1,4% (na wykresie 1,3%); koło fortuny 3,5%; Wisepops: exit-intent 3,94%, wieloetapowe 5,17% vs jednoetapowe 4,62%.",
-        "Top 10% Wisepops (57,7%) obejmuje popupy otwierane kliknięciem – nie porównuj z popupami automatycznymi."
+        "Top 10% Wisepops (57,7%) obejmuje popupy otwierane kliknięciem – nie porównuj z popupami automatycznymi.",
+        "Konteksty LinkedIn Lead Gen Forms (Kiin Labs 2026) mierzą formularz w serwisie reklamowym: otwiera się po kliknięciu reklamy i jest wypełniony danymi z profilu, a mianownikiem są otwarcia formularza, nie wyświetlenia popupu w serwisie. Porównuj je tylko z danymi z LinkedIn Campaign Manager (Leady / Otwarcia formularza), osobno dla oferty treści (mediana 10,8%) i prośby o demo (mediana 2,2%). Wysokie ukończenie przy danych z profilu nie oznacza jakości leadów – czytaj je razem z konwersją lead → MQL."
       ],
       "confidence": "średnia"
     },
@@ -1585,6 +1662,15 @@
       "url": "https://www.mathereconomics.com/uk-audience-benchmarks-july-2026-report/",
       "excerpt": "Miesięczny raport benchmarków odbiorców dla rynku brytyjskiego (seria 2026; edycja lipcowa). Raport za formularzem; na stronie brak liczb – wartości niezweryfikowane, do pozyskania przy aktualizacji progów PHR.",
       "verification": "nie da się sprawdzić"
+    },
+    {
+      "id": "kiin_lgf_benchmarks_2026",
+      "title": "LinkedIn Lead Gen Forms Benchmarks 2026",
+      "publisher": "Kiin Labs (Kiin; autor: Phil Ilic)",
+      "published": "2026-09-15",
+      "url": "https://kiin.co/research/linkedin-lead-gen-forms-benchmarks",
+      "excerpt": "Ukończenie formularza = wysłane / otwarcia formularza („Submissions divided by form opens”); mediana konta, konta ze 100+ otwarciami formularza; 489 kont reklamodawców, 4010 kampanii z celem generowania leadów, 8 IX 2025 – 7 IX 2026. Feed, oferta treści (173 konta): P25 4,6%, mediana 10,8%, P75 18,7%, P90 31,6%. Feed, prośba o demo (87 kont): P25 1,0%, mediana 2,2%, P75 4,2%, P90 9,5%. Reklamy w wiadomości lub rozmowie (wszystkie oferty): mediana 40,7%. Źródło przejęte z pakietu Insider marketingowy (id 1196, autor Kiin Labs, wiarygodność B, dostęp 2026-10-09); P25 i liczby kont odczytano ze strony 2026-10-19 (pakiet ich nie zawiera). Raport dostawcy narzędzia do reklam LinkedIn.",
+      "verification": "tak"
     }
   ],
   "changelog": [
@@ -1669,6 +1755,7 @@
     "Źródło amplitude_media_2025: 13,4% opisano jako wartość najlepszych produktów medialnych, nie medianę; doprecyzowano okres i próbę.",
     "Źródło saasdash_2026: uzupełniono wartości segmentowe (self-serve, mid-market, enterprise z CTA demo, freemium).",
     "Dodano 3 nowe źródła wskazane przez weryfikatora (wszystkie za formularzem, liczby niezweryfikowane): mather_q1_2026 (Ameryka Płn., 26.05.2026), mather_de_2026_07 (Niemcy, lipiec 2026, publ. 20.08.2026), mather_uk_2026_07 (Wielka Brytania, lipiec 2026, publ. 01.09.2026); podpięte do kontekstu freemium w paywall_hit_rate.",
-    "Wszystkim 31 dotychczasowym źródłom nadano pole verification wg weryfikatora (tak: 21, częściowo: 5, nie da się sprawdzić: 5 – strony INMA z HTTP 403); żadne źródło nie miało wyniku „nie” ani martwego linku, więc żadnego nie usunięto z source_ids poza odpięciem inma_ceiling_2026 od przedziałów PHR."
+    "Wszystkim 31 dotychczasowym źródłom nadano pole verification wg weryfikatora (tak: 21, częściowo: 5, nie da się sprawdzić: 5 – strony INMA z HTTP 403); żadne źródło nie miało wyniku „nie” ani martwego linku, więc żadnego nie usunięto z source_ids poza odpięciem inma_ceiling_2026 od przedziałów PHR.",
+    "signup_form_conversion_rate: dodano 2 konteksty z pakietu Insider marketingowy (decyzja właściciela „uspójnij”, 2026-10-19; reguła 2 – inny kanał, istotny dla NES: lead B2B → oferta): linkedin_lgf_content (P25/P50/P75 = 4,6/10,8/18,7%, P90 31,6%) i linkedin_lgf_demo (1,0/2,2/4,2%, P90 9,5%) z Kiin Labs 2026 (źródło Insidera 1196, wiarygodność B). Pasma metodą kwartylową S6 (poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny), próg krytyczny = połowa P25 (heurystyka); P25 i liczby kont odczytano ze strony źródła 2026-10-19 (pakiet ich nie zawiera). Etykiety Insidera (P50–P75 normalny, P75–P90 dobry, od P90 b. dobry) zastąpiono konwencją S6. Dodano źródło kiin_lgf_benchmarks_2026 i zastrzeżenie o mianowniku (otwarcia formularza); domyślne konteksty segmentów bez zmian."
   ]
 }
