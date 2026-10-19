@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeLike } from "@/lib/admin/listFilters";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -45,7 +46,10 @@ export function PostPicker({ value, onChange, lang }: Props) {
     enabled: open && search.trim().length >= 2,
     staleTime: 30_000,
     queryFn: async () => {
-      const q = search.trim();
+      // Fraza trafia do filtra `.or()` PostgREST-a: przecinek, nawias albo
+      // `%` / `*` rozbijałyby warunek - ta sama osłona co w `PagePicker`.
+      const q = escapeLike(search.trim());
+      if (q.length < 2) return [];
       const { data } = await supabase
         .from("posts")
         .select("id, slug, title_pl, title_en")
