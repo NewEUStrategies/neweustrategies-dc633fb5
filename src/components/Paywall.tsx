@@ -95,7 +95,7 @@ export function Paywall({
   preview,
 }: Props) {
   const { t } = useTranslation();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const checkout = useServerFn(createCheckoutOrder);
   // `clientSecret` sesji Stripe - modal osadzonego checkoutu zamiast nakładki.
@@ -296,7 +296,9 @@ export function Paywall({
   const recordedHit = useRef<string | null>(null);
   useEffect(() => {
     // Czekamy na ofertę (klucz wymaganej warstwy), ale tylko raz na wpis.
-    if (!hitKey || hitTier === undefined || recordedHit.current === hitKey) return;
+    // Także na ustaloną sesję: uderzenie z rozruchu (sesja jeszcze nieznana)
+    // policzyłoby zalogowanego czytelnika jako gościa.
+    if (!hitKey || hitTier === undefined || authLoading || recordedHit.current === hitKey) return;
     recordedHit.current = hitKey;
     measure("paywall_view", {});
     if (
@@ -316,7 +318,7 @@ export function Paywall({
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hitKey, hitTier]);
+  }, [hitKey, hitTier, authLoading]);
 
   // Ścieżka powrotu po zalogowaniu (P15). Czytana PO montażu: SSR nie zna
   // `window`, a różny `href` serwera i klienta to błąd hydratacji.

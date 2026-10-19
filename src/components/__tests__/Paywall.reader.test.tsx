@@ -21,6 +21,7 @@ const TEASER = "Zajawka dla każdego czytelnika";
 
 const h = vi.hoisted(() => ({
   session: null as { user: { id: string } } | null,
+  authLoading: false,
   plans: [] as unknown[],
   tiers: [] as unknown[],
   currentTier: null as { key: string; rank: number } | null,
@@ -32,7 +33,9 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/network/fixtures")).reactI18nextStub());
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ session: h.session, loading: h.authLoading }),
+}));
 // Link z `search` w adresie - asercje czytają realny cel (`next`, `intent`).
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
@@ -152,6 +155,7 @@ function hrefOf(name: string): URL {
 
 beforeEach(() => {
   h.session = null;
+  h.authLoading = false;
   h.plans = [PLUS_M, PRO_M, LAB];
   h.tiers = TIERS;
   h.currentTier = null;
@@ -352,6 +356,21 @@ describe("Paywall czytelnika - pomiar (P18, AD-16)", () => {
     renderWall({ rule: rule({ mode: "paid" }) });
     expect((await screen.findAllByRole("link", { name: k("paywall.subscribe") })).length).toBe(2);
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("rozruch sesji: uderzenie czeka na ustaloną sesję (zalogowany nie liczy się jako gość)", async () => {
+    h.authLoading = true;
+    const view = renderWall({ rule: rule({ mode: "members" }) });
+    await screen.findByRole("heading", { name: k("paywall.membersOnly") });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(h.visitorHit).not.toHaveBeenCalled();
+    h.authLoading = false;
+    h.session = { user: { id: "u1" } };
+    view.rerender(<Paywall rule={rule({ mode: "members" })} lang="pl" fallbackText={null} />);
+    await waitFor(() =>
+      expect(h.rpc).toHaveBeenCalledWith("record_paywall_hit", expect.anything()),
+    );
+    expect(h.visitorHit).not.toHaveBeenCalled();
   });
 
   it("uderzenie liczone raz na wpis, nie przy każdym renderze", async () => {
