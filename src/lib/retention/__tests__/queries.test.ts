@@ -23,12 +23,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 const {
+  retentionFeedbackQueryOptions,
   retentionReasonsQueryOptions,
   retentionSettingsQueryOptions,
   reasonLabel,
   useRetentionSettings,
   useRetentionReasons,
 } = await import("@/lib/retention/queries");
+const { retentionKeys } = await import("@/lib/retention/keys");
 
 /** Uruchamia `queryFn` opcji tak, jak zrobiłby to react-query. */
 async function run<T>(options: { queryFn?: unknown }): Promise<T> {
@@ -241,5 +243,60 @@ describe("useRetentionReasons - odczyt katalogu powodów", () => {
       .map((q) => q.queryKey);
     expect(keys).toContainEqual(retentionReasonsQueryOptions().queryKey);
     expect(keys).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S1 (def. 13, Z-08): zakres panelu i JEDEN odczyt odpowiedzi ankiety.
+// `RetentionTab` i `/admin/monetization` miały dwie różne `queryFn` pod jednym
+// kluczem; statystyki liczyły się z `limit(100)` przed oknem 90 dni.
+// ---------------------------------------------------------------------------
+
+describe("zakres panelu (`admin`)", () => {
+  it("ustawienia i powody panelu mają klucze z fabryki `retentionKeys.admin`", () => {
+    expect(retentionSettingsQueryOptions("admin").queryKey).toEqual(retentionKeys.admin.settings());
+    expect(retentionReasonsQueryOptions("admin").queryKey).toEqual(retentionKeys.admin.reasons());
+    expect(retentionSettingsQueryOptions().queryKey).toEqual(retentionKeys.settingsPublic());
+  });
+
+  it("panel widzi WSZYSTKIE powody, także wyłączone - tam się je włącza z powrotem", async () => {
+    await run(retentionReasonsQueryOptions("admin"));
+    expect(chain.lastChain("retention_reasons")!.has("eq")).toBe(false);
+    expect(chain.lastChain("retention_reasons")!.argsOf("order")).toEqual([
+      "sort_order",
+      { ascending: true },
+    ]);
+  });
+});
+
+describe("retentionFeedbackQueryOptions - jedna queryFn odpowiedzi", () => {
+  const SINCE = "2026-07-21T00:00:00.000Z";
+
+  it("klucz pod `retentionKeys.admin.feedback()` z oknem i limitem (szyna trafia prefiksem)", () => {
+    const opts = retentionFeedbackQueryOptions({ sinceIso: SINCE, limit: 500 });
+    expect(opts.queryKey).toEqual([...retentionKeys.admin.feedback(), SINCE, 500]);
+    expect(opts.staleTime).toBe(60_000);
+  });
+
+  it("filtr powodu i okno PO STRONIE BAZY, najnowsze pierwsze, limit + 1 na wykrycie przycięcia", async () => {
+    chain.setResponse("retention_feedback", ok([{ id: "a" }, { id: "b" }]));
+    const window = await run<{ rows: unknown[]; truncated: boolean }>(
+      retentionFeedbackQueryOptions({ sinceIso: SINCE, limit: 2 }),
+    );
+    const q = chain.lastChain("retention_feedback")!;
+    expect(q.argsOf("not")).toEqual(["reason_label", "is", null]);
+    expect(q.argsOf("gte")).toEqual(["created_at", SINCE]);
+    expect(q.argsOf("order")).toEqual(["created_at", { ascending: false }]);
+    expect(q.argsOf("limit")).toEqual([3]);
+    expect(window).toEqual({ rows: [{ id: "a" }, { id: "b" }], truncated: false });
+  });
+
+  it("okno większe niż limit: `truncated`, nie cicha próbka", async () => {
+    chain.setResponse("retention_feedback", ok([{ id: "a" }, { id: "b" }, { id: "c" }]));
+    const window = await run<{ rows: unknown[]; truncated: boolean }>(
+      retentionFeedbackQueryOptions({ sinceIso: SINCE, limit: 2 }),
+    );
+    expect(window.rows).toHaveLength(2);
+    expect(window.truncated).toBe(true);
   });
 });

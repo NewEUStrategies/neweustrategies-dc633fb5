@@ -405,6 +405,31 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/routes/admin.newsletter.{overview,campaigns.index,campaigns.$id}.tsx",
     "src/routes/__tests__/{adminBilling,adminCoupons,adminNewsletter,adminPopups,adminPricingMembership,platformMonetization,platformPaywall}*.test.tsx",
     "src/lib/i18n-admin-{paywall-sync,revenue-email,pricing,membership,coupons}.ts",
+    // Integrator S1 (2026-10-19, wycinek prosto do PR #520) - pliki potrzebne
+    // do kryteriów karty, bez właściciela wśród wycinków równoległych:
+    // Z-S1-P1/def. 10: zapis i wysyłka kampanii za `requireAdminEditor`;
+    // testy przypinały `requireStaff`.
+    "src/lib/__tests__/newsletterCampaign{Crud,Send}.test.ts",
+    // Z-S1-P1/P20: `capability_key` w elemencie `benefits` - odczyt i zapis
+    // w `tiers.ts`, inaczej edytor cennika kasowałby pole przy zapisie.
+    "src/lib/billing/tiers.ts",
+    "src/lib/billing/__tests__/tiers.test.ts",
+    // D-S1-04: `NewsletterBuilder` zapisuje przez szew grup (RPC), test
+    // przypinał UPDATE pełnym wierszem; `/admin/popups` ma sekcyjny
+    // `adminPageHead` i patch jednej kolumny - test tras audytorium przypinał
+    // brak nagłówka i zapis całego wiersza.
+    "src/components/admin/newsletter/builder/__tests__/NewsletterBuilder.test.tsx",
+    "src/routes/__tests__/adminAudienceRoutes.test.tsx",
+    // Budżet `public` (SPEC §8.6): szew zapisu przeniesiony z chunku
+    // wejściowego (`useNewsletterSettings.ts`) do modułu panelu - dwaj jego
+    // konsumenci importują go teraz z `settingsQueries.ts`.
+    "src/components/admin/{auth/RegistrationFieldsSection,newsletter/builder/NewsletterBuilder}.tsx",
+    "src/components/admin/auth/__tests__/RegistrationFieldsSection.test.tsx",
+    // Test fabryk I0 importował stałą `ADMIN_COUPONS_KEY`, którą S1 usunął
+    // (jedna definicja w `couponKeys.ts`).
+    "src/lib/__tests__/hubKeyFactories.test.ts",
+    // D-S1-01: bliźniaki drizzle migracji S1 (bajt w bajt z supabase).
+    "drizzle/migrations/{0323,0324,0325,0326,0327}_*.sql",
   ],
   S2: [
     "supabase/migrations/2026102011????_*.sql",

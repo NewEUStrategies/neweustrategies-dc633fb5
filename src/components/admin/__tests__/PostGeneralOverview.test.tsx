@@ -17,7 +17,7 @@
 //      tabeli; pokazanie „publiczny" dla wpisu za paywallem byłoby błędną
 //      informacją o tym, kto widzi treść.
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, okCount, type SupabaseFromStub } from "@/test/supabaseChain";
 import { seoIssue } from "@/test/post-editor/fixtures";
@@ -314,6 +314,30 @@ describe("PostGeneralOverview - stan czytany z bazy", () => {
         _entity_id: "post-1",
       }),
     );
+  });
+
+  it("S1: kafel czyta WSPÓLNY wpis reguły - zapis w panelu „Dostęp” widać tu bez drugiego zapytania", async () => {
+    // Klucz `["content_access", "post", id]` należy do `contentAccessRuleQueryOptions`:
+    // ten sam wpis zasila panel „Dostęp", wyjątki licznika w paywallu i szynę.
+    const view = renderOverview();
+    await waitFor(() => expect(db.chainsFor("content_access")).toHaveLength(1));
+    const read = db.lastChain("content_access")!;
+    expect(String(read.argsOf("select")?.[0]).split(", ")).toContain("updated_at");
+
+    act(() => {
+      view.queryClient.setQueryData(["content_access", "post", "post-1"], {
+        mode: "paid",
+        plan_ids: ["plan-1"],
+        has_password: false,
+      });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/adminPostPanes\.general\.accessChip/).textContent).toContain(
+        "accessPaid",
+      ),
+    );
+    expect(db.chainsFor("content_access")).toHaveLength(1);
   });
 
   it("liczba rewizji jest czytana zapytaniem LICZĄCYM, bez pobierania wierszy", async () => {

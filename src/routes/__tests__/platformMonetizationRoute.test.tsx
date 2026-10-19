@@ -10,7 +10,16 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/components/ui/select", async () => await import("@/test/platform/nativeControls"));
 vi.mock("@tanstack/react-router", async (original) => ({
   ...(await original<typeof import("@tanstack/react-router")>()),
-  Link: ({ to, children }: { to: string; children: ReactNode }) => <a href={to}>{children}</a>,
+  // `search` składany do adresu - skrót retencji ma lądować na zakładce (S1).
+  Link: ({
+    to,
+    search,
+    children,
+  }: {
+    to: string;
+    search?: Record<string, string>;
+    children: ReactNode;
+  }) => <a href={search ? `${to}?${new URLSearchParams(search)}` : to}>{children}</a>,
 }));
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -75,7 +84,7 @@ describe("monetization read contract and truthful status", () => {
     expect(screen.getAllByText(lang === "pl" ? "Włączone" : "On")).toHaveLength(2);
     expect(screen.getAllByText(lang === "pl" ? "Wyłączone" : "Off")).toHaveLength(2);
     expect(screen.getByRole("option", { name: "unnamed" })).toBeTruthy();
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/admin/pricing");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/admin/pricing?tab=retention");
     expect(h.rpc).toHaveBeenCalledWith("monetization_dashboard", {
       _from: "2026-08-07T00:00:00.000Z",
       _to: "2026-09-06T23:59:59.999Z",
@@ -175,6 +184,16 @@ describe("monetization read contract and truthful status", () => {
     expect(screen.getByText("Cena")).toBeTruthy();
     expect(screen.getByText("Treść")).toBeTruthy();
     expect(screen.queryByText("Zbyt stare")).toBeNull();
+  });
+  it("S1 def. 13: reads the SAME windowed feedback query as the Pricing retention tab", async () => {
+    // Dawniej pulpit trzymał pod tym samym kluczem własne `limit(100)` bez
+    // okna i bez filtra powodu - inna odpowiedź niż w Cenniku na to samo pytanie.
+    mount();
+    await waitFor(() => expect(db.chainsFor("retention_feedback").length).toBeGreaterThan(0));
+    const read = db.chainsFor("retention_feedback")[0];
+    expect(read.argsOf("not")).toEqual(["reason_label", "is", null]);
+    expect(read.argsOf("gte")?.[0]).toBe("created_at");
+    expect(read.argsOf("limit")?.[0]).toBeGreaterThan(100);
   });
   it("shows no percentage when no retention offer was shown", async () => {
     db.setResponse(

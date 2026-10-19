@@ -17,6 +17,9 @@ import { Download, MailX, RotateCcw, Search, Trash2, Upload } from "lucide-react
 import { useTranslation } from "react-i18next";
 import { formatNumber } from "@/lib/i18n/format";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
+import { newsletterKeys } from "@/lib/newsletter/keys";
+import { invalidateAudienceQueries } from "@/lib/newsletter/settingsQueries";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { ImportCsvDialog } from "./subscribers/ImportCsvDialog";
 import { SubscriberDetailDialog } from "./subscribers/SubscriberDetailDialog";
 import {
@@ -35,6 +38,7 @@ type SubRow = SubscriberRow;
 
 export function SubscribersPanel() {
   const qc = useQueryClient();
+  const tenantId = useCurrentTenantId();
   const [q, setQ] = useState("");
   ensureNewsletterAdminI18n();
   const { t, i18n } = useTranslation();
@@ -44,7 +48,7 @@ export function SubscribersPanel() {
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data: subs, isLoading } = useQuery({
-    queryKey: ["newsletter-subscribers"],
+    queryKey: newsletterKeys.subscribersAll(),
     queryFn: async (): Promise<SubRow[]> => {
       const { data, error } = await supabase
         .from("newsletter_subscribers")
@@ -91,8 +95,9 @@ export function SubscribersPanel() {
         ? t("adminNewsletter.subscribers.unsubscribed")
         : t("adminNewsletter.subscribers.resubscribed"),
     );
-    qc.invalidateQueries({ queryKey: ["newsletter-subscribers"] });
-    qc.invalidateQueries({ queryKey: ["newsletter-kpis"] });
+    // Subskrybent i lead CRM to ta sama osoba (def. 17): wypis albo powrót
+    // zmienia też listę leadów i lejek CRM, nie tylko tabelę newslettera.
+    void invalidateAudienceQueries(qc, tenantId);
   };
 
   const remove = async (id: string) => {
@@ -110,8 +115,7 @@ export function SubscribersPanel() {
       return;
     }
     toast.success(t("adminNewsletter.subscribers.deleted"));
-    qc.invalidateQueries({ queryKey: ["newsletter-subscribers"] });
-    qc.invalidateQueries({ queryKey: ["newsletter-kpis"] });
+    void invalidateAudienceQueries(qc, tenantId);
   };
 
   return (

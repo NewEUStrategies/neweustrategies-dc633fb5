@@ -32,6 +32,8 @@ import { UploadArea } from "@/components/ui/upload-area";
 import "@/lib/i18n-upload-area";
 
 import { importNewsletterSubscribers } from "@/lib/newsletter-admin.functions";
+import { invalidateAudienceQueries } from "@/lib/newsletter/settingsQueries";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { parseCsv } from "@/lib/csv/parseCsv";
 import {
   autoMapHeader,
@@ -77,6 +79,7 @@ export function ImportCsvDialog({
   const [mapping, setMapping] = useState<FieldKey[]>([]);
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
+  const tenantId = useCurrentTenantId();
   const importFn = useServerFn(importNewsletterSubscribers);
 
   const parsed = useMemo(() => (csvText ? parseCsv(csvText) : null), [csvText]);
@@ -112,8 +115,9 @@ export function ImportCsvDialog({
         toast.warning(`Bledy: ${res.errors.length} - sprawdz konsole`);
         console.warn("[nl import] errors", res.errors);
       }
-      qc.invalidateQueries({ queryKey: ["newsletter-subscribers"] });
-      qc.invalidateQueries({ queryKey: ["newsletter-kpis"] });
+      // Import zakłada też leady CRM (trigger `newsletter_to_lead`) - odświeżamy
+      // cały krąg odbiorców (def. 17), nie tylko tabelę newslettera.
+      void invalidateAudienceQueries(qc, tenantId);
       reset();
       onOpenChange(false);
     } catch (err) {

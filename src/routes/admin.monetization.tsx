@@ -16,6 +16,7 @@ import {
   LogIn,
   HeartHandshake,
 } from "lucide-react";
+import { retentionFeedbackWindowQueryOptions } from "@/components/admin/pricing/retentionFeedbackWindow";
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
 import { Button } from "@/components/ui/button";
@@ -295,6 +296,13 @@ function AdminMonetizationPage() {
 // ---------------------------------------------------------------------------
 // Retencja odchodzących: skrót z retention_feedback (90 dni) - odpowiedzi,
 // przyjęte kontrofertki i najczęstsze powody; konfiguracja w /admin/pricing.
+//
+// JEDNA `queryFn` (S1 def. 13). Pulpit trzymał pod kluczem
+// `["admin","retention-feedback"]` własne zapytanie (`limit(100)` bez okna),
+// a zakładka Retencja w Cenniku - inne pod tym samym kluczem: kto pierwszy
+// wypełnił cache, ten decydował, co widzi drugi ekran. Teraz oba czytają ten
+// sam wpis (`retentionFeedbackWindowQueryOptions`: okno 90 dni i „tylko
+// odpowiedzi z powodem" po stronie bazy).
 // ---------------------------------------------------------------------------
 type RetentionFeedbackRow = Database["public"]["Tables"]["retention_feedback"]["Row"];
 
@@ -303,25 +311,14 @@ function RetentionSummarySection() {
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
-  const feedbackQ = useQuery({
-    queryKey: ["admin", "retention-feedback"],
-    queryFn: async (): Promise<RetentionFeedbackRow[]> => {
-      const { data, error } = await supabase
-        .from("retention_feedback")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const feedbackQ = useQuery(retentionFeedbackWindowQueryOptions());
 
   const stats = useMemo(() => {
     const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
     // Wyłącznie odpowiedzi z powodem - ta sama reguła co `retentionStats`:
     // wiersz przepływu anulowania bez powodu (`started`/`abandoned`, S2) to
     // ani odpowiedź ankiety, ani odejście, więc nie wchodzi do żadnej liczby.
-    const recent = (feedbackQ.data ?? []).filter(
+    const recent = (feedbackQ.data?.rows ?? []).filter(
       (row): row is RetentionFeedbackRow & { reason_label: string } =>
         row.reason_label !== null && new Date(row.created_at).getTime() >= cutoff,
     );
@@ -349,7 +346,11 @@ function RetentionSummarySection() {
             {L("Retencja odchodzących (90 dni)", "Churn retention (90 days)")}
           </span>
           <Button asChild size="sm" variant="outline" className="h-7">
-            <Link to="/admin/pricing">{L("Konfiguruj w Cenniku", "Configure in Pricing")}</Link>
+            {/* Prosto na zakładkę Retencja (S1, `?tab=` w URL) - bez parametru
+                skrót lądował na zakładce domyślnej (segmenty) cennika. */}
+            <Link to="/admin/pricing" search={{ tab: "retention" }}>
+              {L("Konfiguruj w Cenniku", "Configure in Pricing")}
+            </Link>
           </Button>
         </CardTitle>
       </CardHeader>

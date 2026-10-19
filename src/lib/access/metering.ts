@@ -16,10 +16,14 @@
 //     konsumpcji) jako jedno źródło "zostało N" dla warstwy treści; każda
 //     konsumpcja zasiewa ten sam cache, więc licznik nigdy nie pokazuje
 //     nieaktualnych wartości z zamrożonego stanu per artykuł.
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { EMPTY_BODY, hasRenderableBody, type BodyParts } from "@/lib/access/gating";
+// Liście bez importów runtime - bezpieczne dla bundla `public` (ten moduł
+// jedzie do czytelnika przez `routes/$.tsx`; żadnego modułu panelu tutaj).
+import { meteringKeys } from "@/lib/access/keys";
+import { METERING_DEFAULTS } from "@/lib/access/meteringDefaults";
 // Gość: tożsamość i najemcę rozstrzyga serwer (cookie HttpOnly z HMAC-iem) -
 // przeglądarka nie zna nawet identyfikatora, więc nie ma czego podmienić.
 import {
@@ -39,14 +43,24 @@ export interface MeteringSettings {
   show_counter: boolean;
 }
 
-export const DEFAULT_METERING_SETTINGS: MeteringSettings = {
-  enabled: true,
-  member_monthly_limit: 5,
-  anon_monthly_limit: 0,
-  meter_paid: true,
-  meter_members: true,
-  show_counter: true,
-};
+/**
+ * Wiersz ustawień z tokenem współbieżności. `updated_at` to SUROWY napis
+ * z PostgREST (mikrosekundy) - edytor paywalla zapisuje z nim przez CAS,
+ * czytelnik go ignoruje.
+ */
+export interface MeteringSettingsRow extends MeteringSettings {
+  updated_at: string;
+}
+
+/**
+ * Domyślna konfiguracja = `METERING_DEFAULTS` (kontrakt TS ⇄ SQL
+ * `metering_defaults()`, I0). Do S1 stała miała tu własną kopię, a formularz
+ * paywalla podstawiał ją przy BRAKU wiersza - admin widział „włączony, 5
+ * artykułów", podczas gdy serwer bez wiersza meteringu nie liczy wcale
+ * (def. 14). Dziś to jedna wartość, a „brak wiersza" pokazuje UI jako stan
+ * serwera (`MeteringServerState` w `meteringQueries.ts`).
+ */
+export const DEFAULT_METERING_SETTINGS: Readonly<MeteringSettings> = METERING_DEFAULTS;
 
 /** Stan licznika zwracany przez consume_metered_view / metering_state. */
 export interface MeterState {
@@ -328,24 +342,40 @@ export function useMeterQuota(enabled: boolean = true): UseQueryResult<MeterQuot
   });
 }
 
-export async function fetchMeteringSettings(): Promise<MeteringSettings | null> {
+/**
+ * Wiersz ustawień najemcy albo `null` (najemca nigdy nie zapisał ustawień -
+ * serwer traktuje to jak metering WYŁĄCZONY). `updated_at` jedzie razem
+ * z kolumnami, bo ten sam wpis cache czyta edytor paywalla: jeden klucz
+ * = jedna `queryFn` = jeden kształt danych.
+ */
+export async function fetchMeteringSettings(): Promise<MeteringSettingsRow | null> {
   const { data, error } = await supabase
     .from("metering_settings")
     .select(
-      "enabled, member_monthly_limit, anon_monthly_limit, meter_paid, meter_members, show_counter",
+      "enabled, member_monthly_limit, anon_monthly_limit, meter_paid, meter_members, show_counter, updated_at",
     )
     .maybeSingle();
   if (error) throw error;
-  return (data as MeteringSettings | null) ?? null;
+  return data ?? null;
+}
+
+/**
+ * Konfiguracja meteringu pod kluczem z fabryki `meteringKeys.settings()` -
+ * tym samym, który unieważnia reguła szyny `metering_settings.changed.v1`
+ * i mutator panelu (`useSaveMeteringSettings`). Czytelnik i panel dzielą
+ * wpis cache, więc zapis w panelu widać na stronie bez drugiego zapytania.
+ */
+export function meteringSettingsQueryOptions() {
+  return queryOptions({
+    queryKey: meteringKeys.settings(),
+    queryFn: fetchMeteringSettings,
+    staleTime: 5 * 60_000,
+  });
 }
 
 /** Konfiguracja meteringu (publiczna, singleton per tenant). */
 export function useMeteringSettings(): UseQueryResult<MeteringSettings | null> {
-  return useQuery({
-    queryKey: ["metering-settings"] as const,
-    queryFn: fetchMeteringSettings,
-    staleTime: 5 * 60_000,
-  });
+  return useQuery(meteringSettingsQueryOptions());
 }
 
 /**

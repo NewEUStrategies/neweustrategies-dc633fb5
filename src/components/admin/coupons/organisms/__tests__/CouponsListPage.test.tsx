@@ -30,7 +30,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import type { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { analyticsCouponsKey, analyticsStatusKey } from "@/lib/analytics/queryKeys";
@@ -437,9 +437,55 @@ describe("CouponsListPage - wiersz kuponu", () => {
 
   it("kupon nalezacy do KAMPANII jest oznaczony ikona", async () => {
     // Rozroznienie ma znaczenie operacyjne: kod z kampanii masowej kasuje sie
-    // przez kampanie, a nie pojedynczo.
+    // przez kampanie, a nie pojedynczo. ZMIANA SWIADOMA (S1): nazwa dostepna
+    // ikony szla polskim literalem „kampania" niezaleznie od jezyka panelu -
+    // teraz idzie ze slownika (atrapa i18n oddaje klucz).
     await renderPage([kupon({ campaign_id: "kampania-1" })]);
-    expect(within(await wiersz("NES-B2B-10")).getByLabelText("kampania")).toBeInTheDocument();
+    expect(
+      within(await wiersz("NES-B2B-10")).getByRole("img", { name: "adminCoupons.campaignLink" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("CouponsListPage - filtr z adresu (`?code=`, S1)", () => {
+  it("kod z adresu wypelnia wyszukiwarke i zaweza liste od pierwszego renderu", async () => {
+    // Deep link z huba „Przychod i lejek" prowadzi do JEDNEGO kodu - lista
+    // nie moze najpierw pokazac wszystkich kuponow.
+    db().setResponse(
+      "b2b_coupons",
+      ok([kupon({ id: "a", code: "NES-AAA" }), kupon({ id: "b", code: "NES-BBB" })]),
+    );
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CouponsListPage code="NES-BBB" />);
+    expect(await screen.findByText("NES-BBB")).toBeInTheDocument();
+    expect(screen.queryByText("NES-AAA")).toBeNull();
+    expect(screen.getByDisplayValue("NES-BBB")).toBeInTheDocument();
+  });
+
+  it("nowy `?code=` (krok w historii) ustawia filtr od nowa", async () => {
+    db().setResponse(
+      "b2b_coupons",
+      ok([kupon({ id: "a", code: "NES-AAA" }), kupon({ id: "b", code: "NES-BBB" })]),
+    );
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    const { rerender, queryClient } = renderWithQueryClient(<CouponsListPage code="NES-BBB" />);
+    await screen.findByText("NES-BBB");
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <CouponsListPage code="NES-AAA" />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("NES-AAA")).toBeInTheDocument();
+    expect(screen.queryByText("NES-BBB")).toBeNull();
+  });
+
+  it("katalogi formularza leza pod kluczami z fabryki `couponKeys` (bez literalow)", async () => {
+    await renderPage([]);
+    // `tiers` to ten sam wpis cache co w kampaniach (`couponTiersQueryOptions`).
+    await waitFor(() => expect(db().chainsFor("membership_tiers").length).toBe(1));
+    expect(db().lastChain("membership_tiers")?.argsOf("eq")).toEqual(["active", true]);
   });
 });
 

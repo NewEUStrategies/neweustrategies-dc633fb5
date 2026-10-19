@@ -1,15 +1,22 @@
-// Molekuła: edytor JEDNEJ warstwy członkostwa.
+// Molekuła: edytor RDZENIA jednej warstwy członkostwa.
 //
 // Zawartość jest rozbita na TRZY zakładki, żeby edycja mieściła się na jednym
 // ekranie i nie wymuszała przewijania całego panelu:
-//   Podstawy    nazwy i opisy PL/EN, ranga, status,
-//   Benefity    lista punktów pokazywanych w cenniku (z podglądem),
+//   Podstawy    nazwy i opisy (do odczytu), ranga, status,
+//   Benefity    lista punktów pokazywanych w cenniku (do odczytu),
 //   Bramki      przełączniki uprawnień, limity liczbowe, surowy JSON.
+//
+// MARKETING TYLKO DO ODCZYTU (S1 def. 11). Nazwy, opisy i benefity to obietnica
+// na stronie cennika - ich jedynym pisarzem jest `/admin/pricing?tab=tiers`
+// (`TIER_MARKETING_COLUMNS`). Ten panel zapisywał je dawniej przy każdej zmianie
+// rangi, więc benefit poprawiony w Cenniku wracał do starej wersji po zapisie
+// bramek w drugiej karcie. Teraz karta pokazuje je z `LinkedSourceHeader`
+// prowadzącym do Cennika, a zapis niesie wyłącznie rdzeń.
 //
 // Warstwy DOMYŚLNEJ nie da się usunąć: kosz jest wyłączony, a podpowiedź mówi
 // dlaczego. Bez warstwy domyślnej nowy użytkownik nie dostałby żadnej.
 //
-// Karta nie ma własnego stanu treści - szkic i zapis wstrzykuje zakładka, więc
+// Karta nie ma własnego stanu treści - szkic i zapis wstrzykuje panel, więc
 // „niezapisane zmiany" żyją w jednym miejscu dla wszystkich warstw.
 import { useTranslation } from "react-i18next";
 import { BadgeCheck, Gift, Save, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
@@ -19,13 +26,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
+import type { TierCoreDraft } from "@/components/admin/membership/tierCoreDraft";
 import { TierCapabilitiesPanel } from "@/components/admin/membership/organisms/TierCapabilitiesPanel";
-import { TierBenefitsEditor } from "@/components/admin/pricing/TierBenefitsEditor";
-import type { TierDraft } from "@/lib/admin/membershipDrafts";
-import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
+import { LinkedSourceHeader } from "@/components/admin/settings/LinkedSource";
+import { parseTierBenefits, type MembershipTierRow } from "@/lib/billing/tiers";
+
+/** Właściciel nazw, opisów i benefitów warstwy (S1 def. 11). */
+const MARKETING_SOURCE_HREF = "/admin/pricing?tab=tiers";
 
 const TAB_TRIGGER =
   "h-9 flex-1 gap-1.5 whitespace-nowrap rounded-[6px] px-3 text-xs font-medium text-muted-foreground transition-all hover:bg-muted/60 hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm";
@@ -35,22 +44,26 @@ export function TierEditorCard({
   draft,
   saving,
   deleting,
+  canSave = true,
   onChange,
   onSave,
   onDelete,
 }: {
+  /** Wiersz bazowy - źródło pól tylko do odczytu (nazwy, opisy, benefity). */
   tier: MembershipTierRow;
-  draft: TierDraft;
+  draft: TierCoreDraft;
   saving: boolean;
   deleting: boolean;
-  onChange: (patch: Partial<TierDraft>) => void;
+  /** Szkic różni się od bazy - inaczej zapis nie ma czego wysłać. */
+  canSave?: boolean;
+  onChange: (patch: Partial<TierCoreDraft>) => void;
   onSave: () => void;
   onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const tm = (k: string, opts?: Record<string, unknown>) => t(`adminMembership.${k}`, opts);
   const set = onChange;
-  const setBenefits = (list: TierBenefit[]) => set({ benefits: list });
+  const benefits = parseTierBenefits(tier.benefits);
   return (
     <article className="flex flex-col overflow-hidden rounded-b-[6px] bg-card">
       <header className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-5 py-3">
@@ -108,48 +121,26 @@ export function TierEditorCard({
 
           <TabsContent value="basics" className="mt-3 space-y-4">
             <FieldGroupRule label={tm("groups.naming")}>
-              <div className="grid grid-cols-2 gap-2">
-                <LabeledField label={tm("fields.namePl")} className="space-y-1">
-                  {(field) => (
-                    <Input
-                      {...field}
-                      value={draft.name_pl}
-                      onChange={(e) => set({ name_pl: e.target.value })}
-                    />
-                  )}
-                </LabeledField>
-                <LabeledField label={tm("fields.nameEn")} className="space-y-1">
-                  {(field) => (
-                    <Input
-                      {...field}
-                      value={draft.name_en}
-                      onChange={(e) => set({ name_en: e.target.value })}
-                    />
-                  )}
-                </LabeledField>
-                <LabeledField label={tm("fields.descriptionPl")} className="col-span-2 space-y-1">
-                  {(field) => (
-                    <Textarea
-                      {...field}
-                      rows={4}
-                      className="min-h-[88px]"
-                      value={draft.description_pl}
-                      onChange={(e) => set({ description_pl: e.target.value })}
-                    />
-                  )}
-                </LabeledField>
-                <LabeledField label={tm("fields.descriptionEn")} className="col-span-2 space-y-1">
-                  {(field) => (
-                    <Textarea
-                      {...field}
-                      rows={4}
-                      className="min-h-[88px]"
-                      value={draft.description_en}
-                      onChange={(e) => set({ description_en: e.target.value })}
-                    />
-                  )}
-                </LabeledField>
-              </div>
+              <LinkedSourceHeader
+                sourceLabel={tm("marketingSource.label")}
+                sourceHref={MARKETING_SOURCE_HREF}
+                sourceValue={`${tier.name_pl} · ${tier.name_en}`}
+                hint={tm("marketingSource.hint")}
+              />
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <ReadOnlyField label={tm("fields.namePl")} value={tier.name_pl} />
+                <ReadOnlyField label={tm("fields.nameEn")} value={tier.name_en} />
+                <ReadOnlyField
+                  label={tm("fields.descriptionPl")}
+                  value={tier.description_pl || tm("readOnly.descriptionEmpty")}
+                  wide
+                />
+                <ReadOnlyField
+                  label={tm("fields.descriptionEn")}
+                  value={tier.description_en || tm("readOnly.descriptionEmpty")}
+                  wide
+                />
+              </dl>
             </FieldGroupRule>
 
             <FieldGroupRule label={tm("groups.status")}>
@@ -182,7 +173,27 @@ export function TierEditorCard({
 
           <TabsContent value="benefits" className="mt-3">
             <FieldGroupRule label={tm("groups.benefits")}>
-              <TierBenefitsEditor value={draft.benefits} onChange={setBenefits} />
+              <LinkedSourceHeader
+                sourceLabel={tm("marketingSource.label")}
+                sourceHref={MARKETING_SOURCE_HREF}
+                sourceValue={tm("summary.benefits", { count: benefits.length })}
+                hint={tm("marketingSource.hint")}
+              />
+              {benefits.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{tm("readOnly.benefitsEmpty")}</p>
+              ) : (
+                <ol className="space-y-1.5 text-xs">
+                  {benefits.map((benefit, index) => (
+                    <li
+                      key={`${index}-${benefit.pl}`}
+                      className="rounded-md border border-border/60 px-2.5 py-1.5"
+                    >
+                      <span className="font-medium">{benefit.pl}</span>
+                      <span className="block text-muted-foreground">{benefit.en}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </FieldGroupRule>
           </TabsContent>
 
@@ -199,12 +210,22 @@ export function TierEditorCard({
         <div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-3">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
           <p className="flex-1 text-[11px] leading-snug text-muted-foreground">{tm("saveHint")}</p>
-          <Button size="sm" disabled={saving} onClick={onSave}>
+          <Button size="sm" disabled={saving || !canSave} onClick={onSave}>
             <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {tm("save")}
           </Button>
         </div>
       </div>
     </article>
+  );
+}
+
+/** Pole tylko do odczytu - para `dt`/`dd`, żeby czytnik słyszał etykietę z wartością. */
+function ReadOnlyField({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={wide ? "col-span-2" : undefined}>
+      <dt className="text-[10px] font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-foreground">{value}</dd>
+    </div>
   );
 }

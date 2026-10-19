@@ -7,18 +7,19 @@
 // więc błąd kształtu zapytania w tej warstwie nie „psuje listy", a rozdaje albo
 // odbiera dostęp do treści płatnych. Dowodzimy:
 //
-//   1. KTO PISZE CZYM. Nadanie warstwy i dodanie miejsca idą przez RPC
-//      (`admin_grant_membership`, `org_add_seat`) - limit miejsc i rola są
-//      egzekwowane serwerowo. Odwołanie nadania i skasowanie miejsca idą
-//      zapytaniem tabelowym pod RLS. Ten podział jest przedmiotem asercji:
-//      przemycenie nadania przez INSERT z klienta ominęłoby walidację limitu.
+//   1. KTO PISZE CZYM. Nadanie i cofnięcie warstwy idą JEDNĄ ścieżką RPC
+//      (`admin_membership_grant_set` / `_revoke`, S1 def. 6 - najemca, rola,
+//      wygaszenie i audyt w SQL), dodanie miejsca przez `org_add_seat` (limit
+//      i rola serwerowo). Skasowanie miejsca idzie zapytaniem tabelowym pod
+//      RLS. Ten podział jest przedmiotem asercji: przemycenie nadania przez
+//      INSERT/UPDATE z klienta ominęłoby walidację najemcy i audyt.
 //   2. KSZTAŁT: filtry `eq`, `limit`, `order`, kolejność ogniw łańcucha.
-//   3. `?? undefined` W PARAMETRACH RPC: `null` z formularza (bezterminowo,
-//      brak noty) MUSI zniknąć z argumentów, żeby baza użyła DOMYŚLNEJ
-//      wartości parametru. Zero i pusty napis to wartości PRAWIDŁOWE i muszą
-//      przejść - stąd pełna tabela ramion.
-//   4. ODWOŁANIE NADANIA to UPDATE ze stemplem czasu, nie DELETE - ślad musi
-//      zostać. Test pilnuje ustalonej daty bazowej, nie „jakiejś” daty.
+//   3. NADANIE PO E-MAILU W OBRĘBIE NAJEMCY (D-S1-09): adres rozwiązujemy
+//      w katalogu członków (`listMembers`), dopasowanie DOKŁADNE bez wielkości
+//      liter - wyszukiwarka katalogu dopasowuje fragmentem, więc „ana@" nie
+//      może trafić w „joanna@".
+//   4. ODWOŁANIE NADANIA to RPC ze stemplem i audytem w SQL, nie DELETE -
+//      ślad musi zostać (pilnuje `membership_grants_single_path_test.sql`).
 //   5. OPTIMISTIC-LOCK ZAPISU ORGANIZACJI. Karta panelu wysyła CAŁY wiersz,
 //      więc zapis bez porównania wersji cicho cofa każdą zmianę, która weszła
 //      w międzyczasie - także tę zrobioną funkcją serwerową miejsc. Dowodzimy
@@ -71,6 +72,10 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("@/lib/auth/currentUser", () => ({
   currentUserIdFromSession: () => Promise.resolve(h.sessionUserId),
 }));
+// Katalog członków to server fn (rola admina, najemca z sesji) - atrapa oddaje
+// strony wyników wyszukiwarki, a test widzi, o co pytano.
+const listMembers = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/admin/membersDirectory.functions", () => ({ listMembers }));
 
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
 import {
@@ -81,9 +86,10 @@ import {
   fetchMembershipGrants,
   fetchOrganizationById,
   fetchOrganizations,
-  grantMembership,
+  findTenantMemberByEmail,
   removeOrgSeat,
-  revokeGrant,
+  revokeMembershipGrant,
+  setMembershipGrant,
   updateOrganization,
 } from "@/lib/admin/membership-admin";
 
@@ -154,80 +160,132 @@ describe("fetchMembershipGrants", () => {
   });
 });
 
-describe("grantMembership", () => {
-  beforeEach(() => {
-    h.rpcResults.set("admin_grant_membership", ok("grant-new"));
-  });
-
-  it("nadaje warstwę po adresie e-mail i oddaje identyfikator nadania", async () => {
+// S1 (def. 6): `grantMembership` (RPC `admin_grant_membership` - e-mail
+// szukany globalnie, bez najemcy, wygaszania i audytu) i `revokeGrant` (UPDATE
+// z klienta) USUNIĘTE - jedna ścieżka nadań to RPC z PLAN S1 §4.4.
+describe("setMembershipGrant", () => {
+  it("nadaje warstwę RPC `admin_membership_grant_set` i oddaje identyfikator nadania", async () => {
+    h.rpcResults.set("admin_membership_grant_set", ok("grant-new"));
     await expect(
-      grantMembership({
-        email: "czlonek@example.com",
+      setMembershipGrant({
+        userId: "user-1",
         tierKey: "vip",
-        months: 12,
+        expiresAt: "2027-03-15T12:00:00.000Z",
         note: "Decyzja zarządu",
       }),
     ).resolves.toBe("grant-new");
-    expect(rpcArgs("admin_grant_membership")).toEqual({
-      p_email: "czlonek@example.com",
+    expect(rpcArgs("admin_membership_grant_set")).toEqual({
+      p_user_id: "user-1",
       p_tier_key: "vip",
-      p_months: 12,
+      p_expires_at: "2027-03-15T12:00:00.000Z",
       p_note: "Decyzja zarządu",
     });
-    // Nadanie NIE MOŻE iść insertem z klienta - RPC waliduje adres i rolę.
+    // Nadanie NIE MOŻE iść zapytaniem tabelowym z klienta.
     expect(db().chains).toEqual([]);
   });
 
-  it("bezterminowo (months: null) i brak noty znikają z argumentów RPC", async () => {
-    await grantMembership({
-      email: "czlonek@example.com",
-      tierKey: "pro",
-      months: null,
-      note: null,
-    });
-    // `undefined` znaczy „użyj wartości domyślnej parametru", a `null`
-    // przesłałby bazie jawny NULL - to dwa różne zachowania funkcji.
-    expect(rpcArgs("admin_grant_membership")).toEqual({
-      p_email: "czlonek@example.com",
-      p_tier_key: "pro",
-      p_months: undefined,
-      p_note: undefined,
+  it("bezterminowo i bez noty: jawne `null` (sygnatura RPC nie ma wartości domyślnych)", async () => {
+    h.rpcResults.set("admin_membership_grant_set", ok("grant-new"));
+    await setMembershipGrant({ userId: "user-1", tierKey: "pro", expiresAt: null, note: null });
+    expect(rpcArgs("admin_membership_grant_set")).toMatchObject({
+      p_expires_at: null,
+      p_note: null,
     });
   });
 
-  it("ZERO miesięcy i PUSTA nota przechodzą (to wartości, nie braki)", async () => {
-    await grantMembership({ email: "czlonek@example.com", tierKey: "pro", months: 0, note: "" });
-    expect(rpcArgs("admin_grant_membership")).toEqual({
-      p_email: "czlonek@example.com",
-      p_tier_key: "pro",
-      p_months: 0,
-      p_note: "",
-    });
-  });
-
-  it("błąd podnosi wyjątek", async () => {
-    h.rpcResults.set("admin_grant_membership", fail("grant denied", "42501"));
+  it("błąd SQL leci z kodem maszynowym; brak identyfikatora to błąd kształtu", async () => {
+    h.rpcResults.set("admin_membership_grant_set", fail("tier_inactive", "22023"));
     await expect(
-      grantMembership({ email: "czlonek@example.com", tierKey: "pro", months: null, note: null }),
-    ).rejects.toThrow("grant denied");
+      setMembershipGrant({ userId: "user-1", tierKey: "pro", expiresAt: null, note: null }),
+    ).rejects.toMatchObject({ message: "tier_inactive", code: "22023" });
+
+    h.rpcResults.set("admin_membership_grant_set", ok(null));
+    await expect(
+      setMembershipGrant({ userId: "user-1", tierKey: "pro", expiresAt: null, note: null }),
+    ).rejects.toThrow("invalid_rpc_shape");
   });
 });
 
-describe("revokeGrant", () => {
-  it("STEMPLUJE odwołanie, a nie kasuje wiersza (ślad musi zostać)", async () => {
-    db().setResponse("membership_grants", ok(null));
-    await revokeGrant("grant-1");
-    expect(links("membership_grants")).toEqual(["update", "eq"]);
-    expect(chain("membership_grants").argsOf("update")).toEqual([
-      { revoked_at: BASE_NOW.toISOString() },
-    ]);
-    expect(chain("membership_grants").argsOf("eq")).toEqual(["id", "grant-1"]);
-    expect(chain("membership_grants").has("delete")).toBe(false);
+describe("revokeMembershipGrant", () => {
+  it("cofa RPC `admin_membership_grant_revoke` z powodem - bez zapytania tabelowego", async () => {
+    h.rpcResults.set("admin_membership_grant_revoke", ok("grant-1"));
+    await expect(revokeMembershipGrant({ grantId: "grant-1", reason: "pomyłka" })).resolves.toBe(
+      "grant-1",
+    );
+    expect(rpcArgs("admin_membership_grant_revoke")).toEqual({
+      p_grant_id: "grant-1",
+      p_reason: "pomyłka",
+    });
+    expect(db().chains).toEqual([]);
   });
 
-  it("błąd podnosi wyjątek", async () => {
-    db().setResponse("membership_grants", fail("revoke denied", "42501"));
-    await expect(revokeGrant("grant-1")).rejects.toThrow("revoke denied");
+  it("nadanie cudze albo już cofnięte: P0002 z SQL", async () => {
+    h.rpcResults.set("admin_membership_grant_revoke", fail("grant_not_found", "P0002"));
+    await expect(revokeMembershipGrant({ grantId: "grant-1", reason: null })).rejects.toMatchObject(
+      { code: "P0002" },
+    );
+  });
+});
+
+describe("findTenantMemberByEmail (D-S1-09)", () => {
+  const row = (email: string, userId: string) => ({
+    userId,
+    email,
+    displayName: null,
+    tierKey: "reader",
+  });
+
+  beforeEach(() => {
+    listMembers.mockReset();
+  });
+
+  it("dokładne dopasowanie bez wielkości liter - fragment („ana@” w „joanna@”) nie wystarcza", async () => {
+    listMembers.mockResolvedValue({
+      rows: [row("joanna@example.com", "u-joanna"), row("Ana@Example.com", "u-ana")],
+      total: 2,
+      page: 1,
+      pageSize: 25,
+    });
+    await expect(findTenantMemberByEmail("  ana@example.COM ")).resolves.toEqual({
+      userId: "u-ana",
+      email: "Ana@Example.com",
+      displayName: null,
+      tierKey: "reader",
+    });
+    expect(listMembers).toHaveBeenCalledWith({ data: { search: "ana@example.com", page: 1 } });
+  });
+
+  it("brak konta w najemcy to `null`, nie wyjątek; puste pole nie pyta katalogu", async () => {
+    listMembers.mockResolvedValue({
+      rows: [row("joanna@example.com", "u-joanna")],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+    await expect(findTenantMemberByEmail("ana@example.com")).resolves.toBeNull();
+    listMembers.mockClear();
+    await expect(findTenantMemberByEmail("   ")).resolves.toBeNull();
+    expect(listMembers).not.toHaveBeenCalled();
+  });
+
+  it("trafienie na dalszej stronie wyników jest znajdowane (bez cichego limitu strony)", async () => {
+    listMembers
+      .mockResolvedValueOnce({
+        rows: Array.from({ length: 25 }, (_, i) => row(`x${i}ana@example.com`, `u${i}`)),
+        total: 26,
+        page: 1,
+        pageSize: 25,
+      })
+      .mockResolvedValueOnce({
+        rows: [row("ana@example.com", "u-ana")],
+        total: 26,
+        page: 2,
+        pageSize: 25,
+      });
+    await expect(findTenantMemberByEmail("ana@example.com")).resolves.toMatchObject({
+      userId: "u-ana",
+    });
+    expect(listMembers).toHaveBeenCalledTimes(2);
   });
 });
 

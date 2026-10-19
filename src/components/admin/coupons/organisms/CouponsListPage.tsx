@@ -1,6 +1,11 @@
 // Organizm: cala strona listy kuponow B2B. Trasa
 // `src/routes/admin.coupons.index.tsx` jest juz cienkim opakowaniem.
-import { useMemo, useState } from "react";
+//
+// KLUCZE z fabryki `couponKeys` (S1): dawna stala `ADMIN_COUPONS_KEY` byla
+// druga kopia tego samego napisu; katalog warstw czyta wspolne
+// `couponTiersQueryOptions()` (ten sam wpis cache co kampanie).
+// `code` - filtr z adresu (`/admin/coupons?code=`, deep link z huba).
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
@@ -8,7 +13,11 @@ import { Plus, Trash2, Copy, Check, Loader2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { confirmDialog } from "@/lib/appDialogs";
-import { ADMIN_COUPONS_KEY, invalidateCouponQueries } from "@/lib/admin/couponQueries";
+import {
+  couponKeys,
+  couponTiersQueryOptions,
+  invalidateCouponQueries,
+} from "@/lib/admin/couponQueries";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +49,7 @@ export type ExtRow = B2bCouponRow & {
 // `rows` przeliczało się za każdym razem.
 const NO_ROWS: readonly ExtRow[] = [];
 
-export function CouponsListPage() {
+export function CouponsListPage({ code }: { code?: string } = {}) {
   // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
   // komentarz przy ensureI18n w lib/i18n-admin-coupons.ts.
   ensureAdminCouponsI18n();
@@ -51,13 +60,18 @@ export function CouponsListPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive" | "expired">(
     "all",
   );
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(code ?? "");
+  // Nowy `?code=` (link z huba, krok wstecz w historii) ustawia filtr od nowa;
+  // wpisywanie w pole adresu nie zmienia, więc nie ma wyścigu z operatorem.
+  useEffect(() => {
+    setSearch(code ?? "");
+  }, [code]);
   // Najemca TYLKO do unieważnienia analityki kuponów po mutacji (jej klucz
   // niesie najemcę - `invalidateCouponQueries`); sama lista jest odczytem RLS.
   const tenantId = useCurrentTenantId();
 
   const couponsQ = useQuery({
-    queryKey: ADMIN_COUPONS_KEY,
+    queryKey: couponKeys.admin(),
     queryFn: async (): Promise<ExtRow[]> => {
       const { data, error } = await supabase
         .from("b2b_coupons")
@@ -72,7 +86,7 @@ export function CouponsListPage() {
   });
 
   const plansQ = useQuery({
-    queryKey: [...ADMIN_COUPONS_KEY, "plans"],
+    queryKey: couponKeys.plans(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("access_plans")
@@ -84,18 +98,7 @@ export function CouponsListPage() {
     },
   });
 
-  const tiersQ = useQuery({
-    queryKey: [...ADMIN_COUPONS_KEY, "tiers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("membership_tiers")
-        .select("key, name_pl, name_en, active")
-        .eq("active", true)
-        .order("rank", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const tiersQ = useQuery(couponTiersQueryOptions());
 
   const toggle = useMutation({
     mutationFn: async (row: ExtRow) => {
@@ -274,7 +277,11 @@ export function CouponsListPage() {
                             <Copy className="h-3.5 w-3.5" />
                           </button>
                           {c.campaign_id && (
-                            <Link2 className="h-3.5 w-3.5 text-brand" aria-label="kampania" />
+                            <Link2
+                              className="h-3.5 w-3.5 text-brand"
+                              role="img"
+                              aria-label={t("adminCoupons.campaignLink")}
+                            />
                           )}
                         </div>
                         {c.name && <div className="text-xs text-muted-foreground">{c.name}</div>}

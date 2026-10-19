@@ -23,7 +23,27 @@
 // jest porażką i nie ma prawa wyglądać w panelu jak porażka.
 import type { RetentionFeedbackRow } from "@/lib/retention/queries";
 
-const WINDOW_DAYS = 90;
+/**
+ * Okno statystyk w dniach. Eksportowane, bo to samo okno musi trafić do
+ * ZAPYTANIA (`retentionFeedbackQueryOptions`) - statystyka liczona z odczytu
+ * węższego niż okno (dawny `limit(100)`) kłamie o skuteczności (def. 13).
+ */
+export const RETENTION_STATS_WINDOW_DAYS = 90;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Dolna granica odczytu odpowiedzi dla okna statystyk: początek doby UTC
+ * sprzed `RETENTION_STATS_WINDOW_DAYS` dni. Zaokrąglenie do doby sprawia, że
+ * granica (część klucza zapytania) jest stała przez całą dobę - bez niego
+ * każdy render dawałby nowy klucz i nowe zapytanie. Odczyt bywa przez to
+ * o kilka godzin SZERSZY niż okno; `retentionStats` i tak odcina dokładnie
+ * `now - okno`, więc wynik się nie zmienia.
+ */
+export function retentionStatsSinceIso(now: number = Date.now()): string {
+  const dayStart = Math.floor(now / DAY_MS) * DAY_MS;
+  return new Date(dayStart - RETENTION_STATS_WINDOW_DAYS * DAY_MS).toISOString();
+}
 
 export interface RetentionStats {
   /** Liczba odpowiedzi (wierszy z powodem) w oknie. */
@@ -40,7 +60,7 @@ export function retentionStats(
   feedback: RetentionFeedbackRow[],
   now: number = Date.now(),
 ): RetentionStats {
-  const cutoff = now - WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = now - RETENTION_STATS_WINDOW_DAYS * DAY_MS;
   const recent = feedback.filter(
     (row): row is RetentionFeedbackRow & { reason_label: string } =>
       row.reason_label !== null && new Date(row.created_at).getTime() >= cutoff,

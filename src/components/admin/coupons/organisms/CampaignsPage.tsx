@@ -1,38 +1,53 @@
 // Organizm: cala strona kampanii kuponowych. Trasa
 // `src/routes/admin.coupons.campaigns.tsx` jest juz cienkim opakowaniem.
-import { useState } from "react";
+//
+// P04 (S1). Dawne „Wyslij" robilo w przegladarce dwie rzeczy naraz: wstawialo
+// kampanie newslettera i od razu ustawialo kampanii kuponowej status `sent` -
+// ZANIM ktokolwiek cos wyslal, a segment (wolny tekst) serwer ignorowal, wiec
+// kody szly do calej listy. Teraz:
+//   * „Przygotuj wysylke" wola serwer (`createCouponNewsletterCampaign`), ktory
+//     zaklada SZKIC kampanii newslettera z kodem per odbiorca i podpina go;
+//     panel przenosi do edytora, gdzie widac odbiorcow i wolne kody;
+//   * „Wyslana" pochodzi WYLACZNIE ze statusu serwera (ustawia go zakonczona
+//     wysylka), a „Podpieta kampania newslettera" to osobny stan z linkiem;
+//   * archiwizacja i przywrocenie ida przez RPC `admin_coupon_campaign_set_status`
+//     z tokenem `updated_at` (status nie ma juz grantu UPDATE dla panelu).
+// Odczyty i klucze z `couponQueries.ts` (fabryki I0), bez literalow.
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
-import { Plus, Loader2, Send, Archive, Download } from "lucide-react";
+import { ensureI18n as ensurePaywallSyncI18n } from "@/lib/i18n-admin-paywall-sync";
+import { Plus, Loader2, Send, Archive, ArchiveRestore, Download, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ADMIN_COUPONS_KEY, invalidateCouponQueries } from "@/lib/admin/couponQueries";
+import {
+  couponCampaignsQueryOptions,
+  couponKeys,
+  couponTiersQueryOptions,
+  invalidateCouponQueries,
+  useSetCampaignStatus,
+  type CouponCampaignPanelStatus,
+  type CouponCampaignRow,
+} from "@/lib/admin/couponQueries";
+import { isStaleWriteError } from "@/lib/billing/planQueries";
+import { createCouponNewsletterCampaign } from "@/lib/newsletter-campaigns.functions";
+import { newsletterKeys } from "@/lib/newsletter/keys";
+import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { showSaveError } from "@/components/admin/pricing/saveErrorToast";
+import { prepareSendErrorMessage } from "../couponSendErrors";
+import { mailingListLabel } from "../mailingLists";
 import { CampaignCreateDialog } from "./CampaignCreateDialog";
 
-export interface CampaignRow {
-  id: string;
-  name: string;
-  prefix: string;
-  code_count: number;
-  generated_count: number;
-  discount_kind: "percent" | "fixed";
-  discount_percent: number | null;
-  discount_cents: number | null;
-  currency: string | null;
-  valid_until: string | null;
-  grants_tier_key: string | null;
-  grants_duration_days: number | null;
-  newsletter_segment: string | null;
-  newsletter_campaign_id: string | null;
-  status: "draft" | "generated" | "sent" | "archived";
-  created_at: string;
-}
+/** Wiersz listy kampanii (z `updated_at` - token zmiany statusu). */
+export type CampaignRow = CouponCampaignRow;
 
 // KLUCZE i18n, nie gotowe napisy - ten sam wzorzec, co `AD_POSITION_LABEL_KEYS`
 // w module reklam. Typ `Record<CampaignRow["status"], string>` wymusza
@@ -44,44 +59,40 @@ const CAMPAIGN_STATUS_LABEL_KEYS: Record<CampaignRow["status"], string> = {
   archived: "adminCoupons.campaignStatus.archived",
 };
 
-export function CampaignsPage() {
+export function CampaignsPage({ highlightId }: { highlightId?: string } = {}) {
   // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
-  // komentarz przy ensureI18n w lib/i18n-admin-coupons.ts.
+  // komentarz przy ensureI18n w lib/i18n-admin-coupons.ts. Komunikat konfliktu
+  // zapisu (`adminPaywall.sync.*`) jest wspólny dla edytorów S1.
   ensureAdminCouponsI18n();
-  const { t } = useTranslation();
+  ensurePaywallSyncI18n();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language === "en" ? "en" : "pl";
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   // Najemca do unieważnienia analityki kuponów po hurtowym wygenerowaniu kodów
   // (`invalidateCouponQueries`) - nowe kody od razu stają w jej rankingu.
   const tenantId = useCurrentTenantId();
 
-  const campaignsQ = useQuery({
-    queryKey: ["admin", "b2b-coupon-campaigns"],
-    queryFn: async (): Promise<CampaignRow[]> => {
-      const { data, error } = await supabase
-        .from("b2b_coupon_campaigns")
-        .select(
-          "id, name, prefix, code_count, generated_count, discount_kind, discount_percent, discount_cents, currency, valid_until, grants_tier_key, grants_duration_days, newsletter_segment, newsletter_campaign_id, status, created_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as CampaignRow[];
-    },
-  });
+  const campaignsQ = useQuery(couponCampaignsQueryOptions());
+  const tiersQ = useQuery(couponTiersQueryOptions());
+  // Etykiety segmentów = listy mailingowe z ustawień newslettera.
+  const settingsQ = useNewsletterSettings();
+  const lists = settingsQ.data?.popup_mailing_lists;
+  const setStatus = useSetCampaignStatus();
+  const prepare = useServerFn(createCouponNewsletterCampaign);
 
-  const tiersQ = useQuery({
-    queryKey: [...ADMIN_COUPONS_KEY, "tiers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("membership_tiers")
-        .select("key, name_pl, name_en")
-        .eq("active", true)
-        .order("rank", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  // `?id=` z adresu (hub, edytor kampanii newslettera): wiersz przewinięty do
+  // widoku i wyróżniony. Raz na wskazanie - odświeżenie listy nie szarpie
+  // ekranem, gdy operator już przewinął gdzie indziej.
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
+  const scrolledTo = useRef<string | null>(null);
+  const rows = campaignsQ.data;
+  useEffect(() => {
+    if (!highlightId || scrolledTo.current === highlightId || !highlightRef.current) return;
+    scrolledTo.current = highlightId;
+    highlightRef.current.scrollIntoView?.({ block: "center" });
+  }, [highlightId, rows]);
 
   const generate = useMutation({
     mutationFn: async (id: string) => {
@@ -95,24 +106,38 @@ export function CampaignsPage() {
       // Liczebnik przez `count`, nie przez szew z literału: polski ma trzy
       // formy (1 kod / 2 kody / 5 kodów), których „${n} kodów" nie odda.
       toast.success(t("adminCoupons.codesGenerated", { count: n }));
-      void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] });
-      // Wygenerowane kody to nowe kupony: lista i analityka kuponów najemcy.
+      // Wygenerowane kody to nowe kupony: lista, kampanie (licznik kodów)
+      // i analityka kuponów najemcy.
       void invalidateCouponQueries(qc, tenantId);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const archive = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("b2b_coupon_campaigns")
-        .update({ status: "archived" })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const changeStatus = (c: CampaignRow, status: CouponCampaignPanelStatus) =>
+    setStatus.mutate(
+      { campaignId: c.id, status, expectedUpdatedAt: c.updated_at },
+      {
+        onSuccess: () =>
+          toast.success(
+            t(
+              status === "archived"
+                ? "adminCoupons.campaignsFlow.archived"
+                : "adminCoupons.campaignsFlow.restored",
+            ),
+          ),
+        onError: (e: Error) => {
+          // Ktoś zmienił kampanię w międzyczasie (token `updated_at`) - lista
+          // pokazuje stan sprzed tej zmiany, więc „Wczytaj aktualne" ją odświeża.
+          if (isStaleWriteError(e)) {
+            showSaveError(e, t, () => {
+              void qc.invalidateQueries({ queryKey: couponKeys.campaigns() });
+            });
+            return;
+          }
+          toast.error(e.message);
+        },
+      },
+    );
 
   const exportCodes = async (campaignId: string, campaignName: string) => {
     const { data, error } = await supabase
@@ -125,9 +150,9 @@ export function CampaignsPage() {
       toast.error(error.message);
       return;
     }
-    const rows = data ?? [];
+    const codes = data ?? [];
     const header = "code;name;active;valid_until;max_redemptions;redemptions_count";
-    const body = rows
+    const body = codes
       .map(
         (r) =>
           `${r.code};${r.name ?? ""};${r.active};${r.valid_until ?? ""};${
@@ -145,48 +170,32 @@ export function CampaignsPage() {
     toast.success(t("adminCoupons.csvExported"));
   };
 
-  const sendNewsletter = useMutation({
-    mutationFn: async (campaign: CampaignRow) => {
-      // Utwórz kampanię newslettera przypiętą do segmentu.
-      // Kody przekażemy przez merge tag {{coupon_code}} - subscriber gets a unique code.
-      const { data: nl, error } = await supabase
-        .from("newsletter_campaigns")
-        .insert({
-          name: `Kupony: ${campaign.name}`,
-          subject_pl: `Twój kod rabatowy - ${campaign.name}`,
-          subject_en: `Your discount code - ${campaign.name}`,
-          html_pl: `<p>Twój kod: <strong>{{coupon_code}}</strong></p><p>Ważny do: ${
-            campaign.valid_until ?? "bezterminowo"
-          }.</p>`,
-          html_en: `<p>Your code: <strong>{{coupon_code}}</strong></p><p>Valid until: ${
-            campaign.valid_until ?? "unlimited"
-          }.</p>`,
-          audience_filter: campaign.newsletter_segment
-            ? { segment: campaign.newsletter_segment }
-            : {},
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      if (!nl) throw new Error("Newsletter campaign not created");
-      // Odmowa TEGO zapisu przechodzila wczesniej bez sladu: kampania
-      // newslettera juz istniala, a kampania kuponowa zostawala w stanie
-      // „generated" bez `newsletter_campaign_id`. Panel pokazywal wiec dalej
-      // przycisk „Wyslij" pod komunikatem o sukcesie - i drugie klikniecie
-      // wysylalo DRUGI mail z kodem do tych samych odbiorcow.
-      const { error: linkError } = await supabase
-        .from("b2b_coupon_campaigns")
-        .update({ newsletter_campaign_id: nl.id, status: "sent" })
-        .eq("id", campaign.id);
-      if (linkError) throw linkError;
-      return nl.id;
+  // SZKIC kampanii newslettera zakłada i podpina SERWER (idempotentnie - druga
+  // karta dostaje ten sam szkic); status `sent` ustawi dopiero wysyłka.
+  const prepareSend = useMutation({
+    mutationFn: (campaign: CampaignRow) => prepare({ data: { couponCampaignId: campaign.id } }),
+    onSuccess: async ({ newsletterCampaignId }) => {
+      toast.success(t("adminCoupons.campaignsFlow.prepared"));
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: couponKeys.campaigns() }),
+        qc.invalidateQueries({ queryKey: newsletterKeys.campaignsAll() }),
+      ]);
+      void navigate({
+        to: "/admin/newsletter/campaigns/$id",
+        params: { id: newsletterCampaignId },
+      });
     },
-    onSuccess: () => {
-      toast.success(t("adminCoupons.newsletterCampaignCreated"));
-      void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(prepareSendErrorMessage(e.message, t) ?? e.message),
   });
+
+  /** Segment kampanii: nazwa listy, „cała lista" albo jawnie nieznana lista. */
+  const segmentText = (segment: string | null): string => {
+    if (!segment) return t("adminCoupons.segmentField.wholeList");
+    const label = mailingListLabel(segment, lists, lang);
+    if (label) return label;
+    // Dopóki ustawienia nie doszły, pokazujemy identyfikator - nie „nieznaną".
+    return settingsQ.data ? t("adminCoupons.segmentField.unknown", { id: segment }) : segment;
+  };
 
   return (
     <div className="space-y-6">
@@ -205,7 +214,7 @@ export function CampaignsPage() {
             tiers={tiersQ.data ?? []}
             onCreated={() => {
               setOpen(false);
-              void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] });
+              void invalidateCouponQueries(qc, tenantId);
             }}
           />
         </Dialog>
@@ -249,58 +258,81 @@ export function CampaignsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(campaignsQ.data ?? []).map((c) => (
-                    <tr key={c.id} className="border-b border-border/40">
-                      <td className="py-3 pr-3">
-                        <div className="font-medium">{c.name}</div>
-                        {c.prefix && (
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {c.prefix}***
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.discount_kind === "percent"
-                          ? `${c.discount_percent}%`
-                          : `${((c.discount_cents ?? 0) / 100).toFixed(2)} ${c.currency ?? ""}`}
-                      </td>
-                      <td className="py-3 pr-3">
-                        {c.generated_count} / {c.code_count}
-                      </td>
-                      <td className="py-3 pr-3 text-xs">
-                        {c.grants_tier_key ? (
-                          <Badge variant="outline">
-                            {c.grants_tier_key}
-                            {/* Trójnik, nie `&&`: przy 0 dni `&&` renderował literał „0". */}
-                            {c.grants_duration_days ? ` · ${c.grants_duration_days}d` : null}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 pr-3 text-xs">
-                        {c.newsletter_segment ?? <span className="text-muted-foreground">-</span>}
-                      </td>
-                      <td className="py-3 pr-3">
-                        <Badge variant={c.status === "sent" ? "default" : "secondary"}>
-                          {t(CAMPAIGN_STATUS_LABEL_KEYS[c.status])}
-                        </Badge>
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="inline-flex items-center gap-1 flex-wrap justify-end">
-                          {c.status === "draft" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 rounded-[6px]"
-                              onClick={() => generate.mutate(c.id)}
-                              disabled={generate.isPending}
-                            >
-                              {t("adminCoupons.generate")}
-                            </Button>
+                  {(campaignsQ.data ?? []).map((c) => {
+                    const highlighted = c.id === highlightId;
+                    const linkedId = c.newsletter_campaign_id;
+                    return (
+                      <tr
+                        key={c.id}
+                        ref={highlighted ? highlightRef : undefined}
+                        aria-current={highlighted ? "true" : undefined}
+                        className={
+                          highlighted
+                            ? "border-b border-border/40 bg-primary/5"
+                            : "border-b border-border/40"
+                        }
+                      >
+                        <td className="py-3 pr-3">
+                          <div className="font-medium">{c.name}</div>
+                          {c.prefix && (
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {c.prefix}***
+                            </div>
                           )}
-                          {c.status === "generated" && (
-                            <>
+                          {highlighted && (
+                            <span className="sr-only">
+                              {t("adminCoupons.campaignsFlow.highlighted")}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-3">
+                          {c.discount_kind === "percent"
+                            ? `${c.discount_percent}%`
+                            : `${((c.discount_cents ?? 0) / 100).toFixed(2)} ${c.currency ?? ""}`}
+                        </td>
+                        <td className="py-3 pr-3">
+                          {c.generated_count} / {c.code_count}
+                        </td>
+                        <td className="py-3 pr-3 text-xs">
+                          {c.grants_tier_key ? (
+                            <Badge variant="outline">
+                              {c.grants_tier_key}
+                              {/* Trójnik, nie `&&`: przy 0 dni `&&` renderował literał „0". */}
+                              {c.grants_duration_days ? ` · ${c.grants_duration_days}d` : null}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 text-xs">{segmentText(c.newsletter_segment)}</td>
+                        <td className="py-3 pr-3">
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge variant={c.status === "sent" ? "default" : "secondary"}>
+                              {t(CAMPAIGN_STATUS_LABEL_KEYS[c.status])}
+                            </Badge>
+                            {/* Podpięcie to NIE wysyłka - osobny stan, dopóki
+                                serwer nie ustawi `sent` po zakończonej wysyłce. */}
+                            {linkedId && c.status === "generated" && (
+                              <Badge variant="outline">
+                                {t("adminCoupons.campaignsFlow.linked")}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 text-right">
+                          <div className="inline-flex items-center gap-1 flex-wrap justify-end">
+                            {c.status === "draft" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 rounded-[6px]"
+                                onClick={() => generate.mutate(c.id)}
+                                disabled={generate.isPending}
+                              >
+                                {t("adminCoupons.generate")}
+                              </Button>
+                            )}
+                            {c.status === "generated" && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -310,32 +342,68 @@ export function CampaignsPage() {
                                 <Download className="h-3.5 w-3.5 mr-1" />
                                 CSV
                               </Button>
+                            )}
+                            {c.status === "generated" && !linkedId && (
                               <Button
                                 size="sm"
                                 className="h-8 rounded-[6px]"
-                                onClick={() => sendNewsletter.mutate(c)}
-                                disabled={sendNewsletter.isPending}
+                                onClick={() => prepareSend.mutate(c)}
+                                disabled={prepareSend.isPending}
+                                title={t("adminCoupons.campaignsFlow.prepareSendHint")}
                               >
                                 <Send className="h-3.5 w-3.5 mr-1" />
-                                {t("adminCoupons.send")}
+                                {t("adminCoupons.campaignsFlow.prepareSend")}
                               </Button>
-                            </>
-                          )}
-                          {c.status !== "archived" && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={() => archive.mutate(c.id)}
-                              aria-label={t("adminCoupons.archiveAction")}
-                            >
-                              <Archive className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            )}
+                            {linkedId && c.status !== "archived" && (
+                              <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="h-8 rounded-[6px]"
+                              >
+                                <Link
+                                  to="/admin/newsletter/campaigns/$id"
+                                  params={{ id: linkedId }}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                                  {t("adminCoupons.campaignsFlow.openNewsletter")}
+                                </Link>
+                              </Button>
+                            )}
+                            {c.status !== "archived" ? (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => changeStatus(c, "archived")}
+                                disabled={setStatus.isPending}
+                                aria-label={t("adminCoupons.archiveAction")}
+                              >
+                                <Archive className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : (
+                              // Przejście `archived -> generated|draft` dopuszcza RPC
+                              // (wg liczby wygenerowanych kodów) - archiwizacja
+                              // przestała być jednokierunkowa.
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() =>
+                                  changeStatus(c, c.generated_count > 0 ? "generated" : "draft")
+                                }
+                                disabled={setStatus.isPending}
+                                aria-label={t("adminCoupons.campaignsFlow.restoreAction")}
+                              >
+                                <ArchiveRestore className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

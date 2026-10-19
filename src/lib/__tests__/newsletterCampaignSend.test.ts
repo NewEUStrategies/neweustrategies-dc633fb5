@@ -167,8 +167,10 @@ afterEach(() => {
 });
 
 describe("obudowa i bramki przed wysyłką", () => {
-  it("wysyłka jest za rolą redakcyjną i metodą POST", () => {
-    expect(serverFnMeta(sendCampaign)?.middleware).toEqual([{ __mw: "requireStaff" }]);
+  it("wysyłka jest za rolą admina/editora i metodą POST", () => {
+    // def. 10 (hub S1): autor NIE wysyła kampanii - wysyłka idzie klientem
+    // serwisowym, więc bramka roli musi stać przed handlerem.
+    expect(serverFnMeta(sendCampaign)?.middleware).toEqual([{ __mw: "requireAdminEditor" }]);
     expect(serverFnMeta(sendCampaign)?.method).toBe("POST");
   });
 

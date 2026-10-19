@@ -934,55 +934,63 @@ describe("getMemberBilling - historia wpłat i nadań", () => {
 // 7. NADANIE RĘCZNE
 // ---------------------------------------------------------------------------
 
-describe("setMemberTier - ręczne nadanie warstwy", () => {
-  function planGrant(
-    over: { target?: unknown; tier?: unknown; revokeError?: string; insert?: SupabaseResult } = {},
-  ) {
-    db().setResponse("profiles", ok(over.target === undefined ? { id: T.ana } : over.target));
-    db().setResponse("membership_grants", (chain) => {
-      if (chain.has("update")) return over.revokeError ? fail(over.revokeError) : ok(null);
-      return over.insert ?? ok({ id: T.grant });
-    });
-    db().setResponse("membership_tiers", ok(over.tier === undefined ? { key: "pro" } : over.tier));
-    db().setResponse("audit_log", ok(null));
-  }
+// S1 (def. 6): JEDNA ŚCIEŻKA NADAŃ. Do S1 handler wygaszał nadania, wstawiał
+// nowe i pisał audyt klientem serwisowym (bez transakcji, wygaszając także
+// darowizny i domeny organizacji). Teraz cały zapis jest w RPC
+// `admin_membership_grant_set` wołanym klientem SESJI - rola i najemca
+// w SQL, audyt i outbox CRM w tej samej transakcji. Oczekiwania tej sekcji
+// zmieniły się ŚWIADOMIE: dowodzimy RPC literałem, braku zapisu klientem
+// serwisowym i niezmienionego wyjścia (konsument: `MemberTierDialog`).
 
-  async function grant(input: Record<string, unknown> = {}) {
-    return callServerFn<{ grantId: string; crmSynced: boolean }>(setMemberTier, {
-      data: { userId: T.ana, tierKey: "pro", ...input },
-      context: context(),
-    });
-  }
+interface RpcResult {
+  data: unknown;
+  error: { message: string; code?: string } | null;
+}
 
-  it("wygasza poprzednie nadania, wstawia nowe, pisze audyt i synchronizuje CRM", async () => {
-    planGrant();
-    await expect(grant({ months: 12, note: "  barter  " })).resolves.toEqual({
-      grantId: T.grant,
-      crmSynced: true,
-    });
-    const chains = db().chainsFor("membership_grants");
-    expect(chains[0].argsOf("update")).toEqual([{ revoked_at: NOW.toISOString() }]);
-    expect(chains[0].calls).toContainEqual({ method: "is", args: ["revoked_at", null] });
-    expect(chains[1].argsOf("insert")).toEqual([
-      {
-        tenant_id: T.tenant,
-        user_id: T.ana,
-        tier_key: "pro",
-        source: "manual",
-        note: "barter",
-        granted_by: T.caller,
-        starts_at: NOW.toISOString(),
-        expires_at: "2027-06-15T12:00:00.000Z",
+/** Kontekst sesji z RPC: `profiles` (najemca), `membership_grants` (odczyt osoby). */
+function sessionContext(
+  rpc: RpcResult,
+  grant: { user_id: string | null } | null = { user_id: T.ana },
+) {
+  const user = supabaseFromStub();
+  user.setResponse("profiles", ok({ tenant_id: T.tenant }));
+  user.setResponse("membership_grants", ok(grant));
+  const rpcCalls: { fn: string; args: unknown }[] = [];
+  const ctx: ServerFnContext = {
+    supabase: {
+      from: user.from,
+      rpc: (fn: string, args: unknown) => {
+        rpcCalls.push({ fn, args });
+        return Promise.resolve(rpc);
       },
-    ]);
-    expect(db().lastChain("audit_log")?.argsOf("insert")).toEqual([
+    },
+    userId: T.caller,
+  };
+  return { ctx, rpcCalls, user };
+}
+
+describe("setMemberTier - ręczne nadanie warstwy (jedna ścieżka RPC)", () => {
+  async function grant(rpc: RpcResult, input: Record<string, unknown> = {}) {
+    const session = sessionContext(rpc);
+    const result = callServerFn<{ grantId: string; crmSynced: boolean }>(setMemberTier, {
+      data: { userId: T.ana, tierKey: "pro", ...input },
+      context: session.ctx,
+    });
+    return { result, ...session };
+  }
+
+  it("RPC `admin_membership_grant_set` literałem, termin z miesięcy kalendarzowych, wyjście bez zmian", async () => {
+    const { result, rpcCalls } = await grant(ok(T.grant), { months: 12, note: "  barter  " });
+    await expect(result).resolves.toEqual({ grantId: T.grant, crmSynced: true });
+    expect(rpcCalls).toEqual([
       {
-        tenant_id: T.tenant,
-        actor_id: T.caller,
-        action: "membership.manual_grant",
-        entity_type: "membership_grant",
-        entity_id: T.grant,
-        metadata: { tier_key: "pro", months: 12, user_id: T.ana },
+        fn: "admin_membership_grant_set",
+        args: {
+          p_user_id: T.ana,
+          p_tier_key: "pro",
+          p_expires_at: addCalendarMonthsUtc(NOW, 12).toISOString(),
+          p_note: "barter",
+        },
       },
     ]);
     expect(h.syncCalls).toEqual([
@@ -994,48 +1002,30 @@ describe("setMemberTier - ręczne nadanie warstwy", () => {
         reason: "manual_grant",
       },
     ]);
-    expectEveryChainTenantScoped();
   });
 
-  it("bezterminowo = `expires_at: null`; nieudana synchronizacja CRM jest zgłaszana, nie ukrywana", async () => {
-    planGrant();
+  it("ZAPIS NADANIA BEZ KLIENTA SERWISOWEGO: zero zapytań `supabaseAdmin` (wygaszanie, insert, audyt są w SQL)", async () => {
+    const { result } = await grant(ok(T.grant));
+    await result;
+    expect(db().chains).toEqual([]);
+  });
+
+  it("bezterminowo = `p_expires_at: null`; nieudana synchronizacja CRM jest zgłaszana, nie ukrywana", async () => {
     h.syncSnapshot = null;
-    await expect(grant()).resolves.toEqual({ grantId: T.grant, crmSynced: false });
-    expect(db().chainsFor("membership_grants")[1].argsOf("insert")?.[0]).toMatchObject({
-      expires_at: null,
-      note: null,
-    });
+    const { result, rpcCalls } = await grant(ok(T.grant));
+    await expect(result).resolves.toEqual({ grantId: T.grant, crmSynced: false });
+    expect(rpcCalls[0].args).toMatchObject({ p_expires_at: null, p_note: null });
   });
 
-  it("osoba spoza najemcy wołającego - odmowa bez żadnego zapisu", async () => {
-    planGrant({ target: null });
-    await expect(grant()).rejects.toThrow("Forbidden: user outside tenant");
-    expect(db().chainsFor("membership_grants")).toHaveLength(0);
-    expect(db().chainsFor("audit_log")).toHaveLength(0);
-  });
-
-  it("warstwa spoza katalogu najemcy - odmowa bez żadnego zapisu", async () => {
-    planGrant({ tier: null });
-    await expect(grant()).rejects.toThrow("Unknown membership tier");
-    expect(db().chainsFor("membership_grants")).toHaveLength(0);
-  });
-
-  it("NAPRAWA: odmowa wygaszenia poprzednich nadań PRZERYWA nadanie - nie powstaje drugie aktywne", async () => {
-    planGrant({ revokeError: "permission denied" });
-    await expect(grant()).rejects.toThrow("membership_grants: permission denied");
-    const chains = db().chainsFor("membership_grants");
-    expect(chains).toHaveLength(1);
-    expect(chains[0].has("insert")).toBe(false);
+  it("odmowa SQL oddaje kod i komunikat maszynowy; CRM nie jest ruszany", async () => {
+    const { result } = await grant(fail("user_not_in_tenant", "P0002"));
+    await expect(result).rejects.toMatchObject({ message: "user_not_in_tenant", code: "P0002" });
     expect(h.syncCalls).toHaveLength(0);
   });
 
-  it("odmowa wstawienia oddaje komunikat bazy; brak wiersza bez błędu - komunikat zastępczy", async () => {
-    planGrant({ insert: fail("duplicate key") });
-    await expect(grant()).rejects.toThrow("duplicate key");
-    h.db = supabaseFromStub();
-    planGrant({ insert: ok(null) });
-    await expect(grant()).rejects.toThrow("Grant failed");
-    expect(db().chainsFor("audit_log")).toHaveLength(0);
+  it("odpowiedź RPC bez identyfikatora nadania to błąd kształtu, nie sukces", async () => {
+    const { result } = await grant(ok(null));
+    await expect(result).rejects.toThrow("invalid_rpc_shape:admin_membership_grant_set");
   });
 });
 
@@ -1070,27 +1060,28 @@ describe("addCalendarMonthsUtc - termin nadania w miesiącach kalendarzowych", (
 // 8. COFNIĘCIE NADANIA
 // ---------------------------------------------------------------------------
 
-describe("revokeMemberTier - cofnięcie ręcznego nadania", () => {
-  async function revoke() {
-    return callServerFn<{ ok: true; crmSynced: boolean }>(revokeMemberTier, {
+describe("revokeMemberTier - cofnięcie ręcznego nadania (jedna ścieżka RPC)", () => {
+  async function revoke(
+    rpc: RpcResult,
+    grantRow: { user_id: string | null } | null = { user_id: T.ana },
+  ) {
+    const session = sessionContext(rpc, grantRow);
+    const result = callServerFn<{ ok: true; crmSynced: boolean }>(revokeMemberTier, {
       data: { grantId: T.grant },
-      context: context(),
+      context: session.ctx,
     });
+    return { result, ...session };
   }
 
-  it("cofa AKTYWNE nadanie w najemcy, pisze audyt i synchronizuje osobę z CRM", async () => {
-    db().setResponse("membership_grants", ok({ user_id: T.ana }));
-    db().setResponse("audit_log", ok(null));
-    await expect(revoke()).resolves.toEqual({ ok: true, crmSynced: true });
-    const chain = db().lastChain("membership_grants");
-    expect(chain?.argsOf("update")).toEqual([{ revoked_at: NOW.toISOString() }]);
-    expect(chain?.calls).toContainEqual({ method: "eq", args: ["id", T.grant] });
-    expect(chain?.calls).toContainEqual({ method: "is", args: ["revoked_at", null] });
-    expect(db().lastChain("audit_log")?.argsOf("insert")?.[0]).toMatchObject({
-      action: "membership.manual_revoke",
-      entity_id: T.grant,
-      actor_id: T.caller,
-    });
+  it("RPC `admin_membership_grant_revoke` literałem; osoba z odczytu sesji; CRM po cofnięciu", async () => {
+    const { result, rpcCalls, user } = await revoke(ok(T.grant));
+    await expect(result).resolves.toEqual({ ok: true, crmSynced: true });
+    expect(rpcCalls).toEqual([
+      { fn: "admin_membership_grant_revoke", args: { p_grant_id: T.grant, p_reason: null } },
+    ]);
+    const read = user.lastChain("membership_grants")!;
+    expect(read.has("update")).toBe(false);
+    expect(read.argsOf("eq")).toEqual(["id", T.grant]);
     expect(h.syncCalls).toEqual([
       {
         userId: T.ana,
@@ -1100,35 +1091,25 @@ describe("revokeMemberTier - cofnięcie ręcznego nadania", () => {
         reason: "manual_revoke",
       },
     ]);
-    expectEveryChainTenantScoped();
+    // Stempel cofnięcia i audyt są w SQL - klient serwisowy nic nie pisze.
+    expect(db().chains).toEqual([]);
   });
 
   it("nieudana synchronizacja CRM po cofnięciu jest zgłaszana", async () => {
-    db().setResponse("membership_grants", ok({ user_id: T.ana }));
-    db().setResponse("audit_log", ok(null));
     h.syncSnapshot = null;
-    await expect(revoke()).resolves.toEqual({ ok: true, crmSynced: false });
+    const { result } = await revoke(ok(T.grant));
+    await expect(result).resolves.toEqual({ ok: true, crmSynced: false });
   });
 
   it("cofnięty wiersz bez osoby nie jest synchronizowany - i to nie jest porażka CRM", async () => {
-    db().setResponse("membership_grants", ok({ user_id: null }));
-    db().setResponse("audit_log", ok(null));
-    await expect(revoke()).resolves.toEqual({ ok: true, crmSynced: true });
+    const { result } = await revoke(ok(T.grant), { user_id: null });
+    await expect(result).resolves.toEqual({ ok: true, crmSynced: true });
     expect(h.syncCalls).toHaveLength(0);
   });
 
-  it("odmowa bazy oddaje jej komunikat i nie pisze audytu", async () => {
-    db().setResponse("membership_grants", fail("permission denied"));
-    db().setResponse("audit_log", ok(null));
-    await expect(revoke()).rejects.toThrow("permission denied");
-    expect(db().chainsFor("audit_log")).toHaveLength(0);
-  });
-
-  it("NAPRAWA: nadanie już cofnięte albo cudze - odmowa, BEZ fałszywego wpisu audytu „cofnięto”", async () => {
-    db().setResponse("membership_grants", ok(null));
-    db().setResponse("audit_log", ok(null));
-    await expect(revoke()).rejects.toThrow("Grant not found or already revoked");
-    expect(db().chainsFor("audit_log")).toHaveLength(0);
+  it("nadanie już cofnięte albo cudze: kod P0002 `grant_not_found` z SQL, bez synchronizacji", async () => {
+    const { result } = await revoke(fail("grant_not_found", "P0002"));
+    await expect(result).rejects.toMatchObject({ message: "grant_not_found", code: "P0002" });
     expect(h.syncCalls).toHaveLength(0);
   });
 });

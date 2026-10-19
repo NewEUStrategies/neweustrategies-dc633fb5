@@ -38,7 +38,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/components/ui/select", async () => radixSelectStub(await import("react")));
 vi.mock("@/components/ui/switch", async () => radixSwitchStub(await import("react")));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => "tenant-test" }));
 
 const { TiersTab } = await import("@/components/admin/pricing/organisms/TiersTab");
 
@@ -71,7 +72,9 @@ describe("TierMarketingCard - nota cenowa", () => {
     const patch = await saveAndReadPatch();
 
     expect(patch.price_note_pl).toBe("2-50 miejsc");
-    expect(patch.price_note_en).toBe("2-20 seats");
+    // ZMIANA ZAMIERZONA (S1 def. 11): angielska nota, której redakcja nie
+    // ruszała, NIE jedzie w zapisie - patch niesie tylko zmienione kolumny.
+    expect(patch).not.toHaveProperty("price_note_en");
     expect(chain.lastChain("membership_tiers")!.argsOf("eq")).toEqual(["id", "t-team"]);
   });
 
@@ -106,9 +109,16 @@ describe("TierMarketingCard - benefity edytowane na karcie", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /benefits\.add/ }));
     expect(screen.getByLabelText("adminPricing.benefits.labelPl #2")).toHaveValue("");
+
+    // Pusty wiersz serializuje się do tej samej listy co baza, więc to nie
+    // jest zmiana: zapis nie ma czego wysłać (S1 - patch = różnica).
+    expect(screen.getByRole("button", { name: /tiers\.save/ })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("adminPricing.benefits.labelEn #1"), {
+      target: { value: "Morning briefing" },
+    });
     const patch = await saveAndReadPatch();
 
-    expect(patch.benefits).toEqual([{ pl: "Briefing", en: "Briefing" }]);
+    expect(patch.benefits).toEqual([{ pl: "Briefing", en: "Morning briefing" }]);
   });
 
   it("usunięcie benefitu na karcie usuwa go z zapisu warstwy", async () => {

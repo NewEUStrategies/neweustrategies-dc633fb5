@@ -1,4 +1,16 @@
 // /admin/newsletter/campaigns/$id — edytor kampanii + wysyłka.
+//
+// ROLE (S1 def. 10). Edycję i wysyłkę kampanii prowadzi administrator albo
+// redaktor - serwer zamyka je bramką roli, RLS kampanii wpuszcza tylko te
+// role. Autor widzi przyciski zapisu i wysyłki jako wyłączone Z POWODEM,
+// zamiast akcji, którą baza i tak odrzuci.
+//
+// KAMPANIA KUPONOWA (P04, R-25). Kampania podpięta pod kampanię kuponową
+// (`getCampaign().coupon`) pokazuje panel z segmentem, liczbą odbiorców
+// i wolnych kodów; wysyłka czeka na policzenie odbiorców i jest zablokowana,
+// gdy kodów jest mniej niż odbiorców. Kody błędów trybu kuponowego
+// (`COUPON_CODES_INSUFFICIENT:<n>:<m>`, `COUPON_SEGMENT_INVALID`) idą do
+// operatora zdaniem, nie surowym kodem.
 import { useState, useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +37,15 @@ import { FloatingInput } from "@/components/ui/floating-input";
 import { Textarea } from "@/components/ui/textarea";
 import { CampaignContentBuilder } from "@/components/admin/newsletter/CampaignContentBuilder";
 import { CampaignEngagementCard } from "@/components/admin/newsletter/molecules/CampaignEngagementCard";
+import { couponSendErrorMessage } from "@/components/admin/coupons/couponSendErrors";
+import { couponSendBlock } from "@/components/admin/coupons/couponSendBlock";
+import { NewsletterCouponPanel } from "@/components/admin/coupons/organisms/NewsletterCouponPanel";
+import { DisabledReason } from "@/components/admin/pricing/atoms/DisabledReason";
+import { useAuth } from "@/hooks/useAuth";
+import { adminPageHead } from "@/lib/adminPageHead";
+import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { parseEmailDoc, createDefaultEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
+import { newsletterKeys } from "@/lib/newsletter/keys";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,6 +72,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/admin/newsletter/campaigns/$id")({
+  head: () =>
+    adminPageHead(
+      "Kampania newslettera",
+      "Treść, odbiorcy i harmonogram kampanii newslettera, wysyłka testowa i wysyłka do listy.",
+    ),
   component: CampaignEditor,
 });
 
@@ -91,9 +116,16 @@ function localInputToIso(v: string): string | null {
 function CampaignEditor() {
   const { id } = Route.useParams();
   ensureNewsletterAdminI18n();
+  // Panel kampanii kuponowej, powód blokady i komunikaty trybu kuponowego.
+  ensureAdminCouponsI18n();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { roles } = useAuth();
+  // def. 10: zapis i wysyłka - administrator albo redaktor (serwer i RLS
+  // odrzucą resztę; panel nie proponuje akcji skazanej na odmowę).
+  const canManage = roles.includes("admin") || roles.includes("editor");
+  const roleReason = canManage ? null : t("adminCoupons.newsletterCampaign.roleRequired");
 
   const get = useServerFn(getCampaign);
   const save = useServerFn(upsertCampaign);
@@ -103,7 +135,7 @@ function CampaignEditor() {
   const engagement = useServerFn(getCampaignEngagement);
 
   const { data: campaign, isLoading } = useQuery({
-    queryKey: ["admin", "newsletter-campaigns", id],
+    queryKey: newsletterKeys.campaign(id),
     queryFn: () => get({ data: { id } }),
   });
 
@@ -137,13 +169,13 @@ function CampaignEditor() {
   }, [campaign, form]);
 
   const { data: audience } = useQuery({
-    queryKey: ["admin", "newsletter-campaigns", id, "audience", form?.audience_filter],
+    queryKey: newsletterKeys.campaignAudience(id, form?.audience_filter),
     queryFn: () => count({ data: form?.audience_filter ?? {} }),
     enabled: Boolean(form),
   });
 
   const { data: engagementStats } = useQuery({
-    queryKey: ["admin", "newsletter-campaigns", id, "engagement"],
+    queryKey: newsletterKeys.campaignEngagement(id),
     queryFn: () => engagement({ data: { id } }),
   });
 
@@ -172,7 +204,7 @@ function CampaignEditor() {
       }),
     onSuccess: () => {
       toast.success(t("adminNewsletter.campaigns.detailSaved"));
-      qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+      qc.invalidateQueries({ queryKey: newsletterKeys.campaignsAll() });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -193,7 +225,7 @@ function CampaignEditor() {
       let guard = 0;
       while (!res.done && guard < 500) {
         guard++;
-        qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+        qc.invalidateQueries({ queryKey: newsletterKeys.campaignsAll() });
         // Kolejne porcje idą bez potwierdzenia: kampania jest już `sending`,
         // więc bramka reputacji jej nie dotyczy (patrz sendCampaign).
         res = await send({ data: { id, acknowledgeReputation: false } });
@@ -205,7 +237,7 @@ function CampaignEditor() {
       toast.success(
         t("adminNewsletter.campaigns.testResult", { sent: res.sent, failed: res.failed }),
       );
-      qc.invalidateQueries({ queryKey: ["admin", "newsletter-campaigns"] });
+      qc.invalidateQueries({ queryKey: newsletterKeys.campaignsAll() });
     },
     onError: (err: Error) => {
       // Bramka reputacji zwraca kod z powodami - zamiast surowego toasta
@@ -213,6 +245,15 @@ function CampaignEditor() {
       const blocked = err.message.match(/^reputation_blocked:?(.*)$/);
       if (blocked) {
         setGateReasons(blocked[1] ? blocked[1].split(",").filter(Boolean) : []);
+        return;
+      }
+      // Tryb kuponowy zatrzymał wysyłkę (za mało kodów, zły segment) - zdanie
+      // zamiast kodu, a kafel kodów i licznik odbiorców odświeżamy, bo to one
+      // mówią, co poprawić.
+      const couponMessage = couponSendErrorMessage(err.message, t);
+      if (couponMessage) {
+        toast.error(couponMessage);
+        qc.invalidateQueries({ queryKey: newsletterKeys.campaign(id) });
         return;
       }
       toast.error(err.message);
@@ -234,6 +275,23 @@ function CampaignEditor() {
 
   const readonly = campaign.status === "sending" || campaign.status === "sent";
   const canResume = campaign.status === "sending" && !sendMut.isPending;
+  // R-25: kampania kuponowa wychodzi dopiero, gdy wiadomo, do ilu osób, i gdy
+  // kodów starczy dla wszystkich.
+  const couponBlock = couponSendBlock({
+    coupon: campaign.coupon ?? null,
+    recipients: audience?.count,
+    sentCount: campaign.sent_count,
+  });
+  const sendReason =
+    roleReason ??
+    (couponBlock === "short"
+      ? t("adminCoupons.newsletterCampaign.codesShort", {
+          available: campaign.coupon?.codesAvailable ?? 0,
+          recipients: audience?.count ?? 0,
+        })
+      : couponBlock === "counting"
+        ? t("adminCoupons.newsletterCampaign.counting")
+        : null);
 
   const toggleLang = (lang: "pl" | "en", on: boolean) => {
     const current = form.audience_filter.languages ?? [];
@@ -272,27 +330,33 @@ function CampaignEditor() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => saveMut.mutate(form)}
-            disabled={saveMut.isPending || readonly}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {t("adminNewsletter.campaigns.saveChanges")}
-          </Button>
-          {canResume && (
-            <Button variant="outline" onClick={() => sendMut.mutate(false)}>
-              <Send className="w-4 h-4 mr-2" />
-              {t("adminNewsletter.campaigns.resume")}
+          <DisabledReason reason={roleReason}>
+            <Button
+              variant="outline"
+              onClick={() => saveMut.mutate(form)}
+              disabled={!canManage || saveMut.isPending || readonly}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {t("adminNewsletter.campaigns.saveChanges")}
             </Button>
+          </DisabledReason>
+          {canResume && (
+            <DisabledReason reason={roleReason}>
+              <Button variant="outline" onClick={() => sendMut.mutate(false)} disabled={!canManage}>
+                <Send className="w-4 h-4 mr-2" />
+                {t("adminNewsletter.campaigns.resume")}
+              </Button>
+            </DisabledReason>
           )}
           <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button disabled={readonly || sendMut.isPending}>
-                <Send className="w-4 h-4 mr-2" />
-                {t("adminNewsletter.campaigns.sendNow")}
-              </Button>
-            </AlertDialogTrigger>
+            <DisabledReason reason={readonly ? null : sendReason}>
+              <AlertDialogTrigger asChild>
+                <Button disabled={readonly || sendMut.isPending || sendReason !== null}>
+                  <Send className="w-4 h-4 mr-2" />
+                  {t("adminNewsletter.campaigns.sendNow")}
+                </Button>
+              </AlertDialogTrigger>
+            </DisabledReason>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
@@ -302,6 +366,14 @@ function CampaignEditor() {
                   {t("adminNewsletter.campaigns.sendConfirmCount", {
                     count: audience?.count ?? 0,
                   })}
+                  {campaign.coupon && (
+                    <>
+                      {" "}
+                      {t("adminCoupons.newsletterCampaign.confirmCodes", {
+                        available: campaign.coupon.codesAvailable,
+                      })}
+                    </>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -520,6 +592,14 @@ function CampaignEditor() {
         </div>
 
         <div className="space-y-4">
+          {campaign.coupon && (
+            <NewsletterCouponPanel
+              coupon={campaign.coupon}
+              segment={form.audience_filter.segment}
+              recipients={audience?.count}
+              sentCount={campaign.sent_count}
+            />
+          )}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">

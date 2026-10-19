@@ -437,3 +437,51 @@ describe("usuwanie subskrybenta", () => {
     expect(spy.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// def. 17 (S1): subskrybent newslettera i lead CRM to TA SAMA osoba - trigger
+// `newsletter_to_lead` przenosi zmianę statusu do CRM. Panel, który po wypisie
+// odświeża tylko własną tabelę, zostawia w otwartej obok liście leadów
+// i w lejku CRM stan sprzed zmiany aż do `staleTime`.
+describe("zmiana subskrybenta odświeża krąg odbiorców (def. 17)", () => {
+  /** Klucze, które panel unieważnił - porównanie po JSON, bo to krotki. */
+  function invalidated(spy: { mock: { calls: unknown[][] } }): string[] {
+    return spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
+  }
+  const AUDIENCE = [
+    ["newsletter-subscribers"],
+    ["newsletter-kpis"],
+    ["crm-leads"],
+    ["crm-funnel"],
+    ["crm-funnel-stats"],
+  ].map((k) => JSON.stringify(k));
+
+  it("wypis odświeża listę, kafle ORAZ leady i lejek CRM", async () => {
+    const { queryClient } = await mountWithRows();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    fireEvent.click(screen.getAllByLabelText("adminNewsletter.subscribers.unsubscribeAction")[0]!);
+
+    await waitFor(() => expect(invalidated(spy)).toEqual(expect.arrayContaining(AUDIENCE)));
+  });
+
+  it("usunięcie odświeża ten sam krąg - lead nie wisi w CRM jako subskrybent", async () => {
+    const { queryClient } = await mountWithRows();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    fireEvent.click(screen.getAllByLabelText("adminNewsletter.subscribers.deleteAria")[0]!);
+
+    await waitFor(() => expect(invalidated(spy)).toEqual(expect.arrayContaining(AUDIENCE)));
+  });
+
+  it("NIEUDANA zmiana niczego nie odświeża - nie było zmiany, nie ma czego czytać", async () => {
+    planMutations({ message: "brak uprawnień" });
+    const { queryClient } = await mountWithRows();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    fireEvent.click(screen.getAllByLabelText("adminNewsletter.subscribers.unsubscribeAction")[0]!);
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(invalidated(spy)).not.toContain(JSON.stringify(["crm-leads"]));
+  });
+});

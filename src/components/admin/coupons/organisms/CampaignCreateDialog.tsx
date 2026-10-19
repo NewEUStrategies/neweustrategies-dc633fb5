@@ -1,7 +1,17 @@
 // Organizm: dialog tworzenia kampanii kuponowej.
-import { useState } from "react";
+//
+// SEGMENT (P04, R-25). Segment był wolnym tekstem („vip"), którego serwer
+// wysyłki nie znał - kody szły do CAŁEJ listy subskrybentów. Teraz segment to
+// wybór z list mailingowych (`newsletter_settings.popup_mailing_lists`, ten
+// sam identyfikator, który subskrybent ma w `meta.mailing_lists`), a „cała
+// lista" jest osobną, jawnie nazwaną opcją z ostrzeżeniem. Wybór jest
+// obowiązkowy: domyślnie NIC nie jest zaznaczone, więc nikt nie wyśle kodów
+// do wszystkich przez przeoczenie.
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-coupons";
+import { FormSelect } from "@/components/atoms/FormSelect";
+import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
+import { WHOLE_LIST_SEGMENT, mailingListOptions } from "../mailingLists";
 
 export function CampaignCreateDialog({
   tiers,
@@ -42,12 +53,22 @@ export function CampaignCreateDialog({
   const [validUntil, setValidUntil] = useState<Date | undefined>(undefined);
   const [tierKey, setTierKey] = useState("");
   const [durationDays, setDurationDays] = useState("30");
+  // "" = nic nie wybrano; `WHOLE_LIST_SEGMENT` = świadomie cała lista.
   const [segment, setSegment] = useState("");
+  const [segmentMissing, setSegmentMissing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const segmentId = useId();
+  const settings = useNewsletterSettings();
+  const listOptions = mailingListOptions(settings.data?.popup_mailing_lists, lang);
 
   const submit = async () => {
     if (!name.trim()) {
       toast.error(t("adminCoupons.enterName"));
+      return;
+    }
+    if (segment === "") {
+      setSegmentMissing(true);
+      toast.error(t("adminCoupons.segmentField.required"));
       return;
     }
     setBusy(true);
@@ -64,7 +85,7 @@ export function CampaignCreateDialog({
       valid_until: validUntil ? validUntil.toISOString() : null,
       grants_tier_key: tierKey || null,
       grants_duration_days: durationDays && tierKey ? Number(durationDays) : null,
-      newsletter_segment: segment.trim() || null,
+      newsletter_segment: segment === WHOLE_LIST_SEGMENT ? null : segment,
     });
     setBusy(false);
     if (error) {
@@ -217,14 +238,36 @@ export function CampaignCreateDialog({
           </div>
         </div>
 
-        <div>
-          <Label>{t("adminCoupons.newsletterSegmentTag")}</Label>
-          <Input
+        <div className="space-y-1">
+          <Label htmlFor={segmentId}>{t("adminCoupons.segmentField.label")}</Label>
+          <FormSelect
+            id={segmentId}
             value={segment}
-            onChange={(e) => setSegment(e.target.value)}
-            placeholder="vip"
+            onValueChange={(next) => {
+              setSegment(next);
+              setSegmentMissing(false);
+            }}
+            placeholder={t("adminCoupons.segmentField.placeholder")}
+            required
+            error={segmentMissing ? t("adminCoupons.segmentField.required") : null}
             className="h-10 rounded-[6px]"
+            options={[
+              ...listOptions,
+              { value: WHOLE_LIST_SEGMENT, label: t("adminCoupons.segmentField.wholeList") },
+            ]}
           />
+          {listOptions.length === 0 && settings.data && (
+            <p className="text-xs text-muted-foreground">
+              {t("adminCoupons.segmentField.noLists")}
+            </p>
+          )}
+          {segment === WHOLE_LIST_SEGMENT && (
+            // Ostrzeżenie pojawia się PO wyborze - region `status` ogłasza je
+            // czytnikowi ekranu bez przenoszenia fokusu.
+            <p role="status" className="text-xs text-destructive">
+              {t("adminCoupons.segmentField.wholeListWarning")}
+            </p>
+          )}
         </div>
       </div>
       <DialogFooter>

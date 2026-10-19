@@ -28,13 +28,24 @@
 // swoich własnych tras (niżej w tym pliku oraz w plikach realizacji
 // i analityki). Ten sam wzorzec stoi w `adminCrmLayoutRoutes.test.tsx`.
 //
+// ZMIANY ŚWIADOME (S1):
+//   * napisy układu idą ze słownika `adminCoupons.layout.*` (był bliźniak
+//     `L(pl, en)` w komponencie) - atrapa i18n oddaje KLUCZE, więc asercje
+//     zakładek mierzą klucze, a parytet PL/EN pilnuje bramka słowników;
+//   * każda trasa ma SEKCYJNE `adminPageHead` (D14) - dawne przypadki „nie
+//     wnosi własnego head()" opisywały brak, który był defektem;
+//   * trasy listy i kampanii są cienkimi opakowaniami czytającymi `?code=`
+//     i `?id=` (SPEC §2.6), więc dowód sklejenia idzie przez render, nie przez
+//     tożsamość `options.component`.
+//
 // GRANICE vs SĄSIEDZI: organizmy z `@/components/admin/coupons/**` biegną
 // PRAWDZIWE (razem z `Stat` i dialogami). Atrapowane są wyłącznie granice:
 // klient Supabase, toasty, i18n oraz prymitywy Radiksa, których happy-dom nie
 // otwiera. ZERO SIECI, ZERO danych osobowych.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoute, type AnyRoute } from "@tanstack/react-router";
 import { ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { axeViolations, summarize } from "@/test/axe";
@@ -52,6 +63,11 @@ vi.mock("react-i18next", async () =>
 );
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
+vi.mock("@/lib/i18n-admin-paywall-sync", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/hooks/useNewsletterSettings", () => ({
+  useNewsletterSettings: () => ({ data: { popup_mailing_lists: [] } }),
+}));
+vi.mock("@/lib/newsletter-campaigns.functions", () => ({ createCouponNewsletterCampaign: {} }));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -85,13 +101,67 @@ vi.mock("@/components/ui/dialog", async () => {
 
 import { renderRoute } from "@/test/routeHarness";
 import { CouponsListPage } from "@/components/admin/coupons/organisms/CouponsListPage";
-import { CampaignsPage } from "@/components/admin/coupons/organisms/CampaignsPage";
 import { Route as CouponsLayoutRoute } from "@/routes/admin.coupons";
 import { Route as CouponsIndexRoute } from "@/routes/admin.coupons.index";
 import { Route as CouponsCampaignsRoute } from "@/routes/admin.coupons.campaigns";
 
 const UKLAD = "/admin/coupons";
 const db = () => h.from as SupabaseFromStub;
+
+/** Wiersz kuponu w kształcie odczytu listy. */
+const kuponTestowy = {
+  id: "k-0",
+  code: "NES-0000",
+  name: null,
+  description: null,
+  discount_kind: "percent",
+  discount_percent: 10,
+  discount_cents: null,
+  currency: null,
+  active: true,
+  max_redemptions: null,
+  redemptions_count: 0,
+  valid_from: null,
+  valid_until: null,
+  plan_ids: null,
+  organization_id: null,
+  metadata: {},
+  created_at: "2026-10-01T10:00:00.000Z",
+  updated_at: "2026-10-01T10:00:00.000Z",
+  campaign_id: null,
+  grants_tier_key: null,
+  grants_duration_days: null,
+  assigned_company_id: null,
+  assigned_lead_id: null,
+};
+
+/** Wiersz kampanii kuponowej w kształcie odczytu listy (z tokenem `updated_at`). */
+const kampaniaTestowa = {
+  id: "k",
+  name: "Kampania",
+  prefix: "NES-",
+  code_count: 10,
+  generated_count: 0,
+  discount_kind: "percent",
+  discount_percent: 10,
+  discount_cents: null,
+  currency: null,
+  valid_until: null,
+  grants_tier_key: null,
+  grants_duration_days: null,
+  newsletter_segment: null,
+  newsletter_campaign_id: null,
+  status: "draft",
+  created_at: "2026-10-01T10:00:00.000Z",
+  updated_at: "2026-10-01T10:00:00.000Z",
+};
+
+function ZKlientem({ children }: { children: ReactNode }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 /** Układ z ATRAPAMI podstron - dowód dotyczy miejsca dla dziecka, nie dziecka. */
 async function zamontujUklad(entry: string) {
@@ -121,6 +191,14 @@ async function zamontujUklad(entry: string) {
   return renderRoute({ route: uklad, path: UKLAD, initialEntry: entry });
 }
 
+/** Etykiety zakładek (klucze słownika - atrapa i18n oddaje je bez tłumaczenia). */
+const ZAKLADKI = {
+  lista: "adminCoupons.layout.tabs.list",
+  kampanie: "adminCoupons.layout.tabs.campaigns",
+  realizacje: "adminCoupons.layout.tabs.redemptions",
+  analityka: "adminCoupons.layout.tabs.analytics",
+} as const;
+
 /** Zakładka paska nawigacji układu - po widocznej etykiecie. */
 function zakladka(nazwa: string): HTMLElement {
   return screen.getByRole("tab", { name: nazwa });
@@ -146,13 +224,17 @@ describe("układ /admin/coupons - miejsce dla podstron", () => {
 
   it("pokazuje nagłówek sekcji i CZTERY zakładki podstron", async () => {
     await zamontujUklad(UKLAD);
-    expect(screen.getByRole("heading", { name: /Kupony B2B/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /adminCoupons\.layout\.title/ }),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
-      "Kupony",
-      "Kampanie",
-      "Realizacje",
-      "Analityka",
+      ZAKLADKI.lista,
+      ZAKLADKI.kampanie,
+      ZAKLADKI.realizacje,
+      ZAKLADKI.analityka,
     ]);
+    // Słownik kuponów rejestruje się w komponencie układu (chunk trasy).
+    expect(h.ensureI18n).toHaveBeenCalled();
     cleanup();
   });
 
@@ -167,17 +249,17 @@ describe("układ /admin/coupons - miejsce dla podstron", () => {
     // To jest cała różnica między paskiem, który mówi „jesteś w Kampaniach",
     // a paskiem, na którym zakładka listy świeci się pod każdym adresem sekcji.
     await zamontujUklad("/admin/coupons/campaigns");
-    expect(zakladka("Kupony")).toHaveAttribute("aria-selected", "false");
-    expect(zakladka("Kampanie")).toHaveAttribute("aria-selected", "true");
+    expect(zakladka(ZAKLADKI.lista)).toHaveAttribute("aria-selected", "false");
+    expect(zakladka(ZAKLADKI.kampanie)).toHaveAttribute("aria-selected", "true");
     cleanup();
   });
 
   it("pod adresem sekcji wybrana jest zakładka listy, a reszta nie", async () => {
     await zamontujUklad(UKLAD);
-    expect(zakladka("Kupony")).toHaveAttribute("aria-selected", "true");
-    expect(zakladka("Kampanie")).toHaveAttribute("aria-selected", "false");
-    expect(zakladka("Realizacje")).toHaveAttribute("aria-selected", "false");
-    expect(zakladka("Analityka")).toHaveAttribute("aria-selected", "false");
+    expect(zakladka(ZAKLADKI.lista)).toHaveAttribute("aria-selected", "true");
+    expect(zakladka(ZAKLADKI.kampanie)).toHaveAttribute("aria-selected", "false");
+    expect(zakladka(ZAKLADKI.realizacje)).toHaveAttribute("aria-selected", "false");
+    expect(zakladka(ZAKLADKI.analityka)).toHaveAttribute("aria-selected", "false");
     cleanup();
   });
 
@@ -185,26 +267,40 @@ describe("układ /admin/coupons - miejsce dla podstron", () => {
     // Zakładki to `<Link>`, więc dowód musi przejść przez router: sam atrybut
     // `href` nie mówi, że nawigacja kończy się właściwym dopasowaniem.
     const view = await zamontujUklad(UKLAD);
-    fireEvent.click(zakladka("Analityka"));
+    fireEvent.click(zakladka(ZAKLADKI.analityka));
     await waitFor(() => expect(view.currentPath()).toBe("/admin/coupons/analytics"));
     expect(screen.getByText("PODSTRONA: analityka")).toBeInTheDocument();
-    expect(zakladka("Analityka")).toHaveAttribute("aria-selected", "true");
+    expect(zakladka(ZAKLADKI.analityka)).toHaveAttribute("aria-selected", "true");
     cleanup();
   });
 
-  it("wersja angielska opisuje sekcję i zakładki po angielsku", async () => {
-    // Napisy układu są wpisane w komponent (bez słownika), więc jedyne, co je
-    // przełącza, to `i18n.language`. Zgubienie tego warunku daje polski pasek
-    // nawigacji na anglojęzycznym koncie administracyjnym.
-    h.lang = "en";
+  it("pasek zakładek ma nazwę ze słownika (nie stały napis w jednym języku)", async () => {
+    // Dawniej napisy układu stały w komponencie jako bliźniak `L(pl, en)`;
+    // teraz idą ze słownika, a parytet PL/EN pilnuje bramka słowników.
     await zamontujUklad(UKLAD);
-    expect(screen.getByRole("heading", { name: /B2B coupons/ })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
-      "Coupons",
-      "Campaigns",
-      "Redemptions",
-      "Analytics",
-    ]);
+    expect(screen.getByRole("tablist", { name: "adminCoupons.layout.tabsLabel" })).toBeTruthy();
+    cleanup();
+  });
+
+  it("układ ma SEKCYJNY tytuł karty i jest wyłączony z indeksu (D14)", () => {
+    // Nagłówek układu czytamy wprost z opcji - harness oddaje `meta` LIŚCIA,
+    // a dzieci układu są tu atrapami bez `head()`.
+    const head = CouponsLayoutRoute.options.head as unknown as () => {
+      meta: Record<string, unknown>[];
+    };
+    const meta = head().meta;
+    expect(meta).toContainEqual({ title: "Kupony B2B | New European Strategies" });
+    expect(meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+  });
+
+  it("`?code=` przechodzi walidację, a śmieci są odrzucane bez wywrotki", async () => {
+    // Deep link z huba (SPEC §2.6). Walidator stoi w pliku trasy, bo jedzie
+    // w chunku wejściowym - bez importów i bez przycinania wartości.
+    const ok1 = await zamontujUklad("/admin/coupons?code=NES-AB12");
+    expect(ok1.search()).toEqual({ code: "NES-AB12" });
+    cleanup();
+    const zle = await zamontujUklad("/admin/coupons?code=%3Cscript%3E");
+    expect(zle.search()).toEqual({});
     cleanup();
   });
 
@@ -236,19 +332,41 @@ describe("trasa /admin/coupons/ - lista kuponów", () => {
     cleanup();
   });
 
-  it("wskazuje DOKŁADNIE organizm listy, a nie panel kampanii", async () => {
-    expect(CouponsIndexRoute.options.component).toBe(CouponsListPage);
+  it("pod adresem listy montuje organizm LISTY, a nie panel kampanii", async () => {
+    pustaBaza();
+    await renderRoute({ route: CouponsIndexRoute, path: PATH, initialEntry: PATH });
+    expect(screen.getByText("adminCoupons.couponList")).toBeInTheDocument();
+    expect(screen.queryByText("adminCoupons.campaigns")).toBeNull();
     cleanup();
   });
 
-  it("nie wnosi WŁASNEGO `head()` - bramka `noindex` jest dziedziczona z `/admin`", async () => {
-    // Stan faktyczny: cała sekcja kuponów żyje pod layoutem `/admin`, który
-    // ustawia `robots: noindex, nofollow`. Jawny wzorzec (własne `head()`
-    // w pliku trasy) stoi w `src/routes/admin.donations.tsx`.
+  it("ma SEKCYJNY `head()` - tytuł listy kodów i `noindex` (D14)", async () => {
     pustaBaza();
     const view = await renderRoute({ route: CouponsIndexRoute, path: PATH, initialEntry: PATH });
-    expect(CouponsIndexRoute.options.head).toBeUndefined();
-    expect(view.meta()).toEqual([]);
+    expect(view.meta()).toContainEqual({
+      title: "Kupony B2B - lista kodów | New European Strategies",
+    });
+    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+    cleanup();
+  });
+});
+
+describe("`/admin/coupons?code=` - lista zawężona z adresu", () => {
+  it("kod z adresu staje się filtrem listy (deep link z huba)", async () => {
+    db().setResponse(
+      "b2b_coupons",
+      ok([
+        { ...kuponTestowy, id: "k-1", code: "NES-AB12" },
+        { ...kuponTestowy, id: "k-2", code: "NES-ZZ99" },
+      ]),
+    );
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    // Lista czyta `code` z zapytania rodzica (układ waliduje parametr).
+    render(<CouponsListPage code="NES-AB12" />, { wrapper: ZKlientem });
+    expect(await screen.findByText("NES-AB12")).toBeInTheDocument();
+    expect(screen.queryByText("NES-ZZ99")).toBeNull();
+    expect(screen.getByDisplayValue("NES-AB12")).toBeInTheDocument();
     cleanup();
   });
 });
@@ -276,24 +394,57 @@ describe("trasa /admin/coupons/campaigns - kampanie kuponowe", () => {
     cleanup();
   });
 
-  it("wskazuje DOKŁADNIE organizm kampanii, a nie listę kuponów", async () => {
+  it("pod adresem kampanii montuje organizm KAMPANII, a nie listę kuponów", async () => {
     // Najdroższa pomyłka w tym module: jedno kliknięcie „Generuj" na ekranie
     // kampanii zakłada nawet 10 000 działających kodów rabatowych. Trasa
     // wskazująca nie ten organizm to ekran, który robi co innego, niż mówi
     // adres i zakładka.
-    expect(CouponsCampaignsRoute.options.component).toBe(CampaignsPage);
+    pustaBaza();
+    await renderRoute({ route: CouponsCampaignsRoute, path: PATH, initialEntry: PATH });
+    expect(screen.getByText("adminCoupons.campaigns")).toBeInTheDocument();
+    expect(screen.queryByText("adminCoupons.couponList")).toBeNull();
     cleanup();
   });
 
-  it("nie wnosi WŁASNEGO `head()` - bramka `noindex` jest dziedziczona z `/admin`", async () => {
+  it("ma SEKCYJNY `head()` - tytuł kampanii kuponowych i `noindex` (D14)", async () => {
     pustaBaza();
     const view = await renderRoute({
       route: CouponsCampaignsRoute,
       path: PATH,
       initialEntry: PATH,
     });
-    expect(CouponsCampaignsRoute.options.head).toBeUndefined();
-    expect(view.meta()).toEqual([]);
+    expect(view.meta()).toContainEqual({ title: "Kampanie kuponowe | New European Strategies" });
+    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+    cleanup();
+  });
+
+  it("`?id=<uuid>` WYRÓŻNIA wskazaną kampanię; nie-UUID jest odrzucany", async () => {
+    const ID = "cccccccc-1111-4111-8111-cccccccccccc";
+    db().setResponse(
+      "b2b_coupon_campaigns",
+      ok([
+        { ...kampaniaTestowa, id: ID, name: "Wskazana" },
+        { ...kampaniaTestowa, id: "dddddddd-1111-4111-8111-dddddddddddd", name: "Inna" },
+      ]),
+    );
+    db().setResponse("membership_tiers", ok([]));
+    const view = await renderRoute({
+      route: CouponsCampaignsRoute,
+      path: PATH,
+      initialEntry: `${PATH}?id=${ID.toUpperCase()}`,
+    });
+    expect(view.search()).toEqual({ id: ID });
+    const wskazana = (await screen.findByText("Wskazana")).closest("tr");
+    expect(wskazana).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("Inna").closest("tr")).not.toHaveAttribute("aria-current");
+    cleanup();
+
+    const zle = await renderRoute({
+      route: CouponsCampaignsRoute,
+      path: PATH,
+      initialEntry: `${PATH}?id=nie-uuid`,
+    });
+    expect(zle.search()).toEqual({});
     cleanup();
   });
 });

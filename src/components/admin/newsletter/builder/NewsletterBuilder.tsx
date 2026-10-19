@@ -30,7 +30,10 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useNewsletterSettings, useSaveNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+// Zapis przez szew grup (S1, D-S1-04): patch jednej kolumny dokumentu, RPC
+// `admin_newsletter_settings_patch` - nie cały wiersz ustawień.
+import { useSaveNewsletterSettings } from "@/lib/newsletter/settingsQueries";
 import type {
   NlDoc,
   NlWidget,

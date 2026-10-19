@@ -108,6 +108,10 @@ const env = vi.hoisted(() => ({
     sent: number;
   },
   navigations: [] as { to: string; params?: Record<string, unknown> }[],
+  /** Role zalogowanej osoby (S1 def. 10 - wysyłka tylko admin/redaktor). */
+  roles: ["admin"] as string[],
+  /** Listy mailingowe z ustawień newslettera (segment kampanii kuponowej). */
+  mailingLists: [] as { id: string; label_pl: string; label_en: string }[],
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -115,6 +119,17 @@ const env = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-newsletter-admin", () => ({ ensureI18n: () => undefined }));
+// Słownik kuponów (panel kampanii kuponowej, powód blokady) - `t` jest echem.
+vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: () => undefined }));
+// ZMIANA ŚWIADOMA (S1 def. 10): trasy czytają role, bo zapis, wysyłkę, tick
+// i wznowienie prowadzi wyłącznie administrator albo redaktor. Bez atrapy
+// domyślny kontekst sesji (brak ról) wyłączałby te akcje w KAŻDYM teście
+// poniżej - dotychczasowe przypadki biegną więc jako administrator, a role
+// autora i redaktora mają własne bloki na końcu pliku.
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ roles: env.roles }) }));
+vi.mock("@/hooks/useNewsletterSettings", () => ({
+  useNewsletterSettings: () => ({ data: { popup_mailing_lists: env.mailingLists } }),
+}));
 vi.mock("sonner", () => ({
   toast: { success: env.toastSuccess, error: env.toastError, info: env.toastInfo },
 }));
@@ -459,6 +474,8 @@ beforeEach(() => {
   ];
   env.processDueResult = { fired: 0, continued: 0, sent: 0 };
   env.navigations = [];
+  env.roles = ["admin"];
+  env.mailingLists = [{ id: "vip", label_pl: "Lista VIP", label_en: "VIP list" }];
 });
 
 afterEach(() => {
@@ -1447,5 +1464,235 @@ describe("powłoka `/admin/newsletter/campaigns`", () => {
 
     expect(utils.currentPath()).toBe("/admin/newsletter/campaigns");
     expect(utils.container.textContent).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S1 def. 10 - AUTOR NIE WYSYŁA KAMPANII
+// ---------------------------------------------------------------------------
+//
+// Serwer zamyka wysyłkę i tick bramką roli, a RLS kampanii wpuszcza wyłącznie
+// administratora i redaktora. Panel nie może więc proponować autorowi akcji
+// skazanej na odmowę: przyciski są wyłączone, a POWÓD jest w drzewie
+// dostępności (tekst `sr-only` przy przycisku), nie tylko w dymku.
+
+/** Przycisk wysyłki „teraz" w nagłówku edytora. */
+function przyciskWyslij(): HTMLButtonElement {
+  return screen.getByRole("button", {
+    name: /^adminNewsletter\.campaigns\.sendNow$/,
+  }) as HTMLButtonElement;
+}
+
+describe("def. 10 - edytor kampanii dla AUTORA", () => {
+  it("zapis i wysyłka są WYŁĄCZONE, a powód jest przy przyciskach", async () => {
+    env.roles = ["author"];
+    await zamontujEdytor();
+
+    expect(przyciskZapisu().disabled).toBe(true);
+    expect(przyciskWyslij().disabled).toBe(true);
+    // Powód czyta czytnik ekranu (tekst `sr-only` związany `aria-describedby`).
+    expect(screen.getAllByText("adminCoupons.newsletterCampaign.roleRequired").length).toBe(2);
+  });
+
+  it("kliknięcie wyłączonej wysyłki NIE woła serwera", async () => {
+    env.roles = ["author"];
+    await zamontujEdytor();
+
+    fireEvent.click(przyciskWyslij());
+    fireEvent.click(przyciskZapisu());
+
+    await act(async () => {});
+    expect(env.sendCalls).toHaveLength(0);
+    expect(env.savePayloads).toHaveLength(0);
+  });
+
+  it("wznowienie kampanii w trakcie wysyłki też jest wyłączone dla autora", async () => {
+    env.roles = ["author"];
+    env.campaign = kampania({ status: "sending", sent_count: 10, recipient_count: 40 });
+    await zamontujEdytor();
+
+    const wznow = screen.getByRole("button", { name: /resume/ }) as HTMLButtonElement;
+    expect(wznow.disabled).toBe(true);
+  });
+
+  it("REDAKTOR ma pełne prawa - przyciski czynne, bez powodu blokady", async () => {
+    env.roles = ["editor"];
+    await zamontujEdytor();
+
+    expect(przyciskZapisu().disabled).toBe(false);
+    expect(przyciskWyslij().disabled).toBe(false);
+    expect(screen.queryByText("adminCoupons.newsletterCampaign.roleRequired")).toBeNull();
+  });
+});
+
+describe("def. 10 - lista kampanii dla AUTORA", () => {
+  it("tworzenie i ręczny tick są wyłączone, a tick przy wejściu NIE rusza", async () => {
+    env.roles = ["author"];
+    await zamontujListe();
+
+    const nowa = screen.getByRole("button", { name: /newCampaign/ }) as HTMLButtonElement;
+    const zalegle = screen.getByRole("button", { name: /processDue/ }) as HTMLButtonElement;
+    expect(nowa.disabled).toBe(true);
+    expect(zalegle.disabled).toBe(true);
+    await act(async () => {});
+    // Tick WYSYŁA pocztę - dla autora byłby tylko odrzuconym żądaniem.
+    expect(env.processDueCalls).toBe(0);
+  });
+
+  it("kasowanie kampanii proponujemy WYŁĄCZNIE administratorowi (RLS)", async () => {
+    env.roles = ["editor"];
+    env.listRows = [wiersz({ id: "k-1", status: "draft" })];
+    await zamontujListe();
+
+    await screen.findByText("Kampania");
+    // Redaktor dostawał „usunięto", a RLS `campaigns_staff_delete` zostawiał wiersz.
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S1 P04 / R-25 - KAMPANIA KUPONOWA W EDYTORZE
+// ---------------------------------------------------------------------------
+
+function kuponowa(overrides: Partial<{ codesAvailable: number; codesTotal: number }> = {}) {
+  return {
+    couponCampaignId: "c0c0c0c0-0000-4000-8000-000000000001",
+    name: "Jesień VIP",
+    codesAvailable: 200,
+    codesTotal: 200,
+    status: "generated",
+    ...overrides,
+  };
+}
+
+describe("P04 - panel kampanii kuponowej", () => {
+  it("zwykła kampania NIE pokazuje panelu kuponów", async () => {
+    await zamontujEdytor();
+
+    expect(screen.queryByTestId("panel-kampanii-kuponowej")).toBeNull();
+  });
+
+  it("pokazuje kampanię kuponową, segment, liczbę odbiorców i wolnych kodów PRZED wysyłką", async () => {
+    env.campaign = { ...kampania({ audience_filter: { segment: "vip" } }), coupon: kuponowa() };
+    env.audience = 128;
+    await zamontujEdytor();
+
+    const panel = await screen.findByTestId("panel-kampanii-kuponowej");
+    expect(panel.textContent).toContain("Jesień VIP");
+    expect(panel.textContent).toContain("Lista VIP");
+    await waitFor(() => expect(panel.textContent).toContain("128"));
+    expect(panel.textContent).toContain(
+      "adminCoupons.newsletterCampaign.codesOf(free=200,total=200)",
+    );
+    // Licznik odbiorców pyta serwer filtrem Z SEGMENTEM - tym samym co wysyłka.
+    expect(env.countCalls.at(-1)).toMatchObject({ segment: "vip" });
+    expect(przyciskWyslij().disabled).toBe(false);
+  });
+
+  it("ZA MAŁO KODÓW blokuje wysyłkę z komunikatem - zanim ktoś kliknie", async () => {
+    env.campaign = {
+      ...kampania({ audience_filter: { segment: "vip" } }),
+      coupon: kuponowa({ codesAvailable: 80 }),
+    };
+    env.audience = 128;
+    await zamontujEdytor();
+
+    await waitFor(() => expect(przyciskWyslij().disabled).toBe(true));
+    expect(screen.getByRole("alert").textContent).toContain(
+      "adminCoupons.newsletterCampaign.codesShort(available=80,recipients=128)",
+    );
+    fireEvent.click(przyciskWyslij());
+    await act(async () => {});
+    expect(env.sendCalls).toHaveLength(0);
+  });
+
+  it("segment spoza list mailingowych jest oznaczony jako nieznany", async () => {
+    env.campaign = {
+      ...kampania({ audience_filter: { segment: "stary-tag" } }),
+      coupon: kuponowa(),
+    };
+    await zamontujEdytor();
+
+    const panel = await screen.findByTestId("panel-kampanii-kuponowej");
+    expect(panel.textContent).toContain("adminCoupons.segmentField.unknown(id=stary-tag)");
+  });
+
+  it("kampania bez segmentu jest podpisana wprost: cała lista subskrybentów", async () => {
+    env.campaign = { ...kampania(), coupon: kuponowa() };
+    await zamontujEdytor();
+
+    const panel = await screen.findByTestId("panel-kampanii-kuponowej");
+    expect(panel.textContent).toContain("adminCoupons.segmentField.wholeList");
+  });
+
+  it("dialog wysyłki mówi o kodach per odbiorca", async () => {
+    env.campaign = { ...kampania({ audience_filter: { segment: "vip" } }), coupon: kuponowa() };
+    await zamontujEdytor();
+
+    await waitFor(() => expect(przyciskWyslij().disabled).toBe(false));
+    expect(
+      screen.getByText(/adminCoupons\.newsletterCampaign\.confirmCodes\(available=200\)/),
+    ).toBeTruthy();
+  });
+
+  it("błąd COUPON_CODES_INSUFFICIENT idzie do operatora ZDANIEM, nie kodem", async () => {
+    env.campaign = { ...kampania({ audience_filter: { segment: "vip" } }), coupon: kuponowa() };
+    env.sendError = "COUPON_CODES_INSUFFICIENT:120:80";
+    await zamontujEdytor();
+    await waitFor(() => expect(przyciskWyslij().disabled).toBe(false));
+
+    fireEvent.click(screen.getByRole("button", { name: "adminNewsletter.campaigns.send" }));
+
+    await waitFor(() =>
+      expect(env.toastError).toHaveBeenCalledWith(
+        "adminCoupons.newsletterCampaign.errors.codesInsufficient(available=80,needed=120)",
+      ),
+    );
+    expect(env.toastError).not.toHaveBeenCalledWith("COUPON_CODES_INSUFFICIENT:120:80");
+  });
+
+  it("błąd COUPON_SEGMENT_INVALID mówi, że kody NIE poszły do całej listy", async () => {
+    env.campaign = { ...kampania({ audience_filter: { segment: "vip" } }), coupon: kuponowa() };
+    env.sendError = "COUPON_SEGMENT_INVALID";
+    await zamontujEdytor();
+    await waitFor(() => expect(przyciskWyslij().disabled).toBe(false));
+
+    fireEvent.click(screen.getByRole("button", { name: "adminNewsletter.campaigns.send" }));
+
+    await waitFor(() =>
+      expect(env.toastError).toHaveBeenCalledWith(
+        "adminCoupons.newsletterCampaign.errors.segmentInvalid",
+      ),
+    );
+  });
+
+  it("wznowienie kampanii kuponowej NIE jest blokowane licznikiem wolnych kodów", async () => {
+    // Po części wysyłki kody są już przypisane odbiorcom - „wolne < wszyscy"
+    // fałszywie blokowałoby dokończenie. Decyduje serwer (wolne + przypisane).
+    env.campaign = {
+      ...kampania({ status: "sending", sent_count: 100, audience_filter: { segment: "vip" } }),
+      coupon: kuponowa({ codesAvailable: 28 }),
+    };
+    env.audience = 128;
+    await zamontujEdytor();
+
+    const wznow = screen.getByRole("button", { name: /resume/ }) as HTMLButtonElement;
+    expect(wznow.disabled).toBe(false);
+  });
+});
+
+describe("nagłówki tras kampanii (D14)", () => {
+  it("lista i edytor mają SEKCYJNE tytuły i są wyłączone z indeksu", async () => {
+    const lista = await zamontujListe();
+    expect(lista.meta()).toContainEqual({
+      title: "Kampanie newslettera | New European Strategies",
+    });
+    expect(lista.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+    lista.unmount();
+
+    const edytor = await zamontujEdytor();
+    expect(edytor.meta()).toContainEqual({
+      title: "Kampania newslettera | New European Strategies",
+    });
   });
 });

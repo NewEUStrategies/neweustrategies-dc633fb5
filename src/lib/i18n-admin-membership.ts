@@ -28,6 +28,18 @@ const adminMembershipPl = {
     editDialog: {
       title: "Warstwa: {{name}}",
       hint: "Zmiany zapisują się dopiero przyciskiem zapisu na dole okna.",
+      notFound:
+        "Warstwy o kluczu „{{key}}” nie ma w katalogu - mogła zostać usunięta albo odnośnik jest nieaktualny.",
+    },
+    // Nazwy, opisy i benefity warstwy należą od S1 do Cennika (właściciel
+    // kolumn marketingu) - ten panel pokazuje je tylko do odczytu.
+    marketingSource: {
+      label: "Cennik → warstwy i benefity",
+      hint: "Nazwy, opisy i benefity to obietnica na stronie cennika - edytujesz je w Cenniku. Tutaj są do odczytu, żeby dwa panele nie nadpisywały sobie tych samych pól.",
+    },
+    readOnly: {
+      descriptionEmpty: "Brak opisu",
+      benefitsEmpty: "Warstwa nie ma jeszcze benefitów - dodasz je w Cenniku.",
     },
     summary: {
       open: "Otwórz edycję warstwy {{name}}",
@@ -45,7 +57,7 @@ const adminMembershipPl = {
     sections: {
       tiersTitle: "Katalog warstw",
       tiersDesc:
-        "Nazwa, opis, benefity i bramki (capabilities) każdej warstwy. Kolejność wg rangi.",
+        "Ranga, status i bramki (capabilities) każdej warstwy; nazwy, opisy i benefity pochodzą z Cennika. Kolejność wg rangi.",
     },
     groups: {
       naming: "Nazewnictwo i opis",
@@ -84,13 +96,17 @@ const adminMembershipPl = {
       grantRevoked: "Cofnięto nadanie",
       featuresInvalid: "Pole features nie jest poprawnym JSON-em",
       noTenant: "Brak tenantu",
-      noAccount: "Nie znaleziono konta o tym e-mailu",
+      noAccount: "W tej organizacji nie ma konta z tym adresem e-mail",
       unknownTier: "Nieznana warstwa",
+      tierInactive: "Ta warstwa jest nieaktywna - nadanie odrzucone",
+      expiresInPast: "Termin nadania wypada w przeszłości - podaj liczbę miesięcy od dziś",
+      grantGone: "To nadanie zostało już cofnięte - lista jest odświeżona",
     },
     mapping: {
       heading: "Mapowanie planów na warstwy",
-      hint: "Aktywna subskrypcja planu nadaje wskazaną warstwę. Plan bez warstwy daje tylko dostęp do treści (paywall).",
+      hint: "Aktywna subskrypcja planu nadaje wskazaną warstwę. Plan bez warstwy daje tylko dostęp do treści (paywall). Lista obejmuje też plany nieaktywne i wycofane - ich subskrybenci dalej dostają warstwę.",
       noTier: "- bez warstwy -",
+      planLabel: "Warstwa planu {{name}}",
     },
     org: {
       heading: "Członkostwo organizacji",
@@ -123,6 +139,12 @@ const adminMembershipPl = {
       noExpiry: "bezterminowo",
       revoked: "cofnięte",
       revoke: "Cofnij",
+      revokeTitle: "Cofnąć nadanie warstwy {{tier}} dla {{email}}?",
+      revokeDescription:
+        "Dostęp wygasa od razu. Nadanie zostaje w historii razem z powodem cofnięcia.",
+      revokeReason: "Powód (opcjonalnie)",
+      revokeReasonPlaceholder: "np. koniec umowy partnerskiej",
+      revokeConfirm: "Cofnij nadanie",
       sourceDonation: "darowizna",
       sourceImport: "import",
       sourceManual: "ręczne",
@@ -217,7 +239,7 @@ const adminMembershipPl = {
   },
 };
 
-const adminMembershipEn = {
+const adminMembershipEn: typeof adminMembershipPl = {
   adminMembership: {
     title: "Membership tiers",
     subtitle:
@@ -243,6 +265,16 @@ const adminMembershipEn = {
     editDialog: {
       title: "Tier: {{name}}",
       hint: "Changes are stored only after you press save at the bottom of the dialog.",
+      notFound:
+        "There is no tier with the “{{key}}” key in the catalogue - it may have been deleted or the link is out of date.",
+    },
+    marketingSource: {
+      label: "Pricing → tiers and benefits",
+      hint: "Names, descriptions and benefits are the promise on the pricing page - you edit them in Pricing. Here they are read-only, so the two panels never overwrite the same fields.",
+    },
+    readOnly: {
+      descriptionEmpty: "No description",
+      benefitsEmpty: "This tier has no benefits yet - add them in Pricing.",
     },
     summary: {
       open: "Open the {{name}} tier editor",
@@ -259,7 +291,8 @@ const adminMembershipEn = {
     },
     sections: {
       tiersTitle: "Tier catalogue",
-      tiersDesc: "Name, description, benefits and capability gates for each tier. Ordered by rank.",
+      tiersDesc:
+        "Rank, status and capability gates for each tier; names, descriptions and benefits come from Pricing. Ordered by rank.",
     },
     groups: {
       naming: "Naming and description",
@@ -298,13 +331,17 @@ const adminMembershipEn = {
       grantRevoked: "Grant revoked",
       featuresInvalid: "Features is not valid JSON",
       noTenant: "No tenant",
-      noAccount: "No account with that email",
+      noAccount: "There is no account with this e-mail address in this organisation",
       unknownTier: "Unknown tier",
+      tierInactive: "This tier is switched off - the grant was rejected",
+      expiresInPast: "The grant would end in the past - enter a number of months from today",
+      grantGone: "This grant has already been revoked - the list is refreshed",
     },
     mapping: {
       heading: "Plan-to-tier mapping",
-      hint: "An active subscription grants the mapped tier. A plan without a tier only unlocks content (paywall).",
+      hint: "An active subscription grants the mapped tier. A plan without a tier only unlocks content (paywall). The list also covers switched-off and withdrawn plans - their subscribers still get the tier.",
       noTier: "- no tier -",
+      planLabel: "Tier of the {{name}} plan",
     },
     org: {
       heading: "Organisation membership",
@@ -334,6 +371,12 @@ const adminMembershipEn = {
       noExpiry: "no expiry",
       revoked: "revoked",
       revoke: "Revoke",
+      revokeTitle: "Revoke the {{tier}} grant for {{email}}?",
+      revokeDescription:
+        "Access ends right away. The grant stays in the history together with the reason.",
+      revokeReason: "Reason (optional)",
+      revokeReasonPlaceholder: "e.g. partnership agreement ended",
+      revokeConfirm: "Revoke grant",
       sourceDonation: "donation",
       sourceImport: "import",
       sourceManual: "manual",

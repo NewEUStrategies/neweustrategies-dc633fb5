@@ -17,13 +17,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { supabaseFromStub, ok, type RecordedChain } from "@/test/supabaseChain";
+import { supabaseFromStub, ok } from "@/test/supabaseChain";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { makeWidget } from "@/lib/newsletter-builder/defaults";
 import type { NlDoc, NlWidget } from "@/lib/newsletter-builder/types";
 
 const h = vi.hoisted(() => ({
   from: (_table: string): unknown => ({}),
+  // S1 (D-S1-04): zapis ustawień idzie RPC `admin_newsletter_settings_patch`
+  // grupy `builder` (patch tylko zmienionej kolumny dokumentu, CAS na tokenie).
+  rpc: (_fn: string, _args: Record<string, unknown>): Promise<unknown> =>
+    Promise.resolve({ data: null, error: null }),
 }));
 
 /**
@@ -63,6 +67,7 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (table: string) => h.from(table),
+    rpc: (fn: string, args: Record<string, unknown>) => h.rpc(fn, args),
     auth: { getSession: async () => ({ data: { session: null } }) },
     storage: {
       from: () => ({
@@ -109,7 +114,15 @@ function storedDoc(overrides: Partial<NlDoc> = {}): NlDoc {
 }
 
 let stub: ReturnType<typeof supabaseFromStub>;
-let saveResult: (chain: RecordedChain) => ReturnType<typeof ok>;
+let saveResult: () => { data: unknown; error: Error | null };
+let patchCalls: { fn: string; args: Record<string, unknown> }[];
+
+/** Patche wysłane do RPC grup ustawień (kolejność wywołań). */
+function savedPatches(): Record<string, unknown>[] {
+  return patchCalls
+    .filter((call) => call.fn === "admin_newsletter_settings_patch")
+    .map((call) => call.args.p_patch as Record<string, unknown>);
+}
 
 function mount(
   args: { variant?: "inline" | "popup"; doc?: NlDoc | null; popupDoc?: NlDoc | null } = {},
@@ -122,13 +135,7 @@ function mount(
     inline_doc: args.doc === undefined ? storedDoc() : args.doc,
     popup_doc: args.popupDoc ?? null,
   };
-  stub.setResponse("newsletter_settings", (chain) => {
-    if (chain.has("update") || chain.has("insert")) return saveResult(chain);
-    // Zapis najpierw czyta identyfikator tenanta.
-    if ((chain.argsOf("select")?.[0] as string) === "tenant_id")
-      return ok({ tenant_id: "tenant-1" });
-    return ok(row);
-  });
+  stub.setResponse("newsletter_settings", () => ok(row));
   return renderWithQueryClient(<NewsletterBuilder variant={args.variant ?? "inline"} />);
 }
 
@@ -157,14 +164,21 @@ function dragEnd(
 async function savedDoc(key: "inline_doc" | "popup_doc" = "inline_doc"): Promise<NlDoc> {
   fireEvent.click(screen.getByRole("button", { name: /Zapisz/ }));
   await waitFor(() => expect(toast.success).toHaveBeenCalled());
-  const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-  return (update.argsOf("update")![0] as Record<string, NlDoc>)[key]!;
+  return savedPatches().at(-1)![key] as NlDoc;
 }
 
 beforeEach(() => {
   stub = supabaseFromStub();
   h.from = stub.from;
-  saveResult = () => ok(null);
+  saveResult = () => ({
+    data: { updated_at: "2026-10-19T10:00:00.123456+00:00", changed: ["inline_doc"] },
+    error: null,
+  });
+  patchCalls = [];
+  h.rpc = (fn, args) => {
+    patchCalls.push({ fn, args });
+    return Promise.resolve(saveResult());
+  };
   vi.clearAllMocks();
 });
 
@@ -226,7 +240,7 @@ describe("zapis", () => {
     await mounted();
 
     expect(screen.getByRole("button", { name: /Zapisz/ })).toHaveProperty("disabled", true);
-    expect(stub.chainsFor("newsletter_settings").some((c) => c.has("update"))).toBe(false);
+    expect(savedPatches()).toEqual([]);
   });
 
   it("pierwsza zmiana ODBLOKOWUJE zapis", async () => {
@@ -245,8 +259,8 @@ describe("zapis", () => {
     fireEvent.click(screen.getByRole("button", { name: /Zapisz/ }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Zapisano formularz inline"));
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect(Object.keys(update.argsOf("update")![0] as object)).toEqual(["inline_doc"]);
+    expect(patchCalls[0].args.p_group).toBe("builder");
+    expect(savedPatches().map((patch) => Object.keys(patch))).toEqual([["inline_doc"]]);
   });
 
   it("wariant popup zapisuje się pod SWOIM kluczem", async () => {
@@ -256,8 +270,7 @@ describe("zapis", () => {
     fireEvent.click(screen.getByRole("button", { name: /Zapisz/ }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Zapisano popup"));
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    expect(Object.keys(update.argsOf("update")![0] as object)).toEqual(["popup_doc"]);
+    expect(savedPatches().map((patch) => Object.keys(patch))).toEqual([["popup_doc"]]);
   });
 
   it("zapisany dokument zawiera dołożoną sekcję", async () => {
@@ -267,8 +280,7 @@ describe("zapis", () => {
     fireEvent.click(screen.getByRole("button", { name: /Zapisz/ }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    const update = stub.chainsFor("newsletter_settings").find((c) => c.has("update"))!;
-    const body = update.argsOf("update")![0] as { inline_doc: NlDoc };
+    const body = savedPatches().at(-1) as { inline_doc: NlDoc };
     expect(body.inline_doc.sections).toHaveLength(2);
   });
 

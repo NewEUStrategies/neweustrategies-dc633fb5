@@ -24,12 +24,25 @@
 // GRANICE vs SASIEDZI. `CampaignCreateDialog` biegnie PRAWDZIWY (sasiad
 // z `@/components/admin/coupons/*`). Atrapowane sa granice: klient Supabase
 // (wraz z `rpc`), toasty, i18n, najemca (`useCurrentTenantId`), API obiektow
-// URL przegladarki oraz Radiksowy Dialog.
+// URL przegladarki, Radiksowy Dialog, router (nawigacja do edytora kampanii
+// newslettera), funkcja serwerowa kampanii i ustawienia newslettera (listy).
+//
+// ZMIANY SWIADOME (S1, P04). Punkt 4 wyzej opisywal DEFEKT jako wymaganie:
+// „Wyslij" wstawialo kampanie newslettera Z PRZEGLADARKI i od razu ustawialo
+// kampanii kuponowej `sent` - zanim cokolwiek wyszlo, a segment (wolny tekst)
+// serwer ignorowal. Teraz „Przygotuj wysylke" wola serwer
+// (`createCouponNewsletterCampaign`), ktory zaklada SZKIC i podpina go
+// (idempotentnie), a `sent` ustawia wylacznie zakonczona wysylka. Ochrone
+// przed podwojnym wyslaniem daje podpiecie (`newsletter_campaign_id`) i stan
+// serwera - nie status ustawiany przez panel. Archiwizacja idzie przez RPC
+// `admin_coupon_campaign_set_status` z tokenem `updated_at` (panel nie ma juz
+// grantu UPDATE na `status`). Odczyty z `couponQueries.ts` - bez dawnego
+// limitu 200 (lista kampanii najemcy jest czytana w calosci).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { fail, ok, type SupabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
+import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { analyticsCouponsKey } from "@/lib/analytics/queryKeys";
 import type { CampaignRow } from "../CampaignsPage";
 
@@ -41,6 +54,45 @@ const h = vi.hoisted(() => ({
   ensureI18n: vi.fn(),
   /** Najemca z `useCurrentTenantId`. */
   tenantId: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" as string | null,
+  /** `createCouponNewsletterCampaign` (funkcja serwerowa P04). */
+  prepare: vi.fn(),
+  navigations: [] as { to: string; params?: Record<string, string> }[],
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => (options: { to: string; params?: Record<string, string> }) => {
+    h.navigations.push(options);
+    return Promise.resolve();
+  },
+  Link: ({
+    to,
+    params,
+    children,
+    className,
+  }: {
+    to: string;
+    params?: Record<string, string>;
+    children?: ReactNode;
+    className?: string;
+  }) => (
+    <a
+      className={className}
+      href={Object.entries(params ?? {}).reduce((p, [k, v]) => p.replace(`$${k}`, v), to)}
+    >
+      {children}
+    </a>
+  ),
+}));
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  useServerFn: () => h.prepare,
+}));
+vi.mock("@/lib/newsletter-campaigns.functions", () => ({ createCouponNewsletterCampaign: {} }));
+vi.mock("@/lib/i18n-admin-paywall-sync", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/hooks/useNewsletterSettings", () => ({
+  useNewsletterSettings: () => ({
+    data: { popup_mailing_lists: [{ id: "vip", label_pl: "Lista VIP", label_en: "VIP list" }] },
+  }),
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -115,6 +167,8 @@ function kampania(over: Partial<CampaignRow> = {}): CampaignRow {
     newsletter_campaign_id: null,
     status: "draft",
     created_at: "2026-02-01T10:00:00.000Z",
+    // Surowy token PostgREST (mikrosekundy) - idzie do RPC bez `new Date()`.
+    updated_at: "2026-02-01T10:00:00.123456+00:00",
     ...over,
   };
 }
@@ -143,6 +197,9 @@ beforeEach(() => {
   db().reset();
   h.rpc.mockReset();
   h.rpc.mockResolvedValue({ data: 100, error: null });
+  h.prepare.mockReset();
+  h.prepare.mockResolvedValue({ newsletterCampaignId: "nl-1" });
+  h.navigations = [];
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.ensureI18n.mockClear();
@@ -187,13 +244,16 @@ describe("CampaignsPage - odczyt i stany", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("odczyt sortuje od najnowszych i ma twardy limit", async () => {
+  it("odczyt sortuje od najnowszych i czyta CALA liste kampanii najemcy", async () => {
+    // ZMIANA SWIADOMA (S1): odczyt idzie przez `couponCampaignsQueryOptions`
+    // - jeden odczyt dla panelu i huba, bez dawnego `limit(200)`, ktory
+    // chowal starsze kampanie bez slowa.
     await renderPage([]);
     const chain = db()
       .chainsFor("b2b_coupon_campaigns")
       .find((c) => c.has("order"));
     expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
-    expect(chain?.argsOf("limit")).toEqual([200]);
+    expect(chain?.has("limit")).toBe(false);
   });
 
   it("wiersz pokazuje nazwe, prefiks kodow i postep generowania", async () => {
@@ -223,9 +283,27 @@ describe("CampaignsPage - odczyt i stany", () => {
     expect(within(await wiersz("Q1 2026 VIP")).getByText(/30d/)).toBeInTheDocument();
   });
 
-  it("segment newslettera pokazuje sie, gdy jest ustawiony", async () => {
+  it("segment newslettera pokazuje NAZWE listy mailingowej", async () => {
     await renderPage([kampania({ newsletter_segment: "vip" })]);
-    expect(within(await wiersz("Q1 2026 VIP")).getByText("vip")).toBeInTheDocument();
+    expect(within(await wiersz("Q1 2026 VIP")).getByText("Lista VIP")).toBeInTheDocument();
+  });
+
+  it("kampania BEZ segmentu jest podpisana wprost: cala lista subskrybentow", async () => {
+    // Pusta komorka nie mowila, ze kody pojda do WSZYSTKICH (R-25).
+    await renderPage([kampania({ newsletter_segment: null })]);
+    expect(
+      within(await wiersz("Q1 2026 VIP")).getByText("adminCoupons.segmentField.wholeList"),
+    ).toBeInTheDocument();
+  });
+
+  it("segment spoza list (stary wolny tekst) jest oznaczony jako NIEZNANY", async () => {
+    // Wysylka odrzuci taki segment (fail-closed) - panel ma to pokazac wczesniej.
+    await renderPage([kampania({ newsletter_segment: "stary-tag" })]);
+    expect(
+      within(await wiersz("Q1 2026 VIP")).getByText(
+        "adminCoupons.segmentField.unknown(id=stary-tag)",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("odpowiedz BEZ wierszy (`data: null`) to pusta lista, a nie wywrotka", async () => {
@@ -275,7 +353,7 @@ describe("CampaignsPage - odmowy odczytu", () => {
     await waitFor(() => expect(screen.queryByText("adminCoupons.loading")).toBeNull());
     expect(screen.queryByRole("table")).toBeNull();
     expect(screen.queryByRole("button", { name: "adminCoupons.generate" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /adminCoupons\.send/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /prepareSend/ })).toBeNull();
     // Odczyt NIE jest ponawiany w petli - jedna proba, jeden lancuch.
     expect(db().chainsFor("b2b_coupon_campaigns")).toHaveLength(1);
   });
@@ -305,31 +383,59 @@ describe("CampaignsPage - akcje zalezne od stanu kampanii", () => {
     const cells = within(await wiersz("Q1 2026 VIP"));
     expect(cells.getByRole("button", { name: "adminCoupons.generate" })).toBeInTheDocument();
     expect(cells.queryByRole("button", { name: /CSV/ })).toBeNull();
-    expect(cells.queryByRole("button", { name: /adminCoupons\.send/ })).toBeNull();
+    expect(cells.queryByRole("button", { name: /prepareSend/ })).toBeNull();
     expect(cells.getByRole("button", { name: "adminCoupons.archiveAction" })).toBeInTheDocument();
   });
 
-  it("WYGENEROWANA ma eksport i wysylke, a NIE MA juz `generuj`", async () => {
+  it("WYGENEROWANA ma eksport i „przygotuj wysylke”, a NIE MA juz `generuj`", async () => {
     // Ponowne generowanie zalozyloby DRUGI komplet kodow do tej samej kampanii.
     await renderPage([kampania({ status: "generated", generated_count: 100 })]);
     const cells = within(await wiersz("Q1 2026 VIP"));
     expect(cells.queryByRole("button", { name: "adminCoupons.generate" })).toBeNull();
     expect(cells.getByRole("button", { name: /CSV/ })).toBeInTheDocument();
-    expect(cells.getByRole("button", { name: /adminCoupons\.send/ })).toBeInTheDocument();
+    expect(
+      cells.getByRole("button", { name: "adminCoupons.campaignsFlow.prepareSend" }),
+    ).toBeInTheDocument();
   });
 
-  it("WYSLANA nie pozwala juz ani generowac, ani wysylac drugi raz", async () => {
-    await renderPage([kampania({ status: "sent", generated_count: 100 })]);
+  it("PODPIETA (szkic newslettera istnieje) to OSOBNY stan z linkiem - nie „Wyslana”", async () => {
+    // Podpiecie to nie wysylka: dopoki serwer nie ustawi `sent`, kampania jest
+    // „Wygenerowana", a operator przechodzi do edytora po link - drugie
+    // „przygotuj" juz sie nie pokazuje.
+    await renderPage([
+      kampania({ status: "generated", generated_count: 100, newsletter_campaign_id: "nl-7" }),
+    ]);
+    const cells = within(await wiersz("Q1 2026 VIP"));
+    expect(cells.getByText("adminCoupons.campaignStatus.generated")).toBeInTheDocument();
+    expect(cells.getByText("adminCoupons.campaignsFlow.linked")).toBeInTheDocument();
+    expect(cells.queryByText("adminCoupons.campaignStatus.sent")).toBeNull();
+    expect(cells.queryByRole("button", { name: /prepareSend/ })).toBeNull();
+    expect(
+      cells.getByRole("link", { name: /adminCoupons\.campaignsFlow\.openNewsletter/ }),
+    ).toHaveAttribute("href", "/admin/newsletter/campaigns/nl-7");
+  });
+
+  it("WYSLANA (stan z serwera) nie pozwala juz ani generowac, ani wysylac drugi raz", async () => {
+    await renderPage([
+      kampania({ status: "sent", generated_count: 100, newsletter_campaign_id: "nl-7" }),
+    ]);
     const cells = within(await wiersz("Q1 2026 VIP"));
     expect(cells.queryByRole("button", { name: "adminCoupons.generate" })).toBeNull();
-    expect(cells.queryByRole("button", { name: /adminCoupons\.send/ })).toBeNull();
+    expect(cells.queryByRole("button", { name: /prepareSend/ })).toBeNull();
+    expect(cells.getByText("adminCoupons.campaignStatus.sent")).toBeInTheDocument();
+    expect(cells.queryByText("adminCoupons.campaignsFlow.linked")).toBeNull();
     expect(cells.getByRole("button", { name: "adminCoupons.archiveAction" })).toBeInTheDocument();
   });
 
-  it("ZARCHIWIZOWANA nie ma zadnej akcji - takze archiwizacji", async () => {
+  it("ZARCHIWIZOWANA ma WYLACZNIE przywrocenie - RPC dopuszcza powrot", async () => {
+    // ZMIANA SWIADOMA: archiwizacja byla jednokierunkowa, bo panel pisal
+    // status wprost. RPC `admin_coupon_campaign_set_status` dopuszcza
+    // `archived -> generated|draft`, wiec panel to proponuje.
     await renderPage([kampania({ status: "archived" })]);
     const cells = within(await wiersz("Q1 2026 VIP"));
-    expect(cells.queryByRole("button")).toBeNull();
+    expect(cells.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "adminCoupons.campaignsFlow.restoreAction",
+    ]);
   });
 });
 
@@ -402,8 +508,28 @@ describe("CampaignsPage - generowanie kodow", () => {
   });
 });
 
-describe("CampaignsPage - archiwizacja", () => {
-  it("archiwizacja ustawia status i jest ZAWEZONA do tego wiersza", async () => {
+describe("CampaignsPage - archiwizacja i przywrocenie (RPC z tokenem)", () => {
+  /** Odpowiedz RPC zmiany statusu albo generowania - zaleznie od nazwy funkcji. */
+  function rpcStatusu(wynik: { data?: unknown; error?: unknown } = {}) {
+    h.rpc.mockImplementation(async (fn: string, args: Record<string, unknown>) =>
+      fn === "admin_coupon_campaign_set_status"
+        ? {
+            data:
+              "data" in wynik
+                ? wynik.data
+                : {
+                    id: args.p_campaign_id,
+                    status: args.p_status,
+                    updated_at: "2026-02-02T10:00:00.000001+00:00",
+                  },
+            error: wynik.error ?? null,
+          }
+        : { data: 100, error: null },
+    );
+  }
+
+  it("archiwizacja idzie RPC z ID TEJ kampanii i SUROWYM tokenem - nie UPDATE tabeli", async () => {
+    rpcStatusu();
     await renderPage([kampania({ status: "generated" })]);
     fireEvent.click(
       within(await wiersz("Q1 2026 VIP")).getByRole("button", {
@@ -411,32 +537,85 @@ describe("CampaignsPage - archiwizacja", () => {
       }),
     );
     await waitFor(() =>
-      expect(
-        db()
-          .chainsFor("b2b_coupon_campaigns")
-          .some((c) => c.has("update")),
-      ).toBe(true),
+      expect(h.rpc).toHaveBeenCalledWith("admin_coupon_campaign_set_status", {
+        p_campaign_id: "cccccccc-1111-4111-8111-cccccccccccc",
+        p_status: "archived",
+        p_expected_updated_at: "2026-02-01T10:00:00.123456+00:00",
+      }),
     );
-    const update = db()
-      .chainsFor("b2b_coupon_campaigns")
-      .find((c) => c.has("update"));
-    expect(update?.argsOf("update")?.[0]).toEqual({ status: "archived" });
-    expect(update?.argsOf("eq")).toEqual(["id", "cccccccc-1111-4111-8111-cccccccccccc"]);
+    expect(
+      db()
+        .chainsFor("b2b_coupon_campaigns")
+        .some((c) => c.has("update")),
+    ).toBe(false);
+    await waitFor(() =>
+      expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.campaignsFlow.archived"),
+    );
+  });
+
+  it("przywrocenie wraca do `generated`, gdy kody istnieja, a do `draft`, gdy nie", async () => {
+    rpcStatusu();
+    await renderPage([
+      kampania({ id: "k-gen", name: "Z kodami", status: "archived", generated_count: 10 }),
+      kampania({ id: "k-draft", name: "Bez kodow", status: "archived", generated_count: 0 }),
+    ]);
+    fireEvent.click(
+      within(await wiersz("Z kodami")).getByRole("button", {
+        name: "adminCoupons.campaignsFlow.restoreAction",
+      }),
+    );
+    await waitFor(() =>
+      expect(h.rpc).toHaveBeenCalledWith(
+        "admin_coupon_campaign_set_status",
+        expect.objectContaining({ p_campaign_id: "k-gen", p_status: "generated" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByText("Bez kodow").closest("tr") as HTMLElement).getByRole("button", {
+          name: "adminCoupons.campaignsFlow.restoreAction",
+        }),
+      ).not.toBeDisabled(),
+    );
+    fireEvent.click(
+      within(await wiersz("Bez kodow")).getByRole("button", {
+        name: "adminCoupons.campaignsFlow.restoreAction",
+      }),
+    );
+    await waitFor(() =>
+      expect(h.rpc).toHaveBeenCalledWith(
+        "admin_coupon_campaign_set_status",
+        expect.objectContaining({ p_campaign_id: "k-draft", p_status: "draft" }),
+      ),
+    );
   });
 
   it("ODMOWA archiwizacji konczy sie komunikatem", async () => {
-    db().setResponse("b2b_coupon_campaigns", (chain) =>
-      chain.has("update") ? fail("permission denied", "42501") : ok([kampania({ status: "sent" })]),
-    );
-    db().setResponse("membership_tiers", ok([]));
-    renderWithQueryClient(<CampaignsPage />);
-    await screen.findByText("Q1 2026 VIP");
+    rpcStatusu({ data: null, error: { message: "permission denied", code: "42501" } });
+    await renderPage([kampania({ status: "sent" })]);
     fireEvent.click(
       within(await wiersz("Q1 2026 VIP")).getByRole("button", {
         name: "adminCoupons.archiveAction",
       }),
     );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
+  });
+
+  it("nieaktualny token (40001) to KONFLIKT z akcja „Wczytaj aktualne”, nie surowy blad", async () => {
+    rpcStatusu({ data: null, error: { message: "stale_write", code: "40001" } });
+    await renderPage([kampania({ status: "generated" })]);
+    fireEvent.click(
+      within(await wiersz("Q1 2026 VIP")).getByRole("button", {
+        name: "adminCoupons.archiveAction",
+      }),
+    );
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        "adminPaywall.sync.staleWrite",
+        expect.objectContaining({ action: expect.anything() }),
+      ),
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith("stale_write");
   });
 });
 
@@ -531,118 +710,81 @@ describe("CampaignsPage - eksport CSV", () => {
   });
 });
 
-describe("CampaignsPage - wysylka newslettera", () => {
-  function withNewsletter(wynik: SupabaseResult = ok({ id: "nl-1" })) {
-    db().setResponse("newsletter_campaigns", wynik);
+describe("CampaignsPage - przygotowanie wysylki (P04)", () => {
+  async function przygotuj(c: CampaignRow = kampania({ status: "generated" })) {
+    const utils = await renderPage([c]);
+    fireEvent.click(
+      within(await wiersz(c.name)).getByRole("button", {
+        name: "adminCoupons.campaignsFlow.prepareSend",
+      }),
+    );
+    return utils;
   }
 
-  it("tworzy kampanie newslettera z merge tagiem na kod i segmentem odbiorcow", async () => {
-    // Kod MUSI byc merge tagiem: kazdy subskrybent dostaje inny kod, wiec
-    // wpisanie konkretnego kodu w tresc wyslaloby wszystkim ten sam.
-    withNewsletter();
-    await renderPage([kampania({ status: "generated", newsletter_segment: "vip" })]);
-    fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
-    );
-    await waitFor(() => expect(db().chainsFor("newsletter_campaigns").length).toBe(1));
-    const payload = db().lastChain("newsletter_campaigns")?.argsOf("insert")?.[0] as Record<
-      string,
-      unknown
-    >;
-    expect(String(payload.html_pl)).toContain("{{coupon_code}}");
-    expect(String(payload.html_en)).toContain("{{coupon_code}}");
-    expect(payload.audience_filter).toEqual({ segment: "vip" });
-  });
-
-  it("kampania BEZ segmentu wysyla sie do calej bazy - filtr jest pusty, nie `null`", async () => {
-    // `null` w kolumnie filtra bywa interpretowany inaczej niz pusty obiekt;
-    // to rozroznienie decyduje o tym, kto dostanie maila.
-    withNewsletter();
-    await renderPage([kampania({ status: "generated", newsletter_segment: null })]);
-    fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
-    );
-    await waitFor(() => expect(db().chainsFor("newsletter_campaigns").length).toBe(1));
-    const payload = db().lastChain("newsletter_campaigns")?.argsOf("insert")?.[0] as Record<
-      string,
-      unknown
-    >;
-    expect(payload.audience_filter).toEqual({});
-  });
-
-  it("tresc niesie date waznosci kodow w OBU wersjach jezykowych", async () => {
-    withNewsletter();
-    await renderPage([kampania({ status: "generated", valid_until: "2026-12-31T00:00:00.000Z" })]);
-    fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
-    );
-    await waitFor(() => expect(db().chainsFor("newsletter_campaigns").length).toBe(1));
-    const payload = db().lastChain("newsletter_campaigns")?.argsOf("insert")?.[0] as Record<
-      string,
-      unknown
-    >;
-    expect(String(payload.html_pl)).toContain("2026-12-31");
-    expect(String(payload.html_en)).toContain("2026-12-31");
-  });
-
-  it("po wysylce kampania dostaje `sent` i ODNOSNIK do newslettera", async () => {
-    // To jedyne zabezpieczenie przed wyslaniem tej samej kampanii dwa razy.
-    withNewsletter();
-    await renderPage([kampania({ status: "generated" })]);
-    fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
-    );
+  it("woła SERWER z identyfikatorem kampanii kuponowej - panel niczego nie wstawia sam", async () => {
+    // Szablon z `{{coupon_code}}`, segment i podpiecie robi serwer
+    // (`createCouponNewsletterCampaign`, testy w `newsletter-campaigns.coupons`).
+    await przygotuj();
     await waitFor(() =>
-      expect(
-        db()
-          .chainsFor("b2b_coupon_campaigns")
-          .some((c) => c.has("update")),
-      ).toBe(true),
+      expect(h.prepare).toHaveBeenCalledWith({
+        data: { couponCampaignId: "cccccccc-1111-4111-8111-cccccccccccc" },
+      }),
     );
-    const update = db()
-      .chainsFor("b2b_coupon_campaigns")
-      .find((c) => c.has("update"));
-    expect(update?.argsOf("update")?.[0]).toEqual({
-      newsletter_campaign_id: "nl-1",
-      status: "sent",
-    });
-    expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.newsletterCampaignCreated");
+    expect(db().chainsFor("newsletter_campaigns")).toHaveLength(0);
   });
 
-  it("ODMOWA utworzenia newslettera NIE przestawia statusu kampanii", async () => {
-    // Status `sent` przy nieistniejacym newsletterze to kampania, ktorej juz
-    // nie da sie wyslac, a ktora nigdy nie poszla.
-    withNewsletter(fail("permission denied", "42501"));
-    await renderPage([kampania({ status: "generated" })]);
-    fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
-    );
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
+  it("NIE ustawia `sent` ani `newsletter_campaign_id` z przegladarki", async () => {
+    // Dawny przeplyw oznaczal kampanie jako wyslana, zanim cokolwiek wyszlo.
+    await przygotuj();
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
     expect(
       db()
         .chainsFor("b2b_coupon_campaigns")
-        .some((c) => c.has("update")),
+        .some((c) => c.has("update") || c.has("insert")),
     ).toBe(false);
+    expect(h.rpc).not.toHaveBeenCalledWith("admin_coupon_campaign_set_status", expect.anything());
   });
 
-  it("newsletter BEZ identyfikatora konczy sie bledem i NIE oznacza kampanii jako `sent`", async () => {
-    // Zapis przepuszczony przez RLS bez zwrotu wiersza daje `data: null` bez
-    // `error`. Odnotowanie wysylki z `newsletter_campaign_id: undefined`
-    // zamknelaby kampanie na zawsze, choc zaden newsletter nie istnieje.
-    withNewsletter(ok(null));
-    await renderPage([kampania({ status: "generated" })]);
-    fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
-    );
+  it("po przygotowaniu przenosi do EDYTORA kampanii newslettera - tam widac odbiorcow i kody", async () => {
+    await przygotuj();
     await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith("Newsletter campaign not created"),
+      expect(h.navigations).toEqual([
+        { to: "/admin/newsletter/campaigns/$id", params: { id: "nl-1" } },
+      ]),
     );
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.campaignsFlow.prepared");
+  });
+
+  it("po przygotowaniu odswieza kampanie kuponowe I kampanie newslettera", async () => {
+    const { queryClient } = await renderPage([kampania({ status: "generated" })]);
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    fireEvent.click(
+      within(await wiersz("Q1 2026 VIP")).getByRole("button", {
+        name: "adminCoupons.campaignsFlow.prepareSend",
+      }),
+    );
+    await waitFor(() => expect(h.navigations).toHaveLength(1));
+    const klucze = spy.mock.calls.map((c) =>
+      JSON.stringify((c[0] as { queryKey: unknown }).queryKey),
+    );
+    expect(klucze).toContain(JSON.stringify(["admin", "b2b-coupon-campaigns"]));
+    expect(klucze).toContain(JSON.stringify(["admin", "newsletter-campaigns"]));
+  });
+
+  it("ODMOWA serwera jest przetlumaczona i NIE przenosi donikad", async () => {
+    h.prepare.mockRejectedValue(new Error("COUPON_SEGMENT_INVALID"));
+    await przygotuj();
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminCoupons.campaignsFlow.segmentInvalid"),
+    );
+    expect(h.navigations).toHaveLength(0);
     expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(
-      db()
-        .chainsFor("b2b_coupon_campaigns")
-        .some((c) => c.has("update")),
-    ).toBe(false);
+  });
+
+  it("nieznany blad serwera pokazuje jego tresc - nie milczy", async () => {
+    h.prepare.mockRejectedValue(new Error("insert_failed"));
+    await przygotuj();
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("insert_failed"));
   });
 });
 
@@ -673,6 +815,10 @@ describe("CampaignsPage - dialog tworzenia", () => {
     const nazwa = dialog.getByText("adminCoupons.name").parentElement?.querySelector("input");
     if (!nazwa) throw new Error("brak pola nazwy w dialogu");
     fireEvent.change(nazwa, { target: { value: "Kampania z dialogu" } });
+    // Segment jest obowiazkowy (S1) - lista „vip" z ustawien newslettera.
+    fireEvent.change(dialog.getByLabelText("adminCoupons.segmentField.label"), {
+      target: { value: "vip" },
+    });
     fireEvent.click(dialog.getByRole("button", { name: "adminCoupons.createCampaign" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(await screen.findByText("Kampania z dialogu")).toBeInTheDocument();
@@ -693,23 +839,16 @@ describe("CampaignsPage - dialog tworzenia", () => {
 // DEFEKTY NAPRAWIONE (dawne `it.fails`).
 // ---------------------------------------------------------------------------
 describe("CampaignsPage - dawne defekty", () => {
-  it("nieudane odnotowanie wysylki konczy sie bledem, a nie cichym sukcesem", async () => {
-    // CO BYLO ZLE. `sendNewsletter` po utworzeniu kampanii newslettera robil
-    // `await supabase.from("b2b_coupon_campaigns").update({...})` i NIE
-    // sprawdzal zwroconego `error`. Odmowa tego zapisu przechodzila bez sladu,
-    // a mutacja konczyla sie sukcesem.
+  it("„wyslij” nie oznacza juz kampanii jako wyslanej ZANIM cokolwiek wyszlo", async () => {
+    // CO BYLO ZLE. `sendNewsletter` wstawial kampanie newslettera z
+    // przegladarki i tym samym kliknieciem ustawial kampanii kuponowej
+    // `status: "sent"` - przed jakakolwiek wysylka. Segment (wolny tekst)
+    // serwer ignorowal, wiec kody szly do CALEJ listy (P04, R-25).
     //
-    // JAKIE TO BYLO RYZYKO. Kampania newslettera JUZ ISTNIEJE, ale kampania
-    // kuponowa zostawala w stanie „generated" bez `newsletter_campaign_id`.
-    // Panel pokazywal wiec dalej przycisk „Wyslij", a redakcja - widzac
-    // komunikat o sukcesie i niezmieniony status - klikala go ponownie.
-    // Efekt: DRUGA kampania newslettera do tego samego segmentu, czyli drugi
-    // mail z kodem rabatowym do tych samych odbiorcow.
-    //
-    // JAK NAPRAWIONE. Zapis odnotowujacy wysylke zwraca teraz swoj `error`
-    // do zmiennej `linkError` i rzuca nim; mutacja konczy sie bledem, wiec
-    // toast sukcesu nie pada, a status kampanii zostaje na „generated".
-    db().setResponse("newsletter_campaigns", ok({ id: "nl-1" }));
+    // JAK NAPRAWIONE. „Przygotuj wysylke" wola serwer, ktory zaklada SZKIC
+    // i podpina go; `sent` ustawia wylacznie zakonczona wysylka. Panel nie
+    // pisze ani `status`, ani `newsletter_campaign_id` (nie ma juz nawet
+    // grantu UPDATE na te kolumny).
     db().setResponse("b2b_coupon_campaigns", (chain) =>
       chain.has("update")
         ? fail("permission denied", "42501")
@@ -719,16 +858,17 @@ describe("CampaignsPage - dawne defekty", () => {
     renderWithQueryClient(<CampaignsPage />);
     await screen.findByText("Q1 2026 VIP");
     fireEvent.click(
-      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
+      within(await wiersz("Q1 2026 VIP")).getByRole("button", {
+        name: "adminCoupons.campaignsFlow.prepareSend",
+      }),
     );
-    await waitFor(() =>
-      expect(
-        db()
-          .chainsFor("b2b_coupon_campaigns")
-          .some((c) => c.has("update")),
-      ).toBe(true),
-    );
-    expect(h.toastSuccess).not.toHaveBeenCalled();
+    await waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(1));
+    expect(
+      db()
+        .chainsFor("b2b_coupon_campaigns")
+        .some((c) => c.has("update")),
+    ).toBe(false);
+    expect(db().chainsFor("newsletter_campaigns")).toHaveLength(0);
   });
 
   it("status kampanii jest PRZETLUMACZONY, a nie surowa wartoscia z bazy", async () => {
@@ -789,5 +929,32 @@ describe("CampaignsPage - dawne defekty", () => {
     await renderPage([kampania({ status: "generated" })]);
     await wiersz("Q1 2026 VIP");
     expect(screen.queryByRole("button", { name: "archive" })).toBeNull();
+  });
+});
+
+describe("CampaignsPage - `?id=` z adresu (SPEC §2.6)", () => {
+  it("wskazana kampania jest WYROZNIONA i przewinieta do widoku, pozostale nie", async () => {
+    const przewiniete: Element[] = [];
+    const oryginal = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      przewiniete.push(this);
+    };
+    try {
+      withData([
+        kampania({ id: "k-1", name: "Pierwsza" }),
+        kampania({ id: "k-2", name: "Wskazana" }),
+      ]);
+      renderWithQueryClient(<CampaignsPage highlightId="k-2" />);
+      const wskazana = await wiersz("Wskazana");
+      expect(wskazana).toHaveAttribute("aria-current", "true");
+      expect((await wiersz("Pierwsza")).getAttribute("aria-current")).toBeNull();
+      await waitFor(() => expect(przewiniete).toEqual([wskazana]));
+      // Czytnik ekranu slyszy, ze to wiersz wskazany w adresie.
+      expect(
+        within(wskazana).getByText("adminCoupons.campaignsFlow.highlighted"),
+      ).toBeInTheDocument();
+    } finally {
+      Element.prototype.scrollIntoView = oryginal;
+    }
   });
 });

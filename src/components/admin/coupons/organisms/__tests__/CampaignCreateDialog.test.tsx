@@ -13,6 +13,14 @@
 //      to segment o nazwie „" - wysylka trafia wtedy albo do nikogo, albo do
 //      wszystkich, zaleznie od interpretacji filtru.
 //   4. ODMOWA BAZY NIE ZAMYKA DIALOGU - inaczej ginie caly wypelniony przepis.
+//   5. SEGMENT TO LISTA MAILINGOWA (S1, P04, R-25). Byl wolnym tekstem, ktorego
+//      serwer wysylki nie znal - kody szly do CALEJ listy. Teraz to wybor
+//      z `newsletter_settings.popup_mailing_lists` (zapis = `id` listy) albo
+//      JAWNA opcja „cala lista" (zapis = NULL) z ostrzezeniem; bez wyboru
+//      kampania sie nie zapisze. ZMIANA SWIADOMA: dawny przypadek „segment
+//      przycinany z wolnego tekstu" zastapily przypadki wyboru z listy, a
+//      `renderDialog` wybiera domyslnie liste „vip", zeby pozostale przypadki
+//      sprawdzaly to, co sprawdzaly.
 //
 // GRANICE vs SASIEDZI: `DatePickerField` (`@/components/admin/coupons/*`)
 // i `pickLocalized` biegna PRAWDZIWE; atrapowane sa klient Supabase, toasty,
@@ -28,6 +36,8 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   /** Jezyk interfejsu widziany przez dialog (przelaczany per przypadek). */
   lang: "pl",
+  /** Listy mailingowe z ustawien newslettera (`undefined` = jeszcze nie doszly). */
+  lists: undefined as { id: string; label_pl: string; label_en: string }[] | undefined,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -41,6 +51,12 @@ vi.mock("@/integrations/supabase/client", async () => {
   h.from = from;
   return { supabase: { from: from.from } };
 });
+
+vi.mock("@/hooks/useNewsletterSettings", () => ({
+  useNewsletterSettings: () => ({
+    data: h.lists === undefined ? undefined : { popup_mailing_lists: h.lists },
+  }),
+}));
 
 vi.mock("@/components/ui/select", async () =>
   (await import("@/test/reactStubs")).radixSelectStub(await import("react")),
@@ -72,9 +88,22 @@ const POZIOMY = [
 /** Ustawiona przez test, ktory planuje odmowe zapisu przed renderem. */
 let zaplanowanaOdmowa = false;
 
-function renderDialog(onCreated = vi.fn()) {
+const SEGMENT = "adminCoupons.segmentField.label";
+
+/** Wybor segmentu (lista mailingowa albo `__whole_list__`). */
+function wybierzSegment(wartosc: string): void {
+  fireEvent.change(screen.getByLabelText(SEGMENT), { target: { value: wartosc } });
+}
+
+/**
+ * Dialog z wybrana lista „vip" - segment jest obowiazkowy, a pozostale
+ * przypadki dotycza innych pol. `segment: null` zostawia wybor pusty.
+ */
+function renderDialog(onCreated = vi.fn(), opcje: { segment?: string | null } = {}) {
   if (!zaplanowanaOdmowa) db().setResponse("b2b_coupon_campaigns", ok(null));
   const utils = render(<CampaignCreateDialog tiers={POZIOMY} onCreated={onCreated} />);
+  const segment = opcje.segment === undefined ? "vip" : opcje.segment;
+  if (segment !== null) wybierzSegment(segment);
   return { ...utils, onCreated };
 }
 
@@ -102,6 +131,10 @@ beforeEach(() => {
   db().reset();
   zaplanowanaOdmowa = false;
   h.lang = "pl";
+  h.lists = [
+    { id: "vip", label_pl: "Lista VIP", label_en: "VIP list" },
+    { id: "partnerzy", label_pl: "Partnerzy", label_en: "Partners" },
+  ];
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
 });
@@ -199,11 +232,10 @@ describe("CampaignCreateDialog - ladunek zapisu", () => {
     });
   });
 
-  it("opis i segment sa PRZYCINANE, a puste zapisuja sie jako NULL", async () => {
+  it("opis jest PRZYCINANY, a pusty zapisuje sie jako NULL", async () => {
     renderDialog();
     fireEvent.change(pole("adminCoupons.name"), { target: { value: "Kampania" } });
     fireEvent.change(pole("adminCoupons.descriptionOptional"), { target: { value: "   " } });
-    fireEvent.change(pole("adminCoupons.newsletterSegmentTag"), { target: { value: "  vip  " } });
     fireEvent.click(zapisz());
     await waitFor(() => expect(insertPayload()).toBeDefined());
     expect(insertPayload()).toMatchObject({ description: null, newsletter_segment: "vip" });
@@ -346,5 +378,63 @@ describe("CampaignCreateDialog - wynik zapisu", () => {
     await waitFor(() => expect(insertPayload()).toBeDefined());
     expect(Object.keys(insertPayload())).not.toContain("status");
     expect(Object.keys(insertPayload())).not.toContain("generated_count");
+  });
+});
+
+describe("CampaignCreateDialog - segment = lista mailingowa (S1, P04, R-25)", () => {
+  it("opcje segmentu to listy z ustawien newslettera ORAZ jawna „cala lista”", () => {
+    renderDialog(vi.fn(), { segment: null });
+    const segment = screen.getByLabelText(SEGMENT) as HTMLSelectElement;
+    expect(Array.from(segment.options).map((o) => [o.value, o.textContent])).toEqual([
+      ["vip", "Lista VIP"],
+      ["partnerzy", "Partnerzy"],
+      ["__whole_list__", "adminCoupons.segmentField.wholeList"],
+    ]);
+  });
+
+  it("zapis niesie IDENTYFIKATOR listy - ten sam, ktory subskrybent ma w preferencjach", async () => {
+    renderDialog(vi.fn(), { segment: "partnerzy" });
+    fireEvent.change(pole("adminCoupons.name"), { target: { value: "Dla partnerow" } });
+    fireEvent.click(zapisz());
+    await waitFor(() => expect(insertPayload()).toBeDefined());
+    expect(insertPayload().newsletter_segment).toBe("partnerzy");
+  });
+
+  it("BEZ wyboru segmentu kampania sie NIE zapisuje - kody nie pojda do wszystkich przez przeoczenie", async () => {
+    renderDialog(vi.fn(), { segment: null });
+    fireEvent.change(pole("adminCoupons.name"), { target: { value: "Bez segmentu" } });
+    fireEvent.click(zapisz());
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminCoupons.segmentField.required"),
+    );
+    expect(db().chainsFor("b2b_coupon_campaigns")).toHaveLength(0);
+    // Blad jest przy polu (`role="alert"` w atomie FormSelect), nie tylko w toascie.
+    expect(screen.getByRole("alert")).toHaveTextContent("adminCoupons.segmentField.required");
+  });
+
+  it("„cala lista” zapisuje NULL i pokazuje OSTRZEZENIE przed wyborem", async () => {
+    renderDialog(vi.fn(), { segment: "__whole_list__" });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "adminCoupons.segmentField.wholeListWarning",
+    );
+    fireEvent.change(pole("adminCoupons.name"), { target: { value: "Do wszystkich" } });
+    fireEvent.click(zapisz());
+    await waitFor(() => expect(insertPayload()).toBeDefined());
+    expect(insertPayload().newsletter_segment).toBeNull();
+  });
+
+  it("brak list w ustawieniach jest powiedziany wprost - zostaje tylko „cala lista”", () => {
+    h.lists = [];
+    renderDialog(vi.fn(), { segment: null });
+    expect(screen.getByText("adminCoupons.segmentField.noLists")).toBeInTheDocument();
+    const segment = screen.getByLabelText(SEGMENT) as HTMLSelectElement;
+    expect(Array.from(segment.options).map((o) => o.value)).toEqual(["__whole_list__"]);
+  });
+
+  it("w interfejsie ANGIELSKIM listy maja etykiety `label_en`", () => {
+    h.lang = "en";
+    renderDialog(vi.fn(), { segment: null });
+    expect(screen.getByRole("option", { name: "VIP list" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Lista VIP" })).toBeNull();
   });
 });

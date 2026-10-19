@@ -1,5 +1,7 @@
-import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
+import { useQuery, queryOptions } from "@tanstack/react-query";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
+// Fabryka-liść (zero importów runtime) - bezpieczna dla chunku wejściowego.
+import { newsletterKeys } from "@/lib/newsletter/keys";
 import {
   resolvePopupFields,
   type PopupFieldConfig,
@@ -99,6 +101,12 @@ export interface NewsletterSettings {
   popup_doc: NlDoc | null;
   sender_name: string | null;
   sender_email: string | null;
+  /**
+   * Token współbieżności zapisu (S1, D-S1-03): SUROWY `updated_at` wiersza
+   * z PostgREST (mikrosekundy - nigdy przez `Date`). Brak = najemca nie ma
+   * jeszcze wiersza (same wartości domyślne), pierwszy zapis go utworzy.
+   */
+  updated_at?: string;
 }
 
 export function defaultNewsletterSettings(): NewsletterSettings {
@@ -197,7 +205,7 @@ const settingsData = () => import("./newsletterSettingsData");
  */
 export function newsletterSettingsQueryOptions() {
   return queryOptions({
-    queryKey: ["newsletter-settings"] as const,
+    queryKey: newsletterKeys.settings(),
     queryFn: () => settingsData().then((data) => data.fetchNewsletterSettings()),
     staleTime: 60_000,
   });
@@ -276,8 +284,9 @@ export type NewsletterDocSettings = Omit<NewsletterInlineSettings, "field_labels
  * formularza inline. Pełny wiersz (`popup_doc`, `popup_fields`,
  * `popup_design`, galeria, paleta popupu...) to ~8,9 KB surowych bajtów w
  * strumieniu stanu każdej strony z formularzem, a popup czyta go dopiero po
- * ~15 s, poza oknem pomiaru. Klucz `["newsletter-settings", "inline"]` leży
- * pod prefiksem pełnego, więc zapis w adminie (`useSaveNewsletterSettings`)
+ * ~15 s, poza oknem pomiaru. Klucz `newsletterKeys.settingsInline()` leży
+ * pod prefiksem pełnego, więc zapis w panelu (`usePatchNewsletterSettings`
+ * i szew `useSaveNewsletterSettings` z `lib/newsletter/settingsQueries.ts`)
  * unieważnia oba wpisy.
  */
 export function projectNewsletterInlineSettings(s: NewsletterSettings): NewsletterInlineSettings {
@@ -313,7 +322,7 @@ export function projectNewsletterInlineSettings(s: NewsletterSettings): Newslett
  */
 export function newsletterInlineSettingsQueryOptions() {
   return queryOptions({
-    queryKey: ["newsletter-settings", "inline"] as const,
+    queryKey: newsletterKeys.settingsInline(),
     queryFn: () => settingsData().then((data) => data.fetchNewsletterInlineSettings()),
     staleTime: 60_000,
   });
@@ -321,13 +330,4 @@ export function newsletterInlineSettingsQueryOptions() {
 
 export function useNewsletterInlineSettings() {
   return useQuery(newsletterInlineSettingsQueryOptions());
-}
-
-export function useSaveNewsletterSettings() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (patch: Partial<NewsletterSettings>) =>
-      settingsData().then((data) => data.saveNewsletterSettings(patch)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["newsletter-settings"] }),
-  });
 }

@@ -8,6 +8,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { Activity, MousePointerClick, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 import { ensureI18n as ensureNewsletterAdminI18n } from "@/lib/i18n-newsletter-admin";
+import { newsletterKeys } from "@/lib/newsletter/keys";
 import {
   getNewsletterPopupEventStats,
   type NewsletterPopupEventName,
@@ -37,7 +38,7 @@ export function PopupEventsPanel() {
   const fetchStats = useServerFn(getNewsletterPopupEventStats);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["admin", "newsletter-popup-events", days],
+    queryKey: newsletterKeys.popupEvents(days),
     queryFn: () => fetchStats({ data: { days } }),
   });
 

@@ -19,6 +19,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/require-staff";
 import { runMemberSyncBatch, type MemberSyncBatchResult } from "@/lib/crm/memberSyncBatch";
 import { syncMemberToCrm } from "@/lib/crm/memberSync.server";
+import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 
 export interface MemberDirectoryRow {
   userId: string;
@@ -487,128 +488,121 @@ export const getMemberBilling = createServerFn({ method: "GET" })
     };
   });
 
-/** Ręczna zmiana planu - nadanie warstwy niezależne od operatora płatności. */
+/**
+ * Błąd RPC nadania z zachowanym kodem SQL. Komunikat jest kodem maszynowym
+ * (`user_not_in_tenant`, `tier_inactive`, `grant_not_found`, `expires_in_past`)
+ * - ekran tłumaczy go po kodzie, więc nie wolno go „upiększać" po drodze.
+ */
+function grantRpcError(error: { message: string; code?: string }): Error {
+  return Object.assign(new Error(error.message), error.code ? { code: error.code } : {});
+}
+
+/**
+ * Natychmiastowa synchronizacja osoby do CRM - best-effort. Dostarczenie
+ * GWARANTUJE outbox w SQL (trigger `membership_crm_sync_outbox` na nadaniu
+ * ręcznym, ta sama transakcja co nadanie); ta ścieżka tylko skraca czas, po
+ * którym karta leada pokaże nową warstwę. Awaria CRM nie cofa nadania - jest
+ * raportowana flagą `crmSynced`.
+ */
+async function syncGrantToCrm(
+  context: { supabase: unknown; userId: string },
+  input: { userId: string; tierKey: string | null; reason: "manual_grant" | "manual_revoke" },
+): Promise<boolean> {
+  try {
+    const tenantId = await callerTenant(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const crm = await syncMemberToCrm(supabaseAdmin, {
+      userId: input.userId,
+      tenantId,
+      tierKey: input.tierKey,
+      actorId: context.userId,
+      reason: input.reason,
+    });
+    return crm !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ręczna zmiana planu - nadanie warstwy niezależne od operatora płatności.
+ *
+ * JEDNA ŚCIEŻKA (S1 def. 6). Zapis idzie RPC `admin_membership_grant_set`
+ * klientem SESJI (rola i najemca sprawdzane w SQL, `assert_admin_tenant()`),
+ * nie klientem serwisowym: dawne ciało wygaszało WSZYSTKIE nadania osoby -
+ * także darowizny, eksperckie i z domen organizacji - poza transakcją, a audyt
+ * pisało osobnym zapytaniem, którego błąd był ignorowany. RPC wygasza
+ * wyłącznie nadania ręczne tej osoby, pisze audyt i outbox CRM w jednej
+ * transakcji. Wejście i wyjście bez zmian (konsument: `MemberTierDialog`).
+ */
 export const setMemberTier = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => GrantSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ grantId: string; crmSynced: boolean }> => {
-    const tenantId = await callerTenant(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const [{ data: target }, { data: tier }] = await Promise.all([
-      supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("id", data.userId)
-        .eq("tenant_id", tenantId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("membership_tiers")
-        .select("key")
-        .eq("tenant_id", tenantId)
-        .eq("key", data.tierKey)
-        .maybeSingle(),
-    ]);
-    if (!target) throw new Error("Forbidden: user outside tenant");
-    if (!tier) throw new Error("Unknown membership tier");
-
-    const now = new Date();
-    // Jedno aktywne nadanie na osobę: wcześniejsze wygaszamy, żeby historia
-    // pozostała czytelna, a rozstrzygnięcie warstwy jednoznaczne.
-    //
-    // Odmowa wygaszenia PRZERYWA nadanie: wcześniej wynik był pomijany, więc
-    // przy błędzie zapisu osoba dostawała DRUGIE aktywne nadanie obok starego,
-    // a rozstrzygnięcie warstwy brało wyższą rangę - czyli „obniżenie planu"
-    // z panelu nie obniżało niczego.
-    const { error: revokeError } = await supabaseAdmin
-      .from("membership_grants")
-      .update({ revoked_at: now.toISOString() })
-      .eq("tenant_id", tenantId)
-      .eq("user_id", data.userId)
-      .is("revoked_at", null);
-    if (revokeError) throw new Error(`membership_grants: ${revokeError.message}`);
-
     const expiresAt =
-      data.months === null ? null : addCalendarMonthsUtc(now, data.months).toISOString();
-
-    const { data: inserted, error } = await supabaseAdmin
-      .from("membership_grants")
-      .insert({
-        tenant_id: tenantId,
-        user_id: data.userId,
-        tier_key: data.tierKey,
-        source: "manual",
-        note: data.note,
-        granted_by: (context as { userId: string }).userId,
-        starts_at: now.toISOString(),
-        expires_at: expiresAt,
-      })
-      .select("id")
-      .single();
-    if (error || !inserted) throw new Error(error?.message ?? "Grant failed");
-
-    await supabaseAdmin.from("audit_log").insert({
-      tenant_id: tenantId,
-      actor_id: (context as { userId: string }).userId,
-      action: "membership.manual_grant",
-      entity_type: "membership_grant",
-      entity_id: inserted.id,
-      metadata: { tier_key: data.tierKey, months: data.months, user_id: data.userId },
-    });
-
-    const crm = await syncMemberToCrm(supabaseAdmin, {
+      data.months === null ? null : addCalendarMonthsUtc(new Date(), data.months).toISOString();
+    const { data: grantId, error } = await (context.supabase as unknown as RpcCallable).rpc(
+      "admin_membership_grant_set",
+      {
+        p_user_id: data.userId,
+        p_tier_key: data.tierKey,
+        p_expires_at: expiresAt,
+        p_note: data.note,
+      },
+    );
+    if (error) throw grantRpcError(error);
+    if (typeof grantId !== "string") {
+      throw new Error("invalid_rpc_shape:admin_membership_grant_set");
+    }
+    const crmSynced = await syncGrantToCrm(context, {
       userId: data.userId,
-      tenantId,
       tierKey: data.tierKey,
-      actorId: (context as { userId: string }).userId,
       reason: "manual_grant",
     });
-
-    return { grantId: inserted.id, crmSynced: crm !== null };
+    return { grantId, crmSynced };
   });
 
-/** Cofnięcie ręcznego nadania - warstwa wraca do wyniku subskrypcji/progu domyślnego. */
+/**
+ * Cofnięcie ręcznego nadania - warstwa wraca do wyniku subskrypcji/progu
+ * domyślnego. RPC `admin_membership_grant_revoke` (klient sesji): nadanie
+ * cudze, cofnięte albo nieistniejące → P0002 `grant_not_found` (dawniej
+ * funkcja bywała „udana" bez cofnięcia), audyt w tej samej transakcji.
+ */
 export const revokeMemberTier = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => z.object({ grantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true; crmSynced: boolean }> => {
-    const tenantId = await callerTenant(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: revoked, error } = await supabaseAdmin
+    const { error } = await (context.supabase as unknown as RpcCallable).rpc(
+      "admin_membership_grant_revoke",
+      { p_grant_id: data.grantId, p_reason: null },
+    );
+    if (error) throw grantRpcError(error);
+
+    // Osoba nadania do synchronizacji CRM - ODCZYT, nie zapis: nadanie jest
+    // już cofnięte w SQL, tu tylko ustalamy, czyją kartę odświeżyć.
+    const { data: grant } = await (
+      context.supabase as unknown as {
+        from: (t: "membership_grants") => {
+          select: (c: "user_id") => {
+            eq: (
+              c: "id",
+              v: string,
+            ) => { maybeSingle: () => PromiseLike<{ data: { user_id: string | null } | null }> };
+          };
+        };
+      }
+    )
       .from("membership_grants")
-      .update({ revoked_at: new Date().toISOString() })
-      .eq("tenant_id", tenantId)
-      .eq("id", data.grantId)
-      .is("revoked_at", null)
       .select("user_id")
+      .eq("id", data.grantId)
       .maybeSingle();
-    if (error) throw new Error(error.message);
-    // Nic nie zostało cofnięte (nadanie już cofnięte, cudze albo nieistniejące).
-    // Wcześniej funkcja i tak zapisywała w dzienniku audytu „cofnięto" i oddawała
-    // sukces - ślad audytowy twierdził coś, co się nie wydarzyło.
-    if (!revoked) throw new Error("Grant not found or already revoked");
-
-    await supabaseAdmin.from("audit_log").insert({
-      tenant_id: tenantId,
-      actor_id: (context as { userId: string }).userId,
-      action: "membership.manual_revoke",
-      entity_type: "membership_grant",
-      entity_id: data.grantId,
-      metadata: {},
-    });
-
-    let crmSynced = true;
-    if (revoked.user_id) {
-      const crm = await syncMemberToCrm(supabaseAdmin, {
-        userId: revoked.user_id,
-        tenantId,
-        tierKey: null,
-        actorId: (context as { userId: string }).userId,
-        reason: "manual_revoke",
-      });
-      crmSynced = crm !== null;
-    }
-
+    const crmSynced = grant?.user_id
+      ? await syncGrantToCrm(context, {
+          userId: grant.user_id,
+          tierKey: null,
+          reason: "manual_revoke",
+        })
+      : true;
     return { ok: true, crmSynced };
   });
 

@@ -14,6 +14,12 @@
 //
 // Tu mieszkają WYŁĄCZNIE trzy zapytania wspólne dla zakładek i kompozycja -
 // każda zakładka jest osobnym organizmem, testowanym bez pozostałych.
+//
+// ZAKŁADKA Z ADRESU (SPEC §2.6). Trasa podaje `tab` z `?tab=` i zapisuje
+// wybór z powrotem (`onTabChange`) - link z huba do `?tab=retention`
+// i odświeżenie strony lądują na tej samej zakładce. Bez propsów (test
+// organizmu, osadzenie bez routera) zakładka żyje w stanie komponentu.
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -25,12 +31,20 @@ import { AudiencesTab } from "@/components/admin/pricing/organisms/AudiencesTab"
 import { FaqTab } from "@/components/admin/pricing/organisms/FaqTab";
 import { RetentionTab } from "@/components/admin/pricing/organisms/RetentionTab";
 import { TiersTab } from "@/components/admin/pricing/organisms/TiersTab";
+import { adminMembershipTiersQueryOptions } from "@/components/admin/membership/membershipQueries";
 import { supabase } from "@/integrations/supabase/client";
 import { billingKeys } from "@/lib/billing/keys";
-import type { MembershipTierRow } from "@/lib/billing/tiers";
 import type { PricingAudienceRow, PricingFaqItemRow } from "@/lib/pricing/queries";
+import { isPricingTab, type PricingTabId } from "@/lib/admin/pricingTabs";
 
-export function AdminPricingWorkspace() {
+export function AdminPricingWorkspace({
+  tab,
+  onTabChange,
+}: {
+  /** Zakładka z `?tab=`; brak = stan lokalny (domyślnie „Segmenty"). */
+  tab?: PricingTabId;
+  onTabChange?: (tab: PricingTabId) => void;
+} = {}) {
   const { t } = useTranslation();
   const ta = (k: string, opts?: Record<string, unknown>) => t(`adminPricing.${k}`, opts);
 
@@ -45,17 +59,8 @@ export function AdminPricingWorkspace() {
       return data ?? [];
     },
   });
-  const tiersQ = useQuery({
-    queryKey: billingKeys.admin.membershipTiers(),
-    queryFn: async (): Promise<MembershipTierRow[]> => {
-      const { data, error } = await supabase
-        .from("membership_tiers")
-        .select("*")
-        .order("rank", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  // Ten sam odczyt katalogu warstw co panel Członkostwa (jedno `queryOptions`).
+  const tiersQ = useQuery(adminMembershipTiersQueryOptions());
   const faqQ = useQuery({
     queryKey: billingKeys.admin.pricingFaq(),
     queryFn: async (): Promise<PricingFaqItemRow[]> => {
@@ -67,6 +72,14 @@ export function AdminPricingWorkspace() {
       return data ?? [];
     },
   });
+
+  const [localTab, setLocalTab] = useState<PricingTabId>("audiences");
+  const activeTab = tab ?? localTab;
+  const selectTab = (next: string) => {
+    if (!isPricingTab(next)) return;
+    setLocalTab(next);
+    onTabChange?.(next);
+  };
 
   const audiences = audiencesQ.data ?? [];
   const tiers = tiersQ.data ?? [];
@@ -110,7 +123,7 @@ export function AdminPricingWorkspace() {
         </div>
       </header>
 
-      <Tabs defaultValue="audiences">
+      <Tabs value={activeTab} onValueChange={selectTab}>
         <TabsList>
           <TabsTrigger value="audiences">{ta("tabs.audiences")}</TabsTrigger>
           <TabsTrigger value="tiers">{ta("tabs.tiers")}</TabsTrigger>

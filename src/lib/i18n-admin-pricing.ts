@@ -91,6 +91,15 @@ const adminPricingPl = {
       priceNoteEn: "Price note EN",
       save: "Zapisz",
       rankBadge: "ranga",
+      // Nazwy i opisy warstwy edytuje od S1 wyłącznie cennik (właściciel
+      // kolumn marketingu) - Członkostwo pokazuje je tylko do odczytu.
+      naming: "Nazwa i opis",
+      namePl: "Nazwa PL",
+      nameEn: "Nazwa EN",
+      descriptionPl: "Opis PL",
+      descriptionEn: "Opis EN",
+      nameRequired: "Nazwa warstwy jest wymagana w obu językach.",
+      tierGone: "Tej warstwy nie ma już w katalogu - mogła zostać usunięta w innej karcie.",
     },
     retention: {
       settingsHeading: "Kontrofertka przy anulowaniu",
@@ -124,6 +133,15 @@ const adminPricingPl = {
       retryLoad: "Spróbuj ponownie",
       offerAccepted: "Oferta przyjęta",
       offerDeclined: "Oferta odrzucona",
+      // Brak wiersza ustawień = serwer NIE pokazuje kontroferty (def. 13).
+      missingTitle: "Kontroferta wyłączona - brak konfiguracji",
+      missingDescription:
+        "Najemca nie ma zapisanych ustawień kontroferty, więc odchodzący subskrybent nie zobaczy rabatu.",
+      defaultsPreview:
+        "Propozycja: {{pct}}% rabatu na {{periods}} płatności, kod ważny {{days}} dni.",
+      configure: "Skonfiguruj kontrofertę",
+      truncated:
+        "W oknie jest więcej odpowiedzi niż {{limit}} - statystyki liczą najnowsze {{limit}}.",
     },
     benefits: {
       heading: "Benefity (PL/EN)",
@@ -148,6 +166,11 @@ const adminPricingPl = {
       groupEn: "Group header EN (FT style)",
       groupHint:
         "Nagłówek otwiera sekcję na karcie - grupują się KOLEJNE benefity z tym samym nagłówkiem.",
+      // Klucz uprawnienia benefitu (P20, hub S1): łączy obietnicę z bramką.
+      capability: "Uprawnienie, którego dotyczy obietnica",
+      capabilityNone: "Bez powiązania z uprawnieniem",
+      capabilityHint:
+        "Powiązanie pozwala hubowi porównać to, co obiecuje karta cennika, z tym, co warstwa naprawdę odblokowuje.",
     },
     faq: {
       newHeading: "Nowe pytanie",
@@ -271,6 +294,14 @@ const adminPricingEn: typeof adminPricingPl = {
       priceNoteEn: "Price note EN",
       save: "Save",
       rankBadge: "rank",
+      naming: "Name and description",
+      namePl: "Name PL",
+      nameEn: "Name EN",
+      descriptionPl: "Description PL",
+      descriptionEn: "Description EN",
+      nameRequired: "The tier name is required in both languages.",
+      tierGone:
+        "This tier is no longer in the catalogue - it may have been deleted in another tab.",
     },
     retention: {
       settingsHeading: "Cancellation counter-offer",
@@ -304,6 +335,14 @@ const adminPricingEn: typeof adminPricingPl = {
       retryLoad: "Try again",
       offerAccepted: "Offer accepted",
       offerDeclined: "Offer declined",
+      missingTitle: "Counter-offer off - not configured",
+      missingDescription:
+        "This tenant has no saved counter-offer settings, so a leaving subscriber sees no discount.",
+      defaultsPreview:
+        "Proposal: {{pct}}% off for {{periods}} payments, code valid for {{days}} days.",
+      configure: "Set up the counter-offer",
+      truncated:
+        "The window holds more answers than {{limit}} - the statistics count the latest {{limit}}.",
     },
     benefits: {
       heading: "Benefits (PL/EN)",
@@ -326,6 +365,10 @@ const adminPricingEn: typeof adminPricingPl = {
       groupEn: "Group header EN (FT style)",
       groupHint:
         "A header opens a section on the card - CONSECUTIVE benefits with the same header are grouped.",
+      capability: "Capability this promise refers to",
+      capabilityNone: "Not linked to a capability",
+      capabilityHint:
+        "The link lets the hub compare what the pricing card promises with what the tier really unlocks.",
     },
     faq: {
       newHeading: "New question",

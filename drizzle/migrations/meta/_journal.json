@@ -2262,6 +2262,41 @@
       "when": 1792350060560,
       "tag": "0322_hub_shared_sql_helpers",
       "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1792350120560,
+      "tag": "0323_settings_change_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1792350180560,
+      "tag": "0324_newsletter_settings_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1792350240560,
+      "tag": "0325_coupon_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1792350300560,
+      "tag": "0326_email_health_aggregate",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1792350360560,
+      "tag": "0327_membership_grants_single_path",
+      "breakpoints": true
     }
   ]
 }

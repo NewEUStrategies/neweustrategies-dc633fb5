@@ -32,6 +32,7 @@ interface MeteringSettingsRow {
   meter_paid: boolean;
   meter_members: boolean;
   show_counter: boolean;
+  updated_at?: string;
 }
 
 const h = vi.hoisted(() => ({
@@ -64,9 +65,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+import { meteringKeys } from "@/lib/access/keys";
+import { METERING_DEFAULTS } from "@/lib/access/meteringDefaults";
 import {
+  DEFAULT_METERING_SETTINGS,
   currentMeterPeriod,
   fetchMeteringSettings,
+  meteringSettingsQueryOptions,
   quotaFromMeterState,
   useMeteredAccess,
   useMeteringSettings,
@@ -382,14 +387,19 @@ describe("fetchMeteringSettings - konfiguracja tenanta", () => {
       meter_paid: true,
       meter_members: false,
       show_counter: true,
+      updated_at: "2026-10-19T10:00:00.123456+00:00",
     };
     await expect(fetchMeteringSettings()).resolves.toEqual(h.settings.data);
+    // ŚWIADOMA ZMIANA OCZEKIWANIA (S1, def. 14): `updated_at` dołącza do
+    // kolumn, bo ten sam wpis cache (`meteringKeys.settings()`) czyta edytor
+    // paywalla - token współbieżności jego zapisu. Jeden klucz = jedna
+    // `queryFn` = jeden kształt; `tenant_id` dalej poza odczytem (RLS).
     expect(rpcCalls("from:metering_settings")).toEqual([
       [
         "from:metering_settings",
         {
           columns:
-            "enabled, member_monthly_limit, anon_monthly_limit, meter_paid, meter_members, show_counter",
+            "enabled, member_monthly_limit, anon_monthly_limit, meter_paid, meter_members, show_counter, updated_at",
         },
       ],
     ]);
@@ -413,5 +423,28 @@ describe("fetchMeteringSettings - konfiguracja tenanta", () => {
     const { wrapper } = harness();
     const { result } = renderHook(() => useMeteringSettings(), { wrapper });
     await waitFor(() => expect(result.current.data).toEqual(h.settings.data));
+  });
+
+  it("czytelnik i edytor paywalla dzielą JEDEN wpis cache - klucz z fabryki szyny", async () => {
+    const opts = meteringSettingsQueryOptions();
+    expect(opts.queryKey).toEqual(meteringKeys.settings());
+    expect(opts.staleTime).toBe(5 * 60_000);
+    h.settings.data = {
+      enabled: false,
+      member_monthly_limit: 2,
+      anon_monthly_limit: 0,
+      meter_paid: true,
+      meter_members: true,
+      show_counter: false,
+      updated_at: "2026-10-19T10:00:00.654321+00:00",
+    };
+    const { queryClient, wrapper } = harness();
+    const { result } = renderHook(() => useMeteringSettings(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(queryClient.getQueryData(meteringKeys.settings())).toEqual(h.settings.data);
+  });
+
+  it("DEFAULT_METERING_SETTINGS to TA SAMA wartość co METERING_DEFAULTS (def. 14)", () => {
+    expect(DEFAULT_METERING_SETTINGS).toBe(METERING_DEFAULTS);
   });
 });

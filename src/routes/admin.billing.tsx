@@ -1,23 +1,30 @@
 // /admin/billing - rozliczenia subskrypcji i audyt zdarzeń operatora płatności.
+//
+// ADRES (SPEC §2.6): `?tab=subscriptions|orders|tickets|events|diagnostics&status=`.
+// Trasa waliduje adres liściem bez importów (`billingTabs.ts` - powłoka trasy
+// jedzie w chunku wejściowym), więc link z huba „Przychód i lejek" nie kończy
+// się stroną błędu. Zakładki renderuje `AdminBillingPanel` (wycinek S2), który
+// dziś trzyma je w stanie; podpięcie `tab`/`onTabChange`/`statusFilter` to
+// kontrakt z S2 (PLAN S1 §3.3) - do tego czasu link ląduje na zakładce domyślnej.
+//
+// NAGŁÓWEK SEKCYJNY (`adminPageHead`, AGENTS.md) zamiast ręcznie składanego
+// `meta` - ten sam format tytułu i te same znaczniki `noindex` co w całym panelu.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CreditCard } from "lucide-react";
 
 import { AdminBillingPanel } from "@/components/admin/billing/AdminBillingPanel";
+import { adminPageHead } from "@/lib/adminPageHead";
+import { parseBillingSearch } from "@/lib/admin/billingTabs";
 
 export const Route = createFileRoute("/admin/billing")({
+  validateSearch: parseBillingSearch,
   component: AdminBillingPage,
-  head: () => ({
-    meta: [
-      { title: "Rozliczenia subskrypcji | Panel New European Strategies" },
-      {
-        name: "description",
-        content:
-          "Podgląd aktywnych subskrypcji, nieudanych płatności i historii zdarzeń operatora płatności.",
-      },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () =>
+    adminPageHead(
+      "Rozliczenia subskrypcji",
+      "Podgląd aktywnych subskrypcji, zamówień, nieudanych płatności i historii zdarzeń operatora płatności.",
+    ),
 });
 
 function AdminBillingPage() {

@@ -7,17 +7,36 @@
 // Zapis: pojedynczy przycisk "Zapisz ustawienia" - Overview edytuje tylko
 // warstwe LOGIKI (nie tresci; te siedza w builderze). Zawartosc PL/EN i style
 // zyja w /inline i /popup builderach.
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+//
+// ZAPIS GRUPA `overview` (S1 def. 9, D-S1-03). Panel wysylal kiedys CALY
+// wiersz ustawien (`rest`), wiec otwarta obok karta popupu cofala zmiane
+// nadawcy zrobiona tutaj - i odwrotnie. Teraz edytor trzyma `base` (wiersz,
+// od ktorego operator zaczal, z tokenem `updated_at`) i szkic; do serwera idzie
+// WYLACZNIE to, co operator zmienil w kolumnach grupy `overview`, a konflikt
+// z cudza zmiana INNYCH kolumn scala mutator. Prawdziwy konflikt (ktos zmienil
+// te same pola) konczy sie komunikatem z akcja „Wczytaj aktualne" - szkic
+// zostaje. Ten sam wzorzec ma `SignupPopupContentSection` (grupa `popup`).
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useNewsletterSettings,
-  useSaveNewsletterSettings,
+  newsletterSettingsQueryOptions,
   defaultNewsletterSettings,
   type NewsletterSettings,
   type NewsletterMode,
 } from "@/hooks/useNewsletterSettings";
+import { newsletterKeys } from "@/lib/newsletter/keys";
+import {
+  diffNewsletterSettings,
+  usePatchNewsletterSettings,
+} from "@/lib/newsletter/settingsQueries";
+import { SYNC_MESSAGE_KEYS } from "@/lib/billing/planQueries";
+import { ensureI18n as ensurePaywallSyncI18n } from "@/lib/i18n-admin-paywall-sync";
+import { toastError } from "@/lib/toastError";
+import { showSaveError } from "@/components/admin/pricing/saveErrorToast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,9 +70,12 @@ import {
   type SubscriberKpiRow,
 } from "@/components/admin/newsletter/overviewKpis";
 
+/** Grupa kolumn tego edytora - biala lista po stronie TS i SQL (PLAN S1 §4.2). */
+const SETTINGS_GROUP = "overview" as const;
+
 function useKpis() {
   return useQuery({
-    queryKey: ["newsletter-kpis"],
+    queryKey: newsletterKeys.kpis(),
     queryFn: async () => {
       // Pobieramy tylko niezbedne kolumny; agregujemy po stronie klienta -
       // dla tenantow z do ~50k adresow to nadal <200KB payloadu i pozwala na
@@ -70,30 +92,81 @@ function useKpis() {
 }
 
 export function OverviewPanel() {
+  ensurePaywallSyncI18n();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
   const { data: settings } = useNewsletterSettings();
-  const save = useSaveNewsletterSettings();
+  const save = usePatchNewsletterSettings(SETTINGS_GROUP);
   const kpis = useKpis();
 
+  // `base` = wiersz z chwili rozpoczecia edycji (z tokenem), `local` = szkic.
+  const [base, setBase] = useState<NewsletterSettings | null>(null);
   const [local, setLocal] = useState<NewsletterSettings | null>(null);
-  useEffect(() => {
-    if (settings && !local) setLocal(settings);
-  }, [settings, local]);
   const cur = local ?? defaultNewsletterSettings();
-  const upd = (patch: Partial<NewsletterSettings>) => setLocal({ ...cur, ...patch });
+  const upd = (patch: Partial<NewsletterSettings>) =>
+    setLocal((prev) => ({ ...(prev ?? cur), ...patch }));
 
+  // „Niezapisane" = realna roznica w kolumnach GRUPY (nie porownanie calych
+  // wierszy): zmiana cofnieta do stanu z bazy nie blokuje wyjscia z panelu.
   const isDirty = useMemo(
-    () => (settings ? JSON.stringify(local) !== JSON.stringify(settings) : false),
-    [local, settings],
+    () =>
+      base !== null &&
+      local !== null &&
+      Object.keys(diffNewsletterSettings(base, local, SETTINGS_GROUP)).length > 0,
+    [base, local],
   );
   useUnsavedChangesGuard(isDirty);
 
+  // Bez niezapisanych zmian szkic idzie za serwerem (swiezy token i cudze
+  // zmiany widoczne od razu); ze zmianami - zostaje, inaczej odswiezenie
+  // zapytania wycieraloby prace operatora.
+  useEffect(() => {
+    if (settings && !isDirty) {
+      setBase(settings);
+      setLocal(settings);
+    }
+  }, [settings, isDirty]);
+
+  // Akcja toastu konfliktu odpala sie pozniej - czyta stan z chwili klikniecia.
+  const latest = useRef({ base, local });
+  latest.current = { base, local };
+
+  /**
+   * „Wczytaj aktualne": nowa baza = stan serwera, a zmiany operatora (tylko
+   * kolumny grupy) nakladamy na nia - widzi cudza zmiane i swoja, i swiadomie
+   * zapisuje ponownie juz z aktualnym tokenem.
+   */
+  const reloadCurrent = async () => {
+    try {
+      const fresh = await qc.fetchQuery({ ...newsletterSettingsQueryOptions(), staleTime: 0 });
+      const { base: from, local: draft } = latest.current;
+      const mine = from && draft ? diffNewsletterSettings(from, draft, SETTINGS_GROUP) : {};
+      setBase(fresh);
+      setLocal({ ...fresh, ...mine });
+      toast.info(t("adminPaywall.sync.reloaded"));
+    } catch (err) {
+      toastError(err, "load");
+    }
+  };
+
   const onSave = async () => {
-    const { tenant_id: _tid, inline_doc: _i, popup_doc: _p, ...rest } = cur;
-    void _tid;
-    void _i;
-    void _p;
-    await save.mutateAsync(rest);
-    toast.success("Zapisano ustawienia newslettera");
+    if (!base || !local) return;
+    const draft = local;
+    try {
+      const result = await save.mutateAsync({
+        base,
+        draft,
+        expectedUpdatedAt: base.updated_at ?? null,
+      });
+      // Nowa baza = zapisany stan z nowym tokenem: kolejny zapis z tej karty
+      // nie zderzy sie z wlasna zmiana.
+      setBase({ ...draft, updated_at: result.updatedAt ?? draft.updated_at });
+      toast.success(
+        result.merged ? t(SYNC_MESSAGE_KEYS.merged) : "Zapisano ustawienia newslettera",
+      );
+    } catch (err) {
+      showSaveError(err, t, () => void reloadCurrent());
+    }
   };
 
   return (

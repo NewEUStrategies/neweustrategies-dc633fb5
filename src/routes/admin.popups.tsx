@@ -3,8 +3,14 @@
 //
 // Dialogi (nowy popup / potwierdzenie usuniecia) uzywaja naszych komponentow
 // z design systemu - nie natywnych window.prompt/window.confirm.
+//
+// Przelacznik wbudowanego popupu rejestracji pisze do `newsletter_settings`
+// WYLACZNIE kolumne `popup_enabled` (grupa `popup`, S1 def. 9). Wysylal kiedys
+// `{ ...ustawienia, popup_enabled }` - czyli cale ustawienia newslettera
+// z chwili ostatniego odczytu, cofajac rownolegle zmiany z innych kart.
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
@@ -34,10 +40,20 @@ import {
 import { Copy, Pencil, Plus, Trash2 } from "@/lib/lucide-shim";
 import { usePopupsAdmin, type BuilderPopup, type PopupSettings } from "@/lib/builder/popups";
 import { SignupPopupContentSection } from "@/components/admin/popups/SignupPopupContentSection";
-import { useNewsletterSettings, useSaveNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { showSaveError } from "@/components/admin/pricing/saveErrorToast";
+import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { adminPageHead } from "@/lib/adminPageHead";
+import { ensureI18n as ensurePaywallSyncI18n } from "@/lib/i18n-admin-paywall-sync";
 import { uiLocale } from "@/lib/i18n/format";
+import { newsletterKeys } from "@/lib/newsletter/keys";
+import { usePatchNewsletterSettings } from "@/lib/newsletter/settingsQueries";
 
 export const Route = createFileRoute("/admin/popups")({
+  head: () =>
+    adminPageHead(
+      "Popupy",
+      "Popupy serwisu i wbudowany popup rejestracji: wyzwalacze, aktywność, treść i pomiar wyświetleń.",
+    ),
   component: PopupsLayout,
 });
 
@@ -67,9 +83,34 @@ function triggerSummary(s: PopupSettings, t: TFunction): string {
 // Wbudowany popup rejestracji (newsletter_settings) - nie jest wpisem w
 // builder_popups, ale ma być wybieralny z tej samej listy co pozostałe.
 function SignupPopupRow() {
+  // Komunikat konfliktu zapisu (`adminPaywall.sync.*`) - wspólny dla edytorów S1.
+  ensurePaywallSyncI18n();
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const { data } = useNewsletterSettings();
-  const save = useSaveNewsletterSettings();
+  const save = usePatchNewsletterSettings("popup");
+
+  const toggle = (on: boolean) => {
+    if (!data) return;
+    // Baza = wiersz z cache (z tokenem), szkic różni się WYŁĄCZNIE
+    // `popup_enabled` - mutator wyśle patch `{ popup_enabled }`, a cudzą zmianę
+    // innych kolumn w międzyczasie scali sam. Konflikt na tej samej kolumnie
+    // (ktoś przełączył popup w innej karcie) kończy się komunikatem; „Wczytaj
+    // aktualne" pokazuje stan serwera.
+    save.mutate(
+      {
+        base: data,
+        draft: { ...data, popup_enabled: on },
+        expectedUpdatedAt: data.updated_at ?? null,
+      },
+      {
+        onError: (err) =>
+          showSaveError(err, t, () => {
+            void qc.invalidateQueries({ queryKey: newsletterKeys.settings() });
+          }),
+      },
+    );
+  };
 
   const trigger = data?.popup_trigger ?? "delay";
   const summary =
@@ -104,11 +145,8 @@ function SignupPopupRow() {
       <td className="px-4 py-2.5">
         <Switch
           checked={Boolean(data?.popup_enabled)}
-          disabled={!data}
-          onCheckedChange={(on) => {
-            if (!data) return;
-            void save.mutateAsync({ ...data, popup_enabled: on });
-          }}
+          disabled={!data || save.isPending}
+          onCheckedChange={toggle}
           aria-label={t("admin.popups.list.toggleActive")}
         />
       </td>

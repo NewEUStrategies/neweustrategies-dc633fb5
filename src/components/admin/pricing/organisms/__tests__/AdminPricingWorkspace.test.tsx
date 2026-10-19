@@ -140,6 +140,27 @@ describe("AdminPricingWorkspace - zakładki", () => {
   });
 });
 
+describe("AdminPricingWorkspace - zakładka z adresu (SPEC §2.6, `?tab=`)", () => {
+  it("zakładka podana przez trasę jest otwarta od pierwszego renderu", async () => {
+    renderWithQueryClient(<AdminPricingWorkspace tab="retention" onTabChange={vi.fn()} />);
+
+    expect(screen.getByRole("tab", { name: "adminPricing.tabs.retention" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await waitFor(() => expect(chain.chainsFor("retention_settings")).toHaveLength(1));
+  });
+
+  it("wybór zakładki wraca do trasy (zapis w adresie), zamiast żyć tylko w stanie", async () => {
+    const onTabChange = vi.fn();
+    renderWithQueryClient(<AdminPricingWorkspace tab="audiences" onTabChange={onTabChange} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "adminPricing.tabs.faq" }));
+
+    expect(onTabChange).toHaveBeenCalledWith("faq");
+  });
+});
+
 describe("AdminPricingWorkspace - powiązane moduły monetyzacji", () => {
   it("prowadzi do kuponów, członkostwa, paywalla i pulpitu", async () => {
     renderWithQueryClient(<AdminPricingWorkspace />);

@@ -14,7 +14,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { accessKeys, checkoutKeys, meteringKeys } from "@/lib/access/keys";
-import { ADMIN_COUPONS_KEY } from "@/lib/admin/couponQueries";
 import { couponKeys } from "@/lib/admin/couponKeys";
 import { workflowKeys } from "@/lib/admin/workflowKeys";
 import { billingKeys } from "@/lib/billing/keys";
@@ -25,6 +24,11 @@ import { newsletterKeys } from "@/lib/newsletter/keys";
 import { retentionKeys } from "@/lib/retention/keys";
 import { REVENUE_DOMAINS, revenueKeys } from "@/lib/revenue/keys";
 import type { RevenueRange } from "@/lib/revenue/window";
+
+// Dawna stała `couponQueries.ts:22` (`ADMIN_COUPONS_KEY`) - S1 ją usunął
+// (jedna definicja w `couponKeys.ts`, PLAN S1 §4.6). Literał zostaje TU jako
+// świadek kształtu sprzed fabryki: para „wywołanie = literał z repo".
+const ADMIN_COUPONS_KEY = ["admin", "b2b-coupons"] as const;
 
 const T = "tenant-1";
 const ID = "00000000-0000-4000-8000-000000000001";
