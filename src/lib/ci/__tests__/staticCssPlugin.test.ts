@@ -212,6 +212,9 @@ describe("prawdziwy build Vite (klient i SSR, wspólna instancja wtyczki)", () =
   const FILES: Record<string, string> = {
     "src/lib/builder/globalColors.ts": read("src/lib/builder/globalColors.ts"),
     "src/lib/builder/globalColorsValue.ts": read("src/lib/builder/globalColorsValue.ts"),
+    // Whitelist kolorów, przez który `globalColorsToCss` waliduje wartości
+    // najemcy - moduł czysty, bez dalszych importów.
+    "src/lib/builder/cssColor.ts": read("src/lib/builder/cssColor.ts"),
     "src/client.ts":
       'import { globalColorsToCss } from "./lib/builder/globalColors";\n' +
       "globalThis.__nesStaticCss = globalColorsToCss({});\n",

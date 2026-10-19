@@ -122,3 +122,46 @@ describe("CalendarView", () => {
     }
   });
 });
+
+// DZIEŃ PUBLIKACJI W STREFIE SERWISU. Wpis z 2026-03-31T23:30Z to 01:30
+// 1 kwietnia w Warszawie - tak datuje go strona wpisu (`SITE_TIME_ZONE`).
+// Widok grupował dni przez `new Date(...).getDate()`, czyli w strefie
+// procesu: pod UTC (SSR na Workers) i w Los Angeles (czytelnik) wpis
+// zapalał 31 marca, a kwiecień zostawał bez niego. Oba przebiegi wymagają
+// tego samego wyniku; kontrola zmiany strefy stoi w
+// `lib/queries/__tests__/calendarSiteTimeZone.test.ts`.
+describe.each(["UTC", "America/Los_Angeles"])(
+  "CalendarView - dzień publikacji w strefie serwisu (TZ procesu %s)",
+  (zone) => {
+    const original = process.env.TZ;
+    beforeEach(() => {
+      process.env.TZ = zone;
+      h.rows = [{ slug: "po-polnocy", published_at: "2026-03-31T23:30:00.000Z" }];
+    });
+    afterEach(() => {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    });
+
+    it("kwiecień linkuje 1 kwietnia do wpisu z 01:30 czasu warszawskiego", async () => {
+      renderCalendar("2026-04");
+      await waitFor(() =>
+        expect(screen.getByRole("link", { name: "1" })).toHaveAttribute("href", "/post/po-polnocy"),
+      );
+      expect(screen.getAllByRole("link")).toHaveLength(1);
+    });
+
+    it("marzec nie zapala 31 marca wpisem, który w Warszawie jest już 1 kwietnia", async () => {
+      // Drugi wpis (10 marca w południe) jest znacznikiem, że wiersze doszły do
+      // widoku - dopiero po nim brak linku „31" coś znaczy.
+      h.rows = [
+        { slug: "srodek-marca", published_at: "2026-03-10T12:00:00.000Z" },
+        { slug: "po-polnocy", published_at: "2026-03-31T23:30:00.000Z" },
+      ];
+      renderCalendar("2026-03");
+      await waitFor(() => expect(screen.getByRole("link", { name: "10" })).toBeInTheDocument());
+      expect(screen.queryByRole("link", { name: "31" })).toBeNull();
+      expect(screen.getByText("31")).toBeInTheDocument();
+    });
+  },
+);
