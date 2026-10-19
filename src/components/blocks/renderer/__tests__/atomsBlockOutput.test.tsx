@@ -240,6 +240,16 @@ describe("cytat: warianty, paleta i podpis", () => {
     expect(c.getAttribute("style")).toContain("var(--primary)");
   });
 
+  it("paleta z łańcucha prototypów (`constructor`) rysuje się jak neutralna", () => {
+    const { container } = draw([
+      { id: "a", type: "quote", data: { text: "A", colorPalette: "constructor" } },
+      { id: "b", type: "quote", data: { text: "A", colorPalette: "neutral" } },
+    ]);
+    const [a, b] = Array.from(container.querySelectorAll("blockquote"));
+    expect(a.getAttribute("style")).toBe(b.getAttribute("style"));
+    expect(a.getAttribute("style")).not.toContain("function");
+  });
+
   it("dokleja podpis z prefiksem „- ” tylko, gdy autor jest podany, także z przypisem", () => {
     const { container } = draw([
       { id: "a", type: "quote", data: { text: "Bez autora" } },

@@ -12,6 +12,7 @@ import { looksLikeInlineHtml, safeCssColor } from "@/lib/blocks/inlineHtml";
 import { decorateCmsStatusIcons } from "@/lib/content/cmsInlineIcons";
 import type { BlockRenderer } from "./context";
 import { bool, num, sanitize, str, strList } from "./data";
+import { blockPaletteVar } from "@/lib/blocks/variants";
 
 /** Akapit z formatowaniem inline (HTML sanitizowany, z rozwiniętymi przypisami). */
 export const renderParagraph: BlockRenderer = ({ block, fnHtml, cls }) => {
@@ -204,16 +205,8 @@ export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
   const variant = str(block.data, "variant") || "default";
   const palette = str(block.data, "colorPalette") || "neutral";
 
-  const paletteVar: Record<string, string> = {
-    neutral: "var(--foreground)",
-    brand: "var(--brand, var(--primary))",
-    accent: "var(--accent-foreground, var(--primary))",
-    primary: "var(--primary)",
-    success: "var(--success, #16a34a)",
-    warning: "var(--warning, #FA9346)",
-    danger: "var(--destructive)",
-  };
-  const accent = paletteVar[palette] ?? paletteVar.neutral;
+  // Ten sam katalog co edytor i toolbar (`blockPaletteVar`), a nie lokalna kopia.
+  const accent = blockPaletteVar(palette);
   const tint = `color-mix(in oklab, ${accent} 8%, transparent)`;
 
   const TextEl =

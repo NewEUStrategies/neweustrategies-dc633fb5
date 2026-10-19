@@ -87,6 +87,18 @@ export const BLOCK_PALETTE_VAR: Record<string, string> = {
   danger: "var(--destructive)",
 };
 
+/**
+ * Kolor akcentu dla `block.data.colorPalette` - wspólny odczyt edytora,
+ * toolbara i renderera publicznego. Tylko WŁASNE klucze katalogu (jak
+ * `getBlockVariants`): wartość z bazy typu `constructor` szła przez łańcuch
+ * prototypów i wstawiała do stylu tekst funkcji zamiast koloru.
+ */
+export function blockPaletteVar(palette: string): string {
+  return Object.hasOwn(BLOCK_PALETTE_VAR, palette)
+    ? BLOCK_PALETTE_VAR[palette]
+    : BLOCK_PALETTE_VAR.neutral;
+}
+
 /** Typy bloków, których kolorystyka jest edytowana z toolbara widgetu. */
 const PALETTE_TYPES = new Set(["quote"]);
 

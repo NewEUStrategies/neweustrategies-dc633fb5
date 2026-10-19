@@ -1,7 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AutoGrowTextarea } from "../atoms/AutoGrowTextarea";
-import { BLOCK_PALETTE_VAR } from "@/lib/blocks/variants";
+import { blockPaletteVar } from "@/lib/blocks/variants";
 import { str } from "@/components/blocks/renderer/data";
 import { readText } from "./dataVizShared";
 import "@/lib/i18n-admin-blocks";
@@ -22,7 +22,7 @@ export function QuoteBlock({ block, onChange }: Props) {
   // wariant to na stronie `default` - podgląd nie może pokazać innego.
   const variant = str(block.data, "variant") || "default";
   const palette = str(block.data, "colorPalette") || "neutral";
-  const accent = BLOCK_PALETTE_VAR[palette] ?? BLOCK_PALETTE_VAR.neutral;
+  const accent = blockPaletteVar(palette);
   const tint = `color-mix(in oklab, ${accent} 8%, transparent)`;
 
   const set = (patch: Record<string, string>) =>

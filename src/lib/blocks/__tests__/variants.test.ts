@@ -3,6 +3,7 @@ import {
   BLOCK_VARIANTS,
   BLOCK_PALETTE_KEYS,
   BLOCK_PALETTE_VAR,
+  blockPaletteVar,
   getBlockVariants,
   hasBlockPalette,
   type BlockVariantOption,
@@ -83,4 +84,15 @@ describe("BLOCK_PALETTE_KEYS / BLOCK_PALETTE_VAR", () => {
   it("nie ma zmiennej CSS bez odpowiadającego tokenu (i odwrotnie)", () => {
     expect(Object.keys(BLOCK_PALETTE_VAR).sort()).toEqual([...BLOCK_PALETTE_KEYS].sort());
   });
+
+  it.each([...BLOCK_PALETTE_KEYS])("blockPaletteVar(%s) oddaje token katalogu", (key) => {
+    expect(blockPaletteVar(key)).toBe(BLOCK_PALETTE_VAR[key]);
+  });
+
+  it.each(["constructor", "toString", "__proto__", "hasOwnProperty", "fiolet", ""])(
+    "klucz spoza katalogu (także z prototypu: %s) daje akcent neutralny, nie tekst funkcji",
+    (key) => {
+      expect(blockPaletteVar(key)).toBe(BLOCK_PALETTE_VAR.neutral);
+    },
+  );
 });
