@@ -909,12 +909,80 @@ Pliki huba są zielone. I0: `hub_schema_rls_test` 58, `hub_shared_helpers_test` 
 
 ### 13.4 Otwarte kwestie spoza PR (z rozmowy właściciela)
 
-| Kwestia                                               | Stan        | Commit na `main`                                                                                                                                    |
-| ----------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `builder_experiment_events.tenant_id` (zdarzenia A/B) | zamknięte   | `97d936f4` (migracja `20261019090000` + bliźniak `0312`, `tenant_id` z eksperymentu); migracja wdrożona przez Lovable w `9f6173f2`, `post-deploy` ✓ |
-| Transliteracja „ł” w slugach importu WP               | zamknięte   | `b81bf827` (wspólne `wp-import/slug.ts`, stare slugi odnajdywane przez `legacySlugify`)                                                             |
-| Limity `duration`/`interval` licznika i karuzeli      | zamknięte   | `96f05290` (`lib/blocks/animationRanges`, `ClampedNumberInput`)                                                                                     |
-| Płaski kolor ramki widgetu przy `setMode`             | zamknięte   | `403779f6` (edycja jasnego nie stempluje ciemnego) + `819f079c` (`setInvertibleMode` bez klucza obliczanego w literale)                             |
-| `hideOn` węzłów w kandydacie LCP                      | zamknięte   | `f922f0fa` (sekcje, sekcje zagnieżdżone i kolumny schowane na urządzeniu nie dostają preloadu ani `fetchpriority=high`)                             |
-| Strefa grupowania dni w `CalendarView`                | zamknięte   | `3bd710ae` (granice zapytania, dzień siatki i bieżący miesiąc w `SITE_TIME_ZONE`)                                                                   |
-| `JoinUsForm` - surowe identyfikatory pól              | **otwarte** | brak; `src/components/interests/JoinUsForm.tsx` bez zmian od `4bbedcf1` (2026-10-14)                                                                |
+| Kwestia                                               | Stan      | Commit na `main`                                                                                                                                                                         |
+| ----------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `builder_experiment_events.tenant_id` (zdarzenia A/B) | zamknięte | `97d936f4` (migracja `20261019090000` + bliźniak `0312`, `tenant_id` z eksperymentu); migracja wdrożona przez Lovable w `9f6173f2`, `post-deploy` ✓                                      |
+| Transliteracja „ł” w slugach importu WP               | zamknięte | `b81bf827` (wspólne `wp-import/slug.ts`, stare slugi odnajdywane przez `legacySlugify`)                                                                                                  |
+| Limity `duration`/`interval` licznika i karuzeli      | zamknięte | `96f05290` (`lib/blocks/animationRanges`, `ClampedNumberInput`)                                                                                                                          |
+| Płaski kolor ramki widgetu przy `setMode`             | zamknięte | `403779f6` (edycja jasnego nie stempluje ciemnego) + `819f079c` (`setInvertibleMode` bez klucza obliczanego w literale)                                                                  |
+| `hideOn` węzłów w kandydacie LCP                      | zamknięte | `f922f0fa` (sekcje, sekcje zagnieżdżone i kolumny schowane na urządzeniu nie dostają preloadu ani `fetchpriority=high`)                                                                  |
+| Strefa grupowania dni w `CalendarView`                | zamknięte | `3bd710ae` (granice zapytania, dzień siatki i bieżący miesiąc w `SITE_TIME_ZONE`)                                                                                                        |
+| `JoinUsForm` - surowe identyfikatory pól              | w toku    | decyzja właściciela 2026-10-19 „napraw”: osobny PR do `main` z gałęzi `claude/joinus-form-field-labels` (komunikaty ze wspólnego `subscribeFeedback`, etykiety pól zamiast kluczy)       |
+| `First visit` - waga dokumentu kandydata (Z-13-01)    | w toku    | decyzja właściciela 2026-10-19 „napraw”: osobny PR do `main`; przyczyna `5c5f4d25` (PR #525: pełny `HOVER_ALLSIDES_CSS` w `<head>` strony głównej) oraz `bootBurstCount` wpisu 121 > 115 |
+
+## 14. Uspójnienie benchmarków S6 z pakietem Insidera (2026-10-19)
+
+Decyzja właściciela 2026-10-19 („uspójnij to”) dla 29 par różnic liczbowych z
+`docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md` §5.1.4. Gałąź
+`hub/s6-uspojnienie` (baza `83b649e3`, commit `aa601f8f`), scalona
+fast-forwardem do `claude/elegant-fermat-xwfca1`; własność S6 (dane i źródła
+rejestru wskaźników).
+
+### 14.1 Reguły
+
+1. Ocena w hubie (5 stopni) pochodzi wyłącznie z kontekstów S6; Insider nie
+   daje drugiego werdyktu dla tej samej pary (metryka, kontekst).
+2. Inny kontekst istotny dla NES (kanał, segment, okres, mianownik) - nowy
+   kontekst S6 z pasmami wyprowadzonymi metodyką S6 i źródłem.
+3. Ten sam kontekst, różne liczby - wygrywa źródło wg kolejności: zgodność
+   definicji i mianownika, wiarygodność (A > B > C), świeższy okres, próba,
+   bliskość kontekstu NES.
+4. Przegrany rekord Insidera zostaje „punktem odniesienia” (bez etykiety
+   oceny); każdy rekord ma pole `hub` (`metricId`, `status`, `s6Context`,
+   `reason`) w `ranges.json`/`refs.json` (schemat pakietu /2).
+5. Bez mieszania okresów, ułamków i walut; przeliczenie tylko jawnym wzorem
+   (churn roczny z miesięcznego: `1 − (1 − m)^12`).
+6. Żadnych liczb spoza źródeł; heurystyki S6 oznaczone w `method`.
+
+### 14.2 Wynik
+
+| Wynik                                                                                                                            | Liczba               |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| Pary z §5.1.4: wygrało S6 (Insider → odniesienie)                                                                                | 16                   |
+| Pary z §5.1.4: Insider tylko odniesieniem (inny mianownik, zgodne punkty)                                                        | 13                   |
+| Korekty pasm S6                                                                                                                  | 0                    |
+| Nowe konteksty S6 (`signup_form_conversion_rate`: LinkedIn Lead Gen Forms - treść i demo; kwartyle Kiin Labs 2026, nie domyślne) | 2                    |
+| Rekordy pakietu z polem `hub` (26 przedziałów, 58 punktów)                                                                       | 84                   |
+| Rejestr S6 po zmianie: wpisy / konteksty / pasma / źródła                                                                        | 76 / 193 / 968 / 189 |
+
+Tabela par z rozstrzygnięciem i powodem: kolumna „Rozstrzygnięcie” w
+`docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md` §5.1.4 (pary pominięte -
+§5.1.4a); źródła nowych kontekstów: `docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md`
+(„Uzupełnienie 2026-10-19”).
+
+### 14.3 Zmiany integratorskie
+
+- `src/lib/ci/hubDelivery.ts`: manifest S6 += `docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md`,
+  `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`,
+  `docs/benchmarki/insider-2026-10-19/*.json` (dane i metodyka rejestru należą
+  do S6). `hub-slice-guard S6 --base 83b649e3`: jedyne naruszenie to ta zmiana.
+
+### 14.4 Weryfikacja
+
+| Bramka                                                                                         | Wynik                                    |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `import-benchmarks.ts docs/benchmarki/2026-10-18` i `--check`                                  | 8 plików zgodnych, 0 ostrzeżeń           |
+| `vitest` `src/lib/analytics/semantic src/components/admin/analytics src/lib/charts src/lib/ci` | 164 pliki, 4168 testów ✓ (+2 oczekiwane) |
+| `hubDelivery.gate.test.ts`                                                                     | 49/49 ✓                                  |
+| `typecheck`, `eslint` (zmienione `.ts`), `prettier --check` (12 plików)                        | ✓                                        |
+| Weryfikator pakietu (poza repo - zawiera wzorzec znaczników prywatnych)                        | OK, 59 rekordów w 29 parach              |
+| Pełne bramki przed pushem                                                                      | razem z najbliższym wycinkiem (S4)       |
+
+### 14.5 Do potwierdzenia przez właściciela (nieblokujące)
+
+| Nr      | Kwestia                                                                                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-14-01 | P25 kontekstów LinkedIn (4,6% i 1,0%) i liczby kont (173, 87) odczytane ze strony źródła Kiin Labs 2026-10-19 - pakiet Insidera miał tylko P50/P75/P90. Rekomendacja: zostawić. |
+| Z-14-02 | Kontekst „demo” pod formularzem zapisu - lead B2B → oferta; dostępny do wyboru, nie domyślny. Rekomendacja: zostawić.                                                           |
+| Z-14-03 | `b-engr` (zaangażowanie GA4) wymagałby nowego wpisu rejestru (nowego klucza) - osobna decyzja S6.                                                                               |
+| Z-14-04 | Kontekst strony cennika self-serve stoi na źródle C (SaasDash); przy następnym przeglądzie poszukać pierwotnego benchmarku.                                                     |

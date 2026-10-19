@@ -530,6 +530,12 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/analytics/semantic/benchmarks/__tests__/**",
     "scripts/benchmarks/import-benchmarks.ts",
     "docs/benchmarki/2026-10-18/*.json",
+    // (Integrator S6, 2026-10-19): pakiet wiedzy „Insider marketingowy” i jego
+    // uspójnienie z rejestrem (pole `hub` w przedziałach, dokumenty metodyki) -
+    // dane i źródła rejestru wskaźników należą do S6, nie do kolejnych wycinków.
+    "docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md",
+    "docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md",
+    "docs/benchmarki/insider-2026-10-19/*.json",
     "src/components/admin/analytics/{FunnelBars,KpiTile,TimeRangeFilter}.tsx",
     "src/components/admin/analytics/biChart.ts",
     "src/components/admin/analytics/__tests__/{FunnelBars,KpiTile,TimeRangeFilter,biChart}*.test.ts{,x}",
