@@ -36,6 +36,11 @@ export {
 } from "./customFieldDefs";
 export type { CustomFieldType, CustomFieldOption, CustomFieldDef } from "./customFieldDefs";
 
+/** Neutralna nazwa pola bez żadnej etykiety - surowy `id` to klucz CRM, nie tekst UI. */
+function fallbackFieldLabel(lang: "pl" | "en", index: number): string {
+  return `${lang === "en" ? "Additional field" : "Pole dodatkowe"} ${index + 1}`;
+}
+
 interface RendererProps {
   fields: CustomFieldDef[];
   values: Record<string, string>;
@@ -67,14 +72,18 @@ export function CustomFieldsRenderer({
 
   return (
     <div className={cn("grid gap-2 sm:grid-cols-2", className)}>
-      {stable.map((f) => {
-        const label = resolveCustomFieldLabel(f, lang);
+      {stable.map((f, index) => {
+        // Pole bez etykiety w ŻADNYM języku dostaje neutralną nazwę zamiast
+        // technicznego `id` (ten trafiałby do `aria-label` i do interfejsu).
+        const label =
+          f.labelPl?.trim() || f.labelEn?.trim()
+            ? resolveCustomFieldLabel(f, lang)
+            : fallbackFieldLabel(lang, index);
         const placeholder = resolveCustomFieldPlaceholder(f, lang);
         const value = values[f.id] ?? "";
-        const commonAria = {
-          "aria-label": label,
-          "aria-required": f.required || undefined,
-        } as const;
+        // Trwały znacznik wymagalności - ten sam we wszystkich typach z widoczną
+        // etykietą (podpowiedź znika przy pierwszym znaku, więc nie może go nieść).
+        const requiredMark = f.required ? <span className="ml-1 text-destructive">*</span> : null;
 
         if (f.type === "textarea") {
           return (
@@ -105,10 +114,10 @@ export function CustomFieldsRenderer({
             <div key={f.id} className="block">
               <span className="mb-1 block text-xs font-medium text-muted-foreground">
                 {label}
-                {f.required && <span className="ml-1 text-destructive">*</span>}
+                {requiredMark}
               </span>
               <FormSelect
-                aria-label={commonAria["aria-label"]}
+                aria-label={label}
                 value={value}
                 onValueChange={(v) => onChange(f.id, v)}
                 required={f.required}
@@ -141,7 +150,7 @@ export function CustomFieldsRenderer({
               />
               <span>
                 {label}
-                {f.required && <span className="ml-1 text-destructive">*</span>}
+                {requiredMark}
               </span>
             </label>
           );
@@ -156,21 +165,28 @@ export function CustomFieldsRenderer({
                 ? "url"
                 : "text";
 
+        // Widoczna etykieta + trwała gwiazdka, jak droplista: podpowiedź jest
+        // WYŁĄCZNIE podpowiedzią (nie nazwą pola ani znacznikiem wymagalności).
         return (
-          <input
-            key={f.id}
-            type={inputType}
-            value={value}
-            onChange={(e) => onChange(f.id, e.target.value)}
-            placeholder={placeholder ? (f.required ? `${placeholder} *` : placeholder) : label}
-            required={f.required}
-            aria-required={f.required || undefined}
-            aria-label={label}
-            maxLength={f.maxLength ?? 300}
-            className={baseInput}
-            style={inputStyle}
-            data-edit-target={inputEditTarget}
-          />
+          <div key={f.id} className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">
+              {label}
+              {requiredMark}
+            </span>
+            <input
+              type={inputType}
+              value={value}
+              onChange={(e) => onChange(f.id, e.target.value)}
+              placeholder={placeholder || undefined}
+              required={f.required}
+              aria-required={f.required || undefined}
+              aria-label={label}
+              maxLength={f.maxLength ?? 300}
+              className={baseInput}
+              style={inputStyle}
+              data-edit-target={inputEditTarget}
+            />
+          </div>
         );
       })}
     </div>

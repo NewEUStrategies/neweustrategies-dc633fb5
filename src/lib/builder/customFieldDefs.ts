@@ -62,8 +62,13 @@ function isCustomFieldDef(v: unknown): v is CustomFieldDef {
 export function parseCustomFields(raw: unknown): CustomFieldDef[] {
   if (!raw) return [];
   const out: CustomFieldDef[] = [];
+  // Pierwsze wystąpienie `id` wygrywa (jak `content-model/formFields.ts`):
+  // duplikat dzieliłby klucz Reacta i komórkę mapy wartości z oryginałem.
+  const seen = new Set<string>();
   const push = (v: unknown) => {
-    if (isCustomFieldDef(v)) out.push(v);
+    if (!isCustomFieldDef(v) || seen.has(v.id)) return;
+    seen.add(v.id);
+    out.push(v);
   };
 
   if (Array.isArray(raw)) {

@@ -387,18 +387,18 @@ describe("pasek aktualnosci: filtr kategorii i autorzy", () => {
 
     await run(newsTickerQueryOptions({}, "pl"));
 
-    expect(db().lastChain("profiles")).toBeUndefined();
+    expect(db().lastChain("profiles_public")).toBeUndefined();
   });
 
   it("autor bez wiersza profilu daje null, a nie pusty napis - i odmowa tez", async () => {
     db().setResponse("posts", () => ok([{ id: "p-1", slug: "a", author_id: "u-1" }]));
 
-    db().setResponse("profiles", () => ok([]));
+    db().setResponse("profiles_public", () => ok([]));
     const brakWiersza = await run<TickerPost[]>(newsTickerQueryOptions({}, "pl"));
     expect(brakWiersza[0].author_display_name).toBeNull();
     expect(brakWiersza[0].author_avatar_url).toBeNull();
 
-    db().setResponse("profiles", () => fail("permission denied", "42501"));
+    db().setResponse("profiles_public", () => fail("permission denied", "42501"));
     const odmowa = await run<TickerPost[]>(newsTickerQueryOptions({}, "pl"));
     expect(odmowa[0].author_display_name).toBeNull();
     expect(odmowa[0].author_avatar_url).toBeNull();
@@ -411,8 +411,12 @@ describe("pasek aktualnosci: filtr kategorii i autorzy", () => {
         { id: "p-2", slug: "b", author_id: null },
       ]),
     );
-    db().setResponse("profiles", () =>
-      ok([{ id: "u-1", display_name: "Jan Przykladowy", avatar_url: "https://example.com/a.png" }]),
+    db().setResponse("profiles_public", () =>
+      ok([
+        // Widok ma `id` nullowalne - wiersz bez id nie moze nikomu przypisac byline.
+        { id: null, display_name: "Widmo", avatar_url: "https://example.com/x.png" },
+        { id: "u-1", display_name: "Jan Przykladowy", avatar_url: "https://example.com/a.png" },
+      ]),
     );
 
     const rows = await run<TickerPost[]>(newsTickerQueryOptions({}, "pl"));
@@ -422,34 +426,20 @@ describe("pasek aktualnosci: filtr kategorii i autorzy", () => {
     // Wpis bez autora zostaje bez byline - i nie pozycza go od sasiada.
     expect(rows[1].author_display_name).toBeNull();
     // O profile pytamy RAZ, po zdeduplikowanej liscie identyfikatorow.
-    expect(db().lastChain("profiles")?.argsOf("in")).toEqual(["id", ["u-1"]]);
+    expect(db().lastChain("profiles_public")?.argsOf("in")).toEqual(["id", ["u-1"]]);
   });
 
-  // DEFEKT: TICKER CZYTA TABELE `profiles`, A NIE WIDOK `profiles_public`.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): ticker czytal TABELE `profiles`.
   //
-  // WEJSCIE: pasek aktualnosci w chrome naglowka (a wiec na KAZDEJ trasie
-  //   publicznej) z wpisami, ktore maja `author_id`.
-  // CO PSUJE: `fetchTickerPosts` (src/lib/builder/newsTickerQuery.ts:98) siega
-  //   po `supabase.from("profiles")`, podczas gdy trzy siostrzane moduly tego
-  //   samego wiersza - `postListQuery` (`attachAuthorNames`), `ratedListQuery`
-  //   i `sliderAuthorsQuery` - czytaja WIDOK `profiles_public`. Widok jest
-  //   zawezony do `public_tenant_id()` i wystawia wylacznie kolumny publiczne;
-  //   tabela bazowa takiego zawezenia nie ma WPISANEGO W SIEBIE - jej izolacja
-  //   zalezy od polityk RLS `profiles`, czyli od zupelnie innego pliku migracji
-  //   niz ten, ktory chroni pozostale trzy zapytania.
-  // KONSEKWENCJA: izolacja najemcy dla nazwiska i awatara autora w tickerze
-  //   opiera sie na innym mechanizmie niz dla tych samych danych w post-liscie.
-  //   Rozjazd jest niewidoczny w typach (oba ksztalty wiersza sa identyczne)
-  //   i niewidoczny w interfejsie (pasek pokazuje nazwisko tak samo), wiec
-  //   zmiana polityki `profiles` moze rozszerzyc widocznosc TYLKO w tickerze
-  //   i nikt tego nie zauwazy. Do tego `profiles` wystawia kolumny prywatne,
-  //   ktorych widok publiczny nie ma - selekcja trzech kolumn jest jedynym,
-  //   co dzieli to zapytanie od odczytu danych kontaktowych autora.
-  // WYMAGANA POPRAWKA: przepiac odczyt na `profiles_public` (te same trzy
-  //   kolumny: `id, display_name, avatar_url`), tak by wszystkie cztery
-  //   zapytania widgetowe czytajace autora szly przez JEDEN widok - wtedy
-  //   izolacja najemcy jest wlasnoscia widoku, a nie sumy czterech polityk.
-  it.fails("DEFEKT: autorzy tickera MUSZA isc przez widok profiles_public", async () => {
+  // KONTRAKT: `fetchTickerPosts` (newsTickerQuery.ts) czyta nazwisko i awatar
+  // autora z WIDOKU `profiles_public` (te same trzy kolumny `id, display_name,
+  // avatar_url`), tak jak siostrzane `postListQuery` (`attachAuthorNames`),
+  // `ratedListQuery` i `sliderAuthorsQuery`. Widok jest zawezony do
+  // `public_tenant_id()` i wystawia wylacznie kolumny publiczne, wiec izolacja
+  // najemcy dla byline w pasku (chrome KAZDEJ trasy publicznej) jest
+  // wlasnoscia jednego widoku, a nie osobnej polityki RLS tabeli bazowej z
+  // kolumnami prywatnymi (AGENTS.md: prywatne kolumny poza publicznymi stalymi).
+  it("autorzy tickera ida przez widok profiles_public, nigdy przez tabele profiles", async () => {
     db().setResponse("posts", () => ok([{ id: "p-1", slug: "a", author_id: "u-1" }]));
     db().setResponse("profiles", () => ok([]));
     db().setResponse("profiles_public", () => ok([]));

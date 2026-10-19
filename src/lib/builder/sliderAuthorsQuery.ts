@@ -14,6 +14,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SliderPostRow } from "@/lib/builder/sliderPostsQuery";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 export interface SliderAuthorInfo {
   name: string;
@@ -61,7 +62,8 @@ async function fetchSliderAuthors(authorIds: string[]): Promise<Record<string, S
 
 export const sliderAuthorsQueryOptions = (authorIds: string[]) =>
   queryOptions({
-    queryKey: ["builder-slider-authors", authorIds] as const,
+    // Korzeń z rejestru (a nie goły literał), więc trafia go też inwalidacja live.
+    queryKey: [WIDGET_QUERY_ROOTS.sliderAuthors, authorIds] as const,
     queryFn: () => fetchSliderAuthors(authorIds),
     staleTime: 60_000,
     gcTime: 5 * 60_000,

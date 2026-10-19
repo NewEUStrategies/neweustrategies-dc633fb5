@@ -946,7 +946,9 @@ describe("warianty prezentacji i nadpisania z buildera", () => {
     });
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText(/Nr członkowski|cf1/)).toBeTruthy());
+    // Komunikat walidacji, a nie widoczna etykieta pola: od 2026-10-18 pole
+    // tekstowe ma trwałą etykietę z gwiazdką (formFieldConfig.test.tsx).
+    await waitFor(() => expect(screen.getByText(/Uzupełnij wymagane pola/)).toBeTruthy());
     expect(h.subscribePayloads).toEqual([]);
   });
 

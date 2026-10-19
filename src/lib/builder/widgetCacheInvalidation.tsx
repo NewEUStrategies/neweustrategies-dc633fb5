@@ -42,8 +42,8 @@ export function WidgetLiveSync() {
 
   // The local cross-tab hint is cheap (no network) and useful for everyone -
   // e.g. a preview tab refreshing after a same-browser admin save.
+  // Efekty nie biegną na serwerze, więc `window` jest tu zawsze dostępne.
   useEffect(() => {
-    if (typeof window === "undefined") return;
     const onLocal = () => invalidateWidgetCaches(queryClient);
     window.addEventListener("widget-cache:invalidate", onLocal);
     return () => window.removeEventListener("widget-cache:invalidate", onLocal);
