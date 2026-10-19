@@ -2396,7 +2396,18 @@ const FROZEN_BUDGET_KB = {
   // 8c8d3050 (kampanie kuponowe, zakładki rozliczeń) są pomijalne. public
   // 2772,5, chunk 257,5, publicCss 83,8 i boot 471,3 w zamrożonych progach.
   // Host 4970,7 -> 4971 -> +1.
-  overall: 4972,
+  // Ratchet 4972 -> 4981 (2026-10-19, wycinek S4 huba „Przychód i lejek”:
+  // CRM, automatyzacje i społeczność), decyzją zamawiającego D-08. Baza
+  // e135b91a na tym hoście 4970,7 (public 2772,5, admin-only 2198,1), po S4
+  // 4979,4: +8,7 KB, w całości kod panelu ładowany leniwie - edytor przepisów
+  // (listy etapów, picker zespołu, walidacja, admin.workflows +3,1), wspólny
+  // chunk mutacji leada `leadMutations` (+2,3), karta historii etapów
+  // i zmiana cyklu życia (admin.crm.$id +1,5), filtry cyklu życia, segmentu,
+  // tagów i właściciela (admin.crm.index +1,1), źródło zadania
+  // (LeadTasksPanel +0,9). public 2772,1 (-0,4), chunk 257,9, css 99,7,
+  // publicCss 83,8 i boot 471,6 w zamrożonych progach.
+  // Host 4979,4 -> 4980 -> +1.
+  overall: 4981,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
