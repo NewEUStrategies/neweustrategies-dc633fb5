@@ -153,7 +153,9 @@ export function setInvertibleMode<T>(
   const slices = invertibleSlices(prev);
   const next = value ?? undefined;
   if (slices[mode] === next) return prev;
-  const { light, dark } = { ...slices, [mode]: next };
+  const merged = { ...slices };
+  merged[mode] = next;
+  const { light, dark } = merged;
   if (dark == null) return light;
   return light == null ? ({ dark } as ThemedValue<T>) : ({ light, dark } as ThemedValue<T>);
 }
