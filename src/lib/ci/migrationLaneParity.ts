@@ -66,6 +66,11 @@ export type LaneEntry =
  */
 export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
+    tag: "0329_pr520_deployment_completion",
+    drizzleOnly:
+      "Jednorazowe potwierdzenie wdrożenia PR #520 na pasie Drizzle: zmienia wyłącznie komentarz tabeli domain_event_emit_errors i uruchamia oczekujące wpisy 0313-0328; nie dodaje nowego schematu ani nie zmienia reguł dostępu.",
+  },
+  {
     tag: "0000_search_people_super_admin_bypass",
     twin: "20260911160000_search_people_super_admin_bypass.sql",
   },

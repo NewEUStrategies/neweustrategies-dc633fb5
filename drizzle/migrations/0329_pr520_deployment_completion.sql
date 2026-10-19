@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.domain_event_emit_errors IS 'Hub przychodu: rejestr błędów emisji zdarzeń domenowych. PR #520: komplet schematu wdrożony przez migrator Drizzle; dostęp i izolacja najemców zgodnie z politykami tabeli.';

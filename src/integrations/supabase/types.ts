@@ -16825,7 +16825,7 @@ export type Database = {
         Insert: {
           backfilled?: boolean
           currency: string
-          delta_minor?: never
+          delta_minor?: number | null
           environment: string
           history_id?: number | null
           id?: never
@@ -16846,7 +16846,7 @@ export type Database = {
         Update: {
           backfilled?: boolean
           currency?: string
-          delta_minor?: never
+          delta_minor?: number | null
           environment?: string
           history_id?: number | null
           id?: never
@@ -26371,6 +26371,16 @@ export type Database = {
         Args: { p_object_id: string; p_platform: string; p_tenant: string }
         Returns: Json
       }
+      _log_emit_error: {
+        Args: {
+          p_error?: string
+          p_event_type: string
+          p_source: string
+          p_sqlstate?: string
+          p_tenant: string
+        }
+        Returns: undefined
+      }
       _mention_public_company_ids: {
         Args: { _tenant: string }
         Returns: {
@@ -26466,6 +26476,10 @@ export type Database = {
           p_title_en: string
           p_title_pl: string
         }
+        Returns: number
+      }
+      _tier_rank_of: {
+        Args: { p_tenant: string; p_tier_key: string }
         Returns: number
       }
       _validate_b2b_coupon: {
@@ -27109,6 +27123,14 @@ export type Database = {
           granted: number
           last_event_at: string
         }[]
+      }
+      admin_coupon_campaign_set_status: {
+        Args: {
+          p_campaign_id: string
+          p_expected_updated_at: string
+          p_status: string
+        }
+        Returns: Json
       }
       admin_dashboard_audience: {
         Args: {
@@ -29798,6 +29820,19 @@ export type Database = {
           week_offset: number
         }[]
       }
+      admin_membership_grant_revoke: {
+        Args: { p_grant_id: string; p_reason: string }
+        Returns: string
+      }
+      admin_membership_grant_set: {
+        Args: {
+          p_expires_at: string
+          p_note: string
+          p_tier_key: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       admin_network_stats: {
         Args: never
         Returns: {
@@ -29810,6 +29845,10 @@ export type Database = {
           responded_30d: number
         }[]
       }
+      admin_newsletter_settings_patch: {
+        Args: { p_expected_updated_at: string; p_group: string; p_patch: Json }
+        Returns: Json
+      }
       admin_payment_webhook_health: {
         Args: { p_payload?: Json }
         Returns: Json
@@ -29817,6 +29856,10 @@ export type Database = {
       admin_resolve_user_report: {
         Args: { p_action: string; p_note?: string; p_report_id: string }
         Returns: undefined
+      }
+      admin_revenue_email_health: {
+        Args: { p_since: string; p_until: string }
+        Returns: Json
       }
       admin_revoke_profile_badge: {
         Args: { p_badge_id: string }
@@ -34730,6 +34773,7 @@ export type Database = {
         Args: { p_kid: string }
         Returns: boolean
       }
+      revenue_segment_of_tier: { Args: { p_tier_key: string }; Returns: string }
       revoke_gift_link_admin: { Args: { _link_id: string }; Returns: boolean }
       rsvp_event: {
         Args: { p_event_id: string; p_status: string }
@@ -34974,10 +35018,7 @@ export type Database = {
       seed_pricing_defaults: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_faq: { Args: { p_tenant: string }; Returns: undefined }
       seed_pricing_plans_v3: { Args: { p_tenant: string }; Returns: undefined }
-      seed_pricing_plans_v62: {
-        Args: { p_tenant: string }
-        Returns: undefined
-      }
+      seed_pricing_plans_v62: { Args: { p_tenant: string }; Returns: undefined }
       seed_related_posts_config: {
         Args: { _tenant_id: string }
         Returns: undefined

@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #520
+
+- [x] Potwierdzić integrację wszystkich commitów PR #520: merge cb7a18dff zawiera 21 commitów gałęzi (17 nie-merge), drzewo identyczne z końcem gałęzi 4549a6f19; merge jest przodkiem HEAD.
+- [x] Wdrożyć 16 oczekujących migracji 0313-0328 przez migrator Drizzle (0329 - komentarz potwierdzenia), uzupełnić drugi rejestr po sukcesie: 1698 obiektów, 765 kolumn, zero nowych braków, 7 historycznych rozbieżności; rejestr 388/388, pasy zgodne (22 historyczne braki kopii poza PR).
+- [x] Testy zakresowe: 185 plików, 5757 przechodzi i 17 oczekiwanych błędów; testy pasów 46/46. Zalogowany panel: 7 stron HTTP 200, bez błędów JS. PR dostarcza fundament, S1 i S6, a pozostałe zakładki świadomie pokazują zapowiedź następnych etapów - nie jest to kompletny moduł ze specyfikacji. Testów SQL na żywej bazie nie uruchamiano.
+- [ ] Potwierdzić zakończenie publikacji PR #520: publikację zlecono; oczekiwanie na wynik platformy. Bieżący log kontroli kompilacji nadal zawiera błędy sprzed odświeżenia wygenerowanych typów bazy; zakończenie nowej kontroli niepotwierdzone.
+
 ## Audio w dolnym pasku
 
 - [x] Zachować osobny odtwarzacz gości i połączyć odtwarzacz członków z mierzonym dolnym paskiem bez przenoszenia silnika audio.
