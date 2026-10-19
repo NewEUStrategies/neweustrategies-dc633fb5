@@ -4,8 +4,16 @@
 // Rich mode (`html`) exposes a lightweight floating toolbar with Bold / Italic /
 // Underline / Link commands and reacts to native keyboard shortcuts
 // (Cmd/Ctrl+B, +I, +U, +K). Enter inserts a real newline in multiline mode;
-// Shift+Enter always inserts a soft break. The final HTML is sanitized on
-// commit, so unsafe markup produced by execCommand can never persist.
+// Shift+Enter always inserts a soft break. HTML is sanitized on BOTH sides:
+// the stored value before it is written into the canvas DOM (it comes from the
+// database, e.g. a WordPress import) and the final HTML on commit, so unsafe
+// markup produced by execCommand can never persist.
+//
+// A commit happens only for a real edit: the baseline is the field content as
+// it was written into the DOM (same normalisation + sanitizer), so focus/blur
+// over a non-canonical stored value is not a change, and Escape cancels the
+// edit without any commit. The field is announced as `role="textbox"` with an
+// accessible name (the `title` hint disappears on focus, so it cannot be one).
 import {
   useEffect,
   useRef,
@@ -61,6 +69,28 @@ function exec(cmd: ExecCommand, value?: string) {
   }
 }
 
+/** Treść pola w postaci, którą oddaje `onCommit` (tryb bogaty: normalizacja list + sanitizer). */
+function readField(el: HTMLElement, html: boolean): string {
+  return html ? sanitizeHtml(normalizeBuilderRichHtmlDom(el.innerHTML)) : (el.textContent ?? "");
+}
+
+/**
+ * Wpisuje wartość z bazy do pola i zwraca jego treść w postaci zapisu (bazę
+ * porównania dla `commit`). W trybie bogatym DOM kanwy dostaje wartość PO
+ * sanitizerze - treść z `builder_data` (import WordPressa, ręczna edycja wiersza)
+ * nie może wykonać się w sesji redaktora. Ta sama postać nie jest przypisywana
+ * ponownie: przypisanie `innerHTML` niszczy węzły, a z nimi karetkę.
+ */
+function writeField(el: HTMLElement, value: string, html: boolean): string {
+  if (html) {
+    const safe = sanitizeHtml(normalizeBuilderRichHtmlDom(value));
+    if (el.innerHTML !== safe) el.innerHTML = safe;
+  } else if (el.textContent !== value) {
+    el.textContent = value;
+  }
+  return readField(el, html);
+}
+
 export function Editable({
   as: As = "span",
   value,
@@ -74,26 +104,25 @@ export function Editable({
   const { t } = useTranslation();
   const ref = useRef<HTMLElement>(null);
   const [focused, setFocused] = useState(false);
+  /** Treść pola w postaci zapisu (ta sama droga co `commit`) od ostatniej synchronizacji albo zapisu. */
+  const baselineRef = useRef<string | null>(null);
+  /** Escape: najbliższy blur kończy edycję BEZ zapisu. */
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (document.activeElement === el) return;
-    if (html) {
-      const normalized = normalizeBuilderRichHtmlDom(value);
-      if (el.innerHTML !== normalized) el.innerHTML = normalized;
-    } else if (el.textContent !== value) {
-      el.textContent = value;
-    }
+    baselineRef.current = writeField(el, value, html);
   }, [value, html]);
 
   const commit = () => {
     const el = ref.current;
     if (!el) return;
-    const next = html
-      ? sanitizeHtml(normalizeBuilderRichHtmlDom(el.innerHTML))
-      : (el.textContent ?? "");
-    if (next !== value) onCommit(next);
+    const next = readField(el, html);
+    if (next === baselineRef.current || next === value) return;
+    baselineRef.current = next;
+    onCommit(next);
   };
 
   const runCommand = (cmd: ExecCommand, value?: string) => {
@@ -121,10 +150,8 @@ export function Editable({
     if (e.key === "Escape") {
       e.preventDefault();
       const el = ref.current;
-      if (el) {
-        if (html) el.innerHTML = normalizeBuilderRichHtmlDom(value);
-        else el.textContent = value;
-      }
+      if (el) baselineRef.current = writeField(el, value, html);
+      cancelledRef.current = true;
       (e.target as HTMLElement).blur();
       return;
     }
@@ -158,19 +185,31 @@ export function Editable({
 
   const stop = (e: ReactMouseEvent | MouseEvent) => e.stopPropagation();
 
-  const showToolbar = html && multiline;
+  // Pasek należy do trybu bogatego jako takiego - skróty klawiszowe też
+  // zależą wyłącznie od `html`.
+  const showToolbar = html;
   const editableEl = (
     <As
       ref={ref as never}
       contentEditable
       suppressContentEditableWarning
       spellCheck
+      role="textbox"
+      aria-multiline={multiline}
+      aria-label={t("builder.editable.fieldLabel")}
       data-placeholder={placeholder}
       onBlur={() => {
         setFocused(false);
+        if (cancelledRef.current) {
+          cancelledRef.current = false;
+          return;
+        }
         commit();
       }}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        cancelledRef.current = false;
+        setFocused(true);
+      }}
       onKeyDown={onKeyDown}
       onClick={stop}
       onMouseDown={stop}

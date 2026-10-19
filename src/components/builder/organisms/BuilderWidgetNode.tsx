@@ -151,7 +151,7 @@ export const BuilderWidgetNode = memo(
   }: BuilderWidgetNodeProps) {
     // Ramka w kanwie edytora (z edycją w miejscu) - patrz `EDITOR_INLINE_PROPERTIES`.
     const onEditorCanvas = onContentChange !== undefined;
-    const { itemClass, style } = useMemo(() => {
+    const { itemClass, style, hasExplicitHeight } = useMemo(() => {
       const adv = w.advanced as
         | {
             height?: number | "auto" | { desktop?: unknown; tablet?: unknown; mobile?: unknown };
@@ -211,17 +211,10 @@ export const BuilderWidgetNode = memo(
         computedStyle,
         onEditorCanvas ? EDITOR_INLINE_PROPERTIES : NO_INLINE_PROPERTIES,
       );
-      return { itemClass: split.className, style: split.style };
+      // `hasExplicitHeight` wychodzi z tej samej memoizacji - atrybut
+      // `data-widget-explicit-height` nie liczy wysokości responsywnej drugi raz.
+      return { itemClass: split.className, style: split.style, hasExplicitHeight };
     }, [w, device, inRow, onlyOneBlock, onEditorCanvas]);
-
-    const adv = w.advanced as
-      | { height?: number | "auto" | { desktop?: unknown; tablet?: unknown; mobile?: unknown } }
-      | undefined;
-    const responsiveHeightForData =
-      adv?.height && typeof adv.height === "object"
-        ? (adv.height[device] ?? adv.height.desktop ?? adv.height.tablet ?? adv.height.mobile)
-        : adv?.height;
-    const hasExplicitHeight = typeof responsiveHeightForData === "number";
 
     const handleContentChange = useCallback(
       (key: string, value: string | number) => onContentChange?.(w.id, key, value),

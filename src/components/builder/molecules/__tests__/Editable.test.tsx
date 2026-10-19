@@ -56,12 +56,14 @@
 //    pod happy-dom ta wersja usuwa `<script>` i atrybuty `on*`. Test mierzy więc
 //    prawdziwy sanitizer, a nie atrapę udającą bezpieczeństwo.
 //  * Poza zasięgiem zostają WYŁĄCZNIE strażnice pustego `ref`: `if (!el) return`
-//    w efekcie (`Editable.tsx:80`) i w `commit` (:92), `if (el)` w gałęzi Escape
-//    (:124) oraz zapasowe `?? ""` przy `textContent` (:95). `ref` jest niepusty
-//    przy każdym renderze, a `textContent` elementu nigdy nie jest `null`, więc
-//    ich osiągnięcie wymagałoby atrapy `useRef` - czyli testowania Reacta
-//    zamiast komponentu. Zmierzone: 100% linii, 100% funkcji (19/19),
-//    94,59% gałęzi.
+//    w efekcie i w `commit`, `if (el)` w gałęzi Escape oraz zapasowe `?? ""`
+//    przy `textContent` (`readField`). `ref` jest niepusty przy każdym renderze,
+//    a `textContent` elementu nigdy nie jest `null`, więc ich osiągnięcie
+//    wymagałoby atrapy `useRef` - czyli testowania Reacta zamiast komponentu.
+//
+// DAWNE `it.fails` (sanityzacja wejścia, Escape bez zapisu, fokus/blur bez
+// zapisu, rola textbox z nazwą, pasek dla samego `html`) są naprawione
+// 2026-10-18 i stoją na końcu pliku jako zwykłe kontrakty.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -515,7 +517,6 @@ describe("Editable - pasek formatowania", () => {
   });
 
   it.each([
-    ["tryb bogaty bez wielowierszowości", { html: true, multiline: false }],
     ["wielowierszowość bez trybu bogatego", { html: false, multiline: true }],
     ["ani tryb bogaty, ani wielowierszowość", { html: false, multiline: false }],
   ])("ODMOWA: %s nie daje paska, a pole nadal działa", (_opis, tryb) => {
@@ -601,6 +602,7 @@ describe("Editable - napisy pochodzą ze słownika buildera w obu językach", ()
       expect(el().getAttribute("title")).not.toBe(klucz("clickToEdit"));
       skupFokus(el());
       for (const nazwa of [
+        "fieldLabel",
         "toolbar",
         "bold",
         "italic",
@@ -625,32 +627,23 @@ describe("Editable - napisy pochodzą ze słownika buildera w obu językach", ()
     // Bez tego przypadku brakujący bundle EN przechodziłby niezauważony:
     // i18next spadłby na polski fallback, a obie asercje wyżej nadal byłyby
     // zielone.
-    for (const nazwa of ["clickToEdit", "toolbar", "bulletList", "unlink"]) {
+    for (const nazwa of ["clickToEdit", "fieldLabel", "toolbar", "bulletList", "unlink"]) {
       expect(tEn(klucz(nazwa))).not.toBe(tPl(klucz(nazwa)));
     }
   });
 });
 
-describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
-  // DEFEKT: TREŚĆ Z BAZY WCHODZI DO DOM-U KANWY BEZ SANITYZACJI.
+describe("Editable - naprawione defekty (dawne `it.fails`)", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): TREŚĆ Z BAZY WCHODZIŁA DO DOM-U
+  // KANWY BEZ SANITYZACJI.
   //
-  // WEJSCIE: widget „text” z `value` pochodzącym wprost z `builder_data`
-  //   (import WordPressa albo pole edytowalne przez redakcję), zawierającym
-  //   `<img onerror="alert(1)">`.
-  // CO PSUJE: `Editable.tsx:82-84` (efekt synchronizujący) i `:125` (gałąź
-  //   Escape) robią `el.innerHTML = normalizeBuilderRichHtmlDom(value)`, a
-  //   `normalizeBuilderRichHtmlDom` (src/lib/builder/normalizeRichHtmlDom.ts:62) NIE
-  //   JEST sanitizerem - przy wejściu bez `<ul>`/`<ol>` zwraca je NIETKNIĘTE.
-  //   Nagłówek modułu (linie 7-8) obiecuje sanityzację NA WYJŚCIU i tej
-  //   obietnicy dotrzymuje; luka jest na WEJŚCIU i nikt jej nie zadeklarował.
-  // KONSEKWENCJA: ta sama treść na ścieżce TYLKO DO ODCZYTU idzie przez
-  //   `RichHtmlView`, który woła `sanitizeHtml` - czyli kanwa edytora jest DZIŚ
-  //   mniej bezpieczna niż strona publiczna, a atakuje się w niej redaktora
-  //   z sesją administracyjną.
-  // WYMAGANA POPRAWKA: `el.innerHTML = sanitizeHtml(normalizeBuilderRichHtmlDom(value))`
-  //   w OBU miejscach; moduł importuje `sanitizeHtml` już dziś (linia 19), więc
-  //   nie brakuje nawet zależności.
-  it.fails("DEFEKT: wartość z bazy MUSI być sanityzowana, zanim trafi do DOM-u kanwy", () => {
+  // Wartość z `builder_data` (import WordPressa, ręczna edycja wiersza) szła
+  // przez `normalizeBuilderRichHtmlDom`, który NIE jest sanitizerem, prosto do
+  // `innerHTML` - kanwa edytora była mniej bezpieczna niż strona publiczna
+  // (`RichHtmlView` sanityzuje), a atakowany był redaktor z sesją
+  // administracyjną. KONTRAKT: efekt synchronizujący i gałąź Escape wpisują do
+  // DOM-u `sanitizeHtml(normalizeBuilderRichHtmlDom(value))`.
+  it("wartość z bazy jest sanityzowana, zanim trafi do DOM-u kanwy", () => {
     const { el } = renderEditable({
       html: true,
       value: '<p>ok</p><img alt="" onerror="alert(1)">',
@@ -658,31 +651,38 @@ describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
     expect(el().querySelector("img")?.hasAttribute("onerror")).toBe(false);
   });
 
-  it("KONTROLA DODATNIA: dziś atrybut onerror JEST w DOM-ie kanwy", () => {
+  it("KONTROLA DODATNIA: bezpieczne znaczniki z bazy zostają w polu", () => {
+    // Bez tej kontroli „sanityzacja" mogłaby czyścić pole do zera i przypadek
+    // wyżej przechodziłby z fałszywego powodu.
     const { el } = renderEditable({
       html: true,
       value: '<p>ok</p><img alt="" onerror="alert(1)">',
     });
-    expect(el().querySelector("img")?.getAttribute("onerror")).toBe("alert(1)");
+    expect(el().querySelector("p")?.textContent).toBe("ok");
+    expect(el().querySelector("img")).not.toBeNull();
   });
 
-  // DEFEKT: ESCAPE (ANULOWANIE) MIMO WSZYSTKO ZGŁASZA ZMIANĘ TREŚCI.
+  it("Escape po wstrzyknięciu też przywraca wartość PO sanitizerze", () => {
+    const { el } = renderEditable({
+      html: true,
+      value: '<p>a</p><img alt="" onerror="alert(1)">',
+    });
+    const node = el();
+    skupFokus(node);
+    node.innerHTML = "<p>bazgroły</p>";
+    fireEvent.keyDown(node, { key: "Escape" });
+    expect(node.querySelector("p")?.textContent).toBe("a");
+    expect(node.querySelector("img")?.hasAttribute("onerror")).toBe(false);
+  });
+
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): ESCAPE (ANULOWANIE) ZGŁASZAŁ ZMIANĘ.
   //
-  // WEJSCIE: pole `html` z wartością, którą normalizacja zmienia -
-  //   `<ul><li><ul><li>a</li></ul></li></ul>`; redaktor coś wpisuje i naciska
-  //   Escape.
-  // CO PSUJE: gałąź Escape (`Editable.tsx:121-130`) przywraca wartość do DOM-u
-  //   i woła `blur()`, a `onBlur` (:169-172) woła `commit()` BEZWARUNKOWO.
-  //   `commit` porównuje `next` - czyli `sanitizeHtml(normalizeBuilderRichHtmlDom(...))`
-  //   - z SUROWYM propem `value`. Dla wartości nieznormalizowanej te dwa napisy
-  //   nigdy się nie zrównają, więc `onCommit` leci.
-  // KONSEKWENCJA: klawisz, którego jedynym sensem jest „nie zapisuj”, zapisuje.
-  //   Redaktor cofa zmianę, a builder i tak oznacza dokument jako brudny
-  //   i odpala autosave.
-  // WYMAGANA POPRAWKA: Escape ustawia flagę anulowania honorowaną przez
-  //   `commit` (albo zdejmuje handler `blur` na czas przywracania), tak żeby
-  //   anulowanie NIGDY nie generowało zapisu.
-  it.fails("DEFEKT: Escape MUSI anulować edycję bez zapisu", () => {
+  // Gałąź Escape przywracała DOM i wołała `blur()`, a `onBlur` bezwarunkowo
+  // robił `commit()`, porównując postać przetworzoną z SUROWYM `value` - dla
+  // wartości nieznormalizowanej zawsze różną. KONTRAKT: Escape zaznacza
+  // anulowanie, najbliższy blur kończy edycję bez zapisu, a każdy następny
+  // blur porównuje treść z bazą wpisaną do DOM-u.
+  it("Escape anuluje edycję bez zapisu", () => {
     const { el, onCommit } = renderEditable({
       html: true,
       value: "<ul><li><ul><li>a</li></ul></li></ul>",
@@ -695,22 +695,26 @@ describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  // DEFEKT: SAM FOKUS I BLUR, BEZ JEDNEJ EDYCJI, ZGŁASZAJĄ ZMIANĘ TREŚCI.
+  it("anulowanie dotyczy jednej edycji: następna edycja po fokusie znów zapisuje", () => {
+    const { el, onCommit } = renderEditable({ value: "oryginał" });
+    const node = el();
+    skupFokus(node);
+    node.textContent = "bazgroły";
+    fireEvent.keyDown(node, { key: "Escape" });
+    skupFokus(node);
+    node.textContent = "poprawka";
+    zdejmijFokus(node);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith("poprawka");
+  });
+
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): SAM FOKUS I BLUR ZGŁASZAŁY ZMIANĘ.
   //
-  // WEJSCIE: pole `html` z wartością nieznormalizowaną w bazie (typowa po
-  //   imporcie WordPressa), kliknięcie w akapit i kliknięcie obok.
-  // CO PSUJE: ten sam mechanizm co wyżej - `commit` (`Editable.tsx:93-96`)
-  //   porównuje przetworzone `next` z surowym `value`, a efekt (:82-84) wstawił
-  //   do DOM-u postać JUŻ przetworzoną. Baseline porównania i zawartość pola
-  //   pochodzą więc z dwóch różnych światów.
-  // KONSEKWENCJA: samo przejrzenie strony w kanwie brudzi dokument i odpala
-  //   autosave (ścieżkę pilnuje `scripts/check-editor-autosave.ts`). Redaktor
-  //   dostaje historię wersji pełną zmian, których nie zrobił, a przy pracy
-  //   dwóch osób - konflikty zapisu bez powodu.
-  // WYMAGANA POPRAWKA: baseline liczony RAZ, z tej samej normalizacji, którą
-  //   efekt wstawił do DOM-u (np. ref z ostatnio wstawioną wartością), żeby
-  //   „brak edycji” dawał „brak zapisu” niezależnie od postaci wartości w bazie.
-  it.fails("DEFEKT: fokus i blur bez edycji NIE MOGĄ zgłaszać zmiany treści", () => {
+  // Baza porównania (surowe `value`) i treść pola (postać po normalizacji)
+  // pochodziły z dwóch różnych światów, więc samo przejrzenie strony po imporcie
+  // WordPressa brudziło dokument i odpalało autosave. KONTRAKT: baza to treść
+  // pola w postaci zapisu, liczona przy każdym wpisaniu wartości do DOM-u.
+  it("fokus i blur bez edycji nie zgłaszają zmiany treści", () => {
     const { el, onCommit } = renderEditable({
       html: true,
       value: "<ul><li><ul><li>a</li></ul></li></ul>",
@@ -720,45 +724,45 @@ describe("Editable - ZAREJESTROWANE DEFEKTY", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  // DEFEKT: POLE EDYCYJNE NIE MA ANI ROLI, ANI NAZWY DOSTĘPNEJ.
-  //
-  // WEJSCIE: dowolne renderowanie `Editable` - czytnik ekranu wchodzi na pole
-  //   inline-edycji w kanwie.
-  // CO PSUJE: element z `Editable.tsx:162-183` dostaje `contentEditable`,
-  //   `spellCheck` i `title`, ale NIE dostaje `role="textbox"`, `aria-multiline`
-  //   ani `aria-label`. `title` nazwą dostępną tu nie jest, bo znika po
-  //   fokusie (:180) - czyli dokładnie wtedy, gdy jest potrzebny.
-  // KONSEKWENCJA: dla czytnika ekranu inline-edycja jest regionem bez nazwy
-  //   i bez zapowiedzianej wielowierszowości. Bliźniaczy komponent tej samej
-  //   rodziny, `RichHtmlField.tsx:204-206`, ma wszystkie trzy atrybuty - i to
-  //   dlatego jego test sięga po `getByRole("textbox")`, a testy kanwy muszą
-  //   sięgać po selektor `[contenteditable]`.
-  // WYMAGANA POPRAWKA: `role="textbox"`, `aria-multiline={multiline}` i nazwa
-  //   dostępna (`aria-label` z tłumaczenia albo `aria-labelledby` wskazujące
-  //   etykietę widgetu).
-  it.fails("DEFEKT: pole edycyjne MUSI mieć rolę textbox i nazwę dostępną", () => {
-    renderEditable({ multiline: true, value: "tekst" });
-    const node = screen.getByRole("textbox");
-    expect(node.getAttribute("aria-multiline")).toBe("true");
-    expect(node.getAttribute("aria-label")).toBeTruthy();
+  it("zapis po skrócie formatowania nie powtarza się przy blurze tej samej treści", async () => {
+    // Skrót domyka zapis w mikrozadaniu, a pole jest wciąż w fokusie (efekt
+    // nie synchronizuje bazy). Blur z tą samą treścią nie może wysłać drugiego,
+    // identycznego zapisu - builder liczyłby go jako kolejną zmianę.
+    const { el, onCommit } = renderEditable({ html: true, value: "<p>a</p>" });
+    const node = el();
+    skupFokus(node);
+    node.innerHTML = "<p>b</p>";
+    fireEvent.keyDown(node, { key: "b", ctrlKey: true });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith("<p>b</p>"));
+    zdejmijFokus(node);
+    expect(onCommit).toHaveBeenCalledTimes(1);
   });
 
-  // DEFEKT: NAGŁÓWEK OBIECUJE PASEK DLA TRYBU BOGATEGO, KOD DAJE GO TYLKO
-  // PRZY `html` I RÓWNOCZEŚNIE `multiline`.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): POLE NIE MIAŁO ROLI ANI NAZWY.
   //
-  // WEJSCIE: widget z `html` bez `multiline` (dziś nieużywany, ale dopuszczony
-  //   przez sygnaturę), po fokusie w polu.
-  // CO PSUJE: komentarz nagłówkowy (`Editable.tsx:4-6`) mówi wprost „Rich mode
-  //   (`html`) exposes a lightweight floating toolbar”, natomiast `:161` to
-  //   `const showToolbar = html && multiline`, a `:186` robi wczesny return bez
-  //   paska. Strażnica skrótów klawiszowych (:131) sprawdza już tylko `html`.
-  // KONSEKWENCJA: każdy nowy widget z `html` bez `multiline` dostaje PO CICHU
-  //   edytor bogaty bez Bolda, Italica i wstawiania linku - przy działających
-  //   skrótach klawiszowych. Dokumentacja i kod stoją po dwóch stronach, więc
-  //   następny autor widgetu nie ma jak zgadnąć, która wersja obowiązuje.
-  // WYMAGANA POPRAWKA: albo pasek zależy od samego `html` (zgodnie z nagłówkiem),
-  //   albo nagłówek i sygnatura mówią jasno, że pasek wymaga `multiline`.
-  it.fails("DEFEKT: tryb bogaty bez multiline też MUSI dawać pasek narzędzi", () => {
+  // `title` nie jest nazwą dostępną - znika po fokusie, czyli wtedy, gdy jest
+  // potrzebny. KONTRAKT: `role="textbox"`, `aria-multiline` zgodne z propem
+  // i `aria-label` ze słownika buildera (jak bliźniaczy `RichHtmlField`).
+  it("pole edycyjne ma rolę textbox, wielowierszowość i nazwę dostępną", () => {
+    renderEditable({ multiline: true, value: "tekst" });
+    const node = screen.getByRole("textbox", { name: tPl(klucz("fieldLabel")) });
+    expect(node.getAttribute("aria-multiline")).toBe("true");
+  });
+
+  it("pole jednowierszowe zapowiada aria-multiline=false i zachowuje nazwę po fokusie", () => {
+    renderEditable({ value: "tekst" });
+    const node = screen.getByRole("textbox", { name: tPl(klucz("fieldLabel")) });
+    expect(node.getAttribute("aria-multiline")).toBe("false");
+    skupFokus(node);
+    expect(node.getAttribute("aria-label")).toBe(tPl(klucz("fieldLabel")));
+  });
+
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): PASEK TYLKO PRZY `html` + `multiline`.
+  //
+  // Nagłówek modułu obiecywał pasek dla trybu bogatego, a skróty klawiszowe
+  // zależały wyłącznie od `html` - widget z `html` bez `multiline` dostawał po
+  // cichu edytor bez przycisków. KONTRAKT: pasek zależy od samego `html`.
+  it("tryb bogaty bez multiline też daje pasek narzędzi", () => {
     const { el, pasek } = renderEditable({ html: true, value: "<p>a</p>" });
     skupFokus(el());
     expect(pasek()).not.toBeNull();
