@@ -241,9 +241,10 @@ export const REVENUE_DOMAIN_RPC: Readonly<Record<RevenueDomain, string>> = {
 };
 
 /**
- * Stan wpięć w produkcji. WSZYSTKIE `null` - DLACZEGO: S6 scala się przed
- * migracjami S1-S4 (§8.3: S6 najwcześniej), a literał wywołania funkcji,
- * której nie tworzy żadna migracja, przewraca kontrakt TS ⇄ SQL całego PR.
+ * Stan wpięć w produkcji. Od S4 wpięte `events` i `clubs`; reszta `null` -
+ * DLACZEGO: S6 scala się przed migracjami S1-S4 (§8.3: S6 najwcześniej),
+ * a literał wywołania funkcji, której nie tworzy żadna migracja, przewraca
+ * kontrakt TS ⇄ SQL całego PR.
  * Niewpięta domena to `not_configured`: kafle pokazują „brak danych”, sekcja
  * BI mówi, że źródło jeszcze nie jest podłączone, i nic nie rzuca.
  *
@@ -264,8 +265,15 @@ export const REVENUE_DOMAIN_RPC: Readonly<Record<RevenueDomain, string>> = {
 export const REVENUE_DOMAIN_READS: RevenueDomainReads = {
   snapshot: null,
   funnel: null,
-  events: null,
-  clubs: null,
+  // Integrator S4 (2026-10-19, Z-S6-16): migracja 20261020130700 tworzy obie
+  // funkcje, a ich kształt jsonb jest płaski jak `REVENUE_{EVENTS,CLUBS}_KEYS`
+  // (`by_currency` z `ticket_revenue_net_minor`, liczniki, `applications`,
+  // `decision_hours_median`) - wpięcie bez adaptera. Przed wdrożeniem
+  // migracji PGRST202 = `not_configured`, czyli ten sam stan co `null`.
+  events: (c, w) =>
+    c.rpc("admin_revenue_events_summary", { p_since: w.sinceIso, p_until: w.untilIso }),
+  clubs: (c, w) =>
+    c.rpc("admin_revenue_clubs_summary", { p_since: w.sinceIso, p_until: w.untilIso }),
   email: null,
 };
 

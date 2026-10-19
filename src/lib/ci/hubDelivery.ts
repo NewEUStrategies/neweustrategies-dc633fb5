@@ -523,6 +523,13 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (Integrator S4, 2026-10-19): wzorzec pgTAP w ERE - komenda z karty
     // (`a|b|c`) w BRE uruchamiała 0 plików i kończyła się zielono (Z-S4-08).
     "scripts/pgtap-local/run.sh",
+    // (Integrator S4, 2026-10-19): asercja izolacji historii etapów I0 po
+    // DISTINCT najemcy - wyzwalacz S4 dopisuje wiersz historii przy INSERT
+    // leada w fixture'ze.
+    "supabase/tests/hub_schema_rls_test.sql",
+    // (Integrator S4, 2026-10-19): Z-S6-16 - wpięcie `events` i `clubs`
+    // w migawkę huba razem z migracją 20261020130700 (plik S6).
+    "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
   ],
   S5: [
     "supabase/migrations/2026102014????_*.sql",
