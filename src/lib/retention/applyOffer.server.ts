@@ -92,9 +92,20 @@ export interface RetentionStripeClient {
   };
 }
 
+const CYCLE_INTERVALS: readonly string[] = ["day", "week", "month", "year"];
+
+/**
+ * Typy Stripe dopuszczają w `recurring.interval` dowolny napis (`OtherString`) -
+ * nieznany interwał traktujemy jak brak cyklu (okresy = miesiące), zamiast
+ * zgadywać długość rabatu.
+ */
+function isCycleInterval(value: string): value is RetentionCycle["interval"] {
+  return CYCLE_INTERVALS.includes(value);
+}
+
 function cycleOf(subscription: Stripe.Subscription): RetentionCycle | null {
   const recurring = subscription.items?.data?.[0]?.price?.recurring;
-  if (!recurring) return null;
+  if (!recurring || !isCycleInterval(recurring.interval)) return null;
   return { interval: recurring.interval, intervalCount: recurring.interval_count ?? 1 };
 }
 

@@ -30,12 +30,14 @@ function stripeSub(over: Partial<Record<string, unknown>> = {}): Stripe.Subscrip
 
 function fakeStripe(sub: Stripe.Subscription = stripeSub()) {
   const client = {
+    // Parametry w sygnaturach atrap - bez nich `mock.calls` ma typ `[]`
+    // i odczyt argumentów wywołania nie przechodzi typecheck.
     subscriptions: {
-      retrieve: vi.fn(async () => sub),
-      update: vi.fn(async () => sub),
+      retrieve: vi.fn(async (..._args: unknown[]) => sub),
+      update: vi.fn(async (..._args: unknown[]) => sub),
     },
     coupons: {
-      create: vi.fn(async () => ({ id: "coupon_ret_1" }) as Stripe.Coupon),
+      create: vi.fn(async (..._args: unknown[]) => ({ id: "coupon_ret_1" }) as Stripe.Coupon),
     },
   };
   return client as typeof client & RetentionStripeClient;

@@ -102,14 +102,24 @@ const TimeZone = z
   .regex(/^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)*$/, "time_zone_invalid")
   .default("Europe/Warsaw");
 
+/**
+ * Granice okna w `refine`. Pola opcjonalne celowo: przez generyczne `T` zod
+ * typuje je jako „może `undefined`”, choć `Instant` jest wymagany - brak albo
+ * zły napis daje `NaN`, a porównanie z `NaN` odrzuca okno.
+ */
+type WindowBounds = { sinceIso?: string; untilIso?: string };
+
+function windowLengthMs(w: WindowBounds): number {
+  return Date.parse(w.untilIso ?? "") - Date.parse(w.sinceIso ?? "");
+}
+
 function windowSchema<T extends z.ZodRawShape>(extra: T) {
   return z
     .object({ sinceIso: Instant, untilIso: Instant, ...extra })
-    .refine((w) => Date.parse(w.untilIso) > Date.parse(w.sinceIso), { message: "window_invalid" })
-    .refine(
-      (w) => Date.parse(w.untilIso) - Date.parse(w.sinceIso) <= FINANCE_MAX_WINDOW_DAYS * DAY_MS,
-      { message: "window_invalid" },
-    );
+    .refine((w) => windowLengthMs(w) > 0, { message: "window_invalid" })
+    .refine((w) => windowLengthMs(w) <= FINANCE_MAX_WINDOW_DAYS * DAY_MS, {
+      message: "window_invalid",
+    });
 }
 
 /** Liczba miesięcy między dwoma `YYYY-MM-01` (bez `Date` - bez przesunięcia strefy). */
