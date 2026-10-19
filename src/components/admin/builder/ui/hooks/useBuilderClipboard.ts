@@ -1,4 +1,6 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type {
   BuilderDocument,
   SectionNode,
@@ -30,6 +32,7 @@ interface Params {
 }
 
 export function useBuilderClipboard({ doc, selection, focusedColumn, update }: Params) {
+  const { t } = useTranslation();
   const copySelection = useCallback(() => {
     if (!selection.id || !selection.kind) return;
     const map = {
@@ -39,8 +42,13 @@ export function useBuilderClipboard({ doc, selection, focusedColumn, update }: P
       widget: () => findWidget(doc, selection.id!)?.widget ?? null,
     } as const;
     const node = map[selection.kind]?.();
-    if (node) copyToClipboard({ kind: selection.kind, node } as ClipEnvelope);
-  }, [selection, doc]);
+    if (!node) return;
+    // Pełny albo zablokowany `sessionStorage` (tryb prywatny, limit) - bez
+    // komunikatu redaktor wkleiłby później NIC i nie wiedziałby dlaczego.
+    if (!copyToClipboard({ kind: selection.kind, node } as ClipEnvelope)) {
+      toast.error(t("builder.ops.copyFailed"));
+    }
+  }, [selection, doc, t]);
 
   const pasteFromClipboard = useCallback(() => {
     const env = readClipboard();

@@ -26,6 +26,9 @@ import { copyToClipboard, readClipboard } from "@/lib/builder/clipboard";
 import type { Selection } from "../../organisms/builder";
 import { useBuilderClipboard } from "../useBuilderClipboard";
 
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
+
 const w = (id: string): WidgetNode => ({ id, kind: "widget", type: "text", content: {} });
 const col = (id: string, children: WidgetNode[] = []): ColumnNode => ({
   id,
@@ -96,6 +99,26 @@ describe("useBuilderClipboard - kopiowanie", () => {
     const env = readClipboard();
     expect(env?.kind).toBe(selection.kind);
     expect(env?.node.id).toBe(id);
+  });
+
+  it("nieudany zapis do schowka mówi o tym redaktorowi zamiast milczeć", () => {
+    toastError.mockClear();
+    const setItem = vi.spyOn(window.sessionStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    try {
+      setup({ kind: "widget", id: "w1" }).result.current.copySelection();
+    } finally {
+      setItem.mockRestore();
+    }
+    expect(toastError).toHaveBeenCalledTimes(1);
+    expect(readClipboard()).toBeNull();
+  });
+
+  it("udane kopiowanie nie pokazuje błędu", () => {
+    toastError.mockClear();
+    setup({ kind: "widget", id: "w1" }).result.current.copySelection();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("bez zaznaczenia nie zapisuje niczego", () => {
