@@ -8,6 +8,8 @@ import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
 import { num } from "@/components/blocks/renderer/data";
+import { ClampedNumberInput } from "@/components/admin/builder/ui/atoms/ClampedNumberInput";
+import { CAROUSEL_INTERVAL_RANGE, clampAnimationMs } from "@/lib/blocks/animationRanges";
 
 interface Props {
   block: Block;
@@ -214,8 +216,14 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
   const autoplay = block.data.autoplay === true;
-  // Czytnik renderera: śmieć w danych to 5000 ms, a nie `NaN` w polu.
-  const interval = num(block.data, "interval", 5000);
+  // Czytnik renderera (śmieć w danych to 5000 ms, a nie `NaN` w polu) i TEN
+  // SAM zakres co `ImageCarouselView`: 2^31 z importu pole pokazuje jako
+  // 20000 - odstęp, z którym strona naprawdę przewija.
+  const intervalRange = CAROUSEL_INTERVAL_RANGE;
+  const interval = clampAnimationMs(
+    num(block.data, "interval", intervalRange.fallback),
+    intervalRange,
+  );
   const aspect = String(block.data.aspect ?? "16:9");
 
   return (
@@ -245,16 +253,17 @@ export function ImageCarouselBlock({ block, onChange }: Props) {
       {autoplay ? (
         <label className="block text-xs text-muted-foreground">
           {mb("interval")}
-          <input
-            type="number"
-            min={1500}
-            max={20000}
-            step={500}
-            className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
+          {/* Wspólny atom pola z zakresem - jak czas animacji licznika. */}
+          <ClampedNumberInput
             value={interval}
-            onChange={(e) =>
-              onChange({ ...block, data: { ...block.data, interval: Number(e.target.value) } })
-            }
+            min={intervalRange.min}
+            max={intervalRange.max}
+            step={500}
+            onCommit={(next) => {
+              if (next === undefined) return;
+              onChange({ ...block, data: { ...block.data, interval: next } });
+            }}
+            className="mt-1 w-full h-9"
           />
         </label>
       ) : null}

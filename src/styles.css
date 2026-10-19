@@ -1183,6 +1183,12 @@ body {
   --secondary-foreground: #ede9e7;
   --muted: #0f0f0f;
   --muted-foreground: oklch(0.7 0 0);
+  /* Ink strzałek redeklarowany TUTAJ, a nie tylko w `:root, .light`: własność
+     z `var()` liczy się na elemencie, który ją deklaruje, i dziedziczy jako
+     gotowy kolor. Bez tej linii zagnieżdżony zakres `.dark` (widget ciemny na
+     jasnej stronie) dziedziczył jasny `--foreground` - ciemny kąt na ciemnym
+     tle. W `.dark` na <html> wynik jest ten sam co dotąd. */
+  --slider-arrow-ink: var(--foreground);
   --slider-arrow-hover: color-mix(in oklab, var(--foreground) 32%, transparent);
   --accent: #1f1f1f;
   --accent-foreground: #ede9e7;
@@ -9458,8 +9464,15 @@ button,
 }
 
 /* One geometry for media arrows and pagination, independent of CMS button presets.
-   Subtelny wariant: bez widocznej ramki i wypełnienia - sam kąt, ghostowy dotyk. */
-.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
+   Subtelny wariant: bez widocznej ramki i wypełnienia - sam kąt, ghostowy dotyk.
+   Zakres: slidery buildera (`.eh-slider`) i slidery bloków treści
+   (`.eh-block-slider`: opinie, karuzela obrazów) - jedna geometria dla obu.
+   Powierzchnię (strzałka na zdjęciu) blok zmienia WYŁĄCZNIE zmiennymi
+   lokalnymi `--slider-arrow-bg/-opacity/-focus/-focus-offset` (obok
+   `-ink/-hover`); bez nich zachowanie jest dokładnie dotychczasowe.
+   `:is()` ma specyficzność najmocniejszego argumentu (jedna klasa), więc
+   reguła waży tyle, co przed dodaniem zakresu bloków. */
+:is(.eh-slider, .eh-block-slider) .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
   width: 34px !important;
   height: 34px !important;
   min-width: 34px !important;
@@ -9467,27 +9480,36 @@ button,
   padding: 0 !important;
   border: 1px solid transparent !important;
   border-radius: 5px !important;
-  background: transparent !important;
+  background: var(--slider-arrow-bg, transparent) !important;
   color: var(--slider-arrow-ink) !important;
   box-shadow: none !important;
-  opacity: 0.72;
+  opacity: var(--slider-arrow-opacity, 0.72);
   font-size: 14px !important;
   backdrop-filter: none;
   transition:
     opacity 180ms ease,
     background 180ms ease;
 }
-.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:hover {
+:is(.eh-slider, .eh-block-slider) .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:hover {
   background: var(--slider-arrow-hover) !important;
   opacity: 1;
 }
-.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow svg {
+/* Fokus z klawiatury. Pierścień przycisku (`ring` = box-shadow) gasi wyżej
+   `box-shadow: none !important`, więc strzałka nie miała ŻADNEGO śladu fokusu;
+   obrys (`outline`) nie koliduje z tą deklaracją. */
+:is(.eh-slider, .eh-block-slider) .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:focus-visible {
+  background: var(--slider-arrow-hover) !important;
+  opacity: 1;
+  outline: 2px solid var(--slider-arrow-focus, var(--ring)) !important;
+  outline-offset: var(--slider-arrow-focus-offset, 2px);
+}
+:is(.eh-slider, .eh-block-slider) .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow svg {
   width: 11px !important;
   height: 10px !important;
   color: inherit !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
+  :is(.eh-slider, .eh-block-slider) .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
     transition: none;
   }
 }

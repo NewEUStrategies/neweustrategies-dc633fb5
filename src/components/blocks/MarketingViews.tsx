@@ -7,7 +7,9 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 import { useMotionGate } from "@/lib/performance/motionGate";
 import { safeImageUrl } from "@/lib/sanitize";
-import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { CAROUSEL_INTERVAL_RANGE, clampAnimationMs } from "@/lib/blocks/animationRanges";
+import { MapPin } from "lucide-react";
+import { BlockSliderArrow } from "./BlockSliderArrow";
 import "@/lib/i18n-public";
 
 /** Język treści bloku - napisy interfejsu i ARIA idą w nim, nie w języku panelu. */
@@ -237,7 +239,7 @@ interface CarouselProps {
 export function ImageCarouselView({
   items,
   autoplay,
-  interval = 5000,
+  interval = CAROUSEL_INTERVAL_RANGE.fallback,
   aspect = "16:9",
   lang = "pl",
   cls,
@@ -274,24 +276,26 @@ export function ImageCarouselView({
     [total],
   );
 
+  // Zakres pola edytora (1,5-20 s) obowiązuje też dane z importu i API.
+  // Domykanie tylko od dołu przepuszczało interwał ponad 2^31-1 ms, który
+  // przeglądarka odpala NATYCHMIAST (karuzela skakała w pętli), oraz `NaN`.
+  const intervalMs = clampAnimationMs(interval, CAROUSEL_INTERVAL_RANGE);
+
   // Bramka ruchu (P3.5): automat rusza dopiero po pierwszej interakcji albo w
   // punkcie ciszy strony - pierwszy przeskok = otwarcie + pełny interwał.
   const motion = useMotionGate(Boolean(autoplay) && total > 1);
   useEffect(() => {
     if (!autoplay || !motion || paused || total < 2) return;
-    const t = window.setInterval(
-      () => setIdx((cur) => (cur + 1) % total),
-      Math.max(1500, interval),
-    );
+    const t = window.setInterval(() => setIdx((cur) => (cur + 1) % total), intervalMs);
     return () => window.clearInterval(t);
-  }, [autoplay, motion, paused, interval, total]);
+  }, [autoplay, motion, paused, intervalMs, total]);
 
   if (total === 0) return null;
   const aspectCls = ASPECT_CLS[aspect] ?? ASPECT_CLS["16:9"];
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl ${cls ?? ""}`}
+      className={`eh-block-slider relative overflow-hidden rounded-2xl ${cls ?? ""}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       role="region"
@@ -337,22 +341,22 @@ export function ImageCarouselView({
       </div>
       {total > 1 ? (
         <>
-          <button
-            type="button"
+          {/* Wspólny kąt i geometria sliderów; strzałka leży na ZDJĘCIU, więc
+              powierzchnia „media" (jasny kąt na półprzezroczystej czerni). */}
+          <BlockSliderArrow
+            side="left"
+            surface="media"
+            label={t("blocksUi.carouselPrevious", { lng: lang })}
             onClick={() => go(-1)}
-            className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
-            aria-label={t("blocksUi.carouselPrevious", { lng: lang })}
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button
-            type="button"
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+          />
+          <BlockSliderArrow
+            side="right"
+            surface="media"
+            label={t("blocksUi.carouselNext", { lng: lang })}
             onClick={() => go(1)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60"
-            aria-label={t("blocksUi.carouselNext", { lng: lang })}
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+            className="absolute right-3 top-1/2 -translate-y-1/2"
+          />
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
             {parsed.map((_, i) => (
               <button

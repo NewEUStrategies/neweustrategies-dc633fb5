@@ -7,7 +7,9 @@
 //     `url(...)` - także w HTML z serwera, gdzie przeglądarka nie odrzuci
 //     doklejonej deklaracji (`;position:fixed`),
 //   * karuzela: nawigacja strzałkami/kropkami z zawijaniem, stan ARIA slajdów,
-//     pauza automatu pod kursorem, brak „[object Object]" z importu,
+//     pauza automatu pod kursorem, brak „[object Object]" z importu; interwał
+//     spoza zakresu edytora domknięty do 1,5-20 s (nie-liczba = 5 s); strzałki
+//     to wspólny kąt sliderów (`AngleChevron`) z kontrastem >= 3:1 na zdjęciu,
 //   * mapa: ramka OSM wycentrowana na punkcie, zoom i wysokość w granicach.
 //
 // Granice: router (AppLink) przez wspólną atrapę Link, punkt ciszy bramki
@@ -34,6 +36,7 @@ vi.mock("@/components/atoms/DeferredFrame", () => ({
 }));
 
 import { HeroView, CtaSectionView, ImageCarouselView, MapView } from "../MarketingViews";
+import { AngleChevron } from "@/lib/builder/sectionLabelVariants";
 
 afterEach(() => {
   cleanup();
@@ -267,7 +270,134 @@ describe("ImageCarouselView", () => {
     });
     expect(visibleIndex(container)).toBe(2);
   });
+
+  // NAPRAWIONE 2026-10-19: interwał był domykany tylko od dołu
+  // (`Math.max(1500, interval)`). Edytor trzyma pole w 20 000 ms, ale import
+  // i API go omijają, a przeglądarka odpala `setInterval` z opóźnieniem
+  // ponad 2^31-1 ms NATYCHMIAST - karuzela przeskakiwała w pętli co klatkę.
+  it("interwał ponad 2^31-1 ms nie przeskakuje w pętli - automat przewija po 20 s", () => {
+    vi.useFakeTimers();
+    const { container } = render(<ImageCarouselView items={slides} autoplay interval={2 ** 31} />);
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(19_999);
+    });
+    expect(visibleIndex(container)).toBe(0);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(visibleIndex(container)).toBe(1);
+  });
+
+  // NAPRAWIONE 2026-10-19: `Math.max(1500, NaN)` to `NaN`, a `setInterval`
+  // z `NaN`/`Infinity` rusza bez opóźnienia - autoplay gubił rytm.
+  it("interwał NaN albo Infinity = domyślne 5 s", () => {
+    for (const broken of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      vi.useFakeTimers();
+      const { container } = render(<ImageCarouselView items={slides} autoplay interval={broken} />);
+      act(() => __openMotionGateForTests());
+      act(() => {
+        vi.advanceTimersByTime(4999);
+      });
+      expect(visibleIndex(container), `interval=${broken}`).toBe(0);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(visibleIndex(container), `interval=${broken}`).toBe(1);
+      cleanup();
+      vi.useRealTimers();
+      __resetMotionGateForTests();
+    }
+  });
+
+  // NAPRAWIONE 2026-10-19: karuzela miała własne strzałki (lucide
+  // ChevronLeft/Right w czarnym kółku) wbrew zasadzie „Share eh-slider-arrow
+  // and AngleChevron across sliders" - inny znak niż w sliderach buildera.
+  it("strzałki to wspólny kąt sliderów, z etykietą w języku treści", () => {
+    const angle = (side: "left" | "right") => {
+      const { container: host, unmount } = render(<AngleChevron side={side} isSm={false} />);
+      const html = host.innerHTML;
+      unmount();
+      return html;
+    };
+    const left = angle("left");
+    const right = angle("right");
+
+    const { container } = render(<ImageCarouselView items={slides} lang="en" />);
+    const prev = screen.getByRole("button", { name: "Previous slide" });
+    const next = screen.getByRole("button", { name: "Next slide" });
+    expect(prev.innerHTML).toBe(left);
+    expect(next.innerHTML).toBe(right);
+    expect(prev.textContent).toBe("");
+    prev.focus();
+    expect(prev).toHaveFocus();
+    fireEvent.click(prev);
+    expect(visibleIndex(container)).toBe(2);
+    fireEvent.click(next);
+    expect(visibleIndex(container)).toBe(0);
+  });
+
+  // Strzałka leży na ZDJĘCIU dowolnej jasności, więc kontrast liczymy dla
+  // najgorszego tła: kąt (ink) i jego podkład (półprzezroczysty scrim) po
+  // nałożeniu na każdy kolor zdjęcia - z przezroczystością całego przycisku.
+  // WCAG 1.4.11 (element nietekstowy) wymaga co najmniej 3:1. Kolory tła
+  // strony (tryb jasny/ciemny) nie biorą w tym udziału - pod strzałką jest
+  // zdjęcie, a nie powierzchnia motywu.
+  it("strzałka na zdjęciu ma kontrast >= 3:1 nad zdjęciem dowolnego koloru", () => {
+    render(<ImageCarouselView items={slides} />);
+    const prev = screen.getByRole("button", { name: "Poprzedni slajd" });
+    const style = getComputedStyle(prev);
+    const ink = parseColor(style.getPropertyValue("--slider-arrow-ink"));
+    const scrim = parseColor(style.getPropertyValue("--slider-arrow-bg"));
+    const opacity = Number(style.getPropertyValue("--slider-arrow-opacity").trim() || "1");
+    expect(scrim[3], "podkład musi przyciemniać zdjęcie").toBeGreaterThan(0);
+
+    const steps = [0, 0.25, 0.5, 0.75, 1];
+    let worst = Number.POSITIVE_INFINITY;
+    for (const r of steps) {
+      for (const g of steps) {
+        for (const b of steps) {
+          const photo = [r, g, b];
+          // Podkład: scrim nad zdjęciem, potem przezroczystość grupy (przycisk).
+          const discAlpha = scrim[3] * opacity;
+          const disc = photo.map((c, i) => discAlpha * scrim[i] + (1 - discAlpha) * c);
+          const stroke = photo.map((c, i) => opacity * ink[i] + (1 - opacity) * c);
+          worst = Math.min(worst, contrast(stroke, disc));
+        }
+      }
+    }
+    expect(worst).toBeGreaterThanOrEqual(3);
+  });
 });
+
+/** Kolor CSS „#rrggbb" albo „rgb(r g b / a)" -> [r, g, b, a], kanały 0-1. */
+function parseColor(css: string): [number, number, number, number] {
+  const value = css.trim();
+  const hex = value.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (hex) {
+    const [r, g, b] = [hex[1], hex[2], hex[3]].map((h) => parseInt(h, 16) / 255);
+    return [r, g, b, 1];
+  }
+  const rgb = value.match(
+    /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[/,]\s*([\d.]+))?\s*\)$/,
+  );
+  if (rgb) {
+    return [Number(rgb[1]) / 255, Number(rgb[2]) / 255, Number(rgb[3]) / 255, Number(rgb[4] ?? 1)];
+  }
+  throw new Error(`nieobsługiwany kolor „${css}"`);
+}
+
+/** Luminancja względna WCAG 2.x koloru sRGB (kanały 0-1). */
+function luminance(rgb: number[]): number {
+  const [r, g, b] = rgb.map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Współczynnik kontrastu WCAG dwóch kolorów sRGB. */
+function contrast(a: number[], b: number[]): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 describe("MapView", () => {
   function renderMap(props: Parameters<typeof MapView>[0]) {

@@ -9,6 +9,8 @@ import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { toJsonArray } from "@/lib/content-model/json";
 import { num } from "@/components/blocks/renderer/data";
+import { ClampedNumberInput } from "@/components/admin/builder/ui/atoms/ClampedNumberInput";
+import { clampAnimationMs, STATS_COUNTER_DURATION_RANGE } from "@/lib/blocks/animationRanges";
 
 interface Props {
   block: Block;
@@ -128,23 +130,29 @@ export function StatsCounterBlock({ block, onChange }: Props) {
   const update = (next: StatItem[]) => {
     onChange({ ...block, data: { ...block.data, items: toJsonArray(next) } });
   };
-  // Ten sam czytnik co `renderStatsCounter`: śmieć w danych to 1500 ms, a nie
-  // `NaN` (puste pole i ostrzeżenie Reacta o `NaN` w atrybucie `value`).
-  const duration = num(block.data, "duration", 1500);
+  // Ten sam czytnik co `renderStatsCounter` (śmieć w danych to 1500 ms, a nie
+  // `NaN`) i TEN SAM zakres co `StatsCounterView`: `1e9` z importu pole
+  // pokazuje jako 5000 - czas, którym strona naprawdę animuje.
+  const range = STATS_COUNTER_DURATION_RANGE;
+  const duration = clampAnimationMs(num(block.data, "duration", range.fallback), range);
 
   return (
     <Shell label={pb("statsLabel")}>
       <label className="block text-xs text-muted-foreground">
         {pb("animDuration")}
-        <input
-          type="number"
-          className="mt-1 w-full text-xs bg-background border border-border rounded px-2 py-2 h-9"
-          min={300}
-          max={5000}
+        {/* Wspólny atom pola z zakresem: wpis spoza zakresu nie trafia do
+            zapisu (docięcie przy wyjściu z pola), pisanie nie walczy z dolną
+            granicą, a samo przejście przez pole niczego nie zapisuje. */}
+        <ClampedNumberInput
           value={duration}
-          onChange={(e) =>
-            onChange({ ...block, data: { ...block.data, duration: Number(e.target.value) } })
-          }
+          min={range.min}
+          max={range.max}
+          step={100}
+          onCommit={(next) => {
+            if (next === undefined) return;
+            onChange({ ...block, data: { ...block.data, duration: next } });
+          }}
+          className="mt-1 w-full h-9"
         />
       </label>
       {items.map((it, idx) => (

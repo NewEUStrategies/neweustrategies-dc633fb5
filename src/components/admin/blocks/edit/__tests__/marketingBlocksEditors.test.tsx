@@ -19,7 +19,9 @@
 //    to wartość domyślna strony, a nie puste pole; powiększenie i wysokość
 //    mapy są docinane do GÓRNEJ granicy pola, tak jak docina je `MapView`,
 //  * repeater slajdów karuzeli: edycja, dopisanie i usunięcie trafiają w TEN
-//    slajd, a pole interwału istnieje tylko przy włączonym autoodtwarzaniu.
+//    slajd, a pole interwału istnieje tylko przy włączonym autoodtwarzaniu
+//    i trzyma się zakresu widoku (1500-20000 ms) - wpis spoza niego nie
+//    trafia do zapisu, a samo przejście przez pole niczego nie zapisuje.
 //
 // GRANICE. Fabryki `vi.mock` niesie moduł wspólny tabeli edytorów (import
 // PIERWSZY). `AdminSelect` to natywny `<select>` i zostaje prawdziwy. i18n
@@ -217,6 +219,9 @@ describe("karuzela obrazów", () => {
     expect(ostatniZapis(changes).data).toEqual({ aspect: "21:9" });
   });
 
+  /** Pole interwału - po etykiecie, niezależnie od rodzaju kontrolki. */
+  const poleInterwalu = () => screen.getByLabelText<HTMLInputElement>(mb("interval"));
+
   it("pole interwału jest TYLKO przy włączonym autoodtwarzaniu", () => {
     // Renderer czyta `autoplay === true` - napis „true" z importu to NIE
     // autoodtwarzanie, więc edytor też nie pokazuje interwału.
@@ -224,13 +229,13 @@ describe("karuzela obrazów", () => {
       ImageCarouselBlock,
       blok("image-carousel", { autoplay: "true" }),
     );
-    expect(screen.queryByRole("spinbutton", { name: mb("interval") })).toBeNull();
+    expect(screen.queryByLabelText(mb("interval"))).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: mb("autoplay") }));
     expect(ostatniZapis(changes).data).toEqual({ autoplay: true });
     unmount();
 
     renderEditor(ImageCarouselBlock, blok("image-carousel", { autoplay: true }));
-    expect(liczba(mb("interval")).value).toBe("5000");
+    expect(poleInterwalu().value).toBe("5000");
   });
 
   it("interwał zapisuje LICZBĘ, a śmieć w danych pokazuje 5000 ms jak renderer", () => {
@@ -239,11 +244,49 @@ describe("karuzela obrazów", () => {
       ImageCarouselBlock,
       blok("image-carousel", { autoplay: true, interval: "szybko" }),
     );
-    const interwal = liczba(mb("interval"));
+    const interwal = poleInterwalu();
     expect(interwal.value).toBe("5000");
     expect(blad.mock.calls.flat().join(" ")).not.toContain("NaN");
     fireEvent.change(interwal, { target: { value: "8000" } });
     expect(ostatniZapis(changes).data).toEqual({ autoplay: true, interval: 8000 });
+  });
+
+  // NAPRAWIONE 2026-10-19: pole miało `min`/`max` tylko jako atrybuty HTML -
+  // `Number(e.target.value)` zapisywało każdą wpisaną liczbę (99999, 100),
+  // a interwał 2^31 z importu pole pokazywało dosłownie, choć strona przewija
+  // najwyżej co 20 s. Zakres pola i widoku to teraz JEDNA stała.
+  it("interwał spoza zakresu 1500-20000 ms nie trafia do zapisu", () => {
+    const zImportu = renderEditor(
+      ImageCarouselBlock,
+      blok("image-carousel", { autoplay: true, interval: 2 ** 31 }),
+    );
+    expect(poleInterwalu().value).toBe("20000");
+    fireEvent.focus(poleInterwalu());
+    fireEvent.blur(poleInterwalu());
+    expect(zImportu.changes).toEqual([]);
+    zImportu.unmount();
+
+    for (const [wpis, zapis] of [
+      ["99999", 20000],
+      ["100", 1500],
+    ] as const) {
+      const { changes, unmount } = renderEditor(
+        ImageCarouselBlock,
+        blok("image-carousel", { autoplay: true }),
+      );
+      const pole = poleInterwalu();
+      fireEvent.focus(pole);
+      fireEvent.change(pole, { target: { value: wpis } });
+      fireEvent.blur(pole);
+      const interwaly = changes.map((c) => c.data.interval as number);
+      expect(
+        interwaly.every((ms) => ms >= 1500 && ms <= 20000),
+        `wpis ${wpis}: ${interwaly}`,
+      ).toBe(true);
+      expect(ostatniZapis(changes).data).toEqual({ autoplay: true, interval: zapis });
+      expect(pole.value).toBe(String(zapis));
+      unmount();
+    }
   });
 
   it("slajd `null` z importu daje puste pola, nie „null”", () => {

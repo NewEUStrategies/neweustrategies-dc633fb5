@@ -14,7 +14,10 @@
 //    publiczny (`renderIconBox`: wyrównanie inne niż „left" -> „center"),
 //    a nie pierwszą opcję, którą pokazuje natywny `<select>` bez dopasowania,
 //  * liczby czytane są tym samym czytnikiem co renderer (`num`): czas
-//    animacji „szybko" to 1500 ms, a nie puste pole i ostrzeżenie Reacta o `NaN`,
+//    animacji „szybko" to 1500 ms, a nie puste pole i ostrzeżenie Reacta o `NaN`;
+//    pole trzyma się zakresu widoku (100-5000 ms) - wpis spoza niego nie
+//    trafia do zapisu, a wartość spoza niego z importu pole pokazuje docięta,
+//    bez zapisu przy samym przejściu przez pole,
 //  * ocena opinii jest w edytorze TĄ SAMĄ liczbą, którą narysuje strona
 //    (`TestimonialsView`: brak = 0, docięcie do 0-5) - edycja cytatu opinii
 //    bez oceny nie może dopisać jej pięciu gwiazdek.
@@ -173,9 +176,12 @@ describe("liczniki / statystyki", () => {
     expect(items[3]).toEqual({ value: "", label: "", suffix: "" });
   });
 
+  /** Pole czasu animacji - po etykiecie, niezależnie od rodzaju kontrolki. */
+  const poleCzasu = () => screen.getByLabelText<HTMLInputElement>(pb("animDuration"));
+
   it("czas animacji zapisuje LICZBĘ pod `duration`, nie ruszając liczników", () => {
     const { changes } = renderEditor(StatsCounterBlock, blok("stats-counter", { items: trzy }));
-    const pole = screen.getByRole<HTMLInputElement>("spinbutton", { name: pb("animDuration") });
+    const pole = poleCzasu();
     expect(pole.value).toBe("1500");
     fireEvent.change(pole, { target: { value: "2500" } });
     expect(ostatniZapis(changes).data).toEqual({ items: trzy, duration: 2500 });
@@ -189,11 +195,46 @@ describe("liczniki / statystyki", () => {
       StatsCounterBlock,
       blok("stats-counter", { duration: "szybko" }),
     );
-    expect(
-      screen.getByRole<HTMLInputElement>("spinbutton", { name: pb("animDuration") }).value,
-    ).toBe("1500");
+    expect(poleCzasu().value).toBe("1500");
     expect(blad.mock.calls.flat().join(" ")).not.toContain("NaN");
     expect(changes).toEqual([]);
+  });
+
+  // NAPRAWIONE 2026-10-19: pole miało `min`/`max` tylko jako atrybuty HTML -
+  // `Number(e.target.value)` zapisywało każdą wpisaną liczbę (99999, 50),
+  // a `duration: 1e9` z importu pole pokazywało dosłownie, choć strona
+  // animuje najwyżej 5 s. Zakres pola i widoku to teraz JEDNA stała.
+  it("czas animacji spoza zakresu 100-5000 ms nie trafia do zapisu", () => {
+    const zImportu = renderEditor(StatsCounterBlock, blok("stats-counter", { duration: 1e9 }));
+    // Pole pokazuje to, czym animuje strona, a samo przejście przez nie
+    // (fokus i wyjście bez zmiany) niczego nie zapisuje.
+    expect(poleCzasu().value).toBe("5000");
+    fireEvent.focus(poleCzasu());
+    fireEvent.blur(poleCzasu());
+    expect(zImportu.changes).toEqual([]);
+    zImportu.unmount();
+
+    for (const [wpis, zapis] of [
+      ["99999", 5000],
+      ["50", 100],
+    ] as const) {
+      const { changes, unmount } = renderEditor(
+        StatsCounterBlock,
+        blok("stats-counter", { items: trzy }),
+      );
+      const pole = poleCzasu();
+      fireEvent.focus(pole);
+      fireEvent.change(pole, { target: { value: wpis } });
+      fireEvent.blur(pole);
+      const czasy = changes.map((c) => c.data.duration as number);
+      expect(
+        czasy.every((ms) => ms >= 100 && ms <= 5000),
+        `wpis ${wpis}: ${czasy}`,
+      ).toBe(true);
+      expect(ostatniZapis(changes).data).toEqual({ items: trzy, duration: zapis });
+      expect(pole.value).toBe(String(zapis));
+      unmount();
+    }
   });
 
   it("licznik `null` z importu i licznik bez pól pokazują puste pola, nie „null”", () => {

@@ -23,10 +23,11 @@ import {
   Flame,
   Leaf,
   Target,
-  ChevronLeft,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
+import { clampAnimationMs, STATS_COUNTER_DURATION_RANGE } from "@/lib/blocks/animationRanges";
+import { BlockSliderArrow } from "./BlockSliderArrow";
 import "@/lib/i18n-public";
 
 /** Język treści bloku - napisy interfejsu idą w nim, nie w języku panelu. */
@@ -155,6 +156,7 @@ function formatNumber(n: number, lang: "pl" | "en", decimals: number): string {
  *    nie zera (wcześniej SSR renderował 0),
  *  - "armed" (poza viewportem): 0,
  *  - "run": count-up rAF z easingiem cubic-out.
+ * `duration` przychodzi już domknięty do `STATS_COUNTER_DURATION_RANGE`.
  */
 function AnimatedCounter({
   target,
@@ -182,7 +184,7 @@ function AnimatedCounter({
     const start = performance.now();
     let raf = 0;
     const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / Math.max(100, duration));
+      const p = Math.min(1, (t - start) / duration);
       const eased = 1 - Math.pow(1 - p, 3);
       setVal(target * eased);
       if (p < 1) raf = requestAnimationFrame(tick);
@@ -202,7 +204,16 @@ interface StatsProps {
   lang?: "pl" | "en";
 }
 
-export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: StatsProps) {
+export function StatsCounterView({
+  items,
+  duration = STATS_COUNTER_DURATION_RANGE.fallback,
+  cls,
+  lang = "pl",
+}: StatsProps) {
+  // Zakres pola edytora (100-5000 ms) obowiązuje też dane, które edytor
+  // omijają (import, API, stary zapis). Domykanie tylko od dołu zostawiało
+  // licznik przy 0 dla `1e9`/`Infinity`, a `NaN` gubiło animację.
+  const durationMs = clampAnimationMs(duration, STATS_COUNTER_DURATION_RANGE);
   const parsed: StatItemLite[] = useMemo(() => {
     if (!Array.isArray(items)) return [];
     return items.map((i) => {
@@ -237,7 +248,7 @@ export function StatsCounterView({ items, duration = 1500, cls, lang = "pl" }: S
                   <AnimatedCounter
                     target={c.num}
                     decimals={c.decimals}
-                    duration={duration}
+                    duration={durationMs}
                     state={state}
                     lang={lang}
                   />
@@ -351,30 +362,26 @@ export function TestimonialsView({ items, layout = "grid", lang = "pl", cls }: T
     // i wywracało render.
     const current = Math.min(idx, total - 1);
     const t = parsed[current];
+    // Strzałki: wspólny kąt i geometria sliderów (`BlockSliderArrow`) na tle
+    // strony - `eh-block-slider` to zakres, w którym działa reguła arkusza.
     return (
-      <div className={`relative ${cls ?? ""}`}>
+      <div className={`eh-block-slider relative ${cls ?? ""}`}>
         <TestimonialCard t={t} ratingLabel={ratingLabel(t.rating)} />
         {total > 1 ? (
           <div className="flex items-center justify-between mt-3">
-            <button
-              type="button"
+            <BlockSliderArrow
+              side="left"
+              label={translate("blocksUi.testimonialsPrevious", { lng: lang })}
               onClick={() => go(-1)}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted"
-              aria-label={translate("blocksUi.testimonialsPrevious", { lng: lang })}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+            />
             <div className="text-xs text-muted-foreground tabular-nums">
               {current + 1} / {total}
             </div>
-            <button
-              type="button"
+            <BlockSliderArrow
+              side="right"
+              label={translate("blocksUi.testimonialsNext", { lng: lang })}
               onClick={() => go(1)}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-border hover:bg-muted"
-              aria-label={translate("blocksUi.testimonialsNext", { lng: lang })}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            />
           </div>
         ) : null}
       </div>

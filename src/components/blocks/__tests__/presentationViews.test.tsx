@@ -6,9 +6,12 @@
 //    razu dostają liczbę KOŃCOWĄ (crawler nie widzi zer), poza viewportem
 //    stoi 0, po wejściu liczy w górę do dokładnie tej samej wartości;
 //    precyzja, przedrostek i wartości nieliczbowe przechodzą bez zmian
-//    (wcześniej „4,5" -> „5", „N/A" -> „N/A0", puste pole -> „0"),
+//    (wcześniej „4,5" -> „5", „N/A" -> „N/A0", puste pole -> „0"); czas
+//    animacji spoza zakresu edytora (import, API) jest domykany do 100-5000 ms,
+//    a nie-liczba liczy domyślne 1500 ms,
 //  * slider opinii zawija się w obie strony i nie wywraca się, gdy lista
-//    skurczy się pod bieżącym indeksem (podgląd na żywo w builderze),
+//    skurczy się pod bieżącym indeksem (podgląd na żywo w builderze); jego
+//    strzałki to wspólny kąt sliderów (`AngleChevron`) z etykietą PL/EN,
 //  * cennik i oś czasu: opis z HTML-a jako czysty tekst, CTA tylko z etykietą
 //    i adresem, puste pola bez pustych węzłów, pusta lista = brak bloku.
 //
@@ -29,6 +32,7 @@ import {
   TestimonialsView,
   TimelineView,
 } from "@/components/blocks/PresentationViews";
+import { AngleChevron } from "@/lib/builder/sectionLabelVariants";
 
 afterEach(() => {
   cleanup();
@@ -134,6 +138,68 @@ describe("StatsCounterView", () => {
     expect(values(container)).toEqual(["200", "4,5"]);
   });
 
+  /**
+   * Licznik uzbrojony poza viewportem i wpuszczony w viewport - z fałszywym
+   * zegarem klatek, jak w teście wyżej. Zwraca kontener do odczytu wartości.
+   */
+  function runCounter(duration: number): HTMLElement {
+    const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(cb: (entries: Array<{ isIntersecting: boolean }>) => void) {
+          observers.push(cb);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+        takeRecords() {
+          return [];
+        }
+      },
+    );
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance"] });
+    const { container } = render(
+      <StatsCounterView items={[{ value: "200" }]} duration={duration} />,
+    );
+    act(() => observers[0]([{ isIntersecting: false }]));
+    act(() => observers[0]([{ isIntersecting: true }]));
+    return container;
+  }
+
+  // NAPRAWIONE 2026-10-19: czas animacji był domykany tylko od dołu
+  // (`Math.max(100, duration)`). Edytor trzyma pole w 5000 ms, ale dane
+  // z importu, API albo starego zapisu go omijają: `duration: 1e9` zostawiało
+  // licznik przy 0 na zawsze, `Infinity` tak samo, a `NaN` gubiło animację.
+  it("czas animacji spoza zakresu: 1e9 kończy liczenie w 5 s, NaN/Infinity liczą 1,5 s", () => {
+    const huge = runCounter(1e9);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(values(huge)).toEqual(["200"]);
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+
+    for (const broken of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      const container = runCounter(broken);
+      // Domyślne 1500 ms: w połowie liczba jest W DRODZE, po 1,5 s - końcowa.
+      act(() => {
+        vi.advanceTimersByTime(750);
+      });
+      const mid = Number(values(container)[0]);
+      expect(mid, `duration=${broken}`).toBeGreaterThan(0);
+      expect(mid, `duration=${broken}`).toBeLessThan(200);
+      act(() => {
+        vi.advanceTimersByTime(800);
+      });
+      expect(values(container), `duration=${broken}`).toEqual(["200"]);
+      cleanup();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("brak pozycji albo nie-tablica = brak bloku", () => {
     expect(render(<StatsCounterView items={[]} />).container).toBeEmptyDOMElement();
     expect(render(<StatsCounterView />).container).toBeEmptyDOMElement();
@@ -174,6 +240,38 @@ describe("TestimonialsView", () => {
     expect(screen.getByText('"Bez oceny"')).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Następna" }));
     expect(screen.getByText("1 / 3")).toBeInTheDocument();
+  });
+
+  // NAPRAWIONE 2026-10-19: slider opinii miał własne strzałki (lucide
+  // ChevronLeft/Right w okręgu z ramką) wbrew zasadzie „Share eh-slider-arrow
+  // and AngleChevron across sliders" - inny znak niż w sliderach buildera.
+  it("strzałki to wspólny kąt sliderów, z etykietą w języku treści i fokusem z klawiatury", () => {
+    const angle = (side: "left" | "right") => {
+      const { container, unmount } = render(<AngleChevron side={side} isSm={false} />);
+      const html = container.innerHTML;
+      unmount();
+      return html;
+    };
+    const left = angle("left");
+    const right = angle("right");
+
+    render(<TestimonialsView items={items} layout="slider" lang="en" />);
+    const prev = screen.getByRole("button", { name: "Previous" });
+    const next = screen.getByRole("button", { name: "Next" });
+    expect(prev.innerHTML).toBe(left);
+    expect(next.innerHTML).toBe(right);
+    // Strzałka niesie WYŁĄCZNIE kąt - nazwę daje etykieta, nie treść przycisku.
+    expect(prev.textContent).toBe("");
+
+    // Natywny przycisk w kolejności tabulacji: Enter/Spacja działają same.
+    prev.focus();
+    expect(prev).toHaveFocus();
+    expect(prev).toHaveAttribute("type", "button");
+    fireEvent.click(prev);
+    expect(screen.getByText("3 / 3")).toBeInTheDocument();
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
   });
 
   // NAPRAWIONE 2026-10-18: `parsed[idx]` było undefined po skurczeniu listy
