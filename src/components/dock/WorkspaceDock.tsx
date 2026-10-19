@@ -499,6 +499,9 @@ export function WorkspaceDock() {
           viewTransitionName: "workspace-dock",
         }}
       >
+        {/* Root-owned player portals its controls here without moving the
+            audio engine. The shared reservation measures both rows. */}
+        <div data-workspace-audio-slot />
         {/* JEDEN LANDMARK NA CAŁY PASEK.
             Rząd mobilny i desktopowy są OBA zamontowane (jeden schowany
             klasą), więc dwa `<nav>` o tej samej nazwie dostępnej dawały
