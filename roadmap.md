@@ -1,5 +1,11 @@
 # Roadmap
 
+## Weryfikacja PR #526
+
+- [x] Sprawdzić bazę: 1660 wymaganych obiektów, zero braków; 751 kolumn, zero nowych braków i 7 historycznych rozbieżności; 371 migracji egzekwowanych bez braków. Pasy Drizzle przechodzą, zachowują 22 historyczne braki kopii.
+- [ ] Potwierdzić wszystkie commity PR i testy zmienionego zakresu.
+- [ ] Opublikować aktualne scalenie i sprawdzić wersję oraz działanie menu w przeglądarce.
+
 ## Przewijanie menu hamburgera na telefonie
 
 - [x] Ograniczyć wpływ wyszukiwarki do wnętrza przewijanego menu i sprawdzić przewijanie oraz zamykanie na telefonie: 65 testów jednostkowych i test przeglądarkowy przechodzą; gest palca przy 393x706 przesuwa menu o 358 px, strona pod menu pozostaje zablokowana, po zamknięciu odzyskuje przewijanie; build OK.
