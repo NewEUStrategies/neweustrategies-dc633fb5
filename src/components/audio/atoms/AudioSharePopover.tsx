@@ -39,7 +39,7 @@ interface ShareLink {
 interface AudioSharePopoverProps {
   /** Język ODTWARZANEGO materiału - etykiety dymku mówią jego językiem. */
   lang: Lang;
-  /** Etykieta dostępna PRZYCISKU (już przetłumaczona przez wołającego). */
+  /** Etykieta dostępna PRZYCISKU - ogłasza też dymek czytnikowi ekranu. */
   label: string;
   /** Tytuł materiału - wchodzi do intencji X i tematu maila. */
   title: string;
@@ -129,7 +129,7 @@ export function AudioSharePopover({
         side="top"
         align="end"
         sideOffset={10}
-        aria-label={copy("share.bar.share")}
+        aria-label={label}
         className="z-[80] w-auto min-w-56 rounded-[10px] p-3"
       >
         <span className="cms-widget-note inline-flex items-center gap-1.5 font-bold uppercase tracking-widest text-muted-foreground">

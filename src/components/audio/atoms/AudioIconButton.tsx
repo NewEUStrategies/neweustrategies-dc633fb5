@@ -38,7 +38,8 @@ export interface AudioIconButtonProps
   > {
   /** Etykieta dostępna - JEDYNA nazwa przycisku (ikona jest dekoracją). */
   label: string;
-  onClick: () => void;
+  /** Klik własny atomu; wyzwalacz Radix (asChild) dokłada swój przez Slot. */
+  onClick?: () => void;
   icon?: ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
   /** Treść zamiast ikony (spinner w trakcie generowania, morfująca ikona play). */
   children?: ReactNode;
