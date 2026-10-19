@@ -96,8 +96,8 @@ function renderWithQuery(ui: ReactElement) {
 }
 
 // ── PODSTAWIANIE API PRZEGLĄDARKI ────────────────────────────────────────────
-// Odtwarzacz dotyka trzech rzeczy, których happy-dom nie ma albo ma bez
-// implementacji: Web Share API, schowka i odtwarzacza mediów. Podstawiamy je
+// Odtwarzacz dotyka dwóch rzeczy, których happy-dom nie ma albo ma bez
+// implementacji: schowka i odtwarzacza mediów. Podstawiamy je
 // RAZ, w helperach, bo inaczej każdy test musiałby sam pamiętać o sprzątaniu -
 // a niesprzątnięty `navigator.share` zmienia wynik NASTĘPNEGO testu.
 
@@ -726,6 +726,43 @@ describe("GlobalAudioBar", () => {
     expect(screen.queryByRole("region")).toBeNull();
   });
 
+  it("guests retain a standalone player", async () => {
+    h.player = playerStub({ track, status: "playing", duration: 600 });
+    mount();
+    await waitFor(() => expect(screen.getByRole("region")).toBeInTheDocument());
+    expect(document.querySelector("[data-workspace-audio-slot]")).toBeNull();
+    expect(screen.getByRole("region")).toHaveAttribute("data-audio-placement", "standalone");
+  });
+
+  it("moves controls into a late member dock and back without stopping playback", async () => {
+    const player = playerStub({ track, status: "playing", duration: 600, currentTime: 42 });
+    h.player = player;
+    const { unmount } = mount();
+    const slot = document.createElement("div");
+    slot.setAttribute("data-workspace-audio-slot", "");
+    try {
+      await act(async () => {
+        document.body.appendChild(slot);
+      });
+      await waitFor(() => expect(slot).toContainElement(screen.getByRole("region")));
+      expect(screen.getByRole("slider")).toHaveValue("42");
+      expect(player.close).not.toHaveBeenCalled();
+      expect(player.toggle).not.toHaveBeenCalled();
+      expect(player.loadAndPlay).not.toHaveBeenCalled();
+      await act(async () => {
+        slot.remove();
+      });
+      await waitFor(() =>
+        expect(screen.getByRole("region")).toHaveAttribute("data-audio-placement", "standalone"),
+      );
+      expect(screen.getByRole("slider")).toHaveValue("42");
+      expect(player.close).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      slot.remove();
+    }
+  });
+
   it("z aktywnym materiałem renderuje pasek jako region z nazwą", async () => {
     h.player = playerStub({ track, status: "playing", duration: 600 });
     mount();
@@ -895,71 +932,69 @@ describe("GlobalAudioBar", () => {
     expect(container.textContent).not.toContain("%");
   });
 
-  it("udostępnianie BEZ Web Share API kopiuje link do artykułu (nie plik audio)", async () => {
+  it("KLIK w udostępnianie otwiera dymek z kanałami i opcją skopiowania linku", async () => {
+    h.player = playerStub({ track, status: "playing", duration: 600 });
+    await mountReady();
+
+    await act(async () => {
+      shareButton().click();
+    });
+
+    expect(
+      screen.getByRole("dialog", { name: "Udostępnij link do artykułu" }),
+    ).toBeInTheDocument();
+    for (const channel of ["X", "Facebook", "LinkedIn", "E-mail", "WhatsApp", "Telegram", "Reddit"]) {
+      expect(screen.getByRole("link", { name: channel })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("button", { name: "Skopiuj link" })).toBeInTheDocument();
+  });
+
+  it("SKOPIOWANIE z dymku trafia do schowka jako link do ARTYKUŁU i zamyka dymek", async () => {
     h.player = playerStub({ track, status: "playing", duration: 600 });
     const writeText = schowek();
     await mountReady();
 
     await act(async () => {
       shareButton().click();
+    });
+    await act(async () => {
+      screen.getByRole("button", { name: "Skopiuj link" }).click();
     });
 
     expect(writeText).toHaveBeenCalledWith(linkDoWpisu());
     expect(h.toastSuccess).toHaveBeenCalledWith("Skopiowano link do artykułu");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("Web Share API wygrywa nad schowkiem i dostaje tytuł oraz adres wpisu", async () => {
+  it("KANAŁY w dymku prowadzą do intencji z adresem wpisu i tytułem materiału", async () => {
     h.player = playerStub({ track, status: "playing", duration: 600 });
-    const writeText = schowek();
-    const share = vi.fn().mockResolvedValue(undefined);
-    podmien(navigator, "share", share);
     await mountReady();
 
     await act(async () => {
       shareButton().click();
     });
 
-    expect(share).toHaveBeenCalledWith({ title: "Analiza o UE", url: linkDoWpisu() });
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
-  it("ANULOWANIE udostępniania nie kopiuje linku po cichu", async () => {
-    // Bez rozpoznania `AbortError` zamknięcie systemowego arkusza udostępniania
-    // kończyło się cichym wpisem do schowka i toastem „skopiowano" - czyli
-    // akcją, której czytelnik właśnie zrezygnował.
-    h.player = playerStub({ track, status: "playing", duration: 600 });
-    const writeText = schowek();
-    podmien(
-      navigator,
-      "share",
-      vi.fn().mockRejectedValue(new DOMException("anulowano", "AbortError")),
+    const adres = encodeURIComponent(linkDoWpisu());
+    const tytul = encodeURIComponent("Analiza o UE");
+    expect(screen.getByRole("link", { name: "X" })).toHaveAttribute(
+      "href",
+      `https://twitter.com/intent/tweet?url=${adres}&text=${tytul}`,
     );
-    await mountReady();
-
-    await act(async () => {
-      shareButton().click();
-    });
-
-    expect(writeText).not.toHaveBeenCalled();
-    expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(h.promptDialog).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Facebook" })).toHaveAttribute(
+      "href",
+      `https://www.facebook.com/sharer/sharer.php?u=${adres}`,
+    );
+    expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveAttribute(
+      "href",
+      `https://www.linkedin.com/sharing/share-offsite/?url=${adres}`,
+    );
+    expect(screen.getByRole("link", { name: "E-mail" })).toHaveAttribute(
+      "href",
+      `mailto:?subject=${tytul}&body=${adres}`,
+    );
   });
 
-  it("AWARIA Web Share (nie anulowanie) spada do schowka", async () => {
-    h.player = playerStub({ track, status: "playing", duration: 600 });
-    const writeText = schowek();
-    podmien(navigator, "share", vi.fn().mockRejectedValue(new Error("brak uprawnień")));
-    await mountReady();
-
-    await act(async () => {
-      shareButton().click();
-    });
-
-    expect(writeText).toHaveBeenCalledWith(linkDoWpisu());
-    expect(h.toastSuccess).toHaveBeenCalledWith("Skopiowano link do artykułu");
-  });
-
-  it("gdy i schowek odmówi, adres trafia do dialogu do ręcznego skopiowania", async () => {
+  it("gdy schowek odmówi, adres trafia do dialogu do ręcznego skopiowania", async () => {
     h.player = playerStub({ track, status: "playing", duration: 600 });
     schowek(vi.fn().mockRejectedValue(new Error("odmowa uprawnienia")));
     await mountReady();
@@ -967,8 +1002,11 @@ describe("GlobalAudioBar", () => {
     await act(async () => {
       shareButton().click();
     });
+    await act(async () => {
+      screen.getByRole("button", { name: "Skopiuj link" }).click();
+    });
 
-    expect(h.promptDialog).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(h.promptDialog).toHaveBeenCalledTimes(1));
     expect(h.promptDialog.mock.calls[0][0]).toMatchObject({ defaultValue: linkDoWpisu() });
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });

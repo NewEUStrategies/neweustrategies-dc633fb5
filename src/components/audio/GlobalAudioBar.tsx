@@ -3,6 +3,8 @@
 // user uruchomi odsłuch, przetrwa zmiany stron.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Loader2, X, Share2 } from "@/lib/lucide-shim";
 import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
@@ -10,12 +12,13 @@ import { AnimatedDownloadIcon } from "@/components/audio/atoms/AnimatedDownloadI
 import { Rewind, FastForward } from "lucide-react";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
 import { formatPlaybackRate, nextPlaybackRate } from "@/lib/audio/playbackRate";
+import { audioContentPath } from "@/lib/audio/contentPath";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
-import { promptDialog } from "@/lib/appDialogs";
 import { downloadKey, transportLabelKey, ttsStageKey, ttsStagePercent } from "@/lib/audio/ttsStage";
 import { AUDIO_FOCUS_RING, AudioIconButton } from "@/components/audio/atoms/AudioIconButton";
+import { AudioSharePopover } from "@/components/audio/atoms/AudioSharePopover";
 import { uiLang } from "@/lib/i18n/format";
 import "@/lib/i18n-tts-player";
 function ActionTip({ label, children }: { label: string; children: ReactNode }) {
@@ -57,9 +60,20 @@ export function GlobalAudioBar() {
   const [mounted, setMounted] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [dockSlot, setDockSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    // The member dock is lazy and can appear after this bar. Observe its
+    // actual slot rather than guessing from auth; admin/login have no dock.
+    const syncSlot = () => {
+      const slot = document.querySelector<HTMLElement>("[data-workspace-audio-slot]");
+      setDockSlot((previous) => (previous === slot ? previous : slot));
+    };
+    syncSlot();
+    const observer = new MutationObserver(syncSlot);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, []);
 
   // Powiadomienie o nieudanej syntezie. Musi żyć nad wczesnym returnem (reguły
@@ -125,43 +139,41 @@ export function GlobalAudioBar() {
     }
   };
 
-  const onShare = async () => {
-    // Zawsze udostępniamy link do materiału (artykułu), nie plik audio.
-    // Origin publiczny (domena marki), nigdy host podglądu.
-    const url = new URL(track.postHref, browserPublicOrigin()).toString();
-    const shareData = { title: track.title, url } as ShareData;
-    try {
-      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-        await navigator.share(shareData);
-        return;
-      }
-    } catch (err) {
-      // Użytkownik anulował — nie fallbackujemy.
-      if (err instanceof DOMException && err.name === "AbortError") return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(copy("copied"));
-    } catch {
-      // Ostateczny fallback: dialog z adresem do skopiowania.
-      void promptDialog({ title: copy("share"), defaultValue: url, confirmLabel: "OK" });
-    }
-  };
+  // Adres udostępniania: zawsze link do materiału (artykułu), nie plik audio,
+  // i zawsze origin publiczny (domena marki), nigdy host podglądu. Dymek z
+  // kanałami i kopiowaniem otwiera atom `AudioSharePopover`.
+  const shareUrl = new URL(track.postHref, browserPublicOrigin()).toString();
 
-  return (
+  const embedded = dockSlot !== null;
+  const bar = (
     <div
       role="region"
       aria-label={copy("region")}
-      className="fixed inset-x-0 bottom-0 z-[70] pointer-events-none"
+      data-audio-placement={embedded ? "workspace" : "standalone"}
+      className={
+        embedded
+          ? "relative w-full border-b border-border"
+          : "fixed inset-x-0 bottom-0 z-[70] pointer-events-none"
+      }
     >
-      <div className="pointer-events-auto mx-auto max-w-[1400px] px-3 pb-3 sm:px-5 sm:pb-4">
+      <div
+        className={
+          embedded
+            ? "mx-auto w-full max-w-[1400px]"
+            : "pointer-events-auto mx-auto max-w-[1400px] px-3 pb-3 sm:px-5 sm:pb-4"
+        }
+      >
         <div
-          className={[
-            "relative overflow-hidden rounded-2xl border border-border/70",
-            "bg-background/85 backdrop-blur-xl",
-            "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.35)]",
-            "animate-in slide-in-from-bottom-8 fade-in duration-500",
-          ].join(" ")}
+          className={
+            embedded
+              ? "relative overflow-hidden"
+              : [
+                  "relative overflow-hidden rounded-2xl border border-border/70",
+                  "bg-background/85 backdrop-blur-xl",
+                  "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.35)]",
+                  "animate-in slide-in-from-bottom-8 fade-in duration-500",
+                ].join(" ")
+          }
         >
           {/* Progress line na górze */}
           <div className="absolute inset-x-0 top-0 h-[3px] bg-muted/50" aria-hidden>
@@ -171,7 +183,13 @@ export function GlobalAudioBar() {
             />
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 px-3 py-2.5 sm:px-4 sm:py-3">
+          <div
+            className={
+              embedded
+                ? "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 px-3 py-2 sm:flex sm:gap-4 sm:px-4"
+                : "flex items-center gap-2 sm:gap-4 px-3 py-2.5 sm:px-4 sm:py-3"
+            }
+          >
             {/* Cofnij 15 s / play-pause / do przodu 15 s - klaster transportu
                 jak w aplikacjach podcastowych. Skoki aktywne dopiero gdy audio
                 ma oś czasu (nie w trakcie syntezy TTS). */}
@@ -207,11 +225,15 @@ export function GlobalAudioBar() {
             </div>
 
             {/* Info + progress */}
-            <div className="min-w-0 flex-1">
+            <div
+              className={
+                embedded ? "col-span-2 row-start-1 min-w-0 flex-1 sm:order-none" : "min-w-0 flex-1"
+              }
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <HeadphonesIcon className="h-3.5 w-3.5 shrink-0 text-brand" />
-                <a
-                  href={track.postHref}
+                <Link
+                  to={audioContentPath(track.postHref)}
                   className={[
                     "cms-widget-title font-semibold text-foreground truncate",
                     "hover:text-brand transition-colors rounded-sm",
@@ -220,17 +242,17 @@ export function GlobalAudioBar() {
                   title={track.title}
                 >
                   {track.title}
-                </a>
+                </Link>
                 {track.author && (
                   <span className="cms-widget-label hidden md:inline text-muted-foreground truncate">
                     ·{" "}
                     {track.authorHref ? (
-                      <a
-                        href={track.authorHref}
+                      <Link
+                        to={audioContentPath(track.authorHref)}
                         className={`hover:text-foreground transition-colors rounded-sm ${FOCUS_RING}`}
                       >
                         {track.author}
-                      </a>
+                      </Link>
                     ) : (
                       track.author
                     )}
@@ -314,7 +336,13 @@ export function GlobalAudioBar() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-1 shrink-0">
+            <div
+              className={
+                embedded
+                  ? "flex items-center justify-end gap-1 shrink-0"
+                  : "flex items-center gap-1 shrink-0"
+              }
+            >
               <TooltipProvider delayDuration={200}>
                 <ActionTip label={copy("speed")}>
                   <button
@@ -342,13 +370,15 @@ export function GlobalAudioBar() {
                     <AnimatedDownloadIcon downloading={downloading} className="h-4 w-4" />
                   </AudioIconButton>
                 </ActionTip>
-                <ActionTip label={copy("share")}>
-                  <AudioIconButton
-                    label={copy("share")}
-                    onClick={() => void onShare()}
-                    icon={Share2}
-                  />
-                </ActionTip>
+                <AudioSharePopover
+                  lang={track.lang}
+                  label={copy("share")}
+                  title={track.title}
+                  url={shareUrl}
+                  copiedMessage={copy("copied")}
+                >
+                  <AudioIconButton label={copy("share")} icon={Share2} />
+                </AudioSharePopover>
                 <ActionTip label={copy("close")}>
                   <AudioIconButton
                     label={copy("close")}
@@ -364,4 +394,6 @@ export function GlobalAudioBar() {
       </div>
     </div>
   );
+  // Only the controls move; the root-owned audio engine never remounts.
+  return dockSlot ? createPortal(bar, dockSlot) : bar;
 }

@@ -1,5 +1,18 @@
 # Roadmap
 
+## Audio w dolnym pasku
+
+- [x] Zachować osobny odtwarzacz gości i połączyć odtwarzacz członków z mierzonym dolnym paskiem bez przenoszenia silnika audio.
+- [x] Dodać dymek udostępniania w pasku audio: atom `AudioSharePopover` (7 kanałów + „Skopiuj link", kafelki BrandIcon/brandTileStyle jak w FloatingShareBar, PL/EN) podpięty pod ikonę udostępniania w `GlobalAudioBar`; 64/64 testów audioOrganisms, typecheck czysty. Weryfikacja w podglądzie: dymek otwiera się z 7 kanałami i kanonicznym adresem wpisu, kopiowanie zamyka dymek; pasek pojawia się po drugim kliku „Odtwórz" (zimny start silnika na podglądzie).
+- [x] Sprawdzić odsłuch i nawigację w obu wariantach oraz układ mobilny: 185 testów przechodzi; testowe nagranie kontynuuje odtwarzanie po przejściu do autora dla gościa i zalogowanego; przy 393x852 brak przepełnienia, rezerwacja doku 157px. Naturalne uruchomienie w podglądzie potwierdzone na artykule Sikorskiego (pasek widoczny po hydratacji, drugi klik „Odtwórz").
+
+## Weryfikacja PR #526
+
+- [x] Sprawdzić bazę: 1660 wymaganych obiektów, zero braków; 751 kolumn, zero nowych braków i 7 historycznych rozbieżności; 371 migracji egzekwowanych bez braków. Pasy Drizzle przechodzą, zachowują 22 historyczne braki kopii.
+- [x] Potwierdzić wszystkie commity PR: jedyny commit 244bdf9a0 jest drugim rodzicem merge 42c9c86d2; drzewo merge identyczne z końcem gałęzi PR. Sześć plików, bez zmian schematu; 13 testów SMS przechodzi, lint zmienionych plików bez błędów (jedno ostrzeżenie Fast Refresh).
+- [x] Sprawdzić działanie menu: podgląd i produkcja HTTP 200; menu przy 393x706 przewija się o 358 px po zamontowaniu wyszukiwarki, strona w tle pozostaje zablokowana i odzyskuje przewijanie po zamknięciu; zero błędów JavaScript. Build OK. Pełny seeded E2E i stan zdalnych jobów GitHub CI niezweryfikowane.
+- [ ] Potwierdzić zakończenie zleconej publikacji PR #526: publikacja zlecona, ale produkcja nadal zwraca tmvea8j6v (identyfikator sprzed zlecenia); oczekiwanie na zakończenie publikacji przez platformę, brak potwierdzenia nowej wersji.
+
 ## Przewijanie menu hamburgera na telefonie
 
 - [x] Ograniczyć wpływ wyszukiwarki do wnętrza przewijanego menu i sprawdzić przewijanie oraz zamykanie na telefonie: 65 testów jednostkowych i test przeglądarkowy przechodzą; gest palca przy 393x706 przesuwa menu o 358 px, strona pod menu pozostaje zablokowana, po zamknięciu odzyskuje przewijanie; build OK.

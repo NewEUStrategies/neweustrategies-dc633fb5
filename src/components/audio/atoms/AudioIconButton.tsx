@@ -7,7 +7,7 @@
 // w każdym pliku - a to jedyna rzecz w tym rzędzie, która odpowiada za
 // widoczność fokusu klawiatury. Jeden atom = jeden pierścień fokusu, jeden
 // kontrakt `aria-label`/`aria-pressed`/`disabled` dla wszystkich.
-import type { ComponentType, ReactNode, SVGProps } from "react";
+import type { ButtonHTMLAttributes, ComponentType, ReactNode, Ref, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,10 +31,15 @@ export const AUDIO_ICON_BUTTON_VARIANTS = {
 
 export type AudioIconButtonVariant = keyof typeof AUDIO_ICON_BUTTON_VARIANTS;
 
-export interface AudioIconButtonProps {
+export interface AudioIconButtonProps
+  extends Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    "children" | "className" | "disabled" | "onClick" | "type"
+  > {
   /** Etykieta dostępna - JEDYNA nazwa przycisku (ikona jest dekoracją). */
   label: string;
-  onClick: () => void;
+  /** Klik własny atomu; wyzwalacz Radix (asChild) dokłada swój przez Slot. */
+  onClick?: () => void;
   icon?: ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
   /** Treść zamiast ikony (spinner w trakcie generowania, morfująca ikona play). */
   children?: ReactNode;
@@ -51,6 +56,11 @@ export interface AudioIconButtonProps {
   busy?: boolean;
   className?: string;
   iconClassName?: string;
+  /**
+   * Ref do elementu `button`. Radix (`PopoverTrigger asChild` w dymku
+   * udostępniania) pozycjonuje treść względem wyzwalacza i wymaga refs.
+   */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function AudioIconButton({
@@ -64,9 +74,13 @@ export function AudioIconButton({
   busy,
   className,
   iconClassName = "h-4 w-4",
+  ref,
+  ...rest
 }: AudioIconButtonProps) {
   return (
     <button
+      {...rest}
+      ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled || undefined}
