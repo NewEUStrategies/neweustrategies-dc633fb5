@@ -1,7 +1,7 @@
 // EDYTORY BLOKÓW: napisy panelu ze słownika (PL/EN), a etykieta nowego
 // przycisku - w języku DOKUMENTU.
 //
-// CO BYŁO ŹLE. Siedem edytorów miało napisy wpisane w kod zamiast kluczy
+// CO BYŁO ŹLE. Sześć edytorów miało napisy wpisane w kod zamiast kluczy
 // `blocks.editors.<blok>.*`: nagłówki „Social Icons", „Latest Posts", „Review
 // Box" (angielskie w polskim panelu), „Dodaj", placeholder sluga kategorii,
 // „Miniatura"/„Zajawka", WSZYSTKIE komunikaty bloku ankiety i placeholder URL-a
@@ -23,7 +23,7 @@
 // napisy, które zobaczy redaktor, więc zniknięcie klucza albo powrót polskiego
 // napisu w kod oblewa test.
 import { afterEach, describe, expect, it } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { renderEditor } from "./blockEditMatrix.shared";
 import i18n from "@/lib/i18n";
@@ -50,8 +50,70 @@ function ostatniZapis(changes: Block[]): Block {
   return changes[changes.length - 1];
 }
 
+// Najpierw odmontowanie, potem powrót języka: odwrotna kolejność (hooki
+// `afterEach` biegną przed automatycznym sprzątaniem RTL) przerysowywała
+// jeszcze zamontowany edytor po zmianie języka - ostrzeżenia act().
 afterEach(async () => {
+  cleanup();
   await i18n.changeLanguage("pl");
+});
+
+// ---------------------------------------------------------------------------
+// Opcje list wyboru (rozmiar, wyrównanie, styl, układ)
+// ---------------------------------------------------------------------------
+
+describe("opcje list wyboru w języku panelu, wartości zapisu bez zmian", () => {
+  const opcje = (sel: HTMLSelectElement) =>
+    Array.from(sel.options).map((o) => [o.value, o.textContent]);
+  const lista = (wartosc: string) =>
+    screen
+      .getAllByRole<HTMLSelectElement>("combobox")
+      .find((s) => Array.from(s.options).some((o) => o.value === wartosc));
+
+  it.each([
+    ["pl", ["Mały", "Średni", "Duży"], ["Do lewej", "Do środka", "Do prawej"]],
+    ["en", ["Small", "Medium", "Large"], ["Left", "Center", "Right"]],
+  ] as const)("%s: ikony społecznościowe - rozmiar i wyrównanie", async (lang, rozm, wyr) => {
+    // NAPRAWIONE 2026-10-19: „small/medium/large” i „left/center/right” były
+    // wpisane w kod po angielsku także w panelu PL.
+    await i18n.changeLanguage(lang);
+    renderEditor(SocialIconsBlock, blok("social-icons", {}));
+    expect(opcje(lista("sm")!)).toEqual([
+      ["sm", rozm[0]],
+      ["md", rozm[1]],
+      ["lg", rozm[2]],
+    ]);
+    expect(opcje(lista("left")!)).toEqual([
+      ["left", wyr[0]],
+      ["center", wyr[1]],
+      ["right", wyr[2]],
+    ]);
+  });
+
+  it.each([
+    ["pl", ["Wypełniony", "Obrys", "Przezroczysty"]],
+    ["en", ["Solid", "Outline", "Ghost"]],
+  ] as const)("%s: przyciski - styl przycisku", async (lang, style) => {
+    await i18n.changeLanguage(lang);
+    renderEditor(ButtonsBlock, blok("buttons", { items: [{ label: "A", url: "/a" }] }));
+    expect(opcje(lista("ghost")!)).toEqual([
+      ["default", style[0]],
+      ["outline", style[1]],
+      ["ghost", style[2]],
+    ]);
+  });
+
+  it.each([
+    ["pl", "Lista", "Siatka"],
+    ["en", "List", "Grid"],
+  ] as const)("%s: najnowsze wpisy - układ", async (lang, listaTxt, siatka) => {
+    await i18n.changeLanguage(lang);
+    renderEditor(LatestPostsBlock, blok("latest-posts", {}));
+    expect(opcje(lista("grid")!)).toEqual([
+      ["list", listaTxt],
+      ["grid", siatka],
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------

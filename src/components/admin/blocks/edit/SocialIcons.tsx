@@ -69,18 +69,18 @@ export function SocialIconsBlock({ block, onChange }: Props) {
             value={size}
             onChange={(e) => onChange({ ...block, data: { ...block.data, size: e.target.value } })}
           >
-            <option value="sm">small</option>
-            <option value="md">medium</option>
-            <option value="lg">large</option>
+            <option value="sm">{i18n.editor("common", "sizeSm")}</option>
+            <option value="md">{i18n.editor("common", "sizeMd")}</option>
+            <option value="lg">{i18n.editor("common", "sizeLg")}</option>
           </AdminSelect>
           <AdminSelect
             className="text-xs bg-background border border-border rounded px-2 py-1"
             value={align}
             onChange={(e) => onChange({ ...block, data: { ...block.data, align: e.target.value } })}
           >
-            <option value="left">left</option>
-            <option value="center">center</option>
-            <option value="right">right</option>
+            <option value="left">{i18n.editor("common", "alignLeft")}</option>
+            <option value="center">{i18n.editor("common", "alignCenter")}</option>
+            <option value="right">{i18n.editor("common", "alignRight")}</option>
           </AdminSelect>
         </div>
       </div>

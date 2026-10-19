@@ -56,9 +56,9 @@ export function ButtonsBlock({ block, onChange }: Props) {
           value={align}
           onChange={(e) => onChange({ ...block, data: { ...block.data, align: e.target.value } })}
         >
-          <option value="left">left</option>
-          <option value="center">center</option>
-          <option value="right">right</option>
+          <option value="left">{i18n.editor("common", "alignLeft")}</option>
+          <option value="center">{i18n.editor("common", "alignCenter")}</option>
+          <option value="right">{i18n.editor("common", "alignRight")}</option>
         </AdminSelect>
       </div>
       <div className="space-y-2">
@@ -91,9 +91,9 @@ export function ButtonsBlock({ block, onChange }: Props) {
                 update(next);
               }}
             >
-              <option value="default">solid</option>
-              <option value="outline">outline</option>
-              <option value="ghost">ghost</option>
+              <option value="default">{i18n.editor("common", "styleSolid")}</option>
+              <option value="outline">{i18n.editor("common", "styleOutline")}</option>
+              <option value="ghost">{i18n.editor("common", "styleGhost")}</option>
             </AdminSelect>
             <Button
               type="button"

@@ -54,8 +54,8 @@ export function LatestPostsBlock({ block, onChange }: Props) {
           value={layout}
           onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}
         >
-          <option value="list">List</option>
-          <option value="grid">Grid</option>
+          <option value="list">{i18n.editor("common", "layoutList")}</option>
+          <option value="grid">{i18n.editor("common", "layoutGrid")}</option>
         </AdminSelect>
       </div>
       <Input

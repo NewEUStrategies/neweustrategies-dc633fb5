@@ -69,7 +69,7 @@ describe("buttons", () => {
 
   it("pusty blok: wyrównanie „left”, brak pozycji; „Dodaj” dokłada przycisk-szablon", () => {
     const { changes } = renderEditor(ButtonsBlock, blok("buttons", {}));
-    expect(listyZOpcja("center")[0].value).toBe("left");
+    expect(listyZOpcja(t("blocks.editors.common.alignCenter"))[0].value).toBe("left");
     expect(screen.queryAllByPlaceholderText(pole("label"))).toHaveLength(0);
     expect(changes).toEqual([]);
 
@@ -84,7 +84,7 @@ describe("buttons", () => {
 
   it("wyrównanie zapisuje się pod `align`; wartość spoza opcji pokazuje „left” jak renderer", () => {
     const { changes } = renderEditor(ButtonsBlock, start);
-    const wyrownanie = listyZOpcja("center")[0];
+    const wyrownanie = listyZOpcja(t("blocks.editors.common.alignCenter"))[0];
     expect(wyrownanie.value).toBe("center");
     fireEvent.change(wyrownanie, { target: { value: "right" } });
     expect(ostatniZapis(changes).data).toEqual({ ...start.data, align: "right" });
@@ -115,7 +115,9 @@ describe("buttons", () => {
       target: "_blank",
     });
 
-    fireEvent.change(listyZOpcja("ghost")[1], { target: { value: "ghost" } });
+    fireEvent.change(listyZOpcja(t("blocks.editors.common.styleGhost"))[1], {
+      target: { value: "ghost" },
+    });
     expect((ostatniZapis(changes).data.items as Json[])[1]).toMatchObject({ variant: "ghost" });
   });
 
@@ -146,7 +148,7 @@ describe("buttons", () => {
     expect(container.textContent).not.toContain("[object Object]");
     const etykiety = screen.getAllByPlaceholderText<HTMLInputElement>(pole("label"));
     expect(etykiety.map((p) => p.value)).toEqual([""]);
-    expect(listyZOpcja("ghost")[0].value).toBe("default");
+    expect(listyZOpcja(t("blocks.editors.common.styleGhost"))[0].value).toBe("default");
 
     fireEvent.change(etykiety[0], { target: { value: "Raport" } });
     expect(ostatniZapis(changes).data.items).toEqual([
@@ -178,9 +180,13 @@ describe("social-icons", () => {
 
   it("rozmiar i wyrównanie zapisują się pod własnymi kluczami; spoza opcji - „md” i „left”", () => {
     const { changes } = renderEditor(SocialIconsBlock, start);
-    fireEvent.change(listyZOpcja("small")[0], { target: { value: "sm" } });
+    fireEvent.change(listyZOpcja(t("blocks.editors.common.sizeSm"))[0], {
+      target: { value: "sm" },
+    });
     expect(ostatniZapis(changes).data).toEqual({ ...start.data, size: "sm" });
-    fireEvent.change(listyZOpcja("center")[0], { target: { value: "center" } });
+    fireEvent.change(listyZOpcja(t("blocks.editors.common.alignCenter"))[0], {
+      target: { value: "center" },
+    });
     expect(ostatniZapis(changes).data).toEqual({ ...start.data, align: "center" });
 
     const inny = renderEditor(
