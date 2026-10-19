@@ -134,7 +134,8 @@ const WITH_CONSENT: Partial<PurchaseContext> = {
 interface Scene {
   plans: AccessPlan[];
   profile: Record<string, unknown> | null;
-  lead: { id: string; tags: string[] } | null;
+  /** Wiersz `crm_leads` widziany przez efekty; `source_type` - ranga przy zakupie. */
+  lead: { id: string; tags: string[]; source_type?: string | null } | null;
   newsletter: Record<string, unknown> | null;
   /** Tabela, której KAŻDE zapytanie kończy się WYJĄTKIEM klienta (nie `{ error }`). */
   broken: string | null;
