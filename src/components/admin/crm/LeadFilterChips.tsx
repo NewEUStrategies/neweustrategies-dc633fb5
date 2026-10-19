@@ -253,7 +253,7 @@ export function LeadFilterChips({
         <Chip
           icon={<Inbox className="h-3 w-3" aria-hidden />}
           label={lc.filters.legacySource}
-          value={value.source !== "any" ? sourceLabels[value.source] : null}
+          value={sourceLabels[value.source]}
           onClear={() => update({ source: "any" })}
         >
           <Select
