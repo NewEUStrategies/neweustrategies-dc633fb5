@@ -248,13 +248,157 @@ describe("TypographyControl - stany pośrednie wpisu nie trafiają do dokumentu"
 
   it("pola ułamkowe proszą klawiaturę dotykową o separator dziesiętny", () => {
     renderTypography({});
-    for (const aria of [ARIA.lineHeight, ARIA.letterSpacing, ARIA.gap]) {
+    // Rozmiary czcionek też: zapis „16.5px” albo „1.5rem” jest poprawnym CSS-em.
+    for (const aria of [
+      ARIA.lineHeight,
+      ARIA.letterSpacing,
+      ARIA.gap,
+      "builder.typographyControl.titleSizeAria",
+      "builder.typographyControl.descSizeMobileAria",
+    ]) {
       expect(field(aria)).toHaveAttribute("inputmode", "decimal");
     }
-    // Rozmiary czcionek są całkowite - zostają przy klawiaturze cyfr.
-    expect(field("builder.typographyControl.titleSizeAria")).toHaveAttribute(
-      "inputmode",
-      "numeric",
-    );
+  });
+});
+
+describe("TypographyControl - rozmiar czcionki zapisany ułamkiem albo w innej jednostce", () => {
+  const TITLE = "builder.typographyControl.titleSizeAria";
+  const TITLE_MOBILE = "builder.typographyControl.titleSizeMobileAria";
+
+  it("„16.5px” jest polem 16.5 px, a nie 165; render niczego nie zapisuje", () => {
+    // NAPRAWIONE 2026-10-19: pole brało same cyfry z zapisu, więc „16.5px”
+    // pokazywało 165, a „1.5rem” - 15 z podpisem px.
+    const { applied } = renderTypography({
+      fontSize: { desktop: "16.5px", tablet: "16.5px", mobile: "1.5rem" },
+    });
+    expect(field(TITLE).value).toBe("16.5");
+    expect(unitOf(TITLE)).toBe("px");
+    expect(field(TITLE_MOBILE).value).toBe("1.5");
+    expect(unitOf(TITLE_MOBILE)).toBe("rem");
+    expect(applied).toEqual([]);
+  });
+
+  it("strzałka liczy od liczby z zapisu i zachowuje jednostkę", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "16.5px", tablet: "16.5px", mobile: "1.5rem" },
+    });
+    fireEvent.keyDown(field(TITLE), { key: "ArrowUp" });
+    expect(last()?.fontSize).toEqual({ desktop: "17.5px", tablet: "17.5px", mobile: "1.5rem" });
+    fireEvent.keyDown(field(TITLE_MOBILE), { key: "ArrowUp" });
+    expect(last()?.fontSize).toEqual({ desktop: "17.5px", tablet: "17.5px", mobile: "2.5rem" });
+  });
+
+  it("pisanie rozmiaru desktopu znak po znaku nie przypina telefonowi pierwszej cyfry", () => {
+    // NAPRAWIONE 2026-10-19: „1” zapisywało telefonowi 1px, a kolejne znaki
+    // zmieniały już tylko desktop - po wpisaniu „24” telefon zostawał na 1px.
+    const { last } = renderTypography({});
+    fireEvent.change(field(TITLE), { target: { value: "2" } });
+    fireEvent.change(field(TITLE), { target: { value: "24" } });
+    expect(last()?.fontSize).toEqual({ desktop: "24px", tablet: "24px", mobile: "24px" });
+  });
+
+  it("własny rozmiar telefonu zostaje przy zmianie desktopu", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "34px", tablet: "34px", mobile: "26px" },
+    });
+    fireEvent.change(field(TITLE), { target: { value: "40" } });
+    expect(last()?.fontSize).toEqual({ desktop: "40px", tablet: "40px", mobile: "26px" });
+  });
+
+  it("wpis ułamka nie zapisuje stanu pośredniego „16.”", () => {
+    const { last } = renderTypography({});
+    fireEvent.change(field(TITLE), { target: { value: "16." } });
+    expect(last()?.fontSize).toEqual({ desktop: "16px", tablet: "16px", mobile: "16px" });
+    fireEvent.change(field(TITLE), { target: { value: "16.5" } });
+    expect(last()?.fontSize).toEqual({ desktop: "16.5px", tablet: "16.5px", mobile: "16.5px" });
+  });
+});
+
+describe("TypographyControl - telefon idzie za desktopem przez całą edycję", () => {
+  // Decyzja „telefon idzie za desktopem” zapada RAZ, na początku edycji pola
+  // desktopowego. Liczona przy każdym zapisie od nowa myliła stan pośredni ze
+  // świadomym wyborem: Backspace do pustego pola przypinał telefonowi pierwszą
+  // cyfrę starej wartości, a krok strzałki przez rozmiar telefonu „przyklejał”
+  // telefon do desktopu.
+  const TITLE = "builder.typographyControl.titleSizeAria";
+  const TITLE_MOBILE = "builder.typographyControl.titleSizeMobileAria";
+  const DESC = "builder.typographyControl.descSizeAria";
+  const typeAll = (aria: string, steps: string[]) => {
+    for (const typed of steps) fireEvent.change(field(aria), { target: { value: typed } });
+  };
+
+  it.each([
+    ["telefon równy desktopowi", { desktop: "24px", tablet: "24px", mobile: "24px" }],
+    ["sam desktop", { desktop: "24px", tablet: "24px" }],
+  ])("Backspace do pustego i nowa wartość (%s): telefon dostaje nową wartość", (_l, fontSize) => {
+    const { applied, last } = renderTypography({ fontSize });
+    typeAll(TITLE, ["2", "", "3", "32"]);
+    expect(last()?.fontSize).toEqual({ desktop: "32px", tablet: "32px", mobile: "32px" });
+    // Żaden zapis po drodze nie zostawił telefonu z samym stanem pośrednim.
+    expect(applied.map((next) => next.fontSize)).not.toContainEqual({ mobile: "2px" });
+  });
+
+  it("Backspace do pustego i nowa wartość zostawia własny rozmiar telefonu", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "34px", tablet: "34px", mobile: "26px" },
+    });
+    typeAll(TITLE, ["2", "", "3", "32"]);
+    expect(last()?.fontSize).toEqual({ desktop: "32px", tablet: "32px", mobile: "26px" });
+  });
+
+  it("chwilowa równość z rozmiarem telefonu przy pisaniu nie przejmuje telefonu", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "34px", tablet: "34px", mobile: "26px" },
+    });
+    typeAll(TITLE, ["2", "26", "2", "28"]);
+    expect(last()?.fontSize).toEqual({ desktop: "28px", tablet: "28px", mobile: "26px" });
+  });
+
+  it("krok strzałki przez rozmiar telefonu nie przykleja telefonu do desktopu", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "14px", tablet: "14px", mobile: "16px" },
+    });
+    for (let i = 0; i < 3; i += 1) fireEvent.keyDown(field(TITLE), { key: "ArrowUp" });
+    expect(last()?.fontSize).toEqual({ desktop: "17px", tablet: "17px", mobile: "16px" });
+  });
+
+  it("wyczyszczenie desktopu, za którym szedł telefon, czyści też telefon", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "24px", tablet: "24px", mobile: "24px" },
+    });
+    fireEvent.change(field(TITLE), { target: { value: "" } });
+    expect(last()?.fontSize).toBeUndefined();
+  });
+
+  it("rozmiar opisu: „6”, Backspace i „48” daje telefonowi 48 px, a nie 6 px", () => {
+    const { last } = renderTypography({
+      descriptionFontSize: { desktop: "64px", tablet: "64px", mobile: "64px" },
+    });
+    typeAll(DESC, ["6", "", "4", "48"]);
+    expect(last()?.descriptionFontSize).toEqual({
+      desktop: "48px",
+      tablet: "48px",
+      mobile: "48px",
+    });
+  });
+
+  it("zmiana telefonu w trakcie edycji desktopu unieważnia decyzję", () => {
+    const { last } = renderTypography({ fontSize: { desktop: "30px", tablet: "30px" } });
+    fireEvent.change(field(TITLE), { target: { value: "3" } });
+    fireEvent.change(field(TITLE_MOBILE), { target: { value: "20" } });
+    fireEvent.change(field(TITLE), { target: { value: "36" } });
+    expect(last()?.fontSize).toEqual({ desktop: "36px", tablet: "36px", mobile: "20px" });
+  });
+
+  it("nowa edycja (po wyjściu z pola) decyduje od nowa", () => {
+    const { last } = renderTypography({
+      fontSize: { desktop: "34px", tablet: "34px", mobile: "26px" },
+    });
+    typeAll(TITLE, ["2", "26"]);
+    fireEvent.blur(field(TITLE));
+    // Dokument nie odróżnia „równe z wyboru” od „idzie za desktopem” - nowa
+    // edycja widzi dwa równe rozmiary i prowadzi je razem.
+    typeAll(TITLE, ["3", "30"]);
+    expect(last()?.fontSize).toEqual({ desktop: "30px", tablet: "30px", mobile: "30px" });
   });
 });

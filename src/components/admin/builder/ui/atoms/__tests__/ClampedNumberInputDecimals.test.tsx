@@ -105,6 +105,70 @@ describe("ClampedNumberInput - tryb ułamkowy", () => {
     expect(onCommit).toHaveBeenLastCalledWith(1.23);
   });
 
+  it("samo przejście przez pole nie zapisuje, także wartości spoza zakresu", () => {
+    // NAPRAWIONE 2026-10-19: wyjście z pola bez edycji klampowało i zapisywało
+    // wartość dokumentu (ocena 15 -> 5): przejście Tabem przez panel zmieniało
+    // dokument i dawało wpis w historii cofania.
+    const onCommit = vi.fn();
+    render(
+      <ClampedNumberInput
+        value={15}
+        min={0}
+        max={5}
+        precision={1}
+        ariaLabel="skala"
+        onCommit={onCommit}
+      />,
+    );
+    fireEvent.focus(field());
+    fireEvent.blur(field());
+    fireEvent.focus(field());
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onCommit).not.toHaveBeenCalled();
+    // Edycja dalej działa i jest klampowana.
+    fireEvent.change(field(), { target: { value: "9" } });
+    fireEvent.blur(field());
+    expect(onCommit).toHaveBeenLastCalledWith(5);
+  });
+
+  it("zatwierdzenie tej samej liczby co w dokumencie nie daje drugiego zapisu", () => {
+    const onCommit = vi.fn();
+    render(<ClampedNumberInput value={2} min={0} max={5} ariaLabel="skala" onCommit={onCommit} />);
+    fireEvent.focus(field());
+    fireEvent.change(field(), { target: { value: "02" } });
+    fireEvent.blur(field());
+    // „02” w locie to już 2 - zapis byłby pustym krokiem historii.
+    expect(onCommit.mock.calls).toEqual([[2]]);
+    expect(field().value).toBe("2");
+  });
+
+  it("krok strzałki i wyjście z pola nie dają drugiego zapisu tej samej liczby", () => {
+    // Rodzic, który jeszcze nie oddał nowej wartości (zapis asynchroniczny),
+    // nie może dostać drugiego zapisu przy wyjściu z pola.
+    const onCommit = vi.fn();
+    render(<ClampedNumberInput value={2} min={0} max={5} ariaLabel="skala" onCommit={onCommit} />);
+    fireEvent.focus(field());
+    fireEvent.keyDown(field(), { key: "ArrowUp" });
+    fireEvent.blur(field());
+    expect(onCommit.mock.calls).toEqual([[3]]);
+  });
+
+  it("wpis spoza zakresu domknięty do pokazanej wartości jest zapisywany", () => {
+    // Pokazana wartość bywa ODZIEDZICZONA (rozpiętość kolumny na telefonie
+    // pokazuje desktopową, gdy telefon nie ma własnej). Redaktor wpisał
+    // liczbę - zapis musi pójść, tak jak poszedłby wpis „12” w zakresie,
+    // inaczej „99” na telefonie nie przypinało niczego, a „12” przypinało.
+    const onCommit = vi.fn();
+    render(
+      <ClampedNumberInput value={12} min={1} max={12} ariaLabel="skala" onCommit={onCommit} />,
+    );
+    fireEvent.focus(field());
+    fireEvent.change(field(), { target: { value: "99" } });
+    fireEvent.blur(field());
+    expect(onCommit.mock.calls).toEqual([[12]]);
+    expect(field().value).toBe("12");
+  });
+
   it("krok strzałki jest zaokrąglany, więc nie zostawia ogona binarnego", () => {
     const onCommit = vi.fn();
     render(

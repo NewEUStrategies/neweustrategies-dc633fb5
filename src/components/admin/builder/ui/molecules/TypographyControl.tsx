@@ -1,7 +1,7 @@
 // Molecule: full typography editor block (font family, unified size,
 // weight, style, line-height, letter-spacing, transform, decoration).
 // Font size is a single value applied identically on desktop / tablet / mobile.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Device, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import {
@@ -93,7 +93,14 @@ const stepFrom = (current: string, delta: number): number =>
   Math.round(((Number.parseFloat(current) || 0) + delta) * 1000) / 1000;
 
 /** Pola ułamkowe, których wpis przechodzi przez szkic. */
-type DecimalKey = "lineHeight" | "letterSpacing" | "titleDescriptionGapPx";
+type DecimalKey =
+  | "lineHeight"
+  | "letterSpacing"
+  | "titleDescriptionGapPx"
+  | "fontSize"
+  | "fontSizeMobile"
+  | "descriptionFontSize"
+  | "descriptionFontSizeMobile";
 
 /** Szkic pola ułamkowego: dosłowny wpis i jednostka z początku edycji. */
 interface DecimalDraft {
@@ -166,77 +173,72 @@ export function TypographyControl({ value, onChange }: Props) {
 
   // Rozmiary są rozdzielone na desktop (desktop + tablet) i mobile, żeby
   // redakcja mogła ustawić np. 34px na desktopie i 26px na telefonie.
-  const rawUnified = v.fontSize?.desktop ?? v.fontSize?.tablet ?? "";
-  const unifiedPx = String(rawUnified).replace(/[^0-9]/g, "");
-  const mobilePx = String(v.fontSize?.mobile ?? "").replace(/[^0-9]/g, "");
-  const setUnifiedSize = (raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    if (!digits) {
-      set({ fontSize: v.fontSize?.mobile ? { mobile: v.fontSize.mobile } : undefined });
-      return;
-    }
-    const px = `${digits}px`;
-    set({ fontSize: { desktop: px, tablet: px, mobile: v.fontSize?.mobile ?? px } });
-  };
-  const setMobileSize = (raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    const desktop = v.fontSize?.desktop ?? v.fontSize?.tablet;
-    if (!digits) {
-      set({
-        fontSize: desktop ? { desktop, tablet: v.fontSize?.tablet ?? desktop } : undefined,
-      });
-      return;
-    }
-    const px = `${digits}px`;
-    set({
-      fontSize: {
-        ...(desktop ? { desktop, tablet: v.fontSize?.tablet ?? desktop } : {}),
-        mobile: px,
-      },
+  // Odczyt jak w CSS - liczba z jednostką - a nie same cyfry: „16.5px” było
+  // polem „165” (strzałka zapisywała 166px), a „1.5rem” - polem „15 px”.
+  // Edycja zachowuje jednostkę zapisu (nowa wartość - w px).
+  type ResponsiveSizeKey = "fontSize" | "descriptionFontSize";
+  // Edycja rozmiaru desktopu: czy telefon idzie za desktopem i co ta edycja
+  // ostatnio zapisała. Decyzja zapada RAZ, przy pierwszym zapisie edycji -
+  // liczona przy każdym zapisie od nowa myliła stan pośredni ze świadomym
+  // wyborem: Backspace do pustego pola przypinał telefonowi pierwszą cyfrę
+  // starej wartości („24” -> „2” -> „” -> „32” dawało telefonowi 2px), a krok
+  // strzałki przez rozmiar telefonu (14 -> 15 -> 16 przy telefonie 16)
+  // „przyklejał” telefon do desktopu. Edycja trwa do wyjścia z pola i dopóki
+  // dokument trzyma to, co sama zapisała - inna zmiana (pole telefonu, cofnij)
+  // kończy ją, a przyciski krokowe nie zawsze dostają fokus, więc samo wyjście
+  // z pola nie wystarcza. Ref, a nie stan: decyzja niczego nie rysuje.
+  const sizeEdits = useRef<
+    Partial<Record<ResponsiveSizeKey, { follows: boolean; desktop?: string; mobile?: string }>>
+  >({});
+  const bindSize = (key: ResponsiveSizeKey, device: "desktop" | "mobile") => {
+    const cur = v[key];
+    const desktop = cur?.desktop ?? cur?.tablet;
+    const stored = device === "desktop" ? desktop : cur?.mobile;
+    const draftKey: DecimalKey = device === "desktop" ? key : `${key}Mobile`;
+    const binding = bindDecimal(draftKey, readCssLength(stored, "px"), false, (num, unit) => {
+      const size = num === undefined ? undefined : `${num}${unit}`;
+      if (device === "desktop") {
+        const edit = sizeEdits.current[key];
+        const ongoing = edit && edit.desktop === desktop && edit.mobile === cur?.mobile;
+        // Telefon idzie za desktopem, gdy na początku edycji nie miał własnego
+        // rozmiaru (pusty albo równy desktopowi). Własny rozmiar telefonu
+        // zostaje nietknięty przez całą edycję.
+        const follows = ongoing
+          ? edit.follows
+          : cur?.mobile === undefined || cur.mobile === desktop;
+        const mobile = follows ? size : cur?.mobile;
+        // Wyczyszczenie desktopu, za którym telefon szedł, czyści też telefon -
+        // inaczej pusty stan pośredni zostawiał telefonowi starą wartość.
+        const next: WidgetTypography[ResponsiveSizeKey] =
+          size !== undefined
+            ? { desktop: size, tablet: size, ...(mobile ? { mobile } : {}) }
+            : mobile
+              ? { mobile }
+              : undefined;
+        sizeEdits.current[key] = { follows, desktop: next?.desktop, mobile: next?.mobile };
+        set({ [key]: next });
+        return;
+      }
+      const base = desktop ? { desktop, tablet: cur?.tablet ?? desktop } : undefined;
+      if (size === undefined) {
+        set({ [key]: base });
+        return;
+      }
+      set({ [key]: { ...(base ?? {}), mobile: size } });
     });
-  };
-
-  const rawDesc = v.descriptionFontSize?.desktop ?? v.descriptionFontSize?.tablet ?? "";
-  const descPx = String(rawDesc).replace(/[^0-9]/g, "");
-  const descMobilePx = String(v.descriptionFontSize?.mobile ?? "").replace(/[^0-9]/g, "");
-  const setDescSize = (raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    if (!digits) {
-      set({
-        descriptionFontSize: v.descriptionFontSize?.mobile
-          ? { mobile: v.descriptionFontSize.mobile }
-          : undefined,
-      });
-      return;
-    }
-    const px = `${digits}px`;
-    set({
-      descriptionFontSize: {
-        desktop: px,
-        tablet: px,
-        mobile: v.descriptionFontSize?.mobile ?? px,
+    if (device === "mobile") return binding;
+    return {
+      ...binding,
+      onBlur: () => {
+        binding.onBlur();
+        delete sizeEdits.current[key];
       },
-    });
+    };
   };
-  const setDescMobileSize = (raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    const desktop = v.descriptionFontSize?.desktop ?? v.descriptionFontSize?.tablet;
-    if (!digits) {
-      set({
-        descriptionFontSize: desktop
-          ? { desktop, tablet: v.descriptionFontSize?.tablet ?? desktop }
-          : undefined,
-      });
-      return;
-    }
-    const px = `${digits}px`;
-    set({
-      descriptionFontSize: {
-        ...(desktop ? { desktop, tablet: v.descriptionFontSize?.tablet ?? desktop } : {}),
-        mobile: px,
-      },
-    });
-  };
+  const titleSize = bindSize("fontSize", "desktop");
+  const titleSizeMobile = bindSize("fontSize", "mobile");
+  const descSize = bindSize("descriptionFontSize", "desktop");
+  const descSizeMobile = bindSize("descriptionFontSize", "mobile");
 
   const renderSizeInput = (
     current: string,
@@ -338,10 +340,26 @@ export function TypographyControl({ value, onChange }: Props) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.typographyControl.titleSize")}>
-          {renderSizeInput(unifiedPx, setUnifiedSize, t("builder.typographyControl.titleSizeAria"))}
+          {renderSizeInput(
+            titleSize.text,
+            titleSize.onType,
+            t("builder.typographyControl.titleSizeAria"),
+            "16",
+            titleSize.unit,
+            1,
+            titleSize,
+          )}
         </PropField>
         <PropField label={t("builder.typographyControl.descSize")}>
-          {renderSizeInput(descPx, setDescSize, t("builder.typographyControl.descSizeAria"))}
+          {renderSizeInput(
+            descSize.text,
+            descSize.onType,
+            t("builder.typographyControl.descSizeAria"),
+            "16",
+            descSize.unit,
+            1,
+            descSize,
+          )}
         </PropField>
       </div>
 
@@ -351,18 +369,24 @@ export function TypographyControl({ value, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.typographyControl.titleSizeMobile")}>
           {renderSizeInput(
-            mobilePx,
-            setMobileSize,
+            titleSizeMobile.text,
+            titleSizeMobile.onType,
             t("builder.typographyControl.titleSizeMobileAria"),
             "26",
+            titleSizeMobile.unit,
+            1,
+            titleSizeMobile,
           )}
         </PropField>
         <PropField label={t("builder.typographyControl.descSizeMobile")}>
           {renderSizeInput(
-            descMobilePx,
-            setDescMobileSize,
+            descSizeMobile.text,
+            descSizeMobile.onType,
             t("builder.typographyControl.descSizeMobileAria"),
             "14",
+            descSizeMobile.unit,
+            1,
+            descSizeMobile,
           )}
         </PropField>
       </div>

@@ -51,6 +51,12 @@ export function ClampedNumberInput({
 }: ClampedNumberInputProps) {
   const [draft, setDraft] = useState<string>(value === undefined ? "" : String(value));
   const editing = useRef(false);
+  // Liczba, którą bieżąca edycja już zapisała (w locie albo krokiem strzałki).
+  // Zatwierdzenie tej samej liczby byłoby drugim, pustym krokiem historii.
+  // Porównanie z `value` nie wystarcza: pokazana wartość bywa odziedziczona
+  // (rozpiętość kolumny na telefonie = desktopowa), więc wpis „99” domknięty
+  // do pokazanego 12 nie przypinał niczego, choć wpis „12” przypinał.
+  const sent = useRef<number | undefined>(undefined);
   const fractional = precision !== undefined && precision > 0;
   // Wzorzec liczony z precyzji: separator i co najwyżej `precision` cyfr po nim.
   const accepts = fractional ? new RegExp(`^-?\\d*([.,]\\d{0,${precision}})?$`) : /^-?\d*$/;
@@ -64,7 +70,19 @@ export function ClampedNumberInput({
   }, [value]);
 
   const commit = (raw: string) => {
+    // Zatwierdzenie kończy edycję - także te wyjścia, które niczego nie zapisują.
+    const alreadySent = sent.current;
+    sent.current = undefined;
     const trimmed = raw.trim();
+    const shown = value === undefined ? "" : String(value);
+    // Pole pokazuje dokładnie wartość dokumentu = redaktor niczego nie zmienił.
+    // Samo przejście przez pole (Tab, klik i wyjście) NIE może zapisywać - inaczej
+    // wartość spoza zakresu zapisana w dokumencie (np. ocena 15) była po cichu
+    // przycinana i dawała wpis w historii cofania oraz autozapis bez edycji.
+    if (trimmed === shown) {
+      setDraft(shown);
+      return;
+    }
     if (trimmed === "") {
       if (allowEmpty) {
         onCommit(undefined);
@@ -81,7 +99,7 @@ export function ClampedNumberInput({
     }
     const next = clamp(round(parsed), min, max);
     setDraft(String(next));
-    onCommit(next);
+    if (next !== alreadySent) onCommit(next);
   };
 
   const bump = (delta: number) => {
@@ -92,6 +110,7 @@ export function ClampedNumberInput({
     const next = clamp(round(start + delta), min, max);
     setDraft(String(next));
     onCommit(next);
+    sent.current = next;
   };
 
   return (
@@ -103,6 +122,7 @@ export function ClampedNumberInput({
       placeholder={placeholder}
       onFocus={() => {
         editing.current = true;
+        sent.current = undefined;
       }}
       onChange={(e) => {
         const raw = e.target.value;
@@ -117,7 +137,10 @@ export function ClampedNumberInput({
         // liczbą co bez separatora - draft trzyma je dalej do dopisania cyfr.
         if (raw !== "" && raw !== "-") {
           const parsed = parse(raw);
-          if (Number.isFinite(parsed) && parsed >= min && parsed <= max) onCommit(parsed);
+          if (Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+            onCommit(parsed);
+            sent.current = parsed;
+          }
         }
       }}
       onBlur={(e) => {
