@@ -186,3 +186,34 @@ describe("AdminPaymentOrdersPanel - status spoza znanej listy", () => {
     expect(badge.className).toContain("bg-muted");
   });
 });
+
+describe("AdminPaymentOrdersPanel - filtr statusu z adresu (S2)", () => {
+  it("`status` z trasy zawęża odczyt; klik filtra idzie do trasy (historia), nie do stanu lokalnego", async () => {
+    const onStatusChange = vi.fn();
+    renderWithQueryClient(
+      <AdminPaymentOrdersPanel status="paid" onStatusChange={onStatusChange} />,
+    );
+    await waitFor(() =>
+      expect(h.list).toHaveBeenCalledWith({
+        data: { status: "paid", limit: 200, environment: "sandbox" },
+      }),
+    );
+    const pending = screen
+      .getAllByRole("button")
+      .find(
+        (b) => b.getAttribute("aria-pressed") !== null && b.textContent?.match(/pending|Oczek/i),
+      );
+    expect(pending).toBeTruthy();
+    fireEvent.click(pending!);
+    expect(onStatusChange).toHaveBeenCalledWith("pending");
+  });
+
+  it("status spoza słownika zamówień (np. `past_due`) czyta wszystkie, nie pustą tabelę", async () => {
+    renderWithQueryClient(<AdminPaymentOrdersPanel status="past_due" onStatusChange={() => {}} />);
+    await waitFor(() =>
+      expect(h.list).toHaveBeenCalledWith({
+        data: { status: "all", limit: 200, environment: "sandbox" },
+      }),
+    );
+  });
+});

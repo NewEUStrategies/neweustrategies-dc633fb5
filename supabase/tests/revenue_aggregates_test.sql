@@ -204,7 +204,7 @@ SELECT set_eq(
 SELECT set_eq($$ SELECT jsonb_object_keys(r -> 'movements') FROM res WHERE name = 'snap' $$,
   ARRAY['new', 'expansion', 'reactivation', 'contraction', 'churn'], 'kształt: movements migawki');
 SELECT set_eq($$ SELECT jsonb_object_keys(r) FROM res WHERE name = 'bridge' $$,
-  ARRAY['since', 'until', 'segment', 'data_since', 'currencies', 'active_subscriptions', 'active_customers'],
+  ARRAY['since', 'until', 'segment', 'data_since', 'basis_mix', 'currencies', 'active_subscriptions', 'active_customers'],
   'kształt: most (MRR_BRIDGE_KEYS.root)');
 SELECT set_eq($$ SELECT jsonb_object_keys(r -> 'currencies' -> 0) FROM res WHERE name = 'bridge' $$,
   ARRAY['currency', 'start_minor', 'opening_minor', 'new_minor', 'expansion_minor', 'reactivation_minor',
@@ -251,8 +251,9 @@ SELECT results_eq(
        FROM res, jsonb_array_elements(r -> 'currencies') c WHERE name = 'bridge_b2b' $$,
   $$ VALUES ('PLN'::text, 0, 5000, 5000) $$,
   'most: segment b2b - tylko subskrypcje tego segmentu');
-SELECT is((SELECT (r->>'active_subscriptions')::int FROM res WHERE name = 'bridge'), 5,
-  'most: aktywne subskrypcje na koniec (wszystkie waluty)');
+SELECT ok((SELECT (r->>'active_subscriptions')::int = 5 AND r->'basis_mix' = '{"catalog": 0.2, "provider": 0.8}'::jsonb
+             FROM res WHERE name = 'bridge'),
+  'most: aktywne subskrypcje na koniec (wszystkie waluty) i podstawa kwot (D-05)');
 
 -- ── 5. Migawka semantyczna ───────────────────────────────────────────────────
 SELECT results_eq(

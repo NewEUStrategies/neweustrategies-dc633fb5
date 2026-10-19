@@ -770,6 +770,18 @@ describe("przypomnienie o wygaśnięciu tylko wtedy, gdy dostęp kończy się w 
     }
   });
 
+  it.each(["unpaid", "incomplete_expired"])(
+    "P11: status `%s` (windykacja bez zapłaty) nie dostaje ŻADNEGO przypomnienia",
+    async (status) => {
+      givenDb({ rows: [subscriptionRow({ status, cancel_at_period_end: true })] });
+
+      const result = await runBillingReminders(3, 200, NOW);
+
+      expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+      expect(mail.sendTxEmail).not.toHaveBeenCalled();
+    },
+  );
+
   it("anulowanie za brak płatności: dostęp zgasł z karencją - żadnego maila i żadnego licznika", async () => {
     givenDb({ rows: [subscriptionRow({ status: "canceled", ...NIEOPLACONE_ODNOWIENIE })] });
 

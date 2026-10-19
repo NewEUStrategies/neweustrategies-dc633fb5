@@ -19,7 +19,7 @@
 --
 -- Uruchamianie: PGTAP_DIR=... PGTAP_PORT=... bash scripts/pgtap-local/run.sh test revenue_catalog_mirror
 BEGIN;
-SELECT plan(32);
+SELECT plan(33);
 
 -- ── Fixture: dwóch najemców (plany z seeda najemcy, B z inną ceną) ──────────
 INSERT INTO public.tenants (id, slug, name) VALUES
@@ -197,6 +197,42 @@ SELECT is(
   (SELECT mrr_minor FROM public.subscription_mrr_minor('d2010000-0000-0000-0000-0000000000a0', 'plus_monthly', 1, NULL, NULL, 1000, NULL)),
   2900,
   'mrr: rabat bez końca obniża także kwotę z katalogu');
+
+-- ── 5. MRR z katalogu = catalogPlanQuote + monthlyEquivalent (wspólny fixture) ──
+-- Wiersz: cena, miejsca, cena planu, próg i stawka wolumenowa, oczekiwany MRR.
+-- Funkcja ustawia plan najemcy A dla pary warstwa × cykl i woła helper SQL;
+-- vitest liczy to samo z `catalogMrrMinor` (src/lib/revenue/finance/mrrMath.ts).
+CREATE TEMP TABLE fx_catalog_mrr (
+  price_id text, seats integer, price_cents integer, volume_threshold integer, volume_price integer, mrr_minor integer
+) ON COMMIT DROP;
+-- fixture:catalog-mrr:begin
+INSERT INTO fx_catalog_mrr (price_id, seats, price_cents, volume_threshold, volume_price, mrr_minor) VALUES
+  ('plus_monthly', 1, 3900, NULL, NULL, 3900),
+  ('plus_monthly', 4, 3900, NULL, NULL, 3900),
+  ('plus_annual', 1, 39000, NULL, NULL, 3250),
+  ('pro_annual', 1, 119000, NULL, NULL, 9917),
+  ('student_annual', 1, 19000, NULL, NULL, 1583),
+  ('team_monthly_seat', 10, 8900, 11, 7900, 89000),
+  ('team_monthly_seat', 11, 8900, 11, 7900, 86900),
+  ('team_monthly_seat', 0, 8900, 11, 7900, 8900),
+  ('team_monthly_seat', 120, 8900, 11, 7900, 790000),
+  ('team_monthly_seat', 5, 8900, 2, 5000, 25000),
+  ('educator_monthly', 1, 2900, NULL, NULL, 2900);
+-- fixture:catalog-mrr:end
+CREATE FUNCTION pg_temp.catalog_mrr_case(p_price text, p_seats integer, p_cents integer, p_thr integer, p_vol integer)
+RETURNS integer LANGUAGE sql AS $$
+  UPDATE public.access_plans ap
+     SET price_cents = p_cents, volume_threshold_seats = p_thr, volume_price_cents = p_vol
+    FROM public.billing_catalog_entry(p_price) c
+   WHERE ap.tenant_id = 'd2010000-0000-0000-0000-0000000000a0'
+     AND ap.tier_key = c.tier_key AND ap.interval::text = c.billing_interval;
+  SELECT mrr_minor FROM public.subscription_mrr_minor('d2010000-0000-0000-0000-0000000000a0', p_price, p_seats,
+    NULL, NULL, 0, NULL);
+$$;
+SELECT is_empty(
+  $$ SELECT price_id, seats, mrr_minor FROM fx_catalog_mrr
+      WHERE pg_temp.catalog_mrr_case(price_id, seats, price_cents, volume_threshold, volume_price) IS DISTINCT FROM mrr_minor $$,
+  'mrr: katalog = catalogPlanQuote (miejsca, próg volume, limit 100) + monthlyEquivalent na wspólnym fixture');
 
 SELECT * FROM finish();
 ROLLBACK;

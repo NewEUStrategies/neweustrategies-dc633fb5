@@ -28,7 +28,8 @@
 --      i cena katalogu nie mają historii).
 --   B. `admin_revenue_mrr_bridge(p_since, p_until, p_segment)` - most per
 --      waluta: start + otwarcie (backfill) + new + expansion + reactivation +
---      contraction + churn = koniec (z konstrukcji, dowód w pgTAP).
+--      contraction + churn = koniec (z konstrukcji, dowód w pgTAP) + udział
+--      podstawy kwot (`basis_mix`, D-05 - adnotacja źródła kwoty w panelu).
 --   C. `admin_revenue_mrr_series(p_since, p_until, p_grain, p_time_zone)` -
 --      MRR na koniec każdego kubełka (dzień/tydzień/miesiąc w strefie
 --      najemcy, domyślnie Europe/Warsaw - granice LOKALNE, AGENTS) + MRR
@@ -392,6 +393,20 @@ BEGIN
     'until', p_until,
     'segment', COALESCE(p_segment, 'all'),
     'data_since', v_data_since,
+    -- D-05: udział kwot z migawki operatora vs z katalogu (adnotacja źródła).
+    'basis_mix', (
+      SELECT CASE WHEN count(*) > 0 THEN jsonb_build_object(
+               'provider', round(avg((x.b = 'provider')::integer), 4),
+               'catalog', round(avg((x.b = 'catalog')::integer), 4)) END
+        FROM (SELECT COALESCE(
+                       (SELECT h.mrr_basis FROM public.subscription_state_history h
+                         WHERE h.subscription_id = a.subscription_id AND h.occurred_at < p_until
+                           AND h.mrr_basis IS NOT NULL ORDER BY h.occurred_at DESC, h.id DESC LIMIT 1),
+                       (SELECT CASE WHEN s.unit_amount_minor IS NOT NULL THEN 'provider' ELSE 'catalog' END
+                          FROM public.subscriptions s WHERE s.id = a.subscription_id), 'catalog') AS b
+                FROM (SELECT DISTINCT y.subscription_id FROM public.mrr_movements y
+                       WHERE y.tenant_id = v_tenant AND y.environment = 'live' AND y.occurred_at < p_until
+                       GROUP BY y.subscription_id, y.currency HAVING sum(y.delta_minor) > 0) a) x),
     'currencies', CASE WHEN v_data_since IS NULL AND EXISTS (
         SELECT 1 FROM public.subscriptions s WHERE s.tenant_id = v_tenant AND s.environment = 'live')
       THEN NULL ELSE v_rows END,

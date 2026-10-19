@@ -1,99 +1,68 @@
-// Dialog retencyjny - ŚCIEŻKA REZYGNACJI. Najwyższe ryzyko konsekwencji
-// w całym repozytorium: 0 z 21 funkcji pokrytych do 18.08.2026, a to jedyne
-// miejsce, w którym płacący klient rezygnuje z subskrypcji.
+// Dialog anulowania - ŚCIEŻKA REZYGNACJI (S2, P01, P02, Z-09).
 //
-// Rezygnacja zablokowana albo POZORNIE WYKONANA nie jest usterką wizualną -
-// to ryzyko prawne (prawo konsumenckie) i reklamacyjne. Dlatego ten plik
-// pilnuje przede wszystkim tego, czy da się DOJŚĆ DO KOŃCA:
+// Rezygnacja zablokowana albo POZORNIE WYKONANA to ryzyko prawne (DSA art. 25,
+// wytyczne UOKiK), więc ten plik liczy KLIKNIĘCIA do anulowania i pilnuje:
+//   1. NAJWYŻEJ 2 KROKI - „Anuluj mimo to" jest widoczne na każdym kroku,
+//      z ankiety i z oferty to jedno kliknięcie;
+//   2. `retention_settings.enabled = false` = samo potwierdzenie (bez ankiety);
+//   3. przepływ w bazie: otwarcie -> `startRetentionFlow`, decyzja -> TEN SAM
+//      wiersz (`feedbackId`) z `canceled`/`saved`, brak powodu = `null`
+//      (serwer zapisze `not_given`, Z-09);
+//   4. awaria startu przepływu, zapisu ankiety albo oferty NIE blokuje wyjścia;
+//   5. okno zamyka się wyłącznie po UDANEJ rezygnacji;
+//   6. dostępność (axe) na każdym kroku.
 //
-//   1. ODRZUCENIE KONTROFERTY NIE MOŻE ZABLOKOWAĆ REZYGNACJI. Kontrofertka
-//      rabatowa stoi na drodze wyjścia; test dowodzi, że „Zrezygnuj mimo to"
-//      naprawdę woła anulowanie, a nie tylko zamyka okno.
-//   2. ANKIETA JEST BEST-EFFORT. Zapis powodu odejścia to analityka. Jej awaria
-//      NIE MOŻE zatrzymać rezygnacji - inaczej padnięty serwer analityki
-//      trzyma klienta w płatnej subskrypcji.
-//   3. OFERTA WYCZERPANA TO NADAL WYJŚCIE. Gdy kupon się nie należy
-//      (`ok: false`), przycisk akceptacji znika - ale przycisk rezygnacji
-//      musi zostać i działać.
-//
-// Asercje idą na KLUCZE i18n, nie na polski tekst (patrz `translateKey`):
-// zmiana copy nie psuje testu, a rozjazd klucza owszem.
+// Asercje idą na KLUCZE i18n (`translateKey`), nie na polski tekst.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { retentionReasons, retentionSettings } from "@/test/billing/fixtures";
-import type { RetentionReasonRow, RetentionSettingsRow } from "@/lib/retention/queries";
-
-type OfferResult =
-  | { ok: true; code: string; discountPct: number; discountPeriods: number; validUntil: string }
-  | { ok: false; reason: string };
+import { retentionReasons } from "@/test/billing/fixtures";
+import { axeViolations, summarize } from "@/test/axe";
+import type { RetentionReasonRow } from "@/lib/retention/queries";
+import type { RetentionFlowStart } from "@/lib/retention/functions";
 
 const h = vi.hoisted(() => ({
   lang: { current: "pl" },
-  settings: {
-    current: null as RetentionSettingsRow | null,
-    isLoading: false,
-  },
   reasons: { current: [] as RetentionReasonRow[], isLoading: false },
+  startFlow: vi.fn(),
   submitFeedback: vi.fn(),
   acceptOffer: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
-  clipboard: vi.fn(),
 }));
 
 vi.mock("react-i18next", async () => {
   const stubs = await import("@/test/reactStubs");
   return stubs.reactI18nextStub(() => h.lang.current);
 });
-
 vi.mock("@/lib/i18n-retention", () => ({ ensureI18n: () => {} }));
-
+vi.mock("@/lib/i18n-profile", () => ({ ensureI18n: () => {} }));
 vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
-
-// `useServerFn` w produkcji owija server fn w wywołanie RPC; w teście
-// przepuszczamy funkcję na wylot, a same server fn są atrapami niżej.
-vi.mock("@tanstack/react-start", () => ({
-  useServerFn: <T,>(fn: T) => fn,
-}));
-
+vi.mock("@tanstack/react-start", () => ({ useServerFn: <T,>(fn: T) => fn }));
 vi.mock("@/lib/retention/functions", () => ({
+  startRetentionFlow: (arg: unknown) => h.startFlow(arg),
   submitRetentionFeedback: (arg: unknown) => h.submitFeedback(arg),
   acceptRetentionOffer: (arg: unknown) => h.acceptOffer(arg),
 }));
-
 vi.mock("@/lib/retention/queries", () => ({
-  useRetentionSettings: () => ({
-    data: h.settings.current,
-    isLoading: h.settings.isLoading,
-  }),
   useRetentionReasons: () => ({ data: h.reasons.current, isLoading: h.reasons.isLoading }),
   reasonLabel: (reason: RetentionReasonRow, lang: string) =>
     lang === "en" ? reason.label_en : reason.label_pl,
 }));
 
-vi.mock("sonner", () => ({
-  toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
-}));
-
 import { RetentionDialog } from "@/components/billing/organisms/RetentionDialog";
 
-const acceptedOffer: OfferResult = {
-  ok: true,
-  code: "STAY30",
-  discountPct: 30,
-  discountPeriods: 3,
-  validUntil: "2026-09-01T00:00:00.000Z",
-};
+const FEEDBACK_ID = "55555555-5555-4555-8555-555555555555";
 
-/**
- * Renderuje dialog w stanie otwartym. Zwraca szpiegów, o których cały plik
- * pyta: CZY wyszło żądanie anulowania i CZY okno zostało zamknięte - to dwa
- * różne fakty, a mylenie ich jest właśnie tym, na czym polega „pozorna
- * rezygnacja".
- */
+function flow(over: Partial<RetentionFlowStart> = {}): RetentionFlowStart {
+  return {
+    feedbackId: FEEDBACK_ID,
+    surveyEnabled: true,
+    offer: { available: true, discountPct: 30, discountPeriods: 3 },
+    ...over,
+  };
+}
+
 function renderDialog(options: { cancel?: () => Promise<void> | void } = {}) {
   const onConfirmCancel = vi.fn(options.cancel ?? (() => Promise.resolve()));
   const onOpenChange = vi.fn();
@@ -102,375 +71,253 @@ function renderDialog(options: { cancel?: () => Promise<void> | void } = {}) {
       open
       onOpenChange={onOpenChange}
       subscriptionId="sub-1"
+      accessUntil="2026-09-30T00:00:00.000Z"
       onConfirmCancel={onConfirmCancel}
     />,
   );
   return { ...view, onConfirmCancel, onOpenChange };
 }
 
-const clickKey = (key: string) => fireEvent.click(screen.getByText(key));
+const click = (key: string) => fireEvent.click(screen.getByText(key));
+const phase = () =>
+  document.querySelector("[data-retention-phase]")?.getAttribute("data-retention-phase");
+
+async function opened(expected: string) {
+  await waitFor(() => expect(phase()).toBe(expected));
+}
 
 beforeEach(() => {
   h.lang.current = "pl";
-  h.settings.current = retentionSettings();
-  h.settings.isLoading = false;
   h.reasons.current = retentionReasons();
   h.reasons.isLoading = false;
-  h.submitFeedback.mockReset().mockResolvedValue({ ok: true });
-  h.acceptOffer.mockReset().mockResolvedValue(acceptedOffer);
-  h.toastSuccess.mockReset();
-  h.toastError.mockReset();
-  h.clipboard.mockReset().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, "clipboard", {
-    configurable: true,
-    value: { writeText: (text: string) => h.clipboard(text) },
+  h.startFlow.mockReset().mockResolvedValue(flow());
+  h.submitFeedback.mockReset().mockResolvedValue({ ok: true, feedbackId: FEEDBACK_ID });
+  h.acceptOffer.mockReset().mockResolvedValue({ ok: true, discountPct: 30, discountPeriods: 3 });
+});
+
+describe("liczba kroków do anulowania (≤ 2)", () => {
+  it("retencja wyłączona: samo potwierdzenie - 1 kliknięcie anuluje", async () => {
+    h.startFlow.mockResolvedValue(
+      flow({ surveyEnabled: false, offer: { available: false, reason: "disabled" } }),
+    );
+    const { onConfirmCancel } = renderDialog();
+    await opened("confirm");
+
+    expect(screen.queryByText("retention.reasonHeading")).toBeNull();
+    click("profile.retentionFlow.confirmCancel");
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+  });
+
+  it("ankieta z ofertą: „Anuluj mimo to” jest na kroku 1 i anuluje jednym kliknięciem", async () => {
+    const { onConfirmCancel } = renderDialog();
+    await opened("reason");
+
+    expect(screen.getByText("profile.retentionFlow.cancelAnyway")).toBeTruthy();
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+  });
+
+  it("przez ofertę: dokładnie 2 kroki, „Anuluj mimo to” widoczne także na kroku 2", async () => {
+    const { onConfirmCancel } = renderDialog();
+    await opened("reason");
+    expect(document.querySelector("[data-retention-step='1']")).not.toBeNull();
+
+    click("profile.retentionFlow.next");
+    await opened("offer");
+    expect(document.querySelector("[data-retention-step='2']")).not.toBeNull();
+    expect(onConfirmCancel).not.toHaveBeenCalled();
+
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+  });
+
+  it("bez należnej oferty nie ma kroku 2 (brak „Dalej”)", async () => {
+    h.startFlow.mockResolvedValue(
+      flow({ offer: { available: false, reason: "already_redeemed" } }),
+    );
+    renderDialog();
+    await opened("reason");
+    expect(screen.queryByText("profile.retentionFlow.next")).toBeNull();
+    expect(document.querySelector("[data-retention-step]")).toBeNull();
+  });
+
+  it("w trakcie startu przepływu anulowanie już działa (nic nie czeka na serwer)", async () => {
+    h.startFlow.mockReturnValue(new Promise(() => {}));
+    const { onConfirmCancel } = renderDialog();
+    expect(phase()).toBe("loading");
+    click("profile.retentionFlow.confirmCancel");
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
+  });
+
+  it("awaria startu przepływu degraduje do potwierdzenia, nie blokuje anulowania", async () => {
+    h.startFlow.mockRejectedValue(new Error("network"));
+    const { onConfirmCancel } = renderDialog();
+    await opened("confirm");
+    click("profile.retentionFlow.confirmCancel");
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
   });
 });
 
-describe("RetentionDialog - krok ankiety", () => {
-  it("pokazuje powody z katalogu oraz wariant „inny powód”", () => {
+describe("zapis przepływu (ten sam wiersz)", () => {
+  it("otwarcie woła startRetentionFlow z subskrypcją", async () => {
     renderDialog();
-
-    expect(screen.getByText("Za drogo")).toBeTruthy();
-    expect(screen.getByText("Nie korzystam")).toBeTruthy();
-    expect(screen.getByText("retention.otherReason")).toBeTruthy();
+    await opened("reason");
+    expect(h.startFlow).toHaveBeenCalledWith({ data: { subscriptionId: "sub-1" } });
   });
 
-  it("etykiety powodów idą za językiem interfejsu", () => {
-    h.lang.current = "en";
+  it("anulowanie bez powodu: canceled, feedbackId przepływu, powód null (Z-09)", async () => {
     renderDialog();
-
-    expect(screen.getByText("Too expensive")).toBeTruthy();
-    expect(screen.queryByText("Za drogo")).toBeNull();
+    await opened("reason");
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(h.submitFeedback).toHaveBeenCalledTimes(1));
+    expect(h.submitFeedback).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        feedbackId: FEEDBACK_ID,
+        outcome: "canceled",
+        reasonId: null,
+        reasonLabel: null,
+        offerShown: false,
+      }),
+    });
   });
 
-  it("w trakcie ładowania powodów pokazuje szkielet, nie pustą listę", () => {
-    h.reasons.current = [];
-    h.reasons.isLoading = true;
+  it("wybrany powód i komentarz trafiają do ankiety; oferta pokazana = offerShown", async () => {
     renderDialog();
-
-    expect(screen.queryByText("retention.otherReason")).toBeNull();
-    expect(screen.getByText("retention.reasonHeading")).toBeTruthy();
+    await opened("reason");
+    const reason = h.reasons.current[0]!;
+    fireEvent.click(screen.getByText(reason.label_pl));
+    fireEvent.change(screen.getByLabelText("retention.commentLabel"), {
+      target: { value: "  za drogo  " },
+    });
+    click("profile.retentionFlow.next");
+    await opened("offer");
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(h.submitFeedback).toHaveBeenCalledTimes(1));
+    expect(h.submitFeedback.mock.calls[0]![0].data).toMatchObject({
+      reasonId: reason.id,
+      reasonLabel: reason.label_pl,
+      comment: "za drogo",
+      offerShown: true,
+      outcome: "canceled",
+    });
   });
 
-  it("„zostaję” zamyka okno i NIE wywołuje anulowania", () => {
+  it("„Inny powód” to świadomy wybór (etykieta), nie brak powodu", async () => {
+    renderDialog();
+    await opened("reason");
+    fireEvent.click(screen.getByText("retention.otherReason"));
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(h.submitFeedback).toHaveBeenCalledTimes(1));
+    expect(h.submitFeedback.mock.calls[0]![0].data).toMatchObject({
+      reasonId: null,
+      reasonLabel: "retention.otherReason",
+    });
+  });
+
+  it("„Zostaw subskrypcję” zapisuje saved, zamyka okno i NIE anuluje", async () => {
     const { onConfirmCancel, onOpenChange } = renderDialog();
-
-    clickKey("retention.keep");
-
+    await opened("reason");
+    click("profile.retentionFlow.keep");
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(onConfirmCancel).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(h.submitFeedback.mock.calls[0]![0].data).toMatchObject({ outcome: "saved" }),
+    );
+  });
+
+  it("ankieta zapisuje się dopiero PO udanym anulowaniu (porażka nie zostawia „canceled”)", async () => {
+    renderDialog({ cancel: () => Promise.reject(new Error("refused")) });
+    await opened("reason");
+    click("profile.retentionFlow.cancelAnyway");
+    await screen.findByRole("alert");
+    expect(h.submitFeedback).not.toHaveBeenCalled();
+  });
+
+  it("awaria zapisu ankiety NIE blokuje zamknięcia po anulowaniu", async () => {
+    h.submitFeedback.mockRejectedValue(new Error("analytics down"));
+    const { onOpenChange } = renderDialog();
+    await opened("reason");
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 });
 
-describe("RetentionDialog - kontrofertka na drodze wyjścia", () => {
-  it("przy dostępnej ofercie „kontynuuj” pokazuje ofertę i jeszcze NIE anuluje", async () => {
+describe("oferta (P02: rabat na subskrypcji, bez kodu)", () => {
+  it("przyjęcie: ten sam przepływ, potwierdzenie rabatu, bez anulowania", async () => {
     const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
+    await opened("reason");
+    click("profile.retentionFlow.next");
+    await opened("offer");
+    click('retention.offer.accept {"pct":30}');
+    await opened("accepted");
+    expect(h.acceptOffer).toHaveBeenCalledWith({
+      data: expect.objectContaining({ subscriptionId: "sub-1", feedbackId: FEEDBACK_ID }),
+    });
+    expect(
+      screen.getByText('profile.retentionFlow.accepted.body {"pct":30,"count":3}'),
+    ).toBeTruthy();
     expect(onConfirmCancel).not.toHaveBeenCalled();
   });
 
-  it("oferta pokazuje procent, liczbę okresów i ważność Z USTAWIEŃ, nie z komponentu", async () => {
-    h.settings.current = retentionSettings({
-      discount_pct: 25,
-      discount_periods: 2,
-      coupon_valid_days: 7,
-    });
-    renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() =>
-      expect(screen.getByText('retention.offer.body {"pct":25,"count":2}')).toBeTruthy(),
-    );
-    // `count`, nie `days` - po tej zmiennej i18next wybiera formę liczebnika.
-    expect(screen.getByText('retention.offer.hint {"count":7}')).toBeTruthy();
-  });
-
-  // TO JEST TEST Z DEFINICJI UKOŃCZENIA.
-  it("ODRZUCENIE OFERTY NIE BLOKUJE REZYGNACJI - anulowanie faktycznie wychodzi", async () => {
-    const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey("retention.offer.declineAndCancel");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    // Ankieta zapisuje, że oferta BYŁA pokazana - inaczej raport retencji
-    // policzyłby to odejście jako „nie dostał oferty".
-    expect(h.submitFeedback).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ offerShown: true }) }),
-    );
-  });
-
-  it("bez włączonej oferty „kontynuuj” anuluje od razu (offerShown: false)", async () => {
-    h.settings.current = retentionSettings({ enabled: false });
-    const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    expect(h.submitFeedback).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ offerShown: false }) }),
-    );
-  });
-
-  it("przy rabacie zerowym oferty nie ma - rezygnacja idzie prosto", async () => {
-    h.settings.current = retentionSettings({ discount_pct: 0 });
-    const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText("retention.offer.title")).toBeNull();
-  });
-
-  it("oferta wyczerpana: znika przycisk akceptacji, ZOSTAJE wyjście z rezygnacją", async () => {
+  it("oferta wykorzystana w 180 dniach: znika akceptacja, zostaje „Anuluj mimo to”", async () => {
     h.acceptOffer.mockResolvedValue({ ok: false, reason: "already_redeemed" });
     const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey('retention.offer.accept {"pct":30}');
-
-    await waitFor(() => expect(screen.getByText("retention.offer.alreadyRedeemed")).toBeTruthy());
+    await opened("reason");
+    click("profile.retentionFlow.next");
+    await opened("offer");
+    click('retention.offer.accept {"pct":30}');
+    await screen.findByText("retention.offer.alreadyRedeemed");
     expect(screen.queryByText('retention.offer.accept {"pct":30}')).toBeNull();
-
-    clickKey("retention.offer.declineAndCancel");
+    click("profile.retentionFlow.cancelAnyway");
     await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
   });
 
-  it("awaria akceptacji oferty nie zamyka wyjścia - rezygnacja dalej możliwa", async () => {
-    h.acceptOffer.mockRejectedValue(new Error("boom"));
+  it("awaria operatora przy ofercie nie zamyka wyjścia", async () => {
+    h.acceptOffer.mockRejectedValue(new Error("stripe down"));
     const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey('retention.offer.accept {"pct":30}');
-
-    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("retention.errors.offer"));
-    clickKey("retention.offer.declineAndCancel");
+    await opened("reason");
+    click("profile.retentionFlow.next");
+    await opened("offer");
+    click('retention.offer.accept {"pct":30}');
+    await screen.findByText("profile.retentionFlow.offer.unavailable");
+    click("profile.retentionFlow.cancelAnyway");
     await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
   });
 });
 
-describe("RetentionDialog - ankieta jest best-effort", () => {
-  it("ZAWIESZONY zapis powodu nie wstrzymuje rezygnacji - anulowanie wychodzi bez czekania", async () => {
-    // Padnięty serwer analityki to częściej połączenie, które wisi, niż szybki
-    // błąd. Dawniej rezygnacja startowała dopiero PO ankiecie, więc wisząca
-    // ankieta trzymała klienta w płatnej subskrypcji z kręcącym się przyciskiem.
-    h.submitFeedback.mockReturnValue(new Promise(() => {}));
-    h.settings.current = retentionSettings({ enabled: false });
-    const { onConfirmCancel, onOpenChange } = renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    // Ankieta i tak wyszła - z tym samym powodem i skutkiem pokazania oferty.
-    expect(h.submitFeedback).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ offerShown: false }) }),
-    );
-  });
-
-  it("zawieszony zapis po ODRZUCENIU OFERTY też nie wstrzymuje rezygnacji", async () => {
-    h.submitFeedback.mockReturnValue(new Promise(() => {}));
-    const { onConfirmCancel, onOpenChange } = renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey("retention.offer.declineAndCancel");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-  });
-
-  it("powód wychodzi RAZEM z rezygnacją - nie czeka na odpowiedź operatora", async () => {
-    // Odwrotna kolejność (ankieta dopiero po udanym anulowaniu) gubiła powód
-    // przy wolnym operatorze i zamkniętej karcie, a przy odmowie operatora -
-    // zawsze, choć klient swoją decyzję już podał.
-    h.settings.current = retentionSettings({ enabled: false });
-    const { onConfirmCancel } = renderDialog({ cancel: () => new Promise<void>(() => {}) });
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    expect(h.submitFeedback).toHaveBeenCalledTimes(1);
-    expect(h.submitFeedback).toHaveBeenCalledWith({
-      data: expect.objectContaining({ subscriptionId: "sub-1", offerShown: false }),
-    });
-  });
-
-  it("awaria zapisu powodu NIE blokuje rezygnacji", async () => {
-    h.submitFeedback.mockRejectedValue(new Error("analityka padła"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.settings.current = retentionSettings({ enabled: false });
-    const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(1));
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
-  });
-
-  it("wybrany powód i komentarz trafiają do ankiety", async () => {
-    h.settings.current = retentionSettings({ enabled: false });
-    renderDialog();
-
-    fireEvent.click(screen.getByText("Nie korzystam"));
-    fireEvent.change(screen.getByLabelText("retention.commentLabel"), {
-      target: { value: "  za mało analiz  " },
-    });
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(h.submitFeedback).toHaveBeenCalled());
-    expect(h.submitFeedback).toHaveBeenCalledWith({
-      data: {
-        subscriptionId: "sub-1",
-        reasonId: "reason-unused",
-        reasonLabel: "Nie korzystam",
-        comment: "za mało analiz",
-        offerShown: false,
-      },
-    });
-  });
-
-  it("puste pole komentarza nie wysyła pustego napisu", async () => {
-    h.settings.current = retentionSettings({ enabled: false });
-    renderDialog();
-
-    fireEvent.change(screen.getByLabelText("retention.commentLabel"), {
-      target: { value: "   " },
-    });
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(h.submitFeedback).toHaveBeenCalled());
-    const payload = h.submitFeedback.mock.calls[0]?.[0] as { data: { comment?: string } };
-    expect(payload.data.comment).toBeUndefined();
-    // Brak wyboru = „inny powód”, więc `reasonId` musi zostać nullem.
-    expect((payload as { data: { reasonId: string | null } }).data.reasonId).toBeNull();
-  });
-});
-
-describe("RetentionDialog - przyjęta kontrofertka", () => {
-  it("po akceptacji pokazuje kod kuponu i NIE anuluje subskrypcji", async () => {
-    const { onConfirmCancel } = renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey('retention.offer.accept {"pct":30}');
-
-    await waitFor(() => expect(screen.getByText("STAY30")).toBeTruthy());
-    expect(onConfirmCancel).not.toHaveBeenCalled();
-  });
-
-  it("kopiowanie kodu woła schowek i potwierdza", async () => {
-    renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey('retention.offer.accept {"pct":30}');
-    await waitFor(() => expect(screen.getByText("STAY30")).toBeTruthy());
-    clickKey("retention.accepted.copy");
-
-    await waitFor(() => expect(h.clipboard).toHaveBeenCalledWith("STAY30"));
-    expect(h.toastSuccess).toHaveBeenCalledWith("retention.accepted.copied");
-  });
-
-  it("brak uprawnień do schowka nie wywala ekranu - kod zostaje do przepisania", async () => {
-    h.clipboard.mockRejectedValue(new Error("odmowa"));
-    renderDialog();
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey('retention.offer.accept {"pct":30}');
-    await waitFor(() => expect(screen.getByText("STAY30")).toBeTruthy());
-    clickKey("retention.accepted.copy");
-
-    await waitFor(() => expect(h.clipboard).toHaveBeenCalled());
-    expect(screen.getByText("STAY30")).toBeTruthy();
-    expect(h.toastSuccess).not.toHaveBeenCalled();
-  });
-});
-
-describe("RetentionDialog - NIEUDANA rezygnacja nie może wyglądać jak udana", () => {
-  // Zamknięcie okna jest dla klienta MOCNIEJSZYM sygnałem „zrobione" niż
-  // znikający toast. Do 18.08.2026 dialog zamykał się identycznie po sukcesie
-  // i po porażce, bo rodzic połykał wyjątek, a `onConfirmCancel` zawsze
-  // rozwiązywał promise. Efekt: klient wychodził przekonany, że zrezygnował,
-  // przy subskrypcji, która dalej była obciążana.
-  it("okno ZOSTAJE otwarte, gdy anulowanie nie przeszło", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.settings.current = retentionSettings({ enabled: false });
-    const { onOpenChange } = renderDialog({
-      cancel: () => Promise.reject(new Error("provider_cancel_failed")),
-    });
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    consoleError.mockRestore();
-  });
-
-  it("komunikat mówi wprost, że subskrypcja jest nadal aktywna", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.settings.current = retentionSettings({ enabled: false });
-    renderDialog({ cancel: () => Promise.reject(new Error("boom")) });
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-    expect(screen.getByRole("alert").textContent).toBe("retention.errors.cancel");
-    consoleError.mockRestore();
-  });
-
-  it("po nieudanej próbie MOŻNA ponowić rezygnację", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.settings.current = retentionSettings({ enabled: false });
+describe("okno zamyka się tylko po udanej rezygnacji", () => {
+  it("porażka: okno zostaje z komunikatem i pozwala ponowić", async () => {
     let attempt = 0;
     const { onConfirmCancel, onOpenChange } = renderDialog({
-      cancel: () => {
-        attempt += 1;
-        return attempt === 1 ? Promise.reject(new Error("boom")) : Promise.resolve();
-      },
+      cancel: () => (attempt++ === 0 ? Promise.reject(new Error("refused")) : Promise.resolve()),
     });
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(onConfirmCancel).toHaveBeenCalledTimes(2);
-    consoleError.mockRestore();
-  });
-
-  it("udana rezygnacja NIE pokazuje komunikatu błędu i zamyka okno", async () => {
-    h.settings.current = retentionSettings({ enabled: false });
-    const { onOpenChange } = renderDialog();
-
-    clickKey("retention.continue");
-
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("porażka po ODRZUCENIU OFERTY też nie zamyka okna", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { onOpenChange } = renderDialog({
-      cancel: () => Promise.reject(new Error("boom")),
-    });
-
-    clickKey("retention.continue");
-    await waitFor(() => expect(screen.getByText("retention.offer.title")).toBeTruthy());
-    clickKey("retention.offer.declineAndCancel");
-
-    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    await opened("reason");
+    click("profile.retentionFlow.cancelAnyway");
+    expect((await screen.findByRole("alert")).textContent).toBe("retention.errors.cancel");
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    consoleError.mockRestore();
+
+    click("profile.retentionFlow.cancelAnyway");
+    await waitFor(() => expect(onConfirmCancel).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+});
+
+describe("dostępność", () => {
+  it.each(["confirm", "reason", "offer"] as const)("krok %s bez naruszeń axe", async (target) => {
+    if (target === "confirm") {
+      h.startFlow.mockResolvedValue(flow({ surveyEnabled: false }));
+    }
+    renderDialog();
+    await opened(target === "offer" ? "reason" : target);
+    if (target === "offer") {
+      click("profile.retentionFlow.next");
+      await opened("offer");
+    }
+    const dialog = screen.getByRole("dialog");
+    let violations: Awaited<ReturnType<typeof axeViolations>> = [];
+    await act(async () => {
+      violations = await axeViolations(dialog);
+    });
+    expect(violations, summarize(violations)).toEqual([]);
   });
 });

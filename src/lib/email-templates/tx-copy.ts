@@ -1845,6 +1845,16 @@ export function isParticipantTxEmailType(type: TxEmailType): type is Participant
   return (PARTICIPANT_TX_EMAIL_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * Etykieta CTA maila o rezygnacji wysłanego PO końcu dostępu (P12). Szkielet
+ * `subscription_canceled` mówi „Wznów subskrypcję" - po końcu okresu nie ma
+ * czego wznawiać, więc przycisk prowadzi do cennika i tak się nazywa.
+ */
+export const TX_CANCELED_ENDED_CTA: Readonly<Record<EmailLang, string>> = {
+  pl: "Zobacz plany",
+  en: "See plans",
+};
+
 export function txCopy(type: TxEmailType, lang: EmailLang): TxCopy {
   return DICTS[lang][type];
 }

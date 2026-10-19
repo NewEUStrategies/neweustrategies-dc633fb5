@@ -38,6 +38,12 @@ export interface TxBodyVars {
   donorMessage?: string | null;
   /** Sformatowana kwota przed obniżką ceny (cennik v6.2), np. "59,00 zł". */
   previousAmount?: string | null;
+  /**
+   * Dostęp już wygasł (P12): mail o rezygnacji wysłany PO końcu okresu nie
+   * może zachęcać do „wznowienia przed końcem okresu" - okresu już nie ma,
+   * zostaje nowy zakup.
+   */
+  accessEnded?: boolean | null;
 }
 
 export interface TxBodyCopy {
@@ -102,17 +108,25 @@ const PL: Partial<Record<TxEmailType, Builder>> = {
     };
   },
   subscription_canceled: (v, gender) => ({
-    intro:
-      `Potwierdzamy rezygnację z planu ${plan(v, "pl")}. Kolejne płatności nie zostaną pobrane.` +
-      (v.accessUntil
-        ? ` Dostęp do materiałów premium pozostaje aktywny do ${v.accessUntil} - płacisz tylko za okres, z którego korzystasz.`
-        : " Dostęp pozostaje aktywny do końca opłaconego okresu."),
-    extra: g(
-      "Jeśli zmienisz zdanie przed końcem okresu, możesz wznowić subskrypcję jednym kliknięciem - nie stracisz zapisanych materiałów ani historii czytania.",
-      "Jeśli zmienisz zdanie przed końcem okresu, możesz wznowić subskrypcję jednym kliknięciem - nie stracisz zapisanych materiałów ani historii czytania.",
-      "Subskrypcję można wznowić jednym kliknięciem przed końcem okresu - zapisane materiały i historia czytania pozostają nienaruszone.",
-      gender,
-    ),
+    intro: v.accessEnded
+      ? `Potwierdzamy zakończenie planu ${plan(v, "pl")}. Kolejne płatności nie zostaną pobrane, a dostęp do materiałów premium wygasł${v.accessUntil ? ` ${v.accessUntil}` : ""}.`
+      : `Potwierdzamy rezygnację z planu ${plan(v, "pl")}. Kolejne płatności nie zostaną pobrane.` +
+        (v.accessUntil
+          ? ` Dostęp do materiałów premium pozostaje aktywny do ${v.accessUntil} - płacisz tylko za okres, z którego korzystasz.`
+          : " Dostęp pozostaje aktywny do końca opłaconego okresu."),
+    extra: v.accessEnded
+      ? g(
+          "Możesz wrócić w każdej chwili - wybierz plan w cenniku, a zapisane materiały i historia czytania będą na Ciebie czekać.",
+          "Możesz wrócić w każdej chwili - wybierz plan w cenniku, a zapisane materiały i historia czytania będą na Ciebie czekać.",
+          "Powrót jest możliwy w każdej chwili - po wyborze planu w cenniku zapisane materiały i historia czytania pozostają dostępne.",
+          gender,
+        )
+      : g(
+          "Jeśli zmienisz zdanie przed końcem okresu, możesz wznowić subskrypcję jednym kliknięciem - nie stracisz zapisanych materiałów ani historii czytania.",
+          "Jeśli zmienisz zdanie przed końcem okresu, możesz wznowić subskrypcję jednym kliknięciem - nie stracisz zapisanych materiałów ani historii czytania.",
+          "Subskrypcję można wznowić jednym kliknięciem przed końcem okresu - zapisane materiały i historia czytania pozostają nienaruszone.",
+          gender,
+        ),
     note: g(
       "Napisz nam, dlaczego rezygnujesz - Twoja odpowiedź realnie wpływa na to, co publikujemy.",
       "Napisz nam, dlaczego rezygnujesz - Twoja odpowiedź realnie wpływa na to, co publikujemy.",
@@ -226,13 +240,15 @@ const EN: Partial<Record<TxEmailType, Builder>> = {
     note: "Invoices, payment history and plan management live in your profile under Subscription. You can cancel at any time and keep access until the end of the paid period.",
   }),
   subscription_canceled: (v) => ({
-    intro:
-      `We have cancelled your ${plan(v, "en")} plan and no further payments will be taken.` +
-      (v.accessUntil
-        ? ` Premium access stays active until ${v.accessUntil} - you only pay for the period you use.`
-        : " Access stays active until the end of the paid period."),
-    extra:
-      "If you change your mind before the period ends, you can resume in one click - your saved articles and reading history are kept.",
+    intro: v.accessEnded
+      ? `Your ${plan(v, "en")} plan has ended and no further payments will be taken. Premium access expired${v.accessUntil ? ` on ${v.accessUntil}` : ""}.`
+      : `We have cancelled your ${plan(v, "en")} plan and no further payments will be taken.` +
+        (v.accessUntil
+          ? ` Premium access stays active until ${v.accessUntil} - you only pay for the period you use.`
+          : " Access stays active until the end of the paid period."),
+    extra: v.accessEnded
+      ? "You can come back any time - pick a plan on the pricing page and your saved articles and reading history will be waiting."
+      : "If you change your mind before the period ends, you can resume in one click - your saved articles and reading history are kept.",
     note: "Tell us why you left - subscriber feedback directly shapes what we publish.",
   }),
   subscription_upgraded: (v) => ({

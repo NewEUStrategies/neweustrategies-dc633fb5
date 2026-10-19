@@ -29,6 +29,25 @@ vi.mock("react-i18next", async () => {
   return stubs.reactI18nextStub(() => "pl");
 });
 vi.mock("@/lib/i18n-admin-billing", () => ({}));
+// KPI panelu czytają RPC huba (S2) - tu poza zakresem: odczyty niedostępne.
+vi.mock("@/lib/i18n-admin-revenue-finance", () => ({ ensureI18n: () => {} }));
+vi.mock("@/components/admin/revenue/atoms/ProvenanceNote", () => ({ ProvenanceNote: () => null }));
+vi.mock("@/lib/revenue/finance/finance.functions", () => {
+  const unavailable = () => Promise.resolve({ state: "unavailable" });
+  return {
+    getRevenueMrrBridge: unavailable,
+    getRevenueDunning: unavailable,
+    getRevenueMrrSeries: unavailable,
+    getRevenueChurn: unavailable,
+    getRevenueCohorts: unavailable,
+    getRevenueRealized: unavailable,
+    getRevenueRetentionOffers: unavailable,
+    getRevenueOfferMatrix: unavailable,
+    getRevenueInputs: unavailable,
+    getRevenueEconomics: unavailable,
+    saveRevenueInput: unavailable,
+  };
+});
 vi.mock("@/components/ui/tabs", async () => {
   const react = await import("react");
   const stubs = await import("@/test/reactStubs");
@@ -46,7 +65,10 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: <T,>(fn: T) => fn }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (table: string) => h.chain!.from(table) },
 }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ isSuperAdmin: false }) }));
+// Najemca w sesji: lista subskrypcji ma go w kluczu i bez niego nie rusza (S2).
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ isSuperAdmin: false, tenantId: "tenant-1", roles: ["admin"] }),
+}));
 vi.mock("@/lib/billing/webhookRetry.functions", () => ({ retryWebhookEvent: vi.fn() }));
 vi.mock("@/lib/billing/reminders.functions", () => ({ runBillingRemindersNow: vi.fn() }));
 vi.mock("@/lib/billing/catalogSync.functions", () => ({

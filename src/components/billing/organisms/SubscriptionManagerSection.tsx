@@ -304,8 +304,9 @@ export function SubscriptionManagerSection() {
 
                 {!data.canceled_at && (
                   <>
-                    {/* Przepływ retencyjny zamiast prostego potwierdzenia:
-                        ankieta powodu + kontroferta, dopiero potem anulowanie. */}
+                    {/* Ten sam dialog co karta operatora (P01): potwierdzenie,
+                        przy włączonej retencji ankieta i oferta - najwyżej
+                        2 kroki, „Anuluj mimo to" na każdym. */}
                     <Button
                       variant="destructive"
                       disabled={busy}
@@ -317,6 +318,7 @@ export function SubscriptionManagerSection() {
                       open={retentionOpen}
                       onOpenChange={setRetentionOpen}
                       subscriptionId={data.id}
+                      accessUntil={periodStillRunning ? data.current_period_end : null}
                       onConfirmCancel={() => onCancel(data.id)}
                     />
                   </>
