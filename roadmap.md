@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #526
+
+- [x] Sprawdzić bazę: 1660 wymaganych obiektów, zero braków; 751 kolumn, zero nowych braków i 7 historycznych rozbieżności; 371 migracji egzekwowanych bez braków. Pasy Drizzle przechodzą, zachowują 22 historyczne braki kopii.
+- [x] Potwierdzić wszystkie commity PR: jedyny commit 244bdf9a0 jest drugim rodzicem merge 42c9c86d2; drzewo merge identyczne z końcem gałęzi PR. Sześć plików, bez zmian schematu; 13 testów SMS przechodzi, lint zmienionych plików bez błędów (jedno ostrzeżenie Fast Refresh).
+- [x] Sprawdzić działanie menu: podgląd i produkcja HTTP 200; menu przy 393x706 przewija się o 358 px po zamontowaniu wyszukiwarki, strona w tle pozostaje zablokowana i odzyskuje przewijanie po zamknięciu; zero błędów JavaScript. Build OK. Pełny seeded E2E i stan zdalnych jobów GitHub CI niezweryfikowane.
+- [ ] Potwierdzić zakończenie zleconej publikacji PR #526: publikacja zlecona, ale produkcja nadal zwraca tmvea8j6v (identyfikator sprzed zlecenia); oczekiwanie na zakończenie publikacji przez platformę, brak potwierdzenia nowej wersji.
+
 ## Przewijanie menu hamburgera na telefonie
 
 - [x] Ograniczyć wpływ wyszukiwarki do wnętrza przewijanego menu i sprawdzić przewijanie oraz zamykanie na telefonie: 65 testów jednostkowych i test przeglądarkowy przechodzą; gest palca przy 393x706 przesuwa menu o 358 px, strona pod menu pozostaje zablokowana, po zamknięciu odzyskuje przewijanie; build OK.
