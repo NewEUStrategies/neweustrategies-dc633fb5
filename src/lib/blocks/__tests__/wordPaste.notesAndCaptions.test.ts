@@ -37,6 +37,15 @@ describe("parseWordHtml - przypisy ręczne", () => {
     expect(blocks[0].data.html).toBe("A<sup>1</sup> B[fn]Drugie[/fn]");
     expect(blocks[1].data.html).toBe("1. Wniosek redakcji");
   });
+
+  // Recenzja 2026-10-19: separator na SAMYM KOŃCU wklejki (za definicjami)
+  // nie jest granicą treści/przypisów - przed poprawką wyżej był pomijany jako
+  // pusty, a po niej zatrzymywał zbieranie od razu i przypis przepadał.
+  it("<hr> zamykający wklejkę za definicjami nie blokuje zebrania przypisu", () => {
+    const blocks = parseWordHtml("<p>Teza<sup>1</sup></p><p>1. Źródło</p><hr>");
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph"]);
+    expect(blocks[0].data.html).toBe("Teza[fn]Źródło[/fn]");
+  });
 });
 
 describe("parseWordHtml - podpisy i grafiki", () => {

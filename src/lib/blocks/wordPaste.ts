@@ -252,7 +252,13 @@ function collectManualFootnotes(root: HTMLElement, notes: Map<string, string>): 
     // Separator PRZED testem pustego tekstu: `<hr>` nie ma treści, więc
     // pomijany jako pusty nigdy nie zatrzymywał zbierania i akapit treści
     // nad separatorem („1. Wniosek") mógł zostać zjedzony jako definicja.
-    if (node.tagName === "HR") break;
+    // Separator ZAMYKAJĄCY wklejkę (przed nim nie zebrano jeszcze żadnej
+    // definicji) nie jest granicą treści/przypisów - pomijamy go jak dawniej.
+    if (node.tagName === "HR") {
+      if (found.size > 0) break;
+      node = prev;
+      continue;
+    }
     const text = (node.textContent ?? "").replace(/\u00A0/g, " ").trim();
     if (!text) {
       node = prev;
