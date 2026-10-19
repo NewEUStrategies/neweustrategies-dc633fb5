@@ -220,7 +220,8 @@ afterEach(() => cleanup());
 describe("lista firm", () => {
   it("strona panelu nie idzie do indeksu wyszukiwarek", async () => {
     const view = await mountList();
-    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex" });
+    // D14 (S4): sekcyjne `adminPageHead` - prywatny ekran ani do indeksu, ani do linków.
+    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 
   it("pokazuje firmy z licznikami kontaktów i leadów", async () => {

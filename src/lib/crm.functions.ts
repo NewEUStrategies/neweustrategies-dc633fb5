@@ -15,6 +15,8 @@ import {
 } from "@/lib/crm/leadTimeline";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
+import type { RpcCallable } from "@/lib/revenue/rpcCallable";
+import type { STAGE_HISTORY_DIMENSIONS } from "@/lib/crm/lifecycle";
 import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
   chunked,
@@ -25,6 +27,7 @@ import {
 } from "@/lib/crm/leadAvatars";
 import {
   LeadListFilterSchema,
+  ManualLifecycleStageSchema,
   LeadSortDirSchema,
   LeadSortKeySchema,
   LeadStageSchema,
@@ -225,6 +228,87 @@ export const updateCrmLead = createServerFn({ method: "POST" })
       .eq("tenant_id", lead.tenant_id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
+  });
+
+// ── Cykl życia kontaktu (hub S4) ────────────────────────────────────────────
+//
+// Etap cyklu życia NIE idzie przez `updateCrmLead`: strażnik kolumn huba
+// (Z-06, 20261020130000) odrzuca zmianę `lifecycle_stage` z PostgREST, bo
+// zapis musi przejść przez pierwszeństwo pisarzy (billing > ręcznie >
+// ścieżka = przepis) i zostawić wpis historii. Panel woła RPC
+// `admin_crm_set_lifecycle_stage` - najemca i autor zmiany z sesji, źródło
+// `manual`. Etapów klienta panel nie nadaje (należą do billingu).
+
+const LifecycleInput = z.object({
+  id: z.string().uuid(),
+  // Etapy klienta odrzucone już tu (należą do billingu) - wspólny słownik
+  // z listą wyboru karty kontaktu (`leadListSpec.MANUAL_LIFECYCLE_STAGES`).
+  stage: ManualLifecycleStageSchema,
+});
+
+/** Wynik `crm_set_lifecycle_stage` (jsonb) - co się stało i dlaczego nie. */
+export interface LeadLifecycleChange {
+  changed: boolean;
+  from: string | null;
+  to: string;
+  /** `billing_owned` | `unchanged` | `precedence` | `backward` albo `null`. */
+  skipped: string | null;
+}
+
+export const setLeadLifecycleStage = createServerFn({ method: "POST" })
+  .middleware([requireCrmStaff])
+  .validator((d) => LifecycleInput.parse(d))
+  .handler(async ({ data, context }): Promise<LeadLifecycleChange> => {
+    const { data: raw, error } = await (context.supabase as unknown as RpcCallable).rpc(
+      "admin_crm_set_lifecycle_stage",
+      { p_lead_id: data.id, p_stage: data.stage },
+    );
+    if (error) {
+      // Kody z RPC mają czytelne znaczenie dla panelu - nie „błąd serwera".
+      if (error.code === "P0002") throw new Error("lead_not_found");
+      if (error.code === "42501") throw new Error("forbidden");
+      throw new Error(error.message);
+    }
+    const r = (raw ?? {}) as Record<string, unknown>;
+    return {
+      changed: r.changed === true,
+      from: typeof r.from === "string" ? r.from : null,
+      to: typeof r.to === "string" ? r.to : data.stage,
+      skipped: typeof r.skipped === "string" ? r.skipped : null,
+    };
+  });
+
+/** Wiersz historii etapów (`crm_lead_stage_history`) dla karty leada. */
+export interface LeadStageHistoryRow {
+  id: number;
+  dimension: (typeof STAGE_HISTORY_DIMENSIONS)[number];
+  from_value: string | null;
+  to_value: string;
+  source: string;
+  actor_id: string | null;
+  journey_id: string | null;
+  changed_at: string;
+}
+
+const StageHistoryInput = z.object({
+  id: z.string().uuid(),
+  limit: z.number().int().min(1).max(500).default(100),
+});
+
+// Odczyt pod RLS (`crm_lead_stage_history_staff_read`: najemca z sesji
+// + admin/editor) - klient użytkownika, bez roli serwisowej.
+export const getCrmLeadStageHistory = createServerFn({ method: "POST" })
+  .middleware([requireCrmStaff])
+  .validator((d) => StageHistoryInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const result = await looseTable(context, "crm_lead_stage_history")
+      .select("id, dimension, from_value, to_value, source, actor_id, journey_id, changed_at")
+      .eq("lead_id", data.id)
+      .order("changed_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(data.limit);
+    if (result.error) throw new Error(result.error.message);
+    return { json: j(rowsOf(result)) };
   });
 
 // Metering: ile bezpłatnych artykułów zużył użytkownik powiązany z leadem

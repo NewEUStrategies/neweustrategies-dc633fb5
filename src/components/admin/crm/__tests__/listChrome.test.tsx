@@ -336,7 +336,9 @@ describe("edycja filtrów w chipach", () => {
     const cases: Array<[string, string, Record<string, unknown>]> = [
       ["Etap", "Wygrany", { stage: "won" }],
       ["Poziom", "Gorący", { band: "hot" }],
-      ["Źródło", "Newsletter", { source: "newsletter" }],
+      // P23 (S4): segment kontaktu zamiast heurystycznego „Źródła".
+      ["Segment", "Newsletter", { sourceType: "newsletter" }],
+      ["Cykl życia", "MQL", { lifecycle: "mql" }],
       ["Kraj", "Poland", { country: "Poland" }],
       ["Utworzono", "Ostatnie 30 dni", { createdRange: "30d" }],
       ["Aktywność", "Ostatnie 7 dni", { activityRange: "7d" }],
@@ -633,7 +635,8 @@ describe("chipy filtrów - kompletność reguł", () => {
     // więc dwa chipy naraz czytałyby się nawzajem.
     const cases: Array<[RegExp, string, Record<string, unknown>]> = [
       [/^Poziom/, "Gorący", { band: "hot" }],
-      [/^Źródło/, "Formularz", { source: "form" }],
+      [/^Segment/, "Formularz kontaktowy", { sourceType: "contact_form" }],
+      [/^Cykl życia/, "Zarejestrowany", { lifecycle: "registered" }],
       [/^Kraj/, "Belgium", { country: "Belgium" }],
       [/^Utworzono/, "Ostatnie 7 dni", { createdRange: "7d" }],
       [/^Aktywność/, "Ostatnie 30 dni", { activityRange: "30d" }],

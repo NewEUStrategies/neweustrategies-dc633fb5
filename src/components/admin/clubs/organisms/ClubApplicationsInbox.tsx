@@ -38,6 +38,7 @@ import {
 import { useServerFn } from "@tanstack/react-start";
 import { useClubSpecializations } from "@/lib/clubs/useClubSpecializations";
 import { ensureAdminClubsI18n } from "@/lib/i18n-clubs-admin";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import {
   APPLICATION_STATUSES,
   applicationInboxKeys,
@@ -49,15 +50,62 @@ import {
   type InboxToast,
 } from "@/lib/clubs/adminApplicationsInbox";
 
-export function ClubApplicationsInbox() {
+/** Filtry skrzynki - trasa może trzymać je w adresie (`validateSearch`). */
+export interface ClubInboxFilters {
+  spec: string;
+  status: string;
+  search: string;
+}
+
+interface ClubApplicationsInboxProps {
+  /**
+   * Filtry kontrolowane przez trasę (link do „zgłoszeń czekających w
+   * specjalizacji X" i historia przeglądarki). Bez nich skrzynka trzyma
+   * filtry we własnym stanie - jak dotąd.
+   */
+  filters?: ClubInboxFilters;
+  onFiltersChange?: (next: ClubInboxFilters) => void;
+}
+
+/**
+ * Klucze do unieważnienia po decyzji (br. 04 D7). Skrzynka czyściła tylko
+ * swój klucz: licznik zgłoszeń przy nawigacji (`pendingCounts`) i - po
+ * przyjęciu - listy członków i karty klubów zostawały nieaktualne do
+ * przeładowania. Przyjęcie zmienia członkostwo, więc czyści całe drzewo
+ * klubów; inna decyzja - tylko liczniki.
+ */
+export function inboxDecisionInvalidations(
+  next: ClubApplicationStatus,
+): ReadonlyArray<readonly unknown[]> {
+  return next === "accepted"
+    ? [applicationInboxKeys.all, clubKeys.all]
+    : [applicationInboxKeys.all, clubKeys.pendingCounts()];
+}
+
+export function ClubApplicationsInbox({
+  filters,
+  onFiltersChange,
+}: ClubApplicationsInboxProps = {}) {
   ensureAdminClubsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const qc = useQueryClient();
   const specsQuery = useClubSpecializations();
-  const [spec, setSpec] = useState("");
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
+  const [localFilters, setLocalFilters] = useState<ClubInboxFilters>({
+    spec: "",
+    status: "",
+    search: "",
+  });
+  const current = filters ?? localFilters;
+  const { spec, status, search } = current;
+  const patchFilters = (patch: Partial<ClubInboxFilters>) => {
+    const next = { ...current, ...patch };
+    if (onFiltersChange) onFiltersChange(next);
+    if (!filters) setLocalFilters(next);
+  };
+  const setSpec = (value: string) => patchFilters({ spec: value });
+  const setStatus = (value: string) => patchFilters({ status: value });
+  const setSearch = (value: string) => patchFilters({ search: value });
 
   /** Jedno miejsce na ton toastu - deskryptory z regul nie znaja `sonner`. */
   const announce = (info: InboxToast): void => {
@@ -92,8 +140,10 @@ export function ClubApplicationsInbox() {
       const res = await notify({ data: { applicationId: id, status: next } });
       return { mailed: true as const, res };
     },
-    onSuccess: (result) => {
-      void qc.invalidateQueries({ queryKey: applicationInboxKeys.all });
+    onSuccess: (result, variables) => {
+      for (const queryKey of inboxDecisionInvalidations(variables.next)) {
+        void qc.invalidateQueries({ queryKey });
+      }
       toast.success(t("adminClubs.applications.statusSaved"));
       if (!result.mailed) return;
       announce(applicationMailToast(result.res));

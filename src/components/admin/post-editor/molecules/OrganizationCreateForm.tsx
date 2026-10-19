@@ -35,6 +35,7 @@ import {
   type OrganizationSelection,
 } from "./organizationDirectory";
 import "@/lib/i18n-admin-post-panes";
+import { crmKeys } from "@/lib/crm/keys";
 
 const EMPTY_FORM = {
   name: "",
@@ -127,7 +128,7 @@ export function OrganizationCreateForm({
       await qc.invalidateQueries({ queryKey: ORGANIZATION_SEARCH_KEY });
       // Lista firm w CRM też się zmieniła - bez tego /admin/companies pokazywałby
       // stan sprzed dodania, aż do ręcznego odświeżenia.
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
       // MIGAWKĘ BUDUJEMY Z DANYCH Z BAZY, NIE Z FORMULARZA.
       // RPC jest IDEMPOTENTNE po (tenant_id, name_norm): gdy firma o tej nazwie
       // już istniała, zwraca JEJ id i nie nadpisuje pól (poza dołożeniem

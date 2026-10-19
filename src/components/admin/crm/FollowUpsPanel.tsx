@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listCrmDueTasks, updateCrmTask, type CrmDueTaskRow } from "@/lib/crm-tasks.functions";
 import { formatDue, isOverdue, leadLabel, splitDueTasks } from "@/lib/crm/tasksView";
+import { crmKeys } from "@/lib/crm/keys";
 
 const TXT = {
   pl: {
@@ -39,7 +40,7 @@ export function FollowUpsPanel({
   const qc = useQueryClient();
 
   const dueQ = useQuery({
-    queryKey: ["crm-tasks", "due"],
+    queryKey: crmKeys.tasksDue(),
     queryFn: async () => {
       const r = await listCrmDueTasks({ data: { limit: 8, horizon_hours: 72 } });
       return JSON.parse((r as { json: string }).json) as CrmDueTaskRow[];
@@ -50,8 +51,8 @@ export function FollowUpsPanel({
   const doneMut = useMutation({
     mutationFn: async (id: string) => updateCrmTask({ data: { id, status: "done" } }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["crm-tasks"] });
-      void qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      void qc.invalidateQueries({ queryKey: crmKeys.tasksAll() });
+      void qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
     },
     onError: (e: Error) => toast.error(e.message),
   });

@@ -115,7 +115,12 @@ vi.mock("@/components/atoms/FormSelect", () => ({
   ),
 }));
 
-import { ClubApplicationsInbox } from "@/components/admin/clubs/organisms/ClubApplicationsInbox";
+import {
+  ClubApplicationsInbox,
+  inboxDecisionInvalidations,
+} from "@/components/admin/clubs/organisms/ClubApplicationsInbox";
+import { applicationInboxKeys } from "@/lib/clubs/adminApplicationsInbox";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { clubIsoOffset, clubRpc, resetClubRpc } from "@/test/clubs/fixtures";
 import {
@@ -713,5 +718,27 @@ describe("język interfejsu", () => {
 
     expect(wiersz("Kowalska").textContent).toContain("Energy club");
     expect(screen.getAllByRole("tab")[1].textContent).toBe("Energy and climate2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// br. 04 D7 (hub S4): decyzja odświeża nie tylko skrzynkę.
+// ---------------------------------------------------------------------------
+describe("ClubApplicationsInbox - inwalidacja po decyzji (D7)", () => {
+  it("przyjęcie czyści całe drzewo klubów (członkostwo), inna decyzja - liczniki", () => {
+    expect(inboxDecisionInvalidations("accepted")).toEqual([
+      applicationInboxKeys.all,
+      clubKeys.all,
+    ]);
+    for (const next of ["rejected", "review", "needs_info", "pending"] as const) {
+      expect(inboxDecisionInvalidations(next)).toEqual([
+        applicationInboxKeys.all,
+        clubKeys.pendingCounts(),
+      ]);
+    }
+  });
+
+  it("liczniki przy nawigacji są potomkiem drzewa klubów (przyjęcie trafia i w nie)", () => {
+    expect(clubKeys.pendingCounts().slice(0, clubKeys.all.length)).toEqual([...clubKeys.all]);
   });
 });

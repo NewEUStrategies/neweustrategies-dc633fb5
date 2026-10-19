@@ -60,6 +60,9 @@ import { PREMIUM_NEWSLETTER_CONSENT_VERSION } from "@/lib/billing/premiumNewslet
 
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
+  // Wywołania RPC roli serwisowej (cykl życia CRM z billingu, S4).
+  rpcCalls: [] as Array<{ fn: string; args: unknown }>,
+  rpcError: null as { message: string } | null,
   emails: [] as unknown[],
   // Operator płatności: skutki zdarzeń NIE mogą go wołać (kwoty idą z ładunku).
   operator: vi.fn(),
@@ -78,8 +81,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       if (!h.db.current) throw new Error("test: atrapa bazy nieustawiona (beforeEach)");
       return h.db.current.from(table);
     },
-    // Lista wykluczeń (zapis na newsletter po zgodzie) - tu zawsze czysto.
-    rpc: () => Promise.resolve({ data: [], error: null }),
+    // Lista wykluczeń (zapis na newsletter po zgodzie) - tu zawsze czysto;
+    // `crm_set_lifecycle_stage` (S4) zapisujemy, żeby asercje widziały etap.
+    rpc: (fn: string, args: unknown) => {
+      h.rpcCalls.push({ fn, args });
+      return Promise.resolve({ data: [], error: h.rpcError });
+    },
   },
 }));
 
@@ -229,8 +236,18 @@ beforeEach(() => {
   db.setResponse("user_subscriptions", () => ok(null));
   db.setResponse(
     "crm_leads",
-    guarded("crm_leads", (chain) => ok(isWrite(chain) ? null : scene.lead)),
+    guarded("crm_leads", (chain) =>
+      // INSERT zwraca id nowego leada (`.select("id")`) - etap cyklu życia
+      // nadaje dopiero RPC billingu.
+      ok(isWrite(chain) ? (chain.has("insert") ? { id: "lead-new" } : null) : scene.lead),
+    ),
   );
+  db.setResponse(
+    "crm_tasks",
+    guarded("crm_tasks", () => ok(null)),
+  );
+  h.rpcCalls.length = 0;
+  h.rpcError = null;
   db.setResponse(
     "newsletter_subscribers",
     guarded("newsletter_subscribers", (chain) =>
@@ -395,6 +412,8 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       stage: "won",
       tags: ["vip", "customer", "plan:member"],
       last_activity_at: FIXED_NOW_ISO,
+      // Lead bez segmentu (ranga 0) rośnie do klienta płacącego.
+      source_type: "paid_subscriber",
     });
     expect(written("crm_leads", "insert")).toBeUndefined();
   });
@@ -811,7 +830,8 @@ describe("applyCancellationEffects - rezygnacja", () => {
     });
     expect(written("notifications", "insert")).toMatchObject({
       title_pl: "Subskrypcja anulowana",
-      href: "/profile/plan?retention=1",
+      // P12: bez martwego `?retention=1`.
+      href: "/profile/plan",
       icon: "message-circle-question",
     });
   });
@@ -916,10 +936,30 @@ describe("applyStatusTransitionEffects - zmiana samego stanu", () => {
     },
   );
 
-  it("zaległa płatność (past_due) nie rusza CRM, dzwonka ani poczty - to robota windykacji", async () => {
+  it("zaległa płatność (past_due): tag w CRM (P13), bez dzwonka i poczty - to robota windykacji", async () => {
+    scene.lead = {
+      id: "lead-1",
+      tags: ["customer", "subscription:paused"],
+      source_type: "paid_subscriber",
+    };
     await applyStatusTransitionEffects(transition("active", "past_due"));
 
-    expect(db.chainsFor("crm_leads")).toHaveLength(0);
+    expect(written("crm_leads", "update")).toMatchObject({
+      stage: "won",
+      tags: ["customer", "plan:member", "subscription:past_due"],
+    });
+    // Zaległość to nadal klient - cykl życia `customer`, nie odejście.
+    expect(h.rpcCalls).toEqual([
+      {
+        fn: "crm_set_lifecycle_stage",
+        args: {
+          p_lead_id: "lead-1",
+          p_stage: "customer",
+          p_source: "billing",
+          p_allow_backward: true,
+        },
+      },
+    ]);
     expect(db.chainsFor("notifications")).toHaveLength(0);
     expect(mails()).toHaveLength(0);
   });
@@ -941,6 +981,128 @@ describe("applyStatusTransitionEffects - zmiana samego stanu", () => {
     expect(written("crm_leads", "insert")).toMatchObject({ stage: "won" });
     expect(db.chainsFor("notifications")).toHaveLength(0);
     expect(mails()).toHaveLength(0);
+  });
+});
+
+describe("syncCrmSubscriptionState - cykl życia, segment i zadania retencyjne (S4)", () => {
+  const lifecycle = () =>
+    h.rpcCalls.filter((c) => c.fn === "crm_set_lifecycle_stage").map((c) => c.args);
+  const taskUpdates = () => db.chainsFor("crm_tasks").filter((c) => c.has("update"));
+
+  it("zakup: billing nadaje `customer` przez RPC (jedyny pisarz etapów klienta)", async () => {
+    scene.lead = { id: "lead-1", tags: [], source_type: "newsletter" };
+    await syncCrmSubscriptionState(BILLING_IDS.me, "pro");
+
+    expect(lifecycle()).toEqual([
+      { p_lead_id: "lead-1", p_stage: "customer", p_source: "billing", p_allow_backward: true },
+    ]);
+    expect(written("crm_leads", "update")).toMatchObject({ source_type: "paid_subscriber" });
+  });
+
+  it("nowy lead: INSERT bez etapu cyklu życia, etap klienta z RPC dla zwróconego id", async () => {
+    await syncCrmSubscriptionState(BILLING_IDS.me, "pro");
+
+    expect(written("crm_leads", "insert")).not.toHaveProperty("lifecycle_stage");
+    expect(lifecycle()).toEqual([
+      { p_lead_id: "lead-new", p_stage: "customer", p_source: "billing", p_allow_backward: true },
+    ]);
+  });
+
+  it("rezygnacja: `former_customer`, segment bez zmian", async () => {
+    scene.lead = { id: "lead-1", tags: ["customer"], source_type: "paid_subscriber" };
+    await syncCrmSubscriptionState(BILLING_IDS.me, "pro", "churned");
+
+    expect(lifecycle()).toEqual([
+      {
+        p_lead_id: "lead-1",
+        p_stage: "former_customer",
+        p_source: "billing",
+        p_allow_backward: true,
+      },
+    ]);
+    expect(written("crm_leads", "update")).not.toHaveProperty("source_type");
+    expect(taskUpdates()).toHaveLength(0);
+  });
+
+  it("zakup nigdy nie obniża segmentu o randze >= klienta płacącego", async () => {
+    scene.lead = { id: "lead-1", tags: [], source_type: "paid_subscriber" };
+    await syncCrmSubscriptionState(BILLING_IDS.me, "pro");
+    expect(written("crm_leads", "update")).not.toHaveProperty("source_type");
+  });
+
+  it("pauza ≠ odejście: `customer`, tag pauzy, zamknięcie fałszywych win-backów", async () => {
+    scene.lead = { id: "lead-1", tags: ["customer"], source_type: "paid_subscriber" };
+    await syncCrmSubscriptionState(BILLING_IDS.me, "pro", "paused");
+
+    expect(written("crm_leads", "update")).toMatchObject({
+      stage: "won",
+      tags: ["customer", "plan:pro", "subscription:paused"],
+    });
+    expect(lifecycle()).toEqual([
+      { p_lead_id: "lead-1", p_stage: "customer", p_source: "billing", p_allow_backward: true },
+    ]);
+    const [close] = taskUpdates();
+    expect(close.argsOf("update")?.[0]).toMatchObject({ status: "cancelled" });
+    expect(eqFilters(close)).toEqual([
+      ["tenant_id", BILLING_IDS.tenant],
+      ["lead_id", "lead-1"],
+      ["status", "open"],
+    ]);
+    expect(close.argsOf("like")).toEqual(["origin_ref", "retention:canceled:%"]);
+  });
+
+  it("wznowienie / powrót klienta zamyka WSZYSTKIE otwarte zadania retencyjne", async () => {
+    scene.lead = {
+      id: "lead-1",
+      tags: ["customer", "subscription:paused"],
+      source_type: "paid_subscriber",
+    };
+    await applyStatusTransitionEffects({
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "paused",
+      status: "active",
+    });
+
+    const [close] = taskUpdates();
+    expect(close.argsOf("like")).toEqual(["origin_ref", "retention:%"]);
+    expect(written("crm_leads", "update")).toMatchObject({ tags: ["customer", "plan:member"] });
+  });
+
+  it("awaria RPC cyklu życia jest logowana, nie rzucana (skutki billingu idą dalej)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    scene.lead = { id: "lead-1", tags: [], source_type: "paid_subscriber" };
+    h.rpcError = { message: "billing_owned" };
+
+    await expect(syncCrmSubscriptionState(BILLING_IDS.me, "pro")).resolves.toBeUndefined();
+    expect(spy).toHaveBeenCalledWith(
+      "[payments] crm sync failed",
+      expect.objectContaining({ message: "crm lifecycle update failed: billing_owned" }),
+    );
+    // Zadań retencyjnych bez potwierdzonego etapu nie ruszamy.
+    expect(db.chainsFor("crm_tasks")).toHaveLength(0);
+    spy.mockRestore();
+  });
+});
+
+describe("CRM_SOURCE_TYPE_RANK = _crm_source_type_rank (20260926090000)", () => {
+  it("te same segmenty i rangi co funkcja SQL", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { CRM_SOURCE_TYPE_RANK } = await import("@/lib/billing/purchaseEffects.server");
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260926090000_event_organizer_foundation.sql"),
+      "utf8",
+    );
+    const start = sql.indexOf("FUNCTION public._crm_source_type_rank");
+    const body = sql.slice(start, sql.indexOf("ELSE 0", start));
+    const pairs = Object.fromEntries(
+      [...body.matchAll(/WHEN '([a-z_]+)' THEN (\d+)/g)].map((m) => [m[1], Number(m[2])]),
+    );
+    expect(pairs).toEqual(CRM_SOURCE_TYPE_RANK);
   });
 });
 

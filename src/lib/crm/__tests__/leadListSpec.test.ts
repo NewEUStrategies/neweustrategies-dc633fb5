@@ -4,9 +4,11 @@
 // operator na wierszu, jak wygląda porządek (kolumny, NULL-e, tiebreaker) oraz
 // jak opis renderuje się do składni PostgREST. Zgodność obu WYKONAŃ (SQL vs JS)
 // pilnuje osobna bramka: `leadListParity.test.ts`.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 import {
+  CRM_SOURCE_TYPES,
   LEAD_COLUMN_TYPES,
   LEAD_SEARCH_COLUMNS,
   LEAD_SORT_COLUMNS,
@@ -497,6 +499,60 @@ describe("kontrakt z bazą", () => {
     const sortColumns = LEAD_SORT_KEYS.flatMap((k: LeadSortKey) => [...LEAD_SORT_COLUMNS[k]]);
     for (const column of [...sortColumns, LEAD_SORT_TIEBREAKER, ...LEAD_SEARCH_COLUMNS]) {
       expect(LEAD_COLUMN_TYPES[column]).toBeDefined();
+    }
+  });
+});
+
+describe("filtry huba S4: segment i cykl życia (P23)", () => {
+  it("segment i etap cyklu życia to równości na kolumnach widoku", () => {
+    expect(buildLeadFilterSpec({ source_type: "paid_subscriber", lifecycle_stage: "mql" })).toEqual(
+      [
+        { op: "eq", column: "source_type", value: "paid_subscriber" },
+        { op: "eq", column: "lifecycle_stage", value: "mql" },
+      ],
+    );
+    expect(LEAD_COLUMN_TYPES.source_type).toBe("text");
+    expect(LEAD_COLUMN_TYPES.lifecycle_stage).toBe("text");
+  });
+
+  it("schemat odrzuca segment i etap spoza słowników", () => {
+    expect(LeadListFilterSchema.safeParse({ source_type: "import" }).success).toBe(false);
+    expect(LeadListFilterSchema.safeParse({ lifecycle_stage: "vip" }).success).toBe(false);
+    expect(LeadListFilterSchema.safeParse({ lifecycle_stage: "customer" }).success).toBe(true);
+  });
+
+  it("filtr na wierszach = filtr SQL (ten sam opis)", () => {
+    const rows = [
+      { id: "a", source_type: "newsletter", lifecycle_stage: "lead" },
+      { id: "b", source_type: "paid_subscriber", lifecycle_stage: "customer" },
+    ];
+    expect(filterLeadRows(rows, { source_type: "paid_subscriber" }).map((r) => r.id)).toEqual([
+      "b",
+    ]);
+    expect(filterLeadRows(rows, { lifecycle_stage: "lead" }).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("CRM_SOURCE_TYPES = ostatni CHECK crm_leads_source_type_check w migracjach", () => {
+    const dir = "supabase/migrations";
+    const files = readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    let latest: string[] | null = null;
+    for (const file of files) {
+      const sql = readFileSync(`${dir}/${file}`, "utf8");
+      for (const m of sql.matchAll(
+        /ADD CONSTRAINT crm_leads_source_type_check\s+CHECK\s*\(\s*source_type\s+IN\s*\(([^)]*)\)\s*\)/gi,
+      )) {
+        latest = [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+      }
+    }
+    expect(latest).not.toBeNull();
+    expect([...(latest ?? [])].sort()).toEqual([...CRM_SOURCE_TYPES].sort());
+  });
+
+  it("etapy cyklu życia filtra = LIFECYCLE_STAGES (jedno źródło)", () => {
+    for (const stage of LIFECYCLE_STAGES) {
+      expect(LeadListFilterSchema.safeParse({ lifecycle_stage: stage }).success).toBe(true);
     }
   });
 });

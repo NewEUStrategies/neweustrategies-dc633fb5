@@ -8,17 +8,22 @@
 // Side-effekty specyficzne dla powierzchni (toast po dodaniu notatki, reset
 // pola) są sterowane callbackami, więc każda strona zachowuje SWOJE dokładne
 // zachowanie - hook nie narzuca UX, tylko domyka kontrakt danych. Obie
-// powierzchnie używają tego samego klucza react-query `["crm-lead", leadId]`,
-// więc cache i inwalidacja są spójne bez dodatkowej koordynacji.
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+// powierzchnie używają tego samego klucza react-query (`crmKeys.lead(id)`
+// z fabryki I0), więc cache i inwalidacja są spójne bez dodatkowej
+// koordynacji.
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
   addCrmNote,
   deleteCrmNote,
+  listStaffUsers,
   pushLeadToPartners,
+  setLeadLifecycleStage,
+  type LeadLifecycleChange,
   type PushLeadResult,
 } from "@/lib/crm.functions";
+import { crmKeys } from "@/lib/crm/keys";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 
 /** Mutacje notatek leada (dodaj z idempotencją / usuń) + inwalidacja cache. */
@@ -41,7 +46,7 @@ export function useLeadNoteMutations(
         data: { lead_id: leadId, body, idempotency_key: newIdempotencyKey("crm.add_note") },
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
+      qc.invalidateQueries({ queryKey: crmKeys.lead(leadId) });
       opts?.onAdded?.();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -50,7 +55,7 @@ export function useLeadNoteMutations(
   const deleteNote = useMutation({
     mutationFn: async (noteId: string) => deleteCrmNote({ data: { id: noteId } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
+      qc.invalidateQueries({ queryKey: crmKeys.lead(leadId) });
       opts?.onDeleted?.();
     },
   });
@@ -91,5 +96,91 @@ export function usePartnerPush(leadId: string, lang: "pl" | "en" = "pl") {
       }
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/**
+ * Ręczna zmiana etapu cyklu życia (RPC `admin_crm_set_lifecycle_stage`).
+ *
+ * Wynik „pominięto" (pierwszeństwo billingu, ten sam etap) NIE jest błędem
+ * sieci - wraca w `onSettledChange`, żeby powierzchnia powiedziała
+ * człowiekowi, DLACZEGO etap się nie zmienił. Inwalidacja obejmuje kartę
+ * leada, jego historię etapów i listy (filtr cyklu życia).
+ */
+export function useLeadLifecycleMutation(
+  leadId: string,
+  opts?: {
+    onChanged?: (result: LeadLifecycleChange) => void;
+    onSkipped?: (result: LeadLifecycleChange) => void;
+    onError?: (error: Error) => void;
+  },
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (stage: string) => setLeadLifecycleStage({ data: { id: leadId, stage } }),
+    onSuccess: (result) => {
+      if (result.changed) opts?.onChanged?.(result);
+      else opts?.onSkipped?.(result);
+      void qc.invalidateQueries({ queryKey: crmKeys.lead(leadId) });
+      void qc.invalidateQueries({ queryKey: crmKeys.leadStageHistory(leadId) });
+      void qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
+    },
+    onError: (e: Error) => (opts?.onError ? opts.onError(e) : toast.error(e.message)),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Zespół CRM (picker właściciela, podpis autora w historii etapów, osoba
+// w akcjach automatyzacji) - JEDNO zapytanie dla wszystkich powierzchni.
+// ---------------------------------------------------------------------------
+
+export interface CrmStaffUser {
+  id: string;
+  label: string;
+}
+
+/**
+ * Klucz listy zespołu CRM. Fabryka `crmKeys` (I0) nie ma jeszcze wpisu dla
+ * tej listy - do czasu dopisania `crmKeys.staffUsers()` (integration request
+ * S4) klucz żyje tu jako funkcja, nie literał w komponencie, więc zamiana
+ * będzie jedną linią.
+ */
+export const crmStaffUsersKey = () => ["crm-staff-users"] as const;
+
+function staffLabel(row: Record<string, unknown>): string {
+  const display = typeof row.display_name === "string" ? row.display_name.trim() : "";
+  if (display) return display;
+  const first = typeof row.first_name === "string" ? row.first_name.trim() : "";
+  const last = typeof row.last_name === "string" ? row.last_name.trim() : "";
+  const full = `${first} ${last}`.trim();
+  return full || String(row.id ?? "");
+}
+
+/** Wynik `listStaffUsers` (JSON w `json`) -> posortowana lista do pickera. */
+export function parseStaffUsers(raw: { json: string } | null | undefined): CrmStaffUser[] {
+  if (!raw || typeof raw.json !== "string") return [];
+  let rows: unknown;
+  try {
+    rows = JSON.parse(raw.json);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter(
+      (row): row is Record<string, unknown> =>
+        Boolean(row) && typeof row === "object" && typeof (row as { id?: unknown }).id === "string",
+    )
+    .map((row) => ({ id: String(row.id), label: staffLabel(row) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export function crmStaffUsersQueryOptions() {
+  return queryOptions({
+    queryKey: crmStaffUsersKey(),
+    queryFn: async () => parseStaffUsers(await listStaffUsers()),
+    // Skład zespołu zmienia się rzadko; karta i edytor otwierane kilka razy
+    // pod rząd nie muszą pytać serwera za każdym razem.
+    staleTime: 5 * 60_000,
   });
 }

@@ -18,7 +18,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { workflowKeys } from "@/lib/admin/workflowKeys";
-import { listStaffUsers } from "@/lib/crm.functions";
+import { crmStaffUsersQueryOptions, type CrmStaffUser } from "@/lib/crm/leadMutations";
 import {
   deleteWorkflowDefinition,
   fetchCorrelationTrace,
@@ -94,56 +94,13 @@ export function correlationTraceQueryOptions(correlationId: string | null, enabl
 // Zespół CRM (picker osoby w akcjach `assign_owner` / `create_crm_task`).
 // ---------------------------------------------------------------------------
 
-export interface WorkflowStaffUser {
-  id: string;
-  label: string;
-}
-
 /**
- * Klucz listy zespołu CRM. Fabryka `crmKeys` (I0) nie ma jeszcze wpisu dla
- * tej listy - do czasu dopisania `crmKeys.staffUsers()` (integration request
- * S4) klucz żyje tu jako funkcja, nie literał w komponencie, więc zamiana
- * będzie jedną linią.
+ * Ta sama lista co picker właściciela w CRM i podpis autora w historii etapów
+ * (`lib/crm/leadMutations`): jeden klucz i jedna funkcja pobrania, więc karta
+ * leada i edytor przepisu dzielą wpis cache.
  */
-export const workflowStaffUsersKey = () => ["crm-staff-users"] as const;
-
-function staffLabel(row: Record<string, unknown>): string {
-  const display = typeof row.display_name === "string" ? row.display_name.trim() : "";
-  if (display) return display;
-  const first = typeof row.first_name === "string" ? row.first_name.trim() : "";
-  const last = typeof row.last_name === "string" ? row.last_name.trim() : "";
-  const full = `${first} ${last}`.trim();
-  return full || String(row.id ?? "");
-}
-
-/** Wynik `listStaffUsers` (JSON w `json`) -> posortowana lista do pickera. */
-export function parseStaffUsers(raw: { json: string } | null | undefined): WorkflowStaffUser[] {
-  if (!raw || typeof raw.json !== "string") return [];
-  let rows: unknown;
-  try {
-    rows = JSON.parse(raw.json);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .filter(
-      (row): row is Record<string, unknown> =>
-        Boolean(row) && typeof row === "object" && typeof (row as { id?: unknown }).id === "string",
-    )
-    .map((row) => ({ id: String(row.id), label: staffLabel(row) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-
-export function workflowStaffUsersQueryOptions() {
-  return queryOptions({
-    queryKey: workflowStaffUsersKey(),
-    queryFn: async () => parseStaffUsers(await listStaffUsers()),
-    // Skład zespołu zmienia się rzadko; edytor otwierany kilka razy pod rząd
-    // nie musi pytać serwera za każdym razem.
-    staleTime: 5 * 60_000,
-  });
-}
+export type WorkflowStaffUser = CrmStaffUser;
+export const workflowStaffUsersQueryOptions = crmStaffUsersQueryOptions;
 
 // ---------------------------------------------------------------------------
 // Mutacje: jedna inwalidacja dla trasy i paneli.

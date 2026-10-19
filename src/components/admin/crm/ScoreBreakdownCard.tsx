@@ -14,6 +14,7 @@ import {
 } from "@/lib/crm/scoring";
 import { LeadScoreBadge } from "./LeadScoreBadge";
 import { uiLocale } from "@/lib/i18n/format";
+import { crmKeys } from "@/lib/crm/keys";
 
 const COPY = {
   pl: {
@@ -54,8 +55,8 @@ export function ScoreBreakdownCard({
   const recomputeMut = useMutation({
     mutationFn: async () => recomputeLeadScore({ data: { id: leadId } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
-      qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      qc.invalidateQueries({ queryKey: crmKeys.lead(leadId) });
+      qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
     },
     onError: (e: Error) => toast.error(e.message),
   });

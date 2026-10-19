@@ -31,8 +31,24 @@ import {
   Tag,
 } from "lucide-react";
 
-import { getCrmLead, updateCrmLead, getCrmLeadTimeline } from "@/lib/crm.functions";
-import { useLeadNoteMutations, usePartnerPush } from "@/lib/crm/leadMutations";
+import {
+  getCrmLead,
+  updateCrmLead,
+  getCrmLeadTimeline,
+  type LeadLifecycleChange,
+} from "@/lib/crm.functions";
+import { MANUAL_LIFECYCLE_STAGES } from "@/lib/crm/leadListSpec";
+import {
+  crmStaffUsersQueryOptions,
+  useLeadLifecycleMutation,
+  useLeadNoteMutations,
+  usePartnerPush,
+} from "@/lib/crm/leadMutations";
+import { crmKeys } from "@/lib/crm/keys";
+import { BILLING_OWNED_LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { crmLifecycleDict } from "@/lib/i18n-admin-crm-lifecycle";
+import { adminPageHead } from "@/lib/adminPageHead";
+import { LeadStageHistoryCard } from "@/components/admin/crm/LeadStageHistoryCard";
 import type { ConsentLogRow } from "@/lib/crm/consentLog";
 import { parseLeadTimelinePayload } from "@/lib/crm/leadTimeline";
 import { eventActivitySummary } from "@/lib/crm/eventActivity";
@@ -84,6 +100,10 @@ type Lead = {
   country: string | null;
   linkedin_url: string | null;
   stage: Stage;
+  /** Etap cyklu życia (S4) - zmiana wyłącznie przez RPC z pierwszeństwem. */
+  lifecycle_stage?: string | null;
+  /** Segment kontaktu (`source_type`, ranga `_crm_source_type_rank`). */
+  source_type?: string | null;
   tags: string[] | null;
   marketing_consent: boolean;
   newsletter_status: string | null;
@@ -158,20 +178,13 @@ const stageLabel = (s: Stage, lang: "pl" | "en") => {
 };
 
 export const Route = createFileRoute("/admin/crm/$id")({
-  head: () => ({
-    meta: [
-      { title: "Kontakt CRM - New European Strategies" },
-      {
-        name: "description",
-        content: "Pełna historia wiadomości i aktywności kontaktu New European Strategies.",
-      },
-      { property: "og:title", content: "Kontakt CRM - New European Strategies" },
-      { property: "og:description", content: "Historia wiadomości i aktywności kontaktu." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
+  // D14: metadane sekcji prywatnego panelu (noindex, nofollow) zamiast
+  // ręcznej listy z samym `noindex`.
+  head: () =>
+    adminPageHead(
+      "Kontakt CRM",
+      "Karta kontaktu CRM: dane, etap sprzedaży i cykl życia, historia etapów, zadania i aktywność.",
+    ),
   component: AdminCrmDetailPage,
 });
 
@@ -184,14 +197,14 @@ function AdminCrmDetailPage() {
   const qc = useQueryClient();
 
   const detail = useQuery({
-    queryKey: ["crm-lead", id],
+    queryKey: crmKeys.lead(id),
     queryFn: async () => {
       const r = await getCrmLead({ data: { id } });
       return JSON.parse((r as { json: string }).json) as LeadDetail;
     },
   });
   const timelineQ = useQuery({
-    queryKey: ["crm-lead-timeline", id],
+    queryKey: crmKeys.leadTimeline(id),
     queryFn: async () => {
       const r = await getCrmLeadTimeline({ data: { id } });
       return parseLeadTimelinePayload((r as { json: string }).json);
@@ -203,8 +216,10 @@ function AdminCrmDetailPage() {
       updateCrmLead({ data: { id, ...patch } as { id: string; stage?: Stage } }),
     onSuccess: () => {
       toast.success(t("Zapisano", "Saved"));
-      qc.invalidateQueries({ queryKey: ["crm-lead", id] });
-      qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      qc.invalidateQueries({ queryKey: crmKeys.lead(id) });
+      qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
+      // Zmiana etapu sprzedaży zostawia wpis historii (wyzwalacz S4).
+      qc.invalidateQueries({ queryKey: crmKeys.leadStageHistory(id) });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -219,6 +234,24 @@ function AdminCrmDetailPage() {
     },
   });
   const pushMut = usePartnerPush(id, lang);
+
+  const lifecycleDict = crmLifecycleDict(lang);
+  const lifecycleMut = useLeadLifecycleMutation(id, {
+    onChanged: () => toast.success(lifecycleDict.change.saved),
+    onSkipped: (result: LeadLifecycleChange) =>
+      toast.info(
+        (lifecycleDict.change.skipped as Record<string, string>)[result.skipped ?? ""] ??
+          lifecycleDict.change.saved,
+      ),
+    onError: (e) => toast.error(lifecycleDict.change.error.replace("{{message}}", e.message)),
+  });
+  // Podpis „przez <osoba>" w historii etapów - lista zespołu CRM (ta sama co
+  // picker właściciela i osoby w automatyzacjach).
+  const staffQ = useQuery(crmStaffUsersQueryOptions());
+  const actorNames = useMemo(
+    () => new Map((staffQ.data ?? []).map((person) => [person.id, person.label])),
+    [staffQ.data],
+  );
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Lead>>({});
@@ -480,7 +513,12 @@ function AdminCrmDetailPage() {
                 value={lead.stage}
                 onValueChange={(v) => updateMut.mutate({ stage: v as Stage })}
               >
-                <SelectTrigger className="h-8 text-[12px]">
+                {/* Dwie listy wyboru obok siebie (etap sprzedaży i cykl życia,
+                    S4) - każda musi mieć własną nazwę dostępną. */}
+                <SelectTrigger
+                  className="h-8 text-[12px]"
+                  aria-label={t("Etap sprzedaży", "Sales stage")}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -492,6 +530,12 @@ function AdminCrmDetailPage() {
                 </SelectContent>
               </Select>
             </div>
+            <LifecycleStageControl
+              stage={lead.lifecycle_stage ?? null}
+              lang={lang}
+              pending={lifecycleMut.isPending}
+              onChange={(stage) => lifecycleMut.mutate(stage)}
+            />
             <div className="border-t px-4 py-3 space-y-2">
               <Label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                 <Tag className="h-3 w-3" /> {t("Tagi", "Tags")}
@@ -720,6 +764,7 @@ function AdminCrmDetailPage() {
                 </div>
               </section>
               <MeteringUsageCard leadId={lead.id} lang={lang} />
+              <LeadStageHistoryCard leadId={lead.id} lang={lang} actorNames={actorNames} />
             </div>
           )}
         </main>
@@ -875,5 +920,65 @@ function SidebarCard({
       </button>
       {open && <div className="p-3">{children}</div>}
     </section>
+  );
+}
+
+/**
+ * Etap cyklu życia w lewym railu. Etapy klienta (`customer`,
+ * `former_customer`) nadaje wyłącznie billing - przy nich pole jest tylko do
+ * odczytu z wyjaśnieniem, zamiast listy, której wybór i tak zostałby
+ * odrzucony przez pierwszeństwo pisarzy.
+ */
+function LifecycleStageControl({
+  stage,
+  lang,
+  pending,
+  onChange,
+}: {
+  stage: string | null;
+  lang: "pl" | "en";
+  pending: boolean;
+  onChange: (stage: string) => void;
+}) {
+  const dict = crmLifecycleDict(lang);
+  const stageLabels = dict.stages as Record<string, string>;
+  const billingOwned =
+    stage !== null && (BILLING_OWNED_LIFECYCLE_STAGES as readonly string[]).includes(stage);
+  const labelId = "crm-lifecycle-label";
+  return (
+    <div className="border-t px-4 py-3 space-y-2">
+      <Label
+        id={labelId}
+        className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+      >
+        {dict.title}
+      </Label>
+      {billingOwned ? (
+        <div className="space-y-1">
+          <Badge variant="outline" className="border-brand/40 text-brand">
+            {stageLabels[stage ?? ""] ?? stage}
+          </Badge>
+          <p className="text-[10px] text-muted-foreground">{dict.change.billingOwned}</p>
+        </div>
+      ) : (
+        <Select value={stage ?? undefined} onValueChange={onChange} disabled={pending}>
+          <SelectTrigger className="h-8 text-[12px]" aria-labelledby={labelId}>
+            <SelectValue placeholder={dict.change.placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {MANUAL_LIFECYCLE_STAGES.map((value) => (
+              <SelectItem key={value} value={value}>
+                <span className="flex flex-col">
+                  <span>{stageLabels[value]}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {(dict.stageHints as Record<string, string>)[value]}
+                  </span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
   );
 }

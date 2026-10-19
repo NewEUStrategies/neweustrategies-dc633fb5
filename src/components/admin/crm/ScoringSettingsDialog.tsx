@@ -31,6 +31,7 @@ import {
   parseScoringSettings,
   type ScoringSettings,
 } from "@/lib/crm/scoring";
+import { crmKeys } from "@/lib/crm/keys";
 
 const COPY = {
   pl: {
@@ -84,7 +85,7 @@ export function ScoringSettingsDialog({ lang }: { lang: "pl" | "en" }) {
   const [form, setForm] = useState<ScoringSettings>(DEFAULT_SCORING_SETTINGS);
 
   const settingsQ = useQuery({
-    queryKey: ["crm-scoring-settings"],
+    queryKey: crmKeys.scoringSettings(),
     enabled: open,
     queryFn: async () => {
       const r = await getCrmScoringSettings();
@@ -100,7 +101,7 @@ export function ScoringSettingsDialog({ lang }: { lang: "pl" | "en" }) {
     mutationFn: async (s: ScoringSettings) => upsertCrmScoringSettings({ data: s }),
     onSuccess: () => {
       toast.success(t.saved);
-      qc.invalidateQueries({ queryKey: ["crm-scoring-settings"] });
+      qc.invalidateQueries({ queryKey: crmKeys.scoringSettings() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -119,14 +120,14 @@ export function ScoringSettingsDialog({ lang }: { lang: "pl" | "en" }) {
         if (r.done || !r.lastId) break;
         after = r.lastId;
         if (total > 0 && i % 4 === 0) {
-          qc.invalidateQueries({ queryKey: ["crm-leads"] });
+          qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
         }
       }
       return total;
     },
     onSuccess: (total: number) => {
       toast.success(t.recomputed(total));
-      qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
