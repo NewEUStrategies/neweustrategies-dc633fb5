@@ -16,7 +16,11 @@
 // Sync mode (`sync_existing = true`) updates posts that were already imported
 // instead of skipping them. "Already imported" is decided by the WordPress
 // identity stored in `posts.custom_meta` (`wp_id` + `wp_site`); a slug match
-// only counts for rows that carry no identity or the same one. Media import
+// only counts for rows that carry no identity or the same one. Slugs come from
+// the shared `lib/wp-import/slug` (stroke letters such as „ł" transliterated);
+// a row whose address the pre-2026-10-19 slugify mangled („tytu-podtytu") is
+// still found under that legacy form, so a re-import neither renames nor
+// duplicates it - the same holds for category slugs. Media import
 // (`import_media = true`) downloads the featured image and every same-host
 // <img> referenced in content, uploads to the `media` bucket and rewrites URLs
 // in the imported HTML before parsing.
@@ -45,6 +49,7 @@ import {
   type ExistingLocalized,
   type LocalizedImport,
 } from "@/lib/wp-import/localizedMerge";
+import { legacySlugify, slugify, WP_SLUG_MAX_LENGTH } from "@/lib/wp-import/slug";
 import { recordAudit } from "./server/audit.server";
 import { rateLimit } from "./server/rate-limit.server";
 import { normalizeSourcePath, normalizeTargetPath } from "./seo/redirects";
@@ -132,16 +137,6 @@ async function wpFetch<T>(path: string): Promise<T> {
 
 // ---------- shared helpers ----------
 
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-}
-
 async function resolveTenant(supabase: SupabaseClient, userId: string): Promise<string> {
   const { data, error } = await supabase
     .from("profiles")
@@ -188,6 +183,11 @@ async function resolveBlogPage(
  * WordPressa, więc nasz `moj-wpis-2` (drugi lokator `moj-wpis`) trafiał potem
  * w JEGO `moj-wpis-2` - i import dopasowywał po slugu cudzy artykuł. Sufiks
  * jest deterministyczny: ten sam wpis WP przy kolejnym biegu celuje w ten sam adres.
+ *
+ * Wołane WYŁĄCZNIE, gdy `findExistingWpPost` nie znalazł tego wpisu ani po
+ * tożsamości, ani po slugu w żadnej postaci (także sprzed transliteracji) -
+ * dlatego nowy wiersz nie zajmuje adresu obok wiersza, który ten sam wpis WP
+ * ma już pod starym, okaleczonym slugiem.
  */
 async function ensureUniqueSlug(
   supabase: SupabaseClient,
@@ -197,7 +197,7 @@ async function ensureUniqueSlug(
 ): Promise<string> {
   const base = slugify(desired) || `wp-${Date.now().toString(36)}`;
   const tag = `-wp${wpId}`;
-  const stem = base.slice(0, 120 - tag.length - 3).replace(/-+$/, "") || "wp";
+  const stem = base.slice(0, WP_SLUG_MAX_LENGTH - tag.length - 3).replace(/-+$/, "") || "wp";
   let candidate = base;
   for (let i = 0; i < 50; i += 1) {
     const { data, error } = await supabase
@@ -280,12 +280,23 @@ interface ExistingWpLookup {
  * Wiersz bez tożsamości (import sprzed jej zapisywania albo wpis pisany ręcznie)
  * dopasowany po slugu zostaje uznany za ten sam wpis, ale `sameWpPost = false`:
  * scalenie nie zostawia wtedy jego zajawki przy pustej zapowiedzi z WordPressa.
+ *
+ * SLUG SPRZED TRANSLITERACJI (`legacySlug`, gdy różni się od `slug`): import
+ * sprzed 2026-10-19 zapisał ten wpis pod okaleczonym adresem („tytu-podtytu"),
+ * którego nowy slug („tytul-podtytul") już nie trafia - bez tego kroku
+ * ponowny import dokładał duplikat. Stara postać jest sprawdzana PIERWSZA i z
+ * tymi samymi regułami tożsamości: to jedyny adres, jaki poprzednia wersja
+ * importu mogła temu wpisowi nadać, więc ponowny import trafia dokładnie w ten
+ * sam wiersz co dotąd. Wiersz bez tożsamości pod NOWĄ postacią może być wpisem
+ * pisanym ręcznie, którego stary import nigdy nie dotykał - bierzemy go
+ * dopiero, gdy starej postaci nie ma (albo należy do innego wpisu WP).
  */
 async function findExistingWpPost(
   supabase: SupabaseClient,
   tenantId: string,
   identity: WpIdentity,
   slug: string,
+  legacySlug: string,
 ): Promise<ExistingWpLookup> {
   // Czytamy TAKŻE kolumny drugiego języka - import wchodzi zawsze
   // jednojęzycznie, a payload budowany „jakby drugiej wersji nie było" kasował
@@ -305,6 +316,22 @@ async function findExistingWpPost(
   const sameIdentityRow = (byIdentity as ExistingWpRow[] | null)?.[0];
   if (sameIdentityRow) return { row: sameIdentityRow, sameWpPost: true, slugOwner: null };
 
+  if (legacySlug && legacySlug !== slug) {
+    const legacy = await findWpPostBySlug(supabase, tenantId, identity, legacySlug);
+    // Stara postać zajęta przez INNY wpis WP nie jest kolizją nowego adresu -
+    // ten wpis i tak wejdzie pod nowym slugiem, więc nie raportujemy lokatora.
+    if (legacy.row) return legacy;
+  }
+  return findWpPostBySlug(supabase, tenantId, identity, slug);
+}
+
+/** Dopasowanie po jednym slugu z regułami tożsamości opisanymi wyżej. */
+async function findWpPostBySlug(
+  supabase: SupabaseClient,
+  tenantId: string,
+  identity: WpIdentity,
+  slug: string,
+): Promise<ExistingWpLookup> {
   const { data: bySlug, error: slugErr } = await supabase
     .from("posts")
     .select(
@@ -390,6 +417,11 @@ function stripTags(s: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+/** Slug wpisu: z WordPressa, a gdy po normalizacji pusty - z tytułu, potem `wp-<ID>`. */
+function wpPostSlug(wp: WpPost, toSlug: (input: string) => string): string {
+  return toSlug(wp.slug || "") || toSlug(stripTags(wp.title)) || `wp-${wp.ID}`;
+}
+
 function mapStatus(wp: string): "draft" | "published" | "archived" {
   if (wp === "publish") return "published";
   if (wp === "trash") return "archived";
@@ -428,6 +460,12 @@ function decodeTermName(s: string): string {
 
 interface WpCategoryRef {
   slug: string;
+  /**
+   * Ten sam termin po `legacySlugify` (sprzed transliteracji „ł"). Równy `slug`,
+   * gdy nazwa nie ma liter z kreską. Pod tą postacią poprzednie biegi zakładały
+   * kategorie - resolver musi ją rozpoznać, inaczej zakłada duplikat.
+   */
+  legacySlug: string;
   name: string;
 }
 
@@ -439,18 +477,20 @@ interface WpCategoryRef {
 function wpCategoryRefs(wp: WpPost): WpCategoryRef[] {
   const terms: unknown[] =
     wp.categories && typeof wp.categories === "object" ? Object.values(wp.categories) : [];
-  const out = new Map<string, string>();
+  const out = new Map<string, WpCategoryRef>();
   for (const raw of terms) {
     if (!raw || typeof raw !== "object") continue;
     const term = raw as WpTerm;
     const name = decodeTermName(typeof term.name === "string" ? term.name : "");
-    const slug =
-      slugify(safeDecodeURIComponent(typeof term.slug === "string" ? term.slug : "")) ||
-      slugify(name);
+    const termSlug = safeDecodeURIComponent(typeof term.slug === "string" ? term.slug : "");
+    const slug = slugify(termSlug) || slugify(name);
     if (!slug || WP_DEFAULT_CATEGORY_SLUGS.has(slug) || out.has(slug)) continue;
-    out.set(slug, (name || slug).slice(0, 200));
+    // Pusty wynik starej postaci znaczy, że stary bieg termin POMIJAŁ - nie ma
+    // czego szukać, zostaje nowa postać.
+    const legacySlug = legacySlugify(termSlug) || legacySlugify(name) || slug;
+    out.set(slug, { slug, legacySlug, name: (name || slug).slice(0, 200) });
   }
-  return [...out].map(([slug, name]) => ({ slug, name }));
+  return [...out.values()];
 }
 
 interface CategoryResolution {
@@ -469,15 +509,33 @@ interface CategoryResolution {
  * wszystkie wymiary taksonomii, więc istniejący region czy temat o tym slugu
  * i tak zablokowałby założenie duplikatu.
  *
+ * Odczyt obejmuje też slug sprzed transliteracji (`legacySlug`): kategoria
+ * założona przez wcześniejszy bieg jako „odz" to TA SAMA kategoria co nowe
+ * „lodz" i wygrywa - ponowny import podpina wpis tam, gdzie był podpięty,
+ * zamiast zakładać drugą „Łódź" obok. Nowe kategorie powstają pod nową postacią.
+ *
  * Klient użytkownika, nie service_role: zakładanie kategorii to prawo
  * admina/redaktora (RLS). Autor importuje wpisy, ale brakujących kategorii nie
  * założy - wtedy podpinamy istniejące, a resztę raportujemy w logu zadania.
  */
 function createCategoryResolver(supabase: SupabaseClient, tenantId: string) {
-  const known = new Map<string, string>(); // slug -> categories.id
+  const known = new Map<string, string>(); // slug w bazie -> categories.id
+  // Slugi, o które bieg już skutecznie zapytał bazę - brak w `known` znaczy wtedy
+  // „takiej kategorii nie ma", a nie „jeszcze nie wiadomo".
+  const looked = new Set<string>();
   // Kategorie, których nie udało się założyć - błąd raportujemy raz, zamiast
   // ponawiać (i logować) go przy każdym kolejnym wpisie.
   const unavailable = new Set<string>();
+
+  /** Id kategorii terminu: stara postać sluga wygrywa, gdy taka kategoria jest. */
+  const idOf = (r: WpCategoryRef): string | undefined =>
+    known.get(r.legacySlug) ?? known.get(r.slug);
+  /** Termin rozstrzygnięty: wiadomo, czy stara postać istnieje, i jest id. */
+  const settled = (r: WpCategoryRef): boolean =>
+    known.has(r.legacySlug) || (looked.has(r.legacySlug) && known.has(r.slug));
+  const slugsOf = (refs: WpCategoryRef[]): string[] => [
+    ...new Set(refs.flatMap((r) => [r.slug, r.legacySlug])),
+  ];
 
   const lookup = async (slugs: string[]): Promise<string | null> => {
     const { data, error } = await supabase
@@ -489,20 +547,21 @@ function createCategoryResolver(supabase: SupabaseClient, tenantId: string) {
     for (const row of (data ?? []) as Array<{ id: string; slug: string }>) {
       known.set(row.slug, row.id);
     }
+    for (const slug of slugs) looked.add(slug);
     return null;
   };
 
   return async function resolve(refs: WpCategoryRef[]): Promise<CategoryResolution> {
     const errors: string[] = [];
     let created = 0;
-    const pending = refs.filter((r) => !known.has(r.slug) && !unavailable.has(r.slug));
+    const pending = refs.filter((r) => !settled(r) && !unavailable.has(r.slug));
     if (pending.length > 0) {
-      const lookupErr = await lookup(pending.map((r) => r.slug));
+      const lookupErr = await lookup(slugsOf(pending));
       if (lookupErr) {
         // Przejściowy błąd odczytu nie blokuje kategorii na resztę biegu.
         errors.push(`lookup failed: ${lookupErr}`);
       } else {
-        const missing = pending.filter((r) => !known.has(r.slug));
+        const missing = pending.filter((r) => !idOf(r));
         if (missing.length > 0) {
           // ignoreDuplicates: kategoria założona równolegle (unikat tenant_id+slug)
           // nie wywraca całej paczki - dociągamy ją ponownym odczytem niżej.
@@ -529,10 +588,10 @@ function createCategoryResolver(supabase: SupabaseClient, tenantId: string) {
               known.set(row.slug, row.id);
               created += 1;
             }
-            const raced = missing.filter((r) => !known.has(r.slug));
+            const raced = missing.filter((r) => !idOf(r));
             if (raced.length > 0) {
-              const raceErr = await lookup(raced.map((r) => r.slug));
-              const still = raced.filter((r) => !known.has(r.slug));
+              const raceErr = await lookup(slugsOf(raced));
+              const still = raced.filter((r) => !idOf(r));
               for (const r of still) unavailable.add(r.slug);
               if (still.length > 0) {
                 errors.push(
@@ -544,10 +603,16 @@ function createCategoryResolver(supabase: SupabaseClient, tenantId: string) {
         }
       }
     }
-    const ids = refs.flatMap((r) => {
-      const id = known.get(r.slug);
-      return id ? [id] : [];
-    });
+    // Dwa terminy mogą wskazać tę samą kategorię (nowe „lodz" i dosłowne „odz"
+    // przez starą postać) - jedno powiązanie, nie dwa.
+    const ids = [
+      ...new Set(
+        refs.flatMap((r) => {
+          const id = idOf(r);
+          return id ? [id] : [];
+        }),
+      ),
+    ];
     return { ids, created, errors };
   };
 }
@@ -1021,9 +1086,11 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         try {
           // Slug w tej samej postaci, w jakiej trafia do bazy: porównanie SUROWEGO
           // sluga WP z zapisanym po `slugify` nie trafiało w wiersze, które
-          // `slugify` zmienił, i każdy kolejny bieg dokładał duplikat.
-          const desiredSlug =
-            slugify(wp.slug || "") || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
+          // `slugify` zmienił, i każdy kolejny bieg dokładał duplikat. Postać
+          // sprzed transliteracji liczona TYM SAMYM łańcuchem zapasowym („ł" jako
+          // slug WP dawało dotąd pusty wynik i spadało na tytuł).
+          const desiredSlug = wpPostSlug(wp, slugify);
+          const legacyDesiredSlug = wpPostSlug(wp, legacySlugify);
           const identity = wpIdentityFor(siteHost, wp.ID);
 
           // Inline media (optional) - rewrite first so we can pick a cover from content if needed.
@@ -1065,7 +1132,13 @@ export const runWpImportJob = createServerFn({ method: "POST" })
 
           const status = mapStatus(wp.status);
 
-          const lookup = await findExistingWpPost(supabase, tenantId, identity, desiredSlug);
+          const lookup = await findExistingWpPost(
+            supabase,
+            tenantId,
+            identity,
+            desiredSlug,
+            legacyDesiredSlug,
+          );
           const existing = lookup.row;
           if (lookup.slugOwner) {
             await logger.push(
