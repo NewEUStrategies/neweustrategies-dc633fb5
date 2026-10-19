@@ -190,6 +190,8 @@ const pl = {
           "Treść zawiera znacznik kodu kuponu, ale kampania nie jest podpięta pod kampanię kuponową.",
         ambiguous:
           "Pod tę kampanię newslettera podpięto kilka kampanii kuponowych. Wysyłka zatrzymana.",
+        missingTag:
+          "Wersja językowa z treścią nie zawiera znacznika kodu kuponu. Wysyłka zatrzymana przed przydziałem kodów, żeby kody nie przepadły.",
       },
     },
     // Analityka (P10, D-S1-08): kwoty WYŁĄCZNIE per waluta i wyłącznie
@@ -381,6 +383,8 @@ const en: typeof pl = {
           "The content contains the coupon code marker, but the campaign is not linked to a coupon campaign.",
         ambiguous:
           "Several coupon campaigns are linked to this newsletter campaign. Sending stopped.",
+        missingTag:
+          "A language version with content is missing the coupon code marker. Sending stopped before any codes were assigned, so none are lost.",
       },
     },
     analytics: {

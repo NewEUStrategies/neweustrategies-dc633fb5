@@ -3,9 +3,9 @@
 // ADRES (SPEC §2.6): `?tab=subscriptions|orders|tickets|events|diagnostics&status=`.
 // Trasa waliduje adres liściem bez importów (`billingTabs.ts` - powłoka trasy
 // jedzie w chunku wejściowym), więc link z huba „Przychód i lejek" nie kończy
-// się stroną błędu. Zakładki renderuje `AdminBillingPanel` (wycinek S2), który
-// dziś trzyma je w stanie; podpięcie `tab`/`onTabChange`/`statusFilter` to
-// kontrakt z S2 (PLAN S1 §3.3) - do tego czasu link ląduje na zakładce domyślnej.
+// się stroną błędu. Zakładka jedzie w adresie (`tab`/`onTabChange`), więc deep
+// link ląduje na właściwej zakładce, a przełączenie zapisuje się w historii.
+// Filtr `status` podpina wycinek S2 (PLAN S1 §3.3).
 //
 // NAGŁÓWEK SEKCYJNY (`adminPageHead`, AGENTS.md) zamiast ręcznie składanego
 // `meta` - ten sam format tytułu i te same znaczniki `noindex` co w całym panelu.
@@ -29,6 +29,8 @@ export const Route = createFileRoute("/admin/billing")({
 
 function AdminBillingPage() {
   const { i18n } = useTranslation();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const lang = i18n.language === "en" ? "en" : "pl";
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -48,7 +50,12 @@ function AdminBillingPage() {
           </p>
         </div>
       </header>
-      <AdminBillingPanel />
+      <AdminBillingPanel
+        tab={search.tab}
+        onTabChange={(tab) =>
+          void navigate({ search: (prev) => ({ ...prev, tab }), replace: true })
+        }
+      />
     </div>
   );
 }

@@ -301,6 +301,25 @@ describe("wysyłka kampanii kuponowej", () => {
     expect(couponCampaignUpdates()).toHaveLength(0);
   });
 
+  it("część wysyłek nieudana -> kampania kuponowa NIE dostaje sent (nieudani do ponowienia)", async () => {
+    h.sendEmail
+      .mockResolvedValueOnce({ ok: true, id: "m1" })
+      .mockResolvedValueOnce({ ok: false, error: "provider_down", status: 503 });
+
+    const res = await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    expect(res).toMatchObject({ sent: 1, failed: 1, done: true });
+    expect(couponCampaignUpdates()).toHaveLength(0);
+  });
+
+  it("wersja językowa bez znacznika kodu -> COUPON_TAG_MISSING przed przydziałem kodów", async () => {
+    plan.claimed = campaign({ html_en: "<p>No code here</p>" });
+
+    await expect(sendCampaign({ data: { id: CAMPAIGN_ID } })).rejects.toThrow("COUPON_TAG_MISSING");
+    expect(h.sendEmail).not.toHaveBeenCalled();
+    expect(plan.codes.some((c) => c.metadata.assigned_subscriber_id !== undefined)).toBe(false);
+  });
+
   it("za mało kodów -> błąd z liczbami i ZERO maili, bez przypisań", async () => {
     plan.codes = [code("c1", "KOD-AAA1")];
 

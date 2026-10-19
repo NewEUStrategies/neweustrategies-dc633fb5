@@ -205,6 +205,8 @@ export const COUPON_SEND_ERRORS = {
   notLinked: "COUPON_CAMPAIGN_NOT_LINKED",
   /** Pod jedną kampanię newslettera podpięto kilka kampanii kuponowych. */
   ambiguous: "COUPON_CAMPAIGN_AMBIGUOUS",
+  /** Kampania kuponowa, ale wersja językowa z treścią nie ma `{{coupon_code}}`. */
+  missingTag: "COUPON_TAG_MISSING",
 } as const;
 
 const COUPON_TAG = "{{coupon_code}}";
@@ -1398,6 +1400,16 @@ async function runCampaignSend(
     if (!coupon && [docHtmlPl, docHtmlEn].some((html) => (html ?? "").includes(COUPON_TAG))) {
       throw new Error(COUPON_SEND_ERRORS.notLinked);
     }
+    // I odwrotnie: kampania kuponowa, której wersja językowa z treścią nie ma
+    // znacznika, przydzieliłaby odbiorcy kod, którego mail nie pokaże - kod
+    // przepada, a kampania mogłaby skończyć jako `sent`. Zatrzymujemy PRZED
+    // przydziałem kodów.
+    if (
+      coupon &&
+      [docHtmlPl, docHtmlEn].some((html) => !!html?.trim() && !html.includes(COUPON_TAG))
+    ) {
+      throw new Error(COUPON_SEND_ERRORS.missingTag);
+    }
 
     // Pula kodów porcji (tryb kuponowy), sprawdzana PRZED pierwszym mailem:
     // za mało kodów = porcja nie wysyła nic (mail bez kodu jest gorszy niż
@@ -1555,7 +1567,10 @@ async function runCampaignSend(
       return { sent, failed, done: false, remaining, processed: pending.length };
     }
 
-    const finalStatus = failed > 0 && sent === 0 ? "failed" : "sent";
+    // Kampania kuponowa z nieudanymi odbiorcami zostaje `failed`, czyli do
+    // podjęcia przez `claimCampaign`: nieudani dostali już przydzielony kod,
+    // a status `sent` zamknąłby ponowienie na zawsze (kod by przepadł).
+    const finalStatus = failed > 0 && (sent === 0 || coupon) ? "failed" : "sent";
     await admin
       .from("newsletter_campaigns")
       .update({

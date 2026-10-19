@@ -18,6 +18,7 @@ export const COUPON_SEND_ERROR_CODES = {
   codesInsufficient: "COUPON_CODES_INSUFFICIENT",
   notLinked: "COUPON_CAMPAIGN_NOT_LINKED",
   ambiguous: "COUPON_CAMPAIGN_AMBIGUOUS",
+  missingTag: "COUPON_TAG_MISSING",
 } as const;
 
 /** `COUPON_CODES_INSUFFICIENT:<potrzeba>:<dostępne>` - liczby z porcji wysyłki. */
@@ -42,6 +43,8 @@ export function couponSendErrorMessage(message: string, t: TFunction): string | 
       return t("adminCoupons.newsletterCampaign.errors.notLinked");
     case COUPON_SEND_ERROR_CODES.ambiguous:
       return t("adminCoupons.newsletterCampaign.errors.ambiguous");
+    case COUPON_SEND_ERROR_CODES.missingTag:
+      return t("adminCoupons.newsletterCampaign.errors.missingTag");
     default:
       return null;
   }

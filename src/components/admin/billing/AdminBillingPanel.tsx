@@ -12,6 +12,7 @@
 // więc klucz dziennika: zapytanie wykona panel, który je zna, i tylko gdy jest
 // otwarty.
 import { useMemo, useState } from "react";
+import { isBillingTab, type BillingTabId } from "@/lib/admin/billingTabs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-billing";
@@ -103,10 +104,23 @@ function StatusBadge({ value }: { value: string }) {
   );
 }
 
-export function AdminBillingPanel() {
+/**
+ * Zakładka może pochodzić z adresu (`?tab=`, deep link z huba „Przychód i
+ * lejek”): trasa podaje `tab` i `onTabChange`, a panel bez nich (testy,
+ * osadzenia) trzyma zakładkę w stanie lokalnym jak dotąd.
+ */
+export function AdminBillingPanel({
+  tab: tabFromUrl,
+  onTabChange,
+}: { tab?: BillingTabId; onTabChange?: (tab: BillingTabId) => void } = {}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
-  const [tab, setTab] = useState("subscriptions");
+  const [localTab, setLocalTab] = useState<string>("subscriptions");
+  const tab = tabFromUrl ?? localTab;
+  const setTab = (next: string) => {
+    if (onTabChange && isBillingTab(next)) onTabChange(next);
+    else setLocalTab(next);
+  };
   const queryClient = useQueryClient();
 
   const subsQ = useQuery({
