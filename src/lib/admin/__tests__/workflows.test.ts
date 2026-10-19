@@ -1,6 +1,8 @@
 // Czyste helpery warstwy danych modułu „Automatyzacje": parsowanie i
 // serializacja kroków, wartości warunku (containment), walidacja draftu,
 // agregacja statystyk przebiegów oraz parytet katalogu akcji z i18n.
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -10,11 +12,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 import {
   WORKFLOW_ACTIONS,
   WORKFLOW_ACTION_PARAMS,
+  WORKFLOW_LIFECYCLE_STAGE_OPTIONS,
+  WORKFLOW_TAG_MAX,
   aggregateRunStats,
   conditionToPairs,
   conditionValueToInput,
   draftFromDefinition,
   emptyWorkflowDraft,
+  isKnownEventType,
   isValidEventType,
   isWorkflowAction,
   pairsToCondition,
@@ -22,10 +27,12 @@ import {
   parseWorkflowSteps,
   serializeWorkflowSteps,
   validateWorkflowDraft,
+  validateWorkflowStepParams,
   type WorkflowDefinitionRow,
   type WorkflowStep,
 } from "@/lib/admin/workflows";
 import { workflowsPl, workflowsEn } from "@/lib/i18n-admin-workflows";
+import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 
 describe("parseWorkflowSteps", () => {
   it("parsuje kroki flagowych szablonów z migracji", () => {
@@ -205,9 +212,163 @@ describe("isValidEventType / isWorkflowAction", () => {
     expect(isValidEventType("")).toBe(false);
   });
 
+  it("D2: przyjmuje zdarzenia wieloczłonowe z katalogu (event.registration.created.v1)", () => {
+    expect(isValidEventType("event.registration.created.v1")).toBe(true);
+    expect(isValidEventType("event.registration.attended.v1")).toBe(true);
+    expect(isValidEventType("event.registration.payment.v1")).toBe(true);
+  });
+
+  it("D2: każdy typ z katalogu szyny przechodzi walidację edytora", () => {
+    for (const type of DOMAIN_EVENT_TYPES) {
+      expect(isValidEventType(type), type).toBe(true);
+      expect(isKnownEventType(type)).toBe(true);
+    }
+    expect(isKnownEventType("partner.synced.v1")).toBe(false);
+  });
+
+  it("wzorzec = CHECK z domain_events słowo w słowo (migracja szyny)", () => {
+    const sql = migrationsText().filter((m) => m.includes("domain_events_event_type_check"));
+    expect(sql.length).toBeGreaterThan(0);
+    expect(sql.join("\n")).toContain("'^[a-z0-9_]+(\\.[a-z0-9_]+)+\\.v[0-9]+$'");
+  });
+
   it("isWorkflowAction rozpoznaje wyłącznie katalog silnika", () => {
     for (const action of WORKFLOW_ACTIONS) expect(isWorkflowAction(action)).toBe(true);
     expect(isWorkflowAction("emit_event")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PARYTET KATALOGU AKCJI Z SILNIKIEM (S4). Silnik rzuca wyjątkiem przy akcji
+// spoza CASE, a edytor bez akcji z CASE jej nie pokaże - obie listy czytamy
+// z jednego źródła: najnowszej definicji `run_workflow_step` (migracja
+// 20261020130200, CIALO-Z 20261007140700).
+// ---------------------------------------------------------------------------
+const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
+
+function migrationsText(): string[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => readFileSync(join(MIGRATIONS_DIR, f), "utf8"));
+}
+
+function runWorkflowStepBody(): string {
+  const sql = readFileSync(join(MIGRATIONS_DIR, "20261020130200_workflow_actions_v2.sql"), "utf8");
+  const start = sql.indexOf("CREATE OR REPLACE FUNCTION public.run_workflow_step(");
+  const bodyStart = sql.indexOf("AS $function$", start);
+  const end = sql.indexOf("$function$;", bodyStart + "AS $function$".length);
+  expect(start).toBeGreaterThan(-1);
+  expect(bodyStart).toBeGreaterThan(start);
+  expect(end).toBeGreaterThan(bodyStart);
+  return sql.slice(start, end);
+}
+
+/** Etykiety gałęzi `CASE v_action` (także wieloetykietowe `WHEN 'a', 'b'`). */
+function sqlActionLabels(body: string): string[] {
+  const start = body.indexOf("CASE v_action");
+  const end = body.indexOf("END CASE;", start);
+  const caseBlock = body.slice(start, end);
+  const labels: string[] = [];
+  for (const match of caseBlock.matchAll(/^\s*WHEN\s+((?:'[a-z_]+'\s*,?\s*)+)THEN/gm)) {
+    for (const label of match[1].matchAll(/'([a-z_]+)'/g)) labels.push(label[1]);
+  }
+  return labels;
+}
+
+describe("parytet WORKFLOW_ACTIONS z CASE w run_workflow_step (SQL)", () => {
+  const body = runWorkflowStepBody();
+  const labels = sqlActionLabels(body);
+
+  it("ta sama lista akcji po obu stronach (także wieloetykietowe WHEN)", () => {
+    expect([...labels].sort()).toEqual([...WORKFLOW_ACTIONS].sort());
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("parser łapie gałąź z dwiema etykietami (newsletter_list_add, newsletter_list_remove)", () => {
+    expect(labels).toEqual(
+      expect.arrayContaining(["newsletter_list_add", "newsletter_list_remove"]),
+    );
+  });
+
+  it("gałąź ELSE nadal odrzuca nieznaną akcję", () => {
+    expect(body).toMatch(/ELSE\s+RAISE EXCEPTION 'workflow: unknown action %'/);
+  });
+
+  it("każdy parametr formularza jest czytany przez silnik (brak martwych pól)", () => {
+    for (const [action, specs] of Object.entries(WORKFLOW_ACTION_PARAMS)) {
+      for (const spec of specs) {
+        expect(body, `${action}.${spec.key}`).toContain(`'${spec.key}'`);
+      }
+    }
+  });
+
+  it("D9: create_crm_lead nie ma przełącznika zgody marketingowej, a silnik go nie czyta", () => {
+    expect(WORKFLOW_ACTION_PARAMS.create_crm_lead.map((s) => s.key)).not.toContain("marketing");
+    expect(body).not.toContain("'marketing'");
+  });
+
+  it("limit tagu = limit silnika (odrzucenie, nie przycięcie)", () => {
+    expect(body).toContain(`char_length(v_tag) NOT BETWEEN 1 AND ${WORKFLOW_TAG_MAX}`);
+  });
+
+  it("set_lifecycle_stage nie oferuje etapów billingu", () => {
+    expect(WORKFLOW_LIFECYCLE_STAGE_OPTIONS).not.toContain("customer");
+    expect(WORKFLOW_LIFECYCLE_STAGE_OPTIONS).not.toContain("former_customer");
+    expect(WORKFLOW_LIFECYCLE_STAGE_OPTIONS).toEqual(
+      expect.arrayContaining(["subscriber", "lead", "mql", "sql", "opportunity"]),
+    );
+  });
+});
+
+describe("validateWorkflowStepParams", () => {
+  it("wymagane parametry nowych akcji", () => {
+    expect(
+      validateWorkflowStepParams([
+        { action: "set_lifecycle_stage", params: {} },
+        { action: "add_tag", params: { tag: "   " } },
+        { action: "assign_owner", params: { overwrite: true } },
+        { action: "newsletter_list_add", params: {} },
+        // Bez tytułu silnik nadaje „Follow-up" - brak tytułu nie jest błędem.
+        { action: "create_crm_task", params: {} },
+      ]),
+    ).toEqual([
+      { stepIndex: 0, key: "stage", issue: "required" },
+      { stepIndex: 1, key: "tag", issue: "required" },
+      { stepIndex: 2, key: "owner_id", issue: "required" },
+      { stepIndex: 3, key: "list_key", issue: "required" },
+    ]);
+  });
+
+  it("tag ponad limit jest błędem, nie przycięciem; etap spoza listy też", () => {
+    expect(
+      validateWorkflowStepParams([
+        { action: "add_tag", params: { tag: "x".repeat(WORKFLOW_TAG_MAX + 1) } },
+        { action: "set_lifecycle_stage", params: { stage: "customer" } },
+        { action: "set_crm_stage", params: { stage: "won" } },
+        { action: "create_crm_task", params: { title: "T", origin_ref: "r".repeat(201) } },
+      ]),
+    ).toEqual([
+      { stepIndex: 0, key: "tag", issue: "tooLong" },
+      { stepIndex: 1, key: "stage", issue: "option" },
+      { stepIndex: 3, key: "origin_ref", issue: "tooLong" },
+    ]);
+  });
+
+  it("draft z brakami w parametrach zgłasza stepParams", () => {
+    const draft = {
+      ...emptyWorkflowDraft(),
+      name: "Etap",
+      triggerEventType: "event.registration.attended.v1",
+      steps: [{ action: "set_lifecycle_stage" as const, params: {} }],
+    };
+    expect(validateWorkflowDraft(draft)).toEqual(["stepParams"]);
+    expect(
+      validateWorkflowDraft({
+        ...draft,
+        steps: [{ action: "set_lifecycle_stage", params: { stage: "mql" } }],
+      }),
+    ).toEqual([]);
   });
 });
 
@@ -274,6 +435,30 @@ describe("parytet katalogu akcji z i18n (PL i EN)", () => {
         expect(entry.description.length).toBeGreaterThan(0);
       }
     }
+  });
+
+  it("każda opcja pól wyboru ma etykietę w obu językach", () => {
+    for (const [lang, dict] of dictionaries) {
+      for (const specs of Object.values(WORKFLOW_ACTION_PARAMS)) {
+        for (const spec of specs) {
+          if (spec.kind !== "select" || !spec.optionGroup) continue;
+          const labels = dict.options[spec.optionGroup] as Record<string, string>;
+          for (const option of spec.options ?? []) {
+            expect(labels[option], `${lang}: options.${spec.optionGroup}.${option}`).toBeTruthy();
+          }
+        }
+      }
+    }
+  });
+
+  it("słowniki PL i EN mają identyczne drzewo kluczy", () => {
+    const keys = (value: unknown, prefix = ""): string[] =>
+      value && typeof value === "object"
+        ? Object.entries(value as Record<string, unknown>).flatMap(([k, v]) =>
+            keys(v, prefix ? `${prefix}.${k}` : k),
+          )
+        : [prefix];
+    expect(keys(workflowsEn).sort()).toEqual(keys(workflowsPl).sort());
   });
 
   it("każdy parametr formularza ma etykietę w obu językach", () => {

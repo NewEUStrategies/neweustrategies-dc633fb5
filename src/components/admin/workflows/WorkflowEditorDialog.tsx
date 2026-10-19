@@ -2,10 +2,14 @@
 // (containment na payloadzie) i sekwencja akcji z katalogu silnika.
 // Formularz parametrów kroku jest generowany z WORKFLOW_ACTION_PARAMS -
 // dodanie nowej akcji w silniku wymaga tylko wpisu w katalogu i i18n.
+// Parametry z zamkniętą listą (etap) i osoby z zespołu mają własne pola
+// wyboru: wpisany ręcznie uuid albo literówka w etapie kończyły się
+// przebiegiem `failed` dopiero przy pierwszym zdarzeniu.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import "@/lib/i18n-admin-workflows";
-import { ArrowDown, ArrowUp, ListPlus, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ListPlus, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,12 +33,18 @@ import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 import {
   WORKFLOW_ACTIONS,
   WORKFLOW_ACTION_PARAMS,
+  isKnownEventType,
+  isValidEventType,
   isWorkflowAction,
   validateWorkflowDraft,
+  validateWorkflowStepParams,
+  type WorkflowActionParamSpec,
   type WorkflowDraft,
   type WorkflowDraftError,
   type WorkflowStep,
+  type WorkflowStepParamIssue,
 } from "@/lib/admin/workflows";
+import { workflowStaffUsersQueryOptions } from "@/lib/admin/workflowQueries";
 import { useActionName } from "./useActionName";
 import {
   CUSTOM_TRIGGER,
@@ -85,6 +95,15 @@ export function WorkflowEditorDialog({
 
   const errors = useMemo(() => validateWorkflowDraft(draft), [draft]);
   const errorSet = new Set<WorkflowDraftError>(showErrors ? errors : []);
+  const paramIssues = useMemo(
+    () => (showErrors ? validateWorkflowStepParams(draft.steps) : []),
+    [showErrors, draft.steps],
+  );
+  const trimmedTrigger = draft.triggerEventType.trim();
+  // Typ poprawny składniowo, ale spoza katalogu szyny: zapis przechodzi
+  // (moduł może emitować go w przyszłości), lecz redaktor dostaje ostrzeżenie.
+  const unknownTrigger =
+    customTrigger && isValidEventType(trimmedTrigger) && !isKnownEventType(trimmedTrigger);
 
   const patch = (partial: Partial<WorkflowDraft>) => setDraft((d) => ({ ...d, ...partial }));
 
@@ -180,6 +199,12 @@ export function WorkflowEditorDialog({
                 {t("adminWorkflows.editor.validation.trigger")}
               </p>
             )}
+            {unknownTrigger && (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground" role="status">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                {t("adminWorkflows.editor.triggerUnknown")}
+              </p>
+            )}
           </div>
 
           <fieldset className="space-y-2 rounded-lg border border-border/70 p-3">
@@ -256,6 +281,7 @@ export function WorkflowEditorDialog({
                 index={index}
                 total={draft.steps.length}
                 step={step}
+                issues={paramIssues.filter((issue) => issue.stepIndex === index)}
                 onChange={(next) => patchStep(index, next)}
                 onMove={(delta) => moveStep(index, delta)}
                 onRemove={() => patch({ steps: removeAt(draft.steps, index) })}
@@ -264,6 +290,11 @@ export function WorkflowEditorDialog({
             {errorSet.has("steps") && (
               <p className="text-xs text-destructive">
                 {t("adminWorkflows.editor.validation.steps")}
+              </p>
+            )}
+            {errorSet.has("stepParams") && (
+              <p className="text-xs text-destructive">
+                {t("adminWorkflows.editor.validation.stepParams")}
               </p>
             )}
             <Button
@@ -298,6 +329,7 @@ function StepEditor({
   index,
   total,
   step,
+  issues,
   onChange,
   onMove,
   onRemove,
@@ -305,6 +337,7 @@ function StepEditor({
   index: number;
   total: number;
   step: WorkflowStep;
+  issues: readonly WorkflowStepParamIssue[];
   onChange: (step: WorkflowStep) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
@@ -380,6 +413,48 @@ function StepEditor({
       <div className="grid gap-3 sm:grid-cols-2">
         {specs.map((spec) => {
           const label = t(`adminWorkflows.params.${spec.key}`);
+          const issue = issues.find((i) => i.key === spec.key);
+          const fieldId = `wf-step-${index}-${spec.key}`;
+          const issueId = issue ? `${fieldId}-issue` : undefined;
+          const issueText = issue
+            ? issue.issue === "tooLong"
+              ? t("adminWorkflows.editor.paramIssue.tooLong", { max: spec.maxLength })
+              : t(`adminWorkflows.editor.paramIssue.${issue.issue}`)
+            : null;
+          if (spec.kind === "select" || spec.kind === "staff") {
+            return (
+              <div key={spec.key} className="space-y-1">
+                <Label htmlFor={fieldId} className="text-xs text-muted-foreground">
+                  {label}
+                  {spec.required && <span aria-hidden> *</span>}
+                </Label>
+                {spec.kind === "select" ? (
+                  <OptionParamSelect
+                    id={fieldId}
+                    spec={spec}
+                    value={paramInputValue(step.params[spec.key])}
+                    invalid={Boolean(issue)}
+                    describedBy={issueId}
+                    onChange={(value) => onChange(stepWithParam(step, spec.key, value))}
+                  />
+                ) : (
+                  <StaffParamSelect
+                    id={fieldId}
+                    required={Boolean(spec.required)}
+                    value={paramInputValue(step.params[spec.key])}
+                    invalid={Boolean(issue)}
+                    describedBy={issueId}
+                    onChange={(value) => onChange(stepWithParam(step, spec.key, value))}
+                  />
+                )}
+                {issueText && (
+                  <p id={issueId} className="text-xs text-destructive">
+                    {issueText}
+                  </p>
+                )}
+              </div>
+            );
+          }
           if (spec.kind === "boolean") {
             return (
               <label key={spec.key} className="flex items-center gap-2 text-sm">
@@ -398,17 +473,141 @@ function StepEditor({
           const value = paramInputValue(step.params[spec.key]);
           return (
             <div key={spec.key} className="space-y-1">
-              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <Label htmlFor={fieldId} className="text-xs text-muted-foreground">
+                {label}
+                {spec.required && <span aria-hidden> *</span>}
+              </Label>
               <Input
+                id={fieldId}
                 value={value}
                 placeholder={spec.example}
                 onChange={(e) => onChange(stepWithParam(step, spec.key, e.target.value))}
                 className="h-8 text-sm"
+                aria-invalid={Boolean(issue)}
+                aria-required={spec.required || undefined}
+                aria-describedby={issueId}
               />
+              {issueText && (
+                <p id={issueId} className="text-xs text-destructive">
+                  {issueText}
+                </p>
+              )}
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+// Wartownik „brak wartości" dla Radiksowego Select (pusty string jest tam
+// zarezerwowany i czyści zaznaczenie).
+const EMPTY_OPTION = "__none__";
+
+function OptionParamSelect({
+  id,
+  spec,
+  value,
+  invalid,
+  describedBy,
+  onChange,
+}: {
+  id: string;
+  spec: WorkflowActionParamSpec;
+  value: string;
+  invalid: boolean;
+  describedBy?: string;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const options = spec.options ?? [];
+  return (
+    <Select value={value || undefined} onValueChange={onChange}>
+      <SelectTrigger
+        id={id}
+        className="h-8 text-sm"
+        aria-invalid={invalid}
+        aria-required={spec.required || undefined}
+        aria-describedby={describedBy}
+      >
+        <SelectValue placeholder={t("adminWorkflows.editor.selectPlaceholder")} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {spec.optionGroup ? t(`adminWorkflows.options.${spec.optionGroup}.${option}`) : option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function StaffParamSelect({
+  id,
+  required,
+  value,
+  invalid,
+  describedBy,
+  onChange,
+}: {
+  id: string;
+  required: boolean;
+  value: string;
+  invalid: boolean;
+  describedBy?: string;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  // Lista zespołu z serwera (ta sama co picker właściciela w CRM): silnik
+  // i tak odrzuca osobę spoza personelu najemcy, ale błąd przy zdarzeniu jest
+  // dużo droższy niż wybór z listy przy zapisie.
+  const staffQuery = useQuery(workflowStaffUsersQueryOptions());
+  const staff = staffQuery.data ?? [];
+  const known = value === "" || staff.some((person) => person.id === value);
+  return (
+    <Select
+      value={value === "" ? (required ? undefined : EMPTY_OPTION) : value}
+      onValueChange={(next) => onChange(next === EMPTY_OPTION ? "" : next)}
+      disabled={staffQuery.isLoading}
+    >
+      <SelectTrigger
+        id={id}
+        className="h-8 text-sm"
+        aria-invalid={invalid}
+        aria-required={required || undefined}
+        aria-describedby={describedBy}
+      >
+        <SelectValue
+          placeholder={
+            staffQuery.isLoading
+              ? t("adminWorkflows.editor.staffLoading")
+              : t("adminWorkflows.editor.staffPlaceholder")
+          }
+        />
+      </SelectTrigger>
+      <SelectContent>
+        {!required && (
+          <SelectItem value={EMPTY_OPTION}>{t("adminWorkflows.editor.none")}</SelectItem>
+        )}
+        {staff.map((person) => (
+          <SelectItem key={person.id} value={person.id}>
+            {person.label}
+          </SelectItem>
+        ))}
+        {!known && (
+          // Zapisany przepis wskazuje osobę, której nie ma już w zespole -
+          // pokazujemy ją, zamiast po cichu zgubić wartość przy edycji.
+          <SelectItem value={value}>
+            {t("adminWorkflows.editor.staffUnknown", { id: value })}
+          </SelectItem>
+        )}
+        {staff.length === 0 && !staffQuery.isLoading && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            {t("adminWorkflows.editor.staffEmpty")}
+          </div>
+        )}
+      </SelectContent>
+    </Select>
   );
 }

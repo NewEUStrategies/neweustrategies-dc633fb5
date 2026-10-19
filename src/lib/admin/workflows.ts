@@ -11,10 +11,13 @@
 //    (SECURITY DEFINER, idempotentna per tenant+template_key).
 //  - Katalog akcji odzwierciedla CASE w public.run_workflow_step - silnik
 //    rzuca wyjątkiem przy nieznanej akcji, więc lista tutaj jest kontraktem
-//    edytora, a test jednostkowy pilnuje parytetu specyfikacji parametrów.
+//    edytora; test jednostkowy czyta CASE z migracji 20261020130200 i pilnuje
+//    parytetu obu list oraz kluczy parametrów.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
-import type { DomainEventRow } from "@/lib/realtime/domainEvents";
+import { DOMAIN_EVENT_TYPES, type DomainEventRow } from "@/lib/realtime/domainEvents";
+import { BILLING_OWNED_LIFECYCLE_STAGES, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { LEAD_STAGE_ORDER } from "@/lib/crm/leadListSpec";
 
 export type WorkflowDefinitionRow = Database["public"]["Tables"]["workflow_definitions"]["Row"];
 export type WorkflowRunRow = Database["public"]["Tables"]["workflow_runs"]["Row"];
@@ -24,12 +27,21 @@ export type WorkflowTemplateRow = Database["public"]["Tables"]["workflow_templat
 // Katalog akcji (kontrakt z public.run_workflow_step).
 // ---------------------------------------------------------------------------
 
+// Kolejność = kolejność listy w edytorze: powiadomienia, CRM (kontakt, zadanie,
+// etapy, tagi, właściciel), listy newslettera, graf powiązań.
 export const WORKFLOW_ACTIONS = [
   "notify_user",
   "notify_staff",
   "notify_followers",
   "create_crm_lead",
   "create_crm_task",
+  "set_lifecycle_stage",
+  "set_crm_stage",
+  "add_tag",
+  "remove_tag",
+  "assign_owner",
+  "newsletter_list_add",
+  "newsletter_list_remove",
   "add_cross_reference",
 ] as const;
 
@@ -44,14 +56,39 @@ export function isWorkflowAction(value: string): value is WorkflowActionKey {
  * kroku w edytorze. `kind`:
  *  - text     - zwykłe pole tekstowe (wartość string),
  *  - boolean  - przełącznik (wartość boolean),
- *  - roles    - lista ról oddzielona przecinkami (wartość string[]).
+ *  - roles    - lista ról oddzielona przecinkami (wartość string[]),
+ *  - select   - wybór z zamkniętej listy `options` (etykiety
+ *               `adminWorkflows.options.<optionGroup>.<wartość>`),
+ *  - staff    - osoba z personelu CRM najemcy (uuid; silnik i tak odrzuca
+ *               spoza personelu, edytor nie daje wpisać byle czego).
  * `example` to podpowiedź/wartość domyślna silnika pokazywana jako placeholder.
+ * `required` - bez wartości silnik rzuca wyjątkiem (przebieg `failed`), więc
+ * edytor blokuje zapis zamiast wysyłać przepis, który nigdy się nie uda.
+ * `maxLength` - limit silnika ODRZUCANY, nie przycinany (tag 40 znaków).
  */
 export interface WorkflowActionParamSpec {
   key: string;
-  kind: "text" | "boolean" | "roles";
+  kind: "text" | "boolean" | "roles" | "select" | "staff";
   example?: string;
+  options?: readonly string[];
+  optionGroup?: "lifecycleStage" | "crmStage";
+  required?: boolean;
+  maxLength?: number;
 }
+
+/** Limit tagu CRM w akcjach add_tag / remove_tag (lustro wyjątku w SQL). */
+export const WORKFLOW_TAG_MAX = 40;
+
+/** Limit klucza idempotencji zadania (`crm_tasks.origin_ref`, CHECK 200). */
+export const WORKFLOW_ORIGIN_REF_MAX = 200;
+
+/**
+ * Etapy cyklu życia, które może ustawić przepis: bez etapów klienta - te
+ * nadaje wyłącznie billing (silnik i tak by je pominął, edytor ich nie kusi).
+ */
+export const WORKFLOW_LIFECYCLE_STAGE_OPTIONS: readonly string[] = LIFECYCLE_STAGES.filter(
+  (stage) => !(BILLING_OWNED_LIFECYCLE_STAGES as readonly string[]).includes(stage),
+);
 
 // Parametry wspólne wszystkich akcji notyfikacyjnych (enqueue_notification):
 // tytuły PL/EN obsługują {aggregate_id}, href dodatkowo {post_href}.
@@ -74,22 +111,66 @@ export const WORKFLOW_ACTION_PARAMS: Record<WorkflowActionKey, WorkflowActionPar
     { key: "author_from", kind: "text", example: "author_id" },
     ...NOTIFICATION_PARAMS,
   ],
+  // D9: bez przełącznika zgody marketingowej - zgodę daje wyłącznie dowód
+  // (formularz, double opt-in), nigdy konfiguracja przepisu; silnik ignoruje
+  // parametr `marketing` w starych przepisach.
   create_crm_lead: [
     { key: "email_from", kind: "text", example: "email" },
     { key: "first_name_from", kind: "text", example: "first_name" },
     { key: "last_name_from", kind: "text", example: "last_name" },
     { key: "newsletter", kind: "boolean" },
-    { key: "marketing", kind: "boolean" },
   ],
-  // Zadanie follow-up przy leadzie: lead po e-mailu z payloadu (email_from)
-  // albo po profilu użytkownika (user_from; zdarzenia monetyzacji niosą
-  // user_id). Dedup silnika: jedno OTWARTE zadanie o tym tytule per lead.
+  // Zadanie follow-up przy leadzie: lead z agregatu, `lead_id`, konta
+  // (`user_from`; zdarzenia monetyzacji niosą user_id) albo e-maila. Osoba:
+  // parametr -> właściciel leada -> domyślna osoba ustawień ścieżek.
+  // `origin_ref` (placeholdery {event_id}, {aggregate_id}, {user_id},
+  // {lead_id}) robi z powtórki kroku jedno zadanie.
   create_crm_task: [
+    // Bez tytułu silnik nadaje „Follow-up" - pole nie jest wymagane.
     { key: "title", kind: "text", example: "Retencja: anulowanie subskrypcji" },
     { key: "note", kind: "text" },
+    { key: "assignee_id", kind: "staff" },
     { key: "due_days", kind: "text", example: "3" },
+    { key: "due_hours", kind: "text", example: "4" },
+    {
+      key: "origin_ref",
+      kind: "text",
+      example: "retention:canceled:{event_id}",
+      maxLength: WORKFLOW_ORIGIN_REF_MAX,
+    },
     { key: "user_from", kind: "text", example: "user_id" },
     { key: "email_from", kind: "text", example: "email" },
+  ],
+  set_lifecycle_stage: [
+    {
+      key: "stage",
+      kind: "select",
+      options: WORKFLOW_LIFECYCLE_STAGE_OPTIONS,
+      optionGroup: "lifecycleStage",
+      required: true,
+    },
+    { key: "allow_backward", kind: "boolean" },
+  ],
+  set_crm_stage: [
+    {
+      key: "stage",
+      kind: "select",
+      options: LEAD_STAGE_ORDER,
+      optionGroup: "crmStage",
+      required: true,
+    },
+  ],
+  add_tag: [{ key: "tag", kind: "text", required: true, maxLength: WORKFLOW_TAG_MAX }],
+  remove_tag: [{ key: "tag", kind: "text", required: true, maxLength: WORKFLOW_TAG_MAX }],
+  assign_owner: [
+    { key: "owner_id", kind: "staff", required: true },
+    { key: "overwrite", kind: "boolean" },
+  ],
+  // Lista z ustawień newslettera (`popup_mailing_lists[].id`). Automat NIE
+  // zapisuje nikogo na newsletter - bez subskrybenta krok kończy się błędem.
+  newsletter_list_add: [{ key: "list_key", kind: "text", example: "geopolityka", required: true }],
+  newsletter_list_remove: [
+    { key: "list_key", kind: "text", example: "geopolityka", required: true },
   ],
   add_cross_reference: [
     { key: "target_id", kind: "text" },
@@ -262,11 +343,20 @@ export function pairsToCondition(pairs: ConditionPair[]): Json {
 // Walidacje draftu.
 // ---------------------------------------------------------------------------
 
-// Kontrakt z CHECK-iem na domain_events: `<agregat>.<czasownik>.v<n>`.
-const EVENT_TYPE_PATTERN = /^[a-z0-9_]+\.[a-z0-9_]+\.v[0-9]+$/;
+// Kontrakt z CHECK-iem na domain_events, słowo w słowo:
+// `^[a-z0-9_]+(\.[a-z0-9_]+)+\.v[0-9]+$`. D2: dotychczasowy wzorzec znał
+// tylko DWA segmenty i odrzucał zdarzenia trzyczłonowe z katalogu
+// (`event.registration.created.v1`) - przepisu na zapis na wydarzenie nie
+// dało się zapisać.
+const EVENT_TYPE_PATTERN = /^[a-z0-9_]+(\.[a-z0-9_]+)+\.v[0-9]+$/;
 
 export function isValidEventType(value: string): boolean {
   return EVENT_TYPE_PATTERN.test(value);
+}
+
+/** Czy typ zdarzenia jest w katalogu szyny (emitowany przez znany emiter). */
+export function isKnownEventType(value: string): boolean {
+  return (DOMAIN_EVENT_TYPES as readonly string[]).includes(value);
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -307,7 +397,50 @@ export function draftFromDefinition(row: WorkflowDefinitionRow): WorkflowDraft {
 }
 
 /** Klucze błędów walidacji - mapowane na i18n w UI. */
-export type WorkflowDraftError = "name" | "trigger" | "steps" | "conditionKey";
+export type WorkflowDraftError = "name" | "trigger" | "steps" | "conditionKey" | "stepParams";
+
+/** Błąd parametru kroku: brak wymaganej wartości albo przekroczony limit. */
+export interface WorkflowStepParamIssue {
+  stepIndex: number;
+  key: string;
+  issue: "required" | "tooLong" | "option";
+}
+
+function paramText(value: WorkflowStepParamValue | undefined): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) return value.join(",").trim();
+  return "";
+}
+
+/**
+ * Parametry kroków, których silnik nie przyjmie. Walidacja stoi w edytorze,
+ * bo silnik rzuca wyjątkiem dopiero przy zdarzeniu - przepis z pustym etapem
+ * zapisałby się bez słowa i kończył każdy przebieg jako `failed`.
+ */
+export function validateWorkflowStepParams(
+  steps: readonly WorkflowStep[],
+): WorkflowStepParamIssue[] {
+  const issues: WorkflowStepParamIssue[] = [];
+  steps.forEach((step, stepIndex) => {
+    for (const spec of WORKFLOW_ACTION_PARAMS[step.action]) {
+      if (spec.kind === "boolean") continue;
+      const text = paramText(step.params[spec.key]);
+      if (text.length === 0) {
+        if (spec.required) issues.push({ stepIndex, key: spec.key, issue: "required" });
+        continue;
+      }
+      // Limit odrzucany, nie przycinany - zapis długości większej niż silnik
+      // przyjmie kończyłby się błędem przebiegu, a nie skróconym tagiem.
+      if (spec.maxLength !== undefined && text.length > spec.maxLength) {
+        issues.push({ stepIndex, key: spec.key, issue: "tooLong" });
+      }
+      if (spec.kind === "select" && spec.options && !spec.options.includes(text)) {
+        issues.push({ stepIndex, key: spec.key, issue: "option" });
+      }
+    }
+  });
+  return issues;
+}
 
 export function validateWorkflowDraft(draft: WorkflowDraft): WorkflowDraftError[] {
   const errors: WorkflowDraftError[] = [];
@@ -317,6 +450,7 @@ export function validateWorkflowDraft(draft: WorkflowDraft): WorkflowDraftError[
   if (draft.conditionPairs.some((p) => p.key.trim() === "" && p.value.trim() !== "")) {
     errors.push("conditionKey");
   }
+  if (validateWorkflowStepParams(draft.steps).length > 0) errors.push("stepParams");
   return errors;
 }
 

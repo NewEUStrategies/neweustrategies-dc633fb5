@@ -22,11 +22,11 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { eventPayload } from "@/lib/realtime/domainEvents";
 import {
-  fetchCorrelationTrace,
   type CorrelationTrace,
   type CorrelationTraceDelivery,
   type WorkflowRunWithDefinition,
 } from "@/lib/admin/workflows";
+import { correlationTraceQueryOptions } from "@/lib/admin/workflowQueries";
 import { traceQueryEnabled, traceSubmission } from "./lib/panelRules";
 import { DateTimeText, EventTypeChip, RunStatusBadge } from "./atoms";
 
@@ -43,12 +43,9 @@ export function CorrelationTracePanel({
   const [input, setInput] = useState(correlationId ?? "");
   const [invalid, setInvalid] = useState(false);
 
-  const traceQuery = useQuery({
-    queryKey: ["admin", "correlation-trace", correlationId],
-    queryFn: () => fetchCorrelationTrace(correlationId ?? ""),
-    enabled: traceQueryEnabled(correlationId),
-    staleTime: 30_000,
-  });
+  const traceQuery = useQuery(
+    correlationTraceQueryOptions(correlationId, traceQueryEnabled(correlationId)),
+  );
 
   const submit = () => {
     // Walidacja stoi PRZED zapytaniem - `fetchCorrelationTrace` z byle napisem
