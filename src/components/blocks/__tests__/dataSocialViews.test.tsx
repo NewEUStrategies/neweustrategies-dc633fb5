@@ -50,6 +50,20 @@ describe("TeamGridView", () => {
     expect(screen.queryByText("Bez imienia")).toBeNull();
   });
 
+  it("link profilu tylko dla bezpiecznego adresu; `javascript:` nie daje linku", () => {
+    render(
+      <TeamGridView
+        items={[
+          { name: "Anna", social: "https://linkedin.com/in/anna" },
+          { name: "Bartek", social: "javascript:alert(1)" },
+        ]}
+      />,
+    );
+    const [anna, bartek] = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(within(anna).getByRole("link")).toHaveAttribute("href", "https://linkedin.com/in/anna");
+    expect(within(bartek).queryByRole("link")).toBeNull();
+  });
+
   it("zdjęcie ma alt z imieniem; bez zdjęcia zostaje dekoracyjny placeholder", () => {
     render(
       <TeamGridView items={[{ name: "Anna", avatar: "https://cdn/a.jpg" }, { name: "Bartek" }]} />,

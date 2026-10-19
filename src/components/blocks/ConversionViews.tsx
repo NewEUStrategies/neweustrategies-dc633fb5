@@ -1,11 +1,13 @@
 // Publiczne renderery dla Phase 4 batch 13 (konwersja / SEO).
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { htmlToPlainText } from "@/lib/sanitize";
 import { firstFrameVideoSrc, useGatedVideoAutoplay } from "@/lib/performance/motionGate";
 
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { Check, X as XIcon } from "lucide-react";
+import "@/lib/i18n-public";
 
 // ===== Step List =====
 
@@ -107,21 +109,33 @@ interface CompProps {
   columns?: Json[];
   rows?: Json[];
   featuredIndex?: number;
+  /** Język TREŚCI - nagłówek kolumny cech i nazwy ikon tak/nie idą w nim, a nie w języku panelu. */
+  lang?: "pl" | "en";
   cls?: string;
 }
 
-function renderCellValue(v: string) {
+function renderCellValue(v: string, yes: string, no: string) {
   const t = v.trim().toLowerCase();
   if (t === "✓" || t === "yes" || t === "tak" || t === "true") {
-    return <Check className="w-5 h-5 text-emerald-600 mx-auto" aria-label="Tak" />;
+    return <Check className="w-5 h-5 text-emerald-600 mx-auto" aria-label={yes} />;
   }
   if (t === "✗" || t === "no" || t === "nie" || t === "false") {
-    return <XIcon className="w-5 h-5 text-muted-foreground mx-auto" aria-label="Nie" />;
+    return <XIcon className="w-5 h-5 text-muted-foreground mx-auto" aria-label={no} />;
   }
   return <span className="text-sm text-foreground">{v}</span>;
 }
 
-export function ComparisonTableView({ title, columns, rows, featuredIndex = -1, cls }: CompProps) {
+export function ComparisonTableView({
+  title,
+  columns,
+  rows,
+  featuredIndex = -1,
+  lang = "pl",
+  cls,
+}: CompProps) {
+  const { t } = useTranslation();
+  const yes = t("blocksUi.comparisonYes", { lng: lang });
+  const no = t("blocksUi.comparisonNo", { lng: lang });
   const cols: string[] = (Array.isArray(columns) ? columns : []).map((c) => String(c ?? ""));
   const rowList = (Array.isArray(rows) ? rows : []).map((r) => {
     const o = (r ?? {}) as Record<string, Json>;
@@ -141,7 +155,9 @@ export function ComparisonTableView({ title, columns, rows, featuredIndex = -1, 
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              <th className="text-left p-4 font-semibold text-muted-foreground">Funkcja</th>
+              <th className="text-left p-4 font-semibold text-muted-foreground">
+                {t("blocksUi.comparisonFeature", { lng: lang })}
+              </th>
               {cols.map((c, i) => (
                 <th
                   key={i}
@@ -169,7 +185,7 @@ export function ComparisonTableView({ title, columns, rows, featuredIndex = -1, 
                       " ",
                     )}
                   >
-                    {renderCellValue(r.values[ci] ?? "")}
+                    {renderCellValue(r.values[ci] ?? "", yes, no)}
                   </td>
                 ))}
               </tr>

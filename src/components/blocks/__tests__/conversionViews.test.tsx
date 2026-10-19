@@ -17,6 +17,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { Json } from "@/lib/blocks/types";
+// Napisy tabeli porównawczej idą przez słownik `i18n-public` - prawdziwe i18n.
+import "@/test/i18nReal";
 
 import {
   BannerImageView,
@@ -93,6 +95,28 @@ describe("ComparisonTableView", () => {
     expect(within(rows[1]).getAllByLabelText("Nie")).toHaveLength(2);
     const support = within(rows[2]).getAllByRole("cell");
     expect(support.map((c) => c.textContent)).toEqual(["8/5", ""]);
+  });
+
+  it("strona EN: nagłówek kolumny cech i nazwy ikon tak/nie po angielsku", () => {
+    // NAPRAWIONE 2026-10-19: „Funkcja” i „Tak”/„Nie” były zaszyte, więc
+    // strona /en pokazywała polski nagłówek i czytała polskie nazwy ikon.
+    render(
+      <ComparisonTableView
+        lang="en"
+        columns={["Basic"]}
+        rows={[
+          { feature: "Reports", values: ["yes"] },
+          { feature: "API", values: ["✗"] },
+        ]}
+      />,
+    );
+    expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
+      "Feature",
+      "Basic",
+    ]);
+    expect(screen.getByLabelText("Yes")).toBeInTheDocument();
+    expect(screen.getByLabelText("No")).toBeInTheDocument();
+    expect(screen.queryByText("Funkcja")).toBeNull();
   });
 
   it("bez kolumn albo bez wierszy blok znika", () => {

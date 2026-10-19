@@ -91,7 +91,9 @@ export function TeamGridView({
         bio: String(o.bio ?? ""),
         avatar: String(o.avatar ?? ""),
         href: String(o.href ?? ""),
-        social: String(o.social ?? ""),
+        // Link zewnętrzny z danych bloku: ten sam filtr schematu co logo
+        // (`safeUrl`) - `javascript:`/`data:` nie tworzą linku profilu.
+        social: safeUrl(String(o.social ?? ""), ""),
       };
     })
     .filter((m) => m.name);

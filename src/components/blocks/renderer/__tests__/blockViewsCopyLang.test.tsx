@@ -52,6 +52,9 @@ const COPY: Record<Lang, Record<string, string>> = {
     slide: "Slajd 2",
     openMap: "Otwórz w OpenStreetMap",
     map: "Mapa",
+    feature: "Funkcja",
+    yes: "Tak",
+    no: "Nie",
   },
   en: {
     previous: "Previous",
@@ -69,6 +72,9 @@ const COPY: Record<Lang, Record<string, string>> = {
     slide: "Slide 2",
     openMap: "Open in OpenStreetMap",
     map: "Map",
+    feature: "Feature",
+    yes: "Yes",
+    no: "No",
   },
 };
 
@@ -90,6 +96,23 @@ describe.each(["pl", "en"] as const)("blok z lang=%s", (lang) => {
     expect(screen.getByRole("button", { name: c.previous })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: c.next })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: c.rating })).toBeInTheDocument();
+  });
+
+  it("tabela porównawcza: nagłówek kolumny cech i nazwy ikon tak/nie", () => {
+    draw(
+      "comparison-table",
+      {
+        columns: ["Basic"],
+        rows: [
+          { feature: "API", values: ["✓"] },
+          { feature: "SLA", values: ["no"] },
+        ],
+      },
+      lang,
+    );
+    expect(screen.getAllByRole("columnheader")[0]).toHaveTextContent(c.feature);
+    expect(screen.getByLabelText(c.yes)).toBeInTheDocument();
+    expect(screen.getByLabelText(c.no)).toBeInTheDocument();
   });
 
   it("cennik: znacznik planu polecanego", () => {

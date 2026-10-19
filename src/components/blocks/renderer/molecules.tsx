@@ -1074,12 +1074,13 @@ export const renderStepList: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-export const renderComparisonTable: BlockRenderer = ({ block, cls }) => (
+export const renderComparisonTable: BlockRenderer = ({ block, cls, lang }) => (
   <ComparisonTableView
     title={str(block.data, "title")}
     columns={jsonList(block.data, "columns")}
     rows={jsonList(block.data, "rows")}
     featuredIndex={num(block.data, "featuredIndex", -1)}
+    lang={lang}
     cls={cls}
   />
 );
