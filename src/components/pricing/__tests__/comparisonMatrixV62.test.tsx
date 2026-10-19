@@ -181,6 +181,35 @@ describe("PricingComparisonMatrix - bilet wliczony z features progu", () => {
     expect(header.some((h) => h?.startsWith("Enterprise"))).toBe(true);
     expect(screen.getByText("Twój plan")).toBeInTheDocument();
   });
+
+  // Klient Enterprise / Partnera Biznesowego zachowuje dostęp (decyzje 3/4) -
+  // kolumna „Twój plan" nie może mówić „Nie" przy archiwum czy koncie NES.
+  // Słownik nie wymienia tych progów, więc wartości redakcyjne idą z Pro
+  // (zakres z ich karty), poza warunkami sprzedaży.
+  it.each(["corporate", "business"])(
+    "kolumna „Twój plan” progu %s: wiersze redakcyjne z zakresu Pro, nie kreski",
+    (key) => {
+      const pro = membershipTier({ id: "t-pro", key: "pro", name_pl: "Członek Pro" });
+      const hidden = membershipTier({ id: `t-${key}`, key, name_pl: `Próg ${key}` });
+      render(
+        <PricingComparisonMatrix tiers={[member, pro, hidden]} lang="pl" currentTierKey={key} />,
+      );
+      const byId = (id: string) => {
+        const name = rows("pl").find((r) => r.id === id)?.label ?? "";
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return screen.getByRole("row", { name: new RegExp(`^${escaped}`) });
+      };
+      const cell = (id: string) => within(byId(id)).getAllByRole("cell")[2];
+      for (const id of ["archive", "account", "weeklyReview", "memberDigest", "citations"]) {
+        expect(within(cell(id)).getByLabelText("Tak"), id).toBeInTheDocument();
+      }
+      expect(cell("onboarding").textContent).toBe(
+        within(byId("onboarding")).getAllByRole("cell")[1].textContent,
+      );
+      // Warunek sprzedaży Pro nie przechodzi na próg wycofany albo ukryty.
+      expect(within(cell("cancelAnytime")).getByLabelText("Nie")).toBeInTheDocument();
+    },
+  );
 });
 
 describe("PricingComparisonMatrix - pula zapytań do eksperta jak bramka", () => {
@@ -253,6 +282,19 @@ describe("słownik macierzy v6.2 - obietnice tylko z pokryciem w bramkach", () =
     for (const row of rows("en")) {
       for (const value of Object.values(row.values ?? {})) {
         expect(value, row.id).not.toMatch(/PLN|zł/);
+      }
+    }
+  });
+
+  // Parytet PL/EN porównuje klucze, nie treść - polski tekst w słowniku EN
+  // („Od 11 miejsc: niższa stawka" w wierszu rabatu wolumenowego) przechodził
+  // obie bramki i trafiał do anglojęzycznego gościa.
+  it("EN nie zawiera polskiego tekstu (znaki diakrytyczne, typowe słowa)", () => {
+    const polish = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]|\b(od|miejsc|stawka|rocznie|bez|oraz)\b/i;
+    for (const row of rows("en")) {
+      expect(row.label, row.id).not.toMatch(polish);
+      for (const value of Object.values(row.values ?? {})) {
+        expect(value, row.id).not.toMatch(polish);
       }
     }
   });

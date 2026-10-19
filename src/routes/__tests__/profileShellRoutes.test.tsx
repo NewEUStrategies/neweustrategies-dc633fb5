@@ -62,6 +62,12 @@ const h = vi.hoisted(() => ({
   subscription: null as Record<string, unknown> | null,
   grants: [] as Record<string, unknown>[],
   tier: null as Record<string, unknown> | null,
+  /** Kwota odnowienia z żywej subskrypcji u operatora (`getStripeRenewalCharge`). */
+  renewal: { amountCents: null, currency: null } as {
+    amountCents: number | null;
+    currency: string | null;
+  },
+  renewalCalls: 0,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -109,6 +115,12 @@ vi.mock("@/lib/billing/queries", () => ({
   fetchMySubscription: () => Promise.resolve(h.subscription),
 }));
 vi.mock("@/lib/billing/membership", () => ({ useMyGrants: () => ({ data: h.grants }) }));
+vi.mock("@/utils/payments.functions", () => ({
+  getStripeRenewalCharge: () => {
+    h.renewalCalls += 1;
+    return Promise.resolve(h.renewal);
+  },
+}));
 vi.mock("@/lib/billing/tiers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/billing/tiers")>()),
   useCurrentTier: () => ({ data: h.tier }),
@@ -189,6 +201,8 @@ beforeEach(() => {
   h.subscription = null;
   h.grants = [];
   h.tier = null;
+  h.renewal = { amountCents: null, currency: null };
+  h.renewalCalls = 0;
   window.localStorage.clear();
   document.body.style.overflow = "";
 });
@@ -702,6 +716,56 @@ describe("/profile/plan - trzy stany planu", () => {
     await waitFor(() => expect(screen.getByText("profile.subscription.renewsAt")).toBeTruthy());
     expect(screen.getByText("profile.status.active")).toBeTruthy();
     expect(screen.queryByText("profile.subscription.cancelsAt")).toBeNull();
+  });
+
+  // Cennik v6.2: `access_plans` ma już 39 zł, a trwająca subskrypcja Członka
+  // odnawia się u operatora po starej cenie 59 zł, dopóki admin jej nie
+  // przeniesie. Strona jest celem CTA przypomnienia o odnowieniu - „Cena:
+  // 39 zł" obok daty, w której operator pobierze 59 zł, to błędna informacja.
+  it("Członek po v6.2: CENA z odczytu operatora, nie z katalogu", async () => {
+    h.subscription = {
+      plan: { tier_key: "member", interval: "month", price_cents: 3900, currency: "PLN" },
+      status: "active",
+      canceled_at: null,
+      current_period_end: "2026-10-20T00:00:00.000Z",
+    };
+    h.renewal = { amountCents: 5900, currency: "PLN" };
+    await mountPlan();
+    await waitFor(() => expect(screen.getByText("profile.planPage.priceLabel")).toBeTruthy());
+    const price = screen.getByText("profile.planPage.priceLabel").nextElementSibling;
+    expect(price?.textContent).toMatch(/59,00/);
+    expect(price?.textContent).not.toMatch(/39,00/);
+  });
+
+  it("Członek po v6.2 bez potwierdzonej kwoty: BEZ ceny (nie katalogowe 39 zł)", async () => {
+    // Harmonogram zmiany, kilka pozycji, błąd odczytu - operator nie podał
+    // kwoty. Brak kwoty jest bezpieczniejszy niż zła kwota.
+    h.subscription = {
+      plan: { tier_key: "member", interval: "month", price_cents: 3900, currency: "PLN" },
+      status: "active",
+      canceled_at: null,
+      current_period_end: "2026-10-20T00:00:00.000Z",
+    };
+    await mountPlan();
+    await waitFor(() => expect(h.renewalCalls).toBe(1));
+    await waitFor(() => expect(screen.getByText("profile.subscription.renewsAt")).toBeTruthy());
+    expect(screen.queryByText("profile.planPage.priceLabel")).toBeNull();
+    expect(screen.queryByText(/39,00/)).toBeNull();
+  });
+
+  it("plan spoza przeceny v6.2 (Student): cena z katalogu, bez odczytu operatora", async () => {
+    h.subscription = {
+      plan: { tier_key: "student", interval: "month", price_cents: 1900, currency: "PLN" },
+      status: "active",
+      canceled_at: null,
+      current_period_end: "2026-09-21T00:00:00.000Z",
+    };
+    await mountPlan();
+    await waitFor(() => expect(screen.getByText("profile.planPage.priceLabel")).toBeTruthy());
+    expect(screen.getByText("profile.planPage.priceLabel").nextElementSibling?.textContent).toMatch(
+      /19,00/,
+    );
+    expect(h.renewalCalls).toBe(0);
   });
 
   it("subskrypcja ANULOWANA mówi „kończy się”, nie „odnawia się”", async () => {

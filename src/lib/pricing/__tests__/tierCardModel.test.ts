@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { accessPlan } from "@/test/billing/fixtures";
 import { membershipTier } from "@/test/admin/pricingFixtures";
 import {
+  cardTrialDays,
   ctaDescriptor,
   ctaVariant,
   intervalSuffixKey,
@@ -293,6 +294,45 @@ describe("ctaDescriptor - CZY klient może kupić", () => {
   });
 });
 
+describe("cardTrialDays - okres próbny tylko tam, gdzie przyzna go kasa", () => {
+  const trial = (overrides: Partial<Parameters<typeof cardTrialDays>[0]> = {}) =>
+    cardTrialDays({
+      tier: membershipTier(),
+      plans: [accessPlan({ id: "p", interval: "month", trial_days: 7 })],
+      interval: "month",
+      isCurrentTier: false,
+      currentPlanId: null,
+      isAuthenticated: false,
+      ...overrides,
+    });
+
+  it("zakup samoobsługowy planu w sprzedaży: liczba dni z planu", () => {
+    expect(trial()).toBe(7);
+  });
+
+  it("Zespół v6.2 (rozmowa, plan poza sprzedażą): bez okresu próbnego", () => {
+    expect(
+      trial({
+        tier: membershipTier({ key: "team", cta_mode: "contact" }),
+        plans: [accessPlan({ id: "p", interval: "month", trial_days: 7, for_sale: false })],
+      }),
+    ).toBe(0);
+  });
+
+  it("plan poza sprzedażą przy trybie auto: bez okresu próbnego", () => {
+    expect(
+      trial({
+        plans: [accessPlan({ id: "p", interval: "month", trial_days: 7, for_sale: false })],
+      }),
+    ).toBe(0);
+  });
+
+  it("tryb „tylko na zaproszenie” i warstwa domyślna: bez okresu próbnego", () => {
+    expect(trial({ tier: membershipTier({ cta_mode: "none" }) })).toBe(0);
+    expect(trial({ tier: membershipTier({ is_default: true }) })).toBe(0);
+  });
+});
+
 describe("ctaVariant - wyróżniona warstwa przyciąga wzrok", () => {
   it("warstwa wyróżniona dostaje pełny kolor", () => {
     expect(ctaVariant({ highlight: true })).toBe("default");
@@ -303,12 +343,17 @@ describe("ctaVariant - wyróżniona warstwa przyciąga wzrok", () => {
 describe("splitBenefits - każda obietnica dokładnie raz", () => {
   const b = (pl: string, en = pl) => ({ pl, en });
 
+  // Spotlight zabiera z listy swoje pozycje; to, co zostaje, przy karcie ze
+  // spotlightem idzie w całości do rozwinięcia (`more`).
+  const listed = (split: ReturnType<typeof splitBenefits>) =>
+    [...split.rest, ...split.more].map((x) => x.pl);
+
   it("benefit ze spotlightu NIE WRACA na pełnej liście", () => {
     const all = [b("Poranny briefing"), b("Klub dyskusyjny"), b("Sieć ekspertów")];
 
     const split = splitBenefits(all, [b("Klub dyskusyjny")], "pl");
 
-    expect(split.rest.map((x) => x.pl)).toEqual(["Poranny briefing", "Sieć ekspertów"]);
+    expect(listed(split)).toEqual(["Poranny briefing", "Sieć ekspertów"]);
     expect(split.highlights).toHaveLength(1);
   });
 
@@ -317,7 +362,7 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
 
     const split = splitBenefits(all, [b("klub dyskusyjny")], "pl");
 
-    expect(split.rest.map((x) => x.pl)).toEqual(["Sieć ekspertów"]);
+    expect(listed(split)).toEqual(["Sieć ekspertów"]);
   });
 
   it("porównanie idzie po tekście W JĘZYKU STRONY, bo to on jest czytany", () => {
@@ -326,21 +371,22 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
     const enSplit = splitBenefits(all, [{ pl: "inny", en: "Morning briefing" }], "en");
     const plSplit = splitBenefits(all, [{ pl: "inny", en: "Morning briefing" }], "pl");
 
-    expect(enSplit.rest.map((x) => x.pl)).toEqual(["Klub"]);
-    expect(plSplit.rest).toHaveLength(2);
+    expect(listed(enSplit)).toEqual(["Klub"]);
+    expect(listed(plSplit)).toHaveLength(2);
   });
 
-  it("ze spotlightem zostają najwyżej CZTERY pozostałe pozycje", () => {
+  it("ze spotlightem RESZTA idzie w całości do rozwinięcia (v6.2: 3 + 9)", () => {
+    // „Komunikacja karty": różnicę komunikują trzy pozycje spotlightu,
+    // pozostałe dziewięć trafia do rozwijanej listy szczegółowej - dawny
+    // limit 4 zostawiał na karcie Pro siedem stałych punktów.
     const all = Array.from({ length: 12 }, (_, i) => b(`Benefit ${i}`));
 
-    const split = splitBenefits(all, [b("Wyróżnienie")], "pl");
+    const split = splitBenefits(all, [all[0], all[1], all[2]], "pl");
 
-    expect(split.rest).toHaveLength(4);
-    expect(split.rest[0].pl).toBe("Benefit 0");
-    // Reszta NIE znika - idzie do rozwijanej listy szczegółowej (v6.2).
-    expect(split.more.map((x) => x.pl)).toEqual(
-      Array.from({ length: 8 }, (_, i) => `Benefit ${i + 4}`),
-    );
+    expect(split.rest).toEqual([]);
+    expect(split.more).toHaveLength(9);
+    expect(split.more[0].pl).toBe("Benefit 3");
+    expect(split.moreLead).toBeNull();
   });
 
   it("żaden benefit nie ginie: spotlight + lista + rozwinięcie = wszystkie pozycje", () => {
@@ -351,22 +397,27 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
     expect(split.highlights.length + split.rest.length + split.more.length).toBe(12);
   });
 
-  it("nagłówek grupy benefitu ze spotlightu przechodzi na pierwszą pozycję listy", () => {
+  it("nagłówek grupy benefitu ze spotlightu stoi NAD rozwinięciem, nie w nim", () => {
     // Członek Pro: zastrzeżenie „ten sam jeden bilet rocznie - nie drugi" wisi
-    // na pierwszym benefice, który trafia do spotlightu.
-    const all = [
-      { ...b("Klub"), group_pl: "Wszystko z progu Członek - ten sam bilet, nie drugi - oraz:" },
-      b("Monitoring"),
-      b("Onboarding"),
-    ];
+    // na pierwszym benefice, który trafia do spotlightu. Lista widoczna jest
+    // pusta, więc nagłówek nie może schować się za „Pokaż więcej".
+    const header = "Wszystko z progu Członek - ten sam bilet, nie drugi - oraz:";
+    const all = [{ ...b("Klub"), group_pl: header }, b("Monitoring"), b("Onboarding")];
 
     const split = splitBenefits(all, [all[0]], "pl");
 
-    expect(split.rest[0]).toMatchObject({
-      pl: "Monitoring",
-      group_pl: "Wszystko z progu Członek - ten sam bilet, nie drugi - oraz:",
-    });
-    expect(split.rest[1].group_pl).toBeUndefined();
+    expect(split.moreLead).toBe(header);
+    expect(split.more.map((x) => x.pl)).toEqual(["Monitoring", "Onboarding"]);
+    expect(split.more[0].group_pl).toBeUndefined();
+  });
+
+  it("BEZ spotlightu nagłówek grupy zostaje przy pozycji na liście widocznej", () => {
+    const all = [{ ...b("Klub"), group_pl: "Grupa" }, b("Monitoring")];
+
+    const split = splitBenefits(all, [], "pl");
+
+    expect(split.rest[0]).toMatchObject({ pl: "Klub", group_pl: "Grupa" });
+    expect(split.moreLead).toBeNull();
   });
 
   it("BEZ spotlightu zostaje do OŚMIU pozycji - karta nie ma czym się chwalić inaczej", () => {

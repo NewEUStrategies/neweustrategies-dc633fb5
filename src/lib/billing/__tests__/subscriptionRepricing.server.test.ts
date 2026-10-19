@@ -726,3 +726,92 @@ describe("przerwany przebieg i harmonogram między kluczami", () => {
     expect(page.rows[0]).toMatchObject({ outcome: "skipped", reason: "status_not_billable" });
   });
 });
+
+// Partner Biznesowy, który PRZED v6.2 zaplanował downgrade na Członka Pro:
+// lustro trzyma `business_*` aż do zmiany fazy, a następna faza wskazuje
+// STARĄ cenę Pro (129 zł). Dawniej filtr kandydatów po kluczach kampanii
+// w ogóle go nie widział - 1.11 odnowienie szło po 129 zamiast 119 zł.
+describe("Partner Biznesowy z zaplanowanym downgrade'em na próg kampanii", () => {
+  const BUSINESS_TO_PRO: RepriceDecision = repriceDecision({
+    status: "active",
+    pauseCollection: false,
+    pendingUpdate: false,
+    items: [
+      { lookupKey: "business_monthly", price: flat("price_businessOld", 34900), quantity: 1 },
+    ],
+    schedule: {
+      own: true,
+      nextLines: [{ lookupKey: "pro_monthly", price: flat("price_proOld", 12900), quantity: 1 }],
+      extraPhases: false,
+      finalPhase: false,
+      endBehavior: "release",
+    },
+    targets: TARGETS,
+    cancelScheduled: false,
+    trialEnd: null,
+    periodEnd: 1_798_761_600,
+  });
+  const BUSINESS_PLAIN: RepriceDecision = repriceDecision({
+    status: "active",
+    pauseCollection: false,
+    pendingUpdate: false,
+    items: [
+      { lookupKey: "business_monthly", price: flat("price_businessOld", 34900), quantity: 1 },
+    ],
+    schedule: null,
+    targets: TARGETS,
+    cancelScheduled: false,
+    trialEnd: null,
+    periodEnd: 1_798_761_600,
+  });
+
+  it("kandydaci obejmują klucze Partnera Biznesowego obok kluczy kampanii", async () => {
+    await runRepricingPage(input());
+
+    const { lookupKeys } = h.listCandidates.mock.calls[0][0] as { lookupKeys: string[] };
+    expect(lookupKeys).toEqual(
+      expect.arrayContaining([
+        "plus_monthly",
+        "pro_annual",
+        "team_monthly_seat",
+        "business_2w",
+        "business_monthly",
+        "business_quarterly",
+      ]),
+    );
+  });
+
+  it("downgrade na Członka Pro w fazie następnej: wiersz do przeniesienia ze starą ceną Pro", async () => {
+    h.listCandidates.mockResolvedValue([candidate("biz", "business_monthly")]);
+    h.inspect.mockResolvedValue({ ok: true, decision: BUSINESS_TO_PRO });
+
+    const page = await runRepricingPage(input());
+
+    if (!page.ok) throw new Error("expected ok");
+    expect(page.rows).toHaveLength(1);
+    expect(page.rows[0]).toMatchObject({
+      outcome: "planned",
+      mode: "schedule",
+      lookupKey: "pro_monthly",
+      currentAmount: 12900,
+      newAmount: 11900,
+    });
+  });
+
+  it("zwykła subskrypcja biznesowa (bez harmonogramu) nie trafia do wyniku ani do dziennika", async () => {
+    h.listCandidates.mockResolvedValue([
+      candidate("biz", "business_monthly"),
+      { ...candidate("mock"), price_id: "business_quarterly", provider_subscription_id: "mock_m" },
+    ]);
+    h.inspect.mockResolvedValue({ ok: true, decision: BUSINESS_PLAIN });
+
+    const page = await runRepricingPage(input({ mode: "execute" }));
+
+    if (!page.ok) throw new Error("expected ok");
+    expect(page.rows).toEqual([]);
+    expect(h.reprice).not.toHaveBeenCalled();
+    expect(h.upsertLog).not.toHaveBeenCalled();
+    // Kursor liczy się z KANDYDATÓW, nie z wierszy - pominięte nie gubią strony.
+    expect(page).toMatchObject({ done: true, nextCursor: null });
+  });
+});

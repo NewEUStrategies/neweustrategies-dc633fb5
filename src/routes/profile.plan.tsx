@@ -10,7 +10,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
 import { fetchMySubscription } from "@/lib/billing/queries";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
+import { isRepriceLookupKey } from "@/lib/billing/subscriptionRepricing";
 import { formatMoney, planName } from "@/lib/billing/types";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
+import { getStripeRenewalCharge } from "@/utils/payments.functions";
 import { PlanSwitchBoard } from "@/components/billing/molecules/PlanSwitchBoard";
 import { CustomerPortalButton } from "@/components/billing/molecules/CustomerPortalButton";
 import { SyncBillingButton } from "@/components/billing/molecules/SyncBillingButton";
@@ -51,6 +54,39 @@ function PlanPage() {
   const subscription = subQ.data ?? null;
   const plan = subscription?.plan ?? null;
   const lookupKey = plan ? (catalogPriceForPlan(plan)?.priceId ?? null) : null;
+
+  // „CENA" = KWOTA ODNOWIENIA U OPERATORA, ta sama reguła co karta
+  // subskrypcji (`SubscriptionCard`). `plan.price_cents` to cena NOWEGO
+  // zakupu: po v6.2 Członek, Członek Pro i Zespół mają ją niższą (39 zł),
+  // a trwająca subskrypcja odnawia się po swojej starej cenie (59 zł), dopóki
+  // admin jej nie przeniesie - pominięte przez akcję na stałe. Ta strona jest
+  // celem CTA przypomnienia o odnowieniu i maila o niższej cenie, więc
+  // „Cena: 39 zł" obok daty, w której operator pobierze 59 zł, to błędna
+  // informacja o kwocie. Dla tych kluczy kwota wyłącznie z odczytu operatora,
+  // a bez niego - brak kwoty; dla pozostałych katalog jest bezpiecznym zapasem.
+  const catalogPriceTrusted = !isRepriceLookupKey(lookupKey);
+  const environment = getStripeEnvironmentSafe();
+  const chargeQ = useQuery({
+    queryKey: billingKeys.myRenewalCharge(uid, environment),
+    queryFn: () => getStripeRenewalCharge({ data: { environment } }),
+    enabled: !!session && !!plan && !catalogPriceTrusted,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const liveCharge =
+    !catalogPriceTrusted &&
+    chargeQ.data &&
+    chargeQ.data.amountCents !== null &&
+    chargeQ.data.currency
+      ? { amountCents: chargeQ.data.amountCents, currency: chargeQ.data.currency }
+      : null;
+  const priceText = !plan
+    ? null
+    : catalogPriceTrusted
+      ? formatMoney(plan.price_cents, plan.currency, lang)
+      : liveCharge
+        ? formatMoney(liveCharge.amountCents, liveCharge.currency, lang)
+        : null;
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(lang === "en" ? "en-GB" : "pl-PL", {
@@ -126,12 +162,14 @@ function PlanPage() {
                   {t(`profile.status.${subscription?.status ?? "active"}`)}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">
-                  {t("profile.planPage.priceLabel")}
-                </dt>
-                <dd className="text-sm">{formatMoney(plan.price_cents, plan.currency, lang)}</dd>
-              </div>
+              {priceText ? (
+                <div>
+                  <dt className="text-xs text-muted-foreground">
+                    {t("profile.planPage.priceLabel")}
+                  </dt>
+                  <dd className="text-sm">{priceText}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt className="text-xs text-muted-foreground">
                   {subscription?.canceled_at

@@ -267,4 +267,77 @@ describe("SubscriptionRepricingCard", () => {
     expect(await screen.findByText(/adminRepricing\.reasons\.in_progress/)).toBeInTheDocument();
     expect(screen.queryByText(/· in_progress$/)).not.toBeInTheDocument();
   });
+
+  // Podgląd po częściowym wykonaniu: dziennik oddaje przeniesione wcześniej
+  // z decyzją `apply` i kwotami sprzed zmiany. „Do przeniesienia" i MRR liczą
+  // wyłącznie ruchy do zrobienia - inaczej 100 subskrypcji i -2 000 zł
+  // zamiast 60 i -1 200 zł.
+  it("przeniesione wcześniej liczą się osobno, poza „do przeniesienia” i MRR", async () => {
+    h.run.mockResolvedValueOnce(
+      page({
+        rows: [
+          row("a"),
+          row("b", { outcome: "already_applied", emailStatus: "queued" }),
+          row("c", { outcome: "already_applied", emailStatus: "queued" }),
+        ],
+      }),
+    );
+    renderWithQueryClient(<SubscriptionRepricingCard />);
+    fireEvent.click(screen.getByRole("button", { name: "adminRepricing.preview" }));
+
+    const summary = await screen.findByText(/^adminRepricing\.summary /);
+    expect(summary.textContent).toContain('"total":3');
+    expect(summary.textContent).toContain('"apply":1');
+    expect(screen.getByText(/^adminRepricing\.summaryAlreadyApplied /).textContent).toContain(
+      '"count":2',
+    );
+    expect(executeButton().disabled).toBe(false);
+  });
+
+  it("wszystko przeniesione wcześniej i maile wysłane: wykonanie nieaktywne", async () => {
+    h.run.mockResolvedValueOnce(
+      page({ rows: [row("a", { outcome: "already_applied", emailStatus: "queued" })] }),
+    );
+    renderWithQueryClient(<SubscriptionRepricingCard />);
+    fireEvent.click(screen.getByRole("button", { name: "adminRepricing.preview" }));
+
+    expect(await screen.findByText("sub_a")).toBeInTheDocument();
+    expect(screen.getByText(/^adminRepricing\.summary /).textContent).toContain('"apply":0');
+    expect(executeButton().disabled).toBe(true);
+  });
+
+  it("mail do ponowienia przy przeniesionej subskrypcji odblokowuje wykonanie", async () => {
+    // Ponowne „Wykonaj" to jedyna droga ponowienia maila po awarii kolejki.
+    h.run.mockResolvedValueOnce(
+      page({ rows: [row("a", { outcome: "already_applied", emailStatus: "failed" })] }),
+    );
+    renderWithQueryClient(<SubscriptionRepricingCard />);
+    fireEvent.click(screen.getByRole("button", { name: "adminRepricing.preview" }));
+
+    expect(await screen.findByText("sub_a")).toBeInTheDocument();
+    expect(screen.getByText(/^adminRepricing\.summaryAlreadyApplied /).textContent).toContain(
+      '"retry":1',
+    );
+    expect(executeButton().disabled).toBe(false);
+  });
+
+  it("po przebiegu rozwinięty dziennik pobiera się od nowa (nie zostaje „pusty”)", async () => {
+    h.run
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(page({ mode: "execute", rows: [row("a", { outcome: "applied" })] }));
+    renderWithQueryClient(<SubscriptionRepricingCard />);
+    fireEvent.click(screen.getByRole("button", { name: "adminRepricing.showLog" }));
+    expect(await screen.findByText("adminRepricing.logEmpty")).toBeInTheDocument();
+    expect(h.log).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "adminRepricing.preview" }));
+    await waitFor(() => expect(h.log).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(executeButton().disabled).toBe(false));
+    fireEvent.click(executeButton());
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: REPRICING_CONFIRM } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "adminRepricing.confirmAction" }));
+
+    await waitFor(() => expect(h.log).toHaveBeenCalledTimes(3));
+  });
 });

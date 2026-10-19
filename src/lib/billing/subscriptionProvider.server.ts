@@ -1918,7 +1918,10 @@ export async function clearCancelDateAfterAppliedUpgrade(
 //   * z WŁASNYM harmonogramem (zaplanowany downgrade, zmniejszenie miejsc) -
 //     przepisujemy jego fazy. Następna faza wskazuje STARĄ cenę (np. dawny
 //     Członek za 59 zł), więc samo przepięcie pozycji nic by nie dało:
-//     odnowienie poszłoby fazą harmonogramu po starej kwocie.
+//     odnowienie poszłoby fazą harmonogramu po starej kwocie. Gdy zmiana
+//     już weszła (bieżąca faza jest ostatnia), harmonogram dalej wisi do
+//     końca fazy - przepisujemy wtedy samą bieżącą fazę na nową cenę,
+//     bo po jej końcu subskrypcja odnowi się po cenie pozycji.
 //
 // Harmonogram OBCY (panel operatora, portal klienta) nie jest nasz do
 // przepisywania - decyzja `schedule_foreign`, obsługa ręczna.
@@ -2067,6 +2070,11 @@ async function repricingLiveState(
     const phases = attached?.phases ?? [];
     const index = current ? phases.findIndex((p) => p.start_date === current.start_date) : -1;
     const next = index >= 0 ? phases[index + 1] : undefined;
+    // Bieżąca faza jest OSTATNIA: zaplanowany downgrade albo zmniejszenie
+    // miejsc już weszło, a harmonogram wisi do jej końca (operator odłącza go
+    // dopiero po ostatniej fazie). Odnowienie pójdzie wtedy po cenie pozycji
+    // subskrypcji - regułę liczymy z niej, nie z nieistniejącej fazy następnej.
+    const finalPhase = own && index >= 0 && next === undefined;
     if (own && next?.items?.length) {
       extraPhases = phases.length > index + 2;
       nextLines = [];
@@ -2080,7 +2088,13 @@ async function repricingLiveState(
       }
       nextPhaseItems = nextLines ? next.items : null;
     }
-    schedule = { own, nextLines, extraPhases, endBehavior: attached?.end_behavior ?? null };
+    schedule = {
+      own,
+      nextLines,
+      extraPhases,
+      finalPhase,
+      endBehavior: attached?.end_behavior ?? null,
+    };
   }
 
   return {
@@ -2191,7 +2205,8 @@ function repricedPhaseItem(
 }
 
 /**
- * Przepisanie faz WŁASNEGO harmonogramu: bieżąca i następna faza dostają
+ * Przepisanie faz WŁASNEGO harmonogramu: bieżąca i następna faza (albo sama
+ * bieżąca, gdy jest ostatnia) dostają
  * nowe ceny tam, gdzie pozwala reguła (`linePriceTarget`); data przejścia
  * (koniec bieżącego okresu) i warunki rozliczenia (rabat, podatek, trial)
  * zostają. Fazy zapisujemy w kształcie, w jakim zakłada je
@@ -2217,7 +2232,8 @@ async function repriceOwnSchedule(
   const schedule = attachedSchedule(sub);
   const scheduleId = refOf(sub.schedule);
   const nextLines = input.schedule?.nextLines;
-  if (!schedule || !scheduleId || !nextPhaseItems || !nextLines) {
+  const finalPhase = input.schedule?.finalPhase === true;
+  if (!schedule || !scheduleId || (!finalPhase && (!nextPhaseItems || !nextLines))) {
     throw new Error("schedule_unreadable");
   }
   const items = sub.items.data;
@@ -2234,17 +2250,26 @@ async function repriceOwnSchedule(
     quantity: Math.max(1, item.quantity ?? 1),
   }));
 
+  // Ostatnia faza kończy się tam, gdzie zapisał ją operator (domyślnie jedna
+  // iteracja ceny - koniec bieżącego okresu); tej daty nie przesuwamy.
+  const currentEnd = finalPhase ? (schedule.current_phase?.end_date ?? periodEnd) : periodEnd;
   const phases: PhaseParams[] = [
     {
       items: items.map((item, index) =>
         repricedPhaseItem(currentAfter[index], item.quantity, item, currentAfter[index]),
       ),
       start_date: phaseStart,
-      end_date: periodEnd,
+      end_date: currentEnd,
       ...terms,
-      ...trialTerms(sub, periodEnd),
+      ...trialTerms(sub, currentEnd),
     },
-    {
+  ];
+  // Bez fazy następnej (bieżąca jest ostatnia) zapisujemy WYŁĄCZNIE bieżącą
+  // fazę: nowa cena wchodzi na pozycję od razu (`proration_behavior: none`),
+  // a po końcu fazy harmonogram się zwalnia i subskrypcja odnawia się po
+  // nowej cenie pozycji - nie po starej, zarchiwizowanej.
+  if (!finalPhase && nextPhaseItems && nextLines) {
+    phases.push({
       items: nextPhaseItems.map((phaseItem, index) => {
         const price =
           linePriceTarget(nextLines[index], targets)?.id ?? refOf(phaseItem.price) ?? "";
@@ -2256,8 +2281,8 @@ async function repriceOwnSchedule(
         );
       }),
       ...terms,
-    },
-  ];
+    });
+  }
 
   await stripe.subscriptionSchedules.update(
     scheduleId,

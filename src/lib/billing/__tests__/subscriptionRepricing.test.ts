@@ -211,14 +211,26 @@ describe("repriceDecision - kolejność reguł", () => {
 
   it("harmonogram obcy albo nieczytelny -> schedule_foreign (obsługa ręczna)", () => {
     const next = [line("plus_monthly", OLD_PLUS)];
+    const base = { finalPhase: false };
     for (const schedule of [
-      { own: false, nextLines: next, extraPhases: false, endBehavior: "release" },
-      { own: true, nextLines: null, extraPhases: false, endBehavior: "release" },
-      { own: true, nextLines: next, extraPhases: true, endBehavior: "release" },
-      { own: true, nextLines: [...next, ...next], extraPhases: false, endBehavior: "release" },
+      { ...base, own: false, nextLines: next, extraPhases: false, endBehavior: "release" },
+      // Faza następna jest, ale nieczytelna (nie ostatnia faza bieżąca).
+      { ...base, own: true, nextLines: null, extraPhases: false, endBehavior: "release" },
+      { ...base, own: true, nextLines: next, extraPhases: true, endBehavior: "release" },
+      {
+        ...base,
+        own: true,
+        nextLines: [...next, ...next],
+        extraPhases: false,
+        endBehavior: "release",
+      },
       // Kształt, którego zapis faz nie zachowa (nie `release`, nie `cancel`).
-      { own: true, nextLines: next, extraPhases: false, endBehavior: "none" },
-      { own: true, nextLines: next, extraPhases: false, endBehavior: null },
+      { ...base, own: true, nextLines: next, extraPhases: false, endBehavior: "none" },
+      { ...base, own: true, nextLines: next, extraPhases: false, endBehavior: null },
+      // Ostatnia faza harmonogramu OBCEGO - dalej obsługa ręczna.
+      { own: false, nextLines: null, extraPhases: false, finalPhase: true, endBehavior: "release" },
+      // Ostatnia faza własnego harmonogramu z nieznanym `end_behavior`.
+      { own: true, nextLines: null, extraPhases: false, finalPhase: true, endBehavior: "none" },
     ]) {
       expect(repriceDecision(input({ schedule })).reason, JSON.stringify(schedule)).toBe(
         "schedule_foreign",
@@ -316,6 +328,7 @@ describe("repriceDecision - kolejność reguł", () => {
           own: true,
           nextLines: [line("plus_monthly", OLD_PLUS)],
           extraPhases: false,
+          finalPhase: false,
           endBehavior: "release",
         },
       }),
@@ -331,6 +344,52 @@ describe("repriceDecision - kolejność reguł", () => {
     });
   });
 
+  // Downgrade Pro -> Członek JUŻ WSZEDŁ: pozycja wskazuje starego Członka
+  // (59 zł), a własny harmonogram wisi do końca ostatniej fazy. Operator
+  // odłączy go dopiero wtedy i odnowi subskrypcję po cenie pozycji - więc to
+  // nie jest „harmonogram obcy", tylko przeniesienie z bieżącej pozycji.
+  it("WŁASNY harmonogram w OSTATNIEJ fazie: decyduje bieżąca pozycja, tryb harmonogramu", () => {
+    const d = repriceDecision(
+      input({
+        items: [line("plus_monthly", OLD_PLUS)],
+        schedule: {
+          own: true,
+          nextLines: null,
+          extraPhases: false,
+          finalPhase: true,
+          endBehavior: "release",
+        },
+      }),
+    );
+    expect(d).toMatchObject({
+      action: "apply",
+      reason: null,
+      mode: "schedule",
+      lookupKey: "plus_monthly",
+      fromPriceId: "price_plusOld",
+      toPriceId: "price_plusNew",
+      currentAmount: 5900,
+      newAmount: 3900,
+      emailEligible: true,
+    });
+  });
+
+  it("ostatnia faza przy zaplanowanym końcu -> cancel_scheduled, bez przepisania fazy", () => {
+    const schedule = {
+      own: true,
+      nextLines: null,
+      extraPhases: false,
+      finalPhase: true,
+      endBehavior: "release",
+    };
+    expect(repriceDecision(input({ schedule, cancelScheduled: true })).reason).toBe(
+      "cancel_scheduled",
+    );
+    expect(
+      repriceDecision(input({ schedule: { ...schedule, endBehavior: "cancel" } })).reason,
+    ).toBe("cancel_scheduled");
+  });
+
   // Przepisanie faz własnego harmonogramu zapisuje `end_behavior: release`
   // i otwartą fazę - przy zaplanowanym końcu odwołałoby rezygnację klienta.
   it("WŁASNY harmonogram przy zaplanowanym końcu -> cancel_scheduled (bez przepisania faz)", () => {
@@ -338,6 +397,7 @@ describe("repriceDecision - kolejność reguł", () => {
       own: true,
       nextLines: [line("plus_monthly", OLD_PLUS)],
       extraPhases: false,
+      finalPhase: false,
       endBehavior: "release",
     };
     const items = [line("pro_monthly", OLD_PRO)];
@@ -402,6 +462,23 @@ describe("summarizeRepricing i sklejanie stron", () => {
       plus_monthly: { n: 1, before: 5900, after: 3900 },
       team_monthly_seat: { n: 1, before: 19800, after: 17800 },
     });
+  });
+
+  it("przeniesione wcześniej (dziennik `applied`) liczą się osobno i poza MRR", () => {
+    // Dziennik oddaje je z decyzją `apply` i kwotami sprzed zmiany - wliczone
+    // do „do przeniesienia" zawyżały wpływ akcji po częściowym wykonaniu.
+    const s = summarizeRepricing([
+      { ...apply, outcome: "planned", emailStatus: null },
+      { ...apply, outcome: "already_applied", emailStatus: "queued" },
+      { ...apply, outcome: "already_applied", emailStatus: "failed" },
+      { ...apply, outcome: "already_applied", emailStatus: "pending" },
+    ]);
+    expect(s.total).toBe(4);
+    expect(s.count).toEqual({ apply: 1, already_applied: 3 });
+    expect(s.emailRetry).toBe(2);
+    expect(s.mrrBefore).toBe(5900);
+    expect(s.mrrAfter).toBe(3900);
+    expect(s.byKey).toEqual({ plus_monthly: { n: 1, before: 5900, after: 3900 } });
   });
 
   it("strony sklejają się z deduplikacją problemów i sumą z całości", () => {

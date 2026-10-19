@@ -7,7 +7,7 @@
 //      zmiany treści...") jest NA KARCIE, także gdy benefit trafia do
 //      spotlightu „Co wyróżnia ten plan" - w PL i EN.
 //   2. Karta Członka Pro nie gubi żadnej z 12 pozycji: trzy w spotlighcie,
-//      reszta na liście i w rozwijanej liście szczegółowej (przycisk
+//      dziewięć w rozwijanej liście szczegółowej (przycisk
 //      z `aria-expanded` / `aria-controls`), razem z nagłówkiem o „tym samym
 //      jednym bilecie rocznie - nie drugim".
 import { readFileSync } from "node:fs";
@@ -89,6 +89,10 @@ describe("Członek Pro - pełna lista benefitów bez strat", () => {
 
     const toggle = screen.getByRole("button", { name: /pricing\.benefitsMore/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    // v6.2, „Komunikacja karty": trzy pozycje w spotlighcie, „pozostałe
+    // dziewięć trafia do rozwijanej listy szczegółowej" - nic stale widocznego
+    // poza spotlightem.
+    expect(toggle.textContent).toContain('"count":9');
     const panel = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
     expect(panel).not.toBeNull();
     expect(panel).not.toBeVisible();

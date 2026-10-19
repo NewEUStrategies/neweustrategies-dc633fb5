@@ -189,6 +189,25 @@ export function ctaDescriptor(input: {
     : { kind: "contactDialog" };
 }
 
+/**
+ * Liczba dni okresu próbnego ogłaszana pod ceną karty; 0 = bez linii.
+ *
+ * Trial przyznaje WYŁĄCZNIE kasa, więc karta obiecuje go tylko przy zakupie
+ * samoobsługowym (`ctaDescriptor` -> `checkout`) planu w sprzedaży
+ * i cyklicznego - ten sam strażnik co strona planu (`plans.$planId`).
+ * Zespół v6.2 ma w bazie `trial_days = 7` (20260801184937, seed v6.2), ale
+ * sprzedaje się przez rozmowę (`for_sale = false`, `cta_mode = 'contact'`):
+ * „7 dni za darmo" nad przyciskiem „Porozmawiajmy" było obietnicą, której
+ * kasa (`plan_not_for_sale`) nie zrealizuje.
+ */
+export function cardTrialDays(input: Parameters<typeof ctaDescriptor>[0]): number {
+  const cta = ctaDescriptor(input);
+  if (cta.kind !== "checkout") return 0;
+  const plan = input.plans.find((p) => p.id === cta.planId);
+  if (!plan || plan.for_sale === false || plan.interval === "one_time") return 0;
+  return plan.trial_days > 0 ? plan.trial_days : 0;
+}
+
 /** Wariant wizualny przycisku - wyróżniona warstwa dostaje pełny kolor. */
 export function ctaVariant(tier: Pick<MembershipTierRow, "highlight">): "default" | "outline" {
   return tier.highlight ? "default" : "outline";
@@ -196,8 +215,16 @@ export function ctaVariant(tier: Pick<MembershipTierRow, "highlight">): "default
 
 // --- BENEFITY ---------------------------------------------------------------
 
-/** Ile pozycji zostaje pod spotlightem - z wyróżnieniami mniej, bez nich więcej. */
-const REST_CAP_WITH_HIGHLIGHTS = 4;
+/**
+ * Ile pozycji zostaje widocznych pod spotlightem. Z wyróżnieniami ŻADNA:
+ * v6.2, „Komunikacja karty" - różnicę wobec progu niżej komunikują trzy
+ * pozycje spotlightu, a pozostałe (u Członka Pro dziewięć) trafiają do
+ * rozwijanej listy szczegółowej; „fence zbudowany z dwunastu elementów nie
+ * jest czytelny". Dawny limit 4 zostawiał na karcie Pro siedem stałych
+ * punktów zamiast trzech. Bez spotlightu karta nie ma czym się wyróżnić
+ * inaczej, więc lista zostaje.
+ */
+const REST_CAP_WITH_HIGHLIGHTS = 0;
 const REST_CAP_WITHOUT_HIGHLIGHTS = 8;
 
 /** Nagłówek grupy benefitu (`group_*`) w języku strony; `null` = brak. */
@@ -222,13 +249,22 @@ function groupLabel(benefit: TierBenefit, lang: string): string | null {
  *      z karty Pro znikały m.in. Chatham House i wydarzenia z limitem miejsc;
  *   3. nagłówek grupy (`group_*`) benefitu przeniesionego do spotlightu
  *      przechodzi na pierwszą pozycję listy bez własnego nagłówka - inaczej
- *      ginęło np. zastrzeżenie Pro „ten sam jeden bilet rocznie - nie drugi".
+ *      ginęło np. zastrzeżenie Pro „ten sam jeden bilet rocznie - nie drugi";
+ *   4. gdy widoczna lista jest pusta (karta ze spotlightem), nagłówek
+ *      pierwszej pozycji rozwinięcia wychodzi PRZED przycisk (`moreLead`):
+ *      zastrzeżenie wiążące nie może się chować za „Pokaż więcej".
  */
 export function splitBenefits(
   all: TierBenefit[],
   highlights: TierBenefit[] | undefined,
   lang: string,
-): { highlights: TierBenefit[]; rest: TierBenefit[]; more: TierBenefit[] } {
+): {
+  highlights: TierBenefit[];
+  rest: TierBenefit[];
+  more: TierBenefit[];
+  /** Nagłówek grupy nad przyciskiem rozwinięcia (język strony); `null` = brak. */
+  moreLead: string | null;
+} {
   const spotlight = highlights ?? [];
   const norm = (value: string): string => value.trim().toLowerCase();
   const shown = new Set(spotlight.map((benefit) => norm(benefitText(benefit, lang))));
@@ -251,5 +287,9 @@ export function splitBenefits(
     pendingGroup = null;
   }
   const cap = spotlight.length > 0 ? REST_CAP_WITH_HIGHLIGHTS : REST_CAP_WITHOUT_HIGHLIGHTS;
-  return { highlights: spotlight, rest: remaining.slice(0, cap), more: remaining.slice(cap) };
+  const rest = remaining.slice(0, cap);
+  const more = remaining.slice(cap);
+  const lead = rest.length === 0 && more[0] ? groupLabel(more[0], lang) : null;
+  if (lead) more[0] = { ...more[0], group_pl: undefined, group_en: undefined };
+  return { highlights: spotlight, rest, more, moreLead: lead };
 }

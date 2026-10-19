@@ -15,7 +15,7 @@
 // zostawia widoczny stan i kursor do kontynuacji, a ponowne „Wykonaj" jest
 // bezpieczne (idempotencja po stronie serwera).
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { BadgePercent } from "lucide-react";
@@ -47,7 +47,7 @@ import {
   runSubscriptionRepricing,
 } from "@/lib/billing/subscriptionRepricing.functions";
 import { formatMoney } from "@/lib/billing/types";
-import { uiLocale } from "@/lib/i18n/format";
+import { formatDateShort } from "@/lib/i18n/format";
 import { ensureAdminRepricingI18n } from "@/lib/i18n-admin-repricing";
 
 /** Partie przechodzone jednym kliknięciem (podgląd po 50, wykonanie po 20). */
@@ -77,6 +77,7 @@ export function SubscriptionRepricingCard() {
   const lang = i18n.language === "en" ? "en" : "pl";
   const run = useServerFn(runSubscriptionRepricing);
   const loadLog = useServerFn(listSubscriptionRepricingLog);
+  const qc = useQueryClient();
   const [result, setResult] = useState<RepricingRun | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [phrase, setPhrase] = useState("");
@@ -105,6 +106,12 @@ export function SubscriptionRepricingCard() {
         next = response.nextCursor;
       }
       return acc;
+    },
+    // Dziennik ma `staleTime` 30 s, a przebieg (także przerwany albo
+    // odrzucony w połowie) zapisuje w nim wpisy - bez unieważnienia rozwinięty
+    // dziennik dalej mówił „pusty" po wykonaniu, które weszło u operatora.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: billingKeys.admin.subscriptionRepricingLog() });
     },
   });
 
@@ -138,16 +145,24 @@ export function SubscriptionRepricingCard() {
 
   const previewComplete =
     result !== null && result.mode === "preview" && result.done && result.nextCursor === null;
+  // „Do przeniesienia" to wyłącznie ruchy do zrobienia: przeniesione we
+  // wcześniejszym przebiegu liczą się osobno (`already_applied`). Wykonanie
+  // odblokowuje też mail do ponowienia przy już przeniesionej subskrypcji -
+  // jedyna droga ponowienia po awarii kolejki (`finishApplied`).
   const toApply = result?.summary.count.apply ?? 0;
-  const canExecute = previewComplete && problems.length === 0 && toApply > 0 && !runM.isPending;
+  const alreadyApplied = result?.summary.count.already_applied ?? 0;
+  const emailRetry = result?.summary.emailRetry ?? 0;
+  const canExecute =
+    previewComplete && problems.length === 0 && (toApply > 0 || emailRetry > 0) && !runM.isPending;
   const unfinished = result !== null && !result.done && result.nextCursor !== null;
   const visible = result?.rows.slice(0, MAX_VISIBLE_ROWS) ?? [];
 
   const money = (cents: number | null, currency: string | null) =>
     cents === null || !currency ? "-" : formatMoney(cents, currency, lang);
   const pln = (cents: number) => formatMoney(cents, "PLN", lang);
-  const date = (iso: string | null) =>
-    iso ? new Date(iso).toLocaleDateString(uiLocale(lang)) : "-";
+  // Wspólny atom daty (strefa serwisu, Europe/Warsaw): ta sama data co
+  // w mailu do klienta, niezależnie od strefy przeglądarki admina.
+  const date = (iso: string | null) => (iso ? formatDateShort(iso, lang) || "-" : "-");
 
   /** Kod problemu z serwera (`target_price_mismatch:plus_monthly`) -> zdanie. */
   const problemText = (problem: string) => {
@@ -258,6 +273,14 @@ export function SubscriptionRepricingCard() {
                 delta: pln(result.summary.mrrDelta),
               })}
             </p>
+            {alreadyApplied > 0 ? (
+              <p>
+                {t("adminRepricing.summaryAlreadyApplied", {
+                  count: alreadyApplied,
+                  retry: emailRetry,
+                })}
+              </p>
+            ) : null}
             <p className="text-muted-foreground">{t("adminRepricing.mrrNote")}</p>
             {result.mode === "preview" ? (
               <p className="text-muted-foreground">{t("adminRepricing.simulated")}</p>

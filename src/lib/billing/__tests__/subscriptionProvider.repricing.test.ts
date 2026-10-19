@@ -371,6 +371,102 @@ describe("repriceSubscriptionToCatalog - własny harmonogram", () => {
     expect(params.phases[0].trial_end).toBe(PERIOD_START + 7 * 86_400);
   });
 
+  // Downgrade Pro -> Członek JUŻ WSZEDŁ (10.10): pozycja wskazuje starego
+  // Członka (59 zł), a własny harmonogram wisi w ostatniej fazie do jej końca.
+  // Operator odłączy go dopiero wtedy i odnowi subskrypcję po cenie POZYCJI -
+  // bez przepisania byłoby to 59 zamiast 39 zł. Dawniej: `schedule_foreign`.
+  function inFinalPhase(extra: { cancelAt?: number | null } = {}) {
+    const plusOld = price("price_plusOld", null, 5900);
+    return subscription({
+      cancel_at: extra.cancelAt ?? null,
+      discounts: ["di_sub"],
+      items: {
+        data: [
+          {
+            id: "si_1",
+            quantity: 1,
+            current_period_start: PERIOD_START,
+            current_period_end: PERIOD_END,
+            price: plusOld,
+            tax_rates: [],
+            discounts: ["di_item"],
+          },
+        ],
+      },
+      schedule: {
+        id: "sub_sched_1",
+        metadata: { nes_basis: "stary", nes_ops_rev: "2" },
+        end_behavior: "release",
+        current_phase: { start_date: PERIOD_START, end_date: PERIOD_END },
+        phases: [
+          // Minione fazy bywają na liście - ostatnią wskazuje `current_phase`.
+          {
+            start_date: PERIOD_START - 2_592_000,
+            end_date: PERIOD_START,
+            items: [{ price: price("price_proOld", "pro_monthly", 12900), quantity: 1 }],
+          },
+          {
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+            items: [{ price: plusOld, quantity: 1 }],
+          },
+        ],
+      },
+    });
+  }
+
+  it("ostatnia faza własnego harmonogramu: przepisana JEDNA bieżąca faza na nową cenę", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(inFinalPhase());
+
+    const result = await repriceSubscriptionToCatalog("sandbox", "sub_1", {
+      targets: TARGETS,
+      campaign: "pricing_v62",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      decision: {
+        action: "apply",
+        mode: "schedule",
+        lookupKey: "plus_monthly",
+        currentAmount: 5900,
+        newAmount: 3900,
+      },
+    });
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+    const [scheduleId, params] = h.subscriptionSchedules.update.mock.calls[0];
+    expect(scheduleId).toBe("sub_sched_1");
+    expect(params.proration_behavior).toBe("none");
+    expect(params.end_behavior).toBe("release");
+    // Ta sama data początku i końca fazy, bez fazy następnej: po jej końcu
+    // harmonogram się zwalnia, a subskrypcja odnawia po NOWEJ cenie pozycji.
+    expect(params.phases).toEqual([
+      {
+        items: [{ price: "price_plusNew", quantity: 1, discounts: [{ discount: "di_item" }] }],
+        start_date: PERIOD_START,
+        end_date: PERIOD_END,
+        discounts: [{ discount: "di_sub" }],
+      },
+    ]);
+    expect(params.metadata).toMatchObject({ nes_ops_rev: "3", nes_repriced: "pricing_v62" });
+  });
+
+  it("ostatnia faza przy zaplanowanym końcu: pominięcie bez mutacji", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(inFinalPhase({ cancelAt: PERIOD_END }));
+
+    const result = await repriceSubscriptionToCatalog("sandbox", "sub_1", {
+      targets: TARGETS,
+      campaign: "pricing_v62",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      decision: { action: "skip", reason: "cancel_scheduled" },
+    });
+    expect(h.subscriptionSchedules.update).not.toHaveBeenCalled();
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+  });
+
   it("harmonogram OBCY (bez metadanych aplikacji): odmowa bez mutacji", async () => {
     h.subscriptions.retrieve.mockResolvedValue(withSchedule({}));
     const result = await repriceSubscriptionToCatalog("sandbox", "sub_1", {

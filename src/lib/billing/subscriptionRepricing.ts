@@ -132,14 +132,18 @@ export interface RepriceInput {
    * Harmonogram dołączony do subskrypcji. `own` = założony przez tę aplikację
    * (metadane `nes_basis` / `nes_ops_rev`: zaplanowany downgrade, zmniejszenie
    * miejsc). `nextLines` = pozycje fazy, która wejdzie przy odnowieniu
-   * (`null` = nieczytelna), `extraPhases` = po niej są jeszcze kolejne fazy,
-   * `endBehavior` = `end_behavior` harmonogramu u operatora (`release`,
-   * `cancel`, ...; `null` = nieczytelne).
+   * (`null` = nieczytelna albo jej nie ma), `extraPhases` = po niej są
+   * jeszcze kolejne fazy, `finalPhase` = bieżąca faza jest OSTATNIA
+   * (zaplanowana zmiana już weszła - harmonogram wisi do końca tej fazy,
+   * a o fakturze przy odnowieniu decyduje bieżąca pozycja), `endBehavior` =
+   * `end_behavior` harmonogramu u operatora (`release`, `cancel`, ...;
+   * `null` = nieczytelne).
    */
   schedule: null | {
     own: boolean;
     nextLines: readonly RepriceLine[] | null;
     extraPhases: boolean;
+    finalPhase: boolean;
     endBehavior: string | null;
   };
   /** Aktywne ceny katalogu po `lookup_key` (nowe ceny v6.2). */
@@ -286,7 +290,9 @@ function skip(
  *     `release` i `cancel` -> `schedule_foreign`,
  *  6. pozycja DECYDUJĄCA o najbliższej fakturze: przy własnym harmonogramie -
  *     faza, która wejdzie przy odnowieniu (zaplanowany downgrade na Członka
- *     wskazuje STARĄ cenę Członka), bez niego - bieżąca pozycja,
+ *     wskazuje STARĄ cenę Członka), a gdy bieżąca faza jest ostatnia
+ *     (downgrade już wszedł) - bieżąca pozycja; bez harmonogramu - bieżąca
+ *     pozycja,
  *  7. klucz spoza kampanii -> `not_repriced_key`; brak ceny katalogu ->
  *     `target_price_missing`; ta sama cena -> `already_current`,
  *  8. inna waluta / cykl -> `currency_mismatch` / `cycle_mismatch`,
@@ -307,10 +313,16 @@ export function repriceDecision(input: RepriceInput): RepriceDecision {
   let line: RepriceLine = input.items[0];
   let mode: "item" | "schedule" = "item";
   if (input.schedule) {
-    const { own, nextLines, extraPhases, endBehavior } = input.schedule;
-    if (!own || !nextLines || extraPhases || nextLines.length !== 1) {
-      return skip("schedule_foreign", { quantity });
-    }
+    const { own, nextLines, extraPhases, finalPhase, endBehavior } = input.schedule;
+    // Własny harmonogram w OSTATNIEJ fazie (zaplanowany downgrade albo
+    // zmniejszenie miejsc już weszło): operator odłącza go dopiero z końcem
+    // tej fazy, a subskrypcja odnawia się wtedy po cenie pozycji - starej,
+    // zarchiwizowanej. To nadal nasz harmonogram, nie obcy: decyduje bieżąca
+    // pozycja, a zapis przepisuje jedną, bieżącą fazę.
+    const readable = finalPhase
+      ? own && !nextLines
+      : own && !!nextLines && !extraPhases && nextLines.length === 1;
+    if (!readable) return skip("schedule_foreign", { quantity });
     // Zaplanowany koniec przy własnym harmonogramie: przepisanie faz
     // (`end_behavior: release`, otwarta faza) odnowiłoby subskrypcję klientowi,
     // który zrezygnował. Cenę bez harmonogramu przepinamy (pozycja nie ruszy
@@ -319,7 +331,7 @@ export function repriceDecision(input: RepriceInput): RepriceDecision {
       return skip("cancel_scheduled", { quantity });
     }
     if (endBehavior !== "release") return skip("schedule_foreign", { quantity });
-    line = nextLines[0];
+    line = nextLines && !finalPhase ? nextLines[0] : input.items[0];
     mode = "schedule";
   }
 
@@ -380,11 +392,23 @@ export function repriceDecision(input: RepriceInput): RepriceDecision {
 
 // --- podsumowanie ------------------------------------------------------------
 
-export type RepriceTally = "apply" | RepriceSkip;
+/**
+ * Klucz licznika podsumowania: przeniesienie do wykonania, powód pominięcia
+ * albo `already_applied` - subskrypcja przeniesiona we WCZEŚNIEJSZYM
+ * przebiegu (wpis `applied` w dzienniku). Dziennik oddaje ją z decyzją
+ * `apply` i kwotami sprzed zmiany, ale to nie jest już ruch do zrobienia.
+ */
+export type RepriceTally = "apply" | "already_applied" | RepriceSkip;
 
 export interface RepricingSummary {
   total: number;
   count: Partial<Record<RepriceTally, number>>;
+  /**
+   * Przeniesione wcześniej, którym wykonanie ma jeszcze wysłać mail
+   * (`pending` / `failed` w dzienniku) - jedyny powód, by ponowić wykonanie
+   * bez nowych przeniesień.
+   */
+  emailRetry: number;
   /** MRR subskrypcji z decyzją `apply` - przed i po (grosze, zaokrąglone). */
   mrrBefore: number;
   mrrAfter: number;
@@ -396,18 +420,29 @@ export interface RepricingSummary {
  * Sumy podglądu. MRR liczony WYŁĄCZNIE z decyzji `apply` - to jest wpływ akcji
  * na przychód cykliczny, po cenach katalogowych (bez rabatów i podatku), w
  * ekwiwalencie miesięcznym. Pominięte subskrypcje nie zmieniają przychodu.
+ *
+ * Wiersze `already_applied` liczą się OSOBNO i poza MRR: ich zmiana weszła
+ * w poprzednim przebiegu, więc wliczenie ich do „do przeniesienia" i do
+ * różnicy MRR zawyżało wpływ akcji po częściowym albo pełnym wykonaniu
+ * (100 subskrypcji i -2 000 zł zamiast 60 i -1 200 zł).
  */
 export function summarizeRepricing(
-  rows: readonly Pick<
+  rows: readonly (Pick<
     RepriceDecision,
     "action" | "reason" | "lookupKey" | "currentMrr" | "newMrr"
-  >[],
+  > & { outcome?: RepricingOutcome; emailStatus?: RepricingEmailStatus })[],
 ): RepricingSummary {
   const count: Partial<Record<RepriceTally, number>> = {};
   const byKey: RepricingSummary["byKey"] = {};
   let before = 0;
   let after = 0;
+  let emailRetry = 0;
   for (const row of rows) {
+    if (row.outcome === "already_applied") {
+      count.already_applied = (count.already_applied ?? 0) + 1;
+      if (row.emailStatus === "pending" || row.emailStatus === "failed") emailRetry += 1;
+      continue;
+    }
     const tally: RepriceTally = row.action === "apply" ? "apply" : (row.reason ?? "unpriceable");
     count[tally] = (count[tally] ?? 0) + 1;
     if (row.action !== "apply") continue;
@@ -426,7 +461,15 @@ export function summarizeRepricing(
   }
   const mrrBefore = Math.round(before);
   const mrrAfter = Math.round(after);
-  return { total: rows.length, count, mrrBefore, mrrAfter, mrrDelta: mrrAfter - mrrBefore, byKey };
+  return {
+    total: rows.length,
+    count,
+    emailRetry,
+    mrrBefore,
+    mrrAfter,
+    mrrDelta: mrrAfter - mrrBefore,
+    byKey,
+  };
 }
 
 // --- strona wyniku (kontrakt serwer <-> panel) -------------------------------

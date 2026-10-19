@@ -86,6 +86,8 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 vi.mock("@/lib/billing/tiers", () => ({
   useCurrentTier: () => ({ data: h.tierRank === null ? null : { rank: h.tierRank } }),
+  // Bramka klubu czyta widoczność progów na cenniku; bez danych - zapas v6.2.
+  useMembershipTiers: () => ({ data: undefined }),
 }));
 // KONTROLA NEGATYWNA, nie źródło danych: po F09 hub i minisite nie mają prawa
 // tknąć tej funkcji - kartę klubu czyta RAZ loader UKŁADU `/club/$clubSlug`.

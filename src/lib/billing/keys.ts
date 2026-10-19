@@ -30,6 +30,13 @@ export const billingKeys = {
   /** Kwota najbliższego odnowienia z żywej subskrypcji u operatora (karta w profilu). */
   renewalCharge: (subscriptionId: string, env: string, priceId: string, quantity: number) =>
     ["renewal-charge", subscriptionId, env, priceId, quantity] as const,
+  /**
+   * Ta sama kwota dla strony „Mój plan" (/profile/plan), która zna tylko
+   * wiersz uprawnienia, nie subskrypcję operatora - serwer i tak bierze ją
+   * z sesji. Wspólny prefiks z `renewalCharge`.
+   */
+  myRenewalCharge: (uid: string | undefined, env: string) =>
+    ["renewal-charge", "mine", uid ?? "anon", env] as const,
   /** Podgląd kosztu zmiany planu (kwota liczona przez operatora). */
   planChangePreview: (subscriptionId: string, targetPriceId: string, env: string) =>
     ["plan-change-preview", subscriptionId, targetPriceId, env] as const,

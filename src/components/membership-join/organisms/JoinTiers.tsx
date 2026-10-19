@@ -217,7 +217,11 @@ export function JoinTiers({ isAuthenticated }: { isAuthenticated: boolean }) {
             </div>
           )}
 
-          {supporterTier && <SupporterStrip tier={supporterTier} lang={lang} />}
+          {/* Bez warunku na warstwę, jak na /pricing: v6.2 ukrywa próg
+              Wspierający (`pricing_visible = false`), więc `listedTiers` go
+              odfiltrowuje - warunek zabierał stronie dołączania jedyne stałe
+              wejście do darowizn. Warstwa daje wyłącznie nazwę i opis. */}
+          <SupporterStrip tier={supporterTier} lang={lang} />
         </div>
       )}
 

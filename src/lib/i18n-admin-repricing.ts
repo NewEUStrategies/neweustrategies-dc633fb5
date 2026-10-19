@@ -17,7 +17,8 @@ const pl = {
     running: "Przetwarzanie...",
     showLog: "Pokaż dziennik",
     hideLog: "Ukryj dziennik",
-    executeHint: "Wykonanie odblokowuje się po pełnym podglądzie bez rozjazdów cennika.",
+    executeHint:
+      "Wykonanie odblokowuje się po pełnym podglądzie bez rozjazdów cennika, gdy jest co przenieść albo e-mail do ponowienia.",
     confirmTitle: "Przenieść subskrypcje na niższe ceny v6.2?",
     confirmDescription:
       "Pozycje subskrypcji u operatora płatności dostaną nowe ceny od najbliższej faktury, a członkowie, których kwota realnie spada - e-mail o niższej cenie. Operacji nie da się cofnąć jednym kliknięciem. Aby potwierdzić, wpisz: {{phrase}}",
@@ -27,6 +28,8 @@ const pl = {
     summaryTitle: "Podsumowanie",
     summary:
       "Sprawdzono {{total}} subskrypcji, do przeniesienia: {{apply}}. MRR przed: {{before}}, po: {{after}}, różnica: {{delta}}.",
+    summaryAlreadyApplied:
+      "Przeniesione we wcześniejszym przebiegu (poza liczbą do przeniesienia i sumą MRR): {{count}}, w tym z e-mailem do ponowienia: {{retry}}.",
     mrrNote:
       "MRR w ekwiwalencie miesięcznym po cenach katalogowych, bez rabatów i podatku - wyłącznie subskrypcje przenoszone.",
     simulated: "Podgląd - niczego nie zapisano ani nie zmieniono u operatora.",
@@ -119,7 +122,8 @@ const en = {
     running: "Processing...",
     showLog: "Show log",
     hideLog: "Hide log",
-    executeHint: "Execution unlocks after a full preview with no price-list mismatches.",
+    executeHint:
+      "Execution unlocks after a full preview with no price-list mismatches, when there is something to move or an email to retry.",
     confirmTitle: "Move subscriptions to the lower v6.2 prices?",
     confirmDescription:
       "Subscription items at the payment provider get the new prices from the next invoice, and members whose amount actually drops get an email about the lower price. The operation cannot be undone with one click. To confirm, type: {{phrase}}",
@@ -129,6 +133,8 @@ const en = {
     summaryTitle: "Summary",
     summary:
       "Checked {{total}} subscriptions, to move: {{apply}}. MRR before: {{before}}, after: {{after}}, change: {{delta}}.",
+    summaryAlreadyApplied:
+      "Moved in an earlier run (outside the to-move count and the MRR totals): {{count}}, of which with an email to retry: {{retry}}.",
     mrrNote:
       "MRR as a monthly equivalent at catalogue prices, before discounts and tax - only the subscriptions being moved.",
     simulated: "Preview - nothing was written or changed at the provider.",

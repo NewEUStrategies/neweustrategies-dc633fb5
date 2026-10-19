@@ -57,7 +57,10 @@ import type { EventSection } from "@/lib/events/eventSections";
 /** Warstwa członkostwa w kształcie, którego dotyka trasa. */
 interface TierRow {
   id: string;
+  key: string;
   rank: number;
+  /** Kolejność redakcyjna - rozstrzyga remis rang jak na /pricing. */
+  sort_order: number;
   name_pl: string;
   name_en: string;
   features: Record<string, unknown> | null;
@@ -308,6 +311,8 @@ function section(overrides: Partial<EventSection> & Pick<EventSection, "key">): 
 function tier(overrides: Partial<TierRow> & { rank: number }): Record<string, unknown> {
   return {
     id: `tier-${overrides.rank}`,
+    key: `tier_${overrides.rank}`,
+    sort_order: 0,
     name_pl: `Warstwa ${overrides.rank}`,
     name_en: `Tier ${overrides.rank}`,
     features: null,
@@ -725,6 +730,53 @@ describe("bramka warstwy - odmowa MUSI mieć wyjście", () => {
       ).toBeTruthy(),
     );
     expect(screen.queryByText("community.events.tierRequired(tier=Enterprise)")).toBeNull();
+  });
+
+  // Remis rang (v6.2: Członek, Student i Kadra mają rangę 10) rozstrzyga
+  // kolejność redakcyjna jak na /pricing, nie fizyczna kolejność wierszy -
+  // baza oddaje je posortowane wyłącznie po randze.
+  it("remis rangi: odmowa nazywa próg pierwszy w kolejności cennika (Członek)", async () => {
+    h.event = event({ visibility: "members", min_tier_rank: 0 });
+    h.access = access({ reason: "tier_required" });
+    h.tiers = [
+      tier({ rank: 5, key: "supporter", name_pl: "Wspierający", pricing_visible: false }),
+      tier({ rank: 10, key: "student", sort_order: 30, name_pl: "Student i Doktorant" }),
+      tier({ rank: 10, key: "educator", sort_order: 40, name_pl: "Kadra Akademicka" }),
+      tier({ rank: 10, key: "member", sort_order: 10, name_pl: "Członek" }),
+    ];
+
+    await renderOverview();
+
+    await waitFor(() =>
+      expect(screen.getByText("community.events.tierRequired(tier=Członek)")).toBeTruthy(),
+    );
+  });
+
+  it("remis rangi przy briefingu Pro: Członek Pro, nie NGO", async () => {
+    h.event = event({ visibility: "members", kind: "briefing" });
+    h.access = access({ reason: "tier_required" });
+    h.tiers = [
+      tier({
+        rank: 20,
+        key: "ngo",
+        sort_order: 50,
+        name_pl: "Organizacja Non-profit",
+        features: { pro_briefings: true },
+      }),
+      tier({
+        rank: 20,
+        key: "pro",
+        sort_order: 20,
+        name_pl: "Członek Pro",
+        features: { pro_briefings: true },
+      }),
+    ];
+
+    await renderOverview();
+
+    await waitFor(() =>
+      expect(screen.getByText("community.events.tierRequired(tier=Członek Pro)")).toBeTruthy(),
+    );
   });
 
   it("briefing Pro wskazuje warstwę Z FLAGĄ `pro_briefings`, a nie po randze", async () => {

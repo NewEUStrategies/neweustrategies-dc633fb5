@@ -209,11 +209,22 @@ function PlanDetailsPage() {
   const badge = planBadge(plan, lang);
   const description = planDescription(plan, lang);
   const enquiryOnly = isEnquiryOnlyPlan(plan);
+  // Plan POZA SPRZEDAŻĄ jest albo sprzedawany przez rozmowę, albo wycofany -
+  // rozstrzyga to PRÓG, więc bez CZYSTEGO odczytu progów (zasiew fallbacku
+  // z `updatedAt: 0` po awarii albo przekroczeniu budżetu SSR, katalog
+  // w trakcie odczytu) tryb sprzedaży jest NIEZNANY. Dawniej brak progu
+  // znaczył „wycofany" i abonent Zespołu czytał przy blipie backendu, że jego
+  // plan zdjęto ze sprzedaży - to samo kłamstwo handlowe, przed którym broni
+  // gałąź `degraded` wyżej. Brak progu po czystym odczycie dalej znaczy
+  // „wycofany" (plan bez progu i tak nie przejdzie kasy).
+  const tiersClean = tiersQ.data !== undefined && tiersQ.dataUpdatedAt > 0;
+  const saleModeUnknown = !enquiryOnly && plan.for_sale === false && !tiersClean;
   // Plan progu sprzedawanego PRZEZ ROZMOWĘ (Zespół v6.2: „3-20 miejsc ·
   // rozmowa"): cena jest jawna jak na karcie /pricing, ale zamiast kasy -
   // formularz rozmowy. To nie jest plan wycofany.
   const conversationSale =
     !enquiryOnly &&
+    !saleModeUnknown &&
     plan.for_sale === false &&
     tier !== null &&
     tier.pricing_visible !== false &&
@@ -221,7 +232,7 @@ function PlanDetailsPage() {
   // Plan wycofany ze sprzedaży (Partner Biznesowy, v6.2) dalej istnieje - jego
   // subskrybenci wchodzą tu z profilu i widzą swoją cenę - ale nie przyjmuje
   // nowego zakupu: zamiast przycisku kasy strona mówi to wprost.
-  const retired = !enquiryOnly && !conversationSale && plan.for_sale === false;
+  const retired = !enquiryOnly && !saleModeUnknown && !conversationSale && plan.for_sale === false;
 
   return (
     <div className="container mx-auto max-w-5xl space-y-8 px-4 py-10">
@@ -257,6 +268,7 @@ function PlanDetailsPage() {
         {!enquiryOnly &&
           !retired &&
           !conversationSale &&
+          !saleModeUnknown &&
           plan.interval !== "one_time" &&
           plan.trial_days > 0 && (
             <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
@@ -271,6 +283,12 @@ function PlanDetailsPage() {
             <Button size="lg" onClick={() => setEnquiryOpen(true)}>
               {t("pricing.enquiry.cta")}
             </Button>
+          ) : saleModeUnknown ? (
+            // Ani kasy, ani „wycofany", ani rozmowy, dopóki próg nie wróci
+            // z backendu; odczyt, który padł, mówi to wprost - z ponowieniem.
+            tiersQ.isError ? (
+              <DegradedDataNotice onRetry={() => void tiersQ.refetch()} />
+            ) : null
           ) : conversationSale ? (
             <Button size="lg" onClick={() => setEnquiryOpen(true)}>
               {t("pricing.contactCta")}

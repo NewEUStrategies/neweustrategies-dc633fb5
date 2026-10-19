@@ -101,9 +101,11 @@ async function admin() {
 }
 
 /**
- * Strona kandydatów: subskrypcje najemcy w środowisku, na cenach objętych
- * kampanią, w statusach rozliczanych. Kursor po `id` - stabilna kolejność,
- * którą przerwany przebieg wznawia bez dubli i bez luk.
+ * Strona kandydatów: subskrypcje najemcy w środowisku, pod kluczami z listy
+ * wołającego (ceny kampanii oraz Partner Biznesowy, którego zaplanowany
+ * downgrade może wskazywać cenę kampanii), w statusach rozliczanych. Kursor
+ * po `id` - stabilna kolejność, którą przerwany przebieg wznawia bez dubli
+ * i bez luk.
  */
 export async function listRepricingCandidates(input: {
   tenantId: string;

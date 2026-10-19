@@ -22,11 +22,11 @@ import {
 import {
   benefitDetail,
   benefitText,
-  pickPlanForInterval,
   tierBadge,
   type BillingInterval,
 } from "@/lib/pricing/selectors";
 import {
+  cardTrialDays,
   ctaDescriptor,
   ctaVariant,
   priceDisplay,
@@ -302,7 +302,15 @@ export function TierCard({
   const badge = tierBadge(tier, lang);
   const allBenefits = parseTierBenefits(tier.benefits);
   const description = lang === "en" ? tier.description_en : tier.description_pl;
-  const plan = pickPlanForInterval(plans, interval);
+  // Okres próbny tylko przy zakupie przez kasę - reguła `cardTrialDays`.
+  const trialDays = cardTrialDays({
+    tier,
+    plans,
+    interval,
+    isCurrentTier,
+    currentPlanId,
+    isAuthenticated,
+  });
 
   // Podział na spotlight, listę widoczną i rozwijaną listę szczegółową jest
   // regułą - patrz `splitBenefits`. Klient widzi każdą obietnicę dokładnie raz
@@ -354,10 +362,8 @@ export function TierCard({
             wszystkich kartach (Bezpłatnie / kwota / Oferta na zapytanie). */}
         <div className="min-h-[6rem]">
           <PriceBlock tier={tier} plans={plans} interval={interval} lang={lang} />
-          {plan && plan.trial_days > 0 && (
-            <p className="mt-1 text-xs text-primary">
-              {t("pricing.trial", { count: plan.trial_days })}
-            </p>
+          {trialDays > 0 && (
+            <p className="mt-1 text-xs text-primary">{t("pricing.trial", { count: trialDays })}</p>
           )}
         </div>
       </CardHeader>
@@ -407,6 +413,13 @@ export function TierCard({
         <TierBenefitList benefits={split.rest} lang={lang} />
         {split.more.length > 0 && (
           <div className="mt-3">
+            {/* Nagłówek grupy (np. „ten sam jeden bilet rocznie - nie drugi")
+                stoi NAD przyciskiem: zastrzeżenie nie chowa się w rozwinięciu. */}
+            {split.moreLead && (
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {split.moreLead}
+              </p>
+            )}
             <button
               type="button"
               className="inline-flex items-center gap-1 text-xs font-medium text-brand-ink underline-offset-2 hover:underline"

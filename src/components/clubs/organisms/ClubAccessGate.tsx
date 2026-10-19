@@ -9,7 +9,7 @@
 //   * anonim              -> wartość klubu + formularz rejestracji inline,
 //   * zalogowany za nisko -> wartość klubu + upsell do wymaganego planu,
 //   * zalogowany, nie-członek -> prośba o dostęp (plan już wystarcza).
-import { Fragment, useState, type FormEvent } from "react";
+import { Fragment, useMemo, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
@@ -35,6 +35,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserBadges } from "@/lib/profile/badges";
+import { useMembershipTiers } from "@/lib/billing/tiers";
+import { clubPlanTiersNotSold } from "@/lib/clubs/planTiers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldBox } from "@/components/ui/field-box";
@@ -89,7 +91,12 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
   // CO bramka pokazuje, rozstrzyga czysty deskryptor (`lib/clubs/gateView`) -
   // tutaj zostaje wyłącznie JAK to narysować. Reguły dostępu były w tym repo
   // dowiedzione (capabilityMatrix, hubAccess, pgTAP), ich prezentacja nie.
-  const view = clubGateView({ club, signedIn, isExpert });
+  // Który próg wolno sprzedać, mówi ta sama kolumna co /pricing
+  // (`pricing_visible`) - nie stała w kodzie, której nie widzi przełącznik
+  // „Widoczna w cenniku" w panelu.
+  const tiersQ = useMembershipTiers();
+  const notSold = useMemo(() => clubPlanTiersNotSold(tiersQ.data), [tiersQ.data]);
+  const view = clubGateView({ club, signedIn, isExpert, notSold });
   const plan = t(view.planLabelKey);
 
   return (

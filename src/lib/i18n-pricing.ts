@@ -936,7 +936,7 @@ const pricingEn: typeof pricingPl = {
           id: "volumeDiscount",
           label: "Volume discount",
           values: {
-            team: "Od 11 miejsc: niższa stawka",
+            team: "From 11 seats: a lower rate",
           },
         },
         {

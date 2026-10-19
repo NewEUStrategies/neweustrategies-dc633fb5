@@ -16,6 +16,7 @@ import {
   CLUB_PLAN_TIERS_NOT_SOLD,
   CLUB_PLAN_TIER_RANK,
   DEFAULT_CLUB_PLAN_TIER,
+  clubPlanTiersNotSold,
 } from "@/lib/clubs/planTiers";
 import {
   CLUB_GATE_BENEFITS,
@@ -86,6 +87,49 @@ describe("sellTier - czego bramka nie sprzedaje", () => {
 
     expect(view.sellTier).toBe("partner");
     expect(view.planLabelKey).toBe("club.planTier.partner");
+  });
+
+  // Panel ma przełącznik „Widoczna w cenniku" (`pricing_visible`). Bramka
+  // czyta go z katalogu najemcy, jak /pricing i strona wydarzenia - stała
+  // w kodzie zostaje wyłącznie zapasem przed wczytaniem progów.
+  it("ukryta w panelu Rada (vip) nie jest sprzedawana - klub z rangą 25 woła następny próg z kartą", () => {
+    const notSold = clubPlanTiersNotSold([
+      { key: "vip", pricing_visible: false },
+      { key: "corporate", pricing_visible: false },
+      { key: "partner", pricing_visible: true },
+    ]);
+    const view = clubGateView({
+      club: club({ min_tier_rank: 25 }),
+      signedIn: true,
+      isExpert: false,
+      notSold,
+    });
+
+    expect(view.sellTier).toBe("partner");
+  });
+
+  it("Enterprise przywrócony na cennik w panelu - bramka znów go sprzedaje", () => {
+    const notSold = clubPlanTiersNotSold([{ key: "corporate", pricing_visible: true }]);
+    const view = clubGateView({
+      club: club({ min_tier_rank: 30 }),
+      signedIn: true,
+      isExpert: false,
+      notSold,
+    });
+
+    expect(view.sellTier).toBe("corporate");
+  });
+
+  it("katalog progów jeszcze niewczytany: stan po migracji v6.2 (Enterprise ukryty)", () => {
+    expect(clubPlanTiersNotSold(undefined)).toBe(CLUB_PLAN_TIERS_NOT_SOLD);
+    expect(clubPlanTiersNotSold([])).toBe(CLUB_PLAN_TIERS_NOT_SOLD);
+    // Klucze spoza słownika klubów (Zespół, Wspierający) nie wchodzą do zbioru.
+    expect([
+      ...clubPlanTiersNotSold([
+        { key: "supporter", pricing_visible: false },
+        { key: "team", pricing_visible: false },
+      ]),
+    ]).toEqual([]);
   });
 
   it("ranga spoza katalogu zaokrągla się W GÓRĘ - bramka nie sprzedaje progu, który nie wpuszcza", () => {

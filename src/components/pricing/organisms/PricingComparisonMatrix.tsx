@@ -54,7 +54,7 @@ interface MatrixRow {
 // podają wyłącznie `listedTiers`, a profil obecnego klienta takiego progu
 // dokłada jego kolumnę - inaczej porównanie progów nie miałoby kolumny
 // „Twój plan", choć próg działa. Wiersze flag liczą się z jego `features`,
-// redakcyjne v6.2 nie mają dla niego wartości (kreska).
+// redakcyjne - z progu, którego zakres obejmuje (`EDITORIAL_SCOPE_OF`).
 const KNOWN_TIER_KEYS = [
   "corporate",
   "business",
@@ -70,6 +70,35 @@ const KNOWN_TIER_KEYS = [
   "ngo",
   "team",
 ] as const;
+
+/**
+ * Progi POZA prezentacją v6.2 nie mają własnych wartości redakcyjnych, a ich
+ * karta obiecuje „pełen zakres Pro" (Partner Biznesowy) i „pulę miejsc Pro"
+ * (Enterprise). Bez tego zastępstwa obecny klient takiego progu czytał
+ * w kolumnie „Twój plan" kreskę („Nie") przy archiwum, koncie NES czy
+ * cotygodniowym przeglądzie - treściach, które `has_content_access` mu daje,
+ * a decyzje 3/4 każą mu zachować. Słownik celowo nie wymienia tych kluczy
+ * (powierzchnie sprzedażowe ich nie pokazują); zastępstwo żyje tu, przy
+ * jedynym miejscu, które ich kolumnę renderuje.
+ */
+const EDITORIAL_SCOPE_OF: Readonly<Record<string, string>> = {
+  corporate: "pro",
+  business: "pro",
+};
+
+/**
+ * Wiersze o WARUNKACH SPRZEDAŻY, nie o zakresie dostępu - nie przechodzą
+ * zastępstwem: próg wycofany albo ukryty nie jest kupowany na warunkach Pro.
+ */
+const SALE_TERMS_ROWS: ReadonlySet<string> = new Set(["cancelAnytime"]);
+
+function editorialValue(row: MatrixRow, tier: MembershipTierRow): CellValue {
+  const own = row.values?.[tier.key];
+  if (own !== undefined) return own;
+  const scope = EDITORIAL_SCOPE_OF[tier.key];
+  if (!scope || SALE_TERMS_ROWS.has(row.id)) return "dash";
+  return row.values?.[scope] ?? "dash";
+}
 
 function cellFor(row: MatrixRow, tier: MembershipTierRow, t: TFunction): CellValue {
   // „Zapytanie do eksperta": realna liczba z planu (Członek/Pro) lub
@@ -94,7 +123,7 @@ function cellFor(row: MatrixRow, tier: MembershipTierRow, t: TFunction): CellVal
     return discount > 0 ? t("pricing.comparisonMatrix.ticketDiscount", { pct: discount }) : "dash";
   }
   if (row.feature) return tierHasFeature(tier.features, row.feature) ? "check" : "dash";
-  return row.values?.[tier.key] ?? "dash";
+  return editorialValue(row, tier);
 }
 
 function isPositive(value: CellValue): boolean {

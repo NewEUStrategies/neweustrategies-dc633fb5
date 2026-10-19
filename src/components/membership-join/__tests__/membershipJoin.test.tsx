@@ -212,11 +212,30 @@ describe("JoinTiers - oferta 1:1 z cennikiem", () => {
 
   it("warstwa WSPIERAJĄCA nie jest kartą w drabince - stoi osobno", async () => {
     // Paradoks wyboru: karty decyzyjne osobno, wsparcie misji spokojną ścieżką.
+    // Dane jak po migracji v6.2: próg Wspierający działa (`active`), ale jest
+    // ukryty w cenniku (`pricing_visible = false`, 20261018160100) - pasek
+    // darowizny i tak stoi pod kartami, tak jak na /pricing.
     h.audiences = [individual];
     h.tiers = [
       member,
-      membershipTier({ id: "t-sup", key: "supporter", audience_key: "individual", rank: 1 }),
+      membershipTier({
+        id: "t-sup",
+        key: "supporter",
+        audience_key: "individual",
+        rank: 1,
+        pricing_visible: false,
+      }),
     ];
+    h.plans = [monthly];
+    renderWithQueryClient(<JoinTiers isAuthenticated={false} />);
+
+    await waitFor(() => expect(screen.getByText(moneyPattern(4900))).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /supporterCta/ })).toHaveAttribute("href", "/support");
+  });
+
+  it("pasek darowizny stoi także BEZ progu Wspierający (jak /pricing)", async () => {
+    h.audiences = [individual];
+    h.tiers = [member];
     h.plans = [monthly];
     renderWithQueryClient(<JoinTiers isAuthenticated={false} />);
 

@@ -158,6 +158,19 @@ describe("TierCard - CENA, którą widzi klient", () => {
 
     expect(screen.queryByText(/pricing\.trial/)).not.toBeInTheDocument();
   });
+
+  // Zespół v6.2: `trial_days = 7` w bazie, ale sprzedaż przez rozmowę
+  // (`for_sale = false`, `cta_mode = 'contact'`) - kasa odmawia zakupu, więc
+  // „7 dni za darmo" nad „Porozmawiajmy" byłoby obietnicą bez pokrycia.
+  it("plan sprzedawany PRZEZ ROZMOWĘ nie ogłasza okresu próbnego", () => {
+    renderCard({
+      tier: membershipTier({ key: "team", cta_mode: "contact", per_seat: true }),
+      plans: [accessPlan({ id: "p-team", interval: "month", trial_days: 7, for_sale: false })],
+    });
+
+    expect(screen.getByText(/pricing\.perSeat/)).toBeInTheDocument();
+    expect(screen.queryByText(/pricing\.trial/)).not.toBeInTheDocument();
+  });
 });
 
 describe("TierCard - PRZYCISK ZAKUPU", () => {

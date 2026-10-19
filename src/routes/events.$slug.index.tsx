@@ -62,6 +62,7 @@ import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { confirmFreeRsvpEmail } from "@/lib/events/rsvp-email.functions";
 import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
 import { useMembershipTiers, tierName, tierHasFeature, useCurrentTier } from "@/lib/billing/tiers";
+import { listedTiers, sortTiers } from "@/lib/pricing/selectors";
 import { useAuth } from "@/hooks/useAuth";
 import { EventGroupButton } from "@/components/network/EventGroupButton";
 import { EventSpeakersSection } from "@/components/events/EventSpeakersSection";
@@ -343,10 +344,12 @@ function EventOverview() {
   // (members podnosi próg do >=1; briefing Pro wskazuje tier z pro_briefings).
   // Wyłącznie progi z kartą na /pricing (cennik v6.2): przycisk prowadzi na
   // cennik, więc „Wymaga progu Enterprise" albo wycofanego Partnera
-  // Biznesowego wysyłałby tam, gdzie takiej oferty nie ma.
-  const offeredTiers = (tiersQ.data ?? [])
-    .filter((tier) => tier.pricing_visible !== false)
-    .sort((a, b) => a.rank - b.rank);
+  // Biznesowego wysyłałby tam, gdzie takiej oferty nie ma. Kolejność jak na
+  // /pricing (`sortTiers`: ranga, kolejność redakcyjna, klucz): sama ranga
+  // zostawiała remisy (10: Członek / Student / Kadra, 20: Pro / NGO) na
+  // łasce fizycznej kolejności wierszy w bazie - po ukryciu Wspierającego
+  // (ranga 5) wydarzenie dla członków potrafiło wskazać „Kadra Akademicka".
+  const offeredTiers = sortTiers(listedTiers(tiersQ.data ?? []));
   const requiredTierName = (() => {
     const tiers = offeredTiers;
     if (isProBriefing) {

@@ -38,7 +38,8 @@
 -- wyłącznie dla service_role, bez polityk RLS (wzorem
 -- `billing_probe_credentials`): panel czyta ją przez server function z bramką
 -- admina + MFA i filtrem `tenant_id` z sesji, nigdy wprost z przeglądarki.
--- Brak DELETE dla service_role - to dziennik audytowy, nie stan roboczy.
+-- Brak DELETE i TRUNCATE dla service_role - to dziennik audytowy, nie stan
+-- roboczy (REVOKE ALL także z service_role, patrz niżej).
 --
 -- RODO: WPIS ZNIKA RAZEM Z KONTEM (CASCADE, nie SET NULL). Wiersz niesie
 -- `provider_subscription_id` (sub_...), który u operatora prowadzi wprost do
@@ -170,7 +171,14 @@ CREATE TRIGGER subscription_price_migrations_set_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 ALTER TABLE public.subscription_price_migrations ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.subscription_price_migrations FROM PUBLIC, anon, authenticated;
+-- service_role TAKŻE w REVOKE: domyślne uprawnienia schematu `public` na
+-- produkcji (pg_default_acl roli postgres, zmierzone 2026-10-12 -
+-- 20261012210000) dają mu `arwdDxtm` na każdą nową tabelę, więc sam GRANT
+-- niżej zostawiał DELETE i TRUNCATE. Skasowany wpis to zgubiona pierwsza
+-- warstwa idempotencji (ponowne „Wykonaj" nie rozpozna zmiany, która weszła
+-- u operatora) i ślad audytowy. Kaskady kluczy obcych (RODO) działają
+-- z prawami właściciela tabeli - wzorzec 20261012130600.
+REVOKE ALL ON public.subscription_price_migrations FROM PUBLIC, anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE ON public.subscription_price_migrations TO service_role;
 
 COMMENT ON TABLE public.subscription_price_migrations IS

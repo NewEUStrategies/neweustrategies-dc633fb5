@@ -94,6 +94,9 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.preAuthGuard }));
 vi.mock("sonner", () => ({ toast: { error: h.toastError, success: vi.fn() } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("@/lib/profile/badges", () => ({ useUserBadges: () => ({ data: h.badges }) }));
+// Katalog progów (widoczność na cenniku) - bez danych bramka bierze stan po
+// migracji v6.2; reguła ma własne testy w `lib/clubs/__tests__/gateView`.
+vi.mock("@/lib/billing/tiers", () => ({ useMembershipTiers: () => ({ data: undefined }) }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { signUp: h.signUp } },
 }));

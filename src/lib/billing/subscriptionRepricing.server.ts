@@ -37,6 +37,7 @@ import { catalogEntryByPriceId, catalogRecurringFor } from "@/lib/billing/catalo
 import { catalogPlanForEntry } from "@/lib/billing/catalogSync.server";
 import {
   amountForQuantity,
+  isRepriceLookupKey,
   REPRICE_LOOKUP_KEYS,
   REPRICING_CAMPAIGN,
   type PriceShape,
@@ -62,6 +63,39 @@ const CANDIDATE_STATUSES = [
   "paused",
   "incomplete",
 ] as const;
+
+/**
+ * Klucze lustra SPOZA kampanii, pod którymi może czekać przeniesienie:
+ * Partner Biznesowy, który przed v6.2 zaplanował downgrade na Członka Pro
+ * albo Członka (`planSwitch`, `scheduleFromNextPeriod`). Lustro trzyma
+ * bieżącą pozycję (`business_*`) aż do zmiany fazy, a następna faza wskazuje
+ * STARĄ cenę Pro (129 zł) albo Członka (59 zł) - bez tych kluczy akcja w ogóle
+ * nie widziała takiej subskrypcji i odnowienie szło po starej kwocie. Taki
+ * kandydat zostaje w przebiegu wyłącznie wtedy, gdy o fakturze decyduje cena
+ * kampanii (`inCampaignScope`).
+ */
+export const REPRICE_SCHEDULE_SOURCE_KEYS = [
+  "business_2w",
+  "business_monthly",
+  "business_quarterly",
+] as const;
+
+/** Wszystkie klucze lustra, z których dobieramy kandydatów przebiegu. */
+export const REPRICE_CANDIDATE_KEYS: readonly string[] = [
+  ...REPRICE_LOOKUP_KEYS,
+  ...REPRICE_SCHEDULE_SOURCE_KEYS,
+];
+
+/**
+ * Czy decyzja dla kandydata spoza kampanii należy do przebiegu: pozycja
+ * decydująca o fakturze (faza następna harmonogramu) ma klucz kampanii, albo
+ * harmonogramu nie dało się odczytać - wtedy admin musi o nim wiedzieć
+ * (obsługa ręczna). Zwykła subskrypcja biznesowa bez harmonogramu
+ * (`not_repriced_key`) nie jest przedmiotem akcji: bez wiersza i bez wpisu.
+ */
+function inCampaignScope(decision: RepriceDecision): boolean {
+  return isRepriceLookupKey(decision.lookupKey) || decision.reason === "schedule_foreign";
+}
 
 export interface RepricingPageInput {
   tenantId: string;
@@ -203,7 +237,7 @@ export async function runRepricingPage(input: RepricingPageInput): Promise<Repri
   const candidates = await store.listRepricingCandidates({
     tenantId: input.tenantId,
     environment: input.environment,
-    lookupKeys: REPRICE_LOOKUP_KEYS,
+    lookupKeys: REPRICE_CANDIDATE_KEYS,
     statuses: CANDIDATE_STATUSES,
     cursor: input.cursor,
     limit: input.batchSize,
@@ -217,7 +251,8 @@ export async function runRepricingPage(input: RepricingPageInput): Promise<Repri
 
   const rows: RepricingRow[] = [];
   for (const candidate of candidates) {
-    rows.push(await processCandidate(input, candidate, { plans, targets, logs, store, provider }));
+    const row = await processCandidate(input, candidate, { plans, targets, logs, store, provider });
+    if (row) rows.push(row);
   }
 
   const last = candidates[candidates.length - 1];
@@ -241,13 +276,16 @@ interface PageContext {
   provider: typeof import("@/lib/billing/subscriptionProvider.server");
 }
 
+/** `null` = kandydat spoza kampanii bez przeniesienia (`inCampaignScope`). */
 async function processCandidate(
   input: RepricingPageInput,
   candidate: RepricingCandidate,
   ctx: PageContext,
-): Promise<RepricingRow> {
+): Promise<RepricingRow | null> {
   const pid = candidate.provider_subscription_id;
   if (!ctx.provider.isProviderSubscriptionRef(pid)) {
+    // Spoza operatora nie ma harmonogramu - biznesowa nie ma czego przenieść.
+    if (!isRepriceLookupKey(candidate.price_id)) return null;
     return {
       ...baseRow(candidate, unreadable(candidate)),
       outcome: "failed",
@@ -280,6 +318,11 @@ async function processCandidate(
       outcome: "failed",
       error: reasonCode(inspected.error),
     };
+  }
+  // Subskrypcja biznesowa bez przeniesienia (bez harmonogramu na cenę
+  // kampanii) nie trafia ani do podglądu, ani do dziennika.
+  if (!isRepriceLookupKey(candidate.price_id) && !inCampaignScope(inspected.decision)) {
+    return null;
   }
   const previewRow = baseRow(candidate, inspected.decision);
   const previous = subLogs.find((log) => log.to_provider_price_id === inspected.decision.toPriceId);

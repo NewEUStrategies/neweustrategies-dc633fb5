@@ -51,7 +51,7 @@ const APPLY_SEO: Readonly<Record<Lang, ApplySeoCopy>> = {
   pl: {
     title: "Zaaplikuj do klubu dyskusyjnego | New European Strategies",
     description:
-      "Zgłoś się do zamkniętego klubu dyskusyjnego ekspertów i decydentów. Wymagane konto i członkostwo PRO lub wyższe.",
+      "Zgłoś się do zamkniętego klubu dyskusyjnego ekspertów i decydentów. Wymagane konto i próg Członek Pro lub wyższy.",
   },
   en: {
     title: "Apply to a discussion club | New European Strategies",

@@ -49,6 +49,11 @@ export interface ClubGateInput {
   signedIn: boolean;
   /** Odznaka `expert` na profilu - redakcyjna ścieżka wejścia bez planu. */
   isExpert: boolean;
+  /**
+   * Progi bez karty na /pricing (`clubPlanTiersNotSold` z katalogu najemcy);
+   * brak = stan po migracji v6.2 (`CLUB_PLAN_TIERS_NOT_SOLD`).
+   */
+  notSold?: ReadonlySet<ClubPlanTier>;
 }
 
 /** Akcja pokazywana w kolumnie działania. Kolejność listy = kolejność na ekranie. */
@@ -81,12 +86,12 @@ export interface ClubGateView {
  * na ekranie - pierwszą pozycją jest zawsze ta, którą chcemy, żeby kliknięto.
  */
 export function clubGateView(input: ClubGateInput): ClubGateView {
-  const { club, signedIn, isExpert } = input;
+  const { club, signedIn, isExpert, notSold } = input;
 
   // Najniższy próg z kartą na /pricing, który klub OTWIERA (w górę, bez
   // progów ukrytych - cennik v6.2: klub z rangą 30 sprzedaje Partnera
   // Instytucjonalnego, nie Enterprise).
-  const tier = sellableClubTierForRank(club.min_tier_rank ?? 0);
+  const tier = sellableClubTierForRank(club.min_tier_rank ?? 0, notSold);
   // Progi poniżej domyślnego nie są ofertą: klub „za darmo" i tak nie
   // bramkowałby wejścia, więc sprzedajemy najniższy próg, który coś znaczy.
   const sellTier: ClubPlanTier = tier === "free" || tier === "plus" ? DEFAULT_CLUB_PLAN_TIER : tier;

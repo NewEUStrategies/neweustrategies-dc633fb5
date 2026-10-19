@@ -5,7 +5,8 @@
 -- admina + MFA i filtrem `tenant_id` z sesji. Weryfikuje:
 --   1. RLS włączone, a role klienckie (anon, authenticated) nie mają ŻADNEGO
 --      przywileju - nawet odczytu własnych wierszy (nie ma polityk);
---   2. service_role czyta, wstawia i aktualizuje, ale NIE usuwa (dziennik);
+--   2. service_role czyta, wstawia i aktualizuje, ale NIE usuwa ani nie
+--      czyści tabeli (dziennik; TRUNCATE też, mimo domyślnych praw schematu);
 --   3. `tenant_id` NOT NULL z FK do najemców;
 --   4. klucz idempotencji (środowisko, subskrypcja, cena docelowa) jest
 --      unikalny - druga próba zapisu tego samego przeniesienia to konflikt;
@@ -32,9 +33,13 @@ SELECT ok(
   'service_role: SELECT, INSERT, UPDATE'
 );
 
+-- Także TRUNCATE, REFERENCES i TRIGGER: domyślne uprawnienia schematu na
+-- produkcji dają je każdej nowej tabeli, więc odbiera je dopiero REVOKE ALL
+-- z service_role w migracji (sam GRANT trzech praw ich nie zdejmuje).
 SELECT ok(
-  NOT has_table_privilege('service_role', 'public.subscription_price_migrations', 'DELETE'),
-  'service_role: brak DELETE - to dziennik audytowy'
+  NOT (SELECT bool_or(has_table_privilege('service_role', 'public.subscription_price_migrations', p))
+         FROM unnest(ARRAY['DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) p),
+  'service_role: brak DELETE/TRUNCATE/REFERENCES/TRIGGER - to dziennik audytowy'
 );
 
 SELECT is(
