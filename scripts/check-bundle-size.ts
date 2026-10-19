@@ -2387,7 +2387,16 @@ const FROZEN_BUDGET_KB = {
   // panelu admina ładowany leniwie: rejestr wskaźników i benchmarków BI,
   // objaśnienia i skale, powłoka huba, wyniesione organizmy paywalla,
   // cennika, członkostwa, newslettera i kuponów. Host 4957,3 -> 4958 -> +1.
-  overall: 4959,
+  // Ratchet 4959 -> 4972 (2026-10-19, po scaleniu PR #520 do main, cb7a18df),
+  // decyzją zamawiającego D-08: job `build` na main czerwony (4970,7 > 4959).
+  // Przyrost +13,4 KB względem pomiaru 4957,3 z 35c22b7b to scalenie main
+  // w a303246e (PR #525: bloki i widgety buildera, strzałki sliderów, kolor
+  // płaski ramki; commit Lovable 77168bca/9f6173f2) - main mieścił się w
+  // swoim progu 4879, przekracza dopiero suma z hubem; poprawki Codex
+  // 8c8d3050 (kampanie kuponowe, zakładki rozliczeń) są pomijalne. public
+  // 2772,5, chunk 257,5, publicCss 83,8 i boot 471,3 w zamrożonych progach.
+  // Host 4970,7 -> 4971 -> +1.
+  overall: 4972,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
