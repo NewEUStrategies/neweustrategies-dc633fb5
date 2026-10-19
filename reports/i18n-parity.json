@@ -120,6 +120,7 @@
     "adminThemeDesign.tabs.postExcerpt",
     "adminThemeDesign.tabs.social",
     "adminThemeDesign.tabs.toolbar",
+    "adminWorkflows.options.lifecycleStage.lead",
     "adminWorkflows.params.href",
     "adminWorkflows.runs.filterStatus",
     "adminWorkflows.trace.inputLabel",
@@ -258,6 +259,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 561
+    "untranslated": 570
   }
 }
