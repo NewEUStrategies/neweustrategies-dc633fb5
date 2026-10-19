@@ -24,6 +24,11 @@
 //    gość). Bez tego w przeglądarce, gdzie dokument NIE jest odzierany
 //    (`stripBuilderAccessForAnonymousRender` działa tylko w SSR), kandydatem
 //    zostawał widget, którego renderer nie maluje (recenzja P1.4, B1),
+//  * TEN SAM FILTR URZĄDZENIA CO RENDERER (`advanced.hideOn` na każdym
+//    poziomie - od b2428ead8 renderer honoruje go także dla sekcji, sekcji
+//    zagnieżdżonych i kolumn): węzeł schowany na telefonie albo desktopie nie
+//    daje kandydata, a okno sekcji i podział slotu liczą się jak w HTML-u
+//    serwera, który powstaje dla desktopu (patrz `hiddenOnDevice` niżej),
 //  * bierzemy PIERWSZĄ sekcję, w której jest widget obrazowy (slider, obraz
 //    jednoźródłowy nie-logo, dark-featured-card, post-lista z obrazem wiodącym),
 //  * kandydat „desktop": największy udział slotu desktopowego (udział kolumny
@@ -61,8 +66,10 @@
 import { columnImageSlot, type ImageSlot } from "./imageSlot";
 import type {
   AccessControlSettings,
+  AdvancedSettings,
   BuilderDocument,
   ColumnNode,
+  Device,
   SectionChild,
   SectionNode,
   WidgetNode,
@@ -130,6 +137,35 @@ const KIND_RANK: Readonly<Record<LcpCandidateKind, number>> = {
 /** `flex-grid`: lead zajmuje 1,35fr z siatki `1.35fr minmax(0,1fr)` (PostListView). */
 const FLEX_GRID_LEAD_SHARE = 1.35 / 2.35;
 
+/**
+ * `advanced.hideOn` węzła na urządzeniu - ten sam predykat, którym renderer
+ * filtruje sekcje (`SectionsList`), kolumny i inner-sekcje (`RenderSection`),
+ * kolumny inner-sekcji (`RenderInner`) i widgety (`isRenderedWidget`):
+ * `hiddenOnDevice` z `widget-view/frame.ts`. Kopia, nie import - frame.ts nie
+ * jest liściem bez importów, a ten moduł ma zamkniętą listę importów (czystość).
+ */
+function hiddenOnDevice(advanced: AdvancedSettings | undefined, device: Device): boolean {
+  return Boolean(advanced?.hideOn?.[device]);
+}
+
+/**
+ * Węzeł schowany na którymkolwiek urządzeniu kandydata (telefon, desktop) nie
+ * daje kandydata: preload obrazu, którego jedno z urządzeń nie maluje, to czysta
+ * strata pasma, a `fetchpriority=high` odbiera je widocznemu obrazowi.
+ */
+function hiddenOnCandidateDevice(advanced: AdvancedSettings | undefined): boolean {
+  return hiddenOnDevice(advanced, "desktop") || hiddenOnDevice(advanced, "mobile");
+}
+
+/**
+ * Urządzenie HTML-u serwera: renderer liczy SSR i pierwszy render klienta dla
+ * desktopu (prop `device` albo `desktop`), więc węzeł schowany na desktopie
+ * w ogóle nie trafia do HTML-u - nie zajmuje okna sekcji ani miejsca w wierszu
+ * kolumn (`visibleCols`). Węzeł schowany tylko na telefonie JEST w HTML-u
+ * (chowa go reguła `@media`), więc okno i podział slotu go liczą.
+ */
+const SSR_DEVICE: Device = "desktop";
+
 /** Czy sekcja jest malowana w SSR i pierwszym renderze klienta (wariant A). */
 function paintedAtFirstRender(section: SectionNode): boolean {
   const tag = section.advanced?.abTest;
@@ -146,11 +182,13 @@ export type LcpAccessPredicate = (rule: AccessControlSettings | undefined) => bo
 
 /**
  * Kolumny/inner-sekcje widoczne przy pierwszym malowaniu: dostępne dla
- * czytelnika (jak `allChildren` w `RenderSection`) i z aktywnej zakładki.
+ * czytelnika i malowane na urządzeniu SSR (jak `allChildren` w `RenderSection`)
+ * oraz z aktywnej zakładki.
  */
 function visibleSectionChildren(section: SectionNode, ok: LcpAccessPredicate): SectionChild[] {
   const children = (Array.isArray(section.children) ? section.children : []).filter(
-    (child): child is NonNullable<typeof child> => Boolean(child) && ok(child.advanced?.access),
+    (child): child is NonNullable<typeof child> =>
+      Boolean(child) && !hiddenOnDevice(child.advanced, SSR_DEVICE) && ok(child.advanced?.access),
   );
   const tabs = section.tabs;
   if (!tabs?.enabled || !tabs.items || tabs.items.length === 0) return children;
@@ -177,6 +215,9 @@ function paintedWidgets(section: SectionNode, ok: LcpAccessPredicate): PaintedWi
   const out: PaintedWidget[] = [];
   const children = visibleSectionChildren(section, ok);
   children.forEach((child, childIndex) => {
+    // Dziecko schowane na telefonie jest rodzeństwem slotu (HTML serwera je
+    // ma), ale jego obrazy nie są kandydatami.
+    if (hiddenOnCandidateDevice(child.advanced)) return;
     // Renderer ustawia `order` tylko kolumnom najwyższego poziomu: inline
     // `order.desktop` (resolveOrder) i regułę `@media (max-width: 767px)`
     // z `order.mobile ?? 0` dla kolumn z obiektem `order`. Reszta ma 0.
@@ -201,11 +242,17 @@ function paintedWidgets(section: SectionNode, ok: LcpAccessPredicate): PaintedWi
       // renderera) - ten sam podział szerokości, co `BuilderImageSlotContext`.
       push(child, columnImageSlot(section, child, children));
     } else {
-      // Kolumny inner-sekcji filtruje dostęp tak samo jak `RenderInner`.
+      // Kolumny inner-sekcji filtrują dostęp i urządzenie tak samo jak `RenderInner`.
       const columns = (child.columns ?? []).filter(
-        (column): column is ColumnNode => Boolean(column) && ok(column.advanced?.access),
+        (column): column is ColumnNode =>
+          Boolean(column) &&
+          !hiddenOnDevice(column.advanced, SSR_DEVICE) &&
+          ok(column.advanced?.access),
       );
-      for (const column of columns) push(column, columnImageSlot(child, column, columns));
+      for (const column of columns) {
+        if (hiddenOnCandidateDevice(column.advanced)) continue;
+        push(column, columnImageSlot(child, column, columns));
+      }
     }
   });
   return out;
@@ -217,8 +264,7 @@ function paintedWidgets(section: SectionNode, ok: LcpAccessPredicate): PaintedWi
  * preloadu - kandydat bez parytetu z malowanym obrazem byłby gorszy niż brak.
  */
 export function lcpCandidateKind(widget: WidgetNode): LcpCandidateKind | null {
-  const hideOn = widget.advanced?.hideOn;
-  if (hideOn?.desktop || hideOn?.mobile) return null;
+  if (hiddenOnCandidateDevice(widget.advanced)) return null;
   const c = widget.content ?? {};
   switch (widget.type) {
     case "slider":
@@ -313,14 +359,22 @@ export function lcpCandidates(
     const ok = options.isAccessible;
     const sections = Array.isArray(doc?.sections) ? doc.sections : [];
     const windowSize = Math.max(0, Math.floor(options.sections ?? LCP_SCAN_SECTIONS));
-    // Okno liczone po sekcjach, które renderer MALUJE (`SectionsList`: dostęp
-    // + wariant A), więc sekcja niewidoczna dla czytelnika nie zajmuje miejsca.
+    // Okno liczone po sekcjach, które renderer MALUJE w HTML-u serwera
+    // (`SectionsList`: urządzenie SSR + dostęp + wariant A), więc sekcja
+    // niewidoczna dla czytelnika nie zajmuje miejsca.
     const painted = sections
       .filter(
-        (s): s is SectionNode => Boolean(s) && paintedAtFirstRender(s) && ok(s.advanced?.access),
+        (s): s is SectionNode =>
+          Boolean(s) &&
+          paintedAtFirstRender(s) &&
+          !hiddenOnDevice(s.advanced, SSR_DEVICE) &&
+          ok(s.advanced?.access),
       )
       .slice(0, windowSize);
     for (const section of painted) {
+      // Sekcja schowana na telefonie zajmuje okno (jest w HTML-u serwera),
+      // ale nie daje kandydata.
+      if (hiddenOnCandidateDevice(section.advanced)) continue;
       const scored: Scored[] = [];
       for (const entry of paintedWidgets(section, ok)) {
         const kind = lcpCandidateKind(entry.widget);
