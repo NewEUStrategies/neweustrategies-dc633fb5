@@ -129,12 +129,35 @@ export function useExperimentAssignments(
 const sessionDedup = (kind: ExperimentEvent, experimentId: string) =>
   `cms_ab_${kind}_${experimentId}`;
 
+/** Znacznik dedupu w sessionStorage; niedostępny magazyn = brak dedupu. */
+function readDedup(key: string): boolean {
+  try {
+    return Boolean(window.sessionStorage.getItem(key));
+  } catch {
+    return false;
+  }
+}
+
+function writeDedup(key: string, sent: boolean): void {
+  try {
+    if (sent) window.sessionStorage.setItem(key, "1");
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    // storage unavailable - wysyłka już poszła, tylko bez dedupu
+  }
+}
+
 /**
  * Record an experiment event (deduplicated per browser session). Fire and
  * forget - tracking must never affect rendering. Zapis idzie przez beacon
  * /api/public/experiment-event (walidacja + rate limit + insert service_role)
  * - bezpośredni INSERT do builder_experiment_events kluczem anon jest
  * zablokowany na poziomie RLS (migracja 20260730140000).
+ *
+ * Znacznik dedupu powstaje DOPIERO po przekazaniu zdarzenia przeglądarce
+ * (beacon przyjęty albo fetch wysłany); brak identyfikatora odwiedzającego,
+ * wyjątek przy budowie ładunku, odrzucony beacon czy odrzucony fetch nie
+ * zostawiają znacznika, więc kolejna próba w tej sesji może się udać.
  */
 export function recordExperimentEvent(
   experimentId: string,
@@ -142,13 +165,8 @@ export function recordExperimentEvent(
   event: ExperimentEvent,
 ): void {
   if (typeof window === "undefined") return;
-  try {
-    const key = sessionDedup(event, experimentId);
-    if (window.sessionStorage.getItem(key)) return;
-    window.sessionStorage.setItem(key, "1");
-  } catch {
-    // storage unavailable - still attempt the insert, just without dedup
-  }
+  const key = sessionDedup(event, experimentId);
+  if (readDedup(key)) return;
   const visitorId = getVisitorId();
   if (!visitorId) return;
   try {
@@ -163,15 +181,21 @@ export function recordExperimentEvent(
     // sendBeacon nie blokuje nawigacji (konwersja to zwykle klik w link)
     const blob = new Blob([payload], { type: "application/json" });
     if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      navigator.sendBeacon(url, blob);
-      return;
+      // `false` = przeglądarka nie przyjęła beaconu do kolejki - wtedy fetch.
+      if (navigator.sendBeacon(url, blob)) {
+        writeDedup(key, true);
+        return;
+      }
     }
+    // Znacznik po wywołaniu fetch (synchroniczny wyjątek go nie zostawi);
+    // odrzucenie zdejmuje go asynchronicznie, żeby kolejna próba mogła pójść.
     void fetch(url, {
       method: "POST",
       body: payload,
       headers: { "Content-Type": "application/json" },
       keepalive: true,
-    }).catch(() => undefined);
+    }).catch(() => writeDedup(key, false));
+    writeDedup(key, true);
   } catch {
     // silent - beacon jest opcjonalny, nie może psuć UX
   }
@@ -235,36 +259,56 @@ export function useExperimentsAdmin() {
     void queryClient.invalidateQueries({ queryKey: ["builder-experiment-stats"] });
   }, [queryClient]);
 
+  /**
+   * Id nowego eksperymentu albo `null`. Najemca idzie jawnie z sesji (nie
+   * z DEFAULT kolumny), a przy nieznanym najemcy nic nie leci do bazy.
+   */
   const create = useCallback(
     async (name: string): Promise<string | null> => {
+      if (!tenantId) return null;
       const { data: s } = await supabase.auth.getSession();
-      const u = { user: s.session?.user ?? null };
       const { data, error } = await supabase
         .from("builder_experiments")
-        .insert({ name, created_by: u.user?.id ?? null })
+        .insert({ tenant_id: tenantId, name, created_by: s.session?.user?.id ?? null })
         .select("id")
         .single();
-      if (error) return null;
+      if (error || !data) return null;
       invalidate();
       return data.id;
     },
-    [invalidate],
+    [invalidate, tenantId],
   );
 
+  /** `true` przy powodzeniu; odmowa NIE unieważnia cache i nie udaje sukcesu. */
   const setStatus = useCallback(
-    async (id: string, status: ExperimentStatus) => {
-      await supabase.from("builder_experiments").update({ status }).eq("id", id);
+    async (id: string, status: ExperimentStatus): Promise<boolean> => {
+      if (!tenantId) return false;
+      const { error } = await supabase
+        .from("builder_experiments")
+        .update({ status })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) return false;
       invalidate();
+      return true;
     },
-    [invalidate],
+    [invalidate, tenantId],
   );
 
+  /** `true` przy powodzeniu; odmowa NIE unieważnia cache i nie udaje sukcesu. */
   const remove = useCallback(
-    async (id: string) => {
-      await supabase.from("builder_experiments").delete().eq("id", id);
+    async (id: string): Promise<boolean> => {
+      if (!tenantId) return false;
+      const { error } = await supabase
+        .from("builder_experiments")
+        .delete()
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) return false;
       invalidate();
+      return true;
     },
-    [invalidate],
+    [invalidate, tenantId],
   );
 
   return useMemo(
@@ -293,10 +337,18 @@ async function countEvents(
   return count ?? 0;
 }
 
+/**
+ * Liczniki lejka. Klucz cache niesie najemcę (jak lista rejestru), więc
+ * przełączenie obszaru roboczego nie pokazuje wpisu policzonego w poprzednim.
+ * Zapytanie o zdarzenia NIE zawęża po `tenant_id` - tabela
+ * `builder_experiment_events` nie ma tej kolumny; izolację trzyma polityka
+ * SELECT `bxe_read_tenant` (przez eksperyment nadrzędny).
+ */
 export function useExperimentStats(experimentId: string | null) {
+  const tenantId = useCurrentTenantId();
   return useQuery({
-    queryKey: ["builder-experiment-stats", experimentId ?? ""],
-    enabled: Boolean(experimentId),
+    queryKey: ["builder-experiment-stats", tenantId ?? "", experimentId ?? ""],
+    enabled: Boolean(experimentId && tenantId),
     staleTime: 30_000,
     queryFn: async (): Promise<ExperimentStats> => {
       const id = experimentId ?? "";

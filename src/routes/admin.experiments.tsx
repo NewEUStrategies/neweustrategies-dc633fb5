@@ -32,7 +32,11 @@ function ExperimentsPage() {
       confirmLabel: t("admin.delete"),
     });
     if (!ok) return;
-    await experiments.remove(x.id);
+    // Odmowa bazy nie może kończyć się komunikatem sukcesu.
+    if (!(await experiments.remove(x.id))) {
+      toast.error(t("admin.experiments.deleteFailed"));
+      return;
+    }
     toast.success(t("admin.experiments.deleted"));
   };
 

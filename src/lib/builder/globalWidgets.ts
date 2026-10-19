@@ -149,7 +149,9 @@ export function useGlobalWidgetNode(globalId: string | undefined): GlobalWidgetD
         .select("data")
         .eq("id", globalId)
         .maybeSingle();
-      if (error) return null;
+      // Błąd odczytu jest BŁĘDEM zapytania (React Query ponawia i nie zapisuje
+      // go w cache jako sukcesu `null`); fallback na migawkę robi `?? null`.
+      if (error) throw error;
       return parseGlobalWidgetData(data?.data ?? null);
     },
   });
@@ -169,7 +171,7 @@ export function useGlobalWidgetMeta(globalId: string | undefined): { name: strin
         .select("name")
         .eq("id", globalId)
         .maybeSingle();
-      if (error) return null;
+      if (error) throw error;
       return data ? { name: data.name } : null;
     },
   });
@@ -207,37 +209,62 @@ export function useGlobalWidgets() {
     emitWidgetCacheInvalidate();
   }, [queryClient]);
 
+  /**
+   * Id nowego globala albo `null`. Najemca idzie jawnie z sesji - ten sam,
+   * po którym filtruje lista - a przy nieznanym najemcy nic nie leci do bazy.
+   */
   const save = useCallback(
     async (name: string, widget: WidgetNode): Promise<string | null> => {
+      if (!tenantId) return null;
       const { data: s } = await supabase.auth.getSession();
-      const u = { user: s.session?.user ?? null };
       const payload = widgetToGlobalData(widget);
       const { data, error } = await supabase
         .from("builder_global_widgets")
-        .insert({ name, data: toJson(payload), created_by: u.user?.id ?? null })
+        .insert({
+          tenant_id: tenantId,
+          name,
+          data: toJson(payload),
+          created_by: s.session?.user?.id ?? null,
+        })
         .select("id")
         .single();
-      if (error) return null;
+      if (error || !data) return null;
       invalidate();
       return data.id;
     },
-    [invalidate],
+    [invalidate, tenantId],
   );
 
+  /** `true` przy powodzeniu; odmowa NIE unieważnia cache. */
   const rename = useCallback(
-    async (id: string, name: string) => {
-      await supabase.from("builder_global_widgets").update({ name }).eq("id", id);
+    async (id: string, name: string): Promise<boolean> => {
+      if (!tenantId) return false;
+      const { error } = await supabase
+        .from("builder_global_widgets")
+        .update({ name })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) return false;
       invalidate();
+      return true;
     },
-    [invalidate],
+    [invalidate, tenantId],
   );
 
+  /** `true` przy powodzeniu; odmowa NIE unieważnia cache. */
   const remove = useCallback(
-    async (id: string) => {
-      await supabase.from("builder_global_widgets").delete().eq("id", id);
+    async (id: string): Promise<boolean> => {
+      if (!tenantId) return false;
+      const { error } = await supabase
+        .from("builder_global_widgets")
+        .delete()
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) return false;
       invalidate();
+      return true;
     },
-    [invalidate],
+    [invalidate, tenantId],
   );
 
   return useMemo(
@@ -252,12 +279,22 @@ export function useGlobalWidgets() {
   );
 }
 
-/** Persist the synchronized payload of a global widget (builder auto-sync). */
-export async function pushGlobalWidgetData(id: string, data: GlobalWidgetData): Promise<boolean> {
+/**
+ * Persist the synchronized payload of a global widget (builder auto-sync).
+ * `tenantId` pochodzi z sesji wołającego (`useCurrentTenantId`, jak lista);
+ * bez niego zapis nie leci, a filtr domyka `tenant_id` obok `id`.
+ */
+export async function pushGlobalWidgetData(
+  id: string,
+  data: GlobalWidgetData,
+  tenantId: string | null,
+): Promise<boolean> {
+  if (!tenantId) return false;
   const { error } = await supabase
     .from("builder_global_widgets")
     .update({ data: toJson(data) })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
   if (!error) emitWidgetCacheInvalidate();
   return !error;
 }

@@ -193,6 +193,9 @@ const pl = {
       insert: "Wstaw",
       restoreTitle: "Przywróć jako aktualną treść szablonu",
       restore: "Przywróć",
+      error: "Nie udało się wczytać historii szablonu. Spróbuj ponownie później.",
+      truncated:
+        "Pokazano {{n}} najnowszych wersji - starsze są zapisane, ale nie mieszczą się na liście.",
     },
     widgetLibrary: {
       title: "Widgety",
@@ -1163,6 +1166,7 @@ const pl = {
       insertedTemplate: "Wstawiono szablon sekcji",
       saveTplTitle: "Zapisz sekcję jako szablon",
       saveTplLabel: "Nazwa szablonu sekcji",
+      saveTplErr: "Nie udało się zapisać szablonu sekcji",
       save: "Zapisz",
       removedSection: "Usunięto sekcję",
       movedSection: "Przeniesiono sekcję",
@@ -1405,11 +1409,11 @@ const pl = {
     },
     editable: {
       clickToEdit: "Kliknij, aby edytować tekst",
+      fieldLabel: "Edycja tekstu w miejscu",
       urlPrompt: "Adres URL (https://...)",
       toolbar: "Formatowanie tekstu",
       bold: "Pogrubienie (⌘/Ctrl+B)",
       italic: "Kursywa (⌘/Ctrl+I)",
-      fieldLabel: "Edycja tekstu w miejscu",
       underline: "Podkreślenie (⌘/Ctrl+U)",
       bulletList: "Lista punktowana",
       orderedList: "Lista numerowana",
@@ -1800,6 +1804,8 @@ const en: typeof pl = {
       insert: "Insert",
       restoreTitle: "Restore as the template's current content",
       restore: "Restore",
+      error: "Could not load the template history. Please try again later.",
+      truncated: "Showing the {{n}} newest versions - older ones are saved but not listed.",
     },
     widgetLibrary: {
       title: "Widgets",
@@ -2762,6 +2768,7 @@ const en: typeof pl = {
       insertedTemplate: "Section template inserted",
       saveTplTitle: "Save section as template",
       saveTplLabel: "Section template name",
+      saveTplErr: "Could not save the section template",
       save: "Save",
       removedSection: "Section removed",
       movedSection: "Section moved",
@@ -3002,6 +3009,7 @@ const en: typeof pl = {
     },
     editable: {
       clickToEdit: "Click to edit text",
+      fieldLabel: "Inline text editing",
       urlPrompt: "URL address (https://...)",
       toolbar: "Text formatting",
       bold: "Bold (⌘/Ctrl+B)",
@@ -3009,7 +3017,6 @@ const en: typeof pl = {
       underline: "Underline (⌘/Ctrl+U)",
       bulletList: "Bullet list",
       orderedList: "Numbered list",
-      fieldLabel: "Inline text editing",
       insertLink: "Insert link (⌘/Ctrl+K)",
       unlink: "Remove link",
       clearFormat: "Clear formatting (⌘/Ctrl+\\\\)",

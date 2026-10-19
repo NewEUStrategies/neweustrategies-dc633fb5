@@ -33,6 +33,9 @@
 // 4. IZOLACJA NAJEMCY W PANELU. Lista rejestru jest zawężona `tenant_id`,
 //    a zapytania nie startują, dopóki najemca jest nieznany. Odmowa odczytu
 //    (RLS) MUSI dać stan błędu, a nie pustą listę udającą „nie ma testów".
+//    Od 2026-10-18 także ZAPISY: insert niesie `tenant_id` z sesji,
+//    update/delete domykają `.eq("tenant_id")`, a nieudany zapis oddaje
+//    `false`/`null` i nie unieważnia cache.
 //
 // ── GRANICA DOWODU ─────────────────────────────────────────────────────────
 // * Gałąź `typeof window === "undefined"` (getVisitorId i recordExperimentEvent)
@@ -676,25 +679,14 @@ describe("zapis zdarzenia eksperymentu", () => {
     expect(beacon).not.toHaveBeenCalled();
   });
 
-  // DEFEKT: ZNACZNIK DEDUPU POWSTAJE PRZED USTALENIEM, ŻE JEST CO WYSŁAĆ.
-  //
-  // WEJSCIE: odwiedzający z zablokowanym localStorage (tryb prywatny, „blokuj
-  //   wszystkie pliki cookie"), działający sessionStorage, pierwsza ekspozycja
-  //   sekcji eksperymentu.
-  // CO PSUJE: `recordExperimentEvent` (src/lib/builder/experiments.ts:145-153)
-  //   NAJPIERW stawia znacznik `cms_ab_exposure_<id>` w sessionStorage (:148),
-  //   a DOPIERO POTEM czyta `getVisitorId()` (:152) i wychodzi, bo
-  //   identyfikatora nie ma (:153). Znacznik zostaje.
-  // KONSEKWENCJA: żadna kolejna próba w tej sesji nie wyśle już tego zdarzenia
-  //   - warunek `if (window.sessionStorage.getItem(key)) return` (:147) uzna
-  //   je za wysłane. Ekspozycja przepada na całą sesję, a ponieważ konwersja
-  //   ginie tak samo, oba liczniki są zaniżone niesymetrycznie (konwersja jest
-  //   rzadsza, więc traci procentowo więcej). Ta sama pułapka działa, gdy
-  //   Blob albo beacon rzuci wyjątkiem (:175-177).
-  // WYMAGANA POPRAWKA: znacznik dedupu ma powstawać PO ustaleniu, że zdarzenie
-  //   naprawdę wyszło (albo przynajmniej po sprawdzeniu, że jest komu je
-  //   przypisać) - czyli za blokiem wysyłki, a nie przed nim.
-  it.fails("DEFEKT: znacznik dedupu nie może powstawać przed udaną wysyłką", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): ZNACZNIK DEDUPU POWSTAJE DOPIERO
+  // PO WYSYŁCE. Wcześniej `recordExperimentEvent` stawiał `cms_ab_<kind>_<id>`
+  // ZANIM sprawdził identyfikator odwiedzającego, więc przy zablokowanym
+  // localStorage (albo wyjątku Blob/beacon) zdarzenie przepadało na całą
+  // sesję, zaniżając liczniki niesymetrycznie. Kontrakt: znacznik po
+  // przyjęciu beaconu / wysłaniu fetch (pozostałe ścieżki dowodzi
+  // experimentsTenantAndDelivery.test.ts).
+  it("znacznik dedupu nie powstaje, gdy nie było komu przypisać zdarzenia", () => {
     podmienMagazyn("localStorage", magazynZAwaria("getItem"));
     const beacon = szpiegBeaconu();
     ustawBeacon(beacon);
@@ -894,6 +886,7 @@ describe("useExperimentsAdmin - rejestr eksperymentów", () => {
     expect(wynik.id).toBe("exp-nowy");
     const chain = lancuchZOgniwem("insert");
     expect(chain.argsOf("insert")?.[0]).toEqual({
+      tenant_id: TENANT,
       name: "Nowy test nagłówka",
       created_by: "redaktor-1",
     });
@@ -919,6 +912,7 @@ describe("useExperimentsAdmin - rejestr eksperymentów", () => {
     // Kolumna `created_by` jest kluczem obcym do profili - pusty łańcuch
     // byłby niepoprawnym uuid i wywrócił cały insert.
     expect(lancuchZOgniwem("insert").argsOf("insert")?.[0]).toEqual({
+      tenant_id: TENANT,
       name: "Test bez zalogowanego autora",
       created_by: null,
     });
@@ -1001,24 +995,13 @@ describe("useExperimentsAdmin - rejestr eksperymentów", () => {
     expect(result.current).toBe(pierwsze);
   });
 
-  // DEFEKT: ZAPIS DO REJESTRU IDZIE BEZ tenant_id.
-  //
-  // WEJSCIE: redaktor zalogowany w najemcy innym niż domyślny tworzy test A/B
-  //   (`create("...")`) - `tenantId` jest w zasięgu funkcji (experiments.ts:209).
-  // CO PSUJE: `create` (src/lib/builder/experiments.ts:238-252) wstawia tylko
-  //   `{ name, created_by }`. Kolumna `tenant_id` ma DEFAULT
-  //   `public.public_tenant_id()` (migracja 20260702085900:108), czyli najemcę
-  //   o slugu 'nes', a polityka INSERT wymaga
-  //   `tenant_id = public.current_tenant_id()` (tamże :126-128).
-  // KONSEKWENCJA: dla pracownika każdego innego najemcy RLS odrzuca wstawienie,
-  //   błąd jest połykany (:247), `create` oddaje `null`, a builder
-  //   (useBuilderOperations.ts:263-267) pokazuje tylko „builder.ops.abCreateErr"
-  //   bez powodu. W najemcy 'nes' jest odwrotnie i gorzej: eksperyment powstaje
-  //   CICHO w cudzym najemcy. Łamie to regułę repo „tenant_id w każdej
-  //   kwerendzie".
-  // WYMAGANA POPRAWKA: `create` wysyła jawnie `tenant_id: tenantId` i odmawia
-  //   startu, dopóki najemca jest nieznany.
-  it.fails("DEFEKT: create MUSI wysyłać tenant_id, a nie liczyć na DEFAULT kolumny", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): CREATE WYSYŁA tenant_id Z SESJI.
+  // Wcześniej insert niósł tylko `{ name, created_by }`, a `tenant_id`
+  // uzupełniał DEFAULT `public_tenant_id()` (najemca 'nes') - inni najemcy
+  // dostawali odmowę RLS, a w 'nes' test powstawał w cudzym najemcy.
+  // Kontrakt: `tenant_id: tenantId` z `useCurrentTenantId`, a przy nieznanym
+  // najemcy `create` oddaje `null` bez zapytania.
+  it("create wysyła tenant_id z sesji, a nie liczy na DEFAULT kolumny", async () => {
     odpowiedzRejestru({ lista: ok([]), wstaw: ok({ id: "exp-nowy" }) });
 
     const { result } = renderHookWithQueryClient(() => useExperimentsAdmin());
@@ -1030,22 +1013,11 @@ describe("useExperimentsAdmin - rejestr eksperymentów", () => {
     expect(lancuchZOgniwem("insert").argsOf("insert")?.[0]).toMatchObject({ tenant_id: TENANT });
   });
 
-  // DEFEKT: MUTACJE REJESTRU NIE ZAWĘŻAJĄ PO NAJEMCY.
-  //
-  // WEJSCIE: `setStatus("exp-z-cudzego-najemcy", "completed")` albo
-  //   `remove("exp-z-cudzego-najemcy")` - identyfikator wzięty z adresu URL
-  //   albo z nieodświeżonej listy.
-  // CO PSUJE: obie funkcje (src/lib/builder/experiments.ts:254-268) filtrują
-  //   wyłącznie `.eq("id", id)`, choć ODCZYT w tym samym pliku (:219) zawęża
-  //   po `tenant_id`. Obrony w głąb nie ma - jedyną barierą jest polityka RLS.
-  // KONSEKWENCJA: identyfikator z cudzego obszaru roboczego leci do bazy bez
-  //   żadnego zawężenia po stronie klienta. Dopóki RLS jest poprawne, kończy
-  //   się to zerem zmienionych wierszy (i - patrz defekt niżej - fałszywym
-  //   komunikatem sukcesu). Jedna luka w polityce zamienia to w cichą zmianę
-  //   cudzych danych.
-  // WYMAGANA POPRAWKA: `setStatus` i `remove` dokładają `.eq("tenant_id",
-  //   tenantId)`, dokładnie tak jak robi to odczyt obok.
-  it.fails("DEFEKT: setStatus i remove MUSZĄ zawężać zapis po tenant_id", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): MUTACJE REJESTRU ZAWĘŻAJĄ PO
+  // NAJEMCY. Wcześniej `setStatus` i `remove` filtrowały wyłącznie po id, więc
+  // jedyną barierą przed zmianą cudzego testu była polityka RLS. Kontrakt:
+  // obie dokładają `.eq("tenant_id", tenantId)`, tak jak odczyt obok.
+  it("setStatus i remove zawężają zapis po tenant_id", async () => {
     odpowiedzRejestru({ lista: ok([wierszEksperymentu()]) });
 
     const { result } = renderHookWithQueryClient(() => useExperimentsAdmin());
@@ -1062,25 +1034,13 @@ describe("useExperimentsAdmin - rejestr eksperymentów", () => {
     for (const eq of zawezenia) expect(eq).toContainEqual(["tenant_id", TENANT]);
   });
 
-  // DEFEKT: NIEUDANY ZAPIS JEST NIEODRÓŻNIALNY OD UDANEGO.
-  //
-  // WEJSCIE: `remove("exp-1")`, gdy baza odrzuca DELETE (RLS 42501, konflikt
-  //   klucza obcego, awaria połączenia).
-  // CO PSUJE: `remove` (src/lib/builder/experiments.ts:262-268) w ogóle NIE
-  //   CZYTA pola `error` z odpowiedzi i woła `invalidate()` bezwarunkowo. Ten
-  //   sam wzorzec ma `setStatus` (:254-260).
-  // KONSEKWENCJA: `src/routes/admin.experiments.tsx:34-35` po
-  //   `await experiments.remove(...)` pokazuje `toast.success(
-  //   "admin.experiments.deleted")` NIEZALEŻNIE od tego, czy baza cokolwiek
-  //   usunęła - a unieważnienie cache dociąga z serwera listę, na której
-  //   „usunięty" wiersz nadal jest. To ta sama klasa co „odmowa odczytu udaje
-  //   pustkę", tylko po stronie zapisu: redakcja dostaje potwierdzenie
-  //   operacji, której nie było. Identycznie kończy test A/B
-  //   useBuilderOperations.ts:273-274 („abEnded" po nieudanym UPDATE).
-  // WYMAGANA POPRAWKA: `setStatus` i `remove` czytają `error`, zgłaszają go
-  //   wywołującemu (rzut albo wynik logiczny) i NIE unieważniają cache, gdy
-  //   zapis się nie powiódł.
-  it.fails("DEFEKT: nieudany remove NIE MOŻE unieważniać cache ani udawać sukcesu", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): NIEUDANY ZAPIS JEST ODRÓŻNIALNY.
+  // Wcześniej `remove` i `setStatus` nie czytały `error`, unieważniały cache
+  // bezwarunkowo, a trasa /admin/experiments pokazywała „Usunięto test" po
+  // odmowie bazy. Kontrakt: `Promise<boolean>`, cache tylko przy sukcesie;
+  // trasa pokazuje `admin.experiments.deleteFailed` przy `false`
+  // (adminExperimentsRoute.test.tsx).
+  it("nieudany remove oddaje false i nie unieważnia cache", async () => {
     odpowiedzRejestru({
       lista: ok([wierszEksperymentu()]),
       zapis: fail("permission denied for table builder_experiments", "42501"),
@@ -1090,10 +1050,12 @@ describe("useExperimentsAdmin - rejestr eksperymentów", () => {
     await waitFor(() => expect(result.current.items).toHaveLength(1));
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
+    const wynik: { ok: boolean | null } = { ok: null };
     await act(async () => {
-      await result.current.remove("exp-1");
+      wynik.ok = await result.current.remove("exp-1");
     });
 
+    expect(wynik.ok).toBe(false);
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 });
@@ -1173,23 +1135,14 @@ describe("useExperimentStats - liczniki lejka", () => {
     expect(zScore(stats)).toBeGreaterThan(1.96);
   });
 
-  // DEFEKT: KLUCZ CACHE STATYSTYK NIE ROZRÓŻNIA NAJEMCY.
-  //
-  // WEJSCIE: redaktor pracujący w dwóch obszarach roboczych przełącza się
-  //   między nimi, mając otwarty panel wyników tego samego identyfikatora.
-  // CO PSUJE: `useExperimentStats` (src/lib/builder/experiments.ts:298) używa
-  //   klucza `["builder-experiment-stats", experimentId ?? ""]`, podczas gdy
-  //   lista tuż obok (:213) ma najemcę w kluczu. `countEvents` (:282-294) też
-  //   nie zawęża zapytania po `tenant_id` - izolację trzyma wyłącznie polityka
-  //   SELECT (migracja 20260702085900:167-174).
-  // KONSEKWENCJA: niespójność wewnątrz jednego pliku. Dopóki RLS działa,
-  //   drugi najemca dostanie z bazy zera - ale zobaczy je dopiero po
-  //   wygaśnięciu `staleTime`, a przez pierwsze 30 sekund patrzy na wpis cache
-  //   policzony w POPRZEDNIM obszarze roboczym i podejmuje po nim decyzję,
-  //   który wariant zostawić.
-  // WYMAGANA POPRAWKA: klucz zawiera najemcę, tak jak `["builder-experiments",
-  //   tenantId]`, a `countEvents` zawęża zapytanie po `tenant_id`.
-  it.fails("DEFEKT: klucz cache statystyk musi zawierać najemcę", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): KLUCZ CACHE STATYSTYK ZAWIERA
+  // NAJEMCĘ. Wcześniej `["builder-experiment-stats", experimentId]` pozwalał
+  // przez 30 s (`staleTime`) oglądać liczniki policzone w POPRZEDNIM obszarze
+  // roboczym. Kontrakt: klucz niesie najemcę jak lista rejestru, a bez
+  // najemcy zapytania nie startują. ZAWĘŻENIE `countEvents` po `tenant_id`
+  // NIE jest możliwe bez migracji - `builder_experiment_events` nie ma tej
+  // kolumny; izolację trzyma polityka `bxe_read_tenant` (przez eksperyment).
+  it("klucz cache statystyk zawiera najemcę", async () => {
     odpowiedzLicznikow({ ea: 1, eb: 1, ca: 0, cb: 0 });
 
     const { result, queryClient } = renderHookWithQueryClient(() => useExperimentStats("exp-1"));

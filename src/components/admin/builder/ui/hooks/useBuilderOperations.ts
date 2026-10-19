@@ -141,7 +141,10 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
       confirmLabel: t("builder.ops.save"),
     });
     if (!name?.trim()) return;
-    void templates.save(name.trim(), s);
+    // `null` = zapis odrzucony (RLS, sieć, nieznany najemca) - redaktor musi
+    // to zobaczyć, inaczej nazwana sekcja znika bez śladu.
+    const id = await templates.save(name.trim(), s);
+    if (!id) toast.error(t("builder.ops.saveTplErr"));
   };
   const removeSection = (id: string) =>
     update((d) => ops.removeSection(d, id), { label: t("builder.ops.removedSection") });

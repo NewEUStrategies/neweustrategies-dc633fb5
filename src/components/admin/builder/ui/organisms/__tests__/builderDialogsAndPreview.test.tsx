@@ -200,25 +200,27 @@ describe("TemplateHistoryDialog", () => {
     expect(onRestore).toHaveBeenCalledWith(expect.objectContaining({ id: "r1" }));
   });
 
-  it.fails("BŁĄD: niepoprawna data powinna być pokazana surowo", () => {
-    // `fmt()` ma zabezpieczenie: `try { new Date(iso).toLocaleString(...) }
-    // catch { return iso }`. Ta straż jest MARTWA - `toLocaleString` na
-    // niepoprawnej dacie NIE rzuca, tylko zwraca napis "Invalid Date".
-    // Data z bazy bywa nieparsowalna (import, migracja starych rewizji),
-    // więc redakcja zobaczy "Invalid Date" zamiast czegokolwiek sensownego.
-    // Poprawka jest jednolinijkowa (`Number.isNaN(d.getTime())`), ale to
-    // zmiana produkcji - zostaje zgłoszona, nie wprowadzona.
+  it("niepoprawna data jest pokazana surowo, a nie jako „Invalid Date”", () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): straż `try/catch` w `fmt()` była
+    // martwa - `toLocaleString` na niepoprawnej dacie nie rzuca, tylko zwraca
+    // "Invalid Date". Kontrakt: `fmt()` sprawdza `Number.isNaN(d.getTime())`
+    // i oddaje surowy znacznik czasu (import, migracja starych rewizji).
     revisions.current = { items: [rev("r1", "Hero v1", "to nie jest data")], loading: false };
     open();
     expect(screen.getByText("to nie jest data")).toBeTruthy();
+    expect(screen.queryByText("Invalid Date")).toBeNull();
   });
 
-  it("kontrola dodatnia: dziś dialog pokazuje w tym miejscu Invalid Date", () => {
-    revisions.current = { items: [rev("r1", "Hero v1", "to nie jest data")], loading: false };
+  it("kontrola dodatnia: poprawna data jest sformatowana, a nie przepisana surowo", () => {
+    // Bez tej kontroli „naprawa" mogłaby polegać na pokazywaniu surowego
+    // znacznika ZAWSZE.
+    revisions.current = {
+      items: [rev("r1", "Hero v1", "2026-08-01T10:00:00.000Z")],
+      loading: false,
+    };
     open();
-    // Zapis stanu faktycznego - żeby powyższy `it.fails` nie był jedynym
-    // śladem i żeby naprawa produkcji od razu wywaliła TEN test.
-    expect(screen.getByText("Invalid Date")).toBeTruthy();
+    expect(screen.queryByText("2026-08-01T10:00:00.000Z")).toBeNull();
+    expect(screen.queryByText("Invalid Date")).toBeNull();
   });
 });
 
