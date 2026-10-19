@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PropField, ItemFrame, ColorField } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { LucideIconPicker } from "../../molecules/LucideIconPicker";
@@ -30,12 +31,49 @@ interface Props {
 const s = (v: unknown, d = ""): string => (typeof v === "string" ? v : d);
 const n = (v: unknown, d = 0): number => (typeof v === "number" ? v : d);
 
+// Zakresy pól liczbowych 1:1 z `InteractiveCircleWidget` (odczyt
+// `Math.max(min, Math.min(max, getNum(c, klucz, domyślna)))`). Panel czyta
+// tą samą klamrą i zapisuje domknięte - inaczej pokazywał średnicę 5000,
+// a kanwa rysowała 900.
+const RANGES = {
+  size: { fallback: 480, min: 280, max: 900 },
+  itemSize: { fallback: 72, min: 40, max: 140 },
+  circleThickness: { fallback: 2, min: 1, max: 8 },
+  activeScale: { fallback: 1.15, min: 1, max: 1.6 },
+  intervalMs: { fallback: 4000, min: 1500, max: 15000 },
+} as const;
+
 export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const items = itemsOf(c, "items");
   const update = (next: Item[]) => setContent("items", toJson(next));
   const patch = (i: number, delta: Partial<Item>) =>
     update(items.map((x, j) => (j === i ? { ...x, ...delta } : x)));
+
+  // Wspólny atom liczby: szkic lokalny, zapis w locie tylko w zakresie, klamra
+  // przy wyjściu z pola. Zapis tylko przy realnej zmianie - wyjście z pola bez
+  // edycji nie dokłada kroku historii.
+  const numberField = (
+    key: keyof typeof RANGES,
+    label: string,
+    opts: { step?: number; precision?: number } = {},
+  ) => {
+    const { fallback, min, max } = RANGES[key];
+    const value = Math.max(min, Math.min(max, n(c[key], fallback)));
+    return (
+      <ClampedNumberInput
+        value={value}
+        min={min}
+        max={max}
+        step={opts.step}
+        precision={opts.precision}
+        ariaLabel={label}
+        onCommit={(v) => {
+          if (v !== undefined && v !== value) setContent(key, v);
+        }}
+      />
+    );
+  };
 
   // Listy pokazują to, co RYSUJE renderer (`InteractiveCircleWidget`): brak
   // klucza albo wartość spoza zestawu to półokrąg / najechanie / bez
@@ -85,37 +123,16 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.diameter")}>
-          <Input
-            type="number"
-            min={280}
-            max={900}
-            value={n(c.size, 480)}
-            onChange={(e) => setContent("size", Number(e.target.value) || 480)}
-            className="h-8 text-xs"
-          />
+          {numberField("size", t("builder.interactiveCircleEditor.diameter"))}
         </PropField>
         <PropField label={t("builder.interactiveCircleEditor.itemSize")}>
-          <Input
-            type="number"
-            min={40}
-            max={140}
-            value={n(c.itemSize, 72)}
-            onChange={(e) => setContent("itemSize", Number(e.target.value) || 72)}
-            className="h-8 text-xs"
-          />
+          {numberField("itemSize", t("builder.interactiveCircleEditor.itemSize"))}
         </PropField>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.interactiveCircleEditor.arcThickness")}>
-          <Input
-            type="number"
-            min={1}
-            max={8}
-            value={n(c.circleThickness, 2)}
-            onChange={(e) => setContent("circleThickness", Number(e.target.value) || 2)}
-            className="h-8 text-xs"
-          />
+          {numberField("circleThickness", t("builder.interactiveCircleEditor.arcThickness"))}
         </PropField>
         <PropField label={t("builder.interactiveCircleEditor.arcColor")}>
           <ColorField
@@ -149,15 +166,10 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
           </Select>
         </PropField>
         <PropField label={t("builder.interactiveCircleEditor.activeScale")}>
-          <Input
-            type="number"
-            step={0.05}
-            min={1}
-            max={1.6}
-            value={n(c.activeScale, 1.15)}
-            onChange={(e) => setContent("activeScale", Number(e.target.value) || 1.15)}
-            className="h-8 text-xs"
-          />
+          {numberField("activeScale", t("builder.interactiveCircleEditor.activeScale"), {
+            step: 0.05,
+            precision: 2,
+          })}
         </PropField>
       </div>
 
@@ -176,15 +188,9 @@ export function InteractiveCircleEditor({ c, lang, setContent }: Props) {
           </Select>
         </PropField>
         <PropField label={t("builder.interactiveCircleEditor.intervalMs")}>
-          <Input
-            type="number"
-            min={1500}
-            max={15000}
-            step={250}
-            value={n(c.intervalMs, 4000)}
-            onChange={(e) => setContent("intervalMs", Number(e.target.value) || 4000)}
-            className="h-8 text-xs"
-          />
+          {numberField("intervalMs", t("builder.interactiveCircleEditor.intervalMs"), {
+            step: 250,
+          })}
         </PropField>
       </div>
 

@@ -247,25 +247,36 @@ describe("AnimatedHeadingEditor - słowa rotacji", () => {
 });
 
 describe("AnimatedHeadingEditor - czas, pętla i wyrównanie", () => {
-  it("tryby hover mają jedno pole czasu z wartością zapasową 300 ms", () => {
-    const { last } = renderEditor({ mode: "hover-allsides", shape: "hover-allsides-1" });
+  // Pola czasu idą przez wspólny atom `ClampedNumberInput`: pusty szkic nie
+  // jest zapisem (wyjście z pola przywraca wartość dokumentu), a granice
+  // renderera przypina `animatedHeadingEditorRendererRange`.
+  it("tryby hover mają jedno pole czasu, a pusty szkic przywraca zapis", () => {
+    const { last, written } = renderEditor({ mode: "hover-allsides", shape: "hover-allsides-1" });
     expect(screen.getAllByText("Czas animacji (ms)", { selector: "label" })).toHaveLength(1);
     expect(screen.queryByText("Opóźnienie startu (ms)")).toBeNull();
     expect(screen.queryByText("Pętla", { selector: "label" })).toBeNull();
     const duration = fieldUnder("Czas animacji (ms)");
+    fireEvent.focus(duration);
     fireEvent.change(duration, { target: { value: "450" } });
     expect(last("durationMs")).toBe(450);
+    const writes = written.length;
     fireEvent.change(duration, { target: { value: "" } });
-    expect(last("durationMs")).toBe(300);
+    fireEvent.blur(duration);
+    expect(written).toHaveLength(writes);
+    expect(duration.value).toBe("450");
   });
 
-  it("wyróżnienie ma czas (zapas 1600), opóźnienie (zero jest poprawne) i pętlę", () => {
+  it("wyróżnienie ma czas (pusty szkic bez zapisu), opóźnienie (zero jest poprawne) i pętlę", () => {
     const { last } = renderEditor({ mode: "highlight", durationMs: 2000, delayMs: 500 });
     const duration = fieldUnder("Czas animacji (ms)");
     expect(duration.value).toBe("2000");
+    fireEvent.focus(duration);
     fireEvent.change(duration, { target: { value: "" } });
-    expect(last("durationMs")).toBe(1600);
+    fireEvent.blur(duration);
+    expect(last("durationMs")).toBeUndefined();
+    expect(duration.value).toBe("2000");
     const delay = fieldUnder("Opóźnienie startu (ms)");
+    fireEvent.focus(delay);
     fireEvent.change(delay, { target: { value: "0" } });
     expect(last("delayMs")).toBe(0);
     const loop = fieldUnder("Pętla");

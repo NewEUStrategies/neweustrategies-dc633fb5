@@ -10,6 +10,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PropField, ColorField } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { DynamicTagInserter } from "../../molecules/DynamicTagInserter";
 import {
   ANIMATED_MODES,
@@ -39,6 +40,12 @@ interface Props {
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
 }
+
+// Dolne granice z `AnimatedHeadingRender` (`Math.max(300, durationMs)`,
+// `Math.max(0, delayMs)`) - wspólne dla wszystkich trybów. Górnej renderer nie
+// ma, więc panel też jej nie wymyśla.
+const MIN_DURATION_MS = 300;
+const MIN_DELAY_MS = 0;
 
 export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
@@ -87,9 +94,35 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
   const accentColor = (typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346";
-  const durationMs = typeof c.durationMs === "number" ? c.durationMs : 1600;
-  const delayMs = typeof c.delayMs === "number" ? c.delayMs : 200;
+  // Odczyt jak w rendererze (`getNum`, potem dolna granica `AnimatedHeadingRender`),
+  // żeby pole pokazywało czas, który kanwa naprawdę odtwarza.
+  const durationMs = Math.max(
+    MIN_DURATION_MS,
+    typeof c.durationMs === "number" ? c.durationMs : 1600,
+  );
+  const delayMs = Math.max(MIN_DELAY_MS, typeof c.delayMs === "number" ? c.delayMs : 200);
   const loop = c.loop !== false;
+
+  // Wspólny atom liczby: szkic lokalny (wyczyszczenie pola nie wstawia wartości
+  // domyślnej w trakcie pisania), zapis w locie od dolnej granicy, klamra przy
+  // wyjściu z pola. Zapis tylko przy realnej zmianie.
+  const msField = (
+    key: "durationMs" | "delayMs",
+    value: number,
+    min: number,
+    step: number,
+    label: string,
+  ) => (
+    <ClampedNumberInput
+      value={value}
+      min={min}
+      step={step}
+      ariaLabel={label}
+      onCommit={(v) => {
+        if (v !== undefined && v !== value) setContent(key, v);
+      }}
+    />
+  );
 
   const appendToken = (field: string, current: string, token: string) => {
     const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
@@ -353,40 +386,34 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           {(mode === "hover-underline" || mode === "hover-allsides") && (
             <PropField label={t("builder.animatedHeadingEditor.duration")}>
-              <Input
-                type="number"
-                min={100}
-                max={3000}
-                step={50}
-                value={durationMs}
-                onChange={(e) => setContent("durationMs", Number(e.target.value) || 300)}
-                className="h-8 text-xs"
-              />
+              {msField(
+                "durationMs",
+                durationMs,
+                MIN_DURATION_MS,
+                50,
+                t("builder.animatedHeadingEditor.duration"),
+              )}
             </PropField>
           )}
           {(mode === "highlight" || mode === "rotate") && (
             <>
               <PropField label={t("builder.animatedHeadingEditor.duration")}>
-                <Input
-                  type="number"
-                  min={300}
-                  max={10000}
-                  step={100}
-                  value={durationMs}
-                  onChange={(e) => setContent("durationMs", Number(e.target.value) || 1600)}
-                  className="h-8 text-xs"
-                />
+                {msField(
+                  "durationMs",
+                  durationMs,
+                  MIN_DURATION_MS,
+                  100,
+                  t("builder.animatedHeadingEditor.duration"),
+                )}
               </PropField>
               <PropField label={t("builder.animatedHeadingEditor.delay")}>
-                <Input
-                  type="number"
-                  min={0}
-                  max={10000}
-                  step={100}
-                  value={delayMs}
-                  onChange={(e) => setContent("delayMs", Number(e.target.value) || 0)}
-                  className="h-8 text-xs"
-                />
+                {msField(
+                  "delayMs",
+                  delayMs,
+                  MIN_DELAY_MS,
+                  100,
+                  t("builder.animatedHeadingEditor.delay"),
+                )}
               </PropField>
               <PropField label={t("builder.animatedHeadingEditor.loopLabel")}>
                 <Select

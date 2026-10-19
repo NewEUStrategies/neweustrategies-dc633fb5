@@ -6,9 +6,11 @@
 // zgadzać się z rendererem (`RatedListView`):
 //  1. przełącznik bez zapisanej wartości stoi tak, jak renderer go stosuje,
 //     a starsza treść z wartością logiczną zapisaną napisem jest czytana,
-//  2. pole liczbowe zapisuje liczbę; pustka wraca do wartości domyślnej
-//     renderera tam, gdzie zero nie jest rozmiarem, a zostaje zerem tam,
-//     gdzie zero jest poprawne (odstęp, grubość ramki),
+//  2. pole liczbowe (wspólny atom `ClampedNumberInput`) zapisuje liczbę
+//     z zakresu renderera; pusty szkic nie jest zapisem (wyjście z pola
+//     przywraca wartość dokumentu), a zero jest zapisem tam, gdzie mieści się
+//     w zakresie (odstęp, grubość ramki), i domyka się do minimum tam, gdzie
+//     nie jest rozmiarem,
 //  3. pozycja listy ręcznej przyjmuje edycję pod kluczem edytowanej wersji
 //     językowej, nie ruszając pozostałych pozycji.
 //
@@ -116,30 +118,51 @@ describe("RatedListEditor - przełączniki widoczności", () => {
 });
 
 describe("RatedListEditor - pola liczbowe sekcji stylu i układu", () => {
-  it.each([
-    // Zero NIE jest rozmiarem - pustka wraca do domyślnej renderera.
-    [/Index Counter/, "Rozmiar (px)", "numberSizePx", "80", 80, 52],
-    [/Entry Category/, "Rozmiar (px)", "categorySizePx", "14", 14, 11],
-    [/Entry Meta/, "Rozmiar (px)", "metaSizePx", "13", 13, 12],
-    [/Excerpt/, "Linie (clamp)", "excerptLines", "5", 5, 3],
-    [/Bookmark/, "Rozmiar (px)", "bookmarkSizePx", "20", 20, 16],
-    [/Columns/, "Desktop", "columnsDesktop", "3", 3, 1],
-    [/Columns/, "Tablet", "columnsTablet", "2", 2, 1],
-    [/Columns/, "Mobile", "columnsMobile", "2", 2, 1],
-    // Zero JEST poprawne - odstęp 0 px i ramka bez grubości to świadomy wybór.
-    [/Columns/, "Column gap (px)", "columnGapPx", "32", 32, 0],
-    [/Columns/, "Row gap (px)", "rowGapPx", "40", 40, 0],
-    [/Grid Borders/, "Grubość (px)", "gridBorderWidthPx", "2", 2, 0],
-  ])(
-    "%s / „%s” zapisuje liczbę pod %s, a pustka daje %s -> %s",
-    (title, label, key, typed, expected, onEmpty) => {
-      const { last } = renderEditor({ source: "manual", items: [], [key]: 7 });
+  // [sekcja, etykieta, klucz, zapis (w zakresie renderera), wpis, zero ->]
+  // Ostatnia kolumna: co zapisuje „0" - zero tam, gdzie mieści się w zakresie
+  // (odstęp 0 px i ramka bez grubości to świadomy wybór), minimum renderera
+  // tam, gdzie zero nie jest rozmiarem.
+  const FIELDS = [
+    [/Index Counter/, "Rozmiar (px)", "numberSizePx", 60, "80", 80, 12],
+    [/Entry Category/, "Rozmiar (px)", "categorySizePx", 12, "14", 14, 8],
+    [/Entry Meta/, "Rozmiar (px)", "metaSizePx", 10, "13", 13, 8],
+    [/Excerpt/, "Linie (clamp)", "excerptLines", 4, "5", 5, 1],
+    [/Bookmark/, "Rozmiar (px)", "bookmarkSizePx", 18, "20", 20, 10],
+    [/Columns/, "Desktop", "columnsDesktop", 4, "3", 3, 1],
+    [/Columns/, "Tablet", "columnsTablet", 3, "2", 2, 1],
+    [/Columns/, "Mobile", "columnsMobile", 2, "3", 3, 1],
+    [/Columns/, "Column gap (px)", "columnGapPx", 7, "32", 32, 0],
+    [/Columns/, "Row gap (px)", "rowGapPx", 7, "40", 40, 0],
+    [/Grid Borders/, "Grubość (px)", "gridBorderWidthPx", 7, "2", 2, 0],
+  ] as const;
+
+  it.each(FIELDS)(
+    "%s / „%s” zapisuje liczbę pod %s; pusty szkic przywraca zapis dokumentu",
+    (title, label, key, stored, typed, expected) => {
+      const { calls, last } = renderEditor({ source: "manual", items: [], [key]: stored });
       const field = fieldIn(section(title), label);
-      expect(field.value).toBe("7");
+      expect(field.value).toBe(String(stored));
+      fireEvent.focus(field);
       fireEvent.change(field, { target: { value: typed } });
       expect(last(key)).toBe(expected);
+      const writes = calls.length;
       fireEvent.change(field, { target: { value: "" } });
-      expect(last(key)).toBe(onEmpty);
+      fireEvent.blur(field);
+      // Panel testowy nie odświeża treści, więc „dokument" to wciąż `stored`.
+      expect(calls).toHaveLength(writes);
+      expect(field.value).toBe(String(stored));
+    },
+  );
+
+  it.each(FIELDS)(
+    "%s / „%s”: wpis „0” pod %s ląduje jako %s",
+    (title, label, key, stored, _typed, _expected, onZero) => {
+      const { last } = renderEditor({ source: "manual", items: [], [key]: stored });
+      const field = fieldIn(section(title), label);
+      fireEvent.focus(field);
+      fireEvent.change(field, { target: { value: "0" } });
+      fireEvent.blur(field);
+      expect(last(key)).toBe(onZero);
     },
   );
 
@@ -281,10 +304,14 @@ describe("RatedListEditor - pozycje listy ręcznej", () => {
     expect(items()[0]).toEqual(item(1, { format: "gallery" }));
   });
 
-  it("ocena wpisana śmieciem zapisuje zero, a nie NaN", () => {
-    const { items } = renderEditor({ source: "manual", items: [item(1, { rating: 8 })] });
-    fireEvent.change(fieldIn(box(1), "Ocena (0–10)"), { target: { value: "abc" } });
-    expect(items()[0]?.rating).toBe(0);
+  it("ocena wpisana śmieciem nie trafia ani do pola, ani do dokumentu (żadnego NaN)", () => {
+    const { calls } = renderEditor({ source: "manual", items: [item(1, { rating: 8 })] });
+    const rating = fieldIn(box(1), "Ocena (0–10)");
+    fireEvent.focus(rating);
+    fireEvent.change(rating, { target: { value: "abc" } });
+    fireEvent.blur(rating);
+    expect(rating.value).toBe("8");
+    expect(calls).toEqual([]);
   });
 
   it("usunięcie pozycji zostawia pozostałe w kolejności", () => {

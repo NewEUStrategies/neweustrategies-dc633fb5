@@ -6,8 +6,10 @@
 //     Brak układu to półokrąg, a obrót łuku renderer stosuje tylko dla pełnego
 //     koła - panel nie może więc oferować obrotu przy brakującym układzie ani
 //     pokazywać „obrotu" półokręgu, który stoi w miejscu.
-//  2. Pola liczbowe nie zapisują NaN ani zera tam, gdzie zero nie jest
-//     rozmiarem: pustka wraca do wartości domyślnej renderera.
+//  2. Pola liczbowe (wspólny atom `ClampedNumberInput`) nie zapisują NaN ani
+//     wartości spoza zakresu renderera: pusty szkic przywraca zapis dokumentu,
+//     a zero spoza zakresu jest domykane do minimum przy wyjściu z pola.
+//     Zakresy i odczyt domknięty przypina `interactiveCircleEditorRendererRange`.
 //  3. Lista pozycji: dodanie seeduje pełny kształt pozycji, limit to 8 (tyle
 //     renderer rysuje), edycja jednej pozycji nie rusza sąsiednich.
 //
@@ -130,23 +132,30 @@ describe("InteractiveCircleEditor - listy zgodne z rendererem", () => {
 
 describe("InteractiveCircleEditor - pola liczbowe", () => {
   it.each([
-    ["Średnica (px)", "size", "640", 640, 480],
-    ["Rozmiar pozycji (px)", "itemSize", "90", 90, 72],
-    ["Grubość łuku (px)", "circleThickness", "4", 4, 2],
-    ["Skala aktywnej", "activeScale", "1.3", 1.3, 1.15],
-    ["Interwał (ms)", "intervalMs", "6000", 6000, 4000],
+    ["Średnica (px)", "size", "640", 640, 480, 280],
+    ["Rozmiar pozycji (px)", "itemSize", "90", 90, 72, 40],
+    ["Grubość łuku (px)", "circleThickness", "4", 4, 2, 1],
+    ["Skala aktywnej", "activeScale", "1.3", 1.3, 1.15, 1],
+    ["Interwał (ms)", "intervalMs", "6000", 6000, 4000, 1500],
   ])(
-    "„%s” zapisuje liczbę, a pustka lub zero wraca do wartości domyślnej renderera",
-    (label, key, typed, expected, fallback) => {
+    "„%s” zapisuje liczbę; pustka przywraca zapis, a zero domyka się do minimum renderera",
+    (label, key, typed, expected, fallback, min) => {
       const { last } = renderEditor({});
       const field = fieldUnder(label);
       expect(field.value).toBe(String(fallback));
+      fireEvent.focus(field);
       fireEvent.change(field, { target: { value: typed } });
       expect(last(key)).toBe(expected);
+      // Pusty szkic to stan pisania, nie zapis - wyjście z pola wraca do dokumentu.
       fireEvent.change(field, { target: { value: "" } });
-      expect(last(key)).toBe(fallback);
+      fireEvent.blur(field);
+      expect(field.value).toBe(String(expected));
+      expect(last(key)).toBe(expected);
+      // Zero jest poza zakresem renderera: zapis domknięty, nie zero ani NaN.
+      fireEvent.focus(field);
       fireEvent.change(field, { target: { value: "0" } });
-      expect(last(key)).toBe(fallback);
+      fireEvent.blur(field);
+      expect(last(key)).toBe(min);
     },
   );
 

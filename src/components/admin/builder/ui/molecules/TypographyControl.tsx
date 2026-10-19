@@ -1,6 +1,7 @@
 // Molecule: full typography editor block (font family, unified size,
 // weight, style, line-height, letter-spacing, transform, decoration).
 // Font size is a single value applied identically on desktop / tablet / mobile.
+import { useState } from "react";
 import type { Device, WidgetTypography } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { PropField } from "../atoms/PropField";
 import { FontPicker } from "@/components/admin/settings/FontPicker";
+import { normalizeTypographyGapPx } from "@/lib/builder/liveTypography";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -27,6 +29,85 @@ interface Props {
   value: WidgetTypography | undefined;
   device: Device;
   onChange: (next: WidgetTypography) => void;
+}
+
+/**
+ * Długość CSS zapisana napisem (`letterSpacing`, `lineHeight`): liczba - także
+ * ułamkowa i ujemna - z opcjonalną jednostką. Renderer (`typographyCss.ts`)
+ * wstawia napis do CSS dosłownie, więc panel musi czytać liczbę w całości:
+ * odsiewanie samych cyfr robiło z „0.5px" wartość „05", a z interlinii „1.5"
+ * (mnożnik) - „15 px".
+ */
+const CSS_LENGTH = /^\s*(-?(?:\d+\.?\d*|\.\d+))\s*([a-z%]*)\s*$/i;
+
+interface CssLengthField {
+  /** Tekst pola: sama liczba albo - dla zapisu, który nie jest liczbą
+   * z jednostką (`normal`, `var(...)`) - napis dosłowny, który rysuje strona. */
+  text: string;
+  /** Jednostka podpisana przy polu (pusta = brak jednostki do pokazania). */
+  unit: string;
+  /** Jednostka dopisywana przy edycji - ta sama, którą renderer już dostaje. */
+  writeUnit: string;
+}
+
+/**
+ * @param unitless jednostka liczby zapisanej BEZ jednostki: interlinia „1.5"
+ *   to mnożnik (zostaje bez jednostki), światło „0" to długość w px.
+ */
+function readCssLength(value: unknown, unitless: string): CssLengthField {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return { text: "", unit: "px", writeUnit: "px" };
+  const m = CSS_LENGTH.exec(raw);
+  if (!m) return { text: raw, unit: "", writeUnit: "px" };
+  const unit = m[2].toLowerCase() || unitless;
+  return { text: m[1], unit, writeUnit: unit };
+}
+
+/**
+ * Wpis pola długości: cyfry z JEDNYM separatorem dziesiętnym (przecinek = kropka)
+ * i - gdy pole na to pozwala - minusem na początku. Stany pośrednie („-", „1.")
+ * zostają, żeby dało się dopisać kolejne znaki - żyją jednak tylko w szkicu
+ * pola (`completeDecimal` decyduje, co trafia do dokumentu).
+ */
+function sanitizeDecimal(raw: string, allowNegative: boolean): string {
+  const negative = allowNegative && raw.trim().startsWith("-");
+  const [whole = "", ...fraction] = raw
+    .replace(",", ".")
+    .replace(/[^0-9.]/g, "")
+    .split(".");
+  const body = fraction.length > 0 ? `${whole}.${fraction.join("")}` : whole;
+  return negative ? `-${body}` : body;
+}
+
+/**
+ * Liczba gotowa do zapisu albo `undefined` dla stanu pośredniego. „-", „." i
+ * „-." nie mają cyfry, a „1." kończy się separatorem - jako „-px", „1.px" czy
+ * interlinię „2." przeglądarka odrzuca deklarację i strona rysuje wartość
+ * domyślną, choć panel pokazuje wpis.
+ */
+const completeDecimal = (text: string): string | undefined =>
+  /\d/.test(text) ? text.replace(/\.$/, "") : undefined;
+
+/** Krok strzałki od bieżącej liczby (także ułamkowej), bez ogona binarnego. */
+const stepFrom = (current: string, delta: number): number =>
+  Math.round(((Number.parseFloat(current) || 0) + delta) * 1000) / 1000;
+
+/** Pola ułamkowe, których wpis przechodzi przez szkic. */
+type DecimalKey = "lineHeight" | "letterSpacing" | "titleDescriptionGapPx";
+
+/** Szkic pola ułamkowego: dosłowny wpis i jednostka z początku edycji. */
+interface DecimalDraft {
+  text: string;
+  unit: string;
+}
+
+/** Wiązanie pola ułamkowego z `renderSizeInput`. */
+interface DecimalBinding {
+  text: string;
+  unit: string;
+  onType: (raw: string) => void;
+  onStep: (next: string) => void;
+  onBlur: () => void;
 }
 
 export function TypographyControl({ value, onChange }: Props) {
@@ -38,6 +119,49 @@ export function TypographyControl({ value, onChange }: Props) {
       if (next[key] === undefined || next[key] === "") delete next[key];
     }
     onChange(next);
+  };
+
+  // Szkic pól ułamkowych (wzorzec `ClampedNumberInput`): pole pokazuje dosłowny
+  // wpis, dokument dostaje tylko liczbę kompletną, a opuszczenie pola zdejmuje
+  // szkic - pole pokazuje znowu to, co rysuje strona.
+  const [drafts, setDrafts] = useState<Partial<Record<DecimalKey, DecimalDraft>>>({});
+  const dropDraft = (key: DecimalKey) =>
+    setDrafts((d) => (d[key] ? { ...d, [key]: undefined } : d));
+
+  const bindDecimal = (
+    key: DecimalKey,
+    stored: CssLengthField,
+    allowNegative: boolean,
+    write: (num: string | undefined, unit: string) => void,
+  ): DecimalBinding => {
+    const draft = drafts[key];
+    // Jednostka trzyma się całej edycji: wyczyszczenie interlinii „1.5" i wpis
+    // „1.6" zostaje mnożnikiem, a nie interlinią 1.6 px (pusty zapis to px).
+    const unit = draft?.unit ?? stored.writeUnit;
+    const commit = (text: string) => {
+      if (text === "") {
+        write(undefined, unit);
+        return;
+      }
+      const num = completeDecimal(text);
+      if (num !== undefined) write(num, unit);
+    };
+    return {
+      text: draft?.text ?? stored.text,
+      unit: draft?.unit ?? stored.unit,
+      onType: (raw) => {
+        const text = sanitizeDecimal(raw, allowNegative);
+        setDrafts((d) => ({ ...d, [key]: { text, unit } }));
+        commit(text);
+      },
+      // Krok strzałki to liczba kompletna - zapis wprost i bez szkicu: przycisk
+      // krokowy nie zawsze dostaje fokus, więc blur pola mógłby go nie zdjąć.
+      onStep: (next) => {
+        dropDraft(key);
+        commit(next);
+      },
+      onBlur: () => dropDraft(key),
+    };
   };
 
   // Rozmiary są rozdzielone na desktop (desktop + tablet) i mobile, żeby
@@ -121,65 +245,87 @@ export function TypographyControl({ value, onChange }: Props) {
     placeholder = "16",
     unitLabel = "px",
     step = 1,
-  ) => (
-    <div className="relative">
-      <Input
-        value={current}
-        inputMode="numeric"
-        placeholder={placeholder}
-        aria-label={ariaLabel}
-        onChange={(e) => setter(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setter(String((parseInt(current || "0", 10) || 0) + step));
-          } else if (e.key === "ArrowDown") {
-            e.preventDefault();
-            const next = (parseInt(current || "0", 10) || 0) - step;
-            setter(next >= 0 ? String(next) : "");
-          }
-        }}
-        className="h-8 text-xs pr-12"
-      />
-      <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
-        {unitLabel}
-      </span>
-      <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label={t("builder.stepper.increase")}
-          onClick={() => setter(String((parseInt(current || "0", 10) || 0) + step))}
-          className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
-        >
-          <ChevronUp className="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label={t("builder.stepper.decrease")}
-          onClick={() => {
-            const next = (parseInt(current || "0", 10) || 0) - step;
-            setter(next >= 0 ? String(next) : "");
+    decimal?: Pick<DecimalBinding, "onStep" | "onBlur">,
+  ) => {
+    const stepTo = decimal?.onStep ?? setter;
+    return (
+      <div className="relative">
+        <Input
+          value={current}
+          inputMode={decimal ? "decimal" : "numeric"}
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+          onChange={(e) => setter(e.target.value)}
+          onBlur={decimal?.onBlur}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              stepTo(String(stepFrom(current, step)));
+            } else if (e.key === "ArrowDown") {
+              e.preventDefault();
+              const next = stepFrom(current, -step);
+              stepTo(next >= 0 ? String(next) : "");
+            }
           }}
-          className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
-        >
-          <ChevronDown className="w-3 h-3" />
-        </button>
+          className="h-8 text-xs pr-12"
+        />
+        <span className="pointer-events-none absolute right-7 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+          {unitLabel}
+        </span>
+        <div className="absolute right-0 top-0 h-8 w-6 flex flex-col border-l border-border">
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={t("builder.stepper.increase")}
+            onClick={() => stepTo(String(stepFrom(current, step)))}
+            className="flex-1 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
+          >
+            <ChevronUp className="w-3 h-3" />
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={t("builder.stepper.decrease")}
+            onClick={() => {
+              const next = stepFrom(current, -step);
+              stepTo(next >= 0 ? String(next) : "");
+            }}
+            className="flex-1 flex items-center justify-center border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition"
+          >
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </div>
       </div>
-    </div>
+    );
+  };
+
+  // Interlinia i światło: pole pokazuje liczbę i jednostkę, które dostaje CSS,
+  // a edycja zapisuje napis z TĄ SAMĄ jednostką (nowa wartość - w px).
+  const lineHeight = bindDecimal(
+    "lineHeight",
+    readCssLength(v.lineHeight, ""),
+    false,
+    (num, unit) => set({ lineHeight: num === undefined ? undefined : `${num}${unit}` }),
+  );
+  // Zwężenie liter (wartość ujemna) jest w typografii nagłówków normą.
+  const letterSpacing = bindDecimal(
+    "letterSpacing",
+    readCssLength(v.letterSpacing, "px"),
+    true,
+    (num, unit) => set({ letterSpacing: num === undefined ? undefined : `${num}${unit}` }),
   );
 
-  const lineHeightPx = String(v.lineHeight ?? "").replace(/[^0-9]/g, "");
-  const setLineHeightPx = (raw: string) => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    set({ lineHeight: digits ? `${digits}px` : undefined });
-  };
-  const letterSpacingPx = String(v.letterSpacing ?? "").replace(/[^0-9-]/g, "");
-  const setLetterSpacingPx = (raw: string) => {
-    const digits = raw.replace(/[^0-9-]/g, "");
-    set({ letterSpacing: digits ? `${digits}px` : undefined });
-  };
+  // Odstęp tytuł-opis: odczyt TĄ SAMĄ funkcją co renderer - liczba albo
+  // starszy napis „12px", domknięte do 0-200. Zapis zawsze liczbą, a puste
+  // pole to „brak odstępu", jak w rendererze.
+  const gapPx = normalizeTypographyGapPx(v.titleDescriptionGapPx);
+  const gap = bindDecimal(
+    "titleDescriptionGapPx",
+    { text: gapPx === undefined ? "" : String(gapPx), unit: "px", writeUnit: "px" },
+    false,
+    (num) =>
+      set({ titleDescriptionGapPx: num === undefined ? undefined : normalizeTypographyGapPx(num) }),
+  );
 
   return (
     <div className="space-y-2">
@@ -223,19 +369,13 @@ export function TypographyControl({ value, onChange }: Props) {
 
       <PropField label={t("builder.typographyControl.gap")}>
         {renderSizeInput(
-          typeof v.titleDescriptionGapPx === "number" ? String(v.titleDescriptionGapPx) : "",
-          (raw) => {
-            const digits = raw.replace(/[^0-9]/g, "");
-            if (!digits) {
-              set({ titleDescriptionGapPx: undefined });
-              return;
-            }
-            set({ titleDescriptionGapPx: Math.max(0, Math.min(200, Number(digits) || 0)) });
-          },
+          gap.text,
+          gap.onType,
           t("builder.typographyControl.gapAria"),
           "16",
-          "px",
+          gap.unit,
           4,
+          gap,
         )}
       </PropField>
 
@@ -307,20 +447,24 @@ export function TypographyControl({ value, onChange }: Props) {
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.typographyControl.lineHeight")}>
           {renderSizeInput(
-            lineHeightPx,
-            setLineHeightPx,
+            lineHeight.text,
+            lineHeight.onType,
             t("builder.typographyControl.lineHeightAria"),
             "24",
-            "px",
+            lineHeight.unit,
+            1,
+            lineHeight,
           )}
         </PropField>
         <PropField label={t("builder.typographyControl.letterSpacing")}>
           {renderSizeInput(
-            letterSpacingPx,
-            setLetterSpacingPx,
+            letterSpacing.text,
+            letterSpacing.onType,
             t("builder.typographyControl.letterSpacingAria"),
             "0",
-            "px",
+            letterSpacing.unit,
+            1,
+            letterSpacing,
           )}
         </PropField>
       </div>
