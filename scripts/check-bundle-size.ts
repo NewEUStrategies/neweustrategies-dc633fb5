@@ -2412,7 +2412,20 @@ const FROZEN_BUDGET_KB = {
   // hashe w nazwach importów ~1,2 KB po kilkanaście bajtów na chunk (public
   // 2773,0, czyli +0,5 względem bazy - wyłącznie entropia nazw, zero
   // modułów). Host na drzewie końcowym 4980,6 -> 4981 -> +1.
-  overall: 4982,
+  // Ratchet 4982 -> 4991 (2026-10-19, wycinek S2 huba „Przychód i lejek”:
+  // księga MRR, windykacja, przychód zrealizowany, anulowanie), decyzją
+  // zamawiającego D-08. Baza 6ac07c60 (= drzewo końcowe S4) 4980,6, po S2
+  // 4989,6: +9,0 KB, z tego +7,9 leniwy chunk `admin.billing` (KPI z RPC
+  // huba: `finance/queries`, zaślepki klienta `finance.functions` z zod,
+  // `ProvenanceNote`, słownik `i18n-admin-revenue-finance`), +0,8
+  // `i18n-profile` (`profile.retentionFlow` - dialog anulowania), +0,5
+  // wydzielony `RoleGateNotice`, +0,45 `profile.membership` (dialog
+  // anulowania w karcie subskrypcji), +0,4 `profile.plan` (akcja wznowienia);
+  // przetasowanie `period`/`window`/`DashboardPeriodTabs` -0,3. public
+  // 2773,9 (+0,9: słownik i trasy profilu, leniwie), chunk 257,9, css 99,7,
+  // publicCss 83,8 i boot 471,6 w zamrożonych progach.
+  // Host 4989,6 -> 4990 -> +1.
+  overall: 4991,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
