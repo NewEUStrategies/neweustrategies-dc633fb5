@@ -16,6 +16,10 @@
 //    zostawia kadru przesuniętego. To ostatnie jest ryzykiem właśnie zapisu
 //    poza Reactem: render z przesunięciem 0 niczego w DOM-ie nie zmienia, więc
 //    koniec gestu musi przywrócić pozycję sam.
+// 3. KAŻDY WARIANT PODĄŻA ZA PALCEM OD BIEŻĄCEGO MIEJSCA. Warstwa kadru (35%
+//    ruchu) przesuwa się we wszystkich wariantach z kadrem, a tor multi-card
+//    rusza z miejsca spoczynku AKTYWNEJ karty - gest zaczęty od karty 2 albo 3
+//    nie może cofnąć toru do karty 1 (ani zostawić go tam po puszczeniu).
 //
 // GRANICE I ATRAPY
 //  * Bylin autora (`AuthorByline`) to granica-licznik: zlicza rendery per autor
@@ -89,6 +93,51 @@ const activeDot = (root: HTMLElement): string | null =>
     .find((b) => b.getAttribute("aria-current") === "true")
     ?.getAttribute("aria-label") ?? null;
 
+/**
+ * Położenie toru multi-card w px z `translateX(calc(...))` - dla okna o
+ * szerokości `width` i `columns` widocznych kart. Liczymy wartość wyrażenia
+ * zamiast porównywać napisy, więc test mierzy POZYCJĘ toru, a nie zapis CSS.
+ */
+function trackOffsetPx(transform: string, width = 600, columns = 1): number {
+  const inner = /^translateX\((.*)\)$/.exec(transform.trim())?.[1];
+  if (!inner) throw new Error(`tor bez translateX: "${transform}"`);
+  const arithmetic = inner
+    .replace(/^calc/, "")
+    .replaceAll("var(--eh-visible-columns)", String(columns))
+    .replace(/(\d+(?:\.\d+)?)%/g, (_, n: string) => String((Number(n) * width) / 100))
+    .replace(/(\d)px/g, "$1");
+  if (!/^[\d.\s()+\-*/]+$/.test(arithmetic))
+    throw new Error(`nieobsługiwane wyrażenie toru: "${transform}"`);
+  const tokens = arithmetic.match(/\d+(?:\.\d+)?|[-+*/()]/g) ?? [];
+  let at = 0;
+  const factor = (): number => {
+    const token = tokens[at++];
+    if (token === "-") return -factor();
+    if (token === "+") return factor();
+    if (token === "(") {
+      const value = sum();
+      at += 1; // ")"
+      return value;
+    }
+    return Number(token);
+  };
+  const product = (): number => {
+    let value = factor();
+    while (tokens[at] === "*" || tokens[at] === "/")
+      value = tokens[at++] === "*" ? value * factor() : value / factor();
+    return value;
+  };
+  const sum = (): number => {
+    let value = product();
+    while (tokens[at] === "+" || tokens[at] === "-")
+      value = tokens[at++] === "+" ? value + product() : value - product();
+    return value;
+  };
+  const value = sum();
+  if (at !== tokens.length) throw new Error(`niedomknięte wyrażenie toru: "${transform}"`);
+  return value;
+}
+
 const down = (el: HTMLElement, x: number, pointerId = 1) =>
   fireEvent.pointerDown(el, { clientX: x, pointerId, pointerType: "touch" });
 const move = (el: HTMLElement, x: number, pointerId = 1) =>
@@ -121,20 +170,32 @@ describe("slider - ruch wskaźnika nie przebudowuje drzewa", () => {
     expect(track.style.transform).toContain("-70px");
   });
 
-  it("kadr editorial-hero przesuwa się o 35% ruchu bez ani jednego renderu", async () => {
-    const { container, onRender } = await mount({ variant: "editorial-hero" });
-    const surface = surfaceOf(container);
-    const layer = followerOf(container);
+  // Każdy wariant z kadrem podpina warstwę obrazów pod `paintDrag` osobno -
+  // wariant bez tego podpięcia zmienia slajd po puszczeniu, ale w trakcie gestu
+  // kadr stoi w miejscu (palec „ślizga się” po nieruchomym obrazie).
+  it.each(["editorial-hero", "cinematic-overlay", "split-feature", "minimal-strip"] as const)(
+    "kadr %s przesuwa się o 35 proc. ruchu palca bez ani jednego renderu",
+    async (variant) => {
+      const { container, onRender } = await mount({ variant });
+      const surface = surfaceOf(container);
+      const layer = followerOf(container);
+      expect(layer.style.transform).toBe("");
 
-    down(surface, 300);
-    // Licznik działa: wciśnięcie renderuje raz (stan przeciągania na kadrze).
-    expect(onRender).toHaveBeenCalled();
-    const commits = onRender.mock.calls.length;
-    move(surface, 250);
-    move(surface, 200);
-    expect(onRender.mock.calls.length).toBe(commits);
-    expect(layer.style.transform).toBe("translate3d(-35px, 0, 0)");
-  });
+      down(surface, 300);
+      // Licznik działa: wciśnięcie renderuje raz (stan przeciągania na kadrze).
+      expect(onRender).toHaveBeenCalled();
+      const commits = onRender.mock.calls.length;
+      move(surface, 250);
+      move(surface, 200);
+      expect(onRender.mock.calls.length).toBe(commits);
+      expect(layer.style.transform).toBe("translate3d(-35px, 0, 0)");
+
+      // Puszczenie za progiem: następny slajd, kadr z powrotem w spoczynku.
+      up(surface, 200);
+      expect(activeDot(container)).toBe("Slajd 2");
+      expect(layer.style.transform).toBe("");
+    },
+  );
 });
 
 describe("slider - semantyka gestu po przeniesieniu przesunięcia poza Reacta", () => {
@@ -184,6 +245,62 @@ describe("slider - semantyka gestu po przeniesieniu przesunięcia poza Reacta", 
       expect(activeDot(container)).toBe("Slajd 1");
     },
   );
+
+  it.each([2, 3])(
+    "multi-card: gest zaczęty od karty %i przesuwa tor od JEJ miejsca spoczynku i na nie wraca",
+    async (card) => {
+      const { container } = await mount({ variant: "multi-card", columns: 1 });
+      const surface = surfaceOf(container);
+      const track = followerOf(container);
+      const firstRest = trackOffsetPx(track.style.transform);
+      // Na kartę `card` kropką - przeciąganie zaczyna się w jej spoczynku.
+      fireEvent.click(within(container).getByRole("button", { name: `Slajd ${card}` }));
+      expect(activeDot(container)).toBe(`Slajd ${card}`);
+      const rest = track.style.transform;
+      expect(trackOffsetPx(rest)).toBeLessThan(firstRest);
+
+      down(surface, 300);
+      move(surface, 270);
+      // Tor stoi na aktywnej karcie przesuniętej o ruch palca - nie skacze do karty 1.
+      expect(trackOffsetPx(track.style.transform)).toBeCloseTo(trackOffsetPx(rest) - 30);
+      move(surface, 320);
+      expect(trackOffsetPx(track.style.transform)).toBeCloseTo(trackOffsetPx(rest) + 20);
+
+      // Krótki gest: ta sama karta i DOKŁADNIE jej miejsce spoczynku. Render
+      // końca gestu nie zmienia propsu transformacji, więc pozycję przywraca
+      // wyłącznie `paintDrag(0)` - musi wskazać aktywną kartę, nie pierwszą.
+      up(surface, 320);
+      expect(activeDot(container)).toBe(`Slajd ${card}`);
+      expect(track.style.transform).toBe(rest);
+    },
+  );
+
+  it("multi-card: gest za progiem z karty 2 przewija na kartę 3, a kolejny rusza z karty 3", async () => {
+    const { container } = await mount({ variant: "multi-card", columns: 1 });
+    const surface = surfaceOf(container);
+    const track = followerOf(container);
+    const first = trackOffsetPx(track.style.transform);
+    const step = (from: number, to: number) => {
+      down(surface, from);
+      move(surface, to);
+      up(surface, to);
+    };
+
+    step(300, 240);
+    expect(activeDot(container)).toBe("Slajd 2");
+    const second = trackOffsetPx(track.style.transform);
+    step(300, 240);
+    expect(activeDot(container)).toBe("Slajd 3");
+    const third = trackOffsetPx(track.style.transform);
+    // Równy krok toru: karta 3 leży o tyle samo za kartą 2, co karta 2 za kartą 1.
+    expect(third - second).toBeCloseTo(second - first);
+
+    down(surface, 300, 2);
+    move(surface, 290, 2);
+    expect(trackOffsetPx(track.style.transform)).toBeCloseTo(third - 10);
+    up(surface, 290, 2);
+    expect(trackOffsetPx(track.style.transform)).toBeCloseTo(third);
+  });
 
   it("kolejny gest zaczyna od pozycji spoczynku nowego slajdu, nie od starego przesunięcia", async () => {
     const { container } = await mount({ variant: "editorial-hero" });

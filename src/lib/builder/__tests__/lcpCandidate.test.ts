@@ -494,6 +494,28 @@ describe("lcpCandidates - hideOn sekcji, kolumn i inner-sekcji jak w rendererze"
     expect(shared.slot.desktop.vw).toBe(50);
   });
 
+  it("kolumna INNER-SEKCJI schowana na desktopie nie dzieli slotu rodzeństwa (jak `RenderInner` w SSR)", () => {
+    // `RenderInner` odrzuca kolumnę `hideOn.desktop` PRZED podziałem wiersza
+    // (`columns` -> `columnImageSlot`), więc obraz obok wypełnia całą
+    // inner-sekcję. Kandydat liczony z kolumną schowaną dostałby pół slotu,
+    // a `sizes` preloadu wskazałby plik o połowę za mały względem `<img>`.
+    const desktopHidden = column([heading()], 6, { advanced: hiddenOn("desktop") });
+    const open = column([image(`${COVER}?inner-pelny-wiersz=1`)], 6);
+    const [candidate, ...rest] = lcpCandidates(
+      docWith([section([innerSection([desktopHidden, open])])]),
+    );
+    expect(rest).toEqual([]);
+    expect(candidate.widget.id).toBe(open.children[0].id);
+    expect(candidate.slot.desktop.vw).toBe(100);
+    expect(candidate.slot.tablet.vw).toBe(100);
+
+    // Kolumna inner-sekcji schowana tylko na telefonie jest w HTML-u serwera - dzieli wiersz.
+    const mobileHidden = column([heading()], 6, { advanced: hiddenOn("mobile") });
+    const [shared] = lcpCandidates(docWith([section([innerSection([mobileHidden, open])])]));
+    expect(shared.widget.id).toBe(open.children[0].id);
+    expect(shared.slot.desktop.vw).toBe(50);
+  });
+
   it("sekcja schowana na desktopie nie zajmuje okna (SSR desktopu jej nie maluje), schowana na telefonie - zajmuje", () => {
     const text = () => section([column([heading()])]);
     const hero = image(`${COVER}?czwarta=1`);
