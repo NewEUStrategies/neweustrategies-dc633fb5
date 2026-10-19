@@ -51,6 +51,8 @@ import { speakerOrganizationLine } from "@/lib/events/speakerCard";
 import { SpeakerAvatar } from "./SpeakerAvatar";
 import { SpeakerStars } from "./SpeakerStars";
 import { uiLocale } from "@/lib/i18n/format";
+import { localizedPath } from "@/lib/i18n/localePath";
+import { profileHref } from "@/lib/profile/profileHref";
 
 type Lang = "pl" | "en";
 
@@ -277,8 +279,12 @@ function ProfileBody({
 
       {profile?.slug && (
         <div className="pt-1">
+          {/* Adres jak na karcie widgetu: zakodowany slug (`profileHref`) i
+              prefiks języka z PROPSA - sklejany `/author/${slug}` prowadził
+              czytelnika strony EN do profilu PL, a slug ze znakami „/”, „?”,
+              „#” rozcinał ścieżkę. */}
           <AppLink
-            href={`/author/${profile.slug}`}
+            href={localizedPath(profileHref({ slug: profile.slug, isAuthor: true }), lang)}
             className="inline-flex items-center gap-1.5 rounded-[6px] border border-border/70 bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-[color:var(--speakers-accent,var(--brand))]/50 hover:text-brand-ink"
           >
             {lang === "pl" ? "Zobacz pełny profil" : "View full profile"}

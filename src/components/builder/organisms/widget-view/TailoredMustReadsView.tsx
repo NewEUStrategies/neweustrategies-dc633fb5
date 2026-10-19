@@ -11,6 +11,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { supabase } from "@/integrations/supabase/client";
 import { toPlVocative } from "@/lib/i18n/plVocative";
 import { localizedPath } from "@/lib/i18n/localePath";
+import { profileHref } from "@/lib/profile/profileHref";
 import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNumInRange, asOneOf, pickI18n } from "@/lib/content-model/contentValue";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
@@ -229,7 +230,11 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
             const href = localizedPath(`/post/${p.slug}`, lang);
             const author = p.author_id ? authorsMap[p.author_id] : undefined;
             const authorName = author?.display_name?.trim() || "";
-            const authorHref = author?.slug ? localizedPath(`/author/${author.slug}`, lang) : null;
+            // Zakodowany slug (`profileHref`) - sam prefiks języka nie chronił
+            // ścieżki przed slugiem ze znakami „/", „?" czy spacją.
+            const authorHref = author?.slug
+              ? localizedPath(profileHref({ slug: author.slug, isAuthor: true }), lang)
+              : null;
             return (
               // Karta jest zakresem pomiaru „tytuł minus 2 px” - bez niego byline
               // trafiałby na nagłówek sekcji (`h2`) zamiast na tytuł karty.

@@ -6,6 +6,8 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 import { useQuery } from "@tanstack/react-query";
 import { AngleChevron } from "./sectionLabelVariants";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { buildImageSrcSet, buildTransformedImageUrl, renderedMediaUrl } from "@/lib/cropSizes";
 import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
@@ -1208,6 +1210,17 @@ function pickSlideStrings(it: SliderItem, lang: "pl" | "en") {
   };
 }
 
+/**
+ * Profil autora slajdu: zakodowany slug (`profileHref`) i prefiks języka
+ * treści (`localizedPath`) - te same pomocniki co reszta aplikacji, więc byline
+ * na stronie EN nie prowadzi do profilu PL, a slug ze znakami specjalnymi nie
+ * rozcina ścieżki. Własny `href` slajdu idzie osobno (`pickSlideStrings`) i
+ * zostaje taki, jak go wpisał redaktor. Bez sluga - brak odnośnika.
+ */
+function authorProfilePath(slug: string | undefined, lang: "pl" | "en"): string | null {
+  return slug ? localizedPath(profileHref({ slug, isAuthor: true }), lang) : null;
+}
+
 function EditorialHeroVariant(p: VariantProps) {
   const cur = p.items[p.safeIdx] ?? p.items[0];
   const { title, sub, cat, href, catColor } = pickSlideStrings(cur, p.lang);
@@ -1336,7 +1349,7 @@ function EditorialHeroVariant(p: VariantProps) {
               <AuthorByline
                 name={cur.author}
                 avatarUrl={cur.authorAvatar}
-                href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                href={authorProfilePath(cur.authorSlug, p.lang)}
                 display={p.author}
                 tone="default"
                 onClick={(e) => e.stopPropagation()}
@@ -1540,7 +1553,7 @@ function MultiCardVariant(p: VariantProps) {
                         <AuthorByline
                           name={it.author}
                           avatarUrl={it.authorAvatar}
-                          href={it.authorSlug ? `/author/${it.authorSlug}` : null}
+                          href={authorProfilePath(it.authorSlug, p.lang)}
                           display={p.author}
                           tone="default"
                           onClick={(e) => e.stopPropagation()}
@@ -1667,7 +1680,7 @@ function CinematicOverlayVariant(p: VariantProps) {
                   <AuthorByline
                     name={cur.author}
                     avatarUrl={cur.authorAvatar}
-                    href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                    href={authorProfilePath(cur.authorSlug, p.lang)}
                     display={p.author}
                     tone="onDark"
                     onClick={(e) => e.stopPropagation()}
@@ -1837,7 +1850,7 @@ function SplitFeatureVariant(p: VariantProps) {
               <AuthorByline
                 name={cur.author}
                 avatarUrl={cur.authorAvatar}
-                href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                href={authorProfilePath(cur.authorSlug, p.lang)}
                 display={p.author}
                 tone="default"
                 onClick={(e) => e.stopPropagation()}
@@ -1959,7 +1972,7 @@ function MinimalStripVariant(p: VariantProps) {
                 <AuthorByline
                   name={cur.author}
                   avatarUrl={cur.authorAvatar}
-                  href={cur.authorSlug ? `/author/${cur.authorSlug}` : null}
+                  href={authorProfilePath(cur.authorSlug, p.lang)}
                   display={p.author}
                   tone="onDark"
                   onClick={(e) => e.stopPropagation()}

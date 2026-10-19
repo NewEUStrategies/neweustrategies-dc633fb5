@@ -38,6 +38,8 @@ import {
 } from "@/lib/builder/speakersQuery";
 import { SpeakerStars } from "@/components/events/SpeakerStars";
 import type { SpeakerDialogFallback } from "@/components/events/SpeakerProfileDialog";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { getStr, type Lang } from "./frame";
 
 // SpeakersWidget siedzi w EAGER-owej sciezce chrome (SimpleWidgets), a dialog
@@ -95,8 +97,14 @@ function Highlight({ text, query }: { text: string; query: string }) {
  *  bezjęzykowy jako ostatnie ogniwo łańcucha. Rozpisanie jej tutaj na
  *  `organization_pl` / `organization_en` znaczyłoby, że ta sama afiliacja jest
  *  „przetłumaczona" na dwa identyczne napisy - i że model karty z bazy obiecuje
- *  rozróżnienie, którego baza nie ma. */
-function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
+ *  rozróżnienie, którego baza nie ma.
+ *
+ *  ODNOŚNIK DO PROFILU budują wspólne pomocniki aplikacji: `profileHref`
+ *  (zakodowany slug) i `localizedPath` (prefiks języka TREŚCI widgetu), więc
+ *  karta na stronie EN nie prowadzi do profilu PL, a slug ze znakami
+ *  specjalnymi nie rozcina ścieżki. Pole „Adres" wpisu ręcznego tu nie wchodzi
+ *  - redaktor podaje je wprost i zostaje nietknięte. */
+function speakerRowToItem(row: PublicSpeakerRow, lang: Lang): SpeakerItem {
   const rolePl = row.headline_pl || row.job_title || "";
   const roleEn = row.headline_en || row.job_title || "";
   return {
@@ -115,7 +123,7 @@ function speakerRowToItem(row: PublicSpeakerRow): SpeakerItem {
     reviews: row.reviews_count,
     description_pl: row.bio_pl ?? "",
     description_en: row.bio_en ?? "",
-    href: row.slug ? `/author/${row.slug}` : "",
+    href: row.slug ? localizedPath(profileHref({ slug: row.slug, isAuthor: true }), lang) : "",
     isExpert: row.is_expert,
   };
 }
@@ -157,8 +165,10 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
   // działają identycznie niezależnie od źródła.
   const speakers: SpeakerItem[] = useMemo(
     () =>
-      source === "manual" ? manualSpeakers : (dbQ.data ?? []).map((row) => speakerRowToItem(row)),
-    [source, manualSpeakers, dbQ.data],
+      source === "manual"
+        ? manualSpeakers
+        : (dbQ.data ?? []).map((row) => speakerRowToItem(row, lang)),
+    [source, manualSpeakers, dbQ.data, lang],
   );
 
   // Stabilne ID per pozycja (fallback po indeksie) - używane do bookmarków

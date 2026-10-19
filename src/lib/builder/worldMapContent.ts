@@ -8,6 +8,8 @@ import type { WidgetContent } from "./types";
 import { safeWidgetColor } from "./cssColor";
 import { coerceLat, coerceLng } from "@/lib/maps/geoCoords";
 import type { MapArc, MapFit } from "@/lib/maps/worldMapGeo";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 export type WorldMapLang = "pl" | "en";
 
@@ -107,9 +109,18 @@ function pointLabel(
   return own || labelPl || labelEn;
 }
 
-/** Odsyłacz punktu: publiczny hub eksperta, a w jego braku link własny łuku. */
-function pointHref(fallbackHref: string, profile: WorldMapProfile | undefined): string {
-  if (profile?.slug) return `/author/${profile.slug}`;
+/**
+ * Odsyłacz punktu: publiczny hub eksperta, a w jego braku link własny łuku.
+ * Hub budują wspólne pomocniki (zakodowany slug, prefiks języka strony), link
+ * własny wpisał redaktor - zostaje dokładnie taki, jak go podał.
+ */
+function pointHref(
+  fallbackHref: string,
+  profile: WorldMapProfile | undefined,
+  lang: WorldMapLang,
+): string {
+  if (profile?.slug)
+    return localizedPath(profileHref({ slug: profile.slug, isAuthor: true }), lang);
   return fallbackHref;
 }
 
@@ -138,7 +149,7 @@ export function worldMapArcs(
         lat: startLat,
         lng: startLng,
         label: pointLabel(conn.startLabel_pl, conn.startLabel_en, lang, startProfile),
-        href: pointHref(conn.href, startProfile),
+        href: pointHref(conn.href, startProfile, lang),
         avatar: startProfile?.avatarUrl || undefined,
         role: startProfile?.role || undefined,
       },
@@ -146,7 +157,7 @@ export function worldMapArcs(
         lat: endLat,
         lng: endLng,
         label: pointLabel(conn.endLabel_pl, conn.endLabel_en, lang, endProfile),
-        href: pointHref(conn.href, endProfile),
+        href: pointHref(conn.href, endProfile, lang),
         avatar: endProfile?.avatarUrl || undefined,
         role: endProfile?.role || undefined,
       },

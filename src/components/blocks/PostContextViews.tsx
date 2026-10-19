@@ -17,6 +17,8 @@ import {
   type CustomAuthorSocial,
 } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
+import { profileHref as buildProfileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { LEGACY_AVATAR_RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card";
@@ -141,7 +143,11 @@ export function AuthorBioView({
   const bio = htmlToPlainText(
     (lang === "en" ? author.bio_en : author.bio_pl) ?? author.bio_pl ?? author.bio_en ?? "",
   );
-  const profileHref = author.slug ? `/author/${author.slug}` : null;
+  // Zakodowany slug i prefiks języka treści - te same pomocniki co reszta
+  // aplikacji, więc bio na stronie EN nie prowadzi do profilu PL.
+  const profileHref = author.slug
+    ? localizedPath(buildProfileHref({ slug: author.slug, isAuthor: true }), lang)
+    : null;
 
   type IconCmp = ComponentType<SVGProps<SVGSVGElement>>;
   interface SocialItem {
