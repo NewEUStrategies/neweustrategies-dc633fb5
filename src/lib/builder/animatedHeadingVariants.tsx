@@ -796,22 +796,21 @@ export function AnimatedHeadingRender({
       ? `ah-as allsides-${shape.slice("hover-allsides-".length)}`
       : "";
 
-  // Inject hover CSS once to document head (avoids invalid <style> inside <h*> which breaks hydration).
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (isHoverLine && !document.getElementById("ah-hu-css")) {
-      const el = document.createElement("style");
-      el.id = "ah-hu-css";
-      el.textContent = HOVER_LINE_CSS;
-      document.head.appendChild(el);
-    }
-    if (isHoverAllsides && !document.getElementById("ah-as-css")) {
-      const el = document.createElement("style");
-      el.id = "ah-as-css";
-      el.textContent = HOVER_ALLSIDES_CSS;
-      document.head.appendChild(el);
-    }
-  }, [isHoverLine, isHoverAllsides]);
+  // Arkusz efektu hover jako ZASÓB React 19 (`<style href precedence>`), jak
+  // `nes-slider-shared-v1` slidera: React hoistuje go do `<head>` razem z HTML-em
+  // serwera, raz na dokument. Wstrzykiwany dawniej w `useEffect` przychodził
+  // dopiero po hydratacji, a klasa `ah-as` (padding 8px) stała w znacznikach od
+  // początku - nagłówek rósł o 16px po załadowaniu (CLS w obszarze
+  // content-visibility, test boot-home). Zasób nie ląduje wewnątrz `<h*>`.
+  const hoverSheet = isHoverLine ? (
+    <style href="ah-hover-line-v1" precedence="builder">
+      {HOVER_LINE_CSS}
+    </style>
+  ) : isHoverAllsides ? (
+    <style href="ah-hover-allsides-v1" precedence="builder">
+      {HOVER_ALLSIDES_CSS}
+    </style>
+  ) : null;
 
   const whole = config.linkWhole;
   const segment = (link: AnimatedHeadingLink | undefined) => (whole?.href ? undefined : link);
@@ -864,21 +863,24 @@ export function AnimatedHeadingRender({
   );
 
   return (
-    <Tag
-      data-title-root
-      data-typography-role="title"
-      className="font-display text-3xl md:text-4xl leading-tight"
-      style={{
-        color,
-        textAlign: align,
-        margin: 0,
-        paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
-        paddingTop: needsFrame ? "0.15em" : undefined,
-      }}
-    >
-      <SegmentLink link={whole} preview={preview}>
-        {body}
-      </SegmentLink>
-    </Tag>
+    <>
+      {hoverSheet}
+      <Tag
+        data-title-root
+        data-typography-role="title"
+        className="font-display text-3xl md:text-4xl leading-tight"
+        style={{
+          color,
+          textAlign: align,
+          margin: 0,
+          paddingBottom: isUnderlineLike ? "0.45em" : needsFrame ? "0.25em" : undefined,
+          paddingTop: needsFrame ? "0.15em" : undefined,
+        }}
+      >
+        <SegmentLink link={whole} preview={preview}>
+          {body}
+        </SegmentLink>
+      </Tag>
+    </>
   );
 }
