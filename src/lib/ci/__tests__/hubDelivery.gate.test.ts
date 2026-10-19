@@ -599,7 +599,7 @@ describe("checkSliceDiff", () => {
     const result = checkSliceDiff("I0", [
       "supabase/migrations/20261020090000_hub_schema_revenue_ledger.sql",
       "supabase/migrations/20261020090500_hub_shared_sql_helpers.sql",
-      "drizzle/migrations/0317_hub_schema_revenue_ledger.sql",
+      "drizzle/migrations/0318_hub_schema_revenue_ledger.sql",
       "drizzle/migrations/meta/_journal.json",
       "supabase/tests/hub_schema_rls_test.sql",
       "src/integrations/supabase/types.ts",

@@ -2192,6 +2192,118 @@
       "when": 1792418810669,
       "tag": "0312_builder_experiment_events_tenant_id",
       "breakpoints": true
+    },
+    {
+      "idx": 313,
+      "version": "7",
+      "when": 1792418870669,
+      "tag": "0313_pricing_v62_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 314,
+      "version": "7",
+      "when": 1792418930669,
+      "tag": "0314_pricing_v62_catalog_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 315,
+      "version": "7",
+      "when": 1792418990669,
+      "tag": "0315_pricing_v62_catalog_benefits",
+      "breakpoints": true
+    },
+    {
+      "idx": 316,
+      "version": "7",
+      "when": 1792419050669,
+      "tag": "0316_pricing_v62_seed_apply",
+      "breakpoints": true
+    },
+    {
+      "idx": 317,
+      "version": "7",
+      "when": 1792419110669,
+      "tag": "0317_payment_orders_for_sale_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 318,
+      "version": "7",
+      "when": 1792419170669,
+      "tag": "0318_hub_schema_revenue_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 319,
+      "version": "7",
+      "when": 1792419230669,
+      "tag": "0319_hub_schema_funnel_ops",
+      "breakpoints": true
+    },
+    {
+      "idx": 320,
+      "version": "7",
+      "when": 1792419290669,
+      "tag": "0320_hub_schema_crm_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 321,
+      "version": "7",
+      "when": 1792419350669,
+      "tag": "0321_hub_schema_journeys_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 322,
+      "version": "7",
+      "when": 1792419410669,
+      "tag": "0322_hub_schema_journeys_messaging",
+      "breakpoints": true
+    },
+    {
+      "idx": 323,
+      "version": "7",
+      "when": 1792419470669,
+      "tag": "0323_hub_shared_sql_helpers",
+      "breakpoints": true
+    },
+    {
+      "idx": 324,
+      "version": "7",
+      "when": 1792419530669,
+      "tag": "0324_settings_change_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 325,
+      "version": "7",
+      "when": 1792419590669,
+      "tag": "0325_newsletter_settings_patch",
+      "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1792419650669,
+      "tag": "0326_coupon_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 327,
+      "version": "7",
+      "when": 1792419710669,
+      "tag": "0327_email_health_aggregate",
+      "breakpoints": true
+    },
+    {
+      "idx": 328,
+      "version": "7",
+      "when": 1792419770669,
+      "tag": "0328_membership_grants_single_path",
+      "breakpoints": true
     }
   ]
 }
