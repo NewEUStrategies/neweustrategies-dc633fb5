@@ -9,7 +9,7 @@
 //  3. Domyslna liczba kolumn na tablecie w panelu (1) rozjezdzala sie z
 //     rendererem (min(desktop, 2)).
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 import { toJson, type Json, type WidgetContent } from "@/lib/builder/types";
@@ -154,11 +154,11 @@ describe("RatedListEditor - ocena tylko dla listy recznej", () => {
 });
 
 describe("RatedListEditor - domyslne kolumny zgodne z rendererem", () => {
-  /** Desktop / Tablet / Mobile - trzy pierwsze liczby w sekcji "Columns". */
+  /** Desktop / Tablet / Mobile - pola liczbowe sekcji "Columns" po nazwie dostepnej. */
   const columnInputs = (section: HTMLElement) =>
-    Array.from(section.querySelectorAll('input[type="number"]'))
-      .slice(0, 3)
-      .map((i) => (i as HTMLInputElement).value);
+    ["Desktop", "Tablet", "Mobile"].map(
+      (name) => (within(section).getByRole("textbox", { name }) as HTMLInputElement).value,
+    );
 
   it("shows min(desktop, 2) for an unset tablet column count", () => {
     renderEditor({ source: "manual", items: [], columnsDesktop: 4 });
@@ -257,11 +257,15 @@ describe("RatedListEditor - panel zapytania zrodla dynamicznego", () => {
     expect(count.value).toBe("6");
     expect(offset.value).toBe("2");
 
+    fireEvent.focus(count);
     fireEvent.change(count, { target: { value: "9" } });
     expect(calls.at(-1)).toEqual(["numberOfPosts", 9]);
     // Zero wpisow to nie jest lista - pole oddaje minimum, ktore zapytanie
-    // umie zrealizowac.
+    // umie zrealizowac (`asNumInRange(…, 1, 50)`), ale dopiero przy wyjsciu
+    // z pola: w trakcie pisania zero jest tylko szkicem.
     fireEvent.change(count, { target: { value: "0" } });
+    expect(calls.at(-1)).toEqual(["numberOfPosts", 9]);
+    fireEvent.blur(count);
     expect(calls.at(-1)).toEqual(["numberOfPosts", 1]);
 
     fireEvent.change(offset, { target: { value: "5" } });
@@ -275,10 +279,11 @@ describe("RatedListEditor - panel zapytania zrodla dynamicznego", () => {
 
 // ── Brzegi kontrolek liczbowych i suwakow ───────────────────────────────────
 //
-// Panel liczy wszedzie `Number(pole) || wartosc-domyslna`. Zero jest przy tym
-// zapisie POPRAWNA wartoscia dla polowy tych pol (odstep 0 px, wypelnienie
-// 0 px, przezroczystosc 0) i BLEDNA dla drugiej (0 pozycji na strone). Ten
-// blok pilnuje, ktore pole jest po ktorej stronie.
+// Zero jest POPRAWNA wartoscia dla polowy tych pol (odstep 0 px, wypelnienie
+// 0 px, przezroczystosc 0, ocena 0) i BLEDNA dla drugiej (0 pozycji na
+// strone). Suwaki zapisuja zero wprost; pola liczbowe ida przez wspolny atom
+// `ClampedNumberInput` z zakresem renderera - zero w zakresie jest zapisem,
+// zero spoza zakresu domyka sie do minimum przy wyjsciu z pola.
 describe("RatedListEditor - wartosci graniczne suwakow i pol liczbowych", () => {
   it("przezroczystosc numeru zjechana do zera zapisuje ZERO", () => {
     const { calls, container } = renderEditor({ source: "manual", items: [], numberOpacity: 0.4 });
@@ -309,8 +314,9 @@ describe("RatedListEditor - wartosci graniczne suwakow i pol liczbowych", () => 
       source: "manual",
       items: [{ title_pl: "Pozycja", rating: 4.5 }],
     });
-    const rating = container.querySelector<HTMLInputElement>('input[step="0.1"]');
-    if (!rating) throw new Error("test: brak pola oceny");
+    const rating = within(container).getByRole("textbox", {
+      name: "Ocena (0–10)",
+    }) as HTMLInputElement;
     expect(rating.value).toBe("4.5");
     fireEvent.change(rating, { target: { value: "0" } });
     expect(itemsFrom(calls)[0].rating).toBe(0);
@@ -324,8 +330,9 @@ describe("RatedListEditor - wartosci graniczne suwakow i pol liczbowych", () => 
 // i trybu wylaczonego - zadnego. Pole widoczne w zlym trybie zapisuje
 // ustawienie, ktorego renderer w tym trybie nie czyta.
 describe("RatedListEditor - tryb przewijania listy", () => {
+  /** Pola liczbowe sekcji - lista wyboru trybu ma role `combobox`, nie `textbox`. */
   const numbersIn = (section: HTMLElement) =>
-    Array.from(section.querySelectorAll<HTMLInputElement>('input[type="number"]'));
+    within(section).queryAllByRole("textbox") as HTMLInputElement[];
 
   it.each([
     ["none", 0],
@@ -337,7 +344,7 @@ describe("RatedListEditor - tryb przewijania listy", () => {
     expect(numbersIn(openSection(/Scrolling Mode/i))).toHaveLength(count);
   });
 
-  it("tryb przewijania zapisuje maksymalna wysokosc, a pustka wraca do 400 px", () => {
+  it("tryb przewijania zapisuje maksymalna wysokosc, a zero domyka sie do 120 px", () => {
     const { calls } = renderEditor({
       source: "manual",
       items: [],
@@ -346,15 +353,17 @@ describe("RatedListEditor - tryb przewijania listy", () => {
     });
     const [height] = numbersIn(openSection(/Scrolling Mode/i));
     expect(height.value).toBe("500");
+    fireEvent.focus(height);
     fireEvent.change(height, { target: { value: "720" } });
     expect(calls.at(-1)).toEqual(["scrollMaxHeightPx", 720]);
-    // Ramka o zerowej wysokosci schowalaby cala liste - pole oddaje wartosc
-    // domyslna, a nie zero.
+    // Ramka o zerowej wysokosci schowalaby cala liste - pole oddaje minimum
+    // renderera (`asNumInRange(…, 120, 1200)`), a nie zero.
     fireEvent.change(height, { target: { value: "0" } });
-    expect(calls.at(-1)).toEqual(["scrollMaxHeightPx", 400]);
+    fireEvent.blur(height);
+    expect(calls.at(-1)).toEqual(["scrollMaxHeightPx", 120]);
   });
 
-  it("tryb doladowania zapisuje rozmiar strony, a pustka wraca do 4", () => {
+  it("tryb doladowania zapisuje rozmiar strony, a zero domyka sie do 1", () => {
     const { calls } = renderEditor({
       source: "manual",
       items: [],
@@ -363,9 +372,11 @@ describe("RatedListEditor - tryb przewijania listy", () => {
     });
     const [size] = numbersIn(openSection(/Scrolling Mode/i));
     expect(size.value).toBe("8");
+    fireEvent.focus(size);
     fireEvent.change(size, { target: { value: "12" } });
     expect(calls.at(-1)).toEqual(["pageSize", 12]);
     fireEvent.change(size, { target: { value: "0" } });
-    expect(calls.at(-1)).toEqual(["pageSize", 4]);
+    fireEvent.blur(size);
+    expect(calls.at(-1)).toEqual(["pageSize", 1]);
   });
 });

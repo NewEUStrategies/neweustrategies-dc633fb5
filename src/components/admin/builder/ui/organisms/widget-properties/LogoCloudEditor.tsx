@@ -5,6 +5,7 @@ import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PropField, ItemFrame } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
 import { useTranslation } from "react-i18next";
@@ -17,6 +18,10 @@ interface Props {
 }
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/** Zakres prędkości, który renderer (`SimpleWidgets`, „logo-cloud") i tak wymusza. */
+const SPEED_MIN = 8;
+const SPEED_MAX = 180;
 
 export function LogoCloudEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
@@ -35,7 +40,12 @@ export function LogoCloudEditor({ c, lang, setContent }: Props) {
   const add = () =>
     commit([...logos, { label: `Brand ${logos.length + 1}`, src: "", href: "", alt: "" }]);
 
-  const speed = typeof c.speedSeconds === "number" ? c.speedSeconds : 40;
+  // Panel pokazuje prędkość PO klamrze renderera - inaczej 3 s z importu
+  // wyglądało w panelu na „szybko", a strona i tak kręciła co 8 s.
+  const speed = Math.max(
+    SPEED_MIN,
+    Math.min(SPEED_MAX, typeof c.speedSeconds === "number" ? c.speedSeconds : 40),
+  );
   const pauseOnHover = c.pauseOnHover !== false;
   const fadeEdges = c.fadeEdges !== false;
   const grayscale = c.grayscale !== false;
@@ -51,13 +61,14 @@ export function LogoCloudEditor({ c, lang, setContent }: Props) {
       </PropField>
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.logoCloudEditor.speed")}>
-          <Input
-            type="number"
-            min={8}
-            max={180}
+          <ClampedNumberInput
             value={speed}
-            onChange={(e) => setContent("speedSeconds", Number(e.target.value) || 40)}
-            className="h-8 text-xs"
+            min={SPEED_MIN}
+            max={SPEED_MAX}
+            ariaLabel={t("builder.logoCloudEditor.speed")}
+            onCommit={(v) => {
+              if (v !== undefined && v !== speed) setContent("speedSeconds", v);
+            }}
           />
         </PropField>
         <PropField label={t("builder.logoCloudEditor.toggles")}>

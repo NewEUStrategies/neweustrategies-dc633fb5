@@ -7,6 +7,12 @@
 // Used by AdminDatePicker / AdminDateTimePicker so every admin surface shares
 // this navigation UX. Keeps react-day-picker for the day grid to preserve
 // selection/keyboard behaviour.
+//
+// Kontrakt wyboru: kalendarz jest `required` - klik w JUŻ wybrany dzień
+// POTWIERDZA datę (oddaje ją ponownie), a nie kasuje jej. Kasowanie ma w polu
+// własny, jawny przycisk „Wyczyść”. Stan wybrania i „dzisiaj” w siatkach
+// miesięcy i lat jest w drzewie dostępności (`aria-pressed`, `aria-current`),
+// nie wyłącznie w kolorze tła.
 import * as React from "react";
 import { format } from "date-fns";
 import type { Locale } from "date-fns";
@@ -16,7 +22,8 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   selected?: Date;
-  onSelect: (d: Date | undefined) => void;
+  /** Wybrany dzień - zawsze data (kalendarz nie odznacza, patrz nagłówek). */
+  onSelect: (d: Date) => void;
   locale: Locale;
   className?: string;
 };
@@ -30,14 +37,39 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
   const [month, setMonth] = React.useState<Date>(selected ?? new Date());
   const isEn = (locale.code ?? "").startsWith("en");
 
+  // Synchronizacja po WARTOŚCI, nie po tożsamości: rodzic parsuje napis daty
+  // przy każdym renderze, więc ta sama data przychodzi jako nowy obiekt -
+  // a to nie może cofać miesiąca, na który redaktor właśnie przewinął.
+  const selectedTime = selected?.getTime();
   React.useEffect(() => {
-    if (selected) setMonth(selected);
-  }, [selected]);
+    if (selectedTime !== undefined) setMonth(new Date(selectedTime));
+  }, [selectedTime]);
+
+  // Podpis jako STAŁY typ komponentu (nie literał w renderze): nowa funkcja
+  // w każdym renderze byłaby dla Reacta nowym typem i montowała podpis od
+  // nowa przy każdej zmianie rodzica - przycisk z fokusem gubiłby go.
+  const components = React.useMemo(
+    () => ({
+      MonthCaption: ({ calendarMonth }: { calendarMonth: { date: Date } }) => (
+        <div className="flex justify-center pt-1 pb-2">
+          <button
+            type="button"
+            onClick={() => setView("month")}
+            className="admin-calendar-caption-btn text-sm font-medium capitalize px-3 py-1 rounded-md hover:bg-[#FA9346] hover:text-foreground transition"
+          >
+            {format(calendarMonth.date, "LLLL yyyy", { locale })}
+          </button>
+        </div>
+      ),
+    }),
+    [locale],
+  );
 
   if (view === "day") {
     return (
       <Calendar
         mode="single"
+        required
         selected={selected}
         onSelect={onSelect}
         month={month}
@@ -45,19 +77,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
         autoFocus
         locale={locale}
         className={cn("pointer-events-auto", className)}
-        components={{
-          MonthCaption: ({ calendarMonth }) => (
-            <div className="flex justify-center pt-1 pb-2">
-              <button
-                type="button"
-                onClick={() => setView("month")}
-                className="admin-calendar-caption-btn text-sm font-medium capitalize px-3 py-1 rounded-md hover:bg-[#FA9346] hover:text-foreground transition"
-              >
-                {format(calendarMonth.date, "LLLL yyyy", { locale })}
-              </button>
-            </div>
-          ),
-        }}
+        components={components}
       />
     );
   }
@@ -98,7 +118,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
         <div className="grid grid-cols-3 gap-1.5">
           {monthNames.map((name, idx) => {
             const isSelected =
-              selected &&
+              !!selected &&
               selected.getFullYear() === month.getFullYear() &&
               selected.getMonth() === idx;
             const isToday = currentYear === month.getFullYear() && currentMonth === idx;
@@ -106,6 +126,8 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
               <button
                 key={name}
                 type="button"
+                aria-pressed={isSelected}
+                aria-current={isToday ? "date" : undefined}
                 onClick={() => {
                   setMonth(new Date(month.getFullYear(), idx, 1));
                   setView("day");
@@ -155,12 +177,14 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
       </div>
       <div className="grid grid-cols-3 gap-1.5">
         {years.map((y) => {
-          const isSelected = selected && selected.getFullYear() === y;
+          const isSelected = !!selected && selected.getFullYear() === y;
           const isCurrent = y === currentYearNow;
           return (
             <button
               key={y}
               type="button"
+              aria-pressed={isSelected}
+              aria-current={isCurrent ? "date" : undefined}
               onClick={() => {
                 setMonth(new Date(y, month.getMonth(), 1));
                 setView("month");

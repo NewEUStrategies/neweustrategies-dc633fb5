@@ -11,6 +11,8 @@ import { ProfileCard, type ProfileCardSocial } from "@/components/ui/profile-car
 import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, Instagram, Youtube, Mail } from "@/lib/lucide-shim";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { getStr, type Lang } from "./frame";
 
 type SocialKey = "x" | "facebook" | "linkedin" | "instagram" | "youtube" | "website";
@@ -88,7 +90,12 @@ export function AuthorProfileCardWidget({ node, lang }: { node: WidgetNode; lang
       imageUrl={photo || undefined}
       eyebrow={eyebrow || undefined}
       socials={socials}
-      profileHref={showProfileLink && authorSlug ? `/author/${authorSlug}` : null}
+      // Zakodowany slug i prefiks języka - te same pomocniki co reszta aplikacji.
+      profileHref={
+        showProfileLink && authorSlug
+          ? localizedPath(profileHref({ slug: authorSlug, isAuthor: true }), lang)
+          : null
+      }
       socialsLabel={pl ? "Media społecznościowe" : "Social media"}
       {...readProfileCardStyle(cRaw)}
     />

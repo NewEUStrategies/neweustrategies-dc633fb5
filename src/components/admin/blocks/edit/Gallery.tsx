@@ -1,14 +1,17 @@
 import { toJson } from "@/lib/content-model/json";
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
+import { objList, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Images, Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 
+/** Obraz galerii: `url`/`alt` czytane jak w `renderGallery`, reszta pól obrazu bez zmian. */
 interface GalleryImage {
+  [key: string]: Json;
   url: string;
-  alt?: string;
+  alt: string;
 }
 
 interface Props {
@@ -16,17 +19,10 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+// Zapis edytuje jedno pole jednego obrazu, więc pozostałe pola obrazów
+// (np. identyfikator z biblioteki mediów) muszą przejść przez niego bez zmian.
 function readImages(block: Block): GalleryImage[] {
-  const raw = block.data.images;
-  if (!Array.isArray(raw)) return [];
-  const out: GalleryImage[] = [];
-  for (const x of raw) {
-    if (x && typeof x === "object" && !Array.isArray(x)) {
-      const obj = x as { [k: string]: unknown };
-      out.push({ url: String(obj.url ?? ""), alt: String(obj.alt ?? "") });
-    }
-  }
-  return out;
+  return objList(block.data, "images", (o) => ({ ...o, url: str(o, "url"), alt: str(o, "alt") }));
 }
 
 export function GalleryBlock({ block, onChange }: Props) {
@@ -61,7 +57,7 @@ export function GalleryBlock({ block, onChange }: Props) {
             {img.url ? (
               <img
                 src={img.url}
-                alt={img.alt ?? ""}
+                alt={img.alt}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />

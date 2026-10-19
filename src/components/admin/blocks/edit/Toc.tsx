@@ -2,7 +2,9 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { ListTree } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { bool, num } from "@/components/blocks/renderer/data";
 import { AdminSelect } from "../AdminSelect";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -11,10 +13,14 @@ interface Props {
 
 export function TocBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const title = String(block.data.title ?? "");
-  const maxLevel = Math.max(2, Math.min(4, Number(block.data.maxLevel ?? 3)));
-  const ordered = Boolean(block.data.ordered);
-  const sticky = Boolean(block.data.sticky);
+  const title = readText(block.data.title);
+  // Głębokość czytana jak w rendererze (`num`, domyślnie 3) i obcięta do całości:
+  // strona filtruje `poziom <= maxLevel`, więc 3,5 zbiera H2-H3. Granice 2-4 to
+  // dziedzina listy niżej - wartość spoza niej pokazałaby pole i podpowiedź
+  // („H2-HNaN") niezgodne z tym, co narysuje strona.
+  const maxLevel = Math.max(2, Math.min(4, Math.floor(num(block.data, "maxLevel", 3))));
+  const ordered = bool(block.data, "ordered", false);
+  const sticky = bool(block.data, "sticky", false);
 
   return (
     <div className="not-prose rounded-md border border-border bg-muted/30 p-3 space-y-2">

@@ -256,29 +256,39 @@ describe("EventScheduleEditor - podpięcie profilu platformy", () => {
 });
 
 describe("EventScheduleEditor - przenoszenie na krańcach", () => {
-  it("przeniesienie pierwszej sesji wyżej nie gubi żadnej", () => {
-    const { days } = renderEditor({
+  it("pierwsza sesja nie ma czynnej strzałki w górę, a druga zamienia się z nią", () => {
+    const { days, written } = renderEditor({
       days: [
         dayOf({
           sessions: [sessionOf(), sessionOf({ id: "s-2", title_pl: "Druga" })],
         }),
       ],
     });
+    // Kolejność strzałek „w górę": dzień, sesja 1, sesja 2.
     const up = buttonsTitled("Przesuń wyżej");
-    expect(up.length).toBeGreaterThan(0);
-    fireEvent.click(up[up.length - 1]!);
+    expect(up).toHaveLength(3);
+    expect(up[1]!.disabled).toBe(true);
+    fireEvent.click(up[1]!);
+    expect(written).toEqual([]);
+    fireEvent.click(up[2]!);
     const sessions = days()[0]?.sessions as Array<Record<string, unknown>>;
-    // Ruch poza zakres zwraca listę bez zmian - liczba pozycji MUSI zostać.
-    expect(sessions?.length ?? 2).toBe(2);
+    // Zamiana sąsiadów - żadna sesja nie ginie ani się nie dubluje.
+    expect(sessions.map((s) => s.id)).toEqual(["s-2", "s-1"]);
   });
 
-  it("przeniesienie ostatniego dnia niżej nie gubi dni", () => {
-    const { days } = renderEditor({
+  it("ostatni dzień nie ma czynnej strzałki w dół, a pierwszy zamienia się z nim", () => {
+    const { days, written } = renderEditor({
       days: [dayOf(), dayOf({ id: "day-2", label_pl: "Dzień 2", sessions: [] })],
     });
+    // Strzałki „w dół" dni stoją przed strzałkami sesji: dzień 1, sesja dnia
+    // 1, dzień 2 (bez sesji).
     const down = buttonsTitled("Przesuń niżej");
-    fireEvent.click(down[down.length - 1]!);
-    expect((days().length || 2) >= 2).toBe(true);
+    const lastDay = down[down.length - 1]!;
+    expect(lastDay.disabled).toBe(true);
+    fireEvent.click(lastDay);
+    expect(written).toEqual([]);
+    fireEvent.click(down[0]!);
+    expect(days().map((d) => d.id)).toEqual(["day-2", "day-1"]);
   });
 });
 
@@ -296,9 +306,19 @@ describe("EventScheduleEditor - sesja typu przerwa", () => {
     expect(przerwa.container.textContent).toContain("Sponsorzy przerwy");
   });
 
-  it("dodanie sponsora przerwy dopisuje pusty wiersz", () => {
+  it("dodanie sponsora przerwy dopisuje pusty wiersz ZA istniejącymi", () => {
     const { container, days } = renderEditor({
-      days: [dayOf({ sessions: [sessionOf({ kind: "break", title_pl: "Kawa" })] })],
+      days: [
+        dayOf({
+          sessions: [
+            sessionOf({
+              kind: "break",
+              title_pl: "Kawa",
+              sponsors: [{ id: "spn-1", name: "Alfa", logo: "", url: "" }],
+            }),
+          ],
+        }),
+      ],
     });
     const addButtons = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
       (b) => (b.textContent ?? "").trim().startsWith("+"),
@@ -306,8 +326,12 @@ describe("EventScheduleEditor - sesja typu przerwa", () => {
     const last = addButtons.at(-1);
     if (!last) throw new Error("test: brak przycisku dodawania sponsora");
     fireEvent.click(last);
-    const sessions = days()[0]?.sessions as Array<Record<string, unknown>> | undefined;
-    expect(Array.isArray(sessions)).toBe(true);
+    const sponsors = (days()[0]?.sessions as Array<Record<string, unknown>>)[0]?.sponsors as Array<
+      Record<string, unknown>
+    >;
+    expect(sponsors).toHaveLength(2);
+    expect(sponsors[0]).toEqual({ id: "spn-1", name: "Alfa", logo: "", url: "" });
+    expect(sponsors[1]).toMatchObject({ name: "", logo: "", url: "" });
   });
 
   it("zmiana rodzaju sesji zapisuje się w dokumencie", () => {
@@ -539,57 +563,61 @@ describe("EventScheduleEditor - przenoszenie i edycja prelegentów sesji", () =>
   });
 });
 
-// DEFEKT: „+ DODAJ PRELEGENTA" NIE DODAJE ŻADNEGO WIERSZA DO PANELU.
+// NAPRAWIONE 2026-10-18 (był `it.fails`): „+ Dodaj" prelegenta i sponsora
+// przerwy dodaje wiersz widoczny w panelu.
 //
-// WEJŚCIE: sesja z pustą listą prelegentów; redaktor klika „+ Dodaj" nad
-//   sekcją „Prelegenci".
-// CO PSUJE: panel zapisuje pozycję z SAMYMI pustymi polami
-//   (`EventScheduleEditor.tsx:365-372`: `{ id, userId: "", name: "", role_pl:
-//   "", role_en: "", photo: "" }`), a przy następnym renderze czyta dokument
-//   przez `parseScheduleDays` -> `parseSpeaker`
-//   (`src/lib/events/schedule.ts:68`: `if (!speaker.userId && !speaker.name)
-//   return null;`). Wpis bez profilu i bez nazwiska jest ODRZUCANY, więc
-//   wiersz, który dopiero co powstał, nie dojeżdża do panelu.
-// KONSEKWENCJA: prelegenta wpisanego RĘCZNIE nie da się dodać w ogóle -
-//   kliknięcie „+ Dodaj" nie daje żadnej reakcji interfejsu, a jedyną drogą
-//   zostaje podpięcie profilu platformy albo ręczna edycja JSON-a dokumentu.
-//   Ten sam filtr jest POPRAWNY dla widoku publicznego (nie rysujemy pustych
-//   kart), ale edytor nie ma prawa go dziedziczyć.
-// WYMAGANA POPRAWKA: edytor musi pracować na WŁASNYM, nieodrzucającym
-//   parsowaniu treści (albo `parseScheduleDays` musi przyjąć tryb „redakcyjny",
-//   w którym puste pozycje zostają), a odsiew pustych wpisów ma zostać po
-//   stronie widoku.
-it.fails("DEFEKT: „+ Dodaj” prelegenta MUSI dodać wiersz widoczny w panelu", () => {
-  const { container } = renderEditor({ days: [dayOf({ sessions: [sessionOf()] })] });
-  const addSpeaker = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
-    (b) => (b.textContent ?? "").trim().startsWith("+"),
-  );
-  // Ostatni „+" w sesji zwykłej to „+ Dodaj" prelegenta (przerwa dokłada
-  // jeszcze sponsorów, dlatego fixture jest sesją merytoryczną).
-  fireEvent.click(addSpeaker[addSpeaker.length - 1]!);
-  expect(container.textContent).toContain("Prelegent #1");
-});
-
-// DEFEKT: „+ DODAJ SPONSORA PRZERWY" NIE DODAJE ŻADNEGO WIERSZA DO PANELU.
-//
-// WEJŚCIE: sesja typu „przerwa" z pustą listą sponsorów; redaktor klika
-//   „+ Dodaj" nad sekcją „Sponsorzy przerwy".
-// CO PSUJE: ta sama mechanika co przy prelegencie. Panel zapisuje
-//   `{ id, name: "", logo: "", url: "" }` (`EventScheduleEditor.tsx:419-422`),
-//   a `parseSponsor` (`src/lib/events/schedule.ts:79`: `if (!sponsor.name &&
-//   !sponsor.logo) return null;`) odrzuca wpis bez nazwy i bez logo.
-// KONSEKWENCJA: sponsora przerwy nie da się dopisać w panelu - a to jest
-//   pozycja, którą sprzedaje dział komercyjny, więc brak reakcji przycisku
-//   kończy się wpisywaniem sponsorów w JSON dokumentu.
-// WYMAGANA POPRAWKA: jak wyżej - odsiew pustych pozycji należy do widoku,
-//   nie do modelu, na którym pracuje edytor.
-it.fails("DEFEKT: „+ Dodaj” sponsora przerwy MUSI dodać wiersz widoczny w panelu", () => {
-  const { container } = renderEditor({
-    days: [dayOf({ sessions: [sessionOf({ kind: "break", title_pl: "Kawa", sponsors: [] })] })],
+// WEJŚCIE: sesja z pustą listą prelegentów (albo przerwa z pustą listą
+//   sponsorów); redaktor klika „+ Dodaj".
+// BYŁO: panel zapisywał pozycję z samymi pustymi polami, a przy następnym
+//   renderze czytał dokument przez `parseScheduleDays`, które odrzuca
+//   prelegenta bez profilu i nazwiska (`parseSpeaker`) oraz sponsora bez nazwy
+//   i logo (`parseSponsor`). Świeżo zapisany wiersz nie dojeżdżał do panelu,
+//   więc ręcznego prelegenta ani sponsora przerwy nie dało się dodać wcale.
+// KONTRAKT: edytor czyta podlisty WŁASNYM, nieodrzucającym odczytem
+//   (`parseEditorDays`); odsiew pustych pozycji został po stronie widoku -
+//   strona publiczna nadal nie rysuje pustych kart.
+describe("EventScheduleEditor - dodawanie pustych wierszy", () => {
+  it("„+ Dodaj” prelegenta dodaje wiersz widoczny w panelu i zapisuje pusty wpis", () => {
+    const { container, days } = renderEditor({ days: [dayOf({ sessions: [sessionOf()] })] });
+    const addSpeaker = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter(
+      (b) => (b.textContent ?? "").trim().startsWith("+"),
+    );
+    // Ostatni „+" w sesji zwykłej to „+ Dodaj" prelegenta (przerwa dokłada
+    // jeszcze sponsorów, dlatego fixture jest sesją merytoryczną).
+    fireEvent.click(addSpeaker[addSpeaker.length - 1]!);
+    expect(container.textContent).toContain("Prelegent #1");
+    const [speaker] = subListOf(days, "speakers");
+    expect(speaker).toMatchObject({ userId: "", name: "", role_pl: "", role_en: "", photo: "" });
+    expect(typeof speaker?.id).toBe("string");
+    expect(speaker?.id).not.toBe("");
   });
-  const adds = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((b) =>
-    (b.textContent ?? "").trim().startsWith("+"),
-  );
-  fireEvent.click(adds[adds.length - 1]!);
-  expect(container.textContent).toContain("Sponsor #1");
+
+  it("dopisane nazwisko trafia do TEGO wiersza, który właśnie powstał", () => {
+    const { container, days } = renderEditor({ days: [dayOf({ sessions: [sessionOf()] })] });
+    const adds = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((b) =>
+      (b.textContent ?? "").trim().startsWith("+"),
+    );
+    fireEvent.click(adds[adds.length - 1]!);
+    const id = subListOf(days, "speakers")[0]?.id;
+    fireEvent.change(fieldLabelled(container, "Imię i nazwisko"), {
+      target: { value: "Ewa Wiśniewska" },
+    });
+    expect(subListOf(days, "speakers")).toEqual([
+      expect.objectContaining({ id, name: "Ewa Wiśniewska" }),
+    ]);
+  });
+
+  it("„+ Dodaj” sponsora przerwy dodaje wiersz widoczny w panelu", () => {
+    const { container, days } = renderEditor({
+      days: [dayOf({ sessions: [sessionOf({ kind: "break", title_pl: "Kawa", sponsors: [] })] })],
+    });
+    const adds = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((b) =>
+      (b.textContent ?? "").trim().startsWith("+"),
+    );
+    fireEvent.click(adds[adds.length - 1]!);
+    expect(container.textContent).toContain("Sponsor #1");
+    expect(subListOf(days, "sponsors")).toEqual([
+      expect.objectContaining({ name: "", logo: "", url: "" }),
+    ]);
+  });
 });

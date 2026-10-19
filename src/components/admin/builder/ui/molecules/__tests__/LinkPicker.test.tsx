@@ -204,6 +204,23 @@ describe("LinkPicker - wpisy i strony", () => {
     expect(chain?.argsOf("limit")).toEqual([50]);
   });
 
+  it("przecinek, nawias i znaki wieloznaczne nie trafiają do filtra `.or()`", async () => {
+    renderPicker();
+    fireEvent.click(tab("post"));
+    fireEvent.change(searchBox(), { target: { value: "r,ap)%*" } });
+    await waitFor(() => expect(db.current.chainsFor("posts")).toHaveLength(1));
+    expect(db.current.lastChain("posts")?.argsOf("or")).toEqual([
+      "title_pl.ilike.%rap%,title_en.ilike.%rap%,slug.ilike.%rap%",
+    ]);
+  });
+
+  it("fraza złożona z samych znaków specjalnych nie pyta bazy o wpisy", async () => {
+    renderPicker();
+    fireEvent.click(tab("post"));
+    fireEvent.change(searchBox(), { target: { value: ",)%*" } });
+    await waitFor(() => expect(db.current.chainsFor("posts")).toHaveLength(0));
+  });
+
   it("wybór wpisu zapisuje ścieżkę, identyfikator i etykietę", async () => {
     const { last } = renderPicker();
     fireEvent.click(tab("post"));
@@ -346,6 +363,17 @@ describe("LinkPicker - kategorie i tagi", () => {
     const option = await screen.findByRole("button", { name: /Brexit/ });
     fireEvent.click(option);
     expect(last()).toEqual({ url: "/tag/brexit", kind: "tag", refId: "t1", refLabel: "Brexit" });
+  });
+
+  it("fraza tagu przechodzi przez osłonę filtra `.or()`", async () => {
+    renderPicker();
+    fireEvent.click(tab("tag"));
+    fireEvent.change(searchBox(), { target: { value: "b,re)" } });
+    await waitFor(() =>
+      expect(db.current.lastChain("tags")?.argsOf("or")).toEqual([
+        "name.ilike.%bre%,slug.ilike.%bre%",
+      ]),
+    );
   });
 
   it("tag bez nazwy spada na slug", async () => {

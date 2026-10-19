@@ -3,6 +3,7 @@ import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { FileDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -11,8 +12,8 @@ interface Props {
 
 export function FileBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const url = String(block.data.url ?? "");
-  const label = String(block.data.label ?? "");
+  const url = readText(block.data.url);
+  const label = readText(block.data.label);
   const showButton = block.data.showButton !== false;
 
   return (

@@ -338,6 +338,27 @@ describe("PostPicker", () => {
     expect(chain?.argsOf("limit")).toEqual([12]);
   });
 
+  it("przecinek, nawias i znaki wieloznaczne nie trafiają do filtra `.or()`", async () => {
+    renderPicker();
+    openList();
+    fireEvent.change(screen.getByPlaceholderText("builder.picker.searchPosts"), {
+      target: { value: "r,ap)%*" },
+    });
+    await waitFor(() => expect(db.current.chainsFor("posts")).toHaveLength(1));
+    expect(db.current.lastChain("posts")?.argsOf("or")).toEqual([
+      "title_pl.ilike.%rap%,title_en.ilike.%rap%,slug.ilike.%rap%",
+    ]);
+  });
+
+  it("fraza złożona z samych znaków specjalnych nie pyta bazy", async () => {
+    renderPicker();
+    openList();
+    fireEvent.change(screen.getByPlaceholderText("builder.picker.searchPosts"), {
+      target: { value: ",)%*" },
+    });
+    await waitFor(() => expect(db.current.chainsFor("posts")).toHaveLength(0));
+  });
+
   it("wybór zapisuje IDENTYFIKATOR wpisu", async () => {
     const { onChange } = renderPicker();
     openList();

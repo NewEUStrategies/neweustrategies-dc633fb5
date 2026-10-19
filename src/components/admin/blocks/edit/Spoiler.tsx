@@ -3,6 +3,8 @@ import { Input } from "@/components/ui/input";
 import { EyeOff } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { bool } from "@/components/blocks/renderer/data";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -11,9 +13,11 @@ interface Props {
 
 export function SpoilerBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const summary = String(block.data.summary ?? "");
-  const html = String(block.data.html ?? "");
-  const defaultOpen = Boolean(block.data.defaultOpen);
+  const summary = readText(block.data.summary);
+  const html = readText(block.data.html);
+  // Flaga czytana jak w rendererze: napis „tak" to NIE prawda (strona bierze
+  // wtedy domyślne `false`), więc pole nie może pokazać spoilera jako otwartego.
+  const defaultOpen = bool(block.data, "defaultOpen", false);
 
   return (
     <div className="not-prose rounded-md border border-dashed border-border p-3 space-y-2 bg-muted/30">

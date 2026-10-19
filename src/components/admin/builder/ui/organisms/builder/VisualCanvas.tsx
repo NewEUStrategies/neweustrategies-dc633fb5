@@ -11,7 +11,7 @@ import { InlineEditProvider } from "@/components/builder/inlineEditContext";
 import { SectionDropZone } from "./SectionDropZone";
 import { WidgetResizeOverlay } from "./WidgetResizeOverlay";
 import type { Selection } from "./types";
-import { safeParseBuilderDoc } from "@/lib/builder/schema";
+import { isKnownWidgetType, safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SECTION_STRUCTURE_MIME } from "@/lib/builder/dndMime";
 import "@/lib/i18n-builder";
 
@@ -686,9 +686,12 @@ export function VisualCanvas({
       const globalPayload = readGlobalDragPayload(
         e.dataTransfer?.getData(GLOBAL_WIDGET_MIME) ?? "",
       );
-      const newType =
-        globalPayload?.data.type ??
-        (e.dataTransfer?.getData("application/x-widget-type") as WidgetType);
+      // Ładunek palety spoza rejestru (inna wersja aplikacji, typ usunięty,
+      // literówka) jest IGNOROWANY tu, przy upuszczeniu - `makeWidget` i tak by
+      // go odrzucił, a operacje buildera zakładają istniejący węzeł.
+      const paletteType = e.dataTransfer?.getData("application/x-widget-type");
+      const newType: WidgetType | undefined =
+        globalPayload?.data.type ?? (isKnownWidgetType(paletteType) ? paletteType : undefined);
       if (newType) {
         e.preventDefault();
         e.stopPropagation();

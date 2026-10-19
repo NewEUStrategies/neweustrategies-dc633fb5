@@ -15,16 +15,51 @@ function readLevels(block: Block, count: number): number[] {
   );
 }
 
+/**
+ * Pozycje listy TAK, JAK CZYTA JE STRONA (`strList`): wyłącznie napisy, a ich
+ * indeksy są indeksami `levels`. Wcześniej `items as string[]` było
+ * rzutowaniem, nie strażnikiem - obiekt (`{ text: "Punkt" }`) szedł do pola
+ * jako „[object Object]", a kolejna edycja utrwalała ten napis jako treść
+ * punktu. Lista bez żadnej pozycji tekstowej dostaje jedną pustą, żeby
+ * redaktor miał gdzie pisać.
+ */
+function readItems(block: Block): string[] {
+  const raw = Array.isArray(block.data.items) ? block.data.items : [];
+  const items = raw.filter((it): it is string => typeof it === "string");
+  return items.length > 0 ? items : [""];
+}
+
+/**
+ * Typ listy PER POZYCJA (`itemsOrdered` z wklejki listy mieszanej z Worda)
+ * dopełniony do długości listy typem całej listy - tak czyta go render
+ * publiczny (`orderedRaw[i]`, a bez wartości `ordered`). `null`, gdy blok
+ * tej tablicy nie ma: zwykła lista nie dostaje nowego klucza.
+ */
+function readItemsOrdered(block: Block, count: number, ordered: boolean): boolean[] | null {
+  const raw = block.data.itemsOrdered;
+  if (!Array.isArray(raw)) return null;
+  return Array.from({ length: count }, (_, i) => {
+    const v = raw[i];
+    return typeof v === "boolean" ? v : ordered;
+  });
+}
+
 export function ListBlockEdit({ block, onChange }: Props) {
-  const items = Array.isArray(block.data.items) ? (block.data.items as string[]) : [""];
+  const items = readItems(block);
   const ordered = Boolean(block.data.ordered);
   const levels = readLevels(block, items.length);
   const refs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const commit = (nextItems: string[], nextLevels: number[]) => {
+  // `nextOrdered` podają tylko Enter i Backspace - zmiana LICZBY pozycji.
+  // `itemsOrdered` jest, jak `levels`, tablicą równoległą do `items`: bez
+  // przesunięcia razem z pozycjami każda pozycja za kursorem dostawała na
+  // stronie typ poprzedniczki (punktowana uwaga stawała się numerowanym
+  // krokiem).
+  const commit = (nextItems: string[], nextLevels: number[], nextOrdered?: boolean[] | null) => {
     const data: Record<string, typeof block.data.items> = { ...block.data, items: nextItems };
     if (nextLevels.some((l) => l > 1)) data.levels = nextLevels;
     else delete data.levels;
+    if (nextOrdered) data.itemsOrdered = nextOrdered;
     onChange({ ...block, data });
   };
 
@@ -56,15 +91,19 @@ export function ListBlockEdit({ block, onChange }: Props) {
       e.preventDefault();
       const nextItems = [...items];
       const nextLevels = [...levels];
+      const nextOrdered = readItemsOrdered(block, items.length, ordered);
       nextItems.splice(idx + 1, 0, "");
       nextLevels.splice(idx + 1, 0, levels[idx] ?? 1);
-      commit(nextItems, nextLevels);
+      // Nowa pozycja dziedziczy TYP bieżącej, tak jak dziedziczy jej poziom.
+      if (nextOrdered) nextOrdered.splice(idx + 1, 0, nextOrdered[idx]);
+      commit(nextItems, nextLevels, nextOrdered);
       setTimeout(() => refs.current[idx + 1]?.focus(), 0);
     } else if (e.key === "Backspace" && items[idx] === "" && items.length > 1) {
       e.preventDefault();
       commit(
         items.filter((_, i) => i !== idx),
         levels.filter((_, i) => i !== idx),
+        readItemsOrdered(block, items.length, ordered)?.filter((_, i) => i !== idx),
       );
       setTimeout(() => refs.current[Math.max(idx - 1, 0)]?.focus(), 0);
     }

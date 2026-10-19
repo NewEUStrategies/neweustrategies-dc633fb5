@@ -1,5 +1,5 @@
 // UNIWERSALNY PASEK WIDGETU (`GenericWidgetToolbar`) - pasek, ktory dostaje
-// KAZDY blok spoza `OWN_TOOLBAR_TYPES` (BlockEditRenderer.tsx:117 wyklucza
+// KAZDY blok spoza `OWN_TOOLBAR_TYPES` (BlockEditRenderer.tsx:118 wyklucza
 // akapit, naglowek, obraz, wideo i audio, bo te maja wlasne paski). Czyli:
 // cytat, galeria, tabela, wykres, callout, embed - cala reszta katalogu.
 //
@@ -440,31 +440,29 @@ describe("GenericWidgetToolbar - kotwica bloku", () => {
     expect(btn(TB("anchor"))).toHaveAttribute("aria-pressed", "true");
   });
 
-  // DEFEKT: PASEK MA SZOSTA, NAJSLABSZA IMPLEMENTACJE SLUGIFIKATORA KOTWIC.
-  //
-  // WEJSCIE: redaktor wpisuje w dialogu kotwicy „Sekcja Laczna" z polskimi
-  //   znakami diakrytycznymi (tu: „Sekcja Łączna").
-  // CO PSUJE: GenericWidgetToolbar.tsx:235 normalizuje wartosc wlasnym
-  //   wyrazeniem `v.trim().replace(/\s+/g, "-").toLowerCase()`. To ani nie
-  //   transliteruje liter atomowych (`ł` nie ma rozkladu kanonicznego), ani nie
-  //   przycina do 80 znakow, ani nie ma fallbacku, ani nie usuwa znakow
-  //   niedozwolonych - `#`, `/`, `?`, kropka i cudzyslow przechodza nietkniete.
-  //   Repo ma na to JEDNO zrodlo prawdy: `slugifyAnchor`
-  //   (src/lib/content/anchorSlug.ts, naglowek 1-31 opisuje, dlaczego piec
-  //   niezaleznych implementacji bylo bledem). Ta linia jest szosta.
-  // KONSEKWENCJA: ten sam napis dostaje INNY identyfikator w pasku
-  //   („sekcja-łączna") niz w silniku naglowkow („sekcja-laczna"). Fragment ze
-  //   znakiem spoza ASCII albo ze znakiem `#` w srodku nie daje sie uzyc ani w
-  //   `href="#..."`, ani w `querySelector` - link glęboki trafia w pustke.
-  //   Ten sam defekt jest skopiowany w HeadingWidgetToolbar.tsx:254, gdzie wazy
-  //   jeszcze wiecej, bo tam kotwica NAPRAWDE trafia do `id` w HTML.
-  // WYMAGANA POPRAWKA: `set({ anchor: slugifyAnchor(v) })` - identycznie po obu
-  //   stronach, zeby migracja tresci bloki<->richtext nie ruszala kotwic.
-  it.fails("DEFEKT: kotwica z polskimi znakami MUSI byc slugowana kanonicznie", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): pasek mial SZOSTA, najslabsza
+  // implementacje slugifikatora kotwic - `v.trim().replace(/\s+/g, "-")
+  // .toLowerCase()` - ktora nie transliterowala liter atomowych (`ł`), nie
+  // przycinala do 80 znakow i przepuszczala `#`, `/`, `?`, kropke i cudzyslow.
+  // Ten sam napis dostawal INNY identyfikator w pasku („sekcja-łączna") niz
+  // w silniku naglowkow („sekcja-laczna"). KONTRAKT: wpis z dialogu przechodzi
+  // przez `normalizeAuthorAnchor` (anchorSlug.ts) - kanoniczny `slugifyAnchor`
+  // dla wartosci niepustej, pusty napis dla pustej - wspolny z paskiem naglowka.
+  it("kotwica z polskimi znakami jest slugowana kanonicznie, jak w silniku naglowkow", async () => {
     const { onChange } = zamontuj("quote");
     fireEvent.click(btn(TB("anchor")));
     await odpowiedz("Sekcja Łączna");
     expect(ostatnieDane(onChange).anchor).toBe(slugifyAnchor("Sekcja Łączna"));
+    expect(ostatnieDane(onChange).anchor).toBe("sekcja-laczna");
+  });
+
+  it("znaki niedozwolone w identyfikatorze (#, /, ?, kropka, cudzyslow) nie trafiaja do kotwicy", async () => {
+    // Kotwica z `#` w srodku nie daje sie uzyc ani w `href="#..."`, ani
+    // w `querySelector` - link gleboki trafialby w pustke.
+    const { onChange } = zamontuj("quote");
+    fireEvent.click(btn(TB("anchor")));
+    await odpowiedz('#Rozdział 2/3? "v1.0"');
+    expect(ostatnieDane(onChange).anchor).toBe("rozdzial-2-3-v1-0");
   });
 
   // DEFEKT: KOTWICA USTAWIONA Z TEGO PASKA NIGDY NIE TRAFIA DO HTML.
@@ -476,7 +474,7 @@ describe("GenericWidgetToolbar - kotwica bloku", () => {
   //   blok, dla ktorego `block.type !== "heading"` - `headingText` zwraca pusty
   //   napis (anchors.ts:45-46), a petla robi `continue`, wiec wpis nie powstaje.
   //   Tymczasem ten pasek renderuje sie WYLACZNIE dla blokow spoza
-  //   `OWN_TOOLBAR_TYPES` (BlockEditRenderer.tsx:117), a wiec NIGDY dla
+  //   `OWN_TOOLBAR_TYPES` (BlockEditRenderer.tsx:118), a wiec NIGDY dla
   //   naglowka - te dwa zbiory sa rozlaczne.
   // KONSEKWENCJA: przycisk kotwicy na cytacie, galerii, tabeli czy wykresie
   //   przyjmuje wartosc, zapisuje ja do dokumentu i zapala `aria-pressed`,
@@ -486,6 +484,14 @@ describe("GenericWidgetToolbar - kotwica bloku", () => {
   // WYMAGANA POPRAWKA: albo opakowanie DOWOLNEGO bloku emituje `id` z
   //   `data.anchor` w publicznym rendererze, albo przycisk kotwicy znika z
   //   paska generycznego i zostaje wylacznie w HeadingWidgetToolbar.
+  // DLACZEGO NADAL `it.fails` (2026-10-18): obie drogi wychodza poza ten pasek.
+  //   (a) wymaga zmiany publicznego renderera (`BlocksRenderer` i renderery
+  //   zagniezdzen kontenerow emituja dzis `id` wylacznie z `renderHeading`)
+  //   ORAZ decyzji o kolejnosci przydzialu: kotwica cytatu zaalokowana przed
+  //   naglowkiem o tym samym slugu przesunelaby naglowkowi opublikowane `id`
+  //   na `-2`; (b) to decyzja produktowa o usunieciu funkcji z panelu. Samo
+  //   dopisanie bloku do `resolveBlockAnchors` „zazielenialoby" ten test bez
+  //   `id` w HTML - czyli bez naprawy.
   it.fails("DEFEKT: kotwica bloku nie-naglowkowego MUSI dawac id w silniku publicznym", () => {
     const blok = { id: "q1", type: "quote", data: { text: "Cytat", anchor: "moj-cytat" } } as Block;
     expect(resolveBlockAnchors([blok]).get("q1")?.id).toBe("moj-cytat");

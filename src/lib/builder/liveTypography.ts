@@ -97,11 +97,19 @@ export function hasTypographyKeys(value: WidgetTypography | undefined): value is
   return !!value && Object.values(value).some((v) => v !== undefined && v !== "");
 }
 
+/**
+ * Zapis odstępu jako napis (import, ręczny JSON): liczba z opcjonalnym `px`.
+ * Pusty napis i tekst bez liczby to „brak odstępu" - tak samo pokazuje je
+ * panel (`TypographyControl` wyświetla puste pole), więc strona nie może
+ * zamieniać ich na jawne 0 px (tytuł sklejony z opisem).
+ */
+const GAP_PX_TEXT = /^\s*(-?(?:\d+\.?\d*|\.\d+))\s*(?:px)?\s*$/i;
+
 export function normalizeTypographyGapPx(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(200, value));
   if (typeof value === "string") {
-    const n = Number(value.replace(/[^0-9.]/g, ""));
-    if (Number.isFinite(n)) return Math.max(0, Math.min(200, n));
+    const m = GAP_PX_TEXT.exec(value);
+    if (m) return Math.max(0, Math.min(200, Number(m[1])));
   }
   return undefined;
 }

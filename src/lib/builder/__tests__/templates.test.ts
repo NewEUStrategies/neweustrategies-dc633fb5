@@ -2,9 +2,10 @@
 //
 // `templates.ts` to dwa haki nad dwiema tabelami: `builder_templates`
 // (scope = "section") i `builder_template_revisions` (historia snapshotowana
-// wyzwalaczem w bazie). Moduł nie ma react-query, nie ma i18n, nie ma tenanta -
-// stoi na gołych `useState`/`useEffect`/`useCallback`, więc testuje się go
-// `renderHook` BEZ ŻADNEGO wrappera, z jedną atrapą klienta Supabase.
+// wyzwalaczem w bazie). Moduł nie ma react-query ani i18n - stoi na gołych
+// `useState`/`useEffect`/`useCallback`, więc testuje się go `renderHook` BEZ
+// ŻADNEGO wrappera, z atrapą klienta Supabase i atrapą `useCurrentTenantId`
+// (najemca z sesji - od 2026-10-18 każda kwerenda i zapis zawęża po nim).
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // DIAGNOZA: DLACZEGO 13 Z 13 FUNKCJI TEGO MODUŁU BYŁO NIEWYWOŁANYCH
@@ -43,14 +44,13 @@
 // bo JEDYNY test, który dociera do ich wywołania, podmienia je na atrapę" -
 // tam `clearAllLiveWidgetTypography`, `BrandIcon` i `useBrandLogoUrl`, tu cały
 // magazyn szablonów). Skutek jest tu jednak cięższy niż w B3, bo podmiany
-// ROZJECHAŁY SIĘ Z PRODUKCJĄ: `save` ma dziś TRZY różne kontrakty zwrotne,
-// z których żaden nie jest prawdziwy -
-//   * produkcja (templates.ts:84-99)          -> `Promise<void>`,
-//   * builderShell.test.tsx:112               -> `Promise<string>` ("t-nowy"),
-//   * useBuilderOperations.test.tsx:24        -> `Promise<boolean>` (`true`).
+// ROZJECHAŁY SIĘ Z PRODUKCJĄ: `save` miało TRZY różne kontrakty zwrotne
+// (produkcja `Promise<void>`, builderShell `Promise<string>`,
+// useBuilderOperations `Promise<boolean>`). Od 2026-10-18 produkcja oddaje
+// `Promise<string | null>` (id albo odmowa), atrapa w useBuilderOperations
+// została wyrównana, a kontrakt jest PRZYPIĘTY jawnym przypadkiem niżej.
 // Fabryka `vi.mock` bez `importOriginal` nie jest typowana względem modułu,
-// więc TypeScript tego nie łapie, a testy „dowodzą" kontraktu, którego nie ma.
-// Dlatego dzisiejszy kontrakt `save` jest tu PRZYPIĘTY jawnym przypadkiem.
+// więc TypeScript takiego rozjazdu nie złapie.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 // CO TU JEST NAPRAWDĘ DO OBRONY
@@ -81,9 +81,9 @@
 //   ze schematem tabeli i przykrywa brak konwersji `SectionNode` -> `Json`
 //   (siostrzany `globalWidgets.ts` robi to przez `toJson`), żaden test runtime
 //   nie pokaże. To zadanie dla przeglądu typów, nie dla vitest.
-// * Izolacja najemców opiera się tu WYŁĄCZNIE na RLS. Atrapa klienta nie zna
-//   polityk bazy, więc test może dowieść tylko tego, czego kwerenda NIE mówi
-//   (brak jawnego `eq("tenant_id", ...)`) - nie tego, czy polityka działa.
+// * Izolacja najemców: atrapa klienta nie zna polityk bazy, więc test dowodzi
+//   wyłącznie DRUGIEJ bariery po stronie klienta (jawne `eq("tenant_id", ...)`
+//   i `tenant_id` w insercie) - nie tego, czy polityka RLS działa.
 // * PUŁAPKA POMIARU (zdiagnozowana tutaj, warta zapamiętania). Pokrycie tego
 //   pliku potrafi wyjść 4,08% linii i 0% gałęzi MIMO zielonych testów - i nie
 //   jest to wina testu. `coverage.reportsDirectory` jest w tym repo wspólny
@@ -118,6 +118,8 @@ const h = vi.hoisted(() => ({
    * w nim przełączyć propsa.
    */
   fromOverride: null as ((table: string) => unknown) | null,
+  /** Najemca z sesji; `null` = jeszcze nieznany. */
+  tenantId: null as string | null,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -133,6 +135,11 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+// Podmieniamy WYŁĄCZNIE hook najemcy - jego droga do `profiles` ma własny test.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
+}));
+
 import { fail, ok, supabaseFromStub } from "@/test/supabase";
 import type { SectionNode } from "@/lib/builder/types";
 import { useSectionTemplates, useTemplateRevisions } from "@/lib/builder/templates";
@@ -141,6 +148,7 @@ const TPL = "builder_templates";
 const REV = "builder_template_revisions";
 const AUTOR = "user-9";
 const KIEDY = "2026-08-22T10:00:00.000Z";
+const TENANT = "11111111-1111-4111-8111-111111111111";
 
 function db(): SupabaseFromStub {
   const stub = h.db;
@@ -152,6 +160,7 @@ beforeEach(() => {
   h.db = supabaseFromStub();
   h.session = { user: { id: AUTOR } };
   h.fromOverride = null;
+  h.tenantId = TENANT;
 });
 
 afterEach(() => {
@@ -220,9 +229,9 @@ function revRow(over: Record<string, unknown> = {}): Record<string, unknown> {
  */
 function respondTemplates(parts: { list?: SupabaseResult; write?: SupabaseResult }): void {
   db().setResponse(TPL, (chain: RecordedChain) => {
-    if (chain.has("insert") || chain.has("update") || chain.has("delete")) {
-      return parts.write ?? ok(null);
-    }
+    // INSERT kończy się `.select("id").single()`, więc sukces niesie wiersz z id.
+    if (chain.has("insert")) return parts.write ?? ok({ id: "t-nowy" });
+    if (chain.has("update") || chain.has("delete")) return parts.write ?? ok(null);
     return parts.list ?? ok([]);
   });
 }
@@ -265,7 +274,7 @@ async function przemiel(): Promise<void> {
 }
 
 describe("useSectionTemplates - biblioteka zapisanych sekcji", () => {
-  it("przy montowaniu pyta o szablony sekcji, najnowsze najpierw, najwyżej sto", async () => {
+  it("przy montowaniu pyta o szablony sekcji, najnowsze najpierw, sto plus jeden na sygnał obcięcia", async () => {
     respondTemplates({ list: ok([tplRow()]) });
 
     await mountTemplates();
@@ -276,7 +285,8 @@ describe("useSectionTemplates - biblioteka zapisanych sekcji", () => {
     // bez tego ogniwa biblioteka sekcji pokazałaby cudze byty jako sekcje.
     expect(chain?.argsOf("eq")).toEqual(["scope", "section"]);
     expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
-    expect(chain?.argsOf("limit")).toEqual([100]);
+    // Sto pokazanych + jeden dodatkowy wiersz, który mówi tylko „jest więcej".
+    expect(chain?.argsOf("limit")).toEqual([101]);
     // Kolumna autora jest częścią kontraktu typu `SectionTemplate`; gdyby
     // wypadła z listy `select`, `created_by` byłoby wszędzie `undefined`.
     expect(String(chain?.argsOf("select")?.[0])).toContain("created_by");
@@ -339,6 +349,8 @@ describe("useSectionTemplates - biblioteka zapisanych sekcji", () => {
 
     expect(view.result.current.items).toEqual([]);
     expect(view.result.current.loading).toBe(false);
+    // Pustka przy odmowie jest dopuszczalna TYLKO obok jawnego stanu błędu.
+    expect(view.result.current.error).toBe("permission denied for table builder_templates");
   });
 });
 
@@ -403,15 +415,12 @@ describe("useSectionTemplates.save - zapis sekcji jako szablonu", () => {
     expect(payloadOf(zapis as RecordedChain, "insert").created_by).toBeNull();
   });
 
-  it("KONTRAKT DZISIEJSZY: `save` rozwiązuje się do `undefined`, cokolwiek zrobi baza", async () => {
-    // Ten przypadek istnieje po to, żeby prawdziwy kontrakt był ZAPISANY choć
-    // raz. Trzy atrapy w repo udają trzy RÓŻNE i wzajemnie sprzeczne kontrakty:
-    //   builderShell.test.tsx:112        -> Promise<string> ("t-nowy"),
-    //   useBuilderOperations.test.tsx:24 -> Promise<boolean> (true),
-    //   WidgetLibrary.test.tsx:44        -> vi.fn() (undefined).
-    // Produkcja (templates.ts:84-99) nie zwraca NICZEGO. Dopóki tak jest, ten
-    // test ma być czerwony w chwili, w której ktoś kontrakt zmieni - i wtedy
-    // trzeba poprawić także trzy atrapy wyżej, bo dziś nie pilnuje ich typ.
+  it("KONTRAKT: udany `save` rozwiązuje się do id nowego szablonu", async () => {
+    // NAPRAWIONE 2026-10-18 (był kontrakt `Promise<void>`): `save` oddaje id
+    // z `.select("id").single()` albo `null` przy odmowie (przypadek w sekcji
+    // świadków niżej). Atrapy w builderShell (Promise<string>) i
+    // useBuilderOperations (wyrównana do Promise<string | null>) zgadzają się
+    // z tym kontraktem - typ ich nie pilnuje, ten test tak.
     respondTemplates({ list: ok([]) });
     const view = await mountTemplates();
     const zapisz: (n: string, s: SectionNode) => Promise<unknown> = view.result.current.save;
@@ -421,7 +430,12 @@ describe("useSectionTemplates.save - zapis sekcji jako szablonu", () => {
       wynik = await zapisz("Sekcja powitalna", sec());
     });
 
-    expect(wynik).toBeUndefined();
+    expect(wynik).toBe("t-nowy");
+    const zapis = db()
+      .chainsFor(TPL)
+      .find((c) => c.has("insert"));
+    expect(zapis?.argsOf("select")).toEqual(["id"]);
+    expect(zapis?.has("single")).toBe(true);
   });
 });
 
@@ -542,7 +556,7 @@ describe("useSectionTemplates.remove i ręczne przeładowanie", () => {
     const lancuchy = db().chainsFor(TPL);
     expect(lancuchy).toHaveLength(2);
     expect(lancuchy[1].argsOf("eq")).toEqual(["scope", "section"]);
-    expect(lancuchy[1].argsOf("limit")).toEqual([100]);
+    expect(lancuchy[1].argsOf("limit")).toEqual([101]);
     expect(view.result.current.items).toHaveLength(1);
   });
 });
@@ -564,7 +578,7 @@ describe("useTemplateRevisions - historia jednego szablonu", () => {
     expect(view.result.current.loading).toBe(false);
   });
 
-  it("dla wybranego szablonu pyta o jego rewizje, najnowsze najpierw, najwyżej pięćdziesiąt", async () => {
+  it("dla wybranego szablonu pyta o jego rewizje, najnowsze najpierw, pięćdziesiąt plus jedna", async () => {
     db().setResponse(REV, () => ok([revRow()]));
 
     const view = renderHook(({ id }: { id: string | null }) => useTemplateRevisions(id), {
@@ -575,7 +589,7 @@ describe("useTemplateRevisions - historia jednego szablonu", () => {
     const chain = db().lastChain(REV);
     expect(chain?.argsOf("eq")).toEqual(["template_id", "t1"]);
     expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
-    expect(chain?.argsOf("limit")).toEqual([50]);
+    expect(chain?.argsOf("limit")).toEqual([51]);
     expect(String(chain?.argsOf("select")?.[0])).toContain("note");
   });
 
@@ -667,27 +681,14 @@ describe("useTemplateRevisions - historia jednego szablonu", () => {
   });
 });
 
-describe("templates.ts - świadkowie defektów (it.fails)", () => {
-  // DEFEKT: ODMOWA ODCZYTU UDAJE PUSTĄ BIBLIOTEKĘ.
-  //
-  // WEJSCIE: redaktor otwiera bibliotekę widgetów, a odczyt `builder_templates`
-  //   kończy się odmową RLS (42501), wygasłą sesją albo awarią sieci.
-  // CO PSUJE: `useSectionTemplates.reload` (src/lib/builder/templates.ts:68-78)
-  //   destrukturyzuje WYŁĄCZNIE `{ data }` i nigdy nie ogląda `error`. Nieudany
-  //   odczyt daje `undefined`, `(data ?? [])` robi z tego pustą listę, hak
-  //   oddaje `items: []` i `loading: false` - czyli DOKŁADNIE ten sam stan,
-  //   co u nowego najemcy, który naprawdę nic jeszcze nie zapisał.
-  // KONSEKWENCJA: panel mówi „brak zapisanych szablonów". Redaktor nie
-  //   dowiaduje się, że NIE WIDZI biblioteki - dowiaduje się, że biblioteka
-  //   jest pusta, więc zapisuje sekcje po raz drugi albo uznaje, że ktoś
-  //   skasował dorobek zespołu. To ta sama klasa co „awaria odczytu udaje
-  //   pustkę" zarejestrowana już w repo jako
-  //   src/components/admin/community/__tests__/VerificationDomainsCard.test.tsx:863
-  //   („BŁĄD ODCZYTU KATALOGU UDAJE PUSTY KATALOG").
-  // WYMAGANA POPRAWKA: hak MUSI czytać `error` i wystawiać stan błędu
-  //   (np. `error: string | null`), żeby biblioteka mogła pokazać komunikat
-  //   zamiast pustki. Zero wierszy i „nie wolno mi czytać" to dwa różne stany.
-  it.fails("DEFEKT: odmowa odczytu NIE MOŻE wyglądać jak pusta biblioteka", async () => {
+describe("templates.ts - naprawione defekty (dawne it.fails)", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): ODMOWA ODCZYTU NIE UDAJE PUSTEJ
+  // BIBLIOTEKI. Wcześniej `reload` czytał wyłącznie `{ data }`, więc odmowa
+  // RLS (42501), wygasła sesja albo awaria sieci dawały `items: []` - stan
+  // identyczny z nowym najemcą bez szablonów. Kontrakt: hak wystawia
+  // `error: string | null`; zero wierszy i „nie wolno mi czytać" to dwa
+  // różne stany, a kontrola dodatnia niżej pilnuje, że błąd nie jest stały.
+  it("odmowa odczytu NIE wygląda jak pusta biblioteka - hak wystawia stan błędu", async () => {
     respondTemplates({ list: fail("permission denied for table builder_templates", "42501") });
 
     const view = await mountTemplates();
@@ -707,26 +708,13 @@ describe("templates.ts - świadkowie defektów (it.fails)", () => {
     expect(view.result.current.items.map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 
-  // DEFEKT: NIEUDANY ZAPIS SZABLONU JEST NIEODRÓŻNIALNY OD UDANEGO.
-  //
-  // WEJSCIE: redaktor nazywa sekcję i klika „zapisz jako szablon", a INSERT do
-  //   `builder_templates` kończy się odmową (RLS, brak grantu, konflikt).
-  // CO PSUJE: `save` (src/lib/builder/templates.ts:84-99) nie czyta wyniku
-  //   `insert` - ani `data`, ani `error` - i deklaruje `Promise<void>`.
-  //   Wołający `useBuilderOperations.saveSectionAsTemplate` robi
-  //   `void templates.save(name.trim(), s)` (useBuilderOperations.ts:113), więc
-  //   nie ma Z CZEGO zbudować toastu porażki. Po nieudanym zapisie leci jeszcze
-  //   `reload()`, który (patrz defekt wyżej) też milczy.
-  // KONSEKWENCJA: praca redaktora - nazwanie i zapisanie sekcji - znika bez
-  //   żadnego śladu na ekranie; interfejs zachowuje się identycznie jak przy
-  //   sukcesie. Dowodem pośrednim, że tego kontraktu NIKT nie sprawdzał, są trzy
-  //   wzajemnie sprzeczne atrapy w repo (Promise<string>, Promise<boolean>,
-  //   vi.fn()) opisane w nagłówku tego pliku.
-  // WYMAGANA POPRAWKA: `save` MUSI zwracać id nowego szablonu albo `null` przy
-  //   błędzie - dokładnie jak siostrzane `useGlobalWidgets.save`
-  //   (src/lib/builder/globalWidgets.ts: insert z `.select("id").single()`
-  //   i `if (error) return null`).
-  it.fails("DEFEKT: nieudany zapis szablonu MUSI być odróżnialny od udanego", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): NIEUDANY ZAPIS JEST ODRÓŻNIALNY.
+  // Wcześniej `save` nie czytał wyniku INSERT i deklarował `Promise<void>`,
+  // więc `useBuilderOperations.saveSectionAsTemplate` nie miał z czego
+  // zbudować toastu porażki. Kontrakt: insert z `.select("id").single()`,
+  // `null` przy odmowie (jak `useGlobalWidgets.save`), a wołający pokazuje
+  // `builder.ops.saveTplErr`. Po odmowie NIE leci też przeładowanie listy.
+  it("nieudany zapis szablonu oddaje null i nie przeładowuje biblioteki", async () => {
     respondTemplates({
       list: ok([]),
       write: fail("new row violates row-level security policy", "42501"),
@@ -740,26 +728,20 @@ describe("templates.ts - świadkowie defektów (it.fails)", () => {
     });
 
     expect(wynik).toBeNull();
+    expect(
+      db()
+        .chainsFor(TPL)
+        .filter((c) => c.has("select") && !c.has("insert")),
+    ).toHaveLength(1);
   });
 
-  // DEFEKT: PÓŹNA ODPOWIEDŹ WRACA PO WYCZYSZCZENIU LISTY REWIZJI.
-  //
-  // WEJSCIE: redaktor otwiera historię szablonu „t1", a potem zamyka dialog,
-  //   zanim odpowiedź bazy zdąży wrócić (wolne łącze, duża historia).
-  // CO PSUJE: `useTemplateRevisions.reload`
-  //   (src/lib/builder/templates.ts:132-148) przy `templateId === null` robi
-  //   `setItems([])` i WYCHODZI, ale nie anuluje ani nie znakuje zapytania
-  //   będącego w locie. `TemplateHistoryDialog` przekazuje
-  //   `open ? (template?.id ?? null) : null` (TemplateHistoryDialog.tsx:44),
-  //   więc zamknięcie dialogu to właśnie przejście na `null`. Spóźniona
-  //   odpowiedź wykonuje `setItems(...)` już PO wyczyszczeniu.
-  // KONSEKWENCJA: po otwarciu historii INNEGO szablonu redaktor widzi przez
-  //   moment rewizje poprzedniego i może kliknąć „przywróć" na cudzej wersji -
-  //   czyli nadpisać szablon treścią, której nigdy nie oglądał.
-  // WYMAGANA POPRAWKA: wynik zapytania MUSI zostać odrzucony, jeśli
-  //   `templateId` zmienił się w międzyczasie - znacznik pokolenia zapytania
-  //   albo `AbortController` w zależności efektu.
-  it.fails("DEFEKT: późna odpowiedź NIE MOŻE przywrócić rewizji zamkniętego szablonu", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): PÓŹNA ODPOWIEDŹ NIE WRACA PO
+  // ZAMKNIĘCIU HISTORII. Wcześniej `reload` przy `templateId === null` czyścił
+  // listę, ale odpowiedź zapytania w locie i tak robiła `setItems(...)` -
+  // redaktor widział rewizje poprzedniego szablonu i mógł „przywrócić" wersję,
+  // której nie oglądał. Kontrakt: każde `reload` podbija pokolenie zapytania,
+  // a odpowiedź starszego pokolenia jest odrzucana.
+  it("późna odpowiedź NIE przywraca rewizji zamkniętego szablonu", async () => {
     // Wspólna atrapa rozwiązuje łańcuch przez `Promise.resolve`, więc okno
     // wyścigu to jeden mikrotask. Tylko na TEN przypadek podmieniamy `from`
     // na łańcuch trzymany na uwięzi, którą zwalnia sam test.
@@ -771,7 +753,9 @@ describe("templates.ts - świadkowie defektów (it.fails)", () => {
     const builder: Record<string, unknown> = {};
     for (const ogniwo of ["select", "eq", "order", "limit"]) {
       builder[ogniwo] = (...args: unknown[]) => {
-        if (ogniwo === "eq" && typeof args[1] === "string") zapytano.push(args[1]);
+        if (ogniwo === "eq" && args[0] === "template_id" && typeof args[1] === "string") {
+          zapytano.push(args[1]);
+        }
         return builder;
       };
     }
@@ -801,23 +785,12 @@ describe("templates.ts - świadkowie defektów (it.fails)", () => {
     expect(view.result.current.items).toEqual([]);
   });
 
-  // DEFEKT: KWERENDY NIE ZAWĘŻAJĄ PO `tenant_id`.
-  //
-  // WEJSCIE: dowolny odczyt biblioteki szablonów lub historii rewizji.
-  // CO PSUJE: obie kwerendy (src/lib/builder/templates.ts:70-75 i :138-143)
-  //   filtrują wyłącznie po `scope` i po `template_id`. Obie tabele mają
-  //   kolumnę `tenant_id NOT NULL` (src/integrations/supabase/types.ts), a
-  //   izolacja obszarów roboczych opiera się TYLKO na polityce RLS
-  //   (`tenant_id = current_tenant_id()`). Siostrzany `useGlobalWidgets`
-  //   w src/lib/builder/globalWidgets.ts filtruje jawnie
-  //   (`.eq("tenant_id", tenantId ?? "")`) - ten moduł odstaje od reguły repo.
-  // KONSEKWENCJA: jedna pomyłka w polityce RLS albo jeden odczyt rolą serwisową
-  //   pokazuje redakcji szablony CUDZEGO najemcy - bez żadnej drugiej bariery.
-  //   Klasa: obrona w głąb, nie potwierdzony wyciek; ten test nie dowodzi
-  //   wycieku, dowodzi BRAKU DRUGIEJ BARIERY.
-  // WYMAGANA POPRAWKA: obie kwerendy MUSZĄ same zawężać po `tenant_id`,
-  //   tak jak `globalWidgets.ts`, zamiast polegać wyłącznie na RLS.
-  it.fails("DEFEKT: obie kwerendy MUSZĄ jawnie zawężać po tenant_id", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): OBIE KWERENDY ZAWĘŻAJĄ PO
+  // `tenant_id`. Wcześniej izolacja obszarów roboczych stała WYŁĄCZNIE na RLS
+  // (filtr tylko po `scope` / `template_id`). Kontrakt: najemca z sesji
+  // (`useCurrentTenantId`, ta sama droga co `useGlobalWidgets`) domyka obie
+  // kwerendy - druga bariera obok polityki, nie zamiast niej.
+  it("obie kwerendy jawnie zawężają po tenant_id z sesji", async () => {
     respondTemplates({ list: ok([tplRow()]) });
     db().setResponse(REV, () => ok([revRow()]));
 
@@ -831,24 +804,17 @@ describe("templates.ts - świadkowie defektów (it.fails)", () => {
     const listaRewizji = db().lastChain(REV);
     expect(filtersOn(listaSzablonow as RecordedChain, "tenant_id")).toBe(true);
     expect(filtersOn(listaRewizji as RecordedChain, "tenant_id")).toBe(true);
+    expect(listaSzablonow?.calls).toContainEqual({ method: "eq", args: ["tenant_id", TENANT] });
+    expect(listaRewizji?.calls).toContainEqual({ method: "eq", args: ["tenant_id", TENANT] });
   });
 
-  // DEFEKT: CICHE OBCIĘCIE BIBLIOTEKI NA SETNYM SZABLONIE.
-  //
-  // WEJSCIE: najemca ma w bibliotece więcej niż sto szablonów sekcji (albo
-  //   szablon ma więcej niż pięćdziesiąt rewizji).
-  // CO PSUJE: `limit(100)` dla szablonów (src/lib/builder/templates.ts:75)
-  //   i `limit(50)` dla rewizji (:143) stoją bez stronicowania i bez żadnego
-  //   sygnału w interfejsie. Hak oddaje `items` i `loading` - nic więcej, więc
-  //   widok nie ma jak odróżnić „to wszystko" od „to pierwsza setka".
-  // KONSEKWENCJA: sto pierwszy szablon przestaje istnieć dla redakcji, a
-  //   pięćdziesiąta pierwsza rewizja dla historii - mimo że wyzwalacz w bazie
-  //   dalej je tworzy. Szablon, którego „nie ma", zostaje zapisany po raz drugi
-  //   pod tą samą nazwą i biblioteka rośnie duplikatami.
-  // WYMAGANA POPRAWKA: albo stronicowanie (`.range(...)` z kursorem), albo
-  //   jawny sygnał obcięcia w wartości zwracanej („pokazano 100 z N"). Ten test
-  //   przyjmuje KAŻDĄ z dwóch poprawek - blokuje tylko dzisiejsze milczenie.
-  it.fails("DEFEKT: obcięcie biblioteki na setnym szablonie NIE MOŻE być ciche", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): OBCIĘCIE BIBLIOTEKI NIE JEST
+  // CICHE. Wcześniej `limit(100)` / `limit(50)` stały bez żadnego sygnału, więc
+  // widok nie odróżniał „to wszystko" od „to pierwsza setka". Kontrakt: hak
+  // pobiera o jeden wiersz więcej i wystawia `truncated` (dokładne liczby
+  // i granice w templatesTenantAndFailures.test.ts). Test przyjmuje też
+  // stronicowanie - blokuje wyłącznie milczenie.
+  it("obcięcie biblioteki na setnym szablonie NIE jest ciche", async () => {
     const pelnaSetka = Array.from({ length: 100 }, (_, i) =>
       tplRow({ id: `t-${i}`, name: `Sekcja ${i}` }),
     );

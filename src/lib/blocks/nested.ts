@@ -31,6 +31,22 @@ export function insertChildAt(children: readonly Block[], idx: number, child: Bl
   return next;
 }
 
+/**
+ * Wstawia WIELE dzieci naraz (wzorzec z insertera) pod wskazany indeks - z tym
+ * samym klamrowaniem co `insertChildAt`, więc indeks spoza tablicy dokleja na
+ * krawędzi zamiast tworzyć dziury.
+ */
+export function insertChildrenAt(
+  children: readonly Block[],
+  idx: number,
+  incoming: readonly Block[],
+): Block[] {
+  const at = Math.min(Math.max(idx, 0), children.length);
+  const next = [...children];
+  next.splice(at, 0, ...incoming);
+  return next;
+}
+
 export function removeChildAt(children: readonly Block[], idx: number): Block[] {
   return children.filter((_, i) => i !== idx);
 }

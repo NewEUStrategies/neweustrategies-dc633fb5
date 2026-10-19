@@ -13,12 +13,14 @@
 // TYLKO WIDGET, KTÓRY SIĘ RENDERUJE. Dawna reguła `:has()` pytała DOM, więc
 // widget ukryty urządzeniem (`hideOn`), regułą dostępu albo nieaktywną zakładką
 // nie zdejmował nikomu clipa. Predykat używa tych samych filtrów co renderer
-// (`isRenderedWidget` w `RenderColumn`, dostęp kolumn w `RenderInner`; zakładki
-// odsiewa wołający przez `visibleCols`) - inaczej sekcja z wyszukiwarką tylko na
+// (`isRenderedWidget` w `RenderColumn`, dostęp i `hideOn` kolumn w `RenderInner`;
+// zakładki, dostęp i `hideOn` kolumn najwyższego poziomu odsiewa wołający przez
+// `visibleCols`) - inaczej sekcja z wyszukiwarką tylko na
 // telefon traciłaby na desktopie ochronę przed wylewaniem treści.
 
 import { evaluateAccess, type AccessContext } from "./accessControl";
 import { isRenderedWidget } from "./sectionVisibility";
+import { hiddenOnDevice } from "@/components/builder/organisms/widget-view/frame";
 import type { Device, SectionChild, WidgetNode } from "./types";
 
 export const SEARCH_WIDGET_TYPE = "search-button";
@@ -34,8 +36,9 @@ function rendersSearchWidget(w: WidgetNode, scope: SearchOverflowScope): boolean
 
 /**
  * Czy kolumna albo sekcja zagnieżdżona RENDERUJE widget wyszukiwarki.
- * Kolumny najwyższego poziomu wołający podaje już po filtrze dostępu i zakładek
- * (`visibleCols`); kolumny sekcji zagnieżdżonej filtrujemy tu, jak `RenderInner`.
+ * Kolumny najwyższego poziomu wołający podaje już po filtrze dostępu, urządzenia
+ * i zakładek (`visibleCols`); kolumny sekcji zagnieżdżonej filtrujemy tu, jak
+ * `RenderInner` (dostęp i `hideOn`).
  */
 export function childHostsSearchWidget(child: SectionChild, scope: SearchOverflowScope): boolean {
   if (child.kind === "column") {
@@ -50,6 +53,7 @@ export function childHostsSearchWidget(child: SectionChild, scope: SearchOverflo
       child.columns.some(
         (c) =>
           !!c &&
+          !hiddenOnDevice(c.advanced, scope.device) &&
           evaluateAccess(c.advanced?.access, scope.accessCtx) &&
           childHostsSearchWidget(c, scope),
       )

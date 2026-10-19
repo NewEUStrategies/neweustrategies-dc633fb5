@@ -53,9 +53,17 @@ export const SOCIAL_HOVER_GRADIENT: Record<string, { from: string; to: string }>
 export const SOCIAL_HOVER_ICON_COLOR = "#FFFFFF";
 export const SOCIAL_HOVER_TEXT_COLOR = "#FFFFFF";
 
+/**
+ * Klucz platformy pochodzi z `content` widgetu (import, migracja, ręczny JSON),
+ * więc katalogi czytamy WYŁĄCZNIE po kluczach własnych: „constructor" czy
+ * „toString" z prototypu `Object` nie mogą udawać platformy.
+ */
+const ownEntry = <T>(catalog: Record<string, T>, key: string): T | undefined =>
+  Object.hasOwn(catalog, key) ? catalog[key] : undefined;
+
 /** Gotowy CSS gradientu marki dla danej platformy. */
 export function socialBrandGradient(key: string): string | undefined {
-  const stops = SOCIAL_HOVER_GRADIENT[key];
+  const stops = ownEntry(SOCIAL_HOVER_GRADIENT, key);
   if (!stops) return undefined;
   if (key === "instagram") {
     return "linear-gradient(135deg, #F58529 0%, #DD2A7B 55%, #8134AF 100%)";
@@ -68,7 +76,7 @@ export function socialBrandGradient(key: string): string | undefined {
 
 /** Podpis „faktyczny kolor" pokazywany w panelu (light / dark). */
 export function socialIdleColorHint(key: string): string {
-  const tone = SOCIAL_IDLE_ICON_COLOR[key];
+  const tone = ownEntry(SOCIAL_IDLE_ICON_COLOR, key);
   if (!tone) return "";
   return `light: ${tone.light} - dark: ${tone.dark}`;
 }

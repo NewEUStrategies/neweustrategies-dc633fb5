@@ -20,6 +20,7 @@ import {
 import { PropField } from "../atoms/PropField";
 import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { EventPicker } from "../organisms/widget-properties/EventPicker";
+import { LineListTextarea } from "../organisms/widget-properties/LineListTextarea";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MapDataField } from "./MapDataField";
 // Pola wizualizacji danych (PR2) - każde ma własny komponent, bo zapis bywa
@@ -58,13 +59,6 @@ const asString = (v: unknown): string => (typeof v === "string" ? v : "");
 
 const asStringArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-
-/** One entry per line, trimmed, empties dropped - shared by both array fields. */
-const splitLines = (raw: string): string[] =>
-  raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
 
 export function SchemaFieldControl({ field, lang, content, setContent, setContentPatch }: Props) {
   const { t } = useTranslation();
@@ -408,10 +402,13 @@ export function SchemaFieldControl({ field, lang, content, setContent, setConten
     case "stringArray":
       return (
         <PropField label={label} hint={hint}>
-          <Textarea
+          {/* Wspólny atom listy: trzyma szkic, więc Enter i spacja na końcu
+              linii nie znikają przed następnym znakiem (dawniej pole
+              pokazywało znormalizowaną listę i połykało je). */}
+          <LineListTextarea
             rows={field.rows ?? 4}
-            value={asStringArray(read(field.key)).join("\n")}
-            onChange={(e) => setContent(field.key, splitLines(e.target.value))}
+            value={asStringArray(read(field.key))}
+            onChange={(next) => setContent(field.key, next)}
             className="text-xs font-mono"
           />
         </PropField>
@@ -420,10 +417,10 @@ export function SchemaFieldControl({ field, lang, content, setContent, setConten
     case "i18nStringArray":
       return (
         <PropField label={`${label} (${langSuffix})`} hint={hint}>
-          <Textarea
+          <LineListTextarea
             rows={field.rows ?? 4}
-            value={asStringArray(read(i18nKey)).join("\n")}
-            onChange={(e) => setContent(i18nKey, splitLines(e.target.value))}
+            value={asStringArray(read(i18nKey))}
+            onChange={(next) => setContent(i18nKey, next)}
             className="text-xs font-mono"
             aria-label={`${label} (${langSuffix})`}
           />

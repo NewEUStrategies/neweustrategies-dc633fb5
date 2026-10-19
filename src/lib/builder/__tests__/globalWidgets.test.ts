@@ -21,9 +21,13 @@
 //    sygnal miedzy kartami. Kazda z tych czterech linii daje sie skasowac bez
 //    zadnego natychmiast widocznego skutku, a skutkiem jest redaktor patrzacy
 //    po zapisie na stan sprzed wlasnej zmiany.
-// 4. ODMOWA NIE UDAJE SUKCESU. Nieudany `save` zwraca `null` i NIE uniewaznia
-//    cache; nieudany `pushGlobalWidgetData` zwraca `false` i NIE rozsyla
-//    sygnalu miedzy kartami. Inaczej odrzucony zapis wygladalby jak zapisany.
+// 4. ODMOWA NIE UDAJE SUKCESU. Nieudany `save` zwraca `null`, nieudane
+//    `rename`/`remove` zwracaja `false` i NIE uniewazniaja cache; nieudany
+//    `pushGlobalWidgetData` zwraca `false` i NIE rozsyla sygnalu miedzy
+//    kartami; blad odczytu globala jest bledem zapytania, a nie sukcesem `null`.
+// 5. TENANT Z SESJI W KAZDYM ZAPISIE (od 2026-10-18). Insert niesie
+//    `tenant_id`, update/delete domykaja `.eq("tenant_id")` obok `.eq("id")`,
+//    a przy nieznanym tenancie zaden zapis nie leci do bazy.
 //
 // GRANICA DOWODU.
 // (a) TRZY straze sa nieosiagalne z zewnatrz i zostaja poza pomiarem:
@@ -400,17 +404,21 @@ describe("pushGlobalWidgetData - zapis payloadu globala z buildera", () => {
   it("udany zapis zwraca prawde, wysyla update po identyfikatorze i rozsyla sygnal", async () => {
     respondWidgets({ write: ok(null) });
 
-    const okResult = await pushGlobalWidgetData(GID, {
-      type: "button",
-      content: { label_pl: "Zapisz" },
-    });
+    const okResult = await pushGlobalWidgetData(
+      GID,
+      { type: "button", content: { label_pl: "Zapisz" } },
+      TENANT,
+    );
 
     expect(okResult).toBe(true);
     const chain = chainWith("update");
     expect(chain?.argsOf("update")).toEqual([
       { data: { type: "button", content: { label_pl: "Zapisz" } } },
     ]);
-    expect(eqCalls(chain)).toEqual([["id", GID]]);
+    expect(eqCalls(chain)).toEqual([
+      ["id", GID],
+      ["tenant_id", TENANT],
+    ]);
     // Bez sygnalu podglad w drugiej karcie zostalby przy starej tresci.
     expect(h.emitInvalidate).toHaveBeenCalledTimes(1);
   });
@@ -418,7 +426,7 @@ describe("pushGlobalWidgetData - zapis payloadu globala z buildera", () => {
   it("odmowa bazy zwraca falsz i NIE rozsyla sygnalu miedzy kartami", async () => {
     respondWidgets({ write: fail("permission denied for table builder_global_widgets", "42501") });
 
-    const okResult = await pushGlobalWidgetData(GID, { type: "text", content: {} });
+    const okResult = await pushGlobalWidgetData(GID, { type: "text", content: {} }, TENANT);
 
     expect(okResult).toBe(false);
     // Sygnal po nieudanym zapisie kazalby wszystkim kartom pobrac dane na nowo
@@ -426,27 +434,28 @@ describe("pushGlobalWidgetData - zapis payloadu globala z buildera", () => {
     expect(h.emitInvalidate).not.toHaveBeenCalled();
   });
 
-  // DEFEKT: ZAPIS PAYLOADU GLOBALA NIE DOMYKA FILTRA OBSZARU ROBOCZEGO.
-  //
-  // WEJSCIE: `pushGlobalWidgetData("g1", ...)` - autozapis instancji z kanwy
-  //   buildera, wolany przy kazdej zmianie wlasciwosci widgetu globalnego.
-  // CO PSUJE: zapytanie w src/lib/builder/globalWidgets.ts:245-248 filtruje
-  //   WYLACZNIE `.eq("id", id)`. Lista palety w tym samym pliku (:181) domyka
-  //   `.eq("tenant_id", tenantId)`, wiec regula repo "tenant_id w kazdej
-  //   kwerendzie" jest tu zlamana wewnatrz jednego modulu.
-  // KONSEKWENCJA: obrona w glab ma JEDNA warstwe zamiast dwoch - caly ciezar
-  //   izolacji obszarow roboczych spoczywa na polityce `bgw_update_tenant`.
-  //   Bledny warunek w migracji albo pomylka identyfikatora po stronie klienta
-  //   konczy sie nadpisaniem cudzego widgetu globalnego, ktory stoi na
-  //   wszystkich stronach obcej redakcji naraz.
-  // WYMAGANA POPRAWKA: funkcja przyjmuje tenant (albo czyta go z tej samej
-  //   drogi co lista) i domyka `.eq("tenant_id", tenantId)` obok `.eq("id")`.
-  it.fails("DEFEKT: zapis payloadu MUSI domykac filtr tenant_id obok id", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): ZAPIS PAYLOADU DOMYKA FILTR
+  // OBSZARU ROBOCZEGO. Wczesniej autozapis filtrowal WYLACZNIE `.eq("id")`,
+  // wiec izolacje trzymala tylko polityka `bgw_update_tenant`. Kontrakt:
+  // funkcja przyjmuje tenant z sesji wolajacego (`useGlobalWidgetSync` czyta
+  // `useCurrentTenantId`, te sama droge co lista) i domyka `tenant_id` obok id.
+  it("zapis payloadu domyka filtr tenant_id obok id", async () => {
     respondWidgets({ write: ok(null) });
 
-    await pushGlobalWidgetData(GID, { type: "text", content: {} });
+    await pushGlobalWidgetData(GID, { type: "text", content: {} }, TENANT);
 
     expect(eqCalls(chainWith("update")).map((args) => args[0])).toEqual(["id", "tenant_id"]);
+  });
+
+  it("bez znanego tenanta zapis payloadu odmawia BEZ zapytania i bez sygnalu", async () => {
+    respondWidgets({ write: ok(null) });
+
+    const okResult = await pushGlobalWidgetData(GID, { type: "text", content: {} }, null);
+
+    // Zapis w ciemno trafilby w tenant, ktorego kod jeszcze nie zna.
+    expect(okResult).toBe(false);
+    expect(db().chainsFor(TABLE)).toHaveLength(0);
+    expect(h.emitInvalidate).not.toHaveBeenCalled();
   });
 });
 
@@ -537,23 +546,13 @@ describe("useGlobalWidgetNode - nakladka zywego payloadu w renderze", () => {
     expect(view.result.current).toBeNull();
   });
 
-  // DEFEKT: AWARIA ODCZYTU JEST CACHE-OWANA JAKO SUKCES.
-  //
-  // WEJSCIE: chwilowa odmowa albo awaria sieci przy odczycie wiersza globala,
-  //   ktory stoi na kilkunastu stronach serwisu.
-  // CO PSUJE: `queryFn` w src/lib/builder/globalWidgets.ts:140 polyka `error`
-  //   i zwraca `null`. React Query widzi SUKCES o wartosci `null` i zapisuje go
-  //   z `staleTime` 60 s oraz `gcTime` 10 min (:131-132), bez ponowienia.
-  // KONSEKWENCJA: przez minute KAZDA instancja tego globala dostaje odpowiedz
-  //   "tego globala nie ma" i cicho zostaje przy swojej migawce - czyli po
-  //   jednej mignietej awarii serwis przez minute renderuje wersje sprzed
-  //   ostatniej edycji, nie sygnalizujac niczego ani redaktorowi, ani
-  //   odwiedzajacemu. Ta sama warstwa w `useGlobalWidgets` robi ODWROTNIE
-  //   (rzuca, :184), wiec niespojnosc jest wewnatrz jednego modulu.
-  // WYMAGANA POPRAWKA: blad odczytu propaguje sie jako blad zapytania (throw),
-  //   zeby React Query mogl ponowic; fallback na migawke i tak robi wolajacy
-  //   przez `?? null` w miejscu uzycia.
-  it.fails("DEFEKT: blad odczytu globala NIE moze byc zapisany w cache jako sukces", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): AWARIA ODCZYTU NIE JEST
+  // CACHE-OWANA JAKO SUKCES. Wczesniej `queryFn` polykal `error` i zwracal
+  // `null`, ktory React Query trzymal 60 s jako poprawna odpowiedz "globala nie
+  // ma" (bez ponowienia), a nieudany refetch kasowal dobre dane. Kontrakt: blad
+  // jest bledem zapytania (throw) - React Query moze ponowic i zachowuje
+  // poprzednie dane; fallback na migawke robi `?? null` w hooku.
+  it("blad odczytu globala jest bledem zapytania, a nie sukcesem w cache", async () => {
     respondWidgets({ row: fail("permission denied for table builder_global_widgets", "42501") });
     const { client, wrapper } = harness();
     renderHook(() => useGlobalWidgetNode(GID), { wrapper });
@@ -604,13 +603,15 @@ describe("useGlobalWidgetMeta - baner panelu wlasciwosci", () => {
     expect(view.result.current).toBeNull();
   });
 
-  it("odmowa bazy daje pusty wynik", async () => {
+  it("odmowa bazy daje pusty wynik i stan bledu zamiast sukcesu `null` w cache", async () => {
     respondWidgets({ row: fail("permission denied", "42501") });
     const { client, wrapper } = harness();
     const view = renderHook(() => useGlobalWidgetMeta(GID), { wrapper });
 
     await waitFor(() => expect(client.getQueryState(metaKey)?.fetchStatus).toBe("idle"));
     expect(view.result.current).toBeNull();
+    // Ta sama regula co nakladka renderu: odmowa nie moze udawac "brak globala".
+    expect(client.getQueryState(metaKey)?.status).toBe("error");
   });
 
   it("klucz zapytania stoi pod korzeniem globalWidgetMeta z rejestru kluczy", async () => {
@@ -789,6 +790,8 @@ describe("useGlobalWidgets - zapis, zmiana nazwy i usuniecie globala", () => {
       advanced: { cssClass: "cta" },
     });
     expect(payload.created_by).toBe("user-9");
+    // Tenant z sesji - ten sam, po ktorym filtruje lista palety.
+    expect(payload.tenant_id).toBe(TENANT);
     // Do bazy NIE moze pojechac tozsamosc instancji - wspolny wiersz jej nie ma.
     expect(payload.id).toBeUndefined();
     expect(payload.kind).toBeUndefined();
@@ -862,7 +865,10 @@ describe("useGlobalWidgets - zapis, zmiana nazwy i usuniecie globala", () => {
 
     const chain = chainWith("update");
     expect(chain?.argsOf("update")).toEqual([{ name: "Stopka 2026" }]);
-    expect(eqCalls(chain)).toEqual([["id", GID]]);
+    expect(eqCalls(chain)).toEqual([
+      ["id", GID],
+      ["tenant_id", TENANT],
+    ]);
     expect(invalidatedRoots(invalidateSpy)).toContain(WIDGET_QUERY_ROOTS.globalWidgets);
     expect(h.emitInvalidate).toHaveBeenCalledTimes(1);
   });
@@ -880,7 +886,10 @@ describe("useGlobalWidgets - zapis, zmiana nazwy i usuniecie globala", () => {
 
     const chain = chainWith("delete");
     expect(chain?.has("delete")).toBe(true);
-    expect(eqCalls(chain)).toEqual([["id", GID]]);
+    expect(eqCalls(chain)).toEqual([
+      ["id", GID],
+      ["tenant_id", TENANT],
+    ]);
     // Po usunieciu globala nakladki renderu MUSZA zniknac razem z pozycja
     // w palecie - inaczej strony wisza na wierszu, ktorego juz nie ma.
     expect(invalidatedRoots(invalidateSpy)).toEqual([
@@ -890,80 +899,55 @@ describe("useGlobalWidgets - zapis, zmiana nazwy i usuniecie globala", () => {
     ]);
   });
 
-  // DEFEKT: ZMIANA NAZWY IGNORUJE ODMOWE BAZY.
-  //
-  // WEJSCIE: `rename("g1", "Stopka 2026")` wolane przez redaktora, ktory nie ma
-  //   roli admin/editor albo trafil na wiersz innego obszaru roboczego, wiec
-  //   polityka `bgw_update_tenant` odrzuca UPDATE.
-  // CO PSUJE: `rename` w src/lib/builder/globalWidgets.ts:215-221 w ogole nie
-  //   czyta pola `error`, bezwarunkowo wola `invalidate()` i zwraca `void`.
-  // KONSEKWENCJA: cache leci do kosza, paleta pobiera dane na nowo i STARA
-  //   nazwa wraca na ekran bez zadnego komunikatu. Redaktor widzi, ze zmiana
-  //   "sie cofnela", probuje jeszcze raz i jeszcze raz - a kazda proba to
-  //   pelne odswiezenie trzech korzeni cache po nieudanym zapisie.
-  // WYMAGANA POPRAWKA: `rename` zwraca `boolean` tak jak `pushGlobalWidgetData`
-  //   (:250) i uniewaznia cache WYLACZNIE przy powodzeniu.
-  it.fails(
-    "DEFEKT: nieudana zmiana nazwy NIE moze uniewazniac cache ani udawac sukcesu",
-    async () => {
-      respondWidgets({ list: ok([]), write: fail("permission denied", "42501") });
-      const { wrapper, invalidateSpy } = harness();
-      const view = renderHook(() => useGlobalWidgets(), { wrapper });
-      await waitFor(() => expect(view.result.current.loading).toBe(false));
-      invalidateSpy.mockClear();
-
-      await act(async () => {
-        await view.result.current.rename(GID, "Stopka 2026");
-      });
-
-      expect(invalidatedRoots(invalidateSpy)).toEqual([]);
-      expect(h.emitInvalidate).not.toHaveBeenCalled();
-    },
-  );
-
-  // DEFEKT: USUNIECIE IGNORUJE ODMOWE BAZY (ten sam brak co przy zmianie nazwy).
-  //
-  // WEJSCIE: `remove("g1")` odrzucone przez polityke `bgw_delete_tenant`.
-  // CO PSUJE: `remove` w src/lib/builder/globalWidgets.ts:223-229 nie czyta
-  //   pola `error`, bezwarunkowo uniewaznia cache i zwraca `void`.
-  // KONSEKWENCJA: pozycja znika z palety na czas jednego renderu i wraca po
-  //   pobraniu. Redaktor odczytuje to jako blad interfejsu, a nie jako brak
-  //   uprawnien - a przy okazji kazda nieudana proba usuniecia generuje pelne
-  //   odswiezenie trzech korzeni cache.
-  // WYMAGANA POPRAWKA: `remove` zwraca `boolean` i uniewaznia cache WYLACZNIE
-  //   przy powodzeniu.
-  it.fails("DEFEKT: nieudane usuniecie NIE moze uniewazniac cache ani udawac sukcesu", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): NIEUDANA ZMIANA NAZWY NIE UDAJE
+  // SUKCESU. Wczesniej `rename` nie czytal `error`, bezwarunkowo uniewaznial
+  // trzy korzenie cache i zwracal `void`, wiec stara nazwa "wracala" bez
+  // komunikatu. Kontrakt: `Promise<boolean>`; cache i sygnal miedzy kartami
+  // WYLACZNIE przy powodzeniu.
+  it("nieudana zmiana nazwy oddaje false i nie uniewaznia cache", async () => {
     respondWidgets({ list: ok([]), write: fail("permission denied", "42501") });
     const { wrapper, invalidateSpy } = harness();
     const view = renderHook(() => useGlobalWidgets(), { wrapper });
     await waitFor(() => expect(view.result.current.loading).toBe(false));
     invalidateSpy.mockClear();
 
+    let wynik: boolean | null = null;
     await act(async () => {
-      await view.result.current.remove(GID);
+      wynik = await view.result.current.rename(GID, "Stopka 2026");
     });
 
+    expect(wynik).toBe(false);
     expect(invalidatedRoots(invalidateSpy)).toEqual([]);
     expect(h.emitInvalidate).not.toHaveBeenCalled();
   });
 
-  // DEFEKT: ZAPIS NIE PODAJE TENANTA, PO KTORYM POTEM SAM FILTRUJE LISTE.
-  //
-  // WEJSCIE: `save("Stopka redakcyjna", widget)` w obszarze roboczym, ktory
-  //   `useCurrentTenantId` czyta z `profiles.tenant_id`.
-  // CO PSUJE: insert w src/lib/builder/globalWidgets.ts:203-207 wysyla tylko
-  //   `name`, `data` i `created_by`. Kolumne `tenant_id` uzupelnia DEFAULT bazy
-  //   `current_tenant_id()` (supabase/migrations/20260702085900_builder_globals
-  //   _popups_experiments.sql:43), czyli INNE zrodlo prawdy niz to, po ktorym
-  //   filtruje lista (:181).
-  // KONSEKWENCJA: gdy oba zrodla sie rozjada (uzytkownik w dwoch obszarach,
-  //   swiezo zmieniony profil, sesja z innego kontekstu), zapis SIE UDAJE,
-  //   zwraca identyfikator i uniewaznia cache - a widget NIE POJAWIA SIE
-  //   w palecie, bo lista pyta o inny tenant. Redaktor zapisuje go drugi
-  //   i trzeci raz, mnozac niewidoczne wiersze.
-  // WYMAGANA POPRAWKA: insert podaje jawnie `tenant_id: tenantId` - ten sam,
-  //   po ktorym filtruje lista, tak jak reszta zapytan w tym repo.
-  it.fails("DEFEKT: zapis MUSI podac jawnie tenant_id, po ktorym filtruje lista", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): NIEUDANE USUNIECIE NIE UDAJE
+  // SUKCESU. Wczesniej `remove` nie czytal `error` i bezwarunkowo uniewaznial
+  // cache (pozycja migala w palecie). Kontrakt: `Promise<boolean>`, cache
+  // WYLACZNIE przy powodzeniu (`true` przy sukcesie dowodzi plik
+  // globalWidgetsTenantAndFailures.test.ts).
+  it("nieudane usuniecie nie uniewaznia cache ani nie udaje sukcesu", async () => {
+    respondWidgets({ list: ok([]), write: fail("permission denied", "42501") });
+    const { wrapper, invalidateSpy } = harness();
+    const view = renderHook(() => useGlobalWidgets(), { wrapper });
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    invalidateSpy.mockClear();
+
+    let wynik: boolean | null = null;
+    await act(async () => {
+      wynik = await view.result.current.remove(GID);
+    });
+
+    expect(wynik).toBe(false);
+    expect(invalidatedRoots(invalidateSpy)).toEqual([]);
+    expect(h.emitInvalidate).not.toHaveBeenCalled();
+  });
+
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): ZAPIS PODAJE TENANTA, PO KTORYM
+  // FILTRUJE LISTA. Wczesniej `tenant_id` uzupelnial DEFAULT bazy - inne
+  // zrodlo prawdy niz `useCurrentTenantId` listy - wiec zapisany widget mogl
+  // nie pojawic sie w palecie. Kontrakt: insert niesie `tenant_id` z sesji.
+  it("zapis podaje jawnie tenant_id, po ktorym filtruje lista", async () => {
     respondWidgets({ list: ok([]), single: ok({ id: "g-new" }) });
     const { wrapper } = harness();
     const view = renderHook(() => useGlobalWidgets(), { wrapper });
@@ -977,51 +961,31 @@ describe("useGlobalWidgets - zapis, zmiana nazwy i usuniecie globala", () => {
     expect(payload.tenant_id).toBe(TENANT);
   });
 
-  // DEFEKT: ZAPIS NIE ODMAWIA, GDY OBSZAR ROBOCZY JEST JESZCZE NIEZNANY.
-  //
-  // WEJSCIE: `save(...)` wolane, zanim `useCurrentTenantId` zwroci tenant
-  //   (pierwsze sekundy po wejsciu do buildera, odswiezenie sesji).
-  // CO PSUJE: `save` w src/lib/builder/globalWidgets.ts:198-213 nie oglada sie
-  //   na `tenantId` w ogole. Zapytanie LISTY jest w tym stanie swiadomie
-  //   wylaczone (`enabled: Boolean(tenantId)`, :175), ale insert i tak leci.
-  // KONSEKWENCJA: wiersz powstaje w obszarze roboczym, ktorego kod jeszcze nie
-  //   zna - czyli zapis w ciemno, ktorego autor nie zobaczy w palecie, dopoki
-  //   nie trafi z powrotem na ten sam tenant.
-  // WYMAGANA POPRAWKA: przy `tenantId === null` `save` zwraca `null` bez
-  //   wysylania jakiegokolwiek zapytania, symetrycznie do wylaczonej listy.
-  it.fails(
-    "DEFEKT: zapis przy nieznanym obszarze roboczym MUSI odmowic bez zapytania",
-    async () => {
-      h.tenantId = null;
-      respondWidgets({ list: ok([]), single: ok({ id: "g-new" }) });
-      const { wrapper } = harness();
-      const view = renderHook(() => useGlobalWidgets(), { wrapper });
-      await waitFor(() => expect(view.result.current.loading).toBe(false));
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): ZAPIS ODMAWIA PRZY NIEZNANYM
+  // OBSZARZE ROBOCZYM. Wczesniej insert lecial, choc lista byla w tym stanie
+  // wylaczona - zapis w ciemno. Kontrakt: `tenantId === null` -> `null` bez
+  // zadnego zapytania, symetrycznie do wylaczonej listy.
+  it("zapis przy nieznanym obszarze roboczym odmawia bez zapytania", async () => {
+    h.tenantId = null;
+    respondWidgets({ list: ok([]), single: ok({ id: "g-new" }) });
+    const { wrapper } = harness();
+    const view = renderHook(() => useGlobalWidgets(), { wrapper });
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
 
-      let created: string | null = "cos";
-      await act(async () => {
-        created = await view.result.current.save("Zapis w ciemno", widget);
-      });
+    let created: string | null = "cos";
+    await act(async () => {
+      created = await view.result.current.save("Zapis w ciemno", widget);
+    });
 
-      expect(db().chainsFor(TABLE)).toHaveLength(0);
-      expect(created).toBeNull();
-    },
-  );
+    expect(db().chainsFor(TABLE)).toHaveLength(0);
+    expect(created).toBeNull();
+  });
 
-  // DEFEKT: MUTACJE NIE DOMYKAJA FILTRA OBSZARU ROBOCZEGO.
-  //
-  // WEJSCIE: `rename("g1", ...)` i `remove("g1")` z panelu palety.
-  // CO PSUJE: oba zapytania (src/lib/builder/globalWidgets.ts:217 i :225)
-  //   filtruja WYLACZNIE `.eq("id", id)`. Lista w tym samym hooku domyka
-  //   `.eq("tenant_id", tenantId)` (:181), wiec regula repo "tenant_id w kazdej
-  //   kwerendzie" jest zlamana w trzech miejscach jednego modulu.
-  // KONSEKWENCJA: identyfikator globala wystarczy, zeby zmienic nazwe albo
-  //   skasowac cudzy wiersz - broni tego wylacznie RLS po stronie serwera,
-  //   czyli obrona w glab ma jedna warstwe zamiast dwoch. Skasowany global
-  //   znika ze wszystkich stron obcej redakcji naraz.
-  // WYMAGANA POPRAWKA: obie mutacje domykaja `.eq("tenant_id", tenantId)` obok
-  //   `.eq("id", id)`, tym samym tenantem, ktorym filtruje lista.
-  it.fails("DEFEKT: zmiana nazwy i usuniecie MUSZA domykac filtr tenant_id obok id", async () => {
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): MUTACJE DOMYKAJA FILTR OBSZARU
+  // ROBOCZEGO. Wczesniej `rename` i `remove` filtrowaly wylacznie po id, wiec
+  // przed skasowaniem cudzego globala bronil tylko RLS. Kontrakt: obie mutacje
+  // domykaja `.eq("tenant_id", tenantId)` obok `.eq("id")` tenantem listy.
+  it("zmiana nazwy i usuniecie domykaja filtr tenant_id obok id", async () => {
     respondWidgets({ list: ok([]), write: ok(null) });
     const { wrapper } = harness();
     const view = renderHook(() => useGlobalWidgets(), { wrapper });

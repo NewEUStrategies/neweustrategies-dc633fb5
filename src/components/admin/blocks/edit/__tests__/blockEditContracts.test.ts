@@ -122,16 +122,14 @@ describe("3. parytet tabeli testowej z dyspozytorem", () => {
     expect(brakujace).toEqual([]);
   });
 
-  it("tabela nie zmyśla edytorów - poza jednym NIEPODŁĄCZONYM", () => {
-    // `LinkPreviewBlock` jest w tabeli ŚWIADOMIE: komponent istnieje i ma
-    // 146 linii, ale `switch` nie ma dla niego `case`, więc jest nieosiągalny
-    // z panelu. Ten rozjazd ma własny, pełny opis i `it.fails`
-    // w `src/components/admin/blocks/__tests__/blockEditorRegistryParity.test.ts`.
-    // Tutaj jest tylko po to, żeby przejazd czterech przypadków JEDNAK go
-    // pokrywał - inaczej naprawa podłączenia szłaby w kod bez testów.
+  it("tabela nie zmyśla edytorów - każdy jej wpis jest wołany ze switcha", () => {
+    // NAPRAWIONE 2026-10-18: `LinkPreviewBlock` był tu jedynym wyjątkiem -
+    // komponent istniał, ale `switch` nie miał dla niego `case`, więc edytor
+    // był nieosiągalny z panelu. Dyspozytor ma już `case "link-preview"`
+    // (dowód zachowania: `blockEditorRegistryParity.test.ts`).
     const dispatched = dispatchedComponents();
     const nadmiarowe = ALL_EDITOR_NAMES.filter((name) => !dispatched.has(name));
-    expect(nadmiarowe).toEqual(["LinkPreviewBlock"]);
+    expect(nadmiarowe).toEqual([]);
   });
 
   it("tabela ma 98 wpisów i żadnej nazwy dwa razy", () => {
@@ -188,7 +186,10 @@ describe("4. stan odmowy - w tej warstwie NIE DA SIĘ go wyrazić", () => {
     // a nie warunkowy.
     const html = readFileSync(`${EDIT_DIR}/Html.tsx`, "utf8");
     expect(html).toContain("onChange: _onChange");
-    expect(html).toContain("edytuj surowy HTML w panelu");
+    // Od 2026-10-18 skierowanie do panelu idzie ze słownika (wcześniej polski
+    // napis na sztywno widział też panel angielski); TREŚĆ podpowiedzi w obu
+    // językach dowodzi `embedHtmlFileSearchEditorsWrites.test.tsx`.
+    expect(html).toContain('i18n.editor("html", "emptyHint")');
     for (const name of ["PageBreak.tsx", "Separator.tsx"]) {
       const src = readFileSync(`${EDIT_DIR}/${name}`, "utf8");
       expect(src, `${name}: pojawiło się pole edycji`).not.toMatch(/onChange=\{/);

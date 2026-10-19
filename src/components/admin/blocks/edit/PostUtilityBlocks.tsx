@@ -1,10 +1,15 @@
 // Admin edytory dla bloków Phase 2 batch 6:
 // breadcrumbs, reading-time, share-buttons, post-views.
 // Lekkie kontrolki spójne z resztą edit/ - bez zewnętrznych zaleznosci UI.
+//
+// Odczyt `block.data` idzie przez TE SAME czytniki, co renderer publiczny
+// (`components/blocks/renderer/data.ts`), żeby panel pokazywał wartość,
+// której strona użyje - a nie `[object Object]` czy `NaN` z importu.
 
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { bool, num, str, strList } from "@/components/blocks/renderer/data";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -26,8 +31,8 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
 export function BreadcrumbsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pu = (k: string) => i18n.editor("postUtility", k);
-  const sep = String(block.data.separator ?? "/");
-  const showHome = block.data.showHome !== false;
+  const sep = str(block.data, "separator", "/");
+  const showHome = bool(block.data, "showHome", true);
   return (
     <Shell label={pu("breadcrumbsLabel")}>
       <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
@@ -57,8 +62,8 @@ export function BreadcrumbsBlock({ block, onChange }: Props) {
 export function ReadingTimeBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pu = (k: string) => i18n.editor("postUtility", k);
-  const wpm = Number(block.data.wpm ?? 220);
-  const prefix = String(block.data.prefix ?? "");
+  const wpm = num(block.data, "wpm", 220);
+  const prefix = str(block.data, "prefix");
   return (
     <Shell label={pu("readingTimeLabel")}>
       <div className="grid grid-cols-2 gap-2">
@@ -93,17 +98,24 @@ const ALL_NETWORKS = [
   "copy",
 ] as const;
 
+/** Sieci, które `ShareButtonsView` rysuje, gdy lista jest pusta albo jej nie ma. */
+const DEFAULT_NETWORKS = ["facebook", "x", "linkedin", "copy"];
+
 export function ShareButtonsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pu = (k: string) => i18n.editor("postUtility", k);
-  const networks = Array.isArray(block.data.networks)
-    ? (block.data.networks as string[])
-    : ["facebook", "x", "linkedin", "copy"];
-  const variant = String(block.data.variant ?? "filled");
+  // Renderer czyta wyłącznie napisy, a PUSTĄ listę zamienia na domyślne
+  // cztery sieci - panel pokazuje dokładnie ten sam zestaw.
+  const stored = strList(block.data, "networks");
+  const networks = stored.length > 0 ? stored : DEFAULT_NETWORKS;
+  const variant = str(block.data, "variant", "filled");
 
   const toggle = (n: string) => {
     const has = networks.includes(n);
     const next = has ? networks.filter((x) => x !== n) : [...networks, n];
+    // Pusta lista na stronie znaczy „pokaż domyślne" - zapis `[]` obiecywałby
+    // pasek bez przycisków, a strona narysowałaby cztery. Ostatnia sieć zostaje.
+    if (next.length === 0) return;
     onChange({ ...block, data: { ...block.data, networks: next } });
   };
 
@@ -125,6 +137,7 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
             <button
               key={n}
               type="button"
+              aria-pressed={active}
               onClick={() => toggle(n)}
               className={[
                 "text-[11px] px-2 py-1 rounded border transition-colors capitalize",
@@ -145,7 +158,7 @@ export function ShareButtonsBlock({ block, onChange }: Props) {
 export function PostViewsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pu = (k: string) => i18n.editor("postUtility", k);
-  const suffix = String(block.data.suffix ?? "");
+  const suffix = str(block.data, "suffix");
   return (
     <Shell label={pu("viewsLabel")}>
       <input

@@ -16,7 +16,7 @@
 // Kolory (linia, kropki lądu, znaczniki, tło) siedzą tu, a nie w schemacie,
 // żeby autor miał je obok podglądu listy - reszta ustawień skalarnych zostaje
 // w `WIDGET_SCHEMAS["world-map"]` i panel dorysowuje ją pod tym edytorem.
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toJson, type Json, type WidgetNode } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
 import {
@@ -78,6 +78,14 @@ const numOf = (v: unknown, fb = 0): number => {
 };
 
 type Translate = (pl: string, en: string) => string;
+
+/**
+ * Lista krajów posortowana alfabetycznie po nazwie angielskiej (z tego samego
+ * zasobu geo, z którego liczone są centroidy). Raz na moduł: wcześniej każdy
+ * punkt łuku (dwa na połączenie) sortował ~250 krajów `localeCompare`
+ * przy montowaniu.
+ */
+const COUNTRIES_BY_NAME = [...COUNTRY_CENTROIDS].sort((a, b) => a.en.localeCompare(b.en));
 
 /** Nowe połączenie dziedziczy początek po ostatnim - typowy układ „centrala -> świat". */
 function newConnection(previous: Item | undefined): Item {
@@ -301,6 +309,7 @@ function SortableConnectionRow({
           onLabel={(l2, v) => onPatch({ [`startLabel_${l2}`]: v })}
           onLat={(v) => onPatch({ startLat: v })}
           onLng={(v) => onPatch({ startLng: v })}
+          onCoords={(lat, lng) => onPatch({ startLat: lat, startLng: lng })}
           onUserId={(v) => onPatch({ startUserId: v })}
         />
 
@@ -317,6 +326,7 @@ function SortableConnectionRow({
           onLabel={(l2, v) => onPatch({ [`endLabel_${l2}`]: v })}
           onLat={(v) => onPatch({ endLat: v })}
           onLng={(v) => onPatch({ endLng: v })}
+          onCoords={(lat, lng) => onPatch({ endLat: lat, endLng: lng })}
           onUserId={(v) => onPatch({ endUserId: v })}
         />
 
@@ -352,6 +362,12 @@ interface EndpointProps {
   onLabel: (lang: "pl" | "en", value: string) => void;
   onLat: (v: number) => void;
   onLng: (v: number) => void;
+  /**
+   * Obie współrzędne naraz - JEDEN zapis. Dwa osobne `onLat` + `onLng` liczą
+   * listę z tego samego (zamrożonego w renderze) stanu, więc drugi nadpisałby
+   * pierwszy i z wyboru kraju zostałaby sama długość.
+   */
+  onCoords: (lat: number, lng: number) => void;
   onUserId: (v: string) => void;
 }
 
@@ -368,6 +384,7 @@ function EndpointFields({
   onLabel,
   onLat,
   onLng,
+  onCoords,
   onUserId,
 }: EndpointProps) {
   const l: Translate = (pl, en) => (lang === "pl" ? pl : en);
@@ -375,19 +392,11 @@ function EndpointFields({
   const latErr = coerceLat(lat) === null;
   const lngErr = coerceLng(lng) === null;
 
-  // Lista krajów posortowana alfabetycznie w języku panelu; nazwy angielskie
-  // pochodzą z tego samego zasobu geo, z którego liczone są centroidy.
-  const countries = useMemo(
-    () => [...COUNTRY_CENTROIDS].sort((a, b) => a.en.localeCompare(b.en)),
-    [],
-  );
-
   const pickCountry = (id: string) => {
     setCountry(id);
     const hit = COUNTRY_CENTROIDS.find((x) => x.id === id);
     if (!hit) return;
-    onLat(hit.lat);
-    onLng(hit.lng);
+    onCoords(hit.lat, hit.lng);
   };
 
   return (
@@ -442,7 +451,7 @@ function EndpointFields({
             <SelectValue placeholder={l("Wybierz kraj…", "Pick a country…")} />
           </SelectTrigger>
           <SelectContent>
-            {countries.map((x) => (
+            {COUNTRIES_BY_NAME.map((x) => (
               <SelectItem key={x.id} value={x.id}>
                 {x.en} ({x.id})
               </SelectItem>

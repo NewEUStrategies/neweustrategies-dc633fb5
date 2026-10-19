@@ -7,6 +7,7 @@ import { Link2, Plus, Trash2 } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/content-model/json";
+import { str } from "@/components/blocks/renderer/data";
 
 interface Props {
   block: Block;
@@ -63,12 +64,14 @@ export function LinkPreviewBlock({ block, onChange }: Props) {
       <div className="grid gap-2 sm:grid-cols-2">
         <Input
           placeholder={lp("introPl")}
-          value={String(block.data.introPl ?? "")}
+          // Wstęp-obiekt (migracja treści dwujęzycznej) nie wchodzi do pola jako
+          // „[object Object]" - strona i tak czyta tu wyłącznie napis.
+          value={str(block.data, "introPl")}
           onChange={(e) => patch("introPl", e.target.value)}
         />
         <Input
           placeholder={lp("introEn")}
-          value={String(block.data.introEn ?? "")}
+          value={str(block.data, "introEn")}
           onChange={(e) => patch("introEn", e.target.value)}
         />
       </div>

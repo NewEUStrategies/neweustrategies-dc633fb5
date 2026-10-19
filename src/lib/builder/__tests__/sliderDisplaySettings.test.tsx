@@ -368,9 +368,9 @@ describe("slider - koercja pozostałych ustawień", () => {
     expect(mediaOf(container)?.style.aspectRatio).toBe(ratio.replace("/", " / "));
   });
 
-  it("wraca do proporcji domyślnych, gdy zapisana wartość jest spoza katalogu", () => {
+  it("wraca do proporcji domyślnych panelu (16/9), gdy zapisana wartość jest spoza katalogu", () => {
     const { container } = renderSlider({ ratio: "7/3" as unknown as SliderRatio });
-    expect(mediaOf(container)?.style.aspectRatio).toBe("4 / 3");
+    expect(mediaOf(container)?.style.aspectRatio).toBe("16 / 9");
   });
 
   const roundedCases: Array<[SliderRounded, string]> = [
@@ -396,44 +396,29 @@ describe("slider - koercja pozostałych ustawień", () => {
     },
   );
 
-  // DEFEKT: DOMYŚLNY WARIANT IGNORUJE USTAWIENIE ZAOKRĄGLENIA KADRU.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): DOMYŚLNY WARIANT HONORUJE
+  // ZAOKRĄGLENIE KADRU.
   //
-  // WEJSCIE: widget bez zmiany wariantu (czyli `editorial-hero`, wartość
-  //   domyślna) z ustawieniem "Zaokrąglenie: pełne", które panel zapisuje
-  //   jako `rounded: "full"`.
-  // CO PSUJE: `SliderRender` wylicza promień z `radiusMap`
-  //   (src/lib/builder/sliderVariants.tsx:780) i podaje go wariantom jako
-  //   `p.rounded`, ale `EditorialHeroVariant` wpisuje w kadr stałą
-  //   `borderRadius: 4` (tamże :1147) i wyliczonej wartości nigdy nie czyta.
-  //   Cztery pozostałe warianty (cinematic-overlay, split-feature,
-  //   minimal-strip, multi-card) używają `p.rounded` poprawnie.
-  // KONSEKWENCJA: ustawienie jest martwe dokładnie w tym wariancie, który ma
-  //   większość widgetów. Redaktor przestawia listę, panel pokazuje nową
-  //   opcję jako wybraną, a kadr wygląda identycznie - klasyczne "wybrałem,
-  //   nic się nie stało", którego z panelu nie da się rozpoznać.
-  // WYMAGANA POPRAWKA: `EditorialHeroVariant` ma rysować kadr z `p.rounded`,
-  //   tak samo jak pozostałe warianty; stała 4 px może zostać najwyżej jako
-  //   wartość domyślna mapy, nie jako nadpisanie konfiguracji.
-  it.fails("DEFEKT: wariant editorial-hero też honoruje zaokrąglenie kadru", () => {
-    const { container } = renderSlider({ variant: "editorial-hero", rounded: "full" });
-    expect(mediaOf(container)?.style.borderRadius).toBe("9999px");
-  });
+  // `EditorialHeroVariant` rysował kadr ze stałym `borderRadius: 4`, więc
+  // lista "Zaokrąglenie" była martwa w wariancie, który ma większość
+  // widgetów. Teraz kadr bierze promień z tej samej mapy co cztery pozostałe
+  // warianty - KAŻDA wartość katalogu musi dojść do DOM-u.
+  it.each(roundedCases)(
+    "przekłada zaokrąglenie %s na promień %s kadru także w wariancie editorial-hero",
+    (rounded, radius) => {
+      const { container } = renderSlider({ variant: "editorial-hero", rounded });
+      expect(mediaOf(container)?.style.borderRadius).toBe(radius);
+    },
+  );
 
-  // DEFEKT: PANEL I RENDERER MAJĄ DWIE RÓŻNE PROPORCJE DOMYŚLNE.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): PANEL I RENDERER MAJĄ JEDNĄ
+  // PROPORCJĘ DOMYŚLNĄ.
   //
-  // WEJSCIE: widget slidera, w którym nikt nigdy nie dotknął listy "Proporcje"
-  //   (pole `ratio` nie istnieje w zapisanej treści).
-  // CO PSUJE: panel czyta `asOneOf(c.ratio, SLIDER_RATIOS, "16/9")`
-  //   (src/components/admin/builder/widget-props/SliderEditor.tsx:53), a
-  //   renderer `asOneOf(config.ratio, SLIDER_RATIOS, "4/3")`
-  //   (src/lib/builder/sliderVariants.tsx:775). Obie strony są "poprawne"
-  //   osobno i sprzeczne razem.
-  // KONSEKWENCJA: panel pokazuje 16/9 jako zaznaczone, a strona rysuje 4/3.
-  //   Redaktor widzi inny kadr niż wybrany i "naprawia" go ręcznie, więc
-  //   dokument zapisuje wartość, której nie chciał zmieniać.
-  // WYMAGANA POPRAWKA: jedna wartość domyślna po obu stronach - to, co panel
-  //   pokazuje jako zaznaczone, musi być tym, co widz widzi.
-  it.fails("DEFEKT: kadr bez zapisanego pola ma proporcje pokazywane w panelu", () => {
+  // Panel (`SliderEditor`) i oba miejsca wywołania (`SimpleWidgets`,
+  // `PostsSliderWidget`) przyjmowały 16/9, a sam renderer 4/3 - widget bez
+  // pola `ratio` (np. podgląd w panelu) rysował inny kadr niż zaznaczony.
+  // Renderer cofa się teraz do 16/9, więc zaznaczone = narysowane.
+  it("kadr bez zapisanego pola ma proporcje pokazywane w panelu (16/9)", () => {
     const { container } = renderSlider({});
     expect(mediaOf(container)?.style.aspectRatio).toBe("16 / 9");
   });
@@ -627,23 +612,15 @@ describe("slider - pasek miniatur wariantu minimal-strip", () => {
     expect(captionTitleOf(container)).toBe("Slajd 1");
   });
 
-  // DEFEKT: WYŁĄCZONA OKŁADKA ZOSTAJE WIDOCZNA W PASKU MINIATUR.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): WYŁĄCZONA OKŁADKA ZNIKA TAKŻE
+  // Z PASKA MINIATUR.
   //
-  // WEJSCIE: wariant `minimal-strip` z odznaczonym "Pokaż okładkę"
-  //   (`showCover: false`) i co najmniej dwoma slajdami.
-  // CO PSUJE: wyłączenie okładki działa wyłącznie przez arkusz - reguła
-  //   `.eh-slider[data-hide-cover="true"]` chowa `.eh-img`, `.eh-hover-zoom`
-  //   i `.eh-card-media img` (src/lib/builder/sliderVariants.tsx:457-459).
-  //   Miniatura ma klasę "absolute inset-0 w-full h-full object-cover"
-  //   (tamże :1816-1828) i leży w `[data-thumb-strip]`, czyli nie łapie jej
-  //   żaden z trzech selektorów.
-  // KONSEKWENCJA: redaktor wyłącza okładki, główny kadr faktycznie gaśnie,
-  //   a pod spodem nadal stoi rząd tych samych zdjęć w miniaturze. Ustawienie
-  //   wygląda na zepsute właśnie w wariancie, który miniatur używa.
-  // WYMAGANA POPRAWKA: `data-hide-cover="true"` ma chować KAŻDY obraz
-  //   pochodzący z okładki - albo przez dopisanie paska do reguły, albo przez
-  //   ukrycie całego paska razem z okładkami.
-  it.fails("DEFEKT: wyłączenie okładki chowa również pasek miniatur", () => {
+  // Reguła `.eh-slider[data-hide-cover="true"]` chowa teraz również obrazy
+  // w `[data-thumb-strip]` (przyciski zostają jako wskaźnik pozycji na
+  // wyciszonym tle, jak karty multi-card bez okładki). Kaskadę liczy happy-dom
+  // z arkusza wspólnego, więc test patrzy na OBLICZONĄ widoczność, nie na
+  // tekst reguły.
+  it("wyłączenie okładki chowa również pasek miniatur", () => {
     const { container } = renderStrip({ showCover: false });
     const stillVisible = Array.from(container.querySelectorAll("img")).filter(
       (img) => getComputedStyle(img).visibility !== "hidden",
@@ -721,30 +698,32 @@ describe("slider - czas czytania i separator metadanych", () => {
     },
   );
 
-  // DEFEKT: WARIANT MINIMAL-STRIP GUBI CAŁY WIERSZ METADANYCH.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): WARIANT MINIMAL-STRIP POKAZUJE
+  // WIERSZ METADANYCH.
   //
-  // WEJSCIE: slajd z autorem i czasem czytania w wariancie `minimal-strip`,
-  //   przy domyślnie włączonym "Pokaż autora".
-  // CO PSUJE: `SliderRender` rozstrzyga `author`, `showAuthor` i `authorStyle`
-  //   i przekazuje je we wspólnych propsach każdemu wariantowi, ale
-  //   `MinimalStripVariant` (src/lib/builder/sliderVariants.tsx:1718-1835)
-  //   rysuje w pasku podpisu wyłącznie kategorię, tytuł i zajawkę - bylina
-  //   i zegar nie mają tam ani jednej linii kodu.
-  // KONSEKWENCJA: ustawienia "Pokaż autora", `authorSizePx` i
-  //   `authorAvatarSizePx` są w tym wariancie martwe, a panel pokazuje je
-  //   bez żadnego zawężenia - redaktor przestawia suwaki, które nic nie robią.
-  //   To ta sama klasa martwych ustawień, którą deadWidgetSettings.test.ts
-  //   pilnuje dla nagłówka.
-  // WYMAGANA POPRAWKA: pasek podpisu ma pokazywać bylinę i czas czytania jak
-  //   pozostałe cztery warianty, albo panel ma te pola dla `minimal-strip`
-  //   chować - milczące ignorowanie ustawienia jest jedyną opcją zakazaną.
-  it.fails("DEFEKT: wariant minimal-strip pokazuje autora i czas czytania", () => {
+  // Pasek podpisu `MinimalStripVariant` rysował tylko kategorię, tytuł
+  // i zajawkę, więc "Pokaż autora", `authorSizePx` i `authorAvatarSizePx` były
+  // tu martwe. Teraz ma bylinę i zegar jak pozostałe warianty - ten sam
+  // separator "·" pojawia się wyłącznie przy obu informacjach naraz.
+  it("wariant minimal-strip pokazuje autora i czas czytania", () => {
     const { container } = renderSlider({
       variant: "minimal-strip",
       items: withMeta({ author: "Anna Nowak", readTime: "5 min" }),
     });
-    expect(container.textContent).toContain("Anna Nowak");
-    expect(container.textContent).toContain("5 min");
+    const row = metaRowOf(container)?.textContent ?? "";
+    expect(row).toContain("Anna Nowak");
+    expect(row).toContain("5 min");
+    expect(row).toContain("·");
+  });
+
+  it("wariant minimal-strip chowa autora wyłączonego w panelu, zostawiając czas czytania", () => {
+    const { container } = renderSlider({
+      variant: "minimal-strip",
+      showAuthor: false,
+      items: withMeta({ author: "Anna Nowak", readTime: "5 min" }),
+    });
+    expect(container.textContent).not.toContain("Anna Nowak");
+    expect(metaRowOf(container)?.textContent).toBe("⏱ 5 min");
   });
 });
 
@@ -771,21 +750,14 @@ describe("slider - pusty stan bez slajdów", () => {
     expect(emptyBoxOf(container)?.textContent).toContain("Dodaj obrazki do slidera");
   });
 
-  // DEFEKT: PUSTY STAN ODZYWA SIĘ PO POLSKU NA ANGIELSKIEJ STRONIE.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): PUSTY STAN MÓWI JĘZYKIEM STRONY.
   //
-  // WEJSCIE: widget slidera bez zapisanych slajdów, wyrenderowany z
-  //   `lang="en"` (angielska wersja strony albo podgląd EN w buforze).
-  // CO PSUJE: tekst "Dodaj obrazki do slidera" jest wpisany w kod na sztywno
-  //   (src/lib/builder/sliderVariants.tsx:931), mimo że komponent dostaje
-  //   `lang` i używa go wszędzie indziej. To ten sam dług, co przy etykietach
-  //   miniatur wyżej - opisany tam w całości.
-  // KONSEKWENCJA: pusty widget na anglojęzycznej stronie mówi po polsku.
-  //   Widzi to nie tylko redakcja: pusty stan renderuje się także publicznie,
-  //   gdy wszystkie slajdy zostaną usunięte lub odfiltrowane.
-  // WYMAGANA POPRAWKA: komunikat w PL i EN wybierany po propsie `lang`.
-  it.fails("DEFEKT: pusty stan nie odzywa się po polsku przy lang=en", () => {
+  // Komunikat był wpisany na sztywno po polsku, choć komponent dostaje `lang`.
+  // Pusty stan renderuje się też publicznie (wszystkie slajdy usunięte lub
+  // odfiltrowane), więc angielska strona musi mówić po angielsku.
+  it("pusty stan nie odzywa się po polsku przy lang=en", () => {
     const { container } = renderSlider({ items: [] }, "en");
-    expect(container.textContent).not.toContain("Dodaj obrazki do slidera");
+    expect(emptyBoxOf(container)?.textContent).toBe("Add images to the slider");
   });
 });
 
@@ -883,15 +855,18 @@ describe("slider - chrom nawigacji nie uruchamia nawigacji slajdu", () => {
     },
   );
 
-  it.each(["editorial-hero", "multi-card", "cinematic-overlay", "split-feature"] as const)(
-    "kliknięcie w bylinę autora w wariancie %s zostaje w bylinie",
-    (variant) => {
-      const spy = vi.fn();
-      const { container } = renderWithOuterClick({ variant }, spy);
-      fireEvent.click(container.querySelector<HTMLElement>("[data-author-byline]")!);
-      expect(spy).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    "editorial-hero",
+    "multi-card",
+    "cinematic-overlay",
+    "split-feature",
+    "minimal-strip",
+  ] as const)("kliknięcie w bylinę autora w wariancie %s zostaje w bylinie", (variant) => {
+    const spy = vi.fn();
+    const { container } = renderWithOuterClick({ variant }, spy);
+    fireEvent.click(container.querySelector<HTMLElement>("[data-author-byline]")!);
+    expect(spy).not.toHaveBeenCalled();
+  });
 
   it.each(["multi-card", "split-feature"] as const)(
     "strzałki przy kropkach w wariancie %s przewijają karuzelę",

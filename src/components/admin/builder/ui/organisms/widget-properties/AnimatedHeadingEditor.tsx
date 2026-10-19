@@ -2,7 +2,6 @@
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -11,14 +10,15 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PropField, ColorField } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { DynamicTagInserter } from "../../molecules/DynamicTagInserter";
 import {
   ANIMATED_MODES,
   ANIMATED_SHAPES,
   AnimatedHeadingRender,
+  resolveAnimatedHeadingShape,
   type AnimatedHeadingConfig,
   type AnimatedHeadingMode,
-  type AnimatedHeadingShape,
 } from "@/lib/builder/animatedHeadingVariants";
 import { LinkPicker } from "../../molecules/LinkPicker";
 import {
@@ -29,6 +29,9 @@ import {
 import { resolveDynamicText, resolveDynamicList } from "@/lib/builder/dynamicText";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { PLACEHOLDER_POST_CTX } from "@/lib/content-model/postContext";
+import { asStr } from "@/lib/content-model/contentValue";
+import { LineListTextarea } from "./LineListTextarea";
+import { readLineList } from "./lineList";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
 
@@ -38,12 +41,24 @@ interface Props {
   setContent: (k: string, v: Json) => void;
 }
 
+// Dolne granice z `AnimatedHeadingRender` (`Math.max(300, durationMs)`,
+// `Math.max(0, delayMs)`) - wspólne dla wszystkich trybów. Górnej renderer nie
+// ma, więc panel też jej nie wymyśla.
+const MIN_DURATION_MS = 300;
+const MIN_DELAY_MS = 0;
+
 export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
-  const mode = (typeof c.mode === "string" ? c.mode : "highlight") as AnimatedHeadingMode;
-  const shape = (typeof c.shape === "string" ? c.shape : "underline") as AnimatedHeadingShape;
-  const tag = (typeof c.tag === "string" ? c.tag : "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+  // Odczyty jak w rendererze (`getStr(...) || domyślna`): PUSTY napis to „nie
+  // ustawiono", a nie-napis to pustka. Dosłowny odczyt wysypywał panel - pusty
+  // znacznik dawał podglądowi element bez nazwy, a liczba w tekście padała
+  // w `resolveDynamicText` na `indexOf`.
+  const mode = (asStr(c.mode) || "highlight") as AnimatedHeadingMode;
+  // Kształt przez katalog jak w rendererze: zapis spoza `ANIMATED_SHAPES` to
+  // kształt domyślny trybu, więc zaznaczony kafelek = kształt na stronie.
+  const shape = resolveAnimatedHeadingShape(c.shape, mode);
+  const tag = (asStr(c.tag) || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
   const visibleShapes =
     mode === "hover-underline"
@@ -68,29 +83,46 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
       setContent("shape", "underline");
     }
   };
-  const align = (typeof c.align === "string" ? c.align : "left") as "left" | "center" | "right";
+  const align = (asStr(c.align) || "left") as "left" | "center" | "right";
 
-  const textBefore = (c[`textBefore_${lang}`] as string) || "";
-  const textAfter = (c[`textAfter_${lang}`] as string) || "";
-  const highlight = (c[`highlight_${lang}`] as string) || "";
-  const rotateRaw = c[`rotateWords_${lang}`];
-  const rotateWords: string[] = Array.isArray(rotateRaw)
-    ? rotateRaw.filter((x): x is string => typeof x === "string")
-    : [];
+  const textBefore = asStr(c[`textBefore_${lang}`]);
+  const textAfter = asStr(c[`textAfter_${lang}`]);
+  const highlight = asStr(c[`highlight_${lang}`]);
+  // Starszy zapis jednym napisem z liniami renderer czyta - panel też musi,
+  // inaczej pokazywał pustą listę, a wstawienie znacznika ją nadpisywało.
+  const rotateWords = readLineList(c[`rotateWords_${lang}`]);
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
   const accentColor = (typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346";
-  const durationMs = typeof c.durationMs === "number" ? c.durationMs : 1600;
-  const delayMs = typeof c.delayMs === "number" ? c.delayMs : 200;
+  // Odczyt jak w rendererze (`getNum`, potem dolna granica `AnimatedHeadingRender`),
+  // żeby pole pokazywało czas, który kanwa naprawdę odtwarza.
+  const durationMs = Math.max(
+    MIN_DURATION_MS,
+    typeof c.durationMs === "number" ? c.durationMs : 1600,
+  );
+  const delayMs = Math.max(MIN_DELAY_MS, typeof c.delayMs === "number" ? c.delayMs : 200);
   const loop = c.loop !== false;
 
-  const setWords = (txt: string) => {
-    const arr = txt
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    setContent(`rotateWords_${lang}`, toJson(arr));
-  };
+  // Wspólny atom liczby: szkic lokalny (wyczyszczenie pola nie wstawia wartości
+  // domyślnej w trakcie pisania), zapis w locie od dolnej granicy, klamra przy
+  // wyjściu z pola. Zapis tylko przy realnej zmianie.
+  const msField = (
+    key: "durationMs" | "delayMs",
+    value: number,
+    min: number,
+    step: number,
+    label: string,
+  ) => (
+    <ClampedNumberInput
+      value={value}
+      min={min}
+      step={step}
+      ariaLabel={label}
+      onCommit={(v) => {
+        if (v !== undefined && v !== value) setContent(key, v);
+      }}
+    />
+  );
 
   const appendToken = (field: string, current: string, token: string) => {
     const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
@@ -303,10 +335,10 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
             label={t("builder.animatedHeadingEditor.rotateWords", { lang: lang.toUpperCase() })}
           >
             <div className="flex items-start gap-1.5">
-              <Textarea
+              <LineListTextarea
                 rows={4}
-                value={rotateWords.join("\n")}
-                onChange={(e) => setWords(e.target.value)}
+                value={rotateWords}
+                onChange={(next) => setContent(`rotateWords_${lang}`, toJson(next))}
                 placeholder={t("builder.animatedHeadingEditor.rotatePh")}
                 className="text-xs font-mono"
               />
@@ -354,40 +386,34 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
         <div className="grid grid-cols-2 gap-2">
           {(mode === "hover-underline" || mode === "hover-allsides") && (
             <PropField label={t("builder.animatedHeadingEditor.duration")}>
-              <Input
-                type="number"
-                min={100}
-                max={3000}
-                step={50}
-                value={durationMs}
-                onChange={(e) => setContent("durationMs", Number(e.target.value) || 300)}
-                className="h-8 text-xs"
-              />
+              {msField(
+                "durationMs",
+                durationMs,
+                MIN_DURATION_MS,
+                50,
+                t("builder.animatedHeadingEditor.duration"),
+              )}
             </PropField>
           )}
           {(mode === "highlight" || mode === "rotate") && (
             <>
               <PropField label={t("builder.animatedHeadingEditor.duration")}>
-                <Input
-                  type="number"
-                  min={300}
-                  max={10000}
-                  step={100}
-                  value={durationMs}
-                  onChange={(e) => setContent("durationMs", Number(e.target.value) || 1600)}
-                  className="h-8 text-xs"
-                />
+                {msField(
+                  "durationMs",
+                  durationMs,
+                  MIN_DURATION_MS,
+                  100,
+                  t("builder.animatedHeadingEditor.duration"),
+                )}
               </PropField>
               <PropField label={t("builder.animatedHeadingEditor.delay")}>
-                <Input
-                  type="number"
-                  min={0}
-                  max={10000}
-                  step={100}
-                  value={delayMs}
-                  onChange={(e) => setContent("delayMs", Number(e.target.value) || 0)}
-                  className="h-8 text-xs"
-                />
+                {msField(
+                  "delayMs",
+                  delayMs,
+                  MIN_DELAY_MS,
+                  100,
+                  t("builder.animatedHeadingEditor.delay"),
+                )}
               </PropField>
               <PropField label={t("builder.animatedHeadingEditor.loopLabel")}>
                 <Select

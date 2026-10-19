@@ -60,7 +60,9 @@ export const isEditTargetKey = (key: string | null | undefined): key is string =
   !!key && Object.prototype.hasOwnProperty.call(EDIT_TARGET_META, key);
 
 export function clampEditTarget(key: string, value: number): number {
-  const meta = EDIT_TARGET_META[key];
+  // To samo sprawdzenie własności własnej co `isEditTargetKey`: klucz z
+  // prototypu ("constructor", "toString") nie może dać `meta` bez min/max (NaN).
+  const meta = isEditTargetKey(key) ? EDIT_TARGET_META[key] : undefined;
   if (!meta) return Math.round(value);
   return Math.max(meta.min, Math.min(meta.max, Math.round(value)));
 }

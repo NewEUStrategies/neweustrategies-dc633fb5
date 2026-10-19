@@ -69,6 +69,10 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
     return Math.max(1, Math.round(w / 220));
   }, [ctx?.readingTimeMin, ctx?.excerpt_pl, ctx?.excerpt_en, lang]);
 
+  // Poza kontekstem wpisu (strona główna, archiwum bez wpisu) każda pozycja
+  // byłaby zmyślona - np. „1 min" czytania liczone z pustego tekstu.
+  if (!ctx) return null;
+
   const parts: { key: string; node: React.ReactNode }[] = [];
   for (const it of list) {
     if (it === "date" && dateStr) {
@@ -108,9 +112,11 @@ export function PostStatsView({ items, separator = "•", lang = "pl", cls }: Po
           </span>
         ),
       });
-    } else if (it === "views") {
-      const n = typeof ctx?.viewCount === "number" ? ctx.viewCount : 0;
-      const f = new Intl.NumberFormat(uiLocale(lang)).format(n);
+    } else if (it === "views" && Number.isFinite(ctx.viewCount)) {
+      // Bez licznika w kontekście pozycja znika (jak „comments"), zamiast
+      // pokazywać każdemu wpisowi „0 wyświetleń". Trasa publiczna licznika
+      // jeszcze nie podaje - ma go tylko próbka podglądu buildera.
+      const f = new Intl.NumberFormat(uiLocale(lang)).format(ctx.viewCount as number);
       parts.push({
         key: "views",
         node: (
@@ -157,9 +163,14 @@ interface AggregatedRating {
   count: number;
 }
 
+/** Edytor oferuje 5 albo 10 gwiazdek; import/JSON może podać cokolwiek skończonego. */
+const RATING_MAX_LIMIT = 10;
+
 export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingProps) {
   const ctx = useCurrentPostCtx();
   const t = L[lang];
+  // Skala całkowita 1..10: `max: 1e6` z importu tworzył milion przycisków.
+  const scale = Number.isFinite(max) ? Math.min(RATING_MAX_LIMIT, Math.max(1, Math.round(max))) : 5;
   const postId = ctx?.id ?? null;
   const storageKey = postId ? `post-rating:${postId}` : null;
   const [hover, setHover] = useState<number | null>(null);
@@ -169,16 +180,19 @@ export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingP
   useEffect(() => {
     if (!storageKey) return;
     try {
-      const v = window.localStorage.getItem(storageKey);
-      if (v) setMine(Number(v));
+      const v = Number(window.localStorage.getItem(storageKey));
+      // Tylko ocena z bieżącej skali - śmieć w storage dawał `NaN`
+      // i podziękowanie bez żadnej zaznaczonej gwiazdki.
+      if (Number.isInteger(v) && v >= 1 && v <= scale) setMine(v);
     } catch {
       /* noop */
     }
-  }, [storageKey]);
+  }, [storageKey, scale]);
 
   const rate = useCallback(
     (n: number) => {
       if (!storageKey) return;
+      const previous = mine;
       setMine(n);
       try {
         window.localStorage.setItem(storageKey, String(n));
@@ -187,16 +201,19 @@ export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingP
       }
       // Local aggregate update for instant feedback; canonical persistence
       // requires a dedicated reactions table - out of scope for this block.
+      // Zmiana zdania tego samego czytelnika ZASTĘPUJE jego głos - wcześniej
+      // każde kliknięcie dokładało głos („3.0 (2)" od jednej osoby).
       setAgg((a) => {
-        const c = (a?.count ?? 0) + 1;
-        const sum = (a?.avg ?? n) * (a?.count ?? 0) + n;
-        return { avg: sum / c, count: c };
+        const count = a?.count ?? 0;
+        const sum = (a?.avg ?? 0) * count;
+        if (previous !== null && count > 0) return { avg: (sum - previous + n) / count, count };
+        return { avg: (sum + n) / (count + 1), count: count + 1 };
       });
     },
-    [storageKey],
+    [storageKey, mine],
   );
 
-  const stars = Array.from({ length: max }, (_, i) => i + 1);
+  const stars = Array.from({ length: scale }, (_, i) => i + 1);
   const displayed = hover ?? mine ?? Math.round(agg?.avg ?? 0);
   const heading = label && label.trim() ? label : t.rateTitle;
 
@@ -215,7 +232,7 @@ export function PostRatingView({ max = 5, label, lang = "pl", cls }: PostRatingP
             type="button"
             role="radio"
             aria-checked={mine === n}
-            aria-label={`${n}/${max}`}
+            aria-label={`${n}/${scale}`}
             onMouseEnter={() => setHover(n)}
             onClick={() => rate(n)}
             className="p-0.5 transition-transform hover:scale-110"

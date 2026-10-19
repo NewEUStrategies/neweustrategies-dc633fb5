@@ -25,10 +25,13 @@ import { contentPatchMutation } from "@/lib/builder/contentPatch";
 import {
   pickMode,
   setMode as setThemedMode,
-  isModeOverridden,
-  isThemedValue,
   pickShared,
+  pickInvertibleOverride,
+  setInvertibleMode,
+  resetInvertibleMode,
+  isInvertibleModeOverridden,
 } from "@/lib/builder/themed";
+import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
 import {
   Sun,
@@ -202,34 +205,38 @@ export function WidgetProperties({
     setWidgetWidth(seedWidthForMode(nextMode));
 
   // ---- Themed (light/dark) helpers for color-style fields ----
+  // Te kolory rysuje ramka widgetu przez `resolveColorForMode`: wartość płaska
+  // to zapis trybu jasnego, a ciemny bez własnej wartości dostaje ją
+  // ODWRÓCONĄ. Zapis i odczyt idą więc rodziną `*Invertible*` - ogólne
+  // `setMode` stemplowało przy edycji jasnego ciemny starą wartością i ramka
+  // przestawała odwracać. Pole pokazuje tylko wartość jawną trybu, a kolor
+  // wyliczony przez odwrócenie jako dziedziczony (tak, jak rysuje go kanwa).
   type ColorKey =
     "bgColor" | "textColor" | "borderColor" | "iconColor" | "iconHoverColor" | "iconActiveColor";
+  const storedColor = (key: ColorKey): Themed<string> | undefined =>
+    widget.style?.[key] as Themed<string> | undefined;
   const getColor = (key: ColorKey): string | undefined =>
-    pickMode<string>(widget.style?.[key] as Themed<string> | undefined, mode);
+    pickInvertibleOverride<string>(storedColor(key), mode);
+  /** Kolor, który ramka rysuje w bieżącym trybie, gdy ten tryb nie ma własnego. */
+  const derivedColor = (key: ColorKey): string | undefined =>
+    getColor(key) == null ? resolveColorForMode(storedColor(key), mode) : undefined;
+  const writeColor = (s: CommonStyle, key: ColorKey, next: Themed<string> | undefined) => {
+    if (next == null) delete (s as Record<string, unknown>)[key];
+    else (s[key] as Themed<string> | undefined) = next;
+  };
   const setColor = (key: ColorKey, v: string | undefined) =>
-    setStyle((s) => {
-      const prev = s[key] as Themed<string> | undefined;
-      const next = setThemedMode<string>(prev, mode, v);
-      (s[key] as Themed<string> | undefined) = next;
-    });
+    setStyle((s) =>
+      writeColor(s, key, setInvertibleMode<string>(s[key] as Themed<string> | undefined, mode, v)),
+    );
   const isOverridden = (key: ColorKey): boolean =>
-    isModeOverridden(widget.style?.[key] as Themed<string> | undefined, mode);
+    isInvertibleModeOverridden(storedColor(key), mode);
+  // Reset zdejmuje tylko jawną wartość trybu: w jasnym wartość płaska znika
+  // cała (ciemny był z niej wyliczany), w ciemnym kolor wraca do odwracania.
   const resetColor = (key: ColorKey) =>
     setStyle((s) => {
       const prev = s[key] as Themed<string> | undefined;
       if (prev == null) return;
-      if (isThemedValue<string>(prev)) {
-        const next = { ...prev };
-        delete next[mode];
-        if (next.light == null && next.dark == null) {
-          delete (s as Record<string, unknown>)[key];
-        } else {
-          (s[key] as Themed<string> | undefined) = next;
-        }
-      } else {
-        // Flat value applies to both modes - reset removes it entirely.
-        delete (s as Record<string, unknown>)[key];
-      }
+      writeColor(s, key, resetInvertibleMode<string>(prev, mode));
     });
 
   // Geometry is shared by light and dark. Legacy themed values are collapsed
@@ -282,6 +289,8 @@ export function WidgetProperties({
       const prev = s.hover ?? {};
       const merged: HoverStyle = { ...prev, ...next };
       // Re-wrap themed color fields so they preserve the other mode's value.
+      // Hover czyta kolor przez `pickMode` BEZ odwracania (`hoverCss`), więc
+      // zostaje przy ogólnym `setMode`: płaska wartość obowiązuje w obu trybach.
       if ("bgColor" in next) {
         const v = setThemedMode<string>(
           prev.bgColor as Themed<string> | undefined,
@@ -553,7 +562,7 @@ export function WidgetProperties({
               overridden={isOverridden("bgColor")}
               onReset={() => resetColor("bgColor")}
               placeholderHint={t("builder.widgetProps.inheritGlobal")}
-              inheritedValue={inherited.bgColor}
+              inheritedValue={derivedColor("bgColor") ?? inherited.bgColor}
             />
             <ThemedColorField
               label={t("builder.widgetProps.text")}
@@ -562,7 +571,7 @@ export function WidgetProperties({
               overridden={isOverridden("textColor")}
               onReset={() => resetColor("textColor")}
               placeholderHint={t("builder.widgetProps.inheritGlobal")}
-              inheritedValue={inherited.textColor}
+              inheritedValue={derivedColor("textColor") ?? inherited.textColor}
             />
           </section>
 
@@ -584,6 +593,7 @@ export function WidgetProperties({
               placeholderHint={
                 lang === "en" ? "inherits from text color" : "dziedziczy z koloru tekstu"
               }
+              inheritedValue={derivedColor("iconColor")}
             />
             <ThemedColorField
               label={lang === "en" ? "Hover" : "Po najechaniu"}
@@ -592,6 +602,7 @@ export function WidgetProperties({
               overridden={isOverridden("iconHoverColor")}
               onReset={() => resetColor("iconHoverColor")}
               placeholderHint={lang === "en" ? "inherits from default" : "dziedziczy z domyślnego"}
+              inheritedValue={derivedColor("iconHoverColor")}
             />
             <ThemedColorField
               label={lang === "en" ? "Active (current page)" : "Aktywny (bieżąca strona)"}
@@ -600,6 +611,7 @@ export function WidgetProperties({
               overridden={isOverridden("iconActiveColor")}
               onReset={() => resetColor("iconActiveColor")}
               placeholderHint={lang === "en" ? "inherits from hover" : "dziedziczy z hover"}
+              inheritedValue={derivedColor("iconActiveColor")}
             />
           </section>
 
@@ -758,7 +770,7 @@ export function WidgetProperties({
               overridden={isOverridden("borderColor")}
               onReset={() => resetColor("borderColor")}
               placeholderHint={t("builder.widgetProps.inheritGlobal")}
-              inheritedValue={inherited.borderColor}
+              inheritedValue={derivedColor("borderColor") ?? inherited.borderColor}
             />
           </section>
 

@@ -26,7 +26,8 @@ export interface TickerPost {
   author_avatar_url: string | null;
 }
 
-type ProfileAuthor = { id: string; display_name: string | null; avatar_url: string | null };
+/** Publiczna projekcja profilu (`profiles_public`) - `id` bywa nullowalne w typach widoku. */
+type ProfileAuthor = { id: string | null; display_name: string | null; avatar_url: string | null };
 
 interface NewsTickerInput {
   /** Rows to FETCH (over-fetched past the display limit when uniqueOnPage). */
@@ -44,8 +45,8 @@ function readBool(c: WidgetContent, key: string, dflt: boolean): boolean {
 function readNum(c: WidgetContent, key: string, dflt: number): number {
   return asNum(c[key], dflt);
 }
-function readStr(c: WidgetContent, key: string, dflt = ""): string {
-  return asStr(c[key]) || dflt;
+function readStr(c: WidgetContent, key: string): string {
+  return asStr(c[key]);
 }
 
 /** Number of items the ticker displays (before over-fetch). */
@@ -60,7 +61,7 @@ function wantsUniqueOnPage(c: WidgetContent): boolean {
 export function newsTickerInput(c: WidgetContent): NewsTickerInput {
   const display = newsTickerDisplayLimit(c);
   const limit = wantsUniqueOnPage(c) ? Math.min(60, display + UNIQUE_FETCH_HEADROOM) : display;
-  const categorySlugs = readStr(c, "categoriesCsv", "")
+  const categorySlugs = readStr(c, "categoriesCsv")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -90,12 +91,16 @@ async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
   );
   const profileMap = new Map<string, ProfileAuthor>();
   if (authorIds.length) {
+    // IZOLACJA NAJEMCY: widok `profiles_public` (zawężony do `public_tenant_id()`,
+    // tylko kolumny publiczne), nie tabela `profiles` - ten sam widok czytają
+    // post-lista, rekomendacje i autorzy slidera, więc kontrakt danych autora
+    // jest jeden. Odmowa odczytu zostawia wpis bez byline (pasek nie znika).
     const { data: profiles } = await supabase
-      .from("profiles")
+      .from("profiles_public")
       .select("id, display_name, avatar_url")
       .in("id", authorIds);
     for (const p of (profiles ?? []) as ProfileAuthor[]) {
-      profileMap.set(p.id, p);
+      if (p.id) profileMap.set(p.id, p);
     }
   }
 

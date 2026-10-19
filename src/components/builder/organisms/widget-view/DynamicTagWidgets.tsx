@@ -20,6 +20,8 @@ import {
 import { asBool, asNum, asOneOf, asStr, pickI18n } from "@/lib/content-model/contentValue";
 import { postViewCountQueryOptions } from "@/lib/builder/postViewCountQuery";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import {
   User as UserIcon,
   Clock,
@@ -71,6 +73,15 @@ function useCtx(): CurrentPostCtx | null {
 /** Odczyt stringa z treści widgetu z domyślną wartością (kanon: `asStr`). */
 function strOr(value: unknown, fallback: string): string {
   return asStr(value) || fallback;
+}
+
+/**
+ * Profil autora wpisu: zakodowany slug (`profileHref`) i prefiks języka
+ * (`localizedPath`) - te same pomocniki co reszta aplikacji, więc odnośnik ze
+ * strony EN nie prowadzi do profilu PL. Bez sluga - brak odnośnika.
+ */
+function authorProfilePath(slug: string | null | undefined, lang: Lang): string | null {
+  return slug ? localizedPath(profileHref({ slug, isAuthor: true }), lang) : null;
 }
 
 function pickLocalized(ctx: CurrentPostCtx, lang: Lang, key: "title" | "excerpt"): string {
@@ -163,7 +174,7 @@ function PostMetaWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const parts: ReactElement[] = [];
   const author = ctx.author;
   if (author && hasAuthorByline(author.name, authorDisplay)) {
-    const authorHref = author.slug ? `/author/${author.slug}` : null;
+    const authorHref = authorProfilePath(author.slug, lang);
     parts.push(
       <AuthorByline
         key="a"
@@ -380,7 +391,7 @@ function PostAuthorCardWidget({ node, lang }: { node: WidgetNode; lang: Lang }) 
   const bio = lang === "en" ? a.bio_en : a.bio_pl;
   const socials = asBool(c.showSocial, true) ? authorSocials(a) : [];
   const centered = variant === "centered";
-  const authorHref = a.slug ? `/author/${a.slug}` : null;
+  const authorHref = authorProfilePath(a.slug, lang);
 
   // Wariant "inline" to zwykły byline - rysuje go ta sama molekuła, co
   // metadane wpisu i listy wpisów (domyślnie 12 px / 20 px). Karta autora nie
@@ -590,7 +601,9 @@ function ArchiveTitleWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
 
 function SearchFormWidget({ node, lang }: { node: WidgetNode; lang: Lang }) {
   const c = node.content;
-  const action = safeUrl(asStr(c.action) || "/search") || "/search";
+  // Fallback "" (nie domyślne "#"): niebezpieczny/pusty adres ma spaść na
+  // "/search", a "#" wysyłał zapytanie na bieżącą stronę.
+  const action = safeUrl(asStr(c.action), "") || "/search";
   const placeholder =
     pickI18n(c, "placeholder", lang) || (lang === "en" ? "Search..." : "Szukaj...");
   const button = pickI18n(c, "button", lang) || (lang === "en" ? "Search" : "Szukaj");

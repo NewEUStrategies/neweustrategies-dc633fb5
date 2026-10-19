@@ -1,4 +1,5 @@
 import type { Block } from "@/lib/blocks/types";
+import { str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { GitCompareArrows } from "lucide-react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
@@ -12,10 +13,12 @@ interface Props {
 export function CompareBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const cp = (k: string) => i18n.editor("compare", k);
-  const before = String(block.data.before ?? "");
-  const after = String(block.data.after ?? "");
-  const labelBefore = String(block.data.labelBefore ?? "Przed");
-  const labelAfter = String(block.data.labelAfter ?? "Po");
+  // Czytnik renderera (`str`): obiekt w miejscu URL-a to brak obrazu. Etykiety
+  // bez wartości pokazują domyślne „Przed"/„Po" - te same, które wstawia paleta.
+  const before = str(block.data, "before");
+  const after = str(block.data, "after");
+  const labelBefore = str(block.data, "labelBefore", "Przed");
+  const labelAfter = str(block.data, "labelAfter", "Po");
   const patch = (k: string, v: string) => onChange({ ...block, data: { ...block.data, [k]: v } });
 
   return (

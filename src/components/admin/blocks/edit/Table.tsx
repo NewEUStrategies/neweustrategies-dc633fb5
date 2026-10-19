@@ -2,6 +2,7 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/content-model/json";
 import type { Block } from "@/lib/blocks/types";
+import { bool } from "@/components/blocks/renderer/data";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -26,7 +27,8 @@ function readMeta<T>(block: Block, key: "spans" | "aligns", fallback: T): T[][] 
 export function TableBlockEdit({ block, onChange }: Props) {
   const bt = useBlocksI18n();
   const rows = readRows(block);
-  const header = Boolean(block.data.header);
+  // Jak `renderTable`: nagłówek włącza wyłącznie `true`, nie napis „false".
+  const header = bool(block.data, "header", false);
   const cols = Math.max(1, ...rows.map((r) => r.length));
   const spans = readMeta<[number, number]>(block, "spans", [1, 1]);
   const aligns = readMeta<string>(block, "aligns", "");
@@ -55,15 +57,22 @@ export function TableBlockEdit({ block, onChange }: Props) {
       rows.map((r) => [...r, ""]),
       (meta, filler) => meta.map((r) => [...r, filler]),
     );
-  const removeRow = (i: number) =>
-    set(rows.length > 1 ? rows.filter((_, j) => j !== i) : rows, (meta) =>
-      rows.length > 1 ? meta.filter((_, j) => j !== i) : meta,
+  // Ostatniego wiersza ani ostatniej kolumny się nie usuwa - i wtedy NIE ma
+  // zapisu: identyczna tabela przez `onChange` brudziła dokument i historię.
+  const removeRow = (i: number) => {
+    if (rows.length <= 1) return;
+    set(
+      rows.filter((_, j) => j !== i),
+      (meta) => meta.filter((_, j) => j !== i),
     );
-  const removeCol = (i: number) =>
+  };
+  const removeCol = (i: number) => {
+    if (rows.every((r) => r.length <= 1)) return;
     set(
       rows.map((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : r)),
       (meta) => meta.map((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : r)),
     );
+  };
 
   return (
     <div className="space-y-2">

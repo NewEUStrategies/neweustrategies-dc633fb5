@@ -167,36 +167,22 @@ describe("autorzy slajdow: odczyt profiles_public", () => {
     await expect(run(sliderAuthorsQueryOptions(["u-1"]))).resolves.toEqual({});
   });
 
-  // DEFEKT: KORZEN KLUCZA AUTOROW STOI POZA REJESTREM KORZENI.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): korzen klucza autorow stal poza
+  // rejestrem korzeni (goly literal "builder-slider-authors").
   //
-  // WEJSCIE: dowolny slider czytajacy wpisy z bazy (hero strony glownej),
-  //   plus zmiana nazwiska albo awatara autora w panelu profilu.
-  // CO PSUJE: `sliderAuthorsQuery.ts:64` buduje klucz z GOLEGO literalu
-  //   "builder-slider-authors", zamiast siegnac po `WIDGET_QUERY_ROOTS`.
-  //   Skoro korzenia nie ma w tym obiekcie, nie ma go tez w
-  //   `LIVE_INVALIDATED_ROOTS` ani w `WIDGET_LIVE_QUERY_PREFIXES`, po ktorych
-  //   chodzi predykat `invalidateQueries` w `widgetCacheInvalidation.tsx`.
-  // KONSEKWENCJA: `builder-slider-posts` unieważnia sie poprawnie, wiec slajdy
-  //   pokazuja nowy tytul i okladke, ale byline obok nich zostaje ze STARYM
-  //   nazwiskiem i starym awatarem az do wygasniecia `staleTime` (60 s) albo
-  //   przeladowania karty. Awaria jest cicha w obie strony: nic nie zglasza
-  //   bledu, a widget nadal "cos" pokazuje. To dokladnie ta klasa rozjazdu,
-  //   dla ktorej powstal `queryKeys.ts` (naglowek, linie 3-14) - tylko ominieta,
-  //   bo `queryKeys.test.ts` sprawdza kierunek korzen -> uzycie, a nie
-  //   uzycie -> korzen.
-  // WYMAGANA POPRAWKA: dopisac `sliderAuthors: "builder-slider-authors"` do
-  //   `WIDGET_QUERY_ROOTS`, uzyc tej stalej w `sliderAuthorsQueryOptions`
-  //   i dodac ja do `LIVE_INVALIDATED_ROOTS` (zapytanie zalezy od tresci
-  //   redakcyjnej - profilu autora opublikowanego wpisu).
-  it.fails(
-    "DEFEKT: korzen klucza autorow slidera MUSI byc w rejestrze i w inwalidacji live",
-    () => {
-      const korzen = sliderAuthorsQueryOptions(["u-1"]).queryKey[0];
+  // KONTRAKT: `sliderAuthorsQueryOptions` buduje klucz z
+  // `WIDGET_QUERY_ROOTS.sliderAuthors`, a korzen jest w `LIVE_INVALIDATED_ROOTS`
+  // - zapytanie zalezy od profilu autora opublikowanego wpisu, wiec zmiana
+  // nazwiska albo awatara odswieza byline hero razem ze slajdami
+  // (`builder-slider-posts`), a nie dopiero po `staleTime` (60 s). Wartosc
+  // napisu zostala historyczna, wiec cache SSR w locie nie traci trafien.
+  it("korzen klucza autorow slidera jest w rejestrze i w inwalidacji live", () => {
+    const korzen = sliderAuthorsQueryOptions(["u-1"]).queryKey[0];
 
-      expect(Object.values(WIDGET_QUERY_ROOTS)).toContain(korzen);
-      expect(WIDGET_LIVE_QUERY_PREFIXES.has(korzen)).toBe(true);
-    },
-  );
+    expect(korzen).toBe("builder-slider-authors");
+    expect(Object.values(WIDGET_QUERY_ROOTS)).toContain(korzen);
+    expect(WIDGET_LIVE_QUERY_PREFIXES.has(korzen)).toBe(true);
+  });
 });
 
 describe("okladki zapasowe slidera", () => {

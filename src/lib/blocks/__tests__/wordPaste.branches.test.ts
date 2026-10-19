@@ -1045,31 +1045,20 @@ describe("parseWordHtml - kod, separator, kontenery", () => {
     expect(blocks[0].data.caption).toBe("P");
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - UTRATA PODPISU.
-  // W gałęzi kontenera (`DIV`/`SECTION`/`ARTICLE`/`BODY`) `takeCaption(i)` jest
-  // wołane ZAWSZE, gdy w kontenerze była grafika, a `i += skip` KONSUMUJE
-  // następny element - również wtedy, gdy kontener miał też tekst i podpis nie
-  // został obrazowi przypisany (`isBlank(html) ? caption : ""`). Skutek: akapit
-  // podpisu jest zjedzony i NIE trafia nigdzie - ani do obrazu, ani do treści.
-  // Gałąź akapitu (`P`) tego nie robi: tam `takeCaption` woła się wyłącznie
-  // wtedy, gdy akapit nie ma własnego tekstu, więc podpis albo idzie do obrazu,
-  // albo zostaje osobnym akapitem. Naprawa to warunek `i += skip` zgodny z
-  // gałęzią `P` - zmiana zachowania produkcyjnego, poza zakresem zadania
-  // pokryciowego. Test STOI jako dowód.
-  it.fails("POWINNO zachować podpis, gdy kontener niesie tekst i grafikę", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): UTRATA PODPISU. Gałąź kontenera
+  // (`DIV`/`SECTION`/`ARTICLE`/`BODY`) konsumowała następny element-podpis
+  // ZAWSZE, gdy w kontenerze była grafika - także wtedy, gdy kontener miał
+  // tekst i podpisu obrazowi nie przypisywała. Akapit podpisu znikał bez
+  // śladu. Kontrakt (zgodny z gałęzią `P`): podpis jest konsumowany tylko
+  // wtedy, gdy trafia do obrazu; w przeciwnym razie zostaje osobnym akapitem.
+  it("zachowuje podpis jako akapit, gdy kontener niesie tekst i grafikę", () => {
     const blocks = parseWordHtml(
       '<div>tekst<img src="https://x.test/a.png"></div><p class="MsoCaption">P</p>',
     );
     expect(types(blocks)).toEqual(["paragraph", "image", "paragraph"]);
-  });
-
-  it("dziś podpis po kontenerze z tekstem i grafiką jest GUBIONY", () => {
-    const blocks = parseWordHtml(
-      '<div>tekst<img src="https://x.test/a.png"></div><p class="MsoCaption">P</p>',
-    );
-    expect(types(blocks)).toEqual(["paragraph", "image"]);
-    expect(firstOf(blocks, "image")?.data.caption).toBe("");
-    expect(String(firstOf(blocks, "paragraph")?.data.html)).toBe("tekst");
+    expect(blocks[0].data.html).toBe("tekst");
+    expect(blocks[1].data.caption).toBe("");
+    expect(blocks[2].data.html).toBe("P");
   });
 
   it("kontener domyka otwartą listę Worda", () => {

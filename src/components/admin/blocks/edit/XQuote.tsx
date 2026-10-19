@@ -2,6 +2,7 @@ import type { Block } from "@/lib/blocks/types";
 import { Input } from "@/components/ui/input";
 import { XIcon } from "@/components/atoms/XIcon";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -10,9 +11,9 @@ interface Props {
 
 export function XQuoteBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const text = String(block.data.text ?? "");
-  const via = String(block.data.via ?? "");
-  const hashtags = String(block.data.hashtags ?? "");
+  const text = readText(block.data.text);
+  const via = readText(block.data.via);
+  const hashtags = readText(block.data.hashtags);
   const patch = (k: string, v: string) => onChange({ ...block, data: { ...block.data, [k]: v } });
 
   return (

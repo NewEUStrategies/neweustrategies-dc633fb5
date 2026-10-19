@@ -48,8 +48,17 @@
 // POCHODZACA Z EDYTORA (przepisane URL-e obrazow, tresc semantycznie ta sama)
 // od podmiany z zewnatrz - czyli poszerzyc kontrakt lastSyncRef, a nie zdjac
 // reset. Osobne zadanie, o innym profilu ryzyka.
+//
+// 2026-10-18: dawny `it.fails` tego pliku wymagal, by po przepisaniu adresu
+// `blocks_data` zachowalo TOZSAMOSC obiektu - tego nie da sie spelnic bez
+// mutacji danych w miejscu (gorszy defekt). Zastapil go `it.fails` na tym, co
+// redaktor faktycznie traci: `canUndo` haka historii po autosave. Granice:
+// brak atrap - prawdziwy `replaceFormImageUrls` i prawdziwy hak historii.
 import { describe, expect, it } from "vitest";
+import { useState } from "react";
+import { act, renderHook } from "@testing-library/react";
 
+import { useLocalizedBlocksHistory } from "../hooks/useLocalizedBlocksHistory";
 import { replaceFormImageUrls } from "@/components/admin/post-editor/lib/savePayload";
 import type { PostForm } from "@/components/admin/post-editor/types";
 import { postForm } from "@/test/post-editor/fixtures";
@@ -128,24 +137,65 @@ describe("cofniecie po zapisie w tle", () => {
     );
     expect(JSON.stringify(next?.blocks_data)).not.toContain(original);
   });
+});
 
+// ── SKUTEK NA HISTORII: hak historii + rodzic w ksztalcie formularza wpisu ──
+// Asercje ida na to, co widzi redaktor (`canUndo`, dokument po cofnieciu),
+// a nie na tozsamosc obiektow: przepisanie adresu MUSI dac nowy dokument
+// (dane sa niemutowalne), wiec tozsamosc nie moze byc kryterium naprawy.
+const DATA_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+const CDN_URL = "https://cdn.example.com/posts/wklejony.png";
+
+/** Rodzic jak `usePostEditorForm`: formularz w stanie, autosave przez `replaceFormImageUrls`. */
+function useFormularzZHistoria() {
+  const [form, setForm] = useState<PostForm>(formWithDataUrlImage);
+  const localized = useLocalizedBlocksHistory(form.blocks_data, (next) =>
+    setForm((f) => ({ ...f, blocks_data: next })),
+  );
+  const autosave = (replacements: Map<string, string>) =>
+    setForm((f) => replaceFormImageUrls(f, replacements) ?? f);
+  return { form, history: localized.history, autosave };
+}
+
+function zEdycja() {
+  const hook = renderHook(() => useFormularzZHistoria());
+  const przed = hook.result.current.history.doc;
+  act(() =>
+    hook.result.current.history.setDoc(
+      { ...przed, blocks: [...przed.blocks, { id: "b2", type: "paragraph", data: { html: "x" } }] },
+      true,
+    ),
+  );
+  expect(hook.result.current.history.canUndo).toBe(true);
+  return hook;
+}
+
+describe("cofniecie po zapisie w tle - historia redaktora", () => {
+  it("KONTROLA DODATNIA: autosave bez trafien nie rusza historii undo", () => {
+    const { result } = zEdycja();
+    act(() => result.current.autosave(new Map()));
+    expect(result.current.history.canUndo).toBe(true);
+  });
+
+  // DEFEKT ZAREJESTROWANY (zostaje `it.fails` 2026-10-18 - poza zakresem pakietu).
+  // WEJSCIE: redaktor edytuje dokument z wklejonym obrazem `data:`, a autosave
+  //   utrwala obraz i przepisuje jego adres na URL storage (`replaceFormImageUrls`).
+  // CO PSUJE: nowy obiekt `blocks_data` to dla `useLocalizedBlocksHistory`
+  //   "zewnetrzna podmiana" - stosy undo/redo leca do zera.
+  // WYMAGANA POPRAWKA: poszerzyc kontrakt `lastSyncRef` w
+  //   `hooks/useLocalizedBlocksHistory.ts` o podmiane POCHODZACA Z EDYTORA
+  //   (mapa `data:` -> URL z `usePostEditorForm.persistPastedImages`) i
+  //   przepisac ta sama mapa takze stosy past/future - inaczej cofniecie
+  //   przywrociloby adres `data:` (ponowny upload i oryginal z powrotem
+  //   w dokumencie). To zmiana kontraktu miedzy `post-editor` (poza modulem)
+  //   a hakiem historii, nie lokalna poprawka `savePayload`.
   it.fails(
-    "POWINNA zachowac tozsamosc dokumentu, gdy zmienil sie WYLACZNIE adres obrazu (dzis ja gubi, a z nia historie undo)",
+    "POWINNA przetrwac historia undo, gdy autosave przepisal WYLACZNIE adres obrazu (dzis znika)",
     () => {
-      // Gdyby przepisanie URL-a bylo dla edytora podmiana "wlasna", a nie
-      // zewnetrzna, `lastSyncRef` nie zobaczylby nowej tozsamosci i stosy
-      // undo/redo przezylyby autosave. Dzis nie przezywaja.
-      const form = formWithDataUrlImage();
-      const next = replaceFormImageUrls(
-        form,
-        new Map([
-          [
-            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==",
-            "https://cdn.example.com/posts/wklejony.png",
-          ],
-        ]),
-      );
-      expect(next?.blocks_data).toBe(form.blocks_data);
+      const { result } = zEdycja();
+      act(() => result.current.autosave(new Map([[DATA_URL, CDN_URL]])));
+      expect(JSON.stringify(result.current.form.blocks_data)).toContain(CDN_URL);
+      expect(result.current.history.canUndo).toBe(true);
     },
   );
 });

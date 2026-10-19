@@ -82,7 +82,19 @@ export function waybackTimestampToIso(timestamp: string | null | undefined): str
     timestamp.slice(12, 14),
   ];
   const iso = `${y}-${mo}-${d}T${h}:${mi}:${s}Z`;
-  return Number.isNaN(new Date(iso).getTime()) ? null : iso;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  // Silnik Date NORMALIZUJE przepełnienie (30 lutego -> 2 marca, 24:00 ->
+  // północ dnia następnego) zamiast odrzucić napis. Zwracamy znacznik tylko
+  // wtedy, gdy każda składowa przeżyła parsowanie bez zmian.
+  const exact =
+    date.getUTCFullYear() === Number(y) &&
+    date.getUTCMonth() + 1 === Number(mo) &&
+    date.getUTCDate() === Number(d) &&
+    date.getUTCHours() === Number(h) &&
+    date.getUTCMinutes() === Number(mi) &&
+    date.getUTCSeconds() === Number(s);
+  return exact ? iso : null;
 }
 
 export interface BrokenLinkAlertState {

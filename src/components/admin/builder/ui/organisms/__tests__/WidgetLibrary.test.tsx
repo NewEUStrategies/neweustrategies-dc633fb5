@@ -14,21 +14,24 @@
 //  4. ZWIJANIE kategorii jest pamiętane w `localStorage` - redakcja układa
 //     sobie paletę raz.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 import { WIDGETS } from "@/lib/builder/registry";
 import { WidgetLibrary } from "../WidgetLibrary";
 
 const templates = vi.hoisted(() => ({
   items: [] as Array<{ id: string; name: string; data: unknown; created_at: string }>,
   loading: false,
-  update: vi.fn(async () => undefined),
-  remove: vi.fn(async () => undefined),
+  error: null as string | null,
+  update: vi.fn(async () => true),
+  remove: vi.fn(async () => true),
 }));
 const globals = vi.hoisted(() => ({
   items: [] as Array<{ id: string; name: string; data: { type: string } }>,
   loading: false,
-  remove: vi.fn(async () => undefined),
+  remove: vi.fn(async () => true),
 }));
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 /** Język panelu - biblioteka czyta go z instancji i18n, nie z propsów. */
 const adminLang = vi.hoisted(() => ({ value: "pl" }));
 
@@ -43,6 +46,7 @@ vi.mock("@/lib/builder/templates", async (importOriginal) => {
     useSectionTemplates: () => ({
       items: templates.items,
       loading: templates.loading,
+      error: templates.error,
       reload: vi.fn(),
       save: vi.fn(),
       update: templates.update,
@@ -145,11 +149,13 @@ beforeEach(() => {
   adminLang.value = "pl";
   templates.items = [];
   templates.loading = false;
+  templates.error = null;
   globals.items = [];
   globals.loading = false;
   templates.update.mockClear();
   templates.remove.mockClear();
   globals.remove.mockClear();
+  toastError.mockClear();
 });
 
 describe("WidgetLibrary - paleta widgetów", () => {
@@ -314,6 +320,37 @@ describe("WidgetLibrary - szablony sekcji", () => {
     renderLibrary();
     expect(screen.getByText("builder.widgetLibrary.templatesEmpty")).toBeInTheDocument();
   });
+
+  it("odmowa odczytu szablonów to komunikat błędu, a nie pusta biblioteka", () => {
+    templates.error = "permission denied";
+    renderLibrary();
+    expect(screen.getByRole("alert")).toHaveTextContent("builder.widgetLibrary.templatesLoadError");
+    expect(screen.queryByText("builder.widgetLibrary.templatesEmpty")).toBeNull();
+  });
+
+  it("odmowa usunięcia szablonu mówi o tym redaktorowi", async () => {
+    templates.items = [TPL];
+    templates.remove.mockResolvedValueOnce(false);
+    vi.stubGlobal("confirm", () => true);
+    renderLibrary();
+    await act(async () => {
+      fireEvent.click(buttonByText("deleteTemplate"));
+    });
+    expect(toastError).toHaveBeenCalledWith("builder.widgetLibrary.deleteTemplateFailed");
+    vi.unstubAllGlobals();
+  });
+
+  it("nieudane przywrócenie wersji zostawia historię otwartą i mówi o błędzie", async () => {
+    templates.items = [TPL];
+    templates.update.mockResolvedValueOnce(false);
+    renderLibrary();
+    fireEvent.click(buttonByText("versionHistory"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "przywróć rewizję" }));
+    });
+    expect(toastError).toHaveBeenCalledWith("builder.widgetLibrary.restoreFailed");
+    expect(screen.getByTestId("historia")).toBeInTheDocument();
+  });
 });
 
 describe("WidgetLibrary - widgety globalne", () => {
@@ -348,6 +385,18 @@ describe("WidgetLibrary - widgety globalne", () => {
     vi.stubGlobal("confirm", () => true);
     fireEvent.click(remove);
     expect(globals.remove).toHaveBeenCalledWith("g1");
+    vi.unstubAllGlobals();
+  });
+
+  it("odmowa usunięcia widgetu globalnego mówi o tym redaktorowi", async () => {
+    globals.items = [GLOBAL];
+    globals.remove.mockResolvedValueOnce(false);
+    vi.stubGlobal("confirm", () => true);
+    renderLibrary();
+    await act(async () => {
+      fireEvent.click(buttonByText("deleteGlobal"));
+    });
+    expect(toastError).toHaveBeenCalledWith("builder.widgetLibrary.deleteGlobalFailed");
     vi.unstubAllGlobals();
   });
 });

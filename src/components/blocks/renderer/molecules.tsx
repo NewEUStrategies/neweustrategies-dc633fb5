@@ -3,7 +3,7 @@
 // danych innego tenanta na renderze) - formularze zapisują dane chronione
 // osobno przez RLS, ale nie zaciągają list treści.
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import {
   ThumbsUp,
   ThumbsDown,
@@ -73,8 +73,34 @@ import {
 // Media
 // ---------------------------------------------------------------------------
 
+/**
+ * Linia „Źródło: …" pod obrazem / wideo / audio - jeden znacznik dla trzech
+ * bloków mediów. Etykieta idzie przez `t` (jak „Pobierz" w bloku pliku):
+ * wcześniej była wpisana po polsku, więc artykuł /en pokazywał „Źródło:".
+ */
+function mediaSourceLine(source: string, sourceUrl: string, label: string): ReactNode {
+  if (!source) return null;
+  return (
+    <p className="text-xs text-muted-foreground text-center mt-1">
+      <span className="uppercase tracking-wider mr-1">{label}:</span>
+      {sourceUrl ? (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="underline hover:text-foreground"
+        >
+          {source}
+        </a>
+      ) : (
+        source
+      )}
+    </p>
+  );
+}
+
 /** Pojedynczy obraz z podpisem, opcjonalnie linkujący. */
-export const renderImage: BlockRenderer = ({ block, cls }) => {
+export const renderImage: BlockRenderer = ({ block, cls, t }) => {
   const url = safeImageUrl(str(block.data, "url"));
   const alt = str(block.data, "alt");
   const cap = str(block.data, "caption");
@@ -121,23 +147,7 @@ export const renderImage: BlockRenderer = ({ block, cls }) => {
           {cap}
         </figcaption>
       )}
-      {source && (
-        <p className="text-xs text-muted-foreground text-center mt-1">
-          <span className="uppercase tracking-wider mr-1">Źródło:</span>
-          {sourceUrl ? (
-            <a
-              href={sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="underline hover:text-foreground"
-            >
-              {source}
-            </a>
-          ) : (
-            source
-          )}
-        </p>
-      )}
+      {mediaSourceLine(source, sourceUrl, t("blocksUi.source"))}
     </figure>
   );
 };
@@ -180,7 +190,7 @@ export const renderEmbed: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-export const renderVideo: BlockRenderer = ({ block, cls }) => {
+export const renderVideo: BlockRenderer = ({ block, cls, t }) => {
   const url = safeUrl(str(block.data, "url"), "");
   const poster = safeImageUrl(str(block.data, "poster"));
   const caption = str(block.data, "caption");
@@ -219,23 +229,7 @@ export const renderVideo: BlockRenderer = ({ block, cls }) => {
           {caption}
         </figcaption>
       )}
-      {source && (
-        <p className="text-xs text-muted-foreground text-center mt-1">
-          <span className="uppercase tracking-wider mr-1">Źródło:</span>
-          {sourceUrl ? (
-            <a
-              href={sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="underline hover:text-foreground"
-            >
-              {source}
-            </a>
-          ) : (
-            source
-          )}
-        </p>
-      )}
+      {mediaSourceLine(source, sourceUrl, t("blocksUi.source"))}
     </figure>
   );
 };
@@ -250,8 +244,10 @@ export const renderGallery: BlockRenderer = ({ block, cls }) => {
 };
 
 /** Plik dźwiękowy z podpisem. */
-export const renderAudio: BlockRenderer = ({ block, cls }) => {
-  const url = str(block.data, "url");
+export const renderAudio: BlockRenderer = ({ block, cls, t }) => {
+  // Ten sam filtr schematu co wideo i plik: `url` trafia także do linku
+  // „Pobierz", więc `javascript:` / `data:text/html` nie może przejść surowo.
+  const url = safeUrl(str(block.data, "url"), "");
   const caption = str(block.data, "caption");
   const source = str(block.data, "source");
   const sourceUrl = safeUrl(str(block.data, "sourceUrl"), "");
@@ -277,7 +273,7 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
       {showDownload && (
         <p className="text-xs text-center mt-2">
           <a href={url} download className="underline text-muted-foreground hover:text-foreground">
-            ⬇ Pobierz plik
+            ⬇ {t("blocksUi.downloadFile")}
           </a>
         </p>
       )}
@@ -286,23 +282,7 @@ export const renderAudio: BlockRenderer = ({ block, cls }) => {
           {caption}
         </figcaption>
       )}
-      {source && (
-        <p className="text-xs text-muted-foreground text-center mt-1">
-          <span className="uppercase tracking-wider mr-1">Źródło:</span>
-          {sourceUrl ? (
-            <a
-              href={sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="underline hover:text-foreground"
-            >
-              {source}
-            </a>
-          ) : (
-            source
-          )}
-        </p>
-      )}
+      {mediaSourceLine(source, sourceUrl, t("blocksUi.source"))}
     </figure>
   );
 };
@@ -397,6 +377,12 @@ export const renderMediaText: BlockRenderer = ({ block, cls }) => {
 // Tabela
 // ---------------------------------------------------------------------------
 
+/** Tekst komórki tabeli: napis bez zmian, liczba / wartość logiczna jako tekst, reszta pusto. */
+function cellText(c: unknown): string {
+  if (typeof c === "string") return c;
+  return typeof c === "number" || typeof c === "boolean" ? String(c) : "";
+}
+
 /**
  * Tabela z opcjonalnym wierszem nagłówka (komórki mogą nieść przypisy).
  * Obsługuje metadane z importu Worda / Excela: `spans` (`[colSpan, rowSpan]`
@@ -404,9 +390,10 @@ export const renderMediaText: BlockRenderer = ({ block, cls }) => {
  */
 export const renderTable: BlockRenderer = ({ block, fnHtml, cls }) => {
   const rowsRaw = Array.isArray(block.data.rows) ? block.data.rows : [];
-  const rows: string[][] = rowsRaw.map((r) =>
-    Array.isArray(r) ? r.map((c) => (typeof c === "string" ? c : c == null ? "" : String(c))) : [],
-  );
+  // Komórka to tekst; liczby / wartości logiczne (import arkusza) zamieniamy na
+  // tekst, a obiekt lub tablica (uszkodzone dane) daje pustą komórkę zamiast
+  // dosłownego „[object Object]" w publikacji.
+  const rows: string[][] = rowsRaw.map((r) => (Array.isArray(r) ? r.map(cellText) : []));
   const header = bool(block.data, "header", false);
   if (rows.length === 0) return null;
   const spansRaw = Array.isArray(block.data.spans) ? block.data.spans : [];
@@ -560,7 +547,9 @@ export const renderSocialIcons: BlockRenderer = ({ block, cls }) => {
 export const renderSearch: BlockRenderer = ({ block, cls, t }) => {
   const placeholder = str(block.data, "placeholder") || t("blocksUi.searchPlaceholder");
   const buttonLabel = str(block.data, "buttonLabel") || t("blocksUi.searchButton");
-  const action = str(block.data, "action", "/search");
+  // Pusty `action` wysyłał formularz pod bieżący adres (wyszukiwanie lądowało
+  // na stronie artykułu), a schematy spoza listy dozwolonych nie mają tu sensu.
+  const action = safeUrl(str(block.data, "action"), "/search");
   return (
     <form className={`not-prose flex gap-2 ${cls}`} action={action} method="get" role="search">
       <input
@@ -766,8 +755,9 @@ export const renderXQuote: BlockRenderer = ({ block, cls, lang }) => {
 
 /** Before / After - slider porównujący dwa obrazy. */
 export const renderCompare: BlockRenderer = ({ block, cls, t }) => {
-  const before = str(block.data, "before");
-  const after = str(block.data, "after");
+  // Ten sam filtr schematu co pozostałe bloki obrazów (renderImage / cover).
+  const before = safeImageUrl(str(block.data, "before"));
+  const after = safeImageUrl(str(block.data, "after"));
   if (!before || !after) return null;
   return (
     <div className={`not-prose my-6 ${cls}`}>
@@ -820,20 +810,25 @@ export const renderResetPasswordForm: BlockRenderer = ({ block, cls, lang }) => 
 // Interaktywne
 // ---------------------------------------------------------------------------
 
-export const renderAccordion: BlockRenderer = ({ block, cls }) => (
+// `lang` trafia do widoków z napisami interfejsu (strzałki, etykiety ARIA,
+// teksty zastępcze): idą w języku TREŚCI, więc strona /en nie pokazuje już
+// zaszytej polszczyzny, a podgląd w panelu - tego samego co strona publiczna.
+export const renderAccordion: BlockRenderer = ({ block, cls, lang }) => (
   <AccordionView
     items={jsonList(block.data, "items")}
     allowMultiple={block.data.allowMultiple === true}
+    lang={lang}
     cls={cls}
   />
 );
 
-export const renderTabs: BlockRenderer = ({ block, cls }) => {
+export const renderTabs: BlockRenderer = ({ block, cls, lang }) => {
   const orient = str(block.data, "orientation", "horizontal");
   return (
     <TabsView
       items={jsonList(block.data, "items")}
       orientation={orient === "vertical" ? "vertical" : "horizontal"}
+      lang={lang}
       cls={cls}
     />
   );
@@ -898,19 +893,20 @@ export const renderStatsCounter: BlockRenderer = ({ block, cls, lang }) => (
   />
 );
 
-export const renderTestimonials: BlockRenderer = ({ block, cls }) => {
+export const renderTestimonials: BlockRenderer = ({ block, cls, lang }) => {
   const l = str(block.data, "layout", "grid");
   return (
     <TestimonialsView
       items={jsonList(block.data, "items")}
       layout={l === "slider" ? "slider" : "grid"}
+      lang={lang}
       cls={cls}
     />
   );
 };
 
-export const renderPricingTable: BlockRenderer = ({ block, cls }) => (
-  <PricingTableView plans={jsonList(block.data, "plans")} cls={cls} />
+export const renderPricingTable: BlockRenderer = ({ block, cls, lang }) => (
+  <PricingTableView plans={jsonList(block.data, "plans")} lang={lang} cls={cls} />
 );
 
 export const renderTimeline: BlockRenderer = ({ block, cls }) => (
@@ -954,12 +950,13 @@ export const renderCtaSection: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-export const renderImageCarousel: BlockRenderer = ({ block, cls }) => (
+export const renderImageCarousel: BlockRenderer = ({ block, cls, lang }) => (
   <ImageCarouselView
     items={jsonList(block.data, "items")}
     autoplay={block.data.autoplay === true}
     interval={num(block.data, "interval", 5000)}
     aspect={str(block.data, "aspect", "16:9")}
+    lang={lang}
     cls={cls}
   />
 );
@@ -978,18 +975,19 @@ export const renderContactForm: BlockRenderer = ({ block, cls, lang }) => (
   />
 );
 
-export const renderMap: BlockRenderer = ({ block, cls }) => (
+export const renderMap: BlockRenderer = ({ block, cls, lang }) => (
   <MapView
     lat={num(block.data, "lat", 52.2297)}
     lng={num(block.data, "lng", 21.0122)}
     zoom={num(block.data, "zoom", 13)}
     height={num(block.data, "height", 360)}
     label={str(block.data, "label")}
+    lang={lang}
     cls={cls}
   />
 );
 
-export const renderTeamGrid: BlockRenderer = ({ block, cls }) => {
+export const renderTeamGrid: BlockRenderer = ({ block, cls, lang }) => {
   const s = str(block.data, "shape", "circle");
   return (
     <TeamGridView
@@ -997,6 +995,7 @@ export const renderTeamGrid: BlockRenderer = ({ block, cls }) => {
       items={jsonList(block.data, "items")}
       columns={num(block.data, "columns", 3)}
       shape={s === "square" ? "square" : "circle"}
+      lang={lang}
       cls={cls}
     />
   );
@@ -1013,7 +1012,7 @@ export const renderLogoGrid: BlockRenderer = ({ block, cls }) => (
   />
 );
 
-export const renderFeatureGrid: BlockRenderer = ({ block, cls }) => {
+export const renderFeatureGrid: BlockRenderer = ({ block, cls, lang }) => {
   const st = str(block.data, "style", "card");
   const style = st === "minimal" || st === "bordered" ? st : "card";
   return (
@@ -1023,12 +1022,13 @@ export const renderFeatureGrid: BlockRenderer = ({ block, cls }) => {
       items={jsonList(block.data, "items")}
       columns={num(block.data, "columns", 3)}
       style={style}
+      lang={lang}
       cls={cls}
     />
   );
 };
 
-export const renderAlertBanner: BlockRenderer = ({ block, cls }) => {
+export const renderAlertBanner: BlockRenderer = ({ block, cls, lang }) => {
   const v = str(block.data, "variant", "info");
   const variant =
     v === "success" || v === "warning" || v === "danger" || v === "neutral" ? v : "info";
@@ -1041,6 +1041,7 @@ export const renderAlertBanner: BlockRenderer = ({ block, cls }) => {
       ctaHref={str(block.data, "ctaHref")}
       dismissible={block.data.dismissible === true}
       showIcon={bool(block.data, "showIcon", true)}
+      lang={lang}
       cls={cls}
     />
   );
@@ -1073,12 +1074,13 @@ export const renderStepList: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-export const renderComparisonTable: BlockRenderer = ({ block, cls }) => (
+export const renderComparisonTable: BlockRenderer = ({ block, cls, lang }) => (
   <ComparisonTableView
     title={str(block.data, "title")}
     columns={jsonList(block.data, "columns")}
     rows={jsonList(block.data, "rows")}
     featuredIndex={num(block.data, "featuredIndex", -1)}
+    lang={lang}
     cls={cls}
   />
 );

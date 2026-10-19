@@ -136,6 +136,7 @@ describe("zapis zdarzenia", () => {
     expect(res.status).toBe(202);
     expect(h.insert).toHaveBeenCalledWith({
       experiment_id: EXPERIMENT_ID,
+      tenant_id: "tenant-1",
       variant: "a",
       event: "exposure",
       visitor_id: VISITOR_ID,
@@ -428,6 +429,19 @@ describe("izolacja najemcy", () => {
 
     expect(res.status).toBe(400);
     expect(h.insert).not.toHaveBeenCalled();
+  });
+
+  it("najemca wiersza pochodzi z EKSPERYMENTU - tenant_id podany w ładunku nie ma znaczenia", async () => {
+    // Od 2026-10-19 (migracja 20261019090000) zdarzenie niesie `tenant_id`.
+    // Klient beacona go nie wysyła, ale trasa jest publiczna: pole w ładunku
+    // to wejście DOWOLNEGO nadawcy, a nie dowód przynależności.
+    const res = await post(
+      body({ tenant_id: "tenant-OBCY", tenantId: "tenant-OBCY", tenant: "tenant-OBCY" }),
+    );
+
+    expect(res.status).toBe(202);
+    expect(h.insert.mock.calls[0]![0]).toMatchObject({ tenant_id: "tenant-1" });
+    expect(JSON.stringify(h.insert.mock.calls[0]![0])).not.toContain("tenant-OBCY");
   });
 
   it("tenant liczony jest z hosta ZWERYFIKOWANEGO przy krawędzi, nie z nagłówka Host", async () => {

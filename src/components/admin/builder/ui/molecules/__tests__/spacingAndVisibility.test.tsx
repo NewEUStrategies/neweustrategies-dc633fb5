@@ -350,21 +350,20 @@ describe("HoverControl", () => {
     expect(last()?.transitionMs).toBe(expected);
   });
 
-  // BŁĄD PRODUKCYJNY (udokumentowany, nienaprawiony w tym etapie).
-  // Pole czasu przejścia zapisuje `Number.isFinite(n) && n >= 0 ? n : undefined`,
-  // a `Number("")` to ZERO - więc wyczyszczenie pola zapisuje 0 ms zamiast
-  // zdjąć nadpisanie. Skutek dla redakcji: pole samo „wpisuje się” na 0
-  // (`v.transitionMs ?? ""` pokazuje potem zero), a hover przestaje mieć
-  // animację, mimo że redaktor chciał wrócić do domyślnych 200 ms. Sąsiednie
-  // pole skali robi to POPRAWNIE (`n > 0` odrzuca zero), więc to przeoczenie,
-  // nie decyzja. Ten sam wzorzec siedzi w `MotionControl` (czas trwania,
-  // opóźnienie, dystans) - tam ma własną kontrolę dodatnią.
-  it.fails("wyczyszczenie pola czasu przejścia zdejmuje nadpisanie", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): pole czasu przejścia zapisywało
+  // `Number.isFinite(n) && n >= 0 ? n : undefined`, a `Number("")` to ZERO -
+  // wyczyszczenie pola zapisywało więc 0 ms zamiast zdjąć nadpisanie (pole
+  // samo „wpisywało się" na 0, a hover tracił animację zamiast wrócić do
+  // domyślnych 200 ms). Puste pole jest teraz sprawdzane jawnie, tak jak
+  // sąsiednie pole skali odrzuca zero.
+  it("wyczyszczenie pola czasu przejścia zdejmuje nadpisanie", () => {
     const { last } = renderHover({ transitionMs: 200 });
     const input = document.querySelector<HTMLInputElement>('input[placeholder="200"]');
     if (!input) throw new Error("test: brak pola czasu przejścia");
     fireEvent.change(input, { target: { value: "" } });
     expect(last()?.transitionMs).toBeUndefined();
+    // Pole nie „wpisuje się" samo na zero - pokazuje pustkę i placeholder.
+    expect(input.value).toBe("");
   });
 
   it("ujemny czas przejścia jest odrzucany", () => {
@@ -375,14 +374,6 @@ describe("HoverControl", () => {
     // Ujemne przejście nie istnieje w CSS - zapis musi zdjąć nadpisanie,
     // a nie wpisać liczbę, którą renderer przepisze do `transition-duration`.
     expect(last()?.transitionMs).toBeUndefined();
-  });
-
-  it("wyczyszczenie pola czasu przejścia zapisuje zero - stan faktyczny", () => {
-    const { last } = renderHover({ transitionMs: 200 });
-    const input = document.querySelector<HTMLInputElement>('input[placeholder="200"]');
-    if (!input) throw new Error("test: brak pola czasu przejścia");
-    fireEvent.change(input, { target: { value: "" } });
-    expect(last()?.transitionMs).toBe(0);
   });
 });
 

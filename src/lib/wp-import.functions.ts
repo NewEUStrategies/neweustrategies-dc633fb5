@@ -24,6 +24,12 @@ import {
   type BuiltPage,
   type EnBodyOutcome,
 } from "@/lib/wp-import/buildPage";
+// Slug wspólny z importem wpisów (transliteracja „ł" przed NFD). Ten importer
+// NIE dopasowuje istniejących stron po slugu - nadpisanie idzie wyłącznie przez
+// jawne `targetPageId` i zostawia `current.slug`, o ile redakcja sama nie wpisze
+// `slugOverride` - więc nowa postać nie zmienia adresu żadnej istniejącej
+// strony i nie potrzebuje `legacySlugify`.
+import { slugify } from "@/lib/wp-import/slug";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/wordpress_com";
 
@@ -55,23 +61,13 @@ async function resolveTenant(supabase: SupabaseClient<Database>, userId: string)
   return data.tenant_id;
 }
 
-function normalizeSlug(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
-}
-
 async function uniquePageSlug(
   supabase: SupabaseClient<Database>,
   tenantId: string,
   desired: string,
   excludeId?: string,
 ): Promise<string> {
-  const base = normalizeSlug(desired) || "wp-page";
+  const base = slugify(desired) || "wp-page";
   let candidate = base;
   for (let i = 0; i < 50; i++) {
     let q = supabase
@@ -203,7 +199,7 @@ export const wpPreviewPage = createServerFn({ method: "POST" })
     return {
       wpId: wp.ID,
       title,
-      slug: normalizeSlug(wp.slug || String(wp.ID)),
+      slug: slugify(wp.slug || String(wp.ID)),
       original: {
         html: wp.content ?? "",
         cleanedHtml: conv.cleanedHtml,
@@ -330,7 +326,7 @@ export const wpImportPages = createServerFn({ method: "POST" })
     for (const item of data.items) {
       try {
         const wp = await fetchWpPage(site, item.plId);
-        const rawSlug = normalizeSlug(item.slugOverride || wp.slug || String(item.plId));
+        const rawSlug = slugify(item.slugOverride || wp.slug || String(item.plId));
         if (rawSlug === "main") {
           results.push({
             wpId: item.plId,
@@ -536,7 +532,7 @@ export const wpImportFromWxr = createServerFn({ method: "POST" })
 
     for (const item of data.items) {
       try {
-        const rawSlug = normalizeSlug(item.slugOverride || item.slug);
+        const rawSlug = slugify(item.slugOverride || item.slug);
         if (rawSlug === "main") {
           results.push({
             clientId: item.clientId,

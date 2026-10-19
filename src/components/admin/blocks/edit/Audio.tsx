@@ -1,9 +1,10 @@
 import type { Block } from "@/lib/blocks/types";
+import { str } from "@/components/blocks/renderer/data";
 import { Music } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
+import { MediaUrlDraftInput } from "../MediaUrlDraftInput";
 
 interface Props {
   block: Block;
@@ -11,12 +12,14 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+// Jak wideo: pola czyta czytnik renderera (`str`), więc liczba w `url` to brak
+// pliku, a obiekt w podpisie nie wycieka jako „[object Object]".
 export function AudioBlock({ block, isActive, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const url = String(block.data.url ?? "");
-  const caption = String(block.data.caption ?? "");
-  const source = String(block.data.source ?? "");
-  const sourceUrl = String(block.data.sourceUrl ?? "");
+  const url = str(block.data, "url");
+  const caption = str(block.data, "caption");
+  const source = str(block.data, "source");
+  const sourceUrl = str(block.data, "sourceUrl");
   return (
     <div className="relative space-y-2">
       {url && isActive && <MediaWidgetToolbar kind="audio" block={block} onChange={onChange} />}
@@ -33,9 +36,9 @@ export function AudioBlock({ block, isActive, onChange }: Props) {
       ) : (
         <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
           <Music className="w-8 h-8 mx-auto text-muted-foreground" />
-          <Input
-            placeholder="URL pliku audio (mp3, ogg, wav)…"
-            onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
+          <MediaUrlDraftInput
+            placeholder={i18n.editor("audio", "urlPh")}
+            onCommit={(next) => onChange({ ...block, data: { ...block.data, url: next } })}
             className="max-w-md mx-auto"
           />
         </div>
@@ -45,7 +48,7 @@ export function AudioBlock({ block, isActive, onChange }: Props) {
           <input
             type="text"
             value={caption}
-            placeholder="Podpis (opcjonalnie)…"
+            placeholder={i18n.editor("image", "caption")}
             onChange={(e) =>
               onChange({ ...block, data: { ...block.data, caption: e.target.value } })
             }

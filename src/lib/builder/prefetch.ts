@@ -11,7 +11,7 @@ import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { menuWithItemsQueryOptions } from "@/lib/menus/queries";
 import { hasSsrQueryData } from "@/lib/ssr/homeSsrBudget";
 import { newsTickerQueryOptions } from "@/lib/builder/newsTickerQuery";
-import { postRefQueryOptions } from "@/lib/builder/contentRefs";
+import { postRefQueryOptions, uniquePostRefIds } from "@/lib/builder/contentRefs";
 // Z sliderFallbackQuery (nie sliderVariants): prefetch trafia do bundla
 // loadera każdej trasy i nie może ciągnąć całego renderera sliderów.
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -197,10 +197,11 @@ export function prefetchBuilderSectionQuery(
  *     SSR zostaje pusty, nic nie zgłasza błędu, a klient płaci drugie
  *     zapytanie. Dlatego każda gałąź woła TĘ SAMĄ fabrykę, po którą sięga
  *     widok (albo helper, który liczy wejście do klucza w jednym miejscu).
- *  2. KAŻDA GAŁĄŹ MUSI MIEĆ ODBICIE W {@link widgetCacheTargets}. Tamta
- *     funkcja zasila bramkę SWR `useSectionPreload.isSectionFresh`, która na
- *     liście DŁUGOŚCI ZERO zwraca "świeże" - brak odbicia po cichu wyłącza
- *     klientowy prefetch przy przewijaniu dla całej sekcji.
+ *  2. KAŻDA GAŁĄŹ MA ODBICIE W {@link widgetCacheTargets} - z konstrukcji,
+ *     bo tamta funkcja jest wyprowadzana z tej listy. Zasila bramkę SWR
+ *     `useSectionPreload.isSectionFresh`, która na liście DŁUGOŚCI ZERO zwraca
+ *     "świeże" - brak odbicia po cichu wyłączałby klientowy prefetch przy
+ *     przewijaniu dla całej sekcji.
  */
 /** Warianty newslettera renderujące realny formularz (reszta to sam trigger). */
 function newsletterUsesForm(content: unknown): boolean {
@@ -325,14 +326,11 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
       out.push(sliderPostsQueryOptions(widget.content, lang));
       out.push(sliderFallbackImagesQueryOptions(Math.max(3, sliderPostsLimit(widget.content))));
     } else {
-      const postIds = Array.from(
-        new Set(
-          items
-            .map((item) => item.postId)
-            .filter((id): id is string => typeof id === "string" && id.length > 0),
-        ),
+      // Ta sama normalizacja co `useResolvedPostRefs` (trim + dedup): `" p1 "`
+      // z wklejki grzeje klucz `p1`, który widget naprawdę czyta.
+      uniquePostRefIds(items.map((item) => item.postId)).forEach((id) =>
+        out.push(postRefQueryOptions(id, lang)),
       );
-      postIds.forEach((id) => out.push(postRefQueryOptions(id, lang)));
       out.push(sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3)));
     }
   }
@@ -447,131 +445,22 @@ export async function prefetchSectionQueries(
  * Enumerate the cache targets (query key + stale-time) covered by a widget.
  * Used by the SWR gate in useSectionPreload to decide whether a prefetch is
  * even necessary.
+ *
+ * WYPROWADZONE z {@link widgetQueryOptionsList}, a nie utrzymywane obok jako
+ * druga lista gałęzi: warunek 2 z nagłówka tamtej funkcji („każda gałąź musi
+ * mieć odbicie tutaj") jest przez to spełniony z konstrukcji. Dwie ręczne
+ * kopie tych samych ~20 warunków rozjeżdżały się po cichu - pusty zbiór celów
+ * bramka SWR czyta jako „sekcja świeża" i wyłącza prefetch przy przewijaniu.
  */
 function coerceStaleTime(st: unknown): number {
   return typeof st === "number" ? st : 0;
 }
 
 export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheTarget[] {
-  const out: WidgetCacheTarget[] = [];
-  if (widget.type === "menu") {
-    const rawKey = (widget.content as { menu_key?: unknown } | undefined)?.menu_key;
-    const key = typeof rawKey === "string" && rawKey.length > 0 ? rawKey : "main";
-    const opts = menuWithItemsQueryOptions(key);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "post-list" || widget.type === "carousel") {
-    const opts = postListQueryOptions(widget.content, lang, widget.type);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "news-ticker" || widget.type === "trending-now") {
-    const opts = newsTickerQueryOptions(widget.content, lang);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "categories") {
-    const opts = categoriesQueryOptions();
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "tags") {
-    const opts = tagsQueryOptions();
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "event-list") {
-    const opts = eventsListQueryOptions(widget.content, lang);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "club-card") {
-    const slug = clubWidgetSlug(widget.content);
-    if (slug !== "") {
-      const opts = clubCardQueryOptions(slug);
-      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-    }
-  }
-  if (widget.type === "club-threads") {
-    const opts = clubThreadsQueryOptions(clubThreadsInput(widget.content));
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "club-hub") {
-    const slug = clubWidgetSlug(widget.content);
-    if (slug !== "") {
-      const opts = clubCardQueryOptions(slug);
-      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-    }
-  }
-  if (widget.type === "podcast-latest") {
-    const opts = podcastLatestQueryOptions(widget.content);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "web-stories-carousel") {
-    const opts = webStoriesCarouselQueryOptions(widget.content);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (
-    widget.type === "join-us" ||
-    (widget.type === "newsletter" && newsletterUsesForm(widget.content))
-  ) {
-    const opts = newsletterInlineSettingsQueryOptions();
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {
-    const opts = activePlansQueryOptions();
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "rated-list" && ratedListUsesDynamicSource(widget.content)) {
-    const opts = ratedListQueryOptions(widget.content, lang);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (readsEventById(widget)) {
-    const eventId = widgetEventId(widget.content);
-    if (eventId) {
-      const opts = eventByIdQueryOptions(eventId);
-      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-    }
-  }
-  if (widget.type === "speakers" && speakersSource(widget.content) !== "manual") {
-    const opts = speakersQueryOptions(widget.content, lang);
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  if (widget.type === "event-schedule") {
-    const ids = collectProfileSpeakerIds(parseScheduleDays(widget.content));
-    if (ids.length > 0) {
-      const opts = speakersByIdsQueryOptions(ids);
-      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-    }
-  }
-  if (widget.type === "world-map") {
-    const ids = worldMapProfileIds(widget.content);
-    if (ids.length > 0) {
-      const opts = speakersByIdsQueryOptions(ids);
-      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-    }
-  }
-  if (widget.type === "slider") {
-    const items = contentItems(widget.content);
-    if (sliderUsesPostsSource(widget.content)) {
-      const postsOpts = sliderPostsQueryOptions(widget.content, lang);
-      out.push({ key: postsOpts.queryKey, staleTime: coerceStaleTime(postsOpts.staleTime) });
-      const fallbackOpts = sliderFallbackImagesQueryOptions(
-        Math.max(3, sliderPostsLimit(widget.content)),
-      );
-      out.push({ key: fallbackOpts.queryKey, staleTime: coerceStaleTime(fallbackOpts.staleTime) });
-      return out;
-    }
-    const postIds = Array.from(
-      new Set(
-        items
-          .map((item) => item.postId)
-          .filter((id): id is string => typeof id === "string" && id.length > 0),
-      ),
-    );
-    postIds.forEach((id) => {
-      const opts = postRefQueryOptions(id, lang);
-      out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-    });
-    const opts = sliderFallbackImagesQueryOptions(Math.max(3, items.length || 3));
-    out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
-  }
-  return out;
+  return widgetQueryOptionsList(widget, lang).map((opts) => ({
+    key: opts.queryKey,
+    staleTime: coerceStaleTime(opts.staleTime),
+  }));
 }
 
 /** Aggregate cache targets across all widgets in a list (e.g. one section). */

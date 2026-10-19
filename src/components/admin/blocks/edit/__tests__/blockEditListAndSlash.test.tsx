@@ -426,6 +426,8 @@ describe("obraz - dwie powierzchnie i zapis wymiarów", () => {
     fireEvent.change(pole as HTMLElement, {
       target: { value: "https://cdn.example.com/a.png" },
     });
+    // Szkic adresu zapisuje się po opuszczeniu pola (wspólny `MediaUrlDraftInput`).
+    fireEvent.blur(pole as HTMLElement);
     expect(ostatniZapis(changes).data.url).toBe("https://cdn.example.com/a.png");
   });
 

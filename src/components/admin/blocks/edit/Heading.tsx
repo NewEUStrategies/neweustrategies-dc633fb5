@@ -14,13 +14,29 @@ import Subscript from "@tiptap/extension-subscript";
 import { useEffect, useRef } from "react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
-import type { Block } from "@/lib/blocks/types";
+import type { Block, Json } from "@/lib/blocks/types";
 import { newBlockId } from "@/lib/blocks/types";
 import type { SelectionDirection } from "@/lib/blocks/crossSelection";
 import { safeCssColor, stripParagraphWrapper, toParagraphDoc } from "@/lib/blocks/inlineHtml";
 import { reapplyPendingBlockFocus } from "@/lib/blocks/focus";
 import { looksLikeRichPaste, parseWordHtml, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 import { HeadingWidgetToolbar } from "../HeadingWidgetToolbar";
+import { readText } from "./dataVizShared";
+
+/**
+ * Poziom nagłówka z treści bloku: liczba albo napis liczbowy (import
+ * WordPressa zapisuje część liczb jako napisy), zaokrąglona i ścięta do 1-5.
+ * Wszystko inne - np. `"h2"` - to domyślne 2, tak samo jak w renderze
+ * publicznym (`num(..., 2)`). Bez strażnika `Number("h2")` dawało `NaN`,
+ * którego klamra nie ścina (`Math.max(NaN, 1)` to `NaN`), więc podgląd
+ * dostawał klasę `cms-hNaN` (bez rozmiaru fontu), a pasek narzędzi czytał
+ * z `data-heading-level` poziom „NaN".
+ */
+function readLevel(raw: Json | undefined): number {
+  const n =
+    typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+  return Number.isFinite(n) ? Math.min(Math.max(Math.round(n), 1), 5) : 2;
+}
 
 interface Props {
   block: Block;
@@ -55,8 +71,11 @@ export function HeadingBlock({
   onExtendBlockSelection,
 }: Props) {
   const bt = useBlocksI18n();
-  const level = Math.min(Math.max(Number(block.data.level ?? 2), 1), 5);
-  const text = String(block.data.text ?? "");
+  const level = readLevel(block.data.level);
+  // `readText`, nie `String()`: obiekt (treść per język po migracji) dawał
+  // w polu edycji literalne „[object Object]", które pierwsze naciśnięcie
+  // klawisza utrwalało w dokumencie jako treść nagłówka.
+  const text = readText(block.data.text);
   const align = String(block.data.align ?? "left");
   const color = safeCssColor(block.data.color);
 

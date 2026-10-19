@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeLike } from "@/lib/admin/listFilters";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -36,7 +37,8 @@ export function PageUrlAutocomplete({ value, onChange, placeholder, lang, classN
     enabled: open,
     staleTime: 30_000,
     queryFn: async (): Promise<Hit[]> => {
-      const q = search.trim();
+      // Osłona filtra `.or()` (przecinek, nawias, `%`/`*`) - jak w `PagePicker`.
+      const q = escapeLike(search.trim());
       const titleCol = lang === "en" ? "title_en" : "title_pl";
       const [pagesRes, postsRes] = await Promise.all([
         (async () => {

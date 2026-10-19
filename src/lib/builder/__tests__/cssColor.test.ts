@@ -3,7 +3,9 @@
 // currentColor, token var()), i nie przepuścić niczego, co mogłoby wyjść poza
 // deklarację CSS albo wprowadzić `url()` / `expression()`.
 import { describe, expect, it } from "vitest";
-import { safeWidgetColor } from "../cssColor";
+import { readableOn } from "@/components/builder/organisms/widget-view/socialHover";
+import { autoInvertColor } from "../autoInvertColor";
+import { parseColorChannels, safeWidgetColor } from "../cssColor";
 
 describe("safeWidgetColor - zapisy akceptowane", () => {
   it.each([
@@ -29,6 +31,13 @@ describe("safeWidgetColor - zapisy akceptowane", () => {
     expect(safeWidgetColor(value)).toBe(value);
   });
 
+  it.each(["white", "Red", "rebeccapurple", "DarkSlateGray", "seashell"])(
+    "accepts the CSS named colour %s (stored global colours must not silently fall back)",
+    (value) => {
+      expect(safeWidgetColor(value)).toBe(value);
+    },
+  );
+
   it("trims surrounding whitespace", () => {
     expect(safeWidgetColor("  #123456  ")).toBe("#123456");
   });
@@ -37,6 +46,8 @@ describe("safeWidgetColor - zapisy akceptowane", () => {
 describe("safeWidgetColor - zapisy odrzucane", () => {
   it.each([
     "czerwony",
+    "whitesmokey",
+    "red red",
     "red; background:url(javascript:alert(1))",
     "url(javascript:alert(1))",
     "expression(alert(1))",
@@ -57,5 +68,54 @@ describe("safeWidgetColor - zapisy odrzucane", () => {
     expect(safeWidgetColor(null)).toBe("");
     expect(safeWidgetColor(16711680)).toBe("");
     expect(safeWidgetColor({ hex: "#fff" })).toBe("");
+  });
+});
+
+describe("nazwa koloru liczy się jak jej zapis hex", () => {
+  // Whitelist przepuszcza nazwy do `style`, więc wspólny parser kanałów musi je
+  // rozumieć: inaczej tusz napisu na podświetleniu social i odwracanie koloru
+  // dla drugiego trybu traktowały „white” jak kolor nieznany - jasny tusz
+  // motywu na białym gradiencie, granat bez odwrócenia na ciemnym tle.
+  it.each([
+    ["white", "#ffffff"],
+    ["Black", "#000000"],
+    ["navy", "#000080"],
+    ["RebeccaPurple", "#663399"],
+    ["darkgrey", "#a9a9a9"],
+    ["whitesmoke", "#f5f5f5"],
+    ["  LightGoldenRodYellow ", "#fafad2"],
+  ])("%j ma kanały %s", (name, hex) => {
+    expect(parseColorChannels(name)).toEqual(parseColorChannels(hex));
+    expect(parseColorChannels(name)).not.toBeNull();
+  });
+
+  it.each([
+    ["white", "#ffffff"],
+    ["navy", "#000080"],
+    ["yellow", "#ffff00"],
+    ["midnightblue", "#191970"],
+  ])("tusz napisu na tle %s jest taki sam jak na %s", (name, hex) => {
+    expect(readableOn(safeWidgetColor(name))).toBe(readableOn(hex));
+  });
+
+  it("biały wiersz dostaje ciemny tusz, granatowy - biały", () => {
+    expect(readableOn(safeWidgetColor("white"))).toBe("#141414");
+    expect(readableOn(safeWidgetColor("navy"))).toBe("#ffffff");
+  });
+
+  it.each([
+    ["navy", "#000080", "dark"],
+    ["black", "#000000", "dark"],
+    ["white", "#ffffff", "light"],
+    ["ivory", "#fffff0", "light"],
+  ] as const)("odwracanie %s (jak %s) dla trybu %s", (name, hex, mode) => {
+    expect(autoInvertColor(name, mode)).toBe(autoInvertColor(hex, mode));
+  });
+
+  it("klucze prototypu obiektu nie są nazwą koloru", () => {
+    for (const key of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(safeWidgetColor(key)).toBe("");
+      expect(parseColorChannels(key)).toBeNull();
+    }
   });
 });

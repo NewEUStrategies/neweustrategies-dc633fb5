@@ -221,7 +221,8 @@ export function estimateWidgetHeight(node: WidgetNode, device: Device = "desktop
 
 /** Kolumna układa widgety pionowo, więc wysokości się SUMUJĄ (plus odstępy). */
 export function estimateColumnHeight(column: ColumnNode, device: Device = "desktop"): number {
-  if (hiddenOnDevice(column.advanced, device)) return 0;
+  // Pusty węzeł z kolumny jsonb (jak w rendererze: `!!c`) - nic nie zajmuje.
+  if (!column || hiddenOnDevice(column.advanced, device)) return 0;
   const children = Array.isArray(column.children) ? column.children : [];
   const heights = children
     .filter((child): child is WidgetNode => !!child && child.kind === "widget")
@@ -233,6 +234,7 @@ export function estimateColumnHeight(column: ColumnNode, device: Device = "deskt
 }
 
 function estimateChildHeight(child: SectionChild, device: Device): number {
+  if (!child) return 0;
   if (child.kind === "inner-section") {
     if (hiddenOnDevice(child.advanced, device)) return 0;
     const columns = Array.isArray(child.columns) ? child.columns : [];
@@ -367,7 +369,7 @@ export function estimateChromeWidgetHeight(node: WidgetNode, device: Device = "d
  * od szerokości tekstu, czyli od kroju dostępnego w danym środowisku.
  */
 export function estimateChromeColumnHeight(column: ColumnNode, device: Device = "desktop"): number {
-  if (hiddenOnDevice(column.advanced, device)) return 0;
+  if (!column || hiddenOnDevice(column.advanced, device)) return 0;
   const widgets = (Array.isArray(column.children) ? column.children : []).filter(
     (child): child is WidgetNode =>
       !!child && child.kind === "widget" && !hiddenOnDevice(child.advanced, device),
@@ -397,6 +399,7 @@ export function estimateChromeRowHeight(section: SectionNode, device: Device = "
   if (hiddenOnDevice(section.advanced, device)) return 0;
   const children = Array.isArray(section.children) ? section.children : [];
   const content = children.reduce((tallest, child) => {
+    if (!child) return tallest;
     if (child.kind === "inner-section") {
       if (hiddenOnDevice(child.advanced, device)) return tallest;
       const columns = Array.isArray(child.columns) ? child.columns : [];

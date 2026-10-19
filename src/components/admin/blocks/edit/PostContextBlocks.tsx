@@ -20,10 +20,69 @@ import { ExpertPicker } from "@/components/admin/experts/ExpertPicker";
 import { readProfileCardStyle } from "@/lib/content-model/profileCardStyle";
 import { PROFILE_CARD_DEFAULTS } from "@/components/ui/profile-card";
 import { toJson } from "@/lib/content-model/json";
+import { num, str } from "@/components/blocks/renderer/data";
 
 interface Props {
   block: Block;
   onChange: (next: Block) => void;
+}
+
+type JsonRecord = Record<string, Json>;
+
+const isRecord = (v: Json | undefined): v is JsonRecord =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * Pola tekstowe autora inline. Wartość innego typu (obiekt po migracji treści
+ * dwujęzycznej, liczba z importu) nie może dojść ani do `<Input>` (pokazałby
+ * „[object Object]"), ani do podglądu (React rzuca na obiekcie jako dziecku).
+ */
+const INLINE_AUTHOR_TEXT_KEYS = [
+  "id",
+  "name",
+  "slug",
+  "avatarUrl",
+  "bio_pl",
+  "bio_en",
+  "jobTitle",
+  "company",
+  "contactEmail",
+  "phone",
+  "xUrl",
+  "twitterUrl",
+  "linkedinUrl",
+  "facebookUrl",
+  "instagramUrl",
+  "spotifyUrl",
+  "websiteUrl",
+] as const satisfies readonly (keyof CurrentPostAuthor)[];
+
+/** Lista własnych linków: tylko obiekty, z polami tekstowymi jako napisy. */
+function readCustomSocials(raw: Json | undefined): CustomAuthorSocial[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CustomAuthorSocial[] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry)) continue;
+    const social: CustomAuthorSocial = { label: str(entry, "label"), url: str(entry, "url") };
+    if (typeof entry.iconUrl === "string") social.iconUrl = entry.iconUrl;
+    out.push(social);
+  }
+  return out;
+}
+
+/**
+ * JEDNA normalizacja autora inline - dla formularza i dla podglądu naraz.
+ * Wcześniej formularz miał własny strażnik `customSocials`, a podgląd
+ * (`AuthorBioView`) dostawał surowy obiekt i rzucał w renderze na napisie
+ * zamiast tablicy. Klucze spoza modelu przechodzą bez zmian.
+ */
+function readInlineAuthor(raw: JsonRecord): CurrentPostAuthor {
+  const author = { ...raw } as unknown as CurrentPostAuthor;
+  for (const key of INLINE_AUTHOR_TEXT_KEYS) {
+    if (key in raw && typeof raw[key] !== "string") delete author[key];
+  }
+  if ("customSocials" in raw) author.customSocials = readCustomSocials(raw.customSocials);
+  return author;
 }
 
 function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
@@ -69,9 +128,7 @@ function InlineAuthorForm({
   const pc = (k: string) => i18n.editor("postContextBlocks", k);
   const [pickAvatarOpen, setPickAvatarOpen] = useState(false);
   const [pickIconIdx, setPickIconIdx] = useState<number | null>(null);
-  const socials: CustomAuthorSocial[] = Array.isArray(author.customSocials)
-    ? author.customSocials
-    : [];
+  const socials: CustomAuthorSocial[] = author.customSocials ?? [];
   const updateSocials = (next: CustomAuthorSocial[]) => onChange({ customSocials: next });
 
   const field = (
@@ -277,6 +334,16 @@ const AUTHOR_BIO_VARIANT_LABEL_KEY: Record<AuthorBioVariant, string> = {
   profile: "variantNameProfile",
 };
 
+/** Wariant spoza katalogu czyta się jak `card` - tak samo jak `renderAuthorBio`. */
+function readAuthorBioVariant(v: Json | undefined): AuthorBioVariant {
+  return AUTHOR_BIO_VARIANTS.find((known) => known === v) ?? "card";
+}
+
+/** Opcje list wyboru karty profilu - te same zbiory, które rozpoznaje `ProfileCard`. */
+const PROFILE_SHADOWS = ["none", "sm", "md", "lg", "xl"] as const;
+const PROFILE_SOCIAL_STYLES = ["solid", "outline"] as const;
+const PROFILE_ALIGNS = ["center", "left"] as const;
+
 /**
  * Ustawienia prezentacji wariantu „Karta profilu". Klucze SĄ TE SAME, co w
  * panelu widgetu `author-profile-card` w builderze (lib/content-model/profileCardStyle),
@@ -298,8 +365,12 @@ function ProfileVariantSettings({
     if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
     return fallback;
   };
-  const strValue = (key: string, fallback: string) =>
-    typeof block.data[key] === "string" && block.data[key] ? String(block.data[key]) : fallback;
+  // Wartość spoza opcji listy pokazuje się jak ta, którą narysuje karta -
+  // natywny `<select>` pokazałby w zamian PIERWSZĄ opcję.
+  const oneOf = (key: string, options: readonly string[], fallback: string) => {
+    const v = block.data[key];
+    return typeof v === "string" && options.includes(v) ? v : fallback;
+  };
 
   const numberField = (
     key: string,
@@ -317,9 +388,14 @@ function ProfileVariantSettings({
         max={max}
         step={step}
         className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
-        value={numValue(key, fallback)}
+        // Powyżej `max` karta i tak przytnie wartość - pole pokazuje i zapisuje
+        // granicę. Dolnej granicy nie wymuszamy w trakcie pisania: „2" jest
+        // stanem przejściowym w drodze do „250", a karta i tak domknie wynik.
+        value={Math.min(max, numValue(key, fallback))}
         // Puste pole = „wróć do domyślnej", nie 0 px (patrz readProfileCardStyle).
-        onChange={(e) => set({ [key]: e.target.value === "" ? "" : Number(e.target.value) })}
+        onChange={(e) =>
+          set({ [key]: e.target.value === "" ? "" : Math.min(max, Number(e.target.value)) })
+        }
       />
     </label>
   );
@@ -342,7 +418,7 @@ function ProfileVariantSettings({
           </span>
           <AdminSelect
             className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
-            value={strValue("shadow", d.shadow)}
+            value={oneOf("shadow", PROFILE_SHADOWS, d.shadow)}
             onChange={(e) => set({ shadow: e.target.value })}
           >
             <option value="none">{pc("shadowNone")}</option>
@@ -358,7 +434,7 @@ function ProfileVariantSettings({
           </span>
           <AdminSelect
             className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
-            value={strValue("socialStyle", d.socialStyle)}
+            value={oneOf("socialStyle", PROFILE_SOCIAL_STYLES, d.socialStyle)}
             onChange={(e) => set({ socialStyle: e.target.value })}
           >
             <option value="solid">{pc("socialSolid")}</option>
@@ -371,7 +447,7 @@ function ProfileVariantSettings({
           </span>
           <AdminSelect
             className="mt-1 w-full text-xs bg-background border border-border rounded-[6px] px-2 py-2 h-9"
-            value={strValue("mobileAlign", d.align)}
+            value={oneOf("mobileAlign", PROFILE_ALIGNS, d.align)}
             onChange={(e) => set({ mobileAlign: e.target.value })}
           >
             <option value="center">{pc("alignCenter")}</option>
@@ -395,27 +471,28 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   const { i18n: i18next } = useTranslation();
   const lang: "pl" | "en" = (i18next.language ?? "pl").startsWith("en") ? "en" : "pl";
   const pc = (k: string) => i18n.editor("postContextBlocks", k);
-  const variantName = (v: string) =>
-    pc(AUTHOR_BIO_VARIANT_LABEL_KEY[v as AuthorBioVariant] ?? AUTHOR_BIO_VARIANT_LABEL_KEY.minimal);
+  const variantName = (v: AuthorBioVariant) => pc(AUTHOR_BIO_VARIANT_LABEL_KEY[v]);
   const showAvatar = block.data.showAvatar !== false;
   const showSocial = block.data.showSocial !== false;
   const showPostsCount = block.data.showPostsCount !== false;
-  const variant = String(block.data.variant ?? "card");
+  const variant = readAuthorBioVariant(block.data.variant);
+  // Pozostałe warianty montują się dopiero po rozwinięciu `<details>`: każdy
+  // to pełny `AuthorBioView` z własnymi zapytaniami, a zwinięta lista
+  // przerysowywała cztery ukryte podglądy przy KAŻDYM znaku wpisanym w formularz.
+  const [othersOpen, setOthersOpen] = useState(false);
 
   const authorSource: "existing" | "inline" =
     block.data.authorSource === "inline" ? "inline" : "existing";
   const selectedAuthorId = typeof block.data.authorId === "string" ? block.data.authorId : "";
-  const inlineAuthor: CurrentPostAuthor =
-    block.data.inlineAuthor &&
-    typeof block.data.inlineAuthor === "object" &&
-    !Array.isArray(block.data.inlineAuthor)
-      ? (block.data.inlineAuthor as unknown as CurrentPostAuthor)
-      : {};
+  const inlineRaw: JsonRecord = isRecord(block.data.inlineAuthor) ? block.data.inlineAuthor : {};
+  const inlineAuthor = readInlineAuthor(inlineRaw);
 
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
+  // Zapis dokłada zmianę do SUROWEGO obiektu - normalizacja jest dla odczytu
+  // i nie może po drodze przepisać pól, których redaktor nie dotknął.
   const setInline = (patch: Partial<CurrentPostAuthor>) =>
-    set({ inlineAuthor: toJson({ ...inlineAuthor, ...patch }) });
+    set({ inlineAuthor: toJson({ ...inlineRaw, ...patch }) });
 
   // Podgląd czyta ustawienia prezentacji tym samym czytnikiem, co renderer
   // publiczny - panel nie może obiecać innego wyglądu niż strona.
@@ -535,32 +612,39 @@ export function AuthorBioBlock({ block, onChange }: Props) {
             showAvatar={showAvatar}
             showSocial={showSocial}
             showPostsCount={showPostsCount}
-            variant={variant as AuthorBioVariant}
+            variant={variant}
             authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
             authorOverride={useInlinePreview ? inlineAuthor : undefined}
             profileStyle={profileStyle}
           />
         </CurrentPostProvider>
 
-        <details className="text-[11px] text-muted-foreground">
+        <details
+          className="text-[11px] text-muted-foreground"
+          open={othersOpen}
+          onToggle={(e) => setOthersOpen(e.currentTarget.open)}
+        >
           <summary className="cursor-pointer select-none">{pc("seeOtherVariants")}</summary>
           <div className="mt-3 space-y-4">
-            {AUTHOR_BIO_VARIANTS.filter((v) => v !== variant).map((v) => (
-              <div key={v} className="space-y-1">
-                <div className="text-[10px] uppercase tracking-wide">{variantName(v)}</div>
-                <CurrentPostProvider value={previewCtx}>
-                  <AuthorBioView
-                    showAvatar={showAvatar}
-                    showSocial={showSocial}
-                    showPostsCount={showPostsCount}
-                    variant={v}
-                    authorId={!useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined}
-                    authorOverride={useInlinePreview ? inlineAuthor : undefined}
-                    profileStyle={v === "profile" ? profileStyle : undefined}
-                  />
-                </CurrentPostProvider>
-              </div>
-            ))}
+            {othersOpen &&
+              AUTHOR_BIO_VARIANTS.filter((v) => v !== variant).map((v) => (
+                <div key={v} className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide">{variantName(v)}</div>
+                  <CurrentPostProvider value={previewCtx}>
+                    <AuthorBioView
+                      showAvatar={showAvatar}
+                      showSocial={showSocial}
+                      showPostsCount={showPostsCount}
+                      variant={v}
+                      authorId={
+                        !useInlinePreview && selectedAuthorId ? selectedAuthorId : undefined
+                      }
+                      authorOverride={useInlinePreview ? inlineAuthor : undefined}
+                      profileStyle={v === "profile" ? profileStyle : undefined}
+                    />
+                  </CurrentPostProvider>
+                </div>
+              ))}
           </div>
         </details>
       </div>
@@ -568,13 +652,20 @@ export function AuthorBioBlock({ block, onChange }: Props) {
   );
 }
 
+/** Zakres liczby wpisów - ten sam, do którego `relatedPostsBlockQueryOptions` ścina limit. */
+const RELATED_MIN = 1;
+const RELATED_MAX = 12;
+const clampRelated = (n: number) => Math.min(RELATED_MAX, Math.max(RELATED_MIN, n));
+
 export function RelatedPostsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const pc = (k: string) => i18n.editor("postContextBlocks", k);
-  const limit = Number(block.data.limit ?? 3);
-  const strategy = String(block.data.strategy ?? "category");
-  const layout = String(block.data.layout ?? "grid");
-  const heading = String(block.data.heading ?? "");
+  // Odczyt tymi samymi czytnikami, co `renderRelatedPosts` - pole pokazuje
+  // liczbę wpisów, którą strona FAKTYCZNIE pobierze.
+  const limit = clampRelated(num(block.data, "limit", 3));
+  const strategy = str(block.data, "strategy", "category");
+  const layout = str(block.data, "layout", "grid");
+  const heading = str(block.data, "heading");
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
 
@@ -589,11 +680,11 @@ export function RelatedPostsBlock({ block, onChange }: Props) {
       <div className="grid grid-cols-3 gap-2">
         <input
           type="number"
-          min={1}
-          max={12}
+          min={RELATED_MIN}
+          max={RELATED_MAX}
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={limit}
-          onChange={(e) => set({ limit: Number(e.target.value) || 3 })}
+          onChange={(e) => set({ limit: clampRelated(Number(e.target.value) || 3) })}
         />
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"

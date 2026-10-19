@@ -21,14 +21,16 @@ export function htmlTextLength(html: string): number {
     const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
     return (doc.body.textContent ?? "").length;
   }
-  // Fallback SSR: zdjęcie znaczników + najczęstsze encje.
+  // Fallback SSR: zdjęcie znaczników + najczęstsze encje. `&amp;` rozwijamy
+  // OSTATNIE - inaczej `&amp;lt;` (tekst „&lt;") rozwijał się dwa razy do „<"
+  // i offset karetki rozjeżdżał się z `textContent`.
   return html
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"').length;
+    .replace(/&quot;/gi, '"')
+    .replace(/&amp;/gi, "&").length;
 }
 
 /**

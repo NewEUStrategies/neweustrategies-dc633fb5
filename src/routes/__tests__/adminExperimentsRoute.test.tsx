@@ -52,13 +52,19 @@ const h = vi.hoisted(() => ({
   remove: vi.fn(),
   confirm: vi.fn(),
   toastSuccess: vi.fn(),
+  toastError: vi.fn(),
   lang: "pl",
 }));
 
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
-vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => h.toastSuccess(...a) } }));
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...a: unknown[]) => h.toastSuccess(...a),
+    error: (...a: unknown[]) => h.toastError(...a),
+  },
+}));
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: (...a: unknown[]) => h.confirm(...a) }));
 
 // PRAWDZIWE `zScore` i `conversionRate`, atrapowane tylko hooki danych.
@@ -108,9 +114,11 @@ beforeEach(() => {
   h.loading = false;
   h.stats = new Map();
   h.setStatus.mockReset();
-  h.remove.mockReset().mockResolvedValue(undefined);
+  // Kontrakt `remove`: `true` = baza usunęła wiersz, `false` = odmowa.
+  h.remove.mockReset().mockResolvedValue(true);
   h.confirm.mockReset().mockResolvedValue(true);
   h.toastSuccess.mockReset();
+  h.toastError.mockReset();
   h.lang = "pl";
 });
 
@@ -278,6 +286,24 @@ describe("akcje zależą od statusu", () => {
     expect(h.setStatus).toHaveBeenNthCalledWith(1, "pierwszy", "paused");
     expect(h.setStatus).toHaveBeenNthCalledWith(2, "drugi", "running");
   });
+
+  it("odmowa zmiany statusu mówi o tym redaktorowi; udana nie pokazuje błędu", async () => {
+    h.items = [
+      experiment({ id: "pierwszy", name: "Pierwszy", status: "running" }),
+      experiment({ id: "drugi", name: "Drugi", status: "paused" }),
+    ];
+    h.setStatus.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await mount();
+    await act(async () => {
+      fireEvent.click(within(card("Pierwszy")).getByTitle("admin.experiments.pause"));
+    });
+    expect(h.toastError).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(card("Drugi")).getByTitle("admin.experiments.resume"));
+    });
+    expect(h.toastError).toHaveBeenCalledWith("admin.experiments.statusFailed");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -321,6 +347,24 @@ describe("usunięcie testu", () => {
 
     expect(h.remove).toHaveBeenCalledExactlyOnceWith("do-usuniecia");
     expect(h.toastSuccess).toHaveBeenCalledWith("admin.experiments.deleted");
+    expect(h.toastError).not.toHaveBeenCalled();
+  });
+
+  it("ODMOWA BAZY przy usuwaniu daje komunikat błędu, a NIE komunikat sukcesu", async () => {
+    // NAPRAWIONE 2026-10-18: `remove` oddaje `false`, gdy baza odrzuci DELETE
+    // (RLS, klucz obcy, sieć) - wcześniej trasa pokazywała „Usunięto test"
+    // niezależnie od wyniku, a wiersz nadal stał na liście po odświeżeniu.
+    h.remove.mockResolvedValue(false);
+    h.items = [experiment({ id: "chroniony", name: "Chroniony" })];
+
+    await mount();
+    await act(async () => {
+      fireEvent.click(within(card("Chroniony")).getByTitle("admin.experiments.delete"));
+    });
+
+    expect(h.remove).toHaveBeenCalledExactlyOnceWith("chroniony");
+    expect(h.toastError).toHaveBeenCalledWith("admin.experiments.deleteFailed");
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 });
 

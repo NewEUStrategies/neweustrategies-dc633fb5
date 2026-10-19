@@ -1,5 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -9,7 +10,7 @@ interface Props {
 /** Kalendarz publikacji (Gutenberg "Calendar"). */
 export function CalendarBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const month = String(block.data.month ?? ""); // YYYY-MM, puste = bieżący
+  const month = readText(block.data.month); // YYYY-MM, puste = bieżący
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

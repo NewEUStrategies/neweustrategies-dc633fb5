@@ -111,11 +111,34 @@ function stripHtmlToLines(html: string): string[] {
 const TEXTY_KEY =
   /(^|_)(text|html|title|subtitle|label|caption|quote|content|body|description|heading|excerpt|cta|name|question|answer|items?)(_pl|_en)?$/i;
 
-function collectDocLines(node: unknown, into: string[], seen = new WeakSet<object>()): void {
+/** Linie tekstu z wartości napisowej spod klucza tekstowego. */
+function pushTextValue(value: string, into: string[]): void {
+  if (/[<>]/.test(value)) {
+    into.push(...stripHtmlToLines(value));
+    return;
+  }
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (cleaned) into.push(cleaned);
+}
+
+/**
+ * `textual` = węzeł leży pod kluczem z TEXTY_KEY. Napisy w tablicy zbieramy
+ * TYLKO wtedy: `items: ["Pierwszy", "Drugi"]` (kanoniczna lista bloków) to
+ * treść, a `urls: [...]` czy `colors: [...]` - szum.
+ */
+function collectDocLines(
+  node: unknown,
+  into: string[],
+  seen = new WeakSet<object>(),
+  textual = false,
+): void {
   if (into.length >= MAX_LINES) return;
-  if (typeof node === "string") return;
+  if (typeof node === "string") {
+    if (textual) pushTextValue(node, into);
+    return;
+  }
   if (Array.isArray(node)) {
-    for (const child of node) collectDocLines(child, into, seen);
+    for (const child of node) collectDocLines(child, into, seen, textual);
     return;
   }
   if (!node || typeof node !== "object") return;
@@ -123,15 +146,9 @@ function collectDocLines(node: unknown, into: string[], seen = new WeakSet<objec
   seen.add(node as object);
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
     if (typeof value === "string") {
-      if (TEXTY_KEY.test(key) && value.trim().length > 0) {
-        if (/[<>]/.test(value)) into.push(...stripHtmlToLines(value));
-        else {
-          const cleaned = value.replace(/\s+/g, " ").trim();
-          if (cleaned) into.push(cleaned);
-        }
-      }
+      if (TEXTY_KEY.test(key)) pushTextValue(value, into);
     } else {
-      collectDocLines(value, into, seen);
+      collectDocLines(value, into, seen, Array.isArray(value) && TEXTY_KEY.test(key));
     }
   }
 }

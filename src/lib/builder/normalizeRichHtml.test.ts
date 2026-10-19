@@ -317,44 +317,43 @@ describe.each(ENGINES)("$name - wejście złośliwe", ({ normalize, form }) => {
   });
 });
 
-describe.each(ENGINES)("$name - defekty", ({ normalize }) => {
-  // DEFEKT: PUNKT Z IKONĄ INLINE SVG JEST KASOWANY RAZEM Z CAŁĄ LISTĄ.
-  //
-  // WEJSCIE: rząd ikon zapisany jako inline SVG - czyli dokładnie to, co
-  //   generują eksporty z Elementora („icon list”), wtyczki social i nasza
-  //   własna biblioteka ikon: `<ul><li><svg …/></li></ul>`. Punkt nie ma
-  //   tekstu, bo cała jego treść to grafika.
-  // CO PSUJE: krok 1 (src/lib/builder/normalizeRichHtml.ts:50-57, w bliźniaku
-  //   DOM to samo) uznaje punkt za pusty po tekście, a wspólna lista nośników
-  //   `LIST_ITEM_KEEPERS` (normalizeRichHtmlRules.ts) wymienia tylko „a[href],
-  //   ul, ol, img, iframe, video, audio, button”. `svg` (a także `object`,
-  //   `embed`, `canvas`, `input`) NIE jest
-  //   na tej liście, więc `hasKeeper` jest fałszywe i punkt leci przez
-  //   `item.remove()`. Krok 2 (:60-66) widzi listę bez punktów i usuwa
-  //   również ją.
-  // KONSEKWENCJA: cały rząd ikon znika z treści - i to BEZTERMINOWO, bo
-  //   znormalizowany HTML jest tym, co zapisuje się do dokumentu i co jedzie
-  //   do sanityzacji. Nie ma komunikatu, nie ma pustej ramki, nie ma czego
-  //   cofnąć: redakcja widzi po prostu, że sekcja z ikonami zniknęła. To ta
-  //   sama klasa co „odmowa odczytu udaje pustkę”, tylko źródłem pustki jest
-  //   NASZ krok porządkujący, nie baza. Komentarz przy strażniku obiecuje
-  //   wprost, że punkty „carry a link or media” są zachowywane - kod tej
-  //   obietnicy nie dowozi.
-  // WYMAGANA POPRAWKA: dopisać do selektora `hasKeeper` elementy graficzne
-  //   i osadzone, których treść nie jest tekstem - co najmniej `svg`,
-  //   `picture`, `object`, `embed`, `canvas`, `input` - albo odwrócić regułę:
-  //   usuwać punkt tylko wtedy, gdy po odjęciu białych znaków, `<br>`
-  //   i komentarzy nie zostaje W NIM ŻADEN element.
-  it.fails("DEFEKT: rząd ikon inline SVG MUSI przetrwać normalizację", () => {
-    const html =
-      '<ul><li><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"></path></svg></li>' +
-      '<li><svg viewBox="0 0 24 24"><path d="M2 2h20v20H2z"></path></svg></li></ul>';
-    const out = normalize(html);
-    expect(out).not.toBe("");
-    expect(out).toContain("<svg");
-    expect(out.match(/<li>/g)).toHaveLength(2);
-  });
-});
+describe.each(ENGINES)(
+  "$name - punkty z grafiką bez tekstu (naprawione defekty)",
+  ({ normalize }) => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): punkt z ikoną inline SVG był
+    // kasowany razem z całą listą - krok 1 uznawał go za pusty po tekście, bo
+    // wspólna lista nośników `LIST_ITEM_KEEPERS` nie znała `svg` (ani `picture`,
+    // `object`, `embed`, `canvas`, `input`), a krok 2 usuwał listę bez punktów.
+    // Znormalizowany HTML jest tym, co się zapisuje, więc rząd ikon znikał
+    // bezterminowo.
+    //
+    // KONTRAKT: punkt bez tekstu, którego treścią jest grafika lub osadzenie
+    // (lista w `normalizeRichHtmlRules.ts`, wspólna dla OBU silników), zostaje.
+    // Punkt naprawdę pusty (białe znaki, `&nbsp;`, `<br>`) nadal wypada.
+    it("rząd ikon inline SVG przetrwa normalizację", () => {
+      const html =
+        '<ul><li><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"></path></svg></li>' +
+        '<li><svg viewBox="0 0 24 24"><path d="M2 2h20v20H2z"></path></svg></li></ul>';
+      const out = normalize(html);
+      expect(out).not.toBe("");
+      expect(out).toContain("<svg");
+      expect(out.match(/<li>/g)).toHaveLength(2);
+    });
+
+    it.each([
+      ["picture", '<picture><img src="https://example.com/a.webp" alt=""></picture>'],
+      ["object", '<object data="https://example.com/a.pdf"></object>'],
+      ["embed", '<embed src="https://example.com/a.swf">'],
+      ["canvas", "<canvas></canvas>"],
+      ["input", '<input type="checkbox">'],
+    ])("punkt niosący tylko <%s> zostaje, a pusty sąsiad nadal wypada", (tag, inner) => {
+      const out = normalize(`<ul><li>${inner}</li><li>&nbsp;<br></li></ul>`);
+
+      expect(out).toContain(`<${tag}`);
+      expect(out.match(/<li>/g)).toHaveLength(1);
+    });
+  },
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PARYTET SILNIKÓW. Wyżej każdy przypadek sprawdza oba silniki osobno; tu

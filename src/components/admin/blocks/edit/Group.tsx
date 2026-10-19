@@ -6,7 +6,14 @@ import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { readChildBlocks, withChildBlocks } from "@/lib/blocks/nested";
 import { Input } from "@/components/ui/input";
+import { num, str } from "@/components/blocks/renderer/data";
 import { NestedBlocksEditor } from "../molecules/NestedBlocksEditor";
+import { readText } from "./dataVizShared";
+
+/** Odstęp w granicach renderera kontenera (`renderGroup`/`renderRowStackGrid`). */
+function clampPadding(n: number): number {
+  return Math.min(120, Math.max(0, n));
+}
 
 interface Props {
   block: Block;
@@ -16,9 +23,11 @@ interface Props {
 /** Kontener (Group/Row/Stack/Grid). Layout dispatch przez block.data.layout. */
 export function GroupBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const layout = (block.data.layout as string) || block.type;
-  const bg = String(block.data.background ?? "");
-  const padding = Number(block.data.padding ?? 16);
+  // `str`, nie rzutowanie: układ-obiekt w danych wywracał kanwę jako dziecko Reacta.
+  const layout = str(block.data, "layout") || block.type;
+  const bg = readText(block.data.background);
+  // Domyślne jak na stronie: `group` ma 16 px, a `row`/`stack`/`grid` - zero.
+  const padding = clampPadding(num(block.data, "padding", block.type === "group" ? 16 : 0));
   const children = readChildBlocks(block.data, "children");
 
   return (
@@ -44,7 +53,10 @@ export function GroupBlock({ block, onChange }: Props) {
           value={padding}
           placeholder={bt.editor("group", "padding")}
           onChange={(e) =>
-            onChange({ ...block, data: { ...block.data, padding: Number(e.target.value || 0) } })
+            onChange({
+              ...block,
+              data: { ...block.data, padding: clampPadding(Number(e.target.value || 0)) },
+            })
           }
         />
       </div>

@@ -2,6 +2,7 @@
 // Allows: insert a revision as a new section into canvas,
 // or restore a revision as the current template content (creates a new revision via DB trigger).
 import {
+  TEMPLATE_REVISIONS_LIMIT,
   useTemplateRevisions,
   type SectionTemplate,
   type TemplateRevision,
@@ -25,12 +26,11 @@ interface Props {
   onRestore: (rev: TemplateRevision) => void;
 }
 
+/** Data rewizji; niepoprawny znacznik czasu zostaje surowy zamiast „Invalid Date". */
 function fmt(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
-  } catch {
-    return iso;
-  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
 }
 
 export function TemplateHistoryDialog({
@@ -41,7 +41,9 @@ export function TemplateHistoryDialog({
   onRestore,
 }: Props) {
   const { t } = useTranslation();
-  const { items, loading } = useTemplateRevisions(open ? (template?.id ?? null) : null);
+  const { items, loading, error, truncated } = useTemplateRevisions(
+    open ? (template?.id ?? null) : null,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,6 +61,12 @@ export function TemplateHistoryDialog({
         {loading ? (
           <div className="text-xs text-muted-foreground py-6 text-center">
             {t("builder.templateHistory.loading")}
+          </div>
+        ) : error ? (
+          // Odmowa odczytu to nie „brak rewizji" - redaktor musi wiedzieć,
+          // że historii NIE WIDZI, a nie że jej nie ma.
+          <div role="alert" className="text-xs text-destructive py-6 text-center">
+            {t("builder.templateHistory.error")}
           </div>
         ) : items.length === 0 ? (
           <div className="text-xs text-muted-foreground py-6 text-center">
@@ -102,6 +110,11 @@ export function TemplateHistoryDialog({
             ))}
           </ul>
         )}
+        {!loading && !error && truncated ? (
+          <p className="text-[10px] text-muted-foreground">
+            {t("builder.templateHistory.truncated", { n: TEMPLATE_REVISIONS_LIMIT })}
+          </p>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

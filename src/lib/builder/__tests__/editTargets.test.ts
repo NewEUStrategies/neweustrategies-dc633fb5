@@ -107,32 +107,18 @@ describe("clampEditTarget - przyciecie do zakresu", () => {
     expect(clampEditTarget("rozmiarKtoregoNieMa", -12.4)).toBe(-12);
   });
 
-  // DEFEKT: "PRZYTNIJ" ZWRACA NaN DLA KLUCZA ODZIEDZICZONEGO PO PROTOTYPIE.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): "przytnij" zwracal NaN dla klucza
+  // odziedziczonego po prototypie ("constructor", "toString", "valueOf"), bo
+  // metadane byly brane zwyklym indeksowaniem.
   //
-  // WEJSCIE: `clampEditTarget("constructor", 20)`.
-  // CO PSUJE: `editTargets.ts:133` siega po metadane zwyklym indeksowaniem
-  //   (`EDIT_TARGET_META[key]`), a nie tym samym sprawdzeniem, ktore ma tuz
-  //   obok `isEditTargetKey` (`hasOwnProperty`, :129-130). Dla "constructor",
-  //   "toString" czy "valueOf" indeksowanie zwraca skladnik `Object.prototype`
-  //   - wartosc PRAWDZIWA - wiec galaz `if (!meta)` sie nie wykonuje,
-  //   a `meta.min` i `meta.max` sa `undefined`. `Math.max(undefined, ...)`
-  //   daje `NaN`.
-  // KONSEKWENCJA: do `content[key]` trafia `NaN`. Zapisany dokument niesie
-  //   wtedy `null` (JSON nie zna `NaN`), stepper pokazuje pusto, a wygenerowany
-  //   `font-size: NaNpx` jest odrzucany przez przegladarke, wiec tekst wraca do
-  //   rozmiaru domyslnego mimo ustawionej wartosci.
-  //   UCZCIWIE O ZASIEGU: dzis nie da sie tu dojsc z produkcji - jedyne
-  //   wywolanie (`InlineSizeToolbar.tsx:236`) jest za bramka `isEditTargetKey`
-  //   (:115), a druga powierzchnia bierze klucze z zaszytej listy
-  //   `FORM_SIZE_FIELDS`. Szkoda jest wiec UTAJONA: rozbroi ja pierwsze trzecie
-  //   wywolanie tej eksportowanej funkcji bez wlasnej bramki. Funkcja nazwana
-  //   "przytnij" nigdy nie powinna zwracac `NaN` niezaleznie od wolajacego.
-  // WYMAGANA POPRAWKA: `clampEditTarget` musi pobierac metadane przez to samo
-  //   sprawdzenie wlasnosci wlasnej, ktorego uzywa `isEditTargetKey` (np.
-  //   `const meta = isEditTargetKey(key) ? EDIT_TARGET_META[key] : undefined`),
-  //   zeby klucz odziedziczony spadal na galaz "brak metadanych".
-  it.fails("DEFEKT: clampEditTarget dla klucza z prototypu NIE moze zwracac NaN", () => {
+  // KONTRAKT: `clampEditTarget` pobiera metadane tym samym sprawdzeniem
+  // wlasnosci wlasnej, co `isEditTargetKey`, wiec klucz z prototypu spada na
+  // galaz "brak metadanych" (samo zaokraglenie) - do `content[key]` nigdy nie
+  // trafia `NaN`, niezaleznie od tego, czy wolajacy ma wlasna bramke.
+  it("clampEditTarget dla klucza z prototypu zaokragla, a nie zwraca NaN", () => {
     expect(clampEditTarget("constructor", 20)).toBe(20);
+    expect(clampEditTarget("toString", 19.6)).toBe(20);
+    expect(clampEditTarget("__proto__", 7)).toBe(7);
   });
 });
 

@@ -12,6 +12,7 @@
 // change, so undo/redo also propagates.
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCurrentTenantId } from "@/lib/tenant";
 import type { BuilderDocument, WidgetNode } from "@/lib/builder/types";
 import {
   globalWidgetKey,
@@ -38,6 +39,13 @@ function forEachGlobalInstance(doc: BuilderDocument, fn: (w: WidgetNode) => void
 
 export function useGlobalWidgetSync(doc: BuilderDocument): void {
   const queryClient = useQueryClient();
+  // Najemca z sesji (ta sama droga co lista palety) czytany W CHWILI zapisu -
+  // opóźniony zapis i zrzut przy odmontowaniu biorą bieżącą wartość.
+  const tenantId = useCurrentTenantId();
+  const tenantRef = useRef(tenantId);
+  useEffect(() => {
+    tenantRef.current = tenantId;
+  }, [tenantId]);
   // nodeId -> last observed serialized payload
   const baselineRef = useRef(new Map<string, string>());
   // globalId -> pending debounced push (timer + latest payload)
@@ -69,7 +77,7 @@ export function useGlobalWidgetSync(doc: BuilderDocument): void {
         payload,
         timer: setTimeout(() => {
           pending.delete(globalId);
-          void pushGlobalWidgetData(globalId, payload);
+          void pushGlobalWidgetData(globalId, payload, tenantRef.current);
         }, PUSH_DEBOUNCE_MS),
       });
     });
@@ -85,7 +93,7 @@ export function useGlobalWidgetSync(doc: BuilderDocument): void {
     () => () => {
       for (const [globalId, entry] of pendingRef.current) {
         clearTimeout(entry.timer);
-        void pushGlobalWidgetData(globalId, entry.payload);
+        void pushGlobalWidgetData(globalId, entry.payload, tenantRef.current);
       }
       pendingRef.current.clear();
     },

@@ -3,6 +3,10 @@
 // wyczyszczeniu pola natychmiast wskakuje wartość domyślna i nie da się wpisać
 // np. "12" - tutaj trzymamy lokalny draft (string), a clamp/commit dzieje się
 // dopiero gdy wartość jest kompletna: blur, Enter lub poprawna liczba w zakresie.
+//
+// Zakres podaje WYWOŁUJĄCY i ma to być zakres renderera (panel pokazujący 5000,
+// gdy kanwa rysuje 900, to ten sam defekt w drugą stronę). Renderer domykający
+// wartość tylko od dołu = brak `max`.
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -12,8 +16,17 @@ export interface ClampedNumberInputProps {
   value: number | undefined;
   onCommit: (value: number | undefined) => void;
   min: number;
-  max: number;
+  /** Górny kraniec; brak = bez górnej granicy (renderer domyka tylko od dołu). */
+  max?: number;
   step?: number;
+  /**
+   * Liczba miejsc po przecinku. Brak = pole przyjmuje wyłącznie liczby całkowite
+   * (zachowanie wszystkich wywołań sprzed trybu ułamkowego). Wartość > 0
+   * wpuszcza ułamek (kropka lub przecinek, najwyżej tyle cyfr po separatorze),
+   * a zatwierdzenie i krok strzałki zaokrągla do tej precyzji - 1.1 + 0.05 to
+   * w arytmetyce binarnej 1.1500000000000001, a nie 1.15.
+   */
+  precision?: number;
   /** Gdy true, puste pole zatwierdza `undefined` (np. min-height = auto). */
   allowEmpty?: boolean;
   placeholder?: string;
@@ -22,13 +35,15 @@ export interface ClampedNumberInputProps {
 }
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const parse = (raw: string) => Number(raw.replace(",", "."));
 
 export function ClampedNumberInput({
   value,
   onCommit,
   min,
-  max,
+  max = Number.POSITIVE_INFINITY,
   step = 1,
+  precision,
   allowEmpty = false,
   placeholder,
   ariaLabel,
@@ -36,6 +51,17 @@ export function ClampedNumberInput({
 }: ClampedNumberInputProps) {
   const [draft, setDraft] = useState<string>(value === undefined ? "" : String(value));
   const editing = useRef(false);
+  // Liczba, którą bieżąca edycja już zapisała (w locie albo krokiem strzałki).
+  // Zatwierdzenie tej samej liczby byłoby drugim, pustym krokiem historii.
+  // Porównanie z `value` nie wystarcza: pokazana wartość bywa odziedziczona
+  // (rozpiętość kolumny na telefonie = desktopowa), więc wpis „99” domknięty
+  // do pokazanego 12 nie przypinał niczego, choć wpis „12” przypinał.
+  const sent = useRef<number | undefined>(undefined);
+  const fractional = precision !== undefined && precision > 0;
+  // Wzorzec liczony z precyzji: separator i co najwyżej `precision` cyfr po nim.
+  const accepts = fractional ? new RegExp(`^-?\\d*([.,]\\d{0,${precision}})?$`) : /^-?\d*$/;
+  // Bez precyzji wynik zostaje dosłowny (dotychczasowa semantyka atomu).
+  const round = (n: number) => (precision === undefined ? n : Number(n.toFixed(precision)));
 
   // Synchronizacja tylko gdy pole nie jest edytowane - inaczej kasowalibyśmy
   // to, co użytkownik właśnie wpisuje.
@@ -44,7 +70,19 @@ export function ClampedNumberInput({
   }, [value]);
 
   const commit = (raw: string) => {
+    // Zatwierdzenie kończy edycję - także te wyjścia, które niczego nie zapisują.
+    const alreadySent = sent.current;
+    sent.current = undefined;
     const trimmed = raw.trim();
+    const shown = value === undefined ? "" : String(value);
+    // Pole pokazuje dokładnie wartość dokumentu = redaktor niczego nie zmienił.
+    // Samo przejście przez pole (Tab, klik i wyjście) NIE może zapisywać - inaczej
+    // wartość spoza zakresu zapisana w dokumencie (np. ocena 15) była po cichu
+    // przycinana i dawała wpis w historii cofania oraz autozapis bez edycji.
+    if (trimmed === shown) {
+      setDraft(shown);
+      return;
+    }
     if (trimmed === "") {
       if (allowEmpty) {
         onCommit(undefined);
@@ -54,45 +92,55 @@ export function ClampedNumberInput({
       }
       return;
     }
-    const parsed = Number(trimmed.replace(",", "."));
+    const parsed = parse(trimmed);
     if (!Number.isFinite(parsed)) {
       setDraft(value === undefined ? "" : String(value));
       return;
     }
-    const next = clamp(parsed, min, max);
+    const next = clamp(round(parsed), min, max);
     setDraft(String(next));
-    onCommit(next);
+    if (next !== alreadySent) onCommit(next);
   };
 
   const bump = (delta: number) => {
-    const base = Number(draft.replace(",", "."));
-    const start = Number.isFinite(base) ? base : (value ?? min);
-    const next = clamp(start + delta, min, max);
+    const base = parse(draft);
+    // `Number("")` to ZERO, nie NaN - pusty draft musi jawnie wrócić do
+    // wartości dokumentu, inaczej strzałka liczyła od zera.
+    const start = draft.trim() !== "" && Number.isFinite(base) ? base : (value ?? min);
+    const next = clamp(round(start + delta), min, max);
     setDraft(String(next));
     onCommit(next);
+    sent.current = next;
   };
 
   return (
     <Input
       type="text"
-      inputMode="numeric"
+      inputMode={fractional ? "decimal" : "numeric"}
       aria-label={ariaLabel}
       value={draft}
       placeholder={placeholder}
       onFocus={() => {
         editing.current = true;
+        sent.current = undefined;
       }}
       onChange={(e) => {
         const raw = e.target.value;
-        // Wpuszczamy tylko cyfry (i minus, gdy zakres na to pozwala) - reszta
-        // znaków jest ignorowana, więc nie trzeba "naprawiać" wartości później.
-        if (!/^-?\d*$/.test(raw)) return;
+        // Wpuszczamy tylko cyfry (i minus, gdy zakres na to pozwala; w trybie
+        // ułamkowym - jeden separator) - reszta znaków jest ignorowana, więc nie
+        // trzeba "naprawiać" wartości później.
+        if (!accepts.test(raw)) return;
         setDraft(raw);
         // Commit w locie tylko dla wartości już poprawnych w zakresie, żeby
-        // podgląd reagował od razu bez blokowania dalszego pisania.
+        // podgląd reagował od razu bez blokowania dalszego pisania. Stany
+        // pośrednie ("-", ".", "1.") albo nie są liczbą, albo są tą samą
+        // liczbą co bez separatora - draft trzyma je dalej do dopisania cyfr.
         if (raw !== "" && raw !== "-") {
-          const parsed = Number(raw);
-          if (Number.isFinite(parsed) && parsed >= min && parsed <= max) onCommit(parsed);
+          const parsed = parse(raw);
+          if (Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+            onCommit(parsed);
+            sent.current = parsed;
+          }
         }
       }}
       onBlur={(e) => {

@@ -3,6 +3,8 @@
 // wydarzenia - EventPicker). Naglowek/wstep i18n, horyzont dni, przelaczniki
 // panelu hosta i wizytowki hosta przy slocie.
 import type { WidgetNode, Json } from "@/lib/builder/types";
+import { meetingSlotsInput } from "@/lib/builder/meetingsQuery";
+import { getBool } from "@/components/builder/organisms/widget-view/frame";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PropField, ColorField } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { EventPicker } from "./EventPicker";
 import { ProfilePicker } from "./ProfilePicker";
 
@@ -24,14 +27,15 @@ interface Props {
 }
 
 const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
-const numOf = (v: unknown, fb: number): number => {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : fb;
-};
 
 export function MeetingBookingEditor({ c, lang, setContent }: Props) {
   const l = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const mode = strOf(c.mode) === "event" ? "event" : "host";
+  // Horyzont z TEGO SAMEGO normalizatora, z którego widok buduje zapytanie
+  // o sloty (`meetingSlotsInput`) - panel pokazuje dokładnie tyle dni, o ile
+  // strona zapyta bazę. Normalizator dostaje sam `daysAhead`, żeby panel nie
+  // czytał kluczy trybu, którego w tej chwili nie pokazuje.
+  const daysAhead = meetingSlotsInput({ daysAhead: c.daysAhead }).daysAhead;
 
   return (
     <div className="space-y-3">
@@ -91,15 +95,14 @@ export function MeetingBookingEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={l("Horyzont (dni)", "Days ahead")}>
-          <Input
-            type="number"
+          <ClampedNumberInput
+            value={daysAhead}
             min={1}
             max={90}
-            value={numOf(c.daysAhead, 14)}
-            onChange={(e) =>
-              setContent("daysAhead", Math.max(1, Math.min(90, Number(e.target.value) || 14)))
-            }
-            className="h-8 text-xs"
+            ariaLabel={l("Horyzont (dni)", "Days ahead")}
+            onCommit={(v) => {
+              if (v !== undefined && v !== daysAhead) setContent("daysAhead", v);
+            }}
           />
         </PropField>
         <PropField label={l("Kolor akcentu", "Accent color")}>
@@ -119,15 +122,16 @@ export function MeetingBookingEditor({ c, lang, setContent }: Props) {
           )}
           inline
         >
+          {/* Przełączniki czytane jak w `MeetingBookingView` (`getBool`). */}
           <Switch
-            checked={c.allowHostManage !== false}
+            checked={getBool(c, "allowHostManage", true)}
             onCheckedChange={(v) => setContent("allowHostManage", v)}
           />
         </PropField>
         {mode === "event" && (
           <PropField label={l("Pokazuj hosta przy slocie", "Show host on the slot")} inline>
             <Switch
-              checked={c.showHost !== false}
+              checked={getBool(c, "showHost", true)}
               onCheckedChange={(v) => setContent("showHost", v)}
             />
           </PropField>

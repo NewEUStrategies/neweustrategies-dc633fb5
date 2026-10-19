@@ -5,6 +5,7 @@
 // `--ring`, `--card`, itd.) - dzięki temu kolor zmieniony w admin panelu
 // natychmiast wpływa na wygląd całej strony produkcyjnej (przyciski, linki,
 // tło, ramki, itd.).
+import { safeWidgetColor } from "./cssColor";
 import { EMPTY_GLOBAL_COLORS, type GlobalColorsValue } from "./globalColorsValue";
 
 export interface GlobalColorSlot {
@@ -815,11 +816,64 @@ export function isSlotHoverable(slot: GlobalColorSlot, group: GlobalColorGroup):
   return !exempt.has(slot.key);
 }
 
+// WARTOŚCI TYPOGRAFII to nie kolory, więc whitelist kolorów ich nie obejmuje
+// (rodzina fontów z cudzysłowami i przecinkami, `clamp(...)` w rozmiarze), ale
+// stoją w tym samym bloku deklaracji. Przepuszczamy napis, w którym poza
+// zamkniętymi cudzysłowami nie ma nic, co kończy deklarację lub regułę
+// (`;`, `{`, `}`), otwiera znacznik albo ucieczkę (`<`, `>`, `\`). Cudzysłów
+// MUSI się zamknąć: arkusz jest jednowierszowy, więc niezamknięty napis
+// połykałby wszystkie kolejne zmienne.
+const TYPOGRAPHY_VALUE_RE = /^(?:[^"'\\;{}<>\n\r]|"[^"\\;{}<>\n\r]*"|'[^'\\;{}<>\n\r]*')*$/;
+
+const CLOSING_BRACKET: Readonly<Record<string, string>> = { "(": ")", "[": "]" };
+
+/**
+ * Czy `(` i `[` poza cudzysłowami domykają się we właściwej kolejności. Z tego
+ * samego powodu co cudzysłów: niezamknięta funkcja (`clamp(1rem, 2vw`) albo
+ * `[` połyka według CSS Syntax każdy kolejny `;` i `}` do końca arkusza.
+ * Cudzysłowy są już domknięte (sprawdza je `TYPOGRAPHY_VALUE_RE`).
+ */
+function hasBalancedBrackets(value: string): boolean {
+  const open: string[] = [];
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i]!;
+    if (ch === '"' || ch === "'") {
+      i = value.indexOf(ch, i + 1);
+      // Bezpiecznik: `-1` zawróciłby pętlę na początek napisu.
+      if (i < 0) return false;
+    } else if (ch === "(" || ch === "[") {
+      open.push(CLOSING_BRACKET[ch]!);
+    } else if ((ch === ")" || ch === "]") && open.pop() !== ch) {
+      return false;
+    }
+  }
+  return open.length === 0;
+}
+
+/** Wartość typografii bezpieczna dla deklaracji albo `""` (= brak ustawienia). */
+function safeTypographyValue(raw: unknown): string {
+  // Liczba z JSON-a (np. `fontWeight: 700`) była dotąd emitowana wprost - zostaje.
+  if (typeof raw === "number") return Number.isFinite(raw) ? String(raw) : "";
+  if (typeof raw !== "string") return "";
+  const value = raw.trim();
+  if (!value || !TYPOGRAPHY_VALUE_RE.test(value) || !hasBalancedBrackets(value)) return "";
+  // Komentarz otwarty w wartości zakomentowałby resztę bloku; `url(` nie ma
+  // czego szukać w foncie ani w rozmiarze.
+  if (value.includes("/*") || /url\s*\(/i.test(value)) return "";
+  return value;
+}
+
 /**
  * Buduje CSS dla globalnych kolorów - emituje:
  *  1) `--gc-<key>` na :root (light) i .dark (dark),
  *  2) `--gc-<key>-hover` dla slotów hoverable,
  *  3) nadpisania semantycznych tokenów shadcn (np. --primary, --background).
+ *
+ * Wartości zapisane przez najemcę przechodzą przez wspólny whitelist kolorów
+ * (`safeWidgetColor`, ten sam co w rendererach widgetów): `hardenStyleCss`
+ * chroni tylko przed wyjściem z `<style>`, a `;` albo `}` w wartości rozcinał
+ * deklarację i psuł kolejne zmienne całej strony. Odrzucona wartość znaczy to
+ * samo, co jej brak - slot spada na wartość domyślną.
  */
 export function globalColorsToCss(value: GlobalColorsValue): string {
   const rootLines: string[] = [];
@@ -828,8 +882,8 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
   for (const group of GLOBAL_COLOR_GROUPS) {
     for (const slot of group.slots) {
       const v = value[slot.key];
-      const light = v?.light || slot.defaultLight;
-      const dark = (slot.hasDark ? v?.dark : undefined) || slot.defaultDark;
+      const light = safeWidgetColor(v?.light) || slot.defaultLight;
+      const dark = (slot.hasDark ? safeWidgetColor(v?.dark) : "") || slot.defaultDark;
       if (light) {
         rootLines.push(`--gc-${slot.key}: ${light};`);
         for (const o of slot.overrides ?? []) rootLines.push(`${o}: ${light};`);
@@ -839,8 +893,8 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         for (const o of slot.overrides ?? []) darkLines.push(`${o}: ${dark};`);
       }
       if (isSlotHoverable(slot, group)) {
-        const hLight = v?.hoverLight || slot.defaultHoverLight || light;
-        const hDark = v?.hoverDark || slot.defaultHoverDark || dark || hLight;
+        const hLight = safeWidgetColor(v?.hoverLight) || slot.defaultHoverLight || light;
+        const hDark = safeWidgetColor(v?.hoverDark) || slot.defaultHoverDark || dark || hLight;
         if (hLight) rootLines.push(`--gc-${slot.key}-hover: ${hLight};`);
         if (hDark) darkLines.push(`--gc-${slot.key}-hover: ${hDark};`);
       }
@@ -848,11 +902,11 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
         // Only emit typography vars when the user explicitly set them.
         // Falling back to slot defaults here would force-override Tailwind
         // utilities (e.g. text-base on a card h2) once the header loads.
-        const ff = v?.fontFamily;
-        const fs = v?.fontSize;
-        const fw = v?.fontWeight;
-        const fst = v?.fontStyle;
-        const ftd = v?.textDecoration;
+        const ff = safeTypographyValue(v?.fontFamily);
+        const fs = safeTypographyValue(v?.fontSize);
+        const fw = safeTypographyValue(v?.fontWeight);
+        const fst = safeTypographyValue(v?.fontStyle);
+        const ftd = safeTypographyValue(v?.textDecoration);
         if (ff) rootLines.push(`--gc-${slot.key}-font: ${ff};`);
         if (fs) rootLines.push(`--gc-${slot.key}-size: ${fs};`);
         if (fw) rootLines.push(`--gc-${slot.key}-weight: ${fw};`);

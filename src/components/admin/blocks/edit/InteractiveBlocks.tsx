@@ -8,6 +8,8 @@ import "@/lib/i18n-admin-blocks";
 import { AdminSelect } from "../AdminSelect";
 import { AdminDateTimePicker } from "../AdminDatePicker";
 import { toJsonArray } from "@/lib/content-model/json";
+import { num } from "@/components/blocks/renderer/data";
+import { asRecord, readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -25,6 +27,10 @@ function Shell({ label, children }: { label: string; children?: React.ReactNode 
   );
 }
 
+// Pola tekstowe pozycji i bloku idą przez `readText`, a nie `String()`:
+// obiekt (np. treść per język po migracji) wchodził do pola jako literalne
+// „[object Object]", a pierwsza edycja utrwalała ten napis w dokumencie.
+
 // ===== Accordion =====
 
 interface AccordionItem {
@@ -36,8 +42,8 @@ export function AccordionBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: AccordionItem[] = itemsRaw.map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return { title: String(o.title ?? ""), body: String(o.body ?? "") };
+    const o = asRecord(i);
+    return { title: readText(o.title), body: readText(o.body) };
   });
   const allowMultiple = block.data.allowMultiple === true;
 
@@ -115,8 +121,8 @@ export function TabsBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const itemsRaw = Array.isArray(block.data.items) ? (block.data.items as Json[]) : [];
   const items: TabItem[] = itemsRaw.map((i) => {
-    const o = (i ?? {}) as Record<string, Json>;
-    return { label: String(o.label ?? ""), body: String(o.body ?? "") };
+    const o = asRecord(i);
+    return { label: readText(o.label), body: readText(o.body) };
   });
   const orientation = String(block.data.orientation ?? "horizontal");
 
@@ -187,9 +193,9 @@ export function TabsBlock({ block, onChange }: Props) {
 
 export function CountdownBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const targetAt = String(block.data.targetAt ?? "");
-  const label = String(block.data.label ?? "");
-  const expiredText = String(block.data.expiredText ?? "");
+  const targetAt = readText(block.data.targetAt);
+  const label = readText(block.data.label);
+  const expiredText = readText(block.data.expiredText);
   return (
     <Shell label={i18n.editor("interactiveBlocks", "countdownLabel")}>
       <AdminDateTimePicker
@@ -218,8 +224,15 @@ export function CountdownBlock({ block, onChange }: Props) {
 
 export function ProgressBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const value = Number(block.data.value ?? 50);
-  const label = String(block.data.label ?? "");
+  // Wartość tak, jak narysuje ją strona - TYM SAMYM `num(..., 0)` z renderu,
+  // a `ProgressView` ścina do 0-100: brak albo napis, którego `Number()` nie
+  // przeczyta („nic", „33,5"), to zero, a liczba spoza zakresu - najbliższy
+  // kraniec. Wcześniej „nic" dawało w etykiecie „NaN%", 250 - „250%" obok
+  // suwaka stojącego na 100 (dwie różne wartości tego samego pola naraz),
+  // a blok bez klucza pokazywał 50%, choć strona rysuje pusty pasek. Nowy
+  // blok z rejestru i tak dostaje jawne `value: 50`.
+  const value = Math.min(100, Math.max(0, num(block.data, "value", 0)));
+  const label = readText(block.data.label);
   const showValue = block.data.showValue !== false;
   const color = String(block.data.color ?? "primary");
   return (

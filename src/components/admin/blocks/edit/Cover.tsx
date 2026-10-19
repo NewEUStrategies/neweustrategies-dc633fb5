@@ -3,6 +3,7 @@ import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { ImagePlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -11,8 +12,8 @@ interface Props {
 
 export function CoverBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const url = String(block.data.url ?? "");
-  const title = String(block.data.title ?? "");
+  const url = readText(block.data.url);
+  const title = readText(block.data.title);
   const overlay = Number(block.data.overlay ?? 50);
   const minHeight = Number(block.data.minHeight ?? 360);
 

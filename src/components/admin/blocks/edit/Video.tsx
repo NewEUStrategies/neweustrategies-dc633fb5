@@ -1,9 +1,10 @@
 import type { Block } from "@/lib/blocks/types";
-import { Input } from "@/components/ui/input";
+import { str } from "@/components/blocks/renderer/data";
 import { Video as VideoIcon } from "@/lib/lucide-shim";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
+import { MediaUrlDraftInput } from "../MediaUrlDraftInput";
 
 interface Props {
   block: Block;
@@ -11,21 +12,23 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
+// Pola czyta czytnik renderera (`str`): liczba w `url` to brak wideo (strona
+// nic nie narysuje), a obiekt w podpisie to pusty napis, nie „[object Object]".
 export function VideoBlock({ block, isActive, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const url = String(block.data.url ?? "");
-  const poster = String(block.data.poster ?? "");
-  const caption = String(block.data.caption ?? "");
-  const source = String(block.data.source ?? "");
-  const sourceUrl = String(block.data.sourceUrl ?? "");
+  const url = str(block.data, "url");
+  const poster = str(block.data, "poster");
+  const caption = str(block.data, "caption");
+  const source = str(block.data, "source");
+  const sourceUrl = str(block.data, "sourceUrl");
 
   if (!url) {
     return (
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <VideoIcon className="w-8 h-8 mx-auto text-muted-foreground" />
-        <Input
+        <MediaUrlDraftInput
           placeholder={i18n.editor("video", "urlPh")}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
+          onCommit={(next) => onChange({ ...block, data: { ...block.data, url: next } })}
           className="max-w-md mx-auto"
         />
         <p className="text-xs text-muted-foreground">{i18n.editor("video", "hint")}</p>
