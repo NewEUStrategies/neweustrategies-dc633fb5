@@ -243,17 +243,17 @@ describe("AdminDatePicker - wybor dnia i czyszczenie", () => {
     expect(within(container).getByRole("button", { name: WYCZYSC_PL })).toBeDisabled();
   });
 
-  it("STAN DZIS: klik w JUZ WYBRANY dzien czysci pole", () => {
-    // `react-day-picker` w trybie `mode="single"` bez propu `required`
-    // odznacza dzien, w ktory kliknieto po raz drugi, i oddaje `undefined`.
-    // Pole zamienia to na `null`, czyli na wyczyszczenie wartosci - defekt
-    // zarejestrowany przy kalendarzu (`adminCalendar.test.tsx`, sekcja
-    // o odznaczaniu). Tu przypinam KONSEKWENCJE na poziomie pola, zeby
-    // naprawa w kalendarzu byla widoczna takze stad.
+  it("klik w JUZ WYBRANY dzien POTWIERDZA date i zamyka kalendarz", () => {
+    // ZMIANA 2026-10-18: tu stal „STAN DZIS" - klik czyscil pole (`null`),
+    // bo kalendarz bez `required` odznaczal dzien. Po naprawie w
+    // `AdminCalendar` (`required`) gest potwierdza widoczna wartosc, a
+    // kasowanie zostaje wylacznie przy jawnym przycisku „Wyczyść".
     const { container, onChange } = zamontujDate({ value: "2026-09-06" });
     const dialog = otworzKalendarz(container);
     klikDzien(dialog, 6);
-    expect(onChange).toHaveBeenCalledWith(null);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("2026-09-06");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("pole daty nie wnosi naruszen dostepnosci", async () => {
@@ -330,13 +330,15 @@ describe("AdminDateTimePicker - data i godzina razem", () => {
     expect(onChange).toHaveBeenCalledWith("2026-09-20T00:00");
   });
 
-  it("STAN DZIS: klik w JUZ WYBRANY dzien czysci cala wartosc, razem z godzina", () => {
-    // Ta sama sciezka odznaczenia co w polu daty, tylko przechodzi przez
-    // `commit(null, ...)`, ktory oddaje `null` bez sklejania godziny.
+  it("klik w JUZ WYBRANY dzien zachowuje date RAZEM z godzina", () => {
+    // ZMIANA 2026-10-18: tu stal „STAN DZIS" - klik kasowal cala wartosc
+    // (`commit(null, ...)`). Teraz potwierdzenie dnia skleja go z godzina,
+    // ktora juz stoi w polu.
     const { container, onChange } = zamontujDateGodzine({ value: "2026-09-06T14:30" });
     const dialog = otworzKalendarz(container);
     klikDzien(dialog, 6);
-    expect(onChange).toHaveBeenCalledWith(null);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("2026-09-06T14:30");
   });
 
   it("czyszczenie oddaje `null` i jest zablokowane przy pustym polu", () => {

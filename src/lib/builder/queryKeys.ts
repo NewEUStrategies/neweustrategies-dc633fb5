@@ -48,6 +48,8 @@ export const WIDGET_QUERY_ROOTS = {
   clubHubMembers: "builder-club-hub-members",
   sliderPosts: "builder-slider-posts",
   sliderFallbackImages: "builder-slider-fallback-images",
+  // Byline slajdów (nazwisko + awatar autora z `profiles_public`).
+  sliderAuthors: "builder-slider-authors",
   recommendedPosts: "recommended-posts",
   postViewCount: "post-view-count",
 
@@ -99,6 +101,9 @@ export const LIVE_INVALIDATED_ROOTS: ReadonlyArray<WidgetQueryRoot> = [
   // Czyta okladki opublikowanych wpisow, wiec publikacja lub zmiana okladki
   // musi je odswiezyc - inaczej slider bez wlasnych zdjec trzyma stary zestaw.
   WIDGET_QUERY_ROOTS.sliderFallbackImages,
+  // Profil autora opublikowanego wpisu - zmiana nazwiska/awatara musi
+  // odświeżyć byline hero razem ze slajdami (`sliderPosts`), nie po `staleTime`.
+  WIDGET_QUERY_ROOTS.sliderAuthors,
   WIDGET_QUERY_ROOTS.recommendedPosts,
   WIDGET_QUERY_ROOTS.globalWidget,
   WIDGET_QUERY_ROOTS.globalWidgets,

@@ -67,7 +67,7 @@ function useTocItems(manual: TocItem[], skipText: string): TocItem[] {
         skipText,
       }).filter(isTocLevel);
       // Stabilna referencja, gdy nic się nie zmieniło - scrollspy nie musi
-      // wtedy przepinać IntersectionObservera po każdym re-skanie.
+      // wtedy przepinać listenera scrolla po każdym re-skanie.
       setAuto((prev) => (sameItems(prev, items) ? prev : items));
     };
     const schedule = () => {
@@ -89,53 +89,97 @@ function useTocItems(manual: TocItem[], skipText: string): TocItem[] {
   return manualMode ? manual : auto;
 }
 
-function useActiveHeading(items: TocItem[]): string | null {
-  const [active, setActive] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (items.length === 0) return;
-    const nodes = items
-      .map((i) => document.getElementById(i.id))
-      .filter((n): n is HTMLElement => !!n);
-    if (nodes.length === 0) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible?.target?.id) setActive(visible.target.id);
-      },
-      { rootMargin: "-20% 0px -70% 0px", threshold: [0, 0.25, 0.5, 1] },
-    );
-    nodes.forEach((n) => io.observe(n));
-    return () => io.disconnect();
-  }, [items]);
+/**
+ * Linia odniesienia scrollspy jako ułamek wysokości okna: aktywny jest
+ * nagłówek, którego górna krawędź ostatnia minęła ~20% okna (ta sama linia,
+ * co górna granica dawnego `rootMargin: -20%` IntersectionObservera).
+ */
+const ACTIVE_LINE_RATIO = 0.2;
+
+interface TocScrollState {
+  readonly active: string | null;
+  readonly progress: number;
+}
+
+const INITIAL_SCROLL_STATE: TocScrollState = { active: null, progress: 0 };
+
+/**
+ * Aktywny nagłówek z geometrii: spośród nagłówków nad linią odniesienia ten
+ * położony najniżej. Pozycje ręczne mogą wskazywać kotwice w dowolnej
+ * kolejności, więc decyduje położenie, nie kolejność spisu; przy remisie
+ * wygrywa późniejsza pozycja. Nagłówki bez boksu nie biorą udziału.
+ */
+function activeFromGeometry(items: readonly TocItem[], line: number): string | null {
+  let active: string | null = null;
+  let best = -Infinity;
+  for (const item of items) {
+    const node = document.getElementById(item.id);
+    if (!node) continue;
+    const rect = node.getBoundingClientRect();
+    // Nagłówek bez boksu (display:none, zwinięty <details>, kopia responsywna
+    // ukryta na tym ekranie, sekcja `data-hide-on-mobile`) ma zerowy
+    // prostokąt z `top = 0`, czyli zawsze „nad linią" - wygrywałby z każdym
+    // widocznym nagłówkiem, który minął już górną krawędź okna. Dawny
+    // IntersectionObserver nie zgłaszał niemalowanych elementów.
+    if (rect.width === 0 && rect.height === 0) continue;
+    const top = rect.top;
+    if (top <= line && top >= best) {
+      best = top;
+      active = item.id;
+    }
+  }
   return active;
 }
 
-function useReadingProgress(): number {
-  const [p, setP] = useState(0);
+function readingProgress(): number {
+  const h = document.documentElement;
+  const max = h.scrollHeight - h.clientHeight;
+  return max > 0 ? Math.min(1, Math.max(0, h.scrollTop / max)) : 0;
+}
+
+/**
+ * Aktywna pozycja i postęp czytania z JEDNEGO pasywnego listenera `scroll`,
+ * throttlowanego klatką animacji (AGENTS.md). Dawny IntersectionObserver
+ * z wąskim pasem obserwacji gubił sekcje przy szybkim przewijaniu: nagłówek,
+ * który przeskoczył pas między dwiema klatkami, nigdy nie zgłaszał przecięcia,
+ * a postęp liczył osobny listener. Pomiar geometrii raz na klatkę zawsze
+ * wskazuje ostatni minięty nagłówek, niezależnie od długości skoku.
+ * Bez `trackProgress` postęp stoi na 0 - przewijanie nie renderuje widgetu,
+ * dopóki nie zmieni się aktywna pozycja.
+ */
+function useTocScrollState(items: readonly TocItem[], trackProgress: boolean): TocScrollState {
+  const [state, setState] = useState<TocScrollState>(INITIAL_SCROLL_STATE);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (items.length === 0) return;
     let raf = 0;
-    const update = () => {
-      const h = document.documentElement;
-      const scrolled = h.scrollTop;
-      const max = h.scrollHeight - h.clientHeight;
-      setP(max > 0 ? Math.min(1, Math.max(0, scrolled / max)) : 0);
+    // Flaga zamiast identyfikatora klatki: atrapa rAF (testy, polyfill) może
+    // wywołać callback synchronicznie, zanim zwróci identyfikator.
+    let pending = false;
+    const measure = () => {
+      pending = false;
+      const active = activeFromGeometry(items, window.innerHeight * ACTIVE_LINE_RATIO);
+      const progress = trackProgress ? readingProgress() : 0;
+      setState((prev) =>
+        prev.active === active && prev.progress === progress ? prev : { active, progress },
+      );
     };
     const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(update);
+      // Najwyżej jeden pomiar na klatkę: kolejne zdarzenia tej samej klatki
+      // dołączają do zleconego pomiaru.
+      if (pending) return;
+      pending = true;
+      raf = requestAnimationFrame(measure);
     };
-    update();
+    measure();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
+      pending = false;
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
     };
-  }, []);
-  return p;
+  }, [items, trackProgress]);
+  return state;
 }
 
 function scrollToId(id: string) {
@@ -158,12 +202,11 @@ export function TocWidget({ content, lang }: Props) {
   const sticky = asBool(content.sticky, false);
   // Klucz tekstowy zamiast referencji tablicy: odczyt tworzy nową tablicę przy
   // każdym renderze, więc memo po referencji przeliczałby się zawsze,
-  // a niestabilne `items` przepinałyby scrollspy'owy IntersectionObserver.
+  // a niestabilne `items` przepinałyby listener scrolla scrollspy.
   const manualKey = readManualTocLines(content, lang).join("\n");
   const manual = useMemo(() => parseManualTocItems([manualKey]), [manualKey]);
   const items = useTocItems(manual, title);
-  const active = useActiveHeading(items);
-  const progress = useReadingProgress();
+  const { active, progress } = useTocScrollState(items, showProgress);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 

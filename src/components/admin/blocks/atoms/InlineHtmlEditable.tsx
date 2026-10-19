@@ -3,6 +3,7 @@
 // tekst zamiast go ucinać - w przeciwieństwie do <input type="text">.
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { escapeHtmlToText } from "@/lib/sanitizeEngineGuard";
 
 interface Props {
   value: string;
@@ -24,6 +25,10 @@ export function InlineHtmlEditable({
   ...rest
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  // Wartość, którą DOM pola AKTUALNIE odzwierciedla: ostatni wpis redaktora
+  // albo ostatnia podmiana z zewnątrz. Pamiętanie samego wpisu myliło
+  // ponowienie (powrót do wpisu po cofnięciu) z echem pisania i zostawiało
+  // w DOM-ie treść sprzed ponowienia.
   const lastEmitted = useRef<string>("");
 
   useEffect(() => {
@@ -32,6 +37,7 @@ export function InlineHtmlEditable({
     // Nie nadpisujemy DOM podczas pisania (utrata karetki) - tylko gdy wartość
     // zmieniła się z zewnątrz.
     if (value === lastEmitted.current) return;
+    lastEmitted.current = value;
     const safe = sanitizeHtml(value);
     if (el.innerHTML !== safe) el.innerHTML = safe;
   }, [value]);
@@ -56,10 +62,12 @@ export function InlineHtmlEditable({
       onPaste={(e) => {
         // Wklejamy oczyszczony HTML (pogrubienia z Worda zostają jako <strong>,
         // a nie jako widoczny tekst ze znacznikami).
+        // Zwykły tekst jest ESCAPOWANY, nie przycinany: `&`, `<`, `>` to znaki
+        // treści („Procter & Gamble"), które usuwane ginęły redaktorowi z wpisu.
         e.preventDefault();
         const html = e.clipboardData.getData("text/html");
         const text = e.clipboardData.getData("text/plain");
-        const safe = html ? sanitizeHtml(html) : text.replace(/[<>&]/g, "");
+        const safe = html ? sanitizeHtml(html) : escapeHtmlToText(text);
         document.execCommand("insertHTML", false, safe);
       }}
       onKeyDown={onKeyDown}

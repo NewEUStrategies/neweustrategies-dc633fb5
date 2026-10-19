@@ -50,6 +50,22 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 
 const t = realT("pl");
 
+/**
+ * Nazwy przycisków formatowania znaków - ze SŁOWNIKA, ze skrótem klawiszowym
+ * doklejanym przez pasek. Napis wpisany w kod („Bold (⌘B)") renderował
+ * angielszczyznę w polskim panelu.
+ */
+const ZNAK = {
+  bold: `${t("blocks.toolbar.bold")} (⌘B)`,
+  italic: `${t("blocks.toolbar.italic")} (⌘I)`,
+  underline: `${t("blocks.toolbar.underline")} (⌘U)`,
+  strike: t("blocks.toolbar.strike"),
+  subscript: t("blocks.toolbar.subscript"),
+  superscript: t("blocks.toolbar.superscript"),
+  code: t("blocks.toolbar.inlineCode"),
+  link: `${t("blocks.toolbar.link")} (⌘K)`,
+} as const;
+
 let oczekujacy: PendingDialog | null = null;
 let odsubskrybuj: (() => void) | null = null;
 
@@ -171,13 +187,13 @@ function zaznaczCalosc(): void {
 describe("WordStyleToolbar - widocznosc", () => {
   it("pasek pokazuje się dla bloku AKTYWNEGO", () => {
     zamontuj("<p>Traktat</p>", true);
-    expect(btn("Bold (⌘B)")).toBeInTheDocument();
+    expect(btn(ZNAK.bold)).toBeInTheDocument();
     expect(btn(t("blocks.toolbar.footnoteInsert"))).toBeInTheDocument();
   });
 
   it("pasek NIE pokazuje się dla bloku nieaktywnego", () => {
     zamontuj("<p>Traktat</p>", false);
-    expect(screen.queryByRole("button", { name: "Bold (⌘B)" })).toBeNull();
+    expect(screen.queryByRole("button", { name: ZNAK.bold })).toBeNull();
   });
 
   it("cofanie i ponawianie są WYŁĄCZONE, dopóki edytor nie ma historii", () => {
@@ -191,7 +207,7 @@ describe("WordStyleToolbar - cofanie i ponawianie po powstaniu historii", () => 
   it("po zmianie treści cofanie WŁĄCZA się i zdejmuje ostatnią zmianę", () => {
     const { onChange } = zamontujSterowany("<p>Traktat</p>");
     zaznaczCalosc();
-    fireEvent.click(btn("Bold (⌘B)"));
+    fireEvent.click(btn(ZNAK.bold));
     expect(ostatniHtml(onChange)).toMatch(/<strong>/);
 
     const cofnij = btn(t("blocks.toolbar.undo"));
@@ -207,7 +223,7 @@ describe("WordStyleToolbar - cofanie i ponawianie po powstaniu historii", () => 
   it("ponawianie przywraca cofniętą zmianę, a nie dokłada nowej", () => {
     const { onChange } = zamontujSterowany("<p>Traktat</p>");
     zaznaczCalosc();
-    fireEvent.click(btn("Bold (⌘B)"));
+    fireEvent.click(btn(ZNAK.bold));
     fireEvent.click(btn(t("blocks.toolbar.undo")));
     expect(ostatniHtml(onChange)).not.toMatch(/<strong>/);
 
@@ -224,12 +240,12 @@ describe("WordStyleToolbar - cofanie i ponawianie po powstaniu historii", () => 
 
 describe("WordStyleToolbar - formatowanie znakow zapisuje SEMANTYKE", () => {
   const przypadki: ReadonlyArray<readonly [string, RegExp]> = [
-    ["Bold (⌘B)", /<strong>/],
-    ["Italic (⌘I)", /<em>/],
-    ["Strikethrough", /<s>/],
-    ["Subscript", /<sub>/],
-    ["Superscript", /<sup>/],
-    ["Code", /<code>/],
+    [ZNAK.bold, /<strong>/],
+    [ZNAK.italic, /<em>/],
+    [ZNAK.strike, /<s>/],
+    [ZNAK.subscript, /<sub>/],
+    [ZNAK.superscript, /<sup>/],
+    [ZNAK.code, /<code>/],
   ];
 
   it.each(przypadki)("przycisk %s zakłada znacznik %s", (nazwa, wzorzec) => {
@@ -246,17 +262,17 @@ describe("WordStyleToolbar - formatowanie znakow zapisuje SEMANTYKE", () => {
   it("podkreślenie zakłada znacznik <u>", () => {
     const { onChange } = zamontuj("<p>Traktat</p>");
     zaznaczCalosc();
-    fireEvent.click(btn("Underline (⌘U)"));
+    fireEvent.click(btn(ZNAK.underline));
     expect(ostatniHtml(onChange)).toMatch(/<u>/);
   });
 
   it("powtórny klik ZDEJMUJE formatowanie (przełącznik, nie dokładanie)", () => {
     const { onChange } = zamontuj("<p>Traktat</p>");
     zaznaczCalosc();
-    fireEvent.click(btn("Bold (⌘B)"));
+    fireEvent.click(btn(ZNAK.bold));
     expect(ostatniHtml(onChange)).toMatch(/<strong>/);
     zaznaczCalosc();
-    fireEvent.click(btn("Bold (⌘B)"));
+    fireEvent.click(btn(ZNAK.bold));
     expect(ostatniHtml(onChange)).not.toMatch(/<strong>/);
     expect(ostatniHtml(onChange)).toContain("Traktat");
   });
@@ -265,8 +281,8 @@ describe("WordStyleToolbar - formatowanie znakow zapisuje SEMANTYKE", () => {
     zamontuj("<p><strong>Traktat</strong></p>");
     zaznaczCalosc();
     // Po zaznaczeniu treści już pogrubionej przycisk ma być wciśnięty.
-    expect(btn("Bold (⌘B)")).toHaveAttribute("aria-pressed", "true");
-    expect(btn("Italic (⌘I)")).not.toHaveAttribute("aria-pressed");
+    expect(btn(ZNAK.bold)).toHaveAttribute("aria-pressed", "true");
+    expect(btn(ZNAK.italic)).not.toHaveAttribute("aria-pressed");
   });
 
   it("gumka czyści formatowanie, zostawiając tekst", () => {
@@ -450,7 +466,7 @@ describe("WordStyleToolbar - pasek nie kradnie zaznaczenia", () => {
     // działałaby wtedy na pustym zakresie.
     zamontuj("<p>Traktat</p>");
     const zdarzenie = new Event("mousedown", { bubbles: true, cancelable: true });
-    fireEvent(btn("Bold (⌘B)"), zdarzenie);
+    fireEvent(btn(ZNAK.bold), zdarzenie);
     expect(zdarzenie.defaultPrevented).toBe(true);
   });
 
@@ -476,9 +492,9 @@ describe("WordStyleToolbar - dialog linku", () => {
   it("potwierdzenie adresu zakłada link na zaznaczeniu", async () => {
     const { onChange } = zamontuj("<p>Traktat</p>");
     zaznaczCalosc();
-    fireEvent.click(btn("Link (⌘K)"));
+    fireEvent.click(btn(ZNAK.link));
     const zapytanie = await odpowiedz("https://example.org/traktat");
-    expect(zapytanie).toMatchObject({ title: "Link", defaultValue: "https://" });
+    expect(zapytanie).toMatchObject({ title: t("blocks.toolbar.link"), defaultValue: "https://" });
     const html = ostatniHtml(onChange);
     expect(html).toContain('href="https://example.org/traktat"');
     expect(html).toContain("Traktat");
@@ -487,7 +503,7 @@ describe("WordStyleToolbar - dialog linku", () => {
   it("PUSTA wartość ZDEJMUJE link, a nie zakłada linku do pustego adresu", async () => {
     const { onChange } = zamontuj('<p><a href="https://example.org/stary">Traktat</a></p>');
     zaznaczCalosc();
-    fireEvent.click(btn("Link (⌘K)"));
+    fireEvent.click(btn(ZNAK.link));
     await odpowiedz("");
     const html = ostatniHtml(onChange);
     expect(html).not.toContain("<a");
@@ -497,7 +513,7 @@ describe("WordStyleToolbar - dialog linku", () => {
   it("anulowanie dialogu nie rusza treści", async () => {
     const { onChange } = zamontuj("<p>Traktat</p>");
     zaznaczCalosc();
-    fireEvent.click(btn("Link (⌘K)"));
+    fireEvent.click(btn(ZNAK.link));
     await odpowiedz(null);
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -566,6 +582,19 @@ describe("WordStyleToolbar - wstawianie przypisu", () => {
 });
 
 describe("WordStyleToolbar - i18n PL/EN", () => {
+  // NAPRAWIONE 2026-10-18 (zarejestrowane jako defekt rodziny pasków):
+  // przyciski formatowania znaków miały nazwy wpisane w kod („Bold (⌘B)",
+  // „Strikethrough", „Code", „Link (⌘K)"), więc czytnik ekranu czytał je
+  // polskiemu redaktorowi po angielsku. KONTRAKT: nazwa ze słownika, skrót
+  // klawiszowy doklejony bez zmian.
+  it("w polskim panelu przyciski formatowania znaków mają POLSKIE nazwy", () => {
+    zamontuj("<p>Traktat</p>");
+    for (const nazwa of Object.values(ZNAK)) expect(btn(nazwa)).toBeInTheDocument();
+    for (const angielska of ["Bold (⌘B)", "Italic (⌘I)", "Strikethrough", "Code"]) {
+      expect(screen.queryByRole("button", { name: angielska })).toBeNull();
+    }
+  });
+
   it("napisy paska istnieją w OBU językach", () => {
     const pl = realT("pl");
     const en = realT("en");
@@ -589,6 +618,14 @@ describe("WordStyleToolbar - i18n PL/EN", () => {
       "blocks.toolbar.bulletList",
       "blocks.toolbar.orderedList",
       "blocks.toolbar.blockquote",
+      "blocks.toolbar.bold",
+      "blocks.toolbar.italic",
+      "blocks.toolbar.underline",
+      "blocks.toolbar.strike",
+      "blocks.toolbar.subscript",
+      "blocks.toolbar.superscript",
+      "blocks.toolbar.inlineCode",
+      "blocks.toolbar.link",
     ];
     for (const klucz of klucze) {
       expect(pl(klucz)).not.toBe(klucz);

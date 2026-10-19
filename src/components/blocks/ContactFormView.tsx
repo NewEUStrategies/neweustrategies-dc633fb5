@@ -733,9 +733,26 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               <div className="space-y-1.5">
                 {requireConsent && (
                   <label className="cf-consent widget-align-row flex items-center gap-2 text-xs opacity-80 cursor-pointer">
-                    <Checkbox name="consent" className="shrink-0" />
+                    <Checkbox
+                      name="consent"
+                      className="shrink-0"
+                      aria-invalid={errors.consent ? true : undefined}
+                      aria-describedby={errors.consent ? `${formId}-consent-error` : undefined}
+                    />
                     <span>{renderConsentText(consentTextRaw)}</span>
                   </label>
+                )}
+                {/* Zgoda nie ma ścieżki `Field` (etykieta-komunikat), więc błąd
+                    wymaganej zgody stoi pod polem wyboru - inaczej odmowa
+                    wysyłki byłaby cicha. */}
+                {requireConsent && errors.consent && (
+                  <span
+                    id={`${formId}-consent-error`}
+                    role="alert"
+                    className="block text-[11px] text-destructive"
+                  >
+                    {errors.consent}
+                  </span>
                 )}
 
                 {showNewsletter && (

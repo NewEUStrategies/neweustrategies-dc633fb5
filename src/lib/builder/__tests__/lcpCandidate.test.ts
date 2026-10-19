@@ -424,6 +424,115 @@ describe("lcpCandidates - reguły dostępu jak w rendererze (recenzja B1)", () =
   });
 });
 
+describe("lcpCandidates - hideOn sekcji, kolumn i inner-sekcji jak w rendererze", () => {
+  // Od b2428ead8 renderer honoruje `advanced.hideOn` także sekcji, sekcji
+  // zagnieżdżonych i kolumn (`hiddenOnDevice` w `SectionsList`, `RenderSection`,
+  // `RenderInner`). Obraz w węźle schowanym na którymkolwiek z urządzeń nie może
+  // być kandydatem - preload obrazu, którego to urządzenie nie maluje, to czysta
+  // strata pasma, a `fetchpriority=high` zabiera pasmo widocznemu obrazowi.
+  const DEVICES = ["mobile", "desktop"] as const;
+  const hiddenOn = (device: (typeof DEVICES)[number]) => ({ hideOn: { [device]: true } });
+
+  it.each(DEVICES)(
+    "sekcja schowana na %s nie daje kandydata - kandydat pochodzi z następnej sekcji",
+    (device) => {
+      const hidden = image(`${COVER}?sekcja-ukryta=1`);
+      const next = image(`${COVER}?nastepna=1`);
+      const doc = docWith([
+        section([column([hidden])], { advanced: hiddenOn(device) }),
+        section([column([next])]),
+      ]);
+      expect(lcpCandidateIds(doc)).toEqual([next.id]);
+    },
+  );
+
+  it.each(DEVICES)(
+    "kolumna schowana na %s nie daje kandydata - kandydatem jest obraz kolumny obok",
+    (device) => {
+      const hidden = column([image(`${COVER}?kolumna-ukryta=1`)], 8, {
+        advanced: hiddenOn(device),
+      });
+      const open = column([image(`${COVER}?obok=1`)], 4);
+      expect(lcpCandidateIds(docWith([section([hidden, open])]))).toEqual([open.children[0].id]);
+    },
+  );
+
+  it.each(DEVICES)(
+    "inner-sekcja i kolumna inner-sekcji schowane na %s nie dają kandydata",
+    (device) => {
+      const hiddenInner = innerSection([column([image(`${COVER}?inner-ukryta=1`)])], {
+        advanced: hiddenOn(device),
+      });
+      const after = image(`${COVER}?po-inner=1`);
+      expect(lcpCandidateIds(docWith([section([hiddenInner, column([after])])]))).toEqual([
+        after.id,
+      ]);
+
+      const hiddenCol = column([image(`${COVER}?kol-inner-ukryta=1`)], 6, {
+        advanced: hiddenOn(device),
+      });
+      const openCol = column([image(`${COVER}?kol-inner-widoczna=1`)], 6);
+      expect(lcpCandidateIds(docWith([section([innerSection([hiddenCol, openCol])])]))).toEqual([
+        openCol.children[0].id,
+      ]);
+    },
+  );
+
+  it("kolumna schowana na desktopie nie dzieli desktopowego slotu rodzeństwa (jak `visibleCols` SSR)", () => {
+    // HTML serwera powstaje dla desktopu: renderer pomija kolumnę `hideOn.desktop`
+    // w `visibleCols`, więc obraz obok zajmuje cały wiersz - ten sam slot musi
+    // dostać kandydat, inaczej `sizes` preloadu rozjeżdża się z malowanym obrazem.
+    const desktopHidden = column([heading()], 6, { advanced: hiddenOn("desktop") });
+    const open = column([image(`${COVER}?pelny-wiersz=1`)], 6);
+    const [candidate] = lcpCandidates(docWith([section([desktopHidden, open])]));
+    expect(candidate.widget.id).toBe(open.children[0].id);
+    expect(candidate.slot.desktop.vw).toBe(100);
+
+    // Kolumna schowana tylko na telefonie jest na desktopie malowana - dzieli wiersz.
+    const mobileHidden = column([heading()], 6, { advanced: hiddenOn("mobile") });
+    const [shared] = lcpCandidates(docWith([section([mobileHidden, open])]));
+    expect(shared.slot.desktop.vw).toBe(50);
+  });
+
+  it("kolumna INNER-SEKCJI schowana na desktopie nie dzieli slotu rodzeństwa (jak `RenderInner` w SSR)", () => {
+    // `RenderInner` odrzuca kolumnę `hideOn.desktop` PRZED podziałem wiersza
+    // (`columns` -> `columnImageSlot`), więc obraz obok wypełnia całą
+    // inner-sekcję. Kandydat liczony z kolumną schowaną dostałby pół slotu,
+    // a `sizes` preloadu wskazałby plik o połowę za mały względem `<img>`.
+    const desktopHidden = column([heading()], 6, { advanced: hiddenOn("desktop") });
+    const open = column([image(`${COVER}?inner-pelny-wiersz=1`)], 6);
+    const [candidate, ...rest] = lcpCandidates(
+      docWith([section([innerSection([desktopHidden, open])])]),
+    );
+    expect(rest).toEqual([]);
+    expect(candidate.widget.id).toBe(open.children[0].id);
+    expect(candidate.slot.desktop.vw).toBe(100);
+    expect(candidate.slot.tablet.vw).toBe(100);
+
+    // Kolumna inner-sekcji schowana tylko na telefonie jest w HTML-u serwera - dzieli wiersz.
+    const mobileHidden = column([heading()], 6, { advanced: hiddenOn("mobile") });
+    const [shared] = lcpCandidates(docWith([section([innerSection([mobileHidden, open])])]));
+    expect(shared.widget.id).toBe(open.children[0].id);
+    expect(shared.slot.desktop.vw).toBe(50);
+  });
+
+  it("sekcja schowana na desktopie nie zajmuje okna (SSR desktopu jej nie maluje), schowana na telefonie - zajmuje", () => {
+    const text = () => section([column([heading()])]);
+    const hero = image(`${COVER}?czwarta=1`);
+    const withFirst = (advanced: SectionNode["advanced"]) =>
+      docWith([
+        section([column([heading()])], { advanced }),
+        text(),
+        text(),
+        section([column([hero])]),
+      ]);
+    // Malowane na desktopie: text, text, hero - hero jest trzecią sekcją okna.
+    expect(lcpCandidateIds(withFirst(hiddenOn("desktop")))).toEqual([hero.id]);
+    // Sekcja ukryta na telefonie jest w HTML-u serwera - hero wypada poza okno.
+    expect(lcpCandidateIds(withFirst(hiddenOn("mobile")))).toEqual([]);
+  });
+});
+
 describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
   it.each([
     ["obraz jednoźródłowy", image(), "image"],

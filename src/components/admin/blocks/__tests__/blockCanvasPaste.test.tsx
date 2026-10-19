@@ -179,42 +179,20 @@ describe("BlockCanvas - wklejanie tresci z obcym formatowaniem (Word)", () => {
     expect(html).not.toContain("style=");
   });
 
-  // ── DEFEKT: WKLEJKA Z WORDA GUBI POGRUBIENIE ────────────────────────────
+  // ── NAPRAWIONE 2026-10-18 (był `it.fails`): POGRUBIENIE Z WORDA ─────────
   // Word 365 wypisuje pogrubiony fragment jako
   //   <b style='mso-bidi-font-weight:normal'>tekst</b>
-  // i robi to dla tekstu REALNIE pogrubionego. `mso-bidi-font-weight` opisuje
-  // grubość dla pism dwukierunkowych/złożonych, a NIE grubość łacińskiego
-  // kroju - dla Worda te dwie własności są rozłączne, więc „bidi normal" nie
-  // znaczy „nie pogrubione".
-  //
-  // Sanitizer czyta to inaczej. `src/lib/blocks/wordPaste.ts:334`
-  //   if (tag === "strong") return /font-weight\s*:\s*(normal|[1-5]00)\b/.test(style);
-  // dopasowuje się do PODCIĄGU `font-weight:normal` wewnątrz
-  // `mso-bidi-font-weight:normal` (brak zakotwiczenia z lewej), uznaje znacznik
-  // za atrapę Google Docs i go usuwa. Skutek: cały pogrubiony tekst wklejony
-  // z Worda wchodzi do CMS-a jako zwykły - formatowanie autora przepada bez
-  // ostrzeżenia i bez śladu w dokumencie.
-  //
-  // ZWERYFIKOWANE: test padał NA TEJ asercji (treść dojeżdża, blok jest
-  // akapitem, brakuje wyłącznie znacznika), a nie po drodze na setupie.
-  //
-  // NIE NAPRAWIAM: poprawka to zakotwiczenie wzorca (np. `(?:^|[;\s])font-weight`)
-  // w `lib/blocks/wordPaste.ts`, czyli ZMIANA ZACHOWANIA PRODUKCYJNEGO w warstwie
-  // spoza tego obszaru - a tej gałęzi tego nie wolno.
-  it.fails("POWINNA zachować pogrubienie z Worda (dziś gubi je przez mso-bidi-font-weight)", () => {
+  // i robi to dla tekstu REALNIE pogrubionego: `mso-bidi-font-weight` opisuje
+  // krój pism dwukierunkowych/złożonych, a NIE łacińskiego. Sanitizer
+  // (`lib/blocks/wordPaste.ts`) dopasowywał `font-weight:normal` jako PODCIĄG,
+  // brał znacznik za atrapę Google Docs i zdejmował pogrubienie z całej
+  // wklejki. Kontrakt: własności CSS są czytane od granicy deklaracji, więc
+  // pogrubienie dojeżdża do dokumentu, a treść akapitu zostaje nienaruszona.
+  it("zachowuje pogrubienie z Worda mimo mso-bidi-font-weight:normal", () => {
     const { onChange } = zamontuj();
     zdarzenie("paste", kanwa(), { html: WORD_HTML, plain: "x" });
     const html = String(wklejonyAkapit(onChange, "przyspieszyly").data.html);
-    expect(html).toContain("<strong>przyspieszyly</strong>");
-  });
-
-  it("dziś pogrubienie z Worda przepada, a sama treść dojeżdża (stan faktyczny)", () => {
-    // Dokumentacja stanu obok `it.fails` wyżej - regresja w drugą stronę
-    // (utrata CAŁEGO akapitu) też ma być widoczna.
-    const { onChange } = zamontuj();
-    zdarzenie("paste", kanwa(), { html: WORD_HTML, plain: "x" });
-    const html = String(wklejonyAkapit(onChange, "przyspieszyly").data.html);
-    expect(html).toBe("Negocjacje przyspieszyly w 2026 roku.");
+    expect(html).toBe("Negocjacje <strong>przyspieszyly</strong> w 2026 roku.");
   });
 
   it("wklejka Word wstawia bloki ZA aktywnym blokiem, a nie na końcu dokumentu", () => {

@@ -21,12 +21,12 @@
 //      zamiast informacji, że dokument bloków jest do niczego.
 //   2. Strażnik jest STRAŻNIKIEM, a nie blokadą - przy poprawnej odpowiedzi
 //      parsera ta sama ścieżka idzie dalej i segmentuje bloki.
-//   3. Sprzężenie jest NAZWANE. Gałąź żyje wyłącznie dzięki założeniu, że
-//      `safeParseBlocks` MOŻE oddać wartość pustą. Dzisiaj nie może - i właśnie
-//      dlatego uszkodzony dokument przechodzi jako pusty (defekt opisany w
-//      `translate.functions.test.ts`, blok `it.fails` „DEFEKT: uszkodzony
-//      dokument bloków NIE jest odrzucany błędem"). Ten plik przypina drugą
-//      stronę tej samej sprawy: jeśli kiedyś parser dostanie typ zwrotny
+//   3. Sprzężenie jest NAZWANE. Ta gałąź żyje wyłącznie dzięki założeniu, że
+//      `safeParseBlocks` MOŻE oddać wartość pustą. Dzisiaj nie może - uszkodzony
+//      dokument (`blocks` nie-tablica, każdy blok spoza schematu) handler
+//      odrzuca porównaniem z SUROWYM wejściem (naprawione 2026-10-18, dowód
+//      w `translate.functions.test.ts`). Ten plik przypina drugą stronę tej
+//      samej sprawy: jeśli kiedyś parser dostanie typ zwrotny
 //      `BlocksDoc | null`, handler jest już na to gotowy i nie trzeba zgadywać,
 //      co miał robić.
 //

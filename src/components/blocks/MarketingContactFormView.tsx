@@ -5,6 +5,9 @@ import { Loader2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
 import { trackFormConversion } from "@/lib/analytics/conversions";
+// Limity wspólne z walidatorem server fn - formularz nie przyjmuje więcej,
+// niż serwer zapisze (inaczej długi tekst kończył się ogólnym błędem).
+import { CONTACT_FIELD_LIMITS } from "@/lib/forms/contactLimits";
 
 type Lang = "pl" | "en";
 
@@ -132,6 +135,7 @@ export function ContactFormView({
             <input
               required
               autoComplete="name"
+              maxLength={CONTACT_FIELD_LIMITS.name}
               className="mt-1 w-full text-sm bg-background border border-border rounded px-3 py-2 h-10"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -143,6 +147,7 @@ export function ContactFormView({
               required
               type="email"
               autoComplete="email"
+              maxLength={CONTACT_FIELD_LIMITS.email}
               className="mt-1 w-full text-sm bg-background border border-border rounded px-3 py-2 h-10"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -154,6 +159,7 @@ export function ContactFormView({
               <input
                 type="tel"
                 autoComplete="tel"
+                maxLength={CONTACT_FIELD_LIMITS.phone}
                 className="mt-1 w-full text-sm bg-background border border-border rounded px-3 py-2 h-10"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -164,6 +170,7 @@ export function ContactFormView({
             <label className="block text-xs text-muted-foreground">
               {t.subject}
               <input
+                maxLength={CONTACT_FIELD_LIMITS.subject}
                 className="mt-1 w-full text-sm bg-background border border-border rounded px-3 py-2 h-10"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
@@ -175,6 +182,7 @@ export function ContactFormView({
           {t.message}
           <textarea
             required
+            maxLength={CONTACT_FIELD_LIMITS.message}
             className="mt-1 w-full text-sm bg-background border border-border rounded px-3 py-2 min-h-[120px]"
             value={message}
             onChange={(e) => setMessage(e.target.value)}

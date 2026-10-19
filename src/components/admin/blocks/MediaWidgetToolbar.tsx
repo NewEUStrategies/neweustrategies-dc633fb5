@@ -2,7 +2,7 @@
 // Zawsze widoczny nad blokiem gdy blok jest aktywny - dopasowany do możliwości
 // każdego formatu (obraz: wyrównanie/rozmiar/kadr, wideo: poster/aspect/tryby,
 // audio: cover/download). PL/EN i18n przez useBlocksI18n().
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import {
   Link as LinkIcon,
   Link2Off,
@@ -77,9 +77,8 @@ function Divider() {
 export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [, force] = useState(0);
-  useEffect(() => force((n) => n + 1), [block.data]);
-
+  // Bez wymuszania renderu efektem po `block.data`: nowe `block` i tak
+  // re-renderuje pasek, a efekt dokładał drugi, identyczny render po każdej zmianie.
   const d = block.data as Record<string, Json>;
   const set = (patch: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...patch } });
@@ -264,14 +263,22 @@ export function MediaWidgetToolbar({ kind, block, onChange }: Props) {
       {(kind === "video" || kind === "audio") && (
         <>
           <Divider />
-          <TBtn title="Autoplay" active={Boolean(d.autoplay)} onClick={() => toggle("autoplay")}>
+          <TBtn
+            title={i18n.t("blocks.toolbar.autoplay")}
+            active={Boolean(d.autoplay)}
+            onClick={() => toggle("autoplay")}
+          >
             <Play className="h-3.5 w-3.5" />
           </TBtn>
-          <TBtn title="Loop" active={Boolean(d.loop)} onClick={() => toggle("loop")}>
+          <TBtn
+            title={i18n.t("blocks.toolbar.loop")}
+            active={Boolean(d.loop)}
+            onClick={() => toggle("loop")}
+          >
             <RotateCw className="h-3.5 w-3.5" />
           </TBtn>
           <TBtn
-            title={d.muted ? "Unmute" : "Mute"}
+            title={i18n.t(d.muted ? "blocks.toolbar.unmute" : "blocks.toolbar.mute")}
             active={Boolean(d.muted)}
             onClick={() => toggle("muted")}
           >

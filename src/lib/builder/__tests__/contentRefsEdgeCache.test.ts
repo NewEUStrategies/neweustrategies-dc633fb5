@@ -149,28 +149,16 @@ describe("TTL cache referencji wpisu pod prawdziwym zakresowaniem po hoscie", ()
     expect(dlaB?.title).toBe("Tytul b.example");
   });
 
-  // DEFEKT: PRZEJSCIOWA ODMOWA BAZY ZOSTAJE ZAPAMIETANA JAKO "WPISU NIE MA".
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): przejsciowa odmowa bazy byla
+  // zapamietywana jako "wpisu nie ma" na 60 s TTL + okno serve-stale dla
+  // calego hosta.
   //
-  // WEJSCIE: jeden odczyt referencji wpisu w chwili, gdy RPC `get_post_refs`
-  //   odmawia (brak grantu w oknie wdrozeniowym migracji, chwilowa awaria)
-  //   i fallbackowy odczyt `posts` odmawia tak samo; zaraz potem, w tym samym
-  //   oknie TTL, baza odpowiada juz poprawnie.
-  // CO PSUJE: `fetchPostRef` (src/lib/builder/contentRefs.ts:53) POLYKA
-  //   `error` i oddaje `null`, a `fetchPostRefBundle` (:101-136) zapisuje ten
-  //   `null` do `edgeTtlCache` jako pelnoprawny wynik. Magazyn nie odroznia
-  //   "nie wiem" od "nie ma", bo dostaje tylko `{ row: null }`.
-  // KONSEKWENCJA: jedna nieudana sekunda zamraza "wpisu nie ma" na 60 s
-  //   swiezosci i do 300 s okna serve-stale (STALE_FACTOR = 5 w
-  //   src/lib/ssrCache.ts) - dla CALEGO HOSTA, nie dla jednego czytelnika,
-  //   bo cache jest per izolat. Kazdy slider referujacy ten wpis renderuje
-  //   przez ten czas zamrozony ladunek z JSON-a zamiast zywej tresci, i nic
-  //   tego nie zglasza.
-  // WYMAGANA POPRAWKA: wynik pochodzacy z ODMOWY nie moze trafic do magazynu -
-  //   albo blad propaguje sie z `fetchPostRef` (wtedy react-query ponowi
-  //   i `edgeTtlCache` nic nie zapisze), albo `fetchPostRefBundle` pomija
-  //   zapis dla pakietu powstalego z bledu. "Nie wiem" i "nie ma" to dwie
-  //   rozne odpowiedzi i tylko druga wolno cache'owac.
-  it.fails("DEFEKT: odmowa bazy NIE MOZE byc zapamietana jako brak wpisu", async () => {
+  // KONTRAKT: pakiet zlozony z ODMOWY (`posts` albo `profiles_public` w
+  // fallbacku) omija magazyn `edgeTtlCache` - widget dostaje te sama
+  // degradacje (null / brak autora), ale nastepny odczyt pyta baze ponownie.
+  // "Nie wiem" i "nie ma" to dwie rozne odpowiedzi i cache'owana jest tylko
+  // druga (pusty, ale UDANY wynik RPC nadal jest zapamietywany - test nizej).
+  it("odmowa bazy NIE jest zapamietana jako brak wpisu", async () => {
     host.value = "a.example";
     rpc().setError("get_post_refs", "permission denied for function get_post_refs", "42501");
     db().setResponse("posts", () => fail("permission denied for table posts", "42501"));
@@ -180,5 +168,47 @@ describe("TTL cache referencji wpisu pod prawdziwym zakresowaniem po hoscie", ()
     // Baza wraca do zdrowia jeszcze w oknie TTL.
     refRowOfHost();
     await expect(runQueryFn("p1")).resolves.not.toBeNull();
+  });
+
+  it("PUSTY, ale udany wynik RPC jest zapamietany - to odpowiedz 'nie ma', nie 'nie wiem'", async () => {
+    host.value = "a.example";
+    rpc().setResponse("get_post_refs", () => ok([]));
+
+    await expect(runQueryFn("p1")).resolves.toBeNull();
+    refRowOfHost();
+    await expect(runQueryFn("p1")).resolves.toBeNull();
+
+    expect(rpc().callsFor("get_post_refs")).toHaveLength(1);
+  });
+
+  it("odmowa samego profilu autora w fallbacku: wpis zostaje, a pakiet NIE trafia do cache", async () => {
+    host.value = "a.example";
+    rpc().setError("get_post_refs", "function get_post_refs does not exist", "42883");
+    db().setResponse("posts", () =>
+      ok({
+        id: "p1",
+        slug: "raport-o-ue",
+        title_pl: "Tytul",
+        title_en: null,
+        excerpt_pl: null,
+        excerpt_en: null,
+        cover_image_url: null,
+        published_at: null,
+        author_id: "a1",
+      }),
+    );
+    db().setResponse("profiles_public", () => fail("permission denied", "42501"));
+
+    const bezAutora = await runQueryFn("p1");
+    expect(bezAutora?.title).toBe("Tytul");
+    expect(bezAutora?.authorName).toBe("");
+
+    db().setResponse("profiles_public", () =>
+      ok({ display_name: "Redakcja", avatar_url: null, slug: "redakcja" }),
+    );
+    const zAutorem = await runQueryFn("p1");
+
+    expect(zAutorem?.authorName).toBe("Redakcja");
+    expect(db().chainsFor("posts")).toHaveLength(2);
   });
 });

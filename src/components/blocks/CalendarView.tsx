@@ -4,7 +4,11 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { calendarBlockQueryOptions, calendarTarget } from "@/lib/queries/blocks";
+import {
+  calendarBlockQueryOptions,
+  calendarPublishedDay,
+  calendarTarget,
+} from "@/lib/queries/blocks";
 import { AppLink } from "@/components/atoms/AppLink";
 
 interface Props {
@@ -17,14 +21,17 @@ export function CalendarView({ month, lang }: Props) {
   const target = useMemo(() => calendarTarget(month), [month]);
   const { data: rows = [] } = useQuery(calendarBlockQueryOptions(target));
 
+  // Dzień publikacji w strefie serwisu, nie procesu: `getDate()` dawał 31 marca
+  // wpisowi z 01:30 1 kwietnia (Warszawa) - SSR w UTC i czytelnik poza CET
+  // widzieli inny dzień niż strona wpisu (szczegóły przy `calendarPublishedDay`).
   const byDay = useMemo(() => {
     const m = new Map<number, string>();
     for (const r of rows) {
-      const d = new Date(r.published_at).getDate();
-      if (!m.has(d)) m.set(d, r.slug);
+      const d = calendarPublishedDay(r.published_at, target);
+      if (d !== null && !m.has(d)) m.set(d, r.slug);
     }
     return m;
-  }, [rows]);
+  }, [rows, target]);
 
   const firstDow = (new Date(target.year, target.month - 1, 1).getDay() + 6) % 7; // pn=0
   const days = new Date(target.year, target.month, 0).getDate();

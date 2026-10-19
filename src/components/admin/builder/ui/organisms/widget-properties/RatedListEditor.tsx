@@ -11,10 +11,11 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { PropField, ColorField, ItemFrame, CollapsibleSection as Collapsible } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { AuthorDisplayControl } from "../../molecules/AuthorDisplayControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
-import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue";
+import { asBool, asNum, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { TaxonomyPicker } from "./TaxonomyPicker";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -24,6 +25,41 @@ interface Props {
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
 }
+
+interface NumberRange {
+  fallback: number;
+  min: number;
+  /** Brak = renderer domyka tylko od dołu. */
+  max?: number;
+}
+
+// Zakresy pól liczbowych 1:1 z rendererem: `RatedListView` czyta każdą liczbę
+// przez `asNumInRange(wartość, domyślna, min, max)`, a `ratedListQuery` tak samo
+// liczbę wpisów i przesunięcie (`Math.max(0, …)`) zapytania trybu dynamicznego.
+// Panel czyta tą samą klamrą i zapisuje domknięte - `Number(v) || domyślna` bez
+// klamry pokazywał rozmiar numeru 500, a kanwa rysowała 240.
+const RANGES = {
+  numberOfPosts: { fallback: 4, min: 1, max: 50 },
+  postOffset: { fallback: 0, min: 0 },
+  numberSizePx: { fallback: 52, min: 12, max: 240 },
+  categorySizePx: { fallback: 11, min: 8, max: 32 },
+  metaSizePx: { fallback: 12, min: 8, max: 20 },
+  excerptLines: { fallback: 3, min: 1, max: 10 },
+  bookmarkSizePx: { fallback: 16, min: 10, max: 32 },
+  columnsDesktop: { fallback: 1, min: 1, max: 6 },
+  // Domyślna tabletu zależy od desktopu - podawana przy wywołaniu.
+  columnsTablet: { fallback: 1, min: 1, max: 6 },
+  columnsMobile: { fallback: 1, min: 1, max: 3 },
+  columnGapPx: { fallback: 24, min: 0, max: 120 },
+  rowGapPx: { fallback: 28, min: 0, max: 120 },
+  gridBorderWidthPx: { fallback: 1, min: 0, max: 8 },
+  scrollMaxHeightPx: { fallback: 400, min: 120, max: 1200 },
+  pageSize: { fallback: 4, min: 1, max: 50 },
+} satisfies Record<string, NumberRange>;
+
+// Ocena pozycji: renderer rysuje pasek `Math.min(100, Math.max(0, rating * 10))`%,
+// czyli skalę 0-10 z krokiem 0,1 (etykieta „na 10").
+const RATING = { min: 0, max: 10, step: 0.1, precision: 1 } as const;
 
 export function RatedListEditor({ c, lang, setContent }: Props) {
   const { t } = useTranslation();
@@ -39,11 +75,42 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
   const num = (k: string, d: number) => asNum(c[k], d);
   const bool = (k: string, d: boolean) => asBool(c[k], d);
 
+  // Odczyt liczby tą samą klamrą co renderer - panel pokazuje to, co rysuje kanwa.
+  const ranged = (key: keyof typeof RANGES, fallback?: number) => {
+    const range: NumberRange = RANGES[key];
+    return asNumInRange(
+      c[key],
+      fallback ?? range.fallback,
+      range.min,
+      range.max ?? Number.POSITIVE_INFINITY,
+    );
+  };
+  // Pole liczbowe przez wspólny atom: szkic lokalny (pisanie wielocyfrowej
+  // liczby nie jest blokowane), zapis w locie tylko w zakresie, klamra przy
+  // wyjściu z pola / Enter. Zapis tylko przy realnej zmianie - wyjście z pola
+  // bez edycji nie dokłada kroku historii.
+  const numberProp = (label: string, key: keyof typeof RANGES, fallback?: number) => {
+    const range: NumberRange = RANGES[key];
+    const value = ranged(key, fallback);
+    return (
+      <PropField label={label}>
+        <ClampedNumberInput
+          value={value}
+          min={range.min}
+          max={range.max}
+          ariaLabel={label}
+          onCommit={(v) => {
+            if (v !== undefined && v !== value) setContent(key, v as Json);
+          }}
+        />
+      </PropField>
+    );
+  };
+
   const source = asOneOf(c.source, ["manual", "dynamic"] as const, "manual");
 
   const numFont = txt("numberFont", "display");
   const numWeight = txt("numberWeight", "700");
-  const numSize = num("numberSizePx", 52);
   const numColor = txt("numberColor", "#000000");
   const numColorDark = txt("numberColorDark", "#ffffff");
   // Domyslna wartosc lustrzana wobec renderera (`var(--td-li-opacity, 0.18)`).
@@ -189,25 +256,8 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                 </SelectContent>
               </Select>
             </PropField>
-            <PropField label="Number of Posts">
-              <Input
-                type="number"
-                min={1}
-                max={50}
-                value={num("numberOfPosts", 4)}
-                onChange={(e) => setContent("numberOfPosts", (Number(e.target.value) || 1) as Json)}
-                className="h-8 text-xs"
-              />
-            </PropField>
-            <PropField label="Post Offset">
-              <Input
-                type="number"
-                min={0}
-                value={num("postOffset", 0)}
-                onChange={(e) => setContent("postOffset", (Number(e.target.value) || 0) as Json)}
-                className="h-8 text-xs"
-              />
-            </PropField>
+            {numberProp("Number of Posts", "numberOfPosts")}
+            {numberProp("Post Offset", "postOffset")}
           </div>
         </div>
       )}
@@ -246,16 +296,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               </SelectContent>
             </Select>
           </PropField>
-          <PropField label={t("builder.ratedListEditor.sizePx")}>
-            <Input
-              type="number"
-              min={12}
-              max={240}
-              value={numSize}
-              onChange={(e) => setContent("numberSizePx", (Number(e.target.value) || 0) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp(t("builder.ratedListEditor.sizePx"), "numberSizePx")}
           <PropField label={t("builder.ratedListEditor.position")}>
             <Select value={numPos} onValueChange={(v) => setContent("numberPosition", v as Json)}>
               <SelectTrigger className="h-8 text-xs">
@@ -320,16 +361,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("categoryColorDark", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label={t("builder.ratedListEditor.sizePx")}>
-            <Input
-              type="number"
-              min={8}
-              max={32}
-              value={num("categorySizePx", 11)}
-              onChange={(e) => setContent("categorySizePx", (Number(e.target.value) || 11) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp(t("builder.ratedListEditor.sizePx"), "categorySizePx")}
           <PropField label={t("builder.ratedListEditor.weight")}>
             <Select
               value={txt("categoryWeight", "700")}
@@ -442,16 +474,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("metaColorDark", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label={t("builder.ratedListEditor.sizePx")}>
-            <Input
-              type="number"
-              min={8}
-              max={20}
-              value={num("metaSizePx", 12)}
-              onChange={(e) => setContent("metaSizePx", (Number(e.target.value) || 12) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp(t("builder.ratedListEditor.sizePx"), "metaSizePx")}
         </div>
       </Collapsible>
 
@@ -478,16 +501,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             />
           </PropField>
           {/* Excerpt size: managed in the "Style" → Typography tab (.cms-post-excerpt). */}
-          <PropField label={t("builder.ratedListEditor.excerptLines")}>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={num("excerptLines", 3)}
-              onChange={(e) => setContent("excerptLines", (Number(e.target.value) || 3) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp(t("builder.ratedListEditor.excerptLines"), "excerptLines")}
         </div>
       </Collapsible>
 
@@ -548,16 +562,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("bookmarkColorDark", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label={t("builder.ratedListEditor.sizePx")}>
-            <Input
-              type="number"
-              min={10}
-              max={32}
-              value={num("bookmarkSizePx", 16)}
-              onChange={(e) => setContent("bookmarkSizePx", (Number(e.target.value) || 16) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp(t("builder.ratedListEditor.sizePx"), "bookmarkSizePx")}
         </div>
       </Collapsible>
 
@@ -611,60 +616,15 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
 
       <Collapsible title={t("builder.ratedListEditor.columnsSection")}>
         <div className="grid grid-cols-3 gap-2">
-          <PropField label="Desktop">
-            <Input
-              type="number"
-              min={1}
-              max={6}
-              value={num("columnsDesktop", 1)}
-              onChange={(e) => setContent("columnsDesktop", (Number(e.target.value) || 1) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
-          <PropField label="Tablet">
-            <Input
-              type="number"
-              min={1}
-              max={6}
-              // Ten sam default co w rendererze: min(desktop, 2). Inaczej panel
-              // pokazywalby 1 kolumne, a kanwa rysowala 2.
-              value={num("columnsTablet", Math.min(num("columnsDesktop", 1), 2))}
-              onChange={(e) => setContent("columnsTablet", (Number(e.target.value) || 1) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
-          <PropField label="Mobile">
-            <Input
-              type="number"
-              min={1}
-              max={3}
-              value={num("columnsMobile", 1)}
-              onChange={(e) => setContent("columnsMobile", (Number(e.target.value) || 1) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp("Desktop", "columnsDesktop")}
+          {/* Ten sam default co w rendererze: min(desktop, 2). Inaczej panel
+              pokazywalby 1 kolumne, a kanwa rysowala 2. */}
+          {numberProp("Tablet", "columnsTablet", Math.min(ranged("columnsDesktop"), 2))}
+          {numberProp("Mobile", "columnsMobile")}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <PropField label="Column gap (px)">
-            <Input
-              type="number"
-              min={0}
-              max={120}
-              value={num("columnGapPx", 24)}
-              onChange={(e) => setContent("columnGapPx", (Number(e.target.value) || 0) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
-          <PropField label="Row gap (px)">
-            <Input
-              type="number"
-              min={0}
-              max={120}
-              value={num("rowGapPx", 28)}
-              onChange={(e) => setContent("rowGapPx", (Number(e.target.value) || 0) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp("Column gap (px)", "columnGapPx")}
+          {numberProp("Row gap (px)", "rowGapPx")}
         </div>
       </Collapsible>
 
@@ -691,18 +651,7 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
               onChange={(v) => setContent("gridBorderColor", (v ?? "") as Json)}
             />
           </PropField>
-          <PropField label={t("builder.ratedListEditor.widthPx")}>
-            <Input
-              type="number"
-              min={0}
-              max={8}
-              value={num("gridBorderWidthPx", 1)}
-              onChange={(e) =>
-                setContent("gridBorderWidthPx", (Number(e.target.value) || 0) as Json)
-              }
-              className="h-8 text-xs"
-            />
-          </PropField>
+          {numberProp(t("builder.ratedListEditor.widthPx"), "gridBorderWidthPx")}
         </div>
       </Collapsible>
 
@@ -754,32 +703,10 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
             </SelectContent>
           </Select>
         </PropField>
-        {txt("scrollingMode", "none") === "scroll" && (
-          <PropField label={t("builder.ratedListEditor.maxHeight")}>
-            <Input
-              type="number"
-              min={120}
-              max={1200}
-              value={num("scrollMaxHeightPx", 400)}
-              onChange={(e) =>
-                setContent("scrollMaxHeightPx", (Number(e.target.value) || 400) as Json)
-              }
-              className="h-8 text-xs"
-            />
-          </PropField>
-        )}
-        {txt("scrollingMode", "none") === "loadmore" && (
-          <PropField label={t("builder.ratedListEditor.perPage")}>
-            <Input
-              type="number"
-              min={1}
-              max={50}
-              value={num("pageSize", 4)}
-              onChange={(e) => setContent("pageSize", (Number(e.target.value) || 4) as Json)}
-              className="h-8 text-xs"
-            />
-          </PropField>
-        )}
+        {txt("scrollingMode", "none") === "scroll" &&
+          numberProp(t("builder.ratedListEditor.maxHeight"), "scrollMaxHeightPx")}
+        {txt("scrollingMode", "none") === "loadmore" &&
+          numberProp(t("builder.ratedListEditor.perPage"), "pageSize")}
       </Collapsible>
 
       {source === "manual" && (
@@ -855,14 +782,18 @@ export function RatedListEditor({ c, lang, setContent }: Props) {
                     />
                   </PropField>
                   <PropField label={t("builder.ratedListEditor.rating")}>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={10}
-                      step={0.1}
+                    {/* Wartość pokazana dosłownie (renderer pisze ją obok
+                        paska bez klamry), zapis domknięty do skali paska. */}
+                    <ClampedNumberInput
                       value={asNum(it.rating, 0)}
-                      onChange={(e) => upd(i, { rating: Number(e.target.value) || 0 })}
-                      className="h-8 text-xs"
+                      min={RATING.min}
+                      max={RATING.max}
+                      step={RATING.step}
+                      precision={RATING.precision}
+                      ariaLabel={t("builder.ratedListEditor.rating")}
+                      onCommit={(v) => {
+                        if (v !== undefined && v !== asNum(it.rating, 0)) upd(i, { rating: v });
+                      }}
                     />
                   </PropField>
                   <PropField label={t("builder.ratedListEditor.date")}>

@@ -21,6 +21,8 @@ export function AffiliateBlockView(p: Props) {
       ? { sponsored: "Sponsorowane", buy: "Sprawdź ofertę", at: "w" }
       : { sponsored: "Sponsored", buy: "Check the offer", at: "at" };
   if (!p.title) return null;
+  // Ocena w granicach pola panelu (`edit/Affiliate.tsx`: 0-5).
+  const rating = typeof p.rating === "number" ? Math.max(0, Math.min(5, p.rating)) : 0;
   const rel =
     p.sponsored !== false ? "noopener noreferrer sponsored nofollow" : "noopener noreferrer";
 
@@ -62,15 +64,15 @@ export function AffiliateBlockView(p: Props) {
             </div>
           )}
         </div>
-        {typeof p.rating === "number" && p.rating > 0 && (
+        {rating > 0 && (
           <div className="flex items-center gap-0.5">
             {[1, 2, 3, 4, 5].map((n) => (
               <Star
                 key={n}
-                className={`w-3.5 h-3.5 ${n <= Math.round(p.rating ?? 0) ? "fill-brand text-brand" : "text-muted-foreground"}`}
+                className={`w-3.5 h-3.5 ${n <= Math.round(rating) ? "fill-brand text-brand" : "text-muted-foreground"}`}
               />
             ))}
-            <span className="ml-1 text-xs text-muted-foreground">{p.rating.toFixed(1)}</span>
+            <span className="ml-1 text-xs text-muted-foreground">{rating.toFixed(1)}</span>
           </div>
         )}
         {p.description && <p className="text-sm text-muted-foreground m-0">{p.description}</p>}

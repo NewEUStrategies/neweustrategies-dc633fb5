@@ -17,7 +17,13 @@ import {
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { promptDialog } from "@/lib/appDialogs";
-import { BLOCK_PALETTE_KEYS, BLOCK_PALETTE_VAR, hasBlockPalette } from "@/lib/blocks/variants";
+import {
+  BLOCK_PALETTE_KEYS,
+  BLOCK_PALETTE_VAR,
+  blockPaletteVar,
+  hasBlockPalette,
+} from "@/lib/blocks/variants";
+import { normalizeAuthorAnchor } from "@/lib/content/anchorSlug";
 import type { Block, Json } from "@/lib/blocks/types";
 
 interface Props {
@@ -190,7 +196,7 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
               <span
                 aria-hidden
                 className="inline-block h-3.5 w-3.5 rounded-[3px] border border-border"
-                style={{ background: BLOCK_PALETTE_VAR[palette] ?? BLOCK_PALETTE_VAR.neutral }}
+                style={{ background: blockPaletteVar(palette) }}
               />
             </TBtn>
             {paletteOpen && (
@@ -232,7 +238,9 @@ export function GenericWidgetToolbar({ block, onChange }: Props) {
             confirmLabel: i18n.t("blocks.toolbar.apply"),
           });
           if (v === null) return;
-          set({ anchor: v.trim().replace(/\s+/g, "-").toLowerCase() });
+          // Kanoniczny slug (transliteracja `ł`, limit 80, tylko [a-z0-9-]) -
+          // ten sam, którym silnik liczy kotwice nagłówków.
+          set({ anchor: normalizeAuthorAnchor(v) });
         }}
       >
         <Anchor className="h-3.5 w-3.5" />

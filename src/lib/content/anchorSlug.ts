@@ -175,6 +175,23 @@ export function slugifyAnchor(input: string): string {
 }
 
 /**
+ * Kotwica wpisana RĘCZNIE przez autora (dialog „Kotwica (ID)" w paskach bloków
+ * kanwy). Każda niepusta wartość przechodzi przez kanoniczny `slugifyAnchor` -
+ * ten sam, którym silnik liczy kotwice z treści - więc pasek nie jest szóstą
+ * implementacją sluga i `id` w HTML zgadza się z `href="#…"` spisu treści.
+ *
+ * Pusta odpowiedź (po `trim`) jest ŚWIADOMYM zdjęciem kotwicy i zostaje pustym
+ * napisem: fallback `section` przypiąłby blokowi identyfikator, którego autor
+ * właśnie się pozbył.
+ *
+ *   normalizeAuthorAnchor("Sekcja Łączna") → "sekcja-laczna"
+ *   normalizeAuthorAnchor("   ")           → ""
+ */
+export function normalizeAuthorAnchor(input: string): string {
+  return input.trim() ? slugifyAnchor(input) : "";
+}
+
+/**
  * Kotwice, jakie ten sam nagłówek dostawał PRZED unifikacją - do utrzymania
  * wstecznej zgodności już opublikowanych linków `#`.
  *

@@ -1,7 +1,8 @@
 // Publiczne renderery dla Phase 4 batch 12 (data + social proof).
-import { htmlToPlainText } from "@/lib/sanitize";
+import { htmlToPlainText, safeUrl } from "@/lib/sanitize";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
@@ -24,6 +25,10 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import "@/lib/i18n-public";
+
+/** Język treści bloku - napisy interfejsu idą w nim, nie w języku panelu. */
+type Lang = "pl" | "en";
 
 const FEATURE_ICON_MAP: Record<string, LucideIcon> = {
   star: Star,
@@ -64,10 +69,19 @@ interface TeamProps {
   items?: Json[];
   columns?: number;
   shape?: "circle" | "square";
+  lang?: Lang;
   cls?: string;
 }
 
-export function TeamGridView({ title, items, columns = 3, shape = "circle", cls }: TeamProps) {
+export function TeamGridView({
+  title,
+  items,
+  columns = 3,
+  shape = "circle",
+  lang = "pl",
+  cls,
+}: TeamProps) {
+  const { t } = useTranslation();
   const list: TeamLite[] = (Array.isArray(items) ? items : [])
     .map((i) => {
       const o = (i ?? {}) as Record<string, Json>;
@@ -77,7 +91,9 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
         bio: String(o.bio ?? ""),
         avatar: String(o.avatar ?? ""),
         href: String(o.href ?? ""),
-        social: String(o.social ?? ""),
+        // Link zewnętrzny z danych bloku: ten sam filtr schematu co logo
+        // (`safeUrl`) - `javascript:`/`data:` nie tworzą linku profilu.
+        social: safeUrl(String(o.social ?? ""), ""),
       };
     })
     .filter((m) => m.name);
@@ -128,16 +144,6 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
                     {htmlToPlainText(m.bio)}
                   </p>
                 ) : null}
-                {m.social ? (
-                  <a
-                    href={m.social}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-xs text-primary hover:underline mt-2"
-                  >
-                    Profil
-                  </a>
-                ) : null}
               </div>
             </>
           );
@@ -150,6 +156,21 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
               ) : (
                 card
               )}
+              {/* Link profilu jest RODZEŃSTWEM karty, nie jej dzieckiem: przy
+                  `href` + `social` dawał `<a>` w `<a>`, które parser HTML
+                  rozcina - DOM z SSR przestawał pasować do drzewa Reacta. */}
+              {m.social ? (
+                <div className="text-center">
+                  <a
+                    href={m.social}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs text-primary hover:underline mt-2"
+                  >
+                    {t("blocksUi.teamProfile", { lng: lang })}
+                  </a>
+                </div>
+              ) : null}
             </li>
           );
         })}
@@ -163,7 +184,24 @@ export function TeamGridView({ title, items, columns = 3, shape = "circle", cls 
 interface LogoLite {
   url: string;
   alt: string;
+  /** Adres po `safeUrl` - pusty, gdy brak albo schemat niedozwolony. */
   href: string;
+}
+
+/**
+ * Nazwa dostępna linku logotypu bez `alt`. Obraz z pustym `alt` jest
+ * dekoracyjny, więc link nie miał żadnej nazwy - czytnik ogłaszał samo „link".
+ * Ostatnia deska z danych: host adresu (bez „www."), a gdy go nie ma (adres
+ * względny, `mailto:`) - sam adres. Wygląd się nie zmienia.
+ */
+function logoLinkName(href: string): string {
+  try {
+    const host = new URL(href).hostname.replace(/^www\./, "");
+    if (host) return host;
+  } catch {
+    // Adres względny - nazwą zostaje sam adres.
+  }
+  return href;
 }
 
 interface LogoProps {
@@ -186,7 +224,13 @@ export function LogoGridView({
   const list: LogoLite[] = (Array.isArray(items) ? items : [])
     .map((i) => {
       const o = (i ?? {}) as Record<string, Json>;
-      return { url: String(o.url ?? ""), alt: String(o.alt ?? ""), href: String(o.href ?? "") };
+      // Ten sam filtr schematu co pozostałe linki bloków: `javascript:` z
+      // importu nie trafia do `href`, logo zostaje wtedy bez linku.
+      return {
+        url: String(o.url ?? ""),
+        alt: String(o.alt ?? ""),
+        href: safeUrl(String(o.href ?? ""), ""),
+      };
     })
     .filter((l) => l.url);
   if (list.length === 0) return null;
@@ -223,7 +267,12 @@ export function LogoGridView({
               ].join(" ")}
             >
               {l.href ? (
-                <a href={l.href} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={l.alt.trim() ? undefined : logoLinkName(l.href)}
+                >
                   {img}
                 </a>
               ) : (
@@ -254,6 +303,7 @@ interface FeatureProps {
   items?: Json[];
   columns?: number;
   style?: FeatureStyle;
+  lang?: Lang;
   cls?: string;
 }
 
@@ -263,8 +313,10 @@ export function FeatureGridView({
   items,
   columns = 3,
   style = "card",
+  lang = "pl",
   cls,
 }: FeatureProps) {
+  const { t } = useTranslation();
   const list: FeatureLite[] = (Array.isArray(items) ? items : [])
     .map((i) => {
       const o = (i ?? {}) as Record<string, Json>;
@@ -311,7 +363,7 @@ export function FeatureGridView({
               ) : null}
               {f.href ? (
                 <span className="mt-auto inline-block text-xs font-semibold text-primary group-hover:underline">
-                  Dowiedz się więcej →
+                  {t("blocksUi.featureLearnMore", { lng: lang })}
                 </span>
               ) : null}
             </div>
@@ -376,6 +428,7 @@ interface AlertProps {
   ctaHref?: string;
   dismissible?: boolean;
   showIcon?: boolean;
+  lang?: Lang;
   cls?: string;
 }
 
@@ -387,8 +440,10 @@ export function AlertBannerView({
   ctaHref,
   dismissible = false,
   showIcon = true,
+  lang = "pl",
   cls,
 }: AlertProps) {
+  const { t } = useTranslation();
   const [hidden, setHidden] = useState(false);
   if (hidden) return null;
   const s = ALERT_STYLES[variant] ?? ALERT_STYLES.info;
@@ -427,7 +482,7 @@ export function AlertBannerView({
           type="button"
           onClick={() => setHidden(true)}
           className="shrink-0 -mr-1 -mt-1 p-1.5 rounded hover:bg-black/5 dark:hover:bg-white/10"
-          aria-label="Zamknij alert"
+          aria-label={t("blocksUi.alertDismiss", { lng: lang })}
         >
           <X className="w-4 h-4" aria-hidden />
         </button>

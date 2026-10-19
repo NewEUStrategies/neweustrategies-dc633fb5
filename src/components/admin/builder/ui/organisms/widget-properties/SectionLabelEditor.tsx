@@ -29,8 +29,13 @@ function PxSizeInput({
   const num = match ? parseFloat(match[1]) : NaN;
   const unit = match ? match[2] || "px" : "px";
   const setNum = (n: number) => {
-    const clamped = Math.max(min, Math.min(max, n));
-    onChange(`${clamped}${unit}`);
+    // Zakres pola (`min` / `max`) jest w PIKSELACH. Przyłożony do rem/em/%
+    // zamieniał „1.5rem" + 1 w „6rem" (minimum 6 czytane jako 6 rem = 96 px).
+    // Inne jednostki krokują swobodnie, byle nie poniżej zera; zaokrąglenie
+    // zdejmuje ogony float-a (2.0999999rem).
+    const stepped = Math.round(n * 1000) / 1000;
+    const next = unit === "px" ? Math.max(min, Math.min(max, stepped)) : Math.max(0, stepped);
+    onChange(`${next}${unit}`);
   };
   return (
     <div className="flex items-stretch h-8">

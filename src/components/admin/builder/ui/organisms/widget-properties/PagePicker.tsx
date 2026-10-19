@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeLike } from "@/lib/admin/listFilters";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -26,6 +27,14 @@ interface PageHit {
 }
 
 const hrefOf = (slug: string): string => `/${slug.replace(/^\/+/, "")}`;
+
+/**
+ * Tytuł w języku panelu, a bez niego - slug. PUSTY napis (strona jeszcze
+ * nieprzetłumaczona) też oznacza brak tytułu: przy `??` wiersz listy i pole
+ * związanej strony zostawały puste.
+ */
+const titleOf = (p: PageHit, lang: "pl" | "en"): string =>
+  (lang === "en" ? p.title_en : p.title_pl) || p.slug;
 
 export function PagePicker({ value, onChange, lang, placeholder }: Props) {
   const { t } = useTranslation();
@@ -60,7 +69,9 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
     enabled: open,
     staleTime: 30_000,
     queryFn: async (): Promise<PageHit[]> => {
-      const q = search.trim();
+      // Fraza trafia do filtra `.or()` PostgREST-a: przecinek, nawias albo
+      // `%` / `*` z klawiatury rozbijałyby warunek (wspólna osłona panelu).
+      const q = escapeLike(search.trim());
       let query = supabase
         .from("pages")
         .select("id, slug, title_pl, title_en")
@@ -78,7 +89,7 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
 
   const label = useMemo(() => {
     if (!bound) return boundSlug;
-    return (lang === "en" ? bound.title_en : bound.title_pl) ?? bound.slug;
+    return titleOf(bound, lang);
   }, [bound, lang, boundSlug]);
 
   const displayValue = open ? search : label;
@@ -187,7 +198,7 @@ export function PagePicker({ value, onChange, lang, placeholder }: Props) {
         >
           <div className="max-h-56 overflow-y-auto space-y-0.5">
             {hits.map((p, i) => {
-              const ttl = (lang === "en" ? p.title_en : p.title_pl) ?? p.slug;
+              const ttl = titleOf(p, lang);
               return (
                 <button
                   key={p.id}

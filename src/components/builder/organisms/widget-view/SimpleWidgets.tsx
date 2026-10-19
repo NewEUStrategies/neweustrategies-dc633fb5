@@ -335,6 +335,32 @@ const DIVIDER_VARIANTS = [
  */
 const DIVIDER_DEFAULT_THICKNESS = 2;
 
+// Znaczniki nagłówków dozwolone w panelu. Wartość z treści idzie do
+// React.createElement, więc spoza zbioru (literówka, "script", "h2 onclick")
+// spada na h2 - inaczej klient rzuca InvalidCharacterError albo renderuje
+// element, którego panel nigdy nie oferował.
+const HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
+const TEXT_ROTATE_TAGS = [...HEADING_TAGS, "span"] as const;
+
+// Wpisy repeaterów (oś czasu, logo, plany) z importu albo ręcznej edycji JSON
+// mogą zawierać `null`/liczby - czytanie `entry.x` z takiego wpisu wywracało
+// cały widget, więc odfiltrowujemy je raz, na wejściu.
+function objectEntries(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.filter(
+        (x): x is Record<string, unknown> =>
+          typeof x === "object" && x !== null && !Array.isArray(x),
+      )
+    : [];
+}
+
+// Tekst do wyświetlenia: string albo skończona liczba (np. cena 49). Obiekty
+// i tablice dają "" - React nie przyjmuje ich jako dzieci i wywracał widget.
+function textOf(value: unknown): string {
+  if (typeof value === "string") return value;
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
 export function renderSimpleWidget(
   node: WidgetNode,
   lang: Lang,
@@ -1271,60 +1297,21 @@ export function renderSimpleWidget(
         return <PostsSliderWidget c={c} lang={lang} typography={typography} lcp={lcp} />;
       }
 
-      const rawItems = Array.isArray(c.items)
-        ? (c.items as unknown[]).filter(
-            (x): x is Record<string, unknown> => typeof x === "object" && x !== null,
-          )
-        : [];
-      const hasRealItems = rawItems.length > 0;
-      // In the builder canvas, fall back to demo slides so changing the
-      // variant on the left is immediately reflected on the right preview
-      // even before the user adds any images. On the published site
-      // (editable=false) we still show the empty placeholder.
-      const sampleItems =
-        !hasRealItems && editable
-          ? [
-              {
-                image: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1200",
-                title_pl: "Przykładowy slajd",
-                title_en: "Sample slide",
-                subtitle_pl: "Podgląd wariantu – dodaj własne slajdy poniżej",
-                subtitle_en: "Variant preview – add your own slides below",
-                href: "#",
-                cta_pl: "Zobacz",
-                cta_en: "View",
-              },
-              {
-                image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200",
-                title_pl: "Drugi slajd",
-                title_en: "Second slide",
-                subtitle_pl: "Podtytuł",
-                subtitle_en: "Subtitle",
-                href: "#",
-                cta_pl: "Zobacz",
-                cta_en: "View",
-              },
-              {
-                image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1200",
-                title_pl: "Trzeci slajd",
-                title_en: "Third slide",
-                subtitle_pl: "Podtytuł",
-                subtitle_en: "Subtitle",
-                href: "#",
-                cta_pl: "Zobacz",
-                cta_en: "View",
-              },
-            ]
-          : rawItems.map((it) => ({
-              image: typeof it.image === "string" ? it.image : "",
-              title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
-              title_en: typeof it.title_en === "string" ? it.title_en : "",
-              subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
-              subtitle_en: typeof it.subtitle_en === "string" ? it.subtitle_en : "",
-              href: typeof it.href === "string" ? it.href : "",
-              cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
-              cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
-            }));
+      // Tu dochodzi tylko slider z co najmniej jednym wpisem-obiektem ze
+      // zdjęciem albo powiązanym wpisem - pusty (także w kanwie buildera)
+      // `sliderUsesPostsSource` kieruje wyżej do PostsSliderWidget. Dawne
+      // slajdy demo dla pustej kanwy były więc nieosiągalne i ważyły w eager
+      // chunku chrome; usunięte 2026-10-18.
+      const items = objectEntries(c.items).map((it) => ({
+        image: typeof it.image === "string" ? it.image : "",
+        title_pl: typeof it.title_pl === "string" ? it.title_pl : "",
+        title_en: typeof it.title_en === "string" ? it.title_en : "",
+        subtitle_pl: typeof it.subtitle_pl === "string" ? it.subtitle_pl : "",
+        subtitle_en: typeof it.subtitle_en === "string" ? it.subtitle_en : "",
+        href: typeof it.href === "string" ? it.href : "",
+        cta_pl: typeof it.cta_pl === "string" ? it.cta_pl : "",
+        cta_en: typeof it.cta_en === "string" ? it.cta_en : "",
+      }));
       const cfg = {
         variant: (getStr(c, "variant") || "classic") as SliderVariant,
         ratio: (getStr(c, "ratio") || "16/9") as "16/9" | "4/3" | "1/1" | "21/9" | "3/2",
@@ -1361,20 +1348,8 @@ export function renderSimpleWidget(
           | "arrow-tail"
           | undefined,
         navArrowStroke: typeof c.navArrowStroke === "number" ? c.navArrowStroke : undefined,
-        items: sampleItems,
+        items,
       };
-      if (!hasRealItems && editable) {
-        return (
-          <div className="relative w-full">
-            <SliderRender config={{ ...cfg, typography }} lang={lang} lcp={lcp} />
-            <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-background/85 backdrop-blur px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-border">
-              {lang === "pl"
-                ? "Podgląd · dodaj slajdy w panelu"
-                : "Preview · add slides in the panel"}
-            </div>
-          </div>
-        );
-      }
       return <SliderRender config={{ ...cfg, typography }} lang={lang} lcp={lcp} />;
     }
     case "animated-heading": {
@@ -1394,8 +1369,12 @@ export function renderSimpleWidget(
       const isDark = theme === "dark";
       const ahCfg: AnimatedHeadingConfig = {
         mode: (getStr(c, "mode") || "highlight") as AnimatedHeadingMode,
-        shape: (getStr(c, "shape") || "underline") as AnimatedHeadingShape,
-        tag: (getStr(c, "tag") || "h2") as AnimatedHeadingConfig["tag"],
+        // Zapis bez domyślnej wartości: katalog i kształt domyślny TRYBU (w hover
+        // pierwszy z rodziny, nie podkreślenie) rozstrzyga renderer wspólnym z
+        // panelem `resolveAnimatedHeadingShape` - katalog jedzie w leniwym chunku
+        // nagłówka, a ten moduł siedzi w chunku wejściowym.
+        shape: getStr(c, "shape") as AnimatedHeadingShape,
+        tag: asOneOf(c.tag, HEADING_TAGS, "h2"),
         align: (getStr(c, "align") || "left") as "left" | "center" | "right",
         textBefore: getStr(c, `textBefore_${lang}`) || getStr(c, "textBefore_pl"),
         textAfter: getStr(c, `textAfter_${lang}`) || getStr(c, "textAfter_pl"),
@@ -1423,7 +1402,7 @@ export function renderSimpleWidget(
               .map((s) => s.trim())
               .filter(Boolean)
           : [];
-      const trTag = (getStr(c, "tag") || "h2") as "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "span";
+      const trTag = asOneOf(c.tag, TEXT_ROTATE_TAGS, "h2");
       const trAlign = (getStr(c, "align") || "left") as "left" | "center" | "right";
       const splitBy = (getStr(c, "splitBy") || "characters") as "characters" | "words" | "lines";
       const staggerFrom = (getStr(c, "staggerFrom") || "first") as "first" | "last" | "center";
@@ -1471,7 +1450,7 @@ export function renderSimpleWidget(
       // module - statyczna krawędź trzymała DOMPurify w chunku wejściowym.
       return <AccordionWidget content={c} lang={lang} />;
     case "timeline": {
-      const entries = Array.isArray(c.entries) ? (c.entries as Array<Record<string, unknown>>) : [];
+      const entries = objectEntries(c.entries);
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
       return (
@@ -1501,7 +1480,8 @@ export function renderSimpleWidget(
             const actorName = strOf(entry.actorName);
             const actorAvatar = safeImageUrl(strOf(entry.actorAvatar));
             const actorInitials = (strOf(entry.actorInitials) || "?").slice(0, 2).toUpperCase();
-            const actorHref = safeUrl(strOf(entry.actorHref));
+            // Pusty/niebezpieczny adres = autor bez linku (nie <a href="#">).
+            const actorHref = safeUrl(strOf(entry.actorHref), "");
             const isLast = idx === entries.length - 1;
             return (
               <div key={idx} className="flex gap-x-3">
@@ -1582,12 +1562,12 @@ export function renderSimpleWidget(
     }
     case "logo-cloud": {
       const heading = getStr(c, `heading_${lang}`) || getStr(c, "heading_pl");
-      const logosRaw = Array.isArray(c.logos) ? (c.logos as Array<Record<string, unknown>>) : [];
       const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
-      const logos = logosRaw
+      const logos = objectEntries(c.logos)
         .map((l) => ({
           src: safeImageUrl(strOf(l.src)),
-          href: safeUrl(strOf(l.href)),
+          // Logo bez (bezpiecznego) adresu nie jest odnośnikiem do "#".
+          href: safeUrl(strOf(l.href), ""),
           alt: strOf(l.alt) || strOf(l.label),
           label: strOf(l.label),
         }))
@@ -1648,6 +1628,9 @@ export function renderSimpleWidget(
                         href={l.href}
                         className="inline-flex items-center justify-center rounded-[6px]"
                         aria-label={l.alt || l.label}
+                        // Kopia toru jest dekoracyjna (aria-hidden): jej linki
+                        // nie mogą przyjmować fokusu klawiatury.
+                        tabIndex={i >= logos.length ? -1 : undefined}
                       >
                         {inner}
                       </AppLink>
@@ -1744,19 +1727,19 @@ export function renderSimpleWidget(
           />
         );
       }
-      const plans = Array.isArray(c.plans) ? (c.plans as Array<Record<string, unknown>>) : [];
+      const plans = objectEntries(c.plans);
       return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {plans.map((p, i) => {
-            const name = (p[`name_${lang}`] || p.name_pl) as string;
-            const price = (p.price ?? "") as string;
-            const currency = (p.currency ?? "") as string;
-            const period = (p[`period_${lang}`] || p.period_pl || "") as string;
+            const name = textOf(p[`name_${lang}`]) || textOf(p.name_pl);
+            const price = textOf(p.price);
+            const currency = textOf(p.currency);
+            const period = textOf(p[`period_${lang}`]) || textOf(p.period_pl);
             const featuresRaw = (p[`features_${lang}`] || p.features_pl || []) as unknown;
             const features = Array.isArray(featuresRaw)
               ? featuresRaw.filter((x): x is string => typeof x === "string")
               : [];
-            const cta = (p[`cta_${lang}`] || p.cta_pl || "Wybierz") as string;
+            const cta = textOf(p[`cta_${lang}`]) || textOf(p.cta_pl) || "Wybierz";
             const href = safeUrl(typeof p.href === "string" ? p.href : "#");
             const featured = !!p.featured;
             return (
@@ -1806,7 +1789,9 @@ export function renderSimpleWidget(
     case "hot-topic-bar": {
       const badge = getStr(c, `badge_${lang}`) || getStr(c, "badge_pl") || "Hot topic";
       const title = getStr(c, `title_${lang}`) || getStr(c, "title_pl");
-      const href = safeUrl(getStr(c, "href"));
+      // Bez (bezpiecznego) adresu pasek nie jest linkiem - wcześniej fallback
+      // "#" robił z każdego paska fokusowalny odnośnik na górę strony.
+      const href = safeUrl(getStr(c, "href"), "");
       const iconName = getStr(c, "iconName") || "Flame";
       const Icons = LucideIcons as Record<string, React.ComponentType<{ className?: string }>>;
       const Icon = Icons[iconName] || Icons.Flame;

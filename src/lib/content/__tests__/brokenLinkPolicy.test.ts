@@ -261,25 +261,26 @@ describe("waybackTimestampToIso - znacznik 14-cyfrowy, który nie jest datą", (
     expect(waybackTimestampToIso("20200229235959")).toBe("2020-02-29T23:59:59Z");
   });
 
-  // DEFEKT: DATA NIEISTNIEJĄCA W MIESIĄCU WYCHODZI JAKO POPRAWNY ISO.
-  //
-  // WEJSCIE: `waybackTimestampToIso("20190230120000")` - 30 lutego 2019.
-  //   Wayback zwraca takie znaczniki przy uszkodzonych wpisach indeksu CDX.
-  // CO PSUJE: funkcja skleja napis `2019-02-30T12:00:00Z` i sprawdza go przez
-  //   `new Date(iso)`. Silnik NIE odrzuca tego napisu - normalizuje przepełnienie
-  //   dnia i daje 2 marca 2019 (zmierzone: `new Date("2019-02-30T12:00:00Z")`
-  //   === 1551528000000). `Number.isNaN` jest więc fałszywe, a funkcja zwraca
-  //   `iso` - czyli TEN SAM, nieistniejący napis, którego nie zwalidowała.
-  // KONSEKWENCJA: panel monitora linków pokazuje redakcji datę migawki
-  //   "30.02.2019", a każdy konsument, który ten napis ponownie sparsuje
-  //   (sortowanie migawek, `<time datetime>`, eksport), dostanie cicho 2 marca.
-  //   Kontrakt funkcji brzmi "null, gdy to nie jest data" - a to nie jest data.
-  // WYMAGANA POPRAWKA: porównać składowe sparsowanej daty z wejściem
-  //   (`d.getUTCMonth() + 1 === Number(mo) && d.getUTCDate() === Number(d)`)
-  //   i zwrócić `null`, gdy silnik musiał cokolwiek znormalizować.
-  it.fails("DEFEKT: 30 lutego NIE może przejść jako poprawny znacznik migawki", () => {
-    expect(waybackTimestampToIso("20190230120000")).toBeNull();
-    expect(waybackTimestampToIso("20190431120000")).toBeNull(); // 31 kwietnia
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): DATA NIEISTNIEJĄCA W MIESIĄCU.
+  // Wayback zwraca takie znaczniki przy uszkodzonych wpisach indeksu CDX.
+  // Funkcja sprawdzała napis przez `new Date(iso)`, a silnik NIE odrzuca
+  // `2019-02-30T12:00:00Z` - normalizuje go do 2 marca - więc panel pokazywał
+  // datę-widmo, a każdy konsument po ponownym parsowaniu dostawał cicho inny
+  // dzień. Kontrakt: znacznik, którego JAKAKOLWIEK składowa zostałaby
+  // znormalizowana, daje `null`.
+  it.each([
+    ["20190230120000", "30 lutego"],
+    ["20190431120000", "31 kwietnia"],
+    ["20190229120000", "29 lutego w roku nieprzestępnym"],
+    ["20190101240000", "godzina 24:00 (silnik przesuwa na następny dzień)"],
+  ])("odrzuca znacznik %s (%s)", (timestamp) => {
+    expect(waybackTimestampToIso(timestamp)).toBeNull();
+  });
+
+  it("przyjmuje ostatni dzień każdego miesiąca o różnej długości", () => {
+    expect(waybackTimestampToIso("20190131000000")).toBe("2019-01-31T00:00:00Z");
+    expect(waybackTimestampToIso("20190430235959")).toBe("2019-04-30T23:59:59Z");
+    expect(waybackTimestampToIso("20191231235959")).toBe("2019-12-31T23:59:59Z");
   });
 });
 

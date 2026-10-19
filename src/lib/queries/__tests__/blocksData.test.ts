@@ -1182,11 +1182,11 @@ describe("calendarBlockQueryOptions", () => {
     const c = lancuch("posts");
     const start = granica(c, "gte");
     const koniec = granica(c, "lt");
-    // Granice liczone są tą samą arytmetyką lokalną, co w kodzie (`new Date(y,
-    // m-1, 1)`), więc asercja czyta składowe lokalne - inaczej wynik zależałby
-    // od `TZ` przebiegu i test byłby kruchy, a nie dowodowy.
-    expect([start.getFullYear(), start.getMonth(), start.getDate()]).toEqual([2026, 5, 1]);
-    expect([koniec.getFullYear(), koniec.getMonth(), koniec.getDate()]).toEqual([2026, 6, 1]);
+    // Granice to północ w strefie serwisu (`SITE_TIME_ZONE`, latem UTC+2), a nie
+    // w strefie procesu - ta sama chwila pod każdym `TZ` przebiegu. Dowód
+    // niezależności od strefy: `calendarSiteTimeZone.test.ts`.
+    expect(start.toISOString()).toBe("2026-05-31T22:00:00.000Z");
+    expect(koniec.toISOString()).toBe("2026-06-30T22:00:00.000Z");
     expect(c.argsOf("order")).toEqual(["published_at", { ascending: true }]);
     expect(c.argsOf("limit")).toEqual([500]);
   });
@@ -1196,8 +1196,9 @@ describe("calendarBlockQueryOptions", () => {
     await klient().fetchQuery(calendarBlockQueryOptions({ year: 2026, month: 12 }));
     const koniec = granica(lancuch("posts"), "lt");
     // Bez przewinięcia roku kalendarz grudniowy pytałby o okno puste (miesiąc
-    // 13 tego samego roku) i pokazywał grudzień bez ani jednego wpisu.
-    expect([koniec.getFullYear(), koniec.getMonth()]).toEqual([2027, 0]);
+    // 13 tego samego roku) i pokazywał grudzień bez ani jednego wpisu. Koniec to
+    // północ 1 stycznia 2027 w Warszawie (zimą UTC+1).
+    expect(koniec.toISOString()).toBe("2026-12-31T23:00:00.000Z");
   });
 
   it("odfiltrowuje wiersze bez daty publikacji", async () => {

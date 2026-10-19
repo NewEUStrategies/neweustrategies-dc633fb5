@@ -15,6 +15,8 @@
 //   pierwotnej polityki (is_experiment_running), zgubiony przy jej kolejnych
 //   wersjach - oraz należeć do tenanta przeglądanego hosta (odpowiednik
 //   public_tenant_id() ze zdjętej polityki RLS).
+// - `tenant_id` wiersza zdarzenia pochodzi z eksperymentu, nie z ładunku
+//   (migracja 20261019090000: kolumna + trigger wyprowadzający najemcę).
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 // Prefiks `node:` jest OBOWIĄZKOWY. Ten moduł jest TRASĄ, więc routeTree.gen
@@ -132,6 +134,13 @@ export const Route = createFileRoute("/api/public/experiment-event")({
 
         const { error: insErr } = await supabaseAdmin.from("builder_experiment_events").insert({
           experiment_id: parsed.data.experimentId,
+          // Najemca WYŁĄCZNIE z wiersza eksperymentu (sprawdzonego wyżej
+          // z hostem), nigdy z ładunku - schemat Zod pola najemcy nie zna,
+          // więc je odcina. Trigger `builder_experiment_events_bind_tenant`
+          // (migracja 20261019090000) i tak nadpisuje tę wartość najemcą
+          // eksperymentu; jawne pole spełnia typ wstawki (NOT NULL bez
+          // DEFAULT) i nie zostawia wiersza zależnym od samego triggera.
+          tenant_id: exp.tenant_id,
           variant: parsed.data.variant,
           event: parsed.data.event,
           visitor_id: parsed.data.visitorId,

@@ -45,12 +45,9 @@
 //  * `isDragging` (wygaszenie wiersza w trakcie ciagniecia) zyje w stanie
 //    wewnetrznym @dnd-kit, ktory bez gestu myszy nie wstaje - klasa `opacity-45`
 //    nie ma tu wiec asercji.
-//  * `if (anchor)` w BlockListView.tsx:72 jest GALEZIA MARTWA i zadnym wejsciem
-//    sie jej nie osiagnie: warunek zewnetrzny (:70) przepuszcza dalej tylko
-//    wtedy, gdy `activeId` jest prawdziwe ALBO `selectedIds` jest niepuste,
-//    a `selectedIds[0] ?? activeId` jest wtedy zawsze prawdziwe (id bloku to
-//    `b_[a-z0-9]+`, nigdy pusty napis). To nie luka w tescie, tylko nadmiarowy
-//    straz w kodzie - i dlatego pokrycie GALEZI tego pliku nie dojdzie do 100%.
+//  * KOTWICA ZAKRESU jest pamietana w komponencie (`anchorRef`), wiec dowod na
+//    nia wymaga GOSPODARZA, ktory oddaje zaznaczenie z powrotem w dol - tak jak
+//    `PostBlockEditor`. Przypadki jednego klikniecia montuja liste wprost.
 //  * `scrollIntoView` nie istnieje w happy-dom, wiec kanwa jest tu zastapiona
 //    golym elementem `[data-block-id]` z podstawiona atrapa metody. Dowodzone
 //    jest to, KTORY blok kanwy zostaje wskazany, a nie samo przewijanie.
@@ -58,7 +55,8 @@
 //    towarzyszy czerwony test, a nie cicho wyswietlony identyfikator klucza.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { Block, BlocksDoc } from "@/lib/blocks/types";
 import { withChildBlocks } from "@/lib/blocks/nested";
 import { realT } from "@/test/i18nReal";
@@ -150,19 +148,57 @@ function zamontuj({
 }
 
 /**
+ * Lista STEROWANA: gospodarz trzyma `activeId`/`selectedIds` i oddaje je
+ * w dol - dokladnie tak, jak robi to `PostBlockEditor`. Bez tego echa drugi
+ * gest Shift widzialby stan sprzed pierwszego.
+ */
+function zamontujSterowany(dokumentWejsciowy: BlocksDoc = dokument()) {
+  dnd.uchwyty.length = 0;
+  const zaznaczenia: Array<readonly string[]> = [];
+  let ustaw: ((s: { activeId: string | null; selectedIds: readonly string[] }) => void) | null =
+    null;
+  function Gospodarz() {
+    const [stan, setStan] = useState<{ activeId: string | null; selectedIds: readonly string[] }>({
+      activeId: null,
+      selectedIds: [],
+    });
+    ustaw = setStan;
+    return (
+      <BlockListView
+        doc={dokumentWejsciowy}
+        activeId={stan.activeId}
+        selectedIds={stan.selectedIds}
+        onSelect={(id) => setStan((s) => ({ ...s, activeId: id }))}
+        onSelectedIdsChange={(ids) => {
+          zaznaczenia.push(ids);
+          setStan((s) => ({ ...s, selectedIds: ids }));
+        }}
+        onReorder={() => undefined}
+      />
+    );
+  }
+  render(<Gospodarz />);
+  return {
+    zaznaczenia,
+    ustawZZewnatrz(next: { activeId: string | null; selectedIds: readonly string[] }) {
+      act(() => ustaw?.(next));
+    },
+  };
+}
+
+/**
  * Przycisk wyboru wiersza o podanej tresci (etykieta typu + skrot tresci bloku).
  *
- * ADRESOWANIE PRZEZ TRESC, NIE PRZEZ NAZWE DOSTEPNA, jest tu SWIADOME: uchwyt
- * przeciagania siedzi WEWNATRZ przycisku wiersza i sam ma `role="button"`
- * (`{...attributes}` z `useSortable`), wiec zapytanie o rolę „button” zwraca
- * dwa elementy na wiersz, a nazwa dostepna wiersza wsysa jeszcze `title`
- * uchwytu. To jest defekt opisany nizej (`nested-interactive`) - dopoki zyje,
- * test siega po JEDYNY prawdziwy element `<button>` w wierszu.
+ * Od 2026-10-18 uchwyt przeciagania jest RODZENSTWEM przycisku wyboru (osobny
+ * `<button>` z wlasna nazwa), wiec przycisk wyboru to ten przycisk wiersza,
+ * ktorego tresc jest dokladnie trescia wiersza (uchwyt ma sama ikone).
  */
 function wiersz(tresc: string): HTMLElement {
   const li = screen.getAllByRole("treeitem").find((el) => (el.textContent ?? "").trim() === tresc);
   if (!li) throw new Error(`test: brak wiersza o tresci „${tresc}”`);
-  const przycisk = li.querySelector("button");
+  const przycisk = within(li)
+    .getAllByRole("button")
+    .find((el) => (el.textContent ?? "").trim() === tresc);
   if (!przycisk) throw new Error(`test: wiersz „${tresc}” nie ma przycisku wyboru`);
   return przycisk;
 }
@@ -399,35 +435,63 @@ describe("BlockListView - Shift+klik (zakres)", () => {
     expect(scroll).toHaveBeenCalledTimes(1);
   });
 
-  // DEFEKT: KOTWICA ZAKRESU UCIEKA NA KONIEC POPRZEDNIEGO ZAZNACZENIA.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): KOTWICA ZAKRESU ZOSTAJE TAM,
+  // GDZIE REDAKTOR ZACZAL.
   //
-  // WEJSCIE: redaktor klika blok TRZECI (`h1` staje sie aktywny), po czym
-  //   Shift+klika blok PIERWSZY - zakres idzie w gore i daje `["p1","g1","h1"]`.
-  //   Rodzic oddaje to jako `selectedIds`, a `activeId` gasnie. Teraz redaktor
-  //   Shift+klika blok DRUGI (`g1`), zeby ZWEZIC zaznaczenie do `["g1","h1"]`.
-  // CO PSUJE: `handleRowClick` (BlockListView.tsx:71) wylicza kotwice jako
-  //   `selectedIds[0] ?? activeId`, czyli bierze PIERWSZY ELEMENT ZBIORU
-  //   w kolejnosci dokumentu. Po zakresie zaznaczonym W GORE pierwszym
-  //   elementem jest `p1` - blok, ktory byl KONCEM gestu, nie jego poczatkiem.
-  //   Kotwica przeskakuje wiec na przeciwna krawedz zaznaczenia.
-  // KONSEKWENCJA: zamiast zwezenia do `["g1","h1"]` redaktor dostaje
-  //   `["p1","g1"]` - zbior, ktorego nigdy nie wskazal, i to po CICHU (nie ma
-  //   bledu, jest inne podswietlenie). Kolejna operacja masowa - „usun
-  //   zaznaczone” - kasuje wtedy blok `p1`, ktory redaktor wlasnie probowal
-  //   z zaznaczenia wypuscic. Ta sama pomylka dotyczy KAZDEGO zakresu
-  //   zaznaczonego w gore, wiec polowy gestow Shift.
-  // WYMAGANA POPRAWKA: kotwica musi byc PAMIETANA (np. `useRef` ustawiany przy
-  //   zwyklym kliknieciu i przy pierwszym Shift+kliknieciu), a nie odtwarzana
-  //   z `selectedIds[0]`. Dopoki redaktor trzyma Shift, kotwica ma zostac tam,
-  //   gdzie zaczal - dokladnie tak dziala zaznaczanie zakresu w Gutenbergu
-  //   i w kazdym menedzerze plikow.
-  it.fails("DEFEKT: Shift+klik po zakresie W GORE musi zwezac zaznaczenie od kotwicy", () => {
-    // Stan po pierwszym gescie: zakres `h1` -> `p1` zaznaczony, kotwica = `h1`.
-    const { onSelectedIdsChange } = zamontuj({ activeId: null, selectedIds: ["p1", "g1", "h1"] });
+  // KONTRAKT: redaktor klika blok TRZECI (`h1` aktywny), Shift+klika PIERWSZY
+  //   (zakres w gore: `["p1","g1","h1"]`), po czym Shift+klika DRUGI (`g1`).
+  //   Kotwica jest pamietana (`anchorRef`), a nie odtwarzana z `selectedIds[0]`,
+  //   wiec drugi gest ZWEZA zaznaczenie do `["g1","h1"]`. Wczesniej kotwica
+  //   przeskakiwala na `p1` (pierwszy element zbioru w kolejnosci dokumentu,
+  //   czyli KONIEC pierwszego gestu) i redaktor dostawal `["p1","g1"]` - zbior,
+  //   ktorego nie wskazal, a nastepne „usun zaznaczone" kasowalo `p1`.
+  it("Shift+klik po zakresie W GORE zweza zaznaczenie od zapamietanej kotwicy", () => {
+    const { zaznaczenia } = zamontujSterowany();
+
+    fireEvent.click(wiersz(`${t("blocks.types.heading")}Tytul sekcji`));
+    fireEvent.click(wiersz(`${t("blocks.types.paragraph")}pierwszy`), { shiftKey: true });
+    expect(zaznaczenia.at(-1)).toEqual(["p1", "g1", "h1"]);
 
     fireEvent.click(wiersz(t("blocks.types.group")), { shiftKey: true });
 
-    expect(onSelectedIdsChange).toHaveBeenCalledWith(["g1", "h1"]);
+    expect(zaznaczenia.at(-1)).toEqual(["g1", "h1"]);
+  });
+
+  it("kolejne Shift+klikniecia po obu stronach kotwicy przerzucaja zakres przez nia", () => {
+    const { zaznaczenia } = zamontujSterowany();
+
+    fireEvent.click(wiersz(t("blocks.types.group")));
+    fireEvent.click(wiersz(`${t("blocks.types.heading")}Tytul sekcji`), { shiftKey: true });
+    expect(zaznaczenia.at(-1)).toEqual(["g1", "h1"]);
+
+    fireEvent.click(wiersz(`${t("blocks.types.paragraph")}pierwszy`), { shiftKey: true });
+
+    // Kotwica `g1` zostaje - zakres przechodzi na druga strone, a `h1` wypada.
+    expect(zaznaczenia.at(-1)).toEqual(["p1", "g1"]);
+  });
+
+  it("Ctrl+klik przestawia kotwice na klikniety blok - nastepny Shift+klik liczy od niego", () => {
+    const { zaznaczenia } = zamontujSterowany();
+
+    fireEvent.click(wiersz(`${t("blocks.types.paragraph")}pierwszy`));
+    fireEvent.click(wiersz(`${t("blocks.types.heading")}Tytul sekcji`), { ctrlKey: true });
+    expect(zaznaczenia.at(-1)).toEqual(["p1", "h1"]);
+
+    fireEvent.click(wiersz(t("blocks.types.group")), { shiftKey: true });
+
+    expect(zaznaczenia.at(-1)).toEqual(["g1", "h1"]);
+  });
+
+  it("kotwica, ktora wypadla z zaznaczenia zmienionego POZA lista, nie jest uzywana", () => {
+    // Kanwa ma wlasne gesty zaznaczenia (Shift+strzalki) - gdy zbior przyjdzie
+    // z zewnatrz bez zapamietanej kotwicy, punktem wyjscia jest jego poczatek.
+    const { zaznaczenia, ustawZZewnatrz } = zamontujSterowany();
+
+    fireEvent.click(wiersz(`${t("blocks.types.paragraph")}pierwszy`));
+    ustawZZewnatrz({ activeId: null, selectedIds: ["g1", "h1"] });
+    fireEvent.click(wiersz(`${t("blocks.types.heading")}Tytul sekcji`), { shiftKey: true });
+
+    expect(zaznaczenia.at(-1)).toEqual(["g1", "h1"]);
   });
 });
 
@@ -510,37 +574,35 @@ describe("BlockListView - dostepnosc drzewa", () => {
     expect(summarize(naruszenia)).toBe("");
   });
 
-  // DEFEKT: UCHWYT PRZECIAGANIA JEST KONTROLKA WEWNATRZ KONTROLKI.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): UCHWYT I WYBOR BLOKU SA RODZENSTWEM.
   //
-  // WEJSCIE: dowolny dokument z blokiem najwyzszego poziomu - wystarczy jeden
-  //   akapit; drzewo renderuje wtedy jeden wiersz z uchwytem.
-  // CO PSUJE: wiersz to `<button>` (BlockListView.tsx:166), a uchwyt w jego
-  //   srodku (:177-186) dostaje `{...attributes}` z `useSortable`, czyli
-  //   `role="button"` i `tabIndex=0`. Powstaje kontrolka zagniezdzona
-  //   w kontrolce: HTML zabrania tresci interaktywnej wewnatrz `<button>`,
-  //   a axe zglasza to regula `nested-interactive`.
-  // KONSEKWENCJA: czytnik ekranu widzi w wierszu DWA przyciski o niejasnej
-  //   relacji i czesc czytnikow w ogole nie oglasza zagniezdzonego. Uchwyt jest
-  //   przy tym niewidoczny do czasu najechania myszą (`opacity-0
-  //   group-hover/row:opacity-100`), wiec uzytkownik klawiatury zatrzymuje sie
-  //   na nim tabulatorem, nie widzac na czym stoi - a `KeyboardSensor` jest
-  //   podpiety wlasnie do niego, wiec to JEDYNA klawiaturowa droga do zmiany
-  //   kolejnosci blokow. Przeciaganie z klawiatury jest wiec dzis dostepne
-  //   wylacznie „na slepo”.
-  // WYMAGANA POPRAWKA: wiersz i uchwyt musza byc RODZENSTWEM, nie zagniezdzeniem
-  //   - `<li>` z osobnym `<button>` wyboru bloku i osobnym `<button>` uchwytu
-  //   (z `aria-label` zamiast samego `title` i bez `opacity-0` przy `:focus`).
-  //   Wtedy `nested-interactive` znika, a uchwyt staje sie widoczny w momencie,
-  //   w ktorym dostaje focus.
-  it.fails(
-    "DEFEKT: uchwyt przeciagania nie moze byc przyciskiem wewnatrz przycisku wiersza",
-    async () => {
-      const { view } = zamontuj({ doc: doc([akapit("p1", "pierwszy")]) });
+  // KONTRAKT: wiersz to `<li role="treeitem">` z DWOMA osobnymi przyciskami -
+  //   wyboru bloku i uchwytu przeciagania (`{...attributes}` z `useSortable`,
+  //   wlasne `aria-label`). Wczesniej uchwyt siedzial WEWNATRZ przycisku
+  //   wiersza (axe `nested-interactive`), czesc czytnikow go nie oglaszala,
+  //   a to jedyna klawiaturowa droga do zmiany kolejnosci blokow.
+  it("uchwyt przeciagania nie jest przyciskiem wewnatrz przycisku wiersza", async () => {
+    const { view } = zamontuj({ doc: doc([akapit("p1", "pierwszy")]) });
 
-      const naruszenia = await axeViolations(view.container);
-      expect(summarize(naruszenia)).toBe("");
-    },
-  );
+    const naruszenia = await axeViolations(view.container);
+    expect(summarize(naruszenia)).toBe("");
+  });
+
+  it("uchwyt ma wlasna nazwe dostepna, a przycisk wyboru jej nie wchlania", () => {
+    zamontuj({ doc: doc([akapit("p1", "pierwszy")]) });
+    const li = screen.getByRole("treeitem");
+
+    const przyciski = within(li).getAllByRole("button");
+    expect(przyciski).toHaveLength(2);
+    expect(within(li).getByRole("button", { name: t("blocks.actions.drag") })).toBeInTheDocument();
+    // Nazwa wyboru to sama tresc wiersza - bez dopisku z `title` uchwytu.
+    expect(
+      within(li).getByRole("button", { name: `${t("blocks.types.paragraph")} pierwszy` }),
+    ).toBeInTheDocument();
+    for (const przycisk of przyciski) {
+      expect(przycisk.querySelector("button, [role='button']")).toBeNull();
+    }
+  });
 });
 
 // Drzewo z poprzedniego przypadku znika razem z `cleanup` RTL, ale atrapy

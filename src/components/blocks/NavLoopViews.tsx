@@ -14,6 +14,15 @@ import { formatDate } from "@/lib/i18n/format";
 
 type Lang = "pl" | "en";
 
+/**
+ * Tytuł wpisu w języku strony, a bez tłumaczenia drugi język - ten sam łańcuch
+ * co `NavigationView` i `LatestPostsView`. Bez zapasu wpis bez tłumaczenia
+ * dawał odnośnik BEZ dostępnej nazwy.
+ */
+function postTitle(p: { title_pl: string | null; title_en: string | null }, lang: Lang): string {
+  return (lang === "en" ? p.title_en : p.title_pl) ?? p.title_pl ?? p.title_en ?? "";
+}
+
 export function NavigationView({
   menuKey,
   layout,
@@ -77,7 +86,7 @@ export function PostNavigationLinkView({
   });
 
   if (!data) return null;
-  const title = (lang === "en" ? data.post.title_en : data.post.title_pl) ?? "";
+  const title = postTitle(data.post, lang);
   const arrow = direction === "next" ? "→" : "←";
   return (
     <div className={`not-prose ${cls}`}>
@@ -140,7 +149,7 @@ export function QueryLoopView({
     <div className={`not-prose ${cls}`}>
       <ul className={`${container} list-none m-0 p-0`}>
         {posts.map((p) => {
-          const title = (lang === "en" ? p.title_en : p.title_pl) ?? "";
+          const title = postTitle(p, lang);
           const excerpt = (lang === "en" ? p.excerpt_en : p.excerpt_pl) ?? "";
           const href = `/post/${p.slug}`;
           return (

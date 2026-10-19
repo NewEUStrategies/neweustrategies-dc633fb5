@@ -3,7 +3,7 @@
 // Tokeny renderują się jako <span> (bez innerHTML), więc wynik jest
 // deterministyczny między SSR a klientem i bezpieczny dla edge cache;
 // jedyna interaktywność (kopiuj) nie dotyka markupu kodu.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { highlightCode, isHighlightableLang } from "@/lib/code/highlight";
 
@@ -36,11 +36,26 @@ export function CodeBlockView({ code, lang, uiLang = "pl", className }: Props) {
   // i błędne co do rozwiązania: `lang` jest w sygnaturze `BlockRenderer`, więc
   // nie potrzebujemy ani hooka i18next, ani odczytu z przeglądarki.
 
+  // Jeden timer powrotu etykiety: ponowne kopiowanie w trakcie odliczania
+  // zaczyna je od nowa (wcześniej pierwszy timer gasił „Skopiowano" po drugim
+  // kliknięciu przedwcześnie), a odmontowanie bloku sprząta zaległy timer.
+  const resetTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+    },
+    [],
+  );
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      if (resetTimer.current !== null) window.clearTimeout(resetTimer.current);
+      resetTimer.current = window.setTimeout(() => {
+        resetTimer.current = null;
+        setCopied(false);
+      }, 2000);
     } catch {
       // Starsze przeglądarki bez clipboard API - przycisk po prostu nie działa.
     }

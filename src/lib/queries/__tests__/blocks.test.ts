@@ -1,7 +1,7 @@
 // blockQueryOptionsList is the SSR-prefetch contract of the blocks engine:
 // same block.data inputs must map to the same queryKey the views resolve, or
 // the loader warms a cache entry nobody reads (and crawlers get skeletons).
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { BlocksDoc } from "@/lib/blocks/types";
 import {
   blockQueryOptionsList,
@@ -109,8 +109,16 @@ describe("blockQueryOptionsList", () => {
 
 describe("calendarTarget", () => {
   it("parses YYYY-MM and falls back to the current month", () => {
-    expect(calendarTarget("2026-02")).toEqual({ year: 2026, month: 2 });
-    const now = new Date();
-    expect(calendarTarget("")).toEqual({ year: now.getFullYear(), month: now.getMonth() + 1 });
+    // Zegar zamrożony w połowie miesiąca: „bieżący miesiąc" liczy się w strefie
+    // serwisu, więc na prawdziwym zegarze test zależałby od godziny przebiegu
+    // w ostatniej dobie miesiąca (przypadek graniczny: calendarSiteTimeZone.test.ts).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-07-15T12:00:00.000Z"));
+      expect(calendarTarget("2026-02")).toEqual({ year: 2026, month: 2 });
+      expect(calendarTarget("")).toEqual({ year: 2026, month: 7 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

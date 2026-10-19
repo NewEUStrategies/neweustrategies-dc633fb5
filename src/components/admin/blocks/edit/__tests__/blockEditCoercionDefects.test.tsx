@@ -9,20 +9,24 @@
 // CO MA TU DOWÓD
 //  * klamrowanie DZIAŁA dla wejść liczbowych spoza zakresu (poziom nagłówka
 //    99 -> 5, -3 -> 1; poziom zagnieżdżenia listy 7 -> 6, -1 -> 1),
-//  * klamrowanie NIE DZIAŁA dla wejść, które nie są liczbami - i to jest
-//    zarejestrowany defekt (`it.fails` niżej): `Math.min(Math.max(Number(x),1),5)`
-//    zwraca `NaN` dla każdego `x`, którego `Number()` nie umie przeczytać,
-//    bo `Math.max(NaN, 1)` to `NaN`. To NIE jest teoretyczne: import WordPressa
-//    zapisuje poziom nagłówka jako `"h2"`, a nie `2`,
-//  * `String(x ?? "")` przepuszcza obiekt do pola formularza jako literalne
-//    `[object Object]` - idiom powtórzony w ~55 plikach rodziny.
+//  * klamrowanie DZIAŁA także dla wejść, które nie są liczbami - wartość
+//    nieczytelna wraca do domyślnej, a nie do `NaN`. Do 2026-10-18 były to
+//    zarejestrowane defekty (`it.fails`): `Math.min(Math.max(Number(x),1),5)`
+//    zwracało `NaN` dla każdego `x`, którego `Number()` nie umie przeczytać,
+//    bo `Math.max(NaN, 1)` to `NaN`. To nie było teoretyczne: import
+//    WordPressa zapisuje poziom nagłówka jako `"h2"`, a nie `2`,
+//  * pole formularza NIE dostaje obiektu jako literalnego `[object Object]`
+//    (podpis obrazu, pozycje listy) - wcześniej przepuszczał go idiom
+//    `String(x ?? "")`, a pierwsza edycja utrwalała śmieć w dokumencie.
 //
-// DLACZEGO `it.fails`, A NIE POPRAWKA. Każda z tych naprawek to ZMIANA KODU
-// PRODUKCYJNEGO (dodanie `Number.isFinite`, wymiana `String()` na strażnika
-// typu), a tej gałęzi tego nie wolno. Zgodnie z regułą repozytorium defekt
-// zostaje ZAREJESTROWANY jako `it.fails` z opisem wejścia i skutku - każdy
-// z poniższych był najpierw uruchomiony jako zwykły `it` i potwierdzony, że
-// pada NA ASERCJI DOCELOWEJ, a nie po drodze na błędzie przygotowania.
+// NAPRAWIONE 2026-10-18. Edytory czytają napisy przez strażnik typu
+// `readText` z `dataVizShared.tsx`, a liczby - TĄ SAMĄ koercją, co ich
+// render: odstęp i pasek postępu przez `num` z `renderer/data.ts` (napis
+// z przecinkiem to dla niego nie liczba), wykres przez parser, który rysuje
+// podgląd i stronę (`parseChartConfig`), a lista - tylko napisy, jak
+// `strList` w renderze publicznym. Każdy przypadek niżej był
+// wcześniej `it.fails` padającym NA ASERCJI DOCELOWEJ; teraz pilnuje, żeby
+// defekt nie wrócił, i mówi, NA CO wartość jest zamieniana.
 //
 // GRANICE. Mockowane tylko: Radix `Select`/`Switch` (biblioteka, nie nasz kod -
 // pod happy-dom nie rozwija listy), `sonner`, `<Link>` routera, klient
@@ -33,7 +37,7 @@ import { fireEvent, screen } from "@testing-library/react";
 
 import { renderEditor } from "./blockEditMatrix.shared";
 import type { Block, BlockType, Json } from "@/lib/blocks/types";
-import { CHART_HEIGHT_MAX } from "@/lib/charts/parse";
+import { CHART_HEIGHT_DEFAULT, CHART_HEIGHT_MAX } from "@/lib/charts/parse";
 import { HeadingBlock } from "../Heading";
 import { SpacerBlock } from "../Spacer";
 import { ProgressBlock } from "../InteractiveBlocks";
@@ -103,123 +107,183 @@ describe("klamrowanie liczb - to, co DZIAŁA", () => {
   });
 });
 
-describe("koercja niepoprawnych wartości - ZAREJESTROWANE DEFEKTY", () => {
-  it.fails(
-    'DEFEKT: nagłówek z poziomem „h2" (kształt z importu WordPressa) daje klasę cms-hNaN',
-    () => {
-      // WEJŚCIE: `block.data.level = "h2"`.
-      // CO PSUJE: `Math.min(Math.max(Number("h2"), 1), 5)` = `NaN`, bo
-      // `Math.max(NaN, 1)` to `NaN` - klamra nie klamruje. Nagłówek dostaje
-      // `className="cms-hNaN"` (klasy o tej nazwie NIE MA w arkuszu, więc
-      // podgląd traci rozmiar fontu i wygląda jak akapit) oraz
-      // `data-heading-level="NaN"` - a to jest atrybut, z którego pasek
-      // narzędzi nagłówka czyta bieżący poziom.
-      const { container } = renderEditor(
-        HeadingBlock,
-        block("heading", { level: "h2", text: "T" }),
-      );
-      const el = container.querySelector("[data-heading-level]");
-      const poziom = Number(el?.getAttribute("data-heading-level"));
-      expect(Number.isFinite(poziom)).toBe(true);
-      expect(poziom).toBeGreaterThanOrEqual(1);
-      expect(poziom).toBeLessThanOrEqual(5);
-      expect(el?.className).not.toContain("cms-hNaN");
-    },
-  );
+describe("koercja niepoprawnych wartości - NAPRAWIONE DEFEKTY", () => {
+  it('nagłówek z poziomem „h2" (kształt z importu WordPressa) jest H2, a nie cms-hNaN', () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): `Math.min(Math.max(Number("h2"),
+    // 1), 5)` dawało `NaN`, bo `Math.max(NaN, 1)` to `NaN` - nagłówek dostawał
+    // `className="cms-hNaN"` (klasy o tej nazwie nie ma w arkuszu, więc
+    // podgląd tracił rozmiar fontu) i `data-heading-level="NaN"`, z którego
+    // pasek narzędzi czyta bieżący poziom. Teraz poziom nieczytelny to
+    // domyślne 2 - tak samo jak w renderze publicznym (`num(..., 2)`).
+    const { container } = renderEditor(HeadingBlock, block("heading", { level: "h2", text: "T" }));
+    const el = container.querySelector("[data-heading-level]");
+    expect(el?.getAttribute("data-heading-level")).toBe("2");
+    expect(el?.className).toContain("cms-h2");
+    expect(el?.className).not.toContain("NaN");
+  });
 
-  it.fails('DEFEKT: odstęp z wysokością „wysoko" pokazuje redaktorowi „NaNpx"', () => {
-    // WEJŚCIE: `block.data.height = "wysoko"`.
-    // CO PSUJE: `Number("wysoko")` = `NaN` idzie i do `style={{ height }}`
-    // (element podglądu traci wysokość), i do etykiety obok suwaka - redaktor
-    // widzi napis „NaNpx" zamiast liczby, a suwak stoi w pozycji domyślnej
-    // przeglądarki, więc pokazuje wartość, której w dokumencie nie ma.
+  it("nagłówek z poziomem ułamkowym 3,6 dostaje całkowity poziom 4, a nie klasę cms-h3.6", () => {
+    // Ta sama klamra bez zaokrąglenia przepuszczała ułamek do nazwy klasy -
+    // klasy `cms-h3.6` nie ma w arkuszu, a pasek narzędzi czytałby poziom,
+    // którego żaden przycisk nie zaznacza.
+    const { container } = renderEditor(HeadingBlock, block("heading", { level: 3.6, text: "T" }));
+    expect(
+      container.querySelector("[data-heading-level]")?.getAttribute("data-heading-level"),
+    ).toBe("4");
+  });
+
+  it("nagłówek z treścią-OBIEKTEM startuje pusty (z podpowiedzią), a nie z „[object Object]”", () => {
+    // `String({ pl: "Tytuł" })` szło do TipTapa jako treść nagłówka, a pierwsze
+    // naciśnięcie klawisza utrwalało „[object Object]" w dokumencie.
+    const { container, changes } = renderEditor(
+      HeadingBlock,
+      block("heading", { level: 2, text: { pl: "Tytuł" } }),
+    );
+    expect(container.textContent).not.toContain("[object Object]");
+    expect(container.querySelector('[contenteditable="true"]')?.textContent).toBe("");
+    expect(changes).toEqual([]);
+  });
+
+  it('odstęp z wysokością „wysoko" pokazuje domyślne 40 px - etykieta i suwak zgodnie', () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): `Number("wysoko")` = `NaN` szło
+    // i do `style={{ height }}` (podgląd bez wysokości), i do etykiety obok
+    // suwaka („NaNpx"), a suwak stał w pozycji domyślnej przeglądarki - dwie
+    // różne wartości tego samego pola naraz.
     const { container } = renderEditor(SpacerBlock, block("spacer", { height: "wysoko" }));
     expect(container.textContent).not.toContain("NaN");
+    expect(container.textContent).toContain("40px");
+    expect(screen.getByRole<HTMLInputElement>("slider").value).toBe("40");
   });
 
-  it.fails('DEFEKT: pasek postępu z wartością „nic" pokazuje „NaN%"', () => {
-    // WEJŚCIE: `block.data.value = "nic"`.
-    // CO PSUJE: `Number("nic")` = `NaN` ląduje w etykiecie procentowej obok
-    // suwaka (`{value}%`). Suwak ma `min={0} max={100}`, więc sam pokazuje 50,
-    // a etykieta „NaN%" - dwie różne wartości tego samego pola naraz.
+  it('odstęp z wysokością „33,5" (przecinek) pokazuje domyślne 40 px, jak strona', () => {
+    // Render publiczny czyta napis przez `Number()` (`num` z `renderer/data.ts`),
+    // więc „33,5" to dla niego NIE liczba i rysuje domyślne 40 px. Panel czyta
+    // tą samą funkcją - pokazanie 33,5 px obiecywałoby odstęp, którego nie ma.
+    const { container } = renderEditor(SpacerBlock, block("spacer", { height: "33,5" }));
+    expect(container.textContent).toContain("40px");
+    expect(screen.getByRole<HTMLInputElement>("slider").value).toBe("40");
+  });
+
+  it("odstęp spoza zakresu suwaka pokazuje najbliższy kraniec, a nie liczbę spoza suwaka", () => {
+    const duzy = renderEditor(SpacerBlock, block("spacer", { height: 5000 }));
+    expect(duzy.container.textContent).toContain("400px");
+    duzy.unmount();
+    const ujemny = renderEditor(SpacerBlock, block("spacer", { height: -20 }));
+    expect(ujemny.container.textContent).toContain("8px");
+  });
+
+  it('pasek postępu z wartością „nic" pokazuje 0% - tyle narysuje strona', () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): `Number("nic")` = `NaN` lądowało
+    // w etykiecie procentowej obok suwaka („NaN%"), a suwak z `min={0}
+    // max={100}` pokazywał 50 - dwie różne wartości tego samego pola.
+    // Render publiczny czyta tę wartość jako 0 (`num(..., 0)`).
     const { container } = renderEditor(ProgressBlock, block("progress", { value: "nic" }));
     expect(container.textContent).not.toContain("NaN");
+    expect(container.textContent).toContain("0%");
+    expect(screen.getByRole<HTMLInputElement>("slider").value).toBe("0");
   });
 
-  it.fails('DEFEKT: wykres z wysokością „wysoko" pokazuje „NaNpx"', () => {
-    // WEJŚCIE: `block.data.height = "wysoko"`.
-    // CO PSUJE: to samo, co w odstępie, ale skutek jest gorszy - warstwa
-    // czytająca (`parseChartConfig`) ma dla wysokości PEŁNE klamrowanie
-    // (`Math.max(CHART_HEIGHT_MIN, Math.min(CHART_HEIGHT_MAX, ...))`), więc
-    // czytelnik zobaczy 320 px, a redaktor w panelu - „NaNpx".
+  it("pasek postępu 250 pokazuje 100% - etykieta nie wychodzi poza suwak", () => {
+    // `ProgressView` ścina do 0-100, więc „250%" obok suwaka na 100 mówiło
+    // redaktorowi co innego niż strona.
+    const { container } = renderEditor(ProgressBlock, block("progress", { value: 250 }));
+    expect(container.textContent).toContain("100%");
+    expect(container.textContent).not.toContain("250%");
+  });
+
+  it('wykres z wysokością „wysoko" pokazuje domyślne 320 px, które narysuje parser', () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): parser (`parseChartConfig`) ma
+    // dla wysokości pełne klamrowanie, więc czytelnik widział 320 px, a panel
+    // - „NaNpx". Forma czyta teraz wysokość z tego samego parsera.
     const { container } = renderEditor(ChartBlock, block("chart", { height: "wysoko" }));
     expect(container.textContent).not.toContain("NaN");
+    expect(container.textContent).toContain(`${CHART_HEIGHT_DEFAULT}px`);
   });
 
-  it.fails("DEFEKT: wykres pokazuje wysokość 99 999 px, choć strona narysuje najwyżej 640", () => {
-    // WEJŚCIE: `block.data.height = 99999`.
-    // CO PSUJE: etykieta obok suwaka czyta `block.data.height` SUROWO
-    // (`Number(block.data.height ?? 320)`), a publiczny render przechodzi
-    // przez `parseChartConfig`, które ścina do `CHART_HEIGHT_MAX`. Panel
-    // podaje więc redaktorowi liczbę, której strona nigdy nie użyje -
-    // a podgląd nad formą jest reklamowany jako „dokładnie ten sam render,
-    // który trafi na stronę publiczną" (komentarz w `DataVizBlocks.tsx`).
+  it("wykres z wysokością 99 999 pokazuje 640 px - najwyżej tyle narysuje strona", () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): etykieta czytała `block.data.height`
+    // SUROWO, a render publiczny ścina do `CHART_HEIGHT_MAX` - panel podawał
+    // liczbę, której strona nigdy nie użyje, choć podgląd nad formą jest
+    // „dokładnie tym samym renderem, który trafi na stronę publiczną".
     const { container } = renderEditor(ChartBlock, block("chart", { height: 99999 }));
     expect(container.textContent).not.toContain("99999px");
     expect(container.textContent).toContain(`${CHART_HEIGHT_MAX}px`);
+    expect(screen.getByRole<HTMLInputElement>("slider", { name: "Wysokość wykresu" }).value).toBe(
+      String(CHART_HEIGHT_MAX),
+    );
   });
 
-  it.fails('DEFEKT: obraz z podpisem jako OBIEKT wpisuje w pole „[object Object]"', () => {
-    // WEJŚCIE: `block.data.caption = { pl: "Podpis" }` - dokładnie ten kształt
-    // zostaje po migracji treści dwujęzycznej, która przeniosła podpisy do
-    // obiektu per język.
-    // CO PSUJE: `String(block.data.caption ?? "")` daje literalne
-    // `[object Object]`, które wchodzi jako WARTOŚĆ pola tekstowego. Redaktor
-    // nie widzi, że podpis istnieje - widzi śmieć; a gdy dopisze do niego
-    // choćby znak, `onChange` utrwali ten śmieć w dokumencie jako podpis.
-    const { container } = renderEditor(
+  it("obraz z podpisem jako OBIEKT pokazuje PUSTE pole podpisu, a nie „[object Object]”", () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): `String({ pl: "Podpis" })` - kształt
+    // po migracji treści dwujęzycznej - wchodził jako WARTOŚĆ pola podpisu.
+    // Strona publiczna takiego podpisu nie pokazuje (`str(..., "caption")`),
+    // więc puste pole mówi redaktorowi prawdę o tym, co zobaczy czytelnik.
+    renderEditor(
       ImageBlock,
       block("image", { url: "https://cdn.example.com/a.png", caption: { pl: "Podpis" } }),
     );
-    const wartosci = Array.from(
-      container.querySelectorAll<HTMLInputElement>("input, textarea"),
-    ).map((el) => el.value);
+    const pole = screen.getByPlaceholderText<HTMLInputElement>("Podpis (opcjonalnie)…");
+    expect(pole.value).toBe("");
+    const wartosci = screen.getAllByRole<HTMLInputElement>("textbox").map((el) => el.value);
     expect(wartosci.join("|")).not.toContain("[object Object]");
   });
 
-  it.fails(
-    'DEFEKT: lista z pozycjami jako OBIEKTY renderuje „[object Object]" jako pozycję',
-    () => {
-      // WEJŚCIE: `block.data.items = [{ text: "Punkt" }]`.
-      // CO PSUJE: `ListBlockEdit` robi `block.data.items as string[]` - RZUTOWANIE,
-      // nie strażnik typu. TypeScript przestaje pilnować, a `InlineHtmlEditable`
-      // dostaje obiekt i renderuje `[object Object]`. Kolejna edycja tej pozycji
-      // zapisuje ten napis jako treść punktu, więc utrata treści jest trwała.
-      const { container } = renderEditor(
-        ListBlockEdit,
-        block("list", { items: [{ text: "Punkt" }, "Drugi"] }),
-      );
-      expect(container.textContent).not.toContain("[object Object]");
-    },
-  );
+  it("lista z pozycją-OBIEKTEM pokazuje tylko pozycje tekstowe, jak strona publiczna", () => {
+    // NAPRAWIONE 2026-10-18 (był `it.fails`): `items as string[]` było
+    // rzutowaniem, nie strażnikiem - obiekt szedł do `InlineHtmlEditable`
+    // i renderował się jako „[object Object]". Teraz edytor czyta pozycje jak
+    // `strList` w renderze publicznym: wyłącznie napisy.
+    const { container } = renderEditor(
+      ListBlockEdit,
+      block("list", { items: [{ text: "Punkt" }, "Drugi"] }),
+    );
+    expect(container.textContent).not.toContain("[object Object]");
+    const pozycje = container.querySelectorAll('[data-field="list-item"]');
+    expect(Array.from(pozycje, (el) => el.textContent)).toEqual(["Drugi"]);
+  });
+
+  it("lista bez ŻADNEJ pozycji tekstowej daje jedną pustą pozycję do pisania", () => {
+    // Bez tego lista z samymi obiektami (albo `items: []`) renderowała się
+    // bez pozycji - redaktor nie miał gdzie postawić kursora.
+    const { container } = renderEditor(ListBlockEdit, block("list", { items: [{ text: "x" }, 7] }));
+    expect(container.querySelectorAll('[data-field="list-item"]')).toHaveLength(1);
+  });
 });
 
-describe("skutek defektu jest UTRWALANY - dowód na zapisie", () => {
-  it('dopisanie znaku do zepsutego podpisu obrazu zapisuje „[object Object]" w dokumencie', () => {
-    // To NIE `it.fails` - ten test opisuje STAN FAKTYCZNY i ma pilnować, że
-    // skutek nie pogorszy się dalej. Pokazuje, dlaczego defekt wyżej nie jest
-    // kosmetyczny: śmieć z pola JEST tym, co trafia do `onChange`.
+describe("zapis po koercji - do dokumentu trafia to, co wpisał redaktor", () => {
+  it("wpis w puste pole podpisu-obiektu zapisuje NAPIS redaktora, bez „[object Object]”", () => {
+    // NAPRAWIONE 2026-10-18. Do tej daty ten test opisywał STAN FAKTYCZNY:
+    // pole pokazywało „[object Object]", a dopisany znak utrwalał w dokumencie
+    // podpis „[object Object]x". Teraz pole startuje puste, a zapis niesie
+    // dokładnie wpis redaktora - z tym samym `id` i typem bloku.
     const { changes } = renderEditor(
       ImageBlock,
       block("image", { url: "https://cdn.example.com/a.png", caption: { pl: "Podpis" } }),
     );
-    const pole = screen
-      .getAllByRole("textbox")
-      .find((el) => (el as HTMLInputElement).value.includes("[object Object]"));
-    expect(pole, "pole z uszkodzonym podpisem musi istnieć - inaczej defekt zniknął").toBeDefined();
-    fireEvent.change(pole as HTMLElement, { target: { value: "[object Object]x" } });
+    fireEvent.change(screen.getByPlaceholderText("Podpis (opcjonalnie)…"), {
+      target: { value: "Nowy podpis" },
+    });
     expect(changes).toHaveLength(1);
-    expect(String(changes[0].data.caption)).toBe("[object Object]x");
+    expect(changes[0]).toMatchObject({ id: "blk-image", type: "image" });
+    expect(changes[0].data.caption).toBe("Nowy podpis");
+    expect(changes[0].data.url).toBe("https://cdn.example.com/a.png");
+  });
+
+  it("edycja pozycji listy obok obiektu zapisuje SAME napisy, z poziomem tej pozycji", () => {
+    // Poziomy (`levels`) są indeksowane pozycjami TEKSTOWYMI - tak samo liczy
+    // je render publiczny, więc wcięcie zostaje przy punkcie, który je miał.
+    const { container, changes } = renderEditor(
+      ListBlockEdit,
+      block("list", { items: [{ text: "Punkt" }, "Pierwszy", "Drugi"], levels: [1, 2] }),
+    );
+    const [, druga] = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-field="list-item"]'),
+    );
+    druga.innerHTML = "Drugi poprawiony";
+    fireEvent.input(druga);
+    const zapis = changes.at(-1);
+    expect(zapis?.data.items).toEqual(["Pierwszy", "Drugi poprawiony"]);
+    expect(zapis?.data.levels).toEqual([1, 2]);
   });
 });
 

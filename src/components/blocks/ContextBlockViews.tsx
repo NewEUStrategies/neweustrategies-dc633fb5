@@ -5,6 +5,8 @@ import { htmlToPlainText } from "@/lib/sanitize";
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { AppLink } from "@/components/atoms/AppLink";
+import { profileHref } from "@/lib/profile/profileHref";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { formatDate as intlFormatDate, formatDateShort } from "@/lib/i18n/format";
 import { useNowMs } from "@/lib/time/useNowMs";
@@ -29,7 +31,9 @@ function formatDate(
 ): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (format === "relative" && now !== null) {
+  // Data nieczytelna schodzi na ścieżkę absolutną (ta ma własną straż i daje
+  // pustkę): `Intl.RelativeTimeFormat#format(NaN)` RZUCA RangeError.
+  if (format === "relative" && now !== null && Number.isFinite(d.getTime())) {
     const diff = now - d.getTime();
     const day = 86_400_000;
     const rtf = new Intl.RelativeTimeFormat(lang === "en" ? "en" : "pl", { numeric: "auto" });
@@ -102,7 +106,12 @@ export function PostAuthorView({
       )}
       <div className="min-w-0">
         {a.slug ? (
-          <AppLink href={`/author/${a.slug}`} className="font-medium hover:text-primary">
+          // Zakodowany slug i prefiks języka treści - jak w pozostałych
+          // odnośnikach do profilu autora.
+          <AppLink
+            href={localizedPath(profileHref({ slug: a.slug, isAuthor: true }), lang)}
+            className="font-medium hover:text-primary"
+          >
             {a.name}
           </AppLink>
         ) : (

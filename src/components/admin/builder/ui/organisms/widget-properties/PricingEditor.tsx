@@ -3,9 +3,9 @@ import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
 import { ListShell } from "./ListShell";
+import { LineListTextarea } from "./LineListTextarea";
 import { itemsOf, type Item } from "./shared";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-builder";
@@ -69,8 +69,12 @@ export function PricingEditor({ c, lang, setContent }: Props) {
               <Input
                 type="number"
                 min={0}
-                value={String(Number(c.planLimit ?? 0) || 0)}
-                onChange={(e) => setContent("planLimit", Number(e.target.value) || 0)}
+                value={String(Math.max(0, Math.trunc(Number(c.planLimit ?? 0) || 0)))}
+                // Ujemny albo ułamkowy limit renderer i tak traktuje jak „bez
+                // limitu" / obcina - do dokumentu idzie od razu to, co znaczy.
+                onChange={(e) =>
+                  setContent("planLimit", Math.max(0, Math.trunc(Number(e.target.value) || 0)))
+                }
                 className="h-8 text-xs"
               />
             </PropField>
@@ -162,17 +166,13 @@ export function PricingEditor({ c, lang, setContent }: Props) {
                 <PropField
                   label={t("builder.pricingEditor.features", { lang: lang.toUpperCase() })}
                 >
-                  <Textarea
+                  {/* Szkic pola trzyma Enter i spację na końcu - przy `join("\n")`
+                      kontrolowane pole połykało je, więc drugiej cechy ani
+                      cechy z dwóch słów nie dało się wpisać z klawiatury. */}
+                  <LineListTextarea
                     rows={4}
-                    value={features.join("\n")}
-                    onChange={(e) =>
-                      upd(i, {
-                        [`features_${lang}`]: e.target.value
-                          .split("\n")
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      })
-                    }
+                    value={features}
+                    onChange={(next) => upd(i, { [`features_${lang}`]: next })}
                     className="text-xs"
                   />
                 </PropField>

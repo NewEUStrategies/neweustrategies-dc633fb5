@@ -340,3 +340,137 @@ describe("globalColorsToCss - typografia slotów", () => {
     expect(out).not.toContain(`--gc-${plain!.key}-size:`);
   });
 });
+
+describe("globalColorsToCss - walidacja wartości zapisanych przez najemcę", () => {
+  // Wartość z panelu (pole tekstowe pickera przyjmuje dowolny napis) trafia do
+  // bloku deklaracji `:root,.light{...}`. `hardenStyleCss` pilnuje tylko
+  // wyjścia z `<style>`, więc `;` albo `}` w wartości rozcinał deklarację:
+  // psuł kolejne zmienne, a w skrajnym przypadku dopisywał własne deklaracje
+  // i reguły do arkusza KAŻDEJ strony publicznej.
+  const ALL_EMPTY = globalColorsToCss({});
+
+  /** Treść bloku `:root,.light{...}` - do pierwszej klamry zamykającej. */
+  function rootBlock(css: string): string {
+    const start = css.indexOf(":root,.light{") + ":root,.light{".length;
+    return css.slice(start, css.indexOf("}", start));
+  }
+
+  /** Treść bloku `.dark{...}`. */
+  function darkBlock(css: string): string {
+    const start = css.indexOf(".dark{") + ".dark{".length;
+    return css.slice(start, css.indexOf("}", start));
+  }
+
+  /** Nazwy zmiennych zadeklarowanych w bloku, w kolejności. */
+  function declaredNames(block: string): string[] {
+    return block
+      .split(";")
+      .filter(Boolean)
+      .map((decl) => decl.slice(0, decl.indexOf(":")));
+  }
+
+  it.each([
+    ["średnik dopisujący deklarację", "#ff0000;--gc-body-bg: url(https://evil.example/x.png)"],
+    ["klamra zamykająca regułę", "#ff0000}body{display:none"],
+    ["url() zamiast koloru", "url(https://evil.example/x.png)"],
+    ["wyjście z funkcji koloru", "rgb(1 2 3);color:red"],
+    ["komentarz połykający resztę bloku", "#fff/*"],
+  ])("%s nie trafia do CSS, a slot spada na wartość domyślną", (_, bad) => {
+    const out = globalColorsToCss({ highlight: { light: bad } });
+    expect(out).not.toContain("evil.example");
+    expect(out).not.toContain("display:none");
+    expect(out).not.toContain("color:red");
+    // Odrzucona wartość = brak wartości: wynik identyczny z pustym zapisem.
+    expect(out).toBe(ALL_EMPTY);
+  });
+
+  it("wartość z `}` nie rozcina bloku - kolejne zmienne zostają w :root", () => {
+    const out = globalColorsToCss({
+      "header-icon": { light: "#ff0000}body{display:none", dark: "#00ff00;x:y" },
+    });
+    // Pierwszy slot katalogu niósł złą wartość; deklaracje KAŻDEGO slotu po nim
+    // nadal stoją w tym samym bloku i w tej samej liczbie.
+    expect(declaredNames(rootBlock(out))).toEqual(declaredNames(rootBlock(ALL_EMPTY)));
+    expect(declaredNames(darkBlock(out))).toEqual(declaredNames(darkBlock(ALL_EMPTY)));
+    expect(rootBlock(out)).toContain("--gc-header-icon: #374151;");
+  });
+
+  it("zła wartość dark i hover spada na domyślną, a nie przecieka do .dark", () => {
+    const slot = GLOBAL_COLOR_GROUPS.flatMap((g) =>
+      g.slots.filter((s) => s.hasDark && s.defaultDark && isSlotHoverable(s, g)),
+    )[0];
+    expect(slot).toBeDefined();
+    const out = globalColorsToCss({
+      [slot!.key]: {
+        dark: "red;--x:url(a)",
+        hoverLight: "#fff}a{b:c",
+        hoverDark: "expression(alert(1))",
+      },
+    });
+    expect(out).toBe(ALL_EMPTY);
+  });
+
+  it.each([
+    ["hex", "#abc"],
+    ["hex z alfą (4 znaki)", "#abcd"],
+    ["hex z alfą (8 znaków)", "#FA934680"],
+    ["zmienna motywu", "var(--brand-accent)"],
+    ["oklch", "oklch(0.72 0.16 52)"],
+    ["rgb ze spacjami i alfą", "rgb(10 20 30 / 50%)"],
+    ["hsla przecinkowe", "hsla(20, 90%, 60%, 0.5)"],
+    ["transparent", "transparent"],
+  ])("poprawny format (%s) przechodzi bez zmian", (_, color) => {
+    const out = globalColorsToCss({ highlight: { light: color, dark: color } });
+    expect(rootBlock(out)).toContain(`--gc-highlight: ${color};`);
+    expect(darkBlock(out)).toContain(`--gc-highlight: ${color};`);
+  });
+
+  it("zła typografia nie trafia do CSS i nie rozcina bloku", () => {
+    const typo = ALL_SLOTS.find((s) => s.typography)!;
+    const out = globalColorsToCss({
+      [typo.key]: {
+        fontFamily: "Georgia;--gc-body-bg: url(https://evil.example/x.png)",
+        fontSize: "18px}body{display:none",
+        fontWeight: "700/*",
+        fontStyle: "italic</style>",
+        textDecoration: '"underline',
+      },
+    });
+    expect(out).toBe(ALL_EMPTY);
+  });
+
+  it("poprawna typografia z cudzysłowami, przecinkami i clamp() przechodzi", () => {
+    const typo = ALL_SLOTS.find((s) => s.typography)!;
+    const family = '"Red Hat Display", "Font\'s Name", system-ui, sans-serif';
+    const out = globalColorsToCss({
+      [typo.key]: { fontFamily: family, fontSize: "clamp(1rem, 2vw, 1.5rem)" },
+    });
+    expect(rootBlock(out)).toContain(`--gc-${typo.key}-font: ${family};`);
+    expect(rootBlock(out)).toContain(`--gc-${typo.key}-size: clamp(1rem, 2vw, 1.5rem);`);
+  });
+
+  // Niezamknięta funkcja albo `[` połyka według CSS Syntax każdy kolejny `;`
+  // i `}` aż do końca arkusza - znikały wtedy wszystkie dalsze zmienne,
+  // blok .dark i most widgetów. Literówka w polu Size to realny przypadek.
+  it.each([
+    ["niezamknięty calc() w rozmiarze", { fontSize: "calc(1px" }],
+    ["niezamknięty clamp() w rozmiarze", { fontSize: "clamp(1rem, 2vw" }],
+    ["niezamknięty nawias kwadratowy w rodzinie", { fontFamily: "Georgia[" }],
+    ["nawias zamykający przed otwierającym", { fontSize: "1rem) calc(2px" }],
+    ["nawias zamknięty innym rodzajem", { fontSize: "calc(1px]" }],
+  ])("%s nie trafia do CSS i nie rozcina arkusza", (_, typography) => {
+    const typo = ALL_SLOTS.find((s) => s.typography)!;
+    const out = globalColorsToCss({ [typo.key]: typography });
+    expect(out).toBe(ALL_EMPTY);
+    expect(declaredNames(rootBlock(out))).toEqual(declaredNames(rootBlock(ALL_EMPTY)));
+  });
+
+  it("domknięte zagnieżdżone nawiasy i nawias w nazwie fontu w cudzysłowie przechodzą", () => {
+    const typo = ALL_SLOTS.find((s) => s.typography)!;
+    const family = '"Font (Pro", serif';
+    const size = "clamp(1rem, calc(1vw + 2px), 2rem)";
+    const out = globalColorsToCss({ [typo.key]: { fontFamily: family, fontSize: size } });
+    expect(rootBlock(out)).toContain(`--gc-${typo.key}-font: ${family};`);
+    expect(rootBlock(out)).toContain(`--gc-${typo.key}-size: ${size};`);
+  });
+});

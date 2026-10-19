@@ -1,5 +1,6 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
+import { readText } from "./dataVizShared";
 
 interface Props {
   block: Block;
@@ -8,8 +9,8 @@ interface Props {
 
 export function PullquoteBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const text = String(block.data.text ?? "");
-  const cite = String(block.data.cite ?? "");
+  const text = readText(block.data.text);
+  const cite = readText(block.data.cite);
   return (
     <div className="border-y-4 border-foreground py-6 my-4 text-center space-y-3">
       <textarea

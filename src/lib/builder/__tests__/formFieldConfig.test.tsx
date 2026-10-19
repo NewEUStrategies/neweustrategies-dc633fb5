@@ -290,30 +290,36 @@ describe("parseCustomFields - ksztalty wejscia z panelu widgetu", () => {
     expect(parseCustomFields(42)).toEqual([]);
   });
 
-  // DEFEKT: POWTORZONY IDENTYFIKATOR POLA PRZECHODZI PRZEZ PARSER.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): powtorzony identyfikator pola
+  // przechodzil przez parser, wiec dwa pola dzielily klucz Reacta i komorke
+  // mapy wartosci, a `validateCustomFields` dublowal komunikat.
   //
-  // WEJSCIE: konfiguracja widgetu z dwoma wpisami o tym samym `id` (realne,
-  //   bo panel to zwykla textarea - wystarczy skopiowac linie i zmienic
-  //   etykiete, a nie zmienic identyfikatora).
-  // CO PSUJE: `parseCustomFields` (src/lib/builder/formFieldConfig.tsx:60-94)
-  //   nie prowadzi zbioru widzianych identyfikatorow. Blizniaczy silnik
-  //   `src/lib/content-model/formFields.ts:99,111` robi dokladnie to samo
-  //   zadanie i ma tam `const seen = new Set<string>()` z pominieciem
-  //   duplikatu - czyli kontrakt jest w repo ustalony, a ta kopia go lamie.
-  // KONSEKWENCJA: renderer dostaje dwa pola o tym samym kluczu Reacta i o tej
-  //   samej komorce w mapie wartosci. Wpis w jednym natychmiast nadpisuje
-  //   drugi, uzytkownik widzi "przeskakujaca" tresc, a `validateCustomFields`
-  //   zwraca ten sam identyfikator dwa razy, wiec komunikat o brakujacym polu
-  //   dubluje sie na ekranie.
-  // WYMAGANA POPRAWKA: parser ma pomijac kolejne wystapienia znanego juz `id`
-  //   (pierwszy wpis wygrywa), tak jak `formFields.ts`.
-  it.fails("DEFEKT: powtorzony identyfikator pola NIE moze przechodzic przez parser", () => {
+  // KONTRAKT: jak bliziaczy `content-model/formFields.ts` - pierwsze
+  // wystapienie `id` wygrywa, kolejne wypadaja po cichu (takze miedzy
+  // wierszami `stringArray`).
+  it("powtorzony identyfikator pola NIE przechodzi przez parser - pierwszy wygrywa", () => {
     const wynik = parseCustomFields([
       { id: "nip", type: "text", labelPl: "NIP" },
       { id: "nip", type: "email", labelPl: "NIP - kopia" },
     ]);
 
     expect(wynik).toHaveLength(1);
+    expect(wynik[0]).toMatchObject({ type: "text", labelPl: "NIP" });
+  });
+
+  it("duplikat w osobnym wierszu stringArray tez wypada", () => {
+    const wynik = parseCustomFields([
+      JSON.stringify({ id: "a", type: "text" }),
+      JSON.stringify([
+        { id: "a", type: "tel" },
+        { id: "b", type: "url" },
+      ]),
+    ]);
+
+    expect(wynik.map((f) => [f.id, f.type])).toEqual([
+      ["a", "text"],
+      ["b", "url"],
+    ]);
   });
 });
 
@@ -363,7 +369,7 @@ describe("resolveCustomFieldLabel - lancuch etykiety", () => {
     expect(resolveCustomFieldLabel(f, "pl")).toBe("Tax ID");
   });
 
-  it("brak obu etykiet konczy lancuch na identyfikatorze pola (stan na dzis)", () => {
+  it("brak obu etykiet konczy lancuch na identyfikatorze pola (czysta funkcja; renderer go nie pokazuje)", () => {
     expect(resolveCustomFieldLabel(pole({ id: "nip_firmy" }), "pl")).toBe("nip_firmy");
   });
 });
@@ -501,7 +507,9 @@ describe("CustomFieldsRenderer - siatka i pola tekstowe", () => {
     expect((screen.getByLabelText("NIP") as HTMLInputElement).value).toBe("");
   });
 
-  it("podpowiedz wymaganego pola tekstowego dostaje doklejona gwiazdke", () => {
+  it("podpowiedz wymaganego pola tekstowego jest SAMA podpowiedzia, bez gwiazdki", () => {
+    // Do 2026-10-18 gwiazdka siedziala w podpowiedzi i znikala przy pierwszym
+    // znaku; teraz niesie ja trwala widoczna etykieta (przypadek nizej).
     render(
       <Oprawa
         fields={[
@@ -510,7 +518,7 @@ describe("CustomFieldsRenderer - siatka i pola tekstowe", () => {
       />,
     );
 
-    expect(screen.getByLabelText("NIP").getAttribute("placeholder")).toBe("np. 1234567890 *");
+    expect(screen.getByLabelText("NIP").getAttribute("placeholder")).toBe("np. 1234567890");
   });
 
   it("podpowiedz pola nieobowiazkowego zostaje bez gwiazdki", () => {
@@ -521,10 +529,11 @@ describe("CustomFieldsRenderer - siatka i pola tekstowe", () => {
     expect(screen.getByLabelText("NIP").getAttribute("placeholder")).toBe("np. 1234567890");
   });
 
-  it("pole bez podpowiedzi uzywa etykiety jako podpowiedzi", () => {
+  it("pole bez podpowiedzi nie ma atrybutu placeholder - nazwe niesie widoczna etykieta", () => {
     render(<Oprawa fields={[pole({ id: "nip", labelPl: "NIP" })]} />);
 
-    expect(screen.getByLabelText("NIP").getAttribute("placeholder")).toBe("NIP");
+    expect(screen.getByLabelText("NIP").hasAttribute("placeholder")).toBe(false);
+    expect(screen.getByText("NIP")).toBeVisible();
   });
 
   it("wymagalnosc trafia do aria-required, a jej brak nie zostawia atrybutu", () => {
@@ -583,54 +592,62 @@ describe("CustomFieldsRenderer - siatka i pola tekstowe", () => {
     expect(wejscie.getAttribute("data-edit-target")).toBe("widget-join-us");
   });
 
-  // DEFEKT: WYMAGANE POLE TEKSTOWE TRACI ZNACZNIK WYMAGALNOSCI PO PIERWSZYM ZNAKU.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): wymagane pole tekstowe tracilo
+  // znacznik wymagalnosci po pierwszym znaku, bo gwiazdka siedziala W TRESCI
+  // podpowiedzi, a pole nie mialo widocznej etykiety.
   //
-  // WEJSCIE: pole tekstowe z `required: true` i wlasna podpowiedzia.
-  // CO PSUJE: gałąź tekstowa (src/lib/builder/formFieldConfig.tsx:261) sklada
-  //   gwiazdke W TRESC PODPOWIEDZI (`${placeholder} *`), podczas gdy droplista
-  //   (:204) i zgoda (:240) rysuja ja jako trwaly `<span class="text-destructive">*</span>`
-  //   obok widocznej etykiety. Pole tekstowe nie ma zadnej widocznej etykiety -
-  //   caly jego opis siedzi w podpowiedzi, a ta ZNIKA, gdy uzytkownik zacznie pisac.
-  // KONSEKWENCJA: w tym samym formularzu dwa pola wymagane sygnalizuja
-  //   wymagalnosc na dwa rozne sposoby, a ten slabszy dziala tylko do pierwszego
-  //   znaku. Po bledzie walidacji uzytkownik widzi wypelniona liste pol i nie ma
-  //   czym odroznic, ktore z nich sa obowiazkowe. Gwiazdka w podpowiedzi jest
-  //   tez nieczytelna dla czytnika ekranu - `aria-label` niesie sama etykiete.
-  // WYMAGANA POPRAWKA: gałąź tekstowa ma rysowac ten sam trwaly znacznik co
-  //   droplista i zgoda (widoczna etykieta + `<span class="text-destructive">*</span>`),
-  //   a podpowiedz zostawic wylacznie na podpowiedz.
-  it.fails("DEFEKT: wymagane pole tekstowe MUSI miec trwaly znacznik wymagalnosci", () => {
+  // KONTRAKT: galaz tekstowa (text/email/tel/url) rysuje ten sam trwaly
+  // znacznik co droplista i zgoda - widoczna etykieta z `*` obok - a
+  // podpowiedz zostaje wylacznie podpowiedzia. Znacznik nie znika po wpisaniu
+  // wartosci; pole nieobowiazkowe go nie ma.
+  it("wymagane pole tekstowe ma trwaly znacznik wymagalnosci przy widocznej etykiecie", () => {
     const { container } = render(
       <Oprawa
         fields={[
           pole({ id: "nip", labelPl: "NIP", placeholderPl: "np. 1234567890", required: true }),
+          pole({ id: "www", type: "url", labelPl: "Strona" }),
         ]}
       />,
     );
+    fireEvent.change(screen.getByLabelText("NIP"), { target: { value: "123" } });
 
-    expect(container.querySelector("span.text-destructive")).not.toBeNull();
+    // Gwiazdka jest obok etykiety "NIP" i przetrwala wpisanie wartosci...
+    const znaczniki = container.querySelectorAll("span.text-destructive");
+    expect(znaczniki).toHaveLength(1);
+    expect(znaczniki[0].parentElement?.textContent).toBe("NIP*");
+    // ...a nazwa dostepna pola nie zawiera gwiazdki (wymagalnosc niesie aria-required).
+    expect(screen.getByRole("textbox", { name: "NIP" })).toHaveAttribute("aria-required", "true");
   });
 
-  // DEFEKT: SUROWY IDENTYFIKATOR POLA TRAFIA DO INTERFEJSU UZYTKOWNIKA.
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): surowy identyfikator pola
+  // ("nip_firmy", "utm_source") trafial do `aria-label` i podpowiedzi, gdy
+  // wpis nie mial zadnej etykiety (parser wymaga tylko `id` i `type`).
   //
-  // WEJSCIE: wpis konfiguracji bez `labelPl` i bez `labelEn` - realny, bo
-  //   parser (:41-55) wymaga WYLACZNIE `id` i `type`, wiec taki wiersz
-  //   przechodzi przez brame bez slowa ostrzezenia.
-  // CO PSUJE: `resolveCustomFieldLabel` (src/lib/builder/formFieldConfig.tsx:112-117)
-  //   konczy lancuch zapasowy na `f.id`. Renderer wpisuje ten napis w
-  //   `aria-label` (:264) ORAZ - przy braku podpowiedzi - w `placeholder` (:261).
-  // KONSEKWENCJA: uzytkownik obu wersji jezykowych widzi w formularzu techniczny
-  //   klucz bazy ("nip_firmy", "utm_source"), a czytnik ekranu odczytuje go jako
-  //   nazwe pola. Identyfikator nie jest tlumaczony i nigdy nie bedzie, bo nie ma
-  //   go w zadnym slowniku - to nie jest degradacja jezykowa, tylko wyciek
-  //   nazewnictwa wewnetrznego na publiczna strone.
-  // WYMAGANA POPRAWKA: przy braku OBU etykiet pole nie powinno sie renderowac
-  //   (blad konfiguracji widoczny w panelu), a w ostatecznosci uzywac neutralnej
-  //   etykiety ze slownika zamiast `f.id`.
-  it.fails("DEFEKT: pole bez etykiet NIE moze pokazywac surowego identyfikatora", () => {
-    render(<Oprawa fields={[pole({ id: "nip_firmy" })]} />);
+  // KONTRAKT: renderer nigdy nie pokazuje `id` - pole bez etykiety w ZADNYM
+  // jezyku dostaje neutralna, numerowana nazwe w jezyku strony ("Pole
+  // dodatkowe 1" / "Additional field 1"), unikalna w obrebie formularza.
+  // Wartosc nadal trafia do rodzica pod `id` (klucz CRM).
+  it("pole bez etykiet NIE pokazuje surowego identyfikatora", () => {
+    const zapis: [string, string][] = [];
+    render(
+      <Oprawa
+        fields={[pole({ id: "imie", labelPl: "Imie" }), pole({ id: "nip_firmy" })]}
+        onEach={(id, value) => zapis.push([id, value])}
+      />,
+    );
 
     expect(screen.queryByLabelText("nip_firmy")).toBeNull();
+    expect(screen.queryByText("nip_firmy")).toBeNull();
+    // Numer odpowiada pozycji w formularzu, wiec nazwy sa rozroznialne.
+    fireEvent.change(screen.getByLabelText("Pole dodatkowe 2"), { target: { value: "x" } });
+    expect(zapis).toEqual([["nip_firmy", "x"]]);
+  });
+
+  it("neutralna nazwa pola bez etykiet idzie za jezykiem strony", () => {
+    render(<Oprawa lang="en" fields={[pole({ id: "utm_source", type: "select" })]} />);
+
+    expect(screen.getByLabelText("Additional field 1")).toBeInTheDocument();
+    expect(screen.queryByText("utm_source")).toBeNull();
   });
 });
 

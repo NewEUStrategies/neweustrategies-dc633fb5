@@ -83,12 +83,14 @@ export function AccountLinkEditor({ c, lang, setContent }: Props) {
       .order("title_pl")
       .then(({ data }) => {
         setPages(
+          // `title_en` bywa NULL-em: `String(null)` dawał na liście napis
+          // „null" i blokował zapas na tytuł polski / adres.
           (data ?? []).map((p) => ({
-            slug: String(p.slug),
+            slug: readStr(p.slug),
             title:
-              String(lang === "pl" ? p.title_pl : p.title_en) ||
-              String(p.title_pl) ||
-              String(p.slug),
+              readStr(lang === "pl" ? p.title_pl : p.title_en) ||
+              readStr(p.title_pl) ||
+              readStr(p.slug),
           })),
         );
       });

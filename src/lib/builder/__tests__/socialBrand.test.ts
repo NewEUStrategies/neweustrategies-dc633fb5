@@ -172,37 +172,32 @@ describe("katalog kolorów marek - domknięcie", () => {
   });
 });
 
-describe("katalog kolorów marek - defekty", () => {
-  // DEFEKT: KLUCZ Z PROTOTYPU OBJECT PRZECHODZI PRZEZ STRAŻNIKA KATALOGU.
+describe("katalog kolorów marek - klucze spoza katalogu", () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): KLUCZ Z PROTOTYPU OBJECT NIE
+  // PRZECHODZI JUŻ PRZEZ STRAŻNIKA KATALOGU.
   //
   // WEJSCIE: platforma o nazwie pokrywającej się z właściwością
   //   `Object.prototype` - „constructor", „toString", „valueOf",
-  //   „hasOwnProperty". Klucz platformy jedzie z `content` widgetu (repeater
-  //   ikon), więc jego wartość pochodzi z danych: importu obcej treści,
-  //   migracji z WordPressa albo ręcznej edycji JSON-a dokumentu.
-  // CO PSUJE: obie mapy (`SOCIAL_HOVER_GRADIENT` :39,
-  //   `SOCIAL_IDLE_ICON_COLOR` :28) są zwykłymi obiektami, więc indeksowanie
-  //   idzie po ŁAŃCUCHU PROTOTYPÓW. `SOCIAL_HOVER_GRADIENT["constructor"]`
-  //   zwraca funkcję `Object` - wartość PRAWDZIWĄ - więc strażnik
-  //   `if (!stops) return undefined` (:59) w ogóle nie zadziała. To samo
-  //   `if (!tone) return ""` w `socialIdleColorHint` (:71).
-  // KONSEKWENCJA: `socialBrandGradient` zwraca łańcuch
-  //   „linear-gradient(135deg, undefined 0%, undefined 100%)" - CSS odrzuca
-  //   go w całości, więc ikona traci gradient hoveru i zostaje bez tła.
-  //   `socialIdleColorHint` zwraca „light: undefined - dark: undefined",
-  //   czyli panel właściwości WYPISUJE słowo „undefined" redakcji.
-  // WYMAGANA POPRAWKA: czytać katalogi przez `Object.hasOwn(MAPA, key)`
-  //   (albo trzymać je w `Map`), żeby strażnik odmowy patrzył WYŁĄCZNIE na
-  //   klucze własne. Wtedy każda nazwa spoza katalogu - także z prototypu -
-  //   kończy się „brak gradientu" i „pusty podpis".
-  it.fails("DEFEKT: gradient dla klucza z prototypu MUSI być undefined", () => {
+  //   „hasOwnProperty", „__proto__". Klucz platformy jedzie z `content` widgetu
+  //   (repeater ikon), więc pochodzi z danych: importu obcej treści, migracji z
+  //   WordPressa albo ręcznej edycji JSON-a dokumentu.
+  // BYŁO: indeksowanie zwykłych obiektów szło po łańcuchu prototypów, więc
+  //   `SOCIAL_HOVER_GRADIENT["constructor"]` zwracał funkcję `Object` i
+  //   strażnik odmowy nie działał - gradient „undefined 0%, undefined 100%"
+  //   (CSS odrzucał go w całości) i podpis panelu „light: undefined - dark:
+  //   undefined".
+  // KONTRAKT: oba katalogi są czytane przez `Object.hasOwn`, więc każda nazwa
+  //   spoza katalogu - także z prototypu - kończy się „brak gradientu" i
+  //   „pusty podpis", a słowo „undefined" nie trafia ani do CSS, ani do panelu.
+  it("gradient dla klucza z prototypu jest undefined", () => {
     expect(socialBrandGradient("constructor")).toBeUndefined();
     expect(socialBrandGradient("toString")).toBeUndefined();
     expect(socialBrandGradient("__proto__")).toBeUndefined();
   });
 
-  it.fails("DEFEKT: podpis dla klucza z prototypu MUSI być pusty", () => {
+  it("podpis dla klucza z prototypu jest pusty", () => {
     expect(socialIdleColorHint("valueOf")).toBe("");
     expect(socialIdleColorHint("hasOwnProperty")).toBe("");
+    expect(socialIdleColorHint("__proto__")).toBe("");
   });
 });

@@ -1,6 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
+import { bool, str } from "@/components/blocks/renderer/data";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -12,8 +13,10 @@ interface Props {
 export function ArchivesBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
   const ab = (k: string) => i18n.editor("archives", k);
-  const showCount = Boolean(block.data.showCount);
-  const layout = String(block.data.layout ?? "list");
+  // Odczyt 1:1 z `renderArchives`: tylko „dropdown" jest listą rozwijaną,
+  // a flaga-napis („false") to brak flagi.
+  const showCount = bool(block.data, "showCount", false);
+  const layout = str(block.data, "layout") === "dropdown" ? "dropdown" : "list";
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

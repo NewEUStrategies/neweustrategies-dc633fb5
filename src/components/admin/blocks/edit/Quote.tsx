@@ -1,7 +1,9 @@
 import type { Block } from "@/lib/blocks/types";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AutoGrowTextarea } from "../atoms/AutoGrowTextarea";
-import { BLOCK_PALETTE_VAR } from "@/lib/blocks/variants";
+import { blockPaletteVar } from "@/lib/blocks/variants";
+import { str } from "@/components/blocks/renderer/data";
+import { readText } from "./dataVizShared";
 import "@/lib/i18n-admin-blocks";
 
 interface Props {
@@ -11,14 +13,16 @@ interface Props {
 
 export function QuoteBlock({ block, onChange }: Props) {
   const i18n = useBlocksI18n();
-  const text = String(block.data.text ?? "");
-  const cite = String(block.data.cite ?? "");
+  const text = readText(block.data.text);
+  const cite = readText(block.data.cite);
   // Wariant i kolorystyka są ustawiane wyłącznie z toolbara widgetu
   // (pojawia się dopiero po kliknięciu bloku) - tutaj tylko konsumujemy stan,
   // żeby podgląd wyglądał dokładnie jak render publiczny.
-  const variant = String(block.data.variant ?? "default");
-  const palette = String(block.data.colorPalette ?? "neutral");
-  const accent = BLOCK_PALETTE_VAR[palette] ?? BLOCK_PALETTE_VAR.neutral;
+  // Odczyt 1:1 z rendererem (`str(...) || domyślna`): pusty albo nie-napisowy
+  // wariant to na stronie `default` - podgląd nie może pokazać innego.
+  const variant = str(block.data, "variant") || "default";
+  const palette = str(block.data, "colorPalette") || "neutral";
+  const accent = blockPaletteVar(palette);
   const tint = `color-mix(in oklab, ${accent} 8%, transparent)`;
 
   const set = (patch: Record<string, string>) =>

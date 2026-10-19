@@ -959,40 +959,32 @@ describe("runWpImportJob - slug", () => {
     expect(insertedSlug()).toBe(expected || "wp-101");
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - KALECZENIE POLSKICH ADRESÓW.
-  // `slugify` liczy na `normalize("NFD")`, żeby zdjąć znaki diakrytyczne, ale
-  // polskie `ł`/`Ł` (U+0142/U+0141) NIE MAJĄ rozkładu kanonicznego: NFD zostawia
-  // je bez zmian, a następne `replace(/[^a-z0-9]+/g, "-")` zamienia je na
-  // MYŚLNIK. W CMS-ie pisanym po polsku to nie przypadek brzegowy:
-  //   „Łódź Śródmieście" -> „odz-srodmiescie"  (wiodąca Ł wypada bez śladu)
-  //   „Tytuł: podtytuł"  -> „tytu-podtytu"
-  //   „Żółw"             -> „zo-w"
-  // Adres przestaje przypominać tytuł, a przy okazji rośnie ryzyko kolizji:
-  // „Tytuł" i „Tytu" dają ten sam rdzeń, więc drugi wpis dostaje sufiks `-2`
-  // i adres inny niż ten, który autor podał w komunikacji.
-  // Naprawa to mapa transliteracji przed NFD (ł->l, Ł->L, a przy okazji ø, đ,
-  // ß) - zmiana zachowania produkcyjnego, więc poza zakresem zadania
-  // pokryciowego. Testy STOJĄ jako dowód.
-  it.fails.each([
+  // NAPRAWIONE 2026-10-19 (był `it.fails`): KALECZENIE POLSKICH ADRESÓW.
+  // `slugify` liczył na `normalize("NFD")`, żeby zdjąć znaki diakrytyczne, ale
+  // polskie `ł`/`Ł` (U+0142/U+0141) NIE MAJĄ rozkładu kanonicznego: NFD
+  // zostawiała je bez zmian, a następne `replace(/[^a-z0-9]+/g, "-")` zamieniało
+  // je na MYŚLNIK - „Łódź Śródmieście" dawało `odz-srodmiescie`, „Żółw" `zo-w`.
+  // Kontrakt: litery z kreską są transliterowane PRZED NFD mapą wspólną
+  // z taksonomią (`@/lib/text/strokeLetters`, przez `@/lib/wp-import/slug`).
+  // Adresy nadane wcześniej w starej postaci NIE zmieniają się ani nie dublują -
+  // patrz describe „adresy sprzed transliteracji" niżej.
+  it.each([
     ["Łódź Śródmieście", "lodz-srodmiescie"],
     ["Tytuł: podtytuł, cz. 2!", "tytul-podtytul-cz-2"],
     ["Zażółć gęślą jaźń", "zazolc-gesla-jazn"],
     ["Żółw", "zolw"],
-  ])("POWINNO transliterować polskie ł w %s na %s", async (title, expected) => {
+  ])("transliteruje polskie ł w %s na %s", async (title, expected) => {
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost({ slug: "", title })] }));
     await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
     expect(insertedSlug()).toBe(expected);
   });
 
-  it.each([
-    ["Łódź Śródmieście", "odz-srodmiescie"],
-    ["Tytuł: podtytuł, cz. 2!", "tytu-podtytu-cz-2"],
-    ["Zażółć gęślą jaźń", "zazo-c-gesla-jazn"],
-    ["Żółw", "zo-w"],
-  ])("dziś %s daje okaleczony slug %s", async (title, expected) => {
-    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost({ slug: "", title })] }));
+  it("slug Z WORDPRESSA z literą ł też jest transliterowany, nie okaleczany", async () => {
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ slug: "Władza-i-Człowiek" })] }),
+    );
     await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
-    expect(insertedSlug()).toBe(expected);
+    expect(insertedSlug()).toBe("wladza-i-czlowiek");
   });
 
   it("obcina slug do 120 znaków", async () => {
@@ -1507,6 +1499,247 @@ describe("runWpImportJob - tożsamość wpisu WordPressa", () => {
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
     const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
     expect(res).toMatchObject({ failed: 1, imported: 0 });
+  });
+});
+
+// ZGODNOŚĆ WSTECZ po transliteracji „ł" (2026-10-19). Zastępuje test, który
+// utrwalał okaleczone slugi („dziś %s daje okaleczony slug %s"): te adresy
+// ŻYJĄ w bazie (linki, indeks, przekierowania ze starych permalinków), więc
+// nowa postać sluga nie może ich zmienić ani obok nich zdublować wpisu.
+//   * wiersz Z tożsamością WP trafia się po tożsamości - slug nie gra roli,
+//   * wiersz BEZ tożsamości (import sprzed jej zapisywania) trafia się po
+//     slugu w STAREJ postaci, z tymi samymi regułami lokatora co nowa,
+//   * kategoria założona przez wcześniejszy bieg pod starym slugiem jest
+//     rozpoznawana, a nie zakładana drugi raz.
+// Na kodzie z samą zmianą `slugify` (bez warstwy zgodności) testy wierszy BEZ
+// tożsamości i kategorii są CZERWONE - import dokładał duplikat.
+describe("runWpImportJob - adresy sprzed transliteracji ł (zgodność wstecz)", () => {
+  const IDENTITY = { wp_id: "101", wp_site: "blog.test" };
+  const TITLE = "Tytuł: podtytuł, cz. 2!";
+  const LEGACY = "tytu-podtytu-cz-2";
+  const FRESH = "tytul-podtytul-cz-2";
+
+  const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: "post-legacy",
+    slug: LEGACY,
+    custom_meta: {},
+    cover_image_url: null,
+    editor: "builder",
+    title_pl: TITLE,
+    title_en: "",
+    excerpt_pl: "Stara zajawka",
+    excerpt_en: null,
+    blocks_data: null,
+    builder_data: null,
+    ...over,
+  });
+
+  /** Wiersze `posts` po slugu (odczyt po slugu i sonda kolizji widzą to samo). */
+  function planPosts(
+    bySlug: Record<string, Record<string, unknown>>,
+    identityMatch: Record<string, unknown> | null = null,
+  ): void {
+    planHappyPath();
+    db.setResponse("posts", (chain) => {
+      if (chain.has("insert")) {
+        const r = chain.argsOf("insert")?.[0] as { slug: string };
+        return ok({ id: "post-new", slug: r.slug });
+      }
+      if (chain.has("update")) return ok(null);
+      if (isIdentityLookup(chain)) return ok(identityMatch ? [identityMatch] : []);
+      const slug = String(
+        chain.calls.find((c) => c.method === "eq" && c.args[0] === "slug")?.args[1],
+      );
+      const hit = bySlug[slug] ?? null;
+      if (isSlugProbe(chain)) return ok(hit ? [{ id: hit.id }] : []);
+      return ok(hit);
+    });
+  }
+
+  const slugLookups = (): string[] =>
+    db
+      .chainsFor("posts")
+      .filter((c) => c.has("maybeSingle"))
+      .map((c) => String(c.calls.find((x) => x.method === "eq" && x.args[0] === "slug")?.args[1]));
+
+  const run = (sync: boolean) =>
+    runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: sync } });
+
+  beforeEach(() => {
+    h.rpc.mockResolvedValue({ data: "blog" });
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ slug: "", title: TITLE })] }),
+    );
+  });
+
+  it("wiersz BEZ tożsamości pod starym slugiem, BEZ sync: pominięty, bez duplikatu", async () => {
+    planPosts({ [LEGACY]: row() });
+    const res = await run(false);
+    expect(res).toMatchObject({ skipped: 1, imported: 0, updated_count: 0, failed: 0 });
+    expect(postInsert()).toBeUndefined();
+    expect(postPatch()).toBeUndefined();
+    expect(logMessages()).toContain(`Skipped (slug exists): ${LEGACY}`);
+  });
+
+  it("wiersz BEZ tożsamości pod starym slugiem, Z sync: aktualizowany w miejscu, adres bez zmian", async () => {
+    planPosts({ [LEGACY]: row() });
+    const res = await run(true);
+    expect(res).toMatchObject({ updated_count: 1, imported: 0, failed: 0 });
+    expect(postInsert()).toBeUndefined();
+    const update = db.chainsFor("posts").find((c) => c.has("update")) as RecordedChain;
+    expect(update.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", "post-legacy"],
+      ["tenant_id", TENANT],
+    ]);
+    // UPDATE nie dotyka sluga - adres sprzed transliteracji zostaje.
+    expect(postPatch()).not.toHaveProperty("slug");
+    // Wiersz dostaje tożsamość - kolejny bieg trafi go bez zgadywania po slugu.
+    expect(postPatch()?.custom_meta).toEqual(IDENTITY);
+    expect(logMessages()).toContain(`Updated: ${LEGACY}`);
+    const redirect = db.lastChain("redirects")?.argsOf("upsert")?.[0] as { target_path: string };
+    expect(redirect.target_path).toBe(`/blog/${LEGACY}`);
+  });
+
+  it.each([
+    [false, { skipped: 1, updated_count: 0 }, `Skipped (already imported): ${LEGACY}`],
+    [true, { skipped: 0, updated_count: 1 }, `Updated: ${LEGACY}`],
+  ])(
+    "wiersz Z tożsamością pod starym slugiem (sync=%s) nie dostaje nowego adresu ani duplikatu",
+    async (sync, counts, message) => {
+      planPosts({}, row({ custom_meta: { ...IDENTITY } }));
+      const res = await run(sync);
+      expect(res).toMatchObject({ ...counts, imported: 0, failed: 0 });
+      expect(postInsert()).toBeUndefined();
+      expect(postPatch() ?? {}).not.toHaveProperty("slug");
+      // Tożsamość rozstrzyga - po slugu (w żadnej postaci) nikt już nie pyta.
+      expect(slugLookups()).toEqual([]);
+      expect(logMessages()).toContain(message);
+    },
+  );
+
+  it("stara postać wygrywa z wierszem BEZ tożsamości pod nową (np. wpis pisany ręcznie)", async () => {
+    // Stary import nigdy nie celował w `tytul-...` - nadpisanie tego wiersza
+    // byłoby nowym zachowaniem, a import sprzed zmiany zostałby osierocony.
+    planPosts({
+      [LEGACY]: row(),
+      [FRESH]: row({ id: "post-reczny", slug: FRESH, title_pl: "Ręczny" }),
+    });
+    const res = await run(true);
+    expect(res).toMatchObject({ updated_count: 1, imported: 0 });
+    const update = db.chainsFor("posts").find((c) => c.has("update")) as RecordedChain;
+    expect(update.calls.find((c) => c.method === "eq")?.args).toEqual(["id", "post-legacy"]);
+    expect(slugLookups()).toEqual([LEGACY]);
+  });
+
+  it("nowa postać zajęta przez INNY wpis WP nie blokuje dopasowania starej", async () => {
+    planPosts({
+      [LEGACY]: row(),
+      [FRESH]: row({
+        id: "post-55",
+        slug: FRESH,
+        custom_meta: { wp_id: "55", wp_site: "blog.test" },
+      }),
+    });
+    const res = await run(false);
+    expect(res).toMatchObject({ skipped: 1, imported: 0 });
+    expect(postInsert()).toBeUndefined();
+  });
+
+  it("stara postać zajęta przez INNY wpis WP nie jest dopasowana - wpis wchodzi pod nowym slugiem", async () => {
+    planPosts({
+      [LEGACY]: row({ id: "post-55", custom_meta: { wp_id: "55", wp_site: "blog.test" } }),
+    });
+    const res = await run(true);
+    expect(res).toMatchObject({ imported: 1, updated_count: 0 });
+    expect(postPatch()).toBeUndefined();
+    expect(postInsert()?.slug).toBe(FRESH);
+    expect(slugLookups()).toEqual([LEGACY, FRESH]);
+    // Nowy adres był wolny - to nie kolizja, więc bez komunikatu o lokatorze.
+    expect(logMessages().some((m) => m.includes("belongs to another WordPress post"))).toBe(false);
+  });
+
+  it("brak wiersza w obu postaciach: nowy wpis pod nowym slugiem", async () => {
+    planPosts({});
+    const res = await run(false);
+    expect(res).toMatchObject({ imported: 1, skipped: 0 });
+    expect(postInsert()?.slug).toBe(FRESH);
+    expect(slugLookups()).toEqual([LEGACY, FRESH]);
+  });
+
+  it("slug BEZ liter z kreską pyta bazę po slugu RAZ (obie postacie są równe)", async () => {
+    planPosts({});
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    await run(false);
+    expect(slugLookups()).toEqual(["moj-wpis"]);
+  });
+
+  describe("kategorie", () => {
+    // WP.com przysyła slug terminu zakodowany procentami - po rozkodowaniu
+    // „Łódź", z którego stary `slugify` robił `odz`.
+    const LODZ = { Łódź: { ID: 9, name: "Łódź", slug: "%c5%81%c3%b3d%c5%ba" } };
+
+    function planCategories(existing: Record<string, string>): void {
+      db.setResponse("categories", (chain) => {
+        if (chain.has("upsert")) {
+          const rows = chain.argsOf("upsert")?.[0] as Array<{ slug: string }>;
+          return ok(rows.map((r) => ({ id: `cat-new-${r.slug}`, slug: r.slug })));
+        }
+        const slugs = (chain.calls.find((c) => c.method === "in")?.args[1] ?? []) as string[];
+        return ok(slugs.filter((s) => s in existing).map((s) => ({ id: existing[s], slug: s })));
+      });
+      db.setResponse("post_categories", ok(null));
+    }
+
+    const linkedCategoryIds = (): string[] =>
+      db
+        .chainsFor("post_categories")
+        .flatMap((c) => c.argsOf("upsert")?.[0] as Array<{ category_id: string }>)
+        .map((r) => r.category_id);
+
+    beforeEach(() => {
+      planPosts({});
+      fetchMock().mockResolvedValue(
+        jsonResponse({ found: 1, posts: [wpPost({ categories: LODZ })] }),
+      );
+    });
+
+    it("kategoria ze starym slugiem NIE jest dublowana - wpis dostaje istniejącą", async () => {
+      planCategories({ odz: "cat-odz" });
+      const res = await run(false);
+      expect(res).toMatchObject({ imported: 1, failed: 0 });
+      expect(db.chainsFor("categories").some((c) => c.has("upsert"))).toBe(false);
+      expect(linkedCategoryIds()).toEqual(["cat-odz"]);
+      expect(logMessages().at(-1)).toContain("categories_created=0");
+    });
+
+    it("gdy są obie postacie, wygrywa stara - ponowny import nie dokłada drugiego powiązania", async () => {
+      planCategories({ odz: "cat-odz", lodz: "cat-lodz" });
+      await run(false);
+      expect(linkedCategoryIds()).toEqual(["cat-odz"]);
+    });
+
+    it("brakującą kategorię zakłada pod NOWYM slugiem i pyta bazę o obie postacie raz na bieg", async () => {
+      planCategories({});
+      fetchMock().mockResolvedValue(
+        jsonResponse({
+          found: 2,
+          posts: [
+            wpPost({ ID: 1, slug: "a", categories: LODZ }),
+            wpPost({ ID: 2, slug: "b", categories: LODZ }),
+          ],
+        }),
+      );
+      const res = await run(false);
+      expect(res).toMatchObject({ imported: 2, failed: 0 });
+      const lookups = db.chainsFor("categories").filter((c) => !c.has("upsert"));
+      expect(lookups).toHaveLength(1);
+      expect(lookups[0].argsOf("in")).toEqual(["slug", ["lodz", "odz"]]);
+      const created = db.chainsFor("categories").find((c) => c.has("upsert"));
+      expect(
+        (created?.argsOf("upsert")?.[0] as Array<{ slug: string }>).map((r) => r.slug),
+      ).toEqual(["lodz"]);
+      expect(linkedCategoryIds()).toEqual(["cat-new-lodz", "cat-new-lodz"]);
+    });
   });
 });
 

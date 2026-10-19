@@ -84,18 +84,35 @@ export const renderGroup: BlockRenderer = ({ block, cls, renderChild }) => {
   );
 };
 
+/**
+ * Klasa kolumn siatki na `lg` jako PEŁNE literały: Tailwind generuje tylko
+ * klasy, które widzi w źródle, więc szablon `lg:grid-cols-${cols}` działał
+ * wyłącznie przypadkiem (gdy ta sama klasa padła gdzieś indziej). Indeks =
+ * liczba kolumn - 1.
+ */
+const GRID_LG_COLS = [
+  "lg:grid-cols-1",
+  "lg:grid-cols-2",
+  "lg:grid-cols-3",
+  "lg:grid-cols-4",
+  "lg:grid-cols-5",
+  "lg:grid-cols-6",
+] as const;
+
 /** Wiersz / stos / siatka - jeden renderer dla trzech pokrewnych układów. */
 export const renderRowStackGrid: BlockRenderer = ({ block, cls, renderChild }) => {
   const bg = str(block.data, "background");
   const padding = Math.min(120, Math.max(0, num(block.data, "padding", 0)));
   const children = readBlocksArray(block.data.children);
-  const cols = Math.min(6, Math.max(1, num(block.data, "columns", 3)));
+  // Zaokrąglenie: ułamek (np. „2.5" z ręcznie edytowanego JSON-a) dawał klasę
+  // `lg:grid-cols-2.5`, której nie ma - siatka spadała wtedy do 2 kolumn.
+  const cols = Math.min(6, Math.max(1, Math.round(num(block.data, "columns", 3))));
   const layoutCls =
     block.type === "row"
       ? "flex flex-row flex-wrap gap-4"
       : block.type === "stack"
         ? "flex flex-col gap-4"
-        : `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${cols} gap-4`;
+        : `grid grid-cols-1 sm:grid-cols-2 ${GRID_LG_COLS[cols - 1]} gap-4`;
   return (
     <div
       className={`not-prose rounded-lg ${layoutCls} ${cls}`}

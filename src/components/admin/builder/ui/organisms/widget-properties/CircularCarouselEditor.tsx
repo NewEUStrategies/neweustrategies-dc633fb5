@@ -6,11 +6,18 @@
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
+import {
+  CIRCULAR_CAROUSEL_MAX_INTERVAL,
+  CIRCULAR_CAROUSEL_MIN_INTERVAL,
+  clampInterval,
+} from "@/lib/builder/circularCarousel";
+import { getBool, getNum } from "@/components/builder/organisms/widget-view/frame";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { PropField, ItemFrame } from "../../atoms";
+import { ClampedNumberInput } from "../../atoms/ClampedNumberInput";
 import { SchemaFieldControl } from "../../molecules/SchemaFieldControl";
 import { ListShell } from "./ListShell";
 import { itemsOf, type Item } from "./shared";
@@ -68,11 +75,15 @@ export function CircularCarouselEditor({ c, lang, setContent }: Props) {
       },
     ]);
 
-  const interval = typeof c.autoPlayInterval === "number" ? c.autoPlayInterval : 4000;
-  const autoPlay = c.autoPlay !== false;
-  const showCounter = c.showCounter !== false;
-  const showDots = c.showDots !== false;
-  const showArrows = c.showArrows !== false;
+  // Odczyt TAK SAMO jak `CircularCarouselView`: interwał po klamrze renderera,
+  // przełączniki przez `getBool` (import trzyma też "false" / 0 jako napis
+  // albo liczbę). Wcześniej panel pokazywał np. 50 ms i zaznaczone kropki,
+  // a strona kręciła co 1000 ms i kropek nie rysowała.
+  const interval = clampInterval(getNum(c, "autoPlayInterval", 4000));
+  const autoPlay = getBool(c, "autoPlay", true);
+  const showCounter = getBool(c, "showCounter", true);
+  const showDots = getBool(c, "showDots", true);
+  const showArrows = getBool(c, "showArrows", true);
 
   return (
     <div className="space-y-3">
@@ -86,14 +97,15 @@ export function CircularCarouselEditor({ c, lang, setContent }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={t("builder.circularCarouselEditor.interval")}>
-          <Input
-            type="number"
-            min={1000}
-            max={30000}
-            step={500}
+          <ClampedNumberInput
             value={interval}
-            onChange={(e) => setContent("autoPlayInterval", Number(e.target.value) || 4000)}
-            className="h-8 text-xs"
+            min={CIRCULAR_CAROUSEL_MIN_INTERVAL}
+            max={CIRCULAR_CAROUSEL_MAX_INTERVAL}
+            step={500}
+            ariaLabel={t("builder.circularCarouselEditor.interval")}
+            onCommit={(v) => {
+              if (v !== undefined && v !== interval) setContent("autoPlayInterval", v);
+            }}
           />
         </PropField>
         <PropField label={t("builder.circularCarouselEditor.toggles")}>

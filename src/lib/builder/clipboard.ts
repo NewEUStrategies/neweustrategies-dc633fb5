@@ -11,11 +11,23 @@ export interface ClipEnvelope {
   node: ClipNode;
 }
 
-export function copyToClipboard(env: ClipEnvelope) {
+/**
+ * Zapisuje kopertę i zwraca, czy się udało. Nieudany zapis (limit miejsca,
+ * tryb prywatny, zablokowane dane witryny) KASUJE poprzednią zawartość -
+ * inaczej następne wklejenie cicho wstawiłoby wcześniej skopiowany węzeł
+ * zamiast nowego. Wyjątek nie wychodzi poza funkcję (uchwyt Ctrl+C).
+ */
+export function copyToClipboard(env: ClipEnvelope): boolean {
   try {
     sessionStorage.setItem(KEY, JSON.stringify(env));
+    return true;
   } catch {
-    /* ignore */
+    try {
+      sessionStorage.removeItem(KEY);
+    } catch {
+      /* magazyn niedostępny w całości - nie ma czego czyścić */
+    }
+    return false;
   }
 }
 

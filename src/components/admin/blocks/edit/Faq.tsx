@@ -1,7 +1,8 @@
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { toJson } from "@/lib/content-model/json";
-import type { Block, Json } from "@/lib/blocks/types";
+import type { Block } from "@/lib/blocks/types";
+import { objList, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, HelpCircle } from "lucide-react";
 
@@ -15,22 +16,15 @@ interface FaqItem {
   a: string;
 }
 
-function readItems(raw: Json | undefined): FaqItem[] {
-  if (!Array.isArray(raw)) return [];
-  const out: FaqItem[] = [];
-  for (const x of raw) {
-    if (x && typeof x === "object" && !Array.isArray(x)) {
-      const o = x as Record<string, unknown>;
-      out.push({ q: String(o.q ?? ""), a: String(o.a ?? "") });
-    }
-  }
-  return out;
+/** Te same czytniki co `renderFaq` - obiekt w treści to pusty napis, nie „[object Object]". */
+function readItems(block: Block): FaqItem[] {
+  return objList(block.data, "items", (o) => ({ q: str(o, "q"), a: str(o, "a") }));
 }
 
 export function FaqBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const title = String(block.data.title ?? "");
-  const items = readItems(block.data.items);
+  const title = str(block.data, "title");
+  const items = readItems(block);
   const setItems = (next: FaqItem[]) =>
     onChange({ ...block, data: { ...block.data, items: toJson(next) } });
 

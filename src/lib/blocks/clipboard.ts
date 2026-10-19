@@ -68,6 +68,20 @@ function stripTags(html: string): string {
     .trim();
 }
 
+/**
+ * Pierwsza NIEPUSTA wartość tekstowa (liczba też jest tekstem). `??` nie
+ * wystarczał: obraz z palety ma `caption: ""`, więc alt i adres nigdy nie
+ * dochodziły do głosu, a wartość nie-tekstowa z uszkodzonego dokumentu
+ * trafiała do schowka jako „[object Object]".
+ */
+function firstText(...values: (Json | undefined)[]): string {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim()) return v;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return "";
+}
+
 /** Czytelna reprezentacja bloków dla `text/plain`. */
 export function blocksToPlainText(blocks: Block[]): string {
   const parts: string[] = [];
@@ -75,39 +89,36 @@ export function blocksToPlainText(blocks: Block[]): string {
     switch (b.type) {
       case "paragraph":
       case "html":
-        parts.push(stripTags(String(b.data.html ?? "")));
+        parts.push(stripTags(firstText(b.data.html)));
         break;
       case "heading":
-        parts.push(stripTags(String(b.data.text ?? "")));
+        parts.push(stripTags(firstText(b.data.text)));
         break;
       case "list": {
-        const items = Array.isArray(b.data.items) ? (b.data.items as Json[]) : [];
+        const raw = Array.isArray(b.data.items) ? (b.data.items as Json[]) : [];
+        // Pozycja bez tekstu nie daje samotnego punktora; numeracja idzie po
+        // pozycjach widocznych w schowku.
+        const items = raw.map((it) => stripTags(firstText(it))).filter(Boolean);
         const ordered = Boolean(b.data.ordered);
-        parts.push(
-          items
-            .map((it, i) => `${ordered ? `${i + 1}.` : "-"} ${stripTags(String(it))}`)
-            .join("\n"),
-        );
+        parts.push(items.map((it, i) => `${ordered ? `${i + 1}.` : "-"} ${it}`).join("\n"));
         break;
       }
-      case "quote":
-        parts.push(
-          `"${stripTags(String(b.data.text ?? ""))}"${b.data.cite ? ` - ${stripTags(String(b.data.cite))}` : ""}`,
-        );
+      case "quote": {
+        const cite = stripTags(firstText(b.data.cite));
+        parts.push(`"${stripTags(firstText(b.data.text))}"${cite ? ` - ${cite}` : ""}`);
         break;
+      }
       case "code":
-        parts.push(String(b.data.code ?? ""));
+        parts.push(firstText(b.data.code));
         break;
       case "image":
-        parts.push(String(b.data.caption ?? b.data.alt ?? b.data.url ?? ""));
+        parts.push(firstText(b.data.caption, b.data.alt, b.data.url));
         break;
       case "separator":
         parts.push("---");
         break;
-      default: {
-        const guess = b.data.text ?? b.data.title ?? b.data.html ?? "";
-        parts.push(stripTags(String(guess)));
-      }
+      default:
+        parts.push(stripTags(firstText(b.data.text, b.data.title, b.data.html)));
     }
   }
   return parts.filter((p) => p.length > 0).join("\n\n");

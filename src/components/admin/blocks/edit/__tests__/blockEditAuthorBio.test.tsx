@@ -129,29 +129,21 @@ describe("bio autora - autor inline w stanie PUSTYM", () => {
     expect(przyciskZTekstem(container, pc("addLink"))).toBeTruthy();
   });
 
-  // DEFEKT: `customSocials` W ZŁYM KSZTAŁCIE WYWRACA CAŁY EDYTOR WPISU.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): zły kształt `customSocials` NIE
+  // wywraca już edytora wpisu.
   //
   // WEJŚCIE: blok `author-bio` ze źródłem `inline`, autorem, który MA nazwisko,
   //   i polem `customSocials` w kształcie innym niż tablica (napis - tak wygląda
   //   dokument po ręcznej korekcie JSON-a albo po migracji ze starszego
   //   schematu, w którym linki trzymało się jako tekst).
-  // CO PSUJE: formularz edytora broni się poprawnie
-  //   (`Array.isArray(author.customSocials) ? … : []`,
-  //   src/components/admin/blocks/edit/PostContextBlocks.tsx:74), ale ten sam
-  //   obiekt idzie DALEJ - do podglądu `AuthorBioView` jako `authorOverride`
-  //   (:540). Tam zabezpieczenia już nie ma: `(author.customSocials ?? [])
-  //   .forEach(…)` (src/components/blocks/PostContextViews.tsx:179) wywołuje
-  //   `forEach` na napisie i rzuca `TypeError`.
-  // KONSEKWENCJA: wyjątek leci w RENDERZE, więc gaśnie nie sam blok, ale całe
-  //   drzewo edytora wpisu - redaktor dostaje biały ekran i traci niezapisaną
-  //   pracę. Dokładnie tej klasy awarii ma zapobiegać przejazd
-  //   `blockEditRendererMatrix`, tyle że on montuje bloki na danych z palety,
-  //   a ten kształt przychodzi z importu.
-  // WYMAGANA POPRAWKA: `AuthorBioView` musi czytać `customSocials` tym samym
-  //   strażnikiem, co formularz (`Array.isArray(...) ? ... : []`) - albo
-  //   kształt autora musi być normalizowany raz, w jednym miejscu, zanim
-  //   trafi do obu warstw.
-  it.fails("DEFEKT: zły kształt `customSocials` NIE może wywracać podglądu bloku", () => {
+  // BYŁO: formularz bronił się strażnikiem `Array.isArray`, ale ten sam SUROWY
+  //   obiekt szedł dalej do podglądu `AuthorBioView` jako `authorOverride`,
+  //   a tam `(author.customSocials ?? []).forEach(…)` rzucało `TypeError`
+  //   w renderze - gasło całe drzewo edytora wpisu, z niezapisaną pracą.
+  // KONTRAKT PO NAPRAWIE: kształt autora inline jest normalizowany RAZ
+  //   (`readInlineAuthor` w `PostContextBlocks.tsx`), zanim trafi do obu
+  //   warstw - formularz i podgląd dostają ten sam, już bezpieczny obiekt.
+  it("zły kształt `customSocials` NIE wywraca podglądu bloku", () => {
     const { container } = renderEditor(
       AuthorBioBlock,
       bio({
@@ -160,6 +152,73 @@ describe("bio autora - autor inline w stanie PUSTYM", () => {
       }),
     );
     expect(container.textContent).toContain(pc("noCustomLinks"));
+    // Podgląd NADAL bierze dane inline - normalizacja nie gubi autora.
+    expect(etykietaPodgladu(container)).toContain(pc("previewInline"));
+    expect(container.textContent).toContain(AUTOR_INLINE.name as string);
+  });
+
+  it("dziury i napisy na liście linków są pomijane, a prawdziwy link zostaje edytowalny", () => {
+    // Eksport potrafi zostawić `null` w tablicy. Formularz sięgał po `s.label`
+    // pozycji `null` i rzucał - tak samo podgląd po `s.url`. Po normalizacji
+    // na liście jest wyłącznie to, co jest linkiem.
+    const { container } = renderEditor(
+      AuthorBioBlock,
+      bio({
+        authorSource: "inline",
+        inlineAuthor: {
+          ...AUTOR_INLINE,
+          customSocials: [
+            null,
+            "https://example.com/napis",
+            { label: "Biuletyn", url: "https://example.com/biuletyn" },
+          ],
+        } as unknown as Json,
+      }),
+    );
+    const nazwy = container.querySelectorAll<HTMLInputElement>(
+      `input[placeholder="${pc("linkName")}"]`,
+    );
+    expect(Array.from(nazwy, (el) => el.value)).toEqual(["Biuletyn"]);
+    expect(container.textContent).not.toContain(pc("noCustomLinks"));
+  });
+
+  it("nazwisko w kształcie OBIEKTU nie wywraca podglądu i nie wchodzi do pola", () => {
+    // Kształt po migracji treści dwujęzycznej (`{ pl: … }`). Bez normalizacji
+    // `!!name` było prawdą, podgląd renderował obiekt jako dziecko Reacta
+    // i rzucał, a pole formularza pokazywało „[object Object]".
+    const { container } = renderEditor(
+      AuthorBioBlock,
+      bio({
+        authorSource: "inline",
+        inlineAuthor: { name: { pl: "Testowa Redaktorka" } } as unknown as Json,
+      }),
+    );
+    expect(poEtykiecie(container, pc("fName")).value).toBe("");
+    expect(etykietaPodgladu(container)).toContain(pc("previewFillInline"));
+    expect(container.textContent).not.toContain("[object Object]");
+  });
+
+  it("zapis jednego pola autora zostawia klucze, których formularz nie zna", () => {
+    // Normalizacja służy ODCZYTOWI. Zapis dokłada zmianę do SUROWEGO obiektu,
+    // więc pole spoza formularza (tu: notatka redakcyjna z importu) nie ginie
+    // przy wpisaniu stanowiska.
+    const { container, changes } = renderEditor(
+      AuthorBioBlock,
+      bio({
+        authorSource: "inline",
+        inlineAuthor: { ...AUTOR_INLINE, notatkaImportu: "WP #42" },
+      }),
+    );
+    fireEvent.change(poEtykiecie(container, pc("fJobTitle")), {
+      target: { value: "Analityczka" },
+    });
+    const zapis = ostatniZapis(changes);
+    expect(zapis.id).toBe("ab1");
+    expect(zapis.data.inlineAuthor).toEqual({
+      ...AUTOR_INLINE,
+      notatkaImportu: "WP #42",
+      jobTitle: "Analityczka",
+    });
   });
 
   it("autor inline BEZ nazwiska prosi o uzupełnienie danych, zamiast udawać podgląd", () => {
@@ -338,6 +397,42 @@ describe("bio autora - ustawienia wariantu „Karta profilu”", () => {
     expect(container.textContent).not.toContain(pc("profileStyleTitle"));
     expect(container.textContent).not.toContain("undefined");
   });
+
+  it("wariant SPOZA katalogu jest czytany jak „Karta” - tak samo jak na stronie", () => {
+    // Renderer publiczny (`renderAuthorBio`) zamienia nieznany wariant na
+    // `card`. Panel podpisywał wtedy podgląd jako „Minimalna", choć lista
+    // wyboru pokazywała „Karta", a strona rysowała kartę - trzy różne
+    // odpowiedzi na jedno pytanie.
+    const { container } = renderEditor(AuthorBioBlock, bio({ variant: "kosmiczny" }));
+    expect(etykietaPodgladu(container)).toContain(
+      `${pc("previewPrefix")} ${pc("variantNameCard")}`,
+    );
+    const wybor = Array.from(container.querySelectorAll("select")).find((s) =>
+      Array.from(s.options).some((o) => o.value === "profile"),
+    );
+    expect(wybor?.value).toBe("card");
+  });
+
+  it("cień SPOZA listy pokazuje domyślny cień karty, bo taki narysuje strona", () => {
+    // `ProfileCard` dla nieznanego cienia bierze `PROFILE_CARD_DEFAULTS.shadow`.
+    // Natywna lista wyboru z wartością spoza opcji pokazuje PIERWSZĄ opcję
+    // („brak") - panel obiecywał kartę bez cienia, strona rysowała mocny.
+    const { container } = renderEditor(AuthorBioBlock, kartaProfilu({ shadow: "ogromny" }));
+    const wybor = Array.from(container.querySelectorAll("select")).find((s) =>
+      Array.from(s.options).some((o) => o.value === "xl"),
+    );
+    expect(wybor?.value).toBe(PROFILE_CARD_DEFAULTS.shadow);
+  });
+
+  it("liczba POWYŻEJ limitu pola jest pokazana i zapisana jako limit karty", () => {
+    // `ProfileCard` przycina bok zdjęcia do 720 px. Pole pokazujące 99 999
+    // podawało redaktorowi liczbę, której strona nigdy nie użyje.
+    const { container, changes } = renderEditor(AuthorBioBlock, kartaProfilu({ imageSize: 99999 }));
+    const pole = poEtykiecie(container, pc("fImageSize"));
+    expect(pole.value).toBe(pole.max);
+    fireEvent.change(pole, { target: { value: "5000" } });
+    expect(ostatniZapis(changes).data.imageSize).toBe(Number(pole.max));
+  });
 });
 
 describe("powiązane wpisy - liczba, strategia i układ", () => {
@@ -361,6 +456,47 @@ describe("powiązane wpisy - liczba, strategia i układ", () => {
     const liczba = container.querySelector<HTMLInputElement>('input[type="number"]');
     fireEvent.change(liczba as HTMLInputElement, { target: { value: "8" } });
     expect(ostatniZapis(changes).data.limit).toBe(8);
+  });
+
+  it("liczba z importu poza zakresem 1-12 pokazuje to, co pobierze strona", () => {
+    // `relatedPostsBlockQueryOptions` ścina limit do [1, 12]. Pole z
+    // miliardem albo z liczbą ujemną kłamało o tym, ile wpisów zobaczy
+    // czytelnik.
+    const duzo = renderEditor(RelatedPostsBlock, powiazane({ limit: 1e9 }));
+    expect(duzo.container.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe(
+      "12",
+    );
+    const ujemna = renderEditor(RelatedPostsBlock, powiazane({ limit: -5 }));
+    expect(ujemna.container.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe(
+      "1",
+    );
+  });
+
+  it("wpis powyżej limitu zapisuje limit, a nie wpisaną liczbę", () => {
+    const { container, changes } = renderEditor(RelatedPostsBlock, powiazane({}));
+    const liczba = container.querySelector<HTMLInputElement>('input[type="number"]');
+    fireEvent.change(liczba as HTMLInputElement, { target: { value: "40" } });
+    expect(ostatniZapis(changes).data.limit).toBe(12);
+  });
+
+  it("nagłówek w kształcie OBIEKTU nie wpisuje „[object Object]” w pole", () => {
+    const { container } = renderEditor(
+      RelatedPostsBlock,
+      powiazane({ heading: { pl: "Czytaj dalej" } }),
+    );
+    const naglowek = container.querySelector<HTMLInputElement>(
+      `input[placeholder="${pc("relatedHeading")}"]`,
+    );
+    expect(naglowek?.value).toBe("");
+  });
+
+  it("strategia i układ zapisują wybraną opcję pod WŁASNYM kluczem", () => {
+    const { container, changes } = renderEditor(RelatedPostsBlock, powiazane({ limit: 4 }));
+    const [strategia, uklad] = Array.from(container.querySelectorAll("select"));
+    fireEvent.change(strategia, { target: { value: "author" } });
+    expect(ostatniZapis(changes).data).toEqual({ limit: 4, strategy: "author" });
+    fireEvent.change(uklad, { target: { value: "compact" } });
+    expect(ostatniZapis(changes).data).toEqual({ limit: 4, layout: "compact" });
   });
 
   it("nagłówek sekcji zapisuje się osobno i nie rusza pozostałych ustawień", () => {

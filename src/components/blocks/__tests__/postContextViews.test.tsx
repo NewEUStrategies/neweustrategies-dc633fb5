@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   posts: [] as unknown[],
   authorProfile: null as unknown,
   authorPostsCount: null as number | null,
+  relatedInputs: [] as unknown[],
 }));
 
 vi.mock("react-i18next", async () => {
@@ -47,7 +48,10 @@ vi.mock("@/lib/queries/blocks", () => {
     gcTime: 0,
   });
   return {
-    relatedPostsBlockQueryOptions: (i: unknown) => opts(["rp", i], () => h.posts),
+    relatedPostsBlockQueryOptions: (i: unknown) => {
+      h.relatedInputs.push(i);
+      return opts(["rp", i], () => h.posts);
+    },
     authorProfileByIdQueryOptions: (i: unknown) => opts(["ap", i], () => h.authorProfile),
     authorPostsCountQueryOptions: (i: unknown) => opts(["apc", i], () => h.authorPostsCount),
   };
@@ -129,6 +133,7 @@ beforeEach(() => {
   h.posts = [];
   h.authorProfile = null;
   h.authorPostsCount = 12;
+  h.relatedInputs = [];
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -448,6 +453,33 @@ describe("AuthorBioView - licznik wpisów", () => {
     const container = view(<AuthorBioView variant="card" showPostsCount />);
     assertNoLeak(container, "author-bio licznik null");
   });
+
+  // NAPRAWIONE 2026-10-18: polska odmiana licznika liczyła formę po samym
+  // `n < 5`, więc „0 wpisy" i „22 wpisów" trafiały na wizytówkę autora. Forma
+  // idzie teraz z reguł CLDR (`Intl.PluralRules("pl")`): one / few / many.
+  it.each([
+    [0, "0 wpisów"],
+    [1, "1 wpis"],
+    [3, "3 wpisy"],
+    [12, "12 wpisów"],
+    [21, "21 wpisów"],
+    [22, "22 wpisy"],
+    [104, "104 wpisy"],
+    [112, "112 wpisów"],
+  ])("licznik %i odmienia się po polsku jako „%s”", async (count, label) => {
+    h.authorPostsCount = count;
+    const container = view(<AuthorBioView variant="card" showPostsCount lang="pl" />);
+    await waitFor(() => expect(container.textContent).toContain(label));
+  });
+
+  it.each([
+    [1, "1 post"],
+    [2, "2 posts"],
+  ])("licznik %i po angielsku to „%s”", async (count, label) => {
+    h.authorPostsCount = count;
+    const container = view(<AuthorBioView variant="card" showPostsCount lang="en" />);
+    await waitFor(() => expect(container.textContent).toContain(label));
+  });
 });
 
 describe("AuthorBioView - autor dociągany po identyfikatorze", () => {
@@ -596,33 +628,35 @@ describe("RelatedPostsView", () => {
     await waitFor(() => expect(container.textContent).toContain(expected));
   });
 
-  // DEFEKT PRODUKCYJNY (zgłoszony, nie obejściony) - ODNOŚNIK BEZ NAZWY.
-  // `RelatedPostsView` czyta tytuł jako `(lang === "en" ? p.title_en :
-  // p.title_pl) ?? ""` - BEZ zapasu na drugi język. Wpis, który nie ma jeszcze
-  // tłumaczenia tytułu, ląduje na liście jako karta z samą datą, a jej
-  // odnośnik nie ma DOSTĘPNEJ NAZWY: czytnik ekranu przeczyta „link", i tyle.
-  // Reszta silnika robi to inaczej - `PostTitleView` schodzi
-  // `?? ctx?.title_pl ?? ctx?.title_en ?? ""`, a `ContextBlockViews` tak samo,
-  // więc to rozjazd wewnątrz jednej powierzchni, nie świadoma decyzja.
-  // Naprawa to ten sam łańcuch zapasów co w PostTitleView (albo pominięcie
-  // wpisu bez tytułu) - zmiana zachowania produkcyjnego, poza zakresem zadania
-  // pokryciowego. Test STOI jako dowód.
-  it.fails("POWINNO spadać na tytuł w drugim języku, gdy brakuje tłumaczenia", async () => {
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): ODNOŚNIK BEZ NAZWY.
+  // `RelatedPostsView` czytał tytuł jako `(lang === "en" ? p.title_en :
+  // p.title_pl) ?? ""` - BEZ zapasu na drugi język, więc wpis bez tłumaczenia
+  // lądował na liście jako karta z samą datą, a jego odnośnik nie miał
+  // dostępnej nazwy. Teraz tytuł schodzi tym samym łańcuchem co
+  // `PostTitleView`: język strony, potem drugi język (pusty/biały napis też
+  // liczy się jako brak).
+  it("spada na tytuł w drugim języku, gdy brakuje tłumaczenia", async () => {
     h.posts = [row({ title_en: null })];
     const container = view(<RelatedPostsView lang="en" />);
     await waitFor(() => expect(container.textContent).toContain("Powiązany wpis"));
   });
 
-  it("dziś wpis bez tłumaczenia tytułu daje odnośnik BEZ nazwy dostępnej", async () => {
-    h.posts = [row({ title_en: null })];
-    const container = view(<RelatedPostsView lang="en" />);
-    await waitFor(() => expect(container.querySelector("a")).toBeTruthy());
-    expect(container.textContent).not.toContain("Powiązany wpis");
-    const named = Array.from(container.querySelectorAll("a")).filter(
-      (a) => (a.textContent ?? "").trim().length > 0 || a.getAttribute("aria-label"),
-    );
-    // Karta wpisu jest w DOM, ale żaden jej odnośnik nie niesie tytułu.
-    expect(named.every((a) => !(a.textContent ?? "").includes("Powiązany"))).toBe(true);
+  it.each(["grid", "list", "compact"] as const)(
+    "w układzie %s odnośnik wpisu bez tłumaczenia ma dostępną nazwę",
+    async (layout) => {
+      h.posts = [row({ title_en: "  ", cover_image_url: null })];
+      const container = view(<RelatedPostsView lang="en" layout={layout} />);
+      await waitFor(() => expect(container.querySelector("a")).toBeTruthy());
+      const names = Array.from(container.querySelectorAll("a")).map((a) => a.textContent);
+      expect(names).toEqual(["Powiązany wpis"]);
+    },
+  );
+
+  it("obraz okładki dostaje ten sam tytuł zapasowy jako tekst alternatywny", async () => {
+    h.posts = [row({ title_pl: null })];
+    const container = view(<RelatedPostsView lang="pl" />);
+    await waitFor(() => expect(container.querySelector("img")).toBeTruthy());
+    expect(container.querySelector("img")?.getAttribute("alt")).toBe("Related post");
   });
 
   it("wpis BEZ tytułu w obu językach nie wypisuje wartości zastępczej", async () => {
@@ -661,11 +695,21 @@ describe("RelatedPostsView", () => {
     assertNoLeak(container, "related bez kontekstu");
   });
 
-  it("wpis o TYM SAMYM identyfikatorze co bieżący nie trafia na listę", async () => {
-    h.posts = [row({ id: "post-1", title_pl: "To ten sam wpis" }), row({ id: "p-2" })];
-    const container = view(<RelatedPostsView />);
-    await waitFor(() => expect(container.innerHTML).toBeDefined());
-    expect(container.textContent).not.toContain("To ten sam wpis");
+  // Wykluczenie bieżącego wpisu robi ZAPYTANIE (`currentId`), nie widok -
+  // dlatego kontraktem jest to, co widok przekazuje do zapytania: identyfikator
+  // bieżącego wpisu, slugi jego kategorii i tagów, autora oraz limit.
+  it("przekazuje do zapytania bieżący wpis (wykluczenie), taksonomie, autora i limit", async () => {
+    h.posts = [row()];
+    const container = view(<RelatedPostsView strategy="tag" limit={4} />);
+    await waitFor(() => expect(container.textContent).toContain("Powiązany wpis"));
+    expect(h.relatedInputs.at(-1)).toEqual({
+      currentId: "post-1",
+      strategy: "tag",
+      categorySlugs: ["analizy"],
+      tagSlugs: ["energia"],
+      authorId: "author-1",
+      limit: 4,
+    });
   });
 
   it.each([1, 3, 6])("limit %i przekazywany do zapytania nie wywala renderu", async (limit) => {

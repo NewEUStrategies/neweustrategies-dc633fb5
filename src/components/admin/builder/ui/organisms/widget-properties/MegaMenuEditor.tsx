@@ -161,7 +161,10 @@ function ColumnEditor({
   const set = (k: string, v: unknown): void => onChange({ ...col, [k]: toJson(v) });
   const updateLinks = (next: Item[]): void => set("links", next);
 
-  const kind = (str(col.kind) || "links") as "links" | "category";
+  // Jak `MegaMenu`: każdy rodzaj inny niż „category" to kolumna linków.
+  // Nieznany rodzaj (stary/importowany zapis) nie może zostawić kolumny bez
+  // żadnych pól.
+  const kind: "links" | "category" = str(col.kind) === "category" ? "category" : "links";
 
   return (
     <ItemFrame
@@ -212,7 +215,9 @@ function ColumnEditor({
       {kind === "category" && (
         <CategoryColumnFields
           slug={str(col.categorySlug)}
-          postCount={typeof col.postCount === "number" ? col.postCount : 4}
+          // Ta sama klamra co w `MegaMenu` (1-8, domyślnie 4; liczba w napisie
+          // z importu też się liczy).
+          postCount={Math.min(Math.max(Number(col.postCount) || 4, 1), 8)}
           viewAllHref={str(col.viewAllHref)}
           onSlug={(v) => set("categorySlug", v)}
           onCount={(n) => set("postCount", n)}

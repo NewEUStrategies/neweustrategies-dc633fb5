@@ -14,7 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Block, BlockStyle, BlocksDoc } from "@/lib/blocks/types";
-import { BLOCK_SPECS } from "@/lib/blocks/registry";
+import { BLOCK_SPECS, type BlockSpec } from "@/lib/blocks/registry";
 import { BlockListView } from "./molecules/BlockListView";
 import { ChevronLeft, ChevronRight, FileText, Pencil } from "@/lib/lucide-shim";
 import "@/lib/i18n-admin-blocks";
@@ -51,7 +51,27 @@ export function BlockSidebar({
   const { t } = useTranslation();
   const [tab, setTab] = useState<"block" | "document">("document");
 
-  // Auto-switch to "block" when a block is selected
+  // Zaznaczenie bloku W KANWIE (przejście z „nic” na blok) przełącza panel na
+  // zakładkę „Blok” - redaktor klika blok, żeby ustawić mu metadane.
+  // Przełączenie dzieje się w renderze (wzorzec „stan z poprzedniego propsa”),
+  // więc nie ma klatki z listą dokumentu ani efektu. Wybór z LISTY dokumentu
+  // zakładki nie rusza: lista jest jedyną drogą do bloków w kontenerach i nie
+  // może znikać spod kursora. Zmiana bloku na INNY blok też jej nie rusza.
+  const [pickedInList, setPickedInList] = useState(false);
+  const hasBlock = activeBlock !== null;
+  const [hadBlock, setHadBlock] = useState(hasBlock);
+  if (hasBlock !== hadBlock) {
+    setHadBlock(hasBlock);
+    if (hasBlock && !pickedInList) setTab("block");
+  }
+  if (pickedInList) setPickedInList(false);
+
+  const selectFromList = (id: string | null) => {
+    setPickedInList(id !== null);
+    onSelect(id);
+  };
+
+  // Bez bloku inspektor nie ma czego pokazać - panel stoi na dokumencie.
   const effectiveTab = activeBlock ? tab : "document";
 
   const expandTo = (nextTab: "block" | "document") => {
@@ -142,21 +162,23 @@ export function BlockSidebar({
           </div>
 
           <TabsContent value="block" className="flex-1 overflow-y-auto p-3 space-y-3 mt-0">
-            {activeBlock ? (
-              <BlockSettings block={activeBlock} onChange={onChangeBlock} />
-            ) : (
+            {/* Zakładka „Blok” jest aktywna wyłącznie z blokiem (`effectiveTab`). */}
+            {activeBlock ? <BlockSettings block={activeBlock} onChange={onChangeBlock} /> : null}
+          </TabsContent>
+
+          <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-4 mt-0">
+            {/* Zachęta stoi tam, gdzie redaktor JEST bez zaznaczenia - obok
+                wyłączonej zakładki „Blok”, którą tłumaczy. */}
+            {activeBlock ? null : (
               <p className="text-xs text-muted-foreground italic">
                 {t("blocks.sidebar.selectBlock")}
               </p>
             )}
-          </TabsContent>
-
-          <TabsContent value="document" className="flex-1 overflow-y-auto p-3 space-y-4 mt-0">
             <BlockListView
               doc={doc}
               activeId={activeId}
               selectedIds={selectedIds}
-              onSelect={onSelect}
+              onSelect={selectFromList}
               onSelectedIdsChange={onSelectedIdsChange}
               onReorder={onReorder}
             />
@@ -169,6 +191,24 @@ export function BlockSidebar({
 }
 
 type AlignValue = NonNullable<BlockStyle["align"]>;
+
+/** Górna granica odstępu - ta sama co `BlockStyleSchema` (`schema.ts`: int, 0..400). */
+const MARGIN_MAX = 400;
+
+/**
+ * Wartość pola odstępu w kształcie, który przyjmie schemat dokumentu: pusty
+ * napis (i nie-liczba) to BRAK odstępu, reszta jest zaokrąglana do liczby
+ * całkowitej i klamrowana do 0..400. `min`/`max` na `<input type="number">`
+ * to walidacja FORMULARZA, którego tu nie ma - bez klamry wartość spoza
+ * zakresu wywracała walidację całego dokumentu, a tryb ratunkowy
+ * `safeParseBlocks` zrzucał blok z opublikowanej strony.
+ */
+function toMarginValue(raw: string): number | undefined {
+  if (raw.trim() === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(MARGIN_MAX, Math.max(0, Math.round(n)));
+}
 
 // Block types with dedicated, hand-built inspector controls below. Every other
 // block type still gets the shared Layout section (align/spacing/visibility)
@@ -189,9 +229,16 @@ const HANDLED_TYPES = new Set([
 ]);
 
 function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block) => void }) {
-  const { t } = useTranslation();
-  const spec = BLOCK_SPECS[block.type];
-  const Icon = spec.icon;
+  const { t, i18n } = useTranslation();
+  // Typ spoza rejestru (dokument z nowszej wersji edytora) nie może wywrócić
+  // panelu - lista dokumentu pokazuje taki blok, więc da się go zaznaczyć.
+  const spec: BlockSpec | undefined = BLOCK_SPECS[block.type];
+  const Icon = spec?.icon;
+  // Nazwa typu przez słownik - tak samo jak lista dokumentu, inserter i kanwa.
+  const typeLabel = spec ? t(`blocks.types.${block.type}`) : block.type;
+  // Opis z rejestru jest napisany WYŁĄCZNIE po polsku (bez kluczy słownika),
+  // więc w panelu w innym języku znika, zamiast pokazywać polskie zdanie.
+  const showDescription = Boolean(spec) && (i18n.resolvedLanguage ?? i18n.language) === "pl";
 
   const set = (key: string, value: string | number | boolean) => {
     onChange({ ...block, data: { ...block.data, [key]: value } });
@@ -204,10 +251,12 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 pb-2 border-b border-border">
-        <Icon className="w-4 h-4 text-muted-foreground" />
+        {Icon ? <Icon className="w-4 h-4 text-muted-foreground" /> : null}
         <div>
-          <h3 className="text-sm font-semibold">{spec.label}</h3>
-          <p className="text-[10px] text-muted-foreground">{spec.description}</p>
+          <h3 className="text-sm font-semibold">{typeLabel}</h3>
+          {showDescription ? (
+            <p className="text-[10px] text-muted-foreground">{spec?.description}</p>
+          ) : null}
         </div>
       </div>
 
@@ -473,9 +522,7 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
                 min={0}
                 max={400}
                 value={block.style?.marginTop ?? ""}
-                onChange={(e) =>
-                  setStyle("marginTop", e.target.value === "" ? undefined : Number(e.target.value))
-                }
+                onChange={(e) => setStyle("marginTop", toMarginValue(e.target.value))}
               />
             </div>
             <div>
@@ -487,12 +534,7 @@ function BlockSettings({ block, onChange }: { block: Block; onChange: (n: Block)
                 min={0}
                 max={400}
                 value={block.style?.marginBottom ?? ""}
-                onChange={(e) =>
-                  setStyle(
-                    "marginBottom",
-                    e.target.value === "" ? undefined : Number(e.target.value),
-                  )
-                }
+                onChange={(e) => setStyle("marginBottom", toMarginValue(e.target.value))}
               />
             </div>
           </div>

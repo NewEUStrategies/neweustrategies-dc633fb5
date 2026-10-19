@@ -284,24 +284,18 @@ describe("bramka dostępu na WIDGECIE", () => {
   });
 });
 
-describe("LUKA: `advanced.hideOn` działa TYLKO dla widgetów", () => {
-  // Panel wystawia ten sam przełącznik widoczności na TRZECH poziomach:
-  //   * widget  - `AdvancedPane` widgetu -> renderer honoruje (`hiddenOnDevice`,
-  //     L798 - dowód w builderRenderer.device.test.tsx),
-  //   * sekcja  - `section-properties/AdvancedPane.tsx` (VisibilityControl),
-  //   * kolumna - `ui/organisms/ColumnProperties.tsx` (VisibilityControl).
-  // Publiczny renderer filtruje `hideOn` WYŁĄCZNIE dla widgetów. Sekcja albo
-  // kolumna oznaczona w panelu jako „ukryta na telefonie" jedzie do czytelnika
-  // razem z całą treścią - nie ma nawet reguły CSS, która by ją schowała.
-  // To nie jest kosmetyka: tak wygląda „ukryj wersję desktopową na telefonie",
-  // czyli podwójna treść i podwójny obraz LCP na łączu komórkowym.
-  //
-  // Zarejestrowane jako `it.fails`, bo naprawa to zmiana ZACHOWANIA produkcji
-  // (nowy filtr w `SectionsList` i w `RenderSection`), a testy tego zadania
-  // produkcji nie zmieniają. Gdy filtr powstanie, oba przypadki zrobią się
-  // zielone i vitest sam zgłosi, że `it.fails` jest już nieprawdziwe.
+describe("`advanced.hideOn` na SEKCJI i KOLUMNIE (nie tylko na widgecie)", () => {
+  // NAPRAWIONE 2026-10-18 (były dwa `it.fails`): panel wystawia przełącznik
+  // widoczności na TRZECH poziomach (widget, sekcja, kolumna), a publiczny
+  // renderer filtrował `hideOn` WYŁĄCZNIE dla widgetów - sekcja „ukryta na
+  // telefonie" jechała do czytelnika z całą treścią (podwójna treść i podwójny
+  // obraz LCP przy wzorcu „wersja desktopowa + wersja mobilna").
+  // KONTRAKT: `SectionsList`, `RenderSection` i `RenderInner` filtrują węzły
+  // tym samym predykatem co widgety (`hiddenOnDevice` na urządzeniu renderera),
+  // a pierwszą klatkę z HTML-u serwera chowa reguła `@media` - dowody SSR,
+  // atrybutu i sekcji zagnieżdżonej w `builderRenderer.hideOnNodes.test.tsx`.
 
-  it.fails("sekcja z hideOn.mobile POWINNA zniknąć na telefonie, a nie znika", () => {
+  it("sekcja z hideOn.mobile znika na telefonie", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer
         doc={doc([
@@ -315,7 +309,7 @@ describe("LUKA: `advanced.hideOn` działa TYLKO dla widgetów", () => {
     expect(container.querySelector('[data-sec-id="ukryta-na-tel"]')).toBeNull();
   });
 
-  it.fails("kolumna z hideOn.mobile POWINNA zniknąć na telefonie, a nie znika", () => {
+  it("kolumna z hideOn.mobile znika na telefonie", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer
         doc={doc([

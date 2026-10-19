@@ -8,8 +8,8 @@
 // 1. ZAPIS MOZE SIE NIE UDAC. `sessionStorage.setItem` rzuca realnie: przy
 //    przekroczeniu limitu (sekcja z obrazami w data-URI potrafi miec megabajty),
 //    w trybie prywatnym Safari i przy zablokowanych danych witryny. Produkcja
-//    ten wyjatek POLYKA (`catch { /* ignore */ }`), wiec kopiowanie nigdy nie
-//    zglasza porazki.
+//    ten wyjatek POLYKA (uchwyt Ctrl+C nie moze wywrocic kanwy), ale kasuje
+//    poprzednia zawartosc i zwraca `false` (naprawione 2026-10-18).
 // 2. ODCZYT DOSTAJE DANE, KTORYCH NIE WYPRODUKOWALA TA SESJA. `sessionStorage`
 //    jest wspolny dla calego pochodzenia, wiec do klucza `builder.clipboard.v1`
 //    moze trafic dowolny string: uciety zapis, koperta ze starego wydania,
@@ -127,28 +127,34 @@ describe("copyToClipboard - zapis koperty", () => {
     expect(() => copyToClipboard({ kind: "widget", node: widget("w1") })).not.toThrow();
   });
 
-  // DEFEKT: NIEUDANE KOPIOWANIE ZOSTAWIA W SCHOWKU POPRZEDNI WEZEL.
+  it("zwraca true po udanym zapisie i false po odmowie magazynu", () => {
+    // Wolajacy (uchwyt Ctrl+C) dostaje status, wiec moze pokazac komunikat
+    // zamiast udawac, ze skopiowal.
+    expect(copyToClipboard({ kind: "widget", node: widget("w1") })).toBe(true);
+
+    stubStorage({}, { przyZapisie: limitMiejsca });
+    expect(copyToClipboard({ kind: "widget", node: widget("w2") })).toBe(false);
+  });
+
+  it("magazyn odmawiajacy zapisu I usuwania nadal nie rzuca i zwraca false", () => {
+    vi.stubGlobal("sessionStorage", {
+      setItem: limitMiejsca,
+      removeItem: () => {
+        throw new DOMException("dostep do danych witryny zablokowany", "SecurityError");
+      },
+    });
+
+    expect(copyToClipboard({ kind: "widget", node: widget("w1") })).toBe(false);
+  });
+
+  // NAPRAWIONE 2026-10-18 (byl `it.fails`): nieudane kopiowanie zostawialo
+  // w schowku poprzedni wezel, a nastepne Ctrl+V cicho wstawialo duplikat
+  // STAREJ sekcji zamiast nowej.
   //
-  // WEJSCIE: redaktor kopiuje sekcje A (zapis sie udaje), potem kopiuje
-  //   sekcje B, przy ktorej `sessionStorage.setItem` rzuca `QuotaExceededError`
-  //   (sekcja B niesie obrazy w data-URI i nie miesci sie w limicie).
-  // CO PSUJE: `copyToClipboard` (src/lib/builder/clipboard.ts:14-20) lapie
-  //   wyjatek pustym `catch` i NIE ROBI NIC WIECEJ - nie zwraca statusu i nie
-  //   kasuje klucza. Pod `builder.clipboard.v1` zostaje nietknieta koperta
-  //   sekcji A, a wolajacy nie ma zadnego sposobu, zeby dowiedziec sie
-  //   o porazce (funkcja zwraca `void`).
-  // KONSEKWENCJA: nastepne wklejenie wstawia SEKCJE A. Redaktor widzi, ze
-  //   "cos sie wklejilo", wiec nie podejrzewa awarii - i dopiero po publikacji
-  //   okazuje sie, ze na stronie stoi duplikat starej sekcji zamiast nowej.
-  //   Cicha podmiana tresci jest grozniejsza niz brak reakcji na Ctrl+C, bo
-  //   braku reakcji nie da sie przeoczyc, a poprawnie wygladajacego duplikatu
-  //   - tak.
-  // WYMAGANA POPRAWKA: `copyToClipboard` musi na sciezce bledu usunac klucz
-  //   (`sessionStorage.removeItem(KEY)`, sam tez w `try`) i zwrocic informacje
-  //   o niepowodzeniu (np. `boolean`), zeby powierzchnia wywolujaca mogla
-  //   pokazac komunikat. Wtedy wklejenie po nieudanym kopiowaniu nic nie robi,
-  //   zamiast wstawiac cudzy wezel.
-  it.fails("DEFEKT: nieudane kopiowanie NIE moze zostawiac w schowku poprzedniego wezla", () => {
+  // KONTRAKT: na sciezce bledu `copyToClipboard` kasuje klucz (samo kasowanie
+  // tez w `try`) i zwraca `false` - wklejenie po nieudanym kopiowaniu nic nie
+  // robi, zamiast wstawiac cudzy wezel.
+  it("nieudane kopiowanie NIE zostawia w schowku poprzedniego wezla", () => {
     copyToClipboard({ kind: "section", node: section("A", [column("cA")]) });
     const zapisanaSekcjaA = sessionStorage.getItem(KEY) as string;
     stubStorage({ [KEY]: zapisanaSekcjaA }, { przyZapisie: limitMiejsca });

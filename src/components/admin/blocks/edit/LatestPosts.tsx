@@ -1,5 +1,7 @@
 import type { Block } from "@/lib/blocks/types";
+import { bool, num, str } from "@/components/blocks/renderer/data";
 import { Input } from "@/components/ui/input";
+import { useBlocksI18n } from "@/lib/blocks/i18n";
 import { AdminSelect } from "../AdminSelect";
 
 interface Props {
@@ -7,41 +9,58 @@ interface Props {
   onChange: (next: Block) => void;
 }
 
-/** Najnowsze wpisy (Gutenberg "Latest Posts"). */
+/** Zakres liczby wpisów - ten sam, do którego docina `renderLatestPosts`. */
+const MIN_COUNT = 1;
+const MAX_COUNT = 50;
+
+function clampCount(value: number): number {
+  return Math.max(MIN_COUNT, Math.min(MAX_COUNT, value));
+}
+
+/**
+ * Najnowsze wpisy (Gutenberg "Latest Posts"). Odczyt idzie przez czytniki
+ * renderera (`num`/`str`/`bool`), więc pole pokazuje liczbę i przełączniki,
+ * których strona faktycznie użyje, a zapis trzyma się zakresu pola.
+ */
 export function LatestPostsBlock({ block, onChange }: Props) {
-  const count = Number(block.data.count ?? 5);
-  const category = String(block.data.category ?? "");
-  const showExcerpt = Boolean(block.data.showExcerpt);
-  const showImage = Boolean(block.data.showImage ?? true);
-  const layout = String(block.data.layout ?? "list");
+  const i18n = useBlocksI18n();
+  const lp = (key: string) => i18n.editor("latestPosts", key);
+  const count = clampCount(num(block.data, "count", 5));
+  const category = str(block.data, "category");
+  const showExcerpt = bool(block.data, "showExcerpt", false);
+  const showImage = bool(block.data, "showImage", true);
+  const layout = str(block.data, "layout", "list") === "grid" ? "grid" : "list";
 
   return (
     <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Latest Posts
+        {lp("shellLabel")}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Input
           type="number"
-          min={1}
-          max={50}
+          min={MIN_COUNT}
+          max={MAX_COUNT}
           value={count}
-          onChange={(e) =>
-            onChange({ ...block, data: { ...block.data, count: Number(e.target.value || 5) } })
-          }
+          onChange={(e) => {
+            // Puste pole to wartość domyślna (5); inaczej liczba całkowita z zakresu.
+            const n = Number(e.target.value);
+            const next = e.target.value === "" || !Number.isFinite(n) ? 5 : Math.round(n);
+            onChange({ ...block, data: { ...block.data, count: clampCount(next) } });
+          }}
         />
         <AdminSelect
           className="text-xs bg-background border border-border rounded px-2 py-2 h-9"
           value={layout}
           onChange={(e) => onChange({ ...block, data: { ...block.data, layout: e.target.value } })}
         >
-          <option value="list">List</option>
-          <option value="grid">Grid</option>
+          <option value="list">{i18n.editor("common", "layoutList")}</option>
+          <option value="grid">{i18n.editor("common", "layoutGrid")}</option>
         </AdminSelect>
       </div>
       <Input
         value={category}
-        placeholder="Slug kategorii (opcjonalnie)"
+        placeholder={lp("categoryPh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, category: e.target.value } })}
       />
       <div className="flex gap-4 text-xs">
@@ -53,7 +72,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showImage: e.target.checked } })
             }
           />
-          Miniatura
+          {lp("showImage")}
         </label>
         <label className="flex items-center gap-1">
           <input
@@ -63,7 +82,7 @@ export function LatestPostsBlock({ block, onChange }: Props) {
               onChange({ ...block, data: { ...block.data, showExcerpt: e.target.checked } })
             }
           />
-          Zajawka
+          {lp("showExcerpt")}
         </label>
       </div>
     </div>

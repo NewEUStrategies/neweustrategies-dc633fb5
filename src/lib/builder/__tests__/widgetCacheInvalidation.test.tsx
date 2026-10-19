@@ -152,28 +152,15 @@ describe("predykat inwalidacji - co NIE zostanie unieważnione", () => {
     }
   });
 
-  // DEFEKT: KORZEŃ KLUCZA AUTORÓW SLIDERA JEST POZA KATALOGIEM.
+  // NAPRAWIONE 2026-10-18 (był `it.fails`): korzeń klucza autorów slidera
+  // był gołym literałem poza `WIDGET_QUERY_ROOTS`.
   //
-  // WEJSCIE: `sliderAuthorsQueryOptions([...]).queryKey[0]`, czyli goły literał
-  //   "builder-slider-authors" wpisany bezpośrednio w
-  //   src/lib/builder/sliderAuthorsQuery.ts:64 - z pominięciem
-  //   `WIDGET_QUERY_ROOTS`.
-  // CO PSUJE: skoro korzenia nie ma w `WIDGET_QUERY_ROOTS`, nie ma go też
-  //   w `LIVE_INVALIDATED_ROOTS` ani w `WIDGET_LIVE_QUERY_PREFIXES`, więc
-  //   predykat `isWidgetQueryKey` (widgetCacheInvalidation.tsx:19-21) NIGDY
-  //   nie trafia w to zapytanie. Ani nasłuch realtime redakcji, ani sygnał
-  //   między kartami (`emitWidgetCacheInvalidate`) go nie dosięgają.
-  // KONSEKWENCJA: zmiana nazwiska, awatara albo adresu profilu autora nie
-  //   odświeża byline slidera na stronie głównej - hero trzyma stare dane
-  //   osobowe do wygaśnięcia `staleTime` (60 s) LUB do pełnego przeładowania
-  //   karty. To dokładnie ta klasa cichego rozjazdu, dla której powstał
-  //   `queryKeys.ts` (nagłówek, linie 3-14), tylko ominięta: `queryKeys.test.ts`
-  //   sprawdza kierunek korzeń -> użycie, a nie użycie -> korzeń.
-  // WYMAGANA POPRAWKA: dopisać `sliderAuthors: "builder-slider-authors"` do
-  //   `WIDGET_QUERY_ROOTS`, użyć stałej w `sliderAuthorsQuery.ts:64`
-  //   i - ponieważ zapytanie zależy od treści redakcyjnej - dopisać ją do
-  //   `LIVE_INVALIDATED_ROOTS`.
-  it.fails("DEFEKT: korzeń klucza autorów slidera MUSI być w katalogu inwalidacji", () => {
+  // KONTRAKT: `sliderAuthorsQueryOptions` buduje klucz z
+  // `WIDGET_QUERY_ROOTS.sliderAuthors`, a korzeń jest w `LIVE_INVALIDATED_ROOTS`,
+  // więc predykat `isWidgetQueryKey` trafia w byline slidera - nasłuch realtime
+  // redakcji i sygnał `emitWidgetCacheInvalidate` odświeżają nazwisko i awatar
+  // autora razem ze slajdami, zamiast trzymać stare dane do `staleTime`.
+  it("korzeń klucza autorów slidera jest w katalogu inwalidacji i trafia go predykat", () => {
     const root = sliderAuthorsQueryOptions([]).queryKey[0];
     const predicate = capturePredicate();
 
