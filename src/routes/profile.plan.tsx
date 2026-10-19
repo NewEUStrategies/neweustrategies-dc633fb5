@@ -11,6 +11,7 @@ import { billingKeys } from "@/lib/billing/keys";
 import { fetchMySubscription } from "@/lib/billing/queries";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { isRepriceLookupKey } from "@/lib/billing/subscriptionRepricing";
+import { isLivePlanSubscriptionStatus } from "@/lib/billing/planSubscriptionGuard";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getStripeRenewalCharge } from "@/utils/payments.functions";
@@ -64,10 +65,15 @@ function PlanPage() {
   // „Cena: 39 zł" obok daty, w której operator pobierze 59 zł, to błędna
   // informacja o kwocie. Dla tych kluczy kwota wyłącznie z odczytu operatora,
   // a bez niego - brak kwoty; dla pozostałych katalog jest bezpiecznym zapasem.
+  //
+  // Plan jest z `user_subscriptions`, kwota z najnowszego wiersza lustra
+  // `subscriptions` - to nie zawsze ta sama subskrypcja (porzucony 3DS
+  // osobnego zakupu zostawia nowszy wiersz `incomplete`). Kwota tylko przy
+  // ZGODNEJ cenie (`lookup_key` planu) i żywym statusie; inaczej brak kwoty.
   const catalogPriceTrusted = !isRepriceLookupKey(lookupKey);
   const environment = getStripeEnvironmentSafe();
   const chargeQ = useQuery({
-    queryKey: billingKeys.myRenewalCharge(uid, environment),
+    queryKey: billingKeys.myRenewalCharge(uid, environment, subscription?.id, lookupKey),
     queryFn: () => getStripeRenewalCharge({ data: { environment } }),
     enabled: !!session && !!plan && !catalogPriceTrusted,
     staleTime: 60_000,
@@ -76,6 +82,8 @@ function PlanPage() {
   const liveCharge =
     !catalogPriceTrusted &&
     chargeQ.data &&
+    chargeQ.data.priceId === lookupKey &&
+    isLivePlanSubscriptionStatus(chargeQ.data.status) &&
     chargeQ.data.amountCents !== null &&
     chargeQ.data.currency
       ? { amountCents: chargeQ.data.amountCents, currency: chargeQ.data.currency }

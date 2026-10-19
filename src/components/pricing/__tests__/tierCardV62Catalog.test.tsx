@@ -10,6 +10,10 @@
 //      dziewięć w rozwijanej liście szczegółowej (przycisk
 //      z `aria-expanded` / `aria-controls`), razem z nagłówkiem o „tym samym
 //      jednym bilecie rocznie - nie drugim".
+//   3. Granica wpływu POZA spotlightem (zgłoszenie tematu Rady, posiedzenie
+//      agendy Kręgu Założycieli) jest widoczna w stanie ZWINIĘTYM - nie za
+//      „Pokaż więcej". `toBeVisible`, bo `getByText` znajduje też treść
+//      w panelu z atrybutem `hidden`.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -115,5 +119,23 @@ describe("Członek Pro - pełna lista benefitów bez strat", () => {
     renderTier("pro", "member");
 
     expect(screen.getByText(/tym samym jednym biletem rocznie, nie drugim/)).toBeVisible();
+  });
+});
+
+describe("granica wpływu poza spotlightem - widoczna bez rozwijania", () => {
+  it.each([
+    ["vip", "pro", /Zgłoszenie jest wnioskiem, nie zleceniem/],
+    ["presidents_circle", "partner_general", /zapis nie podlega negocjacji w umowie indywidualnej/],
+  ])("%s: zdanie wiążące stoi na karcie w stanie zwiniętym", (key, previousKey, sentence) => {
+    renderTier(key, previousKey);
+
+    expect(screen.getByText(sentence)).toBeVisible();
+  });
+
+  it("Krąg Założycieli: krótka reszta bez przycisku „Pokaż więcej”", () => {
+    renderTier("presidents_circle", "partner_general");
+
+    expect(screen.queryByRole("button", { name: /pricing\.benefitsMore/ })).toBeNull();
+    expect(screen.getByText("Miejsce w panelu recenzenckim publikacji")).toBeVisible();
   });
 });

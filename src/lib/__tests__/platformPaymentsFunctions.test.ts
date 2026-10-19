@@ -226,17 +226,34 @@ describe("renewal charge for the profile card", () => {
     });
 
     expect(h.renewal).toHaveBeenCalledWith("live", "sub_own");
-    expect(result).toEqual({ amountCents: 5900, currency: "PLN" });
+    // Cena i status wiersza lustra mówią, CZYJA to kwota - /profile/plan
+    // porównuje je z planem uprawnienia.
+    expect(result).toEqual({
+      amountCents: 5900,
+      currency: "PLN",
+      priceId: "old_plan",
+      status: "active",
+    });
   });
 
   it("no subscription or no readable amount: nulls instead of a catalogue price", async () => {
     db.setResponse("subscriptions", ok(null));
-    expect(await invoke("getStripeRenewalCharge")).toEqual({ amountCents: null, currency: null });
+    expect(await invoke("getStripeRenewalCharge")).toEqual({
+      amountCents: null,
+      currency: null,
+      priceId: null,
+      status: null,
+    });
     expect(h.renewal).not.toHaveBeenCalled();
 
     db.setResponse("subscriptions", ok(sub));
     h.renewal.mockResolvedValue(null);
-    expect(await invoke("getStripeRenewalCharge")).toEqual({ amountCents: null, currency: null });
+    expect(await invoke("getStripeRenewalCharge")).toEqual({
+      amountCents: null,
+      currency: null,
+      priceId: "old_plan",
+      status: "active",
+    });
   });
 });
 

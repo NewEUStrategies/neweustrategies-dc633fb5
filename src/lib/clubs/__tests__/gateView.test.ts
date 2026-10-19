@@ -120,6 +120,27 @@ describe("sellTier - czego bramka nie sprzedaje", () => {
     expect(view.sellTier).toBe("corporate");
   });
 
+  // Podpowiedź przełącznika w panelu (`tiers.pricingVisibleHint`) obiecuje
+  // dokładnie to: bramka wybiera z drabinki klubów, a Członek Pro zostaje
+  // progiem domyślnym klubów z rangą do 10 także po ukryciu jego karty.
+  it("ukryty Członek Pro: klub z rangą do 10 dalej woła Pro, klub z rangą 20 - Radę", () => {
+    const notSold = clubPlanTiersNotSold([
+      { key: "pro", pricing_visible: false },
+      { key: "corporate", pricing_visible: false },
+    ]);
+    const sell = (rank: number) =>
+      clubGateView({
+        club: club({ min_tier_rank: rank }),
+        signedIn: true,
+        isExpert: false,
+        notSold,
+      }).sellTier;
+
+    expect(sell(0)).toBe(DEFAULT_CLUB_PLAN_TIER);
+    expect(sell(10)).toBe(DEFAULT_CLUB_PLAN_TIER);
+    expect(sell(20)).toBe("vip");
+  });
+
   it("katalog progów jeszcze niewczytany: stan po migracji v6.2 (Enterprise ukryty)", () => {
     expect(clubPlanTiersNotSold(undefined)).toBe(CLUB_PLAN_TIERS_NOT_SOLD);
     expect(clubPlanTiersNotSold([])).toBe(CLUB_PLAN_TIERS_NOT_SOLD);

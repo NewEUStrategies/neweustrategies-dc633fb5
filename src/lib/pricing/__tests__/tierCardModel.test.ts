@@ -343,8 +343,8 @@ describe("ctaVariant - wyróżniona warstwa przyciąga wzrok", () => {
 describe("splitBenefits - każda obietnica dokładnie raz", () => {
   const b = (pl: string, en = pl) => ({ pl, en });
 
-  // Spotlight zabiera z listy swoje pozycje; to, co zostaje, przy karcie ze
-  // spotlightem idzie w całości do rozwinięcia (`more`).
+  // Spotlight zabiera z listy swoje pozycje; to, co zostaje, stoi na liście
+  // widocznej (`rest`) albo w rozwinięciu (`more`) - zależnie od długości.
   const listed = (split: ReturnType<typeof splitBenefits>) =>
     [...split.rest, ...split.more].map((x) => x.pl);
 
@@ -375,7 +375,7 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
     expect(listed(plSplit)).toHaveLength(2);
   });
 
-  it("ze spotlightem RESZTA idzie w całości do rozwinięcia (v6.2: 3 + 9)", () => {
+  it("ze spotlightem DŁUGA reszta idzie w całości do rozwinięcia (v6.2: 3 + 9)", () => {
     // „Komunikacja karty": różnicę komunikują trzy pozycje spotlightu,
     // pozostałe dziewięć trafia do rozwijanej listy szczegółowej - dawny
     // limit 4 zostawiał na karcie Pro siedem stałych punktów.
@@ -397,17 +397,82 @@ describe("splitBenefits - każda obietnica dokładnie raz", () => {
     expect(split.highlights.length + split.rest.length + split.more.length).toBe(12);
   });
 
+  it("ze spotlightem KRÓTKA reszta (do czterech) zostaje na karcie, bez „Pokaż więcej”", () => {
+    // Krąg Założycieli (2 pozycje poza spotlightem), Kadra Akademicka (1):
+    // przycisk chowający jedną-dwie pozycje niczego nie porządkuje.
+    const all = Array.from({ length: 7 }, (_, i) => b(`Benefit ${i}`));
+
+    const split = splitBenefits(all, [all[0], all[1], all[2]], "pl");
+
+    expect(split.rest.map((x) => x.pl)).toEqual([
+      "Benefit 3",
+      "Benefit 4",
+      "Benefit 5",
+      "Benefit 6",
+    ]);
+    expect(split.more).toEqual([]);
+    expect(split.moreLead).toBeNull();
+  });
+
+  it("pozycja z `detail_*` (granica wpływu) NIE chowa się w rozwinięciu", () => {
+    // Rada Instytutu: spotlight zabiera Decision Laby, Zjazd i sounding board;
+    // „Zgłoszenie tematu" z zastrzeżeniem „wnioskiem, nie zleceniem" zostaje
+    // widoczne, reszta idzie do rozwinięcia.
+    const header = "Wszystko z progu Członek Pro, oraz:";
+    const topic = {
+      ...b("Zgłoszenie tematu"),
+      detail_pl: "Zgłoszenie jest wnioskiem, nie zleceniem.",
+    };
+    const all = [
+      { ...b("Decision Laby"), group_pl: header },
+      b("Zjazd"),
+      b("Sounding board"),
+      b("Korespondencja"),
+      topic,
+      b("Kluby"),
+      b("Konsultacje"),
+      b("Opiekun"),
+    ];
+
+    const split = splitBenefits(all, [all[0], all[1], all[2]], "pl");
+
+    expect(split.rest.map((x) => x.pl)).toEqual(["Zgłoszenie tematu"]);
+    expect(split.more.map((x) => x.pl)).toEqual([
+      "Korespondencja",
+      "Kluby",
+      "Konsultacje",
+      "Opiekun",
+    ]);
+    // Nagłówek grupy idzie z pierwszą pozycją, którą klient widzi od razu.
+    expect(split.rest[0].group_pl).toBe(header);
+    expect(split.more[0].group_pl).toBeUndefined();
+    expect(split.moreLead).toBeNull();
+  });
+
   it("nagłówek grupy benefitu ze spotlightu stoi NAD rozwinięciem, nie w nim", () => {
     // Członek Pro: zastrzeżenie „ten sam jeden bilet rocznie - nie drugi" wisi
     // na pierwszym benefice, który trafia do spotlightu. Lista widoczna jest
     // pusta, więc nagłówek nie może schować się za „Pokaż więcej".
     const header = "Wszystko z progu Członek - ten sam bilet, nie drugi - oraz:";
-    const all = [{ ...b("Klub"), group_pl: header }, b("Monitoring"), b("Onboarding")];
+    const all = [
+      { ...b("Klub"), group_pl: header },
+      b("Monitoring"),
+      b("Onboarding"),
+      b("Noty"),
+      b("Zapytania"),
+      b("Q&A"),
+    ];
 
     const split = splitBenefits(all, [all[0]], "pl");
 
     expect(split.moreLead).toBe(header);
-    expect(split.more.map((x) => x.pl)).toEqual(["Monitoring", "Onboarding"]);
+    expect(split.more.map((x) => x.pl)).toEqual([
+      "Monitoring",
+      "Onboarding",
+      "Noty",
+      "Zapytania",
+      "Q&A",
+    ]);
     expect(split.more[0].group_pl).toBeUndefined();
   });
 

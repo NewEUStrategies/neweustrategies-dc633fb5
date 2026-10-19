@@ -133,6 +133,9 @@ describe("PlanSwitchBoard - żądanie w locie", () => {
     // Subskrypcja i warstwa dostępu - bez nich karta pokazuje stary plan.
     expect(keys).toContain(JSON.stringify(billingKeys.mySubscriptionAll()));
     expect(keys).toContain(JSON.stringify(billingKeys.currentTierAll()));
+    // Kwota odnowienia na /profile/plan - inaczej stara kwota stoi obok nowego
+    // planu (upgrade) albo obok zaplanowanego downgrade'u.
+    expect(keys).toContain(JSON.stringify(billingKeys.renewalChargeAll()));
     // Zamówienia i dokumenty - prorata wystawia nową fakturę.
     expect(keys).toContain(JSON.stringify(billingKeys.myOrdersAll()));
     expect(keys).toContain(JSON.stringify(billingKeys.myBillingDocumentsAll()));

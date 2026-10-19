@@ -33,10 +33,30 @@ export const billingKeys = {
   /**
    * Ta sama kwota dla strony „Mój plan" (/profile/plan), która zna tylko
    * wiersz uprawnienia, nie subskrypcję operatora - serwer i tak bierze ją
-   * z sesji. Wspólny prefiks z `renewalCharge`.
+   * z sesji. Wiersz i `lookup_key` planu są w kluczu (jak cena i miejsca
+   * w `renewalCharge`): po zmianie planu kwota starej pozycji nie może stać
+   * w cache obok nazwy nowego planu. Wspólny prefiks z `renewalCharge`.
    */
-  myRenewalCharge: (uid: string | undefined, env: string) =>
-    ["renewal-charge", "mine", uid ?? "anon", env] as const,
+  myRenewalCharge: (
+    uid: string | undefined,
+    env: string,
+    subscriptionId: string | null | undefined,
+    lookupKey: string | null | undefined,
+  ) =>
+    [
+      "renewal-charge",
+      "mine",
+      uid ?? "anon",
+      env,
+      subscriptionId ?? "none",
+      lookupKey ?? "none",
+    ] as const,
+  /**
+   * Prefiks obu kwot odnowienia - do inwalidacji po zmianie planu
+   * i synchronizacji (zaplanowany downgrade nie zmienia planu ani ceny
+   * w kluczu, a odczyt operatora zmienia się na „kwota nieustalona").
+   */
+  renewalChargeAll: () => ["renewal-charge"] as const,
   /** Podgląd kosztu zmiany planu (kwota liczona przez operatora). */
   planChangePreview: (subscriptionId: string, targetPriceId: string, env: string) =>
     ["plan-change-preview", subscriptionId, targetPriceId, env] as const,

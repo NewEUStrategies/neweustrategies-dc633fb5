@@ -108,6 +108,10 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() });
     void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
+    // Zaplanowany downgrade i zmniejszenie miejsc nie zmieniają `price_id`
+    // ani liczby miejsc w kluczu kwoty, a operator odpowiada odtąd „kwota
+    // nieustalona” (harmonogram) - bez tego karta trzyma starą kwotę.
+    void qc.invalidateQueries({ queryKey: billingKeys.renewalChargeAll() });
   };
 
   const changePlan = useMutation({

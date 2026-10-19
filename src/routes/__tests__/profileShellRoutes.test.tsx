@@ -63,9 +63,12 @@ const h = vi.hoisted(() => ({
   grants: [] as Record<string, unknown>[],
   tier: null as Record<string, unknown> | null,
   /** Kwota odnowienia z żywej subskrypcji u operatora (`getStripeRenewalCharge`). */
-  renewal: { amountCents: null, currency: null } as {
+  renewal: { amountCents: null, currency: null, priceId: null, status: null } as {
     amountCents: number | null;
     currency: string | null;
+    /** `lookup_key` i status wiersza lustra, z którego serwer czytał kwotę. */
+    priceId: string | null;
+    status: string | null;
   },
   renewalCalls: 0,
 }));
@@ -201,7 +204,7 @@ beforeEach(() => {
   h.subscription = null;
   h.grants = [];
   h.tier = null;
-  h.renewal = { amountCents: null, currency: null };
+  h.renewal = { amountCents: null, currency: null, priceId: null, status: null };
   h.renewalCalls = 0;
   window.localStorage.clear();
   document.body.style.overflow = "";
@@ -729,12 +732,68 @@ describe("/profile/plan - trzy stany planu", () => {
       canceled_at: null,
       current_period_end: "2026-10-20T00:00:00.000Z",
     };
-    h.renewal = { amountCents: 5900, currency: "PLN" };
+    h.renewal = { amountCents: 5900, currency: "PLN", priceId: "plus_monthly", status: "active" };
     await mountPlan();
     await waitFor(() => expect(screen.getByText("profile.planPage.priceLabel")).toBeTruthy());
     const price = screen.getByText("profile.planPage.priceLabel").nextElementSibling;
     expect(price?.textContent).toMatch(/59,00/);
     expect(price?.textContent).not.toMatch(/39,00/);
+  });
+
+  // Plan jest z `user_subscriptions`, kwota z NAJNOWSZEGO wiersza lustra
+  // `subscriptions` - po porzuconym 3DS osobnego zakupu to inna subskrypcja.
+  it.each([
+    ["inna cena (porzucony zakup Członka przy Zespole)", "plus_monthly", "incomplete"],
+    ["ta sama cena, subskrypcja wygasła przed startem", "team_monthly_seat", "incomplete_expired"],
+    ["ta sama cena, subskrypcja anulowana", "team_monthly_seat", "canceled"],
+  ])("kwota z innej subskrypcji niż plan: BEZ ceny (%s)", async (_label, priceId, status) => {
+    h.subscription = {
+      plan: { tier_key: "team", interval: "month", price_cents: 8900, currency: "PLN" },
+      status: "active",
+      canceled_at: null,
+      current_period_end: "2026-10-20T00:00:00.000Z",
+    };
+    h.renewal = { amountCents: 3900, currency: "PLN", priceId, status };
+    await mountPlan();
+    await waitFor(() => expect(h.renewalCalls).toBe(1));
+    await waitFor(() => expect(screen.getByText("profile.subscription.renewsAt")).toBeTruthy());
+    expect(screen.queryByText("profile.planPage.priceLabel")).toBeNull();
+    expect(screen.queryByText(/39,00/)).toBeNull();
+  });
+
+  it("po zmianie planu kwota NIE zostaje z cache starej pozycji", async () => {
+    // Upgrade Członek -> Członek Pro: `changePlan` od razu zapisuje plan_id,
+    // tablica zmian unieważnia subskrypcję. Klucz kwoty niesie plan, więc
+    // strona pyta operatora ponownie zamiast pokazać 59 zł przy Członku Pro.
+    h.subscription = {
+      id: "us-1",
+      plan: { tier_key: "member", interval: "month", price_cents: 3900, currency: "PLN" },
+      status: "active",
+      canceled_at: null,
+      current_period_end: "2026-10-20T00:00:00.000Z",
+    };
+    h.renewal = { amountCents: 5900, currency: "PLN", priceId: "plus_monthly", status: "active" };
+    const { queryClient } = await mountPlan();
+    await waitFor(() =>
+      expect(
+        screen.getByText("profile.planPage.priceLabel").nextElementSibling?.textContent,
+      ).toMatch(/59,00/),
+    );
+
+    h.subscription = {
+      ...h.subscription,
+      plan: { tier_key: "pro", interval: "month", price_cents: 8900, currency: "PLN" },
+    };
+    h.renewal = { amountCents: 11900, currency: "PLN", priceId: "pro_monthly", status: "active" };
+    await queryClient.invalidateQueries({ queryKey: ["my-subscription"] });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("profile.planPage.priceLabel").nextElementSibling?.textContent,
+      ).toMatch(/119,00/),
+    );
+    expect(h.renewalCalls).toBe(2);
+    expect(screen.queryByText(/59,00/)).toBeNull();
   });
 
   it("Członek po v6.2 bez potwierdzonej kwoty: BEZ ceny (nie katalogowe 39 zł)", async () => {

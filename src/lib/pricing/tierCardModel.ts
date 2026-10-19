@@ -19,6 +19,7 @@ import { intervalLabelKey } from "@/lib/billing/intervalLabel";
 import type { AccessPlan } from "@/lib/billing/types";
 import type { MembershipTierRow, TierBenefit } from "@/lib/billing/tiers";
 import {
+  benefitDetail,
   benefitText,
   intervalPair,
   pickPlanForInterval,
@@ -216,15 +217,18 @@ export function ctaVariant(tier: Pick<MembershipTierRow, "highlight">): "default
 // --- BENEFITY ---------------------------------------------------------------
 
 /**
- * Ile pozycji zostaje widocznych pod spotlightem. Z wyróżnieniami ŻADNA:
- * v6.2, „Komunikacja karty" - różnicę wobec progu niżej komunikują trzy
- * pozycje spotlightu, a pozostałe (u Członka Pro dziewięć) trafiają do
- * rozwijanej listy szczegółowej; „fence zbudowany z dwunastu elementów nie
- * jest czytelny". Dawny limit 4 zostawiał na karcie Pro siedem stałych
- * punktów zamiast trzech. Bez spotlightu karta nie ma czym się wyróżnić
- * inaczej, więc lista zostaje.
+ * Ile pozycji zostaje widocznych pod spotlightem. KRÓTKA reszta (do czterech
+ * pozycji: Krąg Założycieli 2, Kadra Akademicka 1) zostaje na karcie
+ * w całości - „Pokaż więcej (1)" nic nie porządkuje. DŁUŻSZA (Członek Pro 9,
+ * Członek 8, Rada 5) idzie do rozwijanej listy szczegółowej: v6.2,
+ * „Komunikacja karty" - różnicę wobec progu niżej komunikują trzy pozycje
+ * spotlightu, „fence zbudowany z dwunastu elementów nie jest czytelny".
+ * Dawny limit 4 zostawiał na karcie Pro siedem stałych punktów zamiast trzech.
+ * Wyjątek: pozycja z `detail_*` (granica wpływu Rady i Kręgu) - patrz
+ * `splitBenefits`. Bez spotlightu karta nie ma czym się wyróżnić inaczej,
+ * więc lista zostaje.
  */
-const REST_CAP_WITH_HIGHLIGHTS = 0;
+const SHORT_REST_WITH_HIGHLIGHTS = 4;
 const REST_CAP_WITHOUT_HIGHLIGHTS = 8;
 
 /** Nagłówek grupy benefitu (`group_*`) w języku strony; `null` = brak. */
@@ -252,7 +256,12 @@ function groupLabel(benefit: TierBenefit, lang: string): string | null {
  *      ginęło np. zastrzeżenie Pro „ten sam jeden bilet rocznie - nie drugi";
  *   4. gdy widoczna lista jest pusta (karta ze spotlightem), nagłówek
  *      pierwszej pozycji rozwinięcia wychodzi PRZED przycisk (`moreLead`):
- *      zastrzeżenie wiążące nie może się chować za „Pokaż więcej".
+ *      zastrzeżenie wiążące nie może się chować za „Pokaż więcej";
+ *   5. pozycja z `detail_*` NIGDY nie trafia do rozwinięcia - to treść
+ *      wiążąca (granica wpływu: „zgłoszenie jest wnioskiem, nie zleceniem",
+ *      „zapis nie podlega negocjacji"), którą v6.2 każe pokazać w katalogu.
+ *      Gdy wyprzedza ją pozycja z nagłówkiem grupy schowana w rozwinięciu,
+ *      nagłówek przechodzi na nią (jak w regule 3).
  */
 export function splitBenefits(
   all: TierBenefit[],
@@ -286,10 +295,26 @@ export function splitBenefits(
     }
     pendingGroup = null;
   }
-  const cap = spotlight.length > 0 ? REST_CAP_WITH_HIGHLIGHTS : REST_CAP_WITHOUT_HIGHLIGHTS;
-  const rest = remaining.slice(0, cap);
-  const more = remaining.slice(cap);
-  const lead = rest.length === 0 && more[0] ? groupLabel(more[0], lang) : null;
-  if (lead) more[0] = { ...more[0], group_pl: undefined, group_en: undefined };
+  let rest: TierBenefit[];
+  let more: TierBenefit[];
+  if (spotlight.length === 0) {
+    rest = remaining.slice(0, REST_CAP_WITHOUT_HIGHLIGHTS);
+    more = remaining.slice(REST_CAP_WITHOUT_HIGHLIGHTS);
+  } else if (remaining.length <= SHORT_REST_WITH_HIGHLIGHTS) {
+    rest = remaining;
+    more = [];
+  } else {
+    rest = remaining.filter((benefit) => benefitDetail(benefit, lang) !== null);
+    more = remaining.filter((benefit) => benefitDetail(benefit, lang) === null);
+  }
+  const headed = more[0] && more[0] === remaining[0] ? groupLabel(more[0], lang) : null;
+  const lead = rest.length === 0 ? headed : null;
+  if (headed) {
+    const carrier = more[0];
+    more[0] = { ...carrier, group_pl: undefined, group_en: undefined };
+    if (!lead && !groupLabel(rest[0], lang)) {
+      rest[0] = { ...rest[0], group_pl: carrier.group_pl, group_en: carrier.group_en };
+    }
+  }
   return { highlights: spotlight, rest, more, moreLead: lead };
 }

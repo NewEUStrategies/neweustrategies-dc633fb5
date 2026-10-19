@@ -272,9 +272,13 @@ describe("SyncBillingButton - ratunek na spóźniony webhook", () => {
     fireEvent.click(screen.getByRole("button"));
 
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
-    // Sześć powierzchni: subskrypcja lokalna, operatorska, warstwa, zamówienia,
-    // dokumenty i nadania. Odświeżenie samej subskrypcji zostawiłoby paywall.
-    expect(invalidate.mock.calls.length).toBeGreaterThanOrEqual(6);
+    // Siedem powierzchni: subskrypcja lokalna, operatorska, kwota odnowienia,
+    // warstwa, zamówienia, dokumenty i nadania. Odświeżenie samej subskrypcji
+    // zostawiłoby paywall, a bez kwoty odnowienia - cenę sprzed synchronizacji.
+    expect(invalidate.mock.calls.length).toBeGreaterThanOrEqual(7);
+    expect(invalidate.mock.calls.map((call) => JSON.stringify(call[0]?.queryKey))).toContain(
+      JSON.stringify(["renewal-charge"]),
+    );
     expect(h.toastSuccess).toHaveBeenCalledWith("profile.planPage.syncOk");
   });
 

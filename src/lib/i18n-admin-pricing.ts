@@ -73,7 +73,7 @@ const adminPricingPl = {
       highlightHint: "Kotwica wyboru: obwódka, cień i domyślny wariant przycisku.",
       pricingVisible: "Widoczna w cenniku",
       pricingVisibleHint:
-        "Wyłączona karta znika z /pricing, strony dołączania i porównania na stronach planów, a strony wydarzeń i bramki klubów przestają wskazywać ten próg jako wymagany (proponują najbliższy próg z kartą). Próg, ranga i uprawnienia obecnych członków działają dalej.",
+        "Wyłączona karta znika z /pricing, strony dołączania i porównania na stronach planów. Strony wydarzeń wskazują wtedy najbliższy próg z kartą. Bramki klubów wybierają tylko z drabinki klubów (Członek Pro, Rada Instytutu, Enterprise, progi partnerskie, Krąg Założycieli): pomijają ukryty próg i wskazują następny wyższy z tej listy, nigdy Zespół; Członek Pro zostaje przy tym progiem domyślnym klubów z rangą do 10. Plan sprzedawany przez rozmowę po ukryciu karty jest na swojej stronie oznaczony jako wycofany, także dla obecnych abonentów. Próg, ranga i uprawnienia obecnych członków działają dalej.",
       contactUrl: "Link kontaktowy (CTA bez planu)",
       contactUrlHint:
         "Dla warstw bez planów samoobsługowych. Puste = wbudowany formularz kontaktowy na /pricing.",
@@ -253,7 +253,7 @@ const adminPricingEn: typeof adminPricingPl = {
       highlightHint: "Choice anchor: ring, shadow and the default button variant.",
       pricingVisible: "Shown on the price list",
       pricingVisibleHint:
-        "When off, the card disappears from /pricing, the join page and the comparison on plan pages, and event pages and club gates stop naming this tier as required (they suggest the nearest tier with a card). The tier, its rank and current members' entitlements keep working.",
+        "When off, the card disappears from /pricing, the join page and the comparison on plan pages. Event pages then name the nearest tier with a card. Club gates choose only from the club ladder (Member Pro, Institute Council, Enterprise, the partner tiers, Founders' Circle): they skip the hidden tier and name the next higher one on that list, never Team; Member Pro also stays the default for clubs ranked 10 or lower. A plan sold through a conversation is marked as retired on its plan page once its card is hidden, current subscribers included. The tier, its rank and current members' entitlements keep working.",
       contactUrl: "Contact link (CTA without a plan)",
       contactUrlHint:
         "For tiers without self-serve plans. Empty = built-in contact form on /pricing.",

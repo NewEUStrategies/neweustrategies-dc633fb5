@@ -322,6 +322,7 @@ describe("SubscriptionCard - wznowienie zaplanowanego anulowania", () => {
     const keys = invalidate.mock.calls.map((call) => JSON.stringify(call[0]?.queryKey));
     expect(keys).toContain(JSON.stringify(["my-stripe-subscription"]));
     expect(keys).toContain(JSON.stringify(["current-tier"]));
+    expect(keys).toContain(JSON.stringify(["renewal-charge"]));
   });
 });
 

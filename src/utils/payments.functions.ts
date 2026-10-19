@@ -26,6 +26,11 @@ const envSchema = z.enum(["sandbox", "live"]);
  * po swojej, starszej cenie, dopóki admin jej nie przeniesie. `null` = kwota
  * nieustalona (harmonogram zmiany, kilka pozycji, błąd odczytu) - karta
  * pokazuje wtedy samą nazwę planu. Subskrypcja z sesji, nigdy z ładunku.
+ *
+ * `priceId` (`lookup_key` z lustra) i `status` mówią, CZYJA to kwota: strona
+ * „Mój plan" bierze plan z `user_subscriptions`, a najnowszy wiersz lustra
+ * bywa inną subskrypcją (porzucony 3DS osobnego zakupu, anulowany zakup) -
+ * kwotę pokazuje tylko przy zgodnej cenie i żywym statusie.
  */
 export const getStripeRenewalCharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -34,17 +39,24 @@ export const getStripeRenewalCharge = createServerFn({ method: "POST" })
     const environment = resolveEnvironment(data.environment);
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("provider_subscription_id")
+      .select("provider_subscription_id, price_id, status")
       .eq("user_id", context.userId)
       .eq("environment", environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    if (!sub?.provider_subscription_id) return { amountCents: null, currency: null };
+    if (!sub?.provider_subscription_id) {
+      return { amountCents: null, currency: null, priceId: null, status: null };
+    }
     const { renewalListCharge } = await import("@/lib/billing/subscriptionProvider.server");
     const charge = await renewalListCharge(environment, sub.provider_subscription_id);
-    return { amountCents: charge?.amountCents ?? null, currency: charge?.currency ?? null };
+    return {
+      amountCents: charge?.amountCents ?? null,
+      currency: charge?.currency ?? null,
+      priceId: sub.price_id ?? null,
+      status: sub.status ?? null,
+    };
   });
 
 /** Zamiana czytelnego identyfikatora ceny (`lookup_key`) na `price_...` u Stripe. */

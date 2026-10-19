@@ -33,6 +33,7 @@ export function SyncBillingButton({ className, variant = "outline", size = "sm" 
       await Promise.all([
         qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() }),
         qc.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() }),
+        qc.invalidateQueries({ queryKey: billingKeys.renewalChargeAll() }),
         qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() }),
         qc.invalidateQueries({ queryKey: billingKeys.myOrdersAll() }),
         qc.invalidateQueries({ queryKey: billingKeys.myBillingDocumentsAll() }),

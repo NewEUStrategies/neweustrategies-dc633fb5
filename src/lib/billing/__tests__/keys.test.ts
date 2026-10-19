@@ -97,6 +97,18 @@ const FAMILIES: Family[] = [
     prefix: billingKeys.orgSeatsAll(),
   },
   {
+    // Karta subskrypcji (wiersz operatora) i strona „Mój plan" (wiersz
+    // uprawnienia + `lookup_key`) - jeden prefiks unieważnia obie kwoty.
+    name: "renewalCharge",
+    members: [
+      billingKeys.renewalCharge("sub_1", "live", "plus_monthly", 1),
+      billingKeys.myRenewalCharge(A, "live", "us-1", "plus_monthly"),
+      billingKeys.myRenewalCharge(A, "live", "us-1", "pro_monthly"),
+      billingKeys.myRenewalCharge(undefined, "sandbox", null, null),
+    ],
+    prefix: billingKeys.renewalChargeAll(),
+  },
+  {
     name: "crmLeadMembership",
     members: [billingKeys.crmLeadMembership("lead-1"), billingKeys.crmLeadMembership("lead-2")],
     prefix: billingKeys.crmLeadMembershipAll(),
