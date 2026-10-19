@@ -74,6 +74,20 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
+// P01 (S2, Integrator S2 2026-10-19): karta nie anuluje już jednym kliknięciem -
+// otwiera dialog anulowania. Atrapa dialogu z jednym przyciskiem „potwierdź”
+// (jak w `SubscriptionCard.edges.test.tsx`); kroki dialogu liczy
+// `RetentionDialog.test.tsx`, a ten plik pilnuje dalej tylko tego, że odmowa
+// operatora po potwierdzeniu nie jest ogłaszana jako sukces.
+vi.mock("@/components/billing/organisms/RetentionDialog", () => ({
+  RetentionDialog: (props: { open: boolean; onConfirmCancel: () => Promise<void> }) =>
+    props.open ? (
+      <button type="button" onClick={() => void props.onConfirmCancel().catch(() => {})}>
+        dialog-confirm-cancel
+      </button>
+    ) : null,
+}));
+
 import { SubscriptionCard } from "@/components/billing/organisms/SubscriptionCard";
 
 /** Kształt odmowy, jaki server fn operatora naprawdę zwracają. */
@@ -104,6 +118,7 @@ describe("odmowa operatora NIE jest sukcesem - anulowanie", () => {
     renderCard();
 
     fireEvent.click(screen.getByText("profile.subscription.cancel"));
+    fireEvent.click(screen.getByText("dialog-confirm-cancel"));
 
     await waitFor(() => expect(h.cancel).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -117,6 +132,7 @@ describe("odmowa operatora NIE jest sukcesem - anulowanie", () => {
     renderCard();
 
     fireEvent.click(screen.getByText("profile.subscription.cancel"));
+    fireEvent.click(screen.getByText("dialog-confirm-cancel"));
 
     await waitFor(() =>
       expect(h.toastSuccess).toHaveBeenCalledWith("profile.subscription.canceled"),

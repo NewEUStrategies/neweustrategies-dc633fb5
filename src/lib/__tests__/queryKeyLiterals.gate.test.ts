@@ -75,9 +75,6 @@ const LEGACY_KEY_ALIASES: readonly (readonly string[])[] = [["admin-access-plans
 const QUERY_KEY_LITERAL_DEBT: readonly string[] = [
   "src/components/admin/AccessSettingsPane.tsx", // S1
   "src/components/admin/PostGeneralOverview.tsx", // S1
-  "src/components/admin/billing/AdminBillingPanel.tsx", // S2
-  "src/components/admin/billing/AdminPaymentOrdersPanel.tsx", // S2
-  "src/components/admin/billing/AdminPaymentsDiagnosticsPanel.tsx", // S2
   "src/components/admin/coupons/organisms/CampaignsPage.tsx", // S1
   "src/components/admin/newsletter/OverviewPanel.tsx", // S1
   "src/components/admin/newsletter/PopupEventsPanel.tsx", // S1

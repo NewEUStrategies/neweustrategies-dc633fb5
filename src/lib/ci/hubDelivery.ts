@@ -451,6 +451,21 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/billing/{AdminBillingPanel,AdminPaymentOrdersPanel,AdminPaymentsDiagnosticsPanel}.tsx",
     "src/components/admin/billing/__tests__/{AdminBillingPanel,AdminPaymentOrdersPanel,AdminPaymentsDiagnosticsPanel}*.test.tsx",
     "src/lib/i18n-{admin-revenue-finance,profile}.ts",
+    // (Integrator S2, 2026-10-19): bliźniaki drizzle 8 migracji S2 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego na `main` po S4 - §6 dziennika
+    // wdrożenia); bez nich `check:migration-lanes` i `supabaseLaneCoverage`
+    // są czerwone.
+    "drizzle/migrations/{0338,0339,0340,0341,0342,0343,0344,0345}_*.sql",
+    // (Integrator S2, 2026-10-19): P01 zastępuje anulowanie jednym kliknięciem
+    // dialogiem - test fałszywego sukcesu potwierdza teraz w atrapie dialogu
+    // (asercje bez zmian).
+    "src/components/billing/__tests__/subscriptionFalseSuccess.test.tsx",
+    // (Integrator S2, 2026-10-19): Z-S6-16 - wpięcie `snapshot`
+    // (`admin_revenue_semantic_snapshot`, migracja 20261020110400) w migawkę huba.
+    "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
+    // (Integrator S2, 2026-10-19): filtr `status` z adresu do panelu rozliczeń
+    // (PLAN S1 §3.3) - panel S2 przyjmuje już `statusFilter`.
+    "src/routes/admin.billing.tsx",
   ],
   S3: [
     "supabase/migrations/2026102012????_*.sql",

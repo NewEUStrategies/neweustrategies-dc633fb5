@@ -2367,6 +2367,62 @@
       "when": 1792426785539,
       "tag": "0337_revenue_community_aggregates",
       "breakpoints": true
+    },
+    {
+      "idx": 338,
+      "version": "7",
+      "when": 1792426845539,
+      "tag": "0338_revenue_catalog_mirror",
+      "breakpoints": true
+    },
+    {
+      "idx": 339,
+      "version": "7",
+      "when": 1792426905539,
+      "tag": "0339_subscription_revenue_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 340,
+      "version": "7",
+      "when": 1792426965539,
+      "tag": "0340_revenue_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 341,
+      "version": "7",
+      "when": 1792427025539,
+      "tag": "0341_revenue_sql_helpers",
+      "breakpoints": true
+    },
+    {
+      "idx": 342,
+      "version": "7",
+      "when": 1792427085539,
+      "tag": "0342_revenue_aggregates",
+      "breakpoints": true
+    },
+    {
+      "idx": 343,
+      "version": "7",
+      "when": 1792427145539,
+      "tag": "0343_revenue_lifecycle_scanner",
+      "breakpoints": true
+    },
+    {
+      "idx": 344,
+      "version": "7",
+      "when": 1792427205539,
+      "tag": "0344_retention_flow_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 345,
+      "version": "7",
+      "when": 1792427265539,
+      "tag": "0345_revenue_offer_inputs_economics",
+      "breakpoints": true
     }
   ]
 }
