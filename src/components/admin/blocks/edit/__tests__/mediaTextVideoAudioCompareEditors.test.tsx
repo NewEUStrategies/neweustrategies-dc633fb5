@@ -73,10 +73,44 @@ describe.each([
     expect(screen.queryByPlaceholderText(PODPIS)).toBeNull();
     expect(changes).toEqual([]);
 
-    fireEvent.change(screen.getByPlaceholderText(urlPh), { target: { value: url } });
+    const pole = screen.getByPlaceholderText(urlPh);
+    fireEvent.change(pole, { target: { value: url } });
+    // Pisanie to jeszcze szkic - zapis idzie po opuszczeniu pola (albo Enter).
+    expect(changes).toEqual([]);
+    fireEvent.blur(pole);
     const zapis = ostatniZapis(changes);
     expect(zapis).toMatchObject({ id: start.id, type });
     expect(zapis.data).toEqual({ url, caption: "" });
+  });
+
+  it("wpisanie pierwszego znaku URL-a nie zabiera pola spod kursora", () => {
+    // NAPRAWIONE 2026-10-19: zapis po pierwszym znaku („h”) dawał niepusty URL,
+    // widok przełączał się na odtwarzacz, a pole - razem z fokusem - znikało.
+    function Kanwa() {
+      const [block, setBlock] = useState(blok(type, { url: "" }));
+      return <Editor block={block} onChange={setBlock} />;
+    }
+    render(<Kanwa />);
+    const pole = screen.getByPlaceholderText<HTMLInputElement>(urlPh);
+    pole.focus();
+    fireEvent.change(pole, { target: { value: "h" } });
+    fireEvent.change(pole, { target: { value: url } });
+    expect(pole.isConnected).toBe(true);
+    expect(document.activeElement).toBe(pole);
+    expect(document.querySelector(tag)).toBeNull();
+  });
+
+  it("Enter zapisuje adres raz, bez spacji z brzegów; pusty szkic nie zapisuje", () => {
+    const { changes } = renderEditor(Editor, blok(type, { url: "" }));
+    const pole = screen.getByPlaceholderText(urlPh);
+    fireEvent.change(pole, { target: { value: "   " } });
+    fireEvent.blur(pole);
+    expect(changes).toEqual([]);
+    fireEvent.change(pole, { target: { value: `  ${url} ` } });
+    fireEvent.keyDown(pole, { key: "Enter" });
+    fireEvent.blur(pole);
+    expect(changes).toHaveLength(1);
+    expect(ostatniZapis(changes).data).toEqual({ url });
   });
 
   it("z URL-em pokazuje odtwarzacz z flagami z danych", () => {

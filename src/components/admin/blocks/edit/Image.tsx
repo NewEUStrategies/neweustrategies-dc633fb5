@@ -2,8 +2,8 @@ import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block } from "@/lib/blocks/types";
 import { Image as ImageIcon } from "@/lib/lucide-shim";
-import { Input } from "@/components/ui/input";
 import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
+import { MediaUrlDraftInput } from "../MediaUrlDraftInput";
 import { readText } from "./dataVizShared";
 
 interface Props {
@@ -29,9 +29,9 @@ export function ImageBlock({ block, isActive, onChange }: Props) {
     return (
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <ImageIcon className="w-8 h-8 mx-auto text-muted-foreground" />
-        <Input
+        <MediaUrlDraftInput
           placeholder={bt.editor("image", "url")}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
+          onCommit={(next) => onChange({ ...block, data: { ...block.data, url: next } })}
           className="max-w-md mx-auto"
         />
         <p className="text-xs text-muted-foreground">{bt.editor("image", "settingsHint")}</p>

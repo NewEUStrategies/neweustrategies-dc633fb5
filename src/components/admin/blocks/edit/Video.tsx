@@ -1,10 +1,10 @@
 import type { Block } from "@/lib/blocks/types";
 import { str } from "@/components/blocks/renderer/data";
-import { Input } from "@/components/ui/input";
 import { Video as VideoIcon } from "@/lib/lucide-shim";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
+import { MediaUrlDraftInput } from "../MediaUrlDraftInput";
 
 interface Props {
   block: Block;
@@ -26,9 +26,9 @@ export function VideoBlock({ block, isActive, onChange }: Props) {
     return (
       <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
         <VideoIcon className="w-8 h-8 mx-auto text-muted-foreground" />
-        <Input
+        <MediaUrlDraftInput
           placeholder={i18n.editor("video", "urlPh")}
-          onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
+          onCommit={(next) => onChange({ ...block, data: { ...block.data, url: next } })}
           className="max-w-md mx-auto"
         />
         <p className="text-xs text-muted-foreground">{i18n.editor("video", "hint")}</p>

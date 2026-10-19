@@ -1,10 +1,10 @@
 import type { Block } from "@/lib/blocks/types";
 import { str } from "@/components/blocks/renderer/data";
 import { Music } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import { MediaWidgetToolbar } from "../MediaWidgetToolbar";
+import { MediaUrlDraftInput } from "../MediaUrlDraftInput";
 
 interface Props {
   block: Block;
@@ -36,9 +36,9 @@ export function AudioBlock({ block, isActive, onChange }: Props) {
       ) : (
         <div className="rounded-lg border-2 border-dashed border-border p-6 text-center space-y-2">
           <Music className="w-8 h-8 mx-auto text-muted-foreground" />
-          <Input
+          <MediaUrlDraftInput
             placeholder="URL pliku audio (mp3, ogg, wav)…"
-            onChange={(e) => onChange({ ...block, data: { ...block.data, url: e.target.value } })}
+            onCommit={(next) => onChange({ ...block, data: { ...block.data, url: next } })}
             className="max-w-md mx-auto"
           />
         </div>

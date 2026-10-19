@@ -32,6 +32,24 @@ function ostatni(changes: readonly Block[], wzor: Block): Block {
   return zapis;
 }
 
+describe("obraz - pusty blok", () => {
+  const URL_PH = "Wklej URL obrazu lub ścieżkę z biblioteki mediów…";
+  const PUSTY: Block = { id: "blk-pusty", type: "image", data: { url: "", alt: "" } };
+
+  it("adres zapisuje się dopiero po opuszczeniu pola, w jednym wpisie", () => {
+    // NAPRAWIONE 2026-10-19: zapis na każdym znaku przełączał blok na podgląd
+    // `<img src="h">` po pierwszej literze i pole znikało razem z fokusem.
+    const { changes } = renderEditor(ImageBlock, PUSTY);
+    const pole = screen.getByPlaceholderText(URL_PH);
+    fireEvent.change(pole, { target: { value: "h" } });
+    fireEvent.change(pole, { target: { value: "https://cdn.example.com/b.png" } });
+    expect(changes).toEqual([]);
+    fireEvent.blur(pole);
+    expect(changes).toHaveLength(1);
+    expect(ostatni(changes, PUSTY).data).toEqual({ url: "https://cdn.example.com/b.png", alt: "" });
+  });
+});
+
 describe("obraz - pola pod podglądem", () => {
   it.each([
     ["Podpis (opcjonalnie)…", "caption", "Rys. 1. Eksport"],
