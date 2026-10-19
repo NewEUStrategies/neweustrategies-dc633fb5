@@ -42,6 +42,21 @@ export const paywallPl = {
     checkoutFail: "Nie udało się rozpocząć płatności - spróbuj ponownie.",
     seeAllPlans: "Zobacz wszystkie plany",
     trialBadge: "{{days}} dni za darmo",
+    // Oferta ściany (S3, P14/P09): ścieżka zależy od persony czytelnika
+    // (`resolvePaywallOffer`), nie tylko od trybu reguły.
+    offer: {
+      upgradeTitle: "Ten tekst wymaga planu {{tier}}",
+      upgradeDesc: "Twój obecny plan go nie obejmuje. Przejdź na wyższy plan, aby czytać dalej.",
+      upgrade: "Przejdź na ten plan",
+      signupBuy: "Załóż konto i wybierz",
+      recommended: "Polecany",
+      org: "Dostęp zapewnia Twoja organizacja {{name}}. Poproś jej administratora o aktywne miejsce.",
+      orgLink: "Moja organizacja",
+      sales: "Ten materiał jest dostępny w planie na zapytanie.",
+      salesCta: "Zapytaj o ofertę",
+      granted: "Twoje konto ma dostęp. Odśwież stronę, jeśli treść się nie pokazała.",
+      chargedIn: "Płatność w {{currency}}",
+    },
     meter: {
       counter: "Darmowy artykuł {{used}} z {{limit}} w tym miesiącu",
       remaining_one: "Pozostał Ci jeszcze {{count}} darmowy artykuł.",
@@ -105,6 +120,19 @@ export const paywallEn: typeof paywallPl = {
     checkoutFail: "Could not start checkout - please try again.",
     seeAllPlans: "See all plans",
     trialBadge: "{{days}} days free",
+    offer: {
+      upgradeTitle: "This piece requires the {{tier}} plan",
+      upgradeDesc: "Your current plan does not include it. Upgrade to keep reading.",
+      upgrade: "Upgrade to this plan",
+      signupBuy: "Create account and choose",
+      recommended: "Recommended",
+      org: "Your organisation {{name}} provides access. Ask its administrator for an active seat.",
+      orgLink: "My organisation",
+      sales: "This content is available on an enquiry-based plan.",
+      salesCta: "Request an offer",
+      granted: "Your account has access. Refresh the page if the content has not appeared.",
+      chargedIn: "Charged in {{currency}}",
+    },
     meter: {
       counter: "Free article {{used}} of {{limit}} this month",
       remaining_one: "You have {{count}} free article left.",
