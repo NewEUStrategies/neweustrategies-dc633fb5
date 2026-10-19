@@ -2381,7 +2381,13 @@ const FROZEN_BUDGET_KB = {
   // i przyklejony pasek zakładek wydarzenia (public +17,9, admin +0,8),
   // decyzją zamawiającego; baza 85e0495d8 stała już na 4859,1.
   // Host 4877,8 -> 4878 -> +1.
-  overall: 4879,
+  // Ratchet 4879 -> 4959 (2026-10-19, hub „Przychód i lejek”: I0 + S6 + S1),
+  // decyzją zamawiającego D-08 (limity panelu podnoszone o zmierzony
+  // przyrost; public, publicCss, chunk i boot zamrożone). Przyrost to kod
+  // panelu admina ładowany leniwie: rejestr wskaźników i benchmarków BI,
+  // objaśnienia i skale, powłoka huba, wyniesione organizmy paywalla,
+  // cennika, członkostwa, newslettera i kuponów. Host 4957,3 -> 4958 -> +1.
+  overall: 4959,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
