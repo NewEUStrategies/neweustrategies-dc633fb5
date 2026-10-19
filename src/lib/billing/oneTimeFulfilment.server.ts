@@ -365,11 +365,23 @@ async function closeOpenOrder(
   order: LifecycleOrder,
   status: "canceled" | "failed",
   scope: string,
+  reason?: { cancel_reason: "session_expired" },
 ): Promise<boolean> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Powód zamknięcia idzie W TYM SAMYM zapisie co status (S3, P22): wyzwalacz
+  // `payment_orders_checkout_emit` rozróżnia porzuconą kasę
+  // (`checkout.abandoned.v1`) od anulowania ręcznego po
+  // `metadata.cancel_reason` w wierszu NEW - osobny, późniejszy zapis
+  // metadanych przyszedłby już po zdarzeniu. Metadane są scalane, nie
+  // zastępowane (kupon, wydarzenie, przegląd zostają).
+  const metadata = reason ? { ...(order.metadata ?? {}), ...reason } : null;
   const { data, error } = await supabaseAdmin
     .from("payment_orders")
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+      ...(metadata ? { metadata: metadata as Json } : {}),
+    })
     .eq("id", order.id)
     .in("status", [...OPEN_STATUSES])
     .select("id");
@@ -976,7 +988,9 @@ export async function expireCheckoutOrder(
     return false;
   }
 
-  const closed = await closeOpenOrder(order, "canceled", "expire");
+  const closed = await closeOpenOrder(order, "canceled", "expire", {
+    cancel_reason: "session_expired",
+  });
   const unpaid = await closedUnpaid(order, closed, "expire");
   if (unpaid && str(order.metadata, "event_id")) {
     await applyTicketOutcome(order.id, "unpaid", null, { notify: false, throwOnError: true });

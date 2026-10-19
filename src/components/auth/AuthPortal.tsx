@@ -33,12 +33,43 @@ import {
   type RegistrationFieldKey,
 } from "@/lib/auth/registrationFields";
 
+import {
+  parseLoginSearch,
+  postLoginTarget,
+  signupRedirectPath,
+  signupSourceForIntent,
+} from "@/lib/access/paywallLinks";
+import { track } from "@/lib/analytics/track";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
+
 import illustrationLight from "@/assets/login-illustration-light.jpg";
 import illustrationDark from "@/assets/login-illustration-dark.jpg";
 
 export type Mode = "signin" | "signup" | "reset";
 
-export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
+/** Zdarzenie lejka konta (P18) - wyłącznie przy zgodzie analitycznej. */
+function trackAccount(type: "signup_completed" | "login_completed", intent?: string): void {
+  if (!hasAnalyticsConsent()) return;
+  track({ type, name: type, meta: { intent: intent ?? null } });
+}
+
+export function AuthPortal({
+  initialMode = "signin",
+  next: rawNext,
+  intent: rawIntent,
+  planId: rawPlan,
+}: {
+  initialMode?: Mode;
+  /** Ścieżka powrotu (`?next`) - sanitizowana tutaj, nie w trasie (P15). */
+  next?: string;
+  /** Skąd czytelnik przyszedł (`?intent`) - źródło rejestracji. */
+  intent?: string;
+  /** Plan wybrany przed logowaniem (`?plan`) - powrót do jego kasy. */
+  planId?: string;
+}) {
+  // Jedna sanitizacja parametrów lejka (`paywallLinks`): trasa przepuszcza je
+  // kształtem, żeby walidator nie ciągnął modułu do chunka wejściowego.
+  const funnel = parseLoginSearch({ next: rawNext, intent: rawIntent, plan: rawPlan });
   const { t, i18n } = useTranslation();
   const uiLanguage = uiLang(i18n.language);
   const navigate = useNavigate();
@@ -65,11 +96,15 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
 
+  const target = postLoginTarget(funnel, "/");
   useEffect(() => {
     if (loading || !session || mfaPending) return;
-    // Po zalogowaniu każdy użytkownik (również staff) trafia na stronę główną.
-    navigate({ to: "/" });
-  }, [session, loading, mfaPending, navigate]);
+    // Po zalogowaniu wracamy tam, skąd czytelnik przyszedł (P15: artykuł za
+    // paywallem, klub, kasa wybranego planu); bez kontekstu - strona główna,
+    // jak dotąd (również staff). `href`, bo cel niesie zapytanie i kotwicę.
+    if (target === "/") navigate({ to: "/" });
+    else navigate({ href: target, replace: true } as never);
+  }, [session, loading, mfaPending, navigate, target]);
 
   // Napisy portalu idą ze słownika (`i18n-auth-portal.ts`). Tekst bohatera jest
   // treścią REDAKCYJNĄ z ustawień strony logowania, nie napisem interfejsu, więc
@@ -138,21 +173,27 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
             linkedin: val("linkedin"),
             phone: val("phone"),
           },
-          { lang: uiLanguage, source: "auth_page" },
+          // Źródło rejestracji z intencji (P16): paywall, licznik, cennik,
+          // kasa, bramka klubu - biała lista `account.registered.v1`.
+          { lang: uiLanguage, source: signupSourceForIntent(funnel.intent) },
         );
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}${
+            // Link z e-maila wraca przez `/auth/callback?next=` na treść, przez
+            // którą czytelnik się zarejestrował; bez kontekstu - jak dotąd.
+            emailRedirectTo: `${window.location.origin}${signupRedirectPath(
+              target === "/" ? null : target,
               settings.logged_in_redirect_url?.startsWith("/")
                 ? settings.logged_in_redirect_url
-                : "/"
-            }`,
+                : "/",
+            )}`,
             data: metadata,
           },
         });
         if (error) throw error;
+        trackAccount("signup_completed", funnel.intent);
 
         toast.success(t("authPortal.toasts.accountCreated"));
       } else if (mode === "reset") {
@@ -173,6 +214,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
           setMfaOpen(true);
         } else {
           setMfaPending(false);
+          trackAccount("login_completed", funnel.intent);
           toast.success(t("authPortal.toasts.signedIn"));
         }
       }
@@ -595,6 +637,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
         onVerified={() => {
           setMfaOpen(false);
           setMfaPending(false);
+          trackAccount("login_completed", funnel.intent);
           toast.success(t("authPortal.toasts.signedIn"));
         }}
         onCancel={() => {

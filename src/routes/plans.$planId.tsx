@@ -222,10 +222,15 @@ function PlanDetailsPage() {
   // Plan progu sprzedawanego PRZEZ ROZMOWĘ (Zespół v6.2: „3-20 miejsc ·
   // rozmowa"): cena jest jawna jak na karcie /pricing, ale zamiast kasy -
   // formularz rozmowy. To nie jest plan wycofany.
+  //
+  // P21 (S3): o rozmowie decyduje PRÓG (`cta_mode = contact`), nie flaga
+  // sprzedaży planu. Dotąd plan w sprzedaży (`for_sale` puste/true) pod progiem
+  // „rozmowa" dostawał tu przycisk kasy, choć karta /pricing tego samego progu
+  // prowadziła do formularza - dwie odpowiedzi na to samo pytanie. Wybór
+  // liczby miejsc w kasie jest odłożony do cennika (SPEC §9.4).
   const conversationSale =
     !enquiryOnly &&
     !saleModeUnknown &&
-    plan.for_sale === false &&
     tier !== null &&
     tier.pricing_visible !== false &&
     tierCtaMode(tier) === "contact";

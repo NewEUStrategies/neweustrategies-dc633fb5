@@ -13,7 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { billingKeys } from "@/lib/billing/keys";
 import { finalizeCheckout } from "@/lib/billing/checkout.functions";
-import { safeReturnPath } from "@/lib/billing/returnPath";
+import { safeNextPath } from "@/lib/access/paywallLinks";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { PurchaseConfirmationView } from "@/components/builder/organisms/widget-view/PurchaseConfirmationView";
 import { MembershipWelcome } from "@/components/membership/MembershipWelcome";
@@ -129,7 +129,10 @@ function SuccessPage() {
       const stored = sessionStorage.getItem(RETURN_KEY);
       // Klucz jest jednorazowy - czyścimy go niezależnie od wyniku walidacji.
       sessionStorage.removeItem(RETURN_KEY);
-      const safe = safeReturnPath(stored, "");
+      // Ta sama sanitizacja co `next` logowania (S3, P15): `safeReturnPath`
+      // plus odkodowanie (`/%2F%2Fhost` po jednym dekodowaniu to `//host`)
+      // i odrzucenie pętli logowania - jeden sanitizer powrotów lejka.
+      const safe = safeNextPath(stored) ?? "";
       // `/checkout` i `/profile` odpadają jako cel powrotu: pierwszy zapętla
       // lejek, drugi jest już dostępny z samego widoku potwierdzenia.
       if (safe && !safe.startsWith("/checkout") && !safe.startsWith("/profile")) {

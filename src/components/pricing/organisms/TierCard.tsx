@@ -179,6 +179,9 @@ function TierCardCta({
         <Button asChild className={ctaClass} variant={variant}>
           <Link
             to="/login"
+            // P15: CTA darmowego progu otwiera REJESTRACJĘ (dotąd logowanie),
+            // a intencja `pricing` trafia do źródła rejestracji (P16).
+            search={{ mode: "signup", intent: "pricing" }}
             onClick={() =>
               trackCta("pricing_signup_click", {
                 tier_key: tier.key,

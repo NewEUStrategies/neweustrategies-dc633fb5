@@ -125,3 +125,51 @@ export function trackFooterNewsletterSubmit(
     gtagIfConsented()?.("event", "footer_newsletter_signup", { status, ...(meta ?? {}) });
   });
 }
+
+// ---------------------------------------------------------------------------
+// SUKCES ZAPISU NA NEWSLETTER (S3, P18)
+// ---------------------------------------------------------------------------
+// DEFEKT. Stopka woła `trackFooterNewsletterSubmit("success")` w nasłuchu
+// `submit` - czyli PRZED odpowiedzią serwera. Odmowa (zły adres, limit,
+// awaria) liczyła się jako zapis, a panel stopki musiał to tłumaczyć napisem
+// „lejek niedomknięty".
+//
+// ZMIANA (mechanizm tutaj, okablowanie w integracji - `NewsletterForm.tsx`
+// i `Footer.tsx` są poza wycinkiem S3): formularz po potwierdzonym zapisie
+// ogłasza zdarzenie DOM `NEWSLETTER_SUBSCRIBED_EVENT` (bąbelkujące, więc
+// stopka słucha go na swoim korzeniu zamiast `submit`), a kanoniczny krok
+// lejka to `newsletter_signup` (GA4 `join_group`) - za tą samą bramką zgody
+// co każde zdarzenie `track()`.
+
+/** Zdarzenie DOM: formularz newslettera potwierdził zapis (serwer `ok`). */
+export const NEWSLETTER_SUBSCRIBED_EVENT = "nes:newsletter-subscribed";
+
+export interface NewsletterSubscribedDetail {
+  /** Powierzchnia formularza (`footer`, `popup`, `inline`…). */
+  source: string;
+}
+
+/** Ogłoszenie potwierdzonego zapisu z elementu formularza (bąbelkuje w górę). */
+export function announceNewsletterSubscribed(target: EventTarget, source: string): void {
+  fireBeacon(() => {
+    target.dispatchEvent(
+      new CustomEvent<NewsletterSubscribedDetail>(NEWSLETTER_SUBSCRIBED_EVENT, {
+        bubbles: true,
+        detail: { source },
+      }),
+    );
+  });
+}
+
+/** Kanoniczny krok lejka: zapis potwierdzony przez serwer (P18). */
+export function trackNewsletterSignup(source: string, meta?: Record<string, unknown>): void {
+  fireBeacon(() => {
+    track({
+      type: "newsletter_signup",
+      name: "newsletter_signup",
+      entityType: "cta",
+      entityId: `newsletter_${source}`.slice(0, 120),
+      meta: { source, ...(meta ?? {}) },
+    });
+  });
+}

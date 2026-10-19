@@ -76,6 +76,18 @@ const ALLOWED_TYPES = new Set([
   "search",
   "interaction",
   "impression",
+  // Kroki lejka czytelnika (S3, P18). Typ = nazwa zdarzenia: metryki
+  // semantyczne lejka (V2R, PPCR) liczą je po `event_type`, a raporty po
+  // `event_name` - oba odczyty widzą ten sam wiersz. Klient wysyła je
+  // wyłącznie przy zgodzie analitycznej (jak każde zdarzenie tego ingestu).
+  "paywall_view",
+  "paywall_cta_click",
+  "pricing_view",
+  "checkout_view",
+  "checkout_submit",
+  "signup_completed",
+  "login_completed",
+  "newsletter_signup",
 ]);
 const ALLOWED_ENTITIES = new Set([
   "post",
@@ -91,6 +103,8 @@ const ALLOWED_ENTITIES = new Set([
   "search_query",
   "cta",
   "menu",
+  // Bramka klubu jako powierzchnia paywalla (S3, `ClubAccessGate`).
+  "club",
 ]);
 
 const limiter = createRateLimiter({ capacity: 120, refillPerSec: 2 });

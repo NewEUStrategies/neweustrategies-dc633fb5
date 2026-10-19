@@ -22,6 +22,8 @@ import {
 } from "@/lib/billing/displayCurrency";
 
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
+import { track } from "@/lib/analytics/track";
+import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -153,6 +155,23 @@ function CheckoutPage() {
     }
   }, [plan.isSuccess, planData, t]);
 
+  // P18: wejście do kasy i wysłanie formularza to kroki lejka (PPCR:
+  // `pricing_view` -> `checkout_submit`). Zdarzenia klienta wyłącznie przy
+  // zgodzie analitycznej; fakty serwera (`checkout.*.v1`) liczą się zawsze.
+  const viewedPlan = useRef<string | null>(null);
+  useEffect(() => {
+    if (!planData || viewedPlan.current === planData.id) return;
+    viewedPlan.current = planData.id;
+    if (!hasAnalyticsConsent()) return;
+    track({
+      type: "checkout_view",
+      name: "checkout_view",
+      entityType: "plan",
+      entityId: planData.id,
+      meta: { interval: planData.interval, signed_in: !!session },
+    });
+  }, [planData, session]);
+
   // Plan, którego nie da się kupić samoobsługowo (cennik v6.2): Decision Lab
   // wyłącznie na zapytanie, Partner Biznesowy wycofany ze sprzedaży, Zespół
   // sprzedawany przez rozmowę. Serwer
@@ -228,6 +247,15 @@ function CheckoutPage() {
         toast.error(t("checkout.paymentsNotConfigured"));
         setBusy(false);
         return;
+      }
+      if (hasAnalyticsConsent()) {
+        track({
+          type: "checkout_submit",
+          name: "checkout_submit",
+          entityType: "plan",
+          entityId: planData.id,
+          meta: { interval: planData.interval, has_coupon: !!coupon },
+        });
       }
       const result = await openPlanCheckout({
         planId: planData.id,

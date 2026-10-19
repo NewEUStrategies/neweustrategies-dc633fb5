@@ -276,6 +276,10 @@ describe("trasa /checkout/success - adres powrotu", () => {
     ["schemat javascript", "javascript:alert(1)"],
     ["schemat w ścieżce", "/javascript:alert(1)"],
     ["wstrzyknięcie CRLF", "/artykul\nSet-Cookie: a=b"],
+    // S3 (P15): jeden sanitizer powrotów lejka (`safeNextPath`) - zakodowane
+    // `//` po jednym dekodowaniu jest adresem protocol-relative.
+    ["zakodowany protocol-relative", "/%2F%2Fevil.test"],
+    ["zakodowany backslash", "/%5Cevil.test"],
   ])("odrzuca wrogi adres powrotu (%s) i wraca na stronę główną", async (_label, evil) => {
     sessionStorage.setItem(RETURN_KEY, evil);
     await mount(`${PATH}?order=ord_1`);
@@ -289,12 +293,26 @@ describe("trasa /checkout/success - adres powrotu", () => {
     expect(sessionStorage.getItem(RETURN_KEY)).toBeNull();
   });
 
-  it.each(["/checkout/plan-1", "/profile/orders"])("nie zapętla lejka na %s", async (internal) => {
-    sessionStorage.setItem(RETURN_KEY, internal);
+  it("wraca do klubu, z którego czytelnik wszedł w kasę (bramka klubu, S3)", async () => {
+    sessionStorage.setItem(RETURN_KEY, "/club/klub-energetyczny");
     await mount(`${PATH}?order=ord_1`);
-
-    expect(await screen.findByRole("link", { name: "Wróć na stronę główną" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Wróć do artykułu" })).toHaveAttribute(
+      "href",
+      "/club/klub-energetyczny",
+    );
   });
+
+  it.each(["/checkout/plan-1", "/profile/orders", "/login?mode=signin"])(
+    "nie zapętla lejka na %s",
+    async (internal) => {
+      sessionStorage.setItem(RETURN_KEY, internal);
+      await mount(`${PATH}?order=ord_1`);
+
+      expect(
+        await screen.findByRole("link", { name: "Wróć na stronę główną" }),
+      ).toBeInTheDocument();
+    },
+  );
 });
 
 describe("trasa /checkout/success - dokument redakcyjny", () => {

@@ -49,6 +49,13 @@ const NAME_MAP: Record<string, string> = {
   strategy_click: "select_content",
   signup_completed: "sign_up",
   login_completed: "login",
+  // Lejek czytelnika (S3, P18). Kasa planu nie emituje ecommerce'owego
+  // `begin_checkout` (to robi tylko koszyk), więc wysłanie formularza kasy
+  // planu jest nim w raportach GA4; cennik to lista ofert. Kroki bez
+  // odpowiednika (`paywall_view`, `paywall_cta_click`, `checkout_view`)
+  // idą pod własną nazwą po sanityzacji.
+  pricing_view: "view_item_list",
+  checkout_submit: "begin_checkout",
   post_view: "view_item",
   page_view_entity: "view_item",
   author_view: "view_item",
