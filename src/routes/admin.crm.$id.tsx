@@ -46,7 +46,7 @@ import {
 } from "@/lib/crm/leadMutations";
 import { crmKeys } from "@/lib/crm/keys";
 import { BILLING_OWNED_LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
-import { crmLifecycleDict } from "@/lib/i18n-admin-crm-lifecycle";
+import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { LeadStageHistoryCard } from "@/components/admin/crm/LeadStageHistoryCard";
 import type { ConsentLogRow } from "@/lib/crm/consentLog";

@@ -4,7 +4,9 @@
 //
 // Side-effect import w komponencie: import "@/lib/i18n-admin-crm-lifecycle";
 // Obiekty pl/en są eksportowane - test parytetu pilnuje identycznego drzewa
-// kluczy, a komponenty z prop `lang` (lista CRM) czytają etykiety wprost.
+// kluczy. Komponenty z propem `lang` (lista i karta CRM) czytają gałąź
+// `adminCrm.lifecycle` z magazynu i18next przez `crmLifecycleDict`
+// (`components/admin/crm/crmLifecycleLabels.ts`).
 import i18n from "@/lib/i18n";
 
 export const crmLifecyclePl = {
@@ -226,11 +228,6 @@ export const crmLifecycleEn: typeof crmLifecyclePl = {
     },
   },
 };
-
-/** Słownik dla komponentów z prop `lang` (lista CRM nie używa i18next). */
-export function crmLifecycleDict(lang: "pl" | "en") {
-  return (lang === "en" ? crmLifecycleEn : crmLifecyclePl).adminCrm.lifecycle;
-}
 
 i18n.addResourceBundle("pl", "translation", crmLifecyclePl, true, true);
 i18n.addResourceBundle("en", "translation", crmLifecycleEn, true, true);

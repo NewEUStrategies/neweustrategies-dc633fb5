@@ -36,7 +36,7 @@ import { DEFAULT_LEAD_FILTER, isDefaultLeadFilter, type LeadFilter } from "@/lib
 import { CRM_SOURCE_TYPES } from "@/lib/crm/leadListSpec";
 import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 import { SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
-import { crmLifecycleDict } from "@/lib/i18n-admin-crm-lifecycle";
+import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
 
 /** Limit tagu i liczby tagów filtra - te same co `LeadListFilterSchema`. */
 const FILTER_TAG_MAX = 40;

@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getCrmLeadStageHistory, type LeadStageHistoryRow } from "@/lib/crm.functions";
 import { crmKeys } from "@/lib/crm/keys";
-import { crmLifecycleDict } from "@/lib/i18n-admin-crm-lifecycle";
+import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
 import { formatDateTime } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 

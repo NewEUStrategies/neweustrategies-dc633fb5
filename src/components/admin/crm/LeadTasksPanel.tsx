@@ -22,7 +22,7 @@ import {
 } from "@/lib/crm-tasks.functions";
 import { defaultDueDate, formatDue as formatDueAt, isOverdue } from "@/lib/crm/tasksView";
 import { crmKeys } from "@/lib/crm/keys";
-import { crmLifecycleDict } from "@/lib/i18n-admin-crm-lifecycle";
+import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
 
 const TXT = {
   pl: {
