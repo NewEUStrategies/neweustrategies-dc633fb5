@@ -849,12 +849,22 @@ describe("useBuilderOperations - testy A/B", () => {
 
   it.each([["a"], ["b"], ["both"]] as const)(
     "zakończenie testu (%s) domyka eksperyment w bazie",
-    (keep) => {
+    async (keep) => {
       const s = setup();
-      act(() => s.result.current.endAbTest("exp-1", keep));
+      await act(async () => s.result.current.endAbTest("exp-1", keep));
       expect(experimentSetStatus).toHaveBeenCalledWith("exp-1", "completed");
       expect(toastSuccess).toHaveBeenCalledWith("builder.ops.abEnded");
       expect(s.recorded).toHaveLength(1);
     },
   );
+
+  it("odmowa zamknięcia testu w bazie daje błąd, a nie komunikat sukcesu", async () => {
+    experimentSetStatus.mockResolvedValueOnce(false);
+    const s = setup();
+    await act(async () => s.result.current.endAbTest("exp-1", "a"));
+    expect(toastSuccess).not.toHaveBeenCalledWith("builder.ops.abEnded");
+    expect(toastError).toHaveBeenCalledWith("builder.ops.abEndStatusFailed");
+    // Wybór wariantu w dokumencie zostaje - to osobna, udana zmiana.
+    expect(s.recorded).toHaveLength(1);
+  });
 });

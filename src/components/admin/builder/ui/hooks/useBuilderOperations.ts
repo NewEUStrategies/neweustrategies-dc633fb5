@@ -311,8 +311,13 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   };
   const endAbTest = (experimentId: string, keep: "a" | "b" | "both") => {
     update((d) => ops.endAbTest(d, experimentId, keep));
-    void experiments.setStatus(experimentId, "completed");
-    toast.success(t("builder.ops.abEnded"));
+    // Dokument już ma wybrany wariant, ale odmowa zapisu statusu zostawia
+    // eksperyment „running" w bazie - redaktor musi to wiedzieć, a nie
+    // dostać komunikat sukcesu.
+    void experiments.setStatus(experimentId, "completed").then((ok) => {
+      if (ok) toast.success(t("builder.ops.abEnded"));
+      else toast.error(t("builder.ops.abEndStatusFailed"));
+    });
   };
 
   /**

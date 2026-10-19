@@ -1198,6 +1198,8 @@ const pl = {
       abCreateErr: "Nie udało się utworzyć testu A/B",
       abCreateOk: "Utworzono test A/B - edytuj wariant B poniżej oryginału",
       abEnded: "Zakończono test A/B",
+      abEndStatusFailed:
+        "Wybrano wariant, ale nie udało się zamknąć testu w bazie - zmień jego status w Eksperymentach",
       movedWidget: "Przeniesiono widget",
       movedWidgetToColumn: "Przeniesiono widget do kolumny",
       movedWidgetToSection: "Przeniesiono widget do sekcji",
@@ -2801,6 +2803,8 @@ const en: typeof pl = {
       abCreateErr: "Could not create the A/B test",
       abCreateOk: "A/B test created - edit variant B below the original",
       abEnded: "A/B test ended",
+      abEndStatusFailed:
+        "The variant was applied, but the test could not be closed in the database - change its status in Experiments",
       movedWidget: "Widget moved",
       movedWidgetToColumn: "Widget moved to column",
       movedWidgetToSection: "Widget moved to section",

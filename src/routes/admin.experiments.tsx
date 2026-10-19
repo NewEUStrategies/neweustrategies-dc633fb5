@@ -40,6 +40,14 @@ function ExperimentsPage() {
     toast.success(t("admin.experiments.deleted"));
   };
 
+  // Pauza i wznowienie: odmowa bazy zostawia stary status, więc karta nie
+  // zmieni się - bez komunikatu wyglądałoby to na martwy przycisk.
+  const changeStatus = async (id: string, status: "paused" | "running") => {
+    if (!(await experiments.setStatus(id, status))) {
+      toast.error(t("admin.experiments.statusFailed"));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header>
@@ -62,8 +70,8 @@ function ExperimentsPage() {
             <ExperimentCard
               key={x.id}
               experiment={x}
-              onPause={() => void experiments.setStatus(x.id, "paused")}
-              onResume={() => void experiments.setStatus(x.id, "running")}
+              onPause={() => void changeStatus(x.id, "paused")}
+              onResume={() => void changeStatus(x.id, "running")}
               onRemove={() => void removeExperiment(x)}
             />
           ))}

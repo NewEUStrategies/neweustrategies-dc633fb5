@@ -286,6 +286,24 @@ describe("akcje zależą od statusu", () => {
     expect(h.setStatus).toHaveBeenNthCalledWith(1, "pierwszy", "paused");
     expect(h.setStatus).toHaveBeenNthCalledWith(2, "drugi", "running");
   });
+
+  it("odmowa zmiany statusu mówi o tym redaktorowi; udana nie pokazuje błędu", async () => {
+    h.items = [
+      experiment({ id: "pierwszy", name: "Pierwszy", status: "running" }),
+      experiment({ id: "drugi", name: "Drugi", status: "paused" }),
+    ];
+    h.setStatus.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await mount();
+    await act(async () => {
+      fireEvent.click(within(card("Pierwszy")).getByTitle("admin.experiments.pause"));
+    });
+    expect(h.toastError).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(card("Drugi")).getByTitle("admin.experiments.resume"));
+    });
+    expect(h.toastError).toHaveBeenCalledWith("admin.experiments.statusFailed");
+  });
 });
 
 // ---------------------------------------------------------------------------
