@@ -3,7 +3,9 @@ import { audioContentPath } from "../contentPath";
 
 describe("audio content navigation", () => {
   it("keeps canonical article navigation inside the running app", () => {
-    expect(audioContentPath("https://neweuropeanstrategies.com/blog/article?lang=pl#intro")).toBe("/blog/article?lang=pl#intro");
+    expect(audioContentPath("https://neweuropeanstrategies.com/blog/article?lang=pl#intro")).toBe(
+      "/blog/article?lang=pl#intro",
+    );
   });
   it("preserves local author links", () => {
     expect(audioContentPath("/author/anna")).toBe("/author/anna");
