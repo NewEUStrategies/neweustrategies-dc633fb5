@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { BadgeCheck, ChevronRight, Gift, ShieldCheck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { RevenueSegmentChip } from "@/components/admin/membership/atoms/RevenueSegmentChip";
 import { cn } from "@/lib/utils";
 import type { MembershipTierRow } from "@/lib/billing/tiers";
 
@@ -68,6 +69,8 @@ export function TierSummaryCard({
             {tm("inactiveBadge")}
           </Badge>
         )}
+        {/* Kafel jest przyciskiem - chip bez dymka (dymek jest w edytorze). */}
+        <RevenueSegmentChip tierKey={tier.key} hint={false} />
       </span>
 
       {description && (

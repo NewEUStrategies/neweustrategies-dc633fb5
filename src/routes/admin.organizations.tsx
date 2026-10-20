@@ -23,6 +23,12 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { billingKeys } from "@/lib/billing/keys";
+import {
+  TEAM_TIER_MAX_SEATS,
+  isTeamSeatsMaxError,
+  teamSeatAddBlocked,
+} from "@/lib/organizations/teamSeats";
+import { TeamSeatCapNotice } from "@/components/admin/organizations/TeamSeatCapNotice";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
 import {
   fetchOrganizations,
@@ -195,7 +201,7 @@ function OrgCard({ org, tierLabel }: { org: OrganizationRow; tierLabel: string }
           ) : null}
         </div>
 
-        <SeatManager orgId={org.id} seatsLimit={org.seats_limit} />
+        <SeatManager orgId={org.id} seatsLimit={org.seats_limit} tierKey={org.tier_key} />
       </CardContent>
     </Card>
   );
@@ -205,7 +211,16 @@ function OrgCard({ org, tierLabel }: { org: OrganizationRow; tierLabel: string }
 // Zarządzanie miejscami organizacji: licznik użyte/limit, lista miejsc oraz
 // dodawanie po e-mailu z rolą. Limit i unikalność egzekwuje RPC org_add_seat.
 // ---------------------------------------------------------------------------
-function SeatManager({ orgId, seatsLimit }: { orgId: string; seatsLimit: number }) {
+function SeatManager({
+  orgId,
+  seatsLimit,
+  tierKey,
+}: {
+  orgId: string;
+  seatsLimit: number;
+  /** Próg organizacji - Zespół ma najwyżej 20 aktywnych miejsc (I9b). */
+  tierKey: string;
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const seatsKey = billingKeys.admin.orgSeats(orgId);
@@ -216,7 +231,12 @@ function SeatManager({ orgId, seatsLimit }: { orgId: string; seatsLimit: number 
   });
   const seats = seatsQ.data ?? [];
   const used = seats.length;
-  const atLimit = used >= seatsLimit;
+  // Zespół: 21. aktywne miejsce odrzuca baza (20261020160300) - także przy
+  // limicie ponad 20 sprzed reguły, więc licznik limitu tego nie wyłapie.
+  const activeSeats = seats.filter(
+    (seat) => seat.status !== "suspended" && seat.status !== "grace",
+  ).length;
+  const atLimit = used >= seatsLimit || teamSeatAddBlocked(tierKey, activeSeats);
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"owner" | "member">("member");
@@ -230,7 +250,9 @@ function SeatManager({ orgId, seatsLimit }: { orgId: string; seatsLimit: number 
     },
     onError: (err: Error) => {
       const msg = err.message.toLowerCase();
-      if (msg.includes("limit")) {
+      if (isTeamSeatsMaxError(err.message)) {
+        toast.error(t("adminOrganizations.teamCap.rejected", { max: TEAM_TIER_MAX_SEATS }));
+      } else if (msg.includes("limit")) {
         toast.error(t("adminOrganizations.seatLimitReached"));
       } else if (msg.includes("exists")) {
         toast.error(t("adminOrganizations.seatAlreadyExists"));
@@ -269,6 +291,12 @@ function SeatManager({ orgId, seatsLimit }: { orgId: string; seatsLimit: number 
           {used}/{seatsLimit}
         </span>
       </div>
+      <TeamSeatCapNotice
+        tierKey={tierKey}
+        requestedSeats={seatsLimit}
+        base={{ tierKey, seatsLimit }}
+        activeSeats={activeSeats}
+      />
 
       {seatsQ.isLoading ? (
         <p className="text-xs text-muted-foreground">{t("adminOrganizations.loading")}</p>

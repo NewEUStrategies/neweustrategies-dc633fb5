@@ -59,6 +59,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -675,7 +676,7 @@ function CampaignEditor() {
                     </SelectItem>
                     {[...(tiersQ.data ?? [])]
                       .filter((tier) => tier.rank > 0)
-                      .sort((a, b) => a.rank - b.rank)
+                      .sort(compareTierRank)
                       .map((tier) => (
                         <SelectItem key={tier.key} value={String(tier.rank)}>
                           {t("adminNewsletter.campaigns.tierFrom")}{" "}

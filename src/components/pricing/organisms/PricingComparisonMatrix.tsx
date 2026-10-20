@@ -7,8 +7,11 @@
 //   * wiersze redakcyjne (values per tier.key) niosą różnice nieujęte flagą
 //     (limit analiz, zobowiązania procesowe [P] katalogu v6.2 z liczbą albo
 //     terminem: onboarding, noty, konsultacje, zjazdy),
-//   * gdzie flaga i karta v6.2 mówią co innego (np. Zespół bez trackera),
-//     macierz pokazuje PRAWDĘ BRAMKI - rozjazd jest zgłoszony, nie przykryty,
+//   * gdzie flaga i karta v6.2 mówią co innego, macierz pokazuje PRAWDĘ
+//     BRAMKI - np. Zespół najemcy sprzed decyzji właściciela z 2026-10-20
+//     ma kanał bezpośredni („bez limitu") zamiast puli 3 zapytań z v6.2
+//     (brak obniżki w opłaconym okresie), a nowy najemca - dokładnie pulę 3;
+//     tracker Zespołu i zakres Partnera dla NGO wynikają już z flag (I9b),
 //   * kolumna planu zalogowanego użytkownika (currentTierKey, rozstrzygana
 //     serwerowo per tenant przez current_membership_tier) jest podświetlona
 //     z etykietą "Twój plan".
@@ -101,8 +104,9 @@ function editorialValue(row: MatrixRow, tier: MembershipTierRow): CellValue {
 }
 
 function cellFor(row: MatrixRow, tier: MembershipTierRow, t: TFunction): CellValue {
-  // „Zapytanie do eksperta": realna liczba z planu (Członek/Pro) lub
-  // „Bezpośrednio" dla progów pisania wprost (Rada+). Zero => brak (kreska).
+  // „Zapytanie do eksperta": realna liczba z planu (Członek/Pro, Zespół
+  // nowego najemcy) lub „bez limitu, bezpośrednio" dla progów pisania wprost
+  // (Rada+, Zespół najemcy istniejącego). Zero => brak (kreska).
   if (row.derive === "expertRequest") {
     if (tierHasFeature(tier.features, "chat_direct_gated")) {
       return t("pricing.comparisonMatrix.expertRequestDirect");

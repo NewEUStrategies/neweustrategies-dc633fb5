@@ -236,6 +236,19 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["admin_revenue_diagnostic_snooze", "S7", "panel"],
   ["admin_revenue_diagnostic_unsnooze", "S7", "panel"],
   ["admin_revenue_diagnostic_snoozes", "S7", "panel"],
+  // I9 - decyzje właściciela z 2026-10-20 (I9b): katalog cennika v6.2
+  // (redefinicje sprzed huba, `HUB_CIALO_Z`), limit miejsc Zespołu i RODO
+  // księgi MRR (redakcja śladów operatora po usunięciu subskrypcji/konta).
+  ["pricing_catalog_v62_rows", "I9", "service"],
+  ["pricing_catalog_v62_benefits", "I9", "service"],
+  ["_pricing_v62_owner_decisions", "I9", "internal"],
+  ["tg_member_organizations_team_seat_cap", "I9", "trigger"],
+  ["tg_organization_seats_team_seat_cap", "I9", "trigger"],
+  ["_revenue_segments_recompute", "I9", "internal"],
+  ["_revenue_ledger_redact_subscription", "I9", "internal"],
+  ["_revenue_ledger_redact_orphans", "I9", "internal"],
+  ["tg_subscriptions_revenue_redact", "I9", "trigger"],
+  ["tg_auth_users_revenue_redact", "I9", "trigger"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -274,6 +287,23 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   log_metering_event: "20260721070203",
   tg_newsletter_subscribers_emit_events: "20260711220607",
   email_apply_delivery_event: "20260725123624",
+  pricing_catalog_v62_rows: "20261018160100",
+  pricing_catalog_v62_benefits: "20261018160200",
+};
+
+/**
+ * Funkcje INNYCH wycinków huba redefiniowane w bloku I9 - Integrator domyka
+ * w nim poprawki ze scalenia i decyzje właściciela (SPEC §4.2, wiersz
+ * `2026102016…`). Bez tego wyjątku każda taka redefinicja byłaby „złym
+ * blokiem" i „funkcją w dwóch blokach", choć właśnie po to I9 ma rezerwę.
+ * Wartość = wersja NAJNOWSZEJ wcześniejszej definicji w bloku huba; migracja
+ * I9 niesie ją jako `-- CIALO-Z:`, a bramka sprawdza, że rejestr nadal
+ * wskazuje najnowszą (późniejsza redefinicja w innym wycinku = czerwień).
+ * Właściciel i rodzaj zostają z `FUNCTION_TABLE` (granty jak u właściciela).
+ */
+export const HUB_I9_REDEFINITIONS: Readonly<Record<string, string>> = {
+  // Z-01 / Z-S2-02: segment przychodu z typu klienta (I9b, decyzja właściciela).
+  revenue_segment_of_tier: "20261020090500",
 };
 
 /**
@@ -742,6 +772,41 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/revenue/__tests__/checkoutAbandonMinutes.test.ts",
     "src/lib/billing/{checkoutSettings,checkoutSettings.server}.ts",
     "docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md",
+    // (Integrator I9b, 2026-10-20 - decyzje właściciela, część A: SQL
+    // i katalog). Segment przychodu z typu klienta (mapa I0, lustro TS,
+    // chip w panelu członkostwa), cennik v6.2 (Zespół, NGO - katalog
+    // seedu, lustra rang i macierz, stabilny drugi klucz rangi), Zespół
+    // 3-20 miejsc (stała współdzielona, funkcja serwerowa, panel
+    // organizacji) i RODO księgi MRR (test S2 Z-07 po wymianie
+    // identyfikatora subskrypcji).
+    "supabase/tests/hub_i9b_*_test.sql",
+    // Rezerwa I9 w bramce dostawy (`HUB_I9_REDEFINITIONS`) - fikstury reguły.
+    "src/lib/ci/__tests__/hubDelivery.gate.test.ts",
+    "supabase/tests/{hub_shared_helpers,pricing_catalog_v62,revenue_subscription_history}_test.sql",
+    "src/lib/revenue/segments.ts",
+    "src/lib/revenue/__tests__/segmentsParity.test.ts",
+    "src/lib/billing/{tierRanks,tiers}.ts",
+    "src/lib/billing/__tests__/{tierCatalogParity,tierRankOrder}.test.ts",
+    "src/lib/access/paywallOffer.ts",
+    "src/lib/admin/membersDirectory.functions.ts",
+    "src/lib/clubs/planTiers.ts",
+    "src/components/admin/AccessSettingsPane.tsx",
+    "src/components/admin/membership/membershipQueries.ts",
+    "src/components/admin/membership/molecules/{TierEditorCard,TierSummaryCard}.tsx",
+    "src/components/admin/membership/atoms/RevenueSegmentChip.tsx",
+    "src/components/admin/membership/atoms/__tests__/RevenueSegmentChip.test.tsx",
+    "src/lib/i18n-admin-membership.ts",
+    "src/components/pricing/organisms/PricingComparisonMatrix.tsx",
+    "src/components/pricing/__tests__/{comparisonMatrixV62,tierCardV62Catalog}.test.tsx",
+    "src/lib/i18n-pricing.ts",
+    "src/lib/organizations/{teamSeats,teamSeats.functions}.ts",
+    "src/lib/organizations/__tests__/{teamSeatCap,organizationsFunctions}.test.ts",
+    "src/components/admin/organizations/**",
+    "src/lib/i18n-admin-organizations.ts",
+    "src/routes/admin.organizations{,.new,.$id}.tsx",
+    "src/routes/__tests__/adminOrganizationsRoutes.test.tsx",
+    "src/routes/admin.library.tsx",
+    "src/routes/admin.newsletter.campaigns.$id.tsx",
   ],
 };
 
@@ -1113,6 +1178,17 @@ export interface HubDeliveryOptions {
   readonly verifyCialoZRegistry?: boolean;
 }
 
+/** Czy definicja w pliku wycinka `slice` to dozwolona redefinicja w rezerwie I9. */
+function isI9Redefinition(name: string, slice: HubSliceId | null): boolean {
+  const owner = HUB_FUNCTION_OWNERS[name];
+  return (
+    slice === "I9" &&
+    owner !== undefined &&
+    owner !== "I9" &&
+    Object.hasOwn(HUB_I9_REDEFINITIONS, name)
+  );
+}
+
 /**
  * Analiza migracji bloku huba. `migrations` może zawierać także pliki sprzed
  * huba - wtedy analiza wie, które funkcje istniały wcześniej (redefinicja bez
@@ -1126,6 +1202,7 @@ export function analyzeHubDelivery(
   const functions: HubFunctionDefinition[] = [];
   const files: string[] = [];
   const preHubLatest = new Map<string, string>();
+  const hubLatest = new Map<string, string>();
   const sorted = [...migrations].sort((a, b) => a.name.localeCompare(b.name));
 
   for (const file of sorted) {
@@ -1190,9 +1267,10 @@ export function analyzeHubDelivery(
       }
       functions.push({ name: hit.name, file: file.name, block: version.slice(0, 10) });
       const owner = HUB_FUNCTION_OWNERS[hit.name];
+      const i9Redefinition = isI9Redefinition(hit.name, fileSlice);
       if (owner === undefined) {
         add("bez-wlasciciela", `public.${hit.name} nie ma wpisu w HUB_FUNCTION_OWNERS`);
-      } else if (owner !== fileSlice) {
+      } else if (owner !== fileSlice && !i9Redefinition) {
         add(
           "zly-blok",
           `public.${hit.name} należy do ${owner} (blok ${HUB_VERSION_BLOCKS[owner] ?? "brak"}), plik jest w bloku ${version.slice(0, 10)}`,
@@ -1215,6 +1293,29 @@ export function analyzeHubDelivery(
           add("brak-cialo-z", `public.${hit.name} nie ma wpisu w HUB_CIALO_Z`);
         } else if (marker.version !== expected) {
           add("zly-cialo-z", `public.${hit.name}: CIALO-Z ${marker.version}, rejestr ${expected}`);
+        }
+      }
+      if (i9Redefinition) {
+        // Redefinicja funkcji innego wycinka w I9: ciało przepisane z NAJNOWSZEJ
+        // definicji w hubie - rejestr i znacznik muszą ją wskazywać.
+        const registered = HUB_I9_REDEFINITIONS[hit.name];
+        const latestInHub = hubLatest.get(hit.name);
+        if (marker === undefined) {
+          add(
+            "brak-cialo-z",
+            `public.${hit.name} redefiniuje funkcję huba - brak \`-- CIALO-Z: ${registered}\``,
+          );
+        } else if (marker.version !== registered) {
+          add(
+            "zly-cialo-z",
+            `public.${hit.name}: CIALO-Z ${marker.version}, rejestr ${registered}`,
+          );
+        }
+        if (latestInHub !== registered) {
+          add(
+            "zly-cialo-z",
+            `HUB_I9_REDEFINITIONS.${hit.name} = ${registered}, najnowsza wcześniejsza definicja w hubie: ${latestInHub ?? "brak"}`,
+          );
         }
       }
 
@@ -1251,10 +1352,16 @@ export function analyzeHubDelivery(
         }
       }
     });
+    // Najnowsza definicja w hubie liczy się dopiero PO pliku - redefinicja
+    // I9 porównuje się z wersją sprzed siebie, nie ze sobą.
+    for (const hit of hits)
+      if (hit.schema === null || hit.schema === "public") hubLatest.set(hit.name, version);
   }
 
   const blocksByFunction = new Map<string, Set<string>>();
   for (const def of functions) {
+    // Redefinicja w rezerwie I9 (rejestr wyżej) nie jest „drugim blokiem".
+    if (def.block === HUB_VERSION_BLOCKS.I9 && isI9Redefinition(def.name, "I9")) continue;
     const blocks = blocksByFunction.get(def.name) ?? new Set<string>();
     blocks.add(def.block);
     blocksByFunction.set(def.name, blocks);

@@ -12,7 +12,8 @@
 --   * `metering_defaults()` = wartości kontraktu = wiersz `metering_settings`
 --     wstawiony z samym `tenant_id` (domyślne kolumn);
 --   * `revenue_segment_of_tier` dla 14 kluczy `TIER_RANKS` + `decision_lab`,
---     nieznanego klucza i NULL;
+--     nieznanego klucza i NULL (mapa po redefinicji I9b 20261020160000:
+--     partnerzy i NGO -> b2b_institution);
 --   * granty EXECUTE wg macierzy SPEC §4.4 i `search_path` z `pg_temp`;
 --   * strażnik `hub_grants`: żadna funkcja serwisowa, wewnętrzna ani
 --     wyzwalacz z rejestru bramki dostawy nie ma EXECUTE dla anon/authenticated.
@@ -89,13 +90,16 @@ SELECT is_empty(
           '_journey_marketing_consent', '_journey_message_id', '_journey_next_time', '_journey_node',
           '_journey_num', '_journey_quiet_until', '_journey_send_verdict', '_journey_staff_tenant',
           '_journey_unsubscribe', '_log_emit_error',
-          '_membership_tier_for_user', '_revenue_facts_catalog', '_revenue_facts_checkout',
+          '_membership_tier_for_user', '_pricing_v62_owner_decisions', '_revenue_facts_catalog',
+          '_revenue_facts_checkout',
           '_revenue_facts_clubs', '_revenue_facts_coupons', '_revenue_facts_crm',
           '_revenue_facts_data_quality', '_revenue_facts_dunning', '_revenue_facts_events',
           '_revenue_facts_funnel', '_revenue_facts_journeys', '_revenue_facts_metering',
           '_revenue_facts_newsletter', '_revenue_facts_paywall', '_revenue_facts_retention',
-          '_revenue_facts_sync', '_revenue_facts_workflows', '_revenue_movements',
-          '_revenue_mrr_at', '_revenue_realized', '_tier_rank_of', 'billing_catalog_entry',
+          '_revenue_facts_sync', '_revenue_facts_workflows', '_revenue_ledger_redact_orphans',
+          '_revenue_ledger_redact_subscription', '_revenue_movements', '_revenue_mrr_at',
+          '_revenue_realized', '_revenue_segments_recompute', '_tier_rank_of',
+          'billing_catalog_entry',
           'billing_months_per_interval', 'crm_set_lifecycle_stage', 'journey_advance',
           'journey_can_send', 'journey_claim_due', 'journey_complete_email_step',
           'journey_contact_for_send', 'journey_eval_predicate', 'journey_fail_step',
@@ -104,14 +108,16 @@ SELECT is_empty(
           'journey_validate_graph', 'metering_defaults', 'newsletter_subscriber_list_set',
           'record_paywall_hit_visitor', 'revenue_segment_of_tier', 'run_retention_flow_scanner',
           'run_revenue_lifecycle_scanner', 'subscription_mrr_minor', 'tg_b2b_coupon_campaigns_emit',
-          'tg_b2b_coupon_redemptions_emit', 'tg_b2b_coupons_emit',
+          'tg_auth_users_revenue_redact', 'tg_b2b_coupon_redemptions_emit', 'tg_b2b_coupons_emit',
           'tg_billing_documents_renewed_emit', 'tg_checkout_settings_emit',
           'tg_club_applications_emit', 'tg_content_access_emit', 'tg_crm_leads_stage_history',
           'tg_event_registrations_attended_emit', 'tg_journey_route_event',
-          'tg_metering_settings_emit', 'tg_newsletter_settings_emit',
+          'tg_member_organizations_team_seat_cap', 'tg_metering_settings_emit',
+          'tg_newsletter_settings_emit', 'tg_organization_seats_team_seat_cap',
           'tg_payment_orders_checkout_emit', 'tg_profiles_account_registered_emit',
           'tg_retention_feedback_emit', 'tg_retention_reasons_emit', 'tg_retention_settings_emit',
-          'tg_subscriptions_revenue_history', 'tg_workflow_definitions_emit'
+          'tg_subscriptions_revenue_history', 'tg_subscriptions_revenue_redact',
+          'tg_workflow_definitions_emit'
         ]::name[]) $$,
   'hub_grants: funkcje serwisowe, wewnętrzne i wyzwalacze huba bez EXECUTE dla anon i authenticated');
 -- hub-grants:end
@@ -255,11 +261,12 @@ SELECT results_eq(
       ORDER BY n $$,
   $$ VALUES ('reader', 'other'), ('supporter', 'other'), ('member', 'b2c_individual'),
             ('student', 'b2c_reduced'), ('educator', 'b2c_reduced'), ('pro', 'b2c_individual'),
-            ('ngo', 'other'), ('vip', 'other'), ('team', 'b2b_institution'),
-            ('business', 'b2b_institution'), ('corporate', 'b2b_institution'), ('partner', 'other'),
-            ('partner_general', 'other'), ('presidents_circle', 'other'),
+            ('ngo', 'b2b_institution'), ('vip', 'other'), ('team', 'b2b_institution'),
+            ('business', 'b2b_institution'), ('corporate', 'b2b_institution'),
+            ('partner', 'b2b_institution'), ('partner_general', 'b2b_institution'),
+            ('presidents_circle', 'b2b_institution'),
             ('decision_lab', 'other'), ('hub_unknown_tier', 'other') $$,
-  'segment: 14 kluczy TIER_RANKS, decision_lab i nieznany klucz wg kontraktu');
+  'segment: 14 kluczy TIER_RANKS, decision_lab i nieznany klucz wg mapy z typu klienta (I9b, 20261020160000)');
 SELECT is(public.revenue_segment_of_tier(NULL), 'other', 'segment: NULL -> other');
 SELECT is_empty(
   $$ SELECT mt.key FROM public.membership_tiers mt

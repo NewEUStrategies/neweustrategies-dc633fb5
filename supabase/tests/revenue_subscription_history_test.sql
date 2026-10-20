@@ -21,7 +21,9 @@
 --     `domain_event_emit_errors`;
 --   * Z-07: usunięcie konta nie zmienia Σ `delta_minor` zamkniętych miesięcy,
 --     dopisuje odejście salda bez `user_id`, anonimizuje historię, ruchy
---     i cykle, domyka otwarty cykl jako `lost`;
+--     i cykle, domyka otwarty cykl jako `lost` (od I9b identyfikator
+--     subskrypcji w księdze jest wymieniany na losowy - pełna redakcja:
+--     hub_i9b_revenue_ledger_erasure_test);
 --   * `subscription.renewed.v1` - raz, tylko faktura odnowienia live bez
 --     zamówienia (także `open` -> `paid`), payload bez PII; dwóch najemców.
 --
@@ -302,7 +304,14 @@ CREATE TEMP TABLE closed_before ON COMMIT DROP AS
    WHERE tenant_id = 'd2020000-0000-0000-0000-0000000000a0' AND environment = 'live'
      AND occurred_at < date_trunc('month', now())
    GROUP BY currency;
+CREATE TEMP TABLE a1_rows ON COMMIT DROP AS
+  SELECT id FROM public.mrr_movements WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1';
 DELETE FROM auth.users WHERE id = 'd2020000-0000-0000-0000-00000000a101';
+-- Redakcja RODO I9b (20261020160400): identyfikator subskrypcji w księdze
+-- zostaje wymieniony na losowy (wspólny dla historii, ruchów i cykli) - wiersze
+-- odnajdujemy po ich `id` sprzed usunięcia.
+CREATE TEMP TABLE a1_new ON COMMIT DROP AS
+  SELECT DISTINCT m.subscription_id AS sub FROM public.mrr_movements m JOIN a1_rows r ON r.id = m.id;
 SELECT results_eq(
   $$ SELECT currency, sum(delta_minor) FROM public.mrr_movements
       WHERE tenant_id = 'd2020000-0000-0000-0000-0000000000a0' AND environment = 'live'
@@ -311,16 +320,18 @@ SELECT results_eq(
   $$ SELECT currency, s FROM closed_before ORDER BY currency $$,
   'Z-07: Σ delta_minor zamkniętych miesięcy bez zmian po usunięciu konta');
 SELECT ok(
-  (SELECT kind || ':' || reason || ':' || delta_minor || ':' || currency FROM public.mrr_movements
-    WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1' ORDER BY id DESC LIMIT 1) = 'churn:canceled:-800:EUR'
-  AND (SELECT sum(delta_minor) FROM public.mrr_movements WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1') = 0,
+  (SELECT count(*) FROM a1_new) = 1
+  AND (SELECT kind || ':' || reason || ':' || delta_minor || ':' || currency FROM public.mrr_movements
+        WHERE subscription_id = (SELECT sub FROM a1_new) ORDER BY id DESC LIMIT 1) = 'churn:canceled:-800:EUR'
+  AND (SELECT sum(delta_minor) FROM public.mrr_movements WHERE subscription_id = (SELECT sub FROM a1_new)) = 0,
   'Z-07: odejście otwartego salda zapisane przy usunięciu (saldo 0)');
 SELECT ok(
-  NOT EXISTS (SELECT 1 FROM public.mrr_movements WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1' AND user_id IS NOT NULL)
-  AND NOT EXISTS (SELECT 1 FROM public.subscription_state_history WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1' AND user_id IS NOT NULL)
-  AND (SELECT count(*) FROM public.subscription_state_history WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1') > 0
-  AND NOT EXISTS (SELECT 1 FROM public.dunning_cycles WHERE subscription_id = 'd2020000-0000-0000-0000-0000000005a1'
-                   AND (user_id IS NOT NULL OR outcome <> 'lost')),
+  NOT EXISTS (SELECT 1 FROM public.mrr_movements WHERE subscription_id = (SELECT sub FROM a1_new) AND user_id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM public.subscription_state_history WHERE subscription_id = (SELECT sub FROM a1_new) AND user_id IS NOT NULL)
+  AND (SELECT count(*) FROM public.subscription_state_history WHERE subscription_id = (SELECT sub FROM a1_new)) > 0
+  AND NOT EXISTS (SELECT 1 FROM public.dunning_cycles WHERE subscription_id = (SELECT sub FROM a1_new)
+                   AND (user_id IS NOT NULL OR outcome <> 'lost'))
+  AND (SELECT count(*) FROM public.dunning_cycles WHERE subscription_id = (SELECT sub FROM a1_new)) > 0,
   'Z-07: historia, ruchy i cykle zostają bez user_id; otwarty cykl domknięty jako lost');
 
 -- ── 11. Dwóch najemców ───────────────────────────────────────────────────────

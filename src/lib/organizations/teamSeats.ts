@@ -7,6 +7,87 @@
 export const MIN_TEAM_SEATS = 1;
 export const MAX_TEAM_SEATS = 500;
 
+// ── Próg Zespół: 3-20 miejsc (cennik v6.2) ─────────────────────────────────
+// Decyzja właściciela 2026-10-20 (I9b): organizacja na progu `team` ma
+// NAJWYŻEJ 20 miejsc - powyżej oferta to Enterprise. Autorytet ma baza
+// (wyzwalacze `tg_member_organizations_team_seat_cap` i
+// `tg_organization_seats_team_seat_cap`, 20261020160300, komunikat
+// `orgs: team seats max`); ta sama liczba żyje tu dla panelu i funkcji
+// serwerowej (parytet: `teamSeatCap.test.ts`). Odrzucenie, nigdy przycięcie:
+// panel nie zamienia 25 na 20, tylko mówi, że 25 to Enterprise.
+// Minimum 3 to warunek SPRZEDAŻY (rozmowa), nie przydziału - miejsca dodaje
+// się po jednym, więc panel ostrzega, a nie blokuje.
+
+/** Klucz progu Zespół w `membership_tiers`. */
+export const TEAM_TIER_KEY = "team";
+/** Górny limit miejsc organizacji na progu Zespół (= `c_team_max` w SQL). */
+export const TEAM_TIER_MAX_SEATS = 20;
+/** Minimum v6.2 - tylko ostrzeżenie w panelu. */
+export const TEAM_TIER_MIN_SEATS = 3;
+
+export type TeamSeatVerdict = "ok" | "below_min" | "above_max";
+
+/** Ocena liczby miejsc wobec reguły progu (inne progi: zawsze `ok`). */
+export function teamSeatVerdict(
+  tierKey: string | null | undefined,
+  seats: number,
+): TeamSeatVerdict {
+  if (tierKey !== TEAM_TIER_KEY) return "ok";
+  if (seats > TEAM_TIER_MAX_SEATS) return "above_max";
+  if (seats < TEAM_TIER_MIN_SEATS) return "below_min";
+  return "ok";
+}
+
+/**
+ * Czy dodanie aktywnego miejsca odrzuci baza: Zespół z 20 aktywnymi - także
+ * organizacja, która ma limit ponad 20 sprzed reguły (blokada TYLKO dodawania).
+ */
+export function teamSeatAddBlocked(
+  tierKey: string | null | undefined,
+  activeSeats: number,
+): boolean {
+  return tierKey === TEAM_TIER_KEY && activeSeats >= TEAM_TIER_MAX_SEATS;
+}
+
+/**
+ * Czy zmiana limitu / progu zostanie odrzucona przez bazę - lustro warunku
+ * wyzwalacza: limit > 20 przy wejściu na Zespół albo przy PODNIESIENIU limitu
+ * Zespołu (organizacja ponad limitem może zostać i obniżać).
+ */
+export function teamSeatLimitRejected(
+  next: { tierKey: string | null | undefined; seatsLimit: number },
+  base?: { tierKey: string | null | undefined; seatsLimit: number } | null,
+): boolean {
+  if (next.tierKey !== TEAM_TIER_KEY || next.seatsLimit <= TEAM_TIER_MAX_SEATS) return false;
+  if (!base || base.tierKey !== TEAM_TIER_KEY) return true;
+  return next.seatsLimit > base.seatsLimit;
+}
+
+/** Odmowa bazy `orgs: team seats max` (23514) - z komunikatu RPC albo zapisu. */
+export function isTeamSeatsMaxError(message: string | null | undefined): boolean {
+  return typeof message === "string" && message.includes("orgs: team seats max");
+}
+
+/**
+ * Progi do wyboru dla organizacji członkowskiej: konto organizacyjne (flaga
+ * `corporate_seats`) albo ranga od Enterprise w górę. Sama ranga >= 30 pomijała
+ * Zespół (25) - progu, który ze swej natury jest organizacją - więc admin nie
+ * mógł nadać go w panelu. Bez żadnego progu organizacyjnego (świeży najemca
+ * bez seedu) - wszystkie, żeby formularz działał.
+ */
+export function organizationTierOptions<T extends { rank: number; features?: unknown }>(
+  tiers: readonly T[],
+): T[] {
+  const organizational = tiers.filter(
+    (tier) =>
+      tier.rank >= 30 ||
+      (typeof tier.features === "object" &&
+        tier.features !== null &&
+        (tier.features as Record<string, unknown>).corporate_seats === true),
+  );
+  return organizational.length > 0 ? organizational : [...tiers];
+}
+
 export type SeatStatus = "active" | "grace" | "suspended";
 
 /** Zakres okresu karencji ustawianego dla organizacji (w dniach). */

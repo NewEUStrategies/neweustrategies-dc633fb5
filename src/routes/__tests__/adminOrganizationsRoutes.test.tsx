@@ -1126,6 +1126,34 @@ describe("admin.organizations - lista: miejsca w karcie organizacji", () => {
     expect(h.rpcCalls).toHaveLength(0);
   });
 
+  // Zespół „3-20" (I9b): organizacja z limitem 25 sprzed reguły zostaje (bez
+  // usuwania miejsc), ale 21. aktywnego miejsca baza nie przyjmie - karta
+  // pokazuje stan x/20 i blokuje TYLKO dodawanie.
+  it("Zespół z limitem 25 sprzed reguły i 20 aktywnymi: dodawanie zablokowane, stan x/20", async () => {
+    db().setResponse("member_organizations", ok([orgRow({ tier_key: "team", seats_limit: 25 })]));
+    db().setResponse(
+      "organization_seats",
+      ok(
+        Array.from({ length: 20 }, (_, i) =>
+          seatRow({ id: `seat-team-${i}`, invited_email: `osoba${i}@example.org` }),
+        ),
+      ),
+    );
+    await mountList();
+    await waitFor(() => expect(screen.getByText("20/25")).toBeTruthy());
+
+    expect(
+      screen.getByText(/adminOrganizations\.teamCap\.status\(active=20,max=20,min=3\)/),
+    ).toBeTruthy();
+    expect(screen.getByText(/adminOrganizations\.teamCap\.addBlocked/)).toBeTruthy();
+    expect(screen.getByText(/adminOrganizations\.teamCap\.legacyOver\(limit=25\)/)).toBeTruthy();
+    const email = screen.getByPlaceholderText("adminOrganizations.accountEmail");
+    type(email, "dwudziesta-pierwsza@example.org");
+    expect(button("adminOrganizations.addSeat")).toBeDisabled();
+    fireEvent.keyDown(email, { key: "Enter" });
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
   it("limit ZERO (wartość fałszywa, ale prawidłowa) też jest limitem", async () => {
     // `0` jest fałszywe w JS i dokładnie tu `||` zamiast `??` po cichu
     // podstawiłby wartość domyślną - organizacja z zerem miejsc pozwalałaby
@@ -1444,6 +1472,80 @@ describe("admin.organizations.new - ładunek tworzenia", () => {
     // Etykieta niesie klucz ORAZ nazwę z katalogu - klucz jest tym, co admin
     // zobaczy potem w plakietce karty, więc musi być widoczny przy wyborze.
     expect(selects()[0].textContent).toContain("Członkostwo korporacyjne");
+  });
+
+  // Zespół „3-20 miejsc" (cennik v6.2, decyzja właściciela 2026-10-20, I9b):
+  // próg organizacyjny z rangą 25 - sama ranga >= 30 go pomijała, więc admin
+  // nie mógł nadać Zespołu w panelu. Powyżej 20 miejsc - odrzucenie (baza:
+  // 20261020160300), panel mówi to przed zapisem i NIE przycina liczby.
+  const TEAM_TIER = membershipTier({
+    id: "tier-team",
+    key: "team",
+    name_pl: "Zespół",
+    name_en: "Team",
+    rank: 25,
+    features: { corporate_seats: true },
+  });
+
+  it("Zespół (ranga 25, `corporate_seats`) jest do wyboru jako warstwa organizacyjna", async () => {
+    db().setResponse(
+      "membership_tiers",
+      ok([MEMBER_TIER, TEAM_TIER, CORPORATE_TIER, PARTNER_TIER]),
+    );
+    await mountNewReady();
+
+    expect(Array.from(selects()[0].options).map((option) => option.value)).toEqual([
+      "team",
+      "corporate",
+      "partner",
+    ]);
+  });
+
+  it("Zespół z 21 miejscami: zapis zablokowany z alertem (Enterprise), 20 - zapisuje się", async () => {
+    db().setResponse(
+      "membership_tiers",
+      ok([MEMBER_TIER, TEAM_TIER, CORPORATE_TIER, PARTNER_TIER]),
+    );
+    stubCreated();
+    await mountNewReady();
+
+    type(newInput("name"), "Zespół Analityków");
+    fireEvent.change(selects()[0], { target: { value: "team" } });
+    type(newInput("seats"), "21");
+
+    // Odrzucenie, nie przycięcie: pole trzyma 21, alert wskazuje próg Enterprise.
+    expect(newInput("seats")).toHaveValue(21);
+    expect(newInput("seats")).toHaveAttribute("aria-invalid", "true");
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("adminOrganizations.teamCap.aboveMax");
+    expect(alert.textContent).toContain("requested=21");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(newInput("seats").getAttribute("aria-describedby")).toBe(alert.id);
+    expect(createButton()).toBeDisabled();
+
+    type(newInput("seats"), "20");
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(createButton());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
+    expect(payloadOf("member_organizations", "insert")).toMatchObject({
+      tier_key: "team",
+      seats_limit: 20,
+    });
+  });
+
+  it("Zespół poniżej minimum v6.2 (2 miejsca): ostrzeżenie BEZ blokady zapisu", async () => {
+    db().setResponse("membership_tiers", ok([TEAM_TIER, CORPORATE_TIER]));
+    stubCreated();
+    await mountNewReady();
+
+    type(newInput("name"), "Mały Zespół");
+    fireEvent.change(selects()[0], { target: { value: "team" } });
+    type(newInput("seats"), "2");
+
+    expect(screen.getByText(/adminOrganizations\.teamCap\.belowMin/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(createButton()).toBeEnabled();
   });
 
   it("gdy seed nie ma warstw organizacyjnych, wybór schodzi do WSZYSTKICH aktywnych", async () => {

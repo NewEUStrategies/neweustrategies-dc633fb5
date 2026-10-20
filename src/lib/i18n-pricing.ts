@@ -50,7 +50,9 @@ const pricingPl = {
       yes: "Tak",
       no: "Nie",
       yourPlan: "Twój plan",
-      expertRequestDirect: "Bezpośrednio",
+      // Kanał bezpośredni (`chat_direct_gated`) nie ma puli - komórka mówi to,
+      // co daje bramka (decyzja właściciela 2026-10-20: „bez limitu").
+      expertRequestDirect: "Bez limitu, bezpośrednio",
       perMonth: "{{n}} / mies.",
       ticketPerYear: "{{n}} / rok",
       ticketPerOrg: "{{n}} / rok na organizację",
@@ -221,7 +223,7 @@ const pricingPl = {
             pro: "1 klub do wyboru",
             vip: "Wszystkie kluby Rady",
             team: "1 klub na miejsce",
-            ngo: "1 klub do wyboru",
+            ngo: "Wszystkie kluby",
             partner: "Wszystkie kluby",
             partner_general: "Wszystkie + mikroserwis",
             presidents_circle: "Wszystkie kluby",
@@ -268,6 +270,7 @@ const pricingPl = {
             vip: "Osobisty, w 7 dni",
             team: "Zespołowy w 7 dni",
             partner: "Opiekun wdrożenia",
+            ngo: "Opiekun wdrożenia",
             partner_general: "Opiekun wdrożenia",
             presidents_circle: "Opiekun wdrożenia",
           },
@@ -278,6 +281,7 @@ const pricingPl = {
           values: {
             vip: "2 / rok jako obserwator",
             partner: "1 / rok, 2 miejsca",
+            ngo: "1 / rok, 2 miejsca",
             partner_general: "1 / rok, 2 miejsca",
             presidents_circle: "1 / rok, 2 miejsca",
           },
@@ -288,6 +292,7 @@ const pricingPl = {
           values: {
             vip: "check",
             partner: "check",
+            ngo: "check",
             partner_general: "check",
             presidents_circle: "check",
           },
@@ -305,6 +310,7 @@ const pricingPl = {
           values: {
             vip: "check",
             partner: "check",
+            ngo: "check",
             partner_general: "check",
             presidents_circle: "check",
           },
@@ -315,6 +321,7 @@ const pricingPl = {
           values: {
             vip: "4 h / rok",
             partner: "8 h / rok",
+            ngo: "8 h / rok",
             partner_general: "20 h analityka / rok",
             presidents_circle: "Dedykowany analityk",
           },
@@ -325,6 +332,7 @@ const pricingPl = {
           values: {
             team: "3-20 miejsc",
             partner: "Do 10 osób",
+            ngo: "Do 10 osób",
             partner_general: "Do 25 osób",
             presidents_circle: "Bez limitu",
           },
@@ -334,6 +342,7 @@ const pricingPl = {
           label: "Briefingi zamknięte dla organizacji",
           values: {
             partner: "4 / rok",
+            ngo: "4 / rok",
             partner_general: "4 / rok + 2 dedykowane",
             presidents_circle: "check",
           },
@@ -460,7 +469,7 @@ const pricingPl = {
           values: {
             student: "Zakres treściowy Członka",
             educator: "Zakres studencki + licencja dydaktyczna",
-            ngo: "Członek Pro bez monitoringu regulacyjnego",
+            ngo: "Zakres Partnera Instytucjonalnego",
           },
         },
         {
@@ -583,7 +592,7 @@ const pricingEn: typeof pricingPl = {
       yes: "Yes",
       no: "No",
       yourPlan: "Your plan",
-      expertRequestDirect: "Direct",
+      expertRequestDirect: "Unlimited, direct",
       perMonth: "{{n}} / mo.",
       ticketPerYear: "{{n}} / yr",
       ticketPerOrg: "{{n}} / yr per organisation",
@@ -754,7 +763,7 @@ const pricingEn: typeof pricingPl = {
             pro: "1 club of your choice",
             vip: "All Council clubs",
             team: "1 club per seat",
-            ngo: "1 club of your choice",
+            ngo: "All clubs",
             partner: "All clubs",
             partner_general: "All + micro-site",
             presidents_circle: "All clubs",
@@ -801,6 +810,7 @@ const pricingEn: typeof pricingPl = {
             vip: "Personal, within 7 days",
             team: "Team, within 7 days",
             partner: "Onboarding manager",
+            ngo: "Onboarding manager",
             partner_general: "Onboarding manager",
             presidents_circle: "Onboarding manager",
           },
@@ -811,6 +821,7 @@ const pricingEn: typeof pricingPl = {
           values: {
             vip: "2 / yr as observer",
             partner: "1 / yr, 2 seats",
+            ngo: "1 / yr, 2 seats",
             partner_general: "1 / yr, 2 seats",
             presidents_circle: "1 / yr, 2 seats",
           },
@@ -821,6 +832,7 @@ const pricingEn: typeof pricingPl = {
           values: {
             vip: "check",
             partner: "check",
+            ngo: "check",
             partner_general: "check",
             presidents_circle: "check",
           },
@@ -838,6 +850,7 @@ const pricingEn: typeof pricingPl = {
           values: {
             vip: "check",
             partner: "check",
+            ngo: "check",
             partner_general: "check",
             presidents_circle: "check",
           },
@@ -848,6 +861,7 @@ const pricingEn: typeof pricingPl = {
           values: {
             vip: "4 h / yr",
             partner: "8 h / yr",
+            ngo: "8 h / yr",
             partner_general: "20 analyst h / yr",
             presidents_circle: "Dedicated analyst",
           },
@@ -858,6 +872,7 @@ const pricingEn: typeof pricingPl = {
           values: {
             team: "3-20 seats",
             partner: "Up to 10",
+            ngo: "Up to 10",
             partner_general: "Up to 25",
             presidents_circle: "No limit",
           },
@@ -867,6 +882,7 @@ const pricingEn: typeof pricingPl = {
           label: "Closed-door briefings for the organisation",
           values: {
             partner: "4 / yr",
+            ngo: "4 / yr",
             partner_general: "4 / yr + 2 tailored",
             presidents_circle: "check",
           },
@@ -993,7 +1009,7 @@ const pricingEn: typeof pricingPl = {
           values: {
             student: "Member content scope",
             educator: "Student scope + teaching licence",
-            ngo: "Member Pro without regulatory monitoring",
+            ngo: "The Institutional Partner scope",
           },
         },
         {

@@ -402,6 +402,33 @@ describe("bramka dostawy huba - fikstury zaczerwieniają bramkę", () => {
     expect(violations.map((v) => v.kind)).toContain("brak-cialo-z");
   });
 
+  // Rezerwa I9 (SPEC §4.2): Integrator redefiniuje funkcję innego wycinka
+  // WYŁĄCZNIE z rejestru `HUB_I9_REDEFINITIONS`, z CIALO-Z najnowszej
+  // definicji w hubie - i tylko w bloku I9.
+  it("rezerwa I9: redefinicja z rejestru przechodzi, poza rejestrem albo blokiem - nie", () => {
+    const i0 = file("20261020090500_i0.sql", fnSql("revenue_segment_of_tier"));
+    const i9 = (cialoZ?: string) =>
+      file("20261020160000_i9.sql", fnSql("revenue_segment_of_tier", { cialoZ }));
+    expect(kinds([i0, i9("20261020090500")])).toEqual([]);
+    expect(kinds([i0, i9()])).toEqual(["brak-cialo-z"]);
+    expect(kinds([i0, i9("20261001000000")])).toEqual(["zly-cialo-z"]);
+    // Rejestr musi wskazywać NAJNOWSZĄ definicję: późniejsza w innym wycinku = czerwień.
+    expect(
+      kinds([
+        i0,
+        file("20261020110000_s2.sql", fnSql("revenue_segment_of_tier")),
+        i9("20261020090500"),
+      ]),
+    ).toEqual(expect.arrayContaining(["zly-blok", "funkcja-w-dwoch-blokach", "zly-cialo-z"]));
+    // Funkcja spoza rejestru w bloku I9 to nadal zły blok i drugi blok.
+    expect(
+      kinds([
+        file("20261020090500_i0.sql", fnSql("_tier_rank_of")),
+        file("20261020160000_i9.sql", fnSql("_tier_rank_of", { cialoZ: "20261020090500" })),
+      ]),
+    ).toEqual(["zly-blok", "funkcja-w-dwoch-blokach"]);
+  });
+
   it("ta sama funkcja w dwóch blokach", () => {
     const report = analyzeHubDelivery([
       file("20261020110400_a.sql", fnSql("admin_revenue_churn")),

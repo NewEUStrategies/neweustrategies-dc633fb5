@@ -47,6 +47,7 @@ import { toast } from "sonner";
 import { toastError } from "@/lib/toastError";
 import { useTranslation } from "react-i18next";
 import { useMembershipTiers, tierName } from "@/lib/billing/tiers";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 import "@/lib/i18n-admin-post-panes";
 
 type Props = { entityType: AccessEntityType; entityId: string | null };
@@ -165,9 +166,7 @@ function AccessSettingsForm({ entityType, entityId }: Props) {
   // sprzedażowe (ranga > 0), posortowane rosnąco - "Konto bezpłatne" nie jest
   // progiem dostępu.
   const tiersQ = useMembershipTiers();
-  const rankTiers = (tiersQ.data ?? [])
-    .filter((tier) => tier.rank > 0)
-    .sort((a, b) => a.rank - b.rank);
+  const rankTiers = (tiersQ.data ?? []).filter((tier) => tier.rank > 0).sort(compareTierRank);
   const [plans, setPlans] = useState<AccessPlan[]>([]);
   const [rule, setRule] = useState<Partial<ContentAccessRule>>(defaultRule);
   // Wersja (`updated_at`) wiersza reguły wg ostatniego udanego odczytu albo

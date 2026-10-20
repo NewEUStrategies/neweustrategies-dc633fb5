@@ -9,9 +9,12 @@
 //      stawki ulgowej (50%) - to samo, co egzekwuje `my_ticket_allowance`.
 //   3. KOLUMNA UKRYTEGO PROGU tylko na życzenie wołającego (profil obecnego
 //      klienta Enterprise) - powierzchnie sprzedażowe podają `listedTiers`.
-//   4. PULA ZAPYTAŃ jak bramka (`GREATEST` z dawnymi flagami InMaili) i brak
-//      obietnic bez pokrycia (NGO ranga 20, pozycje akademickie spoza v6.2,
-//      kwoty PLN w EN).
+//   4. PULA ZAPYTAŃ jak bramka (`GREATEST` z dawnymi flagami InMaili, kanał
+//      bezpośredni = „bez limitu") i brak obietnic bez pokrycia (pozycje
+//      akademickie spoza v6.2, kwoty PLN w EN).
+//   5. DECYZJE WŁAŚCICIELA 2026-10-20 (I9b): Zespół z trackerem (wiersz
+//      flagi), pula 3 na miejsce u nowego najemcy i „bez limitu" u najemcy
+//      z kanałem bezpośrednim; NGO (ranga 40) z wartościami zakresu Partnera.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
@@ -253,21 +256,98 @@ describe("PricingComparisonMatrix - pula zapytań do eksperta jak bramka", () =>
   });
 });
 
+describe("PricingComparisonMatrix - Zespół po decyzji właściciela 2026-10-20 (I9b)", () => {
+  const pro = membershipTier({
+    id: "t-pro",
+    key: "pro",
+    name_pl: "Członek Pro",
+    name_en: "Member Pro",
+    features: { regulatory_monitoring: true, expert_request_quota: 3 },
+  });
+  // Seed nowego najemcy (20261020160100): tracker, pula 3, bez kanału.
+  const teamSeed = membershipTier({
+    id: "t-team-seed",
+    key: "team",
+    name_pl: "Zespół",
+    name_en: "Team",
+    features: {
+      regulatory_monitoring: true,
+      expert_request_quota: 3,
+      included_event_tickets_org: 3,
+    },
+  });
+  // Najemca istniejący: tracker dołożony, kanał bezpośredni zachowany.
+  const teamLegacy = membershipTier({
+    id: "t-team-legacy",
+    key: "team",
+    name_pl: "Zespół (najemca istniejący)",
+    name_en: "Team (existing tenant)",
+    features: {
+      regulatory_monitoring: true,
+      chat_direct_gated: true,
+      included_event_tickets_org: 3,
+    },
+  });
+
+  function rowNamed(id: string): HTMLElement {
+    const name = rows(h.lang).find((r) => r.id === id)?.label ?? "";
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return screen.getByRole("row", { name: new RegExp(`^${escaped}`) });
+  }
+
+  it.each(["pl", "en"] as const)(
+    "%s: Zespół ma monitoring regulacyjny (tracker) jak Pro",
+    (lang) => {
+      h.lang = lang;
+      render(<PricingComparisonMatrix tiers={[pro, teamSeed]} lang={lang} currentTierKey={null} />);
+      const cells = within(rowNamed("regulatory")).getAllByRole("cell");
+      const yes = lang === "pl" ? "Tak" : "Yes";
+      expect(within(cells[0]).getByLabelText(yes)).toBeInTheDocument();
+      expect(within(cells[1]).getByLabelText(yes)).toBeInTheDocument();
+    },
+  );
+
+  it("PL: pula 3 / mies. u nowego najemcy, „bez limitu” przy kanale bezpośrednim", () => {
+    render(
+      <PricingComparisonMatrix tiers={[teamSeed, teamLegacy]} lang="pl" currentTierKey={null} />,
+    );
+    const cells = within(rowNamed("expertRequest")).getAllByRole("cell");
+    expect(cells.map((c) => c.textContent)).toEqual(["3 / mies.", "Bez limitu, bezpośrednio"]);
+  });
+
+  it("EN: te same prawdy bramki po angielsku", () => {
+    h.lang = "en";
+    render(
+      <PricingComparisonMatrix tiers={[teamSeed, teamLegacy]} lang="en" currentTierKey={null} />,
+    );
+    const cells = within(rowNamed("expertRequest")).getAllByRole("cell");
+    expect(cells.map((c) => c.textContent)).toEqual(["3 / mo.", "Unlimited, direct"]);
+  });
+});
+
 describe("słownik macierzy v6.2 - obietnice tylko z pokryciem w bramkach", () => {
-  it("NGO (ranga 20) nie dostaje wartości zakresu Partnera Instytucjonalnego", () => {
+  it("NGO (ranga 40, decyzja właściciela 2026-10-20) ma wartości zakresu Partnera Instytucjonalnego", () => {
     for (const lang of ["pl", "en"] as const) {
       const byId = new Map(rows(lang).map((r) => [r.id, r]));
       for (const id of [
+        "clubs",
+        "onboarding",
         "decisionLab",
         "soundingBoard",
         "researchTopic",
         "consultations",
         "coverage",
         "orgBriefings",
+        "foresightNotes",
       ]) {
-        expect(Object.keys(byId.get(id)?.values ?? {}), `${lang}:${id}`).not.toContain("ngo");
+        const values = byId.get(id)?.values ?? {};
+        expect(values.ngo, `${lang}:${id}`).toBeDefined();
+        expect(values.ngo, `${lang}:${id}`).toBe(values.partner);
       }
-      expect(byId.get("clubs")?.values?.ngo, lang).toBe(byId.get("clubs")?.values?.pro);
+      expect(byId.get("baseScope")?.values?.ngo, lang).toMatch(
+        lang === "pl" ? /Partnera Instytucjonalnego/ : /Institutional Partner/,
+      );
+      expect(byId.get("baseScope")?.values?.ngo, lang).not.toMatch(/monitoring/i);
     }
   });
 
