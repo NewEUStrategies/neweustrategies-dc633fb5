@@ -14,7 +14,7 @@ describe("/admin/settings/privacy", () => {
   it("nagłówek sekcyjny: tytuł, opis i noindex", () => {
     const head = Route.options.head?.({} as never) as { meta: Record<string, string>[] };
     expect(head.meta).toContainEqual({
-      title: "Prywatność i retencja danych | New European Strategies",
+      title: "Prywatność i retencja danych - Ustawienia | New European Strategies",
     });
     expect(head.meta).toContainEqual(
       expect.objectContaining({

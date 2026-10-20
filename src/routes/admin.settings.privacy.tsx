@@ -30,7 +30,7 @@ const DEFAULTS: Privacy = { privacy_page_slug: "", cookie_banner: true };
 export const Route = createFileRoute("/admin/settings/privacy")({
   head: () =>
     adminPageHead(
-      "Prywatność i retencja danych",
+      "Prywatność i retencja danych - Ustawienia",
       "Polityka prywatności, baner zgód, audyt zgód i okresy przechowywania danych osobowych. Panel administracyjny New European Strategies.",
     ),
   component: PrivacySettings,
