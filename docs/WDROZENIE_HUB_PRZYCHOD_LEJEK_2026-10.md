@@ -11,7 +11,8 @@ S6 z pakietem Insidera, sekcja 15 - wycinek **S4 - CRM, automatyzacje
 i społeczność (dane)**, sekcja 16 - wycinek **S2 - przychód i retencja**,
 sekcja 17 - przekazanie na koniec sesji 2026-10-19, sekcja 18 - wycinek
 **S3 - lejek i paywall czytelnika**, sekcja 19 - krok **I9a - nawigacja
-i widoczność huba w panelu** (decyzja właściciela 2026-10-20).
+i widoczność huba w panelu** (decyzja właściciela 2026-10-20), sekcja 20 -
+wycinek **S5 - silnik ścieżek (backend)**.
 
 Gałąź `hub/i0`, baza `baec9c64` (`main` + cennik v6.2 + poprawki), worktree
 bez commitów - commit robi orkiestrator.
@@ -301,6 +302,10 @@ wdrożenia #527, `when` = 1792476373912). Bliźniaki S3 `0347…0351` (idx
 347-351, `when` = 1792476373912 + n·60 000, §18.6). **Następny wolny numer:
 `0352`** (idx 352).
 
+**Po scaleniu S5 (2026-10-20, ta sama gałąź).** Bliźniaki S5 `0352…0357`
+(idx 352-357, `when` = 1792476673912 + n·60 000, §20.6); `main` bez nowych
+migracji drizzle (ostatni `0346`). **Następny wolny numer: `0358`** (idx 358).
+
 Praktyka PR #520 (odchylenie od pkt 3-4): S6 i S1 poszły prosto do PR #520,
 bez `hub/integration`. Integrator S1 dodał bliźniaki i wpisy dziennika
 w commicie wycinka (D-S1-01, §12.6). Tak samo dla wycinków w nowym PR
@@ -454,16 +459,17 @@ przebiegu i błędy środowiska - §13.2.
 
 ## 10. Dziennik wdrożeń
 
-| Data       | Wycinek / fala                                       | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                     | Odchylenia / uwagi                                                                                                                                                 |
-| ---------- | ---------------------------------------------------- | --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-10-19 | I0 (gałąź)                                           | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                               | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                               |
-|            | M0                                                   | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`) | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                                      |
-| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                        | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                  | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                                  |
-| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)           | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                           | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                                        |
-| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`)         | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                              | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                                 |
-| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`)         | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                 | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527             |
-| 2026-10-20 | S3 (gałąź PR `claude/elegant-fermat-xwfca1` po #527) | `20261020120000…120400` (5) | `0347…0351`       | do wdrożenia przez właściciela - po M0, S1, S2 i S4, nocą (wyzwalacze na `profiles` i `payment_orders`), razem z publikacją frontu (§18.9)                        | §18: kod i migracje w jednym PR; `overall` +5,8 → ratchet D-08 4997; `public` +5,4 przy celu +1,2 (Z-S3-01); otwarte Z-S3-01…07; pełny vitest i e2e - CI nowego PR |
-| 2026-10-20 | I9a (gałąź PR, fast-forward z `hub/i9a-nawigacja`)   | brak (bez SQL)              | brak              | - (bez migracji; publikacja frontu wystarcza - kolumna okna porzucenia jest z M0)                                                                                 | §19: nawigacja huba przed I9 (decyzja właściciela), stany „w przygotowaniu”, okno porzucenia kasy w panelu; `overall` +6,2 → ratchet D-08 5003; `public` −0,7      |
+| Data       | Wycinek / fala                                        | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                     | Odchylenia / uwagi                                                                                                                                                 |
+| ---------- | ----------------------------------------------------- | --------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-10-19 | I0 (gałąź)                                            | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                               | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                               |
+|            | M0                                                    | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`) | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                                      |
+| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                         | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                  | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                                  |
+| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)            | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                           | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                                        |
+| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`)          | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                              | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                                 |
+| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`)          | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                 | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527             |
+| 2026-10-20 | S3 (gałąź PR `claude/elegant-fermat-xwfca1` po #527)  | `20261020120000…120400` (5) | `0347…0351`       | do wdrożenia przez właściciela - po M0, S1, S2 i S4, nocą (wyzwalacze na `profiles` i `payment_orders`), razem z publikacją frontu (§18.9)                        | §18: kod i migracje w jednym PR; `overall` +5,8 → ratchet D-08 4997; `public` +5,4 przy celu +1,2 (Z-S3-01); otwarte Z-S3-01…07; pełny vitest i e2e - CI nowego PR |
+| 2026-10-20 | I9a (gałąź PR, fast-forward z `hub/i9a-nawigacja`)    | brak (bez SQL)              | brak              | - (bez migracji; publikacja frontu wystarcza - kolumna okna porzucenia jest z M0)                                                                                 | §19: nawigacja huba przed I9 (decyzja właściciela), stany „w przygotowaniu”, okno porzucenia kasy w panelu; `overall` +6,2 → ratchet D-08 5003; `public` −0,7      |
+| 2026-10-20 | S5 (gałąź PR, fast-forward z `hub/s5-silnik-sciezek`) | `20261020140000…140500` (6) | `0352…0357`       | do wdrożenia przez właściciela - po M0 i S1-S4, nocą (wyzwalacz na `domain_events`), razem z publikacją frontu; silnik wyłączony; M3 po I9 (§20.9)                | §20: silnik bez UI (S8), runner do `jobs-tick` w I9; bez ratchetu (`overall` −1,8 - szum hashy); otwarte Z-S5-01…08                                                |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -1669,8 +1675,8 @@ testów popupu w manifeście S3, sekcja dziennika), pgTAP i kontrakt TS⇄SQL S3
 
 ### 17.4 Kolejka i zasady dalszej pracy
 
-Kolejka (aktualizacja 2026-10-20, po scaleniu S3 - §18, i po I9a - §19):
-**S5 → S7 → S8 → I9**. Nawigacja huba i skróty ⌘K zakładek są już z I9a;
+Kolejka (aktualizacja 2026-10-20, po S3 - §18, I9a - §19 i S5 - §20):
+**S8 → S7 → I9**. Nawigacja huba i skróty ⌘K zakładek są już z I9a;
 od 2026-10-20 obowiązuje wymóg właściciela **„wszystko, co robimy, ma być
 w panelu admina”** - każdy kolejny wycinek kończy się wejściem w panelu dla
 właściwych ról (pozycja/zakładka/karta, ⌘K, sekcyjne `adminPageHead`, PL/EN,
@@ -2145,3 +2151,327 @@ odrzucenie 5 wartości, CAS, PL/EN), `useCheckoutSettings.test.ts` (+4),
   „wszystko w panelu admina” - każda nowa funkcja kończy się wejściem
   w panelu dla właściwych ról (pozycja/zakładka/karta, ⌘K, sekcyjne
   `adminPageHead`, PL/EN, stan pusty z następnym krokiem).
+
+## 20. Wycinek S5 - silnik ścieżek (backend) (2026-10-20)
+
+Gałąź `hub/s5-silnik-sciezek` (worktree `/home/user/wt/S5`), baza
+`32e9039a` (gałąź PR `claude/elegant-fermat-xwfca1` po S3, I9a i scaleniu
+`main` z #529). Jeden agent wykonał kartę S5 i integrację (praca szeregowa,
+decyzja właściciela 2026-10-19); po zielonych bramkach fast-forward gałęzi PR.
+Commity:
+
+- `e0c41930` - 6 migracji `2026102014*` i 7 plików pgTAP (trasa i skrzynka, wykonanie, warunki i zgody, RPC panelu, narzędzia panelu, tracking i statystyki);
+- `db5ced66` - warstwa TS `src/lib/journeys/**` (graf, warunki, wyzwalacze, 14 szablonów, server fn, `queryOptions`, render, tracking, etykiety), słownik `adminJourneys`, testy;
+- `f1c42069` - runner, doręczanie przez istniejącą kolejkę (nadawca i Reply-To z panelu), tracking 1:1 w `nl-open`/`nl-click`/wypisie, wpis `SERVICE_ROLE_READERS`, testy;
+- `9938b97f` - integracja: pliki współdzielone (§20.4);
+- ten wpis (dziennik, prompt kontynuacji).
+
+Pełny pakiet vitest uruchamia CI PR (decyzja właściciela 2026-10-19:
+lokalnie testy celowane, typecheck, lint, pgTAP, build z budżetem - §20.8).
+
+### 20.1 Zakres
+
+84 pliki, +19 055 / −8 linii (bez tego wpisu), w tym 6 bliźniaków drizzle
+(3 969 linii kopii) - kod, SQL, testy i pliki współdzielone: ok. +15 100.
+
+| Obszar                           | Co dostarcza S5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trasa i skrzynka (`140000`)      | `trg_journey_route_event` na `domain_events` (warunek `WHEN` odsiewa agregaty ścieżek i diagnostyki, zapytanie po kluczu głównym `journey_event_routes`, ładunek bez imion i nazwisk, błąd trasy → `journey_engine_errors`, nigdy wycofanie zdarzenia szyny); `journey_resolve_lead` (lead → konto/członek → osoba wydarzeń, także z agregatu zgłoszenia przy rezygnacji → subskrybent → aktor spoza personelu; klub `secret` i zdarzenie anonimowe = brak kontaktu; brak leada przy znanym adresie = lead **bez zgody**); `journey_ingest_inbox` (zapis, cel, wyjście, pobudka czekania; zapis tylko przy włączonym silniku i opublikowanej wersji).                                              |
+| Wykonanie (`140100`)             | `journey_claim_due` (dzierżawa 120 s, ≤ 20 zapisów na najemcę na tick, ścieżki wstrzymane i najemcy z wyłączonym silnikiem pominięci - poza testem na żywo), `journey_advance` (krok = jeden wiersz `journey_step_runs` na `(zapis, węzeł)`, powtórka po awarii jest no-opem; czekania, A/B z kubełkiem deterministycznym, warunki, akcje CRM), `_journey_exec_action` (etap cyklu przez `crm_set_lifecycle_stage` z pierwszeństwem pisarzy, etap sprzedaży tylko w przód, zadanie CRM z `origin_ref` `journey:{zapis}:{węzeł}`, tagi, lista newslettera, powiadomienie zespołu), `journey_fail_step` (ponowienia 1 min·4ⁿ do 12 h, martwy krok po 8), `journey_tick_emit_stats`, `journey_purge`. |
+| Warunki i zgody (`140200`)       | `_journey_eval_predicate` (14 rodzajów, w tym `trigger_field` - §20.3), `journey_can_send` (blokady techniczne → zgoda → limit D-03 → cisza nocna D-03), `journey_contact_for_send` (adres, imię, język z fallbackiem, wariant, temat, dokument, nadawca, zmienne), `journey_validate_graph` (te same reguły co TS + kody parametrów), kolumny `journey_settings.sender_name`/`reply_to` (CHECK, odrzucenie zamiast przycięcia).                                                                                                                                                                                                                                                                   |
+| Panel - RPC (`140300`, `140400`) | `admin_journey_{create,save_draft,publish,set_status,email_content_save,settings_get,settings_save,list,enrollments,lead_enrollments,enroll_test,enrollment_skip_wait,enrollment_exit,trigger_estimate,simulate,engine_health}` - najemca i rola z sesji (`_journey_staff_tenant`), publikacja/status/ustawienia/pominięcie czekania tylko admin, CAS po `updated_at` (40001), każda zmiana emituje `journey.changed.v1`.                                                                                                                                                                                                                                                                          |
+| Tracking i statystyki (`140500`) | `_journey_message_id` (lustro `deterministicMessageId`), `journey_complete_email_step` (wynik maila: `queued`/`deferred`/`quiet`/`capped`/brak zgody/wypis/blokada/`delivery_not_ready`), `journey_record_message_event` (najemca z wiadomości, deduplikacja doby, otwarcie maszynowe: proxy albo próg `machine_open_seconds`), wypis (`_journey_unsubscribe`), `admin_journey_stats` (per krok, A/B z z-score od 100 zapisów na ramię, rollup > 400 dni albo > 50 tys. zapisów), `admin_journey_series`, `journey_rollup_daily`, redefinicja `email_apply_delivery_event` (najemca po `provider_message_id`).                                                                                     |
+| TS (`src/lib/journeys/**`)       | `graph` (zod, `validateJourneyGraph`: DAG, gałęzie, osiągalność, ≤ 60 węzłów, zakaz maila przy `payment_failed`, ostrzeżenia `workflow_overlap`/`trigger_cycle`/`entry_filter_history`), `nodeTypes`, `predicates`, `triggers` (25 wyzwalaczy z kluczami ładunku emiterów S1-S4, `buildTriggerCondition`), `variables` (tryby html/text/url), `dto`, `parse` (rzuca, nie zeruje), `journeys.functions` i `stats.functions` (19 server fn), `queries`, `render.server`, `tracking.server`, `labels` (klucze etykiet z kodów unii), 14 szablonów `templates/**`.                                                                                                                                     |
+| Runner i doręczanie              | `src/lib/server/journeysRunner.server.ts` (`runJourneysTick`) - kolejność, termin 3 s, sufit 20 maili, odkładanie, bramka reputacji raz na najemcę, idempotencja; mail przez istniejącą kolejkę (`enqueueRawEmail` → `queueDrain`) z kategorią z `suppressionPolicy` (`journey` = masowa, `journey_service`/`journey_test` = 1:1), nadawca i Reply-To z panelu. Runner **niepodpięty** do `jobs-tick` (I9, §20.4).                                                                                                                                                                                                                                                                                 |
+| Trasy publiczne                  | `nl-open`/`nl-click` - gałąź `m=` (token wiadomości `jm:`, podpis linku z numerem, cel tylko podpisany, http(s)); wypis `/api/public/newsletter/unsubscribe` przyjmuje token ścieżki (`ju:`): GET bez mutacji, POST przez limiter, 500 przy awarii (bramka ponawia).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Słownik                          | `src/lib/i18n-admin-journeys.ts` (`adminJourneys.*`, PL/EN): typy i rodziny węzłów, gałęzie, statusy, powody wyjścia, wyniki kroków, fazy, warunki, wyzwalacze, zmienne, werdykty, kody błędów TS i SQL, adnotacje symulacji, ustawienia, zdrowie, 14 szablonów.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+### 20.2 Decyzje
+
+- **S5 prosto do gałęzi PR**, jak S1-S4: migracje, bliźniaki i kod w jednym PR.
+- **D-03** (właściciel): maks. **3 maile marketingowe / 7 dni na kontakt**
+  liczone razem ze ścieżek (kategoria `marketing`, bez testów) i kampanii
+  newslettera (`newsletter_campaign_recipients.status = 'sent'`); limit
+  wyczerpany → krok przesuwany o dobę do 3 razy, potem pominięty z wynikiem
+  `capped`. **Cisza nocna 21:00-08:00 Europe/Warsaw** (wartości domyślne
+  `journey_settings` z I0): mail marketingowy w ciszy czeka do jej końca
+  (08:00). Usługa (z podstawą prawną) i test na żywo podlegają wyłącznie
+  blokadom technicznym (odbicie, skarga) - nie limitowi, ciszy ani zgodzie
+  marketingowej.
+- **D-04** (właściciel): porzucona kasa = **marketing**, wymaga zgody
+  marketingowej; szablon `abandoned_checkout` tylko dla subskrypcji
+  (`{"kind": "subscription"}`), celem jest `checkout.completed.v1`.
+- **Silnik wyłączony domyślnie:** brak wiersza `journey_settings` =
+  `enabled = false`; przy wyłączonym silniku skrzynka się zamyka bez zapisów,
+  a `journey_claim_due` nie pobiera zapisów (poza testem na żywo - admin
+  testuje ścieżkę przed włączeniem, M3). Awaryjny wyłącznik środowiska
+  `JOURNEYS_ENGINE_DISABLED=1` zatrzymuje runner bez dostępu do bazy; jego
+  stan pokazuje `admin_journey_engine_health` (`killSwitch`).
+- **„Wszystko w panelu admina”** (wymóg właściciela): każdy przełącznik ma RPC
+  i server fn dla UI S8 - włączenie silnika, limit D-03, cisza nocna, strefa,
+  nadawca i Reply-To, opiekun zadań, próg otwarcia maszynowego
+  (`saveJourneySettings`, odczyt `getJourneySettings`, także stan „brak
+  wiersza”), pauza/wznowienie/archiwum ścieżki (`setJourneyStatus`), wyjście
+  kontaktu (`exitJourneyEnrollment`), pominięcie czekania (`skipJourneyWait`),
+  test na żywo (`enrollJourneyTest`), zdrowie silnika
+  (`getJourneyEngineHealth`). Żadnego ustawienia tylko z SQL albo env (poza
+  wyłącznikiem awaryjnym, który jest widoczny w panelu).
+- **Tożsamość wiadomości:** `message_id = deterministicMessageId("journey:{zapis}:{węzeł}")`
+  = `_journey_message_id` (parytet asercją pgTAP i testem TS na tej samej
+  stałej). Klucz kolejki = ten sam napis, więc powtórka po awarii między
+  kolejką a domknięciem kroku nie wysyła drugiego maila.
+- **Tracking 1:1:** rozłączne domeny HMAC - `jm:` (piksel, kliknięcie, podpis
+  linku z numerem) i `ju:` (wypis); wyciek piksela nie wypisze odbiorcy.
+  Wypis: zgoda leada wycofana z wpisem `crm_consent_log` (`given = false`),
+  subskrybent wypisany istniejącym `email_unsubscribe_by_token` (blokada
+  `unsubscribe` w tej samej transakcji; bez subskrybenta - sama blokada),
+  aktywne zapisy **marketingowe** kontaktu wychodzą z powodem `unsubscribed`;
+  globalna trasa wyjścia `newsletter_subscriber.unsubscribed.v1` dla ścieżek
+  marketingowych.
+- **Wersje i A/B:** publikacja `drain` (zapisy w toku kończą starą wersję)
+  albo `exit_all`; kubełek A/B = `hashtextextended(zapis:węzeł) % 100`
+  (stały dla kontaktu); z-score tylko przy ≥ 100 zapisach na ramię.
+- **Szablony:** 14 w kodzie (instalacja = szkic u najemcy + treść wariantu A),
+  ton NES, bez obietnic liczbowych; odnośniki do wiedzy Insidera to wyłącznie
+  identyfikatory z `docs/benchmarki/insider-2026-10-19` (test sprawdza ich
+  istnienie). `pricing_enquiry_b2b` widoczny jako niedostępny do zdarzenia
+  formularza kontaktu (SPEC P25 - po M3). Przypomnienia logistyczne wydarzeń
+  zostają w module wydarzeń (szablon nurtowania ich nie dubluje).
+
+### 20.3 Odchylenia od SPEC (kontrakt bez zmian, fakty repozytorium wygrywają)
+
+| Miejsce SPEC / karta S5                      | Stan po S5                                                                                                                                                 | Uzasadnienie                                                                                                                               |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `winback_30d` z `reason <> 'paused'` (§5.6)  | Nowy rodzaj warunku `trigger_field` (`in`/`not_in` na polu ładunku zdarzenia wejścia) w filtrze wejścia.                                                   | `payload @> condition` nie wyraża zaprzeczenia; warunek żyje w tym samym interpreterze co pozostałe.                                       |
+| Limit tagu `JOURNEY_LIMITS.tagMax` = 64 (I0) | Akcje i warunek tagu ≤ 40 znaków (`JOURNEY_TAG_MAX`, SQL `tag_length`).                                                                                    | Pisarz tagów CRM (`run_workflow_step`, panel CRM) przyjmuje 40 - dłuższy tag padłby przy wykonaniu. Z-S5-02.                               |
+| §5.2 RPC panelu                              | + `admin_journey_settings_get` (odczyt ustawień, także „brak wiersza” z wartościami domyślnymi).                                                           | Wymóg właściciela: stan każdego przełącznika widoczny w panelu.                                                                            |
+| `journey_settings` (I0)                      | + `sender_name` (1-120, bez `<>"` i nowych linii), `reply_to` (≤ 254, adres) w `140200`; `enqueueRawEmail` przyjmuje `fromName`/`replyTo`.                 | Nadawca z panelu, nie z env (domena nadawcza zostaje zweryfikowana - zmienia się tylko nazwa). `transactional.server.ts` poza listą karty. |
+| `journey_claim_due(p_limit, p_backlog)`      | `journey_claim_due(p_limit, p_lease_seconds)`; zaległość kolejki sprawdza runner (`email_queue_depth`) i odkłada wyłącznie maile.                          | Kroki bazy (warunki, akcje CRM) nie czekają na kolejkę poczty.                                                                             |
+| `journey_tick_emit_stats(p_journey_ids)`     | + `p_counts` (liczniki ticku per ścieżka w ładunku `journey.stats_changed.v1`).                                                                            | Panel nie musi przeliczać, co się zmieniło.                                                                                                |
+| `journey_fail_step`                          | + `p_phase` (`advance`/`email`) w dzienniku błędów.                                                                                                        | Zdrowie silnika rozróżnia awarie bazy i poczty.                                                                                            |
+| Wycofanie zgody przy wypisie                 | Logika `crm_leads_marketing_consent_withdraw` powtórzona w `_journey_unsubscribe` (zgoda + wpis księgi).                                                   | Istniejące RPC wymaga sesji personelu; wypis idzie z trasy publicznej. Z-S5-04.                                                            |
+| Filtr wejścia                                | Niespełniony filtr nie zakłada zapisu (powód `entry_filter` z I0 nieużywany).                                                                              | Bez szumu w liście kontaktów; szacunek zasięgu liczy zdarzenia, nie zapisy.                                                                |
+| Katalog wyzwalaczy (kontrakt emiterów)       | `club_application.*`: klucz `specialization` (nie `specialization_id`), decyzja tylko `accepted`/`rejected`; `event.registration.cancelled.v1` w katalogu. | Klucze z migracji emiterów (test `triggers.test.ts` czyta migracje); rezygnacja = wyjście nurtowania wydarzenia.                           |
+| `admin_journey_stats` (§5.6)                 | Zbiór zapisów okna jako tablica identyfikatorów (`STABLE`), bez tabeli tymczasowej.                                                                        | Bramka `plpgsql_check_gate` nie widzi tabel tymczasowych; lista zwolnień może tylko maleć.                                                 |
+| Test narzutu trasy (§4.7)                    | 1000 zdarzeń najemcy bez tras < 1,5 s (ok. 1 ms na zdarzenie z zapasem), plan zapytania trasy przez klucz główny (`enable_seqscan = off` w `EXPLAIN`).     | Na małej tabeli testowej planista wybiera skan sekwencyjny; asercja dotyczy dostępności indeksu.                                           |
+| Pliki spoza karty                            | `tracking.server.ts`, `labels.ts`, testy server fn/zapytań/słownika/kształtów RPC, `trackingTokenJourney.test.ts`.                                         | §20.4 (manifest S5 z komentarzem „Integrator S5”).                                                                                         |
+
+### 20.4 Zgłoszenia „Do integracji” wykonane przez Integratora S5
+
+Strażnik `hub-slice-guard.ts S5 --base 32e9039a` po integracji zgłasza
+wyłącznie zmiany Integratora: `[plik-wspoldzielony]`
+`drizzle/migrations/meta/_journal.json`, `src/integrations/supabase/types.ts`,
+`src/lib/ci/hubDelivery.ts`, `src/lib/realtime/eventInvalidationMap.admin.ts`,
+`src/lib/authz/authzSnapshot.generated.ts` oraz `[poza-manifestem]` ten
+dziennik i `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`.
+`serviceRoleTenantScope.gate.test.ts` to przydział imienny S5
+(`HUB_SHARED_FILE_GRANTS`).
+
+| Zgłoszenie                         | Zmiana                                                                                                                                                                                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bliźniaki drizzle                  | 6 bliźniaków (bajt w bajt) i 6 wpisów `_journal.json` w kolejności wersji (§20.6); `check:migration-lanes` zielone.                                                                                                                          |
+| `types.ts`                         | `journey_settings.sender_name`/`reply_to`; sygnatury 30 RPC S5 (`admin_journey_*`, `journey_*`) - jak S2/S3: dokumentacja kontraktu, wywołania przez `RpcCallable` z literałem nazwy.                                                        |
+| Rejestr dostawy (`hubDelivery.ts`) | `FUNCTION_TABLE` += 13 pomocniczych `_journey_*` (internal) i `admin_journey_settings_get` (panel); manifest S5 += `tracking.server.ts`, `labels.ts`, testy, `transactional.server.ts` z testem, bliźniaki `0352…0357`, dwa pliki testów I0. |
+| `SERVICE_ROLE_READERS`             | Jeden wpis: `src/lib/server/journeysRunner.server.ts` (runner czyta wyłącznie przez RPC, najemca z wiersza).                                                                                                                                 |
+| Inwalidacja szyny                  | `journey.changed.v1` z `op = 'settings'` (agregat = najemca) odświeża `journeyKeys.settings`, `engineHealth` i listę zamiast `detail(najemca)`; test w `revenueInvalidation.test.ts`.                                                        |
+| Strażnik ACL `hub_grants`          | `hub_shared_helpers_test.sql` zna 13 pomocniczych `_journey_*` (bramka `hubDelivery.gate.test.ts`: lista pgTAP = rejestr).                                                                                                                   |
+| Snapshot bramek autoryzacji        | `generate:authz-snapshot` - wyłącznie liczniki skanu (1278 → 1284 migracji, 1723 → 1770 funkcji); bramki RPC S5 są w `_journey_staff_tenant`, bez nowych literałów ról.                                                                      |
+| `i18nParity`                       | Bez zmian - `adminJourneys` jest w `GATED_PREFIXES` od I0.                                                                                                                                                                                   |
+| Budżet D-08                        | Bez ratchetu - `overall` w progu, przyrost S5 w szumie hashy (§20.7).                                                                                                                                                                        |
+
+**Do integracji I9 (nie wykonane przez Integratora S5):**
+
+- **Runner w `jobs-tick`** (SPEC §4.6): po zadaniach uczestnika, **przed**
+  drenem kolejki maili - `runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`
+  (wynik do telemetrii ticku; `{ error: "disabled" }` przy
+  `JOURNEYS_ENGINE_DISABLED=1`). Do tego czasu silnik nie wykonuje kroków
+  nawet po włączeniu w panelu.
+- **Harmonogram:** `journey_rollup_daily()` co godzinę (wolny pas),
+  `journey_purge('30 days')` raz na dobę (skrzynka, przetworzone wpisy,
+  dziennik błędów); wpisy w `scheduler.ts` i karcie zdrowia schedulera
+  (`SchedulerHealthPanel`) - stan silnika ścieżek (włączony, zaległość
+  skrzynki, ostatni tick, błędy 24 h z `admin_journey_engine_health`).
+- **Runbook:** `JOURNEYS_ENGINE_DISABLED`, procedura M3 (§20.9 pkt 7).
+
+**Dla S8 (UI) - gotowe API:** server fn `listJourneys`, `getJourneyEnrollments`,
+`getLeadJourneys`, `getJourneySettings`/`saveJourneySettings`,
+`getJourneyEngineHealth`, `estimateJourneyTrigger`, `simulateJourney`,
+`createJourney`, `installJourneyTemplate`, `saveJourneyDraft`,
+`saveJourneyEmailContent`, `publishJourney`, `setJourneyStatus`,
+`enrollJourneyTest`, `skipJourneyWait`, `exitJourneyEnrollment`,
+`getJourneyStats`, `getJourneySeries`; `queryOptions` w `queries.ts` (klucze
+pod prefiksami inwalidacji szyny); walidacja kanwy `validateJourneyGraph`,
+katalog wyzwalaczy z polami warunku (`JOURNEY_TRIGGERS`,
+`buildTriggerCondition`), zmienne i próbki (`JOURNEY_VARIABLES`,
+`JOURNEY_VARIABLE_SAMPLES`), szablony (`JOURNEY_TEMPLATES`), etykiety
+`journeyLabelKey`/`journeyTriggerLabelKey`/`journeyTemplateLabelKeys`. Kody
+błędów zapisów (`JourneyMutationErrorCode`) i kody walidatora SQL mają napisy
+w słowniku.
+
+### 20.5 Zgłoszenia otwarte
+
+| ID      | Zgłoszenie                                                                                                                                                                                                                                               |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-S5-01 | `pricing_enquiry_b2b` czeka na zdarzenie `contact_message.submitted.v1` (SPEC P25, po M3) - emiter formularza kontaktu poza S5; do tego czasu instalacja odmawia (`template_unavailable`).                                                               |
+| Z-S5-02 | Limit tagu: I0 `JOURNEY_LIMITS.tagMax` = 64, pisarz tagów CRM = 40; silnik egzekwuje 40. Do decyzji: wyrównać stałą I0 (i jej test parytetu) do 40 albo poszerzyć pisarza CRM.                                                                           |
+| Z-S5-03 | Runner niepodpięty do `jobs-tick` (I9, §20.4) - po włączeniu silnika w panelu zapisy powstają, ale kroki nie wykonują się do czasu I9; panel pokazuje to w zdrowiu silnika (rosnące `due_now`, brak `last_step_at`).                                     |
+| Z-S5-04 | Wycofanie zgody przy wypisie powtarza logikę `crm_leads_marketing_consent_withdraw` (wymaga sesji personelu). Propozycja: wspólny pomocnik wewnętrzny dla obu ścieżek (CRM/I9).                                                                          |
+| Z-S5-05 | Do sprawdzenia w teście na żywo (M3): czy bramka pocztowa platformy dokleja własną stopkę wypisu do maili ścieżek (kolejka transakcyjna wymaga `unsubscribe_token`) - wtedy mail marketingowy miałby dwie stopki; usługa i test nie mają stopki ścieżki. |
+| Z-S5-06 | Otwarcia Apple MPP nie mają rozpoznawalnego nagłówka - odsiewa je wyłącznie próg czasu (`machine_open_seconds`, domyślnie 2 s); `unique_human_opens` i CTOR są górną granicą.                                                                            |
+| Z-S5-07 | M3 - włączenie silnika u NES (decyzja właściciela) po teście na żywo `welcome_onboarding` i `abandoned_checkout` (§20.9 pkt 7) i po I9.                                                                                                                  |
+| Z-S5-08 | Podgląd treści w edytorze S8: `substituteDocVariables` mieszka w `render.server.ts` (render z podpisami); podgląd w przeglądarce potrzebuje wersji klienckiej (przeniesienie do `variables.ts`) albo server fn podglądu - decyzja S8.                    |
+
+### 20.6 Bliźniaki drizzle
+
+| Wersja supabase                              | Bliźniak                           | idx | `when`        |
+| -------------------------------------------- | ---------------------------------- | --- | ------------- |
+| `20261020140000_journeys_routing`            | `0352_journeys_routing`            | 352 | 1792476733912 |
+| `20261020140100_journeys_engine`             | `0353_journeys_engine`             | 353 | 1792476793912 |
+| `20261020140200_journeys_predicates_consent` | `0354_journeys_predicates_consent` | 354 | 1792476853912 |
+| `20261020140300_journeys_admin_rpc`          | `0355_journeys_admin_rpc`          | 355 | 1792476913912 |
+| `20261020140400_journeys_admin_tools`        | `0356_journeys_admin_tools`        | 356 | 1792476973912 |
+| `20261020140500_journeys_tracking_stats`     | `0357_journeys_tracking_stats`     | 357 | 1792477033912 |
+
+`when` = 1792476673912 (`0351`) + n·60 000; `cmp` supabase ⇄ drizzle: bajt
+w bajt. **Następny wolny numer: `0358`** (idx 358), bez rezerwacji (§6).
+
+### 20.7 Pomiar bundla
+
+`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`; baza = build `32e9039a` w `/home/user/neweustrategies-dc633fb5`
+(ten sam host i `node_modules`). Przypisanie: gzip -9 per chunk (nazwa bez
+hasha), baza ⇄ S5.
+
+| Budżet (gzip KB)            | Próg         | Baza `32e9039a` | S5     | Δ        | Wynik                                                                                |
+| --------------------------- | ------------ | --------------- | ------ | -------- | ------------------------------------------------------------------------------------ |
+| `overall`                   | 5003         | 5001,7          | 4999,9 | **−1,8** | ✓ bez ratchetu D-08 (zapas 3,1 KB)                                                   |
+| `admin-only`                | -            | 2223,0          | 2222,2 | −0,8     | -                                                                                    |
+| `public`                    | 2881 (zamr.) | 2778,7          | 2777,7 | −1,0     | ✓                                                                                    |
+| największy chunk (entry)    | 286 (zamr.)  | 257,8           | 257,8  | 0,0      | ✓                                                                                    |
+| `css`                       | 100          | 99,7            | 99,7   | 0,0      | ✓ arkusze bit w bit te same (słownik i szablony bez słów-klas narzędziowych)         |
+| `publicCss`                 | 85 (zamr.)   | 83,8            | 83,8   | 0,0      | ✓                                                                                    |
+| `boot`                      | 579 (zamr.)  | 471,6           | 471,6  | 0,0      | ✓                                                                                    |
+| chunki JS (nazwy bez hasha) | -            | 1272            | 1272   | 0        | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓ |
+
+Jedyny chunk z ruchem > 0,05 KB: `admin` +0,07 (reguła inwalidacji
+`op = 'settings'` w `eventInvalidationMap.admin.ts`). Silnik, szablony, server
+fn i słownik nie trafiają do żadnego chunku klienta - UI (S8) jeszcze ich nie
+importuje (stuby server fn powstaną dopiero z importem w komponencie). Reszta
+różnicy to entropia hashy w nazwach importów (888 chunków po kilka bajtów).
+
+### 20.8 Weryfikacja końcowa S5
+
+Worktree `/home/user/wt/S5`, ciężkie kroki po kolei (pamięć 16 GB); pełny
+pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                                                                  | Wynik                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                                                                     | ✓                                                                                                                                                                                                                                                                                                                                               |
+| `bun run verify:static`                                                                                                                                                                                                                                    | ✓ 18 bramek (320 s)                                                                                                                                                                                                                                                                                                                             |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1 && bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                                           | ✓                                                                                                                                                                                                                                                                                                                                               |
+| `bun run lint`                                                                                                                                                                                                                                             | ✓ 0 błędów (282 ostrzeżenia zastane, żadne w plikach S5)                                                                                                                                                                                                                                                                                        |
+| `TZ=UTC bunx vitest run --maxWorkers=3 --coverage.enabled --coverage.include='src/lib/journeys/**' src/lib/journeys`                                                                                                                                       | ✓ 12 plików, 212 testów; pokrycie linii **99,19 %** (615/620), gałęzi 97,75 %; nowe pliki 100 % linii (`keys.ts` z I0 - 72 %)                                                                                                                                                                                                                   |
+| `TZ=UTC bunx vitest run --maxWorkers=3 src/lib/journeys src/lib/server/__tests__ src/routes/api/public src/routes/__tests__ src/lib/email src/lib/newsletter src/lib/realtime src/lib/ci src/lib/__tests__ src/__tests__`                                  | ✗ → ✓: `overlayReaders` - korzeń `adminJourneys` bez czytelnika w kodzie produkcyjnym (UI dopiero w S8) → `labels.ts` (typowane klucze etykiet dla S8). Po poprawce 583 pliki, 17 112 testów ✓                                                                                                                                                  |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - konsumenci zmienionych modułów spoza zestawu (45 plików: zdarzenia, powiadomienia, kluby, retencja, dostęp, kupony, szablony maili) + `src/lib/revenue`, `src/lib/admin/revenue`, `src/components/admin/revenue` | ✓ 88 plików, 3330 testów                                                                                                                                                                                                                                                                                                                        |
+| pgTAP `run.sh all` (`PGTAP_DIR=/tmp/pgtap-int`, port 5470, `flock`)                                                                                                                                                                                        | 235 plików ✓, 5 z błędem: 4 znane środowiska (pg_net 2+1, `public_definer_views_read_only` 1/35, `profile_intent_semantic` - vector; migracja `20260825230232`) i **`plpgsql_check_gate` 1/4** - `admin_journey_stats` z tabelą tymczasową (13 błędów 42P01/55000) → przepisane na tablicę identyfikatorów (§20.3); ponowny przebieg `journeys_ | email_ | hub_shared_helpers | plpgsql_check_gate | ts_sql_contract` na tej bazie po wgraniu poprawionej migracji: 19 plików ✓ |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                 | ✓ bez zmian pliku (wpisy S5 już w kontrakcie), 9 asercji                                                                                                                                                                                                                                                                                        |
+| `check:rpc-contract`, `check:types-freshness`, `check:migration-lanes`                                                                                                                                                                                     | ✓ (847 nazw RPC; 7 znanych kolumn - baseline; 358 wpisów dziennika drizzle)                                                                                                                                                                                                                                                                     |
+| `check:sql-{tenant-scope,app-role,anon-insert,definer-views,owner-tenant-scope,policy-tenant-regression,migration-replay}`, `check:on-conflict-arbiters`                                                                                                   | ✓                                                                                                                                                                                                                                                                                                                                               |
+| `split-migration.ts --dry-run` dla `2026102014*`                                                                                                                                                                                                           | ✓ każdy plik 1 część (największy `140500` = 43 208 B < 46 080 B)                                                                                                                                                                                                                                                                                |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                    | ✓ (§20.7)                                                                                                                                                                                                                                                                                                                                       |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                                                                  | ✗ → ✓ po regeneracji (wyłącznie liczniki skanu, §20.4)                                                                                                                                                                                                                                                                                          |
+| `bun run scripts/hub-slice-guard.ts S5 --base 32e9039a`                                                                                                                                                                                                    | exit 1 wyłącznie na zmianach Integratora (§20.4); dostawa huba: 6 plików, 48 definicji funkcji                                                                                                                                                                                                                                                  |
+| `cmp` supabase ⇄ drizzle `0352…0357`                                                                                                                                                                                                                       | ✓ bajt w bajt                                                                                                                                                                                                                                                                                                                                   |
+
+Nowe testy TS: `graph` (21), `nodeTypesParity` (8, czyta migracje S5),
+`triggers` (7, czyta migracje emiterów), `templates` (79 przypadków
+z `describe.each`), `render.server` (9), `parse` (11, kształty z prawdziwej
+bazy), `journeys.functions` (17), `queries` (3), `tracking.server` (4),
+`i18nJourneys` (20), `journeysRunner.server` (15), `trackingTokenJourney` (7),
+`-nl-tracking` (+7 przypadków `m=`), `-api.public.newsletter.unsubscribe` (+5),
+`queueDrain` (+2), `transactional.server` (+2), `suppressionPolicy` (+1),
+`revenueInvalidation` (+1). pgTAP: 7 plików, 168 asercji.
+
+### 20.9 Wdrożenie S5 na produkcji (właściciel)
+
+Kod i migracje S5 idą w jednym PR. Zależności w obie strony:
+
+- nowy front przed migracjami: server fn ścieżek dostają PGRST202/42883 →
+  stan `unavailable` (UI S8 jeszcze nie ma); trasy `nl-open`/`nl-click`
+  z `m=` zawsze oddają piksel i przekierowanie (zapis to telemetria
+  best-effort), wypis tokenem ścieżki odpowiada 500 (bramka ponowi) - takich
+  tokenów nikt jeszcze nie dostał, bo silnik jest wyłączony;
+- stary front po migracjach: bez zmian - trasa zdarzeń nie robi nic bez
+  opublikowanych ścieżek (zero wierszy skrzynki), `email_apply_delivery_event`
+  zachowuje sygnaturę i dotychczasowe dopasowanie.
+
+1. **Warunek:** M0 (tabele ścieżek, `journey_settings`,
+   `email_send_log.provider_message_id`), S1, S2, S3 i S4 wdrożone albo
+   w tym samym oknie (§10) - akcje v2 `run_workflow_step` (S4) i emitery
+   wyzwalaczy (S1-S4).
+2. **Okno nocne** - gorąca tabela: `CREATE TRIGGER trg_journey_route_event`
+   na `domain_events` (`140000`) pod `SET lock_timeout = '5s'`. Panel Lovable →
+   6 plików **w kolejności wersji**:
+   1. `20261020140000_journeys_routing` (wyzwalacz na `domain_events`);
+   2. `140100_journeys_engine`;
+   3. `140200_journeys_predicates_consent` (`ALTER TABLE journey_settings` - mała tabela);
+   4. `140300_journeys_admin_rpc`;
+   5. `140400_journeys_admin_tools`;
+   6. `140500_journeys_tracking_stats` (redefinicja `email_apply_delivery_event`, sygnatura bez zmian).
+
+   Pliki są idempotentne (`CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS` -
+   `CREATE TRIGGER`, `ADD COLUMN IF NOT EXISTS`, CHECK przez
+   `DROP CONSTRAINT IF EXISTS`, bezstanowe `REVOKE`/`GRANT`). `55P03` (limit
+   blokady) = ponów cały plik.
+
+3. Zaraz potem opublikuj front z tego PR.
+4. Bliźniaki `0352…0357` są kopiami bajt w bajt - po panelu wykonują się jako
+   no-op; migrator Drizzle wykona je sam, jeśli panel zostanie pominięty.
+5. `workflow_dispatch` CI na `main` → `post-deploy`: `check:db-contract`
+   i `check:migration-ledger` (6 wersji) zielone. Wynik do §10.
+6. Kontrola po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Wyzwalacz trasy: oczekiwane 1.
+SELECT count(*) FROM pg_trigger
+ WHERE NOT tgisinternal AND tgname = 'trg_journey_route_event';
+-- Silnik wyłączony u każdego najemcy: oczekiwane 0.
+SELECT count(*) FROM public.journey_settings WHERE enabled;
+-- RPC panelu i runnera: oczekiwane 4 niepuste kolumny.
+SELECT to_regprocedure('public.admin_journey_settings_get()') AS settings,
+       to_regprocedure('public.admin_journey_engine_health()') AS health,
+       to_regprocedure('public.journey_claim_due(integer,integer)') AS claim,
+       to_regprocedure('public.journey_record_message_event(text,text,integer,text,boolean)') AS tracking;
+-- Funkcje serwisowe tylko dla serwera: oczekiwane false, false.
+SELECT has_function_privilege('anon', 'public.journey_ingest_inbox(integer)', 'EXECUTE'),
+       has_function_privilege('authenticated', 'public.journey_advance(uuid,uuid,integer)', 'EXECUTE');
+```
+
+7. **M3 (po I9 - runner w `jobs-tick`), decyzja właściciela:** w panelu
+   (UI S8; do tego czasu RPC) zainstaluj `welcome_onboarding`
+   i `abandoned_checkout`, uzupełnij nadawcę i Reply-To, opublikuj, a potem
+   **test na żywo** na własnym koncie (`admin_journey_enroll_test` działa
+   przy wyłączonym silniku; „pomiń czekanie” prowadzi przez kolejne kroki).
+   Sprawdź: oba maile dochodzą, linki przechodzą przez `nl-click` na właściwy
+   cel, wypis jednym kliknięciem wyprowadza zapis z powodem `unsubscribed`,
+   stopka występuje raz (Z-S5-05). Dopiero potem `enabled = true` w ustawieniach
+   silnika i obserwacja 7 dni (SPEC §9.2) w zdrowiu silnika.
+
+Wycofanie: wyłączenie silnika w panelu (`enabled = false`) zatrzymuje zapisy
+i pobieranie; awaryjnie `JOURNEYS_ENGINE_DISABLED=1` zatrzymuje runner.
+Zdjęcie wyzwalacza trasy - osobną migracją spoza bloku huba, decyzją
+właściciela; `email_apply_delivery_event` wraca przez ciało
+z `20260725123624` (bez dopasowania najemcy po `provider_message_id`).
+Kolumny `sender_name`/`reply_to` są opcjonalne (NULL = nazwa serwisu, bez
+Reply-To).
+
+### 20.10 Kryteria akceptacji S5 (SPEC §8.3)
+
+- [x] pgTAP 7 plików zielony - 168 asercji (trasa 24, narzut trasy 7, silnik 38, wersje i A/B 13, zgody 23, RPC panelu 37, tracking i statystyki 26), w tym narzut trasy na 1000 zdarzeń (< 1,5 s, indeks klucza głównego, warunek `WHEN`) i brak pętli (cykl odrzucony przy publikacji; krok raz na zapis i węzeł); pełny `run.sh all` - wyłącznie znane błędy środowiska (§20.8).
+- [x] `graph.test.ts` (DAG, gałęzie, osiągalność, limit 60, zakaz maila przy `payment_failed`, ostrzeżenia), `nodeTypesParity.test.ts`, `triggers.test.ts` (każdy wyzwalacz ∈ `DOMAIN_EVENT_TYPES`, klucze ładunku z migracji emiterów, `conditionFields` budują `payload @>`), `templates.test.ts` (schemat publikacji, PL/EN, `service` z podstawą prawną, `winback_30d` z `reason` `not_in ['paused']`).
+- [x] `journeysRunner.server.test.ts`: kolejność, termin 3 s, sufit 20 maili/tick, odkładanie przy zaległości > 120 (5 min) i blokadzie reputacji (60 min, bramka raz na najemcę), idempotencja `journey:{zapis}:{węzeł}` (duplikat domyka krok bez drugiego liczenia), `JOURNEYS_ENGINE_DISABLED`.
+- [x] Tracking: podpis linku z numerem i odporność na otwarte przekierowanie (nowe przypadki `m=`: podmieniony cel, numer, brak podpisu, podpis kampanii, nie-http), token trackingu nie wypisuje; wypis wyprowadza aktywne zapisy marketingowe z powodem `unsubscribed` (pgTAP), usługowe zostają.
+- [x] Silnik wyłączony domyślnie: brak wiersza ustawień = wyłączony; wyłączony najemca - zero zapisów (pgTAP trasy), pobierany wyłącznie test na żywo (pgTAP silnika); kontrola po wdrożeniu (§20.9 pkt 6).
+- [x] Pokrycie `src/lib/journeys/**` ≥ 90 % linii - 99,19 %.
+- [x] Wymóg właściciela „wszystko w panelu admina”: każdy przełącznik silnika ma RPC panelu i server fn (§20.2, lista dla S8 - §20.4); UI - S8.
+- [ ] Runner w `jobs-tick` i M3 - poza kartą S5 (I9, Z-S5-03, Z-S5-07).
