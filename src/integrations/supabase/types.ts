@@ -5843,7 +5843,7 @@ export type Database = {
           started_at: string
           subscription_id: string
           tenant_id: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           currency: string
@@ -5857,7 +5857,7 @@ export type Database = {
           started_at: string
           subscription_id: string
           tenant_id: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           currency?: string
@@ -5871,9 +5871,16 @@ export type Database = {
           started_at?: string
           subscription_id?: string
           tenant_id?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "dunning_cycles_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "dunning_cycles_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -16813,7 +16820,7 @@ export type Database = {
           tenant_id: string
           tier_key_after: string | null
           tier_key_before: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           backfilled?: boolean
@@ -16834,7 +16841,7 @@ export type Database = {
           tenant_id: string
           tier_key_after?: string | null
           tier_key_before?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           backfilled?: boolean
@@ -16855,7 +16862,7 @@ export type Database = {
           tenant_id?: string
           tier_key_after?: string | null
           tier_key_before?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -22661,7 +22668,7 @@ export type Database = {
           status_before: string | null
           subscription_id: string
           tenant_id: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           cancel_at_period_end_after: boolean
@@ -22684,7 +22691,7 @@ export type Database = {
           status_before?: string | null
           subscription_id: string
           tenant_id: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           cancel_at_period_end_after?: boolean
@@ -22707,9 +22714,16 @@ export type Database = {
           status_before?: string | null
           subscription_id?: string
           tenant_id?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "subscription_state_history_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "subscription_state_history_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -29843,70 +29857,7 @@ export type Database = {
         Args: { p_action: string; p_note?: string; p_report_id: string }
         Returns: undefined
       }
-      admin_revenue_churn: {
-        Args: { p_since: string; p_until: string }
-        Returns: Json
-      }
-      admin_revenue_cohorts: {
-        Args: { p_from_month: string; p_to_month: string }
-        Returns: Json
-      }
-      admin_revenue_dunning: {
-        Args: { p_since: string; p_until: string }
-        Returns: Json
-      }
-      admin_revenue_economics: {
-        Args: {
-          p_from_month: string
-          p_time_zone?: string
-          p_to_month: string
-        }
-        Returns: Json
-      }
       admin_revenue_email_health: {
-        Args: { p_since: string; p_until: string }
-        Returns: Json
-      }
-      admin_revenue_input_upsert: {
-        Args: {
-          p_amount_minor: number
-          p_currency: string
-          p_expected_updated_at: string
-          p_kind: string
-          p_note: string
-          p_period_month: string
-          p_ratio: number
-          p_segment: string
-        }
-        Returns: Json
-      }
-      admin_revenue_inputs: {
-        Args: { p_from_month: string; p_to_month: string }
-        Returns: Json
-      }
-      admin_revenue_mrr_bridge: {
-        Args: { p_segment?: string; p_since: string; p_until: string }
-        Returns: Json
-      }
-      admin_revenue_mrr_series: {
-        Args: {
-          p_grain?: string
-          p_since: string
-          p_time_zone?: string
-          p_until: string
-        }
-        Returns: Json
-      }
-      admin_revenue_offer_matrix: { Args: never; Returns: Json }
-      admin_revenue_realized: {
-        Args: { p_since: string; p_until: string }
-        Returns: Json
-      }
-      admin_revenue_retention_offers: {
-        Args: { p_since: string; p_until: string }
-        Returns: Json
-      }
-      admin_revenue_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
         Returns: Json
       }
@@ -34834,8 +34785,6 @@ export type Database = {
         Args: { p_max_profiles?: number }
         Returns: number
       }
-      run_retention_flow_scanner: { Args: never; Returns: Json }
-      run_revenue_lifecycle_scanner: { Args: never; Returns: Json }
       run_saved_search_alerts: {
         Args: { p_max_searches?: number }
         Returns: number
