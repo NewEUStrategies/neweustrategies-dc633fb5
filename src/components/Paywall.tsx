@@ -307,15 +307,18 @@ export function Paywall({
       rule.entity_type === "media"
     ) {
       const entityType = rule.entity_type;
-      void import("@/lib/access/paywallOffer").then((m) =>
-        m.recordPaywallHit(signedIn, {
-          entityType,
-          entityId: rule.entity_id,
-          reason: hitReason,
-          requiredTierKey: hitTier,
-          variant,
-        }),
-      );
+      // Pomiar nigdy nie psuje ściany - także chunk, który się nie wczytał.
+      void import("@/lib/access/paywallOffer")
+        .then((m) =>
+          m.recordPaywallHit(signedIn, {
+            entityType,
+            entityId: rule.entity_id,
+            reason: hitReason,
+            requiredTierKey: hitTier,
+            variant,
+          }),
+        )
+        .catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hitKey, hitTier, authLoading]);

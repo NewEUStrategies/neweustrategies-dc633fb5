@@ -121,15 +121,19 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
         meta: { reason: hitReason, surface: "club_gate" },
       });
     }
-    void import("@/lib/access/paywallOffer").then((m) =>
-      m.recordPaywallHit(signedIn, {
-        entityType: "club",
-        entityId: club.id,
-        reason: hitReason,
-        requiredTierKey: view.sellTier,
-        variant: "default",
-      }),
-    );
+    // Pomiar nigdy nie psuje bramki - także chunk, który się nie wczytał
+    // (wdrożenie w trakcie wizyty), kończy się ciszą, a nie odrzuconą obietnicą.
+    void import("@/lib/access/paywallOffer")
+      .then((m) =>
+        m.recordPaywallHit(signedIn, {
+          entityType: "club",
+          entityId: club.id,
+          reason: hitReason,
+          requiredTierKey: view.sellTier,
+          variant: "default",
+        }),
+      )
+      .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocked, club.id, hitReason, view.sellTier]);
 

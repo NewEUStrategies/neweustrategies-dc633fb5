@@ -129,3 +129,40 @@ describe("loadCheckoutSettings", () => {
     expect(settings.allow_promotion_codes).toBe(false);
   });
 });
+
+// S3, P22: okno porzucenia kasy jedzie do sesji operatora (`expires_at`).
+describe("loadCheckoutSettings - okno porzucenia (P22)", () => {
+  const ROW = {
+    allow_promotion_codes: false,
+    automatic_tax: false,
+    tax_id_collection: true,
+    billing_address_collection: "auto",
+    invoice_creation: true,
+  };
+
+  it("wybiera kolumnę okna i oddaje je w ustawieniach sesji", async () => {
+    const { client, recorded } = stubClient({
+      data: { ...ROW, abandon_after_minutes: 90 },
+      error: null,
+    });
+    const settings = await loadCheckoutSettings(client, "tenant-a");
+    expect(recorded.columns).toContain("abandon_after_minutes");
+    expect(settings.abandon_after_minutes).toBe(90);
+  });
+
+  it("wartość spoza CHECK-u (30-1440) albo niecałkowita - domyślne okno, bez pola", async () => {
+    for (const bad of [29, 1441, 45.5, "60", null]) {
+      const { client } = stubClient({ data: { ...ROW, abandon_after_minutes: bad }, error: null });
+      const settings = await loadCheckoutSettings(client, "tenant-a");
+      expect("abandon_after_minutes" in settings).toBe(false);
+    }
+  });
+
+  it("granice CHECK-u są przyjmowane i lustrzane do `REVENUE_LIMITS`", async () => {
+    const { abandonAfterMinutes } = await import("@/lib/billing/checkoutSettings.server");
+    const { REVENUE_LIMITS } = await import("@/lib/revenue/limits");
+    expect(abandonAfterMinutes(REVENUE_LIMITS.checkoutAbandonMinutesMin)).toBe(30);
+    expect(abandonAfterMinutes(REVENUE_LIMITS.checkoutAbandonMinutesMax)).toBe(1440);
+    expect(abandonAfterMinutes(REVENUE_LIMITS.checkoutAbandonMinutesDefault)).toBe(1440);
+  });
+});

@@ -337,6 +337,51 @@ export async function resolvePricesByLookupKeys(
   return map;
 }
 
+/** Operator przyjmuje `expires_at` od 30 minut do 24 godzin od założenia sesji. */
+const STRIPE_SESSION_MIN_SECONDS = 30 * 60;
+const STRIPE_SESSION_MAX_SECONDS = 24 * 60 * 60;
+/**
+ * Zapas na opóźnienie między naszym zegarem a chwilą założenia sesji
+ * u operatora (sieć, dryf zegara): okno 30 min wysłane co do sekundy byłoby
+ * po stronie operatora krótsze niż minimum i sesja padłaby błędem walidacji.
+ */
+const STRIPE_SESSION_EXPIRY_MARGIN_SECONDS = 60;
+
+/**
+ * `expires_at` sesji z okna porzucenia najemcy (S3, P22) albo `undefined`.
+ *
+ * DLACZEGO. Kasa otwarta i zostawiona żyła u operatora 24 h niezależnie od
+ * `checkout_settings.abandon_after_minutes`, więc `checkout.session.expired`
+ * (-> `cancel_reason = 'session_expired'` -> `checkout.abandoned.v1`) i ścieżka
+ * porzuconego koszyka przychodziły dobę po porzuceniu zamiast po oknie
+ * najemcy. Okno = minuty z ustawień + zapas, nie mniej niż minimum operatora;
+ * okno sięgające maksimum operatora (domyślne 1440 min) zostawia parametr
+ * pusty - operator i tak zamyka sesję po 24 h, a granica co do sekundy
+ * byłaby wrażliwa na dryf zegara.
+ *
+ * IDEMPOTENCJA. Wartość liczona RAZ przed `sessions.create`: ponowienia SDK
+ * wysyłają ten sam ładunek, a klucz idempotencji jest per zamówienie, które
+ * każda ścieżka zakłada w tym samym żądaniu tuż przed sesją - drugie
+ * wywołanie dla tego samego zamówienia z innym zegarem nie występuje.
+ */
+export function checkoutSessionExpiresAt(
+  settings: CheckoutSettings | undefined,
+  nowMs: number = Date.now(),
+): number | undefined {
+  const minutes = settings?.abandon_after_minutes;
+  if (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes <= 0) return undefined;
+  const windowSeconds =
+    Math.max(minutes * 60, STRIPE_SESSION_MIN_SECONDS) + STRIPE_SESSION_EXPIRY_MARGIN_SECONDS;
+  if (windowSeconds >= STRIPE_SESSION_MAX_SECONDS) return undefined;
+  return Math.floor(nowMs / 1000) + windowSeconds;
+}
+
+/** Fragment parametrów sesji z oknem porzucenia (pusty bez okna). */
+function sessionExpiry(settings: CheckoutSettings | undefined): { expires_at?: number } {
+  const expiresAt = checkoutSessionExpiresAt(settings);
+  return expiresAt === undefined ? {} : { expires_at: expiresAt };
+}
+
 /** Klucz idempotencji sesji Checkout zamówienia - jedna sesja na zamówienie. */
 export function checkoutSessionIdempotencyKey(orderId: string): string {
   return `checkout_session:${orderId}`;
@@ -661,9 +706,8 @@ async function voidAbandonedFirstInvoice(
  * w sesji ad-hoc): ponowienie żądania przez SDK po zerwanym połączeniu dostaje
  * TĘ SAMĄ sesję zamiast drugiej. Parametry sesji są stałe dla zamówienia
  * (chwilę zgody wylicza wołający raz), więc klucz nigdy nie trafia na inny
- * ładunek. Świadomie BEZ `expires_at`: minimum operatora to 30 minut, więc
- * samo skrócenie życia sesji okna nie zamyka, a parametr zależny od zegara
- * łamałby tożsamość ponowienia.
+ * ładunek. `expires_at` (okno porzucenia najemcy, S3/P22) liczy się raz przed
+ * wywołaniem - ponowienie SDK niesie tę samą wartość (`checkoutSessionExpiresAt`).
  */
 export async function createPlanCheckoutSession(
   input: PlanCheckoutSessionInput,
@@ -831,6 +875,8 @@ export async function createPlanCheckoutSession(
         hasCustomer: true,
         hasDiscount: !!discounts,
       }),
+      // Okno porzucenia najemcy (P22) - porzucona kasa wygasa po nim, nie po dobie.
+      ...sessionExpiry(input.settings),
     } as SessionCreateParams;
 
     // Zgoda z checkoutu dokładana DO metadanych, nie zamiast nich: subskrypcja
@@ -1066,6 +1112,9 @@ export async function createAdhocCheckoutSession(
       // musi zapisać NIP, policzyć podatek albo wystawić fakturę.
       ...(input.discount ? { discounts: [{ coupon: input.discount.coupon }] } : {}),
       ...adhocFlags(input, !!customerId),
+      // Okno porzucenia najemcy (P22) - także treść i bilety: porzucona kasa
+      // wygasa po nim, a `checkout.session.expired` oddaje rezerwację wcześniej.
+      ...sessionExpiry(input.settings),
     } as SessionCreateParams;
 
     const session = await stripe.checkout.sessions.create(params, {

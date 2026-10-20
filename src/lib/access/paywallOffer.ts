@@ -19,13 +19,22 @@
 // najtańszy plan w przeliczeniu na miesiąc (remis: kolejność redakcyjna).
 //
 // BUDŻET `public`. Ściana importuje ten moduł przez `import()` dopiero po
-// pierwszym renderze (plan B karty S3), a dane - katalog planów, warstwy,
-// warstwę i organizację czytelnika - pobiera tymi samymi funkcjami co cennik
-// i profil (`fetchActivePlans`, `fetchMembershipTiers`, `fetchCurrentTier`,
-// `fetchMyOrganization`), więc nie dokłada drugiej kopii zapytań.
+// pierwszym renderze (plan B karty S3) - wpis bez paywalla go nie pobiera.
+// Dane - katalog planów, warstwy, warstwę i organizację czytelnika - pobiera
+// tymi samymi funkcjami co cennik i profil (`fetchActivePlans`,
+// `fetchMembershipTiers`, `fetchCurrentTier`, `fetchMyOrganization`), więc nie
+// dokłada drugiej kopii zapytań. Importy są STATYCZNE celowo: moduł i tak jest
+// leniwy, a `import()` modułu, który inne chunki importują statycznie, każe
+// Rolldownowi emitować chunk-fasadę z pełną listą eksportów (zmierzone:
+// +0,6 KB gzip w `public` za `tiers`, `queries` i `membership`, Z-S3-01).
 import type { AccessPlan, ContentAccessRule } from "@/hooks/useContentAccess";
+import { supabase } from "@/integrations/supabase/client";
 import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
+import { fetchMyOrganization } from "@/lib/billing/membership";
+import { fetchActivePlans } from "@/lib/billing/queries";
+import { fetchCurrentTier, fetchMembershipTiers } from "@/lib/billing/tiers";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
+import { recordPaywallHitVisitor } from "./paywallHits.functions";
 
 export type PaywallCtaKind =
   | "signup_then_checkout"
@@ -191,18 +200,14 @@ export async function loadPaywallOffer(
   signedIn: boolean,
   persona: PaywallViewer | null,
 ): Promise<PaywallOffer> {
-  const [{ fetchActivePlans }, tiersModule] = await Promise.all([
-    import("@/lib/billing/queries"),
-    import("@/lib/billing/tiers"),
-  ]);
   // Warstwa i organizacja czytelnika to dodatek: ich błąd nie zabiera oferty,
   // czytelnik dostaje wtedy ścieżkę jak bez planu.
   const readViewer = async (): Promise<PaywallViewer> => {
     if (persona) return persona;
     if (!signedIn) return { signedIn: false, tierRank: 0 };
     const [tier, org] = await Promise.all([
-      tiersModule.fetchCurrentTier().catch(() => null),
-      import("@/lib/billing/membership").then((m) => m.fetchMyOrganization()).catch(() => null),
+      fetchCurrentTier().catch(() => null),
+      fetchMyOrganization().catch(() => null),
     ]);
     return {
       signedIn: true,
@@ -213,7 +218,7 @@ export async function loadPaywallOffer(
   };
   const [plans, tiers, viewer] = await Promise.all([
     fetchActivePlans(),
-    tiersModule.fetchMembershipTiers(),
+    fetchMembershipTiers(),
     readViewer(),
   ]);
   return resolvePaywallOffer(rule, tiers as OfferTier[], plans as AccessPlan[], viewer);
@@ -235,7 +240,6 @@ export interface PaywallHitInput {
 export async function recordPaywallHit(signedIn: boolean, hit: PaywallHitInput): Promise<void> {
   try {
     if (signedIn) {
-      const { supabase } = await import("@/integrations/supabase/client");
       await (supabase as unknown as RpcCallable).rpc("record_paywall_hit", {
         p_entity_type: hit.entityType,
         p_entity_id: hit.entityId,
@@ -245,7 +249,6 @@ export async function recordPaywallHit(signedIn: boolean, hit: PaywallHitInput):
       });
       return;
     }
-    const { recordPaywallHitVisitor } = await import("./paywallHits.functions");
     await recordPaywallHitVisitor({ data: hit });
   } catch {
     // Pomiar nigdy nie psuje ściany.

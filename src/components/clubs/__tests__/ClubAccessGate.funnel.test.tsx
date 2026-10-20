@@ -48,7 +48,15 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("@/lib/profile/badges", () => ({ useUserBadges: () => ({ data: [] }) }));
-vi.mock("@/lib/billing/tiers", () => ({ useMembershipTiers: () => ({ data: undefined }) }));
+// `paywallOffer` (pomiar uderzenia) importuje katalog statycznie - atrapa
+// musi nieść też jego funkcje, inaczej `import()` modułu pomiaru odpada.
+vi.mock("@/lib/billing/tiers", () => ({
+  useMembershipTiers: () => ({ data: undefined }),
+  fetchMembershipTiers: async () => [],
+  fetchCurrentTier: async () => null,
+}));
+vi.mock("@/lib/billing/queries", () => ({ fetchActivePlans: async () => [] }));
+vi.mock("@/lib/billing/membership", () => ({ fetchMyOrganization: async () => null }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { auth: { signUp: vi.fn() }, rpc: (n: string, a: unknown) => h.rpc(n, a) },
 }));

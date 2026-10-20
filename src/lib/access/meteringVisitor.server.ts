@@ -19,6 +19,9 @@
 // (ten sam łańcuch co tokeny trackingu newslettera). Nowej zmiennej
 // środowiskowej nie ma. Bez użytecznego sekretu metering gościa degraduje się
 // w stronę BEZPIECZNĄ: ściana rejestracji zamiast liczenia "w ciemno".
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { getCookie, getRequest, setCookie } from "@tanstack/react-start/server";
 
 import type { Json } from "@/integrations/supabase/types";
@@ -123,6 +126,23 @@ export function resolveMeteringVisitor(mint: boolean): string | null {
     visitorCookieOptions(isSecureRequest(getRequest())),
   );
   return visitorId;
+}
+
+/**
+ * Skrót HMAC gościa dla INNEGO licznika niż limit (S3: uderzenia w paywall,
+ * `record_paywall_hit_visitor`). Jedno miejsce, które czyta podpisane cookie
+ * i sekret - liczniki nie powielają weryfikacji podpisu ani wyboru sekretu.
+ *
+ * Nigdy nie wystawia cookie (`mint=false`): pomiar nie ma podstawy, by zakładać
+ * nowy identyfikator przeglądarki. Etykieta celu wchodzi do skrótu, więc ten
+ * sam gość w dwóch licznikach daje dwa różne skróty - tabel nie da się złączyć
+ * po identyfikatorze. Bez sekretu albo ważnego cookie - `null`.
+ */
+export function meteringVisitorDigest(purpose: string): string | null {
+  const secret = meteringVisitorSecret();
+  const visitorId = secret ? resolveMeteringVisitor(false) : null;
+  if (!secret || !visitorId) return null;
+  return bytesToHex(hmac(sha256, utf8ToBytes(secret), utf8ToBytes(`${purpose}:${visitorId}`)));
 }
 
 /** Konsumpcja slotu gościa (albo werdykt odmowy) dla bytu `post`/`page`. */

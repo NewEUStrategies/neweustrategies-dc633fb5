@@ -18,6 +18,26 @@ import {
   normalizeCheckoutSettings,
   type CheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
+import { REVENUE_LIMITS } from "@/lib/revenue/limits";
+
+// Okno porzucenia kasy (S3, P22) czyta wyłącznie ścieżka tworzenia sesji -
+// dokładamy kolumnę tutaj, a nie do `CHECKOUT_SETTINGS_COLUMNS`, które
+// wybierają też panel i migawka dokumentów (tam pole nie ma odbiorcy).
+const SESSION_SETTINGS_COLUMNS = `${CHECKOUT_SETTINGS_COLUMNS}, abandon_after_minutes` as const;
+
+/**
+ * Minuty okna porzucenia albo `null` (= domyślne okno operatora). Wartość
+ * spoza CHECK-u bazy (30-1440) albo niecałkowita nie zgaduje okna - wraca
+ * domyślne, tak jak brak wiersza.
+ */
+export function abandonAfterMinutes(raw: unknown): number | null {
+  return typeof raw === "number" &&
+    Number.isInteger(raw) &&
+    raw >= REVENUE_LIMITS.checkoutAbandonMinutesMin &&
+    raw <= REVENUE_LIMITS.checkoutAbandonMinutesMax
+    ? raw
+    : null;
+}
 
 /**
  * Ustawienia checkoutu dla tenantu zamówienia. Nigdy nie rzuca: awaria odczytu
@@ -32,11 +52,15 @@ export async function loadCheckoutSettings(
   tenantId?: string | null,
 ): Promise<CheckoutSettings> {
   try {
-    const base = supabase.from("checkout_settings").select(CHECKOUT_SETTINGS_COLUMNS);
+    const base = supabase.from("checkout_settings").select(SESSION_SETTINGS_COLUMNS);
     const scoped = tenantId ? base.eq("tenant_id", tenantId) : base;
     const { data, error } = await scoped.maybeSingle();
     if (error) throw error;
-    return normalizeCheckoutSettings(data);
+    const settings = normalizeCheckoutSettings(data);
+    const abandon = abandonAfterMinutes(
+      (data as { abandon_after_minutes?: unknown } | null)?.abandon_after_minutes,
+    );
+    return abandon === null ? settings : { ...settings, abandon_after_minutes: abandon };
   } catch (e) {
     console.error("[checkout] checkout_settings read failed, falling back to defaults", e);
     return DEFAULT_CHECKOUT_SETTINGS;
