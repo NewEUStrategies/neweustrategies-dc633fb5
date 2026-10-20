@@ -2425,7 +2425,21 @@ const FROZEN_BUDGET_KB = {
   // 2773,9 (+0,9: słownik i trasy profilu, leniwie), chunk 257,9, css 99,7,
   // publicCss 83,8 i boot 471,6 w zamrożonych progach.
   // Host 4989,6 -> 4990 -> +1.
-  overall: 4991,
+  // Ratchet 4991 -> 4995 (2026-10-20, wycinek S3 huba „Przychód i lejek”:
+  // lejek i paywall czytelnika), decyzją zamawiającego D-08. Baza f149a004
+  // (= main po PR #527, kod = drzewo końcowe S2) 4989,6 / public 2773,9, po
+  // S3 4994,0: +4,4 KB, w całości `public` (+4,6; admin-only -0,1):
+  // paywall z ofertą per persona, powrotem po logowaniu i pomiarem (`_`
+  // +1,6), leniwy moduł oferty i pomiaru `paywallOffer` (+1,2), wspólne
+  // linki powrotu `paywallLinks` (+0,8), bramka klubu (+0,4), portal
+  // logowania (+0,2), kasa (+0,1), wejście (+0,1: walidator `/login`
+  // z `next`/`intent`/`plan`, nazwy GA4). Cel karty S3 (public <= +1,2) NIE
+  // jest spełniony - odchylenie z rozbiciem w dzienniku wdrożenia (Z-S3-01);
+  // statyczne importy w `paywallOffer` zdjęły już 1,4 KB chunków-fasad.
+  // Progi public 2881, chunk 286 (258,1), css 100 (99,7), publicCss 85
+  // (83,8) i boot 579 (471,8) bez zmian i zielone.
+  // Host 4994,0 -> 4994 -> +1.
+  overall: 4995,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
