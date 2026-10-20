@@ -969,6 +969,10 @@ const GLOBAL_COLORS_BRIDGE_CSS = /* @nes-static-css */ `
       :where(main svg, article svg, .content svg, .card svg, [class*="card"] svg, [data-card] svg){color:var(--gc-icon, var(--gc-highlight, currentColor));}
       :where(main a:hover svg, article a:hover svg, .content a:hover svg, main button:hover svg, article button:hover svg, .card a:hover svg, [class*="card"] a:hover svg){color:var(--gc-icon-hover, var(--gc-icon, var(--gc-highlight, currentColor)));}
       :where([data-active="true"] svg, [aria-current="page"] svg, .active > svg, a.active svg, button.active svg, [data-state="active"] svg, [data-state="on"] svg){color:var(--gc-icon-active, var(--gc-icon-hover, var(--gc-icon, currentColor)));}
+      /* Wypełnione przyciski (CTA): ikona ZAWSZE w kolorze tekstu - w spoczynku,
+         po najechaniu i kliknięciu. Bez tego globalny kolor ikon hover (marka)
+         zlewał ikonę z tłem przycisku w tym samym kolorze i ikona znikała. */
+      :where(.btn-bubbly svg, .btn-primary svg, .bg-primary svg, [class*="bg-brand"] svg, [class*="bg-gradient"] svg, [data-icon-inherit] svg){color:inherit;}
     }
     /* Header link styling is wrapped in @layer utilities so Tailwind utility
        classes used inside widgets (text-xs, font-bold, tracking-wider, ...)
