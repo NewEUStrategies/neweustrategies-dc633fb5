@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
-import type { STAGE_HISTORY_DIMENSIONS } from "@/lib/crm/lifecycle";
+import { CRM_TAG_MAX, type STAGE_HISTORY_DIMENSIONS } from "@/lib/crm/lifecycle";
 import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
   chunked,
@@ -179,7 +179,7 @@ const UpdateInput = z.object({
   id: z.string().uuid(),
   stage: STAGE_ENUM.optional(),
   owner_id: z.string().uuid().nullable().optional(),
-  tags: z.array(z.string().max(40)).max(40).optional(),
+  tags: z.array(z.string().max(CRM_TAG_MAX)).max(40).optional(),
   follow_up_at: z.string().datetime().nullable().optional(),
   phone: z.string().max(40).nullable().optional(),
   company: z.string().max(200).nullable().optional(),
@@ -1005,8 +1005,8 @@ const BulkUpdateInput = z.object({
   ids: z.array(z.string().uuid()).min(1).max(500),
   stage: STAGE_ENUM.optional(),
   owner_id: z.string().uuid().nullable().optional(),
-  add_tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
-  remove_tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  add_tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
+  remove_tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
   marketing_consent: z.boolean().optional(),
 });
 

@@ -3746,3 +3746,29 @@ Nowe źródło w rejestrze grupy Lejek i konwersja (licznik źródeł: 189):
 | Id                       | Źródło                                                                                                 | Wydawca                            | Data       | Weryfikacja      | Wiarygodność           | Pochodzenie                                    |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ | ---------------------------------- | ---------- | ---------------- | ---------------------- | ---------------------------------------------- |
 | kiin_lgf_benchmarks_2026 | [LinkedIn Lead Gen Forms Benchmarks 2026](https://kiin.co/research/linkedin-lead-gen-forms-benchmarks) | Kiin Labs (Kiin; autor: Phil Ilic) | 2026-09-15 | tak (2026-10-19) | B (dostawca narzędzia) | pakiet Insider, źródło 1196, dostęp 2026-10-09 |
+
+## Uzupełnienie 2026-10-20: współczynnik zaangażowania GA4 i przegląd PPCR (I9b)
+
+Decyzje właściciela 2026-10-20 (zgoda delegowana): Z-14-03 i Z-14-04 z dziennika wdrożenia huba (`docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §14.5, wykonanie §22).
+
+**Nowy wpis rejestru (Z-14-03): ER (GA4), `engagement_rate`, grupa Lejek i konwersja.** BI ma dziś źródło danych: warstwa semantyczna liczy metrykę `engagement_rate` z GA4 Data API (`semantic/snapshot.functions.ts`, metryka GA4 `engagementRate`), więc przedział `b-engr` pakietu Insidera dostał wpis z oceną zamiast samego punktu odniesienia. Wpis wskazuje metrykę BI (`metricId: engagement_rate`), kontekst domyślny dla segmentu `all`.
+
+- `engagement_rate.site_all` – cała witryna, wszystkie sesje (GA4), miesięcznie: krytyczny < 25 · słaby 25–50 · normalny 50–55 · dobry 55–60 · optymalny ≥ 60.
+
+  Granice 50 i 55 pochodzą z pakietu Insidera (`b-engr`: poniżej 50% słaby, 50–55% normalny, powyżej 55% dobry; źródło Insidera 1352) i ze źródła pierwotnego (Siege Media: mediana 51%, „50% i więcej – dobrze, powyżej 55% – mocno”). Źródło nie podaje kwartyli, więc dwa progi są heurystyką oznaczoną w nocie pasma: krytyczny 25 (połowa dolnej granicy normalnego, jak próg krytyczny kontekstów LinkedIn; poziom median kanałów niskiej intencji: social płatny 20,2%, nieprzypisany 20,8%) i optymalny 60 (poziom median kanałów wysokiej intencji w tym samym badaniu: wyszukiwanie płatne 60,4%, asystenci AI 60,3%, wyszukiwanie organiczne 63,4%). Pewność: średnia. Liczby i metodykę źródła odczytano ze strony 2026-10-20.
+
+Nowe źródło w rejestrze grupy Lejek i konwersja (licznik źródeł: 190):
+
+| Id                        | Źródło                                                                     | Wydawca     | Data       | Weryfikacja      | Wiarygodność                        | Pochodzenie                                    |
+| ------------------------- | -------------------------------------------------------------------------- | ----------- | ---------- | ---------------- | ----------------------------------- | ---------------------------------------------- |
+| siege_ga4_engagement_2026 | [What Is a Good GA4 Engagement Rate?](https://www.siegemedia.com/?p=46485) | Siege Media | 2026-08-26 | tak (2026-10-20) | B (agencja, dane własnych klientów) | pakiet Insider, źródło 1352, dostęp 2026-10-09 |
+
+Rejestr po zmianie: 77 wpisów, 194 konteksty, 973 pasma, 174 źródła kanoniczne (`import-benchmarks.ts --check`: 8 plików zgodnych).
+
+**Przegląd PPCR self-serve (Z-14-04), 2026-10-20: kontekst zostaje na źródle C (SaasDash).** Szukano pierwotnego benchmarku konwersji strony cennika self-serve SaaS ze źródła klasy A/B (badanie z metodologią, próbą i datą). Przejrzane:
+
+- HockeyStack, „The State of Pricing, Demo, and Case Study Pages” (2025-12-15; 80 firm B2B SaaS, ponad 31 mln unikalnych odwiedzających): średnia konwersja stron cennika 3,8%, przy jawnej cenie 2,8%, bez jawnej ceny 4,6%. Odrzucone: średnia, nie mediana i nie kwartyle; licznik konwersji niezdefiniowany (w raporcie konwersja witryny = wysłany formularz), więc mierzy zapytania i dema, a nie trial, rejestrację ani zakup; strona cennika rozpoznawana po słowie „pricing” lub „quote”.
+- ProductLed (ponad 600 firm, dane deklarowane) oraz ChartMogul 2026 i Lenny/OpenView/Pendo cytowane wtórnie przez Userpilot i Kirro: konwersja trialu do płatnego, inny wskaźnik i mianownik.
+- Orbix Studio, SaaSHero, Daydream, Kirro, shno.co (zestawienia), SaasDash: dane dostawców lub kompilacje bez metodologii i próby.
+
+Żadne źródło nie daje liczby weryfikowalnej dla tej samej definicji (odwiedzający cennik → trial, rejestracja lub zakup bez handlowca), więc pasma kontekstu `pricing_page_conversion_rate` (self-serve) zostają bez zmian. Następny przegląd: przy aktualizacji rejestru (`reviewBy`).

@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { DEFAULT_LEAD_FILTER } from "@/lib/crm/leadViews";
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
 import { LeadFilterChips } from "../LeadFilterChips";
 
 const STAGE_LABELS = {
@@ -74,14 +75,17 @@ describe("LeadFilterChips - filtry huba S4", () => {
     expect(screen.queryByRole("button", { name: /^Właściciel/ })).toBeNull();
   });
 
-  it("tagi: podpowiedź i własny tag; tag ponad 40 znaków nie przechodzi", async () => {
+  it("tagi: podpowiedź i własny tag; tag ponad CRM_TAG_MAX znaków nie przechodzi", async () => {
     const onChange = mount();
     const popover = await openChip(/^Tagi/);
     fireEvent.click(within(popover).getByRole("button", { name: "vip" }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_LEAD_FILTER, tags: ["vip"] });
 
     const input = within(popover).getByRole("textbox", { name: "Tagi" });
-    fireEvent.change(input, { target: { value: "x".repeat(41) } });
+    // Limit wspólny z bazą (Z-S5-02): CRM_TAG_MAX przechodzi, +1 odrzucony.
+    fireEvent.change(input, { target: { value: "x".repeat(CRM_TAG_MAX) } });
+    expect(input).not.toHaveAttribute("aria-invalid");
+    fireEvent.change(input, { target: { value: "x".repeat(CRM_TAG_MAX + 1) } });
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(within(popover).getByRole("button", { name: "Dodaj tag" })).toBeDisabled();
 

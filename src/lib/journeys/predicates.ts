@@ -7,7 +7,7 @@
 // gałąź w interpreterze - rodzaj znany edytorowi, a nieznany bazie, kończyłby
 // się ponawianiem kroku do martwego zapisu.
 import { z } from "zod";
-import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { CRM_TAG_MAX, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 import { LEAD_STAGE_ORDER } from "@/lib/crm/leadListSpec";
 
 export const JOURNEY_PREDICATE_KINDS = [
@@ -101,8 +101,10 @@ export const PredicateSchema = z
     z
       .object({ kind: z.literal("newsletter_status"), in: z.array(SHORT_TEXT).min(1).max(10) })
       .strict(),
-    // 40 = limit tagu w CRM (`run_workflow_step`, panel) - wspólny z akcjami tagów.
-    z.object({ kind: z.literal("has_tag"), tag: z.string().trim().min(1).max(40) }).strict(),
+    // Limit tagu CRM (`run_workflow_step`, panel) - wspólny z akcjami tagów.
+    z
+      .object({ kind: z.literal("has_tag"), tag: z.string().trim().min(1).max(CRM_TAG_MAX) })
+      .strict(),
     z.object({ kind: z.literal("score_band"), in: z.array(SHORT_TEXT).min(1).max(10) }).strict(),
     z
       .object({

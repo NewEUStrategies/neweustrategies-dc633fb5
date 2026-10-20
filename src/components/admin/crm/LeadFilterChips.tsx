@@ -34,12 +34,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { DEFAULT_LEAD_FILTER, isDefaultLeadFilter, type LeadFilter } from "@/lib/crm/leadViews";
 import { CRM_SOURCE_TYPES } from "@/lib/crm/leadListSpec";
-import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { CRM_TAG_MAX, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 import { SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
 import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
 
 /** Limit tagu i liczby tagów filtra - te same co `LeadListFilterSchema`. */
-const FILTER_TAG_MAX = 40;
+const FILTER_TAG_MAX = CRM_TAG_MAX;
 const FILTER_TAGS_MAX = 20;
 
 interface Props {

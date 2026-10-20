@@ -58,6 +58,16 @@ export function isCheckoutAbandonMinutes(raw: unknown): raw is number {
 }
 
 /**
+ * Okno porzucenia, które kasa STOSUJE: zapisana wartość, a bez poprawnej
+ * (brak wiersza najemcy) - domyślna bazy. Jedno źródło dla karty kasy
+ * paywalla i notki w karcie biletów wydarzenia (I9b, Z-S3-07), żeby obie
+ * pokazywały tę samą liczbę.
+ */
+export function effectiveCheckoutAbandonMinutes(raw: unknown): number {
+  return isCheckoutAbandonMinutes(raw) ? raw : REVENUE_LIMITS.checkoutAbandonMinutesDefault;
+}
+
+/**
  * Napis z pola formularza → minuty albo `null` (odrzucone). Tylko cyfry: pole
  * liczbowe przeglądarki przepuszcza `1e3`, `90.5` i `-30`, a `Number()`
  * zamieniłby pusty napis na 0 - każdy z tych przypadków to błąd wpisu, nie

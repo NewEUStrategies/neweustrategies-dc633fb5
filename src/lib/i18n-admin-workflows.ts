@@ -138,7 +138,7 @@ export const workflowsPl = {
       },
       add_tag: {
         name: "Dodaj tag",
-        description: "Dopisuje tag do leada (bez duplikatów, do 40 znaków).",
+        description: "Dopisuje tag do leada (bez duplikatów, do 64 znaków).",
       },
       remove_tag: {
         name: "Usuń tag",
@@ -408,7 +408,7 @@ export const workflowsEn = {
       },
       add_tag: {
         name: "Add a tag",
-        description: "Adds a tag to the lead (no duplicates, up to 40 characters).",
+        description: "Adds a tag to the lead (no duplicates, up to 64 characters).",
       },
       remove_tag: {
         name: "Remove a tag",

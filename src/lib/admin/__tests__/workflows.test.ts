@@ -241,8 +241,9 @@ describe("isValidEventType / isWorkflowAction", () => {
 // ---------------------------------------------------------------------------
 // PARYTET KATALOGU AKCJI Z SILNIKIEM (S4). Silnik rzuca wyjątkiem przy akcji
 // spoza CASE, a edytor bez akcji z CASE jej nie pokaże - obie listy czytamy
-// z jednego źródła: najnowszej definicji `run_workflow_step` (migracja
-// 20261020130200, CIALO-Z 20261007140700).
+// z jednego źródła: najnowszej definicji `run_workflow_step` (plik wybierany
+// po wersji - od I9b to 20261020160800, limit tagu Z-S5-02; wcześniej S4
+// 20261020130200).
 // ---------------------------------------------------------------------------
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 
@@ -254,8 +255,15 @@ function migrationsText(): string[] {
 }
 
 function runWorkflowStepBody(): string {
-  const sql = readFileSync(join(MIGRATIONS_DIR, "20261020130200_workflow_actions_v2.sql"), "utf8");
-  const start = sql.indexOf("CREATE OR REPLACE FUNCTION public.run_workflow_step(");
+  const marker = "CREATE OR REPLACE FUNCTION public.run_workflow_step(";
+  const latest = readdirSync(MIGRATIONS_DIR)
+    .filter((f) => /^\d{14}_[a-z0-9_]+\.sql$/.test(f))
+    .sort()
+    .filter((f) => readFileSync(join(MIGRATIONS_DIR, f), "utf8").includes(marker))
+    .at(-1);
+  expect(latest).toBeDefined();
+  const sql = readFileSync(join(MIGRATIONS_DIR, latest ?? ""), "utf8");
+  const start = sql.indexOf(marker);
   const bodyStart = sql.indexOf("AS $function$", start);
   const end = sql.indexOf("$function$;", bodyStart + "AS $function$".length);
   expect(start).toBeGreaterThan(-1);

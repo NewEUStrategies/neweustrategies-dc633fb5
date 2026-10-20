@@ -4,6 +4,7 @@
 // naraz, więc walidator zbiera listę zamiast rzucać.
 import { describe, expect, it } from "vitest";
 import {
+  JOURNEY_TAG_MAX,
   JourneyDraftSchema,
   JourneySettingsSchema,
   PAYMENT_FAILED_EVENT,
@@ -176,13 +177,13 @@ describe("struktura", () => {
 });
 
 describe("parametry", () => {
-  it("wagi A/B ≠ 100, etap klienta, tag > 40, za krótkie czekanie", () => {
+  it("wagi A/B ≠ 100, etap klienta, tag > JOURNEY_TAG_MAX, za krótkie czekanie", () => {
     const graph: JourneyGraph = {
       nodes: [
         n("t", "trigger"),
         n("ab", "ab_split", { weights: { A: 50, B: 40 }, winnerMetric: "goal" }),
         n("life", "set_lifecycle_stage", { stage: "customer" }),
-        n("tag", "add_tag", { tag: "x".repeat(41) }),
+        n("tag", "add_tag", { tag: "x".repeat(JOURNEY_TAG_MAX + 1) }),
         n("w", "wait", { mode: "duration", minutes: 1 }),
         n("x", "exit"),
       ],

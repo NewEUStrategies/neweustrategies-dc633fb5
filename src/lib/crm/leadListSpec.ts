@@ -36,7 +36,7 @@
 // lądują NULL-e, czym domykamy remis) - samo porównywanie napisów spoza ASCII
 // należy do bazy i sprawdza je pgTAP / pg-harness, nie vitest.
 import { z } from "zod";
-import { BILLING_OWNED_LIFECYCLE_STAGES, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { BILLING_OWNED_LIFECYCLE_STAGES, CRM_TAG_MAX, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 
 /* ---------- Słownik kolumn: co znaczy wartość w danej kolumnie ---------- */
 
@@ -154,7 +154,7 @@ export const LeadListFilterSchema = z.object({
   band: LeadBandSchema.optional(),
   source: LeadSourceSchema.optional(),
   owner_ids: z.array(z.string().uuid()).max(50).optional(),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
   score_min: z.number().int().min(0).max(100).optional(),
   score_max: z.number().int().min(0).max(100).optional(),
   country: z.string().trim().max(120).optional(),

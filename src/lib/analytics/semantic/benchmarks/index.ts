@@ -1,6 +1,6 @@
 // PLIK GENEROWANY przez scripts/benchmarks/import-benchmarks.ts - nie edytuj ręcznie.
 // Wejście: docs/benchmarki/2026-10-18/przychod.json, docs/benchmarki/2026-10-18/przychod.overlay.json, docs/benchmarki/2026-10-18/retencja.json, docs/benchmarki/2026-10-18/retencja.overlay.json, docs/benchmarki/2026-10-18/ekonomika.json, docs/benchmarki/2026-10-18/ekonomika.overlay.json, docs/benchmarki/2026-10-18/lejek.json, docs/benchmarki/2026-10-18/lejek.overlay.json, docs/benchmarki/2026-10-18/email.json, docs/benchmarki/2026-10-18/email.overlay.json, docs/benchmarki/2026-10-18/spolecznosc.json, docs/benchmarki/2026-10-18/spolecznosc.overlay.json
-// SHA-256 treści kanonicznej wejść: 01ea9b7ae231ed07137a1b36542ed3be26b687eb6d0e986f8742150f98949ca3
+// SHA-256 treści kanonicznej wejść: 1a6548e623e2ef2c09d0f98578be02ae782fcb013857109e8ad4a5ec96be6b00
 // Zmiana treści = poprawka danych albo nakładki w docs/benchmarki i ponowny import;
 // `--check` wykrywa ręczną edycję tego pliku i nieuruchomiony importer.
 //
@@ -292,6 +292,12 @@ export const BENCHMARK_INDEX: readonly BenchmarkIndexEntry[] = [
     metricId: "paywall_hit_rate",
   },
   {
+    key: "engagement_rate",
+    abbr: "ER (GA4)",
+    group: "funnel",
+    metricId: "engagement_rate",
+  },
+  {
     key: "open_rate",
     abbr: "OR",
     group: "email",
@@ -495,6 +501,7 @@ export const BENCHMARK_PAIRS: Readonly<Record<string, readonly string[]>> = {
   checkout_abandonment_rate: ["checkout_conversion_rate"],
   checkout_conversion_rate: ["checkout_abandonment_rate"],
   paywall_hit_rate: ["paywall_conversion_rate", "visitor_to_registration_rate"],
+  engagement_rate: ["visitor_to_registration_rate", "paywall_hit_rate"],
 };
 
 export function benchmarkIndexEntry(key: string): BenchmarkIndexEntry | undefined {

@@ -317,6 +317,10 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
 export const HUB_I9_REDEFINITIONS: Readonly<Record<string, string>> = {
   // Z-01 / Z-S2-02: segment przychodu z typu klienta (I9b, decyzja właściciela).
   revenue_segment_of_tier: "20261020090500",
+  // Z-S5-02: jeden limit tagu CRM (`CRM_TAG_MAX`) w pisarzu tagów S4
+  // i walidatorze grafu S5 (I9b, część B, decyzja właściciela).
+  run_workflow_step: "20261020130200",
+  journey_validate_graph: "20261020140200",
 };
 
 /**
@@ -827,6 +831,37 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/journeys/__tests__/journeyLimitsParity.test.ts",
     "src/lib/i18n-admin-journeys.ts",
     "docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md",
+    // (Integrator I9b, 2026-10-20 - decyzje właściciela, część B). Z-S5-02:
+    // jeden limit tagu CRM (`CRM_TAG_MAX`) w schematach panelu CRM, przepisów
+    // i ścieżek, parytet z pisarzem S4 i walidatorem S5 (testy tych wycinków
+    // czytają teraz najnowszą definicję). Z-S3-07: linia okna porzucenia kasy
+    // w karcie biletów wydarzenia. Z-S2-01: scenariusz anulowania na granicy
+    // SDK operatora. Z-14-03/04: wpis `engagement_rate` rejestru S6
+    // (dane, nakładka, wygenerowane moduły, pole `hub` pakietu Insidera)
+    // i przegląd źródeł PPCR.
+    "src/lib/crm/{lifecycle,leadListSpec,leadViews}.ts",
+    "src/lib/crm/__tests__/{tagLimitParity,leadViews}.test.ts",
+    "src/lib/{crm,crm-tasks}.functions.ts",
+    "src/lib/admin/workflows.ts",
+    "src/lib/admin/__tests__/workflows.test.ts",
+    "src/lib/i18n-admin-workflows.ts",
+    "src/components/admin/crm/LeadFilterChips.tsx",
+    "src/components/admin/crm/__tests__/LeadFilterChipsHub.test.tsx",
+    "src/lib/journeys/{graph,predicates}.ts",
+    "src/lib/journeys/__tests__/{graph,nodeTypesParity}.test.ts",
+    "supabase/tests/workflow_actions_v2_test.sql",
+    "src/components/admin/events/organisms/EventTicketsPanel.tsx",
+    "src/components/admin/events/molecules/EventTicketCheckoutWindowNote.tsx",
+    "src/components/admin/events/molecules/__tests__/EventTicketCheckoutWindowNote.test.tsx",
+    "src/components/admin/events/__tests__/{EventTicketsPanel,EventTicketsPanelStudio}.test.tsx",
+    "src/lib/i18n-admin-event-registration.ts",
+    "src/lib/retention/__tests__/{applyOffer,functions.stripeBoundary}.test.ts",
+    "docs/benchmarki/2026-10-18/lejek{,.overlay}.json",
+    "docs/benchmarki/insider-2026-10-19/{manifest,ranges}.json",
+    "docs/{BENCHMARKI_WSKAZNIKOW_2026-10-18,WIEDZA_INSIDER_MARKETINGOWY_2026-10-19}.md",
+    "src/lib/analytics/semantic/benchmarks/{index,sources}.ts",
+    "src/lib/analytics/semantic/benchmarks/groups/funnel.server.ts",
+    "src/lib/analytics/semantic/benchmarks/__tests__/{registry,i18nParity,metricMap}.test.ts",
   ],
 };
 
@@ -1303,7 +1338,10 @@ export function analyzeHubDelivery(
       const marker = markers.filter((m) => m.at > previous && m.at < hit.at).at(-1);
       const expected = HUB_CIALO_Z[hit.name];
       const existedBefore = preHubLatest.has(hit.name);
-      if (expected !== undefined || existedBefore) {
+      // Redefinicja w rezerwie I9 przepisuje ciało z NAJNOWSZEJ definicji
+      // w hubie (niżej), nie sprzed huba - `HUB_CIALO_Z` opisuje tylko
+      // pierwszą redefinicję w wycinku właściciela.
+      if (!i9Redefinition && (expected !== undefined || existedBefore)) {
         if (marker === undefined) {
           add(
             "brak-cialo-z",
@@ -1319,7 +1357,8 @@ export function analyzeHubDelivery(
         // Redefinicja funkcji innego wycinka w I9: ciało przepisane z NAJNOWSZEJ
         // definicji w hubie - rejestr i znacznik muszą ją wskazywać.
         const registered = HUB_I9_REDEFINITIONS[hit.name];
-        const latestInHub = hubLatest.get(hit.name);
+        // Funkcja sprzed huba bez redefinicji w wycinku: najnowsza sprzed huba.
+        const latestInHub = hubLatest.get(hit.name) ?? preHubLatest.get(hit.name);
         if (marker === undefined) {
           add(
             "brak-cialo-z",

@@ -61,6 +61,8 @@ describe("applyRetentionOffer - parametry i klucze idempotencji", () => {
         duration: "repeating",
         duration_in_months: 3,
         max_redemptions: 1,
+        // Nazwa, pod którą kupon widać w panelu operatora (Z-S2-01, krok 5).
+        name: "Retencja -30%",
         metadata: expect.objectContaining({ source: "retention", feedback_id: FLOW_ID }),
       }),
       { idempotencyKey: `retention-coupon:${FLOW_ID}` },

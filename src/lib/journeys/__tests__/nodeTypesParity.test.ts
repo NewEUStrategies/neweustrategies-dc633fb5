@@ -5,7 +5,7 @@
 // kontakt zatrzymany na zawsze (węzeł, którego `journey_advance` nie umie
 // wykonać) albo graf, który TS przepuszcza, a publikacja odrzuca. Test czyta
 // migracje S5 jako tekst (jak `journeyLimitsParity.test.ts`) i porównuje.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { BILLING_OWNED_LIFECYCLE_STAGES, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
@@ -27,6 +27,20 @@ const read = (name: string) => readFileSync(join(MIGRATIONS, name), "utf8");
 const ENGINE = read("20261020140100_journeys_engine.sql");
 const PREDICATES = read("20261020140200_journeys_predicates_consent.sql");
 
+/**
+ * Plik z NAJNOWSZĄ definicją funkcji - baza po migracjach forward-only ma
+ * ciało ostatniej (walidator grafu redefiniuje I9b: limit tagu, Z-S5-02).
+ */
+function latest(name: string): string {
+  const files = readdirSync(MIGRATIONS)
+    .filter((f) => /^\d{14}_[a-z0-9_]+\.sql$/.test(f))
+    .sort()
+    .filter((f) => read(f).includes(`CREATE OR REPLACE FUNCTION public.${name}(`));
+  expect(files.length, `brak definicji ${name}`).toBeGreaterThan(0);
+  return read(files[files.length - 1]);
+}
+const VALIDATOR = latest("journey_validate_graph");
+
 /** Ciało funkcji SQL od `CREATE OR REPLACE FUNCTION public.<name>(` do `$$;`. */
 function functionBody(sql: string, name: string): string {
   const start = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
@@ -47,7 +61,7 @@ function whenLabels(body: string): Set<string> {
 
 describe("typy węzłów", () => {
   it("lista walidatora SQL (`v_types`) = JOURNEY_NODE_TYPES", () => {
-    const body = functionBody(PREDICATES, "journey_validate_graph");
+    const body = functionBody(VALIDATOR, "journey_validate_graph");
     const block = /v_types constant text\[\] := ARRAY\[([\s\S]*?)\];/.exec(body);
     expect(block).not.toBeNull();
     const sqlTypes = [...(block?.[1] ?? "").matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
@@ -78,7 +92,7 @@ describe("typy węzłów", () => {
     expect(requiredBranches("wait", { mode: "duration" })).toEqual(["next"]);
     expect(requiredBranches("wait", null)).toEqual(["next"]);
     expect(requiredBranches("send_email")).toEqual(["next"]);
-    const body = functionBody(PREDICATES, "journey_validate_graph");
+    const body = functionBody(VALIDATOR, "journey_validate_graph");
     expect(body).toContain("WHEN v_type IN ('goal', 'exit') THEN ARRAY[]::text[]");
     expect(body).toContain("WHEN v_type = 'ab_split' THEN ARRAY['A', 'B']");
     expect(body).toContain("WHEN v_type = 'if_else' THEN ARRAY['yes', 'no']");
@@ -100,8 +114,8 @@ describe("warunki (`if_else`, filtr wejścia)", () => {
 });
 
 describe("limity wspólne z SQL", () => {
-  it("węzłów ≤ 60, tag ≤ 40 (pisarz CRM), etapy cyklu bez etapów płatności", () => {
-    const body = functionBody(PREDICATES, "journey_validate_graph");
+  it("węzłów ≤ 60, tag ≤ CRM_TAG_MAX (pisarz CRM), etapy cyklu bez etapów płatności", () => {
+    const body = functionBody(VALIDATOR, "journey_validate_graph");
     expect(body).toContain(`v_count > ${JOURNEY_LIMITS.nodesMax}`);
     expect(body).toContain(`NOT BETWEEN 1 AND ${JOURNEY_TAG_MAX}`);
     const stages =

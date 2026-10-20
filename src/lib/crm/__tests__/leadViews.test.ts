@@ -3,6 +3,7 @@
 // ten test pilnuje, że każdy filtr LeadFilterSchema ma swoje odwzorowanie
 // i że defaulty nie wysyłają zbędnych parametrów.
 import { describe, expect, it } from "vitest";
+import { CRM_TAG_MAX } from "../lifecycle";
 import {
   DEFAULT_LEAD_FILTER,
   DEFAULT_LEAD_SORT,
@@ -380,10 +381,17 @@ describe("filtry S4: cykl życia, segment, tagi, właściciel (P23)", () => {
     ).toMatchObject({ source: "form", sourceType: "speaker" });
   });
 
-  it("tag ponad 40 znaków i nieznany etap odrzucają widok (bezpieczny domyślny)", () => {
+  it("tag ponad CRM_TAG_MAX znaków i nieznany etap odrzucają widok (bezpieczny domyślny)", () => {
     expect(
-      parseLeadViewConfig({ filter: { ...DEFAULT_LEAD_FILTER, tags: ["x".repeat(41)] } }),
+      parseLeadViewConfig({
+        filter: { ...DEFAULT_LEAD_FILTER, tags: ["x".repeat(CRM_TAG_MAX + 1)] },
+      }),
     ).toEqual(DEFAULT_LEAD_VIEW_CONFIG);
+    // Wartość graniczna przechodzi (Z-S5-02: jeden limit z bazą).
+    const atLimit = ["x".repeat(CRM_TAG_MAX)];
+    expect(
+      parseLeadViewConfig({ filter: { ...DEFAULT_LEAD_FILTER, tags: atLimit } }).filter.tags,
+    ).toEqual(atLimit);
     expect(parseLeadViewConfig({ filter: { ...DEFAULT_LEAD_FILTER, lifecycle: "vip" } })).toEqual(
       DEFAULT_LEAD_VIEW_CONFIG,
     );

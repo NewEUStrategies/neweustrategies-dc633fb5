@@ -429,6 +429,23 @@ describe("bramka dostawy huba - fikstury zaczerwieniają bramkę", () => {
     ).toEqual(["zly-blok", "funkcja-w-dwoch-blokach"]);
   });
 
+  // Funkcja sprzed huba redefiniowana najpierw w wycinku właściciela
+  // (`HUB_CIALO_Z`), potem w I9 (Z-S5-02): znacznik I9 wskazuje ciało
+  // wycinka, nie sprzed huba - inaczej I9 przepisałby stare ciało.
+  it("rezerwa I9: funkcja sprzed huba po redefinicji w wycinku - CIALO-Z wycinka", () => {
+    const service = { grant: "service_role" };
+    const preHub = file("20261007140700_old.sql", fnSql("run_workflow_step"));
+    const s4 = file(
+      "20261020130200_s4.sql",
+      fnSql("run_workflow_step", { ...service, cialoZ: "20261007140700" }),
+    );
+    const i9 = (cialoZ?: string) =>
+      file("20261020160800_i9.sql", fnSql("run_workflow_step", { ...service, cialoZ }));
+    expect(kinds([preHub, s4, i9("20261020130200")])).toEqual([]);
+    expect(kinds([preHub, s4, i9("20261007140700")])).toEqual(["zly-cialo-z"]);
+    expect(kinds([preHub, s4, i9()])).toEqual(["brak-cialo-z"]);
+  });
+
   it("ta sama funkcja w dwóch blokach", () => {
     const report = analyzeHubDelivery([
       file("20261020110400_a.sql", fnSql("admin_revenue_churn")),

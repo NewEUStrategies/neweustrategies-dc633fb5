@@ -48,7 +48,7 @@ import type { CheckoutSettings } from "@/lib/billing/checkoutSettings";
 import { ensureI18n } from "@/lib/i18n-admin-paywall-sync";
 import {
   REVENUE_LIMITS,
-  isCheckoutAbandonMinutes,
+  effectiveCheckoutAbandonMinutes,
   parseCheckoutAbandonMinutes,
 } from "@/lib/revenue/limits";
 
@@ -102,9 +102,7 @@ function settingsOnly(state: CheckoutSettings & { updated_at?: string | null }):
  * (brak wiersza najemcy) pokazuje domyślne bazy - to samo, co kasa stosuje.
  */
 function savedAbandon(settings: CheckoutSettings): number {
-  return isCheckoutAbandonMinutes(settings.abandon_after_minutes)
-    ? settings.abandon_after_minutes
-    : REVENUE_LIMITS.checkoutAbandonMinutesDefault;
+  return effectiveCheckoutAbandonMinutes(settings.abandon_after_minutes);
 }
 
 export function CheckoutSettingsCard({ readOnly = false }: { readOnly?: boolean }) {

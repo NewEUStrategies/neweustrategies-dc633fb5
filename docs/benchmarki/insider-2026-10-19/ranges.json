@@ -1196,7 +1196,14 @@
       "validUntil": "2027-10-09",
       "referenceOnly": false,
       "heuristic": false,
-      "requiresContext": null
+      "requiresContext": null,
+      "hub": {
+        "metricId": "engagement_rate",
+        "s6Key": "engagement_rate",
+        "status": "kontekst_s6",
+        "s6Context": "engagement_rate.site_all",
+        "reason": "Nowy wpis S6 (2026-10-20, I9b, Z-14-03 - decyzja właściciela, zgoda delegowana): BI liczy metrykę engagement_rate z GA4 Data API, więc przedział dostał ocenę zamiast punktu odniesienia. Granice 50 i 55 z tego przedziału i ze źródła pierwotnego (Siege Media: mediana 51%, 546 usług GA4, odczyt 2026-10-20); krytyczny 25 (połowa dolnej granicy normalnego) i optymalny 60 (mediany kanałów wysokiej intencji 60,3-63,4%) - heurystyka S6."
+      }
     },
     {
       "id": "b-csat",

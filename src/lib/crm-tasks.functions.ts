@@ -11,6 +11,7 @@ import { z } from "zod";
 import { looseClient, looseTable, rowsOf } from "@/lib/supabase/looseQuery";
 import { requireCrmStaff } from "@/integrations/supabase/require-staff";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
+import { CRM_TAG_MAX } from "@/lib/crm/lifecycle";
 
 const j = (v: unknown): string => JSON.stringify(v ?? null);
 
@@ -283,7 +284,7 @@ const ImportRowInput = z.object({
   position: z.string().trim().max(150).optional(),
   linkedin_url: z.string().trim().max(300).optional(),
   country: z.string().trim().max(80).optional(),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  tags: z.array(z.string().trim().min(1).max(CRM_TAG_MAX)).max(20).optional(),
 });
 
 export type CrmImportRow = z.infer<typeof ImportRowInput>;

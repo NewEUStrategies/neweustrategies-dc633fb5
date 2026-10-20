@@ -4,8 +4,8 @@
 // czyli na tym, co naprawdę czyta server fn i klient.
 //
 // PO CO OSOBNO OD TESTÓW IMPORTERA. `importer.test.ts` sprawdza reguły na
-// fiksturach i trzech grupach toru T2; tu pilnujemy całości (76 wpisów,
-// 193 kontekstów, 189 wpisów źródłowych) i ZGODNOŚCI PLIKÓW W REPO z danymi:
+// fiksturach i trzech grupach toru T2; tu pilnujemy całości (77 wpisów,
+// 194 kontekstów, 190 wpisów źródłowych; +1 w I9b - `engagement_rate`, Z-14-03) i ZGODNOŚCI PLIKÓW W REPO z danymi:
 // ręczna poprawka liczby w wygenerowanym pliku albo zmiana nakładki bez
 // ponownego importu zapala ostatni blok (zastępuje osobny krok CI `--check`).
 //
@@ -109,7 +109,7 @@ const RAW = GROUP_FILES.map((file) => ({
 }));
 
 describe("rejestr: liczność i tożsamość wpisów", () => {
-  it("76 wpisów w sześciu grupach (arpu z ekonomiki scalone z przychodem)", () => {
+  it("77 wpisów w sześciu grupach (arpu z ekonomiki scalone z przychodem)", () => {
     expect(BENCH_GROUPS).toEqual([
       "revenue",
       "retention",
@@ -122,12 +122,12 @@ describe("rejestr: liczność i tożsamość wpisów", () => {
       revenue: 12,
       retention: 13,
       economics: 7,
-      funnel: 12,
+      funnel: 13,
       email: 18,
       community: 14,
     });
-    expect(ALL).toHaveLength(76);
-    expect(BENCHMARK_INDEX).toHaveLength(76);
+    expect(ALL).toHaveLength(77);
+    expect(BENCHMARK_INDEX).toHaveLength(77);
     for (const g of BENCH_GROUPS) for (const b of BY_GROUP[g]) expect(b.group).toBe(g);
   });
 
@@ -208,7 +208,7 @@ describe("rejestr źródeł", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("189 wpisów źródłowych badaczy: każdy rozwiązany aliasem <grupa>:<id> albo jawnie odrzucony", () => {
+  it("190 wpisów źródłowych badaczy: każdy rozwiązany aliasem <grupa>:<id> albo jawnie odrzucony", () => {
     let total = 0;
     let resolved = 0;
     let dropped = 0;
@@ -228,8 +228,8 @@ describe("rejestr źródeł", () => {
       }
     }
     expect(unresolved).toEqual([]);
-    expect(total).toBe(189);
-    expect(resolved + dropped).toBe(189);
+    expect(total).toBe(190);
+    expect(resolved + dropped).toBe(190);
     expect(BENCHMARK_SOURCES.reduce((n, s) => n + s.aliases.length, 0)).toBe(resolved);
   });
 
@@ -251,9 +251,9 @@ describe("rejestr źródeł", () => {
 });
 
 describe("pasma kontekstów", () => {
-  it("193 konteksty, 968 pasm; identyfikatory <key>.<slug> unikalne", () => {
-    expect(CONTEXTS).toHaveLength(193);
-    expect(CONTEXTS.reduce((n, c) => n + c.bands.length, 0)).toBe(968);
+  it("194 konteksty, 973 pasma; identyfikatory <key>.<slug> unikalne", () => {
+    expect(CONTEXTS).toHaveLength(194);
+    expect(CONTEXTS.reduce((n, c) => n + c.bands.length, 0)).toBe(973);
     const ids = CONTEXTS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const b of ALL) {

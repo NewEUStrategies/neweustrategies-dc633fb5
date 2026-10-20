@@ -33,8 +33,12 @@ import {
   type JourneyPredicate,
 } from "./predicates";
 
-/** Limit tagu pisarza CRM (`run_workflow_step`, panel CRM) - nie `tagMax` (64). */
-export const JOURNEY_TAG_MAX = 40;
+/**
+ * Limit tagu w akcjach ścieżki = `JOURNEY_LIMITS.tagMax` = `CRM_TAG_MAX`:
+ * pisarz tagów CRM (`run_workflow_step`) i walidator grafu przyjmują tę samą
+ * długość (I9b, Z-S5-02), więc graf przepuszczony tutaj wykona się w bazie.
+ */
+export const JOURNEY_TAG_MAX = JOURNEY_LIMITS.tagMax;
 /** Wyzwalacz, przy którym ścieżka nie wysyła maili (windykacja). */
 export const PAYMENT_FAILED_EVENT = "billing_subscription.payment_failed.v1";
 

@@ -69,10 +69,10 @@ function biFields(): Field[] {
 const FIELDS = biFields();
 
 describe("parytet PL/EN pól Bi rejestru benchmarków", () => {
-  it("zbiór pól jest pełny: 76 wpisów × pola stałe + konteksty, zastrzeżenia i noty", () => {
-    expect(ALL).toHaveLength(76);
-    // Dolna granica: 5 pól stałych na wpis + 2 na każdy z 193 kontekstów.
-    expect(FIELDS.length).toBeGreaterThan(76 * 5 + 193 * 2);
+  it("zbiór pól jest pełny: 77 wpisów × pola stałe + konteksty, zastrzeżenia i noty", () => {
+    expect(ALL).toHaveLength(77);
+    // Dolna granica: 5 pól stałych na wpis + 2 na każdy z 194 kontekstów.
+    expect(FIELDS.length).toBeGreaterThan(77 * 5 + 194 * 2);
   });
 
   it("każde pole ma niepusty tekst PL i EN", () => {
@@ -101,9 +101,9 @@ describe("parytet PL/EN pól Bi rejestru benchmarków", () => {
     expect(FORMAL.test("top 10%")).toBe(false);
   });
 
-  it("dźwignie 76/76 w obu językach - konkretne zdania, nie zaślepka", () => {
+  it("dźwignie 77/77 w obu językach - konkretne zdania, nie zaślepka", () => {
     const withLevers = ALL.filter((b) => b.levers.pl.trim() !== "" && b.levers.en.trim() !== "");
-    expect(withLevers).toHaveLength(76);
+    expect(withLevers).toHaveLength(77);
     for (const b of ALL) {
       expect(b.levers.pl.length, b.key).toBeGreaterThan(80);
       expect(b.levers.en.length, b.key).toBeGreaterThan(80);

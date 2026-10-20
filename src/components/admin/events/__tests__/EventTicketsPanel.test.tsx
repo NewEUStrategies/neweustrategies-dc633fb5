@@ -174,6 +174,13 @@ vi.mock("@/components/ui/alert-dialog", () => {
   };
 });
 
+// Linia o oknie porzucenia kasy (I9b, Z-S3-07) ma własny plik testowy
+// (`EventTicketCheckoutWindowNote.test.tsx` - odczyt ustawień kasy przez
+// React Query); tu wystarcza znacznik, że panel ją montuje w nagłówku.
+vi.mock("@/components/admin/events/molecules/EventTicketCheckoutWindowNote", () => ({
+  EventTicketCheckoutWindowNote: () => <p data-testid="checkout-window-note" />,
+}));
+
 // Formularz biletu ma WŁASNY plik testowy (czternaście pól, grosze, trzy stany
 // kodu dostępu). Tutaj interesuje nas wyłącznie STYK: z czym panel go otwiera
 // i co robi z ładunkiem, więc atrapa wystawia te wartości wprost.
@@ -384,6 +391,14 @@ describe("cztery stany listy biletów", () => {
 
     expect(screen.getByText(`${T}.empty`)).toBeTruthy();
     expect(screen.queryByText(`${T}.loading`)).toBeNull();
+  });
+
+  it("nagłówek niesie linię o oknie porzucenia kasy (Z-S3-07) - także przy pustej liście", () => {
+    h.rows = [];
+    panel();
+
+    const note = screen.getByTestId("checkout-window-note");
+    expect(note.closest("header")).not.toBeNull();
   });
 
   it("dane rysują wiersz z nazwą i kluczem biletu", () => {

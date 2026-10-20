@@ -850,6 +850,51 @@
           "basis_e": [0, 2]
         }
       ]
+    },
+    "engagement_rate": {
+      "metric_id": "engagement_rate",
+      "abbr": "ER (GA4)",
+      "formula_en": "engaged sessions (GA4 engagedSessions) / all sessions (GA4 sessions) × 100% – the GA4 metric engagementRate from the Data API, computed by Google",
+      "levers": {
+        "pl": "Oceniaj wynik w podziale na kanały i strony wejścia: kampanie social i display o niskim zaangażowaniu kieruj na treści, które spełniają obietnicę linku, albo ogranicz ich budżet. Na stronach wejścia pokaż od razu lead, spis treści i powiązane analizy, żeby czytelnik wszedł w drugą odsłonę; skróć czas ładowania na komórkach. Porównuj okresy przy tej samej konfiguracji zgód i odfiltruj ruch wewnętrzny oraz boty, zanim uznasz zmianę za efekt treści.",
+        "en": "Judge the result by channel and landing page: point low-engagement social and display campaigns at content that keeps the link's promise, or cut their budget. On landing pages show the lead, an outline of sections and related analysis straight away so readers open a second page; shorten mobile load time. Compare periods under the same consent setup and filter out internal traffic and bots before treating a change as a content effect."
+      },
+      "caveats_en": [
+        "The source reports medians only (overall, industries, devices, channels) – no quartiles; the critical and optimal thresholds are heuristics.",
+        "Industry medians in the same study: e-commerce 54.4%, health 51.6%, finance 51.0%, home services 49.4%, other (incl. media and non-profit) 48.0%, SaaS/B2B 46.6% – compare an expert content site with the 'other' group rather than e-commerce.",
+        "Devices: desktop 55.3%, tablet 51.2%, mobile 48.8% – a shift of traffic to mobile lowers the result without any change in content quality.",
+        "Without analytics consent GA4 does not see part of the sessions (consent mode), so the result describes consented sessions; compare periods under the same consent-banner setup.",
+        "The indicator cannot be rebuilt from our own events (no session duration) – the GA4 Data API is the only source."
+      ],
+      "caveat_sources": {
+        "0": ["siege_ga4_engagement_2026"],
+        "1": ["siege_ga4_engagement_2026"],
+        "2": ["siege_ga4_engagement_2026"]
+      },
+      "pairs": ["visitor_to_registration_rate", "paywall_hit_rate"],
+      "default_context_by_segment": {
+        "all": "engagement_rate.site_all"
+      },
+      "contexts": [
+        {
+          "id": "engagement_rate.site_all",
+          "label_en": "Whole site – all sessions (GA4)",
+          "method_en": "Siege Media 2026 (546 GA4 properties, over 16 bn sessions, Jan 2024 – Aug 2026; property-level median, GA4 default definition): median 51%, rule of thumb '50% or more is good, above 55% is strong'; Insider marketing package (b-engr, source 1352): below 50% weak, 50–55% normal, above 55% good. Critical (25% – half of the lower bound of normal, like the critical threshold of the LinkedIn contexts) and optimal (60% – the level of high-intent channel medians in the same study: paid search 60.4%, AI assistants 60.3%, organic search 63.4%) are heuristics; the source gives no quartiles",
+          "period_en": "monthly",
+          "segments": ["all"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "month",
+          "notes_en": {
+            "0": "heuristic – half of the lower bound of normal; the level of low-intent channel medians in the study (paid social 20.2%, unassigned 20.8%)",
+            "1": "below 50% – below the median (51%) according to the Insider package (b-engr) and Siege Media",
+            "2": "50–55% – around the median of 546 GA4 properties (51%)",
+            "3": "above 55% – 'strong' according to Siege Media",
+            "4": "heuristic – the level of high-intent channel medians (60.3–63.4%)"
+          },
+          "basis_e": [0, 4]
+        }
+      ]
     }
   },
   "sources": {
@@ -977,6 +1022,10 @@
       "vendor": true
     },
     "kiin_lgf_benchmarks_2026": {
+      "reliability": "B",
+      "vendor": true
+    },
+    "siege_ga4_engagement_2026": {
       "reliability": "B",
       "vendor": true
     }

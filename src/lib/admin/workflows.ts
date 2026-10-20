@@ -16,7 +16,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { DOMAIN_EVENT_TYPES, type DomainEventRow } from "@/lib/realtime/domainEvents";
-import { BILLING_OWNED_LIFECYCLE_STAGES, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
+import { BILLING_OWNED_LIFECYCLE_STAGES, CRM_TAG_MAX, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 import { LEAD_STAGE_ORDER } from "@/lib/crm/leadListSpec";
 
 export type WorkflowDefinitionRow = Database["public"]["Tables"]["workflow_definitions"]["Row"];
@@ -64,7 +64,7 @@ export function isWorkflowAction(value: string): value is WorkflowActionKey {
  * `example` to podpowiedź/wartość domyślna silnika pokazywana jako placeholder.
  * `required` - bez wartości silnik rzuca wyjątkiem (przebieg `failed`), więc
  * edytor blokuje zapis zamiast wysyłać przepis, który nigdy się nie uda.
- * `maxLength` - limit silnika ODRZUCANY, nie przycinany (tag 40 znaków).
+ * `maxLength` - limit silnika ODRZUCANY, nie przycinany (tag: `CRM_TAG_MAX`).
  */
 export interface WorkflowActionParamSpec {
   key: string;
@@ -76,8 +76,8 @@ export interface WorkflowActionParamSpec {
   maxLength?: number;
 }
 
-/** Limit tagu CRM w akcjach add_tag / remove_tag (lustro wyjątku w SQL). */
-export const WORKFLOW_TAG_MAX = 40;
+/** Limit tagu CRM w akcjach add_tag / remove_tag (lustro wyjątku w SQL, Z-S5-02). */
+export const WORKFLOW_TAG_MAX = CRM_TAG_MAX;
 
 /** Limit klucza idempotencji zadania (`crm_tasks.origin_ref`, CHECK 200). */
 export const WORKFLOW_ORIGIN_REF_MAX = 200;
