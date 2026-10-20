@@ -19,8 +19,19 @@ i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
 **Stan:** na `main` są I0, S6, S1 (z #520), krok 0, uspójnienie benchmarków,
 S4 i S2 (z #527). Na gałęzi PR jest S3 (dokończony i zintegrowany 2026-10-20,
 §18 dziennika: bliźniaki `0347…0351`, następny wolny `0352`; `overall` 4997;
-otwarte Z-S3-01…07). Osobne PR do `main`: #528 (JoinUsForm), #529 (First
-visit).
+otwarte Z-S3-01…07) i **I9a** (2026-10-20, §19 dziennika): hub „Przychód
+i lejek” jest już w nawigacji panelu (monetyzacja + „Ścieżki komunikacji”
+w CRM, skróty ⌘K do zakładek), zakładki S7/S8 pokazują stan „w
+przygotowaniu” z odnośnikami do modułów, Wskaźniki - słownik S6, a karta kasy
+w `/admin/paywall?tab=checkout` ma pole okna porzucenia
+(`abandon_after_minutes`). Osobne PR do `main`: #528 (JoinUsForm), #529
+(First visit).
+
+**Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
+admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
+ról: pozycja nawigacji albo zakładka huba, skrót ⌘K, sekcyjne `adminPageHead`,
+napisy PL/EN i stan pusty/„w przygotowaniu” z następnym krokiem - nigdy pusty
+ekran ani funkcja dostępna tylko z adresu albo z bazy.
 
 **Kolejka (jeden element naraz):**
 
@@ -30,14 +41,22 @@ visit).
    i „wyczerpany limit” (`metering.quota_exhausted.v1`) z S3; runner podpina I9).
 2. S7 - zakładki huba (w tym lejek i inwentarz dostępu na `queryOptions` S3),
    50 reguł diagnostyki (w tym `checkout.display_currency_mismatch` - P09,
-   Z-S3-03), dialogi napraw (w tym okno porzucenia kasy), symulator czytelnika
+   Z-S3-03), dialogi napraw (w tym okno porzucenia kasy - pole w karcie kasy
+   już jest od I9a, dialog może je reużyć), symulator czytelnika
    (`<Paywall preview>`), tooltipy ze słownika S6 (+ scenariusze naprawy
-   z pakietu Insidera), odnośniki hub ⇄ moduły.
-3. S8 - lista ścieżek, galeria, edytor kanwy (HubSpot-style), wyniki per krok.
-4. I9 - nawigacja, chipy, jobs-tick/scheduler (skanery S2!), authz/ownership
-   (w tym wpis `premium_content` S3 - Z-S3-06), tryb ścisły literałów,
+   z pakietu Insidera), odnośniki hub ⇄ moduły. Podmieniając zaślepkę
+   zakładki, usuń jej wpis z `TAB_PREPARING` (`src/lib/admin/revenue/tabPreparing.ts`)
+   i gałąź `adminRevenue.preparing.what.*`; Wskaźniki - wartości z oceną
+   i `?metric=&ctx=` obok słownika; skróty wskaźników ⌘K
+   (`metricSearchIndex.ts`) wpina I9.
+3. S8 - lista ścieżek, galeria, edytor kanwy (HubSpot-style), wyniki per krok;
+   po obsłudze `?new=1` dopisz skrót ⌘K „Nowa ścieżka” w `adminNav.ts` (I9a
+   go świadomie pominął).
+4. I9 - chipy w modułach (SPEC §2.7), baner `/admin/monetization` (D-09),
+   jobs-tick/scheduler (skanery S2!), authz/ownership (w tym wpis
+   `premium_content` S3 - Z-S3-06), tryb ścisły literałów,
    `billingDocuments.server.ts` (Z-S2-07), ratchet końcowy, runbook, opis PR,
-   raport.
+   raport. Nawigacja i skróty zakładek są już z I9a (§19 dziennika).
 
 **Zasady (decyzje właściciela):**
 
@@ -60,6 +79,9 @@ visit).
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
+- „Wszystko w panelu admina” (2026-10-20): nowa funkcja bez wejścia w panelu
+  dla właściwych ról nie jest skończona - wycinek dowozi też jej pozycję
+  (nawigacja/zakładka/karta), ⌘K, `adminPageHead` i napisy PL/EN.
 
 **Decyzje czekające na właściciela:** obietnice cennika v6.2 bez pokrycia
 (lista w #520), zgłoszenia Z-xx w dzienniku (m.in. Z-S2-01 ręczna weryfikacja

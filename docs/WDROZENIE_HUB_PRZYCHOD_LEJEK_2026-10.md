@@ -10,7 +10,8 @@ wycinek **S1 - moduły źródłowe**, sekcja 13 - stan po scaleniu PR #520
 S6 z pakietem Insidera, sekcja 15 - wycinek **S4 - CRM, automatyzacje
 i społeczność (dane)**, sekcja 16 - wycinek **S2 - przychód i retencja**,
 sekcja 17 - przekazanie na koniec sesji 2026-10-19, sekcja 18 - wycinek
-**S3 - lejek i paywall czytelnika**.
+**S3 - lejek i paywall czytelnika**, sekcja 19 - krok **I9a - nawigacja
+i widoczność huba w panelu** (decyzja właściciela 2026-10-20).
 
 Gałąź `hub/i0`, baza `baec9c64` (`main` + cennik v6.2 + poprawki), worktree
 bez commitów - commit robi orkiestrator.
@@ -462,6 +463,7 @@ przebiegu i błędy środowiska - §13.2.
 | 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`)         | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                              | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                                 |
 | 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`)         | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                 | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527             |
 | 2026-10-20 | S3 (gałąź PR `claude/elegant-fermat-xwfca1` po #527) | `20261020120000…120400` (5) | `0347…0351`       | do wdrożenia przez właściciela - po M0, S1, S2 i S4, nocą (wyzwalacze na `profiles` i `payment_orders`), razem z publikacją frontu (§18.9)                        | §18: kod i migracje w jednym PR; `overall` +5,8 → ratchet D-08 4997; `public` +5,4 przy celu +1,2 (Z-S3-01); otwarte Z-S3-01…07; pełny vitest i e2e - CI nowego PR |
+| 2026-10-20 | I9a (gałąź PR, fast-forward z `hub/i9a-nawigacja`)   | brak (bez SQL)              | brak              | - (bez migracji; publikacja frontu wystarcza - kolumna okna porzucenia jest z M0)                                                                                 | §19: nawigacja huba przed I9 (decyzja właściciela), stany „w przygotowaniu”, okno porzucenia kasy w panelu; `overall` +6,2 → ratchet D-08 5003; `public` −0,7      |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -1667,8 +1669,12 @@ testów popupu w manifeście S3, sekcja dziennika), pgTAP i kontrakt TS⇄SQL S3
 
 ### 17.4 Kolejka i zasady dalszej pracy
 
-Kolejka (aktualizacja 2026-10-20, po scaleniu S3 - §18): **S5 → S7 → S8 →
-I9**. Zasady
+Kolejka (aktualizacja 2026-10-20, po scaleniu S3 - §18, i po I9a - §19):
+**S5 → S7 → S8 → I9**. Nawigacja huba i skróty ⌘K zakładek są już z I9a;
+od 2026-10-20 obowiązuje wymóg właściciela **„wszystko, co robimy, ma być
+w panelu admina”** - każdy kolejny wycinek kończy się wejściem w panelu dla
+właściwych ról (pozycja/zakładka/karta, ⌘K, sekcyjne `adminPageHead`, PL/EN,
+stan pusty z następnym krokiem). Zasady
 (decyzje właściciela 2026-10-19): praca **szeregowa** (jeden agent naraz);
 lokalnie testy celowane + typecheck + lint + pgTAP + build z budżetem, **pełna
 suita vitest w CI**; pamięć kontenera 16 GB - typecheck jako `bunx tsgo
@@ -1798,7 +1804,8 @@ i bramki, dopisano do manifestu S3 z komentarzem „Integrator S3”.
   reguły `checkout.display_currency_mismatch` (P09), `paywall.members_rank_no_cta`
   (regresja P14), `funnel.signup_popup_for_members` (regresja P17),
   `checkout.abandon_window_default` (dialog okna porzucenia - pole
-  `checkout_settings.abandon_after_minutes` nie ma jeszcze UI).
+  `checkout_settings.abandon_after_minutes` nie miało UI; od I9a jest
+  w karcie kasy, §19).
 - **I9:** przegląd wpisu `premium_content` w snapshocie autoryzacji
   (Z-S3-06); e2e S3 w CI (Z-S3-04).
 
@@ -1812,7 +1819,7 @@ i bramki, dopisano do manifestu S3 z komentarzem „Integrator S3”.
 | Z-S3-04 | e2e S3 lokalnie częściowo: kontener bez sekretów Supabase w serwerze dev - testy z sesją podstawioną w magazynie (`login-return`, link aktywacyjny) czekają na nawigację portalu do limitu, a `checkout.spec.ts:66` nie widzi linku do logowania. Na czystym `main` w tym kontenerze padają tak samo `checkout.spec.ts:66` i `event-paid-registration.spec.ts:252`. Rozstrzyga job `e2e` CI.                                                                                                                                                                                                         |
 | Z-S3-05 | `bunx tsgo --noEmit --checkers 2` ginie z OOM (137) przy 15 GB także na bazie; przechodzi `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1` (szczyt ok. 13,7 GB). Propozycja dla kolejnych wycinków: ten wariant jako lokalny typecheck.                                                                                                                                                                                                                                                                                                                                                    |
 | Z-S3-06 | Snapshot autoryzacji zgłasza `admin_revenue_access_inventory` jako bramkę flagi `premium_content` (bez ról omijających). Funkcja jest za `is_admin_or_editor` i tylko raportuje warstwy z tą flagą - do potwierdzenia w przeglądzie (I9).                                                                                                                                                                                                                                                                                                                                                            |
-| Z-S3-07 | P22 obejmuje wszystkie sesje kasy (plan, treść, bilet): krótsze okno zwalnia rezerwację biletu szybciej (`expireCheckoutOrder`). Domyślne 1440 min nie zmienia zachowania; wartość okna ustawia właściciel (UI - S7).                                                                                                                                                                                                                                                                                                                                                                                |
+| Z-S3-07 | P22 obejmuje wszystkie sesje kasy (plan, treść, bilet): krótsze okno zwalnia rezerwację biletu szybciej (`expireCheckoutOrder`). Domyślne 1440 min nie zmienia zachowania; wartość okna ustawia właściciel (UI - S7). **Aktualizacja 2026-10-20:** pole z dymkiem o skutkach dla rezerwacji biletów jest w karcie kasy od I9a (§19); dialog naprawy - S7.                                                                                                                                                                                                                                            |
 
 ### 18.6 Bliźniaki drizzle
 
@@ -1976,3 +1983,165 @@ z `20261013090400` (P19 znika).
 - [x] Popup rejestracji nie dla zalogowanych (`NewsletterPopup.session.test`); zgoda newslettera domyślnie odznaczona w obu formularzach (`popupSignupForm`, `ClubAccessGate.funnel`).
 - [x] `expires_at` sesji kasy z `abandon_after_minutes` (`checkoutSessionFlags.server.test.ts`, `checkoutSettingsLoad.server.test.ts`); `session_expired` zapisuje `cancel_reason` (`oneTimeFulfilment.server.test.ts`); [ ] `e2e/checkout.spec.ts` - CI (Z-S3-04).
 - [ ] **`public` ≤ +1,2 KB** - niespełnione: +5,4 KB na `a39a10bf` (+4,6 na `f149a004`; próg zamrożony zielony), odchylenie Z-S3-01 (§18.7).
+
+## 19. I9a - nawigacja i widoczność huba w panelu (2026-10-20)
+
+**Decyzja właściciela 2026-10-20:** „wszystko, co robimy, ma być w panelu
+admina”. Hub `/admin/revenue` (trasy z I0) był dostępny wyłącznie z adresu -
+SPEC §2.4 przewidywał nawigację dopiero w I9. Część nawigacyjna karty I9
+(§8.3: pozycje, `searchEntries` ⌘K, `adminNav.test.ts`) przesunięta na teraz
+jako krok **I9a**; reszta karty I9 bez zmian. Praca szeregowa (jedyny aktywny
+agent), gałąź `hub/i9a-nawigacja` (worktree `/home/user/wt/NAV`) od
+`848cbf7e` (PR #530), fast-forward do `claude/elegant-fermat-xwfca1`.
+Commity:
+
+- `7cce99c7` - hub w nawigacji panelu i skróty ⌘K;
+- `4a7d2925` - zakładki „w przygotowaniu” z etapem i odnośnikami, słownik S6 w Wskaźnikach;
+- `c6516a8e` - okno porzucenia kasy w karcie ustawień kasy;
+- `dca6f4e9` - manifest I9 i ratchet D-08 `overall` 4997 → 5003;
+- ten wpis.
+
+### 19.1 Zakres
+
+| Obszar                               | Co dostarcza I9a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pasek boczny (`adminNav.ts`)         | Monetyzacja: **pierwsza** pozycja „Przychód i lejek” → `/admin/revenue` (ikona `Route`, słowa kluczowe z SPEC §2.4). CRM: „Ścieżki komunikacji” → `/admin/revenue/journeys` (ikona `GitBranch`) zaraz po „Automatyzacjach”. Podświetlenie: zakładki → hub, lista i edytor ścieżki → Ścieżki (najdłuższe dopasowanie).                                                                                                                                                                                                                                                                                                                             |
+| Role (SPEC §2.5)                     | `buildAdminNavGroups` dostaje **dokładne** role sesji (`roles` z `useAuth`) i liczy widoczność przez `hubTabsFor`/`canSeeTab` (S6) - ta sama reguła co pasek zakładek huba. Admin i redaktor widzą obie pozycje; autor i sam `super_admin` (bez wiersza `admin`) - żadnej (hub dałby im `RoleGateNotice`, bo polityki pytają `has_role(…, 'admin')`/`is_admin_or_editor()`).                                                                                                                                                                                                                                                                      |
+| ⌘K (`searchEntries`)                 | Skróty do zakładek dostępnych dla roli: Kokpit, Przychód (MRR), Lejek, Retencja, Społeczność, Diagnostyka, Oferta, Dostęp, Ścieżki, Wskaźniki, Dane wejściowe (admin - 11; redaktor - 8, bez zakładek z kwotami). Dopasowanie po własnej nazwie i słowach kluczowych (np. „churn”, „kohorty” → Retencja; „mrr”, „arpu” → Przychód), nazwa huba jako etykieta trafienia, jeden wynik na cel (Ścieżki z huba i z CRM). Enter przenosi z `search`. Napisy `admin.nav.revenueHub`, `admin.nav.journeys`, `admin.nav.revenueTabs.*` (PL/EN, `i18n-admin-core.ts`).                                                                                     |
+| Zakładki S7/S8 (zaślepki I0)         | Zamiast zdania „w przygotowaniu” - `RevenueTabPreparing`: nazwa zakładki, stan, **co pokaże** (SPEC §2.2), **kiedy** (etap S7; Ścieżki - S5 + S8; kolejka S5 → S7 → S8 → I9) i **gdzie te dane są dziś** - odnośniki do paywalla (plany, licznik, wyjątki, kasa), cennika (rezygnacje), członkostwa, kuponów, rozliczeń (subskrypcje), rejestru i pulpitu monetyzacji, CRM (kontakty, lejek), newslettera (popup, skrzynka nadawcza), automatyzacji, wydarzeń, klubów (zgłoszenia) i BI. Dane w `src/lib/admin/revenue/tabPreparing.ts` (cele i parametry z `AREA_OWNER_LINK`, SPEC §2.6), słownik przejściowy `i18n-admin-revenue-preparing.ts`. |
+| Wskaźniki                            | Gotowy słownik S6 (`MetricDictionary`) podpięty **leniwie** pod stanem „słownik działa, wartości z oceną - S7” (`data-tab-state="partial"`). Benchmarki z server fn z bramką admin/redaktor - ta sama poprzeczka co hub.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Kasa (`/admin/paywall?tab=checkout`) | Pole **„Okno porzucenia kasy (minuty)”** w istniejącej karcie S1 (`CheckoutSettingsCard`): wartość z serwera (brak = 1440), podpowiedź z granicami, dymek PL/EN (porzucenie kasy → lejek i ścieżka porzuconej kasy; dotyczy planu, treści i biletu - krótsze okno szybciej zwalnia rezerwację biletu, Z-S3-07). Wartość spoza 30-1440, ułamek, `1e3` i puste pole → komunikat `role="alert"`, `aria-invalid`, zapis wyłączony (odrzucenie, nie przycięcie). Zapis istniejącym mutatorem S1 z tokenem `updated_at` (CAS).                                                                                                                          |
+
+### 19.2 Decyzje
+
+- **Widoczność = dostęp do trasy.** Pozycje liczą role tak samo jak układ
+  huba (`hubTabsFor`), a nie z `isAdmin` (ten liczy też samego
+  `super_admin`). Skróty ⌘K to dokładnie zakładki z paska huba dla roli -
+  redaktor nie dostaje skrótu do ekranu „brak dostępu”.
+- **Ikona Ścieżek `GitBranch`, nie `Workflow` (SPEC §2.4).** `Workflow` nosi
+  już „Automatyzacje” piętro wyżej, a w zwiniętym pasku ikona jest jedyną
+  etykietą. Obie ikony są w grafie modułów (bez nowych zależności i ikon spoza
+  grafu, SPEC §8.6).
+- **Nazwy zakładek w `admin.nav.revenueTabs.*`**, nie `adminRevenue.tab.*`:
+  słownik huba ładuje dopiero hub, a wyszukiwarka działa na każdej trasie
+  panelu. „Przychód (MRR)” zamiast „Przychód”, żeby skrót nie mylił się
+  z pozycją huba.
+- **„Nowa ścieżka” bez skrótu.** Parametr `?new=1` jest w kontrakcie adresu
+  (I0), ale zakładka Ścieżek do S8 go nie obsługuje - skrót obiecywałby akcję,
+  która nic nie robi. Test w `adminNav.test.ts` przypina brak (do zmiany
+  w S8).
+- **Skróty wskaźników ⌘K pominięte** - `metricSearchIndex.ts` (SPEC §2.4)
+  to plik S7, którego jeszcze nie ma.
+- **Okno porzucenia: jeden predykat, zero importu limitów w kasie
+  czytelnika.** `isCheckoutAbandonMinutes`/`parseCheckoutAbandonMinutes`
+  w `lib/revenue/limits.ts` czyta formularz i serwer kasy
+  (`abandonAfterMinutes` deleguje); bazę pilnuje CHECK (parytet liczb -
+  `revenueLimitsParity.test.ts`). `useCheckoutSettings` (moduł publicznej
+  kasy - test „nie importuje modułów panelu”) tylko wybiera kolumnę w tym
+  samym odczycie co token i przekazuje wartość do zapisu; wartość spoza
+  zakresu odrzuca CHECK (`23514`), nigdy przycięcie. Osobne zapytanie o kolumnę
+  odrzucone: dwie kopie wiersza z różnymi tokenami pozwoliłyby nadpisać cudzą
+  zmianę okna.
+- **Karta zapisuje widoczne okno** (także domyślne 1440, gdy najemca nie ma
+  wiersza) - to, co admin widzi, jest tym, co zapisuje; asercja
+  `platformPaywallRoute.test.tsx` świadomie zmieniona.
+- **`adminPageHead`:** trasy huba (I0) i `/admin/paywall` (S1) mają już
+  sekcyjne nagłówki - I9a nie dodaje ekranów.
+- **D-08:** ratchet `overall` 4997 → 5003 (§19.4).
+
+### 19.3 Zmiany integratorskie i pliki współdzielone
+
+Strażnik `hub-slice-guard.ts I9 --base 848cbf7e`: diff mieści się
+w manifeście I9. Pliki spoza listy karty, których wymagał krok, dopisano do
+manifestu I9 z komentarzem „Integrator I9a”.
+
+| Plik                                                                                                                                                                   | Właściciel         | Zmiana                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/admin/adminNav.ts`, `__tests__/adminNav.test.ts`, `src/lib/i18n-admin-core.ts`                                                                                | współdzielone (I9) | pozycje huba i Ścieżek, `roles`, `searchEntries`, deduplikacja trafień, klucz pozycji z `search`; `admin.nav.*` PL/EN |
+| `src/components/admin/AdminShell.tsx`, `__tests__/AdminShell.test.tsx`                                                                                                 | panel (poza hubem) | role sesji do nawigacji, `search` w odnośniku i w Enter; testy pozycji, ról, podświetlenia i ⌘K prawdziwym słownikiem |
+| `src/lib/locale/__tests__/coreScopeSurfaces.test.tsx`                                                                                                                  | rdzeń i18n         | wywołanie z `roles`; etykiety skrótów ⌘K też muszą być napisami                                                       |
+| `src/components/admin/revenue/tabs/Revenue{Overview,Mrr,Funnel,Retention,Community,Diagnostics,Offer,Access,Metrics,Inputs}Tab.tsx`                                    | S7                 | stan „w przygotowaniu” (Wskaźniki: + słownik S6); S7 podmienia treść i usuwa wpis z `TAB_PREPARING`                   |
+| `src/components/admin/revenue/tabs/RevenueJourneysTab.tsx`                                                                                                             | S8                 | stan „w przygotowaniu” (etap S5 + S8)                                                                                 |
+| `src/lib/admin/revenue/tabPreparing.ts` (+ test), `src/components/admin/revenue/molecules/RevenueTabPreparing.tsx` (+ test), `src/lib/i18n-admin-revenue-preparing.ts` | I9a (nowe)         | dane, molekuła i słownik stanu „w przygotowaniu” (prefiks `adminRevenue` już w `GATED_PREFIXES` - bez zmiany bramki)  |
+| `src/components/admin/paywall/CheckoutSettingsCard.tsx` (+ test RTL), `src/hooks/useCheckoutSettings.ts` (+ test), `src/lib/i18n-admin-paywall-sync.ts`                | S1                 | pole okna porzucenia, odczyt i zapis kolumny, napisy PL/EN                                                            |
+| `src/lib/revenue/limits.ts` (+ `checkoutAbandonMinutes.test.ts`)                                                                                                       | I0                 | wspólny predykat i parser okna                                                                                        |
+| `src/lib/billing/checkoutSettings.server.ts`, `checkoutSettings.ts`                                                                                                    | S3 / S1            | serwer kasy na wspólnym predykacie; komentarze o czytelnikach kolumny                                                 |
+| `src/routes/__tests__/platformPaywallRoute.test.tsx`                                                                                                                   | S1                 | asercja zapisu z `abandon_after_minutes: 1440` (zmiana zamierzona)                                                    |
+| `src/lib/ci/hubDelivery.ts`, `scripts/check-bundle-size.ts`                                                                                                            | współdzielone (I9) | manifest I9; ratchet `overall` z kroniką                                                                              |
+
+`generate:authz-snapshot --check` zielony bez regeneracji (I9a nie dotyka
+migracji ani bramek SQL).
+
+### 19.4 Pomiar bundla
+
+`flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` +
+`check:bundle`; baza = build drzewa `848cbf7e` (worktree `/home/user/wt/S3`,
+ten sam host i `node_modules`). Przypisanie: gzip -9 per chunk (nazwa bez
+hasha) i inwentarz modułów.
+
+| Budżet (gzip KB)            | Próg przed / po | Baza `848cbf7e` | I9a    | Δ        | Wynik                                                                                      |
+| --------------------------- | --------------- | --------------- | ------ | -------- | ------------------------------------------------------------------------------------------ |
+| `overall`                   | 4997 / **5003** | 4995,6          | 5001,8 | **+6,2** | próg 4997 ✗ → ratchet D-08 (5001,8 → 5002 → +1)                                            |
+| `admin-only`                | -               | 2215,9          | 2222,7 | +6,8     | -                                                                                          |
+| `public`                    | 2881 (zamr.)    | 2779,8          | 2779,1 | −0,7     | ✓ (nawigacja admina poza pakietem publicznym; `useCheckoutSettings` +0,08, reszta - hashe) |
+| największy chunk (entry)    | 286 (zamr.)     | 258,1           | 258,0  | −0,1     | ✓                                                                                          |
+| `css`                       | 100             | 99,7            | 99,7   | 0,0      | ✓ arkusze bit w bit te same (bez nowych klas)                                              |
+| `publicCss`                 | 85 (zamr.)      | 83,8            | 83,8   | 0,0      | ✓                                                                                          |
+| `boot`                      | 579 (zamr.)     | 471,8           | 471,8  | 0,0      | ✓                                                                                          |
+| chunki JS (nazwy bez hasha) | -               | 1269            | 1272   | +3       | `check:chunks` ✓ (acykliczny), `check:entry-purity` ✓, `check:server-entry-purity` ✓       |
+
+| Chunk                        | Δ gzip KB | Przyczyna                                                                                                                                                                                 |
+| ---------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RevenueTabPreparing` (nowy) | +4,12     | słownik PL/EN opisu, etapu i odnośników 11 zakładek (6,2 KB surowo), dane `tabPreparing` (4,5 KB), molekuła (2,9 KB) - leniwie                                                            |
+| `AdminShell`                 | +0,86     | pozycje huba, mapy etykiet i słów kluczowych skrótów, wyszukiwanie po skrótach                                                                                                            |
+| `hubTabs` (nowy, wspólny)    | +0,80     | `hubTabs.ts` wspólny dla nawigacji i huba (z `admin.revenue` −0,39)                                                                                                                       |
+| `saveErrorToast`             | +0,54     | pole okna porzucenia w karcie kasy i napisy `adminPaywall.checkout.abandonAfter*`                                                                                                         |
+| `RevenueMetricsTab`          | +0,54     | leniwy słownik S6 i stan „słownik działa”                                                                                                                                                 |
+| `limits` (nowy, wspólny)     | +0,43     | predykat okna współdzielony przez kartę kasy i rozliczenia                                                                                                                                |
+| pozostałe                    | −0,7      | `admin.paywall` +0,31, `admin` +0,25 (`admin.nav.*`), `admin.revenue._tab` +0,23, `admin.billing` −0,18, `useCheckoutSettings` +0,08 (kolumna okna w odczycie kasy); entropia hashy −1,38 |
+
+### 19.5 Weryfikacja końcowa I9a
+
+Worktree `/home/user/wt/NAV`, ciężkie kroki po kolei (pamięć 16 GB); pełny
+pakiet vitest - CI.
+
+| Polecenie                                                                                                                                                                                                                                | Wynik                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run format:check`                                                                                                                                                                                                                   | ✓                                                                                                                                                                                                    |
+| `bun run verify:static`                                                                                                                                                                                                                  | ✓ 18 bramek w 318 s (`check:ts-sql-contract` 946 wywołań RPC, 1510 operacji na tabelach; `check:types-freshness` 381 tabel)                                                                          |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1 && bun run typecheck:scripts && bun run typecheck:e2e`                                                                                                                         | ✗ → ✓: jedno wywołanie `buildAdminNavGroups` bez `roles` (`coreScopeSurfaces.test.tsx`), po poprawce 0 błędów                                                                                        |
+| `bun run lint`                                                                                                                                                                                                                           | ✓ 0 błędów, 282 ostrzeżenia (bez przyrostu)                                                                                                                                                          |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - `src/lib/admin`, `src/routes/__tests__`, `src/components/admin/{revenue,paywall,analytics,__tests__}`, `src/lib/{revenue,ci,__tests__,locale,billing}`, `src/__tests__`, `src/hooks/__tests__` | ✗ → ✓: 814 plików, 23 407 testów + 116 oczekiwanych porażek (10,9 min); jedna czerwień - `platformPaywallRoute` (zapis karty kasy z oknem, zmiana zamierzona), po poprawce 65 plików / 1446 testów ✓ |
+| `TZ=UTC bunx vitest run --maxWorkers=3` - konsumenci (`EventInvoicesPanel`, `src/lib/{realtime,access,authz,analytics/semantic}`, `src/components/{checkout,__tests__}`, `src/components/admin/{pricing,membership}`)                    | ✓ 116 plików, 2281 testów + 7 oczekiwanych porażek                                                                                                                                                   |
+| `flock -o /tmp/hub-build.lock env BUNDLE_INVENTORY=1 bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                  | build ✓; `check:bundle` ✗ wyłącznie `overall` 5001,8 > 4997 → ratchet D-08 5003 → ✓; pozostałe ✓                                                                                                     |
+| `bun run generate:authz-snapshot --check`                                                                                                                                                                                                | ✓ bez regeneracji                                                                                                                                                                                    |
+| `bun run scripts/hub-slice-guard.ts I9 --base 848cbf7e`                                                                                                                                                                                  | ✓ diff mieści się w manifeście; dostawa huba: 0 plików SQL                                                                                                                                           |
+
+Nowe testy: `adminNav.test.ts` (+16: pozycje i role, ikony, podświetlenie,
+skróty admina i redaktora, trasy bez 404, deduplikacja, brak „Nowej
+ścieżki”), `AdminShell.test.tsx` (+5, prawdziwy słownik PL),
+`tabPreparing.test.ts` (78: etapy, odnośniki na stałe trasy z kontraktu,
+pokrycie modułów, PL/EN), `RevenueTabPreparing.test.tsx` (5, z axe),
+`CheckoutSettingsCard.abandon.test.tsx` (10, RTL: wartość, granice, dymek,
+odrzucenie 5 wartości, CAS, PL/EN), `useCheckoutSettings.test.ts` (+4),
+`checkoutAbandonMinutes.test.ts` (24).
+
+### 19.6 Co zostaje
+
+- **I9:** odnośniki moduły → hub (`RevenueSignalChip` w 13 modułach, SPEC
+  §2.7), baner „przeniesione do huba” w `/admin/monetization` (D-09),
+  `RelatedModulesBar` w cenniku, skróty wskaźników ⌘K z
+  `metricSearchIndex.ts` (po S7), okruszki edytora ścieżki (S8), reszta karty
+  I9 bez zmian (jobs-tick, authz/ownership, tryb ścisły, ratchet końcowy,
+  runbook).
+- **S7:** podmieniając zaślepkę zakładki, usuń jej wpis z `TAB_PREPARING`
+  i gałąź `adminRevenue.preparing.what.*` (odnośniki mogą zostać jako
+  „Powiązane moduły”); Wskaźniki - wartości z oceną i `?metric=&ctx=` obok
+  słownika; dialog `checkout.abandon_window_default` może prowadzić do pola
+  z I9a (`/admin/paywall?tab=checkout`) albo reużyć predykatu z `limits.ts`.
+- **S8:** zakładka Ścieżek i obsługa `?new=1` → wtedy skrót ⌘K „Nowa
+  ścieżka” w `adminNav.ts` (test przypina dziś jego brak).
+- **Wszystkie kolejne wycinki (S5 → S7 → S8 → I9):** wymóg właściciela
+  „wszystko w panelu admina” - każda nowa funkcja kończy się wejściem
+  w panelu dla właściwych ról (pozycja/zakładka/karta, ⌘K, sekcyjne
+  `adminPageHead`, PL/EN, stan pusty z następnym krokiem).
