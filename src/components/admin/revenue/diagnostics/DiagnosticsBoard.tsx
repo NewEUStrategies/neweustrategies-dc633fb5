@@ -16,7 +16,7 @@
 //
 // ZERO WŁASNYCH ZAPYTAŃ: fakty i wyciszenia z fabryk `revenueFactsQueryOptions`
 // i `revenueSnoozesQueryOptions` (bramka `revenueKeysReuse`).
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -71,7 +71,8 @@ export interface DiagnosticsBoardProps {
   tenantId: string | null;
   roles: readonly string[];
   search: DiagnosticsSearch;
-  onSearchChange(patch: Partial<Record<keyof DiagnosticsSearch, string | undefined>>): void;
+  /** Łatka adresu; `undefined` usuwa parametr. */
+  onSearchChange(patch: { [K in keyof DiagnosticsSearch]?: DiagnosticsSearch[K] | undefined }): void;
 }
 
 const AREA_KEY = (area: RevenueArea) => `adminRevenue.area.${area}`;
@@ -121,13 +122,11 @@ export function DiagnosticsBoard({ tenantId, roles, search, onSearchChange }: Di
   const areaId = useId();
 
   const ready = facts.data?.state === "ready" ? facts.data : null;
-  const activeSnoozes = snoozes.data?.state === "ready" ? snoozes.data.snoozes : [];
-  const findings = useMemo(
-    () => (ready ? evaluateFindings(ready.facts, activeSnoozes, Date.now()) : []),
-    // `activeSnoozes` z odczytu - zmiana danych = nowa tablica.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ready, snoozes.data],
-  );
+  const findings = useMemo(() => {
+    if (!ready) return [];
+    const active = snoozes.data?.state === "ready" ? snoozes.data.snoozes : [];
+    return evaluateFindings(ready.facts, active, Date.now());
+  }, [ready, snoozes.data]);
 
   const area = isRevenueArea(search.area) ? search.area : null;
   const view: RevenueView = search.view ?? "list";
@@ -255,7 +254,7 @@ export function DiagnosticsBoard({ tenantId, roles, search, onSearchChange }: Di
                 ]}
               />
             </div>
-            <ToggleGroup
+            <ToggleGroup<RevenueSeverity | null>
               label={t("adminRevenue.diagnostics.severityFilter")}
               items={[
                 { value: null, label: t("adminRevenue.diagnostics.allSeverities") },
@@ -264,14 +263,14 @@ export function DiagnosticsBoard({ tenantId, roles, search, onSearchChange }: Di
               selected={severity}
               onSelect={setSeverity}
             />
-            <ToggleGroup
+            <ToggleGroup<DiagnosticStateFilter>
               label={t("adminRevenue.diagnostics.stateFilter")}
               items={DIAGNOSTIC_STATE_FILTERS.map((s) => ({
                 value: s,
                 label: `${t(STATE_KEY[s])} (${counts[s]})`,
               }))}
               selected={stateFilter}
-              onSelect={(next) => setStateFilter(next ?? "open")}
+              onSelect={setStateFilter}
             />
           </div>
         ) : null}
@@ -353,7 +352,7 @@ export function DiagnosticsBoard({ tenantId, roles, search, onSearchChange }: Di
   );
 }
 
-function Notice({ children, testId }: { children: React.ReactNode; testId?: string }) {
+function Notice({ children, testId }: { children: ReactNode; testId?: string }) {
   return (
     <div
       role="status"
@@ -407,7 +406,7 @@ function FindingGroupSection({
 }: {
   area: RevenueArea;
   score: number | null;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const { t } = useTranslation();
   const headingId = useId();

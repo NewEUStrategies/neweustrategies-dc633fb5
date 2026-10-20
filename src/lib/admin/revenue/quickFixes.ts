@@ -828,7 +828,9 @@ export const QUICK_FIXES: { readonly [K in RevenueFixDialogId]: QuickFixSpec<Pay
         };
       },
     },
-    body: fixBody(() => import("@/components/admin/revenue/diagnostics/fixes/StaffPickerBody")),
+    body: fixBody<AssignTasksPayload>(
+      () => import("@/components/admin/revenue/diagnostics/fixes/StaffPickerBody"),
+    ),
     reversible: false,
   },
   crm_assign_owner: {
@@ -870,7 +872,9 @@ export const QUICK_FIXES: { readonly [K in RevenueFixDialogId]: QuickFixSpec<Pay
         };
       },
     },
-    body: fixBody(() => import("@/components/admin/revenue/diagnostics/fixes/StaffPickerBody")),
+    body: fixBody<AssignOwnerPayload>(
+      () => import("@/components/admin/revenue/diagnostics/fixes/StaffPickerBody"),
+    ),
     reversible: true,
   },
   newsletter_doi: {

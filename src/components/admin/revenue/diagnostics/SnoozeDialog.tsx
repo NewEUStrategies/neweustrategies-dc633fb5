@@ -157,7 +157,7 @@ export function SnoozeDialog({ finding, tenantId, open, initialKind = "days", on
               </span>
               <span aria-hidden="true" className={tooLong ? "text-destructive" : undefined}>
                 {t("adminRevenue.snooze.reasonCount", {
-                  count: trimmed,
+                  value: trimmed,
                   max: REVENUE_LIMITS.snoozeReasonMax,
                 })}
               </span>

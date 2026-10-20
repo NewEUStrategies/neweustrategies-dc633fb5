@@ -80,7 +80,7 @@ const pl = {
       fixUnknown: "Tej reguły nie da się teraz ocenić, więc naprawa nie jest dostępna.",
       fixNoDialog: "Ta diagnoza nie ma szybkiej naprawy - użyj odnośnika do modułu.",
       card: {
-        count: "Liczba: {{count}}",
+        count: "Liczba: {{value}}",
         evidenceLabel: "Dowody",
         openModule: "Otwórz moduł",
         fix: "Napraw",
@@ -160,7 +160,7 @@ const pl = {
       daysLabel: "Na ile",
       reason: "Powód",
       reasonHint: "Od {{min}} do {{max}} znaków. Zobaczą go inne osoby z zespołu.",
-      reasonCount: "{{count}} / {{max}}",
+      reasonCount: "{{value}} / {{max}}",
       reasonTooLong: "Powód jest za długi - skróć go do {{max}} znaków.",
       reasonTooShort: "Powód musi mieć co najmniej {{min}} znaki.",
       intentionalHint:
@@ -275,6 +275,7 @@ const pl = {
         number: "Liczba",
         minutes: "Minuty",
         minutesHint: "Od {{min}} do {{max}} minut.",
+        numberHint: "Od {{min}} do {{max}}.",
         numberInvalid: "Wartość spoza zakresu - popraw ją, nie przytniemy jej.",
         impactTitle: "Skutek domyślnego limitu w tym miesiącu",
         impactMembers: "Zalogowani: {{blocked}} zablokowanych, {{warning}} blisko limitu z {{total}}",
@@ -965,7 +966,7 @@ const en: typeof pl = {
       fixUnknown: "This rule cannot be assessed right now, so the fix is unavailable.",
       fixNoDialog: "This finding has no quick fix - use the link to the module.",
       card: {
-        count: "Count: {{count}}",
+        count: "Count: {{value}}",
         evidenceLabel: "Evidence",
         openModule: "Open module",
         fix: "Fix",
@@ -1045,7 +1046,7 @@ const en: typeof pl = {
       daysLabel: "For how long",
       reason: "Reason",
       reasonHint: "From {{min}} to {{max}} characters. Others on the team will see it.",
-      reasonCount: "{{count}} of {{max}}",
+      reasonCount: "{{value}} of {{max}}",
       reasonTooLong: "The reason is too long - shorten it to {{max}} characters.",
       reasonTooShort: "The reason needs at least {{min}} characters.",
       intentionalHint:
@@ -1160,6 +1161,7 @@ const en: typeof pl = {
         number: "Number",
         minutes: "Minutes",
         minutesHint: "From {{min}} to {{max}} minutes.",
+        numberHint: "From {{min}} to {{max}}.",
         numberInvalid: "Value out of range - correct it, we will not trim it.",
         impactTitle: "Effect of the default limit this month",
         impactMembers: "Signed in: {{blocked}} blocked, {{warning}} near the limit out of {{total}}",

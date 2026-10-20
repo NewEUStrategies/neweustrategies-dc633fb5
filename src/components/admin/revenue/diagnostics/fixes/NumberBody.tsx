@@ -1,9 +1,10 @@
 // Treść napraw liczbowych: limit darmowych artykułów dla gości
 // (`metering_anon_limit`, rozwiązanie „własna liczba") i okno porzucenia kasy
-// (`checkout_abandon_window`, 30-1440 minut). Pole przyjmuje tylko cyfry;
-// wartość spoza zakresu jest ODRZUCANA komunikatem, nigdy przycinana (AGENTS),
-// a „Zastosuj" pilnuje `valid` specyfikacji tym samym predykatem.
-import { useId } from "react";
+// (`checkout_abandon_window`, 30-1440 minut). Pole pokazuje DOKŁADNIE to, co
+// wpisano (tekst trzymamy lokalnie); wpis nieliczbowy albo spoza zakresu jest
+// ODRZUCANY komunikatem, nigdy przycinany ani czyszczony (AGENTS), a
+// „Zastosuj" pilnuje `valid` specyfikacji (ładunek `null` = niekompletne).
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ export default function NumberBody({
   const id = useId();
   const hintId = useId();
   const errorId = useId();
+  const [text, setText] = useState(value.value === null ? "" : String(value.value));
   if (option.id !== "custom") return null;
 
   const minutes = finding.checkId === "checkout.abandon_window_default";
@@ -32,7 +34,8 @@ export default function NumberBody({
   const max = minutes ? REVENUE_LIMITS.checkoutAbandonMinutesMax : METERING_LIMIT_MAX;
   const inRange = (n: number | null) =>
     n !== null && (minutes ? isCheckoutAbandonMinutes(n) : Number.isInteger(n) && n >= min && n <= max);
-  const invalid = value.value !== null && !inRange(value.value);
+  const parsed = /^\d{1,6}$/.test(text.trim()) ? Number(text.trim()) : null;
+  const invalid = text.trim() !== "" && !inRange(parsed);
 
   return (
     <div className="space-y-1">
@@ -44,17 +47,19 @@ export default function NumberBody({
         type="text"
         inputMode="numeric"
         className="max-w-[10rem]"
-        value={value.value === null ? "" : String(value.value)}
+        value={text}
         onChange={(e) => {
-          const raw = e.target.value.trim();
-          onChange({ value: /^\d{1,5}$/.test(raw) ? Number(raw) : null });
+          const raw = e.target.value;
+          setText(raw);
+          const next = /^\d{1,6}$/.test(raw.trim()) ? Number(raw.trim()) : null;
+          onChange({ value: next !== null && inRange(next) ? next : null });
         }}
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? `${hintId} ${errorId}` : hintId}
         disabled={disabled}
       />
       <p id={hintId} className="m-0 text-xs text-muted-foreground">
-        {t("adminRevenue.fix.body.minutesHint", { min, max })}
+        {t(minutes ? "adminRevenue.fix.body.minutesHint" : "adminRevenue.fix.body.numberHint", { min, max })}
       </p>
       {invalid ? (
         <p id={errorId} className="m-0 text-xs text-destructive">

@@ -135,7 +135,7 @@ export function DiagnosticCard({
         </span>
         {!compact && finding.count !== null && finding.count > 0 ? (
           <span className="text-xs tabular-nums text-muted-foreground">
-            {t("adminRevenue.diagnostics.card.count", { count: finding.count })}
+            {t("adminRevenue.diagnostics.card.count", { value: finding.count })}
           </span>
         ) : null}
       </div>
