@@ -177,6 +177,24 @@ describe("render", () => {
     expect(out.text).toContain(`Wypisz się jednym kliknięciem: ${unsubscribeUrl}`);
   });
 
+  it("pomiar otwarć wyłączony przez najemcę: bez piksela, kliknięcia i wypis bez zmian (I9c-X2)", () => {
+    const unsubscribeUrl = journeyUnsubscribeUrl(ORIGIN, MESSAGE);
+    const out = renderJourneyEmail({
+      ...base,
+      messageId: MESSAGE,
+      unsubscribeUrl,
+      openTracking: false,
+    });
+    expect(out.html).not.toContain("nl-open");
+    expect(out.html).toContain("nl-click");
+    expect(out.trackedLinks).toBeGreaterThan(0);
+    expect(out.html).toContain("Wypisz się jednym kliknięciem");
+    // Brak pola = piksel jak przed X2.
+    expect(renderJourneyEmail({ ...base, messageId: MESSAGE, unsubscribeUrl }).html).toContain(
+      "nl-open?m=",
+    );
+  });
+
   it("usługa / podgląd: bez stopki wypisu, bez trackingu i piksela; EN", () => {
     const out = renderJourneyEmail({
       ...base,

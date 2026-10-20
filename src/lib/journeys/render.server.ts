@@ -46,6 +46,12 @@ export interface JourneyRenderInput {
   messageId: string | null;
   /** Adres wypisu RFC 8058; `null` = komunikacja usługowa (bez stopki wypisu). */
   unsubscribeUrl: string | null;
+  /**
+   * Piksel otwarć (`journey_settings.open_tracking_enabled`, I9c-X2).
+   * `false` = mail bez piksela - najemca wyłączył pomiar otwarć; brak pola =
+   * piksel jak przed X2 (domyślnie włączony). Kliknięcia i wypis bez zmian.
+   */
+  openTracking?: boolean;
 }
 
 export interface JourneyRenderResult {
@@ -209,9 +215,10 @@ export function renderJourneyEmail(input: JourneyRenderInput): JourneyRenderResu
   const footer = input.unsubscribeUrl
     ? `<p style="color:#888;font-size:12px;text-align:center;margin:24px 0 0">${esc(FOOTER[input.locale])} <a href="${esc(input.unsubscribeUrl)}" style="color:#888">${esc(UNSUBSCRIBE_LABEL[input.locale])}</a>.</p>`
     : "";
-  const pixel = messageId
-    ? `<img src="${esc(journeyPixelUrl(input.origin, messageId))}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`
-    : "";
+  const pixel =
+    messageId && input.openTracking !== false
+      ? `<img src="${esc(journeyPixelUrl(input.origin, messageId))}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`
+      : "";
   const html = `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${preheaderHtml}${tracked}${footer}${pixel}</div>`;
 
   const textBody = htmlToText(body);

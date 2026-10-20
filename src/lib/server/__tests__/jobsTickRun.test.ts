@@ -296,6 +296,7 @@ vi.mock("@/lib/server/embeddings.server", () => ({
 import { fail, ok, supabaseFromStub, supabaseRpcStub } from "@/test/supabase";
 import {
   PARTICIPANT_JOBS_DEADLINE_MS,
+  isDataRetentionWindow,
   runJobsTick,
   type JobsTickMeta,
   type JobsTickResult,
@@ -582,6 +583,9 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       profileIndex: fixtures.profileIndex,
       clubThreadIndex: fixtures.clubThreadIndex,
       clubScheduler: CLUB_ROW,
+      // Retencja danych biegnie wyłącznie w oknie nocnym (godzina 2 UTC);
+      // tick testu jest o 10:00 - zaplanowane pominięcie (sekcja na końcu).
+      dataRetention: { error: "skipped_duty_cycle" },
     });
   });
 
@@ -1313,5 +1317,63 @@ describe("D2: błąd zapisu heartbeatu nie unieważnia wykonanej pracy", () => {
 
     await expect(tickAt(0)).resolves.toMatchObject({ push: fixtures.push });
     expect(jobs.steps()).toEqual([...FULL_ORDER]);
+  });
+});
+
+// ===========================================================================
+// RETENCJA DANYCH (I9c-X2): jedno zadanie dzienne w oknie nocnym
+// ===========================================================================
+describe("retencja danych: okno nocne 02:07-02:57 UTC co 10 minut", () => {
+  /** Chwila w oknie nocnym (godzina 2 UTC) - inne bramki jak w minucie `minute`. */
+  function nightAt(minute: number): Date {
+    return new Date(Date.UTC(2026, 8, 4, 2, minute, 0, 0));
+  }
+
+  it("bramka: tylko godzina 2 UTC i minuty 7, 17 … 57", () => {
+    expect(isDataRetentionWindow(nightAt(7))).toBe(true);
+    expect(isDataRetentionWindow(nightAt(57))).toBe(true);
+    expect(isDataRetentionWindow(nightAt(0))).toBe(false);
+    expect(isDataRetentionWindow(nightAt(8))).toBe(false);
+    expect(isDataRetentionWindow(at(7))).toBe(false);
+  });
+
+  it("poza oknem: RPC nie jest wołane, wynik to zaplanowane pominięcie (nie awaria)", async () => {
+    const result = await tickAt(7);
+
+    expect(rpc.callsFor("data_retention_run")).toHaveLength(0);
+    expect(result.dataRetention).toEqual({ error: "skipped_duty_cycle" });
+    expect(lastRun()).toMatchObject({ ok: true, error: null });
+  });
+
+  it("w oknie: jedno wywołanie z partią z katalogu, OSTATNIE w ticku, wynik znormalizowany", async () => {
+    rpc.setData("data_retention_run", { tenants: 3, more: true, batch_limit: 5000 });
+    vi.setSystemTime(nightAt(7));
+
+    const result = await runJobsTick(admin);
+
+    expect(rpc.callsFor("data_retention_run")).toHaveLength(1);
+    expect(rpc.lastCall("data_retention_run")?.args).toEqual({ p_limit: 5000 });
+    expect(rpc.names().at(-1)).toBe("data_retention_run");
+    expect(result.dataRetention).toEqual({ tenants: 3, more: true });
+  });
+
+  it("baza bez migracji (PGRST202): `migration_pending`, nie błąd przebiegu", async () => {
+    rpc.setError("data_retention_run", "Could not find the function", "PGRST202");
+    vi.setSystemTime(nightAt(17));
+
+    const result = await runJobsTick(admin);
+
+    expect(result.dataRetention).toEqual({ tenants: 0, more: false, skipped: "migration_pending" });
+    expect(lastRun()).toMatchObject({ ok: true });
+  });
+
+  it("inny błąd bazy: wynik `{ error }` i przebieg zgłoszony jako awaria", async () => {
+    rpc.setError("data_retention_run", "statement timeout", "57014");
+    vi.setSystemTime(nightAt(27));
+
+    const result = await runJobsTick(admin);
+
+    expect(jobError(result.dataRetention)).toBe("statement timeout");
+    expect(lastRun().ok).toBe(false);
   });
 });

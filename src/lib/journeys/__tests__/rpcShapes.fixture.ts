@@ -70,6 +70,7 @@ export const RPC_SHAPES = {
     machine_open_seconds: 2,
     marketing_cap_per_7d: 3,
     default_task_assignee_id: null,
+    open_tracking_enabled: true,
   },
   settingsSaved: {
     exists: true,
@@ -83,6 +84,7 @@ export const RPC_SHAPES = {
     machine_open_seconds: 2,
     marketing_cap_per_7d: 3,
     default_task_assignee_id: null,
+    open_tracking_enabled: false,
   },
   health: {
     active: 1,

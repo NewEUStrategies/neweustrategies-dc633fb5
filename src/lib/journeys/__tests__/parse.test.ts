@@ -76,7 +76,18 @@ describe("kształty z bazy przechodzą", () => {
       exists: true,
       senderName: "Redakcja NES",
       replyTo: "redakcja@nes.example",
+      openTrackingEnabled: false,
     });
+    expect(parseJourneySettings(RPC_SHAPES.settingsDefault).openTrackingEnabled).toBe(true);
+  });
+
+  it("piksel otwarć: baza sprzed 20261020161300 (bez klucza) = włączony, zły typ = błąd kształtu", () => {
+    const legacy = clone(RPC_SHAPES.settingsSaved) as Record<string, unknown>;
+    delete legacy.open_tracking_enabled;
+    expect(parseJourneySettings(legacy).openTrackingEnabled).toBe(true);
+    const broken = clone(RPC_SHAPES.settingsSaved) as Record<string, unknown>;
+    broken.open_tracking_enabled = "nie";
+    expect(shapeError(() => parseJourneySettings(broken))).toBe("open_tracking_enabled");
   });
 
   it("zdrowie silnika z wyłącznikiem środowiska", () => {

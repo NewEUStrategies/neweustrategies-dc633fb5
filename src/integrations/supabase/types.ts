@@ -5297,6 +5297,7 @@ export type Database = {
       crm_leads: {
         Row: {
           aliases: Json
+          anonymized_at: string | null
           club_application_count: number
           club_applied_at: string | null
           club_specializations: string[]
@@ -5334,6 +5335,7 @@ export type Database = {
         }
         Insert: {
           aliases?: Json
+          anonymized_at?: string | null
           club_application_count?: number
           club_applied_at?: string | null
           club_specializations?: string[]
@@ -5371,6 +5373,7 @@ export type Database = {
         }
         Update: {
           aliases?: Json
+          anonymized_at?: string | null
           club_application_count?: number
           club_applied_at?: string | null
           club_specializations?: string[]
@@ -5676,6 +5679,171 @@ export type Database = {
           width?: number
         }
         Relationships: []
+      }
+      data_retention_crm_extensions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          extended_until: string
+          lead_id: string
+          reason: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          extended_until: string
+          lead_id: string
+          reason: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          extended_until?: string
+          lead_id?: string
+          reason?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_crm_extensions_lead_fkey"
+            columns: ["tenant_id", "lead_id"]
+            isOneToOne: true
+            referencedRelation: "crm_leads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "data_retention_crm_extensions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_retention_runs: {
+        Row: {
+          affected: number
+          backlog: boolean
+          category: string
+          cutoff: string | null
+          error_code: string | null
+          finished_at: string | null
+          id: number
+          mode: string
+          run_trigger: string
+          started_at: string
+          tenant_id: string
+        }
+        Insert: {
+          affected?: number
+          backlog?: boolean
+          category: string
+          cutoff?: string | null
+          error_code?: string | null
+          finished_at?: string | null
+          id?: never
+          mode: string
+          run_trigger: string
+          started_at?: string
+          tenant_id: string
+        }
+        Update: {
+          affected?: number
+          backlog?: boolean
+          category?: string
+          cutoff?: string | null
+          error_code?: string | null
+          finished_at?: string | null
+          id?: never
+          mode?: string
+          run_trigger?: string
+          started_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_runs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_retention_settings: {
+        Row: {
+          category: string
+          created_at: string
+          enabled: boolean
+          enforce_after: string
+          period_months: number | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          enabled?: boolean
+          enforce_after: string
+          period_months?: number | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          enabled?: boolean
+          enforce_after?: string
+          period_months?: number | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_retention_state: {
+        Row: {
+          purged_before: string | null
+          scope: string
+          sealed_through: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          purged_before?: string | null
+          scope: string
+          sealed_through?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          purged_before?: string | null
+          scope?: string
+          sealed_through?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_retention_state_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       domain_event_emit_errors: {
         Row: {
@@ -14277,6 +14445,50 @@ export type Database = {
           },
         ]
       }
+      funnel_paywall_daily: {
+        Row: {
+          active_accounts: number
+          computed_at: string
+          converted: Json
+          day: string
+          paywall_hit_accounts: number
+          paywall_hit_visitors: number
+          paywall_hits: number
+          reasons: Json
+          tenant_id: string
+        }
+        Insert: {
+          active_accounts?: number
+          computed_at?: string
+          converted?: Json
+          day: string
+          paywall_hit_accounts?: number
+          paywall_hit_visitors?: number
+          paywall_hits?: number
+          reasons?: Json
+          tenant_id: string
+        }
+        Update: {
+          active_accounts?: number
+          computed_at?: string
+          converted?: Json
+          day?: string
+          paywall_hit_accounts?: number
+          paywall_hit_visitors?: number
+          paywall_hits?: number
+          reasons?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_paywall_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gift_article_settings: {
         Row: {
           eligibility: string
@@ -15345,6 +15557,7 @@ export type Database = {
           enabled: boolean
           machine_open_seconds: number
           marketing_cap_per_7d: number
+          open_tracking_enabled: boolean
           quiet_end: string
           quiet_start: string
           reply_to: string | null
@@ -15359,6 +15572,7 @@ export type Database = {
           enabled?: boolean
           machine_open_seconds?: number
           marketing_cap_per_7d?: number
+          open_tracking_enabled?: boolean
           quiet_end?: string
           quiet_start?: string
           reply_to?: string | null
@@ -15373,6 +15587,7 @@ export type Database = {
           enabled?: boolean
           machine_open_seconds?: number
           marketing_cap_per_7d?: number
+          open_tracking_enabled?: boolean
           quiet_end?: string
           quiet_start?: string
           reply_to?: string | null
@@ -16664,6 +16879,35 @@ export type Database = {
         }
         Relationships: []
       }
+      metering_events_daily: {
+        Row: {
+          day: string
+          events: number
+          outcome: string
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          events: number
+          outcome: string
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          events?: number
+          outcome?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metering_events_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metering_settings: {
         Row: {
           anon_monthly_limit: number
@@ -16972,6 +17216,54 @@ export type Database = {
           table_no?: string
         }
         Relationships: []
+      }
+      newsletter_campaign_engagement_archive: {
+        Row: {
+          archived_before: string | null
+          campaign_id: string
+          clicks: number
+          opens: number
+          tenant_id: string
+          unique_clickers: number
+          unique_openers: number
+          updated_at: string
+        }
+        Insert: {
+          archived_before?: string | null
+          campaign_id: string
+          clicks?: number
+          opens?: number
+          tenant_id: string
+          unique_clickers?: number
+          unique_openers?: number
+          updated_at?: string
+        }
+        Update: {
+          archived_before?: string | null
+          campaign_id?: string
+          clicks?: number
+          opens?: number
+          tenant_id?: string
+          unique_clickers?: number
+          unique_openers?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_engagement_archive_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: true
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_engagement_archive_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       newsletter_campaign_events: {
         Row: {
@@ -21815,7 +22107,7 @@ export type Database = {
           reason_label: string | null
           subscription_id: string | null
           tenant_id: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           comment?: string | null
@@ -21830,7 +22122,7 @@ export type Database = {
           reason_label?: string | null
           subscription_id?: string | null
           tenant_id: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           comment?: string | null
@@ -21845,7 +22137,7 @@ export type Database = {
           reason_label?: string | null
           subscription_id?: string | null
           tenant_id?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -27248,6 +27540,33 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_data_retention_crm_due: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      admin_data_retention_crm_extend: {
+        Args: { p_lead_id: string; p_reason: string }
+        Returns: Json
+      }
+      admin_data_retention_enforcement: {
+        Args: { p_action: string; p_until?: string }
+        Returns: Json
+      }
+      admin_data_retention_get: { Args: never; Returns: Json }
+      admin_data_retention_preview: { Args: never; Returns: Json }
+      admin_data_retention_run_now: {
+        Args: { p_confirm: boolean }
+        Returns: Json
+      }
+      admin_data_retention_save: {
+        Args: {
+          p_category: string
+          p_enabled: boolean
+          p_expected_updated_at?: string
+          p_period_months: number
+        }
+        Returns: Json
+      }
       admin_delete_speaker_profile: {
         Args: { p_user_id: string }
         Returns: boolean
@@ -32351,6 +32670,7 @@ export type Database = {
       }
       current_tenant_id: { Args: never; Returns: string }
       current_tier_rank: { Args: never; Returns: number }
+      data_retention_run: { Args: { p_limit?: number }; Returns: Json }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean

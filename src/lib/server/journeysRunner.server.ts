@@ -381,6 +381,9 @@ async function sendOne(
       origin,
       messageId,
       unsubscribeUrl,
+      // Wyłącznik najemcy (I9c-X2); brak pola w odpowiedzi (baza sprzed
+      // migracji 20261020161300) = piksel jak dotąd.
+      openTracking: c.open_tracking !== false,
     });
   } catch (err) {
     if (err instanceof JourneyRenderError) {

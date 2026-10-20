@@ -7,8 +7,9 @@
 // `routes/admin.tsx` (rejestracja po hydratacji i sesji). Nic stąd nie trafia
 // do bundla `public`.
 //
-// WYŁĄCZNIE PREFIKSY PANELU: `["admin-revenue", …]` (agregaty huba) i
-// `["admin", "journeys", …]` (ścieżki komunikacji). Klucze modułów, które hub
+// WYŁĄCZNIE PREFIKSY PANELU: `["admin-revenue", …]` (agregaty huba),
+// `["admin", "journeys", …]` (ścieżki komunikacji) i `["admin",
+// "data-retention", …]` (karta retencji danych, I9c-X2). Klucze modułów, które hub
 // czyta wspólnie z nimi, należą do rdzenia - inaczej druga karta modułu nie
 // odświeżyłaby się bez otwartego panelu. Pilnuje tego
 // `invalidationExtension.test.ts`.
@@ -21,6 +22,7 @@
 // koszt bazy bez zysku dla czytelnika wykresu.
 import type { QueryKey } from "@tanstack/react-query";
 import { journeyKeys } from "@/lib/journeys/keys";
+import { dataRetentionKeys } from "@/lib/privacy/keys";
 import { revenueKeys, type RevenueDomain } from "@/lib/revenue/keys";
 import type { DomainEventRow, DomainEventType } from "./domainEvents";
 import type { InvalidationExtension } from "./eventInvalidationMap";
@@ -34,6 +36,7 @@ export const PANEL_ONLY_EVENT_TYPES = [
   "journey.stats_changed.v1",
   "revenue_input.changed.v1",
   "revenue_diagnostic.snoozed.v1",
+  "data_retention.changed.v1",
 ] as const satisfies readonly DomainEventType[];
 
 /** `rev(d)`: dziedzina huba najemcy zdarzenia. */
@@ -178,4 +181,7 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
     revenueKeys.facts(e.tenant_id),
     revenueKeys.snoozes(e.tenant_id),
   ],
+  // Karta „Retencja danych" (I9c-X2): ustawienia, podgląd i lista „do
+  // anonimizacji" najemcy zdarzenia - jeden prefiks.
+  "data_retention.changed.v1": (e) => [dataRetentionKeys.tenant(e.tenant_id)],
 };

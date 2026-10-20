@@ -281,6 +281,8 @@ function tickResult(): JobsTickResult {
       threads_dormant: 0,
       hotness_refreshed: 0,
     },
+    // Retencja danych (I9c-X2): poza oknem nocnym krok jest pominięty.
+    dataRetention: { error: "skipped_duty_cycle" },
   };
 }
 

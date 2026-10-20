@@ -2577,6 +2577,41 @@
       "when": 1792477633912,
       "tag": "0367_account_erasure_staff_mail_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 368,
+      "version": "7",
+      "when": 1792477693912,
+      "tag": "0368_data_retention_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 369,
+      "version": "7",
+      "when": 1792477753912,
+      "tag": "0369_data_retention_executor",
+      "breakpoints": true
+    },
+    {
+      "idx": 370,
+      "version": "7",
+      "when": 1792477813912,
+      "tag": "0370_data_retention_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 371,
+      "version": "7",
+      "when": 1792477873912,
+      "tag": "0371_data_retention_open_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 372,
+      "version": "7",
+      "when": 1792477933912,
+      "tag": "0372_data_retention_panel",
+      "breakpoints": true
     }
   ]
 }

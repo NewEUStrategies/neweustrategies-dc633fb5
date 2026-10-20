@@ -482,6 +482,8 @@ export const JourneySettingsPatchSchema = z
       .regex(/^[^<>"\r\n]+$/)
       .nullable(),
     reply_to: z.string().trim().email().max(JOURNEY_SENDER_LIMITS.replyToMax).nullable(),
+    // Piksel otwarć (I9c-X2) - karta „Retencja danych" i ustawienia silnika.
+    open_tracking_enabled: z.boolean(),
   })
   .partial()
   .strict()

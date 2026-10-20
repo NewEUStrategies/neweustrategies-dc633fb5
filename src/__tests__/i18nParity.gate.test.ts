@@ -43,6 +43,10 @@ const GATED_PREFIXES = [
   // Po przeniesieniu do nakładki `i18n-admin-cookie-banner.ts` wchodzi pod
   // twardą bramkę od razu, żeby dług nie narósł z powrotem.
   "adminCookieBanner",
+  // Karta „Retencja danych" (I9c-X2): podstawy prawne, okresy i ostrzeżenia
+  // o skutkach (usunięcie, anonimizacja) - surowy klucz zamiast zdania
+  // zostawiłby admina bez informacji, co dzieje się z danymi.
+  "adminDataRetention",
   // Sieć kontaktów: cała powierzchnia ma dwie wersje językowe w UI, a jej
   // komunikaty (ciche odmowy, limity zaproszeń, zgłoszenia do moderacji)
   // decydują o tym, co użytkownik rozumie ze swojej prywatności. Rozjazd

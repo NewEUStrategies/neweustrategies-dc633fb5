@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-20 po I9b)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-20 po I9c)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5) i §21 (I9b - decyzje właściciela); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5) i §21 (I9b - decyzje właściciela, I9c - §21.20-21.21); specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -48,9 +48,26 @@ MRR i całego huba po usunięciu konta (Z-07, A2, rejestr czynności
 Z-S2-01 zautomatyzowane na granicy SDK. Tabela decyzji - §21.16, wdrożenie -
 §21.17, otwarte Z-I9b-06, 09, 10, 11, 14, 15 (§21.7). **Na gałęzi PR są
 części A, A2 i B z krokiem C (bliźniaki do `0366`); ratchet `overall`
-5003 → 5005 wykonał orkiestrator (Z-I9b-16, §21.19).** Następny krok: I9c
-(domknięcia RODO personelu i kolejki maili, retencja danych z kartą
-w `/admin/settings/privacy`), potem S8.
+5003 → 5005 wykonał orkiestrator (Z-I9b-16, §21.19).**
+
+**I9c (2026-10-20, §21.20-21.21 dziennika):** X1 - domknięcia RODO po
+usunięciu konta (autorzy w modułach spoza huba Z-I9b-11, poczta w kolejce
+Z-I9b-17; migracja `20261020160900`, bliźniak `0367`). X2 - retencja danych
+(Z-I9b-10, polecenie „tak, zaproponuj zgodnie z polskim i europejskim prawem
+oraz rynkowymi standardami”): 5 migracji `20261020161000…161400` (bliźniaki
+`0368…0372`, **następny wolny `0373`, wersja `20261020161500`**), 9
+kategorii z okresami i zakresami (jedno źródło
+`src/lib/privacy/dataRetention.ts`, CHECK bazy i test parytetu), zadanie
+dzienne `data_retention_run` w `jobs-tick` (okno 02:07-02:57 UTC)
+z 14-dniowym podglądem, anonimowe agregaty dzienne lejka i licznika (odczyt
+starszych okien z agregatu - `_funnel_counts`, `monetization_dashboard`),
+archiwum kampanii, pieczęć rollupu ścieżek, karta „Retencja danych”
+w `/admin/settings/privacy` (leniwy chunk, `adminPageHead` sekcyjne),
+przełącznik pomiaru otwarć ścieżek (`journey_settings.open_tracking_enabled`,
+klucz w ustawieniach silnika S5 - UI ustawień w S8). Otwarte: Z-I9c-05, 06,
+09, 10 (wycinki), decyzje administratora danych Z-I9c-01, 04, 07, 08
+i rekomendacja treści zgody (pomiar otwarć, EDPB 2/2023) - §21.21. Następny
+krok: S8.
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
@@ -67,7 +84,10 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
    w przeglądarce wymaga klienckiego podstawiania zmiennych (Z-S5-08); po
    obsłudze `?new=1` dopisz skrót ⌘K „Nowa ścieżka” w `adminNav.ts` (I9a go
    świadomie pominął); podmieniając zaślepkę zakładki Ścieżek, usuń jej wpis
-   z `TAB_PREPARING`.
+   z `TAB_PREPARING`. Ustawienia silnika mają już klucz
+   `open_tracking_enabled` (pomiar otwarć, I9c-X2 - ten sam zapis co
+   przełącznik w karcie retencji); wyniki ścieżki dla okien starszych niż
+   retencja zapisów czytają rollup (Z-I9c-06).
 2. S7 - zakładki huba (w tym lejek i inwentarz dostępu na `queryOptions` S3),
    50 reguł diagnostyki (w tym `checkout.display_currency_mismatch` - P09,
    Z-S3-03), dialogi napraw (w tym okno porzucenia kasy - pole w karcie kasy
@@ -107,7 +127,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*` - zajęte do `160800`), bliźniak drizzle od `0367` + `_journal.json`; tenant/user z
+  I9 `16*` - zajęte do `161400`), bliźniak drizzle od `0373` + `_journal.json`; tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
@@ -116,8 +136,9 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
   (nawigacja/zakładka/karta), ⌘K, `adminPageHead` i napisy PL/EN.
 
 **Decyzje czekające na właściciela** (wyłącznie rzeczy niewykonalne
-z kontenera - §21.18 dziennika): wdrożenie migracji `0358…0366` i publikacja
-frontu (§21.17); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
+z kontenera - §21.18 dziennika): wdrożenie migracji `0358…0372` i publikacja
+frontu (§21.17, §21.20, §21.21 - retencja: 14 dni podglądu, przegląd liczb
+w karcie przed terminem karencji); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
 (kupon w panelu, `Idempotency-Key` w logach, portal z powodami - Z-I9b-13);
 Z-S2-11 - powody rezygnacji w konfiguracji portalu klienta Stripe; Z-S5-07
 (M3) - włączenie silnika ścieżek po teście na żywo, po I9; konektor

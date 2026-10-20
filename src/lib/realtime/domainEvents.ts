@@ -256,6 +256,10 @@ export const DOMAIN_EVENT_TYPES = [
   "journey.stats_changed.v1",
   // Wyciszenie diagnozy (S7): `admin_revenue_diagnostic_snooze/unsnooze`.
   "revenue_diagnostic.snoozed.v1",
+  // Retencja danych (I9c-X2): zapis kategorii, karencja, przedłużenie kontaktu
+  // CRM i ręczny przebieg (`admin_data_retention_*`). Ładunek: `op`
+  // i opcjonalnie `category` - bez danych osobowych.
+  "data_retention.changed.v1",
 ] as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
@@ -333,6 +337,8 @@ export const DOMAIN_AGGREGATE_TYPES = [
   "coupon",
   "coupon_campaign",
   "workflow_definition",
+  // Retencja danych (I9c-X2): agregatem jest najemca.
+  "data_retention",
 ] as const;
 
 export type DomainAggregateType = (typeof DOMAIN_AGGREGATE_TYPES)[number];

@@ -270,6 +270,46 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["_hub_account_erase_modules", "I9", "internal"],
   ["_hub_account_erase_mail_queue", "I9", "internal"],
   ["email_queue_send_recheck", "I9", "service"],
+  // (I9c, 2026-10-20) Retencja danych (Z-I9b-10, polecenie właściciela):
+  // ustawienia najemcy, pieczęcie agregatów (lejek, licznik, ścieżki),
+  // wykonanie per kategoria, zadanie dzienne (`jobs-tick`), RPC karty
+  // „Retencja danych" w `/admin/settings/privacy` oraz odczyt okien sprzed
+  // progu z agregatów (redefinicje niżej i w `HUB_CIALO_Z`).
+  ["_data_retention_catalog", "I9", "internal"],
+  ["_data_retention_effective", "I9", "internal"],
+  ["_data_retention_funnel_cut", "I9", "internal"],
+  ["_data_retention_journey_sealed", "I9", "internal"],
+  ["_data_retention_seal_funnel", "I9", "internal"],
+  ["_journey_rollup_days", "I9", "internal"],
+  ["_data_retention_seal_journeys", "I9", "internal"],
+  ["_data_retention_audit_is_financial", "I9", "internal"],
+  ["_data_retention_customer_until", "I9", "internal"],
+  ["_data_retention_bounded", "I9", "internal"],
+  ["_data_retention_paywall_metering", "I9", "internal"],
+  ["_data_retention_fold_campaign_events", "I9", "internal"],
+  ["_data_retention_email_engagement", "I9", "internal"],
+  ["_data_retention_email_send_log", "I9", "internal"],
+  ["_data_retention_crm_candidates", "I9", "internal"],
+  ["_data_retention_anonymize_lead", "I9", "internal"],
+  ["_data_retention_crm", "I9", "internal"],
+  ["_data_retention_audit_log", "I9", "internal"],
+  ["_data_retention_journey_enrollments", "I9", "internal"],
+  ["_data_retention_cancellation_surveys", "I9", "internal"],
+  ["_data_retention_consent_log", "I9", "internal"],
+  ["_data_retention_run_tenant", "I9", "internal"],
+  ["_data_retention_admin_tenant", "I9", "internal"],
+  ["_data_retention_emit", "I9", "internal"],
+  ["data_retention_run", "I9", "service"],
+  ["admin_data_retention_get", "I9", "panel"],
+  ["admin_data_retention_save", "I9", "panel"],
+  ["admin_data_retention_enforcement", "I9", "panel"],
+  ["admin_data_retention_preview", "I9", "panel"],
+  ["admin_data_retention_crm_due", "I9", "panel"],
+  ["admin_data_retention_crm_extend", "I9", "panel"],
+  ["admin_data_retention_run_now", "I9", "panel"],
+  // Funkcje sprzed huba czytające okna sprzed progu retencji z agregatów.
+  ["monetization_dashboard", "I9", "panel"],
+  ["newsletter_campaign_engagement", "I9", "panel"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -310,6 +350,10 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   email_apply_delivery_event: "20260725123624",
   pricing_catalog_v62_rows: "20261018160100",
   pricing_catalog_v62_benefits: "20261018160200",
+  // (I9c, 2026-10-20) Retencja danych: zdarzenia licznika i zaangażowanie
+  // kampanii dni sprzed progu z agregatów.
+  monetization_dashboard: "20260724100000",
+  newsletter_campaign_engagement: "20260814215302",
 };
 
 /**
@@ -329,6 +373,17 @@ export const HUB_I9_REDEFINITIONS: Readonly<Record<string, string>> = {
   // i walidatorze grafu S5 (I9b, część B, decyzja właściciela).
   run_workflow_step: "20261020130200",
   journey_validate_graph: "20261020140200",
+  // (I9c, 2026-10-20) Retencja danych: lejek S3 i statystyki S5 czytają dni
+  // sprzed progu z agregatów, rollup S5 liczy dowolny zakres dni bez dni
+  // zapieczętowanych, a piksel otwarć ma wyłącznik najemcy (ustawienia
+  // silnika, kontakt do wysyłki, zapis zdarzenia).
+  _funnel_counts: "20261020120400",
+  journey_rollup_daily: "20261020140500",
+  admin_journey_stats: "20261020140500",
+  journey_record_message_event: "20261020140500",
+  journey_contact_for_send: "20261020140200",
+  admin_journey_settings_get: "20261020140300",
+  admin_journey_settings_save: "20261020140300",
 };
 
 /**
@@ -342,6 +397,10 @@ export const HUB_SHARED_FILES: readonly string[] = [
   "drizzle/migrations/meta/_journal.json",
   "governance/ownership.json",
   "reports/bundle-baseline.json",
+  // (I9c, 2026-10-20) Raport bramki parytetu i18n - przepisywany przy każdym
+  // przebiegu `i18nParity.gate.test.ts`; nowy bramkowany prefiks
+  // (`adminDataRetention`) zmienia jego listę prefiksów.
+  "reports/i18n-parity.json",
   "scripts/check-bundle-size.ts",
   "scripts/hub-slice-guard.ts",
   "scripts/scheduler-tick.mjs",
@@ -876,6 +935,20 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/email/{queueDrain.server,suppressionPolicy}.ts",
     "src/lib/email/__tests__/{queueDrainAccountBound,accountBoundLabelsParity,emailLogTenantBoundary}.test.ts",
     "supabase/tests/hub_i9c_*_test.sql",
+    // (I9c, 2026-10-20) Retencja danych (Z-I9b-10): stałe, funkcje serwerowe
+    // i zapytania karty, karta w ustawieniach prywatności (leniwy chunk,
+    // słownik PL/EN), piksel otwarć w renderze i ustawieniach silnika ścieżek
+    // (S5), reguła szyny `data_retention.changed.v1` w rozszerzeniu panelu.
+    "src/lib/privacy/**",
+    "src/components/admin/settings/dataRetention/**",
+    "src/routes/admin.settings.privacy.tsx",
+    "src/routes/__tests__/adminSettingsPrivacyRoute.test.tsx",
+    "src/lib/i18n-admin-data-retention.ts",
+    "src/lib/journeys/{render.server,dto,parse,journeys.functions}.ts",
+    "src/lib/journeys/__tests__/{render.server.test,parse.test,journeys.functions.test,rpcShapes.fixture}.ts",
+    "src/lib/server/journeysRunner.server.ts",
+    "src/lib/server/__tests__/journeysRunner.server.test.ts",
+    "src/lib/realtime/__tests__/{invalidationExtension,eventInvalidationMap}.test.ts",
   ],
 };
 

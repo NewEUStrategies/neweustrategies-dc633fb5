@@ -437,6 +437,7 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "journey.stats_changed.v1": () => [],
   "revenue_input.changed.v1": () => [],
   "revenue_diagnostic.snoozed.v1": () => [],
+  "data_retention.changed.v1": () => [],
 };
 
 // KLUCZE JAKO LITERALY, NIE IMPORT FABRYK. Fabryki (`meetingKeys`,

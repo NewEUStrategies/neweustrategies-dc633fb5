@@ -258,6 +258,9 @@ export function parseJourneySettings(raw: unknown): JourneySettingsDto {
     machineOpenSeconds: count(s, "", "machine_open_seconds"),
     senderName: nullableText(s, "", "sender_name"),
     replyTo: nullableText(s, "", "reply_to"),
+    // Baza sprzed 20261020161300 nie zna klucza - piksel jak dotąd (włączony).
+    openTrackingEnabled:
+      s.open_tracking_enabled === undefined ? true : bool(s, "", "open_tracking_enabled"),
     updatedAt: nullableInstant(s, "", "updated_at"),
     exists: bool(s, "", "exists"),
   };

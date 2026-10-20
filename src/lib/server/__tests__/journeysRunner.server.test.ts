@@ -216,6 +216,8 @@ describe("tick", () => {
     );
     expect(input.html).toContain("24 października 2026");
     expect(input.html).toContain("nl-click?m=");
+    // Kontakt bez pola `open_tracking` (baza sprzed I9c-X2) = piksel jak dotąd.
+    expect(input.html).toContain("nl-open?m=");
     expect(input.text).toContain("Wypisz się");
     expect(completes(db)[0]).toEqual({
       p_enrollment_id: enrollment(1),
@@ -227,6 +229,16 @@ describe("tick", () => {
       p_locale: "pl",
       p_detail: { fallback_locale: false },
     });
+  });
+
+  it("pomiar otwarć wyłączony przez najemcę: mail bez piksela, kliknięcia zostają (I9c-X2)", async () => {
+    const db = fakeDb(
+      happyHandlers({ journey_contact_for_send: () => ok({ ...CONTACT, open_tracking: false }) }),
+    );
+    await run(db);
+    const input = h.enqueueRawEmail.mock.calls[0][0];
+    expect(input.html).not.toContain("nl-open");
+    expect(input.html).toContain("nl-click?m=");
   });
 
   it("usługa i test na żywo: poczta 1:1 bez wypisu; EN z datą po angielsku", async () => {

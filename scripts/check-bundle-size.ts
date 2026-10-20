@@ -2478,7 +2478,27 @@ const FROZEN_BUDGET_KB = {
   // razem -79 B). Arkusze CSS bit w bit te same (css 99,7, publicCss 83,8);
   // chunk 257,9 i boot 471,6 w zamrożonych progach.
   // Host 5003,2 -> 5004 -> +1.
-  overall: 5005,
+  // Ratchet 5005 -> 5023 (2026-10-20, I9c-X2: retencja danych huba
+  // „Przychód i lejek”, Z-I9b-10 - polecenie właściciela „tak, zaproponuj
+  // zgodnie z polskim i europejskim prawem oraz rynkowymi standardami”),
+  // decyzją zamawiającego D-08. Baza 763ecda0 (gałąź PR po I9c-X1) 5002,9 /
+  // public 2777,8; po X2 5021,2: +18,3 KB, w tym admin-only +17,4
+  // (2225,2 -> 2242,6) i public +0,8 (entropia hashy: 1261 chunków
+  // o |Δ| <= 20 B, razem +1,2 KB w obu koszykach; `app-initial` +55 B).
+  // Rozbicie: NOWY leniwy chunk karty „Retencja danych” w
+  // `/admin/settings/privacy` (`DataRetentionCard` +15,9: słownik PL/EN
+  // dziewięciu kategorii z podstawą prawną, standardem i skutkiem upływu
+  // okresu oraz okresów z innych modułów - ok. 8 KB; wiersz kategorii, lista
+  // „do anonimizacji” z dialogiem przedłużenia, parsery odpowiedzi RPC,
+  // stałe okresów, zapytania i mutatory), trasa ustawień prywatności
+  // (`admin.settings.privacy` +0,6: leniwy import i `Suspense`, sekcyjny
+  // `adminPageHead`), wspólne chunki wydzielone przez drugi import
+  // (`SectionCard` +0,4, `lifecycle` +0,1; `FieldGroupRule` -0,2,
+  // `admin` -0,2), klucze zapytań (`keys` +0,3). Arkusze CSS bit w bit te
+  // same (css 99,7, publicCss 83,8); chunk 257,9 i boot 471,7 w zamrożonych
+  // progach.
+  // Host 5021,2 -> 5022 -> +1.
+  overall: 5023,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

@@ -91,6 +91,12 @@ export interface JourneySettingsDto {
   machineOpenSeconds: number;
   senderName: string | null;
   replyTo: string | null;
+  /**
+   * Pomiar otwarć pikselem (I9c-X2). Domyślnie `true` - zachowanie sprzed
+   * retencji danych; wyłączony = nowe maile bez piksela, otwarcia nie są
+   * zapisywane.
+   */
+  openTrackingEnabled: boolean;
   /** `null` = wiersza jeszcze nie ma (wartości domyślne kontraktu). */
   updatedAt: string | null;
   exists: boolean;

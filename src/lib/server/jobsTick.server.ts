@@ -24,6 +24,7 @@ import {
   runEventReminders,
 } from "@/lib/notifications/dispatch.server";
 import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
+import { DATA_RETENTION_RULES } from "@/lib/privacy/dataRetention";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
@@ -141,6 +142,17 @@ export interface JobsTickResult {
         hotness_refreshed: number;
       }
     | { error: string };
+  /**
+   * Retencja danych (I9c-X2, Z-I9b-10): jedno zadanie dzienne w oknie nocnym
+   * (`isDataRetentionWindow`) - `data_retention_run` przechodzi najemców bez
+   * przebiegu z 20 h, każda kategoria osobno (podgląd do `enforce_after`).
+   * `more: true` = budżet czasu wyczerpany, reszta w kolejnym wywołaniu okna;
+   * `skipped: "migration_pending"` = baza bez migracji 20261020161100.
+   * Stan każdej kategorii pokazuje karta „Retencja danych" w
+   * /admin/settings/privacy (dziennik `data_retention_runs`).
+   */
+  dataRetention:
+    { tenants: number; more: boolean; skipped?: "migration_pending" } | { error: string };
 }
 
 /** Kto wywołał tick - ląduje w logu przebiegów (public.job_runner_runs). */
@@ -256,6 +268,18 @@ async function runJobStep<T>(
  */
 export function everyNthMinute(n: number, now = new Date()): boolean {
   return now.getUTCMinutes() % n === 0;
+}
+
+/**
+ * Okno nocne retencji danych: 02:07-02:57 UTC co 10 minut (sześć szans na
+ * dobę). Jedna minuta wypadająca z ticku (awaria, budżet) nie przesuwa
+ * zadania o dobę, a baza i tak przyjmuje najemcę tylko raz na 20 h (albo
+ * ponownie przy zaległości). Minuta 7 omija pełne godziny i dziesiątki, na
+ * których stoją inne zadania; godzina 2 UTC - przed czyszczeniami pg_cron
+ * (03:20-03:53 UTC), które nie dotykają tych samych tabel.
+ */
+export function isDataRetentionWindow(now = new Date()): boolean {
+  return now.getUTCHours() === 2 && now.getUTCMinutes() % 10 === 7;
 }
 
 export async function runJobsTick(
@@ -422,6 +446,28 @@ export async function runJobsTick(
       })
     : skipped;
 
+  // Retencja danych: OSTATNIA - czysto bazowa, raz na dobę, z własnym budżetem
+  // czasu w SQL (8 s); stoi za wszystkim, co ma termin dla czytelnika.
+  const dataRetention = isDataRetentionWindow(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { data, error } = await admin.rpc("data_retention_run", {
+          p_limit: DATA_RETENTION_RULES.batchDefault,
+        });
+        if (error) {
+          const { isMigrationPending } = await import("@/lib/supabase/migrationPending");
+          if (isMigrationPending(error)) {
+            return { tenants: 0, more: false, skipped: "migration_pending" as const };
+          }
+          throw error;
+        }
+        const row = (data ?? {}) as Record<string, unknown>;
+        return {
+          tenants: typeof row.tenants === "number" ? row.tenants : Number(row.tenants ?? 0),
+          more: row.more === true,
+        };
+      })
+    : skipped;
+
   const result: JobsTickResult = {
     newsletter,
     eventParticipantReminders,
@@ -443,6 +489,7 @@ export async function runJobsTick(
     profileIndex,
     clubThreadIndex,
     clubScheduler,
+    dataRetention,
   };
 
   // Heartbeat: KAŻDY tick (cron bazy, scheduler repo, ręczny z panelu) zostawia

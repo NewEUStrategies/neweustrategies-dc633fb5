@@ -40,9 +40,12 @@ function eventOf(type: string, overrides: Partial<DomainEventRow> = {}): DomainE
   };
 }
 
-/** Prefiks panelu huba: agregaty przychodu albo ścieżki komunikacji. */
+/** Prefiks panelu huba: agregaty przychodu, ścieżki komunikacji albo retencja danych (I9c-X2). */
 function isPanelKey(key: QueryKey): boolean {
-  return key[0] === "admin-revenue" || (key[0] === "admin" && key[1] === "journeys");
+  return (
+    key[0] === "admin-revenue" ||
+    (key[0] === "admin" && (key[1] === "journeys" || key[1] === "data-retention"))
+  );
 }
 
 const EXTENSION_TYPES = Object.keys(ADMIN_HUB_INVALIDATION) as (keyof InvalidationExtension)[];
