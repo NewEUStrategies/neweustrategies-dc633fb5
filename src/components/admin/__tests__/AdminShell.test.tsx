@@ -89,6 +89,10 @@ const h = vi.hoisted(() => ({
   languageChanges: [] as string[],
   isAdmin: true,
   isSuperAdmin: false,
+  /** Dokładne role sesji - widoczność huba „Przychód i lejek" (I9a). */
+  roles: [] as string[],
+  /** `search` przekazany razem z nawigacją (skróty ⌘K do podstron). */
+  navigationSearch: [] as unknown[],
   signOut: vi.fn(async () => {}),
 }));
 
@@ -123,8 +127,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   return {
     ...actual,
     Link,
-    useNavigate: () => (opts: { to: string }) => {
+    useNavigate: () => (opts: { to: string; search?: unknown }) => {
       h.navigations.push(opts.to);
+      h.navigationSearch.push(opts.search);
     },
     useRouterState: <T,>({ select }: { select: (s: { location: { pathname: string } }) => T }) => {
       const [, force] = react.useReducer((n: number) => n + 1, 0);
@@ -143,6 +148,7 @@ vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
     isAdmin: h.isAdmin,
     isSuperAdmin: h.isSuperAdmin,
+    roles: h.roles,
     signOut: h.signOut,
   }),
 }));
@@ -308,9 +314,11 @@ beforeEach(() => {
   h.lang = "pl";
   h.pathname = "/admin";
   h.navigations.length = 0;
+  h.navigationSearch.length = 0;
   h.languageChanges.length = 0;
   h.isAdmin = true;
   h.isSuperAdmin = false;
+  h.roles = [];
   h.signOut.mockClear();
   window.localStorage.clear();
 });
@@ -713,6 +721,95 @@ describe("AdminShell - odznaka kolejki klubów", () => {
         name: `${dict()("admin.nav.clubs")} ${dict()("admin.navGroups.community")}`,
       }),
     ).toBeInTheDocument();
+  });
+});
+
+// Hub „Przychód i lejek" w panelu (I9a, decyzja właściciela 2026-10-20):
+// pozycje paska i skróty ⌘K do zakładek, prawdziwym słownikiem PL.
+describe("AdminShell - hub „Przychód i lejek”", () => {
+  it("admin widzi hub w monetyzacji i Ścieżki komunikacji w CRM", () => {
+    h.roles = ["admin"];
+    renderShell({ pathname: "/admin" });
+
+    expect(screen.getByRole("link", { name: "Przychód i lejek" })).toHaveAttribute(
+      "href",
+      "/admin/revenue",
+    );
+    expect(screen.getByRole("link", { name: "Ścieżki komunikacji" })).toHaveAttribute(
+      "href",
+      "/admin/revenue/journeys",
+    );
+  });
+
+  it("redaktor też widzi hub; autor i sam super_admin - nie (pozycja = dostęp do trasy)", () => {
+    h.roles = ["editor"];
+    h.isAdmin = false;
+    renderShell({ pathname: "/admin" });
+    expect(screen.getByRole("link", { name: "Przychód i lejek" })).toBeInTheDocument();
+    cleanup();
+
+    for (const [roles, isAdmin] of [
+      [["author"], false],
+      [["super_admin"], true],
+    ] as const) {
+      h.roles = [...roles];
+      h.isAdmin = isAdmin;
+      renderShell({ pathname: "/admin" });
+      expect(screen.queryByRole("link", { name: "Przychód i lejek" }), roles[0]).toBeNull();
+      expect(screen.queryByRole("link", { name: "Ścieżki komunikacji" }), roles[0]).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("na zakładce huba świeci się hub, a na edytorze ścieżki - Ścieżki komunikacji", () => {
+    h.roles = ["admin"];
+    renderShell({ pathname: "/admin/revenue/retention" });
+    expect(screen.getByRole("link", { name: "Przychód i lejek" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+
+    navigateTo("/admin/revenue/journeys/j-1");
+    expect(screen.getByRole("link", { name: "Ścieżki komunikacji" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "Przychód i lejek" })).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+  });
+
+  it("⌘K: „churn” daje adminowi Retencję z nazwą huba, a Enter tam przenosi", () => {
+    h.roles = ["admin"];
+    renderShell({ pathname: "/admin" });
+    const input = searchBox();
+
+    fireEvent.change(input, { target: { value: "churn" } });
+    expect(screen.getByRole("link", { name: "Retencja Przychód i lejek" })).toHaveAttribute(
+      "href",
+      "/admin/revenue/retention",
+    );
+
+    fireEvent.change(input, { target: { value: "kohorty" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(h.navigations).toEqual(["/admin/revenue/retention"]);
+    expect(h.navigationSearch).toEqual([undefined]);
+  });
+
+  it("⌘K: redaktor nie dostaje skrótu do zakładki z kwotami", () => {
+    h.roles = ["editor"];
+    h.isAdmin = false;
+    renderShell({ pathname: "/admin" });
+
+    fireEvent.change(searchBox(), { target: { value: "kohorty" } });
+    expect(screen.queryByRole("link", { name: "Retencja Przychód i lejek" })).toBeNull();
+
+    fireEvent.change(searchBox(), { target: { value: "lejek" } });
+    expect(screen.getByRole("link", { name: "Lejek Przychód i lejek" })).toHaveAttribute(
+      "href",
+      "/admin/revenue/funnel",
+    );
   });
 });
 

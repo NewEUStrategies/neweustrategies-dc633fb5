@@ -129,11 +129,21 @@ describe("panel: słowniki rejestrowane przez `AdminSession`", () => {
       isAdmin: true,
       isSuperAdmin: true,
       clubPending: 0,
+      // Wiersz `admin` - widać hub „Przychód i lejek" i jego skróty ⌘K (I9a).
+      roles: ["super_admin", "admin"],
     });
-    const labels = groups.flatMap((g) => [g.label ?? "", ...g.items.map((item) => item.label)]);
+    const labels = groups.flatMap((g) => [
+      g.label ?? "",
+      ...g.items.flatMap((item) => [
+        item.label,
+        ...("to" in item ? (item.searchEntries ?? []).map((entry) => entry.label) : []),
+      ]),
+    ]);
     expect(labels.length).toBeGreaterThan(40);
     expect(labels.flatMap((label) => label.match(RAW_KEY) ?? [])).toEqual([]);
     expect(labels).toContain(lng === "pl" ? "Kokpit" : "Dashboard");
+    expect(labels).toContain(lng === "pl" ? "Przychód i lejek" : "Revenue and funnel");
+    expect(labels).toContain(lng === "pl" ? "Dane wejściowe" : "Inputs");
   });
 
   it.each(LANGS)("%s: etykiety ról redakcji (ekrany użytkowników)", async (lng) => {
