@@ -515,6 +515,13 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (Integrator S3, 2026-10-20): wspólny skrót gościa (`meteringVisitorDigest`)
     // dla licznika uderzeń - weryfikacja podpisanego cookie w jednym module.
     "src/lib/access/meteringVisitor.server.ts",
+    // (Integrator S3, 2026-10-20): P15 - CTA darmowej warstwy w `TierCard`
+    // prowadzi do rejestracji z intencją `pricing`; test trasy cennika
+    // przypinał goły `/login`.
+    "src/routes/__tests__/pricingRoute.test.tsx",
+    // (Integrator S3, 2026-10-20): Z-S6-16 - wpięcie `funnel`
+    // (`admin_revenue_funnel`, migracja 20261020120400) w migawkę huba.
+    "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
   ],
   S4: [
     "supabase/migrations/2026102013????_*.sql",

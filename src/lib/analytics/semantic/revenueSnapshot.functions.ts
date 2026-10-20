@@ -241,8 +241,8 @@ export const REVENUE_DOMAIN_RPC: Readonly<Record<RevenueDomain, string>> = {
 };
 
 /**
- * Stan wpięć w produkcji. Od S4 wpięte `events` i `clubs`, od S2 `snapshot`;
- * reszta `null` -
+ * Stan wpięć w produkcji. Od S4 wpięte `events` i `clubs`, od S2 `snapshot`,
+ * od S3 `funnel`; reszta `null` -
  * DLACZEGO: S6 scala się przed migracjami S1-S4 (§8.3: S6 najwcześniej),
  * a literał wywołania funkcji, której nie tworzy żadna migracja, przewraca
  * kontrakt TS ⇄ SQL całego PR.
@@ -271,7 +271,18 @@ export const REVENUE_DOMAIN_READS: RevenueDomainReads = {
   // migracji PGRST202 = `not_configured`, ten sam stan co `null`.
   snapshot: (c, w) =>
     c.rpc("admin_revenue_semantic_snapshot", { p_since: w.sinceIso, p_until: w.untilIso }),
-  funnel: null,
+  // Integrator S3 (2026-10-20, Z-S6-16): migracja 20261020120400 tworzy
+  // `admin_revenue_funnel` z kluczami płaskimi `REVENUE_FUNNEL_KEYS`
+  // (`_funnel_counts`, pgTAP `revenue_funnel_access` przypina zbiór) - wpięcie
+  // bez adaptera; migawka czyta tor samoobsługowy razem z kanałem sprzedaży
+  // (`p_track: "all"`). Przed wdrożeniem migracji PGRST202 = `not_configured`.
+  funnel: (c, w) =>
+    c.rpc("admin_revenue_funnel", {
+      p_since: w.sinceIso,
+      p_until: w.untilIso,
+      p_segment: w.segment,
+      p_track: "all",
+    }),
   // Integrator S4 (2026-10-19, Z-S6-16): migracja 20261020130700 tworzy obie
   // funkcje, a ich kształt jsonb jest płaski jak `REVENUE_{EVENTS,CLUBS}_KEYS`
   // (`by_currency` z `ticket_revenue_net_minor`, liczniki, `applications`,

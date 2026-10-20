@@ -809,7 +809,9 @@ describe("trasa /pricing - CTA gościa i czytelnika zalogowanego", () => {
     const signup = within(tierCard("Czytelnik")).getByRole("link", {
       name: "Załóż bezpłatne konto",
     });
-    expect(signup).toHaveAttribute("href", "/login");
+    // S3/P15: CTA darmowej warstwy otwiera REJESTRACJĘ (nie logowanie),
+    // a intencja `pricing` trafia do źródła rejestracji (P16).
+    expect(signup).toHaveAttribute("href", "/login?mode=signup&intent=pricing");
     expect(within(tierCard("Czytelnik")).getByText("Bezpłatnie")).toBeInTheDocument();
   });
 
