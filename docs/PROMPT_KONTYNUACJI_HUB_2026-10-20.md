@@ -31,6 +31,10 @@ na gałęzi `claude/elegant-fermat-xwfca1` (PR #530, szkic). Pracuj po polsku.
   wycinek jest w PR (sprawdź CI). Jeśli nie – szukaj na origin gałęzi roboczych
   `hub/s8-sciezki-panel` / `hub/s7-zakladki-diagnostyka`; gdy ich nie ma, wycinek
   trzeba wykonać od nowa wg karty SPEC (S8 bez SQL; S7 z migracjami – patrz 4.3).
+  Kopie zapasowe niezacommitowanej pracy (migawki drzewa roboczego co 15 min):
+  `hub/s8-sciezki-panel-wip` i `hub/s7-zakladki-diagnostyka-wip` – odtwórz
+  pliki przez `git checkout origin/<gałąź>-wip -- .` w nowym worktree od
+  gałęzi PR i dokończ wycinek (migawki nie scalać jako commitów).
 
 ## 3. Kolejka (po kolei)
 
