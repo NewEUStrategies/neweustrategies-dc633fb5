@@ -15347,6 +15347,8 @@ export type Database = {
           marketing_cap_per_7d: number
           quiet_end: string
           quiet_start: string
+          reply_to: string | null
+          sender_name: string | null
           tenant_id: string
           timezone: string
           updated_at: string
@@ -15359,6 +15361,8 @@ export type Database = {
           marketing_cap_per_7d?: number
           quiet_end?: string
           quiet_start?: string
+          reply_to?: string | null
+          sender_name?: string | null
           tenant_id: string
           timezone?: string
           updated_at?: string
@@ -15371,6 +15375,8 @@ export type Database = {
           marketing_cap_per_7d?: number
           quiet_end?: string
           quiet_start?: string
+          reply_to?: string | null
+          sender_name?: string | null
           tenant_id?: string
           timezone?: string
           updated_at?: string
@@ -29593,6 +29599,141 @@ export type Database = {
         Args: { p_badge: string; p_note?: string; p_user_id: string }
         Returns: string
       }
+      admin_journey_create: {
+        Args: {
+          p_category?: string
+          p_description?: string
+          p_draft?: Json
+          p_key: string
+          p_legal_basis?: string
+          p_name: string
+          p_template_key?: string
+        }
+        Returns: Json
+      }
+      admin_journey_email_content_save: {
+        Args: {
+          p_doc: Json
+          p_journey_id: string
+          p_node_id: string
+          p_preheader_en: string
+          p_preheader_pl: string
+          p_subject_en: string
+          p_subject_pl: string
+          p_variant: string
+        }
+        Returns: Json
+      }
+      admin_journey_engine_health: { Args: never; Returns: Json }
+      admin_journey_enroll_test: {
+        Args: {
+          p_journey_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_enrollment_exit: {
+        Args: {
+          p_enrollment_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_enrollment_skip_wait: {
+        Args: {
+          p_enrollment_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_enrollments: {
+        Args: {
+          p_journey_id: string
+          p_node_id?: string
+          p_page?: number
+          p_page_size?: number
+          p_status?: string
+        }
+        Returns: Json
+      }
+      admin_journey_lead_enrollments: {
+        Args: {
+          p_lead_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_list: {
+        Args: {
+          p_status?: string
+        }
+        Returns: Json
+      }
+      admin_journey_publish: {
+        Args: {
+          p_expected_updated_at: string
+          p_journey_id: string
+          p_mode?: string
+        }
+        Returns: Json
+      }
+      admin_journey_save_draft: {
+        Args: {
+          p_category?: string
+          p_description?: string
+          p_draft: Json
+          p_expected_updated_at: string
+          p_journey_id: string
+          p_legal_basis?: string
+          p_name?: string
+        }
+        Returns: Json
+      }
+      admin_journey_series: {
+        Args: {
+          p_journey_id: string
+          p_since?: string
+          p_until?: string
+        }
+        Returns: Json
+      }
+      admin_journey_set_status: {
+        Args: {
+          p_expected_updated_at?: string
+          p_journey_id: string
+          p_status: string
+        }
+        Returns: Json
+      }
+      admin_journey_settings_get: { Args: never; Returns: Json }
+      admin_journey_settings_save: {
+        Args: {
+          p_expected_updated_at?: string
+          p_patch: Json
+        }
+        Returns: Json
+      }
+      admin_journey_simulate: {
+        Args: {
+          p_draft?: Json
+          p_journey_id: string
+          p_lead_id: string
+        }
+        Returns: Json
+      }
+      admin_journey_stats: {
+        Args: {
+          p_journey_id: string
+          p_since?: string
+          p_until?: string
+          p_version_id?: string
+        }
+        Returns: Json
+      }
+      admin_journey_trigger_estimate: {
+        Args: {
+          p_condition?: Json
+          p_days?: number
+          p_event_type: string
+        }
+        Returns: Json
+      }
       admin_list_ad_slots: {
         Args: never
         Returns: {
@@ -33834,6 +33975,100 @@ export type Database = {
           _user_id: string
         }
         Returns: undefined
+      }
+      journey_advance: {
+        Args: {
+          p_enrollment_id: string
+          p_lock_token: string
+          p_max_steps?: number
+        }
+        Returns: Json
+      }
+      journey_can_send: {
+        Args: {
+          p_category: string
+          p_enrollment_id: string
+        }
+        Returns: string
+      }
+      journey_claim_due: {
+        Args: {
+          p_lease_seconds?: number
+          p_limit?: number
+        }
+        Returns: {
+          enrollment_id: string
+          is_test: boolean
+          journey_id: string
+          lock_token: string
+          tenant_id: string
+        }[]
+      }
+      journey_complete_email_step: {
+        Args: {
+          p_detail?: Json
+          p_enrollment_id: string
+          p_locale?: string
+          p_lock_token: string
+          p_message_id?: string
+          p_node_id: string
+          p_result: string
+          p_variant?: string
+        }
+        Returns: Json
+      }
+      journey_contact_for_send: {
+        Args: {
+          p_enrollment_id: string
+          p_node_id: string
+        }
+        Returns: Json
+      }
+      journey_fail_step: {
+        Args: {
+          p_enrollment_id: string
+          p_error: string
+          p_lock_token: string
+          p_node_id: string
+          p_phase?: string
+        }
+        Returns: Json
+      }
+      journey_ingest_inbox: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: Json
+      }
+      journey_purge: {
+        Args: {
+          p_older_than?: unknown
+        }
+        Returns: Json
+      }
+      journey_record_message_event: {
+        Args: {
+          p_kind: string
+          p_link_index?: number
+          p_machine?: boolean
+          p_message_id: string
+          p_url?: string
+        }
+        Returns: Json
+      }
+      journey_resolve_lead: {
+        Args: {
+          p_inbox_id: number
+        }
+        Returns: string
+      }
+      journey_rollup_daily: { Args: never; Returns: number }
+      journey_tick_emit_stats: {
+        Args: {
+          p_counts?: Json
+          p_journey_ids: string[]
+        }
+        Returns: number
       }
       jsonb_append_distinct: {
         Args: { _key: string; _obj: Json; _val: string }

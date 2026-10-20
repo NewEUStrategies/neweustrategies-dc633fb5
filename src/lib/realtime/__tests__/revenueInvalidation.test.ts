@@ -406,6 +406,14 @@ describe("degradacja przy uszkodzonym payloadzie", () => {
     }
   });
 
+  it("ustawienia silnika (op `settings`, agregat = najemca): karta ustawień i zdrowie, nie `detail(najemca)`", () => {
+    const keys = keysOf("journey.changed.v1", { op: "settings", journey_id: null }, TENANT);
+    expect(keys).toContainEqual(journeyKeys.settings(TENANT));
+    expect(keys).toContainEqual(journeyKeys.engineHealth(TENANT));
+    expect(keys).toContainEqual(journeyKeys.listAll());
+    expect(keys).not.toContainEqual(journeyKeys.detail(TENANT));
+  });
+
   it('ścieżka bez identyfikatora degraduje do korzenia ścieżek, nie do `detail("")`', () => {
     for (const type of ["journey.changed.v1", "journey.stats_changed.v1"] as const) {
       const keys = keysOf(type, {}, "");

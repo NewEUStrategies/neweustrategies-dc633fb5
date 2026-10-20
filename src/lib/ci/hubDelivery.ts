@@ -212,6 +212,24 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["admin_journey_series", "S5", "panel"],
   ["journey_rollup_daily", "S5", "service"],
   ["email_apply_delivery_event", "S5", "service"],
+  // (Integrator S5, 2026-10-20): pomocnicze silnika rozpisane przy wykonaniu
+  // (wewnętrzne - REVOKE od wszystkich ról, woła je wyłącznie SQL S5) oraz
+  // odczyt ustawień silnika dla panelu (wymóg właściciela: każdy przełącznik
+  // w panelu admina, także stan „brak wiersza = wartości domyślne").
+  ["_journey_enroll", "S5", "internal"],
+  ["_journey_node", "S5", "internal"],
+  ["_journey_edge", "S5", "internal"],
+  ["_journey_next_time", "S5", "internal"],
+  ["_journey_exec_action", "S5", "internal"],
+  ["_journey_marketing_consent", "S5", "internal"],
+  ["_journey_eval_predicate", "S5", "internal"],
+  ["_journey_quiet_until", "S5", "internal"],
+  ["_journey_num", "S5", "internal"],
+  ["_journey_send_verdict", "S5", "internal"],
+  ["_journey_message_id", "S5", "internal"],
+  ["_journey_unsubscribe", "S5", "internal"],
+  ["_journey_staff_tenant", "S5", "internal"],
+  ["admin_journey_settings_get", "S5", "panel"],
   // S7 - diagnostyka.
   ...HUB_FACT_AREAS.map((area): FunctionEntry => [`_revenue_facts_${area}`, "S7", "internal"]),
   ["admin_revenue_facts", "S7", "panel"],
@@ -589,6 +607,31 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/routes/{api.public.newsletter.unsubscribe.ts,-api.public.newsletter.unsubscribe.test.ts}",
     "src/lib/email/{queueDrain.server,suppressionPolicy}.ts",
     "src/lib/email/__tests__/{queueDrain,suppressionPolicy}*.test.ts",
+    // (Integrator S5, 2026-10-20): zapis zdarzeń maila 1:1 (otwarcie,
+    // kliknięcie, wypis) - jedyne miejsce, z którego trasy publiczne dotykają
+    // silnika; testy server fn, zapytań, słownika i kształtów RPC z bazy.
+    "src/lib/journeys/tracking.server.ts",
+    // (Integrator S5, 2026-10-20): klucze etykiet `adminJourneys.*` z kodów
+    // unii (typowane) - czytelnik słownika do czasu UI S8 i jego API.
+    "src/lib/journeys/labels.ts",
+    "src/lib/journeys/__tests__/{journeys.functions,queries,tracking.server,i18nJourneys}.test.ts",
+    "src/lib/journeys/__tests__/rpcShapes.fixture.ts",
+    // (Integrator S5, 2026-10-20): nadawca i Reply-To z panelu
+    // (`journey_settings.sender_name`/`reply_to`) idą przez tę samą kolejkę co
+    // poczta transakcyjna - `enqueueRawEmail` przyjmuje je jako opcje.
+    "src/lib/email/transactional.server.ts",
+    "src/lib/email/__tests__/transactional.server.test.ts",
+    // (Integrator S5, 2026-10-20): bliźniaki drizzle 6 migracji S5 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego po `0351` z S3; §6 dziennika).
+    "drizzle/migrations/{0352,0353,0354,0355,0356,0357}_*.sql",
+    // (Integrator S5, 2026-10-20): `journey.changed.v1` z op `settings`
+    // (agregat = najemca) odświeża kartę ustawień i zdrowie silnika - test
+    // reguły w zbiorczym teście inwalidacji huba (plik I0).
+    "src/lib/realtime/__tests__/revenueInvalidation.test.ts",
+    // (Integrator S5, 2026-10-20): strażnik ACL `hub_grants` (plik I0) zna
+    // pomocnicze silnika dopisane do rejestru - inaczej nikt nie sprawdza ich
+    // EXECUTE po wdrożeniu (`hubDelivery.gate.test.ts`).
+    "supabase/tests/hub_shared_helpers_test.sql",
   ],
   S6: [
     "src/lib/analytics/semantic/{metricHelp,revenueRaw,revenueSnapshot.functions,metrics,streams,format,reconcile,window,index}.ts",

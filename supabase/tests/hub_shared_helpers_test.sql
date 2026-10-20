@@ -84,7 +84,11 @@ SELECT is_empty(
       WHERE p.pronamespace = 'public'::regnamespace
         AND has_function_privilege(r, p.oid, 'EXECUTE')
         AND p.proname = ANY (ARRAY[
-          '_crm_source_type_rank', '_event_revenue_net', '_funnel_counts', '_log_emit_error',
+          '_crm_source_type_rank', '_event_revenue_net', '_funnel_counts', '_journey_edge',
+          '_journey_enroll', '_journey_eval_predicate', '_journey_exec_action',
+          '_journey_marketing_consent', '_journey_message_id', '_journey_next_time', '_journey_node',
+          '_journey_num', '_journey_quiet_until', '_journey_send_verdict', '_journey_staff_tenant',
+          '_journey_unsubscribe', '_log_emit_error',
           '_membership_tier_for_user', '_revenue_facts_catalog', '_revenue_facts_checkout',
           '_revenue_facts_clubs', '_revenue_facts_coupons', '_revenue_facts_crm',
           '_revenue_facts_data_quality', '_revenue_facts_dunning', '_revenue_facts_events',

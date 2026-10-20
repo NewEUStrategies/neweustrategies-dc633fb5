@@ -67,6 +67,10 @@ function diagK(event: DomainEventRow): QueryKey[] {
  * `aggregate_id`; pusty (uszkodzony wiersz) nie może zbudować `detail("")`,
  * który trafiłby w nic - wtedy reguła degraduje do całego korzenia ścieżek.
  */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function journeyId(event: DomainEventRow): string {
   return typeof event.aggregate_id === "string" ? event.aggregate_id : "";
 }
@@ -143,6 +147,16 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
 
   // Typy czysto panelowe (rdzeń: `[]`).
   "journey.changed.v1": (e) => {
+    // Ustawienia silnika (S5, `admin_journey_settings_save`): agregatem jest
+    // najemca, nie ścieżka - odświeżamy kartę ustawień, zdrowie silnika
+    // i listę (włączenie silnika zmienia jej stan), a nie `detail(najemca)`.
+    if (isRecord(e.payload) && e.payload.op === "settings") {
+      return [
+        journeyKeys.settings(e.tenant_id),
+        journeyKeys.engineHealth(e.tenant_id),
+        journeyKeys.listAll(),
+      ];
+    }
     const id = journeyId(e);
     if (id === "") return [journeyKeys.root(), ...diagK(e)];
     return [journeyKeys.listAll(), journeyKeys.detail(id), ...diagK(e)];

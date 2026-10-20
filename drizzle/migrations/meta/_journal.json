@@ -2465,6 +2465,48 @@
       "when": 1792476673912,
       "tag": "0351_revenue_funnel_access",
       "breakpoints": true
+    },
+    {
+      "idx": 352,
+      "version": "7",
+      "when": 1792476733912,
+      "tag": "0352_journeys_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 353,
+      "version": "7",
+      "when": 1792476793912,
+      "tag": "0353_journeys_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 354,
+      "version": "7",
+      "when": 1792476853912,
+      "tag": "0354_journeys_predicates_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 355,
+      "version": "7",
+      "when": 1792476913912,
+      "tag": "0355_journeys_admin_rpc",
+      "breakpoints": true
+    },
+    {
+      "idx": 356,
+      "version": "7",
+      "when": 1792476973912,
+      "tag": "0356_journeys_admin_tools",
+      "breakpoints": true
+    },
+    {
+      "idx": 357,
+      "version": "7",
+      "when": 1792477033912,
+      "tag": "0357_journeys_tracking_stats",
+      "breakpoints": true
     }
   ]
 }
