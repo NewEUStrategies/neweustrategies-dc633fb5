@@ -70,8 +70,18 @@ export function JourneyEngineHealthStrip({
           {health ? <EngineStatePill health={health} /> : null}
         </div>
         {query.data?.state === "unavailable" ? null : (
-          <Button type="button" size="sm" variant="outline" className="h-7" onClick={onOpenSettings}>
-            {t(canManageEngine ? "adminJourneys.engineStrip.settings" : "adminJourneys.engineStrip.preview")}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7"
+            onClick={onOpenSettings}
+          >
+            {t(
+              canManageEngine
+                ? "adminJourneys.engineStrip.settings"
+                : "adminJourneys.engineStrip.preview",
+            )}
           </Button>
         )}
       </div>
@@ -82,7 +92,13 @@ export function JourneyEngineHealthStrip({
       ) : query.isError ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <p className="text-destructive">{t("adminJourneys.engineStrip.loadError")}</p>
-          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => void query.refetch()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            onClick={() => void query.refetch()}
+          >
             {t("adminJourneys.common.retry")}
           </Button>
         </div>
@@ -106,7 +122,9 @@ function EngineStatePill({ health }: { health: JourneyEngineHealthDto }) {
       : [XCircle, "adminJourneys.engineStrip.disabled"];
   return (
     <span
-      data-engine-state={health.killSwitch ? "kill_switch" : health.enabled ? "enabled" : "disabled"}
+      data-engine-state={
+        health.killSwitch ? "kill_switch" : health.enabled ? "enabled" : "disabled"
+      }
       className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs font-medium"
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -136,7 +154,11 @@ function HealthBody({
     );
   }, [dataUpdatedAt, health.dueNow]);
 
-  const notice: JourneyEngineNotice = engineHealthNotice(health, Date.now(), trend?.previous ?? null);
+  const notice: JourneyEngineNotice = engineHealthNotice(
+    health,
+    Date.now(),
+    trend?.previous ?? null,
+  );
   const formatTime = (iso: string | null) =>
     iso === null
       ? t("adminJourneys.engineStrip.never")
@@ -146,12 +168,32 @@ function HealthBody({
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
 
   const metrics: readonly { key: string; label: string; value: string }[] = [
-    { key: "journeysActive", label: t("adminJourneys.health.journeysActive"), value: number(health.journeysActive) },
-    { key: "inboxPending", label: t("adminJourneys.health.inboxPending"), value: number(health.inboxPending) },
+    {
+      key: "journeysActive",
+      label: t("adminJourneys.health.journeysActive"),
+      value: number(health.journeysActive),
+    },
+    {
+      key: "inboxPending",
+      label: t("adminJourneys.health.inboxPending"),
+      value: number(health.inboxPending),
+    },
     { key: "dueNow", label: t("adminJourneys.health.dueNow"), value: number(health.dueNow) },
-    { key: "lastStepAt", label: t("adminJourneys.health.lastStepAt"), value: formatTime(health.lastStepAt) },
-    { key: "messages24h", label: t("adminJourneys.health.messages24h"), value: number(health.messages24h) },
-    { key: "failed24h", label: t("adminJourneys.health.failed24h"), value: number(health.failed24h) },
+    {
+      key: "lastStepAt",
+      label: t("adminJourneys.health.lastStepAt"),
+      value: formatTime(health.lastStepAt),
+    },
+    {
+      key: "messages24h",
+      label: t("adminJourneys.health.messages24h"),
+      value: number(health.messages24h),
+    },
+    {
+      key: "failed24h",
+      label: t("adminJourneys.health.failed24h"),
+      value: number(health.failed24h),
+    },
   ];
 
   return (

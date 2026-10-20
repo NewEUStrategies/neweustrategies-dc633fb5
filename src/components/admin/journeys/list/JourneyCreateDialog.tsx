@@ -44,16 +44,22 @@ import {
   useInstallJourneyTemplate,
   type JourneyMutationFailure,
 } from "@/lib/admin/journeys/journeyMutations";
-import { JOURNEY_CATEGORY_HINT_KEY, JOURNEY_CATEGORY_LABEL_KEY } from "@/lib/admin/journeys/summaries";
+import {
+  JOURNEY_CATEGORY_HINT_KEY,
+  JOURNEY_CATEGORY_LABEL_KEY,
+} from "@/lib/admin/journeys/summaries";
 import { ensureI18n as ensureJourneysI18n } from "@/lib/i18n-admin-journeys";
 import { ensureI18n } from "@/lib/i18n-admin-journeys-list";
-import { journeyLabelKey, journeyTemplateLabelKeys, journeyTriggerLabelKey } from "@/lib/journeys/labels";
+import {
+  journeyLabelKey,
+  journeyTemplateLabelKeys,
+  journeyTriggerLabelKey,
+} from "@/lib/journeys/labels";
 import { JOURNEY_CATEGORIES, JOURNEY_LIMITS, type JourneyCategory } from "@/lib/journeys/limits";
 import { JOURNEY_TRIGGERS, journeyTrigger, type TriggerGroup } from "@/lib/journeys/triggers";
 
 export type JourneyCreateMode =
-  | { kind: "template"; entry: JourneyTemplateCatalogEntry }
-  | { kind: "blank" };
+  { kind: "template"; entry: JourneyTemplateCatalogEntry } | { kind: "blank" };
 
 export interface JourneyCreateDialogProps {
   mode: JourneyCreateMode | null;
@@ -159,9 +165,7 @@ function CreateForm({
   const id = useId();
   const template = mode.kind === "template" ? mode.entry : null;
   const [name, setName] = useState(defaultName);
-  const [key, setKey] = useState(() =>
-    template ? freeKey(template.key, existingKeys) : "",
-  );
+  const [key, setKey] = useState(() => (template ? freeKey(template.key, existingKeys) : ""));
   const [keyEdited, setKeyEdited] = useState(template !== null);
   const [category, setCategory] = useState<JourneyCategory>("marketing");
   const [legalBasis, setLegalBasis] = useState("");
@@ -200,7 +204,17 @@ function CreateForm({
       if (trigger === "") out.trigger = "adminJourneys.create.triggerRequired";
     }
     return out;
-  }, [effectiveKey, existingKeys, serverKeyTaken, name, template, category, legalBasis, description, trigger]);
+  }, [
+    effectiveKey,
+    existingKeys,
+    serverKeyTaken,
+    name,
+    template,
+    category,
+    legalBasis,
+    description,
+    trigger,
+  ]);
   const valid = Object.keys(errors).length === 0;
   // Błąd pola widać po pierwszej próbie zapisu; wcześniej tylko te, które
   // pomagają w trakcie pisania (klucz zajęty/zły, za długi opis) - pusty
@@ -277,7 +291,10 @@ function CreateForm({
       <FormField
         id={`${id}-name`}
         label={t("adminJourneys.create.name")}
-        counter={t("adminJourneys.common.counter", { count: nameLength, max: JOURNEY_LIMITS.nameMax })}
+        counter={t("adminJourneys.common.counter", {
+          count: nameLength,
+          max: JOURNEY_LIMITS.nameMax,
+        })}
         error={show("name")}
       >
         <Input
@@ -348,7 +365,10 @@ function CreateForm({
               required
               placeholder={t("adminJourneys.create.triggerPlaceholder")}
               aria-invalid={show("trigger") ? true : undefined}
-              aria-describedby={describedBy(`${id}-trigger-hint`, show("trigger") && `${id}-trigger-error`)}
+              aria-describedby={describedBy(
+                `${id}-trigger-hint`,
+                show("trigger") && `${id}-trigger-error`,
+              )}
               onChange={(event) => setTrigger(event.target.value)}
             >
               {TRIGGER_GROUPS.map((group) => (

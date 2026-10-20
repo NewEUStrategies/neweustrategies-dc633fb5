@@ -31,7 +31,11 @@ import type { JourneyEdgeBranch, JourneyNodeType } from "@/lib/journeys/nodeType
 import { JOURNEY_TEMPLATES } from "@/lib/journeys/templates";
 
 const node = (id: string, type: JourneyNodeType, params: unknown = {}) => ({ id, type, params });
-const edge = (from: string, to: string, branch: JourneyEdgeBranch = "next") => ({ from, to, branch });
+const edge = (from: string, to: string, branch: JourneyEdgeBranch = "next") => ({
+  from,
+  to,
+  branch,
+});
 const IF = { match: "all", predicates: [{ kind: "consent", marketing: true }] };
 const AB = { weights: { A: 50, B: 50 }, winnerMetric: "click" };
 const WAIT = { mode: "duration", minutes: 60 };
@@ -96,7 +100,9 @@ const CASES: readonly (readonly [string, JourneyGraph])[] = [
 
 describe("stałe i wymiary", () => {
   it("stałe SPEC §6.3", () => {
-    expect([NODE_W, NODE_H, GAP_Y, GAP_X, BRANCH_LABEL_H, INSERT_SIZE]).toEqual([280, 88, 48, 40, 20, 28]);
+    expect([NODE_W, NODE_H, GAP_Y, GAP_X, BRANCH_LABEL_H, INSERT_SIZE]).toEqual([
+      280, 88, 48, 40, 20, 28,
+    ]);
     expect(ROW_H).toBe(NODE_H + GAP_Y);
   });
 
@@ -157,7 +163,9 @@ describe("chip scalenia, przyciski „+” i drzewa poza przepływem", () => {
   it("chip stoi rząd pod krokiem źródłowym, w osi jego wyjścia", () => {
     const view = buildJourneyView(complex());
     const layout = layoutJourney(view);
-    expect(view.merges).toEqual([{ from: "mb", to: "join", branch: "next", targetNumber: "2.1.2.2.2" }]);
+    expect(view.merges).toEqual([
+      { from: "mb", to: "join", branch: "next", targetNumber: "2.1.2.2.2" },
+    ]);
     const chip = layout.chips[0];
     const source = layout.nodes.find((box) => box.id === "mb") as Box;
     expect(chip).toMatchObject({ from: "mb", to: "join", targetNumber: "2.1.2.2.2" });
@@ -188,7 +196,11 @@ describe("chip scalenia, przyciski „+” i drzewa poza przepływem", () => {
     const layout = layoutJourney(buildJourneyView(graph));
     const open = layout.inserts.find((i) => i.from === "if" && i.branch === "yes");
     expect(open).toMatchObject({ to: null, size: INSERT_SIZE });
-    expect(layout.edges.find((e) => e.kind === "open")).toMatchObject({ from: "if", branch: "yes", to: null });
+    expect(layout.edges.find((e) => e.kind === "open")).toMatchObject({
+      from: "if",
+      branch: "yes",
+      to: null,
+    });
     expectNoOverlap(layout);
   });
 
@@ -252,7 +264,9 @@ describe("deterministyczność i złożoność", () => {
       for (const parent of frontier) {
         for (const branch of ["yes", "no"] as const) {
           const child = `n${id++}`;
-          nodes.push(node(child, level === levels - 1 ? "exit" : "if_else", level === levels - 1 ? {} : IF));
+          nodes.push(
+            node(child, level === levels - 1 ? "exit" : "if_else", level === levels - 1 ? {} : IF),
+          );
           edges.push(edge(parent, child, branch));
           next.push(child);
         }

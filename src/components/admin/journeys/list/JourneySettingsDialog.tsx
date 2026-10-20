@@ -84,7 +84,11 @@ export function JourneySettingsDialog({
           <DialogDescription>{t("adminJourneys.engineSettings.description")}</DialogDescription>
         </DialogHeader>
         {open ? (
-          <SettingsBody tenantId={tenantId} canManage={canManage} onClose={() => onOpenChange(false)} />
+          <SettingsBody
+            tenantId={tenantId}
+            canManage={canManage}
+            onClose={() => onOpenChange(false)}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -115,7 +119,13 @@ function SettingsBody({
     return (
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <p className="text-destructive">{t("adminJourneys.engineSettings.loadError")}</p>
-        <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => void query.refetch()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7"
+          onClick={() => void query.refetch()}
+        >
           {t("adminJourneys.common.retry")}
         </Button>
       </div>
@@ -156,12 +166,7 @@ interface FormState {
   openTracking: boolean;
 }
 
-type FieldError =
-  | "quietStart"
-  | "quietEnd"
-  | "machineSeconds"
-  | "senderName"
-  | "replyTo";
+type FieldError = "quietStart" | "quietEnd" | "machineSeconds" | "senderName" | "replyTo";
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 // Ten sam kształt co `z.string().email()` po stronie serwera - prosty, bez
@@ -187,7 +192,8 @@ function fromDto(dto: JourneySettingsDto): FormState {
 
 function validate(form: FormState): Partial<Record<FieldError, string>> {
   const errors: Partial<Record<FieldError, string>> = {};
-  if (!TIME_RE.test(form.quietStart)) errors.quietStart = "adminJourneys.engineSettings.quietInvalid";
+  if (!TIME_RE.test(form.quietStart))
+    errors.quietStart = "adminJourneys.engineSettings.quietInvalid";
   if (!TIME_RE.test(form.quietEnd)) errors.quietEnd = "adminJourneys.engineSettings.quietInvalid";
   const seconds = Number(form.machineSeconds);
   if (
@@ -199,11 +205,17 @@ function validate(form: FormState): Partial<Record<FieldError, string>> {
     errors.machineSeconds = "adminJourneys.engineSettings.machineOpenInvalid";
   }
   const sender = form.senderName.trim();
-  if (sender.length > JOURNEY_SENDER_LIMITS.senderNameMax || SENDER_FORBIDDEN.test(form.senderName)) {
+  if (
+    sender.length > JOURNEY_SENDER_LIMITS.senderNameMax ||
+    SENDER_FORBIDDEN.test(form.senderName)
+  ) {
     errors.senderName = "adminJourneys.engineSettings.senderNameInvalid";
   }
   const replyTo = form.replyTo.trim();
-  if (replyTo !== "" && (replyTo.length > JOURNEY_SENDER_LIMITS.replyToMax || !EMAIL_RE.test(replyTo))) {
+  if (
+    replyTo !== "" &&
+    (replyTo.length > JOURNEY_SENDER_LIMITS.replyToMax || !EMAIL_RE.test(replyTo))
+  ) {
     errors.replyTo = "adminJourneys.engineSettings.replyToInvalid";
   }
   return errors;
@@ -273,7 +285,8 @@ function SettingsForm({
       }
       if (result.error === "conflict") {
         setNotice(t("adminJourneys.engineSettings.conflict"));
-        if (tenantId) await queryClient.invalidateQueries({ queryKey: journeyKeys.settings(tenantId) });
+        if (tenantId)
+          await queryClient.invalidateQueries({ queryKey: journeyKeys.settings(tenantId) });
         return;
       }
       setNotice(mutationErrorText(t, result));
@@ -307,10 +320,12 @@ function SettingsForm({
   if (mfaRequired) return <MfaRequiredNotice />;
 
   const staffOptions = staff.data ?? [];
-  const assigneeKnown = form.assignee === "" || staffOptions.some((user) => user.id === form.assignee);
+  const assigneeKnown =
+    form.assignee === "" || staffOptions.some((user) => user.id === form.assignee);
   const senderLength = form.senderName.trim().length;
   const replyLength = form.replyTo.trim().length;
-  const describedBy = (...parts: (string | false)[]) => parts.filter(Boolean).join(" ") || undefined;
+  const describedBy = (...parts: (string | false)[]) =>
+    parts.filter(Boolean).join(" ") || undefined;
 
   return (
     <form
@@ -322,12 +337,17 @@ function SettingsForm({
       }}
     >
       {readOnly ? (
-        <p role="note" className="rounded-[6px] border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+        <p
+          role="note"
+          className="rounded-[6px] border border-border bg-muted/30 p-2 text-xs text-muted-foreground"
+        >
           {t("adminJourneys.engineSettings.readOnly")}
         </p>
       ) : null}
       {!initial.exists ? (
-        <p className="text-xs text-muted-foreground">{t("adminJourneys.engineSettings.notStored")}</p>
+        <p className="text-xs text-muted-foreground">
+          {t("adminJourneys.engineSettings.notStored")}
+        </p>
       ) : null}
 
       <Section legend={t("adminJourneys.engineSettings.sectionEngine")}>
@@ -342,7 +362,11 @@ function SettingsForm({
       </Section>
 
       <Section legend={t("adminJourneys.engineSettings.sectionLimits")}>
-        <Field id={`${id}-cap`} label={t("adminJourneys.settings.marketingCap")} hint={t("adminJourneys.settings.marketingCapHint")}>
+        <Field
+          id={`${id}-cap`}
+          label={t("adminJourneys.settings.marketingCap")}
+          hint={t("adminJourneys.settings.marketingCapHint")}
+        >
           <PlatformSelect
             id={`${id}-cap`}
             value={String(form.cap)}
@@ -361,25 +385,39 @@ function SettingsForm({
           </PlatformSelect>
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field id={`${id}-quiet-start`} label={t("adminJourneys.settings.quietStart")} error={errors.quietStart && t(errors.quietStart)}>
+          <Field
+            id={`${id}-quiet-start`}
+            label={t("adminJourneys.settings.quietStart")}
+            error={errors.quietStart && t(errors.quietStart)}
+          >
             <TimeInput
               id={`${id}-quiet-start`}
               value={form.quietStart}
               required
               disabled={readOnly}
               aria-invalid={errors.quietStart ? true : undefined}
-              aria-describedby={describedBy(`${id}-quiet-hint`, !!errors.quietStart && `${id}-quiet-start-error`)}
+              aria-describedby={describedBy(
+                `${id}-quiet-hint`,
+                !!errors.quietStart && `${id}-quiet-start-error`,
+              )}
               onChange={(event) => set("quietStart", event.target.value)}
             />
           </Field>
-          <Field id={`${id}-quiet-end`} label={t("adminJourneys.settings.quietEnd")} error={errors.quietEnd && t(errors.quietEnd)}>
+          <Field
+            id={`${id}-quiet-end`}
+            label={t("adminJourneys.settings.quietEnd")}
+            error={errors.quietEnd && t(errors.quietEnd)}
+          >
             <TimeInput
               id={`${id}-quiet-end`}
               value={form.quietEnd}
               required
               disabled={readOnly}
               aria-invalid={errors.quietEnd ? true : undefined}
-              aria-describedby={describedBy(`${id}-quiet-hint`, !!errors.quietEnd && `${id}-quiet-end-error`)}
+              aria-describedby={describedBy(
+                `${id}-quiet-hint`,
+                !!errors.quietEnd && `${id}-quiet-end-error`,
+              )}
               onChange={(event) => set("quietEnd", event.target.value)}
             />
           </Field>
@@ -410,7 +448,9 @@ function SettingsForm({
           >
             <option value="">{t("adminJourneys.engineSettings.assigneeNone")}</option>
             {!assigneeKnown ? (
-              <option value={form.assignee}>{t("adminJourneys.engineSettings.assigneeUnknown")}</option>
+              <option value={form.assignee}>
+                {t("adminJourneys.engineSettings.assigneeUnknown")}
+              </option>
             ) : null}
             {staffOptions.map((user) => (
               <option key={user.id} value={user.id}>
@@ -447,7 +487,9 @@ function SettingsForm({
           />
         </Field>
         {form.senderName.trim() === "" ? (
-          <p className="text-xs text-muted-foreground">{t("adminJourneys.engineSettings.senderNameMissing")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("adminJourneys.engineSettings.senderNameMissing")}
+          </p>
         ) : null}
         <Field
           id={`${id}-reply`}
@@ -493,7 +535,10 @@ function SettingsForm({
             disabled={readOnly}
             className="max-w-32"
             aria-invalid={errors.machineSeconds ? true : undefined}
-            aria-describedby={describedBy(`${id}-machine-hint`, !!errors.machineSeconds && `${id}-machine-error`)}
+            aria-describedby={describedBy(
+              `${id}-machine-hint`,
+              !!errors.machineSeconds && `${id}-machine-error`,
+            )}
             onChange={(event) => set("machineSeconds", event.target.value)}
           />
         </Field>
@@ -519,7 +564,11 @@ function SettingsForm({
         </Button>
         {readOnly ? null : (
           <Button type="submit" disabled={!dirty || !valid || save.isPending}>
-            {t(save.isPending ? "adminJourneys.engineSettings.saving" : "adminJourneys.engineSettings.save")}
+            {t(
+              save.isPending
+                ? "adminJourneys.engineSettings.saving"
+                : "adminJourneys.engineSettings.save",
+            )}
           </Button>
         )}
       </DialogFooter>

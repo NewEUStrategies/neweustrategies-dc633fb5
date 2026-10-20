@@ -21,7 +21,11 @@ import type { JourneyEdgeBranch, JourneyNodeType } from "@/lib/journeys/nodeType
 import { JOURNEY_TEMPLATES } from "@/lib/journeys/templates";
 
 const node = (id: string, type: JourneyNodeType, params: unknown = {}) => ({ id, type, params });
-const edge = (from: string, to: string, branch: JourneyEdgeBranch = "next") => ({ from, to, branch });
+const edge = (from: string, to: string, branch: JourneyEdgeBranch = "next") => ({
+  from,
+  to,
+  branch,
+});
 
 const IF_PARAMS = { match: "all", predicates: [{ kind: "consent", marketing: true }] };
 const AB_PARAMS = { weights: { A: 50, B: 50 }, winnerMetric: "click" };
@@ -81,8 +85,18 @@ describe("drzewo z DAG", () => {
   it("dzieci w kolejności gałęzi typu: tak przed nie, mimo odwrotnej kolejności krawędzi", () => {
     const view = buildJourneyView(branchy());
     expect(view.nodes.get("if")?.children).toEqual(["g", "w"]);
-    expect(view.nodes.get("g")).toMatchObject({ parentId: "if", branch: "yes", depth: 3, branchLevel: 1 });
-    expect(view.nodes.get("w")).toMatchObject({ parentId: "if", branch: "no", depth: 3, branchLevel: 1 });
+    expect(view.nodes.get("g")).toMatchObject({
+      parentId: "if",
+      branch: "yes",
+      depth: 3,
+      branchLevel: 1,
+    });
+    expect(view.nodes.get("w")).toMatchObject({
+      parentId: "if",
+      branch: "no",
+      depth: 3,
+      branchLevel: 1,
+    });
     expect(view.order).toEqual(["t", "m1", "if", "g", "w", "m2", "x"]);
     expect(view.root?.id).toBe("t");
     expect(view.merges).toEqual([]);
@@ -94,7 +108,9 @@ describe("drzewo z DAG", () => {
     expect(view.nodes.get("join")?.parentId).toBe("ma");
     expect(view.nodes.get("mb")?.children).toEqual([]);
     expect(view.nodes.get("mb")?.slots).toEqual([{ kind: "merge", branch: "next", to: "join" }]);
-    expect(view.merges).toEqual([{ from: "mb", to: "join", branch: "next", targetNumber: "2.1.2" }]);
+    expect(view.merges).toEqual([
+      { from: "mb", to: "join", branch: "next", targetNumber: "2.1.2" },
+    ]);
     // Krok scalenia nie dubluje się w kolejności widoku.
     expect(view.order.filter((id) => id === "join")).toHaveLength(1);
   });
@@ -152,7 +168,9 @@ describe("numeracja hierarchiczna", () => {
     const view = buildJourneyView(graph);
     expect(view.nodes.get("join")?.parentId).toBe("mb");
     expect(view.numbering.get("join")).toBe("2.2.2");
-    expect(view.merges).toEqual([{ from: "ma", to: "join", branch: "next", targetNumber: "2.2.2" }]);
+    expect(view.merges).toEqual([
+      { from: "ma", to: "join", branch: "next", targetNumber: "2.2.2" },
+    ]);
   });
 
   it("wstawienie kroku w jednej gałęzi nie zmienia numerów drugiej ani kroków przed nią", () => {
@@ -174,7 +192,9 @@ describe("numeracja hierarchiczna", () => {
   });
 
   it("compareStepNumbers porządkuje składowa po składowej, pusty numer na końcu", () => {
-    const sorted = ["10", "3.2.1", "", "2", "3.1.1", "3", "3.1.10", "3.1.2"].sort(compareStepNumbers);
+    const sorted = ["10", "3.2.1", "", "2", "3.1.1", "3", "3.1.10", "3.1.2"].sort(
+      compareStepNumbers,
+    );
     expect(sorted).toEqual(["2", "3", "3.1.1", "3.1.2", "3.1.10", "3.2.1", "10", ""]);
   });
 });
@@ -245,17 +265,16 @@ describe("graf niepoprawny - widok bez wyjątku", () => {
 });
 
 describe("szablony S5", () => {
-  it.each(Object.values(JOURNEY_TEMPLATES).map((template) => [template.key, template.graph] as const))(
-    "%s: każdy krok ma unikalny numer, kolejność obejmuje wszystkie kroki",
-    (_key, graph) => {
-      const view = buildJourneyView(graph);
-      expect(view.root?.type).toBe("trigger");
-      expect(view.root?.number).toBe("1");
-      expect(view.order).toHaveLength(graph.nodes.length);
-      expect(new Set(view.order)).toEqual(new Set(graph.nodes.map((n) => n.id)));
-      const all = [...view.numbering.values()];
-      expect(new Set(all).size).toBe(graph.nodes.length);
-      expect(view.unreachable).toEqual([]);
-    },
-  );
+  it.each(
+    Object.values(JOURNEY_TEMPLATES).map((template) => [template.key, template.graph] as const),
+  )("%s: każdy krok ma unikalny numer, kolejność obejmuje wszystkie kroki", (_key, graph) => {
+    const view = buildJourneyView(graph);
+    expect(view.root?.type).toBe("trigger");
+    expect(view.root?.number).toBe("1");
+    expect(view.order).toHaveLength(graph.nodes.length);
+    expect(new Set(view.order)).toEqual(new Set(graph.nodes.map((n) => n.id)));
+    const all = [...view.numbering.values()];
+    expect(new Set(all).size).toBe(graph.nodes.length);
+    expect(view.unreachable).toEqual([]);
+  });
 });

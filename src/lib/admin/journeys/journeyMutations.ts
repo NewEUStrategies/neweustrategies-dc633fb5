@@ -18,8 +18,17 @@
 // (następny zapis nie dostanie `conflict` z własnym poprzednikiem), a resztę
 // zostawia szynie. Ustawienia silnika unieważniają też kartę „Retencja danych”
 // (`dataRetentionKeys.tenant`) - przełącznik piksela otwarć to ten sam wiersz.
-import { useMutation, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
-import type { JourneyMutationResult, JourneyPublishResult, JourneySettingsDto } from "@/lib/journeys/dto";
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
+import type {
+  JourneyMutationResult,
+  JourneyPublishResult,
+  JourneySettingsDto,
+} from "@/lib/journeys/dto";
 import { emptyJourneyGraph, type JourneyDraft } from "@/lib/journeys/graph";
 import {
   createJourney,
@@ -119,7 +128,12 @@ export interface CreateJourneyInput {
 }
 
 export type CreateJourneyOutcome =
-  | { ok: true; data: JourneyMutationResult; draftSaved: boolean; draftError: JourneyMutationFailure | null }
+  | {
+      ok: true;
+      data: JourneyMutationResult;
+      draftSaved: boolean;
+      draftError: JourneyMutationFailure | null;
+    }
   | JourneyMutationFailure;
 
 export function useCreateJourney(tenantId: string | null) {
@@ -202,7 +216,9 @@ export function useSaveJourneyDraft(journeyId: string) {
                 status: result.data.status,
                 name: input.name ?? definition.name,
                 description:
-                  input.description === undefined ? definition.description : input.description || null,
+                  input.description === undefined
+                    ? definition.description
+                    : input.description || null,
                 category: input.category ?? definition.category,
                 legalBasis:
                   input.legalBasis === undefined ? definition.legalBasis : input.legalBasis || null,

@@ -94,7 +94,9 @@ export function JourneyList({
   const setStatus = useSetJourneyStatus(tenantId);
 
   const triggerLabel = (item: JourneyListItem) =>
-    item.triggerEventType ? t(journeyTriggerLabelKey(item.triggerEventType)) : t("adminJourneys.list.noTrigger");
+    item.triggerEventType
+      ? t(journeyTriggerLabelKey(item.triggerEventType))
+      : t("adminJourneys.list.noTrigger");
 
   // Szukanie obejmuje też PRZETŁUMACZONĄ nazwę wyzwalacza - admin wpisuje
   // „porzucona kasa”, a nie `checkout.abandoned.v1`.
@@ -157,7 +159,11 @@ export function JourneyList({
               className="h-8 w-44 text-xs"
               onChange={(event) => {
                 const value = event.target.value;
-                onStatusChange((JOURNEY_STATUSES as readonly string[]).includes(value) ? (value as JourneyStatus) : null);
+                onStatusChange(
+                  (JOURNEY_STATUSES as readonly string[]).includes(value)
+                    ? (value as JourneyStatus)
+                    : null,
+                );
               }}
             >
               <option value="">{t("adminJourneys.list.statusAll")}</option>
@@ -246,7 +252,9 @@ export function JourneyList({
                       </Link>
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
                         <span className="font-mono">{item.key}</span>
-                        {item.templateKey ? <span>{t("adminJourneys.list.fromTemplate")}</span> : null}
+                        {item.templateKey ? (
+                          <span>{t("adminJourneys.list.fromTemplate")}</span>
+                        ) : null}
                       </div>
                     </th>
                     <td className="px-3 py-2 align-top">
@@ -259,7 +267,9 @@ export function JourneyList({
                       </span>
                     </td>
                     <td className="px-3 py-2 align-top">{triggerLabel(item)}</td>
-                    <td className="px-3 py-2 text-right align-top tabular-nums">{number(item.active)}</td>
+                    <td className="px-3 py-2 text-right align-top tabular-nums">
+                      {number(item.active)}
+                    </td>
                     <td className="px-3 py-2 text-right align-top tabular-nums">
                       {number(item.enrolled30d)}
                     </td>
@@ -329,8 +339,14 @@ function actionsFor(item: JourneyListItem): StatusAction[] {
 }
 
 const ACTION_KEY: Readonly<Record<StatusAction, { label: string; aria: string }>> = {
-  paused: { label: "adminJourneys.list.actions.pause", aria: "adminJourneys.list.actions.pauseFor" },
-  active: { label: "adminJourneys.list.actions.resume", aria: "adminJourneys.list.actions.resumeFor" },
+  paused: {
+    label: "adminJourneys.list.actions.pause",
+    aria: "adminJourneys.list.actions.pauseFor",
+  },
+  active: {
+    label: "adminJourneys.list.actions.resume",
+    aria: "adminJourneys.list.actions.resumeFor",
+  },
   archived: {
     label: "adminJourneys.list.actions.archive",
     aria: "adminJourneys.list.actions.archiveFor",

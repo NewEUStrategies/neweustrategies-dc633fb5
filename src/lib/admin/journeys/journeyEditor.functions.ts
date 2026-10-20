@@ -178,7 +178,10 @@ const UNAVAILABLE_CODES: ReadonlySet<string> = new Set(["42P01", "42703", "42883
 function tableDenial(error: TableError): "forbidden" | "unavailable" | null {
   if (!error) return null;
   if (error.code === "42501") return "forbidden";
-  if (error.code !== undefined && (UNAVAILABLE_CODES.has(error.code) || /^PGRST2\d\d$/.test(error.code))) {
+  if (
+    error.code !== undefined &&
+    (UNAVAILABLE_CODES.has(error.code) || /^PGRST2\d\d$/.test(error.code))
+  ) {
     return "unavailable";
   }
   throw new Error(error.message);
@@ -437,7 +440,8 @@ export const getJourneyDetail = createServerFn({ method: "POST" })
       ]);
       templateMatches = templateMatchesOf(journeyTemplate(templateKey), contents, parseEmailDoc);
       for (const content of contents) {
-        content.matchesTemplate = content.variant === "A" && templateMatches[content.nodeId] === true;
+        content.matchesTemplate =
+          content.variant === "A" && templateMatches[content.nodeId] === true;
       }
     }
 
@@ -499,7 +503,9 @@ export const getJourneyVersion = createServerFn({ method: "POST" })
       triggerCondition: row.trigger_condition ?? {},
       entryFilter: row.entry_filter ?? [],
       reentry: row.reentry,
-      ...(row.reentry_cooldown_days === null ? {} : { reentryCooldownDays: row.reentry_cooldown_days }),
+      ...(row.reentry_cooldown_days === null
+        ? {}
+        : { reentryCooldownDays: row.reentry_cooldown_days }),
       ...(row.goal === null ? {} : { goal: row.goal }),
       exitEvents: row.exit_events ?? [],
     };

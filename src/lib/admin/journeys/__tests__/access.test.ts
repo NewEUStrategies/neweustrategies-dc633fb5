@@ -46,7 +46,9 @@ describe("journeyCapabilities", () => {
   it.each([[["author"]], [["super_admin"]], [["user"]], [[]]])(
     "rola %j nie daje żadnej zdolności (baza zostawiłaby ekran pusty)",
     (roles) => {
-      expect(Object.values(journeyCapabilities(roles)).every((value) => value === false)).toBe(true);
+      expect(Object.values(journeyCapabilities(roles)).every((value) => value === false)).toBe(
+        true,
+      );
     },
   );
 

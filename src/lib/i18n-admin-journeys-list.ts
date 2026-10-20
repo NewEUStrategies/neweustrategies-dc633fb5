@@ -24,12 +24,24 @@ import i18n from "@/lib/i18n";
 const pl = {
   adminJourneys: {
     common: {
-      loading: "Wczytywanie…",
       retry: "Spróbuj ponownie",
       close: "Zamknij",
       cancel: "Anuluj",
       counter: "{{count}}/{{max}}",
-      outsideFlow: "Poza przepływem",
+      duration: {
+        minutes_one: "{{count}} minuta",
+        minutes_few: "{{count}} minuty",
+        minutes_many: "{{count}} minut",
+        minutes_other: "{{count}} minuty",
+        hours_one: "{{count}} godzina",
+        hours_few: "{{count}} godziny",
+        hours_many: "{{count}} godzin",
+        hours_other: "{{count}} godziny",
+        days_one: "{{count}} dzień",
+        days_few: "{{count}} dni",
+        days_many: "{{count}} dni",
+        days_other: "{{count}} dnia",
+      },
       status: {
         draft: "Szkic",
         active: "Aktywna",
@@ -140,7 +152,8 @@ const pl = {
         create_crm_task: "Tworzy zadanie CRM dla opiekuna kontaktu albo wskazanej osoby.",
         add_tag: "Dodaje tag do kontaktu w CRM.",
         remove_tag: "Usuwa tag z kontaktu w CRM.",
-        notify_staff: "Wysyła powiadomienie w panelu do opiekuna, administratorów albo wybranych osób.",
+        notify_staff:
+          "Wysyła powiadomienie w panelu do opiekuna, administratorów albo wybranych osób.",
         newsletter_list:
           "Dodaje albo usuwa subskrybenta z listy newslettera - nigdy nie tworzy subskrypcji bez zgody.",
         goal: "Kończy ścieżkę z osiągniętym celem (liczy się do wyników).",
@@ -206,7 +219,6 @@ const pl = {
       description:
         "Automatyczne sekwencje maili i działań w CRM uruchamiane zdarzeniami w serwisie - od powitania nowego konta po odzyskiwanie odchodzących klientów.",
       newJourney: "Nowa ścieżka",
-      engineSettings: "Ustawienia silnika",
       searchPlaceholder: "Szukaj po nazwie, kluczu albo wyzwalaczu…",
       statusFilter: "Status ścieżki",
       statusAll: "Wszystkie statusy",
@@ -245,7 +257,8 @@ const pl = {
         pauseBody:
           "Nowe kontakty przestaną wchodzić, a kontakty w toku zatrzymają się na bieżącym kroku do wznowienia.",
         resumeTitle: "Wznowić ścieżkę „{{name}}”?",
-        resumeBody: "Kontakty w toku ruszą od kroku, na którym stały, a nowe zdarzenia znowu zapiszą kontakty.",
+        resumeBody:
+          "Kontakty w toku ruszą od kroku, na którym stały, a nowe zdarzenia znowu zapiszą kontakty.",
         archiveTitle: "Zarchiwizować ścieżkę „{{name}}”?",
         archiveBody:
           "Kontakty w toku wyjdą ze ścieżki, a nowe nie wejdą. Wyniki zostają do wglądu; tej operacji nie da się cofnąć z listy.",
@@ -261,10 +274,6 @@ const pl = {
         "Baza tej instancji nie ma jeszcze funkcji ścieżek komunikacji (migracje silnika S5).",
       unavailableNext:
         "Następny krok: wdróż migracje silnika ścieżek - zakładka zadziała bez przeładowania panelu.",
-      count_one: "{{count}} ścieżka",
-      count_few: "{{count}} ścieżki",
-      count_many: "{{count}} ścieżek",
-      count_other: "{{count}} ścieżki",
     },
     gallery: {
       title: "Nowa ścieżka - wybierz szablon",
@@ -285,7 +294,6 @@ const pl = {
       trigger: "Start",
       goal: "Cel",
       noGoal: "Bez celu - ścieżka kończy się po ostatnim kroku",
-      emails: "Maile",
       steps: "Kroki",
       reentry: "Ponowne wejście",
       cooldown_one: "po {{count}} dniu karencji",
@@ -426,7 +434,7 @@ const pl = {
         "Otwarcie szybsze niż próg od wysyłki uznajemy za automatyczne (np. Apple MPP) i pomijamy w otwarciach ludzkich.",
       machineOpenInvalid: "Podaj liczbę sekund od 0 do 30.",
       senderNamePlaceholder: "Np. Anna Kowalska z New European Strategies",
-      senderNameInvalid: "Nazwa nadawcy: 1-120 znaków, bez znaków < > \" i nowych linii.",
+      senderNameInvalid: 'Nazwa nadawcy: 1-120 znaków, bez znaków < > " i nowych linii.',
       senderNameMissing:
         "Bez nazwy nadawcy maile wychodzą z nazwą serwisu, a ścieżki marketingowe nie zostaną opublikowane.",
       replyToHint: "Odpowiedzi kontaktów trafią na ten adres zamiast do skrzynki bez obsługi.",
@@ -475,12 +483,24 @@ const pl = {
 const en: typeof pl = {
   adminJourneys: {
     common: {
-      loading: "Loading…",
       retry: "Try again",
       close: "Close",
       cancel: "Cancel",
       counter: "{{count}}/{{max}}",
-      outsideFlow: "Outside the flow",
+      duration: {
+        minutes_one: "{{count}} minute",
+        minutes_few: "{{count}} minutes",
+        minutes_many: "{{count}} minutes",
+        minutes_other: "{{count}} minutes",
+        hours_one: "{{count}} hour",
+        hours_few: "{{count}} hours",
+        hours_many: "{{count}} hours",
+        hours_other: "{{count}} hours",
+        days_one: "{{count}} day",
+        days_few: "{{count}} days",
+        days_many: "{{count}} days",
+        days_other: "{{count}} days",
+      },
       status: {
         draft: "Draft",
         active: "Active",
@@ -622,8 +642,7 @@ const en: typeof pl = {
         english_missing: "No English version - English-speaking contacts will get the Polish one.",
         content_from_template:
           "The email content is identical to the template - read it and adapt it before publishing.",
-        sender_default:
-          "Marketing emails need a sender name - set it in the engine settings.",
+        sender_default: "Marketing emails need a sender name - set it in the engine settings.",
         legal_basis_missing: "A service journey needs a legal basis.",
         engine_disabled:
           "The journey engine is switched off - after publishing nobody enters the journey until you switch it on.",
@@ -657,7 +676,6 @@ const en: typeof pl = {
       description:
         "Automated sequences of emails and CRM actions started by events on the site - from welcoming a new account to winning back leaving customers.",
       newJourney: "New journey",
-      engineSettings: "Engine settings",
       searchPlaceholder: "Search by name, key or trigger…",
       statusFilter: "Journey status",
       statusAll: "All statuses",
@@ -713,10 +731,6 @@ const en: typeof pl = {
         "The database of this instance does not have the communication journey functions yet (S5 engine migrations).",
       unavailableNext:
         "Next step: deploy the journey engine migrations - this tab will work without reloading the panel.",
-      count_one: "{{count}} journey",
-      count_few: "{{count}} journeys",
-      count_many: "{{count}} journeys",
-      count_other: "{{count}} journeys",
     },
     gallery: {
       title: "New journey - choose a template",
@@ -737,7 +751,6 @@ const en: typeof pl = {
       trigger: "Start",
       goal: "Goal",
       noGoal: "No goal - the journey ends after the last step",
-      emails: "Emails",
       steps: "Steps",
       reentry: "Re-entry",
       cooldown_one: "after {{count}} cooling-off day",
@@ -822,7 +835,8 @@ const en: typeof pl = {
       blankDescription:
         "Choose a trigger - you will add the remaining steps on the canvas. A draft sends nothing.",
       key: "Technical key",
-      keyHint: "3-64 characters: lower-case letters, digits, “_” and “-”. It cannot be changed later.",
+      keyHint:
+        "3-64 characters: lower-case letters, digits, “_” and “-”. It cannot be changed later.",
       keyInvalid: "The key needs 3-64 characters: lower-case letters, digits, “_” or “-”.",
       keyTaken: "This key is already taken - choose another one.",
       name: "Name",
@@ -848,7 +862,8 @@ const en: typeof pl = {
       submitting: "Creating…",
       installed: "Template installed as a draft.",
       created: "Journey created.",
-      draftNotSaved: "The journey was created, but the trigger could not be saved - set it in the editor.",
+      draftNotSaved:
+        "The journey was created, but the trigger could not be saved - set it in the editor.",
       templateUnavailable:
         "This template waits for an event the site does not emit yet - it cannot be installed.",
       error: "Could not create the journey.",
@@ -877,7 +892,7 @@ const en: typeof pl = {
         "An open faster than the threshold after sending counts as automated (such as Apple MPP) and is left out of human opens.",
       machineOpenInvalid: "Enter a number of seconds from 0 to 30.",
       senderNamePlaceholder: "For example Anna Kowalska from New European Strategies",
-      senderNameInvalid: "Sender name: 1-120 characters, without < > \" or line breaks.",
+      senderNameInvalid: 'Sender name: 1-120 characters, without < > " or line breaks.',
       senderNameMissing:
         "Without a sender name emails go out with the site name, and marketing journeys cannot be published.",
       replyToHint: "Contact replies reach this address instead of an unattended mailbox.",

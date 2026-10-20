@@ -223,7 +223,11 @@ export function layoutJourney(view: JourneyView): JourneyLayout {
  * się w ramce, nigdy powiększenie. Miniatura rysuje SVG z `viewBox` układu,
  * więc skala służy do grubości linii i decyzji, czy pokazywać etykiety.
  */
-export function fitScale(layout: Pick<JourneyLayout, "width" | "height">, maxW: number, maxH: number) {
+export function fitScale(
+  layout: Pick<JourneyLayout, "width" | "height">,
+  maxW: number,
+  maxH: number,
+) {
   if (layout.width <= 0 || layout.height <= 0) return 1;
   return Math.min(1, maxW / layout.width, maxH / layout.height);
 }

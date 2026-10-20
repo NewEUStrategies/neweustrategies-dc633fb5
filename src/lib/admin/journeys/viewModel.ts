@@ -52,7 +52,11 @@ import {
 
 /** Minimalny kształt grafu (szkic z bazy po łagodnym parsowaniu albo `JourneyGraph`). */
 export interface JourneyGraphLike {
-  readonly nodes: readonly { readonly id: string; readonly type: JourneyNodeType; readonly params?: unknown }[];
+  readonly nodes: readonly {
+    readonly id: string;
+    readonly type: JourneyNodeType;
+    readonly params?: unknown;
+  }[];
   readonly edges: readonly {
     readonly from: string;
     readonly to: string;
@@ -325,7 +329,10 @@ export function buildJourneyView(graph: JourneyGraphLike | null | undefined): Jo
       const id = stack.pop() as string;
       order.push(id);
       const view = viewNodes.get(id) as JourneyViewNode;
-      const continues = view.slots.length === 1 && view.slots[0].kind === "child" && view.slots[0].branch === "next";
+      const continues =
+        view.slots.length === 1 &&
+        view.slots[0].kind === "child" &&
+        view.slots[0].branch === "next";
       const used = new Set<number>();
       for (const slot of view.slots) {
         if (slot.kind !== "child") continue;

@@ -445,7 +445,9 @@ function swapWithParent(
   if (intoB.length !== 1 || intoB[0].edge.branch !== "next") return notMovable();
   const a = nodeOf(graph, intoB[0].edge.from);
   if (!a || a.type === "trigger" || !isLinear(a)) return notMovable();
-  const intoA = graph.edges.map((edge, index) => ({ edge, index })).filter((e) => e.edge.to === a.id);
+  const intoA = graph.edges
+    .map((edge, index) => ({ edge, index }))
+    .filter((e) => e.edge.to === a.id);
   const outB = edgeIndex(graph, id, "next");
   if (intoA.length !== 1 || outB < 0) return notMovable();
   const next = cloneGraph(graph);
@@ -542,7 +544,7 @@ export function ownedSubtree(graph: JourneyGraph, id: string): Set<string> {
     reachable.add(current);
     for (const edge of graph.edges) if (edge.from === current) stack.push(edge.to);
   }
-  for (let changed = true; changed; ) {
+  for (let changed = true; changed;) {
     changed = false;
     for (const candidate of reachable) {
       if (owned.has(candidate)) continue;
@@ -899,7 +901,12 @@ export function applyOp(
     case "mergeInto": {
       const incoming = graph.edges.find((edge) => edge.to === nodeId);
       if (!incoming || !input.targetId) return { ok: false, error: "target_invalid" };
-      return mergeInto(graph, { from: incoming.from, branch: incoming.branch }, input.targetId, context);
+      return mergeInto(
+        graph,
+        { from: incoming.from, branch: incoming.branch },
+        input.targetId,
+        context,
+      );
     }
     case "replaceTerminal":
       return descriptor.value === "goal" || descriptor.value === "exit"

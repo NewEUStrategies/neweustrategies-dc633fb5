@@ -87,15 +87,29 @@ export const JOURNEY_SUMMARY_KEY = {
 
 const DAY = 24 * 60;
 
-/** Czas jako opis: największa jednostka, w której wartość jest całkowita. */
-export function durationSummary(minutes: number): JourneySummary {
-  if (minutes % DAY === 0) {
-    return { labelKey: JOURNEY_SUMMARY_KEY.waitDays, params: { count: minutes / DAY } };
-  }
-  if (minutes % 60 === 0) {
-    return { labelKey: JOURNEY_SUMMARY_KEY.waitHours, params: { count: minutes / 60 } };
-  }
-  return { labelKey: JOURNEY_SUMMARY_KEY.waitMinutes, params: { count: minutes } };
+/** Sam czas („2 dni”) - limit czekania na zdarzenie, terminy w panelu kroku. */
+export const JOURNEY_DURATION_KEY = {
+  minutes: "adminJourneys.common.duration.minutes",
+  hours: "adminJourneys.common.duration.hours",
+  days: "adminJourneys.common.duration.days",
+} as const;
+
+/**
+ * Czas jako opis w największej jednostce, w której wartość jest całkowita:
+ * `wait` - zdanie kroku („Czeka 3 dni”), `plain` - sam czas („3 dni”).
+ */
+export function durationSummary(minutes: number, form: "wait" | "plain" = "wait"): JourneySummary {
+  const keys =
+    form === "wait"
+      ? {
+          days: JOURNEY_SUMMARY_KEY.waitDays,
+          hours: JOURNEY_SUMMARY_KEY.waitHours,
+          minutes: JOURNEY_SUMMARY_KEY.waitMinutes,
+        }
+      : JOURNEY_DURATION_KEY;
+  if (minutes % DAY === 0) return { labelKey: keys.days, params: { count: minutes / DAY } };
+  if (minutes % 60 === 0) return { labelKey: keys.hours, params: { count: minutes / 60 } };
+  return { labelKey: keys.minutes, params: { count: minutes } };
 }
 
 const LIFECYCLE_KEY = (stage: string) => `adminCrm.lifecycle.stages.${stage}`;
@@ -142,7 +156,7 @@ export function describeNode(
         params: {},
         refs: {
           event: journeyTriggerLabelKey(p.eventType as string),
-          limit: durationSummary(p.timeoutMinutes as number),
+          limit: durationSummary(p.timeoutMinutes as number, "plain"),
         },
       };
     }
@@ -161,7 +175,11 @@ export function describeNode(
       return { labelKey: p.match === "any" ? K.ifElseAny : K.ifElseAll, params: { count } };
     }
     case "set_lifecycle_stage":
-      return { labelKey: K.setLifecycle, params: {}, refs: { stage: LIFECYCLE_KEY(p.stage as string) } };
+      return {
+        labelKey: K.setLifecycle,
+        params: {},
+        refs: { stage: LIFECYCLE_KEY(p.stage as string) },
+      };
     case "set_crm_stage":
       return {
         labelKey: p.onlyForward ? K.setCrmStageForward : K.setCrmStage,
@@ -193,7 +211,9 @@ export function describeNode(
     }
     case "goal": {
       const label = typeof p.label === "string" ? p.label : "";
-      return label ? { labelKey: K.goal, params: { label } } : { labelKey: K.goalNoLabel, params: {} };
+      return label
+        ? { labelKey: K.goal, params: { label } }
+        : { labelKey: K.goalNoLabel, params: {} };
     }
     default:
       return { labelKey: K.exit, params: {} };
@@ -301,7 +321,11 @@ const WAIT_LABEL_KEY = {
   wait_until_event: "adminJourneys.common.palette.waitUntilEvent",
 } as const;
 
-const PALETTE_SPEC: readonly { id: JourneyPaletteItemId; type: JourneyNodeType; group: JourneyPaletteGroup }[] = [
+const PALETTE_SPEC: readonly {
+  id: JourneyPaletteItemId;
+  type: JourneyNodeType;
+  group: JourneyPaletteGroup;
+}[] = [
   { id: "wait_duration", type: "wait", group: "time" },
   { id: "wait_until_time", type: "wait", group: "time" },
   { id: "wait_until_event", type: "wait", group: "time" },
@@ -320,7 +344,8 @@ const PALETTE_SPEC: readonly { id: JourneyPaletteItemId; type: JourneyNodeType; 
 ];
 
 function paletteParams(id: JourneyPaletteItemId, type: JourneyNodeType): unknown {
-  if (id === "wait_until_time") return { mode: "until_time", weekdays: [1, 2, 3, 4, 5], time: "09:00" };
+  if (id === "wait_until_time")
+    return { mode: "until_time", weekdays: [1, 2, 3, 4, 5], time: "09:00" };
   if (id === "wait_until_event") return waitUntilEventParams(DEFAULT_WAIT_EVENT);
   return defaultParams(type);
 }
@@ -337,22 +362,20 @@ export function journeyPalette(context: { triggerEventType?: string | null } = {
   return JOURNEY_PALETTE_GROUPS.map((group) => ({
     group,
     labelKey: JOURNEY_PALETTE_GROUP_KEY[group],
-    items: PALETTE_SPEC.filter((spec) => spec.group === group).map(
-      (spec): JourneyPaletteItem => ({
-        id: spec.id,
-        type: spec.type,
-        group: spec.group,
-        labelKey:
-          spec.id in WAIT_LABEL_KEY
-            ? WAIT_LABEL_KEY[spec.id as keyof typeof WAIT_LABEL_KEY]
-            : journeyLabelKey("nodeType", spec.type),
-        effectKey: EFFECT_KEY[spec.id],
-        params: paletteParams(spec.id, spec.type),
-        ...(spec.type === "send_email" && emailForbidden
-          ? { disabledReasonKey: "adminJourneys.common.palette.emailForbidden" }
-          : {}),
-      }),
-    ),
+    items: PALETTE_SPEC.filter((spec) => spec.group === group).map((spec): JourneyPaletteItem => ({
+      id: spec.id,
+      type: spec.type,
+      group: spec.group,
+      labelKey:
+        spec.id in WAIT_LABEL_KEY
+          ? WAIT_LABEL_KEY[spec.id as keyof typeof WAIT_LABEL_KEY]
+          : journeyLabelKey("nodeType", spec.type),
+      effectKey: EFFECT_KEY[spec.id],
+      params: paletteParams(spec.id, spec.type),
+      ...(spec.type === "send_email" && emailForbidden
+        ? { disabledReasonKey: "adminJourneys.common.palette.emailForbidden" }
+        : {}),
+    })),
   }));
 }
 
@@ -400,7 +423,9 @@ export const JOURNEY_REENTRY_LABEL_KEY: Readonly<Record<JourneyReentry, string>>
 };
 
 /** Licznik paska huba „Ścieżki = aktywne” (Z-S6-08 - podpięcie w I9). */
-export function activeJourneyCount(list: readonly Pick<JourneyListItem, "status">[] | null | undefined) {
+export function activeJourneyCount(
+  list: readonly Pick<JourneyListItem, "status">[] | null | undefined,
+) {
   return (list ?? []).filter((item) => item.status === "active").length;
 }
 
@@ -482,7 +507,9 @@ export const JOURNEY_TEMPLATE_TIP_KEY: Readonly<Record<JourneyTemplateKey, strin
  * zostawia innym modułom albo regułom. Ogólne wykluczenia (brak zgody dla
  * marketingu, promocje dla usługi, brak maili) dokłada `templateFacts`.
  */
-const TEMPLATE_EXCLUSIONS: Readonly<Record<JourneyTemplateKey, readonly JourneyTemplateExclusion[]>> = {
+const TEMPLATE_EXCLUSIONS: Readonly<
+  Record<JourneyTemplateKey, readonly JourneyTemplateExclusion[]>
+> = {
   welcome_onboarding: ["afterPurchase"],
   newsletter_welcome: ["beforeConfirmation", "machineOpens"],
   paywall_nurture: ["offerFirst", "afterPurchase"],
@@ -533,13 +560,15 @@ export function templateFacts(entry: JourneyTemplateCatalogEntry): JourneyTempla
     key: entry.key,
     category: entry.category,
     available,
-    awaitedEvent: entry.availability.status === "unavailable" ? entry.availability.awaitedEvent : null,
+    awaitedEvent:
+      entry.availability.status === "unavailable" ? entry.availability.awaitedEvent : null,
     emailCount: entry.emailCount,
     stepCount: entry.graph.nodes.length,
     triggerEventType: entry.settings.triggerEventType,
     goalEventType: entry.settings.goal?.eventType ?? null,
     reentry: entry.settings.reentry ?? "never",
-    cooldownDays: entry.settings.reentry === "cooldown" ? (entry.settings.reentryCooldownDays ?? null) : null,
+    cooldownDays:
+      entry.settings.reentry === "cooldown" ? (entry.settings.reentryCooldownDays ?? null) : null,
     requirements,
     doesNotSend,
     replacesWorkflowTemplate: entry.replacesWorkflowTemplate,
@@ -549,12 +578,7 @@ export function templateFacts(entry: JourneyTemplateCatalogEntry): JourneyTempla
 // ── Zdrowie silnika (pasek listy) ────────────────────────────────────────────
 
 export type JourneyEngineNotice =
-  | "kill_switch"
-  | "disabled"
-  | "scheduler_pending"
-  | "stalled"
-  | "errors"
-  | null;
+  "kill_switch" | "disabled" | "scheduler_pending" | "stalled" | "errors" | null;
 
 /** Krok starszy niż kwadrans przy kontaktach do wykonania = silnik stoi. */
 export const ENGINE_STALL_MS = 15 * 60_000;
@@ -587,7 +611,9 @@ export function engineHealthNotice(
   return null;
 }
 
-export const JOURNEY_ENGINE_NOTICE_KEY: Readonly<Record<Exclude<JourneyEngineNotice, null>, string>> = {
+export const JOURNEY_ENGINE_NOTICE_KEY: Readonly<
+  Record<Exclude<JourneyEngineNotice, null>, string>
+> = {
   kill_switch: "adminJourneys.engineStrip.notice.kill_switch",
   disabled: "adminJourneys.engineStrip.notice.disabled",
   scheduler_pending: "adminJourneys.engineStrip.notice.scheduler_pending",

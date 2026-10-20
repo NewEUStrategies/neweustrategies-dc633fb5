@@ -23,8 +23,10 @@ describe("stableStringify", () => {
     expect(stableStringify({ a: undefined, b: null })).toBe('{"b":null}');
     expect(stableStringify([undefined, () => 1])).toBe("[null,null]");
     expect(stableStringify({ n: Number.NaN, i: Infinity })).toBe('{"i":null,"n":null}');
-    expect(stableStringify(new Date("2026-10-20T00:00:00.000Z"))).toBe('"2026-10-20T00:00:00.000Z"');
-    expect(stableStringify("ż\"")).toBe(JSON.stringify("ż\""));
+    expect(stableStringify(new Date("2026-10-20T00:00:00.000Z"))).toBe(
+      '"2026-10-20T00:00:00.000Z"',
+    );
+    expect(stableStringify('ż"')).toBe(JSON.stringify('ż"'));
     expect(stableStringify(undefined)).toBe("null");
   });
 
@@ -72,12 +74,18 @@ describe("conditionHash i draftChecksum", () => {
   });
 
   it("suma szkicu zmienia się z treścią, nie z kolejnością pól", () => {
-    const draft = { graph: emptyJourneyGraph(), settings: { triggerEventType: "account.registered.v1" } };
-    const reordered = { settings: { triggerEventType: "account.registered.v1" }, graph: emptyJourneyGraph() };
+    const draft = {
+      graph: emptyJourneyGraph(),
+      settings: { triggerEventType: "account.registered.v1" },
+    };
+    const reordered = {
+      settings: { triggerEventType: "account.registered.v1" },
+      graph: emptyJourneyGraph(),
+    };
     expect(draftChecksum(draft)).toBe(draftChecksum(reordered));
-    expect(
-      draftChecksum({ ...draft, settings: { triggerEventType: "paywall.hit.v1" } }),
-    ).not.toBe(draftChecksum(draft));
+    expect(draftChecksum({ ...draft, settings: { triggerEventType: "paywall.hit.v1" } })).not.toBe(
+      draftChecksum(draft),
+    );
     expect(draftChecksum(null)).toBe(draftChecksum(undefined));
   });
 });

@@ -119,7 +119,13 @@ export function JourneyTemplateGallery({
               <p className="flex-1 text-xs text-muted-foreground">
                 {t("adminJourneys.gallery.blankDescription")}
               </p>
-              <Button type="button" size="sm" variant="outline" className="h-7 self-start" onClick={onBlank}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 self-start"
+                onClick={onBlank}
+              >
                 {t("adminJourneys.gallery.blankAction")}
               </Button>
             </article>
@@ -199,7 +205,10 @@ function TemplateCard({
 
       <JourneyTemplateThumbnail graph={entry.graph} className="rounded-[6px] bg-muted/30" />
 
-      <dl aria-label={t("adminJourneys.gallery.facts")} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+      <dl
+        aria-label={t("adminJourneys.gallery.facts")}
+        className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs"
+      >
         <dt className="text-muted-foreground">{t("adminJourneys.gallery.trigger")}</dt>
         <dd>{t(journeyTriggerLabelKey(facts.triggerEventType))}</dd>
         <dt className="text-muted-foreground">{t("adminJourneys.gallery.goal")}</dt>
@@ -266,7 +275,9 @@ function TemplateCard({
       {facts.replacesWorkflowTemplate ? (
         <p className="flex items-start gap-2 text-xs">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>{t("adminJourneys.gallery.replaces", { name: facts.replacesWorkflowTemplate })}</span>
+          <span>
+            {t("adminJourneys.gallery.replaces", { name: facts.replacesWorkflowTemplate })}
+          </span>
         </p>
       ) : null}
 

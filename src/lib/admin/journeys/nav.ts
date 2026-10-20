@@ -147,8 +147,7 @@ export function moveFocus(
 
 /** Skutek Enter: panel kroku albo skok do celu chipu scalenia. */
 export type JourneyActivation =
-  | { type: "openPanel"; nodeId: string }
-  | { type: "focus"; focus: JourneyFocus };
+  { type: "openPanel"; nodeId: string } | { type: "focus"; focus: JourneyFocus };
 
 export function activateFocus(focus: JourneyFocus): JourneyActivation {
   return focus.kind === "node"

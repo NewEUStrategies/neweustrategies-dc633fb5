@@ -105,7 +105,12 @@ function JourneysTabContent() {
     for (const key of Object.keys(next) as (keyof RevenueHubSearch)[]) {
       if (next[key] === undefined) delete next[key];
     }
-    void navigate({ to: "/admin/revenue/$tab", params: { tab: "journeys" }, search: next, replace });
+    void navigate({
+      to: "/admin/revenue/$tab",
+      params: { tab: "journeys" },
+      search: next,
+      replace,
+    });
   };
 
   const entries = catalog.data ?? null;

@@ -149,7 +149,13 @@ function local(
   nodeId?: string,
   params: Record<string, string | number> = {},
 ): JourneyIssue {
-  return { code, severity, ...(nodeId ? { nodeId } : {}), labelKey: JOURNEY_ISSUE_LABEL_KEY[code], params };
+  return {
+    code,
+    severity,
+    ...(nodeId ? { nodeId } : {}),
+    labelKey: JOURNEY_ISSUE_LABEL_KEY[code],
+    params,
+  };
 }
 
 export function collectJourneyIssues(input: JourneyIssuesInput): JourneyIssue[] {
