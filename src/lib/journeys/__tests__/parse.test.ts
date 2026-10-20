@@ -19,7 +19,10 @@ import {
 } from "../parse";
 import { RPC_SHAPES } from "./rpcShapes.fixture";
 
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+// Kopia JSON fikstury `as const` jest zwykłymi, zmiennymi danymi - stąd
+// `unknown`: każdy test sam deklaruje kształt, który psuje (asercja z
+// typu readonly na zmienny byłaby dla tsc konwersją bez pokrycia).
+const clone = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
 
 function shapeError(fn: () => unknown): string {
   try {

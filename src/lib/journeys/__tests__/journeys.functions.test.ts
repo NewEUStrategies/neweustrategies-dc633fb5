@@ -63,7 +63,9 @@ beforeEach(() => {
 afterEach(() => resetServerFnContext());
 
 describe("obudowa", () => {
-  const ADMIN_ONLY = new Set([
+  // Set<unknown>: każda server fn ma własny typ fetchera, a `has` dostaje
+  // element unii z ALL - przy domyślnej liczbie checkerów tsgo typy się nie łączą.
+  const ADMIN_ONLY = new Set<unknown>([
     publishJourney,
     setJourneyStatus,
     saveJourneySettings,
