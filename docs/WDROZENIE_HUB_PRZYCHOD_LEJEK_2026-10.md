@@ -1617,3 +1617,46 @@ wyzwalaczy `trg_subscriptions_revenue_history`/`trg_billing_documents_renewed_em
 - [x] Webhook zapisuje migawkę w kolumnach I0 (wdrożone w M0); PostgREST nie dostaje nieznanych kolumn (`webhookDispatchPriceSnapshot.test.ts` 10: każdy klucz migawki w `subscriptions.Row`).
 - [ ] Budżet D-08 (§8.6): **niespełnione w celu** - `overall` +9,0 (ratchet D-08 → 4991), `public` +0,9 (leniwe trasy profilu); entry, `boot`, CSS 0,0; progi zamrożone zielone (§16.7).
 - [x] Strażnik: `hub-slice-guard.ts S2 --base 6ac07c60` - wyłącznie pliki współdzielone zmienione przez Integratora (§16.4); dostawa huba: 8 plików, 23 definicje funkcji.
+
+## 17. Stan na koniec sesji 2026-10-19 (przekazanie)
+
+### 17.1 Na gałęzi `claude/elegant-fermat-xwfca1` (PR #527, CI zielone na każdym pushu)
+
+| Element                                   | Commit (head) | Sekcja |
+| ----------------------------------------- | ------------- | ------ |
+| Krok 0 (dziennik S1/S6, Insider, ratchet) | `83b649e3`    | §11-13 |
+| Uspójnienie benchmarków S6 ⇄ Insider      | `e135b91a`    | §14    |
+| S4 - CRM, automatyzacje, społeczność      | `6ac07c60`    | §15    |
+| S2 - księga MRR, windykacja, anulowanie   | `d71a4017`    | §16    |
+
+Bliźniaki drizzle: S4 `0330…0337`, S2 `0338…0345`; **następny wolny `0346`**.
+Budżet `overall` po S2: 4991 (D-08); `public` 2773,9 / 2881 (zamrożony).
+
+### 17.2 Niescalone - S3 (lejek i paywall czytelnika)
+
+Stan pracy: 8 commitów na gałęzi lokalnej `hub/s3-lejek-paywall` (head
+`3a8899dd`, przebazowana na `d71a4017`), **nie wypchnięta** - zachowana w repo
+jako `docs/kontynuacja/s3-wip/0001…0008-*.patch` (`git am` na `d71a4017` albo
+nowszej gałęzi PR). Inwentarz: `docs/kontynuacja/S3-stan-2026-10-19.md`.
+Brakuje: `public` +5,6 KB przy celu ≤ +1,2 KB (naprawa w kodzie: leniwy
+`paywallOffer`/`paywallLinks`), P22 `expires_at` (`adhocCheckout.server.ts`),
+`meteringVisitor.functions.ts`, reguła P09 `checkout.display_currency_mismatch`,
+integracja (bliźniaki od `0346`, 4 RPC w `types.ts`, wielkość liter globów
+testów popupu w manifeście S3, sekcja dziennika), pgTAP i kontrakt TS⇄SQL S3.
+
+### 17.3 Osobne PR do `main` (decyzja właściciela „napraw”)
+
+- #528 `JoinUsForm` - etykiety pól w komunikatach; CI zielone.
+- #529 `First visit` - waga dokumentu `/` i seria bootu wpisu; CI zielone
+  (workflow First visit uruchamia się na `main` - potwierdzi się po scaleniu).
+  Zawiera przeniesiony ratchet `overall` 4972 (no-op po scaleniu #527).
+
+### 17.4 Kolejka i zasady dalszej pracy
+
+Kolejka: S3 (dokończenie + integracja) → S5 → S7 → S8 → I9. Zasady
+(decyzje właściciela 2026-10-19): praca **szeregowa** (jeden agent naraz);
+lokalnie testy celowane + typecheck + lint + pgTAP + build z budżetem, **pełna
+suita vitest w CI**; pamięć kontenera 16 GB - typecheck jako `bunx tsgo
+--noEmit --checkers 2` (+ `typecheck:scripts`, `typecheck:e2e`), vitest z
+`--maxWorkers=3`, ciężkie kroki po kolei pod `flock -o /tmp/hub-build.lock`.
+Gotowy prompt: `docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md`.
