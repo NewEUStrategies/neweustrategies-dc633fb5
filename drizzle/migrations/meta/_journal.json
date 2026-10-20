@@ -2542,6 +2542,27 @@
       "when": 1792477333912,
       "tag": "0362_revenue_ledger_erasure",
       "breakpoints": true
+    },
+    {
+      "idx": 363,
+      "version": "7",
+      "when": 1792477393912,
+      "tag": "0363_funnel_account_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 364,
+      "version": "7",
+      "when": 1792477453912,
+      "tag": "0364_domain_events_account_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 365,
+      "version": "7",
+      "when": 1792477513912,
+      "tag": "0365_hub_account_erasure_sweep",
+      "breakpoints": true
     }
   ]
 }

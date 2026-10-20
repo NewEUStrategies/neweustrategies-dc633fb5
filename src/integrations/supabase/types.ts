@@ -21947,7 +21947,7 @@ export type Database = {
         Row: {
           check_id: string
           created_at: string
-          created_by: string
+          created_by: string | null
           id: string
           kind: string
           reason: string | null
@@ -21959,7 +21959,7 @@ export type Database = {
         Insert: {
           check_id: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           id?: string
           kind: string
           reason?: string | null
@@ -21971,7 +21971,7 @@ export type Database = {
         Update: {
           check_id?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           id?: string
           kind?: string
           reason?: string | null
