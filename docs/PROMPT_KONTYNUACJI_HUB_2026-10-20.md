@@ -1,13 +1,24 @@
 # Prompt kontynuacji – hub „Przychód i lejek” (stan 2026-10-20 wieczór)
 
-Wklej poniższy tekst jako pierwszą wiadomość w nowym czacie (repo
-`NewEUStrategies/neweustrategies-dc633fb5`, gałąź `claude/elegant-fermat-xwfca1`,
-PR #530).
+Wklej poniższy tekst jako pierwszą wiadomość w nowym czacie Claude Code (także
+na innym koncie). Repo `NewEUStrategies/neweustrategies-dc633fb5`, gałąź
+`claude/elegant-fermat-xwfca1`, PR #530.
+
+**Warunek dla innego konta:** sesja musi mieć dostęp do repozytorium
+`NewEUStrategies/neweustrategies-dc633fb5` z prawem push (aplikacja Claude
+GitHub zainstalowana na repo i konto GitHub połączone w ustawieniach claude.ai).
 
 ---
 
 Kontynuujesz moduł panelu admina **„Przychód i lejek”** (NES, `/admin/revenue`)
-na gałęzi `claude/elegant-fermat-xwfca1` (PR #530, szkic). Pracuj po polsku.
+w PR #530 (szkic, gałąź `claude/elegant-fermat-xwfca1`). Pracuj po polsku.
+Zmiany wypychaj na tę gałąź, żeby trafiały do PR #530 (sesja może mieć
+przypisaną inną gałąź roboczą: wtedy pracuj na niej od
+`origin/claude/elegant-fermat-xwfca1`, a na końcu scal ją fast-forwardem do
+`claude/elegant-fermat-xwfca1` i wypchnij, jeśli środowisko na to pozwala. Gdy
+nie pozwala, otwórz PR do `claude/elegant-fermat-xwfca1`). Po każdym pushu
+sprawdź CI PR #530 i naprawiaj czerwone. Aktualizuj opis PR #530 po każdym
+wycinku.
 
 ## 1. Przeczytaj najpierw (sekcjami, nie w całości)
 
@@ -23,22 +34,49 @@ na gałęzi `claude/elegant-fermat-xwfca1` (PR #530, szkic). Pracuj po polsku.
 
 ## 2. Stan na koniec poprzedniej sesji
 
-- W PR (CI zielone na `fcc08c55`): S3, I9a, S5, I9b (A, A2, B), I9c (X1, X2).
-  Migracje do `20261020161400`, bliźniaki drizzle do `0372`.
-- **S8 i S7** szły równolegle (decyzja właściciela) w workflow
-  z integracją i pushem (najpierw S8, potem S7). Sprawdź `git log` gałęzi PR
-  i dziennik: jeśli są commity „hub(S8): …” / „hub(S7): …” z dziennikiem –
-  wycinek jest w PR (sprawdź CI). Jeśli nie – szukaj na origin gałęzi roboczych
-  `hub/s8-sciezki-panel` / `hub/s7-zakladki-diagnostyka`; gdy ich nie ma, wycinek
-  trzeba wykonać od nowa wg karty SPEC (S8 bez SQL; S7 z migracjami – patrz 4.3).
-  Kopie zapasowe niezacommitowanej pracy (migawki drzewa roboczego co 15 min):
-  `hub/s8-sciezki-panel-wip` i `hub/s7-zakladki-diagnostyka-wip` – odtwórz
-  pliki przez `git checkout origin/<gałąź>-wip -- .` w nowym worktree od
-  gałęzi PR i dokończ wycinek (migawki nie scalać jako commitów).
+- W PR (CI zielone na `fcc08c55` i późniejszych commitach dokumentów): S3,
+  I9a, S5, I9b (A, A2, B), I9c (X1, X2). Migracje do `20261020161400`,
+  bliźniaki drizzle do `0372`.
+- **S8 i S7 NIE są w PR** – sesja została przerwana na limicie tokenów w trakcie
+  równoległej pracy (decyzja właściciela: S8 i S7 równolegle, integracja
+  i push szeregowo, najpierw S8). Stan na origin:
+  - `hub/s8-sciezki-panel` (`6d602ca5`): zacommitowane **S8.1** z 3 podzadań
+    (fundament: model DAG, układ kanwy, operacje, dane, lista ścieżek
+    z galerią). **S8.2** (wyniki ścieżki, statystyki na kanwie, karta leada
+    „Ścieżki” w CRM) i **S8.3** – do zrobienia (S8.2 przerwane na starcie).
+  - `hub/s7-zakladki-diagnostyka` (= baza `fcc08c55`, bez commitów): **S7.1**
+    (diagnostyka: SQL faktów i wyciszeń, silnik 54 reguł, zakładka Diagnostyka,
+    dialogi napraw) przerwane w trakcie – niezacommitowana praca jest w migawce.
+    **S7.2**, **S7.3** – do zrobienia.
+  - Migawki drzew roboczych (z niezacommitowaną pracą):
+    `hub/s8-sciezki-panel-wip` (`d096bbc6`), `hub/s7-zakladki-diagnostyka-wip`
+    (`4ef07468`). Każda zawiera katalog `_kontynuacja/` z **pakietem kontekstu**
+    wycinka (`S8.md`/`S7.md`: wyciąg ze SPEC, kontrakty RPC, zgłoszenia,
+    wiedza Insidera, podział na podzadania) i **raportem przekazania**
+    (`STAN_S8.md`/`STAN_S7.md`: podzadania z plikami, zakresem i kryteriami,
+    raport zakończonego S8.1 z integration_requests, oczekiwane zmiany plików
+    współdzielonych, ryzyka, decyzja o wersjach migracji S7).
+- **Odtworzenie:** `git fetch origin`; worktree od gałęzi roboczej (np.
+  `git worktree add ../wt/S8 -b hub/s8-sciezki-panel origin/hub/s8-sciezki-panel`),
+  potem `git checkout origin/hub/s8-sciezki-panel-wip -- .` (pliki migawki),
+  `git status` – przejrzyj niezacommitowane zmiany, przeczytaj
+  `_kontynuacja/STAN_*.md` i pakiet, dokończ podzadania, a `_kontynuacja/`
+  usuń przed commitem (to materiał roboczy, nie do PR). Migawek nie scalaj
+  jako commitów; po integracji usuń gałęzie `*-wip`.
+- **Integracja S8, potem S7** (każdy osobno): rebase na
+  `origin/claude/elegant-fermat-xwfca1`; integration_requests podzadań
+  i pliki współdzielone (hubDelivery.ts, types.ts, i18n-admin-core/parytet,
+  adminNav + ⌘K – S8: skrót „Nowa ścieżka” i `?new=1`, test `adminNav.test.ts`;
+  usunięcie z `src/lib/admin/revenue/tabPreparing.ts` zakładek zastąpionych
+  prawdziwymi; S7: bliźniaki drizzle od `0373`, types.ts nowych RPC); pełne
+  bramki (pkt 4); budżet D-08; sekcja w dzienniku (kolejny numer po §21)
+  z zakresem, odchyleniami, zgłoszeniami i bramkami, wiersz §10, aktualizacja
+  §17 i `docs/KONTYNUACJA_…`; push na gałąź PR.
 
 ## 3. Kolejka (po kolei)
 
-1. **Dokończ S8/S7**, jeśli nie są w PR (pkt 2).
+1. **Dokończ S8 i S7 i zintegruj je do PR** (pkt 2): S8.2, S8.3, integracja
+   S8, push; S7.1 (dokończenie), S7.2, S7.3, integracja S7, push.
 2. **I9d – decyzje właściciela RODO (2)** (zatwierdzone 2026-10-20, wykonanie
    w bloku migracji I9 po najwyższej wersji):
    - **Zgłoszenia do klubów (Z-I9c-01):** po usunięciu konta anonimizacja
