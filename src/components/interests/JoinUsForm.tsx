@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import {
   CustomFieldsRenderer,
   parseCustomFields,
+  resolveCustomFieldLabel,
   validateCustomFields,
   type CustomFieldDef,
 } from "@/lib/builder/formFieldConfig";
@@ -33,6 +34,8 @@ import { CountryCombobox } from "@/components/interests/CountryCombobox";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
+import { missingFieldsMessage, subscribeErrorMessage } from "@/lib/newsletter/subscribeFeedback";
+import type { NewsletterFieldKey } from "@/lib/newsletter/newsletterFieldLabels";
 
 import { ensureI18n as ensureInterestsI18n } from "@/lib/i18n-interests";
 
@@ -331,6 +334,28 @@ export function JoinUsForm({
     .filter(([, v]) => v)
     .map(([k]) => k);
 
+  // Etykieta pola do komunikatów walidacji: ta sama, którą formularz pokazuje
+  // przy polu (nadpisanie widgetu > ustawienia newslettera > wbudowana), a dla
+  // pól własnych - ich etykieta z konfiguracji. Bez tego komunikat podawał
+  // zapisującemu się klucze techniczne („firstName”, `required:phone`).
+  const builtinFieldOverrides: Record<string, string | undefined> = {
+    email: emailPlaceholder,
+    firstName: firstNamePlaceholder,
+    lastName: lastNamePlaceholder,
+    position: positionPlaceholder,
+    linkedin: linkedinPlaceholder,
+    phone: phonePlaceholder,
+    company: companyPlaceholder,
+    country: countryPlaceholder,
+  };
+  const fieldLabelOf = (key: string): string => {
+    if (key in builtinFieldOverrides) {
+      return fieldLabels.label(key as NewsletterFieldKey, builtinFieldOverrides[key]);
+    }
+    const custom = cfList.find((f) => f.id === key);
+    return custom ? resolveCustomFieldLabel(custom, lang) : key;
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setState("loading");
@@ -359,11 +384,7 @@ export function JoinUsForm({
     };
     const missing = requiredFields.filter((k) => !values[k]);
     if (missing.length) {
-      setErrMsg(
-        lang === "en"
-          ? `Please fill in required fields: ${missing.join(", ")}`
-          : `Uzupełnij wymagane pola: ${missing.join(", ")}`,
-      );
+      setErrMsg(missingFieldsMessage(missing, fieldLabelOf, lang));
       setState("err");
       return;
     }
@@ -376,11 +397,7 @@ export function JoinUsForm({
     }
     const missingCustom = validateCustomFields(cfList, customValues);
     if (missingCustom.length) {
-      setErrMsg(
-        lang === "en"
-          ? `Please fill in required fields: ${missingCustom.join(", ")}`
-          : `Uzupełnij wymagane pola: ${missingCustom.join(", ")}`,
-      );
+      setErrMsg(missingFieldsMessage(missingCustom, fieldLabelOf, lang));
       setState("err");
       return;
     }
@@ -470,16 +487,14 @@ export function JoinUsForm({
       });
 
       if (!res.ok) {
-        setErrMsg(
-          res.error === "not_configured" || res.error === "disabled"
-            ? t("joinUs.errorGeneric")
-            : res.error,
-        );
+        setErrMsg(subscribeErrorMessage(res.error, lang, fieldLabelOf));
         setState("err");
         return;
       }
     } catch (err) {
-      setErrMsg(err instanceof Error ? err.message : t("joinUs.errorGeneric"));
+      // Wspólny słownik (`subscribeFeedback`) jak w pozostałych formularzach
+      // newslettera: błąd sieci ma własne zdanie, technikalia - ogólne.
+      setErrMsg(subscribeErrorMessage(err instanceof Error ? err.message : "", lang));
       setState("err");
       return;
     }

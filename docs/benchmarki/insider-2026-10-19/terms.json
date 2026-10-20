@@ -1,0 +1,240 @@
+{
+  "schema": "nes-insider-terms/1",
+  "terms": [
+    {
+      "term": "Take rate",
+      "full": "Prowizja platformy",
+      "description": "Procent wartości transakcji, który zatrzymuje marketplace."
+    },
+    {
+      "term": "GMV",
+      "full": "Gross Merchandise Value",
+      "description": "Łączna wartość transakcji przechodzących przez platformę."
+    },
+    {
+      "term": "KPI",
+      "full": "Key Performance Indicator",
+      "description": "Kluczowy wskaźnik: ruch, konwersja, pozyskani klienci, zaangażowanie."
+    },
+    {
+      "term": "Konwersja",
+      "full": "Współczynnik konwersji",
+      "description": "Odsetek odwiedzających, którzy wykonali cel: zapytanie, rejestrację, zakup."
+    },
+    {
+      "term": "Meta title",
+      "full": "Tytuł strony",
+      "description": "Tekst w znaczniku title, widoczny jako nagłówek wyniku w Google. Zwykle obcinany po ok. 60 znakach."
+    },
+    {
+      "term": "Meta description",
+      "full": "Opis strony",
+      "description": "Krótki opis widoczny pod tytułem w wynikach. Najlepiej 140-160 znaków, pełne zdanie z zachętą do kliknięcia."
+    },
+    {
+      "term": "Linkowanie wewnętrzne",
+      "full": "Internal linking",
+      "description": "Linki z treści do innych stron tego samego serwisu, np. z artykułu do strony usługi. Pomagają wyszukiwarce zrozumieć strukturę i prowadzą czytelnika do oferty."
+    },
+    {
+      "term": "Strona filarowa",
+      "full": "Pillar page",
+      "description": "Obszerny przewodnik po jednym temacie (np. KSeF 2026), który linkuje do wszystkich szczegółowych tekstów i do usługi."
+    },
+    {
+      "term": "OKR",
+      "full": "Objectives and Key Results",
+      "description": "Cele kwartalne: jeden cel jakościowy i 2-4 mierzalne wyniki, np. „50 aktywnych konsultantów do końca marca”."
+    },
+    {
+      "term": "RICE",
+      "full": "Reach, Impact, Confidence, Effort",
+      "description": "Metoda ustalania kolejności zadań: zasięg × wpływ × pewność / nakład pracy. Wyższy wynik = wyżej w backlogu."
+    },
+    {
+      "term": "Persona",
+      "full": "Persona marketingowa",
+      "description": "Opis typowego odbiorcy: rola, problemy, kryteria decyzji, kanały."
+    },
+    {
+      "term": "Filar treści",
+      "full": "Temat przewodni",
+      "description": "Stały obszar tematyczny publikacji. Pozwala planować treści i mierzyć, które tematy działają."
+    },
+    {
+      "term": "Kalendarz treści",
+      "full": "Plan publikacji",
+      "description": "Tabela z datami, kanałami, tematami, autorami i statusem akceptacji."
+    },
+    {
+      "term": "Employee advocacy",
+      "full": "Publikacje pracowników",
+      "description": "Eksperci firmy publikują na własnych profilach. Zwykle dają większy zasięg niż strona firmowa."
+    },
+    {
+      "term": "ICP",
+      "full": "Ideal Customer Profile",
+      "description": "Opis idealnej firmy-klienta: branża, wielkość, problem, budżet, decydent."
+    },
+    {
+      "term": "Propozycja wartości",
+      "full": "Value proposition",
+      "description": "Krótka odpowiedź na pytanie: jaki problem klienta rozwiązujemy i dlaczego lepiej niż alternatywy."
+    },
+    {
+      "term": "Lejek sprzedażowy",
+      "full": "Etapy sprzedaży",
+      "description": "Kolejne kroki od pierwszego kontaktu do umowy. Na każdym etapie część kontaktów odpada."
+    },
+    {
+      "term": "Lead",
+      "full": "Potencjalny klient",
+      "description": "Osoba lub firma, która zostawiła kontakt lub wyraziła zainteresowanie."
+    },
+    {
+      "term": "Kwalifikacja leada",
+      "full": "Ocena leada",
+      "description": "Sprawdzenie, czy kontakt pasuje do ICP i ma realną potrzebę, zanim zajmie się nim ekspert."
+    },
+    {
+      "term": "Sekwencja",
+      "full": "Seria wiadomości",
+      "description": "Zaplanowane kolejne wiadomości e-mail lub LinkedIn wysyłane w odstępach dni."
+    },
+    {
+      "term": "CAC",
+      "full": "Customer Acquisition Cost",
+      "description": "Koszt pozyskania jednego klienta: wydatki na marketing i sprzedaż / liczba nowych klientów."
+    },
+    {
+      "term": "Fraza kluczowa",
+      "full": "Keyword",
+      "description": "Słowa wpisywane w Google, np. „ceny transferowe dokumentacja”. Podstawa planu SEO."
+    },
+    {
+      "term": "E-E-A-T",
+      "full": "Experience, Expertise, Authoritativeness, Trust",
+      "description": "Kryteria Google: doświadczenie, ekspertyza, autorytet, wiarygodność autora. Ważne przy tematach podatkowych i prawnych."
+    },
+    {
+      "term": "PR ekspercki",
+      "full": "Komentarze ekspertów w mediach",
+      "description": "Szybkie komentarze do zmian w przepisach wysyłane dziennikarzom. Budują rozpoznawalność ekspertów i firmy."
+    },
+    {
+      "term": "Webinar",
+      "full": "Seminarium online",
+      "description": "Prezentacja ekspertów na żywo z pytaniami. Daje kontakty do potencjalnych klientów."
+    },
+    {
+      "term": "Business case",
+      "full": "Uzasadnienie biznesowe",
+      "description": "Dokument dla zarządu: koszt, spodziewany przychód lub oszczędność, ryzyka, rekomendacja."
+    },
+    {
+      "term": "Plan pomiaru",
+      "full": "Measurement plan",
+      "description": "Lista wskaźników z definicjami i sposobem pomiaru. Dzięki niemu wszyscy liczą tak samo."
+    },
+    {
+      "term": "Zdarzenie",
+      "full": "Event w analityce",
+      "description": "Śledzona akcja użytkownika, np. wysłanie formularza, rejestracja, płatność."
+    },
+    {
+      "term": "UTM",
+      "full": "Parametry UTM",
+      "description": "Dopiski w linkach, które pokazują w analityce, z której kampanii przyszedł ruch."
+    },
+    {
+      "term": "Retencja",
+      "full": "Utrzymanie użytkowników",
+      "description": "Odsetek użytkowników, którzy wracają po określonym czasie, np. po 30 dniach."
+    },
+    {
+      "term": "Aktywny użytkownik",
+      "full": "Active user",
+      "description": "Osoba, która użyła narzędzia w danym okresie, np. w ciągu ostatnich 30 dni."
+    },
+    {
+      "term": "RODO",
+      "full": "Ogólne rozporządzenie o ochronie danych",
+      "description": "Przepisy o przetwarzaniu danych osobowych. Dotyczą też danych wysyłanych do modeli AI."
+    },
+    {
+      "term": "LinkedIn Campaign Manager",
+      "full": "Panel reklam LinkedIn",
+      "description": "Kampanie płatne kierowane według stanowiska, branży i wielkości firmy."
+    },
+    {
+      "term": "Google Ads",
+      "full": "Reklamy Google",
+      "description": "Kampanie w wyszukiwarce. Meta Ads to reklamy na Facebooku i Instagramie."
+    },
+    {
+      "term": "Brand24",
+      "full": "Monitoring internetu",
+      "description": "Wyszukuje wzmianki o markach i osobach w mediach i social media."
+    },
+    {
+      "term": "HubSpot",
+      "full": "System CRM",
+      "description": "Kontakty, etapy sprzedaży, e-maile, raporty. Pipedrive to prostszy CRM sprzedażowy."
+    },
+    {
+      "term": "Ahrefs",
+      "full": "Narzędzie SEO",
+      "description": "Analiza fraz, linków i konkurencji. Semrush i SE Ranking mają podobne funkcje."
+    },
+    {
+      "term": "Search Console",
+      "full": "Google Search Console",
+      "description": "Dane Google o widoczności strony: frazy, kliknięcia, błędy indeksowania."
+    },
+    {
+      "term": "GTM",
+      "full": "Google Tag Manager",
+      "description": "Zarządzanie kodami śledzącymi na stronie bez zmian w kodzie. Razem z GA4 mierzy ruch i konwersje."
+    },
+    {
+      "term": "Mediana",
+      "full": "Wartość środkowa",
+      "description": "Połowa wartości jest niższa, połowa wyższa."
+    },
+    {
+      "term": "SEO",
+      "full": "Search Engine Optimization",
+      "description": "Optymalizacja strony pod wyszukiwarki."
+    },
+    {
+      "term": "GA4",
+      "full": "Google Analytics 4",
+      "description": "Analityka ruchu i konwersji."
+    },
+    {
+      "term": "Looker Studio",
+      "full": "Narzędzie Google do dashboardów",
+      "description": "Raporty łączące GA4, CRM i inne źródła."
+    },
+    {
+      "term": "CRM",
+      "full": "Customer Relationship Management",
+      "description": "System do zarządzania kontaktami i sprzedażą."
+    },
+    {
+      "term": "Thought leadership",
+      "full": "Przywództwo eksperckie",
+      "description": "Treści pokazujące wiedzę ekspertów tak, by to oni byli kojarzeni z tematem."
+    },
+    {
+      "term": "AVE",
+      "full": "Advertising Value Equivalent",
+      "description": "Szacunkowa wartość publikacji liczona jak koszt reklamy."
+    },
+    {
+      "term": "Lead magnet",
+      "full": "Magnes na leady",
+      "description": "Materiał (checklista, kalkulator, raport) w zamian za kontakt."
+    }
+  ]
+}

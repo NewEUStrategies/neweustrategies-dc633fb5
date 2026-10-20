@@ -96,6 +96,27 @@ vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
 }));
 
+// P01 (S2): rezygnacja idzie przez dialog anulowania. Tu dialog jest
+// atrapą z jednym przyciskiem „potwierdź" - jego kroki liczy
+// `RetentionDialog.test.tsx`; ten plik pilnuje KARTY: że przycisk karty
+// otwiera dialog zamiast anulować i że anulowanie w locie blokuje akcje.
+vi.mock("@/components/billing/organisms/RetentionDialog", () => ({
+  RetentionDialog: (props: {
+    open: boolean;
+    subscriptionId: string;
+    onConfirmCancel: () => Promise<void>;
+  }) =>
+    props.open ? (
+      <button
+        type="button"
+        data-dialog-subscription={props.subscriptionId}
+        onClick={() => void props.onConfirmCancel().catch(() => {})}
+      >
+        dialog-confirm-cancel
+      </button>
+    ) : null,
+}));
+
 import {
   SubscriptionCard,
   useMySubscriptionProvider,
@@ -352,6 +373,20 @@ describe("SubscriptionCard - portal bez adresu", () => {
   });
 });
 
+describe("SubscriptionCard - rezygnacja przez dialog (P01)", () => {
+  it("przycisk anulowania otwiera dialog TEJ subskrypcji i niczego nie anuluje sam", async () => {
+    renderCard({ id: "sub-operator-1" });
+    await awaitPlans();
+
+    expect(screen.queryByText("dialog-confirm-cancel")).toBeNull();
+    fireEvent.click(buttonOf("profile.subscription.cancel"));
+
+    const dialog = screen.getByText("dialog-confirm-cancel");
+    expect(dialog.getAttribute("data-dialog-subscription")).toBe("sub-operator-1");
+    expect(h.cancel).not.toHaveBeenCalled();
+  });
+});
+
 describe("SubscriptionCard - żądanie w locie blokuje wszystkie akcje", () => {
   it("anulowanie w locie: spinner na przycisku i zablokowane portal, zmiana planu, selektor", async () => {
     const pending = deferred<{ ok: true }>();
@@ -359,10 +394,13 @@ describe("SubscriptionCard - żądanie w locie blokuje wszystkie akcje", () => {
     renderCard();
     const select = await awaitPlans();
 
+    // Przycisk karty OTWIERA dialog - samo kliknięcie niczego nie anuluje.
     fireEvent.click(buttonOf("profile.subscription.cancel"));
+    expect(h.cancel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("dialog-confirm-cancel"));
 
     await waitFor(() => expect(buttonOf("profile.subscription.cancel")).toBeDisabled());
-    expect(spinnerIn("profile.subscription.cancel")).not.toBeNull();
+    expect(h.cancel).toHaveBeenCalledTimes(1);
     for (const key of ACTION_KEYS) expect(buttonOf(key)).toBeDisabled();
     expect(select).toBeDisabled();
     fireEvent.click(buttonOf("profile.subscription.portal.openPortal"));

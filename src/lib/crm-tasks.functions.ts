@@ -31,6 +31,14 @@ export interface CrmTaskRow {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Kto utworzył zadanie (S4): `manual` (panel), `workflow`, `journey`,
+   * `billing`, `system`. Kolumna chroniona grantami kolumnowymi - panel jej
+   * nie ustawia, więc ręczne zadanie zawsze ma domyślne `manual`.
+   */
+  source?: string;
+  /** Klucz idempotencji zadania z automatu (np. `retention:canceled:<id>`). */
+  origin_ref?: string | null;
 }
 
 /** Zadanie z panelu "do zrobienia" - z dołączoną wizytówką leada. */
@@ -157,6 +165,108 @@ export const deleteCrmTask = createServerFn({ method: "POST" })
     const res = await looseTable(context, "crm_tasks").delete().eq("id", data.id);
     if (res.error) throw new Error(res.error.message);
     return { ok: true };
+  });
+
+// ── Naprawa zbiorcza: zadania bez osoby (P24) ────────────────────────────────
+//
+// Zadania z automatów sprzed S4 powstawały bez `assignee_id`, a skaner
+// przypomnień nie ma do kogo ich wysłać - follow-up po prostu ginął.
+// Naprawa przypisuje każde OTWARTE zadanie bez osoby do właściciela leada,
+// a resztę (lead bez właściciela) do wskazanej osoby z zespołu. Reguła
+// diagnostyki huba (S7) liczy takie zadania i woła tę funkcję.
+
+const AssignUnassignedInput = z.object({
+  /** Osoba dla zadań, których lead nie ma właściciela (tylko zespół CRM). */
+  fallback_assignee_id: z.string().uuid().nullable().optional(),
+  limit: z.number().int().min(1).max(1000).default(500),
+});
+
+export interface AssignUnassignedResult {
+  assigned_to_owner: number;
+  assigned_to_fallback: number;
+  /** Zadania bez osoby, których nie dało się przypisać (brak właściciela i osoby). */
+  remaining: number;
+}
+
+/** Podział zadań bez osoby: właściciel leada albo pula „bez właściciela". */
+export function planUnassignedTaskFix(
+  rows: ReadonlyArray<{ id: string; lead: { owner_id: string | null } | null }>,
+): { byOwner: Map<string, string[]>; orphans: string[] } {
+  const byOwner = new Map<string, string[]>();
+  const orphans: string[] = [];
+  for (const row of rows) {
+    const owner = row.lead?.owner_id ?? null;
+    if (owner) byOwner.set(owner, [...(byOwner.get(owner) ?? []), row.id]);
+    else orphans.push(row.id);
+  }
+  return { byOwner, orphans };
+}
+
+export const assignUnassignedCrmTasks = createServerFn({ method: "POST" })
+  .middleware([requireCrmStaff])
+  .validator((d) => AssignUnassignedInput.parse(d ?? {}))
+  .handler(async ({ data, context }): Promise<AssignUnassignedResult> => {
+    const userId = (context as { userId: string }).userId;
+    // Odczyt i zapis klientem użytkownika: RLS zawęża do najemcy z sesji.
+    const result = await looseTable(context, "crm_tasks")
+      .select("id, lead:crm_leads!crm_tasks_lead_id_fkey(owner_id)")
+      .eq("status", "open")
+      .is("assignee_id", null)
+      .limit(data.limit);
+    if (result.error) throw new Error(result.error.message);
+    const rows = rowsOf(result) as Array<{ id: string; lead: { owner_id: string | null } | null }>;
+    const { byOwner, orphans } = planUnassignedTaskFix(rows);
+
+    let fallback: string | null = null;
+    if (data.fallback_assignee_id && orphans.length > 0) {
+      // Osoba spoza zespołu najemcy nie dostanie cudzych zadań: rola
+      // sprawdzana w najemcy wołającego (profil pod RLS, role rolą serwisową,
+      // ta sama granica co picker właściciela `listStaffUsers`).
+      const { data: me, error: meError } = await looseTable(context, "profiles")
+        .select("tenant_id")
+        .eq("id", userId)
+        .maybeSingle();
+      if (meError) throw new Error(meError.message);
+      const tenantId = (me as { tenant_id?: string } | null)?.tenant_id;
+      if (!tenantId) throw new Error("tenant_unresolved");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const roles = await looseClient({ supabase: supabaseAdmin })
+        .from("user_roles")
+        .select("user_id")
+        .eq("tenant_id", tenantId)
+        .eq("user_id", data.fallback_assignee_id)
+        .in("role", ["admin", "editor", "super_admin"])
+        .limit(1);
+      if (roles.error) throw new Error(roles.error.message);
+      if (rowsOf(roles).length === 0) throw new Error("assignee_not_staff");
+      fallback = data.fallback_assignee_id;
+    }
+
+    let assignedToOwner = 0;
+    for (const [owner, ids] of byOwner) {
+      // `is(assignee_id, null)` w zapisie: zadanie przypisane w międzyczasie
+      // ręcznie nie zostanie nadpisane naprawą.
+      const res = await looseTable(context, "crm_tasks")
+        .update({ assignee_id: owner })
+        .in("id", ids)
+        .is("assignee_id", null);
+      if (res.error) throw new Error(res.error.message);
+      assignedToOwner += ids.length;
+    }
+    let assignedToFallback = 0;
+    if (fallback && orphans.length > 0) {
+      const res = await looseTable(context, "crm_tasks")
+        .update({ assignee_id: fallback })
+        .in("id", orphans)
+        .is("assignee_id", null);
+      if (res.error) throw new Error(res.error.message);
+      assignedToFallback = orphans.length;
+    }
+    return {
+      assigned_to_owner: assignedToOwner,
+      assigned_to_fallback: assignedToFallback,
+      remaining: orphans.length - assignedToFallback,
+    };
   });
 
 // ── Import CSV z dedupem ─────────────────────────────────────────────────────

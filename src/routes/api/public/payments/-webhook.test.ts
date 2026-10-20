@@ -533,7 +533,9 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     expect(lead.tags).not.toContain("customer");
 
     expect(h.emails.subscription).toHaveBeenCalledTimes(1);
-    expect(payload<{ href: string }>("notifications", "insert").href).toContain("retention=1");
+    // Martwy `?retention=1` zdjęty w S4 (karta S4, `purchaseEffects.server.ts`):
+    // `/profile/plan` tego parametru nie czytał - dzwonek prowadzi wprost do planu.
+    expect(payload<{ href: string }>("notifications", "insert").href).toBe("/profile/plan");
   });
 
   it("rezygnacja po zakończonym okresie odbiera uprawnienie", async () => {

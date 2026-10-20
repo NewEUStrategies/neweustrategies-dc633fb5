@@ -269,6 +269,7 @@ vi.mock("@/components/admin/molecules/AdminPagination", () => ({
 import { renderRoute, routeMeta, routeSearchValidator } from "@/test/routeHarness";
 import { CLUB_BASE_ISO, CLUB_IDS, adminClubRow } from "@/test/clubs/fixtures";
 import { CLUB_EDITOR_TABS } from "@/lib/clubs/adminClubEditor";
+import { APPLICATION_STATUSES } from "@/lib/clubs/adminApplicationsInbox";
 import { Route as ListRoute } from "@/routes/admin.community.clubs.index";
 import { Route as EditorRoute } from "@/routes/admin.community.clubs.$clubId";
 import { Route as TopicsRoute } from "@/routes/admin.community.clubs.topics";
@@ -437,6 +438,61 @@ describe("własna bramka `isAdmin` - layout `/admin` przepuszcza redaktora", () 
 });
 
 // --- lista klubów ----------------------------------------------------------
+
+// --- skrzynka zgłoszeń: filtry w adresie (br. 04 D7, Integrator S4) --------
+
+describe("skrzynka zgłoszeń - filtry w adresie", () => {
+  const validate = routeSearchValidator(ApplicationsRoute);
+  const PATH = "/admin/community/clubs/applications";
+
+  it.each(APPLICATION_STATUSES)("status %s przechodzi z adresu (lustro słownika skrzynki)", (s) => {
+    // Walidator nie importuje modułu skrzynki (chunk wejściowy) - ten test
+    // jest jedynym strażnikiem, że lista w trasie = `APPLICATION_STATUSES`.
+    expect(validate({ status: s }).status).toBe(s);
+  });
+
+  it.each([
+    ["status spoza słownika", { status: "deleted" }, {}],
+    ["pusty napis", { spec: "", q: "" }, {}],
+    ["liczba", { spec: 7, q: 3 }, {}],
+    ["za długie wyszukiwanie", { q: "x".repeat(200) }, {}],
+  ])("%s - filtr odcięty", (_opis, raw, expected) => {
+    const out = validate(raw);
+    expect(Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))).toEqual(
+      expected,
+    );
+  });
+
+  it("filtry z adresu trafiają do skrzynki w trybie kontrolowanym", async () => {
+    await renderRoute({
+      route: ApplicationsRoute,
+      path: PATH,
+      initialEntry: `${PATH}?spec=energy&status=review&q=kowal`,
+    });
+    expect(h.organism.ClubApplicationsInbox?.filters).toEqual({
+      spec: "energy",
+      status: "review",
+      search: "kowal",
+    });
+  });
+
+  it("zmiana filtra ZASTĘPUJE adres, a puste pola znikają z adresu", async () => {
+    const rendered = await renderRoute({
+      route: ApplicationsRoute,
+      path: PATH,
+      initialEntry: `${PATH}?status=pending`,
+    });
+    const onFiltersChange = h.organism.ClubApplicationsInbox?.onFiltersChange as (next: {
+      spec: string;
+      status: string;
+      search: string;
+    }) => void;
+    onFiltersChange({ spec: "energy", status: "", search: "" });
+    await waitFor(() => {
+      expect(rendered.search()).toEqual({ spec: "energy" });
+    });
+  });
+});
 
 describe("lista klubów - filtry, stronicowanie i trzy stany", () => {
   it("pyta RPC z filtrami z pierwszej strony i pełnym oknem", async () => {

@@ -12,25 +12,29 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PlusCircle, Workflow as WorkflowIcon } from "lucide-react";
+import { adminPageHead } from "@/lib/adminPageHead";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   aggregateRunStats,
-  deleteWorkflowDefinition,
   draftFromDefinition,
   emptyWorkflowDraft,
-  fetchRecentWorkflowRuns,
-  fetchWorkflowDefinitions,
-  fetchWorkflowTemplates,
-  saveWorkflowDefinition,
-  setWorkflowEnabled,
   type WorkflowDefinitionRow,
   type WorkflowDraft,
 } from "@/lib/admin/workflows";
+import {
+  WORKFLOW_RUNS_WINDOW,
+  useDeleteWorkflowDefinition,
+  useSaveWorkflowDefinition,
+  useSetWorkflowEnabled,
+  workflowDefinitionsQueryOptions,
+  workflowRunsWindowQueryOptions,
+  workflowTemplatesQueryOptions,
+} from "@/lib/admin/workflowQueries";
 import { WorkflowDefinitionsPanel } from "@/components/admin/workflows/WorkflowDefinitionsPanel";
 import { WorkflowEditorDialog } from "@/components/admin/workflows/WorkflowEditorDialog";
 import { WorkflowRunsPanel } from "@/components/admin/workflows/WorkflowRunsPanel";
@@ -47,7 +51,7 @@ interface WorkflowsSearch {
 }
 
 // Okno statystyk na liście przepisów i w KPI (ostatnie N przebiegów).
-const RUNS_WINDOW = 500;
+const RUNS_WINDOW = WORKFLOW_RUNS_WINDOW;
 
 // Lokalna kopia walidacji uuid: validateSearch żyje w eager configu trasy,
 // a import isUuid z @/lib/admin/workflows wciągnąłby całą warstwę danych
@@ -59,9 +63,13 @@ function searchUuid(value: unknown): string | undefined {
 }
 
 export const Route = createFileRoute("/admin/workflows")({
-  head: () => ({
-    meta: [{ title: "Automatyzacje · Admin" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
+  // D14: tytuł sekcji zamiast generycznego „Admin" - karta przeglądarki
+  // i historia odróżniają automatyzacje od reszty panelu.
+  head: () =>
+    adminPageHead(
+      "Automatyzacje",
+      "Przepisy „gdy zdarzenie - wykonaj akcje”, historia przebiegów, katalog szablonów i ślad korelacji. Panel administracyjny New European Strategies.",
+    ),
   validateSearch: (s: Record<string, unknown>): WorkflowsSearch => ({
     tab: TABS.includes(s.tab as WorkflowsTab) ? (s.tab as WorkflowsTab) : undefined,
     correlation: searchUuid(s.correlation),
@@ -74,7 +82,6 @@ function AdminWorkflowsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
-  const qc = useQueryClient();
 
   const tab: WorkflowsTab = search.tab ?? "definitions";
   const [runStatusFilter, setRunStatusFilter] = useState<"succeeded" | "failed" | null>(null);
@@ -86,21 +93,9 @@ function AdminWorkflowsPage() {
       replace: true,
     });
 
-  const definitionsQuery = useQuery({
-    queryKey: ["admin", "workflow-definitions"],
-    queryFn: fetchWorkflowDefinitions,
-    staleTime: 30_000,
-  });
-  const recentRunsQuery = useQuery({
-    queryKey: ["admin", "workflow-runs-window", RUNS_WINDOW],
-    queryFn: () => fetchRecentWorkflowRuns(RUNS_WINDOW),
-    staleTime: 30_000,
-  });
-  const templatesQuery = useQuery({
-    queryKey: ["admin", "workflow-templates"],
-    queryFn: fetchWorkflowTemplates,
-    staleTime: 5 * 60_000,
-  });
+  const definitionsQuery = useQuery(workflowDefinitionsQueryOptions());
+  const recentRunsQuery = useQuery(workflowRunsWindowQueryOptions(RUNS_WINDOW));
+  const templatesQuery = useQuery(workflowTemplatesQueryOptions());
 
   // Fallbacki w useMemo (nie `?? []` inline): świeża tablica przy każdym
   // renderze unieważniałaby zależne useMemo poniżej.
@@ -109,45 +104,22 @@ function AdminWorkflowsPage() {
   const templates = templatesQuery.data ?? [];
   const stats = useMemo(() => aggregateRunStats(recentRuns), [recentRuns]);
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["admin", "workflow-definitions"] });
-    void qc.invalidateQueries({ queryKey: ["admin", "workflow-runs-window", RUNS_WINDOW] });
+  const onError = (e: unknown) => {
+    const message = e instanceof Error ? e.message : String(e);
+    toast.error(t("adminWorkflows.common.error", { message }));
   };
 
-  const save = useMutation({
-    mutationFn: saveWorkflowDefinition,
-    onSuccess: () => {
+  const save = useSaveWorkflowDefinition({
+    onSaved: () => {
       toast.success(t("adminWorkflows.common.saved"));
       setEditorDraft(null);
-      invalidate();
     },
-    onError: (e) => {
-      const message = e instanceof Error ? e.message : String(e);
-      toast.error(t("adminWorkflows.common.error", { message }));
-    },
+    onError,
   });
-
-  const toggle = useMutation({
-    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      setWorkflowEnabled(id, enabled),
-    onSuccess: invalidate,
-    onError: (e) => {
-      const message = e instanceof Error ? e.message : String(e);
-      toast.error(t("adminWorkflows.common.error", { message }));
-      invalidate();
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: deleteWorkflowDefinition,
-    onSuccess: () => {
-      toast.success(t("adminWorkflows.common.deleted"));
-      invalidate();
-    },
-    onError: (e) => {
-      const message = e instanceof Error ? e.message : String(e);
-      toast.error(t("adminWorkflows.common.error", { message }));
-    },
+  const toggle = useSetWorkflowEnabled({ onError });
+  const remove = useDeleteWorkflowDefinition({
+    onDeleted: () => toast.success(t("adminWorkflows.common.deleted")),
+    onError,
   });
 
   const showTrace = (correlationId: string) =>

@@ -1,0 +1,109 @@
+From 404f0c7a8c073002be49a27ad84d5f3a826fbc3b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 21:01:04 +0000
+Subject: [PATCH 7/8] hub(S3): paywall liczy uderzenie dopiero po ustaleniu
+ sesji
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Uderzenie z rozruchu (sesja jeszcze nieznana) liczyło zalogowanego
+czytelnika jako gościa (record_paywall_hit_visitor zamiast
+record_paywall_hit). Efekt pomiaru czeka na `loading = false` z useAuth.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01B1u5WTSfc2BVu79A3S4crV
+---
+ src/components/Paywall.tsx                    |  8 ++++---
+ .../__tests__/Paywall.reader.test.tsx         | 21 ++++++++++++++++++-
+ 2 files changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/src/components/Paywall.tsx b/src/components/Paywall.tsx
+index ef2c4de8e..4117387d0 100644
+--- a/src/components/Paywall.tsx
++++ b/src/components/Paywall.tsx
+@@ -95,7 +95,7 @@ export function Paywall({
+   preview,
+ }: Props) {
+   const { t } = useTranslation();
+-  const { session } = useAuth();
++  const { session, loading: authLoading } = useAuth();
+   const navigate = useNavigate();
+   const checkout = useServerFn(createCheckoutOrder);
+   // `clientSecret` sesji Stripe - modal osadzonego checkoutu zamiast nakładki.
+@@ -296,7 +296,9 @@ export function Paywall({
+   const recordedHit = useRef<string | null>(null);
+   useEffect(() => {
+     // Czekamy na ofertę (klucz wymaganej warstwy), ale tylko raz na wpis.
+-    if (!hitKey || hitTier === undefined || recordedHit.current === hitKey) return;
++    // Także na ustaloną sesję: uderzenie z rozruchu (sesja jeszcze nieznana)
++    // policzyłoby zalogowanego czytelnika jako gościa.
++    if (!hitKey || hitTier === undefined || authLoading || recordedHit.current === hitKey) return;
+     recordedHit.current = hitKey;
+     measure("paywall_view", {});
+     if (
+@@ -316,7 +318,7 @@ export function Paywall({
+       );
+     }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [hitKey, hitTier]);
++  }, [hitKey, hitTier, authLoading]);
+ 
+   // Ścieżka powrotu po zalogowaniu (P15). Czytana PO montażu: SSR nie zna
+   // `window`, a różny `href` serwera i klienta to błąd hydratacji.
+diff --git a/src/components/__tests__/Paywall.reader.test.tsx b/src/components/__tests__/Paywall.reader.test.tsx
+index 8868f4250..1097c86b8 100644
+--- a/src/components/__tests__/Paywall.reader.test.tsx
++++ b/src/components/__tests__/Paywall.reader.test.tsx
+@@ -21,6 +21,7 @@ const TEASER = "Zajawka dla każdego czytelnika";
+ 
+ const h = vi.hoisted(() => ({
+   session: null as { user: { id: string } } | null,
++  authLoading: false,
+   plans: [] as unknown[],
+   tiers: [] as unknown[],
+   currentTier: null as { key: string; rank: number } | null,
+@@ -32,7 +33,9 @@ const h = vi.hoisted(() => ({
+ }));
+ 
+ vi.mock("react-i18next", async () => (await import("@/test/network/fixtures")).reactI18nextStub());
+-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
++vi.mock("@/hooks/useAuth", () => ({
++  useAuth: () => ({ session: h.session, loading: h.authLoading }),
++}));
+ // Link z `search` w adresie - asercje czytają realny cel (`next`, `intent`).
+ vi.mock("@tanstack/react-router", async (importOriginal) => ({
+   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+@@ -152,6 +155,7 @@ function hrefOf(name: string): URL {
+ 
+ beforeEach(() => {
+   h.session = null;
++  h.authLoading = false;
+   h.plans = [PLUS_M, PRO_M, LAB];
+   h.tiers = TIERS;
+   h.currentTier = null;
+@@ -354,6 +358,21 @@ describe("Paywall czytelnika - pomiar (P18, AD-16)", () => {
+     expect(screen.queryByRole("alert")).toBeNull();
+   });
+ 
++  it("rozruch sesji: uderzenie czeka na ustaloną sesję (zalogowany nie liczy się jako gość)", async () => {
++    h.authLoading = true;
++    const view = renderWall({ rule: rule({ mode: "members" }) });
++    await screen.findByRole("heading", { name: k("paywall.membersOnly") });
++    await new Promise((resolve) => setTimeout(resolve, 20));
++    expect(h.visitorHit).not.toHaveBeenCalled();
++    h.authLoading = false;
++    h.session = { user: { id: "u1" } };
++    view.rerender(<Paywall rule={rule({ mode: "members" })} lang="pl" fallbackText={null} />);
++    await waitFor(() =>
++      expect(h.rpc).toHaveBeenCalledWith("record_paywall_hit", expect.anything()),
++    );
++    expect(h.visitorHit).not.toHaveBeenCalled();
++  });
++
+   it("uderzenie liczone raz na wpis, nie przy każdym renderze", async () => {
+     h.session = { user: { id: "u1" } };
+     const view = renderWall({ rule: rule({ mode: "paid" }) });
+-- 
+2.43.0
+

@@ -43,6 +43,7 @@ import {
   importCrmLeads,
   type CrmImportSummary,
 } from "@/lib/crm-tasks.functions";
+import { crmKeys } from "@/lib/crm/keys";
 
 // Etykiety pól zostają w panelu (PL/EN), reguła mapowania mieszka w
 // lib/crm/importMapping.ts - to ona decyduje o losie danych osobowych.
@@ -194,7 +195,7 @@ export function ImportLeadsCsvDialog({
         toast.warning(t.errors(summary.errors.length));
         console.warn("[crm import] errors", summary.errors);
       }
-      void qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      void qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
       reset();
       onOpenChange(false);
     } catch (err) {

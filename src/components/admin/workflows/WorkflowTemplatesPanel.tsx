@@ -3,7 +3,6 @@
 // (name_pl/name_en), więc lokalizacja idzie z wiersza, nie ze słownika.
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-workflows";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckCircle2, DownloadCloud, Loader2, PackageOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  installWorkflowTemplate,
-  type WorkflowDefinitionRow,
-  type WorkflowTemplateRow,
-} from "@/lib/admin/workflows";
+import { type WorkflowDefinitionRow, type WorkflowTemplateRow } from "@/lib/admin/workflows";
+import { useInstallWorkflowTemplate } from "@/lib/admin/workflowQueries";
 import { installedTemplateKeys } from "./lib/panelRules";
 import { EventTypeChip, StepChips } from "./atoms";
 
@@ -37,19 +33,16 @@ export function WorkflowTemplatesPanel({
 }: WorkflowTemplatesPanelProps) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === "en";
-  const qc = useQueryClient();
 
   // Szablon uznajemy za zainstalowany, gdy w tenancie istnieje definicja
   // z tym template_key (niezależnie od enabled - instalacja re-aktywuje).
   // Reguła i jej uzasadnienie: `lib/panelRules.installedTemplateKeys`.
   const installedKeys = installedTemplateKeys(definitions);
 
-  const install = useMutation({
-    mutationFn: (key: string) => installWorkflowTemplate(key),
-    onSuccess: () => {
-      toast.success(t("adminWorkflows.templates.installedToast"));
-      void qc.invalidateQueries({ queryKey: ["admin", "workflow-definitions"] });
-    },
+  // Ta sama inwalidacja co zapis z edytora (lista + okno KPI) - wcześniej
+  // instalacja odświeżała tylko listę, a kafel „Szablony zainstalowane" nie.
+  const install = useInstallWorkflowTemplate({
+    onInstalled: () => toast.success(t("adminWorkflows.templates.installedToast")),
     onError: (e) => {
       const message = e instanceof Error ? e.message : String(e);
       toast.error(t("adminWorkflows.common.error", { message }));

@@ -530,7 +530,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
       last_event_id: "evt_nowsze",
     });
     expect(stripeApi.calls).toEqual([
-      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product"] } },
+      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product", "discounts"] } },
     ]);
     expect(entitlements.rows[0]).toMatchObject({ status: "active" });
     expect(writesOn("crm_leads")).toHaveLength(0);
@@ -608,7 +608,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
 
     expect(outcome).toBe("processed");
     expect(stripeApi.calls).toEqual([
-      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product"] } },
+      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product", "discounts"] } },
     ]);
     expect(subscriptions.rows[0]).toMatchObject({
       status: "past_due",
@@ -694,7 +694,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
 
     expect(outcome).toBe("skipped");
     expect(stripeApi.calls).toEqual([
-      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product"] } },
+      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product", "discounts"] } },
     ]);
     expect(subscriptions.rows[0]).toMatchObject({ status: "active", cancel_at_period_end: true });
     expect(db.chainsFor("subscriptions").filter(isStateWrite)).toHaveLength(0);
@@ -883,7 +883,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
       ]);
       expect(stripeApi.calls).toEqual([
         { id: "sub_atrapa_1", params: { expand: ["latest_invoice"] } },
-        { id: "sub_atrapa_1", params: { expand: ["items.data.price.product"] } },
+        { id: "sub_atrapa_1", params: { expand: ["items.data.price.product", "discounts"] } },
       ]);
       // Rezygnacja bez wiersza nie wysyła maili ani dzwonków.
       expect(writesOn("notifications")).toHaveLength(0);
@@ -1817,7 +1817,7 @@ describe("zakładanie, zaległość i wyrównanie - stan zapisywany przez dyspoz
     // Ładunek `paused` nie został zastosowany - wygrało nowsze zdarzenie.
     expect(store.rows[0]).toMatchObject({ status: "active", last_event_id: "evt_nowsze" });
     expect(stripeApi.calls).toEqual([
-      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product"] } },
+      { id: "sub_atrapa_1", params: { expand: ["items.data.price.product", "discounts"] } },
     ]);
     warn.mockRestore();
   });

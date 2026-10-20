@@ -3,6 +3,7 @@
 // aktywne chipy pokazują wartość i mają przycisk czyszczenia. Wartości chipów
 // mapują się 1:1 na LeadFilterSchema, więc bieżący stan da się zapisać jako
 // widok (saved_views) i odtworzyć po obu stronach (SQL liczy filtr serwerowo).
+import { useState } from "react";
 import {
   Activity,
   CalendarClock,
@@ -10,9 +11,13 @@ import {
   Flag,
   Flame,
   Inbox,
+  Layers,
   MapPin,
+  Milestone,
   RotateCcw,
   ShieldCheck,
+  Tag as TagIcon,
+  UserRound,
   X,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,8 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DEFAULT_LEAD_FILTER, isDefaultLeadFilter, type LeadFilter } from "@/lib/crm/leadViews";
+import { CRM_SOURCE_TYPES } from "@/lib/crm/leadListSpec";
+import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 import { SCORE_BAND_LABELS, type ScoreBand } from "@/lib/crm/scoring";
+import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
+
+/** Limit tagu i liczby tagów filtra - te same co `LeadListFilterSchema`. */
+const FILTER_TAG_MAX = 40;
+const FILTER_TAGS_MAX = 20;
 
 interface Props {
   lang: "pl" | "en";
@@ -35,9 +48,23 @@ interface Props {
   onChange: (next: LeadFilter) => void;
   stageLabels: Record<Exclude<LeadFilter["stage"], "any">, string>;
   countries: string[];
+  /** Tagi znane z bieżącej listy (podpowiedzi chipa „Tagi"). */
+  tagOptions?: readonly string[];
+  /** Zespół CRM (chip „Właściciel"); brak = chip ukryty. */
+  owners?: ReadonlyArray<{ id: string; label: string }>;
 }
 
-export function LeadFilterChips({ lang, value, onChange, stageLabels, countries }: Props) {
+export function LeadFilterChips({
+  lang,
+  value,
+  onChange,
+  stageLabels,
+  countries,
+  tagOptions = [],
+  owners,
+}: Props) {
+  const lc = crmLifecycleDict(lang);
+  const [tagDraft, setTagDraft] = useState("");
   const t = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const rangeLabels = {
     any: t("Dowolnie", "Any"),
@@ -102,28 +129,151 @@ export function LeadFilterChips({ lang, value, onChange, stageLabels, countries 
       </Chip>
 
       <Chip
-        icon={<Inbox className="h-3 w-3" aria-hidden />}
-        label={t("Źródło", "Source")}
-        value={value.source !== "any" ? sourceLabels[value.source] : null}
-        onClear={() => update({ source: "any" })}
+        icon={<Milestone className="h-3 w-3" aria-hidden />}
+        label={lc.filters.lifecycle}
+        value={value.lifecycle ? lc.stages[value.lifecycle] : null}
+        onClear={() => update({ lifecycle: undefined })}
       >
         <Select
-          value={value.source}
-          onValueChange={(v) => update({ source: v as LeadFilter["source"] })}
+          value={value.lifecycle ?? "any"}
+          onValueChange={(v) =>
+            update({ lifecycle: v === "any" ? undefined : (v as LeadFilter["lifecycle"]) })
+          }
         >
-          <SelectTrigger className="h-8 text-[12px]">
+          <SelectTrigger className="h-8 text-[12px]" aria-label={lc.filters.lifecycle}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="any">{t("Dowolne", "Any")}</SelectItem>
-            {(["form", "newsletter", "import"] as const).map((s) => (
-              <SelectItem key={s} value={s}>
-                {sourceLabels[s]}
+            <SelectItem value="any">{lc.filters.any}</SelectItem>
+            {LIFECYCLE_STAGES.map((stage) => (
+              <SelectItem key={stage} value={stage}>
+                {lc.stages[stage]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </Chip>
+
+      <Chip
+        icon={<Layers className="h-3 w-3" aria-hidden />}
+        label={lc.filters.segment}
+        value={value.sourceType ? lc.segments[value.sourceType] : null}
+        onClear={() => update({ sourceType: undefined })}
+      >
+        <Select
+          value={value.sourceType ?? "any"}
+          onValueChange={(v) =>
+            update({ sourceType: v === "any" ? undefined : (v as LeadFilter["sourceType"]) })
+          }
+        >
+          <SelectTrigger className="h-8 text-[12px]" aria-label={lc.filters.segment}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">{lc.filters.any}</SelectItem>
+            {CRM_SOURCE_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {lc.segments[type]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Chip>
+
+      <Chip
+        icon={<TagIcon className="h-3 w-3" aria-hidden />}
+        label={lc.filters.tags}
+        value={
+          value.tags && value.tags.length > 0
+            ? value.tags.length === 1
+              ? value.tags[0]
+              : lc.filters.selected.replace("{{count}}", String(value.tags.length))
+            : null
+        }
+        onClear={() => update({ tags: undefined })}
+      >
+        <TagsEditor
+          lang={lang}
+          selected={value.tags ?? []}
+          options={tagOptions}
+          draft={tagDraft}
+          onDraft={setTagDraft}
+          onChange={(tags) => update({ tags: tags.length > 0 ? tags : undefined })}
+        />
+      </Chip>
+
+      {owners && (
+        <Chip
+          icon={<UserRound className="h-3 w-3" aria-hidden />}
+          label={lc.filters.owner}
+          value={
+            value.ownerIds && value.ownerIds.length > 0
+              ? value.ownerIds.length === 1
+                ? (owners.find((o) => o.id === value.ownerIds?.[0])?.label ?? lc.filters.owner)
+                : lc.filters.selected.replace("{{count}}", String(value.ownerIds.length))
+              : null
+          }
+          onClear={() => update({ ownerIds: undefined })}
+        >
+          {owners.length === 0 ? (
+            <p className="px-1 py-0.5 text-[12px] text-muted-foreground">{lc.filters.ownerEmpty}</p>
+          ) : (
+            <ul className="max-h-56 space-y-1 overflow-y-auto" aria-label={lc.filters.owner}>
+              {owners.map((owner) => {
+                const checked = value.ownerIds?.includes(owner.id) ?? false;
+                const id = `lead-owner-${owner.id}`;
+                return (
+                  <li key={owner.id}>
+                    <label htmlFor={id} className="flex items-center gap-2 px-1 py-0.5 text-[12px]">
+                      <Checkbox
+                        id={id}
+                        checked={checked}
+                        onCheckedChange={(next) => {
+                          const current = value.ownerIds ?? [];
+                          const ids =
+                            next === true
+                              ? [...current, owner.id]
+                              : current.filter((x) => x !== owner.id);
+                          update({ ownerIds: ids.length > 0 ? ids : undefined });
+                        }}
+                      />
+                      {owner.label}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Chip>
+      )}
+
+      {/* Stare źródło heurystyczne - wyłącznie, gdy niesie je wczytany widok
+          (nowe widoki filtrują po segmencie; „Import" heurystyczny był pusty). */}
+      {value.source !== "any" && (
+        <Chip
+          icon={<Inbox className="h-3 w-3" aria-hidden />}
+          label={lc.filters.legacySource}
+          value={sourceLabels[value.source]}
+          onClear={() => update({ source: "any" })}
+        >
+          <Select
+            value={value.source}
+            onValueChange={(v) => update({ source: v as LeadFilter["source"] })}
+          >
+            <SelectTrigger className="h-8 text-[12px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">{t("Dowolne", "Any")}</SelectItem>
+              {(["form", "newsletter", "import"] as const).map((s) => (
+                <SelectItem key={s} value={s}>
+                  {sourceLabels[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Chip>
+      )}
 
       <Chip
         icon={<MapPin className="h-3 w-3" aria-hidden />}
@@ -234,6 +384,105 @@ export function LeadFilterChips({ lang, value, onChange, stageLabels, countries 
           <RotateCcw className="h-3 w-3" aria-hidden />
           {t("Wyczyść filtry", "Clear filters")}
         </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Edytor tagów filtra: podpowiedzi z bieżącej listy + własny tag. Limit
+ * 40 znaków ODRZUCA, nie przycina (ten sam co walidacja serwera) - przycięty
+ * tag szukałby czego innego niż wpisano.
+ */
+function TagsEditor({
+  lang,
+  selected,
+  options,
+  draft,
+  onDraft,
+  onChange,
+}: {
+  lang: "pl" | "en";
+  selected: readonly string[];
+  options: readonly string[];
+  draft: string;
+  onDraft: (value: string) => void;
+  onChange: (tags: string[]) => void;
+}) {
+  const lc = crmLifecycleDict(lang);
+  const trimmed = draft.trim();
+  const tooLong = trimmed.length > FILTER_TAG_MAX;
+  const full = selected.length >= FILTER_TAGS_MAX;
+  const add = (tag: string) => {
+    const t = tag.trim();
+    if (!t || t.length > FILTER_TAG_MAX || selected.includes(t) || full) return;
+    onChange([...selected, t]);
+    onDraft("");
+  };
+  const suggestions = options
+    .filter(
+      (o) => !selected.includes(o) && (!trimmed || o.toLowerCase().includes(trimmed.toLowerCase())),
+    )
+    .slice(0, 8);
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-muted-foreground">{lc.filters.tagsHint}</p>
+      {selected.length > 0 && (
+        <ul className="flex flex-wrap gap-1">
+          {selected.map((tag) => (
+            <li key={tag}>
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((x) => x !== tag))}
+                className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"
+                aria-label={lc.filters.remove.replace("{{value}}", tag)}
+              >
+                {tag}
+                <X className="h-2.5 w-2.5" aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex gap-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add(draft);
+        }}
+      >
+        <Input
+          className="h-8 text-[12px]"
+          placeholder={lc.filters.tagsPlaceholder}
+          value={draft}
+          aria-label={lc.filters.tags}
+          aria-invalid={tooLong || undefined}
+          onChange={(e) => onDraft(e.target.value)}
+        />
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          className="h-8 px-2 text-[11px]"
+          disabled={!trimmed || tooLong || full}
+        >
+          {lc.filters.tagsAdd}
+        </Button>
+      </form>
+      {suggestions.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label={lc.filters.tagsPlaceholder}>
+          {suggestions.map((tag) => (
+            <li key={tag}>
+              <button
+                type="button"
+                onClick={() => add(tag)}
+                className="rounded border border-border/70 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-border hover:text-foreground"
+              >
+                {tag}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

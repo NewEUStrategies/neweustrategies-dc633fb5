@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { useCheckout } from "@/hooks/useCheckout";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
+import { billingKeys } from "@/lib/billing/keys";
 import { supabase } from "@/integrations/supabase/client";
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import { getPaymentsDiagnostics, syncCouponsToProvider } from "@/lib/billing/diagnostics.functions";
@@ -68,7 +69,7 @@ export function AdminPaymentsDiagnosticsPanel() {
   const [testPlanId, setTestPlanId] = useState("");
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const plansQ = useQuery({
-    queryKey: ["admin", "billing", "test-plans"],
+    queryKey: billingKeys.admin.testPlans(),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("access_plans")

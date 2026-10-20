@@ -53,21 +53,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { crmKeys } from "@/lib/crm/keys";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 export const Route = createFileRoute("/admin/crm/funnel/")({
   component: FunnelPage,
-  head: () => ({
-    meta: [
-      {
-        title: "Lejek marketingowy - CRM | New European Strategies",
-      },
-      {
-        name: "description",
-        content:
-          "Baza subskrybentów newslettera z oznaczeniem zarejestrowanych użytkowników i Kontaktów CRM.",
-      },
-    ],
-  }),
+  // D14: dotąd bez `robots` - prywatny ekran panelu mógł trafić do indeksu.
+  head: () =>
+    adminPageHead(
+      "Lejek marketingowy CRM",
+      "Baza subskrybentów newslettera z oznaczeniem zarejestrowanych użytkowników i kontaktów CRM.",
+    ),
 });
 
 type FunnelRow = {
@@ -263,7 +259,7 @@ function FunnelPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const listQ = useQuery({
-    queryKey: ["crm-funnel", { search, audience, status }],
+    queryKey: crmKeys.funnel({ search, audience, status }),
     queryFn: async () => {
       const r = await listFunnelSubscribers({
         data: {
@@ -278,7 +274,7 @@ function FunnelPage() {
   });
 
   const statsQ = useQuery({
-    queryKey: ["crm-funnel-stats"],
+    queryKey: crmKeys.funnelStats(),
     queryFn: async () => funnelStats(),
     staleTime: 30_000,
   });
@@ -301,9 +297,9 @@ function FunnelPage() {
   };
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["crm-funnel"] });
-    void qc.invalidateQueries({ queryKey: ["crm-funnel-stats"] });
-    void qc.invalidateQueries({ queryKey: ["crm-leads"] });
+    void qc.invalidateQueries({ queryKey: crmKeys.funnelAll() });
+    void qc.invalidateQueries({ queryKey: crmKeys.funnelStats() });
+    void qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
   };
 
   const unsubM = useMutation({

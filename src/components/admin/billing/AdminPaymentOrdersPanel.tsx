@@ -16,6 +16,7 @@ import "@/lib/i18n-admin-billing";
 import { AlertTriangle, Loader2, Receipt, RefreshCcw } from "lucide-react";
 
 import { listPaymentOrders } from "@/lib/billing/paymentOrders.functions";
+import { billingKeys } from "@/lib/billing/keys";
 import { getStripeEnvironmentSafe, type StripeEnv } from "@/lib/stripe";
 import { planName } from "@/lib/billing/types";
 import { Badge } from "@/components/ui/badge";
@@ -45,15 +46,39 @@ function money(cents: number, currency: string, lang: "pl" | "en"): string {
   }).format(cents / 100);
 }
 
-export function AdminPaymentOrdersPanel() {
+function isFilter(value: string | undefined): value is Filter {
+  return value !== undefined && (FILTERS as readonly string[]).includes(value);
+}
+
+/**
+ * Filtr statusu może przyjść z adresu (`/admin/billing?tab=orders&status=`,
+ * deep link z huba): trasa podaje `status` i `onStatusChange`. Status spoza
+ * słownika listy zamówień (np. `past_due` z innej zakładki) to „wszystkie" -
+ * filtr, którego lista nie zna, nie może pokazać pustej tabeli.
+ */
+export function AdminPaymentOrdersPanel({
+  status: statusFromUrl,
+  onStatusChange,
+}: { status?: string; onStatusChange?: (status: Filter) => void } = {}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
 
-  const [status, setStatus] = useState<Filter>("all");
+  const [localStatus, setLocalStatus] = useState<Filter>("all");
+  const status: Filter = onStatusChange
+    ? isFilter(statusFromUrl)
+      ? statusFromUrl
+      : "all"
+    : localStatus;
+  const setStatus = (next: Filter) => {
+    if (onStatusChange) onStatusChange(next);
+    else setLocalStatus(next);
+  };
   const [environment, setEnvironment] = useState<StripeEnv>(getStripeEnvironmentSafe);
   const load = useServerFn(listPaymentOrders);
   const q = useQuery({
-    queryKey: ["admin", "payment-orders", status, environment],
+    // Klucz z fabryki (bramka literałów): prefiks `paymentOrders()` trafia
+    // regułą szyny w każdą kombinację statusu i środowiska.
+    queryKey: billingKeys.admin.paymentOrdersList(status, environment),
     queryFn: () => load({ data: { status, limit: 200, environment } }),
     staleTime: 15_000,
   });

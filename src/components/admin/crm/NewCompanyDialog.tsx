@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { crmKeys } from "@/lib/crm/keys";
 
 type Lang = "pl" | "en";
 
@@ -61,7 +62,7 @@ export function NewCompanyDialog({ lang, onCreated }: NewCompanyDialogProps) {
     mutationFn: () => createFn({ data: companyFormPayload(form) }),
     onSuccess: async (res) => {
       toast.success(t("Firma utworzona", "Company created"));
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
       setForm(EMPTY);
       setOpen(false);
       if (res?.id) onCreated?.(res.id);

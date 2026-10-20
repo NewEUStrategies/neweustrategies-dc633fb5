@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.mrr_movements IS 'Księga ruchów MRR huba Przychód i lejek; wdrożenie dostarczonego zakresu PR #527 potwierdzone po zastosowaniu oczekujących migracji Drizzle 0330-0345.';

@@ -57,6 +57,18 @@ export type SubscriptionData = {
    * bez niej - `subscriptions.resume`.
    */
   pauseCollection?: { behavior: string; resumesAt: string | null } | null;
+  /**
+   * Rabat CYKLICZNY na okres (S2, migawka księgi MRR): kwota w jednostkach
+   * drobnych i koniec rabatu. `undefined` = ładunek nie niesie rozwiniętych
+   * rabatów (sam identyfikator `di_…`) - kolumn wtedy NIE nadpisujemy;
+   * `null` = brak rabatu; rabat jednorazowy (`once`) nie obniża MRR.
+   */
+  discount?: { minorPerPeriod: number; endsAt: string | null } | null;
+  /**
+   * Ankieta rezygnacji z portalu operatora (`cancellation_details`) - P01:
+   * klient anulujący poza naszym dialogiem też zostawia powód.
+   */
+  cancellationFeedback?: { feedback: string | null; comment: string | null } | null;
   items: Array<{
     quantity?: number;
     /** Koniec okresu próbnego dla pozycji (operator podaje go per pozycja). */
@@ -408,8 +420,10 @@ async function authoritativeSubscription(
   let remote: unknown;
   try {
     const stripe = await getStripeClient(env);
+    // `discounts` rozwinięte: odczyt autorytatywny niesie wtedy pełną migawkę
+    // rabatu dla księgi MRR (zdarzenie ma same identyfikatory `di_…`).
     remote = await stripe.subscriptions.retrieve(subscriptionId, {
-      expand: ["items.data.price.product"],
+      expand: ["items.data.price.product", "discounts"],
     });
   } catch (err) {
     if (isResourceMissing(err)) {
@@ -423,6 +437,44 @@ async function authoritativeSubscription(
   }
   const { mapStripeSubscription } = await import("@/lib/billing/stripeEvents.server");
   return mapStripeSubscription(remote as Record<string, unknown>);
+}
+
+/** Kolumny migawki ceny i rabatu (`subscriptions`, I0) zapisywane przez webhook. */
+export type SubscriptionPriceSnapshot = Pick<
+  Database["public"]["Tables"]["subscriptions"]["Update"],
+  "unit_amount_minor" | "currency" | "discount_minor_per_period" | "discount_ends_at"
+>;
+
+/**
+ * Migawka ceny operatora dla księgi MRR (S2, D-05: podstawa `provider`).
+ *
+ * Kwota jednej sztuki i waluta z PIERWSZEJ pozycji (ta sama, z której
+ * `readIds` bierze cenę); cena schodkowa nie niesie kwoty - `null`, a księga
+ * liczy wtedy MRR z katalogu (podstawa `catalog`). Rabat tylko wtedy, gdy
+ * ładunek go zna (`discount !== undefined`) - inaczej kolumny rabatu nie
+ * trafiają do zapisu i zostaje ostatnia znana wartość. Wyłącznie kolumny
+ * istniejące w `types.ts` (PostgREST odrzuca nieznane - test pilnuje).
+ */
+export function subscriptionPriceSnapshot(data: SubscriptionData): SubscriptionPriceSnapshot {
+  const price = data.items?.[0]?.price;
+  const unitAmount =
+    typeof price?.unitAmount === "number" && Number.isSafeInteger(price.unitAmount)
+      ? price.unitAmount
+      : null;
+  const currency =
+    typeof price?.currency === "string" && /^[A-Za-z]{3}$/.test(price.currency)
+      ? price.currency.toUpperCase()
+      : null;
+  return {
+    unit_amount_minor: unitAmount,
+    currency,
+    ...(data.discount === undefined
+      ? {}
+      : {
+          discount_minor_per_period: Math.max(0, Math.trunc(data.discount?.minorPerPeriod ?? 0)),
+          discount_ends_at: data.discount?.endsAt ?? null,
+        }),
+  };
 }
 
 /**
@@ -469,6 +521,9 @@ function subscriptionRowFrom(data: SubscriptionData, env: StripeEnv, stamp: stri
       pause_collection_behavior: data.pauseCollection?.behavior ?? null,
       first_payment_failed_at: firstPaymentFailedAt,
       environment: env,
+      // Migawka ceny i rabatu dla księgi MRR (S2) - kwota, na której
+      // subskrypcja JEST u operatora, nie cena planu z katalogu.
+      ...subscriptionPriceSnapshot(data),
       updated_at: new Date().toISOString(),
     },
   };
@@ -1295,6 +1350,67 @@ async function createSubscription(
  *
  * @returns `false`, gdy nowsze zdarzenie przejęło wiersz w trakcie skutków.
  */
+/** Okno, w którym istniejący wpis rezygnacji tej subskrypcji wyklucza drugi. */
+const PROVIDER_FEEDBACK_DEDUPE_DAYS = 30;
+
+/**
+ * Ankieta rezygnacji z PORTALU OPERATORA -> `retention_feedback` (S2, P01).
+ *
+ * Klient, który anulował w portalu Stripe (poza naszym dialogiem), też
+ * zostawia powód (`cancellation_details.feedback` + komentarz) - dawniej
+ * ginął. Wpis tylko wtedy, gdy ta subskrypcja nie ma już wpisu `canceled`
+ * z ostatnich 30 dni (nasz dialog albo ponowienie zdarzenia) - jedna
+ * rezygnacja = jeden wiersz. Best-effort: awaria NIE przerywa obsługi
+ * zdarzenia (stan subskrypcji i dostęp są ważniejsze od ankiety).
+ */
+export async function recordProviderCancellationFeedback(
+  data: SubscriptionData,
+  env: StripeEnv,
+): Promise<void> {
+  const feedback = data.cancellationFeedback;
+  if (!feedback) return;
+  try {
+    const supabase = await admin();
+    const { data: row, error } = await supabase
+      .from("subscriptions")
+      .select("id, tenant_id, user_id")
+      .eq("provider_subscription_id", data.id)
+      .eq("environment", env)
+      .maybeSingle();
+    if (error || !row?.user_id) return;
+    const since = new Date(Date.now() - PROVIDER_FEEDBACK_DEDUPE_DAYS * 86_400_000).toISOString();
+    const { data: prior, error: priorErr } = await supabase
+      .from("retention_feedback")
+      .select("id")
+      .eq("tenant_id", row.tenant_id)
+      .eq("subscription_id", row.id)
+      .eq("outcome", "canceled")
+      .gte("created_at", since)
+      .limit(1);
+    if (priorErr || (prior?.length ?? 0) > 0) return;
+    // Komentarz w całości (kolumna bez limitu) - przycięcie zgubiłoby treść
+    // skargi, a to ona mówi, co naprawić.
+    const comment = feedback.comment?.trim() ?? null;
+    const { error: insertErr } = await supabase.from("retention_feedback").insert({
+      tenant_id: row.tenant_id,
+      user_id: row.user_id,
+      subscription_id: row.id,
+      outcome: "canceled",
+      flow_started_at: new Date().toISOString(),
+      // Kod operatora (`too_expensive`, `unused`, …) z prefiksem źródła -
+      // odróżnia powód z portalu od powodu z naszego katalogu.
+      reason_label: `stripe:${feedback.feedback ?? "other"}`,
+      reason_id: null,
+      comment: comment || null,
+      offer_shown: false,
+      offer_accepted: false,
+    });
+    if (insertErr) console.error("[payments] provider cancellation feedback", insertErr.message);
+  } catch (err) {
+    console.error("[payments] provider cancellation feedback", errorText(err));
+  }
+}
+
 async function handleUpdated(
   data: SubscriptionData,
   env: StripeEnv,
@@ -1354,6 +1470,7 @@ async function handleUpdated(
     firstPaymentFailedAt,
   });
   const cancelAtPeriodEnd = data.scheduledChange?.action === "cancel";
+  if (grantsAccess && cancelAtPeriodEnd) await recordProviderCancellationFeedback(data, env);
 
   // Zdarzenie piaskownicy na produkcji: wyłącznie ślad księgowy niżej -
   // karta testowa nie rusza miejsc zespołu, uprawnień, CRM ani maili.
@@ -1390,6 +1507,9 @@ async function handleUpdated(
       // Pauza poboru: sposób wznowienia zależy od tego, czym ją ustawiono.
       pause_collection_behavior: data.pauseCollection?.behavior ?? null,
       first_payment_failed_at: firstPaymentFailedAt,
+      // Migawka ceny i rabatu (S2): zmiana kwoty u operatora (przecena,
+      // rabat retencyjny) to ruch `expansion`/`contraction` w księdze.
+      ...subscriptionPriceSnapshot(data),
       updated_at: new Date().toISOString(),
     },
     "subscriptions update failed",
@@ -1577,6 +1697,7 @@ async function handleCanceled(
 
   const row = existing as CancellationRow | null;
   const access = cancellationAccess(row, data);
+  if (grantsAccess) await recordProviderCancellationFeedback(data, env);
 
   if (grantsAccess && row?.user_id && row.price_id) {
     // Plan Zespół: rezygnacja wstrzymuje organizację od razu (miejsca zostają,
@@ -1997,6 +2118,25 @@ async function handleTransaction(
   const dunning = await import("@/lib/billing/dunning.server");
   if (kind === "failed") await dunning.applyPaymentFailedEffects(ctx);
   else await dunning.applyPaymentRecoveredEffects(ctx);
+  // Mail „subskrypcja odnowiona" (P12) - wyłącznie za fakturę CYKLU (nie
+  // za dopłatę do zmiany planu) i tylko tam, gdzie zdarzenie daje realny
+  // skutek (produkcja: `live`). Fail-soft: nadawca nigdy nie rzuca.
+  if (
+    kind === "paid" &&
+    data.billingReason === "subscription_cycle" &&
+    data.subscriptionId &&
+    environmentGrantsAccess(env)
+  ) {
+    const { notifySubscriptionRenewed } = await import("@/lib/billing/notifications.server");
+    await notifySubscriptionRenewed({
+      providerSubscriptionId: data.subscriptionId,
+      environment: env,
+      invoiceId: data.id,
+      amountCents: ctx.amountCents,
+      currency: ctx.currency,
+      periodEnd: data.billingPeriod?.endsAt ?? null,
+    });
+  }
   return { path: "subscription", source };
 }
 

@@ -179,6 +179,9 @@ function accessLastsUntilPeriodEnd(row: SubRow, periodEnd: string, now: Date): b
   return accessUntil === null || Date.parse(accessUntil) >= Date.parse(periodEnd);
 }
 
+/** Statusy bez przypomnienia: windykacja zakończona bez zapłaty (P11). */
+const NO_REMINDER_STATUSES: ReadonlySet<string> = new Set(["unpaid", "incomplete_expired"]);
+
 /**
  * Wysyła przypomnienia dla subskrypcji kończących okres za `leadDays` dni.
  * Fail-soft per rekord: błąd jednego odbiorcy nie przerywa całego przebiegu.
@@ -222,6 +225,11 @@ export async function runBillingReminders(
         skipped += 1;
         continue;
       }
+      // P11 (S2): stan windykacji zakończonej bez zapłaty (`unpaid`,
+      // `incomplete_expired`) nie ma ani odnowienia, ani „końca okresu" do
+      // zapowiedzenia - dostęp zgasł z karencją. Zapytanie ich nie wybiera;
+      // warunek tu chroni przed poszerzeniem listy statusów w odczycie.
+      if (NO_REMINDER_STATUSES.has(row.status)) continue;
       const ending = row.status === "canceled" || row.cancel_at_period_end === true;
       if (ending && !accessLastsUntilPeriodEnd(row, periodEnd, now)) continue;
       try {

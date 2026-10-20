@@ -66,6 +66,8 @@ import {
   type CompanySort,
   type CompanyViewConfig,
 } from "@/lib/crm/companyViews";
+import { crmKeys } from "@/lib/crm/keys";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 type CompanyRow = {
   id: string;
@@ -86,9 +88,12 @@ type CompanyRow = {
 };
 
 export const Route = createFileRoute("/admin/companies/")({
-  head: () => ({
-    meta: [{ title: "Firmy CRM | Admin" }, { name: "robots", content: "noindex" }],
-  }),
+  // D14: tytuł sekcji zamiast generycznego „Admin".
+  head: () =>
+    adminPageHead(
+      "Firmy CRM",
+      "Kartoteka firm CRM: kontakty, właściciele, zapisane widoki i synchronizacja z członkostwem organizacji.",
+    ),
   validateSearch: (search: Record<string, unknown>): { company?: string; view?: string } => {
     const company =
       typeof search.company === "string" && /^[0-9a-f-]{36}$/i.test(search.company)
@@ -201,7 +206,7 @@ function AdminCompaniesPage() {
   };
 
   const companiesQuery = useQuery({
-    queryKey: ["admin", "crm-companies", search],
+    queryKey: crmKeys.companiesList(search),
     queryFn: async () => {
       const res = await listFn({ data: { search: search || undefined, limit: 200 } });
       return JSON.parse(res.json) as CompanyRow[];
@@ -302,7 +307,7 @@ function AdminCompaniesPage() {
     onSuccess: async () => {
       toast.success(t("Zapisano zmiany", "Changes saved"));
       setSelected(new Set());
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -315,7 +320,7 @@ function AdminCompaniesPage() {
     onSuccess: async () => {
       toast.success(t("Usunięto firmy", "Companies deleted"));
       setSelected(new Set());
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
     },
     onError: (e: Error) => toast.error(e.message),
   });

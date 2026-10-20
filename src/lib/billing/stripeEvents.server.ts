@@ -154,6 +154,72 @@ function scheduledCancelDate(sub: Raw): number | null {
   return typeof at === "number" && Number.isFinite(at) && at > 0 ? at : null;
 }
 
+/** Kupon rabatu: pole `coupon` (starsze API) albo `source.coupon` (nowsze). */
+function couponOf(discount: Raw): Raw | null | "unexpanded" {
+  const source = isRecord(discount.source) ? discount.source : null;
+  const coupon = discount.coupon ?? source?.coupon;
+  if (typeof coupon === "string") return "unexpanded";
+  return isRecord(coupon) ? coupon : null;
+}
+
+/**
+ * Rabat CYKLICZNY na okres dla migawki księgi MRR (S2).
+ *
+ * `undefined` = nie wiadomo (ładunek niesie same identyfikatory `di_…` -
+ * zdarzenie Stripe nie rozwija rabatów); wtedy zapis NIE nadpisuje kolumn.
+ * Rabat `once` obniża tylko jedną fakturę, więc nie jest częścią MRR.
+ * Kwota: suma `amount_off` (w walucie ceny) i `percent_off` od ceny × ilość,
+ * nie więcej niż kwota okresu. Koniec: najwcześniejszy `end` rabatów
+ * ograniczonych w czasie; rabat bez końca (`forever`) daje `null`.
+ */
+export function mapSubscriptionDiscount(
+  sub: Raw,
+  base: { unitAmount: number; quantity: number; currency: string } | null,
+): SubscriptionData["discount"] {
+  const raw = Array.isArray(sub.discounts)
+    ? sub.discounts
+    : sub.discount !== undefined && sub.discount !== null
+      ? [sub.discount]
+      : [];
+  if (raw.length === 0)
+    return Array.isArray(sub.discounts) || sub.discount === null ? null : undefined;
+  if (!base) return undefined;
+  const gross = base.unitAmount * Math.max(1, base.quantity);
+  let minor = 0;
+  let endsAt: string | null = null;
+  let bounded = true;
+  let any = false;
+  for (const entry of raw) {
+    if (!isRecord(entry)) return undefined;
+    const coupon = couponOf(entry);
+    if (coupon === "unexpanded" || coupon === null) return undefined;
+    if (coupon.duration === "once") continue;
+    any = true;
+    if (typeof coupon.amount_off === "number") {
+      const currency = strOf(coupon.currency)?.toUpperCase();
+      if (currency !== base.currency) return undefined;
+      minor += coupon.amount_off;
+    } else if (typeof coupon.percent_off === "number") {
+      minor += Math.round((gross * coupon.percent_off) / 100);
+    } else {
+      return undefined;
+    }
+    const end = isoFromUnix(entry.end);
+    if (!end) bounded = false;
+    else if (endsAt === null || end < endsAt) endsAt = end;
+  }
+  if (!any) return null;
+  return { minorPerPeriod: Math.min(minor, gross), endsAt: bounded ? endsAt : null };
+}
+
+/** Ankieta rezygnacji z portalu operatora (`cancellation_details`). */
+function mapCancellationFeedback(sub: Raw): SubscriptionData["cancellationFeedback"] {
+  const details = isRecord(sub.cancellation_details) ? sub.cancellation_details : null;
+  const feedback = strOf(details?.feedback);
+  const comment = strOf(details?.comment);
+  return feedback || comment ? { feedback, comment } : undefined;
+}
+
 /** Mapuje obiekt subskrypcji Stripe (API Basil) na `SubscriptionData`. */
 export function mapStripeSubscription(sub: Raw): SubscriptionData {
   const items = mapSubscriptionItems(sub);
@@ -194,7 +260,21 @@ export function mapStripeSubscription(sub: Raw): SubscriptionData {
     // rezygnacja zostawia opłacony okres, koniec windykacji - tylko karencję.
     cancellationReason: strOf(cancellation?.reason) ?? undefined,
     pauseCollection,
+    discount: mapSubscriptionDiscount(sub, priceBase(items)),
+    cancellationFeedback: mapCancellationFeedback(sub),
     items,
+  };
+}
+
+function priceBase(
+  items: SubscriptionData["items"],
+): { unitAmount: number; quantity: number; currency: string } | null {
+  const first = items[0];
+  if (!first || typeof first.price.unitAmount !== "number" || !first.price.currency) return null;
+  return {
+    unitAmount: first.price.unitAmount,
+    quantity: first.quantity ?? 1,
+    currency: first.price.currency,
   };
 }
 

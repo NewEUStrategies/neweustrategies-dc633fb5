@@ -32,4 +32,6 @@ export const crmKeys = {
   companies: () => ["admin", "crm-companies"] as const,
   companiesList: (search: string) => ["admin", "crm-companies", search] as const,
   partnerEndpoints: () => ["admin", "crm-partner-endpoints"] as const,
+  /** Zespół CRM (picker właściciela, osoba w akcjach przepisów, podpis w historii etapów). */
+  staffUsers: () => ["crm-staff-users"] as const,
 } as const;

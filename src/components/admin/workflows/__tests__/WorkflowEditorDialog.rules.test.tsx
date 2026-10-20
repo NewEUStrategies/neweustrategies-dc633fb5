@@ -13,10 +13,29 @@
 import "@/lib/i18n-admin-workflows";
 import i18n from "@/lib/i18n";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DOMAIN_EVENT_TYPES } from "@/lib/realtime/domainEvents";
 import type { WorkflowDraft } from "@/lib/admin/workflows";
 import { WorkflowEditorDialog } from "../WorkflowEditorDialog";
+
+// Pola osoby z zespołu (assign_owner, create_crm_task) czytają listę zespołu
+// przez React Query - test podaje klienta i atrapę serwerowej listy.
+vi.mock("@/lib/crm.functions", () => ({
+  listStaffUsers: async () => ({
+    json: JSON.stringify([
+      { id: "11111111-1111-4111-8111-111111111111", display_name: "Anna Admin" },
+    ]),
+  }),
+}));
+
+function QueryWrapper({ children }: { children: ReactNode }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 const t = i18n.getFixedT("pl");
 const KNOWN_EVENT = DOMAIN_EVENT_TYPES[0];
@@ -44,6 +63,7 @@ function open(over: Partial<WorkflowDraft> = {}, props: Partial<{ saving: boolea
       onClose={onClose}
       onSave={onSave}
     />,
+    { wrapper: QueryWrapper },
   );
   return { onSave, onClose, view };
 }

@@ -71,6 +71,9 @@ vi.mock("sonner", () => ({
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ i18n: { language: h.lang }, t: (k: string) => k }),
+  // Nakładki słownikowe (np. cykl życia CRM, S4) rejestrują się przy imporcie
+  // przez `@/lib/i18n`, który woła `use(initReactI18next)`.
+  initReactI18next: { type: "3rdParty", init: () => {} },
 }));
 
 import { Route } from "@/routes/admin.crm.$id";
@@ -148,7 +151,8 @@ afterEach(() => cleanup());
 describe("karta osoby CRM", () => {
   it("panel nie idzie do indeksu wyszukiwarek", async () => {
     const view = await mount();
-    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex" });
+    // D14 (S4): sekcyjne `adminPageHead` - ani indeks, ani śledzenie linków.
+    expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 
   it("identyfikator ze ścieżki trafia do zapytania o kartę", async () => {
@@ -284,7 +288,7 @@ describe("karta osoby CRM", () => {
 
   it("zmiana etapu w selektorze idzie na serwer od razu", async () => {
     await mount();
-    const trigger = await screen.findByRole("combobox");
+    const trigger = await screen.findByRole("combobox", { name: "Etap sprzedaży" });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(await screen.findByRole("option", { name: "Kwalifikowany" }));
     await waitFor(() => expect(h.updated).toEqual([{ data: { id: LEAD_ID, stage: "qualified" } }]));

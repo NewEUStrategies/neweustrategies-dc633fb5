@@ -21,6 +21,8 @@ import {
   type CrmTaskRow,
 } from "@/lib/crm-tasks.functions";
 import { defaultDueDate, formatDue as formatDueAt, isOverdue } from "@/lib/crm/tasksView";
+import { crmKeys } from "@/lib/crm/keys";
+import { crmLifecycleDict } from "@/components/admin/crm/crmLifecycleLabels";
 
 const TXT = {
   pl: {
@@ -73,7 +75,7 @@ export function LeadTasksPanel({
   const [due, setDue] = useState(defaultDueDate);
 
   const tasksQ = useQuery({
-    queryKey: ["crm-tasks", "lead", leadId],
+    queryKey: crmKeys.tasksForLead(leadId),
     queryFn: async () => {
       const r = await listCrmLeadTasks({ data: { lead_id: leadId } });
       return JSON.parse((r as { json: string }).json) as CrmTaskRow[];
@@ -81,9 +83,9 @@ export function LeadTasksPanel({
   });
 
   const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["crm-tasks"] });
-    void qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
-    void qc.invalidateQueries({ queryKey: ["crm-leads"] });
+    void qc.invalidateQueries({ queryKey: crmKeys.tasksAll() });
+    void qc.invalidateQueries({ queryKey: crmKeys.lead(leadId) });
+    void qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
   };
 
   const createMut = useMutation({
@@ -279,6 +281,16 @@ function TaskGroup({
                       {overdue ? ` · ${overdueLabel}` : ""}
                     </span>
                     {task.reminded_at && <span>· {remindedLabel}</span>}
+                    {/* Zadanie z automatu (przepis, ścieżka, billing) - handlowiec
+                        widzi, skąd się wzięło, zanim je zamknie albo usunie. */}
+                    {task.source && task.source !== "manual" && (
+                      <span data-testid="task-source">
+                        ·{" "}
+                        {(crmLifecycleDict(lang).historySources as Record<string, string>)[
+                          task.source
+                        ] ?? task.source}
+                      </span>
+                    )}
                   </div>
                   {task.note && (
                     <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap">

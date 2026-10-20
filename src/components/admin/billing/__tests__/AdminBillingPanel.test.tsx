@@ -23,6 +23,7 @@ import { onlineManager } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, supabaseFromStub } from "@/test/billing/fixtures";
 import { uiLocale } from "@/lib/i18n/format";
+import { formatMoney } from "@/lib/billing/types";
 
 interface AdminSubscriptionRow {
   id: string;
@@ -56,6 +57,11 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   resendProps: [] as Array<{ userId: string; environment: string }>,
   chain: null as ReturnType<typeof import("@/test/supabaseChain").supabaseFromStub> | null,
+  /** Odczyty huba (S2): most MRR i windykacja - ta sama RPC co hub. */
+  bridge: { current: null as unknown },
+  dunning: { current: null as unknown },
+  bridgeCalls: [] as unknown[],
+  provenance: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("react-i18next", async () => {
@@ -64,6 +70,35 @@ vi.mock("react-i18next", async () => {
 });
 
 vi.mock("@/lib/i18n-admin-billing", () => ({}));
+vi.mock("@/lib/i18n-admin-revenue-finance", () => ({ ensureI18n: () => {} }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ tenantId: "tenant-1", roles: ["admin"] }) }));
+vi.mock("@/components/admin/revenue/atoms/ProvenanceNote", () => ({
+  ProvenanceNote: (props: Record<string, unknown>) => {
+    h.provenance.push(props);
+    return <span data-testid="provenance" />;
+  },
+}));
+// KPI panelu = odczyty huba (S2, P10): server fns finansów jako atrapy, a
+// `queryOptions` z `finance/queries.ts` PRAWDZIWE - ten sam klucz co hub.
+vi.mock("@/lib/revenue/finance/finance.functions", () => {
+  const unavailable = () => Promise.resolve({ state: "unavailable" });
+  return {
+    getRevenueMrrBridge: (arg: unknown) => {
+      h.bridgeCalls.push(arg);
+      return Promise.resolve(h.bridge.current);
+    },
+    getRevenueDunning: () => Promise.resolve(h.dunning.current),
+    getRevenueMrrSeries: unavailable,
+    getRevenueChurn: unavailable,
+    getRevenueCohorts: unavailable,
+    getRevenueRealized: unavailable,
+    getRevenueRetentionOffers: unavailable,
+    getRevenueOfferMatrix: unavailable,
+    getRevenueInputs: unavailable,
+    getRevenueEconomics: unavailable,
+    saveRevenueInput: unavailable,
+  };
+});
 
 vi.mock("@/components/ui/tabs", async () => {
   const react = await import("react");
@@ -150,11 +185,66 @@ function subscription(overrides: Partial<AdminSubscriptionRow> = {}): AdminSubsc
   };
 }
 
+/** Wiersz waluty mostu MRR (DTO po parserze). */
+function money(currency: string, endMinor: number) {
+  return {
+    currency,
+    startMinor: endMinor,
+    openingMinor: 0,
+    newMinor: 0,
+    expansionMinor: 0,
+    reactivationMinor: 0,
+    contractionMinor: 0,
+    churnMinor: 0,
+    endMinor,
+    netNewMinor: 0,
+    activeSubscriptions: 1,
+    activeCustomers: 1,
+    residualMinor: 0,
+    reconciled: true,
+  };
+}
+
+function bridgeRead(over: { activeSubscriptions?: number; currencies?: unknown[] | null } = {}) {
+  return {
+    state: "ready",
+    data: {
+      since: "2026-08-01T00:00:00+00:00",
+      until: "2026-08-18T10:00:00+00:00",
+      segment: "all",
+      dataSince: "2026-07-01T10:00:00+00:00",
+      basisMix: { provider: 0.75, catalog: 0.25 },
+      currencies: over.currencies === undefined ? [] : over.currencies,
+      activeSubscriptions: over.activeSubscriptions ?? 0,
+      activeCustomers: over.activeSubscriptions ?? 0,
+    },
+  };
+}
+
+function dunningRead(open: number) {
+  return {
+    state: "ready",
+    data: {
+      since: "2026-08-01T00:00:00+00:00",
+      until: "2026-08-18T10:00:00+00:00",
+      started: 0,
+      recovered: 0,
+      lost: 0,
+      open,
+      recoveryRate: null,
+      medianDaysToRecover: null,
+      atRisk: [],
+      recoveredMrr: [],
+      lostMrr: [],
+    },
+  };
+}
+
 const render = () => renderWithQueryClient(<AdminBillingPanel />);
 const awaitRows = () =>
   waitFor(() => expect(document.querySelectorAll("tbody tr").length).toBeGreaterThan(0));
 
-/** Trzy liczniki na górze - w kolejności: aktywne, windykacja, anulowania. */
+/** Liczniki na górze - w kolejności: aktywne, MRR, windykacja, anulowania. */
 const counters = (): string[] =>
   Array.from(document.querySelectorAll(".text-2xl")).map((node) => node.textContent ?? "");
 
@@ -178,6 +268,10 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.resendProps.length = 0;
+  h.bridgeCalls.length = 0;
+  h.provenance.length = 0;
+  h.bridge.current = bridgeRead({ activeSubscriptions: 1, currencies: [money("PLN", 3900)] });
+  h.dunning.current = dunningRead(0);
   h.chain = supabaseFromStub();
   h.chain.setResponse("subscriptions", () =>
     h.subsError.current
@@ -193,79 +287,129 @@ afterEach(() => {
   onlineManager.setOnline(true);
 });
 
-describe("AdminBillingPanel - trzy liczniki na górze", () => {
-  it("AKTYWNE liczy `active` i `trialing`, nic więcej", async () => {
-    h.subs.current = [
-      subscription({ id: "a", status: "active" }),
-      subscription({ id: "b", status: "trialing" }),
-      subscription({ id: "c", status: "canceled" }),
-      subscription({ id: "d", status: "past_due" }),
-    ];
+describe("AdminBillingPanel - liczniki z RPC huba (P10, br.04 D8)", () => {
+  // Liczniki „aktywne" i „MRR" to most MRR huba, „nieudane płatności" -
+  // otwarte cykle windykacji huba: ta sama RPC i ten sam klucz cache, więc
+  // /admin/billing i /admin/revenue pokazują te same liczby. Dawniej liczone
+  // z próbki 500 wierszy listy, z kluczem bez najemcy.
+  it("AKTYWNE = `activeSubscriptions` mostu MRR, nie próbka listy", async () => {
+    h.subs.current = [subscription({ id: "a" }), subscription({ id: "b", status: "canceled" })];
+    h.bridge.current = bridgeRead({ activeSubscriptions: 7, currencies: [money("PLN", 3900)] });
     render();
 
+    await waitFor(() => expect(counters()[0]).toBe("7"));
+    expect(counters()).toHaveLength(4);
+  });
+
+  it("most czytany oknem BIEŻĄCEGO MIESIĄCA hubu, bez segmentu i bez najemcy w parametrach", async () => {
+    render();
+    await waitFor(() => expect(h.bridgeCalls).toHaveLength(1));
+    const call = h.bridgeCalls[0] as { data: Record<string, unknown> };
+    expect(Object.keys(call.data).sort()).toEqual(["segment", "sinceIso", "untilIso"]);
+    expect(call.data.segment).toBeNull();
+    expect(new Date(call.data.sinceIso as string).getDate()).toBe(1);
+  });
+
+  it("MRR pokazuje koniec mostu PER WALUTA, nigdy sumy walut", async () => {
+    h.bridge.current = bridgeRead({
+      activeSubscriptions: 3,
+      currencies: [money("PLN", 12_345), money("EUR", 500)],
+    });
+    render();
+
+    await waitFor(() => expect(counters()[1]).toContain(formatMoney(12_345, "PLN", "pl")));
+    expect(counters()[1]).toContain(formatMoney(500, "EUR", "pl"));
+  });
+
+  it("księga nie zna okna (`currencies: null`): kreska, nie zero", async () => {
+    h.bridge.current = bridgeRead({ activeSubscriptions: 2, currencies: null });
+    render();
     await waitFor(() => expect(counters()[0]).toBe("2"));
-    expect(counters()).toHaveLength(3);
+    expect(counters()[1]).toBe("-");
   });
 
-  it("WINDYKACJA liczy subskrypcje z niezerowym licznikiem nieudanych płatności", async () => {
-    h.subs.current = [
-      subscription({ id: "a", payment_failure_count: 0 }),
-      subscription({ id: "b", payment_failure_count: 1 }),
-      subscription({ id: "c", payment_failure_count: 3 }),
-    ];
+  it("NIEUDANE PŁATNOŚCI = otwarte cykle windykacji z RPC", async () => {
+    h.dunning.current = dunningRead(2);
     render();
-
-    await waitFor(() => expect(counters()[1]).toBe("2"));
+    await waitFor(() => expect(counters()[2]).toBe("2"));
   });
 
-  it("ODEJŚCIA W KOLEJCE liczą zaplanowane anulowania", async () => {
+  it("ODEJŚCIA W KOLEJCE liczą zaplanowane anulowania z listy", async () => {
     h.subs.current = [
       subscription({ id: "a", cancel_at_period_end: true }),
       subscription({ id: "b", cancel_at_period_end: false }),
     ];
     render();
 
-    await waitFor(() => expect(counters()[2]).toBe("1"));
+    await waitFor(() => expect(counters()[3]).toBe("1"));
   });
 
-  it("brak subskrypcji daje trzy zera i komunikat, nie pustą tabelę", async () => {
+  it("lista ucięta limitem: odejścia jako „co najmniej”, nie pełna liczba", async () => {
+    h.subs.current = Array.from({ length: 500 }, (_, i) =>
+      subscription({ id: `s${i}`, cancel_at_period_end: i < 3 }),
+    );
+    render();
+    await waitFor(() => expect(counters()[3]).toBe("≥ 3"));
+  });
+
+  it("brak subskrypcji daje zera i komunikat, nie pustą tabelę", async () => {
     h.subs.current = [];
+    h.bridge.current = bridgeRead({ activeSubscriptions: 0, currencies: [] });
     render();
 
     await waitFor(() => expect(screen.getByText("adminBilling.subscriptionsYet")).toBeTruthy());
-    expect(counters()).toEqual(["0", "0", "0"]);
+    await waitFor(() => expect(counters()).toEqual(["0", "0", "0", "0"]));
+  });
+
+  it("rola bez kwot (42501 z RPC): kreski i komunikat roli zamiast zer", async () => {
+    h.bridge.current = { state: "forbidden" };
+    h.dunning.current = { state: "forbidden" };
+    render();
+    await waitFor(() =>
+      expect(screen.getByText("adminRevenue.finance.state.forbidden")).toBeTruthy(),
+    );
+    expect(counters()[0]).toBe("-");
+    expect(counters()[1]).toBe("-");
+  });
+
+  it("podstawa kwot (D-05) i początek księgi idą do ProvenanceNote", async () => {
+    render();
+    await waitFor(() =>
+      expect(h.provenance.at(-1)).toMatchObject({
+        basisMix: { provider: 0.75, catalog: 0.25 },
+        dataSince: "2026-07-01",
+        environment: "live",
+      }),
+    );
   });
 
   // DEFEKT (2026-10-18): błąd odczytu subskrypcji kończył się komunikatem
-  // „brak subskrypcji" i trzema zerami - test o tym tytule przypinał właśnie
-  // to, czemu tytuł przeczył. Admin widział „nikt nie subskrybuje" przy
-  // nieudanym zapytaniu.
-  it("BŁĄD ODCZYTU nie udaje zerowych liczników ani pustej listy", async () => {
+  // „brak subskrypcji" i zerami. Liczniki z RPC zostają prawdziwe, licznik
+  // z listy - kreska.
+  it("BŁĄD ODCZYTU listy nie udaje zerowych odejść ani pustej listy", async () => {
     h.subsError.current = true;
     render();
 
     expect((await screen.findByRole("alert")).textContent).toBe("permission denied");
     expect(screen.queryByText("adminBilling.subscriptionsYet")).toBeNull();
-    expect(counters()).toEqual(["-", "-", "-"]);
-    // Żaden wiersz nie jest renderowany - panel nie wymyśla stanu.
+    await waitFor(() => expect(counters()[0]).toBe("1"));
+    expect(counters()[3]).toBe("-");
     expect(document.querySelectorAll("tbody tr")).toHaveLength(0);
   });
 
-  // Odczyt wstrzymany bez sieci nie ma `isLoading`, ale nie ma też danych.
-  // Liczniki „0 / 0 / 0" i „brak subskrypcji" byłyby wtedy zmyślone - jak przy
-  // błędzie odczytu: szkielet listy i kreski, dopóki nic nie przeczytano.
   it("odczyt wstrzymany BEZ SIECI: szkielet i kreski, a nie „brak subskrypcji” i zera", async () => {
     onlineManager.setOnline(false);
     render();
 
     await waitFor(() => expect(document.querySelector(".animate-pulse")).toBeTruthy());
     expect(screen.queryByText("adminBilling.subscriptionsYet")).toBeNull();
-    expect(counters()).toEqual(["-", "-", "-"]);
+    expect(counters()).toEqual(["-", "-", "-", "-"]);
     expect(h.chain!.chainsFor("subscriptions")).toHaveLength(0);
 
-    // Po powrocie sieci odczyt rusza sam, a liczniki dostają liczby.
     onlineManager.setOnline(true);
-    await waitFor(() => expect(counters()).toEqual(["1", "0", "0"]));
+    await waitFor(() =>
+      expect(counters()).toEqual(["1", formatMoney(3900, "PLN", "pl"), "0", "0"]),
+    );
     expect(document.querySelector(".animate-pulse")).toBeNull();
   });
 });

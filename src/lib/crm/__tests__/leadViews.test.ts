@@ -8,6 +8,7 @@ import {
   DEFAULT_LEAD_SORT,
   DEFAULT_LEAD_VIEW_CONFIG,
   leadViewToServerParams,
+  migrateLegacyLeadFilter,
   parseLeadViewConfig,
   type LeadViewConfig,
 } from "../leadViews";
@@ -316,5 +317,75 @@ describe("kolumny i widoki wbudowane", () => {
       expect(view.labelEn.length).toBeGreaterThan(0);
       expect(view.config.columns).toContain("name");
     }
+  });
+});
+
+describe("filtry S4: cykl życia, segment, tagi, właściciel (P23)", () => {
+  it("mapują się na parametry listCrmLeads", () => {
+    const params = leadViewToServerParams(
+      {
+        ...DEFAULT_LEAD_VIEW_CONFIG,
+        filter: {
+          ...DEFAULT_LEAD_FILTER,
+          lifecycle: "sql",
+          sourceType: "club_application",
+          tags: ["vip", "webinar"],
+          ownerIds: ["11111111-1111-4111-8111-111111111111"],
+          band: "hot",
+        },
+      },
+      NOW,
+    );
+    expect(params).toMatchObject({
+      lifecycle_stage: "sql",
+      source_type: "club_application",
+      tags: ["vip", "webinar"],
+      owner_ids: ["11111111-1111-4111-8111-111111111111"],
+      band: "hot",
+    });
+  });
+
+  it("puste listy i brak pól nie wysyłają parametrów; filtr jest domyślny", () => {
+    const filter = { ...DEFAULT_LEAD_FILTER, tags: [], ownerIds: [] };
+    expect(isDefaultLeadFilter(filter)).toBe(true);
+    const params = leadViewToServerParams({ ...DEFAULT_LEAD_VIEW_CONFIG, filter }, NOW);
+    expect(params).not.toHaveProperty("tags");
+    expect(params).not.toHaveProperty("owner_ids");
+    expect(isDefaultLeadFilter({ ...DEFAULT_LEAD_FILTER, lifecycle: "lead" })).toBe(false);
+  });
+
+  it("widok zapisany przed S4 (bez nowych pól) wczytuje się bez zmian", () => {
+    const legacy = {
+      columns: ["name", "email"],
+      filter: { stage: "won", band: "any", source: "any" },
+      sort: { key: "created", dir: "asc" },
+    };
+    const config = parseLeadViewConfig(legacy);
+    expect(config.filter.stage).toBe("won");
+    expect(config.filter.lifecycle).toBeUndefined();
+  });
+
+  it('stary filtr źródła przechodzi na segment (heurystyczny „import" był pusty)', () => {
+    expect(migrateLegacyLeadFilter({ ...DEFAULT_LEAD_FILTER, source: "import" })).toEqual({
+      ...DEFAULT_LEAD_FILTER,
+      source: "any",
+      sourceType: "manual",
+    });
+    expect(
+      parseLeadViewConfig({ filter: { ...DEFAULT_LEAD_FILTER, source: "form" } }).filter,
+    ).toMatchObject({ source: "any", sourceType: "contact_form" });
+    // Jawny segment wygrywa - migracja nie nadpisuje świadomego wyboru.
+    expect(
+      migrateLegacyLeadFilter({ ...DEFAULT_LEAD_FILTER, source: "form", sourceType: "speaker" }),
+    ).toMatchObject({ source: "form", sourceType: "speaker" });
+  });
+
+  it("tag ponad 40 znaków i nieznany etap odrzucają widok (bezpieczny domyślny)", () => {
+    expect(
+      parseLeadViewConfig({ filter: { ...DEFAULT_LEAD_FILTER, tags: ["x".repeat(41)] } }),
+    ).toEqual(DEFAULT_LEAD_VIEW_CONFIG);
+    expect(parseLeadViewConfig({ filter: { ...DEFAULT_LEAD_FILTER, lifecycle: "vip" } })).toEqual(
+      DEFAULT_LEAD_VIEW_CONFIG,
+    );
   });
 });

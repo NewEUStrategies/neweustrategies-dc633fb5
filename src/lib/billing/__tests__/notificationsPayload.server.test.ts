@@ -316,14 +316,16 @@ describe("zmiana stanu subskrypcji - zmiana planu", () => {
 });
 
 describe("zmiana stanu subskrypcji - wygaszenie dostępu", () => {
-  it("rezygnacja NIE pokazuje kwoty i prowadzi do cennika, nie do panelu planu", async () => {
+  it("rezygnacja W TRAKCIE okresu: bez kwoty, CTA do planu (wznowienie), nie do cennika", async () => {
     // Kwota w mailu o rezygnacji czyta się jak zapowiedź kolejnego pobrania.
+    // P12: dawny CTA `/cennik` prowadził na trasę, której nie ma.
     givenDb();
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
     await notifySubscriptionEmail({
       kind: "subscription_canceled",
       userId: "user-me",
       planId: PLAN_ID,
-      periodEnd: "2026-09-18T10:00:00.000Z",
+      periodEnd: future,
       amountCents: 4900,
       idempotencySeed: "sub-5",
     });
@@ -332,8 +334,28 @@ describe("zmiana stanu subskrypcji - wygaszenie dostępu", () => {
     const L = labelsOf("subscription_canceled");
     expect(detailLabels(sent)).toEqual([L.plan, L.endsAt]);
     expect(detailValue(sent, L.price)).toBeUndefined();
-    expect(sent.ctaPath).toBe("/cennik");
+    expect(sent.ctaPath).toBe("/profile/plan");
+    expect(sent.ctaLabel).toBeUndefined();
+    expect(sent.bodyVars?.accessEnded).toBe(false);
     expect(sent.bodyVars?.renewsAt).toBeNull();
+    expect(sent.bodyVars?.accessUntil).toBeTruthy();
+  });
+
+  it("rezygnacja PO końcu dostępu: CTA do cennika z etykietą „Zobacz plany”, bez obietnicy wznowienia", async () => {
+    givenDb();
+    await notifySubscriptionEmail({
+      kind: "subscription_canceled",
+      userId: "user-me",
+      planId: PLAN_ID,
+      periodEnd: "2026-09-18T10:00:00.000Z",
+      amountCents: 4900,
+      idempotencySeed: "sub-5b",
+    });
+
+    const sent = onlyMail();
+    expect(sent.ctaPath).toBe("/pricing");
+    expect(sent.ctaLabel).toBe("Zobacz plany");
+    expect(sent.bodyVars?.accessEnded).toBe(true);
     expect(sent.bodyVars?.accessUntil).toContain("2026");
   });
 
