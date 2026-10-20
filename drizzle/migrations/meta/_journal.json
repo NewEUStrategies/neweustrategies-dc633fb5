@@ -2423,6 +2423,13 @@
       "when": 1792427265539,
       "tag": "0345_revenue_offer_inputs_economics",
       "breakpoints": true
+    },
+    {
+      "idx": 346,
+      "version": "7",
+      "when": 1792476373912,
+      "tag": "0346_pr527_deployment_completion",
+      "breakpoints": true
     }
   ]
 }
