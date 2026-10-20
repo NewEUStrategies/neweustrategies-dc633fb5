@@ -678,6 +678,27 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // Atrybuty `data-tour` w komponentach S7/S8 (P2).
     "src/components/admin/revenue/**",
     "src/components/admin/journeys/**",
+    // (Integrator I9a, 2026-10-20 - decyzja właściciela: hub w nawigacji przed
+    // I9). Powłoka panelu podaje nawigacji DOKŁADNE role i `search` skrótów
+    // ⌘K; stan „w przygotowaniu" zakładek (dane, słownik, testy); okno
+    // porzucenia kasy w karcie ustawień kasy (S1) - wspólny predykat
+    // w limitach I0, odczyt i zapis w module S1, serwer kasy S3.
+    "src/components/admin/AdminShell.tsx",
+    "src/components/admin/__tests__/AdminShell.test.tsx",
+    "src/lib/locale/__tests__/coreScopeSurfaces.test.tsx",
+    "src/routes/__tests__/platformPaywallRoute.test.tsx",
+    "src/lib/admin/revenue/tabPreparing.ts",
+    "src/lib/admin/revenue/__tests__/tabPreparing.test.ts",
+    "src/lib/i18n-admin-revenue-preparing.ts",
+    "src/components/admin/paywall/CheckoutSettingsCard.tsx",
+    "src/components/admin/paywall/__tests__/CheckoutSettingsCard.abandon.test.tsx",
+    "src/hooks/useCheckoutSettings.ts",
+    "src/hooks/__tests__/useCheckoutSettings.test.ts",
+    "src/lib/i18n-admin-paywall-sync.ts",
+    "src/lib/revenue/limits.ts",
+    "src/lib/revenue/__tests__/checkoutAbandonMinutes.test.ts",
+    "src/lib/billing/{checkoutSettings,checkoutSettings.server}.ts",
+    "docs/KONTYNUACJA_HUB_PRZYCHOD_LEJEK_2026-10-19.md",
   ],
 };
 

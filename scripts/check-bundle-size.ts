@@ -2448,7 +2448,23 @@ const FROZEN_BUDGET_KB = {
   // każdy z ~700 chunków). Pozostałe progi bez zmian i zielone (chunk 258,1,
   // css 99,7, publicCss 83,8, boot 471,8).
   // Host 4995,6 -> 4996 -> +1.
-  overall: 4997,
+  // Ratchet 4997 -> 5003 (2026-10-20, krok I9a huba „Przychód i lejek”:
+  // nawigacja i widoczność huba w panelu przed I9 - decyzja właściciela
+  // „wszystko, co robimy, ma być w panelu admina”), decyzją zamawiającego
+  // D-08. Baza 848cbf7e (= drzewo końcowe S3) 4995,6 / public 2779,8, po I9a
+  // 5001,8: +6,2 KB, w całości admin-only (+6,8; public -0,7 - entropia
+  // hashy). Rozbicie: leniwy stan „w przygotowaniu” zakładek
+  // (`RevenueTabPreparing` +4,1: słownik PL/EN opisu, etapu i odnośników
+  // jedenastu zakładek, dane `tabPreparing`), powłoka panelu z pozycjami huba
+  // i skrótami ⌘K (`AdminShell` +0,9, `admin` +0,25 - napisy `admin.nav.*`),
+  // `hubTabs` jako wspólny chunk nawigacji i huba (+0,8, -0,4 z
+  // `admin.revenue`), słownik wskaźników S6 w zakładce Wskaźniki (leniwie,
+  // +0,5), okno porzucenia w karcie kasy (`saveErrorToast` +0,5,
+  // `admin.paywall` +0,3, wspólny chunk `limits` +0,4). Arkusze CSS bit
+  // w bit te same (css 99,7, publicCss 83,8); chunk 258,0 i boot 471,8
+  // w zamrożonych progach.
+  // Host 5001,8 -> 5002 -> +1.
+  overall: 5003,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
