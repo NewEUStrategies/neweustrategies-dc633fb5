@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Gauge } from "lucide-react";
 import { getCrmLeadMonthlyMetering } from "@/lib/crm.functions";
 import { meteringUsageView } from "@/lib/crm/meteringUsage";
+import { crmKeys } from "@/lib/crm/keys";
 
 type Props = { leadId: string; lang: "pl" | "en" };
 
@@ -20,7 +21,7 @@ type Usage = {
 export function MeteringUsageCard({ leadId, lang }: Props) {
   const fn = useServerFn(getCrmLeadMonthlyMetering);
   const q = useQuery({
-    queryKey: ["crm-lead-metering", leadId],
+    queryKey: crmKeys.leadMetering(leadId),
     queryFn: async () => {
       const r = (await fn({ data: { id: leadId } })) as { json: string };
       return JSON.parse(r.json) as Usage;

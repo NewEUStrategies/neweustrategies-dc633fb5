@@ -25,6 +25,10 @@ import {
 } from "@/lib/email/suppressionPolicy";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 import { isRepriceLookupKey } from "@/lib/billing/subscriptionRepricing";
+import type { RpcCallable } from "@/lib/revenue/rpcCallable";
+
+/** Klient roli serwisowej (typ; moduł ładowany dynamicznie w funkcjach). */
+type AdminClient = (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
 
 export interface PurchaseContext {
   userId: string;
@@ -302,14 +306,93 @@ async function pushAppNotification(params: {
   }
 }
 
-/** Stan komercyjny kontaktu wynikający ze stanu subskrypcji u operatora. */
-export type CrmSubscriptionState = "customer" | "paused" | "churned";
+/**
+ * Stan komercyjny kontaktu wynikający ze stanu subskrypcji u operatora.
+ *
+ * PAUZA ≠ ODEJŚCIE (P13). Wstrzymana subskrypcja i zaległa płatność to wciąż
+ * klient: etap sprzedaży `won`, cykl życia `customer`, a stan widać po tagu
+ * (`subscription:paused`, `subscription:past_due`). Odejściem jest dopiero
+ * zakończenie subskrypcji (`churned` -> `former_customer`).
+ */
+export type CrmSubscriptionState = "customer" | "paused" | "past_due" | "churned";
 
 const CRM_STAGE_BY_STATE: Record<CrmSubscriptionState, "won" | "archived"> = {
   customer: "won",
   paused: "won",
+  past_due: "won",
   churned: "archived",
 };
+
+/**
+ * Etap cyklu życia ustawiany przez billing (`crm_set_lifecycle_stage(...,
+ * 'billing')`, S4). Etapy klienta należą WYŁĄCZNIE do billingu - strażnik
+ * kolumn huba (Z-06) odrzuca je z każdego innego źródła.
+ */
+export const CRM_LIFECYCLE_BY_STATE: Record<CrmSubscriptionState, "customer" | "former_customer"> =
+  {
+    customer: "customer",
+    paused: "customer",
+    past_due: "customer",
+    churned: "former_customer",
+  };
+
+/**
+ * Ranga segmentu kontaktu - lustro `public._crm_source_type_rank`
+ * (20260926090000; parytet pilnuje test czytający migrację). Zakup podnosi
+ * segment do `paid_subscriber`, ale nigdy go nie obniża.
+ */
+export const CRM_SOURCE_TYPE_RANK: Readonly<Record<string, number>> = {
+  manual: 10,
+  contact_form: 20,
+  newsletter: 20,
+  registered: 30,
+  event_participant: 40,
+  event_cfp: 50,
+  speaker: 60,
+  club_application: 70,
+  careers: 70,
+  expert: 70,
+  paid_subscriber: 90,
+};
+
+/** Czy segment `current` należy podnieść do klienta płacącego. */
+export function shouldRaiseToPaidSubscriber(current: string | null | undefined): boolean {
+  const rank = current ? (CRM_SOURCE_TYPE_RANK[current] ?? 0) : 0;
+  return rank < CRM_SOURCE_TYPE_RANK.paid_subscriber;
+}
+
+/**
+ * Prefiksy `origin_ref` zadań retencyjnych z przepisów (20261020130200):
+ * `retention:cancel_scheduled:<zdarzenie>` i `retention:canceled:<zdarzenie>`.
+ */
+const RETENTION_TASK_PREFIX = "retention:";
+const RETENTION_CANCELED_TASK_PREFIX = "retention:canceled:";
+
+/**
+ * Zamyka (status `cancelled`) otwarte zadania retencyjne leada.
+ *
+ * DLACZEGO. Pauza u operatora zapisuje dostęp jako `canceled`, więc przepis
+ * „anulowanie -> zadanie win-back" odpala się także przy pauzie - handlowiec
+ * dzwonił do klienta, który nie zrezygnował (P13). Pauza zamyka więc zadania
+ * `retention:canceled:*`, a wznowienie / powrót do rozliczeń - wszystkie
+ * zadania retencyjne: klient jest z powrotem, nie ma kogo odzyskiwać.
+ * Anulowane, nie skasowane: historia leada zostaje.
+ */
+async function closeRetentionTasks(
+  admin: AdminClient,
+  tenantId: string,
+  leadId: string,
+  prefix: string,
+): Promise<void> {
+  const { error } = await admin
+    .from("crm_tasks")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("lead_id", leadId)
+    .eq("status", "open")
+    .like("origin_ref", `${prefix}%`);
+  if (error) throw new Error(`crm retention tasks close failed: ${error.message}`);
+}
 
 /**
  * Znacznik w CRM wynikający ze stanu subskrypcji. Nigdy nie rzuca.
@@ -335,7 +418,7 @@ export async function syncCrmSubscriptionState(
 
     const { data: lead, error: leadError } = await supabaseAdmin
       .from("crm_leads")
-      .select("id, tags")
+      .select("id, tags, source_type")
       .eq("tenant_id", profile.tenant_id)
       .eq("email_norm", email)
       .maybeSingle();
@@ -347,46 +430,92 @@ export async function syncCrmSubscriptionState(
     const stateTags: Record<CrmSubscriptionState, string[]> = {
       customer: ["customer", tag],
       paused: ["customer", tag, "subscription:paused"],
+      past_due: ["customer", tag, "subscription:past_due"],
       churned: [tag, "churned"],
     };
     const dropTags: Record<CrmSubscriptionState, string[]> = {
-      customer: ["subscription:paused", "churned"],
-      paused: ["churned"],
-      churned: ["customer", "subscription:paused"],
+      customer: ["subscription:paused", "subscription:past_due", "churned"],
+      paused: ["subscription:past_due", "churned"],
+      past_due: ["subscription:paused", "churned"],
+      churned: ["customer", "subscription:paused", "subscription:past_due"],
     };
 
+    let leadId: string | null = null;
     if (lead) {
+      leadId = lead.id;
       const tags = Array.from(
         new Set([...lead.tags.filter((t) => !dropTags[state].includes(t)), ...stateTags[state]]),
       );
+      const raise =
+        state !== "churned" &&
+        shouldRaiseToPaidSubscriber((lead as { source_type?: string | null }).source_type);
       const { error } = await supabaseAdmin
         .from("crm_leads")
         .update({
           stage: CRM_STAGE_BY_STATE[state],
           tags,
           last_activity_at: new Date().toISOString(),
+          // Zakup podnosi segment (ranga 90), nigdy go nie obniża - lustro
+          // `_crm_source_type_rank`, którym rośnie każdy inny pisarz CRM.
+          ...(raise ? { source_type: "paid_subscriber" } : {}),
         })
         .eq("id", lead.id);
       if (error) throw new Error(`crm lead update failed: ${error.message}`);
     } else {
-      const { error } = await supabaseAdmin.from("crm_leads").insert({
-        tenant_id: profile.tenant_id,
-        email,
-        email_norm: email,
-        first_name: profile.first_name ?? null,
-        last_name: profile.last_name ?? null,
-        stage: CRM_STAGE_BY_STATE[state],
-        // ZBIÓR DOZWOLONYCH WARTOŚCI PILNUJE BAZA (crm_leads_source_type_check).
-        // Było tu "import", którego CHECK nie zna - INSERT dostawał 23514
-        // w `{ error }`, którego nikt nie czytał, więc klient PŁACĄCY BEZ
-        // WCZEŚNIEJSZEGO LEADA nie trafiał do CRM, a log milczał. Kontrakt
-        // wartości pilnuje test `lib/crm/__tests__/leadSourceTypeContract.test.ts`,
-        // a każdy inny odrzucony zapis trafia teraz przez `throw` do `catch`
-        // niżej (log, bez rzutu).
-        source_type: "paid_subscriber",
-        tags: stateTags[state],
-      });
+      const { data: inserted, error } = await supabaseAdmin
+        .from("crm_leads")
+        .insert({
+          tenant_id: profile.tenant_id,
+          email,
+          email_norm: email,
+          first_name: profile.first_name ?? null,
+          last_name: profile.last_name ?? null,
+          stage: CRM_STAGE_BY_STATE[state],
+          // ZBIÓR DOZWOLONYCH WARTOŚCI PILNUJE BAZA (crm_leads_source_type_check).
+          // Było tu "import", którego CHECK nie zna - INSERT dostawał 23514
+          // w `{ error }`, którego nikt nie czytał, więc klient PŁACĄCY BEZ
+          // WCZEŚNIEJSZEGO LEADA nie trafiał do CRM, a log milczał. Kontrakt
+          // wartości pilnuje test `lib/crm/__tests__/leadSourceTypeContract.test.ts`,
+          // a każdy inny odrzucony zapis trafia teraz przez `throw` do `catch`
+          // niżej (log, bez rzutu).
+          source_type: "paid_subscriber",
+          tags: stateTags[state],
+        })
+        .select("id")
+        .maybeSingle();
       if (error) throw new Error(`crm lead insert failed: ${error.message}`);
+      leadId = (inserted as { id?: string } | null)?.id ?? null;
+    }
+
+    if (!leadId) return;
+
+    // Cykl życia: billing jest jedynym pisarzem etapów klienta (Z-06). Nowy
+    // lead powstaje z etapem domyślnym, a etap klienta nadaje RPC - wprost
+    // w INSERT strażnik by go odrzucił (źródło spoza billingu). Powrót
+    // `former_customer` -> `customer` to „cofnięcie" na osi lejka, stąd
+    // `p_allow_backward`.
+    const { error: lifecycleError } = await (supabaseAdmin as unknown as RpcCallable).rpc(
+      "crm_set_lifecycle_stage",
+      {
+        p_lead_id: leadId,
+        p_stage: CRM_LIFECYCLE_BY_STATE[state],
+        p_source: "billing",
+        p_allow_backward: true,
+      },
+    );
+    if (lifecycleError) {
+      throw new Error(`crm lifecycle update failed: ${lifecycleError.message}`);
+    }
+
+    if (state === "paused") {
+      await closeRetentionTasks(
+        supabaseAdmin,
+        profile.tenant_id,
+        leadId,
+        RETENTION_CANCELED_TASK_PREFIX,
+      );
+    } else if (state === "customer") {
+      await closeRetentionTasks(supabaseAdmin, profile.tenant_id, leadId, RETENTION_TASK_PREFIX);
     }
   } catch (err) {
     console.error("[payments] crm sync failed", err);
@@ -1039,7 +1168,9 @@ export async function applyCancellationEffects(ctx: CancellationContext): Promis
       titleEn: "Subscription canceled",
       bodyPl: "Dostęp działa do końca opłaconego okresu. Powiedz nam, co możemy poprawić.",
       bodyEn: "Access remains until the paid period ends. Tell us what we can improve.",
-      href: `${PROFILE_PLAN_PATH}?retention=1`,
+      // Bez `?retention=1`: strona planu nie czyta tego parametru (P12) - link
+      // obiecywał ankietę, której nie było.
+      href: PROFILE_PLAN_PATH,
       icon: "message-circle-question",
       since: ctx.eventAt,
     });
@@ -1107,6 +1238,16 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
         currency: plan.currency,
         idempotencySeed: `${ctx.subscriptionId}:paused:${ctx.periodEnd ?? ""}`,
       });
+    });
+    return;
+  }
+
+  // Zaległa płatność: klient nadal jest klientem, ale handlowiec ma to
+  // widzieć w CRM (P13: `past_due` było niewidoczne). Maile windykacji
+  // wysyła dunning - tu wyłącznie znacznik.
+  if (ctx.status === "past_due") {
+    await announce(ctx.announcements, async () => {
+      await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "past_due");
     });
     return;
   }

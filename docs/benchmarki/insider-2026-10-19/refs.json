@@ -1,0 +1,1665 @@
+{
+  "schema": "nes-insider-refs/2",
+  "refs": [
+    {
+      "kpiId": "ctr_paid",
+      "context": "Meta Ads, kampanie leadowe (USA, dane 2025)",
+      "value": "2,59% średnio",
+      "sourceId": 911,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_paid",
+      "context": "LinkedIn Ads, pojedynczy obraz (2025)",
+      "value": "0,56% mediana",
+      "sourceId": 912,
+      "note": null
+    },
+    {
+      "kpiId": "cpc",
+      "context": "LinkedIn Ads, środek lejka (2025)",
+      "value": "5,90 USD mediana",
+      "sourceId": 912,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "LinkedIn Ads, kampanie zasięgowe (2025)",
+      "value": "31 USD mediana",
+      "sourceId": 912,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "Meta Ads, wszystkie branże (2026)",
+      "value": "7,47 USD średnio",
+      "sourceId": 939,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Strony docelowe, wszystkie branże (IV kw. 2024)",
+      "value": "6,6% mediana",
+      "sourceId": 932,
+      "note": null,
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Konwersja stron docelowych (Unbounce), nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        },
+        {
+          "metricId": "event_registration_conversion",
+          "s6Key": "event_registration_conversion",
+          "status": "odniesienie",
+          "s6Context": "event_registration_conversion.mixed_traffic",
+          "reason": "Ta sama mediana Unbounce 2024 (6,6%) jest kotwicą S6: granica słaby/normalny dla ruchu mieszanego."
+        }
+      ]
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Strony docelowe, SaaS (IV kw. 2024)",
+      "value": "3,8% mediana",
+      "sourceId": 932,
+      "note": null,
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Konwersja stron docelowych SaaS (Unbounce) - inny mianownik i branża (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Strony docelowe, usługi finansowe (IV kw. 2024)",
+      "value": "8,4% mediana",
+      "sourceId": 932,
+      "note": null,
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Konwersja stron docelowych usług finansowych (Unbounce) - inny mianownik i branża (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "cpl",
+      "context": "LinkedIn Ads, reklamy dokumentowe (2025)",
+      "value": "255,81 USD średnio",
+      "sourceId": 913,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 1 (2025)",
+      "value": "39,8% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 2 (2025)",
+      "value": "18,7% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 3 (2025)",
+      "value": "10,2% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 4 (2025)",
+      "value": "7,2% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycja 5 (2025)",
+      "value": "5,1% średnio",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Google, pozycje 6-10 (2025)",
+      "value": "od 4,4% do 1,6%",
+      "sourceId": 920,
+      "note": null
+    },
+    {
+      "kpiId": "deliverability",
+      "context": "Skrzynki odbiorcze, globalnie, 2025",
+      "value": "87,2% wiadomości w skrzynce głównej",
+      "sourceId": 915,
+      "note": "to wskaźnik umieszczenia w skrzynce (inbox placement), nie dostarczenia",
+      "hub": {
+        "metricId": null,
+        "s6Key": "inbox_placement_rate",
+        "status": "odniesienie",
+        "s6Context": "inbox_placement_rate.global_mixed",
+        "reason": "Według noty Insidera to umieszczenie w skrzynce (inbox placement), nie dostarczalność; 87,2% = S6 global_mixed normalny."
+      },
+      "hubAlso": [
+        {
+          "metricId": "email_soft_bounce_rate",
+          "s6Key": "soft_bounce_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Nie dotyczy odbić miękkich; S6 soft_bounce_rate ma własne pasma (heurystyka DeBounce)."
+        }
+      ]
+    },
+    {
+      "kpiId": "deliverability",
+      "context": "Skargi na spam",
+      "value": "zalecane poniżej 0,1%",
+      "sourceId": 916,
+      "note": null,
+      "hub": {
+        "metricId": "email_spam_complaint_rate",
+        "s6Key": "spam_complaint_rate",
+        "status": "odniesienie",
+        "s6Context": "spam_complaint_rate.mailbox_provider",
+        "reason": "Próg 0,1% = granica S6 słaby/normalny (wymaganie Google)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "email_soft_bounce_rate",
+          "s6Key": "soft_bounce_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Nie dotyczy odbić miękkich; S6 soft_bounce_rate ma własne pasma (heurystyka DeBounce)."
+        }
+      ]
+    },
+    {
+      "kpiId": "stage_conv",
+      "context": "B2B SaaS, MQL → SQL",
+      "value": "13% średnio",
+      "sourceId": 922,
+      "note": null,
+      "hub": {
+        "metricId": "mql_to_sql_rate",
+        "s6Key": "mql_to_sql_rate",
+        "status": "odniesienie",
+        "s6Context": "mql_to_sql_rate.broad_mql",
+        "reason": "Mediana First Page Sage dla B2B SaaS (przez Understory, C) - ta sama liczba jest w metodzie S6; = S6 broad_mql normalny (10-16%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "lead_to_mql_rate",
+          "s6Key": "lead_to_mql_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny etap lejka (MQL → SQL, nie lead → MQL); S6 lead_to_mql_rate ma własne pasma First Page Sage."
+        }
+      ]
+    },
+    {
+      "kpiId": "stage_conv",
+      "context": "B2B SaaS, SQL → szansa, według kanału",
+      "value": "38-49%",
+      "sourceId": 922,
+      "note": null
+    },
+    {
+      "kpiId": "nrr",
+      "context": "SaaS z ceną zależną od użycia",
+      "value": "108% mediana",
+      "sourceId": 925,
+      "note": null,
+      "hub": {
+        "metricId": "net_revenue_retention",
+        "s6Key": "net_revenue_retention",
+        "status": "odniesienie",
+        "s6Context": "net_revenue_retention.b2b_all",
+        "reason": "Mediana Aleph×Benchmarkit dla cen zależnych od użycia - S6 ma ją w zastrzeżeniach; = S6 b2b_all dobry (102-110%)."
+      }
+    },
+    {
+      "kpiId": "nrr",
+      "context": "SaaS z ceną za stanowisko",
+      "value": "98% mediana",
+      "sourceId": 925,
+      "note": null,
+      "hub": {
+        "metricId": "net_revenue_retention",
+        "s6Key": "net_revenue_retention",
+        "status": "odniesienie",
+        "s6Context": "net_revenue_retention.b2b_all",
+        "reason": "Mediana Aleph×Benchmarkit dla cen za stanowisko - S6 ma ją w zastrzeżeniach; = S6 b2b_all normalny (92-102%)."
+      }
+    },
+    {
+      "kpiId": "cac_payback",
+      "context": "SaaS, 2025",
+      "value": "16 mies. mediana",
+      "sourceId": 925,
+      "note": null,
+      "hub": {
+        "metricId": "cac_payback_months",
+        "s6Key": "cac_payback_months",
+        "status": "odniesienie",
+        "s6Context": "cac_payback_months.b2b_saas_all",
+        "reason": "Mediana Aleph×Benchmarkit 2025 = granica S6 dobry/normalny (16 mies.); S6 ma pełne kwartyle tego źródła."
+      }
+    },
+    {
+      "kpiId": "activation",
+      "context": "Wszystkie produkty (ankieta 500+ firm)",
+      "value": "34% średnio, 25% mediana",
+      "sourceId": 1006,
+      "note": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "activation_rate",
+        "status": "odniesienie",
+        "s6Context": "activation_rate.b2b_value_milestone",
+        "reason": "Ankieta Lenny 2022 - źródło S6 (ta sama strona); mediana ogółem 25% = S6 słaby (10-30%)."
+      }
+    },
+    {
+      "kpiId": "activation",
+      "context": "SaaS",
+      "value": "36% średnio, 30% mediana",
+      "sourceId": 1006,
+      "note": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "activation_rate",
+        "status": "odniesienie",
+        "s6Context": "activation_rate.b2b_value_milestone",
+        "reason": "Ankieta Lenny 2022 - źródło S6; mediana SaaS 30% = granica S6 słaby/normalny (kotwica S6)."
+      }
+    },
+    {
+      "kpiId": "trial_conv",
+      "context": "Okres próbny bez automatycznej płatności",
+      "value": "ok. 25%",
+      "sourceId": 1007,
+      "note": null,
+      "hub": {
+        "metricId": "trial_to_paid_rate",
+        "s6Key": "trial_to_paid_rate",
+        "status": "zastapione_przez_s6",
+        "s6Context": "trial_to_paid_rate.opt_in",
+        "reason": "Ten sam kontekst (trial bez karty). Wygrywa S6 wg (b)-(d): ChartMogul 2026 (B, 200 produktów, P50 4-6%, P75 10-15%) wobec Metric Stack (C, bez daty i próby). 25% to w S6 opt-in poziom optymalny, a w opt-out dolna granica normalnego."
+      }
+    },
+    {
+      "kpiId": "grr",
+      "context": "SaaS B2B, 2025",
+      "value": "91% mediana",
+      "sourceId": 924,
+      "note": null,
+      "hub": {
+        "metricId": "gross_revenue_retention",
+        "s6Key": "gross_revenue_retention",
+        "status": "odniesienie",
+        "s6Context": "gross_revenue_retention.b2b_all",
+        "reason": "Mediana SaaS Capital 2025 (A) - S6 ma ją w metodzie; = S6 b2b_all dobry (88-92%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "gross_revenue_churn",
+          "s6Key": "gross_revenue_churn",
+          "status": "odniesienie",
+          "s6Context": "gross_revenue_churn.b2b_annual",
+          "reason": "Dopełnienie GRC = 100 − GRR = 9% = S6 b2b_annual dobry (8-12%)."
+        }
+      ]
+    },
+    {
+      "kpiId": "grr",
+      "context": "SaaS i AI, 2025",
+      "value": "84% mediana",
+      "sourceId": 925,
+      "note": null,
+      "hub": {
+        "metricId": "gross_revenue_retention",
+        "s6Key": "gross_revenue_retention",
+        "status": "odniesienie",
+        "s6Context": "gross_revenue_retention.b2b_all",
+        "reason": "Mediana Aleph×Benchmarkit CY2025 - S6 ma ją w metodzie; = S6 b2b_all normalny (82-88%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "gross_revenue_churn",
+          "s6Key": "gross_revenue_churn",
+          "status": "odniesienie",
+          "s6Context": "gross_revenue_churn.b2b_annual",
+          "reason": "Dopełnienie GRC = 100 − GRR = 16% = S6 b2b_annual normalny (12-18%)."
+        }
+      ]
+    },
+    {
+      "kpiId": "magic_number",
+      "context": "SaaS B2B, 2025",
+      "value": "0,85 mediana",
+      "sourceId": 1009,
+      "note": null,
+      "hub": {
+        "metricId": "new_cac_ratio",
+        "s6Key": "new_cac_ratio",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna miara (reguła 5): magic number = przyrost ARR × 4 / koszty S&M poprzedniego kwartału, New CAC Ratio = koszty S&M / nowy ARR od nowych klientów - inny licznik (z rozszerzeniami) i okno; brak jednoznacznego wzoru przeliczenia."
+      }
+    },
+    {
+      "kpiId": "review_count",
+      "context": "Produkt z 5 opiniami wobec braku opinii",
+      "value": "o 270% wyższa skłonność do zakupu",
+      "sourceId": 1012,
+      "note": null
+    },
+    {
+      "kpiId": "lead_response",
+      "context": "Średni czas reakcji w badaniu HBR (2011)",
+      "value": "42 godziny",
+      "sourceId": 1005,
+      "note": null,
+      "hub": {
+        "metricId": "lead_response_time",
+        "s6Key": "lead_response_time",
+        "status": "odniesienie",
+        "s6Context": "lead_response_time.high_intent_inbound",
+        "reason": "Średnia HBR 2011 (przez Ainora, C) - jest już w metodzie S6; 42 h = S6 krytyczny (≥24 h)."
+      }
+    },
+    {
+      "kpiId": "ces",
+      "context": "Niski wysiłek: deklarujący ponowny zakup (HBR 2010)",
+      "value": "94%",
+      "sourceId": 1032,
+      "note": null
+    },
+    {
+      "kpiId": "ces",
+      "context": "Bardziej nielojalni po kontakcie z dużym wysiłkiem wobec małego",
+      "value": "96% wobec 9%",
+      "sourceId": 1033,
+      "note": null
+    },
+    {
+      "kpiId": "viewability",
+      "context": "Typowy poziom widoczności reklam displayowych",
+      "value": "50-70%",
+      "sourceId": 1062,
+      "note": null
+    },
+    {
+      "kpiId": "inbox_placement",
+      "context": "Świat, 2024",
+      "value": "83,5%",
+      "sourceId": 1063,
+      "note": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "inbox_placement_rate",
+        "status": "odniesienie",
+        "s6Context": "inbox_placement_rate.global_mixed",
+        "reason": "Validity (A) - ta sama seria co źródła S6; 83,5% (2024) = S6 global_mixed normalny (83-89%)."
+      }
+    },
+    {
+      "kpiId": "inbox_placement",
+      "context": "Europa, 2024",
+      "value": "89,1%",
+      "sourceId": 1063,
+      "note": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "inbox_placement_rate",
+        "status": "odniesienie",
+        "s6Context": "inbox_placement_rate.europe",
+        "reason": "Validity (A) - starsza edycja; 89,1% = S6 europe normalny (87-91%). S6 opiera się na raporcie 2026 (Europa 91,1%)."
+      }
+    },
+    {
+      "kpiId": "inbox_placement",
+      "context": "Świat, 2025",
+      "value": "87,2%",
+      "sourceId": 1064,
+      "note": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "inbox_placement_rate",
+        "status": "odniesienie",
+        "s6Context": "inbox_placement_rate.global_mixed",
+        "reason": "Validity 2026 (A) - kotwica S6; 87,2% = S6 global_mixed normalny (83-89%)."
+      }
+    },
+    {
+      "kpiId": "attendance_rate",
+      "context": "Webinary B2B na platformie ON24, dane 2024",
+      "value": "57%",
+      "sourceId": 1066,
+      "note": null,
+      "hub": {
+        "metricId": "event_attendance_rate",
+        "s6Key": "event_attendance_rate",
+        "status": "odniesienie",
+        "s6Context": "event_attendance_rate.online_total",
+        "reason": "ON24 przez MarketingProfs - w S6 niezweryfikowane (HTTP 403), nie kotwiczy pasm; obejmuje on-demand: 57% = granica S6 online_total normalny/dobry."
+      },
+      "hubAlso": [
+        {
+          "metricId": "no_show_rate",
+          "s6Key": "no_show_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Dopełnienie obejmuje odtworzenia on-demand, a S6 no_show_rate.online_webinar mierzy nieobecność na żywo - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "reg_conv",
+      "context": "Dobra strona rejestracji na webinar",
+      "value": "35-45%",
+      "sourceId": 1067,
+      "note": null,
+      "hub": {
+        "metricId": "event_registration_conversion",
+        "s6Key": "event_registration_conversion",
+        "status": "odniesienie",
+        "s6Context": "event_registration_conversion.own_base",
+        "reason": "Ocena opisowa „dobra strona” bez źródła ruchu, próby i daty (C); liczbowo = S6 own_base dobry (30-45%). Ruch mieszany S6 ocenia z median Unbounce (B)."
+      }
+    },
+    {
+      "kpiId": "paid_media_share",
+      "context": "Udział mediów płatnych w kosztach marketingu, 2025 (Gartner)",
+      "value": "30,6%",
+      "sourceId": 1068,
+      "note": null
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "Mediana dla wszystkich branż (Unbounce, analiza z IV kw. 2024, 41 000 stron; nowszej edycji brak)",
+      "value": "6,6%",
+      "sourceId": 1092,
+      "note": null,
+      "hub": {
+        "metricId": "pricing_page_conversion_rate",
+        "s6Key": "pricing_page_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana stron docelowych kampanii (Unbounce) - inna strona i mianownik niż strona cennika (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "visitor_to_registration_rate",
+          "s6Key": "visitor_to_registration_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Konwersja strony docelowej lub reklamy, nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+        },
+        {
+          "metricId": "event_registration_conversion",
+          "s6Key": "event_registration_conversion",
+          "status": "odniesienie",
+          "s6Context": "event_registration_conversion.mixed_traffic",
+          "reason": "Ta sama mediana Unbounce 2024 (6,6%) jest kotwicą S6: granica słaby/normalny dla ruchu mieszanego."
+        }
+      ]
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "SaaS",
+      "value": "3,8%",
+      "sourceId": 1092,
+      "note": null,
+      "hub": {
+        "metricId": "pricing_page_conversion_rate",
+        "s6Key": "pricing_page_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana stron docelowych SaaS (Unbounce) - inna strona i mianownik niż strona cennika, branża spoza profilu NES (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "visitor_to_registration_rate",
+          "s6Key": "visitor_to_registration_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Konwersja strony docelowej lub reklamy, nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "E-commerce",
+      "value": "4,2%",
+      "sourceId": 1092,
+      "note": null,
+      "hub": {
+        "metricId": "pricing_page_conversion_rate",
+        "s6Key": "pricing_page_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana stron docelowych e-commerce (Unbounce) - inna strona i branża (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "visitor_to_registration_rate",
+          "s6Key": "visitor_to_registration_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Konwersja strony docelowej lub reklamy, nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "Usługi finansowe",
+      "value": "8,3%",
+      "sourceId": 1092,
+      "note": null,
+      "hub": {
+        "metricId": "pricing_page_conversion_rate",
+        "s6Key": "pricing_page_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana stron docelowych usług finansowych (Unbounce) - inna strona i branża (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "visitor_to_registration_rate",
+          "s6Key": "visitor_to_registration_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Konwersja strony docelowej lub reklamy, nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "lp_cvr",
+      "context": "Ruch z e-maili (średnia)",
+      "value": "19,3%",
+      "sourceId": 1093,
+      "note": null,
+      "hub": {
+        "metricId": "pricing_page_conversion_rate",
+        "s6Key": "pricing_page_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Średnia stron docelowych dla ruchu z e-maili (MarketingProfs/Unbounce) - inna strona i mianownik (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "visitor_to_registration_rate",
+          "s6Key": "visitor_to_registration_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Konwersja strony docelowej lub reklamy, nie nowe rejestracje / unikalni odwiedzający serwisu - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Deklaracja LinkedIn (bez podanego okresu i próby, wpis z 2017 r.)",
+      "value": "13%",
+      "sourceId": 1091,
+      "note": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Deklaracja LinkedIn z 2017 r. bez okresu i próby; kwartyle Kiin Labs 2026 są w kontekstach S6 linkedin_lgf_*."
+      }
+    },
+    {
+      "kpiId": "automation_rev_share",
+      "context": "Klienci Klaviyo (e-commerce)",
+      "value": "ok. 41% przychodu z 5,3% wysyłek",
+      "sourceId": 1099,
+      "note": null,
+      "hub": {
+        "metricId": null,
+        "s6Key": "automation_vs_campaign_rpr_ratio",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna miara (reguła 5): udział automatyzacji w przychodzie z e-maili, nie krotność RPR na odbiorcę; bez liczby odbiorców nie ma jednoznacznego przeliczenia. To samo źródło (Klaviyo) podaje RPR „prawie 18×”, które S6 ma w kontekście ecommerce (normalny 12-20)."
+      }
+    },
+    {
+      "kpiId": "yt_impr_ctr",
+      "context": "Połowa kanałów i filmów na YouTube",
+      "value": "2-10%",
+      "sourceId": 1127,
+      "note": null
+    },
+    {
+      "kpiId": "mpp_share",
+      "context": "Wszystkie otwarcia (Litmus, 2026)",
+      "value": "ok. 55-60%",
+      "sourceId": 1129,
+      "note": null,
+      "hub": {
+        "metricId": "email_open_rate",
+        "s6Key": "open_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna metryka (udział otwarć Apple MPP); S6 opisuje MPP w interpretacji i zastrzeżeniach na podstawie tego samego źródła (Litmus)."
+      }
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "Instagram, mediana w danych Buffer (inna metoda: od zasięgu)",
+      "value": "4,3%",
+      "sourceId": 1122,
+      "note": null
+    },
+    {
+      "kpiId": "social_response_time",
+      "context": "Oczekiwanie konsumentów (Sprout Social Index)",
+      "value": "odpowiedź w 24 godz. lub szybciej: prawie 3 z 4 osób",
+      "sourceId": 1140,
+      "note": null
+    },
+    {
+      "kpiId": "watch_hours",
+      "context": "Próg programu partnerskiego YouTube (wraz z 1 000 subskrybentów)",
+      "value": "4 000 godz. w 12 miesięcy",
+      "sourceId": 1146,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_paid",
+      "context": "Google Ads, wyszukiwarka, wszystkie branże (USA, 2026)",
+      "value": "6,64% średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_paid",
+      "context": "Meta Ads, kampanie ruchu (USA, 2026)",
+      "value": "1,93% mediana",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_social",
+      "context": "Meta Ads, kampanie ruchu (USA, 2026)",
+      "value": "1,93% mediana",
+      "sourceId": 1162,
+      "note": "płatne posty, nie zasięg organiczny"
+    },
+    {
+      "kpiId": "cpc",
+      "context": "Google Ads, wszystkie branże (USA, 2026)",
+      "value": "5,42 USD średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "cpc",
+      "context": "Meta Ads, kampanie ruchu (USA, 2026)",
+      "value": "0,60 USD",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "cpc",
+      "context": "Meta Ads, kampanie leadowe (USA, 2026)",
+      "value": "1,80 USD",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "LinkedIn Ads, pojedynczy obraz (2026)",
+      "value": "59,15 USD średnio",
+      "sourceId": 1165,
+      "note": null
+    },
+    {
+      "kpiId": "cpm",
+      "context": "LinkedIn Ads, wideo (2026)",
+      "value": "38,94 USD średnio",
+      "sourceId": 1165,
+      "note": null
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Google Ads, wszystkie branże (USA, 2026)",
+      "value": "8,18% średnio",
+      "sourceId": 1160,
+      "note": null,
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Konwersje z reklam Google (USA) - inny kanał i mianownik (kliknięcia reklam) (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Meta Ads, kampanie leadowe (USA, 2026)",
+      "value": "8,54%",
+      "sourceId": 1162,
+      "note": "raport podaje sprzeczne opisy zmiany rok do roku",
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Konwersje kampanii leadowych Meta (USA) - inny kanał i mianownik (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "cpl",
+      "context": "Google Ads, wszystkie branże (USA, 2026)",
+      "value": "66,69 USD średnio",
+      "sourceId": 1160,
+      "note": null
+    },
+    {
+      "kpiId": "cpl",
+      "context": "Meta Ads, kampanie leadowe (USA, 2026)",
+      "value": "27,39 USD",
+      "sourceId": 1162,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, wszystkie formaty, 2026",
+      "value": "5,20% średnio",
+      "sourceId": 1175,
+      "note": "liczony od wyświetleń, nie od zasięgu"
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, dokumenty natywne, 2026",
+      "value": "7,00% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, posty z wieloma zdjęciami, II kw. 2026",
+      "value": "6,90% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, dokumenty natywne, II kw. 2026",
+      "value": "6,60% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, wideo, II kw. 2026",
+      "value": "5,90% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, pojedynczy obraz, II kw. 2026",
+      "value": "5,20% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, ankiety, II kw. 2026",
+      "value": "4,50% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_reach",
+      "context": "LinkedIn, posty z linkiem, II kw. 2026",
+      "value": "3,30% średnio",
+      "sourceId": 1175,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "Instagram, marki ze wszystkich branż (2026)",
+      "value": "0,30% mediana",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "TikTok, marki ze wszystkich branż (2026)",
+      "value": "2,01% mediana",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "er_followers",
+      "context": "YouTube, marki ze wszystkich branż (2026)",
+      "value": "0,21% mediana",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "posting_frequency",
+      "context": "Instagram, marki (2026)",
+      "value": "3,7 posta tygodniowo",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "posting_frequency",
+      "context": "TikTok, marki (2026)",
+      "value": "ok. 2 filmy tygodniowo",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "posting_frequency",
+      "context": "Facebook, marki (2026)",
+      "value": "nieco poniżej 3 postów tygodniowo",
+      "sourceId": 1173,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Pozycja 1 przy podsumowaniu AI (dane z grudnia 2025)",
+      "value": "CTR niższy o ok. 58%",
+      "sourceId": 1168,
+      "note": "porównanie z prognozą bez podsumowania AI"
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Zapytania z podsumowaniem AI (dane Seer Interactive)",
+      "value": "1,31% w XII 2025, 2,36% w II 2026",
+      "sourceId": 1169,
+      "note": "średni CTR organiczny; częściowe odbicie"
+    },
+    {
+      "kpiId": "open_rate",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "43,46% mediana",
+      "sourceId": 1166,
+      "note": "zawyżone przez automatyczne otwarcia (Apple MPP)",
+      "hub": {
+        "metricId": "email_open_rate",
+        "s6Key": "open_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana globalna MailerLite 2025 (ta sama próba co źródło S6); pojedynczy punkt bez rozkładu (reguła 2). S6 ocenia PL (mediana 36,05%), wydawców, non-profit i B2B."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_open_rate",
+          "s6Key": "welcome_email_open_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
+    },
+    {
+      "kpiId": "ctr_email",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "2,09% mediana",
+      "sourceId": 1166,
+      "note": null,
+      "hub": {
+        "metricId": "email_ctr_delivered",
+        "s6Key": "click_through_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana globalna MailerLite 2025 - jest w metodzie S6 poland_all; pojedynczy punkt bez rozkładu (reguła 2)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_click_rate",
+          "s6Key": "welcome_email_click_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
+    },
+    {
+      "kpiId": "ctr_email",
+      "context": "MailerLite, produkcja przemysłowa, 2025",
+      "value": "4,22% mediana",
+      "sourceId": 1166,
+      "note": null,
+      "hub": {
+        "metricId": "email_ctr_delivered",
+        "s6Key": "click_through_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Branża (produkcja przemysłowa) spoza profilu NES; pojedynczy punkt (reguła 2)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_click_rate",
+          "s6Key": "welcome_email_click_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
+    },
+    {
+      "kpiId": "ctor",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "6,81% mediana",
+      "sourceId": 1166,
+      "note": null,
+      "hub": {
+        "metricId": "email_ctr",
+        "s6Key": "click_to_open_rate",
+        "status": "odniesienie",
+        "s6Context": "click_to_open_rate.poland_general",
+        "reason": "Mediana MailerLite 2025 - jest w metodzie S6; = S6 poland_general normalny (4,5-8%)."
+      }
+    },
+    {
+      "kpiId": "unsub",
+      "context": "MailerLite, wszystkie branże, 2025",
+      "value": "0,22% mediana",
+      "sourceId": 1166,
+      "note": null,
+      "hub": {
+        "metricId": "email_unsubscribe_rate",
+        "s6Key": "unsubscribe_rate",
+        "status": "odniesienie",
+        "s6Context": "unsubscribe_rate.poland_campaigns",
+        "reason": "Mediana MailerLite 2025 - kotwica S6; = S6 poland_campaigns normalny (0,17-0,25%)."
+      }
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "context": "Duże firmy w Ameryce Płn. i Europie, 2026 (Gartner)",
+      "value": "7,8% przychodów",
+      "sourceId": 1170,
+      "note": null
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "context": "Organizacje najlepiej przygotowane do AI, 2026 (Gartner)",
+      "value": "8,9% przychodów",
+      "sourceId": 1170,
+      "note": null
+    },
+    {
+      "kpiId": "attendance_rate",
+      "context": "Webinary na platformie ON24, dane 2025 (na żywo i z nagrania)",
+      "value": "60%",
+      "sourceId": 1171,
+      "note": null,
+      "hub": {
+        "metricId": "event_attendance_rate",
+        "s6Key": "event_attendance_rate",
+        "status": "odniesienie",
+        "s6Context": "event_attendance_rate.online_total",
+        "reason": "Omówienie Konabayev (C) danych ON24, w S6 niezweryfikowanych; 60% = S6 online_total dobry (57-65%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "no_show_rate",
+          "s6Key": "no_show_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Dopełnienie obejmuje odtworzenia on-demand, a S6 no_show_rate.online_webinar mierzy nieobecność na żywo - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "attendance_rate",
+      "context": "Webinary B2B, udział na żywo (Contrast, III kw. 2025 - I kw. 2026)",
+      "value": "41,6% mediana",
+      "sourceId": 1172,
+      "note": null,
+      "hub": {
+        "metricId": "event_attendance_rate",
+        "s6Key": "event_attendance_rate",
+        "status": "odniesienie",
+        "s6Context": "event_attendance_rate.online_live",
+        "reason": "Omówienie VoxBooster (C; w S6 weryfikacja częściowa, atrybucja niepotwierdzona); S6 opiera się wprost na Contrast (B). 41,6% = S6 online_live normalny (30-44%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "no_show_rate",
+          "s6Key": "no_show_rate",
+          "status": "odniesienie",
+          "s6Context": "no_show_rate.online_webinar",
+          "reason": "Dopełnienie 100 − 41,6 = 58,4% = S6 online_webinar normalny (56-70%)."
+        }
+      ]
+    },
+    {
+      "kpiId": "nrr",
+      "context": "SaaS bez finansowania zewnętrznego, ARR 3-20 mln USD (2026)",
+      "value": "103% mediana; 117,9% w 90. percentylu",
+      "sourceId": 1176,
+      "note": null,
+      "hub": {
+        "metricId": "net_revenue_retention",
+        "s6Key": "net_revenue_retention",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna populacja (SaaS bez finansowania zewnętrznego, ARR 3-20 mln USD) spoza profilu NES; tylko P50 i P90, bez kwartyli - nie da się wyprowadzić pasm (reguła 2). Liczbowo 103% = S6 b2b_all dobry."
+      }
+    },
+    {
+      "kpiId": "grr",
+      "context": "SaaS bez finansowania zewnętrznego, ARR 3-20 mln USD (2026)",
+      "value": "91% mediana; 100% w 90. percentylu",
+      "sourceId": 1176,
+      "note": null,
+      "hub": {
+        "metricId": "gross_revenue_retention",
+        "s6Key": "gross_revenue_retention",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna populacja (SaaS bez finansowania zewnętrznego, ARR 3-20 mln USD); tylko P50 i P90 (reguła 2). Liczbowo 91% = S6 b2b_all dobry."
+      },
+      "hubAlso": [
+        {
+          "metricId": "gross_revenue_churn",
+          "s6Key": "gross_revenue_churn",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Dopełnienie GRC = 100 − GRR = 9%; inna populacja."
+        }
+      ]
+    },
+    {
+      "kpiId": "paid_media_share",
+      "context": "Udział mediów płatnych w kosztach marketingu, 2026 (Gartner)",
+      "value": "31,4%",
+      "sourceId": 1191,
+      "note": "najwyższy poziom od pięciu lat"
+    },
+    {
+      "kpiId": "paid_media_share",
+      "context": "Dla porównania: udział kosztów zespołu w budżecie, 2026 (Gartner)",
+      "value": "24,5%",
+      "sourceId": 1192,
+      "note": null
+    },
+    {
+      "kpiId": "cart_abandon",
+      "context": "Średnia z 50 badań (Baymard Institute, aktualizacja 22 IX 2025)",
+      "value": "70,22%",
+      "sourceId": 1193,
+      "note": null,
+      "hub": {
+        "metricId": "checkout_abandonment_rate",
+        "s6Key": "checkout_abandonment_rate",
+        "status": "odniesienie",
+        "s6Context": "checkout_abandonment_rate.ecommerce",
+        "reason": "To samo źródło co S6 (Baymard, A) - kotwica S6; = S6 ecommerce normalny (65-75%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "checkout_conversion_rate",
+          "s6Key": "checkout_conversion_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Dopełnienie (29,78%) dotyczyłoby ścieżki koszyk → zamówienie, a S6 CCR e-commerce mierzy start checkoutu → zamówienie (Cartylabs) - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "cart_abandon",
+      "context": "Najnowsze badanie w zestawieniu Baymard (Uptain 2025)",
+      "value": "71,72%",
+      "sourceId": 1193,
+      "note": null,
+      "hub": {
+        "metricId": "checkout_abandonment_rate",
+        "s6Key": "checkout_abandonment_rate",
+        "status": "odniesienie",
+        "s6Context": "checkout_abandonment_rate.ecommerce",
+        "reason": "Wartość z zestawienia Baymard (A), źródła S6; = S6 ecommerce normalny (65-75%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "checkout_conversion_rate",
+          "s6Key": "checkout_conversion_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Dopełnienie (28,28%) dotyczyłoby ścieżki koszyk → zamówienie, a S6 CCR e-commerce mierzy start checkoutu → zamówienie (Cartylabs) - inny mianownik (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Feed, oferta treści (np. raport), mediana kont",
+      "value": "10,8%",
+      "sourceId": 1196,
+      "note": "ukończenie = wysłane / otwarcia formularza",
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "kontekst_s6",
+        "s6Context": "signup_form_conversion_rate.linkedin_lgf_content",
+        "reason": "Mediana Kiin Labs 2026 = granica normalny/dobry nowego kontekstu S6."
+      }
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Feed, prośba o demo, mediana kont",
+      "value": "2,2%",
+      "sourceId": 1196,
+      "note": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "kontekst_s6",
+        "s6Context": "signup_form_conversion_rate.linkedin_lgf_demo",
+        "reason": "Mediana Kiin Labs 2026 = granica normalny/dobry nowego kontekstu S6."
+      }
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Reklama w wiadomości lub rozmowie, mediana kont",
+      "value": "40,7%",
+      "sourceId": 1197,
+      "note": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Reklamy w wiadomości lub rozmowie - w pakiecie jeden punkt (mediana) bez rozkładu, więc bez kontekstu (reguła 2)."
+      }
+    },
+    {
+      "kpiId": "leadform_cr",
+      "context": "Udział ukończenia formularza w różnicach kosztu leada między kontami",
+      "value": "51%",
+      "sourceId": 1196,
+      "note": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna miara (udział ukończenia formularza w różnicach kosztu leada), nie konwersja formularza."
+      }
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Sklepy internetowe, nowi odwiedzający, zamówienia (Contentsquare 2026)",
+      "value": "1,7%",
+      "sourceId": 1202,
+      "note": null,
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Zamówienia w sklepach internetowych, nie rejestracje - inny licznik i branża (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "cvr",
+      "context": "Sklepy internetowe, powracający odwiedzający (Contentsquare 2026)",
+      "value": "2,9%",
+      "sourceId": 1202,
+      "note": null,
+      "hub": {
+        "metricId": "visitor_to_registration_rate",
+        "s6Key": "visitor_to_registration_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Zamówienia w sklepach internetowych, nie rejestracje - inny licznik i branża (reguła 5)."
+      },
+      "hubAlso": [
+        {
+          "metricId": null,
+          "s6Key": "visitor_to_paid_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Inny licznik (konwersje stron, reklam lub zamówienia sklepu), nie płatne subskrypcje wydawcy / unikalni odwiedzający (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "kd",
+      "context": "KD 0-5 (skala Ahrefs)",
+      "value": "strony z top 10 prawie bez linków",
+      "sourceId": 1213,
+      "note": null
+    },
+    {
+      "kpiId": "kd",
+      "context": "KD ok. 50 (skala Ahrefs)",
+      "value": "strony z top 10 mają po kilkaset linków",
+      "sourceId": 1213,
+      "note": null
+    },
+    {
+      "kpiId": "kd",
+      "context": "KD 90+ (skala Ahrefs)",
+      "value": "strony z top 10 mają tysiące linków",
+      "sourceId": 1213,
+      "note": null
+    },
+    {
+      "kpiId": "pkd",
+      "context": "Filtr fraz o wysokim potencjale (Semrush)",
+      "value": "10-50%",
+      "sourceId": 1220,
+      "note": null
+    },
+    {
+      "kpiId": "site_health",
+      "context": "Ahrefs: wynik uznawany za dobry",
+      "value": "powyżej 80",
+      "sourceId": 1215,
+      "note": "zasada producenta, nie badanie"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Ahrefs, 25 stron, suma ruchu (2016)",
+      "value": "83% (zaniżenie o 17%)",
+      "sourceId": 1244,
+      "note": "dane stare"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Semrush, te same 25 stron (2016)",
+      "value": "70% (zaniżenie o 30%)",
+      "sourceId": 1244,
+      "note": "dane stare"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Korelacja z GA4, 641 stron: Semrush / Similarweb / Ahrefs",
+      "value": "0,79 / 0,66 / 0,50",
+      "sourceId": 1243,
+      "note": "Ahrefs mierzy tylko ruch organiczny; z Search Console ok. 0,75"
+    },
+    {
+      "kpiId": "traffic_est_ratio",
+      "context": "Jedna strona z ok. 100 000 sesji (2023): Ahrefs / Semrush / Similarweb",
+      "value": "37 tys. / 39 tys. / 80 tys. sesji",
+      "sourceId": 1245,
+      "note": null
+    },
+    {
+      "kpiId": "dashboard_freshness",
+      "context": "Konektory Google (Ads, Analytics, Search Console, YouTube Analytics)",
+      "value": "odświeżanie co 12 godz.",
+      "sourceId": 1227,
+      "note": null
+    },
+    {
+      "kpiId": "dashboard_freshness",
+      "context": "Inne konektory (np. BigQuery, Arkusze)",
+      "value": "co 1-12 godz., domyślnie 12",
+      "sourceId": 1227,
+      "note": null
+    },
+    {
+      "kpiId": "serp_ctr",
+      "context": "Wyszukiwania Google w USA bez kliknięcia (I-IV 2026)",
+      "value": "68,01%",
+      "sourceId": 1238,
+      "note": "bez aplikacji Google; inny panel niż w 2024"
+    },
+    {
+      "kpiId": "ga4_quota",
+      "context": "Standardowa usługa GA4: tokeny dziennie / na godzinę / na godzinę na projekt",
+      "value": "200 000 / 40 000 / 14 000",
+      "sourceId": 1274,
+      "note": null
+    },
+    {
+      "kpiId": "ga4_quota",
+      "context": "GA4 360: tokeny dziennie / na godzinę",
+      "value": "2 000 000 / 400 000",
+      "sourceId": 1274,
+      "note": null
+    },
+    {
+      "kpiId": "ga4_quota",
+      "context": "Równoczesne zapytania na usługę (standard / 360)",
+      "value": "10 / 50",
+      "sourceId": 1274,
+      "note": null
+    },
+    {
+      "kpiId": "ctr_vs_expected",
+      "context": "Pozycja 1 bez odpowiedzi AI / z odpowiedzią AI (First Page Sage, IX 2026, omówienie)",
+      "value": "22,6% / 3,6%",
+      "sourceId": 1276,
+      "note": "wyniki badań CTR bardzo się różnią"
+    },
+    {
+      "kpiId": "ctr_vs_expected",
+      "context": "Pozycja 1, frazy markowe / niemarkowe (Advanced Web Ranking, VII 2026, omówienie)",
+      "value": "27,3% / 19,4%",
+      "sourceId": 1277,
+      "note": null
+    },
+    {
+      "kpiId": "open_rate",
+      "context": "Polska, kampanie MailerLite (XII 2024 - XI 2025)",
+      "value": "36,05%",
+      "sourceId": 1343,
+      "note": null,
+      "hub": {
+        "metricId": "email_open_rate",
+        "s6Key": "open_rate",
+        "status": "odniesienie",
+        "s6Context": "open_rate.poland_all",
+        "reason": "Mediana PL MailerLite - jest w metodzie S6; = S6 poland_all normalny (30-38%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_open_rate",
+          "s6Key": "welcome_email_open_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
+    },
+    {
+      "kpiId": "open_rate",
+      "context": "Globalnie, 3,6 mln kampanii MailerLite (2025)",
+      "value": "43,46% mediana",
+      "sourceId": 1343,
+      "note": null,
+      "hub": {
+        "metricId": "email_open_rate",
+        "s6Key": "open_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana globalna MailerLite 2025 (ta sama próba co źródło S6); pojedynczy punkt bez rozkładu (reguła 2). S6 ocenia PL (mediana 36,05%), wydawców, non-profit i B2B."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_open_rate",
+          "s6Key": "welcome_email_open_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
+    },
+    {
+      "kpiId": "ctor",
+      "context": "Globalnie, kampanie MailerLite (2025)",
+      "value": "6,81%",
+      "sourceId": 1343,
+      "note": null,
+      "hub": {
+        "metricId": "email_ctr",
+        "s6Key": "click_to_open_rate",
+        "status": "odniesienie",
+        "s6Context": "click_to_open_rate.poland_general",
+        "reason": "Mediana MailerLite 2025 - jest w metodzie S6; = S6 poland_general normalny (4,5-8%)."
+      }
+    },
+    {
+      "kpiId": "ctr_email",
+      "context": "Globalnie, kampanie MailerLite (2025)",
+      "value": "2,09%",
+      "sourceId": 1343,
+      "note": null,
+      "hub": {
+        "metricId": "email_ctr_delivered",
+        "s6Key": "click_through_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Mediana globalna MailerLite 2025 - jest w metodzie S6 poland_all; pojedynczy punkt bez rozkładu (reguła 2)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "journey_click_rate",
+          "s6Key": "welcome_email_click_rate",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Kampanie, nie automatyzacje - inny kanał niż e-maile ścieżek (reguła 5); S6 ocenia ścieżki pasmami e-maili powitalnych."
+        }
+      ]
+    },
+    {
+      "kpiId": "cpm",
+      "context": "Meta Ads, około 35 000 kont e-commerce, 2025 (USD)",
+      "value": "14,19 USD mediana, +20,03% rok do roku",
+      "sourceId": 1355,
+      "note": null
+    },
+    {
+      "kpiId": "roas",
+      "context": "Meta Ads, e-commerce, 2025",
+      "value": "1,86 mediana platformy; branże od 1,17 do 2,54",
+      "sourceId": 1356,
+      "note": null
+    },
+    {
+      "kpiId": "stickiness",
+      "context": "Wszystkie branże, Mixpanel Benchmarks 2024 (dane 2023)",
+      "value": "37% średnio",
+      "sourceId": 1377,
+      "note": null,
+      "hub": {
+        "metricId": "dau_mau",
+        "s6Key": "dau_mau",
+        "status": "odniesienie",
+        "s6Context": "dau_mau.expert_content",
+        "reason": "Omówienie raportu Mixpanel 2024 (C), którego S6 używa wprost (B); 37% = S6 expert_content optymalny (≥36%)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "wau_mau",
+          "s6Key": "wau_mau",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Insider ma tylko DAU/MAU; WAU/MAU nie przelicza się z DAU/MAU jednoznacznym wzorem (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "stickiness",
+      "context": "SaaS, Mixpanel 2017",
+      "value": "13% średnio; 25% poziom najlepszych",
+      "sourceId": 1377,
+      "note": null,
+      "hub": {
+        "metricId": "dau_mau",
+        "s6Key": "dau_mau",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Dane z 2017 r. (C) dla SaaS; S6 korzysta z nowszych edycji Mixpanel (2024, 2026)."
+      },
+      "hubAlso": [
+        {
+          "metricId": "wau_mau",
+          "s6Key": "wau_mau",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Insider ma tylko DAU/MAU; WAU/MAU nie przelicza się z DAU/MAU jednoznacznym wzorem (reguła 5)."
+        }
+      ]
+    },
+    {
+      "kpiId": "form_abandon",
+      "context": "Formularze online, dane narzędzia Zuko",
+      "value": "67% osób, które zaczęły wypełniać, nie kończy",
+      "sourceId": 1381,
+      "note": null,
+      "hub": {
+        "metricId": "signup_form_conversion_rate",
+        "s6Key": "signup_form_conversion_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny mianownik (rozpoczęte wypełnianie, nie wyświetlenia formularza) - nie przeliczać (reguła 5); źródło C."
+      }
+    },
+    {
+      "kpiId": "consent_rate",
+      "context": "UE, cookies marketingowe, dane Usercentrics (cytowanie wtórne)",
+      "value": "38-45% średnio; dobrze zaprojektowany baner daje 15-25 pkt proc. więcej",
+      "sourceId": 1382,
+      "note": null
+    },
+    {
+      "kpiId": "avg_pct_viewed",
+      "context": "Filmy hostowane w Wistia, długość 6-12 minut",
+      "value": "ok. 50%; spadek między 1. a 3. minutą, stabilnie do 12. minuty, potem dalszy spadek",
+      "sourceId": 1383,
+      "note": null
+    },
+    {
+      "kpiId": "feature_adoption",
+      "context": "Pendo, ponad 1000 produktów (inna definicja: odsetek funkcji, które generują 80% kliknięć)",
+      "value": "percentyle 25/50/75/90: 7%, 11%, 18%, 28%",
+      "sourceId": 1376,
+      "note": null
+    },
+    {
+      "kpiId": "retention",
+      "context": "SaaS, retencja po 1. miesiącu (Pendo)",
+      "value": "percentyle 25/50/75/90: 23%, 39%, 54%, 64%",
+      "sourceId": 1376,
+      "note": null,
+      "hub": {
+        "metricId": "cohort_retention_m1",
+        "s6Key": "cohort_retention_m1",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inna definicja (reguła 5): aktywność użytkowników aplikacji SaaS (Pendo, ok. 2019 r.), nie płacący subskrybenci po 1. odnowieniu."
+      },
+      "hubAlso": [
+        {
+          "metricId": "cohort_retention_m3",
+          "s6Key": "cohort_retention_m3",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Percentyle po 1. miesiącu - nie dotyczą M3; inna definicja."
+        },
+        {
+          "metricId": "cohort_retention_m12",
+          "s6Key": "cohort_retention_m12",
+          "status": "odniesienie",
+          "s6Context": null,
+          "reason": "Percentyle po 1. miesiącu - nie dotyczą M12; inna definicja."
+        }
+      ]
+    },
+    {
+      "kpiId": "save_rate",
+      "context": "Instagram, średnie na post (Semrush 2025), wyliczone na wyświetlenia, nie na zasięg",
+      "value": "obrazy ok. 0,21%, karuzele ok. 0,42%, Reels ok. 0,46% (W)",
+      "sourceId": 1386,
+      "note": null
+    },
+    {
+      "kpiId": "likes_per_reach",
+      "context": "Instagram, średnie na post (Semrush 2025), wyliczone na wyświetlenia, nie na zasięg",
+      "value": "obrazy ok. 3,4%, karuzele ok. 3,0%, Reels ok. 3,6% (W)",
+      "sourceId": 1386,
+      "note": null
+    },
+    {
+      "kpiId": "comment_rate",
+      "context": "Instagram, średnie na post (Semrush 2025), wyliczone na wyświetlenia, nie na zasięg",
+      "value": "obrazy ok. 0,22%, karuzele ok. 0,11%, Reels ok. 0,13% (W)",
+      "sourceId": 1386,
+      "note": null
+    },
+    {
+      "kpiId": "list_churn",
+      "context": "Bazy B2B (HubSpot, za MarketingSherpa)",
+      "value": "22,5% rocznie (ok. 2,1% miesięcznie)",
+      "sourceId": 1387,
+      "note": null,
+      "hub": {
+        "metricId": "email_disaffection_rate",
+        "s6Key": "disaffection_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny mianownik (reguła 5): roczny ubytek bazy kontaktów / lista, a hub - (wypisy + skargi + odbicia) / kliknięcia; nie przeliczać."
+      }
+    },
+    {
+      "kpiId": "list_churn",
+      "context": "Adresy e-mail, ponad 11 mld weryfikacji (ZeroBounce, 2025)",
+      "value": "co najmniej 23% rocznie (28% w 2024 r.)",
+      "sourceId": 1387,
+      "note": null,
+      "hub": {
+        "metricId": "email_disaffection_rate",
+        "s6Key": "disaffection_rate",
+        "status": "odniesienie",
+        "s6Context": null,
+        "reason": "Inny mianownik (reguła 5): roczny ubytek adresów / lista, a hub - (wypisy + skargi + odbicia) / kliknięcia; nie przeliczać."
+      }
+    }
+  ]
+}

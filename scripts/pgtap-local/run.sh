@@ -194,7 +194,10 @@ run_tests() {
     echo "UWAGA: brak bun - kontrakt TS <-> SQL (ts_sql_contract_test.sql) nie zostal wygenerowany"
   fi
   files=$(ls "$REPO"/supabase/tests/*.sql | sort)
-  [ -n "$pat" ] && files=$(echo "$files" | grep -- "$pat")
+  # Wzorzec w ERE (`grep -E`): karty wycinkow podaja alternatywe `a|b|c`,
+  # a w BRE `|` jest literalem - filtr nie trafial w zaden plik i przebieg
+  # konczyl sie zielono na zerze testow (Z-S4-08).
+  [ -n "$pat" ] && files=$(echo "$files" | grep -E -- "$pat")
   : > "$PGDIR/test-failures.txt"
   for t in $files; do
     local name out planned ran failed

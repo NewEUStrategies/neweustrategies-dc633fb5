@@ -304,7 +304,9 @@ export const HUB_SHARED_FILE_GRANTS: Readonly<Record<string, readonly HubSliceId
 const I0_MANIFEST: readonly string[] = [
   // Tor A - SQL, typy bazy, bramka dostawy.
   "supabase/migrations/2026102009????_hub_*.sql",
-  "drizzle/migrations/{0317,0318,0319,0320,0321,0322}_hub_*.sql",
+  // Numery po renumeracji `4549a6f1` (Integrator S4, 2026-10-19: Z-S1-02 -
+  // stary glob `0317…0322` przypisywał `0323_hub_shared_sql_helpers` do S1).
+  "drizzle/migrations/{0318,0319,0320,0321,0322,0323}_hub_*.sql",
   "drizzle/migrations/meta/_journal.json",
   "supabase/tests/{hub_schema_rls,hub_shared_helpers}_test.sql",
   "src/integrations/supabase/types.ts",
@@ -428,8 +430,9 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // Test fabryk I0 importował stałą `ADMIN_COUPONS_KEY`, którą S1 usunął
     // (jedna definicja w `couponKeys.ts`).
     "src/lib/__tests__/hubKeyFactories.test.ts",
-    // D-S1-01: bliźniaki drizzle migracji S1 (bajt w bajt z supabase).
-    "drizzle/migrations/{0323,0324,0325,0326,0327}_*.sql",
+    // D-S1-01: bliźniaki drizzle migracji S1 (bajt w bajt z supabase). Numery
+    // po renumeracji `4549a6f1` (Integrator S4, 2026-10-19: Z-S1-02).
+    "drizzle/migrations/{0324,0325,0326,0327,0328}_*.sql",
   ],
   S2: [
     "supabase/migrations/2026102011????_*.sql",
@@ -448,6 +451,21 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/billing/{AdminBillingPanel,AdminPaymentOrdersPanel,AdminPaymentsDiagnosticsPanel}.tsx",
     "src/components/admin/billing/__tests__/{AdminBillingPanel,AdminPaymentOrdersPanel,AdminPaymentsDiagnosticsPanel}*.test.tsx",
     "src/lib/i18n-{admin-revenue-finance,profile}.ts",
+    // (Integrator S2, 2026-10-19): bliźniaki drizzle 8 migracji S2 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego na `main` po S4 - §6 dziennika
+    // wdrożenia); bez nich `check:migration-lanes` i `supabaseLaneCoverage`
+    // są czerwone.
+    "drizzle/migrations/{0338,0339,0340,0341,0342,0343,0344,0345}_*.sql",
+    // (Integrator S2, 2026-10-19): P01 zastępuje anulowanie jednym kliknięciem
+    // dialogiem - test fałszywego sukcesu potwierdza teraz w atrapie dialogu
+    // (asercje bez zmian).
+    "src/components/billing/__tests__/subscriptionFalseSuccess.test.tsx",
+    // (Integrator S2, 2026-10-19): Z-S6-16 - wpięcie `snapshot`
+    // (`admin_revenue_semantic_snapshot`, migracja 20261020110400) w migawkę huba.
+    "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
+    // (Integrator S2, 2026-10-19): filtr `status` z adresu do panelu rozliczeń
+    // (PLAN S1 §3.3) - panel S2 przyjmuje już `statusFilter`.
+    "src/routes/admin.billing.tsx",
   ],
   S3: [
     "supabase/migrations/2026102012????_*.sql",
@@ -504,6 +522,32 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/clubs/organisms/ClubApplicationsInbox.tsx",
     "src/components/admin/clubs/**/__tests__/ClubApplicationsInbox*.test.tsx",
     "src/lib/i18n-admin-{crm-lifecycle,revenue-community,workflows}.ts",
+    // (Integrator S4, 2026-10-19): bliźniaki drizzle 8 migracji S4 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego na `main` przy scaleniu - §6
+    // dziennika wdrożenia).
+    "drizzle/migrations/{0330,0331,0332,0333,0334,0335,0336,0337}_*.sql",
+    // (Integrator S4, 2026-10-19): `crmKeys.staffUsers()` zamiast tymczasowego
+    // `crmStaffUsersKey()` z `leadMutations.ts` (Z-S4-03) i jego wiersz w tabeli
+    // par fabryk (test kompletności).
+    "src/lib/crm/keys.ts",
+    "src/lib/__tests__/hubKeyFactories.test.ts",
+    // (Integrator S4, 2026-10-19): br. 04 D7 - filtry skrzynki zgłoszeń
+    // w `validateSearch` trasy (Z-S4-05); organizm był już w manifeście.
+    "src/routes/admin.community.clubs.applications.tsx",
+    "src/routes/__tests__/adminClubRoutes.test.tsx",
+    // (Integrator S4, 2026-10-19): wzorzec pgTAP w ERE - komenda z karty
+    // (`a|b|c`) w BRE uruchamiała 0 plików i kończyła się zielono (Z-S4-08).
+    "scripts/pgtap-local/run.sh",
+    // (Integrator S4, 2026-10-19): asercja izolacji historii etapów I0 po
+    // DISTINCT najemcy - wyzwalacz S4 dopisuje wiersz historii przy INSERT
+    // leada w fixture'ze.
+    "supabase/tests/hub_schema_rls_test.sql",
+    // (Integrator S4, 2026-10-19): Z-S6-16 - wpięcie `events` i `clubs`
+    // w migawkę huba razem z migracją 20261020130700 (plik S6).
+    "src/lib/analytics/semantic/revenueSnapshot.functions.ts",
+    // (Integrator S4, 2026-10-19): test end-to-end webhooka przypinał martwy
+    // `?retention=1`, który karta S4 każe usunąć z dzwonka rezygnacji.
+    "src/routes/api/public/payments/-webhook.test.ts",
   ],
   S5: [
     "supabase/migrations/2026102014????_*.sql",
@@ -530,6 +574,12 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/analytics/semantic/benchmarks/__tests__/**",
     "scripts/benchmarks/import-benchmarks.ts",
     "docs/benchmarki/2026-10-18/*.json",
+    // (Integrator S6, 2026-10-19): pakiet wiedzy „Insider marketingowy” i jego
+    // uspójnienie z rejestrem (pole `hub` w przedziałach, dokumenty metodyki) -
+    // dane i źródła rejestru wskaźników należą do S6, nie do kolejnych wycinków.
+    "docs/BENCHMARKI_WSKAZNIKOW_2026-10-18.md",
+    "docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md",
+    "docs/benchmarki/insider-2026-10-19/*.json",
     "src/components/admin/analytics/{FunnelBars,KpiTile,TimeRangeFilter}.tsx",
     "src/components/admin/analytics/biChart.ts",
     "src/components/admin/analytics/__tests__/{FunnelBars,KpiTile,TimeRangeFilter,biChart}*.test.ts{,x}",

@@ -2,10 +2,31 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxEmailType } from "@/lib/email-templates/tx-copy";
-import { txCopy } from "@/lib/email-templates/tx-copy";
+import { TX_CANCELED_ENDED_CTA, txCopy } from "@/lib/email-templates/tx-copy";
 import { formatDate, formatMoney, sendTxEmail } from "@/lib/email/transactional.server";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
+
+/**
+ * Cel CTA maili subskrypcji (P12). Dawniej rezygnacja prowadziła na
+ * `/cennik` - trasy, której nie ma (404 w chwili, gdy klient chciał wrócić).
+ * Test `notificationsCtaRoutes.test.ts` sprawdza każdą ścieżkę z tej listy
+ * w `routeTree.gen.ts`.
+ */
+export const SUBSCRIPTION_CTA_PATHS = {
+  plan: PROFILE_PLAN_PATH,
+  pricing: "/pricing",
+} as const;
+
+/**
+ * Czy dostęp już wygasł w chwili wysyłki. Brak daty końca = nie wiadomo, więc
+ * NIE twierdzimy, że wygasł (zostaje treść „dostęp do końca okresu").
+ */
+export function accessEndedAt(periodEnd: string | null | undefined, nowMs = Date.now()): boolean {
+  if (!periodEnd) return false;
+  const end = Date.parse(periodEnd);
+  return Number.isFinite(end) && end <= nowMs;
+}
 
 /**
  * Powiadomienia mailowe cyklu życia subskrypcji i płatnych wydarzeń.
@@ -192,6 +213,10 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
     }
 
     const intervalLabel = plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null;
+    // P12: rezygnacja po końcu okresu (np. koniec windykacji, mail z kolejki)
+    // nie obiecuje wznowienia - CTA prowadzi do cennika.
+    const accessEnded =
+      input.kind === "subscription_canceled" && accessEndedAt(input.periodEnd ?? null);
 
     const result = await sendTxEmail({
       type: input.kind,
@@ -218,13 +243,106 @@ export async function notifySubscriptionEmail(input: SubscriptionNotifyInput): P
           input.kind === "subscription_upgraded" && input.prorationCents
             ? formatMoney(input.prorationCents, currency, lang)
             : null,
+        accessEnded,
       },
-      ctaPath: input.kind === "subscription_canceled" ? "/cennik" : PROFILE_PLAN_PATH,
+      // Rezygnacja w trakcie okresu: profil z akcją wznowienia; po końcu - cennik.
+      ctaPath: accessEnded ? SUBSCRIPTION_CTA_PATHS.pricing : SUBSCRIPTION_CTA_PATHS.plan,
+      ...(accessEnded ? { ctaLabel: TX_CANCELED_ENDED_CTA[lang] } : {}),
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
     return result.ok;
   } catch (err) {
     console.error("[billing-emails] subscription notify failed", input.kind, err);
+    return false;
+  }
+}
+
+export interface RenewalNotifyInput {
+  /** Identyfikator subskrypcji u operatora (`sub_…`). */
+  providerSubscriptionId: string;
+  environment: "live" | "sandbox";
+  /** Faktura odnowienia - ziarno idempotencji (jeden mail na fakturę). */
+  invoiceId: string;
+  amountCents: number | null;
+  currency: string | null;
+  periodEnd?: string | null;
+}
+
+/**
+ * Mail „subskrypcja odnowiona" (P12: szablon istniał, nadawcy nie było).
+ * Odbiorca i plan z lustra `subscriptions` (najemca z wiersza, nie z ładunku);
+ * kwota z FAKTURY - po zmianie cennika katalog nie jest ceną odnowienia.
+ * Nigdy nie rzuca; `false` = nie wysłano.
+ */
+export async function notifySubscriptionRenewed(input: RenewalNotifyInput): Promise<boolean> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
+      .from("subscriptions")
+      .select("user_id, tenant_id, price_id, current_period_end")
+      .eq("provider_subscription_id", input.providerSubscriptionId)
+      .eq("environment", input.environment)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row?.user_id) return false;
+    const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
+    const plan = await resolvePlanForPrice(row.price_id, { tenantId: row.tenant_id });
+    return await notifySubscriptionEmail({
+      kind: "subscription_renewed",
+      userId: row.user_id,
+      planId: plan?.planId ?? null,
+      periodEnd: input.periodEnd ?? row.current_period_end ?? null,
+      amountCents: input.amountCents,
+      currency: input.currency,
+      idempotencySeed: input.invoiceId,
+    });
+  } catch (err) {
+    console.error("[billing-emails] renewal notify failed", input.invoiceId, err);
+    return false;
+  }
+}
+
+export interface DonationNotifyInput {
+  /** Adres darczyńcy (darowizna bywa bez konta). */
+  email: string;
+  lang?: EmailLang | null;
+  name?: string | null;
+  amountCents: number | null;
+  currency: string | null;
+  /** Wiadomość z formularza darowizny - przekazywana w treści bez zmian. */
+  donorMessage?: string | null;
+  tenantId?: string | null;
+  /** Wpłata (id darowizny albo faktury raty) - jeden mail na wpłatę. */
+  idempotencySeed: string;
+}
+
+/**
+ * Podziękowanie za darowiznę (`donation_received`, P12: brak nadawcy).
+ * Nigdy nie rzuca; `false` = nie wysłano.
+ */
+export async function notifyDonationEmail(input: DonationNotifyInput): Promise<boolean> {
+  try {
+    const lang: EmailLang = input.lang === "en" ? "en" : "pl";
+    const amount =
+      input.amountCents !== null && input.currency
+        ? formatMoney(input.amountCents, input.currency, lang)
+        : null;
+    const copy = txCopy("donation_received", lang);
+    const result = await sendTxEmail({
+      type: "donation_received",
+      to: input.email,
+      lang,
+      metaName: input.name ?? null,
+      subjectName: null,
+      details: amount ? [{ label: copy.labels.price, value: amount }] : [],
+      bodyVars: { amount, donorMessage: input.donorMessage?.trim() || null },
+      ctaPath: "/",
+      tenantId: input.tenantId ?? null,
+      idempotencyKey: `donation_received:${input.idempotencySeed}`,
+    });
+    return result.ok;
+  } catch (err) {
+    console.error("[billing-emails] donation notify failed", input.idempotencySeed, err);
     return false;
   }
 }

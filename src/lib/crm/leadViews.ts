@@ -4,6 +4,7 @@
 import { z } from "zod";
 import type { ScoreBand } from "@/lib/crm/scoring";
 import {
+  CRM_SOURCE_TYPES,
   filterLeadRows,
   inferLeadSource,
   sortLeadRows,
@@ -11,6 +12,7 @@ import {
   type LeadSortDir,
   type LeadSortKey,
 } from "@/lib/crm/leadListSpec";
+import { LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 
 /* ---------- Filtry ---------- */
 
@@ -25,8 +27,34 @@ export const LeadFilterSchema = z.object({
   createdRange: z.enum(["any", "7d", "30d", "90d", "365d"]).default("any"),
   activityRange: z.enum(["any", "7d", "30d", "90d"]).default("any"),
   consentOnly: z.boolean().default(false),
+  // Filtry huba S4 (P23). OPCJONALNE, nie z wartością domyślną: widoki
+  // zapisane przed S4 (JSONB w `saved_views`) nie mają tych pól i mają się
+  // wczytać bez zmian; brak pola = brak filtra.
+  lifecycle: z.enum(LIFECYCLE_STAGES).optional(),
+  sourceType: z.enum(CRM_SOURCE_TYPES).optional(),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  ownerIds: z.array(z.string().uuid()).max(50).optional(),
 });
 export type LeadFilter = z.infer<typeof LeadFilterSchema>;
+
+/**
+ * Stare źródło heurystyczne -> segment kontaktu. Zapisany widok „Import"
+ * nie zwracał nic (P23); po wczytaniu pokazuje najbliższy segment, a stary
+ * filtr znika, żeby jeden widok nie niósł dwóch reguł naraz.
+ */
+const LEGACY_SOURCE_TO_SEGMENT: Record<
+  Exclude<LeadFilter["source"], "any">,
+  (typeof CRM_SOURCE_TYPES)[number]
+> = {
+  newsletter: "newsletter",
+  form: "contact_form",
+  import: "manual",
+};
+
+export function migrateLegacyLeadFilter(filter: LeadFilter): LeadFilter {
+  if (filter.source === "any" || filter.sourceType) return filter;
+  return { ...filter, source: "any", sourceType: LEGACY_SOURCE_TO_SEGMENT[filter.source] };
+}
 
 export const DEFAULT_LEAD_FILTER: LeadFilter = {
   stage: "any",
@@ -48,7 +76,11 @@ export function isDefaultLeadFilter(f: LeadFilter): boolean {
     f.company === null &&
     f.createdRange === "any" &&
     f.activityRange === "any" &&
-    f.consentOnly === false
+    f.consentOnly === false &&
+    !f.lifecycle &&
+    !f.sourceType &&
+    !(f.tags && f.tags.length > 0) &&
+    !(f.ownerIds && f.ownerIds.length > 0)
   );
 }
 
@@ -195,7 +227,8 @@ export const DEFAULT_LEAD_VIEW_CONFIG: LeadViewConfig = {
 
 export function parseLeadViewConfig(raw: unknown): LeadViewConfig {
   const p = LeadViewConfigSchema.safeParse(raw);
-  return p.success ? p.data : DEFAULT_LEAD_VIEW_CONFIG;
+  if (!p.success) return DEFAULT_LEAD_VIEW_CONFIG;
+  return { ...p.data, filter: migrateLegacyLeadFilter(p.data.filter) };
 }
 
 /* ---------- Wbudowane widoki ---------- */
@@ -301,6 +334,10 @@ export function leadFilterToListParams(f: LeadFilter, now = Date.now()): LeadLis
   if (f.country) params.country = f.country;
   if (f.company) params.company = f.company;
   if (f.consentOnly) params.consent_only = true;
+  if (f.lifecycle) params.lifecycle_stage = f.lifecycle;
+  if (f.sourceType) params.source_type = f.sourceType;
+  if (f.tags && f.tags.length > 0) params.tags = f.tags;
+  if (f.ownerIds && f.ownerIds.length > 0) params.owner_ids = f.ownerIds;
   if (f.createdRange !== "any") {
     params.created_from = new Date(now - RANGE_DAYS[f.createdRange] * 86_400_000).toISOString();
   }

@@ -21,7 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { fetchWorkflowRuns, type WorkflowDefinitionRow } from "@/lib/admin/workflows";
+import { type WorkflowDefinitionRow } from "@/lib/admin/workflows";
+import { workflowRunsQueryOptions } from "@/lib/admin/workflowQueries";
 import { ALL_SENTINEL, runsQueryParams } from "./lib/panelRules";
 import { DateTimeText, EventTypeChip, RunStatusBadge } from "./atoms";
 
@@ -45,12 +46,8 @@ export function WorkflowRunsPanel({
 }: WorkflowRunsPanelProps) {
   const { t } = useTranslation();
 
-  const runsQuery = useQuery({
-    queryKey: ["admin", "workflow-runs", filter.workflowId, filter.status],
-    // Puste filtry są POMIJANE, nie wysyłane jako null - patrz `runsQueryParams`.
-    queryFn: () => fetchWorkflowRuns(runsQueryParams(filter)),
-    staleTime: 15_000,
-  });
+  // Puste filtry są POMIJANE, nie wysyłane jako null - patrz `runsQueryParams`.
+  const runsQuery = useQuery(workflowRunsQueryOptions(filter, runsQueryParams(filter)));
 
   const rows = runsQuery.data ?? [];
 

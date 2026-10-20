@@ -1,0 +1,1943 @@
+From 9441d6da57c2083cbf71e58b424f4ccb79570c6f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 19 Oct 2026 20:12:17 +0000
+Subject: [PATCH 5/8] =?UTF-8?q?hub(S3):=20powr=C3=B3t=20po=20logowaniu,=20?=
+ =?UTF-8?q?pomiar=20lejka=20konta=20i=20kasy,=20P21,=20P22?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- /login przepuszcza next/intent/plan kształtem (walidator bez modułu lejka
+  w chunku wejściowym); AuthPortal sanitizuje je (paywallLinks), po
+  zalogowaniu wraca na treść albo do kasy planu, emailRedirectTo przez
+  /auth/callback?next=, źródło rejestracji z intencji, signup_completed /
+  login_completed przy zgodzie (P15/P16/P18).
+- /auth/callback: bezpieczny next wraca na treść, inaczej /welcome.
+- TierCard: CTA darmowego progu otwiera rejestrację (mode=signup,
+  intent=pricing); AudienceSwitcher mierzy zmianę segmentu przy zgodzie.
+- /plans/$planId: próg cta_mode=contact daje formularz rozmowy także dla planu
+  w sprzedaży (P21).
+- /checkout/$planId: checkout_view i checkout_submit przy zgodzie (P18);
+  /checkout/success: jeden sanitizer powrotów (safeNextPath).
+- track ingest: typy kroków lejka i encja club; GA4: pricing_view ->
+  view_item_list, checkout_submit -> begin_checkout; footerTracking: mechanizm
+  potwierdzonego zapisu na newsletter (newsletter_signup).
+- expireCheckoutOrder zapisuje metadata.cancel_reason=session_expired w tym
+  samym zapisie co status (checkout.abandoned.v1, P22).
+- e2e: login-return.spec.ts, paywall.spec.ts (bez bazy).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01B1u5WTSfc2BVu79A3S4crV
+---
+ e2e/login-return.spec.ts                      |  88 ++++++
+ e2e/paywall.spec.ts                           |  95 ++++++
+ src/components/auth/AuthPortal.tsx            |  59 +++-
+ .../auth/__tests__/AuthPortal.return.test.tsx | 271 +++++++++++++++++
+ .../AudienceSwitcher.funnel.test.tsx          |  62 ++++
+ .../pricing/__tests__/TierCard.test.tsx       |  23 +-
+ .../pricing/molecules/AudienceSwitcher.tsx    |  18 +-
+ src/components/pricing/organisms/TierCard.tsx |   3 +
+ .../__tests__/footerTracking.funnel.test.ts   |  44 +++
+ .../__tests__/ga4EventMap.funnel.test.ts      |  21 ++
+ src/lib/analytics/footerTracking.ts           |  48 +++
+ src/lib/analytics/ga4EventMap.ts              |   7 +
+ .../oneTimeFulfilment.server.test.ts          |  28 ++
+ src/lib/billing/oneTimeFulfilment.server.ts   |  18 +-
+ .../__tests__/authCallbackReturn.test.tsx     |  72 +++++
+ .../__tests__/checkoutPlanId.funnel.test.tsx  | 277 ++++++++++++++++++
+ .../__tests__/checkoutSuccessRoute.test.tsx   |  26 +-
+ src/routes/__tests__/loginReturn.test.tsx     |  67 +++++
+ .../__tests__/plansPlanId.contact.test.tsx    | 132 +++++++++
+ src/routes/api/public/-track.test.ts          |  27 ++
+ src/routes/api/public/track.ts                |  14 +
+ src/routes/auth.callback.tsx                  |  13 +-
+ src/routes/checkout.$planId.tsx               |  28 ++
+ src/routes/checkout.success.tsx               |   7 +-
+ src/routes/login.tsx                          |  31 +-
+ src/routes/plans.$planId.tsx                  |   7 +-
+ 26 files changed, 1455 insertions(+), 31 deletions(-)
+ create mode 100644 e2e/login-return.spec.ts
+ create mode 100644 e2e/paywall.spec.ts
+ create mode 100644 src/components/auth/__tests__/AuthPortal.return.test.tsx
+ create mode 100644 src/components/pricing/__tests__/AudienceSwitcher.funnel.test.tsx
+ create mode 100644 src/lib/analytics/__tests__/footerTracking.funnel.test.ts
+ create mode 100644 src/lib/analytics/__tests__/ga4EventMap.funnel.test.ts
+ create mode 100644 src/routes/__tests__/authCallbackReturn.test.tsx
+ create mode 100644 src/routes/__tests__/checkoutPlanId.funnel.test.tsx
+ create mode 100644 src/routes/__tests__/loginReturn.test.tsx
+ create mode 100644 src/routes/__tests__/plansPlanId.contact.test.tsx
+
+diff --git a/e2e/login-return.spec.ts b/e2e/login-return.spec.ts
+new file mode 100644
+index 000000000..5037b1e91
+--- /dev/null
++++ b/e2e/login-return.spec.ts
+@@ -0,0 +1,88 @@
++import { test, expect, type Page } from "@playwright/test";
++
++// POWRÓT PO ZALOGOWANIU (hub S3, P15) - bez bazy danych.
++//
++// `/login` przyjmuje `next` (ścieżka powrotu), `intent` i `plan`; portal po
++// ustaleniu sesji wraca na `next` - WYŁĄCZNIE ścieżkę względną w obrębie
++// serwisu. Ten plik prowadzi prawdziwy portal na serwerze dev z zaślepkowymi
++// poświadczeniami Supabase, więc „zalogowanego" udaje sesja w magazynie
++// (ten sam zabieg co `e2e/event-paid-registration.spec.ts`: przechwycony
++// ODCZYT klucza `sb-<ref>-auth-token`, bo `<ref>` zależy od projektu).
++//
++// Asercje mierzą ADRES po nawigacji portalu: bezpieczny `next` -> ta ścieżka
++// (z zapytaniem), wrogi (`//evil`, `https://…`, `/\evil`, `%2F%2F`) -> strona
++// główna TEGO serwisu, `plan` bez `next` -> kasa planu.
++
++test.describe.configure({ mode: "serial", timeout: 120_000 });
++
++const PLAN = "11111111-1111-4111-8111-111111111111";
++
++async function signIn(page: Page): Promise<void> {
++  await page.addInitScript(() => {
++    const session = JSON.stringify({
++      access_token: "e2e-access-token",
++      token_type: "bearer",
++      expires_in: 3600,
++      expires_at: Math.floor(Date.now() / 1000) + 3600,
++      refresh_token: "e2e-refresh-token",
++      user: {
++        id: "00000000-0000-4000-8000-0000000000e2",
++        aud: "authenticated",
++        role: "authenticated",
++        email: "czytelnik@example.org",
++        app_metadata: {},
++        user_metadata: {},
++        created_at: "2026-01-01T00:00:00.000Z",
++      },
++    });
++    const nativeGetItem = window.Storage.prototype.getItem;
++    window.Storage.prototype.getItem = function patched(key: string): string | null {
++      if (/^sb-.+-auth-token$/.test(key)) return session;
++      return nativeGetItem.call(this, key);
++    };
++  });
++}
++
++function sameOrigin(page: Page): string {
++  return new URL(page.url()).origin;
++}
++
++test("zalogowany wraca na artykuł z next (z zapytaniem)", async ({ page, baseURL }) => {
++  await signIn(page);
++  await page.goto(`/login?next=${encodeURIComponent("/pricing?ref=paywall")}&intent=paywall`);
++  await page.waitForURL((url) => url.pathname === "/pricing", { timeout: 90_000 });
++  const url = new URL(page.url());
++  expect(url.origin).toBe(new URL(baseURL ?? page.url()).origin);
++  expect(url.searchParams.get("ref")).toBe("paywall");
++});
++
++for (const evil of [
++  "//evil.example/x",
++  "https://evil.example/x",
++  "/\\evil.example",
++  "%2F%2Fevil.example",
++  "/%2F%2Fevil.example",
++]) {
++  test(`wrogi next ${JSON.stringify(evil)} kończy się na stronie głównej serwisu`, async ({
++    page,
++    baseURL,
++  }) => {
++    await signIn(page);
++    await page.goto(`/login?next=${encodeURIComponent(evil)}`);
++    await page.waitForURL((url) => url.pathname === "/", { timeout: 90_000 });
++    expect(sameOrigin(page)).toBe(new URL(baseURL ?? page.url()).origin);
++    expect(page.url()).not.toContain("evil.example");
++  });
++}
++
++test("plan bez next prowadzi do kasy tego planu", async ({ page }) => {
++  await signIn(page);
++  await page.goto(`/login?mode=signin&intent=pricing&plan=${PLAN}`);
++  await page.waitForURL((url) => url.pathname === `/checkout/${PLAN}`, { timeout: 90_000 });
++});
++
++test("gość zostaje na logowaniu - next czeka na zalogowanie", async ({ page }) => {
++  await page.goto(`/login?mode=signin&next=${encodeURIComponent("/pricing")}`);
++  await expect(page.locator("form").first()).toBeVisible({ timeout: 90_000 });
++  expect(new URL(page.url()).pathname).toBe("/login");
++});
+diff --git a/e2e/paywall.spec.ts b/e2e/paywall.spec.ts
+new file mode 100644
+index 000000000..babfc4001
+--- /dev/null
++++ b/e2e/paywall.spec.ts
+@@ -0,0 +1,95 @@
++import { test, expect, type Page } from "@playwright/test";
++
++// LEJEK CZYTELNIKA ZA PAYWALLEM (hub S3) - bez bazy danych.
++//
++// Sama ściana artykułu wymaga treści z bazy (loader SSR), więc jej macierz
++// person (gość, zarejestrowany bez planu, ranga za niska, z planem, limit,
++// hasło, organizacja, plan na zapytanie) jest w `src/components/__tests__/
++// Paywall.reader.test.tsx`. Tu - to, co z paywalla wychodzi do przeglądarki
++// i da się sprawdzić na serwerze dev z zaślepkowymi poświadczeniami:
++//   * rejestracja z paywalla (`intent=paywall`) otwiera formularz rejestracji
++//     i NIE gubi ścieżki powrotu,
++//   * link aktywacyjny z e-maila (`/auth/callback?next=`) wraca na treść,
++//     a wrogi `next` - na stronę powitalną,
++//   * strona sukcesu kasy wraca na artykuł/klub zapamiętany przez ścianę,
++//     ale nigdy pod adres spoza serwisu (także zakodowany).
++
++test.describe.configure({ mode: "serial", timeout: 120_000 });
++
++async function signIn(page: Page): Promise<void> {
++  await page.addInitScript(() => {
++    const session = JSON.stringify({
++      access_token: "e2e-access-token",
++      token_type: "bearer",
++      expires_in: 3600,
++      expires_at: Math.floor(Date.now() / 1000) + 3600,
++      refresh_token: "e2e-refresh-token",
++      user: {
++        id: "00000000-0000-4000-8000-0000000000e3",
++        aud: "authenticated",
++        role: "authenticated",
++        email: "nowe-konto@example.org",
++        app_metadata: {},
++        user_metadata: {},
++        created_at: "2026-01-01T00:00:00.000Z",
++      },
++    });
++    const nativeGetItem = window.Storage.prototype.getItem;
++    window.Storage.prototype.getItem = function patched(key: string): string | null {
++      if (/^sb-.+-auth-token$/.test(key)) return session;
++      return nativeGetItem.call(this, key);
++    };
++  });
++}
++
++test("rejestracja z paywalla otwiera formularz rejestracji i zachowuje powrót", async ({
++  page,
++}) => {
++  await page.goto(`/login?mode=signup&intent=paywall&next=${encodeURIComponent("/analizy")}`);
++  await expect(page.locator('input[type="email"]').first()).toBeVisible({ timeout: 90_000 });
++  // Formularz rejestracji ma potwierdzenie hasła albo pola profilu - logowanie
++  // ma wyłącznie e-mail i jedno hasło. Adres nie traci `next`.
++  const url = new URL(page.url());
++  expect(url.pathname).toBe("/login");
++  expect(url.searchParams.get("next")).toBe("/analizy");
++  expect(url.searchParams.get("intent")).toBe("paywall");
++});
++
++test("link aktywacyjny z next wraca na treść, przez którą powstało konto", async ({ page }) => {
++  await signIn(page);
++  await page.goto(`/auth/callback?next=${encodeURIComponent("/pricing?from=signup")}`);
++  await page.waitForURL((url) => url.pathname === "/pricing", { timeout: 90_000 });
++  expect(new URL(page.url()).searchParams.get("from")).toBe("signup");
++});
++
++test("link aktywacyjny z wrogim next kończy na stronie powitalnej", async ({ page }) => {
++  await signIn(page);
++  await page.goto(`/auth/callback?next=${encodeURIComponent("//evil.example/x")}`);
++  await page.waitForURL((url) => url.pathname === "/welcome", { timeout: 90_000 });
++  expect(page.url()).not.toContain("evil.example");
++});
++
++async function successWithReturn(page: Page, returnTo: string): Promise<void> {
++  await page.addInitScript((value: string) => {
++    window.sessionStorage.setItem("checkout:returnTo", value);
++  }, returnTo);
++  await page.goto("/checkout/success?order=e2e-order");
++}
++
++test("sukces kasy wraca do klubu zapamiętanego przez bramkę", async ({ page }) => {
++  await successWithReturn(page, "/club/klub-e2e");
++  const back = page.getByRole("link", { name: /Wróć do artykułu|Back to the article/ });
++  await expect(back).toBeVisible({ timeout: 90_000 });
++  await expect(back).toHaveAttribute("href", "/club/klub-e2e");
++});
++
++test("sukces kasy odrzuca zakodowany adres spoza serwisu", async ({ page }) => {
++  await successWithReturn(page, "/%2F%2Fevil.example");
++  await expect(
++    page.getByRole("link", { name: /Wróć na stronę główną|Back to homepage/ }),
++  ).toBeVisible({ timeout: 90_000 });
++  await expect(
++    page.getByRole("link", { name: /Wróć do artykułu|Back to the article/ }),
++  ).toHaveCount(0);
++  expect(await page.content()).not.toContain("evil.example");
++});
+diff --git a/src/components/auth/AuthPortal.tsx b/src/components/auth/AuthPortal.tsx
+index 100d91c5e..1f23f1970 100644
+--- a/src/components/auth/AuthPortal.tsx
++++ b/src/components/auth/AuthPortal.tsx
+@@ -33,12 +33,43 @@ import {
+   type RegistrationFieldKey,
+ } from "@/lib/auth/registrationFields";
+ 
++import {
++  parseLoginSearch,
++  postLoginTarget,
++  signupRedirectPath,
++  signupSourceForIntent,
++} from "@/lib/access/paywallLinks";
++import { track } from "@/lib/analytics/track";
++import { hasAnalyticsConsent } from "@/lib/ads/consent";
++
+ import illustrationLight from "@/assets/login-illustration-light.jpg";
+ import illustrationDark from "@/assets/login-illustration-dark.jpg";
+ 
+ export type Mode = "signin" | "signup" | "reset";
+ 
+-export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
++/** Zdarzenie lejka konta (P18) - wyłącznie przy zgodzie analitycznej. */
++function trackAccount(type: "signup_completed" | "login_completed", intent?: string): void {
++  if (!hasAnalyticsConsent()) return;
++  track({ type, name: type, meta: { intent: intent ?? null } });
++}
++
++export function AuthPortal({
++  initialMode = "signin",
++  next: rawNext,
++  intent: rawIntent,
++  planId: rawPlan,
++}: {
++  initialMode?: Mode;
++  /** Ścieżka powrotu (`?next`) - sanitizowana tutaj, nie w trasie (P15). */
++  next?: string;
++  /** Skąd czytelnik przyszedł (`?intent`) - źródło rejestracji. */
++  intent?: string;
++  /** Plan wybrany przed logowaniem (`?plan`) - powrót do jego kasy. */
++  planId?: string;
++}) {
++  // Jedna sanitizacja parametrów lejka (`paywallLinks`): trasa przepuszcza je
++  // kształtem, żeby walidator nie ciągnął modułu do chunka wejściowego.
++  const funnel = parseLoginSearch({ next: rawNext, intent: rawIntent, plan: rawPlan });
+   const { t, i18n } = useTranslation();
+   const uiLanguage = uiLang(i18n.language);
+   const navigate = useNavigate();
+@@ -65,11 +96,15 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
+ 
+   const runPreAuthGuard = useServerFn(preAuthGuard);
+ 
++  const target = postLoginTarget(funnel, "/");
+   useEffect(() => {
+     if (loading || !session || mfaPending) return;
+-    // Po zalogowaniu każdy użytkownik (również staff) trafia na stronę główną.
+-    navigate({ to: "/" });
+-  }, [session, loading, mfaPending, navigate]);
++    // Po zalogowaniu wracamy tam, skąd czytelnik przyszedł (P15: artykuł za
++    // paywallem, klub, kasa wybranego planu); bez kontekstu - strona główna,
++    // jak dotąd (również staff). `href`, bo cel niesie zapytanie i kotwicę.
++    if (target === "/") navigate({ to: "/" });
++    else navigate({ href: target, replace: true } as never);
++  }, [session, loading, mfaPending, navigate, target]);
+ 
+   // Napisy portalu idą ze słownika (`i18n-auth-portal.ts`). Tekst bohatera jest
+   // treścią REDAKCYJNĄ z ustawień strony logowania, nie napisem interfejsu, więc
+@@ -138,21 +173,27 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
+             linkedin: val("linkedin"),
+             phone: val("phone"),
+           },
+-          { lang: uiLanguage, source: "auth_page" },
++          // Źródło rejestracji z intencji (P16): paywall, licznik, cennik,
++          // kasa, bramka klubu - biała lista `account.registered.v1`.
++          { lang: uiLanguage, source: signupSourceForIntent(funnel.intent) },
+         );
+         const { error } = await supabase.auth.signUp({
+           email,
+           password,
+           options: {
+-            emailRedirectTo: `${window.location.origin}${
++            // Link z e-maila wraca przez `/auth/callback?next=` na treść, przez
++            // którą czytelnik się zarejestrował; bez kontekstu - jak dotąd.
++            emailRedirectTo: `${window.location.origin}${signupRedirectPath(
++              target === "/" ? null : target,
+               settings.logged_in_redirect_url?.startsWith("/")
+                 ? settings.logged_in_redirect_url
+-                : "/"
+-            }`,
++                : "/",
++            )}`,
+             data: metadata,
+           },
+         });
+         if (error) throw error;
++        trackAccount("signup_completed", funnel.intent);
+ 
+         toast.success(t("authPortal.toasts.accountCreated"));
+       } else if (mode === "reset") {
+@@ -173,6 +214,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
+           setMfaOpen(true);
+         } else {
+           setMfaPending(false);
++          trackAccount("login_completed", funnel.intent);
+           toast.success(t("authPortal.toasts.signedIn"));
+         }
+       }
+@@ -595,6 +637,7 @@ export function AuthPortal({ initialMode = "signin" }: { initialMode?: Mode }) {
+         onVerified={() => {
+           setMfaOpen(false);
+           setMfaPending(false);
++          trackAccount("login_completed", funnel.intent);
+           toast.success(t("authPortal.toasts.signedIn"));
+         }}
+         onCancel={() => {
+diff --git a/src/components/auth/__tests__/AuthPortal.return.test.tsx b/src/components/auth/__tests__/AuthPortal.return.test.tsx
+new file mode 100644
+index 000000000..a0b5bc71d
+--- /dev/null
++++ b/src/components/auth/__tests__/AuthPortal.return.test.tsx
+@@ -0,0 +1,271 @@
++// AuthPortal w lejku czytelnika (S3, P15/P16/P18): powrót po zalogowaniu na
++// treść (`next`, sanitizowany tu - trasa przepuszcza go tylko kształtem),
++// kasa wybranego planu, `emailRedirectTo` przez `/auth/callback?next=`,
++// źródło rejestracji z intencji oraz zdarzenia `signup_completed` /
++// `login_completed` wyłącznie przy zgodzie analitycznej. Wygląd bez zmian
++// (AGENTS: wspólna powłoka z homepage).
++import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
++import { fireEvent, render, screen, waitFor } from "@testing-library/react";
++import i18n from "@/lib/i18n";
++import { AUTH_DEFAULTS } from "@/lib/authSettings";
++
++const PLAN = "11111111-1111-4111-8111-111111111111";
++
++const h = vi.hoisted(() => ({
++  authState: { session: null, loading: false } as { session: unknown; loading: boolean },
++  navigate: vi.fn(),
++  theme: "light" as "light" | "dark",
++  toggleTheme: vi.fn(),
++  settings: {} as any,
++  reg: {} as any,
++  guard: vi.fn(),
++  signIn: vi.fn(),
++  signUp: vi.fn(),
++  resetPwd: vi.fn(),
++  mfaRequired: vi.fn(),
++  toastSuccess: vi.fn(),
++  toastError: vi.fn(),
++  mfaOnVerified: null as null | (() => void),
++  mfaOnCancel: null as null | (() => void),
++  track: vi.fn(),
++  consent: true,
++}));
++
++vi.mock("@tanstack/react-router", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
++  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
++  useNavigate: () => h.navigate,
++}));
++vi.mock("@tanstack/react-start", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
++  useServerFn: () => h.guard,
++}));
++// Token dla useServerFn - realny moduł ciągnie warstwę serwerową, której test
++// komponentu nie potrzebuje.
++vi.mock("@/lib/auth/bruteforce.functions", () => ({ preAuthGuard: {} }));
++vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.authState }));
++vi.mock("@/hooks/useAuthSettings", () => ({ useAuthSettings: () => h.settings }));
++// Logo (renderowane w rail) czyta branding przez ten hook - realna wersja
++// odpala react-query + supabase.from(), niepotrzebne tu i asynchroniczne
++// (źródło ostrzeżeń act() niezwiązanych z żadną akcją w teście).
++vi.mock("@/lib/useSiteSetting", () => ({
++  useSiteSetting: (_key: string, defaults: unknown) => defaults,
++}));
++vi.mock("@/components/ThemeProvider", () => ({
++  useTheme: () => ({ theme: h.theme, toggle: h.toggleTheme }),
++}));
++vi.mock("@/integrations/supabase/client", () => ({
++  supabase: {
++    auth: {
++      signInWithPassword: (...a: unknown[]) => h.signIn(...a),
++      signUp: (...a: unknown[]) => h.signUp(...a),
++      resetPasswordForEmail: (...a: unknown[]) => h.resetPwd(...a),
++    },
++  },
++}));
++vi.mock("@/lib/auth/mfa", () => ({ isMfaChallengeRequired: () => h.mfaRequired() }));
++vi.mock("@/lib/auth/registrationFields", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@/lib/auth/registrationFields")>()),
++  useRegistrationFields: () => h.reg,
++}));
++vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
++vi.mock("@/components/auth/MfaChallenge", () => ({
++  MfaChallenge: (props: { open: boolean; onVerified: () => void; onCancel: () => void }) => {
++    h.mfaOnVerified = props.onVerified;
++    h.mfaOnCancel = props.onCancel;
++    return props.open ? <div data-testid="mfa-challenge-stub" /> : null;
++  },
++}));
++
++vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
++vi.mock("@/lib/ads/consent", () => ({ hasAnalyticsConsent: () => h.consent }));
++
++import { AuthPortal } from "@/components/auth/AuthPortal";
++
++const t = (key: string) => i18n.t(key);
++
++// Etykieta z fixture reg.label() bywa prefiksem innego, niezwiązanego
++// aria-label (np. przycisk "Pokaż hasło" zawiera "hasło" jako podciąg tekstu
++// etykiety "Hasło *") - kotwiczymy dopasowanie na początku stringa.
++function startsWith(text: string): RegExp {
++  return new RegExp(`^${text}`);
++}
++
++function makeReg() {
++  const visible = [
++    { key: "email", enabled: true, required: true },
++    { key: "password", enabled: true, required: true },
++    { key: "password_confirm", enabled: true, required: true },
++    { key: "first_name", enabled: true, required: true },
++    { key: "last_name", enabled: true, required: false },
++  ] as Array<{ key: string; enabled: boolean; required: boolean }>;
++  const get = (key: string) => visible.find((f) => f.key === key);
++  return {
++    fields: visible,
++    visible,
++    get,
++    isEnabled: (key: string) => get(key)?.enabled === true,
++    isRequired: (key: string) => get(key)?.required === true,
++    label: (key: string, fallback?: string) => fallback ?? key,
++    placeholder: () => "",
++  };
++}
++
++function renderPortal() {
++  return render(<AuthPortal />);
++}
++
++// `submit()` w AuthPortal jest async (guard -> supabase -> ewentualny MFA) i ma
++// więcej niż jeden hop mikrozadań po zdarzeniu submit - opakowanie w
++// `act(async () => fireEvent.submit(...))` kończy się, gdy synchroniczna
++// część handlera dobiegnie końca, więc PÓŹNIEJSZE aktualizacje stanu (catch,
++// toast, setBusy(false)) i tak lądują poza tym act() i sypią ostrzeżeniem.
++// `fireEvent` już opakowuje własną (synchroniczną) część w act(); resztę
++// wchłania kolejny `await waitFor(...)` w każdym teście.
++function submitForm(container: HTMLElement) {
++  fireEvent.submit(container.querySelector("form") as HTMLFormElement);
++}
++
++function switchTo(label: string) {
++  fireEvent.click(screen.getAllByRole("button", { name: label })[0]);
++}
++
++function fillSignin(email = "reader@example.com", password = "haslo1234") {
++  fireEvent.change(screen.getByRole("textbox"), { target: { value: email } });
++  fireEvent.change(screen.getByPlaceholderText(t("authPortal.passwordPlaceholder")), {
++    target: { value: password },
++  });
++}
++
++// FieldBox dopisuje " *" do etykiety wymaganego pola (patrz ui/field-box.tsx),
++// więc etykiety z fixture reg.label() ("email", "first_name"...) trzeba
++// dopasowywać częściowo (exact: false), nie w formie dokładnego stringa.
++/** `opts.firstName === null` pozostawia pole puste (test walidacji). */
++function fillSignup(
++  opts: { firstName?: string | null; password?: string; confirm?: string; email?: string } = {},
++) {
++  fireEvent.change(screen.getByLabelText(startsWith("email")), {
++    target: { value: opts.email ?? "reader@example.com" },
++  });
++  const [pw, pwConfirm] = screen.getAllByLabelText(startsWith(t("authPortal.password")));
++  fireEvent.change(pw, { target: { value: opts.password ?? "s3cret123" } });
++  fireEvent.change(pwConfirm, { target: { value: opts.confirm ?? opts.password ?? "s3cret123" } });
++  if (opts.firstName !== null) {
++    fireEvent.change(screen.getByLabelText(startsWith("first_name")), {
++      target: { value: opts.firstName ?? "Anna" },
++    });
++  }
++  fireEvent.change(screen.getByLabelText(startsWith("last_name")), {
++    target: { value: "Kowalska" },
++  });
++}
++
++beforeAll(async () => {
++  await i18n.changeLanguage("pl");
++});
++
++beforeEach(() => {
++  h.authState = { session: null, loading: false };
++  h.navigate.mockClear();
++  h.settings = { ...AUTH_DEFAULTS };
++  h.reg = makeReg();
++  h.guard.mockReset().mockResolvedValue({ ok: true });
++  h.signIn.mockReset().mockResolvedValue({ error: null });
++  h.signUp.mockReset().mockResolvedValue({ error: null });
++  h.mfaRequired.mockReset().mockResolvedValue(false);
++  h.track.mockReset();
++  h.consent = true;
++});
++
++describe("AuthPortal - powrót po zalogowaniu (P15)", () => {
++  it("sesja + next: wraca na artykuł razem z zapytaniem i kotwicą", () => {
++    h.authState = { session: { user: { id: "u1" } }, loading: false };
++    render(<AuthPortal next="/analizy/tekst?ref=nl#sekcja" intent="paywall" />);
++    expect(h.navigate).toHaveBeenCalledWith({
++      href: "/analizy/tekst?ref=nl#sekcja",
++      replace: true,
++    });
++  });
++
++  it.each([
++    "//evil.com",
++    "https://evil.com/x",
++    "/\\evil.com",
++    "%2F%2Fevil.com",
++    "/%2F%2Fevil.com",
++    "/login?next=/x",
++    "javascript:alert(1)",
++  ])("odrzuca cel spoza serwisu albo pętlę logowania: %s", (next) => {
++    h.authState = { session: { user: { id: "u1" } }, loading: false };
++    render(<AuthPortal next={next} />);
++    expect(h.navigate).toHaveBeenCalledWith({ to: "/" });
++  });
++
++  it("plan bez next: kasa tego planu", () => {
++    h.authState = { session: { user: { id: "u1" } }, loading: false };
++    render(<AuthPortal planId={PLAN} intent="pricing" />);
++    expect(h.navigate).toHaveBeenCalledWith({ href: `/checkout/${PLAN}`, replace: true });
++  });
++
++  it("bez kontekstu: strona główna, jak dotąd", () => {
++    h.authState = { session: { user: { id: "u1" } }, loading: false };
++    render(<AuthPortal />);
++    expect(h.navigate).toHaveBeenCalledWith({ to: "/" });
++  });
++});
++
++describe("AuthPortal - rejestracja z kontekstem (P15/P16)", () => {
++  it("emailRedirectTo przez /auth/callback?next=, źródło z intencji, signup_completed", async () => {
++    const { container } = render(
++      <AuthPortal initialMode="signup" next="/analizy/tekst" intent="paywall" />,
++    );
++    fillSignup();
++    fireEvent.submit(container.querySelector("form") as HTMLFormElement);
++    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
++    const call = h.signUp.mock.calls[0]?.[0] as {
++      options: { emailRedirectTo: string; data: Record<string, unknown> };
++    };
++    expect(call.options.emailRedirectTo).toBe(
++      `${window.location.origin}/auth/callback?next=${encodeURIComponent("/analizy/tekst")}`,
++    );
++    expect(call.options.data.signup_source).toBe("paywall");
++    await waitFor(() =>
++      expect(h.track).toHaveBeenCalledWith(
++        expect.objectContaining({ type: "signup_completed", name: "signup_completed" }),
++      ),
++    );
++  });
++
++  it("bez kontekstu: przekierowanie z ustawień i źródło auth_page", async () => {
++    const { container } = render(<AuthPortal initialMode="signup" />);
++    fillSignup();
++    fireEvent.submit(container.querySelector("form") as HTMLFormElement);
++    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
++    const call = h.signUp.mock.calls[0]?.[0] as {
++      options: { emailRedirectTo: string; data: Record<string, unknown> };
++    };
++    expect(call.options.emailRedirectTo).toBe(`${window.location.origin}/`);
++    expect(call.options.data.signup_source).toBe("auth_page");
++  });
++
++  it("bez zgody analitycznej: rejestracja i logowanie bez zdarzeń klienta", async () => {
++    h.consent = false;
++    const { container } = render(<AuthPortal />);
++    fillSignin();
++    fireEvent.submit(container.querySelector("form") as HTMLFormElement);
++    await waitFor(() => expect(h.signIn).toHaveBeenCalledTimes(1));
++    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
++    expect(h.track).not.toHaveBeenCalled();
++  });
++
++  it("logowanie przy zgodzie: login_completed z intencją", async () => {
++    const { container } = render(<AuthPortal intent="club" />);
++    fillSignin();
++    fireEvent.submit(container.querySelector("form") as HTMLFormElement);
++    await waitFor(() =>
++      expect(h.track).toHaveBeenCalledWith(
++        expect.objectContaining({ type: "login_completed", meta: { intent: "club" } }),
++      ),
++    );
++  });
++});
+diff --git a/src/components/pricing/__tests__/AudienceSwitcher.funnel.test.tsx b/src/components/pricing/__tests__/AudienceSwitcher.funnel.test.tsx
+new file mode 100644
+index 000000000..906b75dc4
+--- /dev/null
++++ b/src/components/pricing/__tests__/AudienceSwitcher.funnel.test.tsx
+@@ -0,0 +1,62 @@
++// Przełącznik segmentów cennika w lejku (S3, P18): zmiana segmentu jest
++// mierzona (`pricing_audience_change`) wyłącznie przy zgodzie analitycznej;
++// klik w aktywny segment nie jest zmianą.
++import { beforeEach, describe, expect, it, vi } from "vitest";
++import { fireEvent, render, screen } from "@testing-library/react";
++import type { PricingAudienceRow } from "@/lib/pricing/queries";
++
++const h = vi.hoisted(() => ({ track: vi.fn(), consent: true }));
++vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
++vi.mock("@/lib/ads/consent", () => ({ hasAnalyticsConsent: () => h.consent }));
++
++import { AudienceSwitcher } from "@/components/pricing/molecules/AudienceSwitcher";
++
++const audiences = [
++  { key: "personal", name_pl: "Dla Ciebie", name_en: "For you", icon: "user" },
++  { key: "business", name_pl: "Dla firm", name_en: "For business", icon: "building" },
++] as unknown as PricingAudienceRow[];
++
++function renderSwitcher(onChange = vi.fn()) {
++  render(
++    <AudienceSwitcher
++      audiences={audiences}
++      value="personal"
++      onChange={onChange}
++      lang="pl"
++      label="Segmenty"
++    />,
++  );
++  return onChange;
++}
++
++beforeEach(() => {
++  h.track.mockReset();
++  h.consent = true;
++});
++
++describe("AudienceSwitcher - pomiar segmentu", () => {
++  it("zmiana segmentu: zdarzenie z segmentem docelowym i źródłowym", () => {
++    const onChange = renderSwitcher();
++    fireEvent.click(screen.getByRole("tab", { name: /Dla firm/ }));
++    expect(onChange).toHaveBeenCalledWith("business");
++    expect(h.track).toHaveBeenCalledWith({
++      type: "interaction",
++      name: "pricing_audience_change",
++      meta: { audience: "business", from: "personal" },
++    });
++  });
++
++  it("klik w aktywny segment nie jest zmianą", () => {
++    renderSwitcher();
++    fireEvent.click(screen.getByRole("tab", { name: /Dla Ciebie/ }));
++    expect(h.track).not.toHaveBeenCalled();
++  });
++
++  it("bez zgody analitycznej: przełączenie działa, pomiaru brak", () => {
++    h.consent = false;
++    const onChange = renderSwitcher();
++    fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
++    expect(onChange).toHaveBeenCalledWith("business");
++    expect(h.track).not.toHaveBeenCalled();
++  });
++});
+diff --git a/src/components/pricing/__tests__/TierCard.test.tsx b/src/components/pricing/__tests__/TierCard.test.tsx
+index a45caff4d..549b34ee6 100644
+--- a/src/components/pricing/__tests__/TierCard.test.tsx
++++ b/src/components/pricing/__tests__/TierCard.test.tsx
+@@ -16,7 +16,16 @@ let lang = "pl";
+ const trackCta = vi.fn();
+ 
+ vi.mock("react-i18next", () => reactI18nextStub(() => lang));
+-vi.mock("@tanstack/react-router", () => ({ Link: RouterLinkStub }));
++// Stub routera + `search` w atrybucie danych - kontrakt `/login?mode=signup`
++// (P15) jest częścią adresu, którego zwykły stub nie renderuje.
++vi.mock("@tanstack/react-router", () => ({
++  Link: (props: Parameters<typeof RouterLinkStub>[0]) => (
++    <RouterLinkStub
++      {...props}
++      {...(props.search ? { "data-search": JSON.stringify(props.search) } : {})}
++    />
++  ),
++}));
+ vi.mock("@/lib/analytics/track", () => ({ trackCta: (...args: unknown[]) => trackCta(...args) }));
+ 
+ const { TierCard } = await import("@/components/pricing/organisms/TierCard");
+@@ -224,10 +233,14 @@ describe("TierCard - PRZYCISK ZAKUPU", () => {
+   it("warstwa domyślna dla niezalogowanego prowadzi do REJESTRACJI", () => {
+     renderCard({ tier: membershipTier({ is_default: true }), isAuthenticated: false });
+ 
+-    expect(screen.getByRole("link", { name: "pricing.signupCta" })).toHaveAttribute(
+-      "href",
+-      "/login",
+-    );
++    const link = screen.getByRole("link", { name: "pricing.signupCta" });
++    expect(link).toHaveAttribute("href", "/login");
++    // P15: tryb rejestracji (dotąd portal otwierał logowanie) i intencja
++    // cennika - źródło rejestracji `pricing` (P16).
++    expect(JSON.parse(link.getAttribute("data-search") ?? "null")).toEqual({
++      mode: "signup",
++      intent: "pricing",
++    });
+   });
+ 
+   it("kliknięcie rejestracji zgłasza własne zdarzenie", () => {
+diff --git a/src/components/pricing/molecules/AudienceSwitcher.tsx b/src/components/pricing/molecules/AudienceSwitcher.tsx
+index 06974b7ab..20d3ab7bc 100644
+--- a/src/components/pricing/molecules/AudienceSwitcher.tsx
++++ b/src/components/pricing/molecules/AudienceSwitcher.tsx
+@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
+ import type { PricingAudienceRow } from "@/lib/pricing/queries";
+ import { audienceName } from "@/lib/pricing/selectors";
+ import { audienceIcon, audiencePanelId, audienceTabId } from "@/components/pricing/audienceMeta";
++import { track } from "@/lib/analytics/track";
++import { hasAnalyticsConsent } from "@/lib/ads/consent";
+ 
+ export function AudienceSwitcher({
+   audiences,
+@@ -21,6 +23,18 @@ export function AudienceSwitcher({
+   label: string;
+ }) {
+   const listRef = useRef<HTMLDivElement>(null);
++  // P18: wybór segmentu to sygnał lejka cennika (kto ogląda ofertę dla firm,
++  // a kto dla siebie) - mierzony wyłącznie przy zgodzie analitycznej.
++  const select = (key: string) => {
++    if (key !== value && hasAnalyticsConsent()) {
++      track({
++        type: "interaction",
++        name: "pricing_audience_change",
++        meta: { audience: key, from: value },
++      });
++    }
++    onChange(key);
++  };
+ 
+   const focusTab = (key: string) => {
+     const el = listRef.current?.querySelector<HTMLButtonElement>(`#${audienceTabId(key)}`);
+@@ -43,7 +57,7 @@ export function AudienceSwitcher({
+     }
+     if (next === null) return;
+     event.preventDefault();
+-    onChange(keys[next]);
++    select(keys[next]);
+     focusTab(keys[next]);
+   };
+ 
+@@ -68,7 +82,7 @@ export function AudienceSwitcher({
+               aria-selected={active}
+               aria-controls={audiencePanelId(audience.key)}
+               tabIndex={active ? 0 : -1}
+-              onClick={() => onChange(audience.key)}
++              onClick={() => select(audience.key)}
+               className={cn(
+                 "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all sm:rounded-full",
+                 active
+diff --git a/src/components/pricing/organisms/TierCard.tsx b/src/components/pricing/organisms/TierCard.tsx
+index ca040fb34..345cc011a 100644
+--- a/src/components/pricing/organisms/TierCard.tsx
++++ b/src/components/pricing/organisms/TierCard.tsx
+@@ -179,6 +179,9 @@ function TierCardCta({
+         <Button asChild className={ctaClass} variant={variant}>
+           <Link
+             to="/login"
++            // P15: CTA darmowego progu otwiera REJESTRACJĘ (dotąd logowanie),
++            // a intencja `pricing` trafia do źródła rejestracji (P16).
++            search={{ mode: "signup", intent: "pricing" }}
+             onClick={() =>
+               trackCta("pricing_signup_click", {
+                 tier_key: tier.key,
+diff --git a/src/lib/analytics/__tests__/footerTracking.funnel.test.ts b/src/lib/analytics/__tests__/footerTracking.funnel.test.ts
+new file mode 100644
+index 000000000..0a30e49ae
+--- /dev/null
++++ b/src/lib/analytics/__tests__/footerTracking.funnel.test.ts
+@@ -0,0 +1,44 @@
++// Sukces zapisu na newsletter jako krok lejka (S3, P18): zdarzenie DOM
++// ogłaszane PO odpowiedzi serwera (bąbelkuje do korzenia stopki) i kanoniczne
++// `newsletter_signup` za bramką zgody `track()`.
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++const h = vi.hoisted(() => ({ track: vi.fn() }));
++vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
++vi.mock("@/lib/ads/consent", () => ({ hasAnalyticsConsent: () => true }));
++
++import {
++  NEWSLETTER_SUBSCRIBED_EVENT,
++  announceNewsletterSubscribed,
++  trackNewsletterSignup,
++  type NewsletterSubscribedDetail,
++} from "@/lib/analytics/footerTracking";
++
++beforeEach(() => h.track.mockReset());
++
++describe("footerTracking - sukces zapisu (P18)", () => {
++  it("ogłoszenie bąbelkuje z formularza do korzenia stopki ze źródłem", () => {
++    const root = document.createElement("footer");
++    const form = document.createElement("form");
++    root.appendChild(form);
++    document.body.appendChild(root);
++    const heard: NewsletterSubscribedDetail[] = [];
++    root.addEventListener(NEWSLETTER_SUBSCRIBED_EVENT, (event) => {
++      heard.push((event as CustomEvent<NewsletterSubscribedDetail>).detail);
++    });
++    announceNewsletterSubscribed(form, "footer");
++    expect(heard).toEqual([{ source: "footer" }]);
++    root.remove();
++  });
++
++  it("newsletter_signup: typ = nazwa, źródło w meta i w identyfikatorze", () => {
++    trackNewsletterSignup("footer", { form_id: "nl" });
++    expect(h.track).toHaveBeenCalledWith({
++      type: "newsletter_signup",
++      name: "newsletter_signup",
++      entityType: "cta",
++      entityId: "newsletter_footer",
++      meta: { source: "footer", form_id: "nl" },
++    });
++  });
++});
+diff --git a/src/lib/analytics/__tests__/ga4EventMap.funnel.test.ts b/src/lib/analytics/__tests__/ga4EventMap.funnel.test.ts
+new file mode 100644
+index 000000000..d26316b11
+--- /dev/null
++++ b/src/lib/analytics/__tests__/ga4EventMap.funnel.test.ts
+@@ -0,0 +1,21 @@
++// Nazwy GA4 kroków lejka czytelnika (S3, P18): rekomendowane tam, gdzie GA4
++// ma odpowiednik (rejestracja, logowanie, lista ofert, rozpoczęcie kasy),
++// własne - po sanityzacji - dla kroków paywalla.
++import { describe, expect, it } from "vitest";
++import { ga4EventName } from "@/lib/analytics/ga4EventMap";
++
++describe("ga4EventMap - lejek czytelnika", () => {
++  it.each([
++    ["signup_completed", "sign_up"],
++    ["login_completed", "login"],
++    ["newsletter_signup", "join_group"],
++    ["pricing_view", "view_item_list"],
++    ["checkout_submit", "begin_checkout"],
++    ["paywall_view", "paywall_view"],
++    ["paywall_cta_click", "paywall_cta_click"],
++    ["checkout_view", "checkout_view"],
++    ["pricing_audience_change", "pricing_audience_change"],
++  ])("%s -> %s", (internal, ga4) => {
++    expect(ga4EventName(internal)).toBe(ga4);
++  });
++});
+diff --git a/src/lib/analytics/footerTracking.ts b/src/lib/analytics/footerTracking.ts
+index 563275efc..85ddfb91f 100644
+--- a/src/lib/analytics/footerTracking.ts
++++ b/src/lib/analytics/footerTracking.ts
+@@ -125,3 +125,51 @@ export function trackFooterNewsletterSubmit(
+     gtagIfConsented()?.("event", "footer_newsletter_signup", { status, ...(meta ?? {}) });
+   });
+ }
++
++// ---------------------------------------------------------------------------
++// SUKCES ZAPISU NA NEWSLETTER (S3, P18)
++// ---------------------------------------------------------------------------
++// DEFEKT. Stopka woła `trackFooterNewsletterSubmit("success")` w nasłuchu
++// `submit` - czyli PRZED odpowiedzią serwera. Odmowa (zły adres, limit,
++// awaria) liczyła się jako zapis, a panel stopki musiał to tłumaczyć napisem
++// „lejek niedomknięty".
++//
++// ZMIANA (mechanizm tutaj, okablowanie w integracji - `NewsletterForm.tsx`
++// i `Footer.tsx` są poza wycinkiem S3): formularz po potwierdzonym zapisie
++// ogłasza zdarzenie DOM `NEWSLETTER_SUBSCRIBED_EVENT` (bąbelkujące, więc
++// stopka słucha go na swoim korzeniu zamiast `submit`), a kanoniczny krok
++// lejka to `newsletter_signup` (GA4 `join_group`) - za tą samą bramką zgody
++// co każde zdarzenie `track()`.
++
++/** Zdarzenie DOM: formularz newslettera potwierdził zapis (serwer `ok`). */
++export const NEWSLETTER_SUBSCRIBED_EVENT = "nes:newsletter-subscribed";
++
++export interface NewsletterSubscribedDetail {
++  /** Powierzchnia formularza (`footer`, `popup`, `inline`…). */
++  source: string;
++}
++
++/** Ogłoszenie potwierdzonego zapisu z elementu formularza (bąbelkuje w górę). */
++export function announceNewsletterSubscribed(target: EventTarget, source: string): void {
++  fireBeacon(() => {
++    target.dispatchEvent(
++      new CustomEvent<NewsletterSubscribedDetail>(NEWSLETTER_SUBSCRIBED_EVENT, {
++        bubbles: true,
++        detail: { source },
++      }),
++    );
++  });
++}
++
++/** Kanoniczny krok lejka: zapis potwierdzony przez serwer (P18). */
++export function trackNewsletterSignup(source: string, meta?: Record<string, unknown>): void {
++  fireBeacon(() => {
++    track({
++      type: "newsletter_signup",
++      name: "newsletter_signup",
++      entityType: "cta",
++      entityId: `newsletter_${source}`.slice(0, 120),
++      meta: { source, ...(meta ?? {}) },
++    });
++  });
++}
+diff --git a/src/lib/analytics/ga4EventMap.ts b/src/lib/analytics/ga4EventMap.ts
+index e18a7b3d7..cb643e2e3 100644
+--- a/src/lib/analytics/ga4EventMap.ts
++++ b/src/lib/analytics/ga4EventMap.ts
+@@ -49,6 +49,13 @@ const NAME_MAP: Record<string, string> = {
+   strategy_click: "select_content",
+   signup_completed: "sign_up",
+   login_completed: "login",
++  // Lejek czytelnika (S3, P18). Kasa planu nie emituje ecommerce'owego
++  // `begin_checkout` (to robi tylko koszyk), więc wysłanie formularza kasy
++  // planu jest nim w raportach GA4; cennik to lista ofert. Kroki bez
++  // odpowiednika (`paywall_view`, `paywall_cta_click`, `checkout_view`)
++  // idą pod własną nazwą po sanityzacji.
++  pricing_view: "view_item_list",
++  checkout_submit: "begin_checkout",
+   post_view: "view_item",
+   page_view_entity: "view_item",
+   author_view: "view_item",
+diff --git a/src/lib/billing/__tests__/oneTimeFulfilment.server.test.ts b/src/lib/billing/__tests__/oneTimeFulfilment.server.test.ts
+index 104aec6ae..1d08bc197 100644
+--- a/src/lib/billing/__tests__/oneTimeFulfilment.server.test.ts
++++ b/src/lib/billing/__tests__/oneTimeFulfilment.server.test.ts
+@@ -1905,6 +1905,34 @@ describe("PAY-09 - wygaśnięcie sesji Checkout", () => {
+     expect(h.grants).toHaveLength(0);
+   });
+ 
++  it("S3 (P22): wygaśnięcie zapisuje cancel_reason=session_expired W TYM SAMYM zapisie co status", async () => {
++    givenOrder(
++      orderRow({
++        metadata: { coupon_id: "kupon-1", event_id: null },
++        status: "pending",
++        provider_session_id: "cs_wygasla",
++      }),
++    );
++
++    expect(await expireCheckoutOrder(expired(), "sandbox")).toBe(true);
++
++    // Wyzwalacz `payment_orders_checkout_emit` czyta powód z wiersza NEW, więc
++    // powód musi przyjść razem ze statusem; metadane są scalane, nie zastępowane.
++    expect(paidPatch()).toMatchObject({
++      status: "canceled",
++      metadata: { coupon_id: "kupon-1", cancel_reason: "session_expired" },
++    });
++  });
++
++  it("S3 (P22): odrzucona płatność (failed) nie udaje porzuconej kasy", async () => {
++    givenOrder(orderRow({ status: "pending", metadata: { coupon_id: "kupon-1" } }));
++
++    await markOneTimePaymentFailed({ orderId: ORDER_ID }, "sandbox");
++
++    expect(paidPatch()).toMatchObject({ status: "failed" });
++    expect(paidPatch()).not.toHaveProperty("metadata");
++  });
++
+   it("bilet: wygaśnięcie oddaje bilet z puli (`unpaid`) BEZ maila „płatność odrzucona”", async () => {
+     givenOrder(orderRow({ status: "pending" }));
+ 
+diff --git a/src/lib/billing/oneTimeFulfilment.server.ts b/src/lib/billing/oneTimeFulfilment.server.ts
+index 969f11773..6316850dd 100644
+--- a/src/lib/billing/oneTimeFulfilment.server.ts
++++ b/src/lib/billing/oneTimeFulfilment.server.ts
+@@ -365,11 +365,23 @@ async function closeOpenOrder(
+   order: LifecycleOrder,
+   status: "canceled" | "failed",
+   scope: string,
++  reason?: { cancel_reason: "session_expired" },
+ ): Promise<boolean> {
+   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
++  // Powód zamknięcia idzie W TYM SAMYM zapisie co status (S3, P22): wyzwalacz
++  // `payment_orders_checkout_emit` rozróżnia porzuconą kasę
++  // (`checkout.abandoned.v1`) od anulowania ręcznego po
++  // `metadata.cancel_reason` w wierszu NEW - osobny, późniejszy zapis
++  // metadanych przyszedłby już po zdarzeniu. Metadane są scalane, nie
++  // zastępowane (kupon, wydarzenie, przegląd zostają).
++  const metadata = reason ? { ...(order.metadata ?? {}), ...reason } : null;
+   const { data, error } = await supabaseAdmin
+     .from("payment_orders")
+-    .update({ status, updated_at: new Date().toISOString() })
++    .update({
++      status,
++      updated_at: new Date().toISOString(),
++      ...(metadata ? { metadata: metadata as Json } : {}),
++    })
+     .eq("id", order.id)
+     .in("status", [...OPEN_STATUSES])
+     .select("id");
+@@ -976,7 +988,9 @@ export async function expireCheckoutOrder(
+     return false;
+   }
+ 
+-  const closed = await closeOpenOrder(order, "canceled", "expire");
++  const closed = await closeOpenOrder(order, "canceled", "expire", {
++    cancel_reason: "session_expired",
++  });
+   const unpaid = await closedUnpaid(order, closed, "expire");
+   if (unpaid && str(order.metadata, "event_id")) {
+     await applyTicketOutcome(order.id, "unpaid", null, { notify: false, throwOnError: true });
+diff --git a/src/routes/__tests__/authCallbackReturn.test.tsx b/src/routes/__tests__/authCallbackReturn.test.tsx
+new file mode 100644
+index 000000000..f51d18a41
+--- /dev/null
++++ b/src/routes/__tests__/authCallbackReturn.test.tsx
+@@ -0,0 +1,72 @@
++// `/auth/callback` w lejku czytelnika (S3, P15): link aktywacyjny z
++// rejestracji przez paywall/klub/kasę niesie `?next` - nowe konto wraca na
++// treść; cel spoza serwisu albo pętla logowania spada na stronę powitalną.
++import { act, cleanup, render } from "@testing-library/react";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++const h = vi.hoisted(() => ({
++  navigate: vi.fn(),
++  getSession: vi.fn(),
++}));
++
++vi.mock("@tanstack/react-router", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
++  useNavigate: () => h.navigate,
++}));
++vi.mock("react-i18next", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("react-i18next")>()),
++  useTranslation: () => ({ i18n: { language: "pl" }, t: (k: string) => k }),
++}));
++vi.mock("@/integrations/supabase/client", () => ({
++  supabase: {
++    auth: {
++      getSession: h.getSession,
++      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
++    },
++  },
++}));
++
++import { Route } from "@/routes/auth.callback";
++
++const WELCOME = { to: "/welcome", search: { mode: undefined }, replace: true };
++
++async function mount(url: string) {
++  window.history.replaceState({}, "", url);
++  const Page = Route.options.component;
++  if (!Page) throw new Error("test: trasa bez komponentu");
++  render(<Page />);
++  await act(() => vi.advanceTimersByTimeAsync(300));
++}
++
++beforeEach(() => {
++  vi.useFakeTimers();
++  h.navigate.mockReset();
++  h.getSession
++    .mockReset()
++    .mockResolvedValue({ data: { session: { user: { id: "u1" } } }, error: null });
++});
++afterEach(() => {
++  cleanup();
++  vi.useRealTimers();
++  window.history.replaceState({}, "", "/");
++});
++
++describe("/auth/callback - powrót na treść", () => {
++  it("bezpieczny next: wraca na artykuł (z zapytaniem)", async () => {
++    await mount(`/auth/callback?next=${encodeURIComponent("/analizy/x?ref=nl")}`);
++    expect(h.navigate).toHaveBeenCalledWith({ href: "/analizy/x?ref=nl", replace: true });
++  });
++
++  it.each(["//evil.com", "https://evil.com", "/%2F%2Fevil.com", "/login"])(
++    "niebezpieczny next (%s): strona powitalna",
++    async (next) => {
++      await mount(`/auth/callback?next=${encodeURIComponent(next)}`);
++      expect(h.navigate).toHaveBeenCalledWith(WELCOME);
++    },
++  );
++
++  it("bez next: strona powitalna, jak dotąd", async () => {
++    await mount("/auth/callback");
++    expect(h.navigate).toHaveBeenCalledWith(WELCOME);
++  });
++});
+diff --git a/src/routes/__tests__/checkoutPlanId.funnel.test.tsx b/src/routes/__tests__/checkoutPlanId.funnel.test.tsx
+new file mode 100644
+index 000000000..d6c4c258c
+--- /dev/null
++++ b/src/routes/__tests__/checkoutPlanId.funnel.test.tsx
+@@ -0,0 +1,277 @@
++// Kasa planu w lejku czytelnika (S3, P18): `checkout_view` raz na plan
++// i `checkout_submit` przy wysłaniu formularza - zdarzenia klienta wyłącznie
++// przy zgodzie analitycznej. Harness jak `checkoutPlanRoute.test.tsx`
++// (atrapy na granicach sieci).
++import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
++import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
++import type { AccessPlan, BillingProfile } from "@/lib/billing/types";
++import type { ValidateCouponResult } from "@/lib/billing/coupons";
++import { DEFAULT_CHECKOUT_SETTINGS, type CheckoutSettings } from "@/lib/billing/checkoutSettings";
++
++const TENANT = "11111111-1111-1111-1111-111111111111";
++const OTHER_TENANT = "22222222-2222-2222-2222-222222222222";
++
++const h = vi.hoisted(() => ({
++  session: null as { user: { id: string } } | null,
++  authLoading: false,
++  tenantId: null as string | null,
++  plan: null as unknown,
++  planError: null as Error | null,
++  billing: null as unknown,
++  settings: null as unknown,
++  coupon: null as unknown,
++  /** Subskrypcja kupującego z lustra `subscriptions` (`null` = brak historii). */
++  mySubscription: null as unknown,
++  planCheckout: vi.fn(),
++  toast: { error: vi.fn(), success: vi.fn() },
++  preloadStripeSdk: vi.fn(),
++  track: vi.fn(),
++  consent: true,
++}));
++
++vi.mock("sonner", () => ({ toast: h.toast }));
++vi.mock("@/lib/analytics/track", () => ({ track: h.track, trackCta: vi.fn() }));
++vi.mock("@/lib/ads/consent", async (importOriginal) => ({
++  ...(await importOriginal<typeof import("@/lib/ads/consent")>()),
++  hasAnalyticsConsent: () => h.consent,
++}));
++vi.mock("@/hooks/useAuth", () => ({
++  useAuth: () => ({
++    session: h.session,
++    user: h.session?.user ?? null,
++    tenantId: h.tenantId,
++    loading: h.authLoading,
++    roles: [],
++    isStaff: false,
++    isAdmin: false,
++    isSuperAdmin: false,
++    signOut: async () => {},
++  }),
++}));
++// Granica sieci: dane planu i profilu rozliczeniowego.
++vi.mock("@/lib/billing/queries", () => ({
++  fetchPlanById: async () => {
++    if (h.planError) throw h.planError;
++    return h.plan;
++  },
++  fetchMyBillingProfile: async () => h.billing,
++}));
++// Granica sieci: subskrypcja kupującego (podpowiedź blokady i triala w nakładce).
++vi.mock("@/lib/billing/subscriptionQueries", () => ({
++  fetchMyStripeSubscription: async () => h.mySubscription,
++}));
++vi.mock("@/hooks/useCheckoutSettings", () => ({
++  useCheckoutSettings: () => ({ data: h.settings }),
++}));
++// Kupon: prawdziwy widget, podstawiony wyłącznie wynik RPC.
++vi.mock("@/hooks/useValidateCoupon", () => ({
++  useValidateCoupon: () => ({
++    result: null,
++    loading: false,
++    validate: async () => h.coupon,
++    reset: () => {},
++  }),
++}));
++// `useCheckout` biegnie PRAWDZIWY (locale + środowisko + kształt payloadu),
++// podstawiona jest dopiero server function po drugiej stronie granicy.
++vi.mock("@tanstack/react-start", async (importOriginal) => {
++  const actual = await importOriginal<typeof import("@tanstack/react-start")>();
++  return { ...actual, useServerFn: (fn: unknown) => fn };
++});
++vi.mock("@/lib/billing/stripeCheckout.functions", () => ({
++  createPlanCheckoutSession: (args: unknown) => h.planCheckout(args),
++}));
++// Kurs NBP: moduł sam strzela do api.nbp.pl przy imporcie w przeglądarce, a test
++// ma być deterministyczny i BEZ sieci - stały kurs 4,00 daje jawne przeliczenie
++// 99,00 PLN -> 24,75 EUR.
++vi.mock("@/lib/billing/fxRate", () => ({
++  getEurPlnRate: () => 4,
++  ensureFxRateLoaded: async () => 4,
++  forceRefreshFxRate: async () => 4,
++  getFxState: () => ({ eurPln: 4, source: "nbp" as const }),
++  setEurPlnRateForTests: () => {},
++}));
++vi.mock("@/lib/stripe", () => ({
++  isPaymentsConfigured: () => true,
++  getStripeEnvironment: () => "sandbox" as const,
++  getStripeEnvironmentSafe: () => "sandbox" as const,
++  preloadStripeSdk: h.preloadStripeSdk,
++}));
++// Ramka operatora ma własny test granicy leniwego chunku - tutaj jest sondą,
++// żeby nie ściągać SDK Stripe do testu trasy.
++vi.mock("@/components/checkout/EmbeddedCheckoutFrame", () => ({
++  EmbeddedCheckoutFrame: ({ clientSecret }: { clientSecret: string }) => (
++    <div data-testid="checkout-frame" data-secret={clientSecret} />
++  ),
++}));
++// Formularz danych do faktury ma własny test - tu liczy się tylko to, że lejek
++// pokazuje go W MIEJSCU, zamiast wyrzucać kupującego na /profile/billing.
++vi.mock("@/components/billing/molecules/BillingProfileForm", () => ({
++  BillingProfileForm: ({ submitLabel }: { submitLabel?: string }) => (
++    <form data-testid="billing-form">
++      <button type="button">{submitLabel}</button>
++    </form>
++  ),
++}));
++
++import i18n from "@/lib/i18n";
++import { formatMoney } from "@/lib/billing/types";
++import { renderRoute } from "@/test/routeHarness";
++import { Route as PlanRoute } from "@/routes/checkout.$planId";
++import {
++  PREMIUM_NEWSLETTER_CONSENT_TEXTS,
++  PREMIUM_NEWSLETTER_CONSENT_VERSION,
++} from "@/lib/billing/premiumNewsletter";
++
++const PATH = "/checkout/$planId";
++const PLAN_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
++
++function plan(over: Partial<AccessPlan> = {}): AccessPlan {
++  return {
++    id: PLAN_ID,
++    tenant_id: TENANT,
++    name_pl: "Plan Pro",
++    name_en: "Pro plan",
++    description_pl: "Pełny dostęp do analiz.",
++    description_en: "Full access to the analyses.",
++    price_cents: 9900,
++    currency: "PLN",
++    interval: "month",
++    active: true,
++    sort_order: 1,
++    features_pl: [],
++    features_en: [],
++    badge_pl: null,
++    badge_en: null,
++    highlighted: false,
++    trial_days: 0,
++    tier_key: "pro",
++    for_sale: true,
++    ...over,
++  };
++}
++
++function billingProfile(over: Partial<BillingProfile> = {}): BillingProfile {
++  return {
++    address_line1: "Krucza 1",
++    address_line2: null,
++    city: "Warszawa",
++    postal_code: "00-001",
++    country_code: "PL",
++    full_name: "Anna Nowak",
++    company: null,
++    tax_id: null,
++    is_company: false,
++    ...over,
++  } as BillingProfile;
++}
++
++function couponResult(over: Partial<ValidateCouponResult> = {}): ValidateCouponResult {
++  return {
++    ok: true,
++    error: null,
++    coupon_id: "c-1",
++    discount_cents: 1900,
++    final_cents: 8000,
++    label: "-19 zł",
++    discount_kind: "amount",
++    discount_percent: null,
++    ...over,
++  } as ValidateCouponResult;
++}
++
++async function mount(planId = PLAN_ID) {
++  return renderRoute({ route: PlanRoute, path: PATH, initialEntry: `/checkout/${planId}` });
++}
++
++/** Kupujący z kompletem danych - domyślny stan „gotowy do zapłaty". */
++function signedInBuyer(): void {
++  h.session = { user: { id: "u-1" } };
++  h.tenantId = TENANT;
++  h.billing = billingProfile();
++}
++
++const payButton = () => screen.getByRole("button", { name: /Zapłać/ });
++
++/** Intl wstawia twardą spację - porównujemy tekst po normalizacji białych znaków. */
++const flat = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ");
++const money = (cents: number, currency = "PLN", lang = "pl") =>
++  flat(formatMoney(cents, currency, lang));
++const showsMoney = (el: Element | null, cents: number, currency = "PLN", lang = "pl") =>
++  flat(el?.textContent).includes(money(cents, currency, lang));
++
++beforeAll(async () => {
++  await i18n.changeLanguage("pl");
++  // FxRateNotice odpytuje własny endpoint kursu - w teście odpowiada kanon.
++  vi.stubGlobal(
++    "fetch",
++    vi.fn(async () =>
++      Response.json({
++        status: "ok",
++        eurPln: 4,
++        effectiveDate: "2026-08-13",
++        source: "nbp",
++        fetchedAt: "2026-08-14T06:00:00.000Z",
++        lastSuccessAt: "2026-08-14T06:00:00.000Z",
++        lastError: null,
++        lastAttempts: 1,
++        stale: false,
++      }),
++    ),
++  );
++});
++
++beforeEach(() => {
++  h.session = null;
++  h.authLoading = false;
++  h.tenantId = null;
++  h.plan = plan();
++  h.planError = null;
++  h.billing = null;
++  h.settings = DEFAULT_CHECKOUT_SETTINGS satisfies CheckoutSettings;
++  h.coupon = couponResult();
++  h.mySubscription = null;
++  h.planCheckout.mockReset().mockResolvedValue({
++    ok: true,
++    clientSecret: "cs_test_123",
++    orderId: "ord_1",
++  });
++  h.toast.error.mockReset();
++  h.preloadStripeSdk.mockReset();
++  h.track.mockReset();
++  h.consent = true;
++});
++
++afterEach(async () => {
++  cleanup();
++  await i18n.changeLanguage("pl");
++});
++
++describe("trasa /checkout/$planId - pomiar lejka (P18)", () => {
++  it("checkout_view raz na plan, checkout_submit przy zapłacie", async () => {
++    signedInBuyer();
++    await mount();
++    fireEvent.click(await screen.findByRole("button", { name: /Zapłać/ }));
++    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
++    const types = h.track.mock.calls.map((call) => (call[0] as { type: string }).type);
++    expect(types.filter((type) => type === "checkout_view")).toHaveLength(1);
++    expect(types).toContain("checkout_submit");
++    expect(h.track).toHaveBeenCalledWith(
++      expect.objectContaining({
++        type: "checkout_submit",
++        name: "checkout_submit",
++        entityType: "plan",
++        entityId: PLAN_ID,
++      }),
++    );
++  });
++
++  it("bez zgody analitycznej: kasa działa, zdarzeń klienta brak", async () => {
++    h.consent = false;
++    signedInBuyer();
++    await mount();
++    fireEvent.click(await screen.findByRole("button", { name: /Zapłać/ }));
++    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
++    expect(h.track).not.toHaveBeenCalled();
++  });
++});
+diff --git a/src/routes/__tests__/checkoutSuccessRoute.test.tsx b/src/routes/__tests__/checkoutSuccessRoute.test.tsx
+index 20fc10729..f4996f3ed 100644
+--- a/src/routes/__tests__/checkoutSuccessRoute.test.tsx
++++ b/src/routes/__tests__/checkoutSuccessRoute.test.tsx
+@@ -276,6 +276,10 @@ describe("trasa /checkout/success - adres powrotu", () => {
+     ["schemat javascript", "javascript:alert(1)"],
+     ["schemat w ścieżce", "/javascript:alert(1)"],
+     ["wstrzyknięcie CRLF", "/artykul\nSet-Cookie: a=b"],
++    // S3 (P15): jeden sanitizer powrotów lejka (`safeNextPath`) - zakodowane
++    // `//` po jednym dekodowaniu jest adresem protocol-relative.
++    ["zakodowany protocol-relative", "/%2F%2Fevil.test"],
++    ["zakodowany backslash", "/%5Cevil.test"],
+   ])("odrzuca wrogi adres powrotu (%s) i wraca na stronę główną", async (_label, evil) => {
+     sessionStorage.setItem(RETURN_KEY, evil);
+     await mount(`${PATH}?order=ord_1`);
+@@ -289,12 +293,26 @@ describe("trasa /checkout/success - adres powrotu", () => {
+     expect(sessionStorage.getItem(RETURN_KEY)).toBeNull();
+   });
+ 
+-  it.each(["/checkout/plan-1", "/profile/orders"])("nie zapętla lejka na %s", async (internal) => {
+-    sessionStorage.setItem(RETURN_KEY, internal);
++  it("wraca do klubu, z którego czytelnik wszedł w kasę (bramka klubu, S3)", async () => {
++    sessionStorage.setItem(RETURN_KEY, "/club/klub-energetyczny");
+     await mount(`${PATH}?order=ord_1`);
+-
+-    expect(await screen.findByRole("link", { name: "Wróć na stronę główną" })).toBeInTheDocument();
++    expect(await screen.findByRole("link", { name: "Wróć do artykułu" })).toHaveAttribute(
++      "href",
++      "/club/klub-energetyczny",
++    );
+   });
++
++  it.each(["/checkout/plan-1", "/profile/orders", "/login?mode=signin"])(
++    "nie zapętla lejka na %s",
++    async (internal) => {
++      sessionStorage.setItem(RETURN_KEY, internal);
++      await mount(`${PATH}?order=ord_1`);
++
++      expect(
++        await screen.findByRole("link", { name: "Wróć na stronę główną" }),
++      ).toBeInTheDocument();
++    },
++  );
+ });
+ 
+ describe("trasa /checkout/success - dokument redakcyjny", () => {
+diff --git a/src/routes/__tests__/loginReturn.test.tsx b/src/routes/__tests__/loginReturn.test.tsx
+new file mode 100644
+index 000000000..ee1b34ad6
+--- /dev/null
++++ b/src/routes/__tests__/loginReturn.test.tsx
+@@ -0,0 +1,67 @@
++// Trasa `/login` w lejku czytelnika (S3, P15): `next`, `intent` i `plan`
++// przechodzą walidator WYŁĄCZNIE kształtem (napis z limitem długości), a pełna
++// sanitizacja ścieżki powrotu dzieje się w `AuthPortal`
++// (`paywallLinks.parseLoginSearch`). Walidator zostaje w chunku wejściowym
++// trasy, więc nie importuje modułu lejka - tego pilnuje ostatni test.
++import { readFileSync } from "node:fs";
++import { join } from "node:path";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { cleanup, screen } from "@testing-library/react";
++import type * as AuthPortalModule from "@/components/auth/AuthPortal";
++
++const h = vi.hoisted(() => ({ props: [] as Record<string, unknown>[] }));
++
++vi.mock("@/components/auth/AuthPortal", () => {
++  const AuthPortal: typeof AuthPortalModule.AuthPortal = (props) => {
++    h.props.push(props as Record<string, unknown>);
++    return <div data-testid="auth-portal-stub" />;
++  };
++  return { AuthPortal };
++});
++
++import { renderRoute, routeSearchValidator } from "@/test/routeHarness";
++import { Route as LoginRoute } from "@/routes/login";
++
++const PLAN = "11111111-1111-4111-8111-111111111111";
++
++beforeEach(() => {
++  h.props = [];
++});
++afterEach(() => cleanup());
++
++describe("/login - kontrakt parametrów lejka", () => {
++  const validate = routeSearchValidator(LoginRoute);
++
++  it("next / intent / plan przechodzą jako napisy obok trybu", () => {
++    expect(
++      validate({ mode: "signup", next: "/analizy/x?ref=1", intent: "paywall", plan: PLAN }),
++    ).toEqual({ mode: "signup", next: "/analizy/x?ref=1", intent: "paywall", plan: PLAN });
++  });
++
++  it("nie-napisy i wartości ponad limit odpadają, reszta zostaje", () => {
++    expect(validate({ next: 42, intent: "x".repeat(17), plan: ["a"], mode: "signin" })).toEqual({
++      mode: "signin",
++    });
++    expect(validate({ next: `/${"a".repeat(2048)}` })).toEqual({});
++  });
++
++  it("portal dostaje parametry z adresu (sanitizuje je sam)", async () => {
++    await renderRoute({
++      route: LoginRoute,
++      path: "/login",
++      initialEntry: `/login?mode=signup&next=${encodeURIComponent("/analizy/x")}&intent=meter&plan=${PLAN}`,
++    });
++    expect(screen.getByTestId("auth-portal-stub")).toBeInTheDocument();
++    expect(h.props.at(-1)).toMatchObject({
++      initialMode: "signup",
++      next: "/analizy/x",
++      intent: "meter",
++      planId: PLAN,
++    });
++  });
++
++  it("walidator nie importuje modułu lejka (chunk wejściowy bez paywallLinks)", () => {
++    const source = readFileSync(join(process.cwd(), "src/routes/login.tsx"), "utf8");
++    expect(source).not.toMatch(/from "@\/lib\/access\/paywallLinks"/);
++  });
++});
+diff --git a/src/routes/__tests__/plansPlanId.contact.test.tsx b/src/routes/__tests__/plansPlanId.contact.test.tsx
+new file mode 100644
+index 000000000..cdb22f127
+--- /dev/null
++++ b/src/routes/__tests__/plansPlanId.contact.test.tsx
+@@ -0,0 +1,132 @@
++// P21 (S3): o rozmowie zamiast kasy decyduje PRÓG (`cta_mode = contact`),
++// nie flaga sprzedaży planu. Plan W SPRZEDAŻY pod progiem „rozmowa" dostawał
++// dotąd na /plans/$planId przycisk kasy, choć karta /pricing tego progu
++// prowadziła do formularza. Harness jak `planDetailsSaleModeRoute.test.tsx`
++// (atrapy wyłącznie na granicach).
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { cleanup, fireEvent, screen } from "@testing-library/react";
++
++const PLAN_ID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
++
++const h = vi.hoisted(() => ({
++  plans: [] as unknown[],
++  tiers: [] as unknown[],
++  /** Odczyt progów pada (awaria backendu albo przekroczony budżet SSR). */
++  tiersBroken: false,
++  tierReads: 0,
++}));
++
++vi.mock("@/integrations/supabase/client", async () => {
++  const { supabaseFromStub, ok, fail } = await import("@/test/supabase/chain");
++  const stub = supabaseFromStub();
++  stub.setResponse("access_plans", () => ok(h.plans));
++  stub.setResponse("membership_tiers", () => {
++    h.tierReads += 1;
++    return h.tiersBroken ? fail("test: tabela membership_tiers niedostępna") : ok(h.tiers);
++  });
++  return {
++    supabase: {
++      from: stub.from,
++      auth: { getSession: async () => ({ data: { session: null } }) },
++      rpc: async () => ({ data: [], error: null }),
++    },
++  };
++});
++vi.mock("@/hooks/useAuth", () => ({
++  useAuth: () => ({
++    session: null,
++    user: null,
++    roles: [],
++    tenantId: null,
++    loading: false,
++    isStaff: false,
++    isAdmin: false,
++    isSuperAdmin: false,
++    signOut: async () => {},
++  }),
++}));
++vi.mock("@/lib/analytics/track", () => ({ trackCta: vi.fn() }));
++vi.mock("@/lib/seo/request", () => ({
++  getRequestUrl: () => `https://example.com/plans/${PLAN_ID}`,
++  getOrigin: () => "https://example.com",
++}));
++vi.mock("@/lib/contact.functions", () => ({ submitContactMessage: vi.fn() }));
++vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
++
++import "@/test/i18nReal";
++import i18n from "@/lib/i18n";
++import { renderRoute } from "@/test/routeHarness";
++import { accessPlan } from "@/test/billing/fixtures";
++import { membershipTier } from "@/test/admin/pricingFixtures";
++import { Route as PlanRoute } from "@/routes/plans.$planId";
++
++const RETIRED =
++  "Ten plan został wycofany ze sprzedaży. Obecni członkowie zachowują go na dotychczasowych warunkach do końca subskrypcji.";
++
++const teamPlan = accessPlan({
++  id: PLAN_ID,
++  tier_key: "team",
++  name_pl: "Zespół",
++  interval: "month",
++  price_cents: 8900,
++  trial_days: 7,
++  for_sale: false,
++});
++const teamTier = membershipTier({
++  id: "t-team",
++  key: "team",
++  name_pl: "Zespół",
++  audience_key: "team",
++  cta_mode: "contact",
++  pricing_visible: true,
++});
++
++async function mount() {
++  await renderRoute({
++    route: PlanRoute,
++    path: "/plans/$planId",
++    initialEntry: `/plans/${PLAN_ID}`,
++  });
++  expect(await screen.findByRole("heading", { level: 1, name: "Zespół" })).toBeInTheDocument();
++}
++
++beforeEach(async () => {
++  await i18n.changeLanguage("pl");
++  h.plans = [teamPlan];
++  h.tiers = [teamTier];
++  h.tiersBroken = false;
++  h.tierReads = 0;
++});
++
++afterEach(async () => {
++  cleanup();
++  await i18n.changeLanguage("pl");
++});
++
++describe("trasa /plans/$planId - próg sprzedawany przez rozmowę (P21)", () => {
++  it("plan w sprzedaży pod progiem cta_mode=contact: formularz rozmowy, bez kasy", async () => {
++    h.plans = [{ ...teamPlan, for_sale: true }];
++    await mount();
++    expect(await screen.findByRole("button", { name: "Porozmawiajmy" })).toBeInTheDocument();
++    expect(screen.queryByRole("link", { name: /Wybieram|Wybierz/ })).not.toBeInTheDocument();
++    expect(screen.queryByText(RETIRED)).not.toBeInTheDocument();
++  });
++
++  it("plan w sprzedaży pod progiem z kasą (cta_mode=auto): kasa jak dotąd", async () => {
++    h.plans = [{ ...teamPlan, for_sale: true }];
++    h.tiers = [{ ...teamTier, cta_mode: "auto" }];
++    await mount();
++    expect(await screen.findByRole("link", { name: /Wybieram|Wybierz/ })).toHaveAttribute(
++      "href",
++      `/checkout/${PLAN_ID}`,
++    );
++    expect(screen.queryByRole("button", { name: "Porozmawiajmy" })).not.toBeInTheDocument();
++  });
++
++  it("formularz rozmowy otwiera się z planem jako tematem", async () => {
++    h.plans = [{ ...teamPlan, for_sale: true }];
++    await mount();
++    fireEvent.click(await screen.findByRole("button", { name: "Porozmawiajmy" }));
++    expect(await screen.findByRole("dialog")).toBeInTheDocument();
++  });
++});
+diff --git a/src/routes/api/public/-track.test.ts b/src/routes/api/public/-track.test.ts
+index a6f0dd40d..9d73d1390 100644
+--- a/src/routes/api/public/-track.test.ts
++++ b/src/routes/api/public/-track.test.ts
+@@ -284,6 +284,33 @@ describe("walidacja wejścia", () => {
+     expect(insertedRows()[0]).toMatchObject({ event_name: "b" });
+   });
+ 
++  it.each([
++    "paywall_view",
++    "paywall_cta_click",
++    "pricing_view",
++    "checkout_view",
++    "checkout_submit",
++    "signup_completed",
++    "login_completed",
++    "newsletter_signup",
++  ])("krok lejka czytelnika `%s` przechodzi jako typ (S3, P18)", async (type) => {
++    await post({ events: [{ type, name: type }] });
++
++    expect(insertedRows()).toHaveLength(1);
++    expect(insertedRows()[0]).toMatchObject({ event_type: type, event_name: type });
++  });
++
++  it("bramka klubu (`club`) jest dozwoloną encją zdarzenia paywalla", async () => {
++    await postOne({
++      type: "paywall_view",
++      name: "paywall_view",
++      entity_type: "club",
++      entity_id: "c-1",
++    });
++
++    expect(insertedRows()[0]).toMatchObject({ entity_type: "club", entity_id: "c-1" });
++  });
++
+   it("BRAK typu domyślnie wpada w `interaction`, które jest dozwolone", async () => {
+     await post({ events: [{ name: "bez_typu" }] });
+ 
+diff --git a/src/routes/api/public/track.ts b/src/routes/api/public/track.ts
+index b1a63c7e7..d096b5ca3 100644
+--- a/src/routes/api/public/track.ts
++++ b/src/routes/api/public/track.ts
+@@ -76,6 +76,18 @@ const ALLOWED_TYPES = new Set([
+   "search",
+   "interaction",
+   "impression",
++  // Kroki lejka czytelnika (S3, P18). Typ = nazwa zdarzenia: metryki
++  // semantyczne lejka (V2R, PPCR) liczą je po `event_type`, a raporty po
++  // `event_name` - oba odczyty widzą ten sam wiersz. Klient wysyła je
++  // wyłącznie przy zgodzie analitycznej (jak każde zdarzenie tego ingestu).
++  "paywall_view",
++  "paywall_cta_click",
++  "pricing_view",
++  "checkout_view",
++  "checkout_submit",
++  "signup_completed",
++  "login_completed",
++  "newsletter_signup",
+ ]);
+ const ALLOWED_ENTITIES = new Set([
+   "post",
+@@ -91,6 +103,8 @@ const ALLOWED_ENTITIES = new Set([
+   "search_query",
+   "cta",
+   "menu",
++  // Bramka klubu jako powierzchnia paywalla (S3, `ClubAccessGate`).
++  "club",
+ ]);
+ 
+ const limiter = createRateLimiter({ capacity: 120, refillPerSec: 2 });
+diff --git a/src/routes/auth.callback.tsx b/src/routes/auth.callback.tsx
+index 7cc405792..a3070dd5d 100644
+--- a/src/routes/auth.callback.tsx
++++ b/src/routes/auth.callback.tsx
+@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
+ import { useTranslation } from "react-i18next";
+ import { supabase } from "@/integrations/supabase/client";
+ import { Loader2 } from "@/lib/lucide-shim";
++import { safeNextPath } from "@/lib/access/paywallLinks";
+ 
+ export const Route = createFileRoute("/auth/callback")({
+   ssr: false,
+@@ -58,6 +59,13 @@ function AuthCallbackPage() {
+   // Komunikat o nieważnym linku. Subskrypcja sesji zostaje także po nim, więc
+   // spóźniona sesja nadal przenosi na stronę powitalną.
+   const [failed, setFailed] = useState(false);
++  // P15: rejestracja z paywalla/klubu/kasy niesie `?next` (AuthPortal,
++  // `signupRedirectPath`) - nowe konto wraca na treść, przez którą powstało.
++  // Ta sama sanitizacja co `/login` (tylko ścieżki względne). Bez `next` -
++  // strona powitalna, jak dotąd (zaproszenia, aktywacja konta).
++  const [next] = useState(() =>
++    safeNextPath(new URLSearchParams(window.location.search).get("next")),
++  );
+ 
+   useEffect(() => {
+     let cancelled = false;
+@@ -71,7 +79,8 @@ function AuthCallbackPage() {
+       cancelled = true;
+       window.clearInterval(poll);
+       window.clearTimeout(deadline);
+-      void navigate({ to: "/welcome", search: { mode: undefined }, replace: true });
++      if (next) void navigate({ href: next, replace: true } as never);
++      else void navigate({ to: "/welcome", search: { mode: undefined }, replace: true });
+     };
+ 
+     // Komunikat NIE wypisuje subskrypcji - spóźniona sesja nadal przenosi.
+@@ -111,7 +120,7 @@ function AuthCallbackPage() {
+       window.clearTimeout(deadline);
+       sub.subscription.unsubscribe();
+     };
+-  }, [navigate, urlError]);
++  }, [navigate, urlError, next]);
+ 
+   return (
+     <div className="container mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center gap-3 px-4 text-center">
+diff --git a/src/routes/checkout.$planId.tsx b/src/routes/checkout.$planId.tsx
+index a5cce6540..33a5177b1 100644
+--- a/src/routes/checkout.$planId.tsx
++++ b/src/routes/checkout.$planId.tsx
+@@ -22,6 +22,8 @@ import {
+ } from "@/lib/billing/displayCurrency";
+ 
+ import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
++import { track } from "@/lib/analytics/track";
++import { hasAnalyticsConsent } from "@/lib/ads/consent";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import { Button } from "@/components/ui/button";
+ import { Checkbox } from "@/components/ui/checkbox";
+@@ -153,6 +155,23 @@ function CheckoutPage() {
+     }
+   }, [plan.isSuccess, planData, t]);
+ 
++  // P18: wejście do kasy i wysłanie formularza to kroki lejka (PPCR:
++  // `pricing_view` -> `checkout_submit`). Zdarzenia klienta wyłącznie przy
++  // zgodzie analitycznej; fakty serwera (`checkout.*.v1`) liczą się zawsze.
++  const viewedPlan = useRef<string | null>(null);
++  useEffect(() => {
++    if (!planData || viewedPlan.current === planData.id) return;
++    viewedPlan.current = planData.id;
++    if (!hasAnalyticsConsent()) return;
++    track({
++      type: "checkout_view",
++      name: "checkout_view",
++      entityType: "plan",
++      entityId: planData.id,
++      meta: { interval: planData.interval, signed_in: !!session },
++    });
++  }, [planData, session]);
++
+   // Plan, którego nie da się kupić samoobsługowo (cennik v6.2): Decision Lab
+   // wyłącznie na zapytanie, Partner Biznesowy wycofany ze sprzedaży, Zespół
+   // sprzedawany przez rozmowę. Serwer
+@@ -229,6 +248,15 @@ function CheckoutPage() {
+         setBusy(false);
+         return;
+       }
++      if (hasAnalyticsConsent()) {
++        track({
++          type: "checkout_submit",
++          name: "checkout_submit",
++          entityType: "plan",
++          entityId: planData.id,
++          meta: { interval: planData.interval, has_coupon: !!coupon },
++        });
++      }
+       const result = await openPlanCheckout({
+         planId: planData.id,
+         couponCode: coupon?.code,
+diff --git a/src/routes/checkout.success.tsx b/src/routes/checkout.success.tsx
+index 6ad821d83..8c5ec167c 100644
+--- a/src/routes/checkout.success.tsx
++++ b/src/routes/checkout.success.tsx
+@@ -13,7 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
+ import { Button } from "@/components/ui/button";
+ import { billingKeys } from "@/lib/billing/keys";
+ import { finalizeCheckout } from "@/lib/billing/checkout.functions";
+-import { safeReturnPath } from "@/lib/billing/returnPath";
++import { safeNextPath } from "@/lib/access/paywallLinks";
+ import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
+ import { PurchaseConfirmationView } from "@/components/builder/organisms/widget-view/PurchaseConfirmationView";
+ import { MembershipWelcome } from "@/components/membership/MembershipWelcome";
+@@ -129,7 +129,10 @@ function SuccessPage() {
+       const stored = sessionStorage.getItem(RETURN_KEY);
+       // Klucz jest jednorazowy - czyścimy go niezależnie od wyniku walidacji.
+       sessionStorage.removeItem(RETURN_KEY);
+-      const safe = safeReturnPath(stored, "");
++      // Ta sama sanitizacja co `next` logowania (S3, P15): `safeReturnPath`
++      // plus odkodowanie (`/%2F%2Fhost` po jednym dekodowaniu to `//host`)
++      // i odrzucenie pętli logowania - jeden sanitizer powrotów lejka.
++      const safe = safeNextPath(stored) ?? "";
+       // `/checkout` i `/profile` odpadają jako cel powrotu: pierwszy zapętla
+       // lejek, drugi jest już dostępny z samego widoku potwierdzenia.
+       if (safe && !safe.startsWith("/checkout") && !safe.startsWith("/profile")) {
+diff --git a/src/routes/login.tsx b/src/routes/login.tsx
+index 546addcab..ae6ead309 100644
+--- a/src/routes/login.tsx
++++ b/src/routes/login.tsx
+@@ -5,10 +5,31 @@ import { getRequestUrl } from "@/lib/seo/request";
+ import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+ 
+ export const Route = createFileRoute("/login")({
+-  validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" | "reset" } => {
++  // `next` / `intent` / `plan` (P15) przechodzą tu WYŁĄCZNIE kształtem (napis
++  // z limitem długości). Pełna sanitizacja ścieżki powrotu (open redirect,
++  // pętle logowania) jest w `paywallLinks.parseLoginSearch`, wołanym przez
++  // `AuthPortal` - walidator zostaje w chunku wejściowym trasy, więc nie
++  // ciągnie tam modułu lejka.
++  validateSearch: (
++    search: Record<string, unknown>,
++  ): { mode?: "signin" | "signup" | "reset"; next?: string; intent?: string; plan?: string } => {
++    const out: {
++      mode?: "signin" | "signup" | "reset";
++      next?: string;
++      intent?: string;
++      plan?: string;
++    } = {};
+     const m = search.mode;
+-    if (m === "signup" || m === "reset" || m === "signin") return { mode: m };
+-    return {};
++    if (m === "signup" || m === "reset" || m === "signin") out.mode = m;
++    const text = (value: unknown, max: number) =>
++      typeof value === "string" && value.length <= max ? value : undefined;
++    const next = text(search.next, 2048);
++    const intent = text(search.intent, 16);
++    const plan = text(search.plan, 64);
++    if (next) out.next = next;
++    if (intent) out.intent = intent;
++    if (plan) out.plan = plan;
++    return out;
+   },
+   head: () => {
+     const url = getRequestUrl() || "/login";
+@@ -30,6 +51,6 @@ export const Route = createFileRoute("/login")({
+ });
+ 
+ function LoginPage() {
+-  const { mode } = Route.useSearch();
+-  return <AuthPortal initialMode={mode ?? "signin"} />;
++  const { mode, next, intent, plan } = Route.useSearch();
++  return <AuthPortal initialMode={mode ?? "signin"} next={next} intent={intent} planId={plan} />;
+ }
+diff --git a/src/routes/plans.$planId.tsx b/src/routes/plans.$planId.tsx
+index 1975dd979..fd9c7dacd 100644
+--- a/src/routes/plans.$planId.tsx
++++ b/src/routes/plans.$planId.tsx
+@@ -222,10 +222,15 @@ function PlanDetailsPage() {
+   // Plan progu sprzedawanego PRZEZ ROZMOWĘ (Zespół v6.2: „3-20 miejsc ·
+   // rozmowa"): cena jest jawna jak na karcie /pricing, ale zamiast kasy -
+   // formularz rozmowy. To nie jest plan wycofany.
++  //
++  // P21 (S3): o rozmowie decyduje PRÓG (`cta_mode = contact`), nie flaga
++  // sprzedaży planu. Dotąd plan w sprzedaży (`for_sale` puste/true) pod progiem
++  // „rozmowa" dostawał tu przycisk kasy, choć karta /pricing tego samego progu
++  // prowadziła do formularza - dwie odpowiedzi na to samo pytanie. Wybór
++  // liczby miejsc w kasie jest odłożony do cennika (SPEC §9.4).
+   const conversationSale =
+     !enquiryOnly &&
+     !saleModeUnknown &&
+-    plan.for_sale === false &&
+     tier !== null &&
+     tier.pricing_visible !== false &&
+     tierCtaMode(tier) === "contact";
+-- 
+2.43.0
+

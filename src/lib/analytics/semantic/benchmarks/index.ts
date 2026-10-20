@@ -1,6 +1,6 @@
 // PLIK GENEROWANY przez scripts/benchmarks/import-benchmarks.ts - nie edytuj ręcznie.
 // Wejście: docs/benchmarki/2026-10-18/przychod.json, docs/benchmarki/2026-10-18/przychod.overlay.json, docs/benchmarki/2026-10-18/retencja.json, docs/benchmarki/2026-10-18/retencja.overlay.json, docs/benchmarki/2026-10-18/ekonomika.json, docs/benchmarki/2026-10-18/ekonomika.overlay.json, docs/benchmarki/2026-10-18/lejek.json, docs/benchmarki/2026-10-18/lejek.overlay.json, docs/benchmarki/2026-10-18/email.json, docs/benchmarki/2026-10-18/email.overlay.json, docs/benchmarki/2026-10-18/spolecznosc.json, docs/benchmarki/2026-10-18/spolecznosc.overlay.json
-// SHA-256 treści kanonicznej wejść: f40855c3676f80385251a8a4172362ed06d28919332eeba0c259395b78137ea0
+// SHA-256 treści kanonicznej wejść: 01ea9b7ae231ed07137a1b36542ed3be26b687eb6d0e986f8742150f98949ca3
 // Zmiana treści = poprawka danych albo nakładki w docs/benchmarki i ponowny import;
 // `--check` wykrywa ręczną edycję tego pliku i nieuruchomiony importer.
 //

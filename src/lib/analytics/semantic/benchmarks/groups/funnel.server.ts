@@ -1,6 +1,6 @@
 // PLIK GENEROWANY przez scripts/benchmarks/import-benchmarks.ts - nie edytuj ręcznie.
 // Wejście: docs/benchmarki/2026-10-18/lejek.json, docs/benchmarki/2026-10-18/lejek.overlay.json
-// SHA-256 treści kanonicznej wejść: 5c8231f70cbc6e260eb2cccb79308450704c012b8954e48dc1946f3289bf7bea
+// SHA-256 treści kanonicznej wejść: ae838d0109daf364c795c3ff0b68ab5a2d613aa6b3dddab6d91edcba79bc47e4
 // Zmiana treści = poprawka danych albo nakładki w docs/benchmarki i ponowny import;
 // `--check` wykrywa ręczną edycję tego pliku i nieuruchomiony importer.
 //
@@ -1898,6 +1898,13 @@ export const FUNNEL_BENCHMARKS: readonly GeneratedBenchmark[] = [
         },
         sourceIds: ["wisepops_2025"],
       },
+      {
+        text: {
+          pl: "Konteksty LinkedIn Lead Gen Forms (Kiin Labs 2026) mierzą formularz w serwisie reklamowym: otwiera się po kliknięciu reklamy i jest wypełniony danymi z profilu, a mianownikiem są otwarcia formularza, nie wyświetlenia popupu w serwisie. Porównuj je tylko z danymi z LinkedIn Campaign Manager (Leady / Otwarcia formularza), osobno dla oferty treści (mediana 10,8%) i prośby o demo (mediana 2,2%). Wysokie ukończenie przy danych z profilu nie oznacza jakości leadów – czytaj je razem z konwersją lead → MQL.",
+          en: "The LinkedIn Lead Gen Forms contexts (Kiin Labs 2026) measure a form on the ad platform: it opens after a click on the ad and is pre-filled with profile data, and the denominator is form opens, not popup views on the site. Compare them only with LinkedIn Campaign Manager data (Leads / Form opens), separately for content offers (median 10.8%) and demo requests (median 2.2%). A high completion rate with pre-filled profile data does not mean lead quality – read it together with lead-to-MQL conversion.",
+        },
+        sourceIds: ["kiin_lgf_benchmarks_2026"],
+      },
     ],
     direction: "higher",
     confidence: "medium",
@@ -2037,6 +2044,144 @@ export const FUNNEL_BENCHMARKS: readonly GeneratedBenchmark[] = [
             note: {
               pl: "top 10% Wisepops",
               en: "Wisepops top 10%",
+            },
+            basis: "B",
+          },
+        ],
+      },
+      {
+        id: "signup_form_conversion_rate.linkedin_lgf_content",
+        label: {
+          pl: "LinkedIn Lead Gen Forms – formularz w feedzie z ofertą treści (raport, analiza do pobrania); ukończenie = wysłane / otwarcia formularza",
+          en: "LinkedIn Lead Gen Forms – in-feed form with a content offer (report or analysis download); completion = submissions / form opens",
+        },
+        segments: ["newsletter", "b2b_institution"],
+        measure: "level",
+        unit: "percent_pt",
+        window: "per_campaign",
+        direction: "higher",
+        method: {
+          pl: "kwartyle źródła (Kiin Labs 2026: 173 konta ze 100+ otwarciami formularza): P25 4,6%, P50 10,8%, P75 18,7%, P90 31,6%; poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny; próg krytyczny = połowa P25 (heurystyka). Kontekst dodany 2026-10-19 z pakietu Insider marketingowy (przedział b-lgf-content, źródło id 1196 w sources.json pakietu); P25 i liczbę kont odczytano ze strony źródła. Okres: na kampanię (mediana kont, 8 IX 2025 – 7 IX 2026).",
+          en: "source quartiles (Kiin Labs 2026: 173 accounts with 100+ form opens): P25 4.6%, P50 10.8%, P75 18.7%, P90 31.6%; below P25 weak, P25–P50 normal, P50–P75 good, above P75 optimal; critical threshold = half of P25 (heuristic). Context added on 2026-10-19 from the Insider marketing knowledge pack (range b-lgf-content, source id 1196 in the pack's sources.json); P25 and the number of accounts read from the source page. Period: per campaign (account median, 8 Sep 2025 – 7 Sep 2026).",
+        },
+        sourceIds: ["kiin_lgf_benchmarks_2026"],
+        bands: [
+          {
+            tier: "critical",
+            min: null,
+            max: 2.3,
+            note: {
+              pl: "heurystyka: połowa P25 (4,6%)",
+              en: "heuristic: half of P25 (4.6%)",
+            },
+            basis: "E",
+          },
+          {
+            tier: "weak",
+            min: 2.3,
+            max: 4.6,
+            note: {
+              pl: "poniżej P25",
+              en: "below P25",
+            },
+            basis: "B",
+          },
+          {
+            tier: "normal",
+            min: 4.6,
+            max: 10.8,
+            note: {
+              pl: "P25–P50 (od dolnego kwartyla do mediany)",
+              en: "P25–P50 (lower quartile to median)",
+            },
+            basis: "B",
+          },
+          {
+            tier: "good",
+            min: 10.8,
+            max: 18.7,
+            note: {
+              pl: "P50–P75 (mediana kont 10,8%)",
+              en: "P50–P75 (account median 10.8%)",
+            },
+            basis: "B",
+          },
+          {
+            tier: "optimal",
+            min: 18.7,
+            max: null,
+            note: {
+              pl: "powyżej P75; P90 = 31,6%",
+              en: "above P75; P90 = 31.6%",
+            },
+            basis: "B",
+          },
+        ],
+      },
+      {
+        id: "signup_form_conversion_rate.linkedin_lgf_demo",
+        label: {
+          pl: "LinkedIn Lead Gen Forms – formularz w feedzie z prośbą o demo lub kontakt handlowy (np. zapytanie o ofertę instytucjonalną); ukończenie = wysłane / otwarcia formularza",
+          en: "LinkedIn Lead Gen Forms – in-feed form with a demo or sales contact request (e.g. an enquiry about an institutional offer); completion = submissions / form opens",
+        },
+        segments: ["b2b_institution"],
+        measure: "level",
+        unit: "percent_pt",
+        window: "per_campaign",
+        direction: "higher",
+        method: {
+          pl: "kwartyle źródła (Kiin Labs 2026: 87 kont ze 100+ otwarciami formularza): P25 1,0%, P50 2,2%, P75 4,2%, P90 9,5%; poniżej P25 słaby, P25–P50 normalny, P50–P75 dobry, powyżej P75 optymalny; próg krytyczny = połowa P25 (heurystyka). Kontekst dodany 2026-10-19 z pakietu Insider marketingowy (przedział b-lgf-demo, źródło id 1196 w sources.json pakietu); P25 i liczbę kont odczytano ze strony źródła. Okres: na kampanię (mediana kont, 8 IX 2025 – 7 IX 2026).",
+          en: "source quartiles (Kiin Labs 2026: 87 accounts with 100+ form opens): P25 1.0%, P50 2.2%, P75 4.2%, P90 9.5%; below P25 weak, P25–P50 normal, P50–P75 good, above P75 optimal; critical threshold = half of P25 (heuristic). Context added on 2026-10-19 from the Insider marketing knowledge pack (range b-lgf-demo, source id 1196 in the pack's sources.json); P25 and the number of accounts read from the source page. Period: per campaign (account median, 8 Sep 2025 – 7 Sep 2026).",
+        },
+        sourceIds: ["kiin_lgf_benchmarks_2026"],
+        bands: [
+          {
+            tier: "critical",
+            min: null,
+            max: 0.5,
+            note: {
+              pl: "heurystyka: połowa P25 (1,0%)",
+              en: "heuristic: half of P25 (1.0%)",
+            },
+            basis: "E",
+          },
+          {
+            tier: "weak",
+            min: 0.5,
+            max: 1,
+            note: {
+              pl: "poniżej P25",
+              en: "below P25",
+            },
+            basis: "B",
+          },
+          {
+            tier: "normal",
+            min: 1,
+            max: 2.2,
+            note: {
+              pl: "P25–P50 (od dolnego kwartyla do mediany)",
+              en: "P25–P50 (lower quartile to median)",
+            },
+            basis: "B",
+          },
+          {
+            tier: "good",
+            min: 2.2,
+            max: 4.2,
+            note: {
+              pl: "P50–P75 (mediana kont 2,2%)",
+              en: "P50–P75 (account median 2.2%)",
+            },
+            basis: "B",
+          },
+          {
+            tier: "optimal",
+            min: 4.2,
+            max: null,
+            note: {
+              pl: "powyżej P75; P90 = 9,5%",
+              en: "above P75; P90 = 9.5%",
             },
             basis: "B",
           },

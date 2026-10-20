@@ -1,0 +1,215 @@
+{
+  "schema": "nes-insider-trends/1",
+  "trends": [
+    {
+      "kpiId": "cpc",
+      "direction": "up",
+      "text": "Google Ads: średni CPC w wyszukiwarce wzrósł z 5,26 do 5,42 USD (ok. +3% rok do roku, USA)",
+      "sourceId": 1161
+    },
+    {
+      "kpiId": "cpc",
+      "direction": "down",
+      "text": "Meta, kampanie ruchu: CPC spadł z 0,70 do 0,60 USD (-14% rok do roku)",
+      "sourceId": 1162
+    },
+    {
+      "kpiId": "cpl",
+      "direction": "down",
+      "text": "Google Ads: średni koszt leada spadł z 70,11 do 66,69 USD (ok. -5% rok do roku)",
+      "sourceId": 1161
+    },
+    {
+      "kpiId": "cpl",
+      "direction": "flat",
+      "text": "Meta, kampanie leadowe: koszt leada praktycznie bez zmian (27,39 USD)",
+      "sourceId": 1162
+    },
+    {
+      "kpiId": "cvr",
+      "direction": "up",
+      "text": "Google Ads: średni współczynnik konwersji wzrósł z 7,52% do 8,18%",
+      "sourceId": 1161
+    },
+    {
+      "kpiId": "cvr",
+      "direction": "down",
+      "text": "Contentsquare 2026: konwersja nowych odwiedzających w sklepach spadła rok do roku o 7,9% (komputery) i 8% (telefony)",
+      "sourceId": 1202
+    },
+    {
+      "kpiId": "ctr_paid",
+      "direction": "flat",
+      "text": "Google Ads: CTR w wyszukiwarce bez zmian (6,66% → 6,64%)",
+      "sourceId": 1161
+    },
+    {
+      "kpiId": "ctr_paid",
+      "direction": "up",
+      "text": "Meta, kampanie ruchu: CTR wzrósł o 12,9% do 1,93%",
+      "sourceId": 1162
+    },
+    {
+      "kpiId": "er_followers",
+      "direction": "down",
+      "text": "Instagram: mediana zaangażowania marek spadła z 0,36% do 0,30% (ok. -17% rok do roku)",
+      "sourceId": 1174
+    },
+    {
+      "kpiId": "er_followers",
+      "direction": "flat",
+      "text": "TikTok pozostaje platformą z najwyższym zaangażowaniem marek (2,01%)",
+      "sourceId": 1173
+    },
+    {
+      "kpiId": "er_reach",
+      "direction": "up",
+      "text": "LinkedIn: średnie zaangażowanie 5,20% (+8% rok do roku); dokumenty 7,00% (+14%)",
+      "sourceId": 1175
+    },
+    {
+      "kpiId": "er_reach",
+      "direction": "flat",
+      "text": "I połowa 2026 r.: zaangażowanie na LinkedIn w większości bez zmian; posty z linkiem spadły z 3,70% do 3,30%",
+      "sourceId": 1175
+    },
+    {
+      "kpiId": "posting_frequency",
+      "direction": "flat",
+      "text": "Marki publikują na Instagramie prawie dwa razy częściej niż na TikToku (3,7 wobec 2,0 tygodniowo), a TikTok ma wyższe zaangażowanie",
+      "sourceId": 1173
+    },
+    {
+      "kpiId": "serp_ctr",
+      "direction": "down",
+      "text": "Podsumowania AI: CTR pozycji 1 niższy o ok. 58% (dane z grudnia 2025); wcześniejsza analiza tego samego autora pokazywała ok. 34,5%",
+      "sourceId": 1168
+    },
+    {
+      "kpiId": "serp_ctr",
+      "direction": "up",
+      "text": "Seer Interactive: CTR zapytań z podsumowaniem AI wzrósł z 1,31% (XII 2025) do 2,36% (II 2026)",
+      "sourceId": 1169
+    },
+    {
+      "kpiId": "serp_ctr",
+      "direction": "up",
+      "text": "Wyszukiwania bez kliknięcia w USA: 60,45% (2024) → 68,01% (I-IV 2026); zmienił się też panel danych",
+      "sourceId": 1238
+    },
+    {
+      "kpiId": "serp_ctr",
+      "direction": "flat",
+      "text": "Do trybu AI (AI Mode) trafiło tylko 0,34% wyszukiwań w I-IV 2026",
+      "sourceId": 1238
+    },
+    {
+      "kpiId": "open_rate",
+      "direction": "up",
+      "text": "MailerLite: w 2025 r. wzrosły otwarcia, kliknięcia i wypisy",
+      "sourceId": 1166
+    },
+    {
+      "kpiId": "ctr_email",
+      "direction": "up",
+      "text": "MailerLite: w 2025 r. wzrosły otwarcia, kliknięcia i wypisy",
+      "sourceId": 1166
+    },
+    {
+      "kpiId": "unsub",
+      "direction": "up",
+      "text": "MailerLite: w 2025 r. wzrosły otwarcia, kliknięcia i wypisy",
+      "sourceId": 1166
+    },
+    {
+      "kpiId": "spam_rate",
+      "direction": "up",
+      "text": "Gmail od listopada 2025 r. odrzuca niezgodną pocztę masową (wcześniej głównie kierował do spamu)",
+      "sourceId": 1180
+    },
+    {
+      "kpiId": "spam_rate",
+      "direction": "up",
+      "text": "Microsoft (Outlook.com, Hotmail, Live) egzekwuje wymagania dla nadawców masowych od 5 maja 2025 r.",
+      "sourceId": 1181
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "direction": "flat",
+      "text": "Budżety marketingu: 7,7% przychodów (2025) → 7,8% (2026)",
+      "sourceId": 1170
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "direction": "up",
+      "text": "Na inicjatywy AI przypada średnio 15,3% budżetu marketingu (2026)",
+      "sourceId": 1170
+    },
+    {
+      "kpiId": "mkt_budget_share",
+      "direction": "up",
+      "text": "Media cyfrowe to ponad dwie trzecie inwestycji mediowych w 2026 r. (+18% od 2024 r.)",
+      "sourceId": 1192
+    },
+    {
+      "kpiId": "attendance_rate",
+      "direction": "up",
+      "text": "ON24: odsetek rejestracji kończących się udziałem 56% (2023) → 57% (2024) → 60% (2025)",
+      "sourceId": 1171
+    },
+    {
+      "kpiId": "nrr",
+      "direction": "flat",
+      "text": "SaaS Capital 2026: mediana retencji praktycznie bez zmian rok do roku",
+      "sourceId": 1176
+    },
+    {
+      "kpiId": "grr",
+      "direction": "flat",
+      "text": "SaaS Capital 2026: mediana retencji praktycznie bez zmian rok do roku",
+      "sourceId": 1176
+    },
+    {
+      "kpiId": "cart_abandon",
+      "direction": "flat",
+      "text": "Średnia Baymard bez zmian (70,22%); najnowsze badanie w zestawieniu: 71,72%",
+      "sourceId": 1193
+    },
+    {
+      "kpiId": "cart_abandon",
+      "direction": "flat",
+      "text": "42% kupujących w USA porzuciło koszyk, bo „tylko przeglądali”",
+      "sourceId": 1193
+    },
+    {
+      "kpiId": "cart_abandon",
+      "direction": "flat",
+      "text": "Benchmark 2025: 64% czołowych sklepów z USA i Europy ma przeciętną lub słabszą użyteczność procesu zakupu na komputerach",
+      "sourceId": 1194
+    },
+    {
+      "kpiId": "paid_media_share",
+      "direction": "up",
+      "text": "Udział mediów płatnych: 25,1% (2021) → 31,4% (2026)",
+      "sourceId": 1191
+    },
+    {
+      "kpiId": "paid_media_share",
+      "direction": "up",
+      "text": "Udział kosztów zespołu: 21,9% (2025) → 24,5% (2026)",
+      "sourceId": 1192
+    },
+    {
+      "kpiId": "dashboard_freshness",
+      "direction": "flat",
+      "text": "16 kwietnia 2026 Google zmienił nazwę Looker Studio z powrotem na Data Studio; analiza konwersacyjna jest dostępna dla wszystkich użytkowników",
+      "sourceId": 1226
+    },
+    {
+      "kpiId": "organic_traffic",
+      "direction": "down",
+      "text": "Odsetek wyszukiwań z co najmniej jednym kliknięciem spadł o 9,51 pp między 2024 a 2026 r.",
+      "sourceId": 1239
+    }
+  ]
+}

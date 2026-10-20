@@ -8,7 +8,8 @@
 --   3. Liczniki: user_pending_counters spójne ze źródłem po INSERT i po
 --      oznaczeniu jako przeczytane; tenant_pending_counters liczy pending.
 --   4. Workflowy: potwierdzenie subskrypcji newslettera tworzy lead CRM
---      (przepis newsletter-confirmed-to-crm), lead won notyfikuje staff.
+--      (przepis newsletter-confirmed-to-crm - sam, bez wyzwalaczy DB: D1
+--      huba S4), lead won notyfikuje staff.
 --   5. Idempotencja: drugi claim tej samej komendy nie jest claimed.
 --   6. Router integracji: pasujące zdarzenie ląduje w integration_deliveries.
 --
@@ -142,6 +143,15 @@ SELECT is(
 );
 
 -- ── 4. Workflow: newsletter confirmed -> lead CRM ───────────────────────────
+-- D1 (hub S4): lead MUSI powstać z przepisu. Dotąd tworzyły go po cichu dwa
+-- wyzwalacze DB (`trg_newsletter_to_lead`, `subscriber_sync_crm_lead`), a
+-- przepis - po redakcji e-maila z payloadu (20260729123407) - wołał
+-- crm_upsert_lead z NULL i kończył się `succeeded`, nic nie robiąc. Test
+-- wyłącza obie ścieżki DB na czas potwierdzenia, więc lead może pochodzić
+-- wyłącznie z `run_workflow_step` (adres z wiersza subskrybenta).
+ALTER TABLE public.newsletter_subscribers DISABLE TRIGGER trg_newsletter_to_lead;
+ALTER TABLE public.newsletter_subscribers DISABLE TRIGGER subscriber_sync_crm_lead;
+
 INSERT INTO public.newsletter_subscribers (id, tenant_id, email, first_name, status) VALUES
   ('d0000000-0000-0000-0000-0000000000d1', 'a1111111-1111-1111-1111-111111111111',
    'coh-sub@a.test', 'Subka', 'pending');
@@ -150,12 +160,15 @@ UPDATE public.newsletter_subscribers
    SET confirmed_at = now(), status = 'subscribed'
  WHERE id = 'd0000000-0000-0000-0000-0000000000d1';
 
+ALTER TABLE public.newsletter_subscribers ENABLE TRIGGER trg_newsletter_to_lead;
+ALTER TABLE public.newsletter_subscribers ENABLE TRIGGER subscriber_sync_crm_lead;
+
 SELECT is(
-  (SELECT count(*)::int FROM public.crm_leads
+  (SELECT count(*)::int || '|' || min(first_name) FROM public.crm_leads
     WHERE tenant_id = 'a1111111-1111-1111-1111-111111111111'
       AND email_norm = 'coh-sub@a.test'),
-  1,
-  'workflow newsletter-confirmed-to-crm tworzy lead CRM po potwierdzeniu'
+  '1|Subka',
+  'workflow newsletter-confirmed-to-crm sam tworzy lead CRM po potwierdzeniu (D1)'
 );
 
 SELECT is(

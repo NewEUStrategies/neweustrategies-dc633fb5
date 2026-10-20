@@ -34,6 +34,13 @@ export interface CatalogPriceEntry {
    * że dana cena ma być u operatora założona jako schodkowa.
    */
   volumeTiered?: boolean;
+  /**
+   * Klucz ceny WYCOFANY z katalogu sprzedaży, ale nadal możliwy na trwającej
+   * subskrypcji (np. `plus_yearly` sprzed zmiany nazw na `*_annual`). Takich
+   * pozycji nie zna kasa ani webhook (`catalogEntryByPriceId`) - czyta je
+   * wyłącznie księga MRR (`ledgerCatalogEntryByPriceId`) i jej lustro SQL.
+   */
+  legacy?: true;
 }
 
 export const BILLING_CATALOG: readonly CatalogPriceEntry[] = [
@@ -309,6 +316,53 @@ export function catalogPlanQuote(
   const unitCents =
     entry.perSeat && volumeThreshold >= 2 && quantity >= volumeThreshold ? volumeUnit : baseCents;
   return { entry, quantity, unitCents, amountCents: unitCents * quantity };
+}
+
+/**
+ * Klucze cen sprzed 2026-08-05 (zmiana `*_yearly` -> `*_annual`). Subskrypcja
+ * założona wtedy u operatora dalej odnawia się pod starym kluczem, więc
+ * księga MRR musi znać jej warstwę i cykl - inaczej płacący od miesięcy klient
+ * miałby MRR „nieznany", a diagnostyka krzyczałaby o cenie spoza katalogu.
+ *
+ * Osobna lista, a nie wpisy w `BILLING_CATALOG`: kasa nie może sprzedać
+ * wycofanego klucza, a `planChangeDirection` porównuje rangi wyłącznie
+ * w katalogu sprzedaży. Lustro SQL (`billing_catalog_entry`, migracja
+ * 20261020110000) zawiera OBA katalogi - parytet pilnuje
+ * `billingCatalogSqlParity.test.ts`.
+ */
+export const BILLING_CATALOG_LEGACY: readonly CatalogPriceEntry[] = [
+  {
+    priceId: "plus_yearly",
+    productId: "plan_plus",
+    tierKey: "member",
+    interval: "year",
+    rank: 31,
+    legacy: true,
+  },
+  {
+    priceId: "pro_yearly",
+    productId: "plan_pro",
+    tierKey: "pro",
+    interval: "year",
+    rank: 41,
+    legacy: true,
+  },
+] as const;
+
+/**
+ * Pozycja katalogu dla KSIĘGI MRR: katalog sprzedaży, a bez trafienia -
+ * wpisy wycofane (`BILLING_CATALOG_LEGACY`). Nie używać w kasie ani
+ * w webhooku: tam wycofany klucz ma pozostać „nieznany".
+ */
+export function ledgerCatalogEntryByPriceId(
+  priceId: string | null | undefined,
+): CatalogPriceEntry | null {
+  if (!priceId) return null;
+  return (
+    BILLING_CATALOG.find((e) => e.priceId === priceId) ??
+    BILLING_CATALOG_LEGACY.find((e) => e.priceId === priceId) ??
+    null
+  );
 }
 
 /** Odwrotne mapowanie: czytelny identyfikator ceny -> wpis katalogu. */

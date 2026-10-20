@@ -2387,7 +2387,45 @@ const FROZEN_BUDGET_KB = {
   // panelu admina ładowany leniwie: rejestr wskaźników i benchmarków BI,
   // objaśnienia i skale, powłoka huba, wyniesione organizmy paywalla,
   // cennika, członkostwa, newslettera i kuponów. Host 4957,3 -> 4958 -> +1.
-  overall: 4959,
+  // Ratchet 4959 -> 4972 (2026-10-19, po scaleniu PR #520 do main, cb7a18df),
+  // decyzją zamawiającego D-08: job `build` na main czerwony (4970,7 > 4959).
+  // Przyrost +13,4 KB względem pomiaru 4957,3 z 35c22b7b to scalenie main
+  // w a303246e (PR #525: bloki i widgety buildera, strzałki sliderów, kolor
+  // płaski ramki; commit Lovable 77168bca/9f6173f2) - main mieścił się w
+  // swoim progu 4879, przekracza dopiero suma z hubem; poprawki Codex
+  // 8c8d3050 (kampanie kuponowe, zakładki rozliczeń) są pomijalne. public
+  // 2772,5, chunk 257,5, publicCss 83,8 i boot 471,3 w zamrożonych progach.
+  // Host 4970,7 -> 4971 -> +1.
+  // Ratchet 4972 -> 4981 (2026-10-19, wycinek S4 huba „Przychód i lejek”:
+  // CRM, automatyzacje i społeczność), decyzją zamawiającego D-08. Baza
+  // e135b91a na tym hoście 4970,7 (public 2772,5, admin-only 2198,1), po S4
+  // 4979,4: +8,7 KB, w całości kod panelu ładowany leniwie - edytor przepisów
+  // (listy etapów, picker zespołu, walidacja, admin.workflows +3,1), wspólny
+  // chunk mutacji leada `leadMutations` (+2,3), karta historii etapów
+  // i zmiana cyklu życia (admin.crm.$id +1,5), filtry cyklu życia, segmentu,
+  // tagów i właściciela (admin.crm.index +1,1), źródło zadania
+  // (LeadTasksPanel +0,9). public 2772,1 (-0,4), chunk 257,9, css 99,7,
+  // publicCss 83,8 i boot 471,6 w zamrożonych progach.
+  // Host 4979,4 -> 4980 -> +1.
+  // Korekta 4981 -> 4982 (ten sam wpis): poprawki pełnego vitest
+  // (`crmLifecycleLabels` - etykiety cyklu życia z magazynu i18next) i nowe
+  // hashe w nazwach importów ~1,2 KB po kilkanaście bajtów na chunk (public
+  // 2773,0, czyli +0,5 względem bazy - wyłącznie entropia nazw, zero
+  // modułów). Host na drzewie końcowym 4980,6 -> 4981 -> +1.
+  // Ratchet 4982 -> 4991 (2026-10-19, wycinek S2 huba „Przychód i lejek”:
+  // księga MRR, windykacja, przychód zrealizowany, anulowanie), decyzją
+  // zamawiającego D-08. Baza 6ac07c60 (= drzewo końcowe S4) 4980,6, po S2
+  // 4989,6: +9,0 KB, z tego +7,9 leniwy chunk `admin.billing` (KPI z RPC
+  // huba: `finance/queries`, zaślepki klienta `finance.functions` z zod,
+  // `ProvenanceNote`, słownik `i18n-admin-revenue-finance`), +0,8
+  // `i18n-profile` (`profile.retentionFlow` - dialog anulowania), +0,5
+  // wydzielony `RoleGateNotice`, +0,45 `profile.membership` (dialog
+  // anulowania w karcie subskrypcji), +0,4 `profile.plan` (akcja wznowienia);
+  // przetasowanie `period`/`window`/`DashboardPeriodTabs` -0,3. public
+  // 2773,9 (+0,9: słownik i trasy profilu, leniwie), chunk 257,9, css 99,7,
+  // publicCss 83,8 i boot 471,6 w zamrożonych progach.
+  // Host 4989,6 -> 4990 -> +1.
+  overall: 4991,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

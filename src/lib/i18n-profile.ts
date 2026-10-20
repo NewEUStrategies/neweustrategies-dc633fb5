@@ -2002,6 +2002,101 @@ const extrasEn: ProfileExtras = {
   },
 };
 
+// PRZEPŁYW ANULOWANIA (S2, P01, P02, Z-09) - `profile.retentionFlow.*`.
+// Osobny pakiet, bo dialog anulowania czyta też starsze klucze `retention.*`
+// (`i18n-retention.ts`: powody, komentarz, nagłówki), a tu są wyłącznie
+// napisy nowego przepływu: potwierdzenie bez ankiety, „Anuluj mimo to"
+// widoczne na każdym kroku i oferta dopinana do subskrypcji (bez kodu).
+// LICZEBNIKI: polski ma trzy formy, więc zmienna nazywa się `count`.
+const retentionFlowPl = {
+  profile: {
+    retentionFlow: {
+      confirmTitle: "Anulować subskrypcję?",
+      confirmBody:
+        "Kolejne płatności nie zostaną pobrane. Dostęp zostaje do końca opłaconego okresu.",
+      confirmBodyDate:
+        "Kolejne płatności nie zostaną pobrane. Dostęp zostaje do {{date}} - do tego dnia możesz wznowić subskrypcję w profilu.",
+      confirmCancel: "Anuluj subskrypcję",
+      cancelAnyway: "Anuluj mimo to",
+      keep: "Zostaw subskrypcję",
+      next: "Dalej",
+      loading: "Przygotowujemy formularz…",
+      noReasonHint: "Powód jest opcjonalny - możesz anulować bez wyboru.",
+      offer: {
+        hint: "Rabat dopiszemy do Twojej subskrypcji - bez kodu, naliczy się sam przy kolejnych płatnościach.",
+        unavailable:
+          "Tej oferty nie udało się teraz przygotować. Możesz zostać bez rabatu albo anulować subskrypcję.",
+      },
+      accepted: {
+        title: "Dziękujemy, że zostajesz",
+        body_one: "Rabat {{pct}}% naliczymy przy kolejnej {{count}} płatności.",
+        body_few: "Rabat {{pct}}% naliczymy przy kolejnych {{count}} płatnościach.",
+        body_many: "Rabat {{pct}}% naliczymy przy kolejnych {{count}} płatnościach.",
+        body_other: "Rabat {{pct}}% naliczymy przy kolejnych {{count}} płatnościach.",
+        note: "Rabat jest już przypisany do subskrypcji - nic nie musisz wpisywać.",
+        close: "Zamknij",
+      },
+      stepLabel: "Krok {{step}} z {{total}}",
+    },
+    planPage: {
+      resume: {
+        title: "Subskrypcja kończy się {{date}}",
+        hint: "Wznowienie przywraca odnowienia bez nowego zakupu - do końca opłaconego okresu.",
+        cta: "Wznów subskrypcję",
+      },
+    },
+  },
+};
+
+type RetentionFlowEn = {
+  profile: {
+    retentionFlow: Omit<(typeof retentionFlowPl)["profile"]["retentionFlow"], "accepted"> & {
+      accepted: Omit<
+        (typeof retentionFlowPl)["profile"]["retentionFlow"]["accepted"],
+        "body_few" | "body_many"
+      >;
+    };
+    planPage: (typeof retentionFlowPl)["profile"]["planPage"];
+  };
+};
+
+const retentionFlowEn: RetentionFlowEn = {
+  profile: {
+    retentionFlow: {
+      confirmTitle: "Cancel the subscription?",
+      confirmBody: "No further payments will be taken. Access stays until the paid period ends.",
+      confirmBodyDate:
+        "No further payments will be taken. Access stays until {{date}} - until then you can resume the subscription in your profile.",
+      confirmCancel: "Cancel subscription",
+      cancelAnyway: "Cancel anyway",
+      keep: "Keep subscription",
+      next: "Next",
+      loading: "Preparing the form…",
+      noReasonHint: "The reason is optional - you can cancel without choosing one.",
+      offer: {
+        hint: "We add the discount to your subscription - no code needed, it applies to the next payments by itself.",
+        unavailable:
+          "This offer could not be prepared right now. You can stay without a discount or cancel the subscription.",
+      },
+      accepted: {
+        title: "Thank you for staying",
+        body_one: "A {{pct}}% discount applies to your next {{count}} payment.",
+        body_other: "A {{pct}}% discount applies to your next {{count}} payments.",
+        note: "The discount is already attached to the subscription - there is nothing to enter.",
+        close: "Close",
+      },
+      stepLabel: "Step {{step}} of {{total}}",
+    },
+    planPage: {
+      resume: {
+        title: "The subscription ends on {{date}}",
+        hint: "Resuming restores renewals without a new purchase - until the paid period ends.",
+        cta: "Resume subscription",
+      },
+    },
+  },
+};
+
 export {};
 
 // Explicit registration must survive both Vite and Nitro tree shaking.
@@ -2014,5 +2109,7 @@ export function ensureI18n(): void {
   i18n.addResourceBundle("en", "translation", en, true, true);
   i18n.addResourceBundle("pl", "translation", extrasPl, true, true);
   i18n.addResourceBundle("en", "translation", extrasEn, true, true);
+  i18n.addResourceBundle("pl", "translation", retentionFlowPl, true, true);
+  i18n.addResourceBundle("en", "translation", retentionFlowEn, true, true);
 }
 ensureI18n();

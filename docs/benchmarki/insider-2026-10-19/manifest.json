@@ -1,0 +1,402 @@
+{
+  "schema": "nes-insider-manifest/1",
+  "package": "insider-2026-10-19",
+  "origin": {
+    "app": "Insider marketingowy (lokalna aplikacja HTML właściciela)",
+    "appVersion": "4.17",
+    "extractedOn": "2026-10-19",
+    "sourceAccessedRange": {
+      "from": "2026-10-09",
+      "to": "2026-10-09"
+    }
+  },
+  "language": "pl",
+  "translation": {
+    "en": "brak - tłumaczenie EN do wykonania i akceptacji właściciela (decyzja D-11, SPEC §9.3); do tego czasu UI EN pokazuje treść PL z oznaczeniem albo ją ukrywa"
+  },
+  "license": "Treść redakcyjna pakietu (definicje, opisy, scenariusze) pochodzi z aplikacji właściciela; liczby benchmarków i punktów odniesienia są cytatami/parafrazami publicznych źródeł z sources.json - przy wyświetlaniu zawsze podawaj źródło (id → sources.json). Nie publikować poza panelem administracyjnym bez przeglądu praw do cytatów.",
+  "scope": {
+    "keptDomains": [
+      "email",
+      "saas",
+      "b2b",
+      "event",
+      "ecom",
+      "cx",
+      "brand",
+      "data",
+      "paid",
+      "social",
+      "seo",
+      "mgmt"
+    ],
+    "omittedDomains": [
+      {
+        "domain": "fin",
+        "reason": "Analiza sprawozdań finansowych spółek (rentowność, płynność, zadłużenie, Z-score). Hub liczy ekonomikę subskrypcji z własnych danych (S2/S6), a przykłady tej domeny w źródle były liczone na danych konkretnej firmy.",
+        "kpis": 25
+      },
+      {
+        "domain": "fintech",
+        "reason": "Wskaźniki instytucji płatniczych i kredytowych (TPV, NIM, NPL, koszt ryzyka) - model biznesowy spoza platformy.",
+        "kpis": 6
+      },
+      {
+        "domain": "hr",
+        "reason": "Wskaźniki kadrowe (czas i koszt zatrudnienia, akceptacja ofert, eNPS) - poza zakresem huba przychodu i lejka.",
+        "kpis": 5
+      },
+      {
+        "domain": "perf",
+        "reason": "Wydajność stron (Lighthouse, Core Web Vitals) - obsługują to metryki ruchu (`lcp_p75`, `inp_p75`, `cls_p75`) i osobne audyty CWV; nie jest to obszar huba.",
+        "kpis": 11
+      },
+      {
+        "domain": "aisearch",
+        "reason": "Widoczność w odpowiedziach AI (GEO/AEO) - brak strumienia danych w platformie; poza zakresem huba.",
+        "kpis": 11
+      }
+    ],
+    "omittedMaterials": "Pominięto w całości materiały prywatne właściciela zapisane w aplikacji: dossier konkretnej firmy, materiały aplikacyjne i dopasowanie do ogłoszenia, oczekiwania finansowe, osoby decyzyjne, analizy finansowe konkretnych spółek i audyt ich witryny wraz ze źródłami tych materiałów (81 wpisów spoza biblioteki źródeł)."
+  },
+  "counts": {
+    "kpis": {
+      "kept": 173,
+      "total": 231
+    },
+    "ranges": {
+      "kept": 44,
+      "total": 92
+    },
+    "refs": {
+      "kept": 135,
+      "total": 202
+    },
+    "scenarios": {
+      "kept": 52,
+      "total": 60
+    },
+    "frameworks": {
+      "kept": 69,
+      "total": 87
+    },
+    "trends": {
+      "kept": 35,
+      "total": 55,
+      "kpis": 20
+    },
+    "terms": {
+      "kept": 47,
+      "total": 146
+    },
+    "sources": {
+      "kept": 279,
+      "libraryTotal": 386,
+      "total": 467
+    }
+  },
+  "omitted": {
+    "scenarios": [
+      {
+        "id": "cwv",
+        "domain": "seo",
+        "reason": "warunek na KPI spoza zakresu"
+      },
+      {
+        "id": "slowhire",
+        "domain": "hr",
+        "reason": "domena"
+      },
+      {
+        "id": "offerdecl",
+        "domain": "hr",
+        "reason": "domena"
+      },
+      {
+        "id": "aiov",
+        "domain": "seo",
+        "reason": "warunek na KPI spoza zakresu"
+      },
+      {
+        "id": "aiinvisible",
+        "domain": "aisearch",
+        "reason": "domena"
+      },
+      {
+        "id": "slowsi",
+        "domain": "perf",
+        "reason": "domena"
+      },
+      {
+        "id": "hightbt",
+        "domain": "perf",
+        "reason": "domena"
+      },
+      {
+        "id": "heavypage",
+        "domain": "perf",
+        "reason": "domena"
+      }
+    ],
+    "frameworks": [
+      {
+        "id": "dupontfw",
+        "reason": "fin (przykład liczony na danych spółki)"
+      },
+      {
+        "id": "ratio",
+        "reason": "fin (przykład liczony na danych spółki)"
+      },
+      {
+        "id": "porter",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "ansoff",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "cwv",
+        "reason": "perf"
+      },
+      {
+        "id": "pestel",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "tows",
+        "reason": "strategia bez KPI"
+      },
+      {
+        "id": "bcg",
+        "reason": "brak KPI w zakresie"
+      },
+      {
+        "id": "geo",
+        "reason": "aisearch"
+      },
+      {
+        "id": "aeo",
+        "reason": "aisearch"
+      },
+      {
+        "id": "fanout",
+        "reason": "aisearch"
+      },
+      {
+        "id": "aifeatures",
+        "reason": "aisearch"
+      },
+      {
+        "id": "llmstxt",
+        "reason": "aisearch"
+      },
+      {
+        "id": "lhscore",
+        "reason": "perf"
+      },
+      {
+        "id": "siproc",
+        "reason": "perf"
+      },
+      {
+        "id": "rail",
+        "reason": "perf"
+      },
+      {
+        "id": "labfield",
+        "reason": "perf"
+      },
+      {
+        "id": "msmm",
+        "reason": "perf"
+      }
+    ],
+    "termsByCategory": {
+      "rejestry i forma prawna spółek": 9,
+      "zawody i regulacje branży doradczej": 9,
+      "analiza finansowa (domena fin)": 31,
+      "warsztat roli produktowej i koncepcja produktu z materiałów prywatnych": 17,
+      "rozliczenia osobiste i forma zatrudnienia": 9,
+      "AI search (domena aisearch)": 3,
+      "audyt witryny konkretnej firmy": 6,
+      "narzędzia niewymienione w zachowanych opisach pomiaru": 11,
+      "profil osobowy i dorobek z materiałów prywatnych": 4
+    }
+  },
+  "trimmedReferences": {
+    "note": "Powiązania wskazujące KPI spoza zakresu usunięto z pól `related`, `kpis` i `benchmarkKpis`; lista poniżej pozwala je odtworzyć po rozszerzeniu zakresu.",
+    "kpiRelated": [
+      "roas→gross_margin",
+      "burn_multiple→burn",
+      "burn_multiple→runway",
+      "cart_abandon→lcp",
+      "poas→gross_margin",
+      "lp_cvr→lcp",
+      "site_health→lcp",
+      "ctr_vs_expected→aio_trigger_rate"
+    ],
+    "scenarioKpis": [
+      "burnmult→burn",
+      "burnmult→runway",
+      "zeroclick→aio_trigger_rate",
+      "zeroclick→ai_overview_cited"
+    ],
+    "frameworkKpis": [
+      "eeat→ai_share",
+      "zeroclick→ai_sov",
+      "blueocean→rev_growth",
+      "blueocean→gross_margin",
+      "bmc→gross_margin"
+    ]
+  },
+  "fieldMap": {
+    "kpis.json": {
+      "n": "name",
+      "a": "abbr",
+      "dom": "domain",
+      "def": "definition",
+      "f": "formulaTex",
+      "u": "unit",
+      "dir": "direction",
+      "rel": "related",
+      "KB.why": "why",
+      "KB.how": "howToMeasure",
+      "KB.ex": "example"
+    },
+    "ranges.json": {
+      "kpi_id": "kpiId",
+      "optimal_low": "optimalLow",
+      "optimal_high": "optimalHigh",
+      "source_id": "sourceId",
+      "valid_until": "validUntil",
+      "ref": "referenceOnly",
+      "heur": "heuristic",
+      "needCtx": "requiresContext {pattern, flags, matchOn}",
+      "bands[[pasmo, opis]]": "bands[{band, label}]",
+      "builtin": "(pominięte - zawsze true)",
+      "(nowe) hub": "hub {metricId, s6Key, status, s6Context, reason} + hubAlso[] - rozstrzygnięcie względem S6 (2026-10-19)"
+    },
+    "refs.json": {
+      "kpi": "kpiId",
+      "ctx": "context",
+      "val": "value",
+      "src": "sourceId",
+      "(nowe) hub": "hub {metricId, s6Key, status, s6Context, reason} + hubAlso[] - rozstrzygnięcie względem S6 (2026-10-19)"
+    },
+    "scenarios.json": {
+      "n": "name",
+      "dom": "domain",
+      "objawy": "symptoms",
+      "cond": "conditions[{kpiId, state}]",
+      "src": "sourceIds"
+    },
+    "frameworks.json": {
+      "czym": "what",
+      "cel": "goal",
+      "kiedy": "when",
+      "jak": "how",
+      "przyk": "example",
+      "bench": "benchmark",
+      "benchK": "benchmarkKpis",
+      "ogr": "limitations",
+      "find": "furtherReading",
+      "src": "sourceIds",
+      "przykU/przykFn": "(pominięte - flagi aplikacji)"
+    },
+    "trends.json": {
+      "TRENDS[kpi][[kierunek, opis, src]]": "{kpiId, direction, text, sourceId}"
+    },
+    "terms.json": {
+      "f": "full",
+      "d": "description",
+      "w": "formula",
+      "m": "meaning",
+      "czy": "howToRead",
+      "dz": "drivers"
+    },
+    "sources.json": {
+      "rel": "reliability",
+      "valid_until": "validUntil",
+      "(nowe)": "citedBy - pliki pakietu, które cytują źródło"
+    }
+  },
+  "enums": {
+    "direction": {
+      "up": "im więcej, tym lepiej",
+      "down": "im mniej, tym lepiej",
+      "mid": "optimum w środku przedziału"
+    },
+    "band": {
+      "zly": "zły",
+      "slaby": "słaby",
+      "normalny": "normalny",
+      "dobry": "dobry",
+      "bdobry": "bardzo dobry"
+    },
+    "conditionState": {
+      "nisko": "poniżej przedziału",
+      "wysoko": "powyżej przedziału",
+      "ok": "w przedziale"
+    },
+    "trendDirection": {
+      "up": "wzrost",
+      "down": "spadek",
+      "flat": "bez zmian"
+    },
+    "reliability": {
+      "A": "badanie/dane pierwotne lub dokumentacja producenta",
+      "B": "raport branżowy/agregator",
+      "C": "omówienie wtórne"
+    },
+    "hubStatus": {
+      "kontekst_s6": "przedział (lub jego mediana) stał się nowym kontekstem S6 - ocena z tego kontekstu S6",
+      "zastapilo_s6": "ten sam kontekst co S6, wygrał Insider - pasma S6 poprawione (wpis w changelog grupy S6)",
+      "zastapione_przez_s6": "ten sam kontekst co S6, wygrało S6 (reguła 3) - rekord Insidera jest tylko punktem odniesienia",
+      "odniesienie": "inny kontekst/definicja/mianownik, pojedynczy punkt bez rozkładu albo kontekst spoza profilu NES - tylko punkt odniesienia"
+    }
+  },
+  "integrity": "Każde sourceId/sourceIds/furtherReading i każdy cytat [id] w tekstach zachowanych rekordów istnieje w sources.json; sources.json nie zawiera źródeł bez cytowania (citedBy). Sprawdza to skrypt budujący i weryfikator (poza repo). Pole hub (wersja 2): każdy rekord 29 par z §5.1.4 ma hub albo hubAlso wskazujący klucz S6 pary; s6Key, metricId i s6Context istnieją w docs/benchmarki/2026-10-18; kontekst_s6 wskazuje kontekst S6 ze źródłem o tym samym URL; liczności zgodne z hub.counts - sprawdza weryfikator (poza repo).",
+  "schemaVersions": {
+    "ranges.json": "nes-insider-ranges/2",
+    "refs.json": "nes-insider-refs/2",
+    "note": "Wersja 2 (2026-10-19): rekordy rozstrzygnięte względem rejestru S6 mają pole `hub` (i opcjonalnie `hubAlso`); pozostałe pola bez zmian. Pozostałe pliki pakietu bez zmian (wersja 1)."
+  },
+  "hub": {
+    "decision": "2026-10-19, decyzja właściciela „uspójnij” (29 par z §5.1.4 dokumentu docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md oraz pary pominięte: dopełnienia, inny mianownik albo kanał)",
+    "rule": "Ocena w hubie pochodzi wyłącznie z kontekstów S6 (docs/benchmarki/2026-10-18, BenchmarkContextSelect). Insider nie daje drugiego werdyktu dla tej samej pary (metryka, kontekst). Rekordy ze statusem innym niż kontekst_s6/zastapilo_s6 są w UI wyłącznie punktem odniesienia (bez etykiety oceny).",
+    "fields": {
+      "metricId": "MetricId huba albo null dla wpisu słownika S6 bez MetricId",
+      "s6Key": "klucz wpisu w docs/benchmarki/2026-10-18/<grupa>.json (rozróżnia wpisy słownika i wpisy ścieżek)",
+      "status": "enums.hubStatus",
+      "s6Context": "id kontekstu S6 (<key>.<slug> z nakładki) opisującego ten sam kontekst co rekord albo null, gdy żaden kontekst S6 nie jest porównywalny",
+      "reason": "uzasadnienie po polsku (reguły 1-6 i kryteria (a)-(e) z §5.1.4)",
+      "hubAlso": "opcjonalna lista rozstrzygnięć tego samego rekordu dla innych wpisów S6 (dopełnienia, metryki pokrewne) - ten sam kształt co hub"
+    },
+    "counts": {
+      "ranges": {
+        "withHub": 26,
+        "kontekst_s6": 2,
+        "zastapilo_s6": 0,
+        "zastapione_przez_s6": 16,
+        "odniesienie": 8,
+        "hubAlso": 13
+      },
+      "refs": {
+        "withHub": 58,
+        "kontekst_s6": 2,
+        "zastapilo_s6": 0,
+        "zastapione_przez_s6": 1,
+        "odniesienie": 55,
+        "hubAlso": 35
+      },
+      "pairs": 29
+    },
+    "newS6Contexts": [
+      "signup_form_conversion_rate.linkedin_lgf_content",
+      "signup_form_conversion_rate.linkedin_lgf_demo"
+    ],
+    "s6Corrections": [],
+    "untouched": "Przedziały z §5.1.5 bez wpisu S6 (b-engr, b-sqlopp, b-pipecov, b-pmf, b-burn, b-csat, b-fcr i kanałowe poza b-lgf-*, b-cvr-ecom-pl, b-lpcvr-ecom, b-deliv) oraz punkty bez metryki S6 nie mają pola hub - zostają wiedzą słownikową."
+  }
+}

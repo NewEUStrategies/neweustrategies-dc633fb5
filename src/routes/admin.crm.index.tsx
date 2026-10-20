@@ -119,6 +119,9 @@ import {
 } from "@/lib/crm/leadViews";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { crmKeys } from "@/lib/crm/keys";
+import { adminPageHead } from "@/lib/adminPageHead";
+import { crmStaffUsersQueryOptions } from "@/lib/crm/leadMutations";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FaceAwareAvatar } from "@/components/admin/crm/FaceAwareAvatar";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
@@ -140,17 +143,12 @@ export const Route = createFileRoute("/admin/crm/")({
         ? search.view
         : undefined,
   }),
-  head: () => ({
-    meta: [
-      { title: "Kontakty CRM - New European Strategies" },
-      { name: "description", content: "Kontakty i historia formularzy New European Strategies." },
-      { property: "og:title", content: "Kontakty CRM - New European Strategies" },
-      { property: "og:description", content: "Kontakty i historia formularzy." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
+  // D14: metadane sekcji prywatnego panelu (noindex, nofollow).
+  head: () =>
+    adminPageHead(
+      "Kontakty CRM",
+      "Kontakty CRM: lista z filtrami etapu, cyklu życia, segmentu, tagów, właściciela i pasma score, zapisane widoki i operacje zbiorcze.",
+    ),
   component: AdminCrmPage,
 });
 
@@ -560,7 +558,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
   }, [search, scope, serverParams]);
 
   const q = useQuery({
-    queryKey: ["crm-leads", { search, scope, serverParams, page, pageSize }],
+    queryKey: crmKeys.leads({ search, scope, serverParams, page, pageSize }),
     queryFn: async () => {
       const r = await listCrmLeads({
         data: {
@@ -628,6 +626,17 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [leads]);
 
+  // Tagi do chipa filtra - z bieżącej strony wyników (jak kraje), plus tagi
+  // już wybrane w filtrze, żeby wybór nie znikał po przejściu na inną stronę.
+  const tagOptions = useMemo(() => {
+    const set = new Set<string>(config.filter.tags ?? []);
+    for (const l of leads) for (const tag of l.tags ?? []) set.add(tag);
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [leads, config.filter.tags]);
+
+  // Zespół CRM do chipa „Właściciel" (ta sama lista co picker właściciela).
+  const staffQ = useQuery(crmStaffUsersQueryOptions());
+
   const visibleCols = LEAD_COLUMNS.filter((c) => config.columns.includes(c.key));
 
   // ---- Zbiorcze operacje na leadach --------------------------------------
@@ -645,7 +654,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     onSuccess: async () => {
       toast.success(lang === "pl" ? "Zapisano zmiany" : "Changes saved");
       setSelected(new Set());
-      await qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -655,7 +664,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     onSuccess: async () => {
       toast.success(lang === "pl" ? "Usunięto kontakty" : "Contacts deleted");
       setSelected(new Set());
-      await qc.invalidateQueries({ queryKey: ["crm-leads"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -803,6 +812,8 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
         onChange={setFilter}
         stageLabels={L.stage}
         countries={countries}
+        tagOptions={tagOptions}
+        owners={staffQ.data}
       />
 
       <FollowUpsPanel
@@ -1210,7 +1221,7 @@ function LeadDrawer({
 }) {
   const qc = useQueryClient();
   const detail = useQuery({
-    queryKey: ["crm-lead", leadId],
+    queryKey: crmKeys.lead(leadId ?? ""),
     enabled: !!leadId,
     queryFn: async () => {
       const r = await getCrmLead({ data: { id: leadId! } });
@@ -1223,8 +1234,8 @@ function LeadDrawer({
       updateCrmLead({ data: { id: leadId!, ...patch } as { id: string; stage?: Stage } }),
     onSuccess: () => {
       toast.success("✓");
-      qc.invalidateQueries({ queryKey: ["crm-leads"] });
-      qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
+      qc.invalidateQueries({ queryKey: crmKeys.leadsAll() });
+      if (leadId) qc.invalidateQueries({ queryKey: crmKeys.lead(leadId) });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1523,7 +1534,7 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
   const { i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const q = useQuery({
-    queryKey: ["crm-lead-timeline", leadId],
+    queryKey: crmKeys.leadTimeline(leadId),
     queryFn: async () => {
       const r = await getCrmLeadTimeline({ data: { id: leadId } });
       return parseLeadTimelinePayload((r as { json: string }).json);

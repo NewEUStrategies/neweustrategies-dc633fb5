@@ -576,11 +576,13 @@
       "caveats_en": [
         "The Omnisend and Wisepops data come mainly from e-commerce (the incentive is often a discount); for a publisher the incentive is content, so results may be lower.",
         "Omnisend 2025: popups shown on desktop and mobile at the same time 2.2%, desktop only 1.4% (1.3% on the chart); wheel of fortune 3.5%; Wisepops: exit-intent 3.94%, multi-step 5.17% vs single-step 4.62%.",
-        "The Wisepops top 10% (57.7%) includes click-triggered popups – do not compare with automatic popups."
+        "The Wisepops top 10% (57.7%) includes click-triggered popups – do not compare with automatic popups.",
+        "The LinkedIn Lead Gen Forms contexts (Kiin Labs 2026) measure a form on the ad platform: it opens after a click on the ad and is pre-filled with profile data, and the denominator is form opens, not popup views on the site. Compare them only with LinkedIn Campaign Manager data (Leads / Form opens), separately for content offers (median 10.8%) and demo requests (median 2.2%). A high completion rate with pre-filled profile data does not mean lead quality – read it together with lead-to-MQL conversion."
       ],
       "caveat_sources": {
         "1": ["omnisend_2026", "wisepops_2025"],
-        "2": ["wisepops_2025"]
+        "2": ["wisepops_2025"],
+        "3": ["kiin_lgf_benchmarks_2026"]
       },
       "default_context_by_segment": {
         "all": "signup_form_conversion_rate.auto_popup",
@@ -619,6 +621,40 @@
             "2": "up to the Wisepops average",
             "3": "average – top 10%",
             "4": "Wisepops top 10%"
+          }
+        },
+        {
+          "id": "signup_form_conversion_rate.linkedin_lgf_content",
+          "label_en": "LinkedIn Lead Gen Forms – in-feed form with a content offer (report or analysis download); completion = submissions / form opens",
+          "method_en": "source quartiles (Kiin Labs 2026: 173 accounts with 100+ form opens): P25 4.6%, P50 10.8%, P75 18.7%, P90 31.6%; below P25 weak, P25–P50 normal, P50–P75 good, above P75 optimal; critical threshold = half of P25 (heuristic). Context added on 2026-10-19 from the Insider marketing knowledge pack (range b-lgf-content, source id 1196 in the pack's sources.json); P25 and the number of accounts read from the source page",
+          "period_en": "per campaign (account median, 8 Sep 2025 – 7 Sep 2026)",
+          "segments": ["newsletter", "b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "heuristic: half of P25 (4.6%)",
+            "1": "below P25",
+            "2": "P25–P50 (lower quartile to median)",
+            "3": "P50–P75 (account median 10.8%)",
+            "4": "above P75; P90 = 31.6%"
+          }
+        },
+        {
+          "id": "signup_form_conversion_rate.linkedin_lgf_demo",
+          "label_en": "LinkedIn Lead Gen Forms – in-feed form with a demo or sales contact request (e.g. an enquiry about an institutional offer); completion = submissions / form opens",
+          "method_en": "source quartiles (Kiin Labs 2026: 87 accounts with 100+ form opens): P25 1.0%, P50 2.2%, P75 4.2%, P90 9.5%; below P25 weak, P25–P50 normal, P50–P75 good, above P75 optimal; critical threshold = half of P25 (heuristic). Context added on 2026-10-19 from the Insider marketing knowledge pack (range b-lgf-demo, source id 1196 in the pack's sources.json); P25 and the number of accounts read from the source page",
+          "period_en": "per campaign (account median, 8 Sep 2025 – 7 Sep 2026)",
+          "segments": ["b2b_institution"],
+          "measure": "level",
+          "unit": "percent_pt",
+          "window": "per_campaign",
+          "notes_en": {
+            "0": "heuristic: half of P25 (1.0%)",
+            "1": "below P25",
+            "2": "P25–P50 (lower quartile to median)",
+            "3": "P50–P75 (account median 2.2%)",
+            "4": "above P75; P90 = 9.5%"
           }
         }
       ]
@@ -938,6 +974,10 @@
     },
     "mather_uk_2026_07": {
       "reliability": "C",
+      "vendor": true
+    },
+    "kiin_lgf_benchmarks_2026": {
+      "reliability": "B",
       "vendor": true
     }
   }

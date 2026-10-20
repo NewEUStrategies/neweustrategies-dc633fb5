@@ -57,6 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RetentionDialog } from "@/components/billing/organisms/RetentionDialog";
 
 /** Hook współdzielony przez profil i strażników dostępu. */
 export function useMySubscriptionProvider() {
@@ -76,6 +77,10 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const environment = getStripeEnvironmentSafe();
   const [targetPriceId, setTargetPriceId] = useState("");
   const [seats, setSeats] = useState(Math.max(1, subscription.quantity ?? 1));
+  // P01: rezygnacja przez dialog (potwierdzenie, ankieta, oferta - najwyżej
+  // 2 kroki), nie jednym kliknięciem. Dawniej lustro operatora anulowało
+  // od razu, bez potwierdzenia i bez śladu powodu.
+  const [retentionOpen, setRetentionOpen] = useState(false);
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const entry = catalogEntryFor(subscription);
@@ -479,10 +484,22 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
             {t("profile.subscription.portal.openPortal")}
           </Button>
           {!subscription.cancel_at_period_end && subscription.status !== "canceled" && (
-            <Button variant="destructive" disabled={busy} onClick={() => cancel.mutate()}>
-              {cancel.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t("profile.subscription.cancel")}
-            </Button>
+            <>
+              <Button variant="destructive" disabled={busy} onClick={() => setRetentionOpen(true)}>
+                {t("profile.subscription.cancel")}
+              </Button>
+              <RetentionDialog
+                open={retentionOpen}
+                onOpenChange={setRetentionOpen}
+                subscriptionId={subscription.id}
+                accessUntil={subscription.current_period_end}
+                // `mutateAsync` ODRZUCA promise przy odmowie operatora - dialog
+                // zostaje wtedy otwarty z komunikatem (zamknięcie = sukces).
+                onConfirmCancel={async () => {
+                  await cancel.mutateAsync();
+                }}
+              />
+            </>
           )}
         </div>
 

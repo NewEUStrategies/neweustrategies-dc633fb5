@@ -36,6 +36,7 @@
 // lądują NULL-e, czym domykamy remis) - samo porównywanie napisów spoza ASCII
 // należy do bazy i sprawdza je pgTAP / pg-harness, nie vitest.
 import { z } from "zod";
+import { BILLING_OWNED_LIFECYCLE_STAGES, LIFECYCLE_STAGES } from "@/lib/crm/lifecycle";
 
 /* ---------- Słownik kolumn: co znaczy wartość w danej kolumnie ---------- */
 
@@ -66,6 +67,8 @@ export const LEAD_COLUMN_TYPES: Readonly<Record<string, LeadColumnType>> = {
   last_activity_at: "timestamp",
   created_at: "timestamp",
   follow_up_at: "timestamp",
+  source_type: "text",
+  lifecycle_stage: "text",
 };
 
 /**
@@ -89,9 +92,54 @@ export type LeadStage = (typeof LEAD_STAGE_ORDER)[number];
 
 /* ---------- Parametry listy (schemat współdzielony z serwerem) ---------- */
 
+/**
+ * JEDEN słownik segmentów kontaktu (`crm_leads.source_type`, P23) - lustro
+ * CHECK `crm_leads_source_type_check`; parytet pilnuje test czytający
+ * migrację. Kolejność = ranga rosnąco (`_crm_source_type_rank`), więc lista
+ * w filtrze idzie od najsłabszego do najcenniejszego segmentu.
+ */
+export const CRM_SOURCE_TYPES = [
+  "manual",
+  "contact_form",
+  "newsletter",
+  "registered",
+  "event_participant",
+  "event_cfp",
+  "speaker",
+  "club_application",
+  "careers",
+  "expert",
+  "paid_subscriber",
+] as const;
+export type CrmSourceType = (typeof CRM_SOURCE_TYPES)[number];
+
 export const LeadStageSchema = z.enum(LEAD_STAGE_ORDER);
 export const LeadBandSchema = z.enum(["hot", "warm", "cool", "cold"]);
+/**
+ * Źródło „heurystyczne" sprzed segmentów (newsletter / formularz / import
+ * z kształtu wiersza). Zostaje dla zapisanych widoków i eksportu; panel
+ * filtruje już po `source_type` - heurystyczny „import" nie trafiał w nic,
+ * bo `source_count` ma domyślnie 1 (P23).
+ */
 export const LeadSourceSchema = z.enum(["form", "newsletter", "import"]);
+export const LeadSourceTypeSchema = z.enum(CRM_SOURCE_TYPES);
+export const LeadLifecycleStageSchema = z.enum(LIFECYCLE_STAGES);
+
+/**
+ * Etapy cyklu życia, które człowiek może ustawić w panelu - bez etapów
+ * klienta (nadaje je wyłącznie billing, strażnik Z-06 i pierwszeństwo
+ * pisarzy i tak by je odrzuciły). Wspólne dla walidacji serwera
+ * (`setLeadLifecycleStage`) i listy wyboru na karcie kontaktu.
+ */
+export const MANUAL_LIFECYCLE_STAGES = LIFECYCLE_STAGES.filter(
+  (stage) => !(BILLING_OWNED_LIFECYCLE_STAGES as readonly string[]).includes(stage),
+);
+export const ManualLifecycleStageSchema = z.enum(
+  MANUAL_LIFECYCLE_STAGES as [
+    (typeof LIFECYCLE_STAGES)[number],
+    ...(typeof LIFECYCLE_STAGES)[number][],
+  ],
+);
 
 /**
  * Filtry listy leadów - nadzbiór tego, co potrafi ustawić panel (LeadFilter
@@ -113,6 +161,8 @@ export const LeadListFilterSchema = z.object({
   company: z.string().trim().max(200).optional(),
   newsletter_status: z.string().trim().max(40).optional(),
   consent_only: z.boolean().optional(),
+  source_type: LeadSourceTypeSchema.optional(),
+  lifecycle_stage: LeadLifecycleStageSchema.optional(),
   activity_from: z.string().datetime().optional(),
   activity_to: z.string().datetime().optional(),
   created_from: z.string().datetime().optional(),
@@ -197,6 +247,10 @@ export function buildLeadFilterSpec(params: LeadListFilterParams): LeadPredicate
     out.push({ op: "eq", column: "newsletter_status", value: params.newsletter_status });
   }
   if (params.consent_only) out.push({ op: "eq", column: "marketing_consent", value: true });
+  if (params.source_type) out.push({ op: "eq", column: "source_type", value: params.source_type });
+  if (params.lifecycle_stage) {
+    out.push({ op: "eq", column: "lifecycle_stage", value: params.lifecycle_stage });
+  }
   // Źródło leada wynika z danych, nie z osobnej kolumny: newsletter ma status
   // zapisu, formularz ma licznik zgłoszeń, reszta to import/ręczne dodanie.
   if (params.source === "newsletter") out.push({ op: "notNull", column: "newsletter_status" });

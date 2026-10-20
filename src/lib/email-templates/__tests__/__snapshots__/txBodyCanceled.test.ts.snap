@@ -1,0 +1,65 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > en / unknown: po końcu dostępu 1`] = `
+{
+  "extra": "You can come back any time - pick a plan on the pricing page and your saved articles and reading history will be waiting.",
+  "intro": "Your Członek plan has ended and no further payments will be taken. Premium access expired on 30.09.2026.",
+  "note": "Tell us why you left - subscriber feedback directly shapes what we publish.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > en / unknown: w trakcie okresu 1`] = `
+{
+  "extra": "If you change your mind before the period ends, you can resume in one click - your saved articles and reading history are kept.",
+  "intro": "We have cancelled your Członek plan and no further payments will be taken. Premium access stays active until 30.09.2026 - you only pay for the period you use.",
+  "note": "Tell us why you left - subscriber feedback directly shapes what we publish.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > pl / female: po końcu dostępu 1`] = `
+{
+  "extra": "Możesz wrócić w każdej chwili - wybierz plan w cenniku, a zapisane materiały i historia czytania będą na Ciebie czekać.",
+  "intro": "Potwierdzamy zakończenie planu Członek. Kolejne płatności nie zostaną pobrane, a dostęp do materiałów premium wygasł 30.09.2026.",
+  "note": "Napisz nam, dlaczego rezygnujesz - Twoja odpowiedź realnie wpływa na to, co publikujemy.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > pl / female: w trakcie okresu 1`] = `
+{
+  "extra": "Jeśli zmienisz zdanie przed końcem okresu, możesz wznowić subskrypcję jednym kliknięciem - nie stracisz zapisanych materiałów ani historii czytania.",
+  "intro": "Potwierdzamy rezygnację z planu Członek. Kolejne płatności nie zostaną pobrane. Dostęp do materiałów premium pozostaje aktywny do 30.09.2026 - płacisz tylko za okres, z którego korzystasz.",
+  "note": "Napisz nam, dlaczego rezygnujesz - Twoja odpowiedź realnie wpływa na to, co publikujemy.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > pl / male: po końcu dostępu 1`] = `
+{
+  "extra": "Możesz wrócić w każdej chwili - wybierz plan w cenniku, a zapisane materiały i historia czytania będą na Ciebie czekać.",
+  "intro": "Potwierdzamy zakończenie planu Członek. Kolejne płatności nie zostaną pobrane, a dostęp do materiałów premium wygasł 30.09.2026.",
+  "note": "Napisz nam, dlaczego rezygnujesz - Twoja odpowiedź realnie wpływa na to, co publikujemy.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > pl / male: w trakcie okresu 1`] = `
+{
+  "extra": "Jeśli zmienisz zdanie przed końcem okresu, możesz wznowić subskrypcję jednym kliknięciem - nie stracisz zapisanych materiałów ani historii czytania.",
+  "intro": "Potwierdzamy rezygnację z planu Członek. Kolejne płatności nie zostaną pobrane. Dostęp do materiałów premium pozostaje aktywny do 30.09.2026 - płacisz tylko za okres, z którego korzystasz.",
+  "note": "Napisz nam, dlaczego rezygnujesz - Twoja odpowiedź realnie wpływa na to, co publikujemy.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > pl / unknown: po końcu dostępu 1`] = `
+{
+  "extra": "Powrót jest możliwy w każdej chwili - po wyborze planu w cenniku zapisane materiały i historia czytania pozostają dostępne.",
+  "intro": "Potwierdzamy zakończenie planu Członek. Kolejne płatności nie zostaną pobrane, a dostęp do materiałów premium wygasł 30.09.2026.",
+  "note": "Prosimy o krótką informację zwrotną - opinie subskrybentów realnie wpływają na to, co publikujemy.",
+}
+`;
+
+exports[`subscription_canceled - treść w trakcie i po końcu okresu > pl / unknown: w trakcie okresu 1`] = `
+{
+  "extra": "Subskrypcję można wznowić jednym kliknięciem przed końcem okresu - zapisane materiały i historia czytania pozostają nienaruszone.",
+  "intro": "Potwierdzamy rezygnację z planu Członek. Kolejne płatności nie zostaną pobrane. Dostęp do materiałów premium pozostaje aktywny do 30.09.2026 - płacisz tylko za okres, z którego korzystasz.",
+  "note": "Prosimy o krótką informację zwrotną - opinie subskrybentów realnie wpływają na to, co publikujemy.",
+}
+`;

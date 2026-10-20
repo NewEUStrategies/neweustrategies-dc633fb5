@@ -5,7 +5,7 @@
 // jedzie w chunku wejściowym), więc link z huba „Przychód i lejek" nie kończy
 // się stroną błędu. Zakładka jedzie w adresie (`tab`/`onTabChange`), więc deep
 // link ląduje na właściwej zakładce, a przełączenie zapisuje się w historii.
-// Filtr `status` podpina wycinek S2 (PLAN S1 §3.3).
+// Filtr `status` podpięty przy integracji S2 (PLAN S1 §3.3).
 //
 // NAGŁÓWEK SEKCYJNY (`adminPageHead`, AGENTS.md) zamiast ręcznie składanego
 // `meta` - ten sam format tytułu i te same znaczniki `noindex` co w całym panelu.
@@ -54,6 +54,13 @@ function AdminBillingPage() {
         tab={search.tab}
         onTabChange={(tab) =>
           void navigate({ search: (prev) => ({ ...prev, tab }), replace: true })
+        }
+        // Integrator S2 (2026-10-19): filtr `status` z adresu (PLAN S1 §3.3) -
+        // deep link z huba otwiera listę już przefiltrowaną, a zmiana filtra
+        // zastępuje wpis historii jak przełączenie zakładki.
+        statusFilter={search.status}
+        onStatusFilterChange={(status) =>
+          void navigate({ search: (prev) => ({ ...prev, status }), replace: true })
         }
       />
     </div>

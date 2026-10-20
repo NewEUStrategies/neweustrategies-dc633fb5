@@ -49,6 +49,7 @@ import {
   Trash2,
   Webhook,
 } from "lucide-react";
+import { crmKeys } from "@/lib/crm/keys";
 
 type Stage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost" | "archived";
 const STAGES: Stage[] = ["new", "contacted", "qualified", "proposal", "won", "lost", "archived"];
@@ -128,7 +129,7 @@ export function CrmPartnerEndpointsPanel({ lang, stageLabels }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
 
   const endpointsQ = useQuery({
-    queryKey: ["admin", "crm-partner-endpoints"],
+    queryKey: crmKeys.partnerEndpoints(),
     queryFn: async (): Promise<PartnerRow[]> => {
       const { data, error } = await supabase
         .from("integration_endpoints")
@@ -187,7 +188,7 @@ export function CrmPartnerEndpointsPanel({ lang, stageLabels }: Props) {
   });
 
   const invalidate = async () => {
-    await qc.invalidateQueries({ queryKey: ["admin", "crm-partner-endpoints"] });
+    await qc.invalidateQueries({ queryKey: crmKeys.partnerEndpoints() });
     await qc.invalidateQueries({ queryKey: ["admin", "crm-partner-deliveries"] });
   };
 

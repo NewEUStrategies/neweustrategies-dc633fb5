@@ -83,10 +83,25 @@ export const workflowsPl = {
       cancel: "Anuluj",
       validation: {
         name: "Podaj nazwę przepisu.",
-        trigger: "Typ zdarzenia musi mieć format agregat.czasownik.v1.",
+        trigger:
+          "Typ zdarzenia musi mieć format agregat.czasownik.v1 (dopuszczalne kolejne segmenty, np. event.registration.created.v1).",
         steps: "Dodaj przynajmniej jedną akcję.",
         conditionKey: "Każda wartość warunku wymaga klucza.",
+        stepParams: "Uzupełnij zaznaczone parametry akcji.",
       },
+      paramIssue: {
+        required: "To pole jest wymagane - bez niego przebieg zakończy się błędem.",
+        tooLong: "Za długie: limit {{max}} znaków (silnik odrzuca, nie skraca).",
+        option: "Wybierz wartość z listy.",
+      },
+      triggerUnknown:
+        "Tego typu zdarzenia nie emituje żaden znany moduł - przepis zapisze się, ale może nigdy nie zadziałać.",
+      staffPlaceholder: "Wybierz osobę z zespołu",
+      staffLoading: "Wczytywanie zespołu...",
+      staffEmpty: "Brak osób z rolą admin lub editor",
+      staffUnknown: "Osoba spoza zespołu ({{id}})",
+      selectPlaceholder: "Wybierz...",
+      none: "Brak",
     },
     actions: {
       notify_user: {
@@ -103,12 +118,45 @@ export const workflowsPl = {
       },
       create_crm_lead: {
         name: "Utwórz lead w CRM",
-        description: "Upsert leada CRM z danych payloadu (e-mail, imię, nazwisko, zgody).",
+        description:
+          "Upsert leada CRM z adresu z payloadu, subskrybenta albo profilu. Zgody marketingowej przepis nie nadaje - daje ją wyłącznie dowód zgody.",
       },
       create_crm_task: {
         name: "Utwórz zadanie w CRM",
         description:
-          "Zadanie follow-up przy leadzie dopasowanym po e-mailu z payloadu lub profilu użytkownika (user_id). Jedno otwarte zadanie o danym tytule per lead.",
+          "Zadanie follow-up przy leadzie zdarzenia (agregat, konto albo e-mail). Osoba: wskazana, właściciel leada albo domyślna z ustawień ścieżek. Klucz idempotencji robi z powtórki jedno zadanie.",
+      },
+      set_lifecycle_stage: {
+        name: "Ustaw etap cyklu życia",
+        description:
+          "Zmienia etap marketingowy kontaktu z pierwszeństwem: billing > ręcznie > ścieżka = przepis. Etapów klienta przepis nie nadaje.",
+      },
+      set_crm_stage: {
+        name: "Ustaw etap sprzedaży",
+        description:
+          "Przesuwa lead w lejku sprzedaży; zmiana trafia do historii etapów jako przepis.",
+      },
+      add_tag: {
+        name: "Dodaj tag",
+        description: "Dopisuje tag do leada (bez duplikatów, do 40 znaków).",
+      },
+      remove_tag: {
+        name: "Usuń tag",
+        description: "Zdejmuje tag z leada.",
+      },
+      assign_owner: {
+        name: "Przypisz właściciela",
+        description:
+          "Ustawia opiekuna leada z zespołu CRM. Bez „nadpisz” istniejący właściciel zostaje.",
+      },
+      newsletter_list_add: {
+        name: "Dopisz do listy newslettera",
+        description:
+          "Dodaje subskrybenta do listy z ustawień newslettera (i tag lista:<id> w CRM). Nie zapisuje nikogo na newsletter.",
+      },
+      newsletter_list_remove: {
+        name: "Usuń z listy newslettera",
+        description: "Zdejmuje subskrybenta z listy newslettera i tag listy z leada.",
       },
       add_cross_reference: {
         name: "Dodaj powiązanie w grafie",
@@ -131,12 +179,42 @@ export const workflowsPl = {
       title: "Tytuł zadania",
       note: "Notatka zadania",
       due_days: "Termin (dni od zdarzenia)",
+      due_hours: "Termin (godziny od zdarzenia, ma pierwszeństwo)",
+      assignee_id: "Osoba odpowiedzialna",
+      origin_ref: "Klucz idempotencji (np. retention:canceled:{event_id})",
       newsletter: "Oznacz zgodę newsletter",
-      marketing: "Oznacz zgodę marketing",
+      stage: "Etap",
+      allow_backward: "Pozwól cofnąć etap",
+      tag: "Tag",
+      owner_id: "Właściciel",
+      overwrite: "Nadpisz istniejącego właściciela",
+      list_key: "Lista newslettera (id z ustawień)",
       target_id: "ID celu (na stałe)",
       target_id_from: "Klucz payloadu z ID celu",
       target_type: "Typ celu",
       relation: "Relacja",
+    },
+    options: {
+      lifecycleStage: {
+        subscriber: "Subskrybent",
+        lead: "Lead",
+        registered: "Zarejestrowany",
+        mql: "MQL (marketingowo zakwalifikowany)",
+        sql: "SQL (sprzedażowo zakwalifikowany)",
+        opportunity: "Szansa sprzedaży",
+        customer: "Klient",
+        former_customer: "Były klient",
+        other: "Inny",
+      },
+      crmStage: {
+        new: "Nowy",
+        contacted: "Kontakt nawiązany",
+        qualified: "Zakwalifikowany",
+        proposal: "Oferta",
+        won: "Wygrany",
+        lost: "Przegrany",
+        archived: "Zarchiwizowany",
+      },
     },
     runs: {
       empty: "Brak przebiegów w wybranym filtrze.",
@@ -275,10 +353,25 @@ export const workflowsEn = {
       cancel: "Cancel",
       validation: {
         name: "Give the recipe a name.",
-        trigger: "The event type must match aggregate.verb.v1.",
+        trigger:
+          "The event type must match aggregate.verb.v1 (further segments allowed, e.g. event.registration.created.v1).",
         steps: "Add at least one action.",
         conditionKey: "Every condition value needs a key.",
+        stepParams: "Complete the highlighted action parameters.",
       },
+      paramIssue: {
+        required: "This field is required - without it the run will fail.",
+        tooLong: "Too long: {{max}} characters max (the engine rejects, it does not truncate).",
+        option: "Pick a value from the list.",
+      },
+      triggerUnknown:
+        "No known module emits this event type - the recipe will save but may never fire.",
+      staffPlaceholder: "Pick a team member",
+      staffLoading: "Loading the team...",
+      staffEmpty: "No one with the admin or editor role",
+      staffUnknown: "Not a team member ({{id}})",
+      selectPlaceholder: "Select...",
+      none: "None",
     },
     actions: {
       notify_user: {
@@ -295,12 +388,46 @@ export const workflowsEn = {
       },
       create_crm_lead: {
         name: "Create a CRM lead",
-        description: "Upserts a CRM lead from payload data (email, first/last name, consents).",
+        description:
+          "Upserts a CRM lead from the payload, subscriber or profile address. A recipe never grants marketing consent - only consent evidence does.",
       },
       create_crm_task: {
         name: "Create a CRM task",
         description:
-          "Follow-up task on the lead matched by payload email or the user's profile (user_id). One open task per title per lead.",
+          "Follow-up task on the event's lead (aggregate, account or email). Assignee: the one picked, the lead owner or the journeys default. The idempotency key turns a repeat into one task.",
+      },
+      set_lifecycle_stage: {
+        name: "Set lifecycle stage",
+        description:
+          "Changes the contact's marketing stage with precedence: billing > manual > journey = recipe. Customer stages are never set by a recipe.",
+      },
+      set_crm_stage: {
+        name: "Set sales stage",
+        description:
+          "Moves the lead in the sales pipeline; the change is recorded in stage history as a recipe.",
+      },
+      add_tag: {
+        name: "Add a tag",
+        description: "Adds a tag to the lead (no duplicates, up to 40 characters).",
+      },
+      remove_tag: {
+        name: "Remove a tag",
+        description: "Removes a tag from the lead.",
+      },
+      assign_owner: {
+        name: "Assign an owner",
+        description:
+          "Sets the lead owner from the CRM team. Without “overwrite” an existing owner stays.",
+      },
+      newsletter_list_add: {
+        name: "Add to a newsletter list",
+        description:
+          "Adds the subscriber to a list from newsletter settings (and the lista:<id> CRM tag). Never subscribes anyone.",
+      },
+      newsletter_list_remove: {
+        name: "Remove from a newsletter list",
+        description:
+          "Removes the subscriber from the newsletter list and the list tag from the lead.",
       },
       add_cross_reference: {
         name: "Add a graph cross-reference",
@@ -323,12 +450,42 @@ export const workflowsEn = {
       title: "Task title",
       note: "Task note",
       due_days: "Due (days from the event)",
+      due_hours: "Due (hours from the event, takes precedence)",
+      assignee_id: "Assignee",
+      origin_ref: "Idempotency key (e.g. retention:canceled:{event_id})",
       newsletter: "Mark newsletter consent",
-      marketing: "Mark marketing consent",
+      stage: "Stage",
+      allow_backward: "Allow moving the stage back",
+      tag: "Tag",
+      owner_id: "Owner",
+      overwrite: "Overwrite the existing owner",
+      list_key: "Newsletter list (id from settings)",
       target_id: "Target id (fixed)",
       target_id_from: "Payload key with the target id",
       target_type: "Target type",
       relation: "Relation",
+    },
+    options: {
+      lifecycleStage: {
+        subscriber: "Subscriber",
+        lead: "Lead",
+        registered: "Registered",
+        mql: "MQL (marketing qualified)",
+        sql: "SQL (sales qualified)",
+        opportunity: "Opportunity",
+        customer: "Customer",
+        former_customer: "Former customer",
+        other: "Other",
+      },
+      crmStage: {
+        new: "New",
+        contacted: "Contacted",
+        qualified: "Qualified",
+        proposal: "Proposal",
+        won: "Won",
+        lost: "Lost",
+        archived: "Archived",
+      },
     },
     runs: {
       empty: "No runs match the current filter.",

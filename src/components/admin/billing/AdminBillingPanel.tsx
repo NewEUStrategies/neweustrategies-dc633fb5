@@ -41,6 +41,28 @@ import { SubscriptionRepricingCard } from "@/components/admin/billing/Subscripti
 import { AdminPaymentsDiagnosticsPanel } from "@/components/admin/billing/AdminPaymentsDiagnosticsPanel";
 import { ResendPortalLinkButton } from "@/components/admin/billing/ResendPortalLinkButton";
 import { uiLocale } from "@/lib/i18n/format";
+import { useAuth } from "@/hooks/useAuth";
+import { formatMoney } from "@/lib/billing/types";
+import { resolveRevenueRange } from "@/lib/revenue/window";
+import {
+  revenueDunningQueryOptions,
+  revenueMrrBridgeQueryOptions,
+} from "@/lib/revenue/finance/queries";
+import { ensureI18n as ensureFinanceI18n } from "@/lib/i18n-admin-revenue-finance";
+import { ProvenanceNote } from "@/components/admin/revenue/atoms/ProvenanceNote";
+
+/** Limit listy subskrypcji w tabeli - liczba wierszy, nie podstawa KPI. */
+const SUBSCRIPTION_LIST_LIMIT = 500;
+
+/** Chwila ISO -> lokalny dzień `YYYY-MM-DD` (ProvenanceNote czyta dzień, nie chwilę). */
+function localDayOf(iso: string | null): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return null;
+  const mm = String(at.getMonth() + 1).padStart(2, "0");
+  const dd = String(at.getDate()).padStart(2, "0");
+  return `${at.getFullYear()}-${mm}-${dd}`;
+}
 
 interface SubscriptionRow {
   id: string;
@@ -112,7 +134,15 @@ function StatusBadge({ value }: { value: string }) {
 export function AdminBillingPanel({
   tab: tabFromUrl,
   onTabChange,
-}: { tab?: BillingTabId; onTabChange?: (tab: BillingTabId) => void } = {}) {
+  statusFilter,
+  onStatusFilterChange,
+}: {
+  tab?: BillingTabId;
+  onTabChange?: (tab: BillingTabId) => void;
+  /** `?status=` z adresu - filtr listy zamówień (deep link z huba, S2). */
+  statusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
+} = {}) {
   const { t, i18n } = useTranslation();
   const lang = i18n.language === "en" ? "en" : "pl";
   const [localTab, setLocalTab] = useState<string>("subscriptions");
@@ -122,9 +152,26 @@ export function AdminBillingPanel({
     else setLocalTab(next);
   };
   const queryClient = useQueryClient();
+  ensureFinanceI18n();
+  const { tenantId } = useAuth();
+
+  // P10 / br.04 D8: KPI z TEJ SAMEJ funkcji i TEGO SAMEGO klucza co hub
+  // „Przychód i lejek" (most MRR i windykacja, bieżący miesiąc) - dawniej
+  // liczone z próbki 500 wierszy, z kluczem bez najemcy i z mieszaniem
+  // środowisk. Okno z tej samej arytmetyki co hub (`resolveRevenueRange`),
+  // więc w tym samym kwancie czasu oba ekrany trafiają w jeden wpis cache.
+  const kpiRange = useMemo(() => resolveRevenueRange("month", Date.now()), []);
+  const bridgeQ = useQuery(revenueMrrBridgeQueryOptions(tenantId, kpiRange));
+  const dunningQ = useQuery(revenueDunningQueryOptions(tenantId, kpiRange));
+  const bridge = bridgeQ.data?.state === "ready" ? bridgeQ.data.data : null;
+  const dunning = dunningQ.data?.state === "ready" ? dunningQ.data.data : null;
+  const kpiForbidden = bridgeQ.data?.state === "forbidden";
 
   const subsQ = useQuery({
-    queryKey: billingKeys.admin.stripeSubscriptions(),
+    // Najemca w kluczu: przełączenie obszaru roboczego nie poda listy cudzej
+    // firmy z cache; prefiks fabryki zostaje (inwalidacja szyny działa dalej).
+    queryKey: [...billingKeys.admin.stripeSubscriptions(), tenantId ?? ""] as const,
+    enabled: Boolean(tenantId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscriptions")
@@ -132,7 +179,7 @@ export function AdminBillingPanel({
           "id,user_id,provider_subscription_id,price_id,status,quantity,current_period_end,cancel_at_period_end,payment_failure_count,last_payment_failed_at,environment,created_at",
         )
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(SUBSCRIPTION_LIST_LIMIT);
       if (error) throw error;
       return data as SubscriptionRow[];
     },
@@ -140,7 +187,7 @@ export function AdminBillingPanel({
 
   const loadRunner = useServerFn(getJobRunnerSettings);
   const runnerQ = useQuery({
-    queryKey: ["admin", "billing", "job-runner"],
+    queryKey: billingKeys.admin.jobRunner(),
     queryFn: () => loadRunner(),
     staleTime: 60_000,
   });
@@ -221,12 +268,10 @@ export function AdminBillingPanel({
   // Liczniki pokazują liczby WYŁĄCZNIE z udanego odczytu: przy błędzie, przed
   // pierwszą odpowiedzią i przy odczycie wstrzymanym bez sieci - kreska.
   // „0 aktywnych" przy niczym nie przeczytanym czyta się jak „nikt nie płaci".
-  const stats = useMemo(() => {
-    const active = rows.filter((r) => ["active", "trialing"].includes(r.status)).length;
-    const dunning = rows.filter((r) => r.payment_failure_count > 0).length;
-    const canceling = rows.filter((r) => r.cancel_at_period_end).length;
-    return { active, dunning, canceling };
-  }, [rows]);
+  // Zaplanowane rezygnacje nie mają agregatu - liczymy je z listy, a przy
+  // liście uciętej limitem mówimy „co najmniej" zamiast udawać pełną liczbę.
+  const canceling = useMemo(() => rows.filter((r) => r.cancel_at_period_end).length, [rows]);
+  const listTruncated = rows.length >= SUBSCRIPTION_LIST_LIMIT;
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString(uiLocale(lang)) : "-";
@@ -247,38 +292,86 @@ export function AdminBillingPanel({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <Users className="h-4 w-4" /> {t("adminBilling.activeSubscriptions")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {subsQ.isSuccess ? stats.active : "-"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <AlertTriangle className="h-4 w-4" /> {t("adminBilling.failedPayments")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {subsQ.isSuccess ? stats.dunning : "-"}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
-              <CreditCard className="h-4 w-4" /> {t("adminBilling.scheduledCancellations")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {subsQ.isSuccess ? stats.canceling : "-"}
-          </CardContent>
-        </Card>
-      </div>
+      <section aria-labelledby="billing-ledger-kpis" className="space-y-2">
+        <h2 id="billing-ledger-kpis" className="text-[0.8125rem] font-medium text-muted-foreground">
+          {t("adminRevenue.finance.billingPanel.ledgerTitle")}
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card data-kpi="active-subscriptions">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
+                <Users className="h-4 w-4" aria-hidden="true" />{" "}
+                {t("adminBilling.activeSubscriptions")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-semibold tabular-nums">
+              {bridge ? bridge.activeSubscriptions : "-"}
+            </CardContent>
+          </Card>
+          <Card data-kpi="mrr">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
+                <CreditCard className="h-4 w-4" aria-hidden="true" />{" "}
+                {t("adminRevenue.finance.billingPanel.mrr")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0.5 text-2xl font-semibold tabular-nums">
+              {bridge?.currencies && bridge.currencies.length > 0 ? (
+                bridge.currencies.map((c) => (
+                  <div key={c.currency}>{formatMoney(c.endMinor, c.currency, lang)}</div>
+                ))
+              ) : bridge?.currencies ? (
+                // Zmierzone zero bez waluty - żadna waluta nie ma MRR.
+                <div>0</div>
+              ) : (
+                <div title={t("adminRevenue.finance.noDataHint")}>-</div>
+              )}
+            </CardContent>
+          </Card>
+          <Card data-kpi="dunning">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />{" "}
+                {t("adminBilling.failedPayments")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-semibold tabular-nums">
+              {dunning ? dunning.open : "-"}
+            </CardContent>
+          </Card>
+          <Card data-kpi="scheduled-cancellations">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-[0.8125rem] font-medium text-muted-foreground">
+                <CreditCard className="h-4 w-4" aria-hidden="true" />{" "}
+                {t("adminBilling.scheduledCancellations")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-semibold tabular-nums">
+              {subsQ.isSuccess ? `${listTruncated ? "≥ " : ""}${canceling}` : "-"}
+            </CardContent>
+          </Card>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          {kpiForbidden ? (
+            <span role="status">{t("adminRevenue.finance.state.forbidden")}</span>
+          ) : (
+            <>
+              <span>{t("adminRevenue.finance.billingPanel.sameAsHub")}</span>
+              <ProvenanceNote
+                dataSince={localDayOf(bridge?.dataSince ?? null)}
+                basisMix={bridge?.basisMix ?? null}
+                environment="live"
+              />
+              <Link
+                to="/admin/revenue"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                {t("adminRevenue.finance.billingPanel.openHub")}
+              </Link>
+            </>
+          )}
+        </div>
+      </section>
 
       <Card>
         <CardHeader className="pb-2">
@@ -509,7 +602,7 @@ export function AdminBillingPanel({
         </TabsContent>
 
         <TabsContent value="orders" className="mt-4">
-          <AdminPaymentOrdersPanel />
+          <AdminPaymentOrdersPanel status={statusFilter} onStatusChange={onStatusFilterChange} />
         </TabsContent>
 
         <TabsContent value="tickets" className="mt-4">

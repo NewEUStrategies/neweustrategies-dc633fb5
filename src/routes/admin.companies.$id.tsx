@@ -67,6 +67,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { uiLocale } from "@/lib/i18n/format";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import { crmKeys } from "@/lib/crm/keys";
+import { adminPageHead } from "@/lib/adminPageHead";
 
 type Company = {
   id: string;
@@ -147,9 +149,12 @@ export const Route = createFileRoute("/admin/companies/$id")({
       raw === "activity" || raw === "analytics" ? raw : raw === "overview" ? "overview" : undefined;
     return tab ? { tab } : {};
   },
-  head: () => ({
-    meta: [{ title: "Firma | CRM | Admin" }, { name: "robots", content: "noindex" }],
-  }),
+  // D14: tytuł sekcji zamiast generycznego „Admin".
+  head: () =>
+    adminPageHead(
+      "Firma CRM",
+      "Karta firmy CRM: dane, kontakty, aktywność i powiązania z członkostwem organizacji.",
+    ),
   errorComponent: ({ error }) => (
     <div className="mx-auto max-w-3xl p-6 text-sm text-destructive" role="alert">
       {errorMessageOf(error)}
@@ -248,7 +253,7 @@ function AdminCompanyDetailPage() {
       toast.success(t("Zapisano zmiany", "Changes saved"));
       setEditing(false);
       await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
   });
@@ -265,7 +270,7 @@ function AdminCompanyDetailPage() {
         ),
       );
       await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
   });
@@ -274,7 +279,7 @@ function AdminCompanyDetailPage() {
     mutationFn: async () => deleteFn({ data: { id } }),
     onSuccess: async () => {
       toast.success(t("Firma usunięta", "Company deleted"));
-      await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+      await qc.invalidateQueries({ queryKey: crmKeys.companies() });
       await rootNavigate({ to: "/admin/companies" });
     },
     onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "error"),
@@ -451,7 +456,7 @@ function AdminCompanyDetailPage() {
           onChange={async (nextUrl) => {
             await updateFn({ data: { id: c.id, logo_url: nextUrl } });
             await qc.invalidateQueries({ queryKey: ["admin", "crm-company", id] });
-            await qc.invalidateQueries({ queryKey: ["admin", "crm-companies"] });
+            await qc.invalidateQueries({ queryKey: crmKeys.companies() });
           }}
         />
         <div className="min-w-0">

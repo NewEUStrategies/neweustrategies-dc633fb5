@@ -4,17 +4,25 @@
 // planSwitch). Pełny rejestr faktur pozostaje na /profile/orders.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { CreditCard } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { CreditCard, Loader2, RotateCcw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { billingKeys } from "@/lib/billing/keys";
-import { fetchMySubscription } from "@/lib/billing/queries";
+import { fetchMySubscription, resumeMySubscription } from "@/lib/billing/queries";
+import {
+  canResumeStripeSubscription,
+  fetchMyStripeSubscription,
+} from "@/lib/billing/subscriptionQueries";
+import { unwrapProviderResult } from "@/lib/billing/providerResult";
+import { toastSubscriptionFailure } from "@/lib/billing/paymentOutcomeToast";
+import { formatDateShort } from "@/lib/i18n/format";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
 import { isRepriceLookupKey } from "@/lib/billing/subscriptionRepricing";
 import { isLivePlanSubscriptionStatus } from "@/lib/billing/planSubscriptionGuard";
 import { formatMoney, planName } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
-import { getStripeRenewalCharge } from "@/utils/payments.functions";
+import { getStripeRenewalCharge, resumeStripeSubscription } from "@/utils/payments.functions";
 import { PlanSwitchBoard } from "@/components/billing/molecules/PlanSwitchBoard";
 import { CustomerPortalButton } from "@/components/billing/molecules/CustomerPortalButton";
 import { SyncBillingButton } from "@/components/billing/molecules/SyncBillingButton";
@@ -106,6 +114,20 @@ function PlanPage() {
   return (
     <div className="space-y-6">
       <SubscriptionStatusCard subscription={subscription} />
+
+      <ResumeSubscriptionAction
+        userId={uid}
+        localSubscription={
+          subscription
+            ? {
+                id: subscription.id,
+                status: subscription.status,
+                canceledAt: subscription.canceled_at ?? null,
+                periodEnd: subscription.current_period_end ?? null,
+              }
+            : null
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -210,5 +232,84 @@ function PlanPage() {
 
       <PaymentHistoryCard limit={10} showAllLink />
     </div>
+  );
+}
+
+/**
+ * Wznowienie z „Mojego planu" (P12). Mail o rezygnacji prowadzi tu („wznów
+ * przed końcem okresu"), a strona dawniej nie miała przycisku wznowienia -
+ * klient z maila trafiał na pustą obietnicę. O tym, czy jest co wznawiać,
+ * rozstrzyga STAN OPERATORA (lustro `subscriptions`: zaplanowany koniec albo
+ * pauza - ta sama reguła co karta operatora), a bez lustra - lokalne
+ * `canceled_at` przy trwającym okresie (ta sama reguła co sekcja subskrypcji).
+ * Serwer i tak pyta operatora o żywy stan, więc przycisk nie obiecuje
+ * niczego, czego operator nie wykona.
+ */
+function ResumeSubscriptionAction({
+  userId,
+  localSubscription,
+}: {
+  userId: string | undefined;
+  localSubscription: {
+    id: string;
+    status: string;
+    canceledAt: string | null;
+    periodEnd: string | null;
+  } | null;
+}) {
+  const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
+  const environment = getStripeEnvironmentSafe();
+  const providerQ = useQuery({
+    queryKey: billingKeys.myStripeSubscription(userId, environment),
+    queryFn: fetchMyStripeSubscription,
+    enabled: !!userId,
+  });
+  const provider = providerQ.data ?? null;
+
+  const localRunning =
+    !!localSubscription?.periodEnd && Date.parse(localSubscription.periodEnd) > Date.now();
+  const canResume = provider
+    ? canResumeStripeSubscription(provider)
+    : !!localSubscription?.canceledAt && localSubscription.status === "active" && localRunning;
+  const endsAt = provider ? provider.current_period_end : (localSubscription?.periodEnd ?? null);
+
+  const resume = useMutation({
+    mutationFn: async () => {
+      if (provider) {
+        await resumeStripeSubscription({ data: { environment } }).then(unwrapProviderResult);
+        return;
+      }
+      if (localSubscription) await resumeMySubscription(localSubscription.id);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() });
+      void qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
+      void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
+      toast.success(t("profile.subscription.resumed"));
+    },
+    onError: (error) => toastSubscriptionFailure(t, error, "profile.subscription.resumeError"),
+  });
+
+  if (!canResume) return null;
+  const date = endsAt ? formatDateShort(endsAt, i18n.language) || "-" : "-";
+
+  return (
+    <Card data-testid="plan-resume">
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">{t("profile.planPage.resume.title", { date })}</p>
+          <p className="text-xs text-muted-foreground">{t("profile.planPage.resume.hint")}</p>
+        </div>
+        <Button size="sm" disabled={resume.isPending} onClick={() => resume.mutate()}>
+          {resume.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          {t("profile.planPage.resume.cta")}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

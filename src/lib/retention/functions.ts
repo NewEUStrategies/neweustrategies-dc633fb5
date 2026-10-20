@@ -1,56 +1,241 @@
-// Server fns przepływu retencji przy anulowaniu subskrypcji.
+// Server fns przepływu anulowania subskrypcji (S2, P01, P02, Z-09).
 //
-//   submitRetentionFeedback  zapis ankiety (powód + komentarz) także wtedy,
-//                            gdy użytkownik odrzucił kontrofertę,
-//   acceptRetentionOffer     akceptacja kontrofertki: personalny kupon w
-//                            ISTNIEJĄCYM module b2b_coupons (procent, liczba
-//                            użyć i ważność z retention_settings) + zapis
-//                            akceptacji w retention_feedback.
+//   startRetentionFlow       otwarcie dialogu: wiersz `retention_feedback`
+//                            z `outcome='started'` (mianownik „save rate")
+//                            i rozstrzygnięcie, CO dialog może pokazać:
+//                            same potwierdzenie (`enabled=false`), ankietę,
+//                            ankietę z ofertą;
+//   submitRetentionFeedback  decyzja klienta - UPDATE TEGO SAMEGO wiersza
+//                            (`canceled` albo `saved`); „Anuluj mimo to"
+//                            przed wyborem powodu zapisuje `not_given`
+//                            (Z-09: CHECK I0 wymaga powodu przy `canceled`,
+//                            a brak powodu NIE jest powodem „inny");
+//   acceptRetentionOffer     przyjęcie oferty: rabat `repeating` na
+//                            subskrypcji OPERATORA (`applyOffer.server.ts`),
+//                            klucz idempotencji z id przepływu, 1 oferta na
+//                            użytkownika w oknie 180 dni.
 //
-// Bezpieczeństwo: wszystko service-role z twardym sprawdzeniem własności
-// subskrypcji (klient nie ma żadnych uprawnień zapisu do retention_feedback
-// ani b2b_coupons). Anty-nadużyciowo: jedna zaakceptowana oferta na
-// użytkownika w oknie 180 dni.
+// DLACZEGO OFERTA TYLKO PRZY SUBSKRYPCJI OPERATORA. Rabat musi obniżyć
+// NASTĘPNĄ płatność. Subskrypcja lokalna (bez lustra operatora - atrapa,
+// zakup dożywotni) nie ma kolejnej płatności, którą dałoby się obniżyć, a
+// kupon B2B do kasy był niewykonalny (P02) - lepiej nie obiecywać rabatu,
+// niż obiecać taki, którego nie da się użyć.
+//
+// BEZPIECZEŃSTWO. Wszystko service-role z twardym sprawdzeniem własności
+// subskrypcji (klient nie ma uprawnień zapisu do `retention_feedback`).
+// Najemca i użytkownik z sesji/wiersza subskrypcji - NIGDY z payloadu.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  couponSuffixFromBytes,
-  couponValidUntil,
-  retentionCouponCode,
-} from "@/lib/retention/coupon";
 
-const REDEEMED_WINDOW_DAYS = 180;
+/** Jedna przyjęta oferta na użytkownika w tym oknie (anty-pompka rabatowa). */
+export const RETENTION_OFFER_WINDOW_DAYS = 180;
+/** Etykieta braku powodu (Z-09) - ta sama co w SQL (`tg_retention_feedback_emit`). */
+export const RETENTION_REASON_NOT_GIVEN = "not_given";
+/** Otwarty przepływ młodszy niż to okno jest wznawiany, nie dublowany. */
+const REUSE_STARTED_HOURS = 24;
+
+const DAY_MS = 86_400_000;
+
+const reasonFields = {
+  reasonId: z.string().uuid().nullable(),
+  // `null` = klient nie wybrał powodu („Anuluj mimo to" od razu).
+  reasonLabel: z.string().trim().min(1).max(200).nullable(),
+  comment: z.string().trim().max(2000).optional(),
+};
+
+const startSchema = z.object({ subscriptionId: z.string().uuid() });
 
 const feedbackSchema = z.object({
   subscriptionId: z.string().uuid(),
-  reasonId: z.string().uuid().nullable(),
-  reasonLabel: z.string().trim().min(1).max(200),
-  comment: z.string().trim().max(2000).optional(),
+  /** Wiersz z `startRetentionFlow`; brak = klient sprzed S2 (wstawienie). */
+  feedbackId: z.string().uuid().nullable().optional(),
+  outcome: z.enum(["canceled", "saved"]).default("canceled"),
   offerShown: z.boolean(),
+  ...reasonFields,
 });
 
-const acceptSchema = feedbackSchema.omit({ offerShown: true });
+const acceptSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  feedbackId: z.string().uuid(),
+  ...reasonFields,
+});
 
-interface OwnedSubscription {
-  id: string;
-  tenant_id: string;
-}
+/** Subskrypcja wołającego: lustro operatora albo wiersz lokalny. */
+export type OwnedSubscription =
+  | {
+      kind: "provider";
+      id: string;
+      tenant_id: string;
+      provider_subscription_id: string;
+      environment: string;
+      status: string;
+    }
+  | { kind: "local"; id: string; tenant_id: string };
 
-async function loadOwnedSubscription(
+/**
+ * Własność subskrypcji: najpierw lustro operatora (`subscriptions`), potem
+ * wiersz lokalny (`user_subscriptions`). Oba odczyty zawężone `user_id`
+ * WOŁAJĄCEGO - id z klienta nie wystarcza. Błąd bazy jest zgłaszany, nie
+ * mylony z brakiem własności.
+ */
+export async function loadOwnedSubscription(
   userId: string,
   subscriptionId: string,
 ): Promise<OwnedSubscription | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
+  const provider = await supabaseAdmin
+    .from("subscriptions")
+    .select("id, tenant_id, provider_subscription_id, environment, status")
+    .eq("id", subscriptionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (provider.error) throw new Error(provider.error.message);
+  if (provider.data) return { kind: "provider", ...provider.data };
+
+  const local = await supabaseAdmin
     .from("user_subscriptions")
     .select("id, tenant_id")
     .eq("id", subscriptionId)
     .eq("user_id", userId)
     .maybeSingle();
+  if (local.error) throw new Error(local.error.message);
+  return local.data ? { kind: "local", ...local.data } : null;
+}
+
+interface OfferSettings {
+  enabled: boolean;
+  discount_pct: number;
+  discount_periods: number;
+}
+
+async function loadSettings(tenantId: string): Promise<OfferSettings | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("retention_settings")
+    .select("enabled, discount_pct, discount_periods")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data ?? null;
 }
+
+/** Czy użytkownik przyjął już ofertę w oknie 180 dni. */
+async function redeemedRecently(tenantId: string, userId: string): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const windowStart = new Date(Date.now() - RETENTION_OFFER_WINDOW_DAYS * DAY_MS).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("retention_feedback")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .eq("offer_accepted", true)
+    .gte("created_at", windowStart)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data?.length ?? 0) > 0;
+}
+
+/** Oferta, którą dialog może pokazać - albo powód, dla którego jej nie ma. */
+export type RetentionOfferAvailability =
+  | { available: true; discountPct: number; discountPeriods: number }
+  | { available: false; reason: "disabled" | "already_redeemed" | "no_provider" };
+
+async function offerFor(
+  sub: OwnedSubscription,
+  settings: OfferSettings | null,
+  userId: string,
+): Promise<RetentionOfferAvailability> {
+  if (!settings?.enabled || settings.discount_pct <= 0) {
+    return { available: false, reason: "disabled" };
+  }
+  if (sub.kind !== "provider") return { available: false, reason: "no_provider" };
+  if (await redeemedRecently(sub.tenant_id, userId)) {
+    return { available: false, reason: "already_redeemed" };
+  }
+  return {
+    available: true,
+    discountPct: settings.discount_pct,
+    discountPeriods: settings.discount_periods,
+  };
+}
+
+function reasonColumns(data: {
+  reasonId: string | null;
+  reasonLabel: string | null;
+  comment?: string;
+}) {
+  const label = data.reasonLabel?.trim() ? data.reasonLabel.trim() : null;
+  return {
+    // Brak wybranego powodu: `not_given` i BEZ id - „inny powód" wymaga
+    // świadomego wyboru, a CHECK I0 wymaga etykiety przy `canceled/saved`.
+    reason_id: label ? data.reasonId : null,
+    reason_label: label ?? RETENTION_REASON_NOT_GIVEN,
+    comment: data.comment?.trim() ? data.comment.trim() : null,
+  };
+}
+
+// ── startRetentionFlow ──────────────────────────────────────────────────────
+
+export interface RetentionFlowStart {
+  feedbackId: string;
+  /** `false` = operator wyłączył przepływ: dialog pokazuje samo potwierdzenie. */
+  surveyEnabled: boolean;
+  offer: RetentionOfferAvailability;
+}
+
+export const startRetentionFlow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => startSchema.parse(input))
+  .handler(async ({ data, context }): Promise<RetentionFlowStart> => {
+    const sub = await loadOwnedSubscription(context.userId, data.subscriptionId);
+    if (!sub) throw new Error("subscription_not_found");
+    const settings = await loadSettings(sub.tenant_id);
+    const offer = await offerFor(sub, settings, context.userId);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Ponowne otwarcie dialogu w ciągu doby wznawia TEN SAM przepływ - inaczej
+    // każde „otwórz, zamknij, otwórz" dokładałoby rozpoczęty przepływ
+    // i zaniżało skuteczność zatrzymania.
+    const since = new Date(Date.now() - REUSE_STARTED_HOURS * 3_600_000).toISOString();
+    const open = await supabaseAdmin
+      .from("retention_feedback")
+      .select("id")
+      .eq("tenant_id", sub.tenant_id)
+      .eq("user_id", context.userId)
+      .eq("subscription_id", sub.id)
+      .eq("outcome", "started")
+      .gte("flow_started_at", since)
+      .order("flow_started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (open.error) throw new Error(open.error.message);
+
+    let feedbackId = open.data?.id ?? null;
+    if (!feedbackId) {
+      const inserted = await supabaseAdmin
+        .from("retention_feedback")
+        .insert({
+          tenant_id: sub.tenant_id,
+          user_id: context.userId,
+          subscription_id: sub.id,
+          outcome: "started",
+          flow_started_at: new Date().toISOString(),
+          reason_id: null,
+          reason_label: null,
+          offer_shown: false,
+          offer_accepted: false,
+        })
+        .select("id")
+        .single();
+      if (inserted.error) throw new Error(inserted.error.message);
+      feedbackId = inserted.data.id;
+    }
+
+    return { feedbackId, surveyEnabled: settings?.enabled === true, offer };
+  });
+
+// ── submitRetentionFeedback ─────────────────────────────────────────────────
 
 export const submitRetentionFeedback = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -60,111 +245,125 @@ export const submitRetentionFeedback = createServerFn({ method: "POST" })
     if (!sub) throw new Error("subscription_not_found");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("retention_feedback").insert({
-      tenant_id: sub.tenant_id,
-      user_id: context.userId,
-      subscription_id: sub.id,
-      reason_id: data.reasonId,
-      reason_label: data.reasonLabel,
-      comment: data.comment?.trim() ? data.comment.trim() : null,
+    const columns = {
+      ...reasonColumns(data),
       offer_shown: data.offerShown,
-      offer_accepted: false,
-    });
-    if (error) throw new Error(error.message);
-    return { ok: true as const };
+      outcome: data.outcome,
+    };
+
+    if (data.feedbackId) {
+      // Ten sam wiersz, tylko z `started` (albo `abandoned` po 24 h - klient
+      // wrócił do otwartej karty): wynik raz zapisany się nie zmienia.
+      const updated = await supabaseAdmin
+        .from("retention_feedback")
+        .update(columns)
+        .eq("id", data.feedbackId)
+        .eq("tenant_id", sub.tenant_id)
+        .eq("user_id", context.userId)
+        .in("outcome", ["started", "abandoned"])
+        .select("id");
+      if (updated.error) throw new Error(updated.error.message);
+      if ((updated.data?.length ?? 0) > 0) {
+        return { ok: true as const, feedbackId: data.feedbackId };
+      }
+    }
+
+    // Klient sprzed S2 albo wiersz już domknięty: decyzja nie może zginąć,
+    // więc trafia do nowego wiersza.
+    const inserted = await supabaseAdmin
+      .from("retention_feedback")
+      .insert({
+        tenant_id: sub.tenant_id,
+        user_id: context.userId,
+        subscription_id: sub.id,
+        flow_started_at: new Date().toISOString(),
+        offer_accepted: false,
+        ...columns,
+      })
+      .select("id")
+      .single();
+    if (inserted.error) throw new Error(inserted.error.message);
+    return { ok: true as const, feedbackId: inserted.data.id };
   });
+
+// ── acceptRetentionOffer ────────────────────────────────────────────────────
+
+export type AcceptRetentionOfferResult =
+  | { ok: true; discountPct: number; discountPeriods: number }
+  | {
+      ok: false;
+      reason: "offer_disabled" | "already_redeemed" | "no_provider" | "provider_error";
+    };
 
 export const acceptRetentionOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => acceptSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }): Promise<AcceptRetentionOfferResult> => {
     const sub = await loadOwnedSubscription(context.userId, data.subscriptionId);
     if (!sub) throw new Error("subscription_not_found");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const { data: settings, error: settingsError } = await supabaseAdmin
-      .from("retention_settings")
-      .select("enabled, discount_pct, discount_periods, coupon_valid_days")
-      .eq("tenant_id", sub.tenant_id)
-      .maybeSingle();
-    if (settingsError) throw new Error(settingsError.message);
-    if (!settings?.enabled) {
-      return { ok: false as const, reason: "offer_disabled" as const };
-    }
-
-    // Jedna zaakceptowana kontrofertka w oknie czasowym - kupon nie może być
-    // pompką rabatową odnawianą co miesiąc.
-    const windowStart = new Date(
-      Date.now() - REDEEMED_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const { data: prior, error: priorError } = await supabaseAdmin
+    // Przepływ musi należeć do wołającego i tej subskrypcji. `saved` też
+    // przechodzi: ponowienie po zerwanym połączeniu ma dostać ten sam wynik
+    // (klucze idempotencji operatora), a nie odmowę.
+    const flow = await supabaseAdmin
       .from("retention_feedback")
-      .select("id")
+      .select("id, outcome, offer_accepted")
+      .eq("id", data.feedbackId)
       .eq("tenant_id", sub.tenant_id)
       .eq("user_id", context.userId)
-      .eq("offer_accepted", true)
-      .gte("created_at", windowStart)
-      .limit(1);
-    if (priorError) throw new Error(priorError.message);
-    if (prior && prior.length > 0) {
-      return { ok: false as const, reason: "already_redeemed" as const };
+      .eq("subscription_id", sub.id)
+      .maybeSingle();
+    if (flow.error) throw new Error(flow.error.message);
+    if (!flow.data || (flow.data.outcome !== "started" && flow.data.outcome !== "saved")) {
+      throw new Error("retention_flow_not_found");
     }
 
-    const { randomBytes } = await import("node:crypto");
-    const validUntil = couponValidUntil(new Date(), settings.coupon_valid_days);
-
-    // Kod unikalny per tenant (constraint) - przy kolizji losujemy ponownie.
-    let code = "";
-    let created = false;
-    for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
-      code = retentionCouponCode(
-        settings.discount_pct,
-        couponSuffixFromBytes(new Uint8Array(randomBytes(8)), 6),
-      );
-      const { error } = await supabaseAdmin.from("b2b_coupons").insert({
-        tenant_id: sub.tenant_id,
-        code,
-        name: "Oferta retencyjna",
-        description:
-          "Personalna kontrofertka z przepływu anulowania subskrypcji - wygenerowana automatycznie.",
-        discount_kind: "percent",
-        discount_percent: settings.discount_pct,
-        max_redemptions: settings.discount_periods,
-        valid_until: validUntil.toISOString(),
-        active: true,
-        metadata: {
-          source: "retention",
-          user_id: context.userId,
-          subscription_id: sub.id,
-        },
-      });
-      if (!error) {
-        created = true;
-      } else if (error.code !== "23505") {
-        throw new Error(error.message);
-      }
+    const settings = await loadSettings(sub.tenant_id);
+    if (!settings?.enabled || settings.discount_pct <= 0) {
+      return { ok: false, reason: "offer_disabled" };
     }
-    if (!created) throw new Error("coupon_code_collision");
+    if (sub.kind !== "provider") return { ok: false, reason: "no_provider" };
+    if (!flow.data.offer_accepted && (await redeemedRecently(sub.tenant_id, context.userId))) {
+      return { ok: false, reason: "already_redeemed" };
+    }
 
-    const { error: feedbackError } = await supabaseAdmin.from("retention_feedback").insert({
-      tenant_id: sub.tenant_id,
-      user_id: context.userId,
-      subscription_id: sub.id,
-      reason_id: data.reasonId,
-      reason_label: data.reasonLabel,
-      comment: data.comment?.trim() ? data.comment.trim() : null,
-      offer_shown: true,
-      offer_accepted: true,
-      coupon_code: code,
+    const [{ applyRetentionOffer }, { getStripeClient, resolveEnvironment }] = await Promise.all([
+      import("@/lib/retention/applyOffer.server"),
+      import("@/lib/stripe.server"),
+    ]);
+    // Środowisko z WIERSZA subskrypcji (nie z klienta); produkcja i tak
+    // wymusza `live` (`resolveEnvironment`).
+    const environment = resolveEnvironment(sub.environment === "live" ? "live" : "sandbox");
+    const stripe = await getStripeClient(environment);
+    const applied = await applyRetentionOffer(stripe, {
+      providerSubscriptionId: sub.provider_subscription_id,
+      feedbackId: data.feedbackId,
+      terms: { discountPct: settings.discount_pct, discountPeriods: settings.discount_periods },
     });
-    if (feedbackError) throw new Error(feedbackError.message);
+    if (!applied.ok) {
+      console.error("[retention] offer not applied", applied.error, applied.message ?? "");
+      return { ok: false, reason: "provider_error" };
+    }
+
+    const saved = await supabaseAdmin
+      .from("retention_feedback")
+      .update({
+        ...reasonColumns(data),
+        outcome: "saved",
+        offer_shown: true,
+        offer_accepted: true,
+        // Kupon operatora (nie kod do wpisania) - ślad, KTÓRY rabat dopięto.
+        coupon_code: applied.couponId,
+      })
+      .eq("id", data.feedbackId)
+      .eq("tenant_id", sub.tenant_id)
+      .eq("user_id", context.userId);
+    if (saved.error) throw new Error(saved.error.message);
 
     return {
-      ok: true as const,
-      code,
+      ok: true,
       discountPct: settings.discount_pct,
       discountPeriods: settings.discount_periods,
-      validUntil: validUntil.toISOString(),
     };
   });

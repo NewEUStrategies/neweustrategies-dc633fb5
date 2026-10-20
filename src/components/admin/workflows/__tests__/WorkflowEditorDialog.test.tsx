@@ -18,12 +18,30 @@
 //      nie zna — a silnik rzuca wtedy wyjątkiem w środku przebiegu.
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { emptyWorkflowDraft, type WorkflowDraft } from "@/lib/admin/workflows";
 
 vi.mock("react-i18next", async () =>
   (await import("@/test/post-editor/fixtures")).reactI18nextStub(),
 );
 vi.mock("@/lib/i18n-admin-workflows", () => ({}));
+// Lista zespołu do pól osoby (assign_owner / create_crm_task).
+vi.mock("@/lib/crm.functions", () => ({
+  listStaffUsers: async () => ({
+    json: JSON.stringify([
+      { id: "11111111-1111-4111-8111-111111111111", display_name: "Anna Admin" },
+      { id: "22222222-2222-4222-8222-222222222222", first_name: "Bartek", last_name: "Redaktor" },
+    ]),
+  }),
+}));
+
+function QueryWrapper({ children }: { children: ReactNode }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 import { WorkflowEditorDialog } from "@/components/admin/workflows/WorkflowEditorDialog";
 
@@ -57,7 +75,9 @@ function renderDialog(opts: { initial?: WorkflowDraft; open?: boolean; saving?: 
       onSave={onSave}
     />
   );
-  const { rerender } = render(element(opts.initial ?? draftOf(), opts.open ?? true));
+  const { rerender } = render(element(opts.initial ?? draftOf(), opts.open ?? true), {
+    wrapper: QueryWrapper,
+  });
   return {
     onSave,
     onClose,
@@ -534,6 +554,97 @@ describe("WorkflowEditorDialog - parametry kroku", () => {
       }),
     });
     expect(screen.getByPlaceholderText("admin, editor")).toHaveValue("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Akcje v2 (hub S4): pola wyboru, osoba z zespołu, walidacja parametrów
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorDialog - akcje v2", () => {
+  it("wymagany parametr pusty: zapis zablokowany, komunikat przy polu", () => {
+    const { onSave } = renderDialog({
+      initial: draftOf({ steps: [{ action: "add_tag", params: {} }] }),
+    });
+    fireEvent.click(screen.getByText("adminWorkflows.editor.save"));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText("adminWorkflows.editor.validation.stepParams")).toBeInTheDocument();
+    const field = screen.getByLabelText(/adminWorkflows\.params\.tag/);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("adminWorkflows.editor.paramIssue.required")).toBeInTheDocument();
+  });
+
+  it("etap cyklu życia wybierany z listy - bez etapów klienta (billing)", () => {
+    const { onSave } = renderDialog({
+      initial: draftOf({ steps: [{ action: "set_lifecycle_stage", params: {} }] }),
+    });
+    const stageSelect = screen.getByLabelText(/adminWorkflows\.params\.stage/);
+    const listbox = openSelect(stageSelect);
+    expect(
+      within(listbox).queryByRole("option", {
+        name: "adminWorkflows.options.lifecycleStage.customer",
+      }),
+    ).toBeNull();
+    fireEvent.click(
+      within(listbox).getByRole("option", { name: "adminWorkflows.options.lifecycleStage.mql" }),
+    );
+    fireEvent.click(screen.getByText("adminWorkflows.editor.save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        steps: [{ action: "set_lifecycle_stage", params: { stage: "mql" } }],
+      }),
+    );
+  });
+
+  it("właściciel wybierany z listy zespołu (nie wpisywany uuid)", async () => {
+    const { onSave } = renderDialog({
+      initial: draftOf({ steps: [{ action: "assign_owner", params: {} }] }),
+    });
+    const ownerSelect = screen.getByLabelText(/adminWorkflows\.params\.owner_id/);
+    await screen.findByText("adminWorkflows.editor.staffPlaceholder");
+    fireEvent.click(
+      within(openSelect(ownerSelect)).getByRole("option", { name: "Bartek Redaktor" }),
+    );
+    fireEvent.click(screen.getByText("adminWorkflows.editor.save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        steps: [
+          { action: "assign_owner", params: { owner_id: "22222222-2222-4222-8222-222222222222" } },
+        ],
+      }),
+    );
+  });
+
+  it("osoba spoza zespołu z zapisanego przepisu nie znika z pola", async () => {
+    renderDialog({
+      initial: draftOf({
+        steps: [
+          {
+            action: "create_crm_task",
+            params: { title: "T", assignee_id: "33333333-3333-4333-8333-333333333333" },
+          },
+        ],
+      }),
+    });
+    expect(await screen.findByText(/adminWorkflows\.editor\.staffUnknown/)).toBeInTheDocument();
+  });
+
+  it("D2: wieloczłonowy własny typ zdarzenia przechodzi walidację", () => {
+    const { onSave } = renderDialog({
+      initial: draftOf({ triggerEventType: "partner.contract.signed.v1" }),
+    });
+    fireEvent.click(screen.getByText("adminWorkflows.editor.save"));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ triggerEventType: "partner.contract.signed.v1" }),
+    );
+  });
+
+  it("typ spoza katalogu szyny pokazuje ostrzeżenie, nie blokadę", () => {
+    renderDialog({ initial: draftOf({ triggerEventType: "partner.contract.signed.v1" }) });
+    expect(screen.getByRole("status")).toHaveTextContent("adminWorkflows.editor.triggerUnknown");
   });
 });
 
