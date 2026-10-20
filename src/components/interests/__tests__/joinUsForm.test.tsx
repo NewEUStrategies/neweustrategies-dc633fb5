@@ -185,6 +185,7 @@ vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
 }));
 
 import { JoinUsForm } from "@/components/interests/JoinUsForm";
+import { subscribeErrorMessage } from "@/lib/newsletter/subscribeFeedback";
 import {
   __openInteractionOrQuietForTests,
   __resetInteractionOrQuietForTests,
@@ -346,7 +347,10 @@ describe("walidacja przed wysłaniem", () => {
     mount({ showPhone: true, requirePhone: true });
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText(/phone/)).toBeTruthy());
+    // Etykieta pola z formularza, nie klucz `phone` (zgłoszenie właściciela).
+    await waitFor(() =>
+      expect(screen.getByText("Uzupełnij wymagane pola: Numer telefonu")).toBeTruthy(),
+    );
     expect(h.subscribePayloads).toEqual([]);
   });
 
@@ -596,7 +600,9 @@ describe("zainteresowania w payloadzie CRM", () => {
     await pickTopics(["Afryka"]);
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText("rate_limited")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(subscribeErrorMessage("rate_limited", "pl"))).toBeTruthy(),
+    );
     expect(h.savedInterests).toEqual([]);
   });
 });
@@ -623,41 +629,66 @@ describe("użytkownik zalogowany", () => {
 });
 
 describe("błąd i stan przycisku", () => {
-  it("odmowa serwera pokazuje JEJ komunikat", async () => {
-    h.subscribeResult = { ok: false, error: "Adres jest już zapisany" };
+  // Komunikaty odmowy idą ze wspólnego słownika `subscribeFeedback` - tak jak
+  // w `NewsletterForm` i popupie. Wcześniej formularz pokazywał surowy tekst
+  // serwera (kody polityki, komunikaty bazy) i klucze pól.
+  it("surowy tekst serwera nie trafia na ekran - zastępuje go zdanie ogólne", async () => {
+    h.subscribeResult = { ok: false, error: 'duplicate key value violates unique constraint "x"' };
     mount();
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText("Adres jest już zapisany")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(subscribeErrorMessage("", "pl"))).toBeTruthy());
+    expect(screen.queryByText(/duplicate key/)).toBeNull();
+  });
+
+  it("naruszenie polityki serwera podaje ETYKIETY pól, nie kod `policy_violation`", async () => {
+    // Serwer (`enforce_form_field_policy`) zwraca `required:<klucz>`; zapisujący
+    // się ma zobaczyć tę samą nazwę pola, którą widzi przy polu formularza.
+    h.subscribeResult = { ok: false, error: "policy_violation:required:phone,max_length:company" };
+    mount({ showPhone: true, showCompany: true });
+    fillMinimum();
+    submit();
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Uzupełnij wymagane pola: Numer telefonu; Za długa wartość w polu: Firma / organizacja",
+        ),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByText(/policy_violation|required:/)).toBeNull();
   });
 
   it.each(["not_configured", "disabled"])(
-    "błąd konfiguracji (%s) jedzie komunikatem OGÓLNYM, nie kodem",
+    "błąd konfiguracji (%s) jedzie zdaniem ze słownika, nie kodem",
     async (error) => {
-      // „not_configured" na stronie publicznej mówi odwiedzającemu o stanie
-      // naszej integracji, a nie o tym, co ma zrobić.
       h.subscribeResult = { ok: false, error };
       mount();
       fillMinimum();
       submit();
-      await waitFor(() => expect(screen.getByText("joinUs.errorGeneric")).toBeTruthy());
+      await waitFor(() =>
+        expect(screen.getByText(subscribeErrorMessage(error, "pl"))).toBeTruthy(),
+      );
+      expect(screen.queryByText(error)).toBeNull();
     },
   );
 
-  it("wyjątek sieciowy pokazuje komunikat wyjątku", async () => {
+  it("wyjątek sieciowy pokazuje zdanie o braku połączenia, nie tekst wyjątku", async () => {
     h.subscribeThrows = new Error("Network request failed");
     mount();
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText("Network request failed")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(subscribeErrorMessage("Network request failed", "pl"))).toBeTruthy(),
+    );
+    expect(screen.queryByText("Network request failed")).toBeNull();
   });
 
-  it("wyjątek bez komunikatu degraduje do klucza ogólnego", async () => {
+  it("wyjątek bez komunikatu degraduje do zdania ogólnego", async () => {
     h.subscribeThrows = { code: 500 };
     mount();
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText("joinUs.errorGeneric")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(subscribeErrorMessage("", "pl"))).toBeTruthy());
   });
 
   it("BŁĄD NIE CZYŚCI FORMULARZA - i to jest cała treść testu", async () => {
@@ -668,7 +699,7 @@ describe("błąd i stan przycisku", () => {
     fireEvent.change(field("organization"), { target: { value: "Instytut" } });
     fillMinimum("anna@example.org");
     submit();
-    await waitFor(() => expect(screen.getByText("Odmowa")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(subscribeErrorMessage("", "pl"))).toBeTruthy());
     expect(field("email").value).toBe("anna@example.org");
     expect(field("organization").value).toBe("Instytut");
   });
@@ -720,7 +751,7 @@ describe("błąd i stan przycisku", () => {
     mount();
     fillMinimum();
     submit();
-    await waitFor(() => expect(screen.getByText("Odmowa")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(subscribeErrorMessage("", "pl"))).toBeTruthy());
     expect(document.querySelector('button[type="submit"]')?.hasAttribute("disabled")).toBe(false);
   });
 });
@@ -948,7 +979,22 @@ describe("warianty prezentacji i nadpisania z buildera", () => {
     submit();
     // Komunikat walidacji, a nie widoczna etykieta pola: od 2026-10-18 pole
     // tekstowe ma trwałą etykietę z gwiazdką (formFieldConfig.test.tsx).
-    await waitFor(() => expect(screen.getByText(/Uzupełnij wymagane pola/)).toBeTruthy());
+    // Komunikat podaje ETYKIETĘ pola własnego, a nie jego `id` („cf1”).
+    await waitFor(() =>
+      expect(screen.getByText("Uzupełnij wymagane pola: Nr członkowski")).toBeTruthy(),
+    );
+    expect(h.subscribePayloads).toEqual([]);
+  });
+
+  it("wymagane pole wbudowane w komunikacie ma etykietę, nie klucz", async () => {
+    mount({ showPhone: true, requirePhone: true, showCompany: true, requireCompany: true });
+    fillMinimum();
+    submit();
+    await waitFor(() =>
+      expect(
+        screen.getByText("Uzupełnij wymagane pola: Numer telefonu, Firma / organizacja"),
+      ).toBeTruthy(),
+    );
     expect(h.subscribePayloads).toEqual([]);
   });
 
