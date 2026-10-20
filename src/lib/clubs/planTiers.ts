@@ -11,8 +11,9 @@
 // obniżał próg do 25 - wpuszczając VIP-ów do klubu zastrzeżonego dla Enterprise.
 //
 // Jeden wpis na RANGĘ, nie na klucz katalogu: rangę 0 nosi `reader`, rangę 10
-// `member`, `student` i `educator`, rangę 20 także `ngo`, a rangę 25 także
-// `team`. Nazwy `free`/`plus` są tu handlowymi etykietami rang 0 i 10, żeby
+// `member`, `student` i `educator`, rangę 25 także `team`, a rangę 40 także
+// `ngo` (od decyzji właściciela 2026-10-20 - zakres Partnera Instytucjonalnego,
+// więc klub z progiem „partner" wpuszcza też NGO). Nazwy `free`/`plus` są tu handlowymi etykietami rang 0 i 10, żeby
 // odwzorowanie ranga -> pozycja droplisty pozostało jednoznaczne. Rangi 5
 // (`supporter`) nie ma świadomie - nie jest progiem, na którym ktokolwiek
 // bramkuje klub, a jej dodanie zmieniłoby znaczenie istniejących progów 0-9.

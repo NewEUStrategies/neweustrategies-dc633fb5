@@ -33,6 +33,7 @@ import { isEnquiryOnlyPlan } from "@/lib/billing/enquiryPlans";
 import { fetchMyOrganization } from "@/lib/billing/membership";
 import { fetchActivePlans } from "@/lib/billing/queries";
 import { fetchCurrentTier, fetchMembershipTiers } from "@/lib/billing/tiers";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
 import { recordPaywallHitVisitor } from "./paywallHits.functions";
 
@@ -54,6 +55,8 @@ export type PaywallHitReason =
 export interface OfferTier {
   key: string;
   rank: number;
+  /** Drugi klucz remisu rangi (Partner/NGO 40) - `compareTierRank`. */
+  sort_order?: number | null;
   name_pl?: string | null;
   name_en?: string | null;
   features?: unknown;
@@ -126,7 +129,7 @@ export function resolvePaywallOffer(
   const tierFor = (plan: AccessPlan) => tierOf.get(plan.tier_key ?? "");
   const requiredTier =
     minRank > 0
-      ? ([...tiers].sort((a, b) => a.rank - b.rank).find((tier) => tier.rank >= minRank) ?? null)
+      ? ([...tiers].sort(compareTierRank).find((tier) => tier.rank >= minRank) ?? null)
       : null;
   const offer: PaywallOffer = {
     ctaKind: "none",

@@ -86,6 +86,19 @@ const adminMembershipPl = {
       directNote: "Warstwa pisze do ekspertów bezpośrednio (chat_direct_gated) - bez limitu.",
       hint: "Miesięczna pula sformalizowanych zapytań do ekspertów i VIP-ów (0 = brak). Egzekwowana serwerowo per tenant przez send_expert_request; ta sama liczba pokazuje się w cenniku.",
     },
+    // Segment przychodu warstwy - tylko do odczytu (I9b, decyzja właściciela
+    // 2026-10-20): ta sama mapa co księga MRR w hubie (`segments.ts`).
+    revenueSegment: {
+      label: "Segment przychodu",
+      hintLabel: "Co znaczy segment przychodu?",
+      hint: "Segment przychodu - do raportów MRR, churnu i ARPA w hubie; wynika z typu klienta.",
+      values: {
+        b2c_individual: "Klienci indywidualni",
+        b2c_reduced: "Klienci z ulgą",
+        b2b_institution: "Instytucje",
+        other: "Pozostałe",
+      },
+    },
     save: "Zapisz",
     toast: {
       tierSaved: "Zapisano warstwę",
@@ -320,6 +333,17 @@ const adminMembershipEn: typeof adminMembershipPl = {
       unit: "requests / month",
       directNote: "This tier messages experts directly (chat_direct_gated) - no limit.",
       hint: "Monthly allowance of formal requests to experts and VIPs (0 = none). Enforced server-side per tenant by send_expert_request; the same number shows on the pricing page.",
+    },
+    revenueSegment: {
+      label: "Revenue segment",
+      hintLabel: "What does the revenue segment mean?",
+      hint: "Revenue segment - for MRR, churn and ARPA reports in the hub; it follows from the customer type.",
+      values: {
+        b2c_individual: "Individual customers",
+        b2c_reduced: "Reduced-price customers",
+        b2b_institution: "Institutions",
+        other: "Other",
+      },
     },
     save: "Save",
     toast: {

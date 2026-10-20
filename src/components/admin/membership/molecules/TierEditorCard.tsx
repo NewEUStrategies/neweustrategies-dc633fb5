@@ -28,6 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LabeledField } from "@/components/admin/pricing/atoms/LabeledField";
 import { FieldGroupRule } from "@/components/admin/membership/atoms/FieldGroupRule";
+import { RevenueSegmentChip } from "@/components/admin/membership/atoms/RevenueSegmentChip";
 import type { TierCoreDraft } from "@/components/admin/membership/tierCoreDraft";
 import { TierCapabilitiesPanel } from "@/components/admin/membership/organisms/TierCapabilitiesPanel";
 import { LinkedSourceHeader } from "@/components/admin/settings/LinkedSource";
@@ -167,6 +168,12 @@ export function TierEditorCard({
                   />
                   {tm("fields.default")}
                 </label>
+              </div>
+              {/* Segment przychodu w hubie - z klucza warstwy, nie z formularza.
+                  Pod rangą, nie w nagłówku: przycisk dymka w nagłówku byłby
+                  pierwszym celem fokusu okna i otwierał dymek przy starcie. */}
+              <div className="mt-2">
+                <RevenueSegmentChip tierKey={tier.key} />
               </div>
             </FieldGroupRule>
           </TabsContent>

@@ -258,6 +258,63 @@ describe("setTeamSeatLimit", () => {
     expect(db.chainsFor("subscriptions").some((c) => c.has("update"))).toBe(false);
   });
 
+  // Zespół 3-20 miejsc (decyzja właściciela 2026-10-20, I9b): 21 miejsc to
+  // oferta Enterprise - odmowa zanim cokolwiek pójdzie do operatora i bazy.
+  it("Zespół: podniesienie ponad 20 miejsc odrzucone przed operatorem i bazą", async () => {
+    db.setResponse("member_organizations", () =>
+      ok({
+        id: ORG_ID,
+        tier_key: "team",
+        seats_limit: 18,
+        seats_source: "subscription",
+        provider_subscription_id: "sub_1",
+      }),
+    );
+    const result = await callServerFn(seats.setTeamSeatLimit, {
+      data: { org_id: ORG_ID, seats: 21 },
+      context: context(),
+    });
+    expect(result).toEqual({ ok: false, error: "orgs: team seats max" });
+    expect(h.providerCalls).toHaveLength(0);
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("org_set_seats_limit");
+  });
+
+  it("Zespół ponad limitem sprzed reguły może OBNIŻAĆ (bez usuwania miejsc), Enterprise - bez progu 20", async () => {
+    db.setResponse("member_organizations", () =>
+      ok({
+        id: ORG_ID,
+        tier_key: "team",
+        seats_limit: 25,
+        seats_source: "manual",
+        provider_subscription_id: null,
+      }),
+    );
+    rpcResults.org_set_seats_limit = ok({ seats_limit: 22, active: 22, grace: 0, suspended: 0 });
+    expect(
+      await callServerFn(seats.setTeamSeatLimit, {
+        data: { org_id: ORG_ID, seats: 22 },
+        context: context(),
+      }),
+    ).toMatchObject({ ok: true, seatsLimit: 22 });
+
+    db.setResponse("member_organizations", () =>
+      ok({
+        id: ORG_ID,
+        tier_key: "corporate",
+        seats_limit: 30,
+        seats_source: "manual",
+        provider_subscription_id: null,
+      }),
+    );
+    rpcResults.org_set_seats_limit = ok({ seats_limit: 40, active: 30, grace: 0, suspended: 0 });
+    expect(
+      await callServerFn(seats.setTeamSeatLimit, {
+        data: { org_id: ORG_ID, seats: 40 },
+        context: context(),
+      }),
+    ).toMatchObject({ ok: true, seatsLimit: 40 });
+  });
+
   it("odmowa operatora zatrzymuje zmianę limitu w bazie", async () => {
     db.setResponse("member_organizations", () =>
       ok({ id: ORG_ID, seats_limit: 3, provider_subscription_id: "sub_1" }),

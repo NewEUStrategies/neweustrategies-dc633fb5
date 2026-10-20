@@ -47,6 +47,7 @@ import {
   type ResourceInput,
 } from "@/lib/admin/library";
 import { useMembershipTiers, tierName, type MembershipTierRow } from "@/lib/billing/tiers";
+import { compareTierRank } from "@/lib/billing/tierRanks";
 
 export const Route = createFileRoute("/admin/library")({
   component: AdminLibraryPage,
@@ -133,7 +134,7 @@ function AdminLibraryPage() {
       (tiersQ.data ?? [])
         .filter((t) => t.active)
         .slice()
-        .sort((a, b) => a.rank - b.rank),
+        .sort(compareTierRank),
     [tiersQ.data],
   );
 
