@@ -524,11 +524,13 @@ const en: typeof pl = {
       },
       summary: {
         trigger: "Journey start",
-        triggerSentence: "Start: {{event}}",
-        triggerSentenceCondition_one: "Start: {{event}} (condition: {{conditions}})",
-        triggerSentenceCondition_few: "Start: {{event}} ({{count}} conditions: {{conditions}})",
-        triggerSentenceCondition_many: "Start: {{event}} ({{count}} conditions: {{conditions}})",
-        triggerSentenceCondition_other: "Start: {{event}} ({{count}} conditions: {{conditions}})",
+        triggerSentence: "Starts on: {{event}}",
+        triggerSentenceCondition_one: "Starts on: {{event}} (condition: {{conditions}})",
+        triggerSentenceCondition_few: "Starts on: {{event}} ({{count}} conditions: {{conditions}})",
+        triggerSentenceCondition_many:
+          "Starts on: {{event}} ({{count}} conditions: {{conditions}})",
+        triggerSentenceCondition_other:
+          "Starts on: {{event}} ({{count}} conditions: {{conditions}})",
         waitMinutes_one: "Waits {{count}} minute",
         waitMinutes_few: "Waits {{count}} minutes",
         waitMinutes_many: "Waits {{count}} minutes",
@@ -748,7 +750,7 @@ const en: typeof pl = {
       unavailableReason:
         "Waits for the event “{{event}}”, which the site does not emit yet - installation unlocks once it exists.",
       facts: "Template facts",
-      trigger: "Start",
+      trigger: "Starts on",
       goal: "Goal",
       noGoal: "No goal - the journey ends after the last step",
       steps: "Steps",

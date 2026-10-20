@@ -228,18 +228,33 @@ describe("JourneySettingsDialog - admin", () => {
     );
   });
 
-  it("konflikt: komunikat i świeży odczyt ustawień", async () => {
+  it("konflikt: komunikat zostaje po świeżym odczycie z nowym tokenem", async () => {
     h.get.mockResolvedValue(SAVED);
     h.save.mockResolvedValue({ ok: false, error: "conflict", reason: "conflict", detail: null });
     mount();
     await screen.findByLabelText(t("adminJourneys.settings.enabled"));
     fireEvent.change(field(t("adminJourneys.settings.marketingCap")), { target: { value: "4" } });
-    const calls = h.get.mock.calls.length;
+    // Ktoś zapisał w innej karcie: odczyt po konflikcie ma nowy token i limit.
+    const fresh = {
+      state: "ready",
+      data: { ...SAVED.data, marketingCapPer7d: 6, updatedAt: "2026-10-20T12:00:00+00:00" },
+    };
+    h.get.mockResolvedValue(fresh);
     fireEvent.click(saveButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      t("adminJourneys.engineSettings.conflict"),
+    await waitFor(() => expect(field(t("adminJourneys.settings.marketingCap"))).toHaveValue("6"));
+    expect(screen.getByRole("alert")).toHaveTextContent(t("adminJourneys.engineSettings.conflict"));
+    // Następny zapis jedzie już z nowym tokenem.
+    h.save.mockResolvedValue({ ok: true, data: fresh.data });
+    fireEvent.change(field(t("adminJourneys.settings.marketingCap")), { target: { value: "4" } });
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(h.save).toHaveBeenLastCalledWith({
+        data: {
+          patch: { marketing_cap_per_7d: 4 },
+          expectedUpdatedAt: "2026-10-20T12:00:00+00:00",
+        },
+      }),
     );
-    await waitFor(() => expect(h.get.mock.calls.length).toBeGreaterThan(calls));
   });
 
   it("brak aal2 przy zapisie albo odczycie -> MfaRequiredNotice", async () => {

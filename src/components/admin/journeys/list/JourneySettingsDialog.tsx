@@ -106,6 +106,9 @@ function SettingsBody({
 }) {
   const { t } = useTranslation();
   const query = useQuery(journeySettingsQueryOptions(tenantId));
+  // Komunikat żyje NAD formularzem: po konflikcie świeży odczyt ma nowy token,
+  // formularz montuje się od nowa - a admin ma nadal widzieć, dlaczego.
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (query.isLoading) {
     return (
@@ -149,6 +152,8 @@ function SettingsBody({
       tenantId={tenantId}
       canManage={canManage}
       onClose={onClose}
+      notice={notice}
+      onNotice={setNotice}
     />
   );
 }
@@ -246,11 +251,15 @@ function SettingsForm({
   tenantId,
   canManage,
   onClose,
+  notice,
+  onNotice: setNotice,
 }: {
   initial: JourneySettingsDto;
   tenantId: string | null;
   canManage: boolean;
   onClose: () => void;
+  notice: string | null;
+  onNotice: (notice: string | null) => void;
 }) {
   const { t } = useTranslation();
   const id = useId();
@@ -259,7 +268,6 @@ function SettingsForm({
   const [form, setForm] = useState<FormState>(start);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [mfaRequired, setMfaRequired] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const staff = useQuery({ ...crmStaffUsersQueryOptions(), enabled: canManage });
   const save = useSaveJourneySettings(tenantId);
 
