@@ -22658,7 +22658,7 @@ export type Database = {
           occurred_at: string
           paused_after: boolean
           payment_failure_count_after: number
-          price_id_after: string
+          price_id_after: string | null
           price_id_before: string | null
           quantity_after: number
           quantity_before: number | null
@@ -22681,7 +22681,7 @@ export type Database = {
           occurred_at?: string
           paused_after: boolean
           payment_failure_count_after: number
-          price_id_after: string
+          price_id_after?: string | null
           price_id_before?: string | null
           quantity_after: number
           quantity_before?: number | null
@@ -22704,7 +22704,7 @@ export type Database = {
           occurred_at?: string
           paused_after?: boolean
           payment_failure_count_after?: number
-          price_id_after?: string
+          price_id_after?: string | null
           price_id_before?: string | null
           quantity_after?: number
           quantity_before?: number | null

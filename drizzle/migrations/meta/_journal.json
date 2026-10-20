@@ -2507,6 +2507,41 @@
       "when": 1792477033912,
       "tag": "0357_journeys_tracking_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 358,
+      "version": "7",
+      "when": 1792477093912,
+      "tag": "0358_revenue_segment_institutions",
+      "breakpoints": true
+    },
+    {
+      "idx": 359,
+      "version": "7",
+      "when": 1792477153912,
+      "tag": "0359_pricing_v62_catalog_decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 360,
+      "version": "7",
+      "when": 1792477213912,
+      "tag": "0360_pricing_v62_decisions_tenants",
+      "breakpoints": true
+    },
+    {
+      "idx": 361,
+      "version": "7",
+      "when": 1792477273912,
+      "tag": "0361_team_seat_cap",
+      "breakpoints": true
+    },
+    {
+      "idx": 362,
+      "version": "7",
+      "when": 1792477333912,
+      "tag": "0362_revenue_ledger_erasure",
+      "breakpoints": true
     }
   ]
 }

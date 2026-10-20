@@ -2751,12 +2751,39 @@ usunięć, czego RODO nie dopuszcza bez innej anonimizacji).
 
 | ID       | Zgłoszenie                                                                                                                                                                                                                                                                           |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`).                                                                                                                                                 |
-| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny).                                                                                                                         |
+| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`). **Zamknięte 2026-10-20 (§21.8).**                                                                                                               |
+| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny). **Zamknięte 2026-10-20 (§21.8).**                                                                                       |
 | Z-I9b-03 | `paywall_hits.user_id` (S3, I0 DDL) nie ma klucza obcego - po usunięciu konta zostaje surowy uid w wierszach lejka. Poza księgą MRR (decyzja RODO dotyczy księgi), wpływa na historię lejka: do decyzji właściciela/IOD (usunięcie wierszy konta albo pseudonim jak `visitor_hash`). |
 | Z-I9b-04 | `domain_events` trzymają `user_id` i `subscription_id` w ładunkach przez 90 dni (`prune_domain_events`) - po redakcji księgi nie łączą się z nią, ale same są danymi osobowymi do 90 dni po usunięciu konta (szyna sprzed huba).                                                     |
 | Z-I9b-05 | IOD: potwierdzenie podstawy i retencji zanonimizowanej księgi (§21.2) przy aktualizacji rejestru czynności - w repozytorium brak rejestru.                                                                                                                                           |
 | Z-I9b-06 | Webhook operatora z ilością miejsc > 20 dla Zespołu: odmowa i log zamiast synchronizacji - jeśli klient kupi > 20 miejsc u operatora, admin przenosi organizację na Enterprise (alert w panelu). Opcja: alert diagnostyki S7.                                                        |
-| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9.                                                                                                                                                   |
-| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2).                                                                                                                                  |
+| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9. **Zamknięte 2026-10-20 (§21.8).**                                                                                                                 |
+| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2). **Zamknięte 2026-10-20 (§21.8).**                                                                                                |
 | Z-I9b-09 | Profil właściciela organizacji (`/profile/organization`, poza panelem admina): `setTeamSeatLimit` odrzuca > 20 miejsc Zespołu (`orgs: team seats max`), a profil pokazuje ogólny błąd zmiany - opcja: ten sam komunikat z sugestią Enterprise (słownik profilu, budżet `public`).    |
+
+### 21.8 Integracja części A do PR (orkiestrator, 2026-10-20)
+
+**Polecenie właściciela:** „wypchnij do PR co wykonałeś”. Część A weszła na
+gałąź PR przed częściami B i C. Część B pracuje dalej w worktree
+`/home/user/wt/I9B`; przy integracji (C) commity A są już w gałęzi PR.
+
+- **Scalenie:** `822cf9a9` (merge `--no-ff` commitu `2d97838a` na
+  `0eeb59b1`). Baza ma już poprawkę typów testów S5 (`0eeb59b1`), więc
+  Z-I9b-07 jest zamknięte.
+- **Bliźniaki drizzle (Z-I9b-01):** `0358_revenue_segment_institutions`,
+  `0359_pricing_v62_catalog_decisions`, `0360_pricing_v62_decisions_tenants`,
+  `0361_team_seat_cap`, `0362_revenue_ledger_erasure` (bajt w bajt, `cmp`)
+  i wpisy `meta/_journal.json` (idx 358-362, `when` co 60 000). Następny wolny
+  numer: **0363**.
+- **`types.ts` (Z-I9b-02):** `subscription_state_history.price_id_after` -
+  `string | null` w Row, opcjonalne i NULL-owalne w Insert i Update.
+- **`authzSnapshot.generated.ts` (Z-I9b-08):** regeneracja - zmieniają się
+  tylko liczniki skanu (migracje 1284 → 1289, funkcje 1770 → 1778).
+
+| Bramka (gałąź PR po scaleniu)                                                                                        | Wynik                               |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `bun run format:check`, `bun run verify:static` (w tym `check:migration-lanes`)                                      | ✓                                   |
+| `check:types-freshness`, `generate:authz-snapshot --check`                                                           | ✓                                   |
+| `tsgo --noEmit` z domyślnymi checkerami (jak CI), zawężony do 34 zmienionych plików TS części A i ich zależności     | ✓ 0 błędów                          |
+| `vitest` (authz, `hubDelivery.gate`, `migrationLaneParity`, `supabaseLaneCoverage`, revenue, billing, organizations) | ✓ 217 plików, 6116 testów           |
+| pgTAP, build i budżety                                                                                               | bez zmian względem części A (§21.5) |
