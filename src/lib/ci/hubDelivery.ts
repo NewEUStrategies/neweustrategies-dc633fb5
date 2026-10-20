@@ -479,6 +479,10 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/__tests__/Paywall{,.reader}.test.tsx",
     "src/components/{PopupSignupForm,NewsletterPopup}.tsx",
     "src/components/__tests__/{PopupSignupForm,NewsletterPopup}*.test.tsx",
+    // (Integrator S3, 2026-10-20): testy popupu mają w repo nazwy małą literą
+    // (`popupSignupForm.test.tsx`, `newsletterPopup.test.tsx`) - P08
+    // przestawił w nich domyślną zgodę newslettera.
+    "src/components/__tests__/{popupSignupForm,newsletterPopup}*.test.tsx",
     "src/components/molecules/MeterBanner.tsx",
     "src/components/molecules/__tests__/MeterBanner*.test.tsx",
     "src/components/clubs/organisms/ClubAccessGate.tsx",
@@ -498,6 +502,19 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/billing/{oneTimeFulfilment.server,stripeCheckout.functions}.ts",
     "src/lib/billing/__tests__/{oneTimeFulfilment,stripeCheckout}*.test.ts",
     "e2e/{login-return,paywall}.spec.ts",
+    // (Integrator S3, 2026-10-20): bliźniaki drizzle 5 migracji S3 (bajt w bajt
+    // z supabase, numery od pierwszego wolnego na `main` - po `0346`, którym
+    // Lovable potwierdził wdrożenie PR #527; §6 dziennika wdrożenia).
+    "drizzle/migrations/{0347,0348,0349,0350,0351}_*.sql",
+    // (Integrator S3, 2026-10-20): P22 - sesje Stripe powstają
+    // w `adhocCheckout.server.ts` (nie w `stripeCheckout.functions.ts`), a okno
+    // porzucenia czyta serwerowy odczyt ustawień kasy (pole opcjonalne
+    // w `CheckoutSettings`).
+    "src/lib/billing/{adhocCheckout.server,checkoutSettings,checkoutSettings.server}.ts",
+    "src/lib/billing/__tests__/{checkoutSessionFlags.server,checkoutSettingsLoad.server}.test.ts",
+    // (Integrator S3, 2026-10-20): wspólny skrót gościa (`meteringVisitorDigest`)
+    // dla licznika uderzeń - weryfikacja podpisanego cookie w jednym module.
+    "src/lib/access/meteringVisitor.server.ts",
   ],
   S4: [
     "supabase/migrations/2026102013????_*.sql",

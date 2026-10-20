@@ -2430,6 +2430,41 @@
       "when": 1792476373912,
       "tag": "0346_pr527_deployment_completion",
       "breakpoints": true
+    },
+    {
+      "idx": 347,
+      "version": "7",
+      "when": 1792476433912,
+      "tag": "0347_account_registered_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 348,
+      "version": "7",
+      "when": 1792476493912,
+      "tag": "0348_paywall_hits_rpc",
+      "breakpoints": true
+    },
+    {
+      "idx": 349,
+      "version": "7",
+      "when": 1792476553912,
+      "tag": "0349_metering_quota_rank_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 350,
+      "version": "7",
+      "when": 1792476613912,
+      "tag": "0350_checkout_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 351,
+      "version": "7",
+      "when": 1792476673912,
+      "tag": "0351_revenue_funnel_access",
+      "breakpoints": true
     }
   ]
 }

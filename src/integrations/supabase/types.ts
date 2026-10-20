@@ -29906,6 +29906,7 @@ export type Database = {
         Args: { p_action: string; p_note?: string; p_report_id: string }
         Returns: undefined
       }
+      admin_revenue_access_inventory: { Args: never; Returns: Json }
       admin_revenue_churn: {
         Args: { p_since: string; p_until: string }
         Returns: Json
@@ -29932,6 +29933,15 @@ export type Database = {
       }
       admin_revenue_events_summary: {
         Args: { p_since: string; p_until: string }
+        Returns: Json
+      }
+      admin_revenue_funnel: {
+        Args: {
+          p_segment?: string
+          p_since: string
+          p_track?: string
+          p_until: string
+        }
         Returns: Json
       }
       admin_revenue_input_upsert: {
@@ -34754,6 +34764,28 @@ export type Database = {
           p_tenant_id?: string
         }
         Returns: number
+      }
+      record_paywall_hit: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_reason: string
+          p_required_tier_key?: string
+          p_variant?: string
+        }
+        Returns: undefined
+      }
+      record_paywall_hit_visitor: {
+        Args: {
+          p_entity_id: string
+          p_entity_type: string
+          p_reason: string
+          p_required_tier_key?: string
+          p_tenant: string
+          p_variant?: string
+          p_visitor_hash: string
+        }
+        Returns: undefined
       }
       record_post_dwell: {
         Args: {
