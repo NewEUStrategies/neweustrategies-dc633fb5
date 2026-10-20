@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-20 po S5)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-20 po I9b)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3) i §20 (S5); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5) i §21 (I9b - decyzje właściciela); specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -19,7 +19,7 @@ i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
 **Stan:** na `main` są I0, S6, S1 (z #520), krok 0, uspójnienie benchmarków,
 S4 i S2 (z #527). Na gałęzi PR jest S3 (dokończony i zintegrowany 2026-10-20,
 §18 dziennika: bliźniaki `0347…0351`, następny wolny `0352`; `overall` 4997;
-otwarte Z-S3-01…07) i **I9a** (2026-10-20, §19 dziennika): hub „Przychód
+otwarte Z-S3-02…05; Z-S3-01, 06, 07 zamknięte w I9b) i **I9a** (2026-10-20, §19 dziennika): hub „Przychód
 i lejek” jest już w nawigacji panelu (monetyzacja + „Ścieżki komunikacji”
 w CRM, skróty ⌘K do zakładek), zakładki S7/S8 pokazują stan „w
 przygotowaniu” z odnośnikami do modułów, Wskaźniki - słownik S6, a karta kasy
@@ -28,13 +28,31 @@ w `/admin/paywall?tab=checkout` ma pole okna porzucenia
 (First visit) - oba scalone.
 
 **S5 (2026-10-20, §20 dziennika):** silnik ścieżek - 6 migracji
-`2026102014*` (bliźniaki `0352…0357`, **następny wolny `0358`**), 7 plików
+`2026102014*` (bliźniaki `0352…0357`), 7 plików
 pgTAP, `src/lib/journeys/**` (graf, warunki, wyzwalacze, 14 szablonów,
 server fn i `queryOptions` dla S8, render, tracking, etykiety `labels.ts`),
 runner `journeysRunner.server.ts` (**niepodpięty do `jobs-tick` - I9**),
 tracking 1:1 w `nl-open`/`nl-click`/wypisie, słownik `adminJourneys`.
 Silnik wyłączony domyślnie; każdy przełącznik ma RPC panelu (lista dla S8 -
-§20.4). Otwarte Z-S5-01…08 (§20.5).
+§20.4). Otwarte Z-S5-01, Z-S5-03…08 (§20.5; Z-S5-02 zamknięte w I9b).
+
+**I9b (2026-10-20, §21 dziennika):** decyzje właściciela wykonane (zgoda
+delegowana „wykonaj wszystkie i aktualizuj - masz zgodę”) - 9 migracji
+`20261020160000…160800` (bliźniaki `0358…0366`, **następny wolny `0367`**):
+segmenty z typu klienta (Z-01), cennik v6.2 (Zespół z trackerem, pula 3
+w seedzie, maks. 20 miejsc; NGO ranga 40 z zakresem Partnera), RODO księgi
+MRR i całego huba po usunięciu konta (Z-07, A2, rejestr czynności
+`docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`), jeden limit tagu CRM 64
+(Z-S5-02), linia okna kasy przy biletach (Z-S3-07), wpis `engagement_rate`
+(Z-14-03), akceptacje Z-S3-01, Z-S3-06, Z-S2-02, Z-14-01/02/04, D-11/Z-S6-14;
+Z-S2-01 zautomatyzowane na granicy SDK. Tabela decyzji - §21.16, wdrożenie -
+§21.17, otwarte Z-I9b-06, 09, 10, 11, 14, 15 (§21.7). **Na gałęzi PR są
+części A i A2 (`d7efcba5`); część B i krok C (bliźniak `0366`) czekają na
+`hub/i9b-decyzje` (worktree `/home/user/wt/I9B`) - push wstrzymany do
+decyzji o ratchecie `overall` 5003 → 5005 (Z-I9b-16, §21.15): system
+uprawnień blokuje podniesienie progu jako obejście CI.** Po decyzji:
+naniesienie wpisu kroniki z §21.15, `check:bundle`, scalenie fast-forward
+do gałęzi PR i push - przed S8.
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
@@ -67,7 +85,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
    `journey_rollup_daily` co godzinę, `journey_purge` raz na dobę, stan
    silnika w panelu zdrowia schedulera (§20.4); chipy w modułach (SPEC §2.7),
    baner `/admin/monetization` (D-09), jobs-tick/scheduler (skanery S2!),
-   authz/ownership (w tym wpis `premium_content` S3 - Z-S3-06), tryb ścisły
+   authz/ownership (wpis `premium_content` S3 potwierdzony w I9b - Z-S3-06), tryb ścisły
    literałów, `billingDocuments.server.ts` (Z-S2-07), ratchet końcowy,
    runbook (`JOURNEYS_ENGINE_DISABLED`), opis PR, raport; **M3** - włączenie
    silnika u NES po teście na żywo `welcome_onboarding`
@@ -91,7 +109,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*`), bliźniak drizzle od `0358` + `_journal.json`; tenant/user z
+  I9 `16*` - zajęte do `160800`), bliźniak drizzle od `0367` + `_journal.json`; tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
@@ -99,9 +117,12 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
   dla właściwych ról nie jest skończona - wycinek dowozi też jej pozycję
   (nawigacja/zakładka/karta), ⌘K, `adminPageHead` i napisy PL/EN.
 
-**Decyzje czekające na właściciela:** obietnice cennika v6.2 bez pokrycia
-(lista w #520), zgłoszenia Z-xx w dzienniku (m.in. Z-S2-01 ręczna weryfikacja
-anulowania w trybie testowym Stripe, Z-S3-01 budżet `public` S3 ponad cel
-karty, Z-S5-02 limit tagu 40/64, Z-S5-07 M3, Z-14-01..04, D-11 EN
-benchmarków),
-konektor Confluence.
+**Decyzje czekające na właściciela** (wyłącznie rzeczy niewykonalne
+z kontenera - §21.18 dziennika): Z-I9b-16 - zgoda na ratchet `overall`
+5003 → 5005 (albo cięcie kodu panelu ≥ 0,3 KB), potem push części B;
+wdrożenie migracji `0358…0366` i publikacja
+frontu (§21.17); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
+(kupon w panelu, `Idempotency-Key` w logach, portal z powodami - Z-I9b-13);
+Z-S2-11 - powody rezygnacji w konfiguracji portalu klienta Stripe; Z-S5-07
+(M3) - włączenie silnika ścieżek po teście na żywo, po I9; konektor
+Confluence.

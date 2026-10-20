@@ -18,7 +18,7 @@
 //           nie jest wznawiany), „Anuluj mimo to" bez powodu = `canceled`
 //           z `not_given`;
 //   krok 8  oferta w 180 dniach: `already_redeemed`, drugiego kuponu brak.
-// Kroki 7 i 10 oraz MRR po webhooku - patrz dziennik §22 (mapa krok → test).
+// Kroki 7 i 10 oraz MRR po webhooku - patrz dziennik §21.11 B4 (mapa krok → test).
 //
 // Middleware NIE jest tu wykonywane (patrz src/test/serverFn.ts).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
