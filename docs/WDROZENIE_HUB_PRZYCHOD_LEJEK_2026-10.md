@@ -2749,17 +2749,19 @@ usunięć, czego RODO nie dopuszcza bez innej anonimizacji).
 
 ### 21.7 Zgłoszenia otwarte
 
-| ID       | Zgłoszenie                                                                                                                                                                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`). **Zamknięte 2026-10-20 (§21.8).**                                                                                                               |
-| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny). **Zamknięte 2026-10-20 (§21.8).**                                                                                       |
-| Z-I9b-03 | `paywall_hits.user_id` (S3, I0 DDL) nie ma klucza obcego - po usunięciu konta zostaje surowy uid w wierszach lejka. Poza księgą MRR (decyzja RODO dotyczy księgi), wpływa na historię lejka: do decyzji właściciela/IOD (usunięcie wierszy konta albo pseudonim jak `visitor_hash`). |
-| Z-I9b-04 | `domain_events` trzymają `user_id` i `subscription_id` w ładunkach przez 90 dni (`prune_domain_events`) - po redakcji księgi nie łączą się z nią, ale same są danymi osobowymi do 90 dni po usunięciu konta (szyna sprzed huba).                                                     |
-| Z-I9b-05 | IOD: potwierdzenie podstawy i retencji zanonimizowanej księgi (§21.2) przy aktualizacji rejestru czynności - w repozytorium brak rejestru.                                                                                                                                           |
-| Z-I9b-06 | Webhook operatora z ilością miejsc > 20 dla Zespołu: odmowa i log zamiast synchronizacji - jeśli klient kupi > 20 miejsc u operatora, admin przenosi organizację na Enterprise (alert w panelu). Opcja: alert diagnostyki S7.                                                        |
-| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9. **Zamknięte 2026-10-20 (§21.8).**                                                                                                                 |
-| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2). **Zamknięte 2026-10-20 (§21.8).**                                                                                                |
-| Z-I9b-09 | Profil właściciela organizacji (`/profile/organization`, poza panelem admina): `setTeamSeatLimit` odrzuca > 20 miejsc Zespołu (`orgs: team seats max`), a profil pokazuje ogólny błąd zmiany - opcja: ten sam komunikat z sugestią Enterprise (słownik profilu, budżet `public`).    |
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                             |
+| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                     |
+| Z-I9b-03 | `paywall_hits.user_id` (S3, I0 DDL) nie ma klucza obcego - po usunięciu konta zostaje surowy uid w wierszach lejka. Poza księgą MRR (decyzja RODO dotyczy księgi), wpływa na historię lejka: do decyzji właściciela/IOD (usunięcie wierszy konta albo pseudonim jak `visitor_hash`). **Zamknięte 2026-10-20 (§21.9, polecenie właściciela „zastosuj”): pseudonim zastępczy konta (losowy UUID v8, bez mapowania) - liczniki lejka zamkniętych okresów bez zmian.** |
+| Z-I9b-04 | `domain_events` trzymają `user_id` i `subscription_id` w ładunkach przez 90 dni (`prune_domain_events`) - po redakcji księgi nie łączą się z nią, ale same są danymi osobowymi do 90 dni po usunięciu konta (szyna sprzed huba). **Zamknięte 2026-10-20 (§21.9): zdarzenia osoby i ich kopie redagowane przy usunięciu konta (nowy id, pseudonim, biała lista kluczy), nieprzetworzone pominięte; retencja 90 dni bez zmian.**                                     |
+| Z-I9b-05 | IOD: potwierdzenie podstawy i retencji zanonimizowanej księgi (§21.2) przy aktualizacji rejestru czynności - w repozytorium brak rejestru. **Zamknięte 2026-10-20 (§21.9): administrator danych zatwierdził podstawę i retencję („zastosuj”); rejestr czynności huba - `docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`, do wiadomości IOD.**                                                                                                                          |
+| Z-I9b-06 | Webhook operatora z ilością miejsc > 20 dla Zespołu: odmowa i log zamiast synchronizacji - jeśli klient kupi > 20 miejsc u operatora, admin przenosi organizację na Enterprise (alert w panelu). Opcja: alert diagnostyki S7.                                                                                                                                                                                                                                      |
+| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9. **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                               |
+| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                              |
+| Z-I9b-09 | Profil właściciela organizacji (`/profile/organization`, poza panelem admina): `setTeamSeatLimit` odrzuca > 20 miejsc Zespołu (`orgs: team seats max`), a profil pokazuje ogólny błąd zmiany - opcja: ten sam komunikat z sugestią Enterprise (słownik profilu, budżet `public`).                                                                                                                                                                                  |
+| Z-I9b-10 | IOD: retencja danych żywych kont i kontaktów nieustalona w repozytorium (`paywall_hits`, `metering_event_log`, `crm_leads` bez źródła poza kontem, `email_send_log`, `journey_message_events`, `audit_log`) - propozycja okresów i zadań czyszczących w harmonogramie panelu (rejestr czynności, §21.9).                                                                                                                                                           |
+| Z-I9b-11 | Kolumny autora w modułach, do których hub nie pisze: `club_applications.reviewed_by` (zmiana wymaga wycinka S4 - znacznik `pg-harness: exclude`) i `event_registrations.paid_amount_recorded_by` - zostaje uid usuniętego konta personelu (§21.9).                                                                                                                                                                                                                 |
 
 ### 21.8 Integracja części A do PR (orkiestrator, 2026-10-20)
 
@@ -2787,3 +2789,196 @@ gałąź PR przed częściami B i C. Część B pracuje dalej w worktree
 | `tsgo --noEmit` z domyślnymi checkerami (jak CI), zawężony do 34 zmienionych plików TS części A i ich zależności     | ✓ 0 błędów                          |
 | `vitest` (authz, `hubDelivery.gate`, `migrationLaneParity`, `supabaseLaneCoverage`, revenue, billing, organizations) | ✓ 217 plików, 6116 testów           |
 | pgTAP, build i budżety                                                                                               | bez zmian względem części A (§21.5) |
+
+### 21.9 RODO po usunięciu konta (polecenie właściciela, A2)
+
+**Polecenie właściciela 2026-10-20:** „zastosuj” dla Z-I9b-03, Z-I9b-04
+i Z-I9b-05. Wykonanie: worktree `/home/user/wt/I9B2`, gałąź `hub/i9b-rodo`
+od `ad3bc9d1` (gałąź PR po integracji części A). Część B pracuje osobno
+w `/home/user/wt/I9B` i przenumeruje swoją migrację na wersję po A2.
+
+**R1 (Z-I9b-03) - lejek.** Lejek S3 liczy konta przez `count(DISTINCT
+user_id)` (`_funnel_counts`: `paywall_hit_accounts`, `active_accounts`,
+`paywall_reasons`; inwentarz `hits_30d`), nie przez złączenie z kontem, więc
+NULL zgubiłby konto z zamkniętych okresów (i złamałby CHECK „dokładnie jeden
+podmiot”). Decyzja: JEDEN pseudonim zastępczy na usuwane konto - losowy UUID
+(`gen_random_uuid()`) z cyfrą wersji 8 (RFC 9562 „custom”), bez zapisu
+mapowania. Wersja 8 odróżnia pseudonim od uid kont (GoTrue - wersja 4), więc
+domknięcie wstecz go nie bierze i powtórka zwraca 0. `paywall_hits.user_id`
+i `metering_event_log.user_id` -> pseudonim, `visitor_id` dziennika licznika
+-> NULL; IP i UA tabele lejka nie trzymają. Kolejność wyzwalaczy: redakcja
+huba jest AFTER DELETE (`on_auth_user_deleted_redact_hub`), więc odpala się
+po akcjach kluczy obcych (`RI_ConstraintTrigger_…` są pierwsze alfabetycznie)
+
+- kaskady (profil, subskrypcje, nadania) kończą się wcześniej, a zdarzenia
+  emitowane przez kaskadę (np. zmiana statusu usuwanej subskrypcji z
+  `user_id`) też są redagowane. Żadna tabela z przeglądu nie traci wierszy
+  kaskadą przed redakcją. PSCR: mianownik zostaje, a konwersja usuniętego
+  konta znika z licznika, bo moduł rozliczeń zeruje `payment_orders.user_id`
+  (tak jak przed A2). Zachowanie jej wymagałoby pseudonimu na dowodzie
+  księgowym, który identyfikuje nabywcę. Dowód: `hub_i9b_account_erasure_sweep_test`
+  (liczniki lejka zamkniętego okresu - 2 konta z uderzeniem, 2 aktywne, powody -
+  bez zmian; jeden pseudonim v8 w lejku, licznikach, szynie i audycie).
+
+**R2 (Z-I9b-04) - szyna zdarzeń.** Zdarzenie osoby (aktor, agregat albo
+uid/e-mail gdziekolwiek w ładunku) dostaje NOWY losowy `id` (odcina
+odwołania z wierszy związanych z leadem: `trigger_event_id`,
+`detail.event_id`, `crm_tasks.origin_ref 'wf:<id>'`), `aggregate_id` =
+pseudonim, `actor_id` -> NULL, `correlation_id` -> NULL. Ładunek przechodzi
+przez BIAŁĄ listę kluczy nieosobowych (`_hub_erasure_payload`), a
+`user_id`/`member_user_id` osoby -> pseudonim (spójne liczenie z lejkiem
+i szacunkiem wyzwalacza ścieżki). Znikają identyfikatory operatora
+(subskrypcja, cena, klient), zamówienia, dokumentu, leada, osoby, zgłoszenia,
+imiona, adresy i wolny tekst. Zostają typ, czas, najemca, kwoty i klucze
+nieosobowe. Znacznik `_redacted: account_deleted`. Kopie (skrzynka ścieżek,
+dostawy integracji) dostają ten sam nowy id i ten sam kształt. Konsumenci:
+skrzynka ścieżek - nieprzetworzone `processed_at` + `error =
+skipped:account_deleted` (ingest ich nie weźmie, więc nie rozpozna leada i nie
+wyśle maila); router integracji - `queued|failed` -> `dead` z tym samym
+powodem; workflowy działają synchronicznie przy INSERT, a unieważnianie
+zapytań w przeglądarce słucha wyłącznie INSERT, więc UPDATE redakcji niczego
+nie wyzwala. Zapis na ścieżkę w toku -> `exited` z nowym powodem
+`account_deleted` (CHECK, lustro `JOURNEY_EXIT_REASONS`, etykiety PL/EN
+„Konto usunięte (RODO)” / „Account deleted (GDPR)”, parytet
+`journeyLimitsParity`), bo ścieżki `service` nie pytają o zgodę. Zapis
+zostaje przy kontakcie CRM bez `user_id`, bez `trigger_event_id`, z migawką
+bez identyfikatorów i bez pseudonimu (lead jest identyfikowalny). Odcięcie
+leada od konta emituje `crm_lead.updated.v1` - trasa do skrzynki pomija je
+(głębokość wyzwalaczy ≥ 3), a redakcja i tak oznacza je jako pominięte
+i gasi dostawy. Retencja 90 dni (`prune_domain_events`) bez zmian. Dowód: ten
+sam test (zdarzenia zostają z nowym id, nieprzetworzone pominięte, ingest po
+usunięciu: 0 zapisów, liczba leadów bez zmian, dostawy `dead`).
+
+**R3 - pełny przegląd.** Przegląd kolumn uuid/text/jsonb (`information_schema`
+na bazie po wszystkich migracjach) tabel huba (I0-S5, I9) i modułów, do
+których hub pisze (emitery, CRM, newsletter, licznik, kasa, retencja,
+nadania, poczta ścieżek, integracje, audyt). „Bez FK” = kolumna bez klucza
+obcego do `auth.users` (surowy uid po usunięciu konta).
+
+| Tabela                                                                                                                                                            | Kolumny osobowe                                          | Przed A2                                                     | Po A2                                                                 | Dowód (sweep, nr asercji) |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------- |
+| `subscription_state_history`, `mrr_movements`, `dunning_cycles`                                                                                                   | `user_id`, `subscription_id`, zdarzenia i ceny operatora | redakcja `160400`                                            | bez zmian                                                             | 4, 8; `ledger_erasure`    |
+| `revenue_event_marks`                                                                                                                                             | `ref` (uid, subskrypcja, ankieta)                        | znaczniki konta usunięte `160400`                            | bez zmian                                                             | 4                         |
+| `mrr_daily_snapshots`, `journey_email_contents`, `journey_event_routes`, `journey_node_daily_stats`                                                               | brak                                                     | -                                                            | -                                                                     | 4                         |
+| `paywall_hits`                                                                                                                                                    | `user_id` (bez FK)                                       | **surowy uid**                                               | pseudonim v8                                                          | 4, 7, 9                   |
+| `metering_event_log`                                                                                                                                              | `user_id` (bez FK), `visitor_id`                         | **surowy uid**                                               | pseudonim v8, `visitor_id` NULL                                       | 4, 9                      |
+| `metered_views`                                                                                                                                                   | `user_id`                                                | CASCADE                                                      | bez zmian                                                             | 4                         |
+| `domain_events`                                                                                                                                                   | `actor_id`, `aggregate_id`, ładunek, korelacja           | **surowy uid do 90 dni**                                     | nowy id, pseudonim, biała lista kluczy                                | 4, 10, 11                 |
+| `journey_event_inbox`                                                                                                                                             | `actor_id`, `aggregate_id`, ładunek                      | **surowy uid; nieprzetworzone zapisywały na ścieżkę**        | ta sama redakcja; nieprzetworzone pominięte                           | 4, 12, 14-16              |
+| `integration_deliveries`                                                                                                                                          | koperta zdarzenia                                        | **surowy uid; czekające wysyłane**                           | redakcja, czekające `dead`                                            | 4, 13                     |
+| `journey_enrollments`                                                                                                                                             | `user_id` (bez FK), migawka, `trigger_event_id`          | **surowy uid; w toku wysyłały**                              | `exited/account_deleted`, `user_id` NULL, migawka bez identyfikatorów | 4, 17                     |
+| `journey_step_runs`                                                                                                                                               | `detail`                                                 | brak uid w praktyce                                          | redakcja, gdy zawiera uid/e-mail                                      | 4                         |
+| `journey_messages`, `journey_message_events`                                                                                                                      | `lead_id`, link kliknięcia (bez IP/UA)                   | przy kontakcie CRM                                           | bez zmian - historia kontaktu CRM (wyjątek)                           | 4                         |
+| `journey_engine_errors`, `domain_event_emit_errors`, `workflow_runs`                                                                                              | tekst błędu                                              | ewentualny uid/e-mail w komunikacie                          | `[redacted]`                                                          | 4                         |
+| `crm_leads`                                                                                                                                                       | `user_id` (bez FK); e-mail, imię, nazwisko               | **surowy uid**                                               | `user_id` NULL; kontakt zostaje (wyjątek)                             | 4-6                       |
+| `crm_lead_stage_history`                                                                                                                                          | `actor_id` (bez FK)                                      | **surowy uid**                                               | NULL                                                                  | 4, 18                     |
+| `crm_tasks`                                                                                                                                                       | `assignee_id`, `created_by`                              | SET NULL                                                     | bez zmian                                                             | 4                         |
+| `crm_lead_notes`, `cross_references`                                                                                                                              | `author_id`, `created_by` (bez FK); krawędź do konta     | **surowy uid**                                               | NULL; krawędź do konta usunięta                                       | 21-23                     |
+| `newsletter_subscribers`                                                                                                                                          | `user_id` (bez FK); e-mail                               | **surowy uid**                                               | `user_id` NULL; subskrypcja zostaje (wyjątek)                         | 4, 18                     |
+| `journey_definitions`, `journey_versions`, `journey_settings`, `revenue_manual_inputs`                                                                            | autor, asygnata zadań (bez FK)                           | **surowy uid**                                               | NULL, konfiguracja zostaje                                            | 20, 23                    |
+| `revenue_diagnostic_snoozes`                                                                                                                                      | `created_by` (NOT NULL, bez FK)                          | **surowy uid** (nie dało się wyzerować)                      | NULL-owalne, NULL                                                     | 20                        |
+| `newsletter_settings`, `workflow_definitions`, `integration_endpoints`                                                                                            | autor (bez FK)                                           | **surowy uid**                                               | NULL                                                                  | 21, 23                    |
+| `audit_log`                                                                                                                                                       | `actor_id`, `entity_id`, metadane, `ip` (bez FK)         | **surowy uid**                                               | pseudonim, IP własnych działań NULL, e-mail `[redacted]`              | 4, 9, 24-25               |
+| `membership_grants`, `member_crm_sync_pending`, `retention_feedback`, `subscriptions` (migawka rabatu), `subscription_price_migrations`, `b2b_coupon_redemptions` | `user_id`, aktor                                         | CASCADE / SET NULL                                           | bez zmian                                                             | 4, 18                     |
+| `email_send_log`                                                                                                                                                  | adres odbiorcy                                           | adres kontaktu CRM                                           | bez zmian (wyjątek)                                                   | 4 (brak wierszy w teście) |
+| `payment_orders`, `user_purchases`, `billing_documents`                                                                                                           | uid, e-mail, dane nabywcy                                | anonimizacja `20260805090100` (dokumenty - świadomie bez FK) | bez zmian (wyjątek księgowy)                                          | `accounting_retention`    |
+
+Kontrolnie test skanuje KAŻDĄ tabelę bazową `public` z `tenant_id` (nie tylko
+przegląd) - dla konta czytelnika i konta admina ślady zostają wyłącznie
+w kolumnach z listy wyjątków.
+
+**Wyjątki z podstawą** (lista jawna w teście i w rejestrze czynności):
+kontakt CRM (`crm_leads.email/email_norm`, imię, nazwisko) i jego historia
+ścieżek - osobna czynność CRM (art. 6 ust. 1 lit. f / lit. a), może pochodzić
+z formularza, wydarzenia lub newslettera, a kaskada zabrałaby notatki
+i zadania personelu - usuwa go admin w `/admin/crm` na żądanie osoby;
+subskrypcja newslettera (`newsletter_subscribers.email`) - zgoda niezależna
+od konta; rejestr zgód (`crm_consent_log.email`) - art. 7 ust. 1; blokady
+poczty (`email_suppressions`) - art. 21 ust. 3; dowody księgowe - art. 74
+ust. 2 uor; dziennik audytu - wpis i pseudonim aktora (art. 5 ust. 2, art. 32).
+
+**R4 (Z-I9b-05) - administrator danych i IOD.** Administrator danych
+(właściciel) zatwierdził 2026-10-20 podstawę i retencję zanonimizowanej
+księgi MRR („zastosuj”). Rejestr czynności przetwarzania huba (art. 30 RODO):
+`docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md` - księga MRR (przed i po
+anonimizacji), uderzenia w paywall i lejek, zdarzenia domenowe (90 dni),
+ścieżki e-mail (zgody, D-03/D-04, śledzenie otwarć i kliknięć), CRM (etapy
+i historia), ankiety retencji; dla każdego cel, podstawa z artykułem,
+kategorie osób i danych, odbiorcy widoczni w repozytorium (Supabase, Stripe,
+Resend przez bramkę Lovable, punkty integracji admina), okres przechowywania,
+mechanizm z odnośnikiem do migracji i testu. Status: „zatwierdzone przez
+administratora danych 2026-10-20; do wiadomości IOD”. Nowe zgłoszenia:
+Z-I9b-10 (retencja danych żywych kont nieustalona w repozytorium), Z-I9b-11
+(autor w modułach spoza zapisu huba).
+
+**Migracje (blok I9) i bliźniaki drizzle.**
+
+| Migracja                                       | Bliźniak                             | Zawartość                                                                                                                                                                            |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261020160500_funnel_account_erasure`        | `0363_funnel_account_erasure`        | `_hub_erasure_surrogate`, `_funnel_erase_account` (R1)                                                                                                                               |
+| `20261020160600_domain_events_account_erasure` | `0364_domain_events_account_erasure` | `_hub_erasure_payload`, `_hub_erasure_text`, `_domain_events_erase_account`, `_journeys_erase_account`, CHECK `exit_reason` += `account_deleted` (R2)                                |
+| `20261020160700_hub_account_erasure_sweep`     | `0365_hub_account_erasure_sweep`     | `revenue_diagnostic_snoozes.created_by` NULL-owalne, `_hub_account_erase`, `tg_auth_users_hub_erasure` (AFTER DELETE ON `auth.users`), `_hub_account_erase_orphans` + wywołanie (R3) |
+
+Bliźniaki bajt w bajt (`cmp`), wpisy `meta/_journal.json` idx 363-365,
+`when` co 60 000. Następny wolny numer: **0366**. Część B bierze wersję
+`20261020160800` i dalej. Pliki współdzielone (I9): `hubDelivery.ts`
+(9 funkcji w rejestrze, manifest I9 „(I9b-A2, 2026-10-20)”), `types.ts`
+(`revenue_diagnostic_snoozes.created_by` - `string | null`),
+`authzSnapshot.generated.ts` (liczniki skanu), `_journal.json`; lista
+`hub_grants` w `hub_shared_helpers_test`.
+
+**Bramki A2** (worktree `/home/user/wt/I9B2`, po kolei, pamięć 16 GB):
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                     | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki), `bun run format:check`                                                                                                                                                                                                                                                                             | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `bun run verify:static` (18 bramek: `migration-lanes`, `rpc-contract`, `on-conflict-arbiters`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` 1292 pliki, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` 1787 funkcji, `ts-sql-contract --check`, `types-freshness` baseline 7) | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                                                                                                                              | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.i9b.tmp.json`, 5 zmienionych plików TS + deklaracje)                                                                                                                                                                                                                             | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `bunx eslint` (zmienione pliki)                                                                                                                                                                                                                                                                                                               | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `vitest --maxWorkers=3`: `src/lib/{ci,authz,revenue,journeys}`, `src/integrations`, słowniki i18n                                                                                                                                                                                                                                             | ✓ 135 plików, 3046 testów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `vitest`: `supabaseLaneCoverage`, `migrationLaneParity`, `hubDelivery.gate`, `i18nParity.gate`                                                                                                                                                                                                                                                | ✓ 4 pliki, 97 testów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `scripts/split-migration.ts --dry-run` (3 migracje)                                                                                                                                                                                                                                                                                           | ✓ 6,0 / 18,7 / 18,1 KB                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `generate:authz-snapshot` i `--check`                                                                                                                                                                                                                                                                                                         | ✓ (liczniki: 1292 migracje, 1787 funkcji)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `scripts/hub-slice-guard.ts I9 --base ad3bc9d1`                                                                                                                                                                                                                                                                                               | ✓ diff w manifeście; 3 pliki w bloku I9, 9 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `flock … bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                   | ✓ `overall` 5002,5 / 5003, `public` 2777,6 / 2881 (zamr.), `publicCss` 83,8 / 85, chunk 257,8 / 286, `boot` 471,6 / 579 - bez zmian względem części A                                                                                                                                                                                                                                                                                                                                                                                                          |
+| pgTAP `run.sh all` (pełny)                                                                                                                                                                                                                                                                                                                    | ✓ 241 plików OK; 4 czerwone - wyłącznie znane błędy środowiska: `community_cron_schedule` (2 asercje pg_net), `job_scheduler_heartbeat` (1 asercja pg_net), `profile_intent_semantic` (vector), `public_definer_views_read_only` (1/35); migracje: wyłącznie znany błąd `20260825230232`. Nowy `hub_i9b_account_erasure_sweep` 33/33; `accounting_retention`, `hub_i9b_revenue_ledger_erasure`, `revenue_subscription_history`, `subscription_price_migrations_lifecycle`, `user_subscriptions_user_fk_cascade` (testy usuwające konta) i `journeys_*` zielone |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                    | ✓ bez zmiany pliku; 9 asercji                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+**Wdrożenie (właściciel).** Kolejność: po `20261020160400` (wyzwalacz BEFORE
+księgi MRR) i po S5, nocą - ALTER `revenue_diagnostic_snoozes`, CHECK na
+`journey_enrollments` (NOT VALID + VALIDATE) i wyzwalacz na `auth.users`
+przy `lock_timeout` 5 s (55P03 = ponów plik). Wszystkie trzy pliki są
+idempotentne. Skutek dla danych produkcyjnych: domknięcie wstecz
+(`_hub_account_erase_orphans`, raz na osierocone konto - uid w wersji 4
+nieobecny w `auth.users` w kolumnach z przeglądu) zamienia ślady kont
+usuniętych przed A2: uderzenia i dziennik licznika -> pseudonim (liczniki
+zamkniętych okresów bez zmian), zdarzenia szyny i kopie -> redakcja,
+nieprzetworzone - pominięte, zapisy na ścieżki w toku -> `account_deleted`,
+`crm_leads.user_id`/newsletter -> NULL, autorzy konfiguracji -> NULL, audyt
+-> pseudonim. Czas: jeden przebieg tabel z przeglądu na osierocone konto
+(szyna ≤ 90 dni). Kontrola po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Lejek i licznik: surowe uid kont nieistniejących - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.paywall_hits ph
+         WHERE substr(ph.user_id::text, 15, 1) = '4'
+           AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = ph.user_id))
+     + (SELECT count(*) FROM public.metering_event_log l
+         WHERE substr(l.user_id::text, 15, 1) = '4'
+           AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = l.user_id)) AS lejek;
+-- Szyna: zdarzenia z uid konta nieistniejącego - oczekiwane 0.
+SELECT count(*) FROM public.domain_events e
+ WHERE e.payload ->> 'user_id' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-4'
+   AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id::text = e.payload ->> 'user_id');
+-- CRM i newsletter: powiązania z kontem nieistniejącym - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.crm_leads l
+         WHERE l.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = l.user_id))
+     + (SELECT count(*) FROM public.newsletter_subscribers s
+         WHERE s.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = s.user_id)) AS powiazania;
+```
+
+Wycofanie: redakcja jest nieodwracalna z założenia; zdjęcie wyzwalacza
+(`DROP TRIGGER on_auth_user_deleted_redact_hub` osobną migracją) zatrzymuje
+ją dla kolejnych usunięć, czego RODO nie dopuszcza bez innej anonimizacji.
+Powód `account_deleted` zostaje w słowniku (zapisy z nim nie znikają).
