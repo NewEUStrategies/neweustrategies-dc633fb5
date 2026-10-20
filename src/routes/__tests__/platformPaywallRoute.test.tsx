@@ -852,6 +852,9 @@ describe("checkout settings", () => {
       tax_id_collection: !DEFAULT_CHECKOUT_SETTINGS.tax_id_collection,
       invoice_creation: !DEFAULT_CHECKOUT_SETTINGS.invoice_creation,
       billing_address_collection: "required",
+      // I9a: karta zapisuje też widoczne okno porzucenia kasy - wiersz bez
+      // kolumny pokazuje (i zapisuje) domyślne bazy, bez przycinania.
+      abandon_after_minutes: 1440,
       updated_by: "staff",
     });
   });

@@ -18,25 +18,23 @@ import {
   normalizeCheckoutSettings,
   type CheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
-import { REVENUE_LIMITS } from "@/lib/revenue/limits";
+import { isCheckoutAbandonMinutes } from "@/lib/revenue/limits";
 
-// Okno porzucenia kasy (S3, P22) czyta wyłącznie ścieżka tworzenia sesji -
-// dokładamy kolumnę tutaj, a nie do `CHECKOUT_SETTINGS_COLUMNS`, które
-// wybierają też panel i migawka dokumentów (tam pole nie ma odbiorcy).
+// Okno porzucenia kasy (S3, P22) czyta ścieżka tworzenia sesji - dokładamy
+// kolumnę tutaj, a nie do `CHECKOUT_SETTINGS_COLUMNS`, które wybiera też
+// migawka dokumentów (tam pole nie ma odbiorcy). Karta kasy w panelu czyta je
+// własnym zestawem kolumn z tokenem (`useCheckoutSettings`, I9a).
 const SESSION_SETTINGS_COLUMNS = `${CHECKOUT_SETTINGS_COLUMNS}, abandon_after_minutes` as const;
 
 /**
  * Minuty okna porzucenia albo `null` (= domyślne okno operatora). Wartość
  * spoza CHECK-u bazy (30-1440) albo niecałkowita nie zgaduje okna - wraca
- * domyślne, tak jak brak wiersza.
+ * domyślne, tak jak brak wiersza. Predykat jest wspólny z formularzem panelu
+ * (`isCheckoutAbandonMinutes`, I9a) - klient i serwer nie mogą się różnić
+ * co do tego, która wartość jest poprawna.
  */
 export function abandonAfterMinutes(raw: unknown): number | null {
-  return typeof raw === "number" &&
-    Number.isInteger(raw) &&
-    raw >= REVENUE_LIMITS.checkoutAbandonMinutesMin &&
-    raw <= REVENUE_LIMITS.checkoutAbandonMinutesMax
-    ? raw
-    : null;
+  return isCheckoutAbandonMinutes(raw) ? raw : null;
 }
 
 /**

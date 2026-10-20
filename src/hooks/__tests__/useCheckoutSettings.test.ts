@@ -159,3 +159,52 @@ describe("zapis", () => {
     expect(keys).toContainEqual(revenueKeys.domain("diagnostics"));
   });
 });
+
+// Okno porzucenia kasy (`abandon_after_minutes`, I9a): kolumna w TYM SAMYM
+// odczycie co token, zapis tym samym mutatorem i bez przycinania.
+describe("okno porzucenia kasy (I9a)", () => {
+  const settings = { ...DEFAULT_CHECKOUT_SETTINGS };
+
+  it("odczyt wybiera kolumnę razem z tokenem i oddaje ją w stanie", async () => {
+    h.db!.setResponse("checkout_settings", ok({ ...ROW, abandon_after_minutes: 90 }));
+    await expect(fetchCheckoutSettings()).resolves.toMatchObject({ abandon_after_minutes: 90 });
+    const columns = String(h.db!.lastChain("checkout_settings")!.argsOf("select")![0]);
+    expect(columns).toMatch(/abandon_after_minutes, updated_at$/);
+  });
+
+  it("brak wiersza: pole nieobecne (formularz pokaże domyślne bazy)", async () => {
+    h.db!.setResponse("checkout_settings", ok(null));
+    const state = await fetchCheckoutSettings();
+    expect("abandon_after_minutes" in state).toBe(false);
+  });
+
+  it("zapis wysyła okno bez zmian obok pięciu kolumn; brak okna = kolumna nietknięta", async () => {
+    h.db!.setResponse("checkout_settings", ok([{ ...ROW, abandon_after_minutes: 45 }]));
+    const saved = await saveCheckoutSettings({
+      settings: { ...settings, abandon_after_minutes: 45 },
+      expectedUpdatedAt: TOKEN,
+    });
+    expect(h.db!.lastChain("checkout_settings")!.argsOf("update")).toEqual([
+      { ...settings, abandon_after_minutes: 45, updated_by: "admin-1" },
+    ]);
+    expect(saved.abandon_after_minutes).toBe(45);
+
+    await saveCheckoutSettings({ settings, expectedUpdatedAt: TOKEN });
+    expect(h.db!.lastChain("checkout_settings")!.argsOf("update")?.[0]).not.toHaveProperty(
+      "abandon_after_minutes",
+    );
+  });
+
+  it("wartość spoza zakresu NIE jest przycinana - CHECK bazy (23514) wraca jako błąd", async () => {
+    h.db!.setResponse("checkout_settings", fail("violates check constraint", "23514"));
+    await expect(
+      saveCheckoutSettings({
+        settings: { ...settings, abandon_after_minutes: 20 },
+        expectedUpdatedAt: TOKEN,
+      }),
+    ).rejects.toMatchObject({ code: "23514" });
+    expect(h.db!.lastChain("checkout_settings")!.argsOf("update")?.[0]).toMatchObject({
+      abandon_after_minutes: 20,
+    });
+  });
+});

@@ -26,9 +26,10 @@ export interface CheckoutSettings {
    * `checkout_settings.abandon_after_minutes` (hub I0, CHECK 30-1440): po ilu
    * minutach otwarta sesja kasy wygasa jako PORZUCONA (S3, P22 - `expires_at`
    * sesji operatora, potem `checkout.session.expired` -> `cancel_reason`).
-   * Opcjonalne celowo: czyta je wyłącznie serwer (`loadCheckoutSettings`),
-   * a `CHECKOUT_SETTINGS_COLUMNS` panelu i dokumentów go nie wybiera. Brak =
-   * domyślne okno operatora (24 h).
+   * Opcjonalne celowo: `CHECKOUT_SETTINGS_COLUMNS` (dokumenty, migawka) go
+   * nie wybiera; czytają je serwer kasy (`loadCheckoutSettings`) i karta kasy
+   * w panelu (`useCheckoutSettings`, edycja od I9a). Brak = domyślne okno
+   * operatora (24 h).
    */
   abandon_after_minutes?: number;
 }
