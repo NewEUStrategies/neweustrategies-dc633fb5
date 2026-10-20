@@ -249,6 +249,19 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["_revenue_ledger_redact_orphans", "I9", "internal"],
   ["tg_subscriptions_revenue_redact", "I9", "trigger"],
   ["tg_auth_users_revenue_redact", "I9", "trigger"],
+  // (I9b-A2, 2026-10-20) RODO po usunięciu konta (Z-I9b-03/04/05): pseudonim
+  // zastępczy lejka, redakcja szyny i jej kopii, wyjście ze ścieżek, odcięcie
+  // CRM/newslettera, autorzy konfiguracji, audyt; wyzwalacz AFTER DELETE na
+  // `auth.users` i domknięcie wstecz.
+  ["_hub_erasure_surrogate", "I9", "internal"],
+  ["_funnel_erase_account", "I9", "internal"],
+  ["_hub_erasure_payload", "I9", "internal"],
+  ["_hub_erasure_text", "I9", "internal"],
+  ["_domain_events_erase_account", "I9", "internal"],
+  ["_journeys_erase_account", "I9", "internal"],
+  ["_hub_account_erase", "I9", "internal"],
+  ["_hub_account_erase_orphans", "I9", "internal"],
+  ["tg_auth_users_hub_erasure", "I9", "trigger"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -807,6 +820,13 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/routes/__tests__/adminOrganizationsRoutes.test.tsx",
     "src/routes/admin.library.tsx",
     "src/routes/admin.newsletter.campaigns.$id.tsx",
+    // (I9b-A2, 2026-10-20) RODO po usunięciu konta: powód wyjścia ze ścieżki
+    // `account_deleted` (lustro CHECK, etykiety PL/EN, parytet) i rejestr
+    // czynności przetwarzania huba (art. 30 RODO).
+    "src/lib/journeys/limits.ts",
+    "src/lib/journeys/__tests__/journeyLimitsParity.test.ts",
+    "src/lib/i18n-admin-journeys.ts",
+    "docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md",
   ],
 };
 

@@ -92,6 +92,9 @@ export const JOURNEY_EXIT_REASONS = [
   "journey_archived",
   "error",
   "entry_filter",
+  // RODO (I9b-A2): konto usunięte - zapis w toku kończy wyzwalacz usunięcia
+  // konta, bo podstawa ścieżki związanej z kontem wygasła razem z nim.
+  "account_deleted",
 ] as const;
 export type JourneyExitReason = (typeof JOURNEY_EXIT_REASONS)[number];
 

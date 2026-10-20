@@ -70,6 +70,7 @@ const pl = {
       journey_archived: "Ścieżka zarchiwizowana",
       error: "Błąd kroku po 8 próbach",
       entry_filter: "Nie spełnia filtra wejścia",
+      account_deleted: "Konto usunięte (RODO)",
     },
     stepOutcome: {
       next: "Dalej",
@@ -386,6 +387,7 @@ const en = {
       journey_archived: "Journey archived",
       error: "Step error after 8 attempts",
       entry_filter: "Does not meet the entry filter",
+      account_deleted: "Account deleted (GDPR)",
     },
     stepOutcome: {
       next: "Next",

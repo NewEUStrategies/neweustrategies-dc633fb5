@@ -85,11 +85,13 @@ SELECT is_empty(
       WHERE p.pronamespace = 'public'::regnamespace
         AND has_function_privilege(r, p.oid, 'EXECUTE')
         AND p.proname = ANY (ARRAY[
-          '_crm_source_type_rank', '_event_revenue_net', '_funnel_counts', '_journey_edge',
+          '_crm_source_type_rank', '_domain_events_erase_account', '_event_revenue_net',
+          '_funnel_counts', '_funnel_erase_account', '_hub_account_erase', '_hub_account_erase_orphans',
+          '_hub_erasure_payload', '_hub_erasure_surrogate', '_hub_erasure_text', '_journey_edge',
           '_journey_enroll', '_journey_eval_predicate', '_journey_exec_action',
           '_journey_marketing_consent', '_journey_message_id', '_journey_next_time', '_journey_node',
           '_journey_num', '_journey_quiet_until', '_journey_send_verdict', '_journey_staff_tenant',
-          '_journey_unsubscribe', '_log_emit_error',
+          '_journey_unsubscribe', '_journeys_erase_account', '_log_emit_error',
           '_membership_tier_for_user', '_pricing_v62_owner_decisions', '_revenue_facts_catalog',
           '_revenue_facts_checkout',
           '_revenue_facts_clubs', '_revenue_facts_coupons', '_revenue_facts_crm',
@@ -108,7 +110,8 @@ SELECT is_empty(
           'journey_validate_graph', 'metering_defaults', 'newsletter_subscriber_list_set',
           'record_paywall_hit_visitor', 'revenue_segment_of_tier', 'run_retention_flow_scanner',
           'run_revenue_lifecycle_scanner', 'subscription_mrr_minor', 'tg_b2b_coupon_campaigns_emit',
-          'tg_auth_users_revenue_redact', 'tg_b2b_coupon_redemptions_emit', 'tg_b2b_coupons_emit',
+          'tg_auth_users_hub_erasure', 'tg_auth_users_revenue_redact', 'tg_b2b_coupon_redemptions_emit',
+          'tg_b2b_coupons_emit',
           'tg_billing_documents_renewed_emit', 'tg_checkout_settings_emit',
           'tg_club_applications_emit', 'tg_content_access_emit', 'tg_crm_leads_stage_history',
           'tg_event_registrations_attended_emit', 'tg_journey_route_event',
