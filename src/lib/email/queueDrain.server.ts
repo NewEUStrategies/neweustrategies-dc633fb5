@@ -140,6 +140,7 @@ interface QueuePayload {
   idempotency_key?: unknown;
   unsubscribe_token?: unknown;
   unsubscribe_url?: unknown;
+  reply_to?: unknown;
   run_id?: unknown;
   tenant_id?: unknown;
   queued_at?: unknown;
@@ -267,6 +268,13 @@ async function logSend(
     status: "sent" | "failed" | "suppressed" | "dlq";
     error?: string | null;
     /**
+     * Identyfikator wiadomości u dostawcy (tylko `sent`). Bez niego webhook
+     * odbicia/skargi wiadomości 1:1 (ścieżki, transakcyjne) nie znajduje
+     * najemcy ani kroku ścieżki - `email_apply_delivery_event` dopasowuje po
+     * `email_send_log.provider_message_id` (D12, S5).
+     */
+    providerMessageId?: string | null;
+    /**
      * Najemca wiersza. WYMAGANY, nie opcjonalny: pole opcjonalne dałoby się
      * pominąć przy dopisywaniu kolejnej ścieżki wyniku, a pominięcie znaczy tu
      * „wiersz niewidoczny w panelu żadnego najemcy". `null` jest dozwolony
@@ -282,6 +290,7 @@ async function logSend(
     recipient_email: row.to,
     status: row.status,
     error_message: row.error ? row.error.slice(0, 1000) : null,
+    provider_message_id: row.providerMessageId ?? null,
     [TENANT_COLUMN]: row.tenantId,
   } as never);
   // Wysyłka już się stała - nieudany zapis logu nie może jej „odkręcić", ale
@@ -512,6 +521,7 @@ export async function drainEmailQueues(
         from: nullableText(payload.from) ?? undefined,
         senderDomain: nullableText(payload.sender_domain) ?? undefined,
         listUnsubscribeUrl: nullableText(payload.unsubscribe_url),
+        replyTo: nullableText(payload.reply_to),
         unsubscribeToken: nullableText(payload.unsubscribe_token) ?? undefined,
         idempotencyKey: nullableText(payload.idempotency_key) ?? undefined,
         runId: nullableText(payload.run_id) ?? undefined,
@@ -528,7 +538,14 @@ export async function drainEmailQueues(
       budget -= 1;
 
       if (sendResult.ok) {
-        await logSend(admin, { messageId, label, to, status: "sent", tenantId: gate.tenantId });
+        await logSend(admin, {
+          messageId,
+          label,
+          to,
+          status: "sent",
+          tenantId: gate.tenantId,
+          providerMessageId: sendResult.messageId ?? null,
+        });
         await deleteMessage(admin, queue, msg.msgId);
         result.sent += 1;
       } else if (sendResult.rateLimited) {

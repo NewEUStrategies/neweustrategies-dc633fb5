@@ -129,7 +129,14 @@ vi.mock("@/lib/server/rate-limit.server", () => ({
   },
 }));
 
+const journey = vi.hoisted(() => ({ record: vi.fn() }));
+vi.mock("@/lib/journeys/tracking.server", () => ({ recordJourneyMessageEvent: journey.record }));
+
 import { Route, isValidUnsubToken } from "./api.public.newsletter.unsubscribe";
+import {
+  signJourneyMessageToken,
+  signJourneyUnsubscribeToken,
+} from "@/lib/newsletter/trackingToken.server";
 
 const TOKEN = "0123456789abcdef0123456789abcdef";
 const OTHER_TOKEN = "fedcba9876543210fedcba9876543210";
@@ -673,5 +680,86 @@ describe("POST - limit żądań", () => {
     expect(db.state.rateLimitCalls).toEqual([]);
     expect(response.status).toBe(200);
     expect(unsubscribedTokens()).toEqual([TOKEN]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ścieżki komunikacji (S5): ten sam adres przyjmuje token wypisu maila ścieżki
+// (`j` + message_id + podpis `ju:`). Te same reguły: GET nie mutuje, POST
+// przez limiter, awaria = 500 (bramka ponowi), nieznana wiadomość = 404.
+// Token TRACKINGU (`jm:`) nie wypisuje - wyciek piksela nie zmienia zgody.
+describe("ścieżki: token wypisu wiadomości", () => {
+  const MESSAGE = "adcf4729-2d9b-4ef2-bf9a-bdd0cbfe79f9";
+  const previous = process.env.SESSION_SECRET;
+  let JTOKEN = "";
+
+  beforeEach(() => {
+    process.env.SESSION_SECRET = "unsubscribe-journey-secret";
+    JTOKEN = signJourneyUnsubscribeToken(MESSAGE);
+    journey.record.mockReset();
+    journey.record.mockResolvedValue({ ok: true, recorded: true, known: true });
+  });
+  afterEach(() => {
+    if (previous === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = previous;
+  });
+
+  it("GET sprawdza podpis bez bazy i bez mutacji; podrobiony = 404", async () => {
+    const response = await handlers().GET(getRequest(`?token=${JTOKEN}`));
+    await expect(response.json()).resolves.toEqual({ ok: true, already: false });
+    const forged = `j${MESSAGE.replace(/-/g, "")}${"0".repeat(32)}`;
+    const bad = await handlers().GET(getRequest(`?token=${forged}`));
+    expect(bad.status).toBe(404);
+    expect(journey.record).not.toHaveBeenCalled();
+    expect(db.state.selects).toEqual([]);
+    expect(db.state.unsubscribeCalls).toEqual([]);
+  });
+
+  it("POST one-click wypisuje przez zdarzenie wiadomości (nie przez token subskrybenta)", async () => {
+    const response = await handlers().POST(oneClickFrom("203.0.113.9", JTOKEN));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(journey.record).toHaveBeenCalledWith({ messageId: MESSAGE, kind: "unsubscribe" });
+    expect(db.state.unsubscribeCalls).toEqual([]);
+    expect(db.state.rateLimitCalls).toHaveLength(1);
+  });
+
+  it("ponowny klik = already; nieznana wiadomość = 404; awaria = 500", async () => {
+    journey.record.mockResolvedValueOnce({ ok: true, recorded: false, known: true });
+    let response = await handlers().POST(postRequest({ token: JTOKEN }));
+    await expect(response.json()).resolves.toEqual({ ok: true, already: true });
+
+    journey.record.mockResolvedValueOnce({ ok: true, recorded: false, known: false });
+    response = await handlers().POST(postRequest({ token: JTOKEN }));
+    expect(response.status).toBe(404);
+
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    journey.record.mockResolvedValueOnce({ ok: false, error: "db down" });
+    response = await handlers().POST(postRequest({ token: JTOKEN }));
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "update_failed" });
+  });
+
+  it("podrobiony podpis = 404 przed limiterem; limiter odmawia = 429", async () => {
+    const forged = `j${MESSAGE.replace(/-/g, "")}${"f".repeat(32)}`;
+    let response = await handlers().POST(postRequest({ token: forged }));
+    expect(response.status).toBe(404);
+    expect(db.state.rateLimitCalls).toEqual([]);
+
+    db.state.rateLimitAllows = false;
+    response = await handlers().POST(
+      postRequest({ token: JTOKEN }, { "cf-connecting-ip": "203.0.113.7" }),
+    );
+    expect(response.status).toBe(429);
+    expect(journey.record).not.toHaveBeenCalled();
+  });
+
+  it("token trackingu wiadomości NIE wypisuje", async () => {
+    const response = await handlers().POST(
+      postRequest({ token: signJourneyMessageToken(MESSAGE) }),
+    );
+    expect(response.status).toBe(400);
+    expect(journey.record).not.toHaveBeenCalled();
+    expect(db.state.unsubscribeCalls).toEqual([]);
   });
 });

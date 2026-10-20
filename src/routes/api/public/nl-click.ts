@@ -9,11 +9,29 @@
 // else (missing/forged token, tampered `u`, hand-crafted link) falls back to
 // the site origin, so the endpoint can never launder an attacker-supplied URL
 // through our trusted domain. Always redirects (fail-safe).
+//
+// Ścieżki komunikacji (S5): `?m=<token wiadomości>&i=<numer linku>&u=…&k=…`.
+// Ta sama ochrona przed otwartym przekierowaniem: cel przechodzi WYŁĄCZNIE
+// z ważnym tokenem wiadomości i podpisem `k`, który wiąże adres i numer
+// linku z tą wiadomością (`jm:`). Gałąź `m` ma pierwszeństwo przed `c`/`s` -
+// link ścieżki nigdy nie niesie kampanii.
 import { createFileRoute } from "@tanstack/react-router";
 import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { isSafeHttpUrl } from "@/lib/newsletter/tracking";
-import { verifyTrackingToken, verifyTrackingLink } from "@/lib/newsletter/trackingToken.server";
+import {
+  verifyJourneyLink,
+  verifyJourneyMessageToken,
+  verifyTrackingToken,
+  verifyTrackingLink,
+} from "@/lib/newsletter/trackingToken.server";
 import { recordCampaignEvent } from "@/lib/newsletter/trackingEvents.server";
+import { recordJourneyMessageEvent } from "@/lib/journeys/tracking.server";
+
+/** Numer linku 0-999 albo `null` (podpis i tak go wiąże - to tylko kształt). */
+function linkIndex(raw: string | null): number | null {
+  if (!raw || !/^\d{1,3}$/.test(raw)) return null;
+  return Number(raw);
+}
 
 const limiter = createRateLimiter({ capacity: 60, refillPerSec: 1 });
 
@@ -23,6 +41,30 @@ export const Route = createFileRoute("/api/public/nl-click")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const target = url.searchParams.get("u");
+        const journeyToken = url.searchParams.get("m");
+        if (journeyToken !== null) {
+          const messageId = verifyJourneyMessageToken(journeyToken);
+          const index = linkIndex(url.searchParams.get("i"));
+          const journeyTrusted =
+            isSafeHttpUrl(target) &&
+            messageId !== null &&
+            index !== null &&
+            verifyJourneyLink(messageId, target, url.searchParams.get("k"), index);
+          if (
+            journeyTrusted &&
+            messageId &&
+            target &&
+            limiter.check(rateLimitIpSubject(request.headers), Date.now())
+          ) {
+            await recordJourneyMessageEvent({
+              messageId,
+              kind: "click",
+              linkIndex: index ?? 0,
+              url: target,
+            });
+          }
+          return Response.redirect(journeyTrusted && target ? target : url.origin, 302);
+        }
         const campaignId = url.searchParams.get("c");
         const subscriberId = campaignId
           ? verifyTrackingToken(campaignId, url.searchParams.get("s"))

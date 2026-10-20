@@ -117,6 +117,12 @@ describe("TX_EMAIL_CATEGORY", () => {
 });
 
 describe("emailCategoryForLabel", () => {
+  it("ścieżki: marketing = masowa (wypis zatrzymuje), usługa i test na żywo = 1:1", () => {
+    expect(emailCategoryForLabel("journey")).toBe("bulk");
+    expect(emailCategoryForLabel("journey_service")).toBe("transactional");
+    expect(emailCategoryForLabel("journey_test")).toBe("transactional");
+  });
+
   it("rozpoznaje etykiety kanałów masowych", () => {
     expect(emailCategoryForLabel("digest_daily")).toBe("bulk");
     expect(emailCategoryForLabel("digest_weekly")).toBe("bulk");

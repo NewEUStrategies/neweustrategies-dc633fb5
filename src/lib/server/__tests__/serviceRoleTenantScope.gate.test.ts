@@ -105,6 +105,9 @@ const SERVICE_ROLE_READERS = [
   "src/lib/server/careerCvRetention.server.ts",
   "src/lib/server/email.server.ts",
   "src/lib/server/jobScheduler.server.ts",
+  // Runner ścieżek komunikacji (S5): nie czyta tabel - wyłącznie RPC silnika,
+  // które biorą najemcę z wiersza (zapis, wiadomość), nigdy z parametru.
+  "src/lib/server/journeysRunner.server.ts",
   "src/lib/server/publishedContent.server.ts",
   "src/lib/server/rate-limit.server.ts",
   // Dziennik przeniesienia subskrypcji na cenę katalogu v6.2 (akcja admina

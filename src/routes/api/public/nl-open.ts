@@ -3,10 +3,19 @@
 // `open` event. `s` is the SIGNED tracking token (HMAC per campaign+subscriber),
 // verified server-side - NOT the unsubscribe token, so a leaked pixel URL can
 // never unsubscribe the recipient.
+//
+// Ścieżki komunikacji (S5): `?m=<message_id>.<podpis>` - tracking 1:1 po
+// wiadomości (podpis z prefiksem domeny `jm:`, inny niż token wypisu). Ten sam
+// limiter i ta sama zasada: obrazek wychodzi ZAWSZE. Otwarcie przez znany
+// serwer pośredniczący poczty jest oznaczane jako maszynowe.
 import { createFileRoute } from "@tanstack/react-router";
 import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
-import { verifyTrackingToken } from "@/lib/newsletter/trackingToken.server";
+import {
+  verifyJourneyMessageToken,
+  verifyTrackingToken,
+} from "@/lib/newsletter/trackingToken.server";
 import { recordCampaignEvent } from "@/lib/newsletter/trackingEvents.server";
+import { isMailProxyUserAgent, recordJourneyMessageEvent } from "@/lib/journeys/tracking.server";
 
 // A mail client may re-request the pixel a few times; generous burst, light
 // sustained rate per IP just to blunt a flood.
@@ -38,6 +47,15 @@ export const Route = createFileRoute("/api/public/nl-open")({
         try {
           if (limiter.check(rateLimitIpSubject(request.headers), Date.now())) {
             const url = new URL(request.url);
+            const m = url.searchParams.get("m");
+            const messageId = m ? verifyJourneyMessageToken(m) : null;
+            if (messageId) {
+              await recordJourneyMessageEvent({
+                messageId,
+                kind: "open",
+                machine: isMailProxyUserAgent(request.headers.get("user-agent")),
+              });
+            }
             const c = url.searchParams.get("c");
             const s = url.searchParams.get("s");
             const subscriberId = c ? verifyTrackingToken(c, s) : null;

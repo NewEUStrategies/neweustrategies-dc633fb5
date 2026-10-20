@@ -52,6 +52,7 @@ interface FakeState {
     status: string;
     error_message: string | null;
     tenant_id: string | null;
+    provider_message_id?: string | null;
   }[];
   /** Aktywne blokady: adres -> powód. */
   suppressed: Record<string, string>;
@@ -116,6 +117,7 @@ function fakeClient(state: FakeState) {
             // i asercja „każdy wiersz niesie kolumnę" niżej nie miałaby czego
             // złapać. Produkcyjny `logSend` zawsze pisze klucz wprost.
             tenant_id: row.tenant_id as string | null,
+            provider_message_id: row.provider_message_id as string | null,
           });
           return { error: null };
         },
@@ -220,6 +222,25 @@ describe("drainEmailQueues - ścieżka podstawowa", () => {
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
     expect(state.log.filter((r) => r.status === "sent")).toHaveLength(1);
     expect(state.deleted).toEqual([{ queue: "transactional_emails", msgId: 1 }]);
+  });
+
+  // S5: webhook odbicia/skargi wiadomości 1:1 (ścieżki) znajduje najemcę po
+  // identyfikatorze dostawcy - bez niego `email_apply_delivery_event` nie ma
+  // czego dopasować. Reply-To z ustawień ścieżek idzie do dostawcy.
+  it("wiersz 'sent' niesie identyfikator dostawcy; Reply-To z ładunku do wysyłki", async () => {
+    const state = makeState({
+      queues: { transactional_emails: [txMessage({ reply_to: "redakcja@nes.example" })] },
+    });
+    await drainEmailQueues(fakeClient(state), { maxMessages: 10 });
+
+    expect(state.log.find((r) => r.status === "sent")?.provider_message_id).toBe("provider-1");
+    expect(sendEmailMock.mock.calls[0][0]).toMatchObject({ replyTo: "redakcja@nes.example" });
+  });
+
+  it("bez Reply-To w ładunku dostawca dostaje null", async () => {
+    const state = makeState({ queues: { transactional_emails: [txMessage()] } });
+    await drainEmailQueues(fakeClient(state), { maxMessages: 10 });
+    expect(sendEmailMock.mock.calls[0][0]).toMatchObject({ replyTo: null });
   });
 
   it("nie robi nic, gdy żaden dostawca nie jest skonfigurowany", async () => {

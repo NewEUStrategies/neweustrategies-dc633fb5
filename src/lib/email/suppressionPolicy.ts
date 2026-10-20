@@ -233,6 +233,12 @@ const RAW_LABEL_CATEGORY: Readonly<Record<string, EmailCategory>> = {
   digest_daily: "bulk",
   digest_weekly: "bulk",
   newsletter_campaign: "bulk",
+  // Ścieżki komunikacji (S5): marketing to wysyłka za zgodą (wypis ją
+  // zatrzymuje); usługa z podstawą prawną i test na żywo admina - poczta 1:1,
+  // którą zatrzymują wyłącznie blokady techniczne (twarde odbicie, skarga).
+  journey: "bulk",
+  journey_service: "transactional",
+  journey_test: "transactional",
   // Maile autoryzacyjne (magic link, reset hasła, zmiana adresu, zaproszenie):
   // odbiorca właśnie o nie poprosił i bez nich nie wejdzie na konto.
   auth_magic_link: "transactional",

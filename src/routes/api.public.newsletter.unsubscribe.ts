@@ -15,6 +15,15 @@
 // /email/unsubscribe (`email_unsubscribe_by_token`): status subskrybenta i
 // blokada `unsubscribe` w tenancie subskrybenta powstają w JEDNEJ transakcji
 // albo wcale.
+//
+// ŚCIEŻKI KOMUNIKACJI (S5): ten sam adres przyjmuje token wypisu maila ścieżki
+// (`j` + `message_id` + podpis HMAC z prefiksem `ju:`). Przechodzi przez tę
+// samą stronę i ten sam limiter co token subskrybenta, ale idzie do
+// `journey_record_message_event(…, 'unsubscribe')`: zgoda leada wycofana
+// z wpisem w księdze, subskrybent wypisany istniejącym RPC (blokada
+// `unsubscribe`), aktywne zapisy MARKETINGOWE kontaktu kończą się powodem
+// `unsubscribed`. Token trackingu (`jm:`) tu NIE działa - wyciek piksela nie
+// wypisze odbiorcy.
 import { createFileRoute } from "@tanstack/react-router";
 import { NEWSLETTER_UNSUBSCRIBE_PAGE_PATH } from "@/lib/newsletter/unsubscribeUrl";
 
@@ -152,6 +161,14 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
           if (token) target.searchParams.set("token", token);
           return Response.redirect(target.toString(), 303);
         }
+        const { isJourneyUnsubscribeToken, verifyJourneyUnsubscribeToken } =
+          await import("@/lib/newsletter/trackingToken.server");
+        if (isJourneyUnsubscribeToken(token)) {
+          // Walidacja kształtu i podpisu - bez dostępu do bazy (GET nie mutuje).
+          return verifyJourneyUnsubscribeToken(token)
+            ? Response.json({ ok: true, already: false })
+            : Response.json({ ok: false, error: "not_found" }, { status: 404 });
+        }
         if (!isValidUnsubToken(token)) {
           return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
         }
@@ -177,6 +194,25 @@ export const Route = createFileRoute("/api/public/newsletter/unsubscribe")({
       },
       POST: async ({ request }) => {
         const { token, oneClick } = await readUnsubscribePost(request);
+        const { isJourneyUnsubscribeToken, verifyJourneyUnsubscribeToken } =
+          await import("@/lib/newsletter/trackingToken.server");
+        if (isJourneyUnsubscribeToken(token)) {
+          const messageId = verifyJourneyUnsubscribeToken(token);
+          if (!messageId) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+          if (!(await passesRateLimit(request, oneClick))) {
+            return Response.json({ ok: false, error: "rate_limited" }, { status: 429 });
+          }
+          const { recordJourneyMessageEvent } = await import("@/lib/journeys/tracking.server");
+          const result = await recordJourneyMessageEvent({ messageId, kind: "unsubscribe" });
+          if (!result.ok) {
+            // 500 (nie cichy sukces) każe bramce pocztowej ponowić wypis.
+            console.error("[newsletter.unsubscribe] journey unsubscribe failed", result.error);
+            return Response.json({ ok: false, error: "update_failed" }, { status: 500 });
+          }
+          if (!result.known)
+            return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+          return Response.json(result.recorded ? { ok: true } : { ok: true, already: true });
+        }
         if (!isValidUnsubToken(token)) {
           return Response.json({ ok: false, error: "invalid_token" }, { status: 400 });
         }
