@@ -1,5 +1,12 @@
 # Roadmap
 
+## Weryfikacja PR #527
+
+- [ ] Potwierdzić integrację wszystkich commitów i dokładny zakres dostawy PR #527.
+- [ ] Sprawdzić rzeczywiste obiekty, kolumny, uprawnienia i rejestry bazy; zastosować brakujące migracje przez narzędzie wdrożeniowe.
+- [ ] Uruchomić testy zakresowe i sprawdzić zalogowane raporty; potwierdzić aktualny stan kompilacji.
+- [ ] Opublikować dostarczony zakres PR #527 i zweryfikować wynik publikacji.
+
 ## Weryfikacja PR #520
 
 - [x] Potwierdzić integrację wszystkich commitów PR #520: merge cb7a18dff zawiera 21 commitów gałęzi (17 nie-merge), drzewo identyczne z końcem gałęzi 4549a6f19; merge jest przodkiem HEAD.
