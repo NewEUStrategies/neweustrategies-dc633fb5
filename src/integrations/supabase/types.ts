@@ -24309,6 +24309,8 @@ export type Database = {
           id: string | null
           last_activity_at: string | null
           last_name: string | null
+          lifecycle_changed_at: string | null
+          lifecycle_stage: string | null
           linkedin_url: string | null
           marketing_consent: boolean | null
           newsletter_status: string | null
@@ -24321,6 +24323,7 @@ export type Database = {
           score_breakdown: Json | null
           score_updated_at: string | null
           source_count: number | null
+          source_type: string | null
           stage: Database["public"]["Enums"]["crm_stage"] | null
           tags: string[] | null
           tenant_id: string | null
@@ -25930,6 +25933,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_revenue_net: {
+        Args: {
+          p_event_id: string
+          p_since: string
+          p_tenant: string
+          p_until: string
+        }
+        Returns: {
+          conv_id: string
+          currency: string
+          kind: string
+          net_minor: number
+          order_id: string
+        }[]
+      }
       _event_rsvp_claim_paid_seat: {
         Args: { p_order_id: string }
         Returns: Json
@@ -26444,6 +26462,47 @@ export type Database = {
       _require_server_probe: {
         Args: { p_probe_subject: string; p_tenant: string }
         Returns: undefined
+      }
+      _revenue_movements: {
+        Args: {
+          p_segment?: string
+          p_since: string
+          p_tenant: string
+          p_until: string
+        }
+        Returns: {
+          amount_minor: number
+          currency: string
+          kind: string
+          movements: number
+          subscriptions: number
+        }[]
+      }
+      _revenue_mrr_at: {
+        Args: {
+          p_at: string
+          p_segment?: string
+          p_segment_at?: string
+          p_tenant: string
+        }
+        Returns: {
+          active_customers: number
+          active_subscriptions: number
+          currency: string
+          mrr_minor: number
+          seats: number
+        }[]
+      }
+      _revenue_realized: {
+        Args: { p_since: string; p_tenant: string; p_until: string }
+        Returns: {
+          category: string
+          currency: string
+          documents: number
+          gross_minor: number
+          net_minor: number
+          refunds_minor: number
+        }[]
       }
       _set_request_identity: {
         Args: { p_claims: string; p_role: string; p_sub: string }
@@ -27116,6 +27175,10 @@ export type Database = {
           p_expected_updated_at: string
           p_status: string
         }
+        Returns: Json
+      }
+      admin_crm_set_lifecycle_stage: {
+        Args: { p_lead_id: string; p_stage: string }
         Returns: Json
       }
       admin_dashboard_audience: {
@@ -29847,6 +29910,10 @@ export type Database = {
         Args: { p_since: string; p_until: string }
         Returns: Json
       }
+      admin_revenue_clubs_summary: {
+        Args: { p_since: string; p_until: string }
+        Returns: Json
+      }
       admin_revenue_cohorts: {
         Args: { p_from_month: string; p_to_month: string }
         Returns: Json
@@ -29856,14 +29923,14 @@ export type Database = {
         Returns: Json
       }
       admin_revenue_economics: {
-        Args: {
-          p_from_month: string
-          p_time_zone?: string
-          p_to_month: string
-        }
+        Args: { p_from_month: string; p_time_zone?: string; p_to_month: string }
         Returns: Json
       }
       admin_revenue_email_health: {
+        Args: { p_since: string; p_until: string }
+        Returns: Json
+      }
+      admin_revenue_events_summary: {
         Args: { p_since: string; p_until: string }
         Returns: Json
       }
@@ -30048,6 +30115,24 @@ export type Database = {
       }
       b64url_decode: { Args: { p_value: string }; Returns: string }
       b64url_encode: { Args: { p_value: string }; Returns: string }
+      billing_catalog_entry: {
+        Args: { p_price_id: string }
+        Returns: {
+          billing_interval: string
+          legacy: boolean
+          one_time: boolean
+          per_seat: boolean
+          price_id: string
+          product_id: string
+          rank: number
+          tier_key: string
+          volume_tiered: boolean
+        }[]
+      }
+      billing_months_per_interval: {
+        Args: { p_count: number; p_interval: string }
+        Returns: number
+      }
       billing_probe_rotate_token: { Args: never; Returns: string }
       billing_probe_status: {
         Args: { p_since: string; p_subscription_id: string; p_token: string }
@@ -32027,6 +32112,15 @@ export type Database = {
         Returns: undefined
       }
       crm_scoring_default_weights: { Args: never; Returns: Json }
+      crm_set_lifecycle_stage: {
+        Args: {
+          p_allow_backward?: boolean
+          p_lead_id: string
+          p_source: string
+          p_stage: string
+        }
+        Returns: Json
+      }
       crm_set_merydian_secret: {
         Args: { _kind: string; _plaintext: string }
         Returns: undefined
@@ -34258,6 +34352,10 @@ export type Database = {
         }
         Returns: Json
       }
+      newsletter_subscriber_list_set: {
+        Args: { p_list_key: string; p_op: string; p_subscriber_id: string }
+        Returns: Json
+      }
       normalize_public_host: { Args: { p_raw: string }; Returns: string }
       notification_actor_name: { Args: { p_user_id: string }; Returns: string }
       notification_profile_ref: { Args: { p_user_id: string }; Returns: string }
@@ -35244,6 +35342,25 @@ export type Database = {
       }
       sms_send_log_prune: { Args: { p_limit?: number }; Returns: number }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
+      subscription_mrr_minor: {
+        Args: {
+          p_at?: string
+          p_currency: string
+          p_discount_ends_at: string
+          p_discount_minor: number
+          p_price_id: string
+          p_quantity: number
+          p_tenant: string
+          p_unit_amount_minor: number
+        }
+        Returns: {
+          basis: string
+          billing_interval: string
+          currency: string
+          mrr_minor: number
+          tier_key: string
+        }[]
+      }
       sync_org_verification: { Args: { p_user_id: string }; Returns: Json }
       telemetry_retention_prune: { Args: { p_limit?: number }; Returns: Json }
       tenant_id_for_public_host: { Args: { p_host: string }; Returns: string }
