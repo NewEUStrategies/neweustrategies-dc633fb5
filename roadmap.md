@@ -2,9 +2,9 @@
 
 ## Weryfikacja PR #527
 
-- [ ] Potwierdzić integrację wszystkich commitów i dokładny zakres dostawy PR #527.
-- [ ] Sprawdzić rzeczywiste obiekty, kolumny, uprawnienia i rejestry bazy; zastosować brakujące migracje przez narzędzie wdrożeniowe.
-- [ ] Uruchomić testy zakresowe i sprawdzić zalogowane raporty; potwierdzić aktualny stan kompilacji.
+- [x] Potwierdzić integrację wszystkich commitów PR #527: merge f149a004a zawiera 27 commitów gałęzi (26 nie-merge), drzewo identyczne z końcem 7ca1f086b, merge jest przodkiem HEAD. Dostawa S2/S4 i wcześniejszych fundamentów; S3 wyłącznie jako niewdrożone patche, S5/S7/S8/I9 poza zakresem PR.
+- [x] Zastosować istniejące oczekujące migracje Drizzle 0330-0345 przez narzędzie wdrożeniowe (0346 komentarz potwierdzenia); drugi rejestr uzupełniony po sukcesie. Kontrakt: 1724 obiekty, zero braków, 765 kolumn, zero nowych braków i 7 historycznych rozbieżności; rejestr 404/404, pasy 347 wpisów zgodne (22 historyczne braki kopii poza PR). Treść 40 funkcji zgodna z plikami PR; 9 wyzwalaczy aktywnych, granty sprawdzone.
+- [x] Testy: 52 pliki, 1585 przechodzi, 1 oczekiwany błąd; formatowanie czyste, build OK. Zalogowane MRR/Społeczność/Dane wejściowe wyświetlają świadomą zapowiedź następnych etapów, bez błędów JavaScript: raporty nie są jeszcze gotowymi ekranami. Testów pgTAP na bazie produkcyjnej nie uruchamiano.
 - [ ] Opublikować dostarczony zakres PR #527 i zweryfikować wynik publikacji.
 
 ## Weryfikacja PR #520
