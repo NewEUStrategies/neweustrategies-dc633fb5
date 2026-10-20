@@ -32428,6 +32428,10 @@ export type Database = {
       }
       email_queue_depth: { Args: never; Returns: Json }
       email_queue_dispatch: { Args: never; Returns: undefined }
+      email_queue_send_recheck: {
+        Args: { p_idempotency_key: string; p_label: string }
+        Returns: string
+      }
       email_record_suppression: {
         Args: {
           p_campaign?: string

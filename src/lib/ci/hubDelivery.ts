@@ -262,6 +262,14 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["_hub_account_erase", "I9", "internal"],
   ["_hub_account_erase_orphans", "I9", "internal"],
   ["tg_auth_users_hub_erasure", "I9", "trigger"],
+  // (I9c, 2026-10-20) RODO po usunięciu konta - domknięcia po A2 (Z-I9b-11
+  // i poczta w kolejce): autorzy, recenzenci i dane własne konta w modułach
+  // spoza huba, anulowanie poczty konta w kolejce i pytanie drenu przed
+  // wysyłką (service_role) - ten sam punkt wejścia `_hub_account_erase`.
+  ["_hub_account_bound_email_labels", "I9", "internal"],
+  ["_hub_account_erase_modules", "I9", "internal"],
+  ["_hub_account_erase_mail_queue", "I9", "internal"],
+  ["email_queue_send_recheck", "I9", "service"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -862,6 +870,12 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/analytics/semantic/benchmarks/{index,sources}.ts",
     "src/lib/analytics/semantic/benchmarks/groups/funnel.server.ts",
     "src/lib/analytics/semantic/benchmarks/__tests__/{registry,i18nParity,metricMap}.test.ts",
+    // (I9c, 2026-10-20) RODO po usunięciu konta - domknięcia po A2: lista
+    // poczty związanej z kontem albo zapisem (lustro SQL, parytet), dren
+    // pytający bazę przed wysyłką, testy drenu i pgTAP domknięć.
+    "src/lib/email/{queueDrain.server,suppressionPolicy}.ts",
+    "src/lib/email/__tests__/{queueDrainAccountBound,accountBoundLabelsParity,emailLogTenantBoundary}.test.ts",
+    "supabase/tests/hub_i9c_*_test.sql",
   ],
 };
 

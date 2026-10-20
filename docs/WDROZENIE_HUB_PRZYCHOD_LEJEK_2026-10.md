@@ -2512,7 +2512,10 @@ fast-forward albo scalenie bez przepisywania historii. Układ sekcji:
   Z-S6-14), limit tagu (Z-S5-02) - §21.10-21.14;
 - **krok C** (integracja części B, bramki, push): §21.15; tabela decyzji
   I9b zbiorczo - §21.16; wdrożenie migracji I9b - §21.17; co zostaje dla
-  właściciela - §21.18.
+  właściciela - §21.18;
+- **I9c-X1** (polecenie właściciela „ok rozumiem, optymalizuj”): domknięcia
+  po A2 - kolumny autora w modułach spoza huba (Z-I9b-11) i poczta
+  w kolejce po usunięciu konta (Z-I9b-17) - §21.20.
 
 **Zasada nadrzędna decyzji cennikowych:** obietnica v6.2 to MINIMUM.
 Migracja nigdy nie odbiera istniejącym klientom uprawnień (brak obniżek
@@ -2774,24 +2777,25 @@ usunięć, czego RODO nie dopuszcza bez innej anonimizacji).
 
 ### 21.7 Zgłoszenia I9b
 
-| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                    |
-| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                            |
-| Z-I9b-03 | `paywall_hits.user_id` (S3, I0 DDL) nie ma klucza obcego - po usunięciu konta zostaje surowy uid w wierszach lejka. Poza księgą MRR (decyzja RODO dotyczy księgi), wpływa na historię lejka: do decyzji właściciela/IOD (usunięcie wierszy konta albo pseudonim jak `visitor_hash`). **Zamknięte 2026-10-20 (§21.9, polecenie właściciela „zastosuj”): pseudonim zastępczy konta (losowy UUID v8, bez mapowania) - liczniki lejka zamkniętych okresów bez zmian.**                                                                        |
-| Z-I9b-04 | `domain_events` trzymają `user_id` i `subscription_id` w ładunkach przez 90 dni (`prune_domain_events`) - po redakcji księgi nie łączą się z nią, ale same są danymi osobowymi do 90 dni po usunięciu konta (szyna sprzed huba). **Zamknięte 2026-10-20 (§21.9): zdarzenia osoby i ich kopie redagowane przy usunięciu konta (nowy id, pseudonim, biała lista kluczy), nieprzetworzone pominięte; retencja 90 dni bez zmian.**                                                                                                            |
-| Z-I9b-05 | IOD: potwierdzenie podstawy i retencji zanonimizowanej księgi (§21.2) przy aktualizacji rejestru czynności - w repozytorium brak rejestru. **Zamknięte 2026-10-20 (§21.9): administrator danych zatwierdził podstawę i retencję („zastosuj”); rejestr czynności huba - `docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`, do wiadomości IOD.**                                                                                                                                                                                                 |
-| Z-I9b-06 | Webhook operatora z ilością miejsc > 20 dla Zespołu: odmowa i log zamiast synchronizacji - jeśli klient kupi > 20 miejsc u operatora, admin przenosi organizację na Enterprise (alert w panelu). Opcja: alert diagnostyki S7.                                                                                                                                                                                                                                                                                                             |
-| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9. **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                      |
-| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                     |
-| Z-I9b-09 | Profil właściciela organizacji (`/profile/organization`, poza panelem admina): `setTeamSeatLimit` odrzuca > 20 miejsc Zespołu (`orgs: team seats max`), a profil pokazuje ogólny błąd zmiany - opcja: ten sam komunikat z sugestią Enterprise (słownik profilu, budżet `public`).                                                                                                                                                                                                                                                         |
-| Z-I9b-10 | IOD: retencja danych żywych kont i kontaktów nieustalona w repozytorium (`paywall_hits`, `metering_event_log`, `crm_leads` bez źródła poza kontem, `email_send_log`, `journey_message_events`, `audit_log`) - propozycja okresów i zadań czyszczących w harmonogramie panelu (rejestr czynności, §21.9).                                                                                                                                                                                                                                  |
-| Z-I9b-11 | Kolumny autora w modułach, do których hub nie pisze: `club_applications.reviewed_by` (zmiana wymaga wycinka S4 - znacznik `pg-harness: exclude`) i `event_registrations.paid_amount_recorded_by` - zostaje uid usuniętego konta personelu (§21.9).                                                                                                                                                                                                                                                                                        |
-| Z-I9b-12 | Bliźniak drizzle `20261020160800_crm_tag_limit_shared` (następny wolny numer `0366`) i wpis `_journal.json` - krok C (`check:migration-lanes`, `supabaseLaneCoverage`). **Zamknięte 2026-10-20 (§21.15): `0366_crm_tag_limit_shared`, idx 366.**                                                                                                                                                                                                                                                                                          |
-| Z-I9b-13 | Z-S2-01: trzy kroki wizualne w trybie testowym Stripe (panel, logi, portal z powodami - po Z-S2-11) przy wdrożeniu S2 (§21.11 B4, §21.16).                                                                                                                                                                                                                                                                                                                                                                                                |
-| Z-I9b-14 | Snapshot autoryzacji nie rozwija `is_admin_or_editor` (nie jest w `ROLE_ALIAS_ANY`), więc raporty personelu z odczytem flag warstw mają `bypassRoles: []` - opcjonalnie: alias w generatorze (zmienia snapshot wielu funkcji; decyzja poza I9b).                                                                                                                                                                                                                                                                                          |
-| Z-I9b-15 | Import CSV leadów: tag dłuższy niż 64 znaki odrzuca cały import walidatorem serwera (jak dotąd przy 40) - opcjonalnie: komunikat w dialogu importu przed wysłaniem.                                                                                                                                                                                                                                                                                                                                                                       |
-| Z-I9b-16 | Budżet `overall`: 5003,2 > 5003 po części B (+313 B, linia okna kasy przy biletach - Z-S3-07); baza `d7efcba5` stoi na progu (5003,0). **Bloker (krok C, §21.15):** ratchet D-08 5003 → 5005 zablokowany przez system uprawnień jako obejście CI (w części B i w kroku C), zmiana wycofana; scalenie i push części B wstrzymane. Decyzja właściciela: zezwolenie na ratchet (wpis kroniki gotowy w §21.15) albo cięcie kodu panelu ≥ 0,3 KB gzip. **Zamknięte 2026-10-20 (§21.19): ratchet wykonany przez orkiestratora, push części B.** |
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9b-01 | Bliźniaki drizzle pięciu migracji `2026102016*` i wpis w `drizzle/migrations/meta/_journal.json` - krok C (`check:migration-lanes`). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                                    |
+| Z-I9b-02 | `types.ts`: `subscription_state_history.price_id_after` NULL-owalne od `20261020160400` - krok C / regeneracja Lovable (żaden kod TS nie czyta tej kolumny). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                            |
+| Z-I9b-03 | `paywall_hits.user_id` (S3, I0 DDL) nie ma klucza obcego - po usunięciu konta zostaje surowy uid w wierszach lejka. Poza księgą MRR (decyzja RODO dotyczy księgi), wpływa na historię lejka: do decyzji właściciela/IOD (usunięcie wierszy konta albo pseudonim jak `visitor_hash`). **Zamknięte 2026-10-20 (§21.9, polecenie właściciela „zastosuj”): pseudonim zastępczy konta (losowy UUID v8, bez mapowania) - liczniki lejka zamkniętych okresów bez zmian.**                                                                                        |
+| Z-I9b-04 | `domain_events` trzymają `user_id` i `subscription_id` w ładunkach przez 90 dni (`prune_domain_events`) - po redakcji księgi nie łączą się z nią, ale same są danymi osobowymi do 90 dni po usunięciu konta (szyna sprzed huba). **Zamknięte 2026-10-20 (§21.9): zdarzenia osoby i ich kopie redagowane przy usunięciu konta (nowy id, pseudonim, biała lista kluczy), nieprzetworzone pominięte; retencja 90 dni bez zmian.**                                                                                                                            |
+| Z-I9b-05 | IOD: potwierdzenie podstawy i retencji zanonimizowanej księgi (§21.2) przy aktualizacji rejestru czynności - w repozytorium brak rejestru. **Zamknięte 2026-10-20 (§21.9): administrator danych zatwierdził podstawę i retencję („zastosuj”); rejestr czynności huba - `docs/RODO_REJESTR_CZYNNOSCI_HUB_2026-10.md`, do wiadomości IOD.**                                                                                                                                                                                                                 |
+| Z-I9b-06 | Webhook operatora z ilością miejsc > 20 dla Zespołu: odmowa i log zamiast synchronizacji - jeśli klient kupi > 20 miejsc u operatora, admin przenosi organizację na Enterprise (alert w panelu). Opcja: alert diagnostyki S7.                                                                                                                                                                                                                                                                                                                             |
+| Z-I9b-07 | `tsgo` na bazie `74a49536` ma 3 błędy w testach S5 (`journeys.functions.test.ts`, `parse.test.ts`) - poza I9b, do naprawy w S8/I9. **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                                      |
+| Z-I9b-08 | `authzSnapshot.generated.ts` - regeneracja (liczniki skanu po pięciu migracjach I9b); plik współdzielony poza CI - przy regeneracji I9 (jak po S2). **Zamknięte 2026-10-20 (§21.8).**                                                                                                                                                                                                                                                                                                                                                                     |
+| Z-I9b-09 | Profil właściciela organizacji (`/profile/organization`, poza panelem admina): `setTeamSeatLimit` odrzuca > 20 miejsc Zespołu (`orgs: team seats max`), a profil pokazuje ogólny błąd zmiany - opcja: ten sam komunikat z sugestią Enterprise (słownik profilu, budżet `public`).                                                                                                                                                                                                                                                                         |
+| Z-I9b-10 | IOD: retencja danych żywych kont i kontaktów nieustalona w repozytorium (`paywall_hits`, `metering_event_log`, `crm_leads` bez źródła poza kontem, `email_send_log`, `journey_message_events`, `audit_log`) - propozycja okresów i zadań czyszczących w harmonogramie panelu (rejestr czynności, §21.9).                                                                                                                                                                                                                                                  |
+| Z-I9b-11 | Kolumny autora w modułach, do których hub nie pisze: `club_applications.reviewed_by` (zmiana wymaga wycinka S4 - znacznik `pg-harness: exclude`) i `event_registrations.paid_amount_recorded_by` - zostaje uid usuniętego konta personelu (§21.9). **Zamknięte 2026-10-20 (I9c, §21.20): obie kolumny i pełny przegląd kolumn autora/osoby bez klucza obcego -> NULL, pseudonim albo usunięcie danych własnych konta tym samym wyzwalaczem A2; domknięcie wstecz.**                                                                                       |
+| Z-I9b-12 | Bliźniak drizzle `20261020160800_crm_tag_limit_shared` (następny wolny numer `0366`) i wpis `_journal.json` - krok C (`check:migration-lanes`, `supabaseLaneCoverage`). **Zamknięte 2026-10-20 (§21.15): `0366_crm_tag_limit_shared`, idx 366.**                                                                                                                                                                                                                                                                                                          |
+| Z-I9b-13 | Z-S2-01: trzy kroki wizualne w trybie testowym Stripe (panel, logi, portal z powodami - po Z-S2-11) przy wdrożeniu S2 (§21.11 B4, §21.16).                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Z-I9b-14 | Snapshot autoryzacji nie rozwija `is_admin_or_editor` (nie jest w `ROLE_ALIAS_ANY`), więc raporty personelu z odczytem flag warstw mają `bypassRoles: []` - opcjonalnie: alias w generatorze (zmienia snapshot wielu funkcji; decyzja poza I9b).                                                                                                                                                                                                                                                                                                          |
+| Z-I9b-15 | Import CSV leadów: tag dłuższy niż 64 znaki odrzuca cały import walidatorem serwera (jak dotąd przy 40) - opcjonalnie: komunikat w dialogu importu przed wysłaniem.                                                                                                                                                                                                                                                                                                                                                                                       |
+| Z-I9b-16 | Budżet `overall`: 5003,2 > 5003 po części B (+313 B, linia okna kasy przy biletach - Z-S3-07); baza `d7efcba5` stoi na progu (5003,0). **Bloker (krok C, §21.15):** ratchet D-08 5003 → 5005 zablokowany przez system uprawnień jako obejście CI (w części B i w kroku C), zmiana wycofana; scalenie i push części B wstrzymane. Decyzja właściciela: zezwolenie na ratchet (wpis kroniki gotowy w §21.15) albo cięcie kodu panelu ≥ 0,3 KB gzip. **Zamknięte 2026-10-20 (§21.19): ratchet wykonany przez orkiestratora, push części B.**                 |
+| Z-I9b-17 | Kolejka poczty po usunięciu konta (zgłoszenie właściciela 2026-10-20): krok ścieżki albo digest wstawiony do kolejki `transactional_emails` przed usunięciem konta wychodzi w najbliższym cyklu drenu (TTL 60 min) - A2 kończy zapis, ale wiadomość w kolejce o tym nie wie; dren nie sprawdzał ponownie zapisu ani zgody. **Zamknięte 2026-10-20 (I9c, §21.20): anulowanie w kolejce przy usunięciu konta (`cancelled:account_deleted`, bez treści i adresu) i pytanie drenu przed wysyłką (`email_queue_send_recheck`); poczta transakcyjna wychodzi.** |
 
 ### 21.8 Integracja części A do PR (orkiestrator, 2026-10-20)
 
@@ -2916,6 +2920,11 @@ obcego do `auth.users` (surowy uid po usunięciu konta).
 Kontrolnie test skanuje KAŻDĄ tabelę bazową `public` z `tenant_id` (nie tylko
 przegląd) - dla konta czytelnika i konta admina ślady zostają wyłącznie
 w kolumnach z listy wyjątków.
+
+**Kolumny autora poza przeglądem i poczta w kolejce (luki po A2).** Przegląd
+A2 obejmował tabele huba i modułów, do których hub pisze - kolumny autora
+w pozostałych modułach (Z-I9b-11) i wiadomość już czekająca w kolejce poczty
+(Z-I9b-17) zostały poza nim. **Zamknięte 2026-10-20 (I9c, §21.20).**
 
 **Wyjątki z podstawą** (lista jawna w teście i w rejestrze czynności):
 kontakt CRM (`crm_leads.email/email_norm`, imię, nazwisko) i jego historia
@@ -3494,8 +3503,9 @@ biletach i wpis `engagement_rate` nie mają stanu w bazie. Anonimizacja
    `welcome_onboarding` i `abandoned_checkout` (§20.9 pkt 7), po I9.
 
 Zgłoszenia otwarte, które wykonuje kolejny wycinek (nie decyzje
-właściciela): Z-I9b-06, Z-I9b-09, Z-I9b-10, Z-I9b-11, Z-I9b-14, Z-I9b-15
-(§21.7).
+właściciela): Z-I9b-06, Z-I9b-09, Z-I9b-10, Z-I9b-14, Z-I9b-15 (§21.7);
+Z-I9b-11 zamknięte w I9c (§21.20). Decyzja administratora danych: Z-I9c-01
+(§21.20).
 
 ### 21.19 Ratchet D-08 `overall` i push części B (orkiestrator, 2026-10-20)
 
@@ -3514,3 +3524,218 @@ zamrożone) - orkiestrator wykonał go sam:
 
 Zapas `overall` po ratchecie: 1,8 KB. Kolejne wycinki z kodem panelu (I9c,
 S8, S7) podnoszą próg tą samą zasadą.
+
+### 21.20 Domknięcia po A2 (I9c-X1)
+
+**Polecenie właściciela 2026-10-20:** „ok rozumiem, optymalizuj” dla obu
+punktów: Z-I9b-11 (uid usuniętego konta personelu w kolumnach autora modułów
+spoza huba) i Z-I9b-17 (poczta w kolejce po usunięciu konta). Wykonanie:
+worktree `/home/user/wt/I9C1`, gałąź `hub/i9c-domkniecia` od `7bc2aafa`
+(gałąź PR po §21.19), praca szeregowa (jedyny aktywny agent).
+
+**1. Kolumny autora, recenzenta i dane własne konta (Z-I9b-11).** A2
+domknęła autorów wyłącznie w tabelach huba i modułów, do których hub pisze.
+Pełny przegląd na bazie po wszystkich migracjach (`information_schema`
+
+- `pg_constraint`): kolumny uuid tabel bazowych `public` bez klucza obcego
+  z ON DELETE SET NULL/CASCADE - 132, z czego 71 pasuje do wzorca autora lub
+  osoby (`*_by`, `*user_id`, `actor_id`, `author_id`, `owner_id`,
+  `reviewer_id`, `assigned_to`, `*_sender` …). Każda trafiła do redakcji albo
+  na listę z uzasadnieniem (tabela niżej). Mechanizm A2 bez nowego wyzwalacza:
+  ten sam punkt wejścia `_hub_account_erase` (wyzwalacz
+  `on_auth_user_deleted_redact_hub` i domknięcie wstecz) woła nową
+  `_hub_account_erase_modules(uid, pseudonim)` - przed redakcją szyny, więc
+  zdarzenia emitowane przez te zmiany też są redagowane:
+
+* autor, recenzent, opiekun -> NULL (wiersz, decyzja i kwota zostają);
+* kolumna NOT NULL i dzienniki rozliczalności (zadanie importu, dziennik
+  zmian ról - aktor i cel, cel moderacji członka klubu) -> ten sam pseudonim
+  konta (UUID v8) co w lejku, szynie i `audit_log`;
+* dane własne konta bez klucza obcego -> usunięte (jak kaskada, której tym
+  tabelom brakowało); obserwacje USUWANEGO autora przez innych też;
+* historia czytania -> pseudonim (popularność treści i analityka członków
+  liczą konta po `user_id` - NULL zgubiłby odczyty zamkniętych okresów, jak
+  lejek w A2);
+* powiadomienia INNYCH osób z uid konta w `meta` (np. „X zaczął Cię
+  obserwować” - imię w tytule, odnośnik do profilu, którego nie ma) ->
+  usunięte; własne powiadomienia konta zabiera kaskada;
+* `crm_leads.owner_id` zerowany w tej samej instrukcji co `user_id` (A2), więc
+  emitowane `crm_lead.updated.v1` jest pomijane w skrzynce ścieżek
+  i dostawach tak samo;
+* `user_invitations`: wyzwalacz `user_invitations_pin_admin_columns_bu`
+  przywraca `invited_by`/`auth_user_id` każdemu poza service_role i adminem,
+  a usunięcie konta biegnie bez sesji (GoTrue) - na czas jednej instrukcji
+  tożsamość żądania = service_role (`_set_request_identity`), potem wraca;
+* `payment_webhook_events.user_id`: redakcję
+  `payment_webhook_events_redact_for_user` (20261013090100) woła tylko
+  aplikacja przy zamknięciu konta (`accountClosure.server`) - usunięcie konta
+  poza aplikacją (panel operatora bazy, CLI) ją omijało; wyzwalacz domyka to
+  samo (powtórka po aplikacji - 0 wierszy).
+
+`event_cfp_reviews.reviewer_id` NIE jest uid: wskazuje wiersz
+`event_cfp_reviewers` (klucz złożony, kaskada z konta) - poza redakcją.
+
+**UI („konto usunięte”).** Sprawdzone: skrzynka zgłoszeń klubów pokazuje
+tylko `reviewed_at`, a `event_registrations.paid_amount_recorded_by` jest
+kolumną prywatną (20261013900600), której klient nie czyta - żaden ekran nie
+pokazuje autora tych dwóch kolumn, więc napisu nie trzeba. Panele, które
+pokazują autora innych kolumn z przeglądu (historia ustawień witryny,
+rewizje treści), już dziś pokazują „-” albo „Nieznany autor”, gdy profilu
+nie ma - po I9c tak samo (profilu usuniętego konta i tak nie było).
+
+| Moduł                        | Kolumna                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Przed I9c                              | Po I9c                                     | Dowód (sweep, nr asercji)  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------ | -------------------------- |
+| Kluby, wydarzenia (Z-I9b-11) | `club_applications.reviewed_by`, `event_registrations.paid_amount_recorded_by`                                                                                                                                                                                                                                                                                                                                                                                                                                                              | **surowy uid**                         | NULL; status, czas decyzji i kwota zostają | 20, 24, 25, 29, 36         |
+| Kreator i CMS                | `builder_experiments`, `builder_global_widgets`, `builder_popups`, `builder_revisions`, `builder_template_revisions` (`created_by`), `content_revisions.author_id`, `pages.author_id`, `post_changelog`, `post_preview_tokens`, `post_sidebar_layouts` (`created_by`), `post_layout_settings.updated_by`, `live_blog_entries`, `media_folders`, `redirects`, `legal_document_versions`, `verification_domains`, `event_home_ads` (`created_by`), `site_design_tokens`, `site_settings` (`updated_by`), `site_settings_revisions.changed_by` | **surowy uid**                         | NULL                                       | 20, 24, 28, 29             |
+| Konta i zgłoszenia           | `profiles.verified_by`, `user_invitations.invited_by`, `user_invitations.auth_user_id`, `user_reports.resolved_by`                                                                                                                                                                                                                                                                                                                                                                                                                          | **surowy uid**                         | NULL (weryfikacja i zaproszenie zostają)   | 24, 28, 29                 |
+| CRM, kontakt, rekrutacja     | `crm_leads.owner_id`, `contact_messages.assigned_to`, `career_application_events.actor_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                  | **surowy uid**                         | NULL                                       | 24, 28, 29                 |
+| Zadania, czat                | `command_idempotency.actor_id`, `job_runner_runs.actor_id`, `conversations.last_message_sender`                                                                                                                                                                                                                                                                                                                                                                                                                                             | **surowy uid**                         | NULL                                       | 24, 29                     |
+| Rozliczalność                | `wp_import_jobs.actor_id` (NOT NULL), `role_audit_log.actor_id`, `role_audit_log.target_user_id` (NOT NULL), `club_moderation_log.target_id` (cel `member`)                                                                                                                                                                                                                                                                                                                                                                                 | **surowy uid**                         | pseudonim konta v8                         | 24, 26, 29                 |
+| Dane własne konta            | `user_bookmarks`, `user_read_later`, `user_notes`, `user_todos`, `saved_searches`, `saved_views`, `notification_push_queue`, `user_follows` (`user_id` i cel `author`)                                                                                                                                                                                                                                                                                                                                                                      | **surowy uid** (wiersze zostawały)     | wiersze usunięte                           | 24, 27, 29                 |
+| Historia czytania            | `user_read_history.user_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | **surowy uid**                         | pseudonim konta v8                         | 24, 26, 29                 |
+| Powiadomienia innych osób    | `notifications.meta` (uid aktora)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **surowy uid**, imię w tytule          | wiersze usunięte                           | 20, 24                     |
+| Webhooki operatora           | `payment_webhook_events.user_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | NULL tylko przy zamknięciu w aplikacji | NULL także przy usunięciu poza aplikacją   | 20, 24, 29                 |
+| Księga MRR                   | `dunning_cycles`, `mrr_movements`, `subscription_state_history` (`user_id`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | redakcja `160400`                      | bez zmian                                  | 29; `ledger_erasure`       |
+| Dokumenty sprzedaży          | `billing_documents.user_id`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | wyjątek księgowy                       | bez zmian (wyjątek)                        | 29; `accounting_retention` |
+| Zgłoszenie do klubu osoby    | `club_applications.user_id` (NOT NULL, z danymi zgłoszenia)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | **surowy uid**                         | bez zmian - **Z-I9c-01**                   | 29 (jawna lista)           |
+
+Test `hub_i9b_account_erasure_sweep_test` (40 asercji, było 33): konto
+admina i konto REDAKTORA z wierszem w każdej kolumnie z tabeli (asercja 20 -
+fikstura), po usunięciu skan KAŻDEJ tabeli `public` z `tenant_id` nie
+znajduje uid ani e-maila poza wyjątkami z podstawą prawną (24 - lista
+wyjątków bez zmian: kontakt CRM, newsletter, rejestr zgód; żadna kolumna
+autora), a asercja 29 pilnuje kompletności przeglądu - każda kolumna uuid
+wzorca autora lub osoby bez klucza obcego jest redagowana albo stoi na
+jawnej liście z uzasadnieniem (nowa kolumna bez klasyfikacji = czerwień).
+
+**2. Poczta w kolejce po usunięciu konta (Z-I9b-17).** Kolejka
+`transactional_emails` (pgmq) rozróżnia pocztę po etykiecie (`label`
+-> `emailCategoryForLabel`) i po kluczu idempotencji producenta. Poczta
+związana z kontem albo zapisem - jedna lista w SQL
+(`_hub_account_bound_email_labels()`) i TS (`ACCOUNT_BOUND_EMAIL_LABELS`,
+parytet `accountBoundLabelsParity.test.ts`): kroki ścieżek `journey`
+(marketing), `journey_service`, `journey_test` (klucz
+`journey:<zapis>:<węzeł>`) i digest `digest_daily`/`digest_weekly` (klucz
+`digest:<częstotliwość>:<uid>:<dzień>`). Poza listą - wychodzą: poczta
+transakcyjna (potwierdzenia, rozliczenia, dokumenty, bilety, autoryzacja),
+potwierdzenie newslettera (zgoda niezależna od konta) i zaproszenie do
+ankiety wydarzenia (podstawa związana ze zgłoszeniem na wydarzenie;
+zatrzymuje je wypis z listy wykluczeń). Kampanie newslettera nie idą kolejką
+(wysyłka bezpośrednia do subskrybentów w chwili porcji; subskrypcja jest
+wyjątkiem niezależnym od konta).
+
+- **Warstwa 1 - przy usunięciu** (`_hub_account_erase_mail_queue`, wołana
+  z `_hub_account_erase` PRZED odcięciem CRM i wyjściem ze ścieżek, bo
+  rozpoznaje zapisy konta po `user_id`): gdy dziennik ma wiadomość tej osoby
+  w toku (`pending` bez stanu końcowego, etykieta z listy, adres konta albo
+  kontaktu CRM jego zapisów), jeden odczyt kolejki API pgmq (`read` z czasem
+  niewidzialności 0 - nic nie chowa przed drenem, do 1000 wiadomości),
+  usunięcie wiadomości z kluczem zapisu KONTA albo digestu konta. Dziennik:
+  wpis `suppressed` z powodem `cancelled:account_deleted`, adres każdego
+  wpisu tej wiadomości -> `[redacted]` (kolumna NOT NULL), najemca z wpisu
+  `pending`. Krok ścieżki kontaktu CRM bez konta (A2: osobna czynność CRM)
+  i poczta transakcyjna zostają.
+- **Warstwa 2 - dren przed wysyłką** (`email_queue_send_recheck(etykieta,
+klucz)`, tylko service_role; `queueDrain.server.ts` po liście wykluczeń):
+  zapis musi istnieć (`skipped:enrollment_missing`) i nie być `exited`
+  (`skipped:exited:<powód>` - usunięcie konta, wypis linkiem, wyjście
+  ręczne), krok marketingowy - mieć zgodę (`_journey_marketing_consent`:
+  `skipped:unsubscribed`/`skipped:no_consent` - wypis w trakcie cyklu),
+  digest - konto (`skipped:account_deleted`) i włączony digest tej
+  częstotliwości (`skipped:digest_disabled`). Werdykt trafia do dziennika
+  jako `suppressed` z tym powodem (przy werdykcie usuniętego konta odbiorca
+  `[redacted]`, jak w warstwie 1), wiadomość znika z kolejki; awaria
+  zapytania = bez wysyłki i bez kasowania (wraca po czasie niewidzialności,
+  TTL ją zamyka). Usługa ścieżki z podstawą prawną nie pyta o zgodę
+  marketingową.
+- **Panel:** `/admin/newsletter/outbox` (Skrzynka wysyłek) pokazuje każdą
+  anulowaną i pominiętą wiadomość ze statusem „Zablokowana”, powodem
+  (`cancelled:account_deleted`, `skipped:…` - kody jak dotychczasowe
+  `suppressed:…`) i odbiorcą `[redacted]` dla anulowanych przy usunięciu.
+
+Dowód: `hub_i9c_account_erasure_mail_queue_test` (16 asercji: lista = lustro
+TS; po usunięciu kroki ścieżki konta - marketing i usługa - i digest konta
+anulowane, transakcyjna, potwierdzenie newslettera, kontakt CRM bez konta
+i cudzy digest zostają; dziennik bez adresu; powtórka 0; werdykty drenu po
+usunięciu, po wyłączeniu digestu, po wypisie w trakcie cyklu, dla usługi,
+zapisu usuniętego i klucza spoza konwencji; ACL),
+`queueDrainAccountBound.test.ts` (7: wypis w trakcie cyklu, usunięcie konta -
+ścieżka usługowa i digest, transakcyjna wychodzi bez pytania także po
+wypisie, zgoda obowiązuje - wysyłka, lista wykluczeń przed pytaniem, awaria
+bazy - odłożenie, zakres etykiet), `accountBoundLabelsParity.test.ts` (6).
+
+**Zgłoszenia I9c.**
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Z-I9c-01 | Decyzja administratora danych: zgłoszenie osoby do klubu (`club_applications.user_id`, NOT NULL, z imieniem, e-mailem i motywacją) zostaje z uid po usunięciu konta - usunięcie zgłoszenia albo wyjątek jak kontakt CRM (podstawa do wpisania w rejestrze). Asercja 29 trzyma kolumnę na jawnej liście do czasu decyzji. |
+| Z-I9c-02 | Opcjonalnie: czytelne etykiety PL/EN powodów pominięcia w Skrzynce wysyłek (`cancelled:account_deleted`, `skipped:…`, także dotychczasowe `suppressed:…`) - dziś panel pokazuje kody.                                                                                                                                    |
+| Z-I9c-03 | Wiadomo: zerowanie autora przesuwa `updated_at` wierszy z wyzwalaczem `set_updated_at`/`_tg_touch_updated_at` (np. `pages`, `legal_document_versions`, `event_registrations`, `club_applications`) na chwilę usunięcia konta - treść bez zmian, bez nowej rewizji (migawki powstają tylko przy zmianie treści).          |
+
+**Migracja i bliźniak.**
+
+| Migracja                                          | Bliźniak                                | Zawartość                                                                                                                                                                                                                                                    |
+| ------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `20261020160900_account_erasure_staff_mail_queue` | `0367_account_erasure_staff_mail_queue` | `_hub_account_bound_email_labels`, `_hub_account_erase_modules`, `_hub_account_erase_mail_queue`, `email_queue_send_recheck` (service_role); redefinicje `_hub_account_erase` i `_hub_account_erase_orphans` (`CIALO-Z: 20261020160700`) + domknięcie wstecz |
+
+Bliźniak bajt w bajt (`cmp`), wpis `meta/_journal.json` idx 367, `when`
+1792477633912 (+60 000). Następny wolny numer: **0368**, wersja
+`20261020161000`. Znacznik `pg-harness: exclude` (migracja dotyka
+`public.club_*` razem z modułami spoza atrapy harnessu klubów). Pliki
+współdzielone (I9): `hubDelivery.ts` (4 funkcje w rejestrze i manifest I9
+„(I9c, 2026-10-20)”), `types.ts` (`email_queue_send_recheck`),
+`authzSnapshot.generated.ts` (liczniki skanu 1293 → 1294 migracje, 1787 →
+1791 funkcji), `_journal.json`; lista `hub_grants` w `hub_shared_helpers_test`.
+
+**Wdrożenie (właściciel).** Po `20261020160800` (całe I9b), razem z frontem
+(kod drenu woła `email_queue_send_recheck`; stary dren bez niego działa jak
+dotąd, nowy dren bez migracji odkłada pocztę ścieżek i digest - wdrożyć
+razem). Zero DDL tabel; plik idempotentny. Skutek dla danych produkcyjnych:
+domknięcie wstecz (`_hub_account_erase_orphans`, raz na osierocone konto -
+uid v4 nieobecny w `auth.users` w kolumnach z tabeli wyżej) zeruje autorów
+i recenzentów kont usuniętych wcześniej, usuwa ich dane własne
+i powiadomienia innych osób z ich uid, historię czytania przepina na
+pseudonim, a dla kont usuniętych poza aplikacją redaguje dziennik webhooków.
+Czas: jeden przebieg tabel z przeglądu na osierocone konto (nocą). Kontrola
+po wdrożeniu (SQL editor, tylko odczyt):
+
+```sql
+-- Autorzy i recenzenci kont nieistniejących - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.club_applications a
+         WHERE a.reviewed_by IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = a.reviewed_by))
+     + (SELECT count(*) FROM public.event_registrations r
+         WHERE r.paid_amount_recorded_by IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = r.paid_amount_recorded_by))
+     + (SELECT count(*) FROM public.pages p
+         WHERE p.author_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = p.author_id)) AS autorzy;
+-- Dane własne kont nieistniejących - oczekiwane 0.
+SELECT (SELECT count(*) FROM public.user_bookmarks b WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = b.user_id))
+     + (SELECT count(*) FROM public.user_notes n WHERE NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = n.user_id)) AS dane_wlasne;
+-- Poczta anulowana przy usunięciu konta i pominięta przez dren (informacyjnie).
+SELECT error_message, count(*) FROM public.email_send_log
+ WHERE error_message = 'cancelled:account_deleted' OR error_message LIKE 'skipped:%'
+ GROUP BY 1 ORDER BY 2 DESC;
+```
+
+Wycofanie: redakcja jest nieodwracalna z założenia; zatrzymanie nowych
+domknięć = nowa migracja z ciałem `_hub_account_erase` z `20261020160700`
+(bez modułów i kolejki). Dren bez warstwy 2 = wycofanie zmiany
+`queueDrain.server.ts` (funkcja w bazie zostaje nieużywana).
+
+**Bramki I9c-X1** (worktree `/home/user/wt/I9C1`, po kolei, pamięć 16 GB):
+
+| Polecenie                                                                                                                                                                                                                                                                                                                                                          | Wynik                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx prettier --write` (zmienione pliki), `bun run format:check`                                                                                                                                                                                                                                                                                                  | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run verify:static` (18 bramek: `migration-lanes` 368 wpisów dziennika, `rpc-contract`, `on-conflict-arbiters`, `sql-anon-insert`, `sql-app-role`, `sql-definer-views`, `sql-migration-replay` 1294 pliki, `sql-owner-tenant-scope`, `sql-policy-tenant-regression`, `sql-tenant-scope` 1791 funkcji, `ts-sql-contract --check`, `types-freshness` baseline 7) | ✓                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `GOMEMLIMIT=11GiB GOGC=50 bunx tsgo --noEmit --checkers 1`, `typecheck:scripts`, `typecheck:e2e`                                                                                                                                                                                                                                                                   | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `tsgo --noEmit` z domyślnymi checkerami, zawężony (`tsconfig.i9c.tmp.json`, 8 zmienionych plików TS + deklaracje)                                                                                                                                                                                                                                                  | ✓ 0 błędów                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `bunx eslint` (zmienione pliki)                                                                                                                                                                                                                                                                                                                                    | ✓ 0 błędów, 0 ostrzeżeń                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `vitest --maxWorkers=3`: `src/lib/{email,ci,authz}`, `jobsTickRun`, trasa drenu `platform/email/queue`                                                                                                                                                                                                                                                             | ✓ 108 plików, 2978 testów (+1 oczekiwana porażka)                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `scripts/split-migration.ts --dry-run`                                                                                                                                                                                                                                                                                                                             | ✓ 42,1 KB, 1 część (limit 45 KiB)                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| pgTAP `run.sh all` (pełny)                                                                                                                                                                                                                                                                                                                                         | ✓ 245 plików OK; 4 czerwone - wyłącznie znane błędy środowiska: `community_cron_schedule` (2 asercje pg_net), `job_scheduler_heartbeat` (1 asercja pg_net), `profile_intent_semantic` (vector), `public_definer_views_read_only` (1/35); migracje: wyłącznie znany błąd `20260825230232`. `hub_i9b_account_erasure_sweep` 40/40, nowy `hub_i9c_account_erasure_mail_queue` 16/16, `hub_shared_helpers` 27/27, `accounting_retention`, `hub_i9b_revenue_ledger_erasure` i `journeys_*` zielone |
+| `generate:ts-sql-contract` + `run.sh test ts_sql_contract`                                                                                                                                                                                                                                                                                                         | ✓ 9 asercji (`email_queue_send_recheck` w kontrakcie, wołany z `queueDrain.server.ts`)                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `flock … bun run check:pg-harness`                                                                                                                                                                                                                                                                                                                                 | ✓ 106 migracji, 5 pominiętych znacznikiem (w tym `20261020160900`), 504 asercje runtime                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `generate:authz-snapshot` i `--check`                                                                                                                                                                                                                                                                                                                              | ✓ (liczniki: 1294 migracje, 1791 funkcji)                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `scripts/hub-slice-guard.ts I9 --base 7bc2aafa`                                                                                                                                                                                                                                                                                                                    | ✓ diff w manifeście; 1 plik w bloku I9, 6 definicji funkcji                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `flock … bun run build` + `check:bundle`, `check:chunks`, `check:entry-purity`, `check:server-entry-purity`                                                                                                                                                                                                                                                        | ✓ `overall` 5002,9 / 5005 (bez ratchetu), `public` 2777,8 / 2881, css 99,7 / 100, `publicCss` 83,8 / 85, chunk 257,8 / 286, `boot` 471,6 / 579 - zmiana wyłącznie w kodzie serwera                                                                                                                                                                                                                                                                                                            |

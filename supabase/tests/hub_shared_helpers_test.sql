@@ -86,7 +86,8 @@ SELECT is_empty(
         AND has_function_privilege(r, p.oid, 'EXECUTE')
         AND p.proname = ANY (ARRAY[
           '_crm_source_type_rank', '_domain_events_erase_account', '_event_revenue_net',
-          '_funnel_counts', '_funnel_erase_account', '_hub_account_erase', '_hub_account_erase_orphans',
+          '_funnel_counts', '_funnel_erase_account', '_hub_account_bound_email_labels', '_hub_account_erase',
+          '_hub_account_erase_mail_queue', '_hub_account_erase_modules', '_hub_account_erase_orphans',
           '_hub_erasure_payload', '_hub_erasure_surrogate', '_hub_erasure_text', '_journey_edge',
           '_journey_enroll', '_journey_eval_predicate', '_journey_exec_action',
           '_journey_marketing_consent', '_journey_message_id', '_journey_next_time', '_journey_node',
@@ -102,7 +103,7 @@ SELECT is_empty(
           '_revenue_ledger_redact_subscription', '_revenue_movements', '_revenue_mrr_at',
           '_revenue_realized', '_revenue_segments_recompute', '_tier_rank_of',
           'billing_catalog_entry',
-          'billing_months_per_interval', 'crm_set_lifecycle_stage', 'journey_advance',
+          'billing_months_per_interval', 'crm_set_lifecycle_stage', 'email_queue_send_recheck', 'journey_advance',
           'journey_can_send', 'journey_claim_due', 'journey_complete_email_step',
           'journey_contact_for_send', 'journey_eval_predicate', 'journey_fail_step',
           'journey_ingest_inbox', 'journey_purge', 'journey_record_message_event',

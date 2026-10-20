@@ -176,6 +176,9 @@ function klientDrenu(kolejka: Record<string, unknown>[]) {
     // dotyczył ZAPISU najemcy, a nie samego rozstrzygania.
     if (fn === "email_resolve_tenant_for_address") return { data: NAJEMCA_A, error: null };
     if (fn === "email_filter_suppressed") return { data: [], error: null };
+    // Digest to poczta związana z kontem (I9c-X1): dren pyta bazę, czy konto
+    // i digest nadal obowiązują. Tu obowiązują - test dotyczy najemcy wpisu.
+    if (fn === "email_queue_send_recheck") return { data: "ok", error: null };
     throw new Error(`test: dren zawołał nieprzewidziane RPC ${fn}`);
   };
 

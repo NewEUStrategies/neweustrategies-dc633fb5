@@ -34,11 +34,21 @@
 //     nadaniem a drenem mogło dojść twarde odbicie albo skarga, a wtedy
 //     wysłanie tej wiadomości byłoby dokładnie tym sygnałem, którym psuje się
 //     reputację domeny.
+//   * ZAPIS I ZGODA (I9c-X1): poczta związana z kontem albo zapisem (kroki
+//     ścieżek, digest) przed wysyłką pyta bazę, czy zapis i zgoda nadal
+//     obowiązują i czy konto istnieje - wypis albo usunięcie konta w trakcie
+//     cyklu zatrzymuje wiadomość, a transakcyjnej nie dotyczy.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { emailProviderConfigured, sendEmail } from "./provider.server";
 import { checkSendAllowed } from "./suppression.server";
-import { emailCategoryForLabel, suppressionSkipReason } from "./suppressionPolicy";
+import {
+  REDACTED_RECIPIENT,
+  emailCategoryForLabel,
+  isAccountBoundEmailLabel,
+  isAccountDeletedVerdict,
+  suppressionSkipReason,
+} from "./suppressionPolicy";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -385,6 +395,33 @@ async function alreadySent(admin: DbClient, messageId: string): Promise<boolean>
   return Boolean(data);
 }
 
+/**
+ * Werdykt bazy dla poczty związanej z kontem albo zapisem
+ * (`email_queue_send_recheck`, migracja 20261020160900): `"ok"` albo powód
+ * pominięcia (`skipped:…`), który trafia wprost do dziennika wysyłek.
+ * `null` = brak odpowiedzi (błąd zapytania) - wiadomość czeka na kolejny cykl.
+ */
+async function recheckAccountBound(
+  admin: DbClient,
+  label: string,
+  idempotencyKey: unknown,
+): Promise<string | null> {
+  try {
+    const { data, error } = await rpcClient(admin).rpc("email_queue_send_recheck", {
+      p_label: label,
+      p_idempotency_key: nullableText(idempotencyKey),
+    });
+    if (error) {
+      console.error("[email-queue] account-bound recheck failed", label, error.message);
+      return null;
+    }
+    return typeof data === "string" && data.length > 0 ? data.slice(0, 200) : null;
+  } catch (err) {
+    console.error("[email-queue] account-bound recheck threw", label, err);
+    return null;
+  }
+}
+
 async function startCooldown(admin: DbClient, seconds: number): Promise<void> {
   const until = new Date(Date.now() + Math.max(1, seconds) * 1000).toISOString();
   const { error } = await admin
@@ -511,6 +548,36 @@ export async function drainEmailQueues(
         await deleteMessage(admin, queue, msg.msgId);
         result.suppressed += 1;
         continue;
+      }
+
+      // OBRONA W GŁĄB (I9c-X1): poczta związana z kontem albo zapisem (kroki
+      // ścieżek, digest). Lista wykluczeń nie wie, że zapis na ścieżkę się
+      // skończył (usunięcie konta, wypis linkiem, wyjście ręczne), że zgoda
+      // marketingowa wygasła albo że konta już nie ma - baza wie. Usunięcie
+      // konta wyjmuje takie wiadomości z kolejki samo; to pytanie łapie te,
+      // których tamten odczyt nie widział (w locie), i wypis w trakcie cyklu.
+      if (isAccountBoundEmailLabel(label)) {
+        const verdict = await recheckAccountBound(admin, label, payload.idempotency_key);
+        if (verdict === null) {
+          // Bez odpowiedzi bazy nie wysyłamy i nie kasujemy: wiadomość wraca
+          // po czasie niewidzialności, a TTL zamyka ją, gdyby awaria trwała.
+          continue;
+        }
+        if (verdict !== "ok") {
+          await logSend(admin, {
+            messageId,
+            label,
+            // Konto usunięte: wpis zatrzymania nie dopisuje jego adresu do
+            // dziennika (jak anulowanie przy usunięciu, migracja 160900).
+            to: isAccountDeletedVerdict(verdict) ? REDACTED_RECIPIENT : to,
+            status: "suppressed",
+            error: verdict,
+            tenantId: gate.tenantId,
+          });
+          await deleteMessage(admin, queue, msg.msgId);
+          result.suppressed += 1;
+          continue;
+        }
       }
 
       const sendResult = await sendEmail({

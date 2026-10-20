@@ -2570,6 +2570,13 @@
       "when": 1792477573912,
       "tag": "0366_crm_tag_limit_shared",
       "breakpoints": true
+    },
+    {
+      "idx": 367,
+      "version": "7",
+      "when": 1792477633912,
+      "tag": "0367_account_erasure_staff_mail_queue",
+      "breakpoints": true
     }
   ]
 }

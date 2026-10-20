@@ -24,11 +24,20 @@
 --     nie wraca do skrzynki;
 --   * dane innej osoby nietknięte; konto personelu (autor konfiguracji,
 --     aktor audytu); domknięcie wstecz i druga runda 0; ACL; wyzwalacz
---     AFTER DELETE na `auth.users`.
+--     AFTER DELETE na `auth.users`;
+--   * I9c-X1 (20261020160900, Z-I9b-11): konta personelu - ADMIN i REDAKTOR -
+--     z wierszem w KAŻDEJ kolumnie autora/recenzenta modułów spoza huba
+--     (zgłoszenia do klubów, kwoty wpłat za wydarzenia, kreator, CMS,
+--     zaproszenia, zgłoszenia, CRM, kontakt, rekrutacja, import, dziennik
+--     ról, moderacja) i w danych własnych konta; po usunięciu skan KAŻDEJ
+--     tabeli `public` z `tenant_id` nie znajduje uid ani e-maila poza
+--     wyjątkami z podstawą prawną (kontakt CRM); przegląd kolumn wzorca
+--     autora bez klucza obcego jest kompletny (nowa kolumna = czerwień,
+--     dopóki nie trafi do redakcji albo na listę z uzasadnieniem).
 --
 -- Uruchamianie: PGTAP_DIR=... PGTAP_PORT=... bash scripts/pgtap-local/run.sh test hub_i9b_account_erasure_sweep
 BEGIN;
-SELECT plan(33);
+SELECT plan(40);
 
 -- ── Fikstura ─────────────────────────────────────────────────────────────────
 ALTER TABLE auth.users DISABLE TRIGGER USER;
@@ -41,20 +50,23 @@ VALUES ('19b50000-0000-4000-8000-0000000000a1', 'i9b-sweep', 'I9b Sweep', true);
 SELECT public.seed_membership_tiers('19b50000-0000-4000-8000-0000000000a1');
 
 -- U - czytelnik usuwany; K - czytelnik zostający; A - admin usuwany na końcu;
--- B - admin zostający (wykonuje nadanie).
+-- B - admin zostający (wykonuje nadanie); R - redaktor usuwany razem z A (I9c).
 INSERT INTO auth.users (id, email) VALUES
   ('19b50000-0000-4000-8000-00000000d001', 'usuwana@i9b-sweep.test'),
   ('19b50000-0000-4000-8000-00000000d002', 'zostaje@i9b-sweep.test'),
   ('19b50000-0000-4000-8000-00000000d003', 'admin-usuwany@i9b-sweep.test'),
-  ('19b50000-0000-4000-8000-00000000d004', 'admin-zostaje@i9b-sweep.test');
+  ('19b50000-0000-4000-8000-00000000d004', 'admin-zostaje@i9b-sweep.test'),
+  ('19b50000-0000-4000-8000-00000000d007', 'redaktor-usuwany@i9b-sweep.test');
 INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('19b50000-0000-4000-8000-00000000d001', 'usuwana@i9b-sweep.test', 'Usuwana Osoba', '19b50000-0000-4000-8000-0000000000a1'),
   ('19b50000-0000-4000-8000-00000000d002', 'zostaje@i9b-sweep.test', 'Zostaje', '19b50000-0000-4000-8000-0000000000a1'),
   ('19b50000-0000-4000-8000-00000000d003', 'admin-usuwany@i9b-sweep.test', 'Admin Usuwany', '19b50000-0000-4000-8000-0000000000a1'),
-  ('19b50000-0000-4000-8000-00000000d004', 'admin-zostaje@i9b-sweep.test', 'Admin Zostaje', '19b50000-0000-4000-8000-0000000000a1');
+  ('19b50000-0000-4000-8000-00000000d004', 'admin-zostaje@i9b-sweep.test', 'Admin Zostaje', '19b50000-0000-4000-8000-0000000000a1'),
+  ('19b50000-0000-4000-8000-00000000d007', 'redaktor-usuwany@i9b-sweep.test', 'Redaktor Usuwany', '19b50000-0000-4000-8000-0000000000a1');
 INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('19b50000-0000-4000-8000-00000000d003', 'admin', '19b50000-0000-4000-8000-0000000000a1'),
-  ('19b50000-0000-4000-8000-00000000d004', 'admin', '19b50000-0000-4000-8000-0000000000a1');
+  ('19b50000-0000-4000-8000-00000000d004', 'admin', '19b50000-0000-4000-8000-0000000000a1'),
+  ('19b50000-0000-4000-8000-00000000d007', 'editor', '19b50000-0000-4000-8000-0000000000a1');
 
 -- Lead konta z wyzwalacza profilu (S4) - asekuracja, gdyby wyzwalacza nie było.
 INSERT INTO public.crm_leads (tenant_id, email, email_norm, user_id)
@@ -488,7 +500,128 @@ SELECT ok(
   'dane osoby zostającej nietknięte (lejek, szyna, CRM, księga)');
 
 -- ── Konto personelu ──────────────────────────────────────────────────────────
-DELETE FROM auth.users WHERE id = '19b50000-0000-4000-8000-00000000d003';
+-- I9c-X1: ślady personelu w modułach spoza huba - ta sama funkcja dla admina
+-- A i redaktora R (wiersz w każdej kolumnie z przeglądu 20261020160900).
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at)
+VALUES ('19b50000-0000-4000-8000-0000000000c1', '19b50000-0000-4000-8000-0000000000a1', 'i9c-sweep-event',
+        'Wydarzenie', 'Event', now() + interval '10 days');
+INSERT INTO public.clubs (id, tenant_id, slug, name_pl, name_en)
+VALUES ('19b50000-0000-4000-8000-0000000000c2', '19b50000-0000-4000-8000-0000000000a1', 'i9c-sweep-klub',
+        'Klub I9c', 'Club I9c');
+INSERT INTO public.builder_templates (id, tenant_id, name, data)
+VALUES ('19b50000-0000-4000-8000-0000000000c3', '19b50000-0000-4000-8000-0000000000a1', 'Szablon', '{}');
+INSERT INTO public.contact_messages (id, tenant_id, name, email, message, form_type)
+VALUES ('19b50000-0000-4000-8000-0000000000c4', '19b50000-0000-4000-8000-0000000000a1', 'Kandydat',
+        'kandydat@i9b-sweep.test', 'CV', 'career');
+INSERT INTO public.career_applications (id, tenant_id, message_id)
+VALUES ('19b50000-0000-4000-8000-0000000000c5', '19b50000-0000-4000-8000-0000000000a1',
+        '19b50000-0000-4000-8000-0000000000c4');
+
+CREATE FUNCTION pg_temp.staff_traces(p_staff uuid, p_tag text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  t constant uuid := '19b50000-0000-4000-8000-0000000000a1';
+  k constant uuid := '19b50000-0000-4000-8000-00000000d002';
+  b constant uuid := '19b50000-0000-4000-8000-00000000d004';
+  p constant uuid := '19b50000-0000-4000-8000-0000000000e1';
+  v_person uuid := gen_random_uuid();
+BEGIN
+  -- Z-I9b-11: decyzja o zgłoszeniu do klubu i zapisana kwota wpłaty.
+  INSERT INTO public.club_applications (tenant_id, user_id, specialization_slug, first_name, email, club_id,
+                                        status, reviewed_by, reviewed_at)
+  VALUES (t, k, 'energy', 'Zostaje', 'zostaje@i9b-sweep.test', '19b50000-0000-4000-8000-0000000000c2',
+          'accepted', p_staff, now());
+  INSERT INTO public.event_people (id, tenant_id, first_name, last_name) VALUES (v_person, t, 'Uczestnik', p_tag);
+  INSERT INTO public.event_registrations (tenant_id, event_id, person_id, registration_mode, paid_amount_cents,
+                                          paid_amount_currency, paid_amount_recorded_at, paid_amount_recorded_by)
+  VALUES (t, '19b50000-0000-4000-8000-0000000000c1', v_person, 'form', 5000, 'PLN', now(), p_staff);
+  -- Kreator i CMS.
+  INSERT INTO public.builder_experiments (tenant_id, name, created_by) VALUES (t, 'Eksperyment ' || p_tag, p_staff);
+  INSERT INTO public.builder_global_widgets (tenant_id, name, data, created_by) VALUES (t, 'Widżet ' || p_tag, '{}', p_staff);
+  INSERT INTO public.builder_popups (tenant_id, name, created_by) VALUES (t, 'Popup ' || p_tag, p_staff);
+  INSERT INTO public.builder_revisions (tenant_id, entity_type, entity_id, name, data, created_by)
+  VALUES (t, 'popup', gen_random_uuid(), 'Rewizja ' || p_tag, '{}', p_staff);
+  INSERT INTO public.builder_template_revisions (tenant_id, template_id, data, name, created_by)
+  VALUES (t, '19b50000-0000-4000-8000-0000000000c3', '{}', 'Rewizja ' || p_tag, p_staff);
+  INSERT INTO public.content_revisions (tenant_id, entity_type, entity_id, snapshot, author_id) VALUES (t, 'post', p, '{}', p_staff);
+  INSERT INTO public.pages (tenant_id, slug, author_id) VALUES (t, 'i9c-strona-' || p_tag, p_staff);
+  INSERT INTO public.post_changelog (tenant_id, post_id, note_pl, created_by) VALUES (t, p, 'Zmiana ' || p_tag, p_staff);
+  INSERT INTO public.post_preview_tokens (tenant_id, post_id, token, expires_at, created_by)
+  VALUES (t, p, 'i9c-podglad-' || p_tag, now() + interval '1 day', p_staff);
+  INSERT INTO public.post_sidebar_layouts (tenant_id, name, created_by) VALUES (t, 'Panel ' || p_tag, p_staff);
+  INSERT INTO public.live_blog_entries (tenant_id, post_id, block_id, created_by) VALUES (t, p, 'blok-' || p_tag, p_staff);
+  INSERT INTO public.media_folders (tenant_id, path, created_by) VALUES (t, '/i9c-' || p_tag || '/', p_staff);
+  INSERT INTO public.redirects (tenant_id, source_path, target_path, created_by)
+  VALUES (t, '/stary-' || p_tag, '/nowy-' || p_tag, p_staff);
+  INSERT INTO public.legal_document_versions (tenant_id, doc_key, label, content, created_by)
+  VALUES (t, 'terms', 'Wersja ' || p_tag, '{}', p_staff);
+  INSERT INTO public.site_settings (tenant_id, key, value, updated_by) VALUES (t, 'i9c_' || p_tag, '{}', p_staff);
+  INSERT INTO public.site_settings_revisions (tenant_id, key, value, changed_by) VALUES (t, 'i9c_' || p_tag, '{}', p_staff);
+  INSERT INTO public.verification_domains (tenant_id, domain, created_by) VALUES (t, 'i9c-' || p_tag || '.example', p_staff);
+  INSERT INTO public.event_home_ads (tenant_id, event_id, image_url, created_by)
+  VALUES (t, '19b50000-0000-4000-8000-0000000000c1', 'https://cdn.example/' || p_tag || '.png', p_staff);
+  -- Konta, zgłoszenia, CRM, kontakt, rekrutacja, zadania, czat.
+  UPDATE public.profiles SET verified_at = now(), verified_by = p_staff WHERE id = k;
+  INSERT INTO public.user_invitations (tenant_id, email, invited_by) VALUES (t, 'zaproszony-' || p_tag || '@i9b-sweep.test', p_staff);
+  INSERT INTO public.user_invitations (tenant_id, email, invited_by, auth_user_id)
+  VALUES (t, 'personel-' || p_tag || '@i9b-sweep.test', b, p_staff);
+  INSERT INTO public.user_reports (tenant_id, reporter_id, reported_id, reason, status, resolved_by, resolved_at)
+  VALUES (t, k, b, 'spam', 'resolved', p_staff, now());
+  INSERT INTO public.contact_messages (tenant_id, name, email, message, assigned_to)
+  VALUES (t, 'Pytanie', 'pyta@i9b-sweep.test', 'Treść', p_staff);
+  INSERT INTO public.career_application_events (tenant_id, application_id, to_stage, actor_id)
+  VALUES (t, '19b50000-0000-4000-8000-0000000000c5', 'screening', p_staff);
+  INSERT INTO public.command_idempotency (tenant_id, idempotency_key, command, actor_id) VALUES (t, 'i9c-' || p_tag, 'test', p_staff);
+  INSERT INTO public.job_runner_runs (source, ok, tenant_id, actor_id) VALUES ('admin', true, t, p_staff);
+  INSERT INTO public.conversations (tenant_id, kind, created_by, last_message_sender) VALUES (t, 'group', b, p_staff);
+  -- Webhook operatora z kontem (usunięcie poza aplikacją omijało redakcję).
+  INSERT INTO public.payment_webhook_events (tenant_id, event_id, event_type, environment, user_id, payload)
+  VALUES (t, 'evt_i9c_' || p_tag, 'customer.updated', 'live', p_staff,
+          jsonb_build_object('userId', p_staff, 'email', 'personel-' || p_tag || '@i9b-sweep.test'));
+  UPDATE public.crm_leads SET owner_id = p_staff WHERE tenant_id = t AND email_norm = 'zostaje@i9b-sweep.test';
+  -- Rozliczalność: import, zmiana ról (aktor i cel), moderacja członka.
+  INSERT INTO public.wp_import_jobs (tenant_id, actor_id, site) VALUES (t, p_staff, 'https://wp.example');
+  INSERT INTO public.role_audit_log (tenant_id, actor_id, target_user_id, old_roles, new_roles) VALUES (t, p_staff, k, '{}', '{editor}');
+  INSERT INTO public.role_audit_log (tenant_id, actor_id, target_user_id, old_roles, new_roles) VALUES (t, b, p_staff, '{}', '{editor}');
+  INSERT INTO public.club_moderation_log (tenant_id, club_id, moderator_id, action, target_type, target_id)
+  VALUES (t, '19b50000-0000-4000-8000-0000000000c2', b, 'ban', 'member', p_staff);
+  -- Dane własne konta (obserwacja autora B wysyła B powiadomienie z uid).
+  INSERT INTO public.user_bookmarks (tenant_id, user_id, entity_type, entity_id) VALUES (t, p_staff, 'post', p);
+  INSERT INTO public.user_read_later (tenant_id, user_id, entity_type, entity_id) VALUES (t, p_staff, 'post', p);
+  INSERT INTO public.user_notes (tenant_id, user_id, entity_type, entity_id) VALUES (t, p_staff, 'post', p);
+  INSERT INTO public.user_todos (tenant_id, user_id, title) VALUES (t, p_staff, 'Zadanie ' || p_tag);
+  INSERT INTO public.saved_searches (tenant_id, user_id, name) VALUES (t, p_staff, 'Wyszukiwanie ' || p_tag);
+  INSERT INTO public.saved_views (tenant_id, user_id, entity, name) VALUES (t, p_staff, 'lead', 'Widok ' || p_tag);
+  INSERT INTO public.notification_push_queue (tenant_id, user_id, payload) VALUES (t, p_staff, '{}');
+  INSERT INTO public.user_follows (tenant_id, user_id, target_type, target_id) VALUES (t, p_staff, 'author', b);
+  INSERT INTO public.user_follows (tenant_id, user_id, target_type, target_id) VALUES (t, k, 'author', p_staff);
+  INSERT INTO public.user_read_history (tenant_id, user_id, post_id) VALUES (t, p_staff, p);
+END $$;
+SELECT pg_temp.staff_traces('19b50000-0000-4000-8000-00000000d003', 'a');
+SELECT pg_temp.staff_traces('19b50000-0000-4000-8000-00000000d007', 'r');
+-- Wiersze jednego na najemcę: po jednym autorze.
+INSERT INTO public.post_layout_settings (tenant_id, updated_by)
+VALUES ('19b50000-0000-4000-8000-0000000000a1', '19b50000-0000-4000-8000-00000000d003');
+INSERT INTO public.site_design_tokens (tenant_id, updated_by)
+VALUES ('19b50000-0000-4000-8000-0000000000a1', '19b50000-0000-4000-8000-00000000d007');
+
+CREATE FUNCTION pg_temp.staff_needles() RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
+  SELECT ARRAY['19b50000-0000-4000-8000-00000000d003', 'admin-usuwany@i9b-sweep.test',
+               '19b50000-0000-4000-8000-00000000d007', 'redaktor-usuwany@i9b-sweep.test']
+$$;
+
+-- I9c-1. Fikstura: ślady obu kont personelu są w kolumnach z przeglądu I9c.
+SELECT ok(
+  (SELECT bool_and(strpos(pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1', pg_temp.staff_needles(), '{}', true),
+                          t) > 0)
+     FROM unnest(ARRAY['club_applications.reviewed_by', 'event_registrations.paid_amount_recorded_by',
+                       'builder_revisions.created_by', 'pages.author_id', 'profiles.verified_by',
+                       'user_invitations.invited_by', 'user_invitations.auth_user_id', 'crm_leads.owner_id',
+                       'role_audit_log.target_user_id', 'club_moderation_log.target_id', 'notifications.meta',
+                       'user_read_history.user_id', 'user_follows.target_id', 'site_design_tokens.updated_by',
+                       'post_layout_settings.updated_by', 'payment_webhook_events.user_id']) t),
+  'I9c fikstura: uid admina i redaktora są w kolumnach autora modułów, w danych własnych i w powiadomieniach innych osób');
+
+DELETE FROM auth.users WHERE id IN ('19b50000-0000-4000-8000-00000000d003', '19b50000-0000-4000-8000-00000000d007');
 
 -- 15. Autor konfiguracji huba -> NULL, wiersze zostają.
 SELECT ok(
@@ -521,9 +654,104 @@ SELECT ok(
   'konto personelu: powiązania z notatki zostają bez autora');
 
 SELECT is(
-  pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1',
-                ARRAY['19b50000-0000-4000-8000-00000000d003', 'admin-usuwany@i9b-sweep.test'], pg_temp.exceptions(), true),
-  NULL, 'konto personelu: uid i e-mail nie występują w żadnej tabeli public z tenant_id (poza wyjątkami)');
+  pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1', pg_temp.staff_needles(), pg_temp.exceptions(), true),
+  NULL, 'konto personelu (admin i redaktor): uid i e-mail nie występują w żadnej tabeli public z tenant_id (poza wyjątkami)');
+
+-- I9c-2. Z-I9b-11: decyzja i kwota zostają, autor znika.
+SELECT ok(
+  (SELECT count(*) = 2 AND bool_and(reviewed_by IS NULL AND status = 'accepted' AND reviewed_at IS NOT NULL)
+     FROM public.club_applications WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND (SELECT count(*) = 2 AND bool_and(paid_amount_recorded_by IS NULL AND paid_amount_cents = 5000
+                                        AND paid_amount_currency = 'PLN' AND paid_amount_recorded_at IS NOT NULL)
+         FROM public.event_registrations WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'),
+  'Z-I9b-11: zgłoszenie do klubu (status, czas decyzji) i kwota wpłaty zostają, reviewed_by i paid_amount_recorded_by -> NULL');
+
+-- I9c-3. Rozliczalność: jeden pseudonim v8 na konto; dane własne usunięte.
+SELECT ok(
+  (SELECT count(DISTINCT actor_id) = 2 AND bool_and(substr(actor_id::text, 15, 1) = '8')
+     FROM public.wp_import_jobs WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND (SELECT bool_and(substr(target_user_id::text, 15, 1) = '8') FROM public.role_audit_log
+        WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'
+          AND actor_id = '19b50000-0000-4000-8000-00000000d004')
+  AND (SELECT bool_and(substr(target_id::text, 15, 1) = '8') FROM public.club_moderation_log
+        WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1' AND target_type = 'member')
+  -- Ten sam pseudonim konta w imporcie i w dzienniku ról (aktor).
+  AND (SELECT count(*) = 2 FROM public.wp_import_jobs w JOIN public.role_audit_log r ON r.actor_id = w.actor_id
+        WHERE w.tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND (SELECT count(*) = 2 AND bool_and(substr(user_id::text, 15, 1) = '8') FROM public.user_read_history
+        WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'),
+  'pseudonim v8 (jeden na konto): zadanie importu, dziennik ról (aktor i cel), cel moderacji, historia czytania');
+
+SELECT ok(
+  NOT EXISTS (SELECT 1 FROM public.user_bookmarks WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.user_read_later WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.user_notes WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.user_todos WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.saved_searches WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.saved_views WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.notification_push_queue WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND NOT EXISTS (SELECT 1 FROM public.user_follows WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'),
+  'dane własne konta (zakładki, notatki, zadania, wyszukiwania, widoki, push, obserwacje w obie strony) usunięte');
+
+SELECT ok(
+  (SELECT count(*) = 2 FROM public.pages WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1'
+      AND slug LIKE 'i9c-strona-%' AND author_id IS NULL)
+  AND (SELECT count(*) = 4 AND bool_and(invited_by IS DISTINCT FROM '19b50000-0000-4000-8000-00000000d003'
+                                        AND auth_user_id IS NULL)
+         FROM public.user_invitations WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND (SELECT verified_at IS NOT NULL AND verified_by IS NULL FROM public.profiles
+        WHERE id = '19b50000-0000-4000-8000-00000000d002')
+  AND (SELECT owner_id IS NULL AND user_id = '19b50000-0000-4000-8000-00000000d002' FROM public.crm_leads
+        WHERE email_norm = 'zostaje@i9b-sweep.test'),
+  'treść, zaproszenia (także przez strażnika kolumn), weryfikacja i lead zostają; autor, konto zaproszone i opiekun -> NULL');
+
+-- I9c-4. Przegląd jest kompletny: każda kolumna uuid wzorca autora/osoby
+-- (`*_by`, `*user_id`, `actor_id`, `author_id`, `owner_id`, … ) tabel
+-- bazowych `public` BEZ klucza obcego jest w redakcji albo na liście
+-- z uzasadnieniem. Nowa kolumna bez klasyfikacji = czerwień.
+SELECT is(
+  (SELECT array_agg(c.table_name || '.' || c.column_name ORDER BY 1)
+     FROM information_schema.columns c
+     JOIN information_schema.tables t
+       ON t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
+    WHERE c.table_schema = 'public' AND c.data_type = 'uuid'
+      AND (c.column_name ~ '_by(_id)?$'
+           OR c.column_name ~ '(^|_)(user|actor|author|reviewer|owner|assignee|moderator|editor|creator|approver|sender|recipient)(_id)?$'
+           OR c.column_name = 'assigned_to')
+      AND NOT EXISTS (
+        SELECT 1 FROM pg_constraint k JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = ANY (k.conkey)
+         WHERE k.contype = 'f' AND k.conrelid = format('public.%I', c.table_name)::regclass AND a.attname = c.column_name)
+      AND NOT (c.table_name || '.' || c.column_name = ANY (ARRAY[
+        -- `_hub_account_erase` (A2) i `_hub_account_erase_modules` (I9c).
+        'audit_log.actor_id', 'builder_experiments.created_by', 'builder_global_widgets.created_by',
+        'builder_popups.created_by', 'builder_revisions.created_by', 'builder_template_revisions.created_by',
+        'career_application_events.actor_id', 'club_applications.reviewed_by', 'command_idempotency.actor_id',
+        'contact_messages.assigned_to', 'content_revisions.author_id', 'conversations.last_message_sender',
+        'crm_lead_notes.author_id', 'crm_lead_stage_history.actor_id', 'crm_leads.owner_id', 'crm_leads.user_id',
+        'cross_references.created_by', 'domain_events.actor_id', 'event_home_ads.created_by',
+        'event_registrations.paid_amount_recorded_by', 'integration_endpoints.created_by', 'job_runner_runs.actor_id',
+        'journey_definitions.created_by', 'journey_definitions.updated_by', 'journey_enrollments.user_id',
+        'journey_event_inbox.actor_id', 'journey_settings.default_task_assignee_id', 'journey_settings.updated_by',
+        'journey_versions.published_by', 'legal_document_versions.created_by', 'live_blog_entries.created_by',
+        'media_folders.created_by', 'metering_event_log.user_id', 'newsletter_settings.updated_by',
+        'newsletter_subscribers.user_id', 'notification_push_queue.user_id', 'pages.author_id', 'paywall_hits.user_id',
+        'post_changelog.created_by', 'post_layout_settings.updated_by', 'post_preview_tokens.created_by',
+        'post_sidebar_layouts.created_by', 'profiles.verified_by', 'redirects.created_by',
+        'revenue_diagnostic_snoozes.created_by', 'revenue_manual_inputs.updated_by', 'role_audit_log.actor_id',
+        'role_audit_log.target_user_id', 'saved_searches.user_id', 'saved_views.user_id', 'site_design_tokens.updated_by',
+        'site_settings.updated_by', 'site_settings_revisions.changed_by', 'user_bookmarks.user_id', 'user_follows.user_id',
+        'user_invitations.auth_user_id', 'user_invitations.invited_by', 'user_notes.user_id', 'user_read_history.user_id',
+        'user_read_later.user_id', 'user_reports.resolved_by', 'user_todos.user_id', 'verification_domains.created_by',
+        'workflow_definitions.created_by', 'wp_import_jobs.actor_id', 'payment_webhook_events.user_id',
+        -- Księga MRR: redakcja 20261020160400 (`_revenue_ledger_redact_subscription`).
+        'dunning_cycles.user_id', 'mrr_movements.user_id', 'subscription_state_history.user_id',
+        -- Wyjątek księgowy z podstawą (rejestr czynności): dokument sprzedaży.
+        'billing_documents.user_id',
+        -- Zgłoszenie Z-I9c-01 (decyzja administratora danych, dziennik §21.20):
+        -- zgłoszenie osoby do klubu z danymi zgłoszenia.
+        'club_applications.user_id']))),
+  NULL,
+  'przegląd kompletny: każda kolumna uuid wzorca autora/osoby bez klucza obcego jest redagowana albo ma uzasadnienie');
 
 -- 16. Audyt: wpis nadania zostaje, aktor (admin B) żyje - nietknięty.
 SELECT results_eq(
@@ -564,6 +792,12 @@ VALUES ('19b50000-0000-4000-8000-0000000000a1', 'paywall', '19b50000-0000-4000-8
         '{"user_id":"19b50000-0000-4000-8000-00000000d006","reason":"paid","customer":"cus_i9b2_old"}',
         '19b50000-0000-4000-8000-00000000d006');
 
+-- I9c: autor strony i zgłoszenia do klubu usunięty „przed I9c".
+INSERT INTO public.pages (tenant_id, slug, author_id)
+VALUES ('19b50000-0000-4000-8000-0000000000a1', 'i9c-strona-dawna', '19b50000-0000-4000-8000-00000000d006');
+UPDATE public.club_applications SET reviewed_by = '19b50000-0000-4000-8000-00000000d006'
+ WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1';
+
 SELECT ok(
   pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1', ARRAY['19b50000-0000-4000-8000-00000000d006'], '{}') IS NOT NULL,
   'wstecz: ślady konta usuniętego przed A2 w lejku, szynie i CRM');
@@ -576,6 +810,13 @@ SELECT ok(
   (SELECT substr(user_id::text, 15, 1) = '8' FROM public.paywall_hits
     WHERE tenant_id = '19b50000-0000-4000-8000-0000000000a1' AND day = (now() AT TIME ZONE 'UTC')::date - 40),
   'wstecz: osierocone uderzenie dostaje pseudonim v8 (konto liczy się dalej raz)');
+SELECT ok(
+  (SELECT author_id IS NULL FROM public.pages WHERE slug = 'i9c-strona-dawna')
+  AND NOT EXISTS (SELECT 1 FROM public.club_applications WHERE reviewed_by IS NOT NULL
+                   AND tenant_id = '19b50000-0000-4000-8000-0000000000a1')
+  AND pg_temp.leaks('19b50000-0000-4000-8000-0000000000a1', ARRAY['19b50000-0000-4000-8000-00000000d006'],
+                    pg_temp.exceptions(), true) IS NULL,
+  'wstecz (I9c): autor strony i recenzent zgłoszenia konta usuniętego wcześniej -> NULL; cała baza bez śladu');
 SELECT is(public._hub_account_erase_orphans(), 0, 'wstecz: druga runda nic nie zmienia');
 
 -- ── Wyzwalacz i ACL ─────────────────────────────────────────────────────────
@@ -595,11 +836,13 @@ SELECT ok(
              'public._hub_erasure_payload(jsonb, uuid, uuid, text)', 'public._hub_erasure_text(text, uuid, text)',
              'public._domain_events_erase_account(uuid, uuid, text)', 'public._journeys_erase_account(uuid, text)',
              'public._hub_account_erase(uuid, uuid, text)', 'public._hub_account_erase_orphans()',
-             'public.tg_auth_users_hub_erasure()']) f,
+             'public.tg_auth_users_hub_erasure()', 'public._hub_account_erase_modules(uuid, uuid)',
+             'public._hub_account_erase_mail_queue(uuid, text)', 'public._hub_account_bound_email_labels()']) f,
            unnest(ARRAY['anon', 'authenticated']) r
      WHERE has_function_privilege(r, f, 'EXECUTE'))
   AND NOT has_function_privilege('service_role', 'public._hub_account_erase(uuid, uuid, text)', 'EXECUTE')
-  AND NOT has_function_privilege('service_role', 'public._hub_account_erase_orphans()', 'EXECUTE'),
+  AND NOT has_function_privilege('service_role', 'public._hub_account_erase_orphans()', 'EXECUTE')
+  AND NOT has_function_privilege('service_role', 'public._hub_account_erase_modules(uuid, uuid)', 'EXECUTE'),
   'acl: redakcja, pseudonim i wyzwalacz bez EXECUTE dla anon i authenticated (wewnętrzne - także service_role)');
 
 SELECT throws_ok(
