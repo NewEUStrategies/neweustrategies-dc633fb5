@@ -98,6 +98,14 @@
 -- (anulowanie ścieżki i digestu, transakcyjne i kontakt CRM bez konta
 -- zostają, dren-recheck po wypisie i po usunięciu, ACL),
 -- src/lib/email/__tests__/queueDrainAccountBound.test.ts.
+--
+-- HARNESS KARIERY: selektor `check:careers-harness` wciąga ten plik przez
+-- jedną wzmiankę `public.career_application_events` (kolumna aktora), a reszta
+-- migracji sięga do powierzchni, których ten harness celowo nie modeluje
+-- (`paywall_hits`, szyna zdarzeń, ścieżki, CRM, kolejka poczty). Pominięcie
+-- jest jawne i widoczne w logu (SKIP); pełny dowód - pgTAP na komplecie
+-- migracji (hub_i9b_account_erasure_sweep_test, hub_i9c_*).
+-- careers-harness: exclude
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
