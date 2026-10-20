@@ -2439,7 +2439,16 @@ const FROZEN_BUDGET_KB = {
   // Progi public 2881, chunk 286 (258,1), css 100 (99,7), publicCss 85
   // (83,8) i boot 579 (471,8) bez zmian i zielone.
   // Host 4994,0 -> 4994 -> +1.
-  overall: 4995,
+  // Korekta 4995 -> 4997 (ten sam wpis, 2026-10-20): przed wypchnięciem
+  // `main` przesunął się o PR #528 (JoinUsForm, informacja zwrotna zapisu
+  // newslettera) i potwierdzenie wdrożenia #527 - baza a39a10bf 4989,8 /
+  // public 2774,4, S3 przebazowany na nią 4995,6 / public 2779,8. Moduły S3
+  // bez zmian (rozbicie jak wyżej, ok. +4,7 KB); różnica względem pomiaru na
+  // f149a004 to entropia nowych hashy w nazwach importów (kilka bajtów na
+  // każdy z ~700 chunków). Pozostałe progi bez zmian i zielone (chunk 258,1,
+  // css 99,7, publicCss 83,8, boot 471,8).
+  // Host 4995,6 -> 4996 -> +1.
+  overall: 4997,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
