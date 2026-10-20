@@ -47,12 +47,10 @@ MRR i całego huba po usunięciu konta (Z-07, A2, rejestr czynności
 (Z-14-03), akceptacje Z-S3-01, Z-S3-06, Z-S2-02, Z-14-01/02/04, D-11/Z-S6-14;
 Z-S2-01 zautomatyzowane na granicy SDK. Tabela decyzji - §21.16, wdrożenie -
 §21.17, otwarte Z-I9b-06, 09, 10, 11, 14, 15 (§21.7). **Na gałęzi PR są
-części A i A2 (`d7efcba5`); część B i krok C (bliźniak `0366`) czekają na
-`hub/i9b-decyzje` (worktree `/home/user/wt/I9B`) - push wstrzymany do
-decyzji o ratchecie `overall` 5003 → 5005 (Z-I9b-16, §21.15): system
-uprawnień blokuje podniesienie progu jako obejście CI.** Po decyzji:
-naniesienie wpisu kroniki z §21.15, `check:bundle`, scalenie fast-forward
-do gałęzi PR i push - przed S8.
+części A, A2 i B z krokiem C (bliźniaki do `0366`); ratchet `overall`
+5003 → 5005 wykonał orkiestrator (Z-I9b-16, §21.19).** Następny krok: I9c
+(domknięcia RODO personelu i kolejki maili, retencja danych z kartą
+w `/admin/settings/privacy`), potem S8.
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
@@ -118,9 +116,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
   (nawigacja/zakładka/karta), ⌘K, `adminPageHead` i napisy PL/EN.
 
 **Decyzje czekające na właściciela** (wyłącznie rzeczy niewykonalne
-z kontenera - §21.18 dziennika): Z-I9b-16 - zgoda na ratchet `overall`
-5003 → 5005 (albo cięcie kodu panelu ≥ 0,3 KB), potem push części B;
-wdrożenie migracji `0358…0366` i publikacja
+z kontenera - §21.18 dziennika): wdrożenie migracji `0358…0366` i publikacja
 frontu (§21.17); Z-S2-01 - trzy kroki wizualne w trybie testowym Stripe
 (kupon w panelu, `Idempotency-Key` w logach, portal z powodami - Z-I9b-13);
 Z-S2-11 - powody rezygnacji w konfiguracji portalu klienta Stripe; Z-S5-07

@@ -2464,7 +2464,21 @@ const FROZEN_BUDGET_KB = {
   // w bit te same (css 99,7, publicCss 83,8); chunk 258,0 i boot 471,8
   // w zamrożonych progach.
   // Host 5001,8 -> 5002 -> +1.
-  overall: 5003,
+  // Ratchet 5003 -> 5005 (2026-10-20, I9b: decyzje właściciela huba
+  // „Przychód i lejek”, część B - Z-S3-07 jedno okno porzucenia kasy
+  // pokazane w karcie biletów wydarzenia), decyzją zamawiającego D-08.
+  // Baza d7efcba5 (gałąź PR po częściach A i A2) 5003,0 / public 2778,0 -
+  // stała dokładnie na progu; po części B 5003,2: +0,3 KB, w całości
+  // admin-only (2225,0 -> 2225,3; public 2777,9 - entropia hashy).
+  // Rozbicie: `EventStudioModuleSections` +190 B (molekuła
+  // `EventTicketCheckoutWindowNote` i jej montaż w karcie biletów),
+  // `i18n-admin-event-registration` +149 B (dwa napisy PL/EN), `limits`
+  // +13 B (`effectiveCheckoutAbandonMinutes`); wpis `engagement_rate`
+  // i `CRM_TAG_MAX` w granicach entropii hashy (783 chunki o |Δ| ≤ 20 B,
+  // razem -79 B). Arkusze CSS bit w bit te same (css 99,7, publicCss 83,8);
+  // chunk 257,9 i boot 471,6 w zamrożonych progach.
+  // Host 5003,2 -> 5004 -> +1.
+  overall: 5005,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
