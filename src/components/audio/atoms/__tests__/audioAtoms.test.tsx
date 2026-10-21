@@ -138,7 +138,7 @@ describe("MorphPlayPause - atom ikony", () => {
     const { container } = render(<MorphPlayPause playing />);
     expect(container.querySelectorAll("svg")).toHaveLength(2);
     expect(container.querySelector(".mpp-svg-play")).not.toBeNull();
-    expect(container.querySelector(".mpp-svg-pause")).not.toBeNull();
+    expect(container.querySelector(".mpp-svg-stop")).not.toBeNull();
   });
 
   it("ikony SVG są wyjęte z kolejności tabulacji", () => {
@@ -160,20 +160,22 @@ describe("MorphPlayPause - atom ikony", () => {
     const { container } = render(<MorphPlayPause playing={false} />);
     const d = container.querySelector(".mpp-svg-play path")?.getAttribute("d") ?? "";
     const left = Number(/^M([-\d.]+)/.exec(d)?.[1]);
-    // Szerokość kształtu: zaokrąglenie lewej krawędzi (2.12) + ramię (9.72)
-    // + bulwa czubka (łuk r=1.4 na cięciwie 2.4).
-    const width = 2.12 + 9.72 + (1.4 - Math.sqrt(1.4 ** 2 - 1.2 ** 2));
+    // Szerokość kształtu: zaokrąglenie lewej krawędzi (2.44) + ramię (11.18)
+    // + bulwa czubka (łuk r=1.6 na cięciwie 2.76).
+    const width = 2.44 + 11.18 + (1.6 - Math.sqrt(1.6 ** 2 - 1.38 ** 2));
     expect(left + width / 2).toBeCloseTo(12, 1);
   });
 
-  it("słupki pauzy są symetryczne względem środka pola", () => {
+  it("kwadrat stop jest wyśrodkowany w polu 24x24", () => {
     const { container } = render(<MorphPlayPause playing />);
-    const rects = [...container.querySelectorAll(".mpp-svg-pause rect")];
-    const xs = rects.map((r) => Number(r.getAttribute("x")));
-    const ws = rects.map((r) => Number(r.getAttribute("width")));
-    const left = Math.min(...xs);
-    const right = Math.max(...xs.map((x, i) => x + ws[i]));
-    expect((left + right) / 2).toBeCloseTo(12, 2);
+    const rect = container.querySelector(".mpp-svg-stop rect");
+    const x = Number(rect?.getAttribute("x"));
+    const w = Number(rect?.getAttribute("width"));
+    expect(x + w / 2).toBeCloseTo(12, 2);
+    expect(Number(rect?.getAttribute("y")) + Number(rect?.getAttribute("height")) / 2).toBeCloseTo(
+      12,
+      2,
+    );
   });
 });
 

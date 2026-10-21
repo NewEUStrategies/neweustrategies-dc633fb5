@@ -5478,7 +5478,7 @@ textarea::placeholder {
   opacity: 1;
   transform: scale(1);
 }
-.mpp[data-playing="true"] .mpp-svg-pause {
+.mpp[data-playing="true"] .mpp-svg-stop {
   opacity: 1;
   transform: scale(1);
 }
