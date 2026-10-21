@@ -277,10 +277,11 @@ export function SidebarListenCard({
             aria-pressed={playing}
             data-playing={playing ? "true" : "false"}
             className={[
-              "listen-play-toggle shrink-0 h-11 w-11 rounded-[14px]",
-              // Wariant "soft rounding": kwadrat z miękkim zaokrągleniem,
-              // delikatne wypełnienie w tonie marki, ikona w kolorze marki;
-              // tint pogłębia się na najechaniu.
+              // Rounding 6px - ta sama wartość co pełnowierszowy przycisk
+              // odsłuchu, karta i pozostałe kontrolki audio (AudioIconButton).
+              "listen-play-toggle shrink-0 h-11 w-11 rounded-[6px]",
+              // Kwadrat w tonie marki: delikatne wypełnienie, ikona w kolorze
+              // marki; tint pogłębia się na najechaniu.
               "border transition-all duration-300",
               "shadow-sm hover:shadow-md active:scale-95 disabled:opacity-70",
               playing
