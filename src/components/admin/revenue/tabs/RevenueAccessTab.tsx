@@ -1,19 +1,39 @@
-// Zakładka „Dostęp" huba - ZAŚLEPKA wycinka I0; właściciel po scaleniu: S7.
+// Zakładka „Dostęp" huba (S7, SPEC §2.2 `access`) - polityka w jednym
+// zdaniu, lista kontrolna paywalla, pomiar, symulator czytelnika (5 person,
+// ten sam `Paywall` co artykuł), licznik darmowych artykułów (karta S1)
+// i inwentarz reguł (`RevenueAccessView`).
 //
-// Montuje ją leniwie `RevenueTabOutlet` (mapa `tab -> lazy`), więc kod zakładki
-// trafia do własnego chunku dopiero po wejściu na `/admin/revenue/access`.
+// Montuje ją leniwie `RevenueTabOutlet` (mapa `tab -> lazy`), więc kod
+// zakładki trafia do własnego chunku dopiero po wejściu na
+// `/admin/revenue/access`.
 //
-// I9a (2026-10-20, zmiana integratorska): hub stoi już w nawigacji panelu,
-// więc zamiast jednego zdania zakładka pokazuje stan „w przygotowaniu" -
-// co tu będzie, etap i odnośniki do modułów, które trzymają te dane dziś
-// (`RevenueTabPreparing`, dane w `lib/admin/revenue/tabPreparing.ts`).
-// S7 podmienia tę treść i usuwa wpis zakładki z `TAB_PREPARING`.
-import { RevenueTabPreparing } from "@/components/admin/revenue/molecules/RevenueTabPreparing";
+// `useHydrated()` PRZED SESJĄ (jak układ huba); ROLE DOKŁADNE: redaktor widzi
+// zakładkę, ale kartę licznika w trybie `readOnly`, a sam `super_admin` bez
+// wiersza `admin`/`editor` dostaje `RoleGateNotice` zamiast pustych kart.
+import { useHydrated } from "@tanstack/react-router";
+
+import { RevenueAccessView } from "@/components/admin/revenue/access/RevenueAccessView";
+import { RevenueTabPending } from "@/components/admin/revenue/atoms/RevenueTabPending";
+import { RoleGateNotice } from "@/components/admin/revenue/molecules/RoleGateNotice";
+import { hubRoleOf, useHubWindow } from "@/components/admin/revenue/overview/hubWindow";
+import { useAuth } from "@/hooks/useAuth";
+import { ensureI18n } from "@/lib/i18n-admin-revenue-tabs";
 
 export function RevenueAccessTab() {
+  ensureI18n();
+  const hydrated = useHydrated();
   return (
     <div data-testid="revenue-tab-access">
-      <RevenueTabPreparing tab="access" />
+      {hydrated ? <AccessTabBody /> : <RevenueTabPending />}
     </div>
+  );
+}
+
+function AccessTabBody() {
+  const { roles, tenantId } = useAuth();
+  const { range, segment } = useHubWindow("access");
+  if (hubRoleOf(roles) === null) return <RoleGateNotice requiredRole="admin_or_editor" />;
+  return (
+    <RevenueAccessView tenantId={tenantId ?? null} roles={roles} range={range} segment={segment} />
   );
 }

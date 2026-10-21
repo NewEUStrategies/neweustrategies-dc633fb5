@@ -1,19 +1,37 @@
-// Zakładka „Dane wejściowe" huba - ZAŚLEPKA wycinka I0; właściciel po scaleniu: S7.
+// Zakładka „Dane wejściowe" huba (S7, SPEC §2.2 `inputs` - podwidok
+// Wskaźników) - siatka planu, kosztów i marż (`ManualInputsGrid`).
 //
-// Montuje ją leniwie `RevenueTabOutlet` (mapa `tab -> lazy`), więc kod zakładki
-// trafia do własnego chunku dopiero po wejściu na `/admin/revenue/inputs`.
+// Montuje ją leniwie `RevenueTabOutlet` (mapa `tab -> lazy`), więc kod
+// zakładki trafia do własnego chunku dopiero po wejściu na
+// `/admin/revenue/inputs`.
 //
-// I9a (2026-10-20, zmiana integratorska): hub stoi już w nawigacji panelu,
-// więc zamiast jednego zdania zakładka pokazuje stan „w przygotowaniu" -
-// co tu będzie, etap i odnośniki do modułów, które trzymają te dane dziś
-// (`RevenueTabPreparing`, dane w `lib/admin/revenue/tabPreparing.ts`).
-// S7 podmienia tę treść i usuwa wpis zakładki z `TAB_PREPARING`.
-import { RevenueTabPreparing } from "@/components/admin/revenue/molecules/RevenueTabPreparing";
+// TYLKO ADMINISTRATOR (D-06: plan i koszty to dane finansowe; SQL
+// `has_role(…, 'admin')`). Redaktor, który wejdzie z adresu, dostaje
+// `RoleGateNotice` - siatka nie jest montowana, więc RPC nie jest wołane.
+// ROLE DOKŁADNE (`roles.includes("admin")`), nie `isAdmin` z `super_admin`.
+// `useHydrated()` PRZED SESJĄ, jak układ huba.
+import { useHydrated } from "@tanstack/react-router";
+
+import { RevenueTabPending } from "@/components/admin/revenue/atoms/RevenueTabPending";
+import { ManualInputsGrid } from "@/components/admin/revenue/inputs/ManualInputsGrid";
+import { RoleGateNotice } from "@/components/admin/revenue/molecules/RoleGateNotice";
+import { useHubWindow } from "@/components/admin/revenue/overview/hubWindow";
+import { useAuth } from "@/hooks/useAuth";
+import { ensureI18n } from "@/lib/i18n-admin-revenue-tabs";
 
 export function RevenueInputsTab() {
+  ensureI18n();
+  const hydrated = useHydrated();
   return (
     <div data-testid="revenue-tab-inputs">
-      <RevenueTabPreparing tab="inputs" />
+      {hydrated ? <InputsTabBody /> : <RevenueTabPending />}
     </div>
   );
+}
+
+function InputsTabBody() {
+  const { roles, tenantId } = useAuth();
+  const { segment } = useHubWindow("inputs");
+  if (!roles.includes("admin")) return <RoleGateNotice requiredRole="admin" />;
+  return <ManualInputsGrid tenantId={tenantId ?? null} roles={roles} segment={segment} />;
 }
