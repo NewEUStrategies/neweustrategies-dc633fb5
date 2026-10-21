@@ -1,0 +1,9 @@
+{"extends": "./tsconfig.json", "compilerOptions": {"incremental": false},
+ "include": ["src/**/*.d.ts", "src/routeTree.gen.ts", "vitest.setup.ts",
+  "src/components/admin/revenue/mrr/**/*.ts", "src/components/admin/revenue/mrr/**/*.tsx",
+  "src/components/admin/revenue/retention/**/*.ts", "src/components/admin/revenue/retention/**/*.tsx",
+  "src/components/admin/revenue/tabs/RevenueMrrTab.tsx", "src/components/admin/revenue/tabs/RevenueRetentionTab.tsx",
+  "src/components/admin/revenue/tabs/RevenueTabOutlet.tsx", "src/lib/i18n-admin-revenue-tabs.ts",
+  "src/components/admin/revenue/overview/__tests__/i18nTabsParity.test.ts",
+  "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
+  "src/lib/admin/revenue/__tests__/policySentence.test.ts"]}

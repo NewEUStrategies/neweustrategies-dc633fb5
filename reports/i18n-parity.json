@@ -112,6 +112,7 @@
     "adminPostPanes.sections.customMetaTitle",
     "adminPostPanes.sections.ttsRenditionModel",
     "adminPostPanes.taxonomy.nameEnPlaceholder",
+    "adminRevenue.diagnostics.map.writerKind.mutator",
     "adminThemeDesign.f.paddingX",
     "adminThemeDesign.f.paddingY",
     "adminThemeDesign.f.separator",
@@ -260,6 +261,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 570
+    "untranslated": 571
   }
 }
