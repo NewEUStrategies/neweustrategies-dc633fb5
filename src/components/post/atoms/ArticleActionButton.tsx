@@ -10,8 +10,10 @@ import type { ComponentType, ReactNode, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 
 /** Wspólna geometria rzędu akcji. Eksportowana, bo obie molekuły ją współdzielą. */
+// Rounding 6px - wspólny promień rzędu akcji z przyciskiem odsłuchu i resztą
+// kontrolek audio (AudioIconButton, karta odsłuchu).
 export const ARTICLE_ACTION_CLASS =
-  "cms-widget-label inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[5px] border border-border bg-background px-3 font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98] disabled:opacity-60";
+  "cms-widget-label inline-flex h-8 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] border border-border bg-background px-3 font-semibold tracking-tight text-foreground transition-colors hover:bg-muted hover:text-brand active:scale-[0.98] disabled:opacity-60";
 
 export interface ArticleActionButtonProps {
   /**
