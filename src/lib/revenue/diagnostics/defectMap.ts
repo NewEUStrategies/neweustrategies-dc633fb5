@@ -10,9 +10,11 @@
 // BRIEFY ŹRÓDŁOWE (`brief_01..05.md`) i `proposal_dane.md` NIE ISTNIEJĄ
 // w repozytorium (pakiet S7 §1.2) - mapa obejmuje dokładnie to, co widać
 // w tabeli §7 i na liście odłożonych. Numery z briefów spoza tabeli (np.
-// def. 1, 2, 5, 7, 8, 12, 16, 18, 19 br. 02; D2, D4, D8, D10, D15 br. 03;
+// def. 1, 2, 5, 7, 8, 12, 16, 18, 19 br. 02; D4, D8, D10, D15 br. 03;
 // br. 04 D2-D4, D11, D12) są w raporcie jako „brak w źródle repo" - bez
-// zgadywania treści.
+// zgadywania treści. Wyjątki: D13 br. 03 nie ma wiersza, ale reguła SPEC
+// §5.7 przywołuje go wprost (`DEFECTS_OUTSIDE_TABLE`); D2 br. 03 to wiersz
+// „def. 15 / D2".
 //
 // Klucze = pierwsza kolumna tabeli SPEC dosłownie (bez znaczników kodu).
 import type { HubSliceId } from "@/lib/ci/hubDelivery";
