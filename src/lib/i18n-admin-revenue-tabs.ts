@@ -137,6 +137,55 @@ const pl = {
       reconciliationHint:
         "Dokumenty sprzedaży porównane z opłaconymi zamówieniami - różnica oznacza zamówienie bez dokumentu albo dokument bez zamówienia.",
       categoriesCaption: "Przychód zrealizowany według kategorii i waluty",
+      // Dopisane przez S7-C (zakładka Przychód): sekcje, szereg, ruchy,
+      // przychód zrealizowany i zgodność źródeł.
+      kpiDescription:
+        "Liczby z migawki okresu - te same, które pokazują Kokpit, pulpit i analityka BI.",
+      ratioCurrency:
+        "Wskaźniki ilorazowe (np. quick ratio, NRR, GRR) liczymy w walucie wiodącej {{currency}} - tej z największym MRR - bez przeliczania pozostałych walut.",
+      allSegmentsNote:
+        "Filtr segmentu zawęża wskaźniki i most MRR. Szereg MRR, powody odejść i przychód zrealizowany obejmują wszystkie segmenty.",
+      ledgerTitle: "Księga MRR",
+      ledgerDescription:
+        "Stan MRR w czasie, most okresu i ruchy - z księgi ruchów, osobno dla każdej waluty.",
+      realizedSection: "Przychód zrealizowany i zgodność źródeł",
+      seriesSubtitle: "Punkty: {{grain}}, strefa {{zone}} - księga ruchów i migawka dzienna.",
+      seriesGrain: {
+        day: "dzienne",
+        week: "tygodniowe",
+        month: "miesięczne",
+      },
+      seriesChartTitle: "MRR w {{currency}}",
+      seriesBucket: "Początek punktu",
+      seriesEmpty:
+        "Księga nie ma jeszcze punktów w tym okresie - szereg pojawi się z pierwszym ruchem MRR.",
+      seriesDriftMax: "Największa różnica migawki i księgi: {{amount}} ({{date}}).",
+      seriesDriftNone: "Migawka dzienna zgadza się z księgą w każdym punkcie, który ją ma.",
+      seriesSnapshotMissing: "Część punktów nie ma migawki dziennej - tam rysujemy tylko księgę.",
+      movementKindColumn: "Rodzaj ruchu",
+      movementReasonColumn: "Powód",
+      allReasons: "Wszystkie powody",
+      movementsCount_one: "{{count}} ruch",
+      movementsCount_few: "{{count}} ruchy",
+      movementsCount_many: "{{count}} ruchów",
+      movementsCount_other: "{{count}} ruchu",
+      movementsEmpty: "W tym okresie nie było ruchów MRR.",
+      reasonsUnavailable:
+        "Rozbicia odejść na powody nie udało się teraz wczytać - rodzaje ruchów pochodzą z mostu MRR.",
+      reasonsAllSegmentsOnly:
+        "Powody odejść liczymy dla wszystkich segmentów - wybierz wszystkie segmenty, żeby je zobaczyć.",
+      categoryColumn: "Kategoria",
+      currencyColumn: "Waluta",
+      totalRow: "Razem w {{currency}}",
+      realizedEmpty: "W tym okresie nie opłacono żadnego dokumentu sprzedaży.",
+      reconciliationCaption: "Dokumenty sprzedaży i opłacone zamówienia według waluty",
+      reconciliationDocuments: "Dokumenty (netto)",
+      reconciliationOrders: "Zamówienia (netto)",
+      reconciliationDifference: "Różnica",
+      reconciliationVerdict: "Werdykt",
+      reconciliationEmpty: "W tym okresie nie ma ani dokumentów, ani zamówień do porównania.",
+      reconciliationRenewals:
+        "Zamówienia z kasy nie obejmują odnowień, więc zwykle są niższe niż dokumenty. Zamówienia wyższe niż dokumenty oznaczają brakujące dokumenty.",
       bridge: {
         chartTitle: "Most MRR · {{currency}}",
         csvStep: "Krok mostu",
@@ -162,6 +211,37 @@ const pl = {
       notGivenOutsideRanking:
         "Odpowiedzi bez podanego powodu są policzone osobno - poza rankingiem powodów.",
       stripePortalReason: "Portal Stripe: {{code}}",
+      // Dopisane przez S7-C (zakładka Retencja): sekcje, trend odejść,
+      // kohorty, przepływ anulowania i ranking powodów.
+      kpiDescription:
+        "Odejścia, retencja przychodu i zatrzymania z migawki okresu - te same liczby co w analityce BI.",
+      allSegmentsNote:
+        "Filtr segmentu zawęża tylko wskaźniki. Odejścia, kohorty, przepływ anulowania i windykacja obejmują wszystkie segmenty.",
+      churnSection: "Odejścia i kohorty",
+      saveSection: "Anulowanie, powody i windykacja",
+      trendCaption: "Retencja przychodu według waluty - ten okres i poprzedni",
+      previousValue: "poprzednio {{value}}",
+      cohortsRange: "Kohorty od {{from}} do {{to}} - zakres kończy się na wybranym okresie.",
+      cohortsEmpty:
+        "Brak kohort w tym zakresie - kohorta powstaje z pierwszym nowym zakupem w miesiącu.",
+      cohortsNotElapsed: "Puste pola to miesiące, które jeszcze nie minęły - to nie jest zero.",
+      offersTitle: "Oferty zatrzymania i wyniki",
+      flowOff:
+        "Retencja jest wyłączona: anulowanie to jedno potwierdzenie, bez pytania o powód i bez oferty.",
+      flowStepReason: "Powód (opcjonalny) i komentarz",
+      flowStepOffer_one: "Oferta: {{pct}} % rabatu przez {{count}} okres rozliczeniowy",
+      flowStepOffer_few: "Oferta: {{pct}} % rabatu przez {{count}} okresy rozliczeniowe",
+      flowStepOffer_many: "Oferta: {{pct}} % rabatu przez {{count}} okresów rozliczeniowych",
+      flowStepOffer_other: "Oferta: {{pct}} % rabatu przez {{count}} okresu rozliczeniowego",
+      flowStepConfirm: "Potwierdzenie anulowania",
+      flowOfferEligible: "Oferta pojawia się tylko klientom, którym przysługuje.",
+      flowExitAlways:
+        "„Anuluj mimo to” jest dostępne na każdym kroku - ankieta i oferta nie blokują wyjścia.",
+      reasonRank: "Miejsce",
+      reasonColumn: "Powód",
+      responsesColumn: "Odpowiedzi",
+      shareColumn: "Udział",
+      reasonsEmpty: "W tym okresie nikt nie podał powodu rezygnacji.",
     },
     metrics: {
       title: "Słownik wskaźników",
@@ -539,6 +619,53 @@ const en: typeof pl = {
       reconciliationHint:
         "Sales documents compared with paid orders - a difference means an order without a document or a document without an order.",
       categoriesCaption: "Realised revenue by category and currency",
+      kpiDescription:
+        "Figures from the period snapshot - the same ones shown by Overview, the dashboard and BI analytics.",
+      ratioCurrency:
+        "Ratio indicators (e.g. quick ratio, NRR, GRR) are computed in the leading currency {{currency}} - the one with the largest MRR - without converting other currencies.",
+      allSegmentsNote:
+        "The segment choice narrows the indicators and the MRR bridge. The MRR series, churn reasons and realised revenue cover all segments.",
+      ledgerTitle: "MRR ledger",
+      ledgerDescription:
+        "MRR over time, the period bridge and movements - from the movement ledger, separately for each currency.",
+      realizedSection: "Realised revenue and source agreement",
+      seriesSubtitle: "Points: {{grain}}, time zone {{zone}} - movement ledger and daily snapshot.",
+      seriesGrain: {
+        day: "daily",
+        week: "weekly",
+        month: "monthly",
+      },
+      seriesChartTitle: "MRR in {{currency}}",
+      seriesBucket: "Point start",
+      seriesEmpty:
+        "The ledger has no points in this period yet - the series appears with the first MRR movement.",
+      seriesDriftMax: "Largest gap between the snapshot and the ledger: {{amount}} ({{date}}).",
+      seriesDriftNone: "The daily snapshot matches the ledger at every point that has one.",
+      seriesSnapshotMissing: "Some points have no daily snapshot - only the ledger is drawn there.",
+      movementKindColumn: "Movement kind",
+      movementReasonColumn: "Reason",
+      allReasons: "All reasons",
+      movementsCount_one: "{{count}} movement",
+      movementsCount_few: "{{count}} movements",
+      movementsCount_many: "{{count}} movements",
+      movementsCount_other: "{{count}} movements",
+      movementsEmpty: "There were no MRR movements in this period.",
+      reasonsUnavailable:
+        "The churn breakdown by reason could not be loaded right now - movement kinds come from the MRR bridge.",
+      reasonsAllSegmentsOnly:
+        "Churn reasons are counted across all segments - choose all segments to see them.",
+      categoryColumn: "Category",
+      currencyColumn: "Currency",
+      totalRow: "Total in {{currency}}",
+      realizedEmpty: "No sales document was paid in this period.",
+      reconciliationCaption: "Sales documents and paid orders by currency",
+      reconciliationDocuments: "Documents (net)",
+      reconciliationOrders: "Orders (net)",
+      reconciliationDifference: "Difference",
+      reconciliationVerdict: "Verdict",
+      reconciliationEmpty: "There are neither documents nor orders to compare in this period.",
+      reconciliationRenewals:
+        "Checkout orders exclude renewals, so they usually sit below the documents. Orders above the documents mean missing documents.",
       bridge: {
         chartTitle: "MRR bridge · {{currency}}",
         csvStep: "Bridge step",
@@ -564,6 +691,35 @@ const en: typeof pl = {
       notGivenOutsideRanking:
         "Answers without a reason are counted separately - outside the reason ranking.",
       stripePortalReason: "Stripe customer portal: {{code}}",
+      kpiDescription:
+        "Churn, revenue retention and saves from the period snapshot - the same figures as in BI analytics.",
+      allSegmentsNote:
+        "The segment choice narrows the indicators only. Churn, cohorts, the cancellation flow and dunning cover all segments.",
+      churnSection: "Churn and cohorts",
+      saveSection: "Cancellation, reasons and dunning",
+      trendCaption: "Revenue retention by currency - this period and the previous one",
+      previousValue: "previously {{value}}",
+      cohortsRange: "Cohorts from {{from}} to {{to}} - the range ends with the selected period.",
+      cohortsEmpty:
+        "No cohorts in this range - a cohort starts with the first new purchase in a month.",
+      cohortsNotElapsed: "Empty cells are months that have not passed yet - they are not zero.",
+      offersTitle: "Retention offers and outcomes",
+      flowOff:
+        "Retention is switched off: cancelling is a single confirmation, with no reason question and no offer.",
+      flowStepReason: "Reason (optional) and comment",
+      flowStepOffer_one: "Offer: {{pct}}% off for {{count}} billing period",
+      flowStepOffer_few: "Offer: {{pct}}% off for {{count}} billing periods",
+      flowStepOffer_many: "Offer: {{pct}}% off for {{count}} billing periods",
+      flowStepOffer_other: "Offer: {{pct}}% off for {{count}} billing periods",
+      flowStepConfirm: "Cancellation confirmation",
+      flowOfferEligible: "The offer only appears to customers who are eligible for it.",
+      flowExitAlways:
+        "“Cancel anyway” is available on every step - the survey and the offer never stand in the way out.",
+      reasonRank: "Rank",
+      reasonColumn: "Reason",
+      responsesColumn: "Answers",
+      shareColumn: "Share",
+      reasonsEmpty: "Nobody gave a cancellation reason in this period.",
     },
     metrics: {
       title: "Indicator glossary",
