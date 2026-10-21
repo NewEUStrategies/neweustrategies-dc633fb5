@@ -235,6 +235,7 @@ describe("RevenueMrrTab - księga MRR i przychód zrealizowany", () => {
   it("szereg: ziarno z okna, strefa przeglądarki, wykres na walutę z różnicą migawki", async () => {
     renderTab();
     const card = await screen.findByTestId("mrr-series");
+    expect(within(card).getByRole("heading", { level: 3, name: "MRR w czasie" })).toBeVisible();
     const charts = await within(card).findAllByTestId("chart");
     expect(charts.map((c) => c.querySelector("figcaption")?.textContent)).toEqual([
       "MRR w PLN",

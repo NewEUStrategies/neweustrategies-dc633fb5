@@ -93,7 +93,7 @@ export function MrrSeriesCard({ tenantId, roles, range }: MrrSeriesCardProps) {
   return (
     <FinanceCardFrame
       testId="mrr-series"
-      title={t("adminRevenue.finance.series.title")}
+      title={t("adminRevenue.mrr.seriesTitle")}
       subtitle={t("adminRevenue.mrr.seriesSubtitle", {
         grain: t(`adminRevenue.mrr.seriesGrain.${grain}`),
         zone,
