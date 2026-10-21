@@ -111,9 +111,13 @@ type OdpowiedzEdytora = {
 } | null;
 
 type Broker = {
-  getItem: (key: string) => Promise<string | null>;
-  setItem: (key: string, value: string) => Promise<void>;
-  removeItem: (key: string) => Promise<void | undefined>;
+  // Kontrakt SZEROKOŚCI źródła (`StorageLike` w previewAuthStorage.ts): metody
+  // mogą być synchroniczne albo asynchroniczne, bo broker zwraca obiekt o
+  // typie StorageLike (getItem: string | null | Promise<string | null>).
+  // Zawężenie do `Promise<...>` psuło przypisanie w `jakoBroker`.
+  getItem: (key: string) => string | null | Promise<string | null>;
+  setItem: (key: string, value: string) => void | Promise<void>;
+  removeItem: (key: string) => void | Promise<void>;
 };
 
 // --- instrumenty pomiarowe --------------------------------------------------
