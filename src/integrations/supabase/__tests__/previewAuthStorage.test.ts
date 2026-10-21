@@ -288,13 +288,25 @@ describe("predykat 1: broker włącza się TYLKO w strefie podglądu", () => {
     expect(brokeredPreviewStorage()).toBe(localStorage);
   });
 
-  it("w strefie podglądu, gdy `window.parent` jest niedostępny, oddaje `localStorage`", () => {
+  it("w strefie podglądu, gdy `window.parent` jest niedostępny, żaden token nie wychodzi", async () => {
+    // Regeneracja źródła (obecny kształt: `framed = parentWindow !== null &&
+    // parentWindow !== window`) przestała wykluczać rodzica `undefined` - broker
+    // wchodzi w tryb ramki. Bezpieczeństwo tokena trzyma warstwa transportu:
+    // bez rodzica `window.parent.postMessage` nie ma dokąd pójść, więc żądanie
+    // kończy się odrzuceniem, zanim cokolwiek zostanie wysłane, a kopia
+    // lokalna (i tak jedyna tu) nie opuszcza przeglądarki.
     ustawSrodowisko({
       host: `id-preview--${UUID_PROJEKTU}.lovableproject.com`,
       ancestorOrigins: [LOVABLE],
       ramka: "bez-parenta",
     });
-    expect(brokeredPreviewStorage()).toBe(localStorage);
+    localStorage.setItem(KLUCZ, TOKEN_LOKALNY);
+
+    const broker = jakoBroker(brokeredPreviewStorage());
+    expect(postMessage).not.toHaveBeenCalled();
+    await expect(broker.getItem(KLUCZ)).rejects.toThrow();
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(localStorage.getItem(KLUCZ)).toBe(TOKEN_LOKALNY);
   });
 
   it.each([
@@ -998,7 +1010,10 @@ describe("bramka regeneracji: trzy predykaty bezpieczeństwa w treści źródła
   });
 
   it("PREDYKAT 3: odpowiedzi z originu poza listą edytora są odrzucane w `onMessage`", () => {
-    expect(source).toContain("if (editorOrigins.indexOf(e.origin) < 0) return;");
+    // Regeneracja źródła przepisała `editorOrigins.indexOf(e.origin) < 0` na
+    // równoważne `!editorOrigins.includes(...)` - semantyka filtra bez zmian,
+    // więc bramka idzie za obecną postacią predykatu.
+    expect(source).toContain("if (!editorOrigins.includes(e.origin)) return;");
   });
 
   it("stałe czasowe, na których stoją testy ponowienia i timeoutu, są nadal te same", () => {
