@@ -56,6 +56,17 @@ const ENUM = (key: string, options: readonly string[]): TriggerConditionField =>
   options,
 });
 
+/**
+ * Rodzaj formularza w `contact_message.submitted.v1` - biała lista emitera
+ * (`tg_contact_messages_submitted_emit`, SQL 20261020162800; parytet:
+ * `__tests__/contactMessageEvent.test.ts`). `pricing` = formularz kasy
+ * cennika (`pricing-contact-sales`) albo źródło `pricing`; `newsletter`
+ * i `join_us` z typu formularza; reszta - `contact`. Kandydaci do pracy nie
+ * wychodzą na szynę.
+ */
+export const CONTACT_MESSAGE_FORM_KINDS = ["pricing", "newsletter", "join_us", "contact"] as const;
+export type ContactMessageFormKind = (typeof CONTACT_MESSAGE_FORM_KINDS)[number];
+
 const CHECKOUT_KEYS = [
   "order_id",
   "user_id",
@@ -295,6 +306,18 @@ export const JOURNEY_TRIGGERS: readonly JourneyTriggerDef[] = [
     identity: "lead",
     payloadKeys: ["stage", "owner_id"],
     conditionFields: [ENUM("stage", CRM_STAGES)],
+  },
+  {
+    // I9 (Z-S5-01): wiadomość z formularza - lead z ładunku (`lead_id`),
+    // warunek po rodzaju formularza (szablon B2B: `form_kind = pricing`).
+    eventType: "contact_message.submitted.v1",
+    group: "crm",
+    identity: "lead",
+    payloadKeys: ["message_id", "lead_id", "form_kind", "form_id"],
+    conditionFields: [
+      ENUM("form_kind", CONTACT_MESSAGE_FORM_KINDS),
+      { key: "form_id", type: "string" },
+    ],
   },
   {
     eventType: "crm_lead.stage_changed.v1",

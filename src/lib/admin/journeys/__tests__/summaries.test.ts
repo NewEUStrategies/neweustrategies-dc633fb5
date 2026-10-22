@@ -198,11 +198,29 @@ describe("fakty szablonu", () => {
   const facts = (key: keyof typeof JOURNEY_TEMPLATES) =>
     templateFacts(toCatalogEntry(JOURNEY_TEMPLATES[key]));
 
-  it("szablon niedostępny: wymaganie zdarzenia szyny z nazwą zdarzenia (Z-S5-01)", () => {
-    expect(facts("pricing_enquiry_b2b")).toMatchObject({
+  it("szablon niedostępny: wymaganie zdarzenia szyny z nazwą zdarzenia", () => {
+    // Od I9 (Z-S5-01) żaden szablon katalogu nie czeka - kopia B2B
+    // oznaczona jako czekająca.
+    const entry = {
+      ...toCatalogEntry(JOURNEY_TEMPLATES.pricing_enquiry_b2b),
+      availability: {
+        status: "unavailable" as const,
+        awaitedEvent: "contact_message.submitted.v1",
+      },
+    };
+    expect(templateFacts(entry)).toMatchObject({
       available: false,
       awaitedEvent: "contact_message.submitted.v1",
       requirements: ["busEvent"],
+      doesNotSend: ["noEmails"],
+      emailCount: 0,
+    });
+  });
+
+  it("B2B dostępny (I9, Z-S5-01): bez wymagania zdarzenia szyny, bez maili", () => {
+    expect(facts("pricing_enquiry_b2b")).toMatchObject({
+      available: true,
+      requirements: [],
       doesNotSend: ["noEmails"],
       emailCount: 0,
     });

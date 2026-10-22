@@ -303,6 +303,8 @@ const pl = {
         old_stage: "Poprzedni etap sprzedaży",
         to: "Nowy etap cyklu życia",
         from: "Poprzedni etap cyklu życia",
+        form_kind: "Rodzaj formularza",
+        form_id: "Formularz (identyfikator)",
       },
       value: {
         subscription: {
@@ -341,6 +343,12 @@ const pl = {
         checkoutKind: {
           subscription: "Subskrypcja",
           one_time: "Zakup jednorazowy",
+        },
+        formKind: {
+          pricing: "Zapytanie z cennika",
+          newsletter: "Zapis na newsletter",
+          join_us: "Formularz „Dołącz”",
+          contact: "Formularz kontaktowy",
         },
         entityType: {
           post: "Artykuł",
@@ -716,6 +724,8 @@ const en: typeof pl = {
         old_stage: "Previous sales stage",
         to: "New lifecycle stage",
         from: "Previous lifecycle stage",
+        form_kind: "Form type",
+        form_id: "Form (identifier)",
       },
       value: {
         subscription: {
@@ -754,6 +764,12 @@ const en: typeof pl = {
         checkoutKind: {
           subscription: "Subscription",
           one_time: "One-off purchase",
+        },
+        formKind: {
+          pricing: "Pricing enquiry",
+          newsletter: "Newsletter sign-up",
+          join_us: "“Join us” form",
+          contact: "Contact form",
         },
         entityType: {
           post: "Article",

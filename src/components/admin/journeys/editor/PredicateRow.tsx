@@ -564,6 +564,7 @@ export function conditionValueLabelKey(
     entity_type: "entityType",
     outcome: "retentionOutcome",
     by: "cancelledBy",
+    form_kind: "formKind",
   };
   if (group[key]) return `adminJourneys.sheetField.value.${group[key]}.${value}`;
   if (eventType === "subscription.expired.v1" && key === "reason") {

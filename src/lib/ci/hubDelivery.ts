@@ -381,6 +381,9 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   // personelu sprzed huba przepisany na niego.
   ["_crm_marketing_consent_withdraw", "I9", "internal"],
   ["crm_leads_marketing_consent_withdraw", "I9", "panel"],
+  // (I9-C, 2026-10-22) Z-S5-01: wiadomość z formularza kontaktowego na szynie
+  // (`contact_message.submitted.v1`, szablon ścieżki B2B).
+  ["tg_contact_messages_submitted_emit", "I9", "trigger"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */

@@ -4,8 +4,10 @@
 //   1. Pusta ścieżka + 14 szablonów z katalogu (bez treści maili): nazwa,
 //      opis, kategoria, miniatura (dekoracja `aria-hidden`), wyzwalacz, cel,
 //      kroki i maile, tematy, wymagania, „czego NIE wysyła”, wskazówka.
-//   2. Szablon niedostępny (`pricing_enquiry_b2b`, Z-S5-01) jest wyszarzony,
-//      przycisk wyłączony i opisany powodem z nazwą oczekiwanego zdarzenia.
+//   2. Szablon niedostępny (od I9 żaden w katalogu - dowód na kopii karty
+//      oznaczonej jako czekająca) jest wyszarzony, przycisk wyłączony
+//      i opisany powodem z nazwą oczekiwanego zdarzenia; B2B (Z-S5-01) jest
+//      dostępny i startuje od wiadomości z formularza.
 //   3. Wybór (`?template=`) jest zaznaczony `aria-pressed`, „zainstalowany”
 //      z listy ścieżek, szablon zastępujący przepis mówi który.
 //   4. Stany wczytywania i błędu; axe bez naruszeń.
@@ -104,7 +106,19 @@ describe("JourneyTemplateGallery", () => {
 
   it("szablon niedostępny: wyszarzony, przycisk wyłączony i opisany powodem", () => {
     const t = realT("pl");
-    mount();
+    mount({
+      catalog: CATALOG.map((entry) =>
+        entry.key === "pricing_enquiry_b2b"
+          ? {
+              ...entry,
+              availability: {
+                status: "unavailable" as const,
+                awaitedEvent: "contact_message.submitted.v1",
+              },
+            }
+          : entry,
+      ),
+    });
     const pricing = card("pricing_enquiry_b2b");
     expect(pricing).toHaveAttribute("data-available", "false");
     expect(pricing).toHaveClass("opacity-60");
@@ -120,6 +134,22 @@ describe("JourneyTemplateGallery", () => {
     );
     expect(pricing).toHaveTextContent(t("adminJourneys.gallery.doesNotSend.noEmails"));
     expect(card("welcome_onboarding")).toHaveAttribute("data-available", "true");
+  });
+
+  it("B2B dostępny (I9, Z-S5-01): przycisk aktywny, wyzwalacz - wiadomość z formularza", () => {
+    const t = realT("pl");
+    mount();
+    const pricing = card("pricing_enquiry_b2b");
+    expect(pricing).toHaveAttribute("data-available", "true");
+    expect(pricing).not.toHaveTextContent(t("adminJourneys.gallery.unavailable"));
+    expect(pricing).toHaveTextContent(t("adminJourneys.trigger.contact_message_submitted"));
+    expect(
+      within(pricing).getByRole("button", {
+        name: t("adminJourneys.gallery.useFor", {
+          name: t("adminJourneys.templates.pricing_enquiry_b2b.name"),
+        }),
+      }),
+    ).toBeEnabled();
   });
 
   it("wybór z adresu zaznaczony aria-pressed; klik wybiera szablon", () => {

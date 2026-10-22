@@ -364,9 +364,9 @@ describe("katalog galerii", () => {
       expect(entry.graph).toEqual(template.graph);
       expect(entry.graph).not.toBe(template.graph);
     }
+    // I9 (Z-S5-01): B2B nie czeka już na zdarzenie formularza.
     expect(catalog.find((e) => e.key === "pricing_enquiry_b2b")?.availability).toEqual({
-      status: "unavailable",
-      awaitedEvent: "contact_message.submitted.v1",
+      status: "available",
     });
   });
 });

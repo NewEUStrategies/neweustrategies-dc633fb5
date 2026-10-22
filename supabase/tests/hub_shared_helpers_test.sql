@@ -149,8 +149,9 @@ SELECT is_empty(
           'email_measurement_state', 'email_measurement_status', 'email_measurement_withdraw',
           'newsletter_measurement_claim', 'newsletter_measurement_confirm', 'newsletter_measurement_mark',
           'tg_crm_consent_log_measurement', 'tg_newsletter_consents_log', 'tg_newsletter_recipients_measured',
-          -- (I9-C) wspólny pomocnik wycofania zgody marketingowej (Z-S5-04).
-          '_crm_marketing_consent_withdraw'
+          -- (I9-C) wspólny pomocnik wycofania zgody marketingowej (Z-S5-04),
+          -- emiter wiadomości z formularza kontaktowego (Z-S5-01).
+          '_crm_marketing_consent_withdraw', 'tg_contact_messages_submitted_emit'
         ]::name[]) $$,
   'hub_grants: funkcje serwisowe, wewnętrzne i wyzwalacze huba bez EXECUTE dla anon i authenticated');
 -- hub-grants:end
