@@ -17381,6 +17381,7 @@ export type Database = {
           error: string | null
           id: string
           language: string
+          measured: boolean | null
           provider_message_id: string | null
           sent_at: string | null
           status: string
@@ -17399,6 +17400,7 @@ export type Database = {
           error?: string | null
           id?: string
           language?: string
+          measured?: boolean | null
           provider_message_id?: string | null
           sent_at?: string | null
           status?: string
@@ -17417,6 +17419,7 @@ export type Database = {
           error?: string | null
           id?: string
           language?: string
+          measured?: boolean | null
           provider_message_id?: string | null
           sent_at?: string | null
           status?: string
@@ -17530,6 +17533,105 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      newsletter_consent_measurement_marks: {
+        Row: {
+          field: string
+          marked_at: string
+          marked_by: string | null
+          tenant_id: string
+          text_sha256: string
+        }
+        Insert: {
+          field: string
+          marked_at?: string
+          marked_by?: string | null
+          tenant_id: string
+          text_sha256: string
+        }
+        Update: {
+          field?: string
+          marked_at?: string
+          marked_by?: string | null
+          tenant_id?: string
+          text_sha256?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_consent_measurement_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_measurement_requests: {
+        Row: {
+          attempts: number
+          claimed_until: string | null
+          confirmed_at: string | null
+          consent_version: string
+          last_error: string | null
+          mail_outcome: string | null
+          mailed_at: string | null
+          nonce: string
+          requested_at: string
+          requested_by: string | null
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_until?: string | null
+          confirmed_at?: string | null
+          consent_version: string
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          requested_by?: string | null
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          claimed_until?: string | null
+          confirmed_at?: string | null
+          consent_version?: string
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          requested_by?: string | null
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_measurement_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_measurement_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_measurement_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       newsletter_popup_events: {
         Row: {
@@ -30520,6 +30622,20 @@ export type Database = {
           responded_30d: number
         }[]
       }
+      admin_newsletter_campaign_measurement: {
+        Args: { p_campaign: string }
+        Returns: Json
+      }
+      admin_newsletter_consent_measurement_get: { Args: never; Returns: Json }
+      admin_newsletter_consent_measurement_mark: {
+        Args: { p_field: string; p_marked: boolean }
+        Returns: Json
+      }
+      admin_newsletter_measurement_preview: { Args: never; Returns: Json }
+      admin_newsletter_measurement_request: {
+        Args: { p_expected: number }
+        Returns: Json
+      }
       admin_newsletter_settings_patch: {
         Args: { p_expected_updated_at: string; p_group: string; p_patch: Json }
         Returns: Json
@@ -32929,6 +33045,28 @@ export type Database = {
         Args: { p_email: string; p_tenant: string }
         Returns: boolean
       }
+      email_measurement_state: {
+        Args: { p_lead?: string; p_subscriber?: string }
+        Returns: Json
+      }
+      email_measurement_status: {
+        Args: { p_emails: string[]; p_tenant: string }
+        Returns: {
+          consent: boolean
+          email: string
+          measured: boolean
+        }[]
+      }
+      email_measurement_withdraw: {
+        Args: {
+          p_channel?: string
+          p_ip?: string
+          p_lead?: string
+          p_subscriber?: string
+          p_user_agent?: string
+        }
+        Returns: Json
+      }
       email_queue_depth: { Args: never; Returns: Json }
       email_queue_dispatch: { Args: never; Returns: undefined }
       email_queue_send_recheck: {
@@ -35083,6 +35221,38 @@ export type Database = {
       newsletter_engagement_touch: {
         Args: { p_email: string; p_tenant: string }
         Returns: boolean
+      }
+      newsletter_measurement_claim: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt: number
+          consent_version: string
+          email: string
+          first_name: string
+          lang: string
+          nonce: string
+          subscriber_id: string
+          tenant_id: string
+          unsubscribe_token: string
+        }[]
+      }
+      newsletter_measurement_confirm: {
+        Args: {
+          p_ip?: string
+          p_nonce: string
+          p_subscriber: string
+          p_user_agent?: string
+        }
+        Returns: Json
+      }
+      newsletter_measurement_mark: {
+        Args: {
+          p_error?: string
+          p_nonce: string
+          p_outcome: string
+          p_subscriber: string
+        }
+        Returns: Json
       }
       newsletter_min_tier_emails: {
         Args: { p_min: number; p_tenant: string }

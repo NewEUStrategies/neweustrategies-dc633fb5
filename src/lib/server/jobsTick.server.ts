@@ -27,6 +27,8 @@ import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
 import { DATA_RETENTION_RULES } from "@/lib/privacy/dataRetention";
 import { isNewsletterSunsetMailWindow } from "@/lib/privacy/newsletterSunset";
 import type { NewsletterSunsetMailResult } from "@/lib/privacy/newsletterSunsetMail.server";
+import { isNewsletterMeasurementMailWindow } from "@/lib/privacy/measurementReconfirm";
+import type { NewsletterMeasurementMailResult } from "@/lib/privacy/measurementReconfirmMail.server";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
@@ -155,6 +157,15 @@ export interface JobsTickResult {
    */
   newsletterSunset: NewsletterSunsetMailResult | { error: string };
   /**
+   * Prośby o zgodę na pomiar otwarć i kliknięć (I9d-Y2, „Poproś o zgodę na
+   * pomiar" z panelu newslettera): okno dzienne 08-17 czasu polskiego,
+   * minuta 4 co 10 minut (`isNewsletterMeasurementMailWindow`) - nigdy
+   * w ticku próśb wygaszania; dzienny limit najemcy WSPÓLNY z prośbami
+   * wygaszania trzyma baza przy zajęciu; `skipped: "migration_pending"` =
+   * baza bez 20261020162500.
+   */
+  newsletterMeasurement: NewsletterMeasurementMailResult | { error: string };
+  /**
    * Retencja danych (I9c-X2, Z-I9b-10): jedno zadanie dzienne w oknie nocnym
    * (`isDataRetentionWindow`) - `data_retention_run` przechodzi najemców bez
    * przebiegu z 20 h, każda kategoria osobno (podgląd do `enforce_after`).
@@ -262,6 +273,8 @@ const WALLET_REVOCATIONS_DEADLINE_MS = 22_000;
  * render maila i kilka zapytań, więc 4 s mieści sensowną porcję, a reszta
  * wraca po dzierżawie bazy - krok stoi za jobami sieciowymi i nie może zjeść
  * zapasu na zapis przebiegu (termin przycięty jak u zamiatarki płatności).
+ * Ten sam termin ma krok próśb o zgodę na pomiar (I9d-Y2) - mail tej samej
+ * wagi, inna minuta okna.
  */
 const NEWSLETTER_SUNSET_WINDOW_MS = 4_000;
 
@@ -483,6 +496,23 @@ export async function runJobsTick(
       })
     : skipped;
 
+  // Prośby o zgodę na pomiar (I9d-Y2): ta sama klasa poczty co wygaszanie
+  // (masowa, najniższy priorytet, za jobami sieciowymi) i ten sam termin
+  // kroku - inna minuta okna, więc oba kroki nigdy nie dzielą jednego ticku,
+  // a wspólny dzienny limit najemcy pilnuje baza. Moduł ładowany leniwie.
+  const newsletterMeasurement = isNewsletterMeasurementMailWindow(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { runNewsletterMeasurementMail } =
+          await import("@/lib/privacy/measurementReconfirmMail.server");
+        return runNewsletterMeasurementMail(admin, {
+          deadlineAt: Math.min(
+            Date.now() + NEWSLETTER_SUNSET_WINDOW_MS,
+            startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
+          ),
+        });
+      })
+    : skipped;
+
   // Retencja danych: OSTATNIA - czysto bazowa, raz na dobę, z własnym budżetem
   // czasu w SQL (8 s); stoi za wszystkim, co ma termin dla czytelnika.
   const dataRetention = isDataRetentionWindow(tickTime)
@@ -527,6 +557,7 @@ export async function runJobsTick(
     clubThreadIndex,
     clubScheduler,
     newsletterSunset,
+    newsletterMeasurement,
     dataRetention,
   };
 

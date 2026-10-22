@@ -226,6 +226,10 @@ export const DOMAIN_EVENT_TYPES = [
   // karcie pokazywałby diagnozę sprzed naprawy wykonanej w pierwszej.
   "metering_settings.changed.v1",
   "checkout_settings.changed.v1",
+  // Także oznaczenie „mój tekst obejmuje pomiar" (I9d-Y2,
+  // `admin_newsletter_consent_measurement_mark`): `keys` =
+  // ['consent_measurement_marks'] - ta sama reguła odświeża stan treści zgody
+  // i podgląd prośby o zgodę na pomiar (klucze pod `newsletterKeys.settings()`).
   "newsletter_settings.changed.v1",
   "retention_settings.changed.v1",
   "retention_reason.changed.v1",

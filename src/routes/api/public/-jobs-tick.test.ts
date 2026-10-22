@@ -283,6 +283,8 @@ function tickResult(): JobsTickResult {
     },
     // Wygaszanie newslettera (I9d-Y1): poza oknem dziennym krok jest pominięty.
     newsletterSunset: { error: "skipped_duty_cycle" },
+    // Prośby o zgodę na pomiar (I9d-Y2): poza oknem dziennym krok jest pominięty.
+    newsletterMeasurement: { error: "skipped_duty_cycle" },
     // Retencja danych (I9c-X2): poza oknem nocnym krok jest pominięty.
     dataRetention: { error: "skipped_duty_cycle" },
   };
