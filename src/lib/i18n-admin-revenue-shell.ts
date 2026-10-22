@@ -128,6 +128,9 @@ const pl = {
       newsletter: "Newsletter - wysyłki",
       workflows: "Automatyzacje",
       analytics: "Analityka BI",
+      // (I9) Pasek cennika (`AdminPricingWorkspace`): hub i pulpit monetyzacji.
+      hub: "Przychód i lejek",
+      dashboard: "Pulpit monetyzacji",
     },
     nav: {
       label: "Sekcje huba",
@@ -479,6 +482,8 @@ const en: typeof pl = {
       newsletter: "Newsletter - mailings",
       workflows: "Automations",
       analytics: "BI analytics",
+      hub: "Revenue and funnel",
+      dashboard: "Monetization dashboard",
     },
     nav: {
       label: "Hub sections",

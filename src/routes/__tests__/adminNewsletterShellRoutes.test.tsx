@@ -51,6 +51,17 @@ vi.mock("@/components/admin/AdminShell", () => ({
 vi.mock("@/components/admin/newsletter/NewsletterSubNav", () => ({
   NewsletterSubNav: () => <nav data-testid="sub-nav" />,
 }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 // Prawdziwy hak i18n na atrapie słownika: asercje idą po KLUCZU, nie po napisie.
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -220,5 +231,21 @@ describe("layout sekcji /admin/newsletter", () => {
     });
 
     expect(getByTestId("sub-nav")).toBeTruthy();
+  });
+
+  it("I9 (SPEC §2.7): pasek Diagnostyki newslettera pod podnawigacją, przed treścią podstrony", async () => {
+    const { getByTestId } = await renderRoute({
+      route: LayoutRoute,
+      path: "/admin/newsletter",
+      initialEntry: "/admin/newsletter",
+    });
+
+    const mount = getByTestId("revenue-signal-mount");
+    expect(mount.getAttribute("data-surface")).toBe("newsletter");
+    expect(mount.getAttribute("data-variant")).toBe("bar");
+    // Kolejność w dokumencie: podnawigacja, potem pasek.
+    expect(
+      getByTestId("sub-nav").compareDocumentPosition(mount) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

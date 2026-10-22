@@ -23,6 +23,17 @@ import { cleanup, screen } from "@testing-library/react";
 vi.mock("@/components/admin/billing/AdminBillingPanel", () => ({
   AdminBillingPanel: () => <section data-testid="panel-rozliczen" />,
 }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 
 import "@/test/i18nReal";
 import i18n from "@/lib/i18n";
@@ -66,6 +77,19 @@ describe("/admin/billing - nagłówek dokumentu", () => {
       content:
         "Podgląd aktywnych subskrypcji, zamówień, nieudanych płatności i historii zdarzeń operatora płatności.",
     });
+  });
+});
+
+describe("/admin/billing - sygnał huba (I9, SPEC §2.7)", () => {
+  it("pasek Diagnostyki windykacji, jakości danych i katalogu stoi między nagłówkiem a panelem", async () => {
+    await mount();
+    const mount_ = screen.getByTestId("revenue-signal-mount");
+    expect(mount_).toHaveAttribute("data-surface", "billing");
+    expect(mount_).toHaveAttribute("data-variant", "bar");
+    expect(
+      mount_.compareDocumentPosition(screen.getByTestId("panel-rozliczen")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
 

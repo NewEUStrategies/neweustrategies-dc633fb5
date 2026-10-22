@@ -9,11 +9,16 @@
 //
 // NAGŁÓWEK SEKCYJNY (`adminPageHead`, AGENTS.md) zamiast ręcznie składanego
 // `meta` - ten sam format tytułu i te same znaczniki `noindex` co w całym panelu.
+//
+// SYGNAŁ HUBA (I9, SPEC §2.7): pasek Diagnostyki obszarów windykacji, jakości
+// danych i katalogu pod nagłówkiem - lekkie opakowanie, treść w leniwym chunku
+// i tylko dla roli huba.
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CreditCard } from "lucide-react";
 
 import { AdminBillingPanel } from "@/components/admin/billing/AdminBillingPanel";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import { adminPageHead } from "@/lib/adminPageHead";
 import { parseBillingSearch } from "@/lib/admin/billingTabs";
 
@@ -50,6 +55,7 @@ function AdminBillingPage() {
           </p>
         </div>
       </header>
+      <RevenueSignalChip surface="billing" variant="bar" />
       <AdminBillingPanel
         tab={search.tab}
         onTabChange={(tab) =>

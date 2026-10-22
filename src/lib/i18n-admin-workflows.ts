@@ -10,6 +10,11 @@ export const workflowsPl = {
     title: "Automatyzacje",
     subtitle:
       "Deklaratywne przepisy „gdy zdarzenie -> wykonaj akcje” na szynie zdarzeń domenowych. Każdy przebieg zostawia ślad z correlation_id, więc zawsze widać, co i dlaczego się wydarzyło.",
+    // (I9, SPEC §2.7) Drogowskaz do ścieżek huba „Przychód i lejek".
+    hubBanner: {
+      hint: "Wieloetapowe ścieżki są w hubie „Przychód i lejek” - wiadomości z odstępami, warunkami i celem. Tutaj zostają przepisy „gdy zdarzenie -> wykonaj akcje”.",
+      action: "Otwórz ścieżki komunikacji",
+    },
     kpi: {
       activeDefinitions: "Aktywne przepisy",
       runsWindow: "Przebiegi (ostatnie {{count}})",
@@ -281,6 +286,10 @@ export const workflowsEn = {
     title: "Automations",
     subtitle:
       'Declarative "when an event happens -> run actions" recipes on the domain event bus. Every run leaves a correlation_id trail, so you can always see what happened and why.',
+    hubBanner: {
+      hint: "Multi-step journeys live in the “Revenue and funnel” hub - messages with waits, conditions and a goal. Recipes “when an event happens -> run actions” stay on this page.",
+      action: "Open communication journeys",
+    },
     kpi: {
       activeDefinitions: "Active recipes",
       runsWindow: "Runs (last {{count}})",

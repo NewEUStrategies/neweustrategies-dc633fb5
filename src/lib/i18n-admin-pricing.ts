@@ -14,13 +14,6 @@ const adminPricingPl = {
       faq: "FAQ",
       retention: "Retencja",
     },
-    related: {
-      heading: "Powiązane moduły:",
-      coupons: "Kupony B2B",
-      membership: "Członkostwo",
-      paywall: "Paywall",
-      dashboard: "Dashboard monetyzacji",
-    },
     capabilities: {
       enforced: "egzekwowana",
       decorative: "dekoracyjna",
@@ -217,13 +210,6 @@ const adminPricingEn: typeof adminPricingPl = {
       tiers: "Tiers & benefits",
       faq: "FAQ",
       retention: "Retention",
-    },
-    related: {
-      heading: "Related modules:",
-      coupons: "B2B coupons",
-      membership: "Membership",
-      paywall: "Paywall",
-      dashboard: "Monetization dashboard",
     },
     capabilities: {
       enforced: "enforced",

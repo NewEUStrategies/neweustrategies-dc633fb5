@@ -62,6 +62,17 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// (I9) Sygnał Diagnostyki ma własne testy (`RevenueSignalChip.test.tsx`) - tu
+// sprawdzamy wyłącznie MIEJSCE montażu i ekran (`surface`).
+vi.mock("@/components/admin/revenue/molecules/RevenueSignalChip", () => ({
+  RevenueSignalChip: (props: { surface?: string; variant?: string }) => (
+    <div
+      data-testid="revenue-signal-mount"
+      data-surface={props.surface}
+      data-variant={props.variant}
+    />
+  ),
+}));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
 vi.mock("@/lib/i18n-admin-paywall-sync", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/hooks/useNewsletterSettings", () => ({
@@ -271,6 +282,15 @@ describe("układ /admin/coupons - miejsce dla podstron", () => {
     await waitFor(() => expect(view.currentPath()).toBe("/admin/coupons/analytics"));
     expect(screen.getByText("PODSTRONA: analityka")).toBeInTheDocument();
     expect(zakladka(ZAKLADKI.analityka)).toHaveAttribute("aria-selected", "true");
+    cleanup();
+  });
+
+  it("I9 (SPEC §2.7): pasek Diagnostyki kuponów w nagłówku układu - na każdej podstronie", async () => {
+    await zamontujUklad(`${UKLAD}/campaigns`);
+    const mount = screen.getByTestId("revenue-signal-mount");
+    expect(mount).toHaveAttribute("data-surface", "coupons");
+    expect(mount).toHaveAttribute("data-variant", "bar");
+    expect(mount.closest("header")).not.toBeNull();
     cleanup();
   });
 

@@ -10,7 +10,12 @@
 // okladke" znika, gdy okladka jest - bo warunkiem jest DANA, a nie klikniecie.
 // Checklista, ktora da sie odhaczyc bez zrobienia rzeczy, jest gorsza niz brak
 // checklisty.
-import { useMemo } from "react";
+//
+// AKTYWNE ŚCIEŻKI WYDARZEŃ (I9, SPEC §2.7). Wiersz z huba „Przychód i lejek"
+// widzi wyłącznie rola z zakładką Ścieżki (`useRevenueHubTab`), a jego treść
+// (lista ścieżek z huba) jest leniwym chunkiem - pulpit studia nie ciągnie
+// kodu ścieżek dla organizatora, który go nie zobaczy.
+import { lazy, Suspense, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronRight } from "@/lib/lucide-shim";
@@ -22,6 +27,8 @@ import {
 import { EventReadinessPanel } from "@/components/admin/events/organisms/EventReadinessPanel";
 import { EventCloneResultCard } from "@/components/admin/events/molecules/EventCloneResultCard";
 import { EventEditionsCard } from "@/components/admin/events/molecules/EventEditionsCard";
+import { useRevenueHubTab } from "@/components/admin/revenue/molecules/useRevenueHubTab";
+import { useAuth } from "@/hooks/useAuth";
 import { EVENT_STUDIO_ROUTES, type EventStudioSection } from "@/lib/events/eventStudioNav";
 import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { useEventSessions } from "@/lib/events/useEventSessions";
@@ -37,6 +44,11 @@ import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-reg
 import { ensureSponsorsI18n } from "@/lib/i18n-admin-event-sponsors";
 import { ensureTermsI18n } from "@/lib/i18n-admin-event-terms";
 import { ensureCloneI18n } from "@/lib/i18n-admin-event-clone";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
+
+const EventJourneysSummary = lazy(
+  () => import("@/components/admin/journeys/event/EventJourneysSummary"),
+);
 
 interface NextStep {
   key: string;
@@ -160,6 +172,8 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
         </ul>
       </EventStudioRow>
 
+      <EventJourneysRow />
+
       {/* Edycje i wejście do klonu: kolejna edycja to decyzja o TYM wydarzeniu,
           więc zaczyna się z jego pulpitu. */}
       <EventStudioRow
@@ -169,6 +183,25 @@ export function EventOverviewPanel({ row }: { row: AdminEventDetailRow }) {
         <EventEditionsCard eventId={eventId} />
       </EventStudioRow>
     </EventStudioPage>
+  );
+}
+
+/** Aktywne ścieżki wydarzeń - tylko dla roli z zakładką Ścieżki huba i z najemcą. */
+function EventJourneysRow() {
+  const { t } = useTranslation();
+  const visible = useRevenueHubTab("journeys");
+  const { tenantId } = useAuth();
+  if (!visible || !tenantId) return null;
+  ensureRevenueLinksI18n();
+  return (
+    <EventStudioRow
+      label={t("adminRevenue.moduleLinks.events.journeysLabel")}
+      description={t("adminRevenue.moduleLinks.events.journeysDescription")}
+    >
+      <Suspense fallback={null}>
+        <EventJourneysSummary tenantId={tenantId} />
+      </Suspense>
+    </EventStudioRow>
   );
 }
 
