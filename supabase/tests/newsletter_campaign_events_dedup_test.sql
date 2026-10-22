@@ -40,6 +40,18 @@ INSERT INTO public.newsletter_subscribers (id, tenant_id, email, status) VALUES
   ('5b111111-1111-1111-1111-1111111111bb', 'd2222222-2222-2222-2222-2222222222d2',
    'reader-b@x.test', 'subscribed');
 
+-- Zgoda czytelników na pomiar otwarć i kliknięć: od I9d-Y2 zapis zdarzenia
+-- wymaga jej w chwili zdarzenia (przypadki bez zgody - hub_i9d_y2_tracking).
+-- Przedmiotem tego testu jest unikalność, więc zgoda jest tłem.
+INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
+SELECT x.t::uuid, x.e, 'newsletter', 'email_measurement', 'Zgoda na pomiar otwarć i kliknięć', true,
+       now() - interval '1 day'
+  FROM (VALUES ('d1111111-1111-1111-1111-1111111111d1', 'reader-a@x.test'),
+               ('d1111111-1111-1111-1111-1111111111d1', 'reader-a2@x.test'),
+               ('d1111111-1111-1111-1111-1111111111d1', 'reader-a3@x.test'),
+               ('d1111111-1111-1111-1111-1111111111d1', 'reader-a4@x.test'),
+               ('d2222222-2222-2222-2222-2222222222d2', 'reader-b@x.test')) x(t, e);
+
 -- ---------------------------------------------------------------------------
 -- 1) Sam inwariant: indeks istnieje, jest UNIKALNY i CZĘŚCIOWY
 -- ---------------------------------------------------------------------------

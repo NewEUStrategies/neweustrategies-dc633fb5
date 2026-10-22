@@ -343,6 +343,39 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   ["admin_data_retention_newsletter_due", "I9", "panel"],
   ["admin_data_retention_newsletter_exclude", "I9", "panel"],
   ["admin_data_retention_newsletter_include", "I9", "panel"],
+  // (I9d-Y2, 2026-10-22) Treść zgody i pomiar: jedno źródło treści domyślnej
+  // i jej wersji, rejestr wersji z pomiarem, oznaczenie admina, klucz zgody
+  // `email_measurement` (wyzwalacz rejestru zgód), wersja przy każdej zgodzie
+  // newslettera, czytelnik zgody na pomiar i porcja dla runnerów, wycofanie
+  // samego pomiaru, licznik mierzonych kampanii, ponowne potwierdzenie
+  // (prośby, wspólny budżet z wygaszaniem, link) i panel.
+  ["_newsletter_consent_default", "I9", "internal"],
+  ["_newsletter_consent_version", "I9", "internal"],
+  ["_newsletter_consent_upgrade_defaults", "I9", "internal"],
+  ["_consent_measurement_versions", "I9", "internal"],
+  ["_consent_text_sha256", "I9", "internal"],
+  ["_consent_text_version", "I9", "internal"],
+  ["_consent_covers_measurement", "I9", "internal"],
+  ["tg_crm_consent_log_measurement", "I9", "trigger"],
+  ["_newsletter_log_consents", "I9", "internal"],
+  ["newsletter_to_lead", "I9", "trigger"],
+  ["tg_newsletter_consents_log", "I9", "trigger"],
+  ["_email_measurement_consent", "I9", "internal"],
+  ["email_measurement_status", "I9", "service"],
+  ["_email_measurement_subject", "I9", "internal"],
+  ["email_measurement_state", "I9", "service"],
+  ["email_measurement_withdraw", "I9", "service"],
+  ["tg_newsletter_recipients_measured", "I9", "trigger"],
+  ["admin_newsletter_campaign_measurement", "I9", "panel"],
+  ["_newsletter_oneoff_mail_used", "I9", "internal"],
+  ["_newsletter_measurement_candidates", "I9", "internal"],
+  ["admin_newsletter_measurement_preview", "I9", "panel"],
+  ["admin_newsletter_measurement_request", "I9", "panel"],
+  ["newsletter_measurement_claim", "I9", "service"],
+  ["newsletter_measurement_mark", "I9", "service"],
+  ["newsletter_measurement_confirm", "I9", "service"],
+  ["admin_newsletter_consent_measurement_get", "I9", "panel"],
+  ["admin_newsletter_consent_measurement_mark", "I9", "panel"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -392,6 +425,9 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   // zaangażowanie subskrybenta (wygaszanie nieaktywnych).
   admin_club_application_set_status: "20260811150000",
   newsletter_record_campaign_event: "20260814215302",
+  // (I9d-Y2, 2026-10-22) Wersja treści przy każdej zgodzie newslettera
+  // (wspólny pisarz rejestru zgód z wyzwalacza subskrybenta).
+  newsletter_to_lead: "20260708151417",
 };
 
 /**
@@ -430,11 +466,18 @@ export const HUB_I9_REDEFINITIONS: Readonly<Record<string, HubI9Redefinition>> =
   admin_journey_stats: "20261020140500",
   // (I9d, 2026-10-22) + znacznik zaangażowania subskrybenta newslettera
   // (wygaszanie nieaktywnych, Z-I9c-08) - druga redefinicja w I9.
+  // (I9d-Y2, 2026-10-22) + otwarcia i kliknięcia tylko za zgodą na pomiar
+  // i przy wspólnym przełączniku najemcy - trzecia (zapis zdarzeń) i druga
+  // (kontakt do wysyłki: piksel i linki z identyfikatorem) redefinicja.
   journey_record_message_event: {
     "20261020161300": "20261020140500",
     "20261020161900": "20261020161300",
+    "20261020162400": "20261020161900",
   },
-  journey_contact_for_send: "20261020140200",
+  journey_contact_for_send: {
+    "20261020161300": "20261020140200",
+    "20261020162400": "20261020161300",
+  },
   admin_journey_settings_get: "20261020140300",
   admin_journey_settings_save: "20261020140300",
 };
@@ -1047,6 +1090,11 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/i18n-admin-retention-aggregate.ts",
     "src/routes/admin.newsletter.email-content.tsx",
     "src/routes/__tests__/platformMonetizationRoute.test.tsx",
+    // (I9d-Y2, 2026-10-22) Treść zgody i pomiar: zapis otwarć i kliknięć
+    // tylko za zgodą na pomiar - fikstury testów zapisu zdarzeń kampanii
+    // i ścieżek (S5) nadają zgodę (ich przedmiotem jest deduplikacja
+    // i statystyki, nie zgoda).
+    "supabase/tests/{journeys_tracking_stats,newsletter_campaign_events_dedup}_test.sql",
   ],
 };
 

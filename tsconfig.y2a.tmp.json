@@ -1,0 +1,2 @@
+{"extends": "./tsconfig.json", "compilerOptions": {"incremental": false},
+ "include": ["src/**/*.d.ts", "src/routeTree.gen.ts", "vitest.setup.ts", "src/lib/ci/hubDelivery.ts", "src/lib/ci/__tests__/hubDelivery.gate.test.ts"]}
