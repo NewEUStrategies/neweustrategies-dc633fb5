@@ -12,7 +12,9 @@
 //      „Wykonano: …” pada raz (sesja nie powtarza komunikatu widoku), a Ctrl/Cmd+Z
 //      i Ctrl/Cmd+Shift+Z działają z paska edytora (poza kanwą) z komunikatem
 //      „Cofnięto: …” / „Ponowiono: …” w tym samym regionie `aria-live`.
-//   4. Atrybuty wycieczki (`data-tour`), axe bez naruszeń w obu widokach.
+//   4. Powiększenie z paska i skrót kanwy (Ctrl+0) zmieniają ten sam stan
+//      edytora; komunikat w regionie kanwy; grupa tylko w widoku Kanwa.
+//   5. Atrybuty wycieczki (`data-tour`), axe bez naruszeń w obu widokach.
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -309,6 +311,32 @@ describe("parytet operacji kanwa ↔ lista ↔ klawiatura w złożonym edytorze"
     );
     fireEvent.keyDown(select, { key: "z", ctrlKey: true });
     expect(item(canvas(), "node:w")).toBeNull();
+  });
+
+  it("powiększenie z paska: skala kanwy, komunikat w regionie kanwy; grupa tylko w widoku Kanwa", async () => {
+    await mount();
+    const toolbar = screen.getByTestId("journey-toolbar");
+    fireEvent.click(
+      within(toolbar).getByRole("button", { name: t("adminJourneys.canvas.zoom.in") }),
+    );
+    const content = screen.getByTestId("journey-canvas-content");
+    expect(content.style.transform).toBe("scale(1.1)");
+    const live = canvas().querySelector('[aria-live="polite"]') as HTMLElement;
+    await waitFor(() =>
+      expect(live.textContent?.trim()).toBe(t("adminJourneys.canvas.live.zoom", { value: "110" })),
+    );
+    // Kanwa nie dubluje przycisków powiększenia - są w pasku.
+    expect(
+      within(canvas()).queryByRole("button", { name: t("adminJourneys.canvas.zoom.in") }),
+    ).toBeNull();
+    // Skrót klawiatury na kanwie zmienia ten sam stan powiększenia.
+    act(() => item(canvas(), "node:t").focus());
+    press("0", { ctrlKey: true });
+    expect(content.style.transform).toBe("scale(1)");
+    switchView(t("adminJourneys.editor.toolbar.view.list"));
+    expect(
+      within(toolbar).queryByRole("group", { name: t("adminJourneys.canvas.zoom.toolbar") }),
+    ).toBeNull();
   });
 
   it("atrybuty wycieczki i axe bez naruszeń w widoku kanwy i listy", async () => {
