@@ -79,6 +79,9 @@ const pl = {
       fixGone: "Ten problem już nie występuje - reguła jest dziś w porządku.",
       fixUnknown: "Tej reguły nie da się teraz ocenić, więc naprawa nie jest dostępna.",
       fixNoDialog: "Ta diagnoza nie ma szybkiej naprawy - użyj odnośnika do modułu.",
+      fixInvalid: "Adres wskazuje naprawę, której nie znamy - sprawdź odnośnik.",
+      snoozesUnavailable:
+        "Nie udało się odczytać wyciszeń - diagnozy pokazujemy tak, jakby żadna nie była wyciszona.",
       card: {
         count: "Liczba: {{value}}",
         evidenceLabel: "Dowody",
@@ -96,8 +99,6 @@ const pl = {
         snoozedIntentional: "Wyciszone świadomie: {{reason}}",
         snoozeAdminOnly: "Wyciszać mogą tylko administratorzy.",
         notSnoozable: "Tej reguły nie można wyciszyć - przekłamuje każdą liczbę huba.",
-        fixRoleAdmin: "Tę naprawę zapisuje administrator.",
-        fixRoleEditor: "Tę naprawę zapisuje administrator albo redaktor.",
         impact: {
           high: "Wpływ: wysoki",
           medium: "Wpływ: średni",
@@ -118,7 +119,7 @@ const pl = {
         systemOnly: "Pisze wyłącznie system",
         none: "-",
         writerKind: {
-          mutator: "mutator",
+          mutator: "mutator modułu",
           server_fn: "funkcja serwera",
           webhook: "webhook operatora",
           rpc: "RPC",
@@ -164,6 +165,9 @@ const pl = {
       reasonCount: "{{value}} / {{max}}",
       reasonTooLong: "Powód jest za długi - skróć go do {{max}} znaków.",
       reasonTooShort: "Powód musi mieć co najmniej {{min}} znaki.",
+      reasonOptional: "Powód (opcjonalnie)",
+      kindLabel: "Rodzaj wyciszenia",
+      failed: "Nie udało się zapisać wyciszenia. Spróbuj ponownie za chwilę.",
       intentionalHint:
         "Wyciszenie świadome obowiązuje, dopóki fakty się nie zmienią - nowy plan albo inna liczba przywróci diagnozę.",
       confirm: "Wycisz",
@@ -252,12 +256,18 @@ const pl = {
       conflictBody:
         "Ktoś zapisał ten sam wiersz w innej karcie, zanim zdążyliśmy. Wczytaj aktualny stan i sprawdź podgląd jeszcze raz.",
       conflictReload: "Wczytaj aktualne",
+      conflictGone: "Ktoś już naprawił ten problem w innym miejscu - reguła jest dziś w porządku.",
+      conflictCaption: "Twoja zmiana i stan zapisany w międzyczasie",
+      conflictYours: "Twoja zmiana",
+      conflictNow: "Stan teraz",
       failed: "Nie udało się zapisać naprawy. Spróbuj ponownie albo popraw w module.",
       close: "Zamknij",
       cancel: "Anuluj",
       roleAdmin:
         "Tę zmianę zapisuje administrator - poproś administratora albo zrób to w module z jego kontem.",
       roleEditor: "Tę zmianę zapisuje administrator albo redaktor.",
+      rolePlatform: "Tę zmianę zapisuje administrator platformy.",
+      bodyLoading: "Wczytujemy formularz naprawy…",
       incomplete: "Uzupełnij wybór, żeby zastosować naprawę.",
       noOptions: "Na dziś nie ma czego naprawić - fakty się zmieniły.",
       body: {
@@ -1066,6 +1076,8 @@ const en: typeof pl = {
       fixGone: "This problem no longer occurs - the rule is healthy today.",
       fixUnknown: "This rule cannot be assessed right now, so the fix is unavailable.",
       fixNoDialog: "This finding has no quick fix - use the link to the module.",
+      fixInvalid: "The address points to a fix we do not know - check the link.",
+      snoozesUnavailable: "Snoozes could not be read - findings are shown as if none were snoozed.",
       card: {
         count: "Count: {{value}}",
         evidenceLabel: "Evidence",
@@ -1083,8 +1095,6 @@ const en: typeof pl = {
         snoozedIntentional: "Snoozed on purpose: {{reason}}",
         snoozeAdminOnly: "Only admins can snooze findings.",
         notSnoozable: "This rule cannot be snoozed - it distorts every hub number.",
-        fixRoleAdmin: "This fix is saved by an admin.",
-        fixRoleEditor: "This fix is saved by an admin or an editor.",
         impact: {
           high: "Impact: high",
           medium: "Impact: medium",
@@ -1105,7 +1115,7 @@ const en: typeof pl = {
         systemOnly: "Written by the system only",
         none: "n/a",
         writerKind: {
-          mutator: "mutator",
+          mutator: "module mutator",
           server_fn: "server function",
           webhook: "provider webhook",
           rpc: "RPC call",
@@ -1151,6 +1161,9 @@ const en: typeof pl = {
       reasonCount: "{{value}} of {{max}}",
       reasonTooLong: "The reason is too long - shorten it to {{max}} characters.",
       reasonTooShort: "The reason needs at least {{min}} characters.",
+      reasonOptional: "Reason (optional)",
+      kindLabel: "Kind of snooze",
+      failed: "The snooze could not be saved. Please try again in a moment.",
       intentionalHint:
         "An intentional snooze holds only while the facts stay the same - a new plan or a different count brings the finding back.",
       confirm: "Snooze",
@@ -1239,12 +1252,18 @@ const en: typeof pl = {
       conflictBody:
         "Someone saved the same row in another tab before us. Load the current state and review the preview again.",
       conflictReload: "Load current",
+      conflictGone: "Someone already resolved this problem elsewhere - the rule passes today.",
+      conflictCaption: "Your change and the state saved in the meantime",
+      conflictYours: "Your change",
+      conflictNow: "Current state",
       failed: "Could not save the fix. Try again or correct it in the module.",
       close: "Close",
       cancel: "Cancel",
       roleAdmin:
         "This change is saved by an admin - ask an admin or do it in the module with an admin account.",
       roleEditor: "This change is saved by an admin or an editor.",
+      rolePlatform: "This change is saved by a platform admin.",
+      bodyLoading: "Loading the fix form…",
       incomplete: "Complete the choice to apply the fix.",
       noOptions: "There is nothing to fix today - the facts have changed.",
       body: {
