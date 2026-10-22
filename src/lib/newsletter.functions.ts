@@ -248,7 +248,28 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
-    if (existing?.status === "subscribed") return { ok: true, status: "exists" };
+    if (existing?.status === "subscribed") {
+      // Wygaszanie nieaktywnych subskrybentów (I9d-Y1, Z-I9c-08): ponowny zapis
+      // istniejącego adresu przez formularz to zaangażowanie („formularz") -
+      // licznik nieaktywności biegnie od nowa. Bez tego wywołania ten zapis nie
+      // zostawiał w bazie żadnego śladu. Najemca z hosta (jak wyżej), odpowiedź
+      // bez zmian (nie ujawnia obecności na liście), a błąd znacznika nie może
+      // zepsuć formularza - zaangażowanie z dokładnością do doby wystarcza.
+      try {
+        const { error: touchError } = await (
+          supabaseAdmin as unknown as {
+            rpc: (
+              fn: string,
+              args: Record<string, unknown>,
+            ) => PromiseLike<{ error: { message: string } | null }>;
+          }
+        ).rpc("newsletter_engagement_touch", { p_tenant: tenantId, p_email: email });
+        if (touchError) console.error("[newsletter] engagement touch failed", touchError.message);
+      } catch (err) {
+        console.error("[newsletter] engagement touch failed", err);
+      }
+      return { ok: true, status: "exists" };
+    }
 
     // Lista wykluczeń obowiązuje TAKŻE tutaj: e-mail potwierdzający zapis to
     // pełnoprawna wysyłka na adres, który wcześniej twardo odbił albo zgłosił

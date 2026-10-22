@@ -29,62 +29,19 @@ import {
   type DataRetentionRunResultDto,
   type DataRetentionStateDto,
 } from "./dataRetentionParse";
+// Kody SQL -> stan panelu: wspólne dla wszystkich funkcji serwerowych karty
+// (także wygaszania newslettera, `newsletterSunset.functions.ts`).
+import {
+  mapDataRetentionError,
+  mutation,
+  readState,
+  type DataRetentionMutation,
+  type DataRetentionMutationError,
+  type DataRetentionRead,
+} from "./rpcResult";
 
-/** „Funkcji jeszcze nie ma w tej bazie" - okno wdrożenia, nie awaria. */
-const MISSING_SOURCE = new Set(["42883", "PGRST202"]);
-
-export type DataRetentionRead<T> =
-  { state: "ready"; data: T } | { state: "forbidden" } | { state: "unavailable" };
-
-export type DataRetentionMutationError =
-  "forbidden" | "conflict" | "not_found" | "invalid" | "unavailable" | "failed";
-
-export type DataRetentionMutation<T> =
-  { ok: true; data: T } | { ok: false; error: DataRetentionMutationError; reason: string | null };
-
-type RpcError = { message: string; code?: string } | null;
-
-function readState<T>(error: RpcError, ready: () => T): DataRetentionRead<T> {
-  if (error) {
-    if (error.code === "42501") return { state: "forbidden" };
-    if (error.code !== undefined && MISSING_SOURCE.has(error.code)) return { state: "unavailable" };
-    throw new Error(error.message);
-  }
-  return { state: "ready", data: ready() };
-}
-
-/** Kod SQL -> kod panelu; `reason` = komunikat RPC (`period_out_of_range`…). */
-export function mapDataRetentionError(error: NonNullable<RpcError>): DataRetentionMutation<never> {
-  const reason = error.message.split(":")[0]?.trim() || null;
-  const code: DataRetentionMutationError = (() => {
-    switch (error.code) {
-      case "42501":
-        return "forbidden";
-      case "40001":
-        return "conflict";
-      case "P0002":
-        return "not_found";
-      case "22023":
-      case "22P02":
-      case "23514":
-        return "invalid";
-      default:
-        return error.code !== undefined && MISSING_SOURCE.has(error.code)
-          ? "unavailable"
-          : "failed";
-    }
-  })();
-  return { ok: false, error: code, reason };
-}
-
-function mutation<T>(
-  data: unknown,
-  error: RpcError,
-  parse: (raw: unknown) => T,
-): DataRetentionMutation<T> {
-  if (error) return mapDataRetentionError(error);
-  return { ok: true, data: parse(data) };
-}
+export { mapDataRetentionError };
+export type { DataRetentionMutation, DataRetentionMutationError, DataRetentionRead };
 
 const ISO = z.string().datetime({ offset: true });
 
