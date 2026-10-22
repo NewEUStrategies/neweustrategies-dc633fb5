@@ -16,6 +16,7 @@ import {
 import {
   MEASUREMENT_FOOTER_COPY,
   NEWSLETTER_MEASUREMENT_API_PATH,
+  measurementChannelOf,
   measurementPromptStateOf,
   measurementResultStateOf,
   newsletterMeasurementUrl,
@@ -180,6 +181,15 @@ describe("adres linku i stany strony", () => {
     expect(newsletterMeasurementUrl("https://nes.example", "c+1")).toBe(
       `https://nes.example${NEWSLETTER_MEASUREMENT_API_PATH}?token=c%2B1`,
     );
+    expect(newsletterMeasurementUrl("https://nes.example", "ws1", "pl", "preferences")).toBe(
+      `https://nes.example${NEWSLETTER_MEASUREMENT_API_PATH}?token=ws1&lang=pl&via=preferences`,
+    );
+    // Kanał domyślny nie dokleja parametru; nieznany z adresu = stopka.
+    expect(newsletterMeasurementUrl("https://nes.example", "ws1", "pl", "email_footer")).not.toContain(
+      "via=",
+    );
+    expect(measurementChannelOf("account")).toBe("email_footer");
+    expect(measurementChannelOf("preferences")).toBe("preferences");
     const url = new URL(
       measurementOptOutUrl("https://nes.example", { kind: "lead", leadId: LEAD }, "pl") as string,
     );
@@ -197,6 +207,13 @@ describe("adres linku i stany strony", () => {
   it("odpowiedź GET -> ekran decyzji, POST -> ekran wyniku, kody błędów", () => {
     expect(measurementPromptStateOf(200, { ok: true, action: "withdraw" })).toBe("confirmWithdraw");
     expect(measurementPromptStateOf(200, { ok: true, action: "confirm" })).toBe("confirmGrant");
+    // Bez zgody na pomiar nie ma czego wyłączać.
+    expect(measurementPromptStateOf(200, { ok: true, action: "withdraw", consent: false })).toBe(
+      "alreadyOff",
+    );
+    expect(measurementPromptStateOf(200, { ok: true, action: "withdraw", consent: true })).toBe(
+      "confirmWithdraw",
+    );
     expect(measurementResultStateOf(200, { ok: true, action: "withdraw" })).toBe("withdrawn");
     expect(measurementResultStateOf(200, { ok: true, action: "withdraw", already: true })).toBe(
       "alreadyOff",

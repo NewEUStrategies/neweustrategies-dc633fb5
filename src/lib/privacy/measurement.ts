@@ -23,17 +23,35 @@ export const NEWSLETTER_MEASUREMENT_PAGE_PATH = "/newsletter/measurement";
 export type MeasurementLang = "pl" | "en";
 
 /**
+ * Skąd przyszło wycofanie (kolumna `form_id` wpisu rejestru zgód - dowód
+ * kanału): stopka maila albo strona preferencji newslettera (wypis). Kanał
+ * `account` (panel konta) ustawia wyłącznie funkcja serwerowa zalogowanego.
+ */
+export const MEASUREMENT_LINK_CHANNELS = ["email_footer", "preferences"] as const;
+export type MeasurementLinkChannel = (typeof MEASUREMENT_LINK_CHANNELS)[number];
+
+/** Kanał z adresu/ciała - wyłącznie z listy, inaczej stopka maila. */
+export function measurementChannelOf(raw: unknown): MeasurementLinkChannel {
+  return (MEASUREMENT_LINK_CHANNELS as readonly unknown[]).includes(raw)
+    ? (raw as MeasurementLinkChannel)
+    : "email_footer";
+}
+
+/**
  * Link wskazuje ENDPOINT, nie stronę (jak wypis i „Chcę dalej otrzymywać"):
  * strona może zmienić ścieżkę bez psucia maili już wysłanych. `lang` zmienia
- * wyłącznie napisy strony (ścieżki `/newsletter` nie mają prefiksu języka).
+ * wyłącznie napisy strony (ścieżki `/newsletter` nie mają prefiksu języka),
+ * `via` - kanał zapisany przy wycofaniu (stopka maila domyślnie).
  */
 export function newsletterMeasurementUrl(
   origin: string,
   token: string,
   lang?: MeasurementLang,
+  via?: MeasurementLinkChannel,
 ): string {
   const base = `${origin.replace(/\/+$/, "")}${NEWSLETTER_MEASUREMENT_API_PATH}?token=${encodeURIComponent(token)}`;
-  return lang ? `${base}&lang=${lang}` : base;
+  const withLang = lang ? `${base}&lang=${lang}` : base;
+  return via && via !== "email_footer" ? `${withLang}&via=${via}` : withLang;
 }
 
 /**
@@ -79,8 +97,12 @@ export interface MeasurementResponseBody {
   ok?: boolean;
   action?: MeasurementAction;
   already?: boolean;
-  /** GET: czy pomiar jest dziś aktywny dla tej osoby (zgoda i przełącznik). */
-  measured?: boolean;
+  /**
+   * GET wycofania: czy osoba ma dziś zgodę na pomiar (odczyt bez mutacji).
+   * `false` = nie ma czego wyłączać - strona od razu mówi, że pomiar jest
+   * wyłączony. Brak pola (awaria odczytu) = przycisk jak zwykle.
+   */
+  consent?: boolean;
   error?: string;
 }
 
@@ -90,7 +112,8 @@ export function measurementPromptStateOf(
   body: MeasurementResponseBody,
 ): MeasurementPageState {
   if (!body.ok) return measurementErrorStateOf(status, body);
-  return body.action === "confirm" ? "confirmGrant" : "confirmWithdraw";
+  if (body.action === "confirm") return "confirmGrant";
+  return body.consent === false ? "alreadyOff" : "confirmWithdraw";
 }
 
 /** Odpowiedź POST (zapis decyzji) -> ekran wyniku. */
