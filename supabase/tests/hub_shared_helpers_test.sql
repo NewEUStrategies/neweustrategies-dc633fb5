@@ -151,7 +151,9 @@ SELECT is_empty(
           'tg_crm_consent_log_measurement', 'tg_newsletter_consents_log', 'tg_newsletter_recipients_measured',
           -- (I9-C) wspólny pomocnik wycofania zgody marketingowej (Z-S5-04),
           -- emiter wiadomości z formularza kontaktowego (Z-S5-01).
-          '_crm_marketing_consent_withdraw', 'tg_contact_messages_submitted_emit'
+          '_crm_marketing_consent_withdraw', 'tg_contact_messages_submitted_emit',
+          -- (I9-C) suma dzienna zdarzeń kampanii złożonych przez retencję (Z-I9c-05).
+          '_newsletter_engagement_daily_sum'
         ]::name[]) $$,
   'hub_grants: funkcje serwisowe, wewnętrzne i wyzwalacze huba bez EXECUTE dla anon i authenticated');
 -- hub-grants:end

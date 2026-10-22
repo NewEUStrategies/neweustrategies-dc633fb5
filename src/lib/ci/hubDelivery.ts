@@ -384,6 +384,12 @@ const FUNCTION_TABLE: readonly FunctionEntry[] = [
   // (I9-C, 2026-10-22) Z-S5-01: wiadomość z formularza kontaktowego na szynie
   // (`contact_message.submitted.v1`, szablon ścieżki B2B).
   ["tg_contact_messages_submitted_emit", "I9", "trigger"],
+  // (I9-C, 2026-10-22) Z-I9c-05 / Z-S7-07: czytelnicy zdarzeń kampanii po
+  // retencji - suma dzienna zestawienia oraz Kokpit i warstwa semantyczna
+  // sprzed huba przepisane na archiwum i zestawienie dzienne.
+  ["_newsletter_engagement_daily_sum", "I9", "internal"],
+  ["admin_dashboard_marketing", "I9", "panel"],
+  ["analytics_semantic_snapshot", "I9", "panel"],
 ];
 
 /** Właściciel każdej funkcji definiowanej w bloku huba. */
@@ -439,6 +445,10 @@ export const HUB_CIALO_Z: Readonly<Record<string, string>> = {
   // (I9-C, 2026-10-22) Z-S5-04: RPC personelu CRM zapisuje wycofanie zgody
   // wspólnym pomocnikiem (`_crm_marketing_consent_withdraw`).
   crm_leads_marketing_consent_withdraw: "20261012180900",
+  // (I9-C, 2026-10-22) Z-I9c-05 / Z-S7-07: Kokpit i warstwa semantyczna
+  // czytają okna sprzed progu retencji z archiwum i zestawienia dziennego.
+  admin_dashboard_marketing: "20260912110000",
+  analytics_semantic_snapshot: "20261003180000",
 };
 
 /**
@@ -501,6 +511,9 @@ export const HUB_I9_REDEFINITIONS: Readonly<Record<string, HubI9Redefinition>> =
   // (I9-C, 2026-10-22) Z-S5-04: wypis ze ścieżki wycofuje zgodę wspólnym
   // pomocnikiem z RPC personelu CRM i wygaszaniem newslettera.
   _journey_unsubscribe: "20261020140500",
+  // (I9-C, 2026-10-22) Z-I9c-05: zasięg kampanii w zdrowiu poczty (S1)
+  // z archiwum kampanii, przycięty do kohorty (Z-I9c-10).
+  admin_revenue_email_health: "20261020100300",
 };
 
 /**
