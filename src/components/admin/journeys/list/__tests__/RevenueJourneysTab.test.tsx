@@ -228,6 +228,21 @@ describe("adres zakładki", () => {
     });
   });
 
+  // Cel skrótu ⌘K „Nowa ścieżka” (adminNav, Integrator S8): sam `?new=1`
+  // otwiera galerię nad listą - także redaktorowi, który może tworzyć szkice.
+  it("skrót ⌘K: samo ?new=1 otwiera galerię (redaktor), bez wyboru szablonu", async () => {
+    h.auth = { roles: ["editor"], tenantId: "11111111-1111-4111-8111-111111111111" };
+    h.search = { new: "1" };
+    mount();
+    const gallery = await screen.findByTestId("journey-template-gallery");
+    expect(
+      gallery.querySelectorAll('[data-selected="true"]'),
+      "żaden szablon nie jest zaznaczony",
+    ).toHaveLength(0);
+    expect(screen.getByRole("button", { name: t("adminJourneys.gallery.close") })).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("?new=1&template=<klucz> otwiera galerię z wyborem i instalację szablonu", async () => {
     h.search = { new: "1", template: "welcome_onboarding" };
     h.install.mockResolvedValue({

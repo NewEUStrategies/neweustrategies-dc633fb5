@@ -42,6 +42,9 @@ export const adminCorePl = {
       // ładuje dopiero hub, a wyszukiwarka działa na każdej trasie panelu.
       revenueHub: "Przychód i lejek",
       journeys: "Ścieżki komunikacji",
+      // Skrót ⌘K do galerii szablonów (`/admin/revenue/journeys?new=1`) -
+      // akcja tworzenia, dlatego pełna nazwa, a nie nazwa zakładki (S8).
+      newJourney: "Nowa ścieżka komunikacji",
       revenueTabs: {
         overview: "Kokpit",
         mrr: "Przychód (MRR)",
@@ -1312,6 +1315,7 @@ export const adminCoreEn = {
       analyticsReconciliation: "Reconciliation",
       revenueHub: "Revenue and funnel",
       journeys: "Communication journeys",
+      newJourney: "New communication journey",
       revenueTabs: {
         overview: "Overview",
         mrr: "Revenue (MRR)",

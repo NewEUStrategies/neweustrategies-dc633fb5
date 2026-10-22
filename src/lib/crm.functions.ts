@@ -10,9 +10,12 @@ import { csvDocument } from "@/lib/crm/csv";
 import { CONSENT_LOG_TIMELINE_SELECT, type ConsentLogTimelineRow } from "@/lib/crm/consentLog";
 import {
   leadTimelineEventFromAudit,
+  leadTimelineEventsFromJourneys,
   type LeadTimelineAuditRow,
   type LeadTimelineEvent,
 } from "@/lib/crm/leadTimeline";
+import type { JourneyLeadEnrollment } from "@/lib/journeys/dto";
+import { parseLeadEnrollments } from "@/lib/journeys/parse";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
 import type { RpcCallable } from "@/lib/revenue/rpcCallable";
@@ -717,6 +720,30 @@ export const pushLeadToPartners = createServerFn({ method: "POST" })
 // Jeden typ z `leadTimeline.ts` - unia typów wpisów nie ma drugiej kopii.
 export type TimelineEvent = LeadTimelineEvent;
 
+/**
+ * Zapisy kontaktu do ścieżek komunikacji (typ „journey" na osi, SPEC §2.7).
+ * RPC S5 bierze najemcę i rolę z sesji (admin|redaktor), więc payload niesie
+ * tylko identyfikator leada. Ścieżki są DODATKIEM osi, nie jej warunkiem:
+ * odmowa roli (42501 - personel CRM bez roli huba), funkcja niewdrożona
+ * (42883) albo kształt spoza kontraktu (`parseLeadEnrollments` rzuca) dają
+ * oś bez tych wpisów, a nie błąd całej karty.
+ */
+async function leadJourneyEnrollments(
+  context: { supabase: unknown },
+  leadId: string,
+): Promise<JourneyLeadEnrollment[]> {
+  const { data, error } = await (context.supabase as RpcCallable).rpc(
+    "admin_journey_lead_enrollments",
+    { p_lead_id: leadId },
+  );
+  if (error) return [];
+  try {
+    return parseLeadEnrollments(data);
+  } catch {
+    return [];
+  }
+}
+
 async function buildLeadTimeline(
   context: { supabase: unknown },
   leadId: string,
@@ -728,7 +755,7 @@ async function buildLeadTimeline(
   if (error || !lead) throw new Error(error?.message ?? "Lead not found");
   const L = lead as { id: string; tenant_id: string; email: string };
 
-  const [messages, subs, consents, notes, audits] = await Promise.all([
+  const [messages, subs, consents, notes, audits, journeys] = await Promise.all([
     fetchRows(
       looseTable(context, "contact_messages")
         .select("id, form_name, form_type, subject, message, page_url, lang, created_at")
@@ -787,6 +814,7 @@ async function buildLeadTimeline(
         .limit(500)
         .returns<LeadTimelineAuditRow>(),
     ),
+    leadJourneyEnrollments(context, L.id),
   ]);
 
   const ev: TimelineEvent[] = [];
@@ -838,6 +866,8 @@ async function buildLeadTimeline(
     });
   // Aktywność z Wydarzeń (`event.*`) dostaje własny typ i zdanie z metadanych.
   for (const a of audits) ev.push(leadTimelineEventFromAudit(a));
+  // Ścieżki komunikacji: wejście i koniec każdego zapisu (zdanie PL/EN w `meta`).
+  ev.push(...leadTimelineEventsFromJourneys(journeys));
   ev.sort((a, b) => (a.at < b.at ? 1 : -1));
   return { lead: lead as Record<string, unknown>, events: ev };
 }

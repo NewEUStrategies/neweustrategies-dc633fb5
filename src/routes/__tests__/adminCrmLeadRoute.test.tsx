@@ -69,6 +69,13 @@ vi.mock("sonner", () => ({
     warning: (m: string) => h.toastError.push(m),
   },
 }));
+// Karta „Ścieżki” (S8) ma własny test (`LeadJourneysCard.test.tsx`); tu liczy
+// się montaż: leniwy chunk na zakładce Analityka, z leadem i językiem karty.
+vi.mock("@/components/admin/journeys/lead/LeadJourneysCard", () => ({
+  LeadJourneysCard: ({ leadId, lang }: { leadId: string; lang?: string }) => (
+    <section data-testid="lead-journeys-card" data-lead-id={leadId} data-lang={lang} />
+  ),
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ i18n: { language: h.lang }, t: (k: string) => k }),
   // Nakładki słownikowe (np. cykl życia CRM, S4) rejestrują się przy imporcie
@@ -398,6 +405,52 @@ describe("karta osoby CRM", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Aktywność/ }));
     expect(await screen.findByText("Zgłoszenie wystąpienia")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Otwórz w studiu wydarzenia" })).toBeInTheDocument();
+  });
+
+  it("wpis ścieżki komunikacji mówi zdaniem w języku panelu i otwiera edytor (S8)", async () => {
+    const journeyId = "4cab3de7-f976-404a-b54e-c37337942b7e";
+    h.timeline = {
+      lead: { email: "anna@example.test" },
+      events: [
+        {
+          id: "jr:e1:in",
+          type: "journey",
+          at: new Date(Date.UTC(2026, 7, 9, 10)).toISOString(),
+          title: "Ścieżka „Powitanie”: wejście (wersja 2)",
+          detail: null,
+          meta: {
+            journey_id: journeyId,
+            current_node_id: "w",
+            summary_pl: "Ścieżka „Powitanie”: wejście (wersja 2)",
+            summary_en: "Journey “Powitanie”: entered (version 2)",
+          },
+        },
+      ],
+    };
+    h.lang = "en";
+    await mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Activity/ }));
+    expect(await screen.findByText("Journey “Powitanie”: entered (version 2)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open the communication journey" }).getAttribute("href"),
+    ).toContain(`/admin/revenue/journeys/${journeyId}`);
+
+    cleanup();
+    h.lang = "pl";
+    await mount();
+    fireEvent.click(await screen.findByRole("button", { name: /Aktywność/ }));
+    expect(await screen.findByText("Ścieżka „Powitanie”: wejście (wersja 2)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz ścieżkę komunikacji" })).toBeInTheDocument();
+  });
+
+  it("zakładka analityki montuje leniwie kartę „Ścieżki” tego leada (S8, SPEC §2.7)", async () => {
+    await mount();
+    const analytics = await screen.findByRole("button", { name: /Analityka/ });
+    expect(screen.queryByTestId("lead-journeys-card")).toBeNull();
+    fireEvent.click(analytics);
+    const card = await screen.findByTestId("lead-journeys-card");
+    expect(card).toHaveAttribute("data-lead-id", LEAD_ID);
+    expect(card).toHaveAttribute("data-lang", "pl");
   });
 
   it("zakładka analityki liczy wiadomości, subskrypcje i notatki", async () => {

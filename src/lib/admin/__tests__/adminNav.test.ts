@@ -10,7 +10,7 @@ import {
   type AdminNavItem,
 } from "@/lib/admin/adminNav";
 import { hubTabsFor } from "@/lib/admin/revenue/hubTabs";
-import { REVENUE_TABS, isRevenueTab } from "@/lib/revenue/search";
+import { REVENUE_TABS, isRevenueTab, parseRevenueHubSearch } from "@/lib/revenue/search";
 
 type TFn = Parameters<typeof buildAdminNavGroups>[0]["t"];
 const t = ((key: string) => key) as unknown as TFn;
@@ -150,8 +150,16 @@ describe("hub „Przychód i lejek” - skróty ⌘K do zakładek", () => {
   const tabPath = (tab: string) =>
     tab === "overview" ? "/admin/revenue" : `/admin/revenue/${tab}`;
 
+  /** Skróty do zakładek - bez akcji z parametrem (`?new=1`), które idą osobno. */
+  const tabEntries = (groups: AdminNavGroup[]) =>
+    (routeItem(groups, "/admin/revenue")?.searchEntries ?? []).filter((e) => !e.search);
+  const newJourneyEntries = (groups: AdminNavGroup[]) =>
+    (routeItem(groups, "/admin/revenue")?.searchEntries ?? []).filter(
+      (e) => e.search?.new === "1",
+    );
+
   it("admin: skrót do KAŻDEJ z 11 zakładek (kokpit = indeks huba), w kolejności paska", () => {
-    const entries = routeItem(build(SESSIONS.admin), "/admin/revenue")?.searchEntries ?? [];
+    const entries = tabEntries(build(SESSIONS.admin));
     expect(entries.map((e) => e.to)).toEqual(REVENUE_TABS.map(tabPath));
     expect(entries.map((e) => e.label)).toEqual(
       REVENUE_TABS.map((tab) => `admin.nav.revenueTabs.${tab}`),
@@ -160,7 +168,7 @@ describe("hub „Przychód i lejek” - skróty ⌘K do zakładek", () => {
   });
 
   it("redaktor: te same zakładki co pasek huba - bez Przychodu, Retencji i Danych wejściowych", () => {
-    const entries = routeItem(build(SESSIONS.editor), "/admin/revenue")?.searchEntries ?? [];
+    const entries = tabEntries(build(SESSIONS.editor));
     const targets = entries.map((e) => e.to);
     expect(targets).toEqual(hubTabsFor(["editor"]).map((spec) => tabPath(spec.id)));
     for (const tab of ["mrr", "retention", "inputs"]) {
@@ -215,9 +223,40 @@ describe("hub „Przychód i lejek” - skróty ⌘K do zakładek", () => {
     expect(keys.filter((k) => k === "/admin/revenue/journeys")).toHaveLength(1);
   });
 
-  it("„Nowa ścieżka” (`?new=1`) nie ma skrótu, dopóki zakładka Ścieżek go nie obsłuży (S8)", () => {
-    const entries = routeItem(build(SESSIONS.admin), "/admin/revenue")?.searchEntries ?? [];
-    expect(entries.some((e) => e.search?.new === "1")).toBe(false);
+  // Integrator S8 (2026-10-22): zakładka Ścieżek obsługuje `?new=1` (galeria
+  // szablonów z kreatorem - RevenueJourneysTab.test), więc skrót nie obiecuje
+  // już martwej akcji. Ta sama bramka co zakładka: admin i redaktor, autor nie.
+  it.each(["admin", "editor"] as const)(
+    "%s: „Nowa ścieżka” prowadzi do galerii szablonów (`?new=1`)",
+    (session) => {
+      const entries = newJourneyEntries(build(SESSIONS[session]));
+      expect(entries).toEqual([
+        {
+          to: "/admin/revenue/journeys",
+          search: { new: "1" },
+          label: "admin.nav.newJourney",
+          keywords: ["nowa sciezka", "new journey", "szablon"],
+        },
+      ]);
+      // Parametr przechodzi walidację adresu huba (ten sam parser co trasa).
+      expect(parseRevenueHubSearch({ ...entries[0].search }).new).toBe("1");
+      expect(hubPathResolves(entries[0].to)).toBe(true);
+    },
+  );
+
+  it("autor i sam super_admin nie dostają skrótu „Nowa ścieżka”", () => {
+    expect(newJourneyEntries(build(SESSIONS.author))).toEqual([]);
+    expect(newJourneyEntries(build(SESSIONS.superAdminOnly))).toEqual([]);
+  });
+
+  it("„nowa sciezka” w ⌘K trafia w akcję, a „journeys” dalej w jedną zakładkę", () => {
+    const groups = build(SESSIONS.editor);
+    const keys = searchAdminNav(groups, "nowa sciezka").map((h) => adminNavItemKey(h.item));
+    expect(keys).toContain("/admin/revenue/journeys?new=1");
+    const tabHits = searchAdminNav(groups, "journeys")
+      .map((h) => adminNavItemKey(h.item))
+      .filter((k) => k === "/admin/revenue/journeys");
+    expect(tabHits).toHaveLength(1);
   });
 
   it("klucz pozycji rozróżnia ten sam adres z innym `search`", () => {

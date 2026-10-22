@@ -4,7 +4,7 @@
 //  - prawy sidebar: powiązana Firma, Zadania, Follow-up, Integracje.
 // Widoczne dla staff (`requireStaff` w server-fn); RLS zawęża po tenancie.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -53,6 +53,7 @@ import type { ConsentLogRow } from "@/lib/crm/consentLog";
 import { parseLeadTimelinePayload } from "@/lib/crm/leadTimeline";
 import { eventActivitySummary } from "@/lib/crm/eventActivity";
 import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
+import { CrmJourneyActivityLink } from "@/components/admin/crm/CrmJourneyActivityLink";
 import { nullIfBlank } from "@/lib/crm/text";
 import { LeadScoreBadge } from "@/components/admin/crm/LeadScoreBadge";
 import { ScoreBreakdownCard } from "@/components/admin/crm/ScoreBreakdownCard";
@@ -151,6 +152,15 @@ type LeadDetail = {
   notes: NoteRow[];
   profile_avatar_url?: string | null;
 };
+
+// Karta „Ścieżki" (S8, SPEC §2.7) niesie słowniki ścieżek (S5, lista, wyniki -
+// ok. 100 KB surowego tekstu) i mutatory zapisów. Ładowana leniwie, dopiero na
+// zakładce Analityka: karta osoby nie płaci za nią przy każdym wejściu.
+const LeadJourneysCard = lazy(() =>
+  import("@/components/admin/journeys/lead/LeadJourneysCard").then((m) => ({
+    default: m.LeadJourneysCard,
+  })),
+);
 
 const STAGE_STYLE: Record<Stage, string> = {
   new: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
@@ -712,7 +722,7 @@ function AdminCrmDetailPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="break-words text-[12px] font-medium">
-                            {e.type === "event"
+                            {e.type === "event" || e.type === "journey"
                               ? eventActivitySummary(e.meta, lang, e.title)
                               : e.title || e.type}
                           </span>
@@ -729,6 +739,15 @@ function AdminCrmDetailPage() {
                           <CrmEventActivityLink
                             meta={e.meta}
                             label={t("Otwórz w studiu wydarzenia", "Open in the event studio")}
+                          />
+                        )}
+                        {e.type === "journey" && (
+                          <CrmJourneyActivityLink
+                            meta={e.meta}
+                            label={t(
+                              "Otwórz ścieżkę komunikacji",
+                              "Open the communication journey",
+                            )}
                           />
                         )}
                       </div>
@@ -765,6 +784,17 @@ function AdminCrmDetailPage() {
               </section>
               <MeteringUsageCard leadId={lead.id} lang={lang} />
               <LeadStageHistoryCard leadId={lead.id} lang={lang} actorNames={actorNames} />
+              {/* Ścieżki komunikacji kontaktu (S8, SPEC §2.7): karta sama ładuje
+                  swoje słowniki, czeka na hydratację i rozpoznaje rolę i MFA. */}
+              <Suspense
+                fallback={
+                  <div role="status" className="text-[11px] text-muted-foreground">
+                    {t("Wczytywanie ścieżek…", "Loading journeys…")}
+                  </div>
+                }
+              >
+                <LeadJourneysCard leadId={lead.id} lang={lang} />
+              </Suspense>
             </div>
           )}
         </main>
