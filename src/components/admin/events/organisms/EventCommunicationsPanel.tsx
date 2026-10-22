@@ -17,6 +17,13 @@
 // USTAWIENIA WCZYTUJE SAM PANEL (admin-only RPC, `assert_event_admin_tenant`).
 // Wczytywanie i odmowa mają własne stany: formularz na wartościach domyślnych
 // udawałby, że wydarzenie nie ma ustawień, i przy zapisie nadpisałby prawdziwe.
+//
+// AUTOMATYZACJA Z HUBA (I9, SPEC §2.7). Wieloetapowa komunikacja (potwierdzenie,
+// przypomnienia, podziękowanie) to ścieżka z szablonu w hubie „Przychód
+// i lejek" - wiersz-drogowskaz otwiera galerię z wybranym szablonem
+// (`?new=1&template=event_registration_nurture`). Widzi go tylko rola
+// z zakładką Ścieżki (`useRevenueHubTab`) - organizator spoza huba
+// dostałby odmowę.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +42,8 @@ import {
   EventStudioRow,
   EventStudioSaveBar,
 } from "@/components/admin/events/studio/EventStudioSection";
+import { RevenueHubLink } from "@/components/admin/revenue/molecules/RevenueHubLink";
+import { useRevenueHubTab } from "@/components/admin/revenue/molecules/useRevenueHubTab";
 import { adminEventStudioErrorMessage } from "@/lib/events/adminEventStudioErrors";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
 import type { ParticipantSettings } from "@/lib/events/participantSettings";
@@ -56,6 +65,7 @@ import {
 } from "@/lib/events/useParticipantSettings";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureI18n as ensureAdminEventParticipantI18n } from "@/lib/i18n-admin-event-participant";
+import { ensureI18n as ensureRevenueLinksI18n } from "@/lib/i18n-admin-revenue-links";
 
 const SCREEN = "communications";
 
@@ -110,6 +120,8 @@ function CommunicationsForm({
 
   const save = useSaveParticipantSettings(row.id);
   const deliveriesQ = useMessageDeliveryStats(row.id);
+  const hubJourneys = useRevenueHubTab("journeys");
+  if (hubJourneys) ensureRevenueLinksI18n();
   const readSmsAvailability = useServerFn(getParticipantSmsAvailability);
   const smsQ = useQuery({
     queryKey: PARTICIPANT_SMS_AVAILABILITY_KEY,
@@ -237,6 +249,23 @@ function CommunicationsForm({
           </Button>
         </div>
       </EventStudioRow>
+
+      {/* ------------------------------ Automatyzacja (hub „Przychód i lejek") */}
+      {hubJourneys ? (
+        <EventStudioRow
+          label={t("adminRevenue.moduleLinks.events.automateLabel")}
+          description={t("adminRevenue.moduleLinks.events.automateDescription")}
+        >
+          <div className="flex flex-wrap justify-end gap-2">
+            <RevenueHubLink
+              tab="journeys"
+              search={{ new: "1", template: "event_registration_nurture" }}
+            >
+              {t("adminRevenue.moduleLinks.events.automateAction")}
+            </RevenueHubLink>
+          </div>
+        </EventStudioRow>
+      ) : null}
 
       <EventStudioSaveBar
         dirty={dirty}

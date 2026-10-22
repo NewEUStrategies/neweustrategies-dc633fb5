@@ -9,6 +9,11 @@
 // trasy - config trasy jest w EAGER grafie routera i taki import wciągnąłby
 // słownik do chunka wejściowego. Overlay rejestrują komponenty panelu
 // (ten sam lazy chunk co komponent strony).
+//
+// HUB „PRZYCHÓD I LEJEK" (I9, SPEC §2.7): pod nagłówkiem drogowskaz
+// „Wieloetapowe ścieżki są w hubie" (rola z zakładką Ścieżki) i pasek
+// Diagnostyki obszarów automatyzacji i ścieżek (lekkie opakowanie, leniwa
+// treść, rola huba).
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -35,6 +40,8 @@ import {
   workflowRunsWindowQueryOptions,
   workflowTemplatesQueryOptions,
 } from "@/lib/admin/workflowQueries";
+import { RevenueHubHint } from "@/components/admin/revenue/molecules/RevenueHubHint";
+import { RevenueSignalChip } from "@/components/admin/revenue/molecules/RevenueSignalChip";
 import { WorkflowDefinitionsPanel } from "@/components/admin/workflows/WorkflowDefinitionsPanel";
 import { WorkflowEditorDialog } from "@/components/admin/workflows/WorkflowEditorDialog";
 import { WorkflowRunsPanel } from "@/components/admin/workflows/WorkflowRunsPanel";
@@ -159,6 +166,13 @@ function AdminWorkflowsPage() {
           {t("adminWorkflows.definitions.newRecipe")}
         </Button>
       </header>
+
+      <RevenueHubHint
+        tab="journeys"
+        hint={t("adminWorkflows.hubBanner.hint")}
+        action={t("adminWorkflows.hubBanner.action")}
+      />
+      <RevenueSignalChip surface="workflows" variant="bar" />
 
       <Tabs value={tab} onValueChange={(value) => setSearch({ tab: value as WorkflowsTab })}>
         <TabsList className="flex w-full flex-wrap justify-start sm:w-auto">
