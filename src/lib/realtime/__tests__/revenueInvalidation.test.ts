@@ -192,7 +192,7 @@ const ROWS: Readonly<Record<string, Row>> = {
       crmKeys.funnelStats(),
       crmKeys.leadsAll(),
     ],
-    ext: FUN_K,
+    ext: [...FUN_K, rev("email")],
   },
   "D8 lead CRM": {
     types: ["crm_lead.created.v1", "crm_lead.updated.v1"],
@@ -254,7 +254,7 @@ const ROWS: Readonly<Record<string, Row>> = {
       billingKeys.myStripeSubscriptionAll(),
       billingKeys.crmLeadMembershipAll(),
     ],
-    ext: MRR_K,
+    ext: [...MRR_K, rev("economics"), rev("funnel")],
   },
   "przepływ anulowania": {
     types: ["retention_flow.started.v1", "retention_flow.completed.v1"],

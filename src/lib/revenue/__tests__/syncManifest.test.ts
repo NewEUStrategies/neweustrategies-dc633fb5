@@ -13,8 +13,9 @@
 // do rejestru huba S6, każde zdarzenie bytu unieważnia dziedzinę każdego jego
 // wskaźnika (mapa grupa → dziedzina `METRIC_GROUP_DOMAINS`), a każdy wskaźnik
 // huba ma byt albo jawny powód, dla którego go nie ma. Braki reguł szyny,
-// które ten tryb wykrył, stoją w zapadce `PENDING_BUS_RULES` (pliku
-// współdzielonego mapy nie zmienia wycinek - dopisuje integrator).
+// które ten tryb wykrył (subskrybent newslettera → `email`, subskrypcja
+// u operatora → `economics` i `funnel`), integrator I9 dopisał do mapy
+// panelu - zapadka na nie została zdjęta, więc każdy nowy brak to czerwień.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { QueryKey } from "@tanstack/react-query";
@@ -37,7 +38,6 @@ import {
   JOURNEY_STATS_METRICS,
   METRIC_GROUP_DOMAINS,
   type HubEntity,
-  type HubEntityId,
 } from "@/lib/revenue/syncManifest";
 
 /* ------------------------------------------------------- źródła prawdy */
@@ -122,23 +122,6 @@ function metricPrefixes(metric: MetricId): QueryKey[] {
   if ((JOURNEY_STATS_METRICS as readonly MetricId[]).includes(metric)) return [journeyKeys.root()];
   return metricDomains(metric).map((domain) => revenueKeys.domainTenant(domain, TENANT));
 }
-
-/**
- * ZAPADKA (I9): reguły szyny, których brak wykrył tryb ścisły `metrics`.
- * Mapa inwalidacji (`eventInvalidationMap.admin.ts`) jest plikiem
- * współdzielonym - regułę dopisuje integrator, a wtedy test niżej każe zdjąć
- * wpis stąd (lista zamknięta, jak `PENDING_MANIFEST_WRITERS` szybkich napraw).
- *   * `newsletter_subscriber` → `email`: zapis, potwierdzenie i wypis
- *     zmieniają przyrost listy, potwierdzenia DOI i wypisy w karcie Zdrowie
- *     poczty, a reguły odświeżają dziś tylko Lejek (`funK`);
- *   * `provider_subscription` → `economics` (LTV, LTV/CAC, zwrot CAC, R40
- *     liczą się z księgi MRR) i `funnel` (konwersja okresu próbnego) - ruch
- *     subskrypcji odświeża dziś tylko dziedziny księgi MRR (`mrrK`).
- */
-const PENDING_BUS_RULES: Readonly<Partial<Record<HubEntityId, readonly RevenueDomain[]>>> = {
-  newsletter_subscriber: ["email"],
-  provider_subscription: ["economics", "funnel"],
-};
 
 let unregister: () => void = () => undefined;
 beforeAll(() => {
@@ -300,8 +283,7 @@ describe("manifest ⇄ wskaźniki huba (tryb ścisły `metrics`, I9)", () => {
 
   it.each(entities.filter(([, entity]) => entity.metrics.length > 0))(
     "%s: każde zdarzenie unieważnia dziedzinę każdego wskaźnika bytu",
-    (id, entity) => {
-      const pending = new Set(PENDING_BUS_RULES[id] ?? []);
+    (_id, entity) => {
       const silent: string[] = [];
       for (const type of entity.events) {
         const keys = invalidationKeysFor(eventOf(type), { userId: "u1" });
@@ -309,34 +291,10 @@ describe("manifest ⇄ wskaźniki huba (tryb ścisły `metrics`, I9)", () => {
           const reached = metricPrefixes(metric).some((prefix) =>
             keys.some((key) => related(prefix, key)),
           );
-          // Zapadka: brak dopuszczony WYŁĄCZNIE dla dziedziny czekającej na
-          // regułę integratora - inny brak to czerwień.
-          const waits = metricDomains(metric).some((domain) => pending.has(domain));
-          if (!reached && !waits) silent.push(`${type} → ${metric}`);
+          if (!reached) silent.push(`${type} → ${metric}`);
         }
       }
       expect(silent).toEqual([]);
-    },
-  );
-
-  it.each(Object.entries(PENDING_BUS_RULES))(
-    "%s: wpis zapadki jest aktualny (regułę dopisuje integrator - wtedy zdejmij wpis)",
-    (id, domains) => {
-      const entity = HUB_SYNC_MANIFEST.find((e) => e.id === id);
-      expect(entity, id).toBeDefined();
-      for (const domain of domains ?? []) {
-        // Dziedzina musi należeć do wskaźnika bytu (inaczej wpis niczego nie tłumaczy)…
-        expect(
-          entity!.metrics.some((metric) => metricDomains(metric).includes(domain)),
-          `${id}: żaden wskaźnik nie żyje w dziedzinie ${domain}`,
-        ).toBe(true);
-        // …i reguła wciąż nie istnieje dla co najmniej jednego zdarzenia.
-        const prefix = revenueKeys.domainTenant(domain, TENANT);
-        const covered = entity!.events.every((type) =>
-          invalidationKeysFor(eventOf(type), { userId: "u1" }).some((key) => related(prefix, key)),
-        );
-        expect(covered, `zdejmij ${id} → ${domain} z PENDING_BUS_RULES`).toBe(false);
-      }
     },
   );
 

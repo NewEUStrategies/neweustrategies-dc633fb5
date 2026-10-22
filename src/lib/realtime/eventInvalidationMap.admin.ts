@@ -55,6 +55,14 @@ function mrrK(event: DomainEventRow): QueryKey[] {
   ];
 }
 
+/**
+ * Ruch subskrypcji u operatora: księga MRR, ekonomika liczona z księgi
+ * i Lejek (konwersja okresu próbnego).
+ */
+function subK(event: DomainEventRow): QueryKey[] {
+  return [...mrrK(event), rev("economics", event), rev("funnel", event)];
+}
+
 /** Lejek huba i kokpit, który pokazuje jego górę. */
 function funK(event: DomainEventRow): QueryKey[] {
   return [rev("funnel", event), rev("snapshot", event)];
@@ -90,11 +98,14 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
   "subscription.updated.v1": (e) => [...mrrK(e), rev("realized", e)],
   "subscription.renewed.v1": (e) => [...mrrK(e), rev("realized", e)],
   "subscription.expired.v1": (e) => [...mrrK(e), rev("realized", e)],
-  // Subskrypcja u operatora: windykacja, trial i stan MRR.
-  "billing_subscription.status_changed.v1": (e) => mrrK(e),
-  "billing_subscription.payment_failed.v1": (e) => mrrK(e),
-  "billing_subscription.payment_recovered.v1": (e) => mrrK(e),
-  "billing_subscription.trial_ending.v1": (e) => mrrK(e),
+  // Subskrypcja u operatora: windykacja, trial i stan MRR. Do tego (I9,
+  // tryb ścisły `metrics` manifestu): ekonomika (LTV, LTV/CAC, zwrot CAC,
+  // R40 liczą się z księgi MRR) i Lejek (konwersja okresu próbnego) - bez
+  // nich Kokpit pokazywałby te wskaźniki sprzed ruchu subskrypcji.
+  "billing_subscription.status_changed.v1": (e) => subK(e),
+  "billing_subscription.payment_failed.v1": (e) => subK(e),
+  "billing_subscription.payment_recovered.v1": (e) => subK(e),
+  "billing_subscription.trial_ending.v1": (e) => subK(e),
 
   // Przychód zrealizowany: dokumenty i wpłaty.
   "billing_document.issued.v1": (e) => [rev("realized", e), rev("snapshot", e)],
@@ -119,10 +130,12 @@ export const ADMIN_HUB_INVALIDATION: InvalidationExtension = {
   "account.registered.v1": (e) => funK(e),
   "paywall.hit.v1": (e) => [...funK(e), rev("access", e)],
   "metering.quota_exhausted.v1": (e) => [...funK(e), rev("access", e)],
-  "newsletter_subscriber.subscribed.v1": (e) => funK(e),
-  "newsletter_subscriber.confirmed.v1": (e) => funK(e),
-  "newsletter_subscriber.unsubscribed.v1": (e) => funK(e),
-  "newsletter_subscriber.resubscribed.v1": (e) => funK(e),
+  // Subskrybent newslettera zasila też kartę Zdrowie poczty (przyrost listy,
+  // potwierdzenia DOI, wypisy) - dziedzina `email` (I9, tryb ścisły `metrics`).
+  "newsletter_subscriber.subscribed.v1": (e) => [...funK(e), rev("email", e)],
+  "newsletter_subscriber.confirmed.v1": (e) => [...funK(e), rev("email", e)],
+  "newsletter_subscriber.unsubscribed.v1": (e) => [...funK(e), rev("email", e)],
+  "newsletter_subscriber.resubscribed.v1": (e) => [...funK(e), rev("email", e)],
   "crm_lead.created.v1": (e) => funK(e),
   "crm_lead.stage_changed.v1": (e) => funK(e),
   "crm_lead.updated.v1": (e) => funK(e),

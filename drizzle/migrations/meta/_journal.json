@@ -2710,6 +2710,34 @@
       "when": 1792478773912,
       "tag": "0386_consent_measurement_reconfirm",
       "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1792478833912,
+      "tag": "0387_journey_enrollment_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1792478893912,
+      "tag": "0388_crm_marketing_consent_shared",
+      "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1792478953912,
+      "tag": "0389_contact_message_submitted_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1792479013912,
+      "tag": "0390_campaign_engagement_readers",
+      "breakpoints": true
     }
   ]
 }
