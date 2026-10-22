@@ -45,6 +45,7 @@ vi.mock("@tanstack/react-router", () => ({
   useHydrated: () => h.hydrated,
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => vi.fn() }));
+vi.mock("@/lib/newsletter.functions", () => ({ subscribeToNewsletter: {} }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth }));
 vi.mock("@/lib/profile/badges", () => ({ useUserBadges: () => ({ data: [] }) }));

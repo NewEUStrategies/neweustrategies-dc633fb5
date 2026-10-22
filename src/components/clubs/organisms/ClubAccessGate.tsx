@@ -33,6 +33,12 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { preAuthGuard } from "@/lib/auth/bruteforce.functions";
+import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import {
+  resolveNewsletterConsent,
+  signupNewsletterSubscription,
+} from "@/lib/newsletter/consentText";
+import { NewsletterConsentText } from "@/components/newsletter/NewsletterConsentText";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserBadges } from "@/lib/profile/badges";
 import { useMembershipTiers } from "@/lib/billing/tiers";
@@ -309,9 +315,13 @@ function GateSignupForm({ plan }: { plan: string }) {
   const hydrated = useHydrated();
   const lang = uiLang(i18n.language);
   const runPreAuthGuard = useServerFn(preAuthGuard);
+  const subscribe = useServerFn(subscribeToNewsletter);
   // Te same pola, etykiety i wymagalność co popup rejestracji i /login -
   // jedno źródło prawdy: newsletter_settings.popup_fields (Admin → Popupy).
   const reg = useRegistrationFields(lang);
+  // Pole „newsletter" (I9d-Y2): etykieta domyślna = pełna treść zgody
+  // z pomiarem z jednego źródła; etykieta własna z panelu - bez zmian.
+  const newsletterConsent = resolveNewsletterConsent(reg.label("newsletter_optin", ""), lang);
 
   const [values, setValues] = useState<Record<RegistrationFieldKey, string>>({
     first_name: "",
@@ -403,6 +413,24 @@ function GateSignupForm({ plan }: { plan: string }) {
         },
       });
       if (error) throw error;
+      // Zgoda z pola „newsletter" = zapis na listę z dowodem treści i wersji
+      // (jak popup rejestracji); dotąd tylko flaga w metadanych konta.
+      if (on("newsletter_optin") && newsletterOptIn) {
+        try {
+          await subscribe({
+            data: signupNewsletterSubscription({
+              email: mail,
+              firstName: values.first_name,
+              lastName: values.last_name,
+              lang,
+              source: "club_gate",
+              consent: newsletterConsent,
+            }),
+          });
+        } catch {
+          // Niekrytyczne: konto powstało, zapis można ponowić formularzem.
+        }
+      }
       setSent(true);
     } catch {
       toast.error(t("clubGate.errors.generic"));
@@ -542,7 +570,13 @@ function GateSignupForm({ plan }: { plan: string }) {
             onCheckedChange={(checked) => setNewsletterOptIn(checked === true)}
             className="mt-0.5"
           />
-          <span>{reg.label("newsletter_optin", t("clubGate.newsletterOptIn"))}</span>
+          <span>
+            {newsletterConsent.isDefault ? (
+              <NewsletterConsentText lang={lang} />
+            ) : (
+              newsletterConsent.text
+            )}
+          </span>
         </label>
       ) : null}
 

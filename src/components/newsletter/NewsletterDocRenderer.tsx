@@ -22,6 +22,11 @@ import { formatNumber } from "@/lib/i18n/format";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
+import {
+  newsletterConsentPayload,
+  resolveNewsletterConsent,
+  upgradeLegacyConsentHtml,
+} from "@/lib/newsletter/consentText";
 import type { NlDoc, NlWidget, NlLang, NlSection } from "@/lib/newsletter-builder/types";
 import type { NewsletterDocSettings, NewsletterMailingList } from "@/hooks/useNewsletterSettings";
 
@@ -127,7 +132,13 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
     let firstName = String(fd.get("firstName") ?? "").trim() || undefined;
     let lastName = String(fd.get("lastName") ?? "").trim() || undefined;
     const meta: Record<string, string> = {};
-    const consents: { key: string; text: string; given: boolean; lang: NlLang }[] = [];
+    const consents: {
+      key: string;
+      text: string;
+      given: boolean;
+      lang: NlLang;
+      version?: string;
+    }[] = [];
     const requiredFields: string[] = [];
 
     // Walidacja pol tekstowych (per-preset regex + normalizacja).
@@ -199,13 +210,18 @@ export function NewsletterDocRenderer({ doc, settings, lang, source = "form" }: 
       return;
     }
 
-    // Zawsze doloz zgode na newsletter zgodna z policy_html.
-    const consentText =
-      (lang === "pl" ? settings.policy_html_pl : settings.policy_html_en) ||
-      (lang === "pl"
-        ? "Wyrazam zgode na otrzymywanie newslettera."
-        : "I agree to receive the newsletter.");
-    consents.push({ key: "newsletter", text: consentText, given: true, lang });
+    // Zawsze doloz zgode na newsletter zgodna z policy_html - z JEDNEGO
+    // zrodla tresci domyslnej (I9d-Y2): pusta albo dawna domyslna = biezaca
+    // tresc z pomiarem i jej wersja (dotad trzecia kopia bez polskich znakow).
+    consents.push(
+      newsletterConsentPayload(
+        resolveNewsletterConsent(
+          lang === "pl" ? settings.policy_html_pl : settings.policy_html_en,
+          lang,
+        ),
+        lang,
+      ),
+    );
 
     try {
       const res = await subscribe({
@@ -469,7 +485,11 @@ function RuntimeWidget({
             (w.size === "sm" ? "text-xs" : w.size === "lg" ? "text-base" : "text-sm")
           }
           style={{ color: w.color ?? undefined }}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(pickI(w.html, lang)) }}
+          // Akapit z kopia dawnej domyslnej tresci zgody pokazuje biezaca
+          // (z pomiarem) - ta sama, ktora formularz zapisuje jako dowod.
+          dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(upgradeLegacyConsentHtml(pickI(w.html, lang), lang)),
+          }}
         />
       );
     case "image":

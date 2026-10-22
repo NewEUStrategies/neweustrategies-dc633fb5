@@ -67,6 +67,11 @@ vi.mock("@/lib/newsletter.functions", () => ({
 }));
 
 import { NewsletterDocRenderer } from "@/components/newsletter/NewsletterDocRenderer";
+import {
+  LEGACY_NEWSLETTER_CONSENT_DEFAULTS,
+  NEWSLETTER_CONSENT_VERSION,
+  newsletterConsentHtml,
+} from "@/lib/newsletter/consentText";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import {
   makeCheckbox,
@@ -644,7 +649,11 @@ describe("zgoda newsletterowa doklejana zawsze", () => {
     typeInto("email", "jan@example.pl");
     await submitAndSettle();
 
-    expect(lastPayload().consents[0].text).toBe("Wyrazam zgode na otrzymywanie newslettera.");
+    // Jedno źródło treści domyślnej (I9d-Y2): treść z pomiarem i jej wersja.
+    expect(lastPayload().consents[0]).toMatchObject({
+      text: newsletterConsentHtml("pl"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
   });
 
   it("brak polityki na wersji EN daje angielską treść zastępczą, nie polską", async () => {
@@ -655,7 +664,34 @@ describe("zgoda newsletterowa doklejana zawsze", () => {
     typeInto("email", "jane@example.com");
     await submitAndSettle();
 
-    expect(lastPayload().consents[0].text).toBe("I agree to receive the newsletter.");
+    expect(lastPayload().consents[0]).toMatchObject({
+      text: newsletterConsentHtml("en"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
+  });
+
+  it("tekst polityki admina zostaje i nie dostaje wersji z pomiarem", async () => {
+    mount(makeFormDoc(), {
+      settings: makeSettings({ policy_html_pl: "Zgoda PL", policy_html_en: null }),
+    });
+    typeInto("email", "jan@example.pl");
+    await submitAndSettle();
+
+    expect(lastPayload().consents[0].text).toBe("Zgoda PL");
+    expect(lastPayload().consents[0]).not.toHaveProperty("version");
+  });
+
+  it("dawna domyślna treść zapisana w ustawieniach zapisuje się jako bieżąca z wersją", async () => {
+    mount(makeFormDoc(), {
+      settings: makeSettings({ policy_html_pl: LEGACY_NEWSLETTER_CONSENT_DEFAULTS[0] }),
+    });
+    typeInto("email", "jan@example.pl");
+    await submitAndSettle();
+
+    expect(lastPayload().consents[0]).toMatchObject({
+      text: newsletterConsentHtml("pl"),
+      version: NEWSLETTER_CONSENT_VERSION,
+    });
   });
 
   it("zapis niesie nazwę formularza i język - inaczej w CRM nie wiadomo, skąd wzięła się osoba", async () => {
