@@ -1272,6 +1272,9 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // w zakładce i edytorze (`components/admin/journeys/tour/**` jest już
     // w globie huba) - atrapa nakładki w teście tras huba.
     "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
+    // (Integrator I9, 2026-10-22) Lustro reguły szyny subskrybenta w lokalnej
+    // inwalidacji odbiorców newslettera (dziedzina `email` huba).
+    "src/lib/newsletter/settingsQueries.ts",
   ],
 };
 
