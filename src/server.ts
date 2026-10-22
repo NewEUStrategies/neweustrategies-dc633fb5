@@ -34,6 +34,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { DOC_GUARD_MAX_MS, guardDocumentResponse } from "./lib/http/documentStreamGuard.server";
 import { fetchWithFrameworkPreloads } from "./lib/http/frameworkPreloads.server";
+import { hostReservedResponse, isHostReservedPath } from "./lib/http/hostReservedPath";
 import {
   applyDeferredDocumentStore,
   isRevalidationRequest,
@@ -539,6 +540,9 @@ function logDocument(request: Request, response: Response, timing: DocumentLogTi
 
 export default {
   async fetch(request: Request): Promise<Response> {
+    // Beacony analityki hostingu (`/~api/*`) - odpowiedź bez ładowania entry
+    // routera, bez renderu SSR i bez zapisu monitora 404 (lib/http/hostReservedPath.ts).
+    if (isHostReservedPath(new URL(request.url).pathname)) return hostReservedResponse(request);
     // Licznik izolatu PRZED `try`: strona 500 z `catch` też ma linię logu
     // (recenzja P0.4, MINOR 8), także gdy padł import entry na zimnym izolacie.
     const startedAt = Date.now();
