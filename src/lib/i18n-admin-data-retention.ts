@@ -2,7 +2,16 @@
 //
 // PODSTAWY PRAWNE I STANDARDY: wyłącznie akty i wytyczne wskazane przez
 // administratora danych w decyzji z 2026-10-20 (dziennik wdrożenia §21.21);
-// tam, gdzie decyzja nie wskazuje standardu, tekst mówi to wprost.
+// tam, gdzie decyzja nie wskazuje standardu, tekst mówi to wprost. Cztery
+// kategorie I9d-Y1 (odczyty licznika, nieaktywni subskrybenci, uczestnicy
+// wydarzeń, zgłoszenia do klubów) - decyzje właściciela z tego samego dnia
+// (dziennik §21.22); tu także lista „do wygaszenia" i edytor treści prośby
+// o potwierdzenie (ustawienia newslettera) - jeden słownik całego mechanizmu
+// wygaszania, ładowany wyłącznie w leniwych chunkach karty i edytora.
+//
+// PARYTET W TYPIE: `const en: typeof pl` - brak klucza EN to błąd kompilacji,
+// a nie dopiero czerwona bramka. Formy `_few`/`_many` istnieją w EN tylko
+// dlatego, że wymaga ich typ (angielski używa `_one`/`_other`).
 //
 // UWAGA NA ARKUSZ CSS. Pliki `src/lib/i18n-*.ts` skanuje generator arkusza
 // PUBLICZNEGO - angielskie słowo równe klasie narzędziowej Tailwinda dokłada
@@ -63,6 +72,8 @@ const pl = {
       defaultMark: "{{label}} (domyślnie)",
     },
     statutory: "Minimum ustawowe - tylko do odczytu",
+    categoryGrace:
+      "Karencja: do {{date}} przebieg tylko liczy - niczego nie usuwa ani nie wysyła.",
     hint: "Podstawa prawna i standard: {{name}}",
     hintBody: "{{after}} Podstawa: {{basis}} Standard: {{standard}}",
     toggle: {
@@ -114,6 +125,16 @@ const pl = {
         standard:
           "Wytyczne CNIL dla pomiaru odbiorców: 13 miesięcy dla identyfikatorów, 25 miesięcy dla danych; Google Analytics 4 - najwyżej 14 miesięcy.",
       },
+      metered_views: {
+        name: "Odczyty licznika artykułów",
+        what: "Który artykuł i kiedy otworzyło konto albo przeglądarka gościa - podstawa limitu bezpłatnych artykułów w bieżącym okresie.",
+        after:
+          "Wiersz usunięty, nigdy z bieżącego okresu licznika. Wcześniej zapisywany jest anonimowy agregat dzienny (odczyty członków i gości, liczba czytających kont); w dzienniku licznika i uderzeniach w paywall starszych niż okres znika wskazanie artykułu. Lejek i pulpit monetyzacji liczą starsze dni z agregatu (konto raz na dzień).",
+        basis:
+          "RODO art. 5 ust. 1 lit. c i e (minimalizacja, ograniczenie przechowywania); historia czytania w serwisie think-tanku może ujawniać poglądy polityczne (art. 9), a licznik potrzebuje wyłącznie bieżącego okresu.",
+        standard:
+          "Brak rynkowego standardu dla historii czytania - okres przyjęty przez administratora danych; minimum 2 miesiące chroni bieżący okres licznika.",
+      },
       email_engagement: {
         name: "Otwarcia i kliknięcia maili (ścieżki i kampanie)",
         what: "Zdarzenia śledzenia maili ścieżek komunikacji i kampanii newslettera.",
@@ -130,6 +151,16 @@ const pl = {
           "RODO art. 6 ust. 1 lit. f i art. 5 ust. 2 (rozliczalność wysyłek na podstawie zgody).",
         standard: "Dostawcy poczty przechowują logi od 30 dni do 13 miesięcy.",
       },
+      newsletter_inactive: {
+        name: "Nieaktywni subskrybenci newslettera",
+        what: "Subskrybent, który przez wybrany okres nie kliknął, nie otworzył maila (otwarcie przez człowieka), nie zalogował się powiązanym kontem, nie wysłał formularza ani nie potwierdził zapisu - choć dostawał kampanie.",
+        after:
+          "Jedna prośba o potwierdzenie (po polsku albo angielsku, wg języka subskrybenta); „Chcę dalej otrzymywać” zeruje licznik. Bez reakcji przez {{responseDays}} dni wiersz subskrybenta jest usuwany. Dziennik zgód zostaje (czas trwania zgody + 6 lat), a adres NIE trafia na listę wyłączeń - można zapisać się ponownie.",
+        basis:
+          "RODO art. 7 ust. 1 i art. 5 ust. 1 lit. e: subskrypcja to zgoda (art. 6 ust. 1 lit. a), a brak reakcji od miesięcy przestaje dowodzić woli odbioru; dowód zgody zostaje w dzienniku zgód.",
+        standard:
+          "Polityka wygaszania („sunset policy”) nadawców poczty masowej: zwykle 6-12 miesięcy bez zaangażowania i prośba o potwierdzenie przed usunięciem.",
+      },
       crm_inactive_contacts: {
         name: "Kontakty CRM bez konta i bez transakcji",
         what: "Kontakt bez aktywności przez wybrany okres: formularz, rejestracja na wydarzenie, otwarcie lub kliknięcie maila, notatka zespołu, zmiana etapu.",
@@ -137,6 +168,25 @@ const pl = {
           "Anonimizacja: dane osobowe usunięte, etap, źródło i daty zostają. 30 dni wcześniej kontakt trafia na listę „do anonimizacji” - można go przedłużyć o 12 miesięcy z podaniem powodu.",
         basis: "RODO art. 6 ust. 1 lit. f (marketing B2B) albo lit. a (zgoda), art. 21 ust. 2-3.",
         standard: "Polityka wygaszania („sunset policy”): 12-24 miesiące bez zaangażowania.",
+      },
+      event_attendees: {
+        name: "Uczestnicy wydarzeń bez konta",
+        what: "Kartoteka uczestnika i dane w jego zgłoszeniach: dane kontaktowe, zdjęcie, opis, odpowiedzi formularza, powody decyzji i anulowania. Okres liczony od ostatniego udziału albo rejestracji.",
+        after:
+          "Anonimizacja: imię i nazwisko zastąpione znacznikiem, dane kontaktowe i opisowe usunięte; obecność, typ biletu, status, daty, źródło, firma i zgody (także dla partnerów i wystawców) zostają. Poza kategorią: osoba z istniejącym kontem (historia w profilu do usunięcia konta) i prelegenci; płatne zamówienie - nie wcześniej niż koniec przechowywania dowodów księgowych.",
+        basis:
+          "RODO art. 6 ust. 1 lit. b (udział w wydarzeniu) i lit. f (rozliczalność, statystyki wydarzeń), art. 5 ust. 1 lit. e; płatności - ustawa o rachunkowości (art. 74).",
+        standard:
+          "Brak rynkowego standardu - okres przyjęty przez administratora danych, liczony od ostatniego udziału albo rejestracji.",
+      },
+      club_applications: {
+        name: "Zgłoszenia do klubów",
+        what: "Formularz zgłoszenia: dane kontaktowe, firma i stanowisko, profil, teksty własne (doświadczenie, języki, motywacja, cele, wkład, dostępność, źródło polecenia) i notatka komisji.",
+        after:
+          "Anonimizacja: dane osobowe i teksty własne usunięte, konto zastąpione pseudonimem; klub, specjalizacja, status, daty decyzji, warstwa i pola zgrubne (branża, staż, kraj) zostają. Odrzucone - liczone od decyzji, przyjęte - od końca członkostwa, oczekujące - nigdy automatycznie. Po usunięciu konta - anonimizacja od razu.",
+        basis:
+          "RODO art. 6 ust. 1 lit. b (rozpatrzenie zgłoszenia, członkostwo) i lit. f (obrona roszczeń, ciągłość pracy komisji), art. 5 ust. 1 lit. e.",
+        standard: "Brak rynkowego standardu - okres przyjęty przez administratora danych.",
       },
       audit_log: {
         name: "Dziennik audytu panelu",
