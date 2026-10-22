@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import { AreaChip } from "@/components/admin/revenue/atoms/AreaChip";
 import { MfaRequiredNotice } from "@/components/admin/revenue/molecules/MfaRequiredNotice";
 import { RevenueSection } from "@/components/admin/revenue/molecules/RevenueSection";
+import { SourceHeader } from "@/components/admin/revenue/molecules/SourceHeader";
 import { Button } from "@/components/ui/button";
 import { PlatformSelect } from "@/components/ui/platform-select";
 import {
@@ -372,6 +373,13 @@ export function DiagnosticsBoard({
         <Notice testId="diagnostics-focus-missing">
           {t("adminRevenue.diagnostics.focusMissing")}
         </Notice>
+      ) : null}
+
+      {/* Przywrócenie wyciszenia to zapis bytu `revenue_diagnostic` (jak samo
+          wyciszenie) - nagłówek źródła stoi nad listą tylko wtedy, gdy admin
+          ma na niej wyciszoną diagnozę, czyli przycisk „Przywróć”. */}
+      {view === "list" && isAdmin && visible.some((f) => f.snooze !== null) ? (
+        <SourceHeader entity="revenue_diagnostic" />
       ) : null}
 
       {view === "map" ? (
