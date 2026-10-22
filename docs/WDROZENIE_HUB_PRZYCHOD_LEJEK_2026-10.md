@@ -461,23 +461,24 @@ przebiegu i błędy środowiska - §13.2.
 
 ## 10. Dziennik wdrożeń
 
-| Data       | Wycinek / fala                                                                                   | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                                                                        | Odchylenia / uwagi                                                                                                                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------ | --------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-10-19 | I0 (gałąź)                                                                                       | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                                                                                  | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                                                                                        |
-|            | M0                                                                                               | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`)                                                    | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                                                                                               |
-| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                                                                    | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                                                                     | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                                                                                           |
-| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)                                                       | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                                                                              | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                                                                                                 |
-| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`)                                                     | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                                                                                 | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                                                                                          |
-| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`)                                                     | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                                                                    | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527                                                                      |
-| 2026-10-20 | S3 (gałąź PR `claude/elegant-fermat-xwfca1` po #527)                                             | `20261020120000…120400` (5) | `0347…0351`       | do wdrożenia przez właściciela - po M0, S1, S2 i S4, nocą (wyzwalacze na `profiles` i `payment_orders`), razem z publikacją frontu (§18.9)                                                                           | §18: kod i migracje w jednym PR; `overall` +5,8 → ratchet D-08 4997; `public` +5,4 przy celu +1,2 (Z-S3-01); otwarte Z-S3-01…07; pełny vitest i e2e - CI nowego PR                                                          |
-| 2026-10-20 | I9a (gałąź PR, fast-forward z `hub/i9a-nawigacja`)                                               | brak (bez SQL)              | brak              | - (bez migracji; publikacja frontu wystarcza - kolumna okna porzucenia jest z M0)                                                                                                                                    | §19: nawigacja huba przed I9 (decyzja właściciela), stany „w przygotowaniu”, okno porzucenia kasy w panelu; `overall` +6,2 → ratchet D-08 5003; `public` −0,7                                                               |
-| 2026-10-20 | S5 (gałąź PR, fast-forward z `hub/s5-silnik-sciezek`)                                            | `20261020140000…140500` (6) | `0352…0357`       | do wdrożenia przez właściciela - po M0 i S1-S4, nocą (wyzwalacz na `domain_events`), razem z publikacją frontu; silnik wyłączony; M3 po I9 (§20.9)                                                                   | §20: silnik bez UI (S8), runner do `jobs-tick` w I9; bez ratchetu (`overall` −1,8 - szum hashy); otwarte Z-S5-01…08                                                                                                         |
-| 2026-10-20 | I9b część A (gałąź `hub/i9b-decyzje` → PR, `822cf9a9`)                                           | `20261020160000…160400` (5) | `0358…0362`       | do wdrożenia przez właściciela - po S2 (segmenty i RODO działają też bez S2 jako no-op), nocą (wyzwalacze na `subscriptions`, `auth.users`, `member_organizations`, `organization_seats`; UPDATE `membership_tiers`) | §21.1-21.8: decyzje właściciela 2026-10-20 (zgoda delegowana) - segmenty z typu klienta, cennik v6.2 (Zespół, NGO, 3-20 miejsc), RODO księgi MRR                                                                            |
-| 2026-10-20 | I9b A2 (gałąź `hub/i9b-rodo` → PR, `d7efcba5`)                                                   | `20261020160500…160700` (3) | `0363…0365`       | do wdrożenia przez właściciela - po `20261020160400` i S5, nocą (ALTER `revenue_diagnostic_snoozes`, CHECK `journey_enrollments`, wyzwalacz na `auth.users`; domknięcie wstecz kont usuniętych przed A2) - §21.9     | §21.9: RODO po usunięciu konta (polecenie „zastosuj”) - pseudonim lejka, redakcja szyny i ścieżek, pełny przegląd tabel, rejestr czynności                                                                                  |
-| 2026-10-20 | I9b część B + krok C (gałąź `hub/i9b-decyzje`; push po ratchecie D-08 - §21.19)                  | `20261020160800` (1)        | `0366`            | do wdrożenia przez właściciela - po S4 i S5; same redefinicje funkcji (bez blokad gorących tabel), razem z publikacją frontu (§21.17)                                                                                | §21.10-21.17: limit tagu 64 (Z-S5-02), linia okna kasy przy biletach (Z-S3-07), wpis `engagement_rate` (Z-14-03), akceptacje Z-S3-01, Z-S3-06, D-11/Z-S6-14, Z-14-01/02; Z-S2-01 zawężone do 3 kroków wizualnych            |
-| 2026-10-22 | S8 (gałąź `hub/s8-sciezki-panel-c`; zintegrowany lokalnie, push przed S7 - §22)                  | brak (S8 bez SQL)           | brak              | - (bez migracji; publikacja frontu - zależy od S5 `2026102014*` i I9c-X2 `20261020161300`, już w PR; §22.8)                                                                                                          | §22: lista, galeria, edytor kanwy, ustawienia silnika, wyniki, karta leada i oś leada; Z-S5-08 w `variables.ts`; `overall` +160,3 → ratchet D-08 5023 → 5182; otwarte Z-S8-01…10                                            |
-| 2026-10-22 | S7 (gałąź `hub/s7-zakladki-diagnostyka-c`; scalona z gałęzią PR po S8, push po S8 - §23, §23.11) | `20261020150000…150100` (3) | `0373…0375`       | do wdrożenia przez właściciela - po M0, S1-S5 i I9b-I9c; same funkcje `plpgsql` (bez DDL tabel i blokad gorących tabel), razem z publikacją frontu (§23.9)                                                           | §23: 10 zakładek huba, 55 reguł diagnostyki (Z-I9b-06), 3 migracje zamiast 2; `overall` +136,9 → ratchet D-08 5023 → 5159; otwarte Z-S7-01…17 (I9: chipy w modułach, P24, baner realtime S-F)                               |
-| 2026-10-22 | I9d-Y1 (gałąź `hub/i9d-rodo-2`; scalona z gałęzią PR po S8 i S7 `70bdccbb` - §21.22)             | `20261020161500…162200` (8) | `0376…0383`       | do wdrożenia przez właściciela - po I9c-X2 (`161000…161400`) i S7, nocą (ALTER gorących tabel klubów, licznika, wydarzeń i newslettera; domknięcia wstecz), razem z publikacją frontu albo po niej (§21.22 pkt 7)    | §21.22: decyzje właściciela 2 (Z-I9c-01, -07, -08) - 4 nowe kategorie retencji, anonimizacja zgłoszeń do klubów po usunięciu konta, wygaszanie newslettera; `overall` +17,9 → ratchet D-08 5316 → 5334; otwarte Z-I9d-01…10 |
+| Data       | Wycinek / fala                                                                                   | Wersje migracji             | Bliźniaki drizzle | `post-deploy`                                                                                                                                                                                                                                       | Odchylenia / uwagi                                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------ | --------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-19 | I0 (gałąź)                                                                                       | `20261020090000…090500` (6) | `0318…0323`       | - (przed scaleniem; czerwony do M0)                                                                                                                                                                                                                 | weryfikacja §9; Z-01…Z-09 do decyzji                                                                                                                                                                                                                                                        |
+|            | M0                                                                                               | `20261020090000…090500`     | `0318…0323`       | wdrożone 2026-10-19 przez Lovable migratorem Drizzle razem z cennikiem v6.2 i S1 (0313…0328; potwierdzenie `0329_pr520_deployment_completion`, commit `e6620f60`)                                                                                   | `post-deploy` na `e6620f60` ✓ (kroki kontraktu pominięte bez sekretów - do potwierdzenia `workflow_dispatch`)                                                                                                                                                                               |
+| 2026-10-19 | S6 (gałąź `hub/s6` → PR #520)                                                                    | brak (S6 bez SQL)           | brak              | - (bez migracji)                                                                                                                                                                                                                                    | §11: wpięcia RPC odłożone (Z-S6-16, Z-S6-17); `overall` +53,9 → ratchet D-08; `public` +0,9 uzasadnione (Z-S6-18)                                                                                                                                                                           |
+| 2026-10-19 | S1 (prosto do PR #520 → `main` `cb7a18df`)                                                       | `20261020100000…100400` (5) | `0324…0328`       | do wdrożenia przez właściciela - po M0, przed publikacją frontu (§12.9)                                                                                                                                                                             | §12: kod i migracje w jednym PR (odchylenie od §8.5 pkt 3); Z-S1-01…Z-S1-12                                                                                                                                                                                                                 |
+| 2026-10-19 | S4 (gałąź PR `claude/elegant-fermat-xwfca1`)                                                     | `20261020130000…130700` (8) | `0330…0337`       | do wdrożenia przez właściciela - po M0 i S1, nocą, razem z publikacją frontu (§15.9)                                                                                                                                                                | §15: kod i migracje w jednym PR; `overall` +9,9 → ratchet D-08 4982; otwarte Z-S4-02, -07, -09…-14                                                                                                                                                                                          |
+| 2026-10-19 | S2 (gałąź PR `claude/elegant-fermat-xwfca1`)                                                     | `20261020110000…110700` (8) | `0338…0345`       | do wdrożenia przez właściciela - po M0, nocą (ALTER księgi, wyzwalacze na `subscriptions`/`billing_documents`), razem z publikacją frontu (§16.9)                                                                                                   | §16: kod i migracje w jednym PR; `overall` +9,0 → ratchet D-08 4991; Z-S2-01 (weryfikacja ręczna w trybie testowym) otwarte; pełny vitest - CI PR #527                                                                                                                                      |
+| 2026-10-20 | S3 (gałąź PR `claude/elegant-fermat-xwfca1` po #527)                                             | `20261020120000…120400` (5) | `0347…0351`       | do wdrożenia przez właściciela - po M0, S1, S2 i S4, nocą (wyzwalacze na `profiles` i `payment_orders`), razem z publikacją frontu (§18.9)                                                                                                          | §18: kod i migracje w jednym PR; `overall` +5,8 → ratchet D-08 4997; `public` +5,4 przy celu +1,2 (Z-S3-01); otwarte Z-S3-01…07; pełny vitest i e2e - CI nowego PR                                                                                                                          |
+| 2026-10-20 | I9a (gałąź PR, fast-forward z `hub/i9a-nawigacja`)                                               | brak (bez SQL)              | brak              | - (bez migracji; publikacja frontu wystarcza - kolumna okna porzucenia jest z M0)                                                                                                                                                                   | §19: nawigacja huba przed I9 (decyzja właściciela), stany „w przygotowaniu”, okno porzucenia kasy w panelu; `overall` +6,2 → ratchet D-08 5003; `public` −0,7                                                                                                                               |
+| 2026-10-20 | S5 (gałąź PR, fast-forward z `hub/s5-silnik-sciezek`)                                            | `20261020140000…140500` (6) | `0352…0357`       | do wdrożenia przez właściciela - po M0 i S1-S4, nocą (wyzwalacz na `domain_events`), razem z publikacją frontu; silnik wyłączony; M3 po I9 (§20.9)                                                                                                  | §20: silnik bez UI (S8), runner do `jobs-tick` w I9; bez ratchetu (`overall` −1,8 - szum hashy); otwarte Z-S5-01…08                                                                                                                                                                         |
+| 2026-10-20 | I9b część A (gałąź `hub/i9b-decyzje` → PR, `822cf9a9`)                                           | `20261020160000…160400` (5) | `0358…0362`       | do wdrożenia przez właściciela - po S2 (segmenty i RODO działają też bez S2 jako no-op), nocą (wyzwalacze na `subscriptions`, `auth.users`, `member_organizations`, `organization_seats`; UPDATE `membership_tiers`)                                | §21.1-21.8: decyzje właściciela 2026-10-20 (zgoda delegowana) - segmenty z typu klienta, cennik v6.2 (Zespół, NGO, 3-20 miejsc), RODO księgi MRR                                                                                                                                            |
+| 2026-10-20 | I9b A2 (gałąź `hub/i9b-rodo` → PR, `d7efcba5`)                                                   | `20261020160500…160700` (3) | `0363…0365`       | do wdrożenia przez właściciela - po `20261020160400` i S5, nocą (ALTER `revenue_diagnostic_snoozes`, CHECK `journey_enrollments`, wyzwalacz na `auth.users`; domknięcie wstecz kont usuniętych przed A2) - §21.9                                    | §21.9: RODO po usunięciu konta (polecenie „zastosuj”) - pseudonim lejka, redakcja szyny i ścieżek, pełny przegląd tabel, rejestr czynności                                                                                                                                                  |
+| 2026-10-20 | I9b część B + krok C (gałąź `hub/i9b-decyzje`; push po ratchecie D-08 - §21.19)                  | `20261020160800` (1)        | `0366`            | do wdrożenia przez właściciela - po S4 i S5; same redefinicje funkcji (bez blokad gorących tabel), razem z publikacją frontu (§21.17)                                                                                                               | §21.10-21.17: limit tagu 64 (Z-S5-02), linia okna kasy przy biletach (Z-S3-07), wpis `engagement_rate` (Z-14-03), akceptacje Z-S3-01, Z-S3-06, D-11/Z-S6-14, Z-14-01/02; Z-S2-01 zawężone do 3 kroków wizualnych                                                                            |
+| 2026-10-22 | S8 (gałąź `hub/s8-sciezki-panel-c`; zintegrowany lokalnie, push przed S7 - §22)                  | brak (S8 bez SQL)           | brak              | - (bez migracji; publikacja frontu - zależy od S5 `2026102014*` i I9c-X2 `20261020161300`, już w PR; §22.8)                                                                                                                                         | §22: lista, galeria, edytor kanwy, ustawienia silnika, wyniki, karta leada i oś leada; Z-S5-08 w `variables.ts`; `overall` +160,3 → ratchet D-08 5023 → 5182; otwarte Z-S8-01…10                                                                                                            |
+| 2026-10-22 | S7 (gałąź `hub/s7-zakladki-diagnostyka-c`; scalona z gałęzią PR po S8, push po S8 - §23, §23.11) | `20261020150000…150100` (3) | `0373…0375`       | do wdrożenia przez właściciela - po M0, S1-S5 i I9b-I9c; same funkcje `plpgsql` (bez DDL tabel i blokad gorących tabel), razem z publikacją frontu (§23.9)                                                                                          | §23: 10 zakładek huba, 55 reguł diagnostyki (Z-I9b-06), 3 migracje zamiast 2; `overall` +136,9 → ratchet D-08 5023 → 5159; otwarte Z-S7-01…17 (I9: chipy w modułach, P24, baner realtime S-F)                                                                                               |
+| 2026-10-22 | I9d-Y1 (gałąź `hub/i9d-rodo-2`; scalona z gałęzią PR po S8 i S7 `70bdccbb` - §21.22)             | `20261020161500…162200` (8) | `0376…0383`       | do wdrożenia przez właściciela - po I9c-X2 (`161000…161400`) i S7, nocą (ALTER gorących tabel klubów, licznika, wydarzeń i newslettera; domknięcia wstecz), razem z publikacją frontu albo po niej (§21.22 pkt 7)                                   | §21.22: decyzje właściciela 2 (Z-I9c-01, -07, -08) - 4 nowe kategorie retencji, anonimizacja zgłoszeń do klubów po usunięciu konta, wygaszanie newslettera; `overall` +17,9 → ratchet D-08 5316 → 5334; otwarte Z-I9d-01…10                                                                 |
+| 2026-10-22 | I9d-Y2 (gałąź `hub/i9d-rodo-2` od `7390ecf0`; gałąź PR bez zmian - bez scalenia - §21.23)        | `20261020162300…162500` (3) | `0384…0386`       | do wdrożenia przez właściciela - po I9d-Y1 (`161500…162200`), razem z publikacją frontu, poza wysyłką kampanii (krótkie blokady `newsletter_settings`, `crm_consent_log`, `newsletter_subscribers`, `newsletter_campaign_recipients`; §21.23 pkt 7) | §21.23: decyzje właściciela 2026-10-20 i 2026-10-21 (wariant (a)) - treść zgody z pomiarem z jednego źródła, wersja przy każdej zgodzie, pomiar tylko za zgodą, wspólny przełącznik (Z-I9c-09), „Poproś o zgodę na pomiar”; `overall` +23,1 → ratchet D-08 5334 → 5357; otwarte Z-I9d-11…21 |
 
 ## 11. Wycinek S6 - BI, rejestr wskaźników i zestaw UI huba (2026-10-19)
 
@@ -1751,6 +1752,24 @@ publiczna, edytor treści w panelu newslettera). Bliźniaki `0376…0383`,
 **następny wolny `0384`, wersja `20261020162300`**. Ratchet D-08 `overall`
 5316 → 5334. Kolejka: **I9d-Y2** (treść zgody i pomiar, pakiet I9d-5) **→ I9**.
 Otwarte Z-I9d-01…10 (§21.22 pkt 10).
+
+### 17.9 Stan po I9d-Y2 (2026-10-22)
+
+I9d-Y2 (§21.23) zintegrowany lokalnie na gałęzi `hub/i9d-rodo-2` (worktree
+`/home/user/wt/I9d`, baza `7390ecf0` = gałąź PR po I9d-Y1, bez scalenia -
+gałąź PR nie poszła do przodu). Decyzje właściciela 2026-10-20 („tak,
+uzupełnij”) i 2026-10-21 (wariant (a)) wykonane: domyślna treść zgody na
+newsletter PL/EN z pomiarem otwarć i kliknięć z jednego źródła (TS⇄SQL
+z testem parytetu), wersja treści przy każdej zgodzie, klucz
+`email_measurement` z osobnym wycofaniem linkiem „Nie mierz moich otwarć
+i kliknięć”, piksel i linki z identyfikatorem tylko za zgodą i przy wspólnym
+przełączniku najemcy (Z-I9c-09 zamknięte), dymki i mianownik mierzonych
+w statystykach, „Poproś o zgodę na pomiar” (krok `jobs-tick` w minucie 4),
+polityka komunikacji i prywatności w kodzie. Bliźniaki `0384…0386`,
+**następny wolny `0387`, wersja `20261020162600`**. Ratchet D-08 `overall`
+5334 → 5357. Kolejka: **I9** (runner ścieżek w `jobs-tick` i zgłoszenia
+§9.2 promptu kontynuacji). Otwarte Z-I9d-01…21 (§21.22 pkt 10, §21.23
+pkt 10).
 
 ## 18. Wycinek S3 - lejek i paywall czytelnika (2026-10-20)
 
@@ -3565,13 +3584,21 @@ biletach i wpis `engagement_rate` nie mają stanu w bazie. Anonimizacja
    subskrybenci) mają własne 14 dni podglądu; przegląd liczb i listy „do
    wygaszenia” w karcie przed terminem karencji, treść prośby
    o potwierdzenie w `/admin/newsletter/email-content`.
+9. **Wdrożenie I9d-Y2** (`0384…0386`, §21.23 pkt 7) - razem z publikacją
+   frontu; wskaźniki otwarć i kliknięć spadną skokowo (zgody sprzed nowej
+   treści nie obejmują pomiaru) - opcjonalnie „Poproś o zgodę na pomiar”
+   w `/admin/newsletter/overview`; `NEWSLETTER_ENGAGEMENT_SOURCE` =
+   `first_party` i wyłączony tracking u dostawcy poczty; nowa wersja
+   polityki komunikacji i prywatności w panelu dokumentów prawnych, jeśli
+   najemca opublikował własną.
 
 Zgłoszenia otwarte, które wykonuje kolejny wycinek (nie decyzje
 właściciela): Z-I9b-06, Z-I9b-09, Z-I9b-14, Z-I9b-15 (§21.7); Z-I9c-05,
-Z-I9c-06, Z-I9c-09 (§21.21). Z-I9b-11 zamknięte w I9c (§21.20), Z-I9b-10 -
-w I9c (§21.21). Decyzje administratora danych: Z-I9c-04, Z-I9d-01 (§21.22)
-i rekomendacja treści zgody (pomiar otwarć, §21.21 pkt 5 - etap I9d-Y2);
-Z-I9c-01, Z-I9c-07 i Z-I9c-08 zamknięte w I9d-Y1 (§21.22).
+Z-I9c-06 (§21.21). Z-I9b-11 zamknięte w I9c (§21.20), Z-I9b-10 -
+w I9c (§21.21). Decyzje administratora danych: Z-I9c-04, Z-I9d-01 (§21.22),
+Z-I9d-11, Z-I9d-13 i ocena IOD Z-I9d-12 (§21.23); Z-I9c-01, Z-I9c-07
+i Z-I9c-08 zamknięte w I9d-Y1 (§21.22), Z-I9c-09 i rekomendacja treści
+zgody (§21.21 pkt 5) - w I9d-Y2 (§21.23).
 
 ### 21.19 Ratchet D-08 `overall` i push części B (orkiestrator, 2026-10-20)
 
@@ -3918,7 +3945,11 @@ marketingowej i newslettera o informację o pomiarze otwarć i kliknięć
 (piksel i przekierowanie) albo przenieść pomiar otwarć pod zgodę - zgodnie
 z wytycznymi EDPB 2/2023 piksel w mailu mieści się w zakresie art. 5 ust. 3
 dyrektywy 2002/58/WE. Do czasu decyzji przełącznik pozwala wyłączyć pomiar
-otwarć ścieżek u najemcy.
+otwarć ścieżek u najemcy. **Wykonana (I9d-Y2, §21.23):** treść zgody na
+newsletter informuje o pomiarze otwarć i kliknięć, jego celu i osobnym
+wyłączeniu (decyzje właściciela 2026-10-20 i 2026-10-21, wariant (a));
+piksel i linki z identyfikatorem odbiorcy tylko za zgodą obejmującą pomiar
+i przy włączonym wspólnym przełączniku najemcy.
 
 **6. Rozbieżności z istniejącymi mechanizmami (zgłoszenia, bez zmian po
 cichu).**
@@ -3941,15 +3972,15 @@ cichu).**
 
 **Zgłoszenia I9c (X2).**
 
-| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Z-I9c-04 | Rozbieżność okresu dowodów księgowych: polecenie „5 lat od początku roku następującego po roku obrotowym”, repozytorium 31.12 roku obrotowego + 6 (`20261012121000`). Retencja X2 stosuje regułę repozytorium (dłuższą); skrócenie wymaga decyzji administratora danych i zmiany `accounting_retention_until` (dotyka dowodów księgowych).                                                                                                                                                         |
-| Z-I9c-05 | Czytelnicy surowych zdarzeń kampanii poza hubem RPC (warstwa semantyczna, agregaty pulpitu newslettera, zdrowie poczty S1, scoring leadów) i `admin_journey_series` liczą dla okien starszych niż okres retencji tylko to, co zostało - przełączyć na archiwum/rollup przy najbliższej zmianie tych modułów (S7/I9).                                                                                                                                                                               |
-| Z-I9c-06 | Podsumowanie ścieżki w `admin_journey_stats` (zapisy, statusy, wyjścia) dla okien starszych niż okres zapisów czyta pozostałe zapisy - rollup trzyma tylko liczniki per krok (wejścia, wysłane, otwarcia, kliknięcia). Opcja: dzienny rollup statusów zapisu. **Zamknięte w części UI 2026-10-22 (S8, §22.2):** wyniki ścieżki dla okien starszych niż retencja zapisów mają podpis „Pełne dane od …”, kreski zamiast zer i przerwę w serii; dzienny rollup statusów zapisu (SQL) zostaje otwarty. |
-| Z-I9c-07 | Poza kategoriami X2: `metered_views` (wyświetlenia licznika - kaskada z kontem, bez retencji żywych kont) i `event_people` (uczestnicy wydarzeń) - do decyzji administratora danych przy przeglądzie modułów wydarzeń. **Zamknięte 2026-10-22 (I9d, §21.22):** kategorie `metered_views` (3 mies., agregat `metered_views_daily`, redakcja treści w dzienniku licznika i uderzeniach) i `event_attendees` (anonimizacja po 24 mies.).                                                              |
-| Z-I9c-08 | Subskrybenci newslettera nie są anonimizowani przez kategorię CRM (zgoda niezależna od kontaktu); polityka wygaszania nieaktywnych subskrybentów - do decyzji (moduł newslettera). **Zamknięte 2026-10-22 (I9d, §21.22):** kategoria `newsletter_inactive` - 12 mies. bez zaangażowania, jedna prośba o potwierdzenie, po 30 dniach usunięcie subskrybenta (rejestr zgód zostaje, lista wyłączeń nietknięta).                                                                                      |
-| Z-I9c-09 | Przełącznik pomiaru otwarć obejmuje ścieżki; kampanie newslettera mają własny tryb źródła zaangażowania (piksel własny albo dostawca - `i18n-newsletter-deliverability`) - wspólny przełącznik najemcy przy najbliższej zmianie modułu newslettera. Rekomendacja treści zgody (pkt 5) - decyzja administratora danych.                                                                                                                                                                             |
-| Z-I9c-10 | Archiwum kampanii: subskrybent z otwarciem przed progiem i ponownym otwarciem po kolejnym złożeniu (następna noc po nowym progu) liczy się w zasięgu unikalnym dwa razy - granica znana (zasięg bez identyfikatorów); różnica najwyżej o liczbę takich powrotów.                                                                                                                                                                                                                                   |
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9c-04 | Rozbieżność okresu dowodów księgowych: polecenie „5 lat od początku roku następującego po roku obrotowym”, repozytorium 31.12 roku obrotowego + 6 (`20261012121000`). Retencja X2 stosuje regułę repozytorium (dłuższą); skrócenie wymaga decyzji administratora danych i zmiany `accounting_retention_until` (dotyka dowodów księgowych).                                                                                                                                                                                                                                                                                                                       |
+| Z-I9c-05 | Czytelnicy surowych zdarzeń kampanii poza hubem RPC (warstwa semantyczna, agregaty pulpitu newslettera, zdrowie poczty S1, scoring leadów) i `admin_journey_series` liczą dla okien starszych niż okres retencji tylko to, co zostało - przełączyć na archiwum/rollup przy najbliższej zmianie tych modułów (S7/I9).                                                                                                                                                                                                                                                                                                                                             |
+| Z-I9c-06 | Podsumowanie ścieżki w `admin_journey_stats` (zapisy, statusy, wyjścia) dla okien starszych niż okres zapisów czyta pozostałe zapisy - rollup trzyma tylko liczniki per krok (wejścia, wysłane, otwarcia, kliknięcia). Opcja: dzienny rollup statusów zapisu. **Zamknięte w części UI 2026-10-22 (S8, §22.2):** wyniki ścieżki dla okien starszych niż retencja zapisów mają podpis „Pełne dane od …”, kreski zamiast zer i przerwę w serii; dzienny rollup statusów zapisu (SQL) zostaje otwarty.                                                                                                                                                               |
+| Z-I9c-07 | Poza kategoriami X2: `metered_views` (wyświetlenia licznika - kaskada z kontem, bez retencji żywych kont) i `event_people` (uczestnicy wydarzeń) - do decyzji administratora danych przy przeglądzie modułów wydarzeń. **Zamknięte 2026-10-22 (I9d, §21.22):** kategorie `metered_views` (3 mies., agregat `metered_views_daily`, redakcja treści w dzienniku licznika i uderzeniach) i `event_attendees` (anonimizacja po 24 mies.).                                                                                                                                                                                                                            |
+| Z-I9c-08 | Subskrybenci newslettera nie są anonimizowani przez kategorię CRM (zgoda niezależna od kontaktu); polityka wygaszania nieaktywnych subskrybentów - do decyzji (moduł newslettera). **Zamknięte 2026-10-22 (I9d, §21.22):** kategoria `newsletter_inactive` - 12 mies. bez zaangażowania, jedna prośba o potwierdzenie, po 30 dniach usunięcie subskrybenta (rejestr zgód zostaje, lista wyłączeń nietknięta).                                                                                                                                                                                                                                                    |
+| Z-I9c-09 | Przełącznik pomiaru otwarć obejmuje ścieżki; kampanie newslettera mają własny tryb źródła zaangażowania (piksel własny albo dostawca - `i18n-newsletter-deliverability`) - wspólny przełącznik najemcy przy najbliższej zmianie modułu newslettera. Rekomendacja treści zgody (pkt 5) - decyzja administratora danych. **Zamknięte 2026-10-22 (I9d-Y2, §21.23):** `journey_settings.open_tracking_enabled` jest wspólnym przełącznikiem ścieżek i kampanii, otwarć i kliknięć (render, zapis zdarzeń i webhook dostawcy), z jednym opisem w karcie retencji, ustawieniach silnika ścieżek i przeglądzie newslettera; rekomendacja treści zgody wykonana (pkt 5). |
+| Z-I9c-10 | Archiwum kampanii: subskrybent z otwarciem przed progiem i ponownym otwarciem po kolejnym złożeniu (następna noc po nowym progu) liczy się w zasięgu unikalnym dwa razy - granica znana (zasięg bez identyfikatorów); różnica najwyżej o liczbę takich powrotów.                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 **Migracje i bliźniaki (blok I9, „(I9c, 2026-10-20)”).**
 
@@ -4383,7 +4414,367 @@ jest w `HUB_CIALO_Z`, więc kolejna redefinicja nadal niesie
 (znacznik zaangażowania przed deduplikacją doby). `journey_record_message_event`
 
 - do mapy `HUB_I9_REDEFINITIONS` dopisać wpis `"<wersja Y2>": "20261020161900"`.
-  Następny wolny bliźniak `0384`, wersja `20261020162300`.
+  Następny wolny bliźniak `0384`, wersja `20261020162300`. **Wykonane
+  (I9d-Y2, §21.23):** `20261020162400` z oboma znacznikami; następny wolny
+  `0387`, wersja `20261020162600`.
+
+### 21.23 Treść zgody i pomiar (I9d-Y2)
+
+**Decyzje właściciela:** 2026-10-20 „tak, uzupełnij” (rekomendacja EDPB
+2/2023 z §21.21 pkt 5 i Z-I9c-09; pakiet I9d-5) oraz **2026-10-21 -
+wariant (a)**: informacja o pomiarze otwarć i kliknięć jest częścią treści
+zgody na newsletter, a SAM pomiar odbiorca wyłącza osobno, w każdej chwili
+i bez rezygnacji z newslettera. Uzasadnienie: art. 7 ust. 3 RODO (wycofanie
+tak łatwe jak udzielenie - jeden link w stopce każdej wiadomości) i art. 7
+ust. 4 (zgoda na newsletter nie jest uzależniona od zgody na pomiar, skoro
+pomiar da się odrzucić osobno bez utraty newslettera). **Ryzyko
+pakietowania:** polityka komunikacji deklaruje „każda zgoda ma osobne pole
+i osobną treść”, a w wariancie (a) pomiar nie ma osobnego pola wyboru -
+organ może ocenić to jako zgodę pakietową. Ryzyko ograniczają: (1) treść
+zgody mówi wprost, że pomiar wyłącza się osobno, (2) osobny klucz
+`email_measurement` w rejestrze zgód z własnym łańcuchem udzieleń
+i wycofań, (3) link „Nie mierz moich otwarć i kliknięć” w każdej
+wiadomości marketingowej i na stronie wypisu, (4) zgody sprzed nowej treści
+nie obejmują pomiaru (bez domniemania). Wariant (b) - osobne, niezaznaczone
+pole „pomiar otwarć i kliknięć” - pozostaje możliwy bez zmiany modelu
+danych (ten sam klucz `email_measurement`), gdyby IOD lub organ tego
+wymagał.
+
+Wykonanie: worktree `/home/user/wt/I9d`, gałąź `hub/i9d-rodo-2` od
+`7390ecf0` (gałąź PR po I9d-Y1; `git fetch` przed integracją - gałąź PR
+nie poszła do przodu, bez scalenia), cztery podzadania szeregowo: Y2-A - SQL
+i pgTAP (`947bb70f`), Y2-B - backend TS i formularze (`b7bb9cf4`,
+`0ad2a3ed`, `12b17d46`, `86a4e118`, `1e4b5b1b`), Y2-C - panel (`cbb2644c`),
+Y2-D - integracja: pliki współdzielone (`0d8c5e27`), polityka w kodzie
+i ratchet D-08 (`0408de01`), dziennik i rejestr czynności.
+
+**1. Decyzje → wykonanie → dowód.** W24-W25 - decyzje właściciela;
+W26-W40 - decyzje wykonawcze (podzadania i integrator), opisane także
+w nagłówkach migracji `20261020162300…162500`.
+
+| #   | Decyzja (źródło)                                                                                                                                                              | Wykonanie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Uzasadnienie                                                                                                                                                | Dowód                                                                                                                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W24 | Domyślna treść PL/EN: pomiar otwarć i kliknięć, cel, wycofanie w każdej chwili (link); JEDNO źródło; teksty admina nienadpisane; ostrzeżenie w panelu (właściciel 2026-10-20) | `src/lib/newsletter/consentText.ts` - odcinki treści, z których powstaje HTML bajt w bajt równy `_newsletter_consent_default` (`20261020162300`) i widok React bez `innerHTML` (`NewsletterConsentText`); wersja `newsletter-2026-10-21` (`_newsletter_consent_version`); DEFAULT kolumn `policy_html_*` = literał tej treści; `_newsletter_consent_upgrade_defaults` zmienia wyłącznie wiersze równe staremu domyślnemu (po `btrim`; tekst admina, NULL i pusty zostają); kopie słownikowe (`newsletterForm.consentDefault`, `joinUs.consent`, `authForms.newsletterOptIn`, `clubGate.newsletterOptIn`, słownik formularza kontaktu, etykiety rejestru buildera) usunięte; dawne treści domyślne zapisane w danych buildera i popupu podmieniane przy renderze (`LEGACY_NEWSLETTER_CONSENT_DEFAULTS`); EN `/privacy-policy` (trasa nie istnieje) -> `/en/polityka-prywatnosci`, link wycofania -> `/komunikacja-i-marketing#rezygnacja`                 | jedna treść = jeden dowód zgody (art. 7 ust. 1); masowa zmiana JSON buildera ryzykowna (rewizje, publikacje) - pytanie 10 pakietu                           | test parytetu TS⇄SQL `consentText.test.ts` (czyta bloki `newsletter-consent-default:*` NAJNOWSZEJ migracji), `hub_i9d_y2_consent_test` (33)                                                  |
+| W25 | Wariant (a): pomiar wyłączalny osobno, bez rezygnacji z newslettera (właściciel 2026-10-21)                                                                                   | klucz `email_measurement` w `crm_consent_log`: wyzwalacz `trg_crm_consent_log_measurement` dopisuje „tak” do każdego wpisu „tak” klucza `newsletter*`/`marketing*` w wersji z rejestru `_consent_measurement_versions` albo z treścią oznaczoną przez admina (W28) - dla KAŻDEGO pisarza rejestru; `email_measurement_withdraw` zapisuje „nie” (kanały `email_footer`, `preferences`, `account`), zgoda na newsletter bez zmian; czytelnik `_email_measurement_consent`: zgoda trwa, gdy ostatnie udzielenie jest PÓŹNIEJSZE niż wycofanie pomiaru, wycofanie zgody newsletterowej/marketingowej i wypis (remis chwil = brak pomiaru)                                                                                                                                                                                                                                                                                                                    | art. 7 ust. 3-4 RODO; „później niż ostatnie wycofanie” nie wymaga zmian w pisarzach wycofania (pytanie 13 pakietu)                                          | `hub_i9d_y2_consent_test`                                                                                                                                                                    |
+| W26 | Wersja treści przy każdej zgodzie (orkiestrator)                                                                                                                              | `newsletter_to_lead` (CIALO-Z `20260708151417`, wpis w `HUB_CIALO_Z`) i wspólny `_newsletter_log_consents`: wersja z ładunku albo `txt-sha256:` + 20 znaków skrótu treści; pisarze TS wysyłają `newsletter-2026-10-21` tylko dla treści z rejestru - serwer (`normalizeConsentVersion` w `subscribeToNewsletter` i `submitContactMessage`) zdejmuje wersję, gdy treść jej nie odpowiada; własny tekst admina - bez wersji (skrót liczy baza); `newsletter_sunset_keep` (Y1) też zapisuje wersję                                                                                                                                                                                                                                                                                                                                                                                                                                                          | da się wykazać, którą treść osoba widziała; fałszywa wersja w ładunku nie nada zgody na pomiar                                                              | `hub_i9d_y2_consent_test`, `contactFunctions`, `newsletter.functions`, `consentText`                                                                                                         |
+| W27 | Pisarze rejestru zgód marketingowych ujednoliceni (pytanie 9 pakietu; orkiestrator: naprawić to, co dotyczy zgody marketingowej i pomiaru)                                    | JoinUs loguje treść, którą wyświetla (dotąd zahardkodowane inne zdanie); formularz kontaktu przekazuje zgody subskrybentowi (bez tekstu zastępczego); rejestracja (`AuthFormBlocks`) i bramka klubu (`ClubAccessGate`) zapisują na newsletter z treścią i wersją (dotąd tylko `marketing_opt_in` w metadanych konta; błąd zapisu nie cofa konta); nowy wyzwalacz `trg_newsletter_consents_log` (AFTER UPDATE OF `consents`) loguje NOWE pozycje przy ponownym zapisie po wypisie; wymagane pole „prywatność” popupu nie niesie już treści zgody marketingowej (`privacyAcceptanceHtml`)                                                                                                                                                                                                                                                                                                                                                                  | art. 7 ust. 1 (dowód = to, co osoba widziała) i ust. 4 (zgoda marketingowa nie może warunkować rejestracji)                                                 | `joinUsForm`, `contactFormNewsletterConsent`, `authFormBlocks`, `ClubAccessGate{,.funnel}`, `popupSignupForm`, `SignupPopupPanel`, `hub_i9d_y2_consent_test`                                 |
+| W28 | Własny tekst admina: jawne oznaczenie „mój tekst obejmuje pomiar”, nie heurystyka słów (orkiestrator, pytanie 2 pakietu)                                                      | tabela `newsletter_consent_measurement_marks` (skrót SHA-256 ZAPISANEGO tekstu liczony w bazie, autor, chwila); RPC `admin_newsletter_consent_measurement_get` (admin, redaktor) i `_mark` (admin; `audit_log`, `newsletter_settings.changed.v1` z `keys` `['consent_measurement_marks']`); panel - karta „Treść zgody na newsletter” w `/admin/newsletter/overview`: ostrzeżenie dla własnego tekstu bez oznaczenia i dla tekstu zmienionego po oznaczeniu (także przed zapisem szkicu), oznaczenie tylko zapisanego tekstu, redaktor widzi stan                                                                                                                                                                                                                                                                                                                                                                                                        | słowa kluczowe nie są dowodem; zmiana tekstu = inny skrót, więc oznaczenie wygasa samo                                                                      | `hub_i9d_y2_reconfirm_test` (29), `ConsentTextCard`, `consentTextRules`                                                                                                                      |
+| W29 | Render tylko za zgodą i wspólny przełącznik najemcy (EDPB 2/2023, Z-I9c-09)                                                                                                   | ścieżki: `journey_contact_for_send` (CIALO-Z `20261020161300`, mapa `HUB_I9_REDEFINITIONS`) - `measurement` = `open_tracking` = `link_tracking` = przełącznik ORAZ zgoda kontaktu; render (`JourneyRenderInput.openTracking/linkTracking`) mierzy tylko przy jawnym `true`; kampanie: porcja `email_measurement_status` w chwili wysyłki (`fetchMeasuredEmails`; awaria odczytu = wysyłka BEZ pomiaru), `measured` w logu odbiorców; przełącznik `journey_settings.open_tracking_enabled` obejmuje od Y2 ścieżki I kampanie, otwarcia I kliknięcia - jeden opis w karcie retencji, ustawieniach silnika ścieżek i przeglądzie newslettera                                                                                                                                                                                                                                                                                                                | bezpieczna awaria: nigdy pomiar bez zgody                                                                                                                   | `render.server.test`, `renderCampaign.server.test` (48 skrótów renderu bez nowego argumentu - bez zmian), `newsletterCampaignSend`, `journeysRunner.server`, `hub_i9d_y2_tracking_test` (19) |
+| W30 | Odbiorca bez zgody: brak piksela, linki NIEPRZEPISANE - bez anonimowego liczenia (orkiestrator, pytanie 3 pakietu)                                                            | linki prowadzą wprost do celu, bez identyfikatora odbiorcy; nagłówek wypisu RFC 8058 zostaje (to nie pomiar)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | przekierowanie bez identyfikatora odbiorcy nadal byłoby odczytem z urządzenia (art. 5 ust. 3) - wariant zachowawczy                                         | jw.                                                                                                                                                                                          |
+| W31 | Zgoda liczona w CHWILI zdarzenia (orkiestrator)                                                                                                                               | `journey_record_message_event` (CIALO-Z `20261020161900` - trzecia redefinicja w I9) i `newsletter_record_campaign_event` (CIALO-Z `20260814215302` z `HUB_CIALO_Z`, ciało z `161900`) odrzucają otwarcie i kliknięcie: `measurement_disabled` (przełącznik; dotąd `open_tracking_disabled` tylko dla otwarć ścieżek), `no_measurement_consent`; webhook dostawcy przechodzi przez ten sam filtr; `trackingEvents.server.ts` zna oba powody; zdarzenia odrzucone nie podbijają znacznika zaangażowania                                                                                                                                                                                                                                                                                                                                                                                                                                                   | piksel i linki zostają w skrzynce na zawsze - wycofanie musi działać na maile wysłane wcześniej                                                             | `hub_i9d_y2_tracking_test`, `trackingEvents.test`, fikstury `journeys_tracking_stats` i `newsletter_campaign_events_dedup` (nadają zgodę)                                                    |
+| W32 | Link „Nie mierz moich otwarć i kliknięć” (stopka i preferencje)                                                                                                               | stopka każdego maila marketingowego i każdego MIERZONEGO maila serwisowego (poza przekierowaniem trackingu), strona wypisu (`measurementUrl`, kanał `preferences`); token `mw:` (HMAC jak `trackingToken.server.ts`, podmiot - subskrybent albo kontakt CRM, bez terminu); trasa `/api/public/newsletter/measurement`: GET z przeglądarki - 303 na stronę, GET z `fetch` - walidacja i stan (`email_measurement_state`) bez zmiany, POST przez limiter (`newsletter.measurement`, 10/10 min) -> `email_measurement_withdraw` (z IP i UA); strona `/newsletter/measurement` PL/EN, noindex, ponowienie po błędzie = GET                                                                                                                                                                                                                                                                                                                                   | skaner linków nie wycofa ani nie udzieli zgody; rodzaj akcji wynika z podpisu, nie z parametru adresu                                                       | `measurementToken.test`, `-api.public.newsletter.measurement.test`, `newsletterMeasurementPage.test`, `-api.public.newsletter.unsubscribe.test`, `newsletterConsentPages.test`               |
+| W33 | „Poproś o zgodę na pomiar” - opcjonalnie, ręcznie z panelu (właściciel 2026-10-20 pkt 3)                                                                                      | tabela `newsletter_measurement_requests` (PK subskrybent + wersja treści - jedna prośba na wersję); kandydaci: aktywni bez zgody na pomiar, bez własnego „nie mierz”, poza listą wyłączeń (liczeni osobno); podgląd i start tylko admin, start z liczbą z podglądu (`p_expected`; więcej kandydatów = 40001 `stale_preview`); krok `jobs-tick` `newsletterMeasurement` w minucie 4 okna 08-17 czasu polskiego (nigdy w ticku wygaszania), termin 4 s; dzienny limit 200 WSPÓLNY z prośbami wygaszania (`_newsletter_oneoff_mail_used`, redefinicja `newsletter_sunset_claim`); token `mc:` (nonce, 60 dni); `newsletter_measurement_confirm` zapisuje `newsletter` „tak” z bieżącą treścią i wersją, wyzwalacz dopisuje `email_measurement`; brak reakcji = bez zmian; treść PL/EN w `site_settings.newsletter_measurement_email` (edytor na `/admin/newsletter/email-content`, wspólne ciało z edytorem prośby wygaszania); mail sam niczego nie mierzy | reputacja domeny nadawcy; admin nigdy nie wyśle do większej grupy, niż zatwierdził; formularz zapisu nie dowodzi własności skrzynki dla istniejącego adresu | `hub_i9d_y2_reconfirm_test`, `measurementReconfirm{,Mail}.test`, `measurementFunctions`, `jobsTickRun` (5 nowych), `MeasurementRequestCard`, `NewsletterMeasurementCopyEditor`               |
+| W34 | Statystyki: dymek i mianownik (pytanie 7 pakietu)                                                                                                                             | `newsletter_campaign_recipients.measured` (runner albo wyzwalacz przy `sent`; NULL = sprzed Y2) i RPC `admin_newsletter_campaign_measurement` -> karta kampanii: mianownik = odbiorcy mierzeni (kampanie sprzed Y2 - wysłani), podpis „% mierzonych”, „Mierzeni odbiorcy: N z M”; ścieżki S8 (tabela maili, wyniki węzła, nakładka kanwy) i zdrowie poczty (zastrzeżenia w rejestrze wskaźników `metrics.ts`) - dymek, że otwarcia i kliknięcia obejmują tylko odbiorców ze zgodą                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | wskaźniki nie mogą spaść pozornie; ścieżki nie mają danych o mierzonych w RPC S5 - tylko dymek (Z-I9d-15)                                                   | `CampaignEngagementCard.test`, `adminNewsletterCampaignRoutes`, `hub_i9d_y2_tracking_test`                                                                                                   |
+| W35 | Warunki ścieżek `email_opened`/`email_clicked` (pytanie 4 pakietu)                                                                                                            | notka w `PredicateRow` (StepSheet `if_else` i filtr wejścia): odbiorcy bez zgody na pomiar nigdy nie spełnią warunku i trafią do gałęzi „nie”; szablon `newsletter_welcome` (gałąź engaged) wyśle więc „preferences” także osobom czytającym bez zgody - świadoma konsekwencja                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | brak zgody nie może być obchodzony przez logikę ścieżki                                                                                                     | `PredicateRow.test`                                                                                                                                                                          |
+| W36 | Niemierzeni a wygaszanie Y1 (pytanie 5 pakietu)                                                                                                                               | bez osobnej definicji zaangażowania: subskrybent bez zgody na pomiar nie zostawia otwarć ani kliknięć, więc po 12 mies. dostanie JEDNĄ prośbę o potwierdzenie (logowanie konta, formularz i potwierdzenie zapisu nadal liczą się jako zaangażowanie); kliknięcie „Chcę dalej otrzymywać” odnawia subskrypcję                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | jedna wiadomość raz na 12 mies. to mniejsza ingerencja niż pomiar bez zgody                                                                                 | `hub_i9d_newsletter_sunset_test` (fikstury z pomiarem, +2 wpisy wygaśnięcia łańcucha `email_measurement`)                                                                                    |
+| W37 | Tryb `NEWSLETTER_ENGAGEMENT_SOURCE=provider` (pytanie 6 pakietu)                                                                                                              | runbook (pkt 7): wymagany `first_party` (domyślny) i wyłączony tracking otwarć i kliknięć u dostawcy - piksel i przepisanie linków dostawcy nie dają się wyłączyć per odbiorca; zdarzenia z webhooka i tak zapisuje `newsletter_record_campaign_event`, który odsiewa brak zgody                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | piksel dostawcy byłby pomiarem bez zgody                                                                                                                    | `hub_i9d_y2_tracking_test`                                                                                                                                                                   |
+| W38 | Zgody wydarzeń i CFP oraz zgoda premium - bez wersji z pomiarem (Y2-A, Y2-B)                                                                                                  | `event_consent_texts` (wersja globalna `EVENT_CONSENT_TEXT_VERSION` dla 3 celów, bramka SQL⇄i18n `eventConsentTexts.gate.test.ts`) i `PREMIUM_NEWSLETTER_CONSENT_TEXTS` bez zmian - kontakty wyłącznie z tych źródeł dostają maile bez pomiaru; mechanizm gotowy: nowa wersja treści + dopisek do `_consent_measurement_versions()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | wariant zachowawczy - nowa wersja wymaga migracji treści i przeglądu ścieżek rejestracji                                                                    | Z-I9d-11                                                                                                                                                                                     |
+| W39 | Maile serwisowe ścieżek (pytanie 8 pakietu)                                                                                                                                   | pomiar bramkowany zgodą kontaktu niezależnie od kategorii ścieżki (`marketing`/`service`); mierzony mail serwisowy ma link „Nie mierz” w stopce                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | jedna zgoda, jeden łańcuch - prostszy dowód; do oceny IOD                                                                                                   | Z-I9d-12                                                                                                                                                                                     |
+| W40 | Polityka w kodzie (integrator)                                                                                                                                                | `communications.ts` PL/EN: sekcja `pomiar` przepisana (podstawa - zgoda, art. 399 PKE, EDPB 2/2023; cel; bez zgody bez piksela i linków z identyfikatorem; osobne wyłączenie linkiem; wersja treści; zgody sprzed wersji bez pomiaru i jednorazowa prośba), sekcja `zapis` - zdanie o osobnym wyłączeniu pomiaru (ryzyko pakietowania), personalizacja - historia otwarć tylko przy zgodzie; `privacy.ts` - dane newslettera i podstawa art. 6 ust. 1 lit. a; osobne daty `COMMUNICATIONS_UPDATED` i `PRIVACY_UPDATED` = 2026-10-22 (pakiet zgodności i pozostałe dokumenty bez zmian)                                                                                                                                                                                                                                                                                                                                                                   | treść zgody linkuje do `#rezygnacja`, polityka prywatności do `#pomiar`; data „ostatnia aktualizacja” to sygnał zmiany treści                               | `legalContent`, `documentIndex`, `legalVersions`, `legalComplianceRoutes`, `sitemapEntries.server`                                                                                           |
+
+**Decyzje wykonawcze backendu TS (Y2-B).** (1) Kontrakt pisarzy: wpis
+`{key: 'newsletter', text, version}` z `version = 'newsletter-2026-10-21'`
+tylko, gdy wyświetlony tekst to treść z rejestru (w dowolnym formacie -
+HTML, tekst, odcinki); skrót własnego tekstu = sha256 hex UTF-8 po obcięciu
+białych znaków (także NBSP i BOM). (2) Render kampanii bez nowego argumentu
+daje wynik bajt w bajt jak przed Y2 (48 skrótów SHA-256 w teście). (3) Tokeny
+`mw:` (wycofanie) i `mc:` (zgoda z prośby, `MEASUREMENT_CONFIRM_LINK_DAYS =
+60`) w `measurementToken.server.ts` - rodzaj akcji wyłącznie z podpisu.
+(4) Rejestracja i bramka klubu przy włączonym double opt-in najemcy wysyłają
+dodatkowo mail potwierdzający zapis (jak popup). (5) Mianownik kampanii
+wznowionej w chwili wdrożenia liczy tylko mierzonych - niedoszacowany
+mianownik zamiast wskaźnika ponad 100%. (6) Odpowiedź GET wypisu dla
+aktywnej subskrypcji ma pole `measurementUrl` (ścieżka względna, bez
+adresu e-mail).
+
+**Decyzje wykonawcze panelu (Y2-C).** (1) Treść zgody PL/EN w przeglądzie
+newslettera (grupa `inline`, CAS, wspólny komunikat konfliktu); puste pole =
+`null` = bieżąca treść domyślna z pomiarem i wersją. (2) Stan pola: baza
+(bieżąca domyślna albo ważne oznaczenie) oraz `isNewsletterConsentDefault`
+(dawne domyślne nie ostrzegają - czytelnik widzi treść z pomiarem).
+(3) „Poproś o zgodę na pomiar” - tylko admin; okno potwierdzenia podaje
+liczbę, limit dzienny wspólny z wygaszaniem, okno 8-18 i ważność linku
+60 dni; przy braku kandydatów przycisk zablokowany z wyjaśnieniem.
+(4) Edytor treści maila prośby na `/admin/newsletter/email-content` - wspólne
+ciało `MailCopyEditorBody` z edytorem prośby wygaszania Y1-C (limity, reset
+per język, podgląd renderu serwera, CAS bez wycierania szkicu); trasa dostała
+sekcyjny `adminPageHead` „Newsletter - treści maili - Ustawienia”.
+(5) Wspólny przełącznik (Z-I9c-09) w trzech miejscach z jednym opisem;
+mutatory przełącznika unieważniają też `newsletterKeys.measurementAll()`.
+(6) Popup: zgodą na newsletter jest etykieta pola `newsletter_optin`
+(ostrzeżenie przy WŁASNEJ etykiecie w `FieldsTab`); `popup_privacy_html_*`
+nie są zgodą marketingową (Y2-B), więc panel ich nie oznacza (Z-I9d-17).
+(7) Słowniki `i18n-admin-newsletter-measurement.ts` i
+`i18n-admin-measurement-hint.ts` (`const en: typeof pl`, liczebniki PL
+`_one/_few/_many/_other`) tylko w leniwych chunkach panelu.
+
+**Decyzje integratora (Y2-D).** (1) Krok `newsletterMeasurement` w
+`jobs-tick` za wygaszaniem, przed retencją, z tym samym terminem kroku
+(`NEWSLETTER_SUNSET_WINDOW_MS`, 4 s) - inna minuta okna, więc oba kroki
+nigdy nie dzielą ticku. (2) Polityka w kodzie (W40) - Y2-B i Y2-C zostawiły
+ją integratorowi; osobne stałe dat zamiast podbicia daty pakietu
+zgodności (ta sama zasada co `PRIVACY_UPDATED`). (3) `types.ts` - tabele,
+kolumna i 11 publicznych RPC w konwencji generatora (funkcje `_*`
+i wyzwalacze poza typami - konwencja Y1-D); wywołania przez `RpcCallable`
+z literałem nazwy zostają (działają przed i po regeneracji). (4) `consentText`
+(4,4 KB przed minifikacją) siedzi w `app-initial`, bo domyślne ustawienia
+newslettera w hooku korzenia (`useNewsletterSettings`) czytają treść z jednego
+źródła zamiast dwóch literałów - +1,4 KB gz na każdej stronie, w zamrożonym
+progu `chunk` (259,8 / 286); wydzielenie rdzenia treści - Z-I9d-20.
+
+**2. Zakres - migracje i bliźniaki (blok I9, „(I9d-Y2, 2026-10-22)”).**
+
+| Migracja                                       | Bliźniak                             | Zawartość                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261020162300_consent_measurement_core`      | `0384_consent_measurement_core`      | `_newsletter_consent_default`, `_newsletter_consent_version`, `_consent_measurement_versions`, skrót i wersja treści, `_newsletter_consent_upgrade_defaults` + DEFAULT `policy_html_*` (`lock_timeout`); `newsletter_consent_measurement_marks` (RLS, tylko service_role); `_consent_covers_measurement` i wyzwalacz `trg_crm_consent_log_measurement`; `_newsletter_log_consents`, redefinicje `newsletter_to_lead` (CIALO-Z `20260708151417`) i `newsletter_sunset_keep`; wyzwalacz `trg_newsletter_consents_log`; `_email_measurement_consent`, `email_measurement_status/_state/_withdraw` (service_role) |
+| `20261020162400_consent_measurement_tracking`  | `0385_consent_measurement_tracking`  | redefinicje `journey_contact_for_send` (CIALO-Z `20261020161300`), `journey_record_message_event` (CIALO-Z `20261020161900`), `newsletter_record_campaign_event` (CIALO-Z `20260814215302`, ciało z `161900`); `newsletter_campaign_recipients.measured` (`lock_timeout`) i wyzwalacz `tg_newsletter_recipients_measured`; `admin_newsletter_campaign_measurement`                                                                                                                                                                                                                                            |
+| `20261020162500_consent_measurement_reconfirm` | `0386_consent_measurement_reconfirm` | `newsletter_measurement_requests` (RLS, tylko service_role); `_newsletter_oneoff_mail_used`, redefinicja `newsletter_sunset_claim` (wspólny limit dzienny); kandydaci, `admin_newsletter_measurement_preview/_request`, `newsletter_measurement_claim/_mark/_confirm`, `admin_newsletter_consent_measurement_get/_mark`                                                                                                                                                                                                                                                                                       |
+
+Bliźniaki bajt w bajt (`cmp`), wpisy `meta/_journal.json` idx 384-386,
+`when` 1792478653912 … 1792478773912 (+60 000), `check:migration-lanes`
+zielony. **Następny wolny: `0387`, wersja `20261020162600`.** Każdy plik
+≤ 45 KiB (35 124 B, 22 818 B, 35 430 B - po jednej części). Zero zmian
+danych poza podmianą treści równej staremu domyślnemu.
+
+**API dla kolejnych agentów.** RPC tylko service_role:
+`email_measurement_status(p_tenant uuid, p_emails text[])` (TABLE `email`,
+`consent`, `measured`; adresy małymi literami, maks. 2000; 22023
+`tenant_required`/`too_many_emails`), `email_measurement_state(p_subscriber
+DEFAULT NULL, p_lead DEFAULT NULL)` i `email_measurement_withdraw(p_subscriber,
+p_lead, p_channel 'email_footer'|'preferences'|'account', p_ip, p_user_agent)`
+(dokładnie jeden identyfikator; `withdrawn`|`already`|`gone`|`invalid`),
+`newsletter_measurement_claim(p_limit DEFAULT 50)` (dzierżawa 15 min, maks.
+5 prób), `newsletter_measurement_mark(p_subscriber, p_nonce, p_outcome
+'queued'|'duplicate'|'suppressed'|'failed', p_error)`,
+`newsletter_measurement_confirm(p_subscriber, p_nonce, p_ip, p_user_agent)`
+(`confirmed`|`already`|`inactive`|`gone`|`invalid`). Panel (authenticated,
+rola z sesji): `admin_newsletter_campaign_measurement(p_campaign)`
+(admin/redaktor; `{sent, measured, unmeasured, unknown}`),
+`admin_newsletter_measurement_preview()` i `_request(p_expected)` (admin;
+22023 `expected_invalid`, 40001 `stale_preview`),
+`admin_newsletter_consent_measurement_get()` (admin/redaktor) i
+`_mark(p_field, p_marked)` (admin; 22023 `field_invalid`|`marked_invalid`|`text_missing`).
+`journey_contact_for_send` ma nowe pola `measurement` i `link_tracking`,
+zapis zdarzeń - powody `measurement_disabled` i `no_measurement_consent`.
+TS: `src/lib/newsletter/consentText.ts` (`NEWSLETTER_CONSENT_VERSION`,
+`MEASUREMENT_CONSENT_VERSIONS`, `newsletterConsentSegments/Html/Plain`,
+`resolveNewsletterConsent`, `newsletterConsentPayload`,
+`isNewsletterConsentDefault`, `normalizeConsentVersion`,
+`privacyAcceptanceHtml`), `src/lib/privacy/measurement.ts` (ścieżki, kanały,
+`newsletterMeasurementUrl`, `MEASUREMENT_FOOTER_COPY`),
+`measurementToken.server.ts`, `measurementStatus.server.ts`
+(`fetchMeasuredEmails`), `measurementReconfirm{,Mail.server}.ts`
+(`runNewsletterMeasurementMail`, `isNewsletterMeasurementMailWindow`),
+`measurement.functions.ts`, `measurementQueries.ts`, `measurementParse.ts`
+(`consentFieldNeedsWarning`, `campaignMeasuredDenominator`); klucze
+`newsletterKeys.measurementAll/consentMeasurement/measurementPreview/
+measurementCopy` (pod `settings()` - reguła `newsletter_settings.changed.v1`
+je unieważnia) i `campaignMeasurement(id)`; panel
+`src/components/admin/newsletter/measurement/**`, `MailCopyEditorBody`,
+`MeasurementConsentNote`.
+
+**3. Odchylenia (kontrakt bez zmian, fakty repozytorium wygrywają).**
+
+- Wspólny przełącznik `open_tracking_enabled` obejmuje od Y2 także kliknięcia
+  i kampanie (dotąd tylko piksel ścieżek); powód odmowy otwarcia przy
+  wyłączonym przełączniku: `open_tracking_disabled` -> `measurement_disabled`
+  (test I9c `hub_i9c_data_retention_aggregates` poprawiony).
+- Licznik odbiorców mierzonych tylko dla kampanii; ścieżki - dymek (W34).
+- Anonimowe liczenie kliknięć bez odbiorcy nie wdrożone (W30).
+- Zgody wydarzeń, CFP i premium bez wersji z pomiarem (W38).
+- Dawne treści domyślne w JSON buildera i etykiety pól popupu podmieniane
+  przy renderze, nie migracją danych (W24).
+- Treść i „Poproś o zgodę” to leniwa sekcja `/admin/newsletter/overview`,
+  nie osobna trasa (bez zmian `adminNav` i `routeTree` panelu); edytor
+  treści maila prośby obok prośby wygaszania.
+- Refaktor Y1-C: ciało edytora prośby wygaszania wydzielone do
+  `MailCopyEditorBody` (testy Y1-C bez zmian); zmienione pliki S8
+  (`PredicateRow`, `JourneyEmailsTable`, `JourneyNodeResults`, słowniki
+  ścieżek) i rejestr wskaźników `metrics.ts` (zastrzeżenia EN).
+- Redefinicja `newsletter_sunset_claim` (Y1) - jedyna zmiana to wspólny
+  budżet dzienny; `newsletter_sunset_keep` zapisuje wersję treści.
+- Fikstury istniejących testów pgTAP nadają zgodę na pomiar
+  (`journeys_tracking_stats`, `newsletter_campaign_events_dedup`,
+  `hub_i9d_newsletter_sunset`, `hub_i9c_data_retention_aggregates`) - ich
+  przedmiotem jest deduplikacja, statystyki i wygaszanie, nie zgoda;
+  `hub_shared_helpers` - lista grantów.
+- Integrator: polityka w kodzie (W40) i osobne stałe dat dokumentów.
+
+**4. Zmiany integratorskie i pliki współdzielone (Y2-D).** Bliźniaki
+`0384…0386` i `_journal.json`; `types.ts` (konwencja generatora: tabele
+`newsletter_consent_measurement_marks` i `newsletter_measurement_requests`
+z relacjami - także do widoku `crm_funnel_view`; kolumna
+`newsletter_campaign_recipients.measured`; 11 RPC);
+`authzSnapshot.generated.ts` (1313 migracji, 1893 funkcje);
+`jobsTick.server.ts` + `jobsTickRun.test.ts` (5 nowych przypadków: poza
+minutą 4, okno z terminem 4 s i ostatnim krokiem, minuta 9 wygaszania,
+noc, błąd kroku) + `-jobs-tick.test.ts`; `routeTree.gen.ts` (trasy
+`/newsletter/measurement` i `/api/public/newsletter/measurement`, diff
+wyłącznie addytywny); `hubDelivery.ts` - manifest I9 (pliki Y2-B, Y2-C
+i polityki w kodzie; rejestr funkcji, `HUB_CIALO_Z.newsletter_to_lead`
+i mapy `HUB_I9_REDEFINITIONS` dla `journey_record_message_event`
+i `journey_contact_for_send` - Y2-A); `i18nParity.gate.test.ts` (prefiksy
+`newsletterMeasurement`, `adminNewsletterMeasurement`,
+`adminMeasurementHint`) i `reports/i18n-parity.json`; `domainEvents.ts`
+(komentarz: `keys` `['consent_measurement_marks']`);
+`scripts/check-bundle-size.ts` (ratchet); polityka w kodzie
+(`src/lib/legal/**`); rejestr czynności, ten dziennik i
+`docs/KONTYNUACJA_…`. Kontrakt TS⇄SQL (`generate:ts-sql-contract`, plik
+generowany i poza gitem) obejmuje nowe RPC: 1008 wywołań, 1533 operacje na
+tabelach, pgTAP `ts_sql_contract` 9 asercji. `i18n-admin-core.ts`, `adminNav.ts`,
+scheduler i mapa inwalidacji - bez zmian (wejścia w istniejących trasach
+panelu; inwalidacja po prefiksie `newsletterKeys.settings()`).
+
+**5. Testy.** pgTAP: `hub_i9d_y2_consent_test` (33),
+`hub_i9d_y2_tracking_test` (19), `hub_i9d_y2_reconfirm_test` (29);
+zmienione: `hub_i9d_newsletter_sunset_test` (32),
+`hub_i9c_data_retention_aggregates_test` (23), `hub_shared_helpers_test`
+(27), `journeys_tracking_stats_test` (26),
+`newsletter_campaign_events_dedup_test` (28). vitest: jedno źródło treści
+i parytet TS⇄SQL oraz PL/EN (`consentText`), formularze i pisarze rejestru
+(`NewsletterForm`, `popupSignupForm`, `SignupPopupPanel`, `joinUsForm`,
+`authFormBlocks`, `authFormPlaceholders`, `contactFormNewsletterConsent`,
+`ClubAccessGate{,.funnel}`, `newsletterDocRendererPure`, `contactFunctions`,
+`newsletter.functions`), render tylko za zgodą (`render.server`,
+`renderCampaign.server`, `newsletterCampaignSend`,
+`newsletterCampaignsFunctionsGaps`, `journeysRunner.server`,
+`trackingEvents`), tokeny, stan i trasa (`measurementToken`,
+`measurementStatus`, `-api.public.newsletter.measurement`,
+`-api.public.newsletter.unsubscribe`, `newsletterMeasurementPage`,
+`newsletterConsentPages`), prośba (`measurementReconfirm`,
+`measurementReconfirmMail`, `measurementFunctions`, `measurementQueries`,
+`jobsTickRun`, `-jobs-tick`), panel RTL + axe (`ConsentTextCard`,
+`MeasurementRequestCard`, `NewsletterMeasurementCopyEditor`,
+`consentTextRules`, `i18nNewsletterMeasurement`, `CampaignEngagementCard`,
+`FieldsTabConsentLabel`, `PredicateRow`, `DataRetentionCard`,
+`journeyMutations`, `adminNewsletterCampaignRoutes`), bramka
+`i18nParity.gate` (3 nowe prefiksy), `hubDelivery.gate`.
+
+**6. Pomiar bundla (D-08).** Baza `7390ecf0` (gałąź PR po I9d-Y1, kopia
+`git archive`, ten sam `node_modules`) 5332,2 / public 2783,0 / admin-only
+2549,1 -> po I9d-Y2 z integracją 5355,3 / 2790,2 / 2565,1: +23,1 KB,
+w tym admin-only +16,0 i public +7,2. Admin-only: `consentTextRules` +4,7
+(słownik PL/EN panelu zgody i pomiaru), `NewsletterMeasurementPanel` +3,6,
+`NewsletterMeasurementCopyEditor` +1,8, `MailCopyEditorBody` +1,8
+(wydzielony z edytora wygaszania: `NewsletterSunsetCopyEditor` -1,2,
+`sunsetCopyRules` -1,5, przecięcie chunków przez Rolldown -
+`newsletterSunset` +1,1, `newsletterSunsetQueries` +1,0),
+`measurementQueries` +1,2, `i18n-admin-measurement-hint` +1,0,
+`MeasurementConsentNote` +0,4, trasy panelu newslettera +1,1, `metrics`
++0,3. Public: nowa trasa `newsletter.measurement` +3,1 (leniwy chunk strony
+ze słownikiem), liść `measurement` +0,5, `NewsletterConsentText` +0,3,
+polityki `communications` +0,9 i `privacy` +0,3 (leniwe chunki
+dokumentów), `app-initial` +1,4 (decyzja integratora 4), formularze +0,3,
+entropia hashy (1348 chunków o |Δ| < 150 B, +1,1 KB w obu koszykach).
+Ratchet `overall` 5334 -> 5357 (host 5355,3 -> 5356 -> +1) z wpisem kroniki
+„wycinek: I9d-Y2”. Arkusze bit w bit te same: css 99,8 / 100 (bez
+ratchetu), publicCss 83,8 / 85; chunk 259,8 / 286, boot 473,6 / 579,
+public 2790,2 / 2881 - w zamrożonych progach.
+
+**7. Wdrożenie (właściciel).** Kolejność: `20261020162300` -> `162400` ->
+`162500` (drizzle `0384…0386`), po I9d-Y1 (`161500…162200`). Krótkie
+blokady pod `lock_timeout` 5 s: DEFAULT kolumn `newsletter_settings`,
+wyzwalacze na `crm_consent_log` i `newsletter_subscribers`, kolumna
+`newsletter_campaign_recipients.measured` (bez wartości domyślnej - sama
+zmiana katalogu); wyzwalacz tabeli odbiorców kampanii - krótka blokada bez
+limitu, więc wdrażać poza wysyłką kampanii. Front publikować RAZEM z migracjami albo zaraz po nich: runner
+sprzed Y2-B czyta `open_tracking` (piksel znika od razu), ale przepisuje
+linki - ich kliknięcia bez zgody i tak nie są zapisywane (`162400`);
+krok `jobs-tick` bez `162500` zwraca `skipped: migration_pending`.
+**Skutek wdrożenia (zamierzony):** zgody sprzed nowej treści nie obejmują
+pomiaru, więc od migracji `162400` nikt nie jest mierzony, dopóki nie
+zapisze się z nową treścią albo nie potwierdzi prośby - wskaźniki otwarć
+i kliknięć kampanii i ścieżek spadają skokowo (mianownik kampanii =
+mierzeni, ścieżki - dymek). Admin może wysłać „Poproś o zgodę na pomiar”
+z `/admin/newsletter/overview` (najwyżej 200 maili dziennie na najemcę,
+wspólnie z prośbami wygaszania). **Tryb źródła zaangażowania:**
+`NEWSLETTER_ENGAGEMENT_SOURCE` musi zostać `first_party` (domyślnie),
+a tracking otwarć i kliknięć u dostawcy poczty (Resend) - wyłączony;
+`provider` nie daje się pogodzić z pomiarem tylko za zgodą. **Polityka:**
+jeśli najemca ma opublikowaną własną wersję polityki komunikacji albo
+prywatności (`legal_document_versions`), ma ona pierwszeństwo przed kodem -
+admin publikuje nową wersję z akapitem o pomiarze w panelu dokumentów
+prawnych. Kontrolne SQL (SQL editor, tylko odczyt):
+
+```sql
+-- 1. Treść domyślna z pomiarem (oczekiwane: stara treść domyślna = 0;
+--    teksty z dawną ścieżką EN /privacy-policy to teksty WŁASNE admina).
+SELECT count(*) AS najemcy,
+       count(*) FILTER (WHERE btrim(policy_html_pl) = btrim(public._newsletter_consent_default('pl'))) AS pl_nowa,
+       count(*) FILTER (WHERE btrim(policy_html_en) = btrim(public._newsletter_consent_default('en'))) AS en_nowa,
+       count(*) FILTER (WHERE policy_html_pl LIKE 'Zapisując się akceptujesz <a href="/polityka-prywatnosci">%') AS pl_stara,
+       count(*) FILTER (WHERE policy_html_en LIKE '%/privacy-policy%') AS en_privacy_policy
+  FROM public.newsletter_settings;
+-- 2. Zgody z pomiarem (tuż po wdrożeniu: 0 - zgody sprzed wersji nie
+--    obejmują pomiaru; potem rośnie z nowymi zapisami i potwierdzeniami).
+SELECT tenant_id, consent_version, given, count(*)
+  FROM public.crm_consent_log
+ WHERE consent_key = 'email_measurement'
+ GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+-- 3. Wersja przy nowych zgodach newslettera (oczekiwane: brak NULL
+--    w wpisach z doby po publikacji frontu).
+SELECT consent_version IS NULL AS bez_wersji, count(*)
+  FROM public.crm_consent_log
+ WHERE consent_key LIKE 'newsletter%' AND created_at > now() - interval '1 day'
+ GROUP BY 1;
+-- 4. Wspólny przełącznik pomiaru per najemca (ścieżki i kampanie).
+SELECT tenant_id, open_tracking_enabled FROM public.journey_settings ORDER BY 1;
+-- 5. ACL (oczekiwane: email_measurement_* i newsletter_measurement_* -
+--    tylko service_role; admin_newsletter_* - authenticated i service_role;
+--    funkcje `_*` - żadna rola API).
+SELECT p.proname, r.rolname, has_function_privilege(r.rolname, p.oid, 'EXECUTE') AS execute
+  FROM pg_proc p
+ CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rolname)
+ WHERE p.pronamespace = 'public'::regnamespace
+   AND p.proname IN ('email_measurement_status', 'email_measurement_state', 'email_measurement_withdraw',
+                     'newsletter_measurement_claim', 'newsletter_measurement_mark', 'newsletter_measurement_confirm',
+                     'admin_newsletter_campaign_measurement', 'admin_newsletter_measurement_preview',
+                     'admin_newsletter_measurement_request', 'admin_newsletter_consent_measurement_get',
+                     'admin_newsletter_consent_measurement_mark', '_email_measurement_consent',
+                     '_newsletter_measurement_candidates')
+ ORDER BY 1, 2;
+-- 6. Własne wersje polityk w bazie (pierwszeństwo przed kodem).
+SELECT tenant_id, doc_key, status, published_at FROM public.legal_document_versions
+ WHERE doc_key IN ('communications', 'privacy') AND status = 'published' ORDER BY 1, 2;
+```
+
+Wycofanie: wyłączenie wspólnego przełącznika (karta retencji, ustawienia
+silnika ścieżek albo przegląd newslettera) zatrzymuje pomiar u wszystkich;
+wpisy rejestru zgód zostają (dowód). Prośby czekające w kolejce wychodzą
+dopiero w oknie 08-17 czasu polskiego.
+
+**8. Weryfikacja (Y2-D, worktree `/home/user/wt/I9d`).**
+
+GATES_TABLE
+
+**9. Zgłoszenia zamknięte.** Z-I9c-09 (wspólny przełącznik ścieżek
+i kampanii) i rekomendacja treści zgody z §21.21 pkt 5 (EDPB 2/2023) -
+dopiski w §21.21; z pytania 9 pakietu I9d-5 (pisarze rejestru zgód)
+naprawione wszystkie cztery: JoinUs, kontakt, rejestracja i bramka klubu,
+ponowny zapis po wypisie (W27).
+
+**10. Zgłoszenia I9d-Y2 (otwarte).**
+
+| ID       | Zgłoszenie                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Z-I9d-11 | Do decyzji administratora danych: zgoda marketingowa wydarzeń i CFP (`event_consent_texts` dla 3 celów, `EVENT_CONSENT_TEXT_VERSION`, i18n `eventRegistration.consents.marketing`) i zgoda premium (`PREMIUM_NEWSLETTER_CONSENT_TEXTS`) - nowa wersja treści z pomiarem, `retired_at` starej, dopisek `event-marketing-v2-pl/en` i wersji premium do `_consent_measurement_versions()` (migracja z CIALO-Z i wpisem w `hubDelivery.ts`). Do tego czasu kontakty wyłącznie z tych źródeł są niemierzone (bezpiecznie). |
+| Z-I9d-12 | Do oceny IOD: zgoda na pomiar z treści zgody na newsletter obejmuje też mierzone maile serwisowe ścieżek (kategoria `service`) - alternatywa: pomiar wyłącznie w mailach marketingowych (`journey_contact_for_send`).                                                                                                                                                                                                                                                                                                 |
+| Z-I9d-13 | Do decyzji administratora danych: oznaczenie własnej treści jako „obejmującej pomiar” działa od chwili oznaczenia - nie nadaje pomiaru wcześniejszym zgodom z tą samą treścią (wariant zachowawczy; uzupełnienie wsteczne tylko decyzją).                                                                                                                                                                                                                                                                             |
+| Z-I9d-14 | Własne teksty zgody w widżetach buildera (JoinUs `consentText_*`, rejestracja i kontakt `newsletterLabel_*`) nie mają oznaczenia „obejmuje pomiar” ani ostrzeżenia w inspektorze CMS - pomiar tylko, gdy tekst równy treści z rejestru (oznaczanie działa dla pól ustawień newslettera).                                                                                                                                                                                                                              |
+| Z-I9d-15 | Statystyki ścieżek bez licznika odbiorców mierzonych (`journey_messages`, `admin_journey_stats`, rollup) - dziś tylko dymek; licznik jak `newsletter_campaign_recipients.measured`.                                                                                                                                                                                                                                                                                                                                   |
+| Z-I9d-16 | Kafel otwarć i kliknięć w Kokpicie (`MarketingPanel`, prefiks `adminDashboard`) bez dymka o zgodzie na pomiar.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Z-I9d-17 | `popup_privacy_html_*` w CHECK `newsletter_consent_measurement_marks` i w RPC `_get`/`_mark` są martwe od Y2-B (pole prywatności popupu nie niesie zgody marketingowej) - usunąć albo zostawić świadomie.                                                                                                                                                                                                                                                                                                             |
+| Z-I9d-18 | Kanał `account` wyłączenia pomiaru (panel konta, `ConsentsPanel`): RPC `email_measurement_withdraw` go obsługuje, brak funkcji serwerowej zalogowanego (subskrybent po e-mailu sesji w najemcy) i przełącznika w UI; dziś „w preferencjach” realizuje strona wypisu.                                                                                                                                                                                                                                                  |
+| Z-I9d-19 | Domyślne zgody RODO formularzy kontaktu i rejestracji w `src/lib/builder/registry.tsx` (`consentText_en`) wskazują nieistniejącą trasę `/privacy-policy` - zgoda niemarketingowa, poza zakresem Y2; poprawić na `/en/polityka-prywatnosci`.                                                                                                                                                                                                                                                                           |
+| Z-I9d-20 | `consentText` w `app-initial` (+1,4 KB gz na każdej stronie, decyzja integratora 4) - wydzielić rdzeń treści (odcinki + HTML) od listy dawnych treści i pomocników formularzy albo nie wołać go w domyślnych ustawieniach hooka korzenia.                                                                                                                                                                                                                                                                             |
+| Z-I9d-21 | Podgląd „Poproś o zgodę na pomiar” liczy zgodę per subskrybent - przy dziesiątkach tysięcy subskrybentów odpowiedź może trwać sekundy; obserwować po wdrożeniu (ewentualnie porcja jak u kandydatów wygaszania).                                                                                                                                                                                                                                                                                                      |
+
+**11. Dla I9.** Kolejna redefinicja `journey_record_message_event`
+albo `journey_contact_for_send` dopisuje wpis do mapy
+`HUB_I9_REDEFINITIONS` z CIALO-Z `20261020162400`;
+`newsletter_record_campaign_event` - CIALO-Z z `HUB_CIALO_Z`
+(`20260814215302`), ciało z `20261020162400`. Następny wolny bliźniak
+`0387`, wersja `20261020162600`. Zapas `overall` po ratchecie 1,7 KB.
 
 ## 22. Wycinek S8 - Ścieżki: lista, galeria, edytor kanwy, ustawienia silnika, wyniki, karta leada (2026-10-22)
 
