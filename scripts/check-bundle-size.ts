@@ -2590,7 +2590,37 @@ const FROZEN_BUDGET_KB = {
   // / 100, publicCss 83,8 / 85); chunk 258,3 / 286, boot 472,1 / 579,
   // public 2783,0 / 2881 w zamrożonych progach.
   // Host 5332,2 -> 5333 -> +1.
-  overall: 5334,
+  // Ratchet 5334 -> 5357 (2026-10-22, wycinek: I9d-Y2 huba „Przychód
+  // i lejek” - RODO, decyzje właściciela 2: treść zgody na newsletter
+  // z pomiarem otwarć i kliknięć, pomiar tylko za zgodą, „Poproś o zgodę na
+  // pomiar”), decyzją zamawiającego D-08. Baza 7390ecf0 (gałąź PR po
+  // I9d-Y1, kopia `git archive`, ten sam `node_modules`) 5332,2 / public
+  // 2783,0; po I9d-Y2 z integracją 5355,3: +23,1 KB, w tym admin-only +16,0
+  // (2549,1 -> 2565,1) i public +7,2 (2783,0 -> 2790,2). Rozbicie admin-only:
+  // wspólny leniwy chunk panelu treści zgody `consentTextRules` +4,7
+  // (słownik PL/EN panelu zgody i pomiaru, reguły pól), sekcja
+  // `NewsletterMeasurementPanel` +3,6, edytor treści maila prośby
+  // `NewsletterMeasurementCopyEditor` +1,8 i wspólne ciało edytorów próśb
+  // `MailCopyEditorBody` +1,8 (wydzielone z edytora wygaszania Y1:
+  // `NewsletterSunsetCopyEditor` -1,2, `sunsetCopyRules` -1,5, przecięcie
+  // chunków przez Rolldown: `newsletterSunset` +1,1, `newsletterSunsetQueries`
+  // +1,0), zapytania i mutatory `measurementQueries` +1,2, dymki
+  // `i18n-admin-measurement-hint` +1,0 i `MeasurementConsentNote` +0,4,
+  // trasy `admin.newsletter.overview` +0,7, `.campaigns._id` +0,2,
+  // `.email-content` +0,2, rejestr wskaźników `metrics` +0,3. Public: NOWA
+  // trasa linków pomiaru `newsletter.measurement` +3,1 (leniwy chunk strony
+  // ze słownikiem PL/EN), liść `measurement` +0,5, `NewsletterConsentText`
+  // +0,3, polityka komunikacji `communications` +0,9 i prywatności `privacy`
+  // +0,3 (akapity o pomiarze - leniwe chunki dokumentów), `app-initial` +1,4
+  // (moduł treści zgody `consentText` w domyślnych ustawieniach newslettera
+  // hooka korzenia - jedno źródło zamiast dwóch literałów, definicja trasy
+  // i dwuzdaniowa nakładka `i18n-newsletter-measurement-head`), formularze
+  // +0,3, reszta to entropia hashy (1348 chunków o |Δ| < 150 B, razem
+  // +1,1 KB w obu koszykach). Arkusze CSS bit w bit te same (css 99,8 /
+  // 100, publicCss 83,8 / 85); chunk 259,8 / 286, boot 473,6 / 579, public
+  // 2790,2 / 2881 w zamrożonych progach.
+  // Host 5355,3 -> 5356 -> +1.
+  overall: 5357,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).

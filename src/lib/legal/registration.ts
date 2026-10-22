@@ -38,3 +38,13 @@ export const PRIVACY_HUB_PATH = "/profile/privacy";
  * zmienił - a w sporze to jest sygnał dowodowy.
  */
 export const COMPLIANCE_PACK_UPDATED = "2026-09-14";
+
+/**
+ * Data ostatniej zmiany TREŚCI polityki komunikacji i marketingu - osobno od
+ * pakietu (ta sama zasada co wyżej: pozostałe dokumenty pakietu nie zmieniły
+ * się ani jednym zdaniem). 2026-10-22 (I9d-Y2, decyzja właściciela
+ * 2026-10-21, wariant (a)): pomiar otwarć i kliknięć tylko za zgodą
+ * obejmującą pomiar, wersja treści przy każdej zgodzie, osobne wyłączenie
+ * pomiaru bez rezygnacji z newslettera.
+ */
+export const COMMUNICATIONS_UPDATED = "2026-10-22";

@@ -1139,6 +1139,12 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/i18n-admin-{newsletter-measurement,measurement-hint,journeys-list,journeys-results,revenue-email}.ts",
     "src/routes/admin.newsletter.{overview,email-content}.tsx",
     "src/routes/__tests__/adminNewsletterCampaignRoutes.test.tsx",
+    // (Integrator I9d-Y2, 2026-10-22) Polityka w kodzie: sekcja „pomiar”
+    // polityki komunikacji (podstawa - zgoda, osobne wyłączenie, wersja
+    // treści) i dane newslettera w polityce prywatności, z osobnymi datami
+    // zmiany treści tych dwóch dokumentów.
+    "src/lib/legal/content/{communications,privacy}.ts",
+    "src/lib/legal/{entity,registration}.ts",
   ],
 };
 
