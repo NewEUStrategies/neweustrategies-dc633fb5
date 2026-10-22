@@ -1030,6 +1030,23 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // retencji (zgłoszenia do klubów, licznik, uczestnicy wydarzeń,
     // wygaszanie newslettera) i bramka CIALO-Z (mapa wersji per plik).
     "supabase/tests/hub_i9d_*_test.sql",
+    // (Integrator I9d-Y1, 2026-10-22) Wygaszanie newslettera (Y1-B): trasa
+    // publiczna „Chcę dalej otrzymywać" (endpoint, strona, słownik PL/EN,
+    // noindex - bramka noindex tras kodu) i zaangażowanie z formularza zapisu
+    // (`newsletter_engagement_touch` przy istniejącym adresie).
+    "src/routes/{api.public.newsletter.keep.ts,newsletter.keep.tsx,-api.public.newsletter.keep.test.ts}",
+    "src/routes/__tests__/newsletterKeepPage.test.tsx",
+    "src/lib/i18n-newsletter-keep.ts",
+    "src/lib/newsletter.functions.ts",
+    "src/lib/__tests__/newsletter.functions.test.ts",
+    "src/lib/seo/noindexCodeRoutes.ts",
+    // (Integrator I9d-Y1, 2026-10-22) Panel (Y1-C): notka agregatu dobowego
+    // (osobny mały słownik - lejek nie ciągnie słownika karty), edytor treści
+    // prośby obok treści maili newslettera, test pulpitu monetyzacji
+    // (`aggregate_before`).
+    "src/lib/i18n-admin-retention-aggregate.ts",
+    "src/routes/admin.newsletter.email-content.tsx",
+    "src/routes/__tests__/platformMonetizationRoute.test.tsx",
   ],
 };
 

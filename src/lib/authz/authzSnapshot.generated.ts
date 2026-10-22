@@ -43,7 +43,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:job_scheduler_health/0","kind":"function","object":"job_scheduler_health","file":"20260731210000_community_cron_db_schedule.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:list_gift_links_admin/4","kind":"function","object":"list_gift_links_admin","file":"20260806205328_8865e928-2b12-4e88-a855-d3b4309c82f4.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:metering_impact_preview/1","kind":"function","object":"metering_impact_preview","file":"20260725090100_fix_metering_preview_app_role_enum.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:monetization_dashboard/4","kind":"function","object":"monetization_dashboard","file":"20261020161200_data_retention_reads.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:monetization_dashboard/4","kind":"function","object":"monetization_dashboard","file":"20261020161700_metered_views_retention.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:org_set_seats_limit/3","kind":"function","object":"org_set_seats_limit","file":"20260729204314_73c57056-a7c4-4055-9612-6a43a0d588d2.sql","anyRoles":["admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:payment_orders_guard_status/0","kind":"function","object":"payment_orders_guard_status","file":"20260929095900_payment_orders_guard_service_role_detection.sql","anyRoles":["admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:profiles_guard_privileged_columns/0","kind":"function","object":"profiles_guard_privileged_columns","file":"20260806190257_9386c9cc-9f1f-4ce8-8320-b3abad5ecc3f.sql","anyRoles":["admin","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -82,5 +82,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":1302,"functions":1843,"policies":677},
+  stats: {"migrations":1310,"functions":1867,"policies":677},
 };

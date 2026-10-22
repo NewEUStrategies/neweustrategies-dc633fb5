@@ -25,6 +25,8 @@ import {
 } from "@/lib/notifications/dispatch.server";
 import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
 import { DATA_RETENTION_RULES } from "@/lib/privacy/dataRetention";
+import { isNewsletterSunsetMailWindow } from "@/lib/privacy/newsletterSunset";
+import type { NewsletterSunsetMailResult } from "@/lib/privacy/newsletterSunsetMail.server";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
@@ -143,6 +145,16 @@ export interface JobsTickResult {
       }
     | { error: string };
   /**
+   * Wygaszanie nieaktywnych subskrybentów newslettera (I9d-Y1, Z-I9c-08):
+   * prośby o potwierdzenie subskrypcji w oknie dziennym (08-17 czasu
+   * polskiego, minuta 9 co 10 minut - `isNewsletterSunsetMailWindow`).
+   * Cykle zakłada nocny przebieg retencji; dzienny limit na najemcę
+   * (reputacja domeny) trzyma baza przy zajęciu porcji. `deferred` = porcja
+   * nieobsłużona przed terminem kroku (wraca po dzierżawie 15 min);
+   * `skipped: "migration_pending"` = baza bez migracji 20261020162000.
+   */
+  newsletterSunset: NewsletterSunsetMailResult | { error: string };
+  /**
    * Retencja danych (I9c-X2, Z-I9b-10): jedno zadanie dzienne w oknie nocnym
    * (`isDataRetentionWindow`) - `data_retention_run` przechodzi najemców bez
    * przebiegu z 20 h, każda kategoria osobno (podgląd do `enforce_after`).
@@ -244,6 +256,14 @@ const WEBHOOK_SWEEP_TAIL_RESERVE_MS = 2_000;
  * minucie (dzierżawa w bazie).
  */
 const WALLET_REVOCATIONS_DEADLINE_MS = 22_000;
+
+/**
+ * Okno kroku wygaszania newslettera, liczone od JEGO startu (ms). Prośba to
+ * render maila i kilka zapytań, więc 4 s mieści sensowną porcję, a reszta
+ * wraca po dzierżawie bazy - krok stoi za jobami sieciowymi i nie może zjeść
+ * zapasu na zapis przebiegu (termin przycięty jak u zamiatarki płatności).
+ */
+const NEWSLETTER_SUNSET_WINDOW_MS = 4_000;
 
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
@@ -446,6 +466,23 @@ export async function runJobsTick(
       })
     : skipped;
 
+  // Wygaszanie newslettera (I9d-Y1): prośby o potwierdzenie subskrypcji
+  // w oknie dziennym. Poczta masowa o najniższym priorytecie - ZA wysyłkami
+  // 1:1 i jobami sieciowymi; wiadomości wychodzą drenem w następnym ticku.
+  // Moduł ładowany leniwie (render React Email, podpis linku).
+  const newsletterSunset = isNewsletterSunsetMailWindow(tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { runNewsletterSunsetMail } =
+          await import("@/lib/privacy/newsletterSunsetMail.server");
+        return runNewsletterSunsetMail(admin, {
+          deadlineAt: Math.min(
+            Date.now() + NEWSLETTER_SUNSET_WINDOW_MS,
+            startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
+          ),
+        });
+      })
+    : skipped;
+
   // Retencja danych: OSTATNIA - czysto bazowa, raz na dobę, z własnym budżetem
   // czasu w SQL (8 s); stoi za wszystkim, co ma termin dla czytelnika.
   const dataRetention = isDataRetentionWindow(tickTime)
@@ -489,6 +526,7 @@ export async function runJobsTick(
     profileIndex,
     clubThreadIndex,
     clubScheduler,
+    newsletterSunset,
     dataRetention,
   };
 

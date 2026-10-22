@@ -2033,6 +2033,7 @@ export type Database = {
           last_name: string
           linkedin_url: string
           marketing_consent: boolean
+          membership_ended_at: string | null
           motivation: string
           notified_at: string | null
           notified_status: string | null
@@ -2078,6 +2079,7 @@ export type Database = {
           last_name?: string
           linkedin_url?: string
           marketing_consent?: boolean
+          membership_ended_at?: string | null
           motivation?: string
           notified_at?: string | null
           notified_status?: string | null
@@ -2123,6 +2125,7 @@ export type Database = {
           last_name?: string
           linkedin_url?: string
           marketing_consent?: boolean
+          membership_ended_at?: string | null
           motivation?: string
           notified_at?: string | null
           notified_status?: string | null
@@ -2904,6 +2907,7 @@ export type Database = {
           banned_reason: string | null
           club_id: string
           created_at: string
+          ended_at: string | null
           id: string
           invite_source: string
           invited_by: string | null
@@ -2923,6 +2927,7 @@ export type Database = {
           banned_reason?: string | null
           club_id: string
           created_at?: string
+          ended_at?: string | null
           id?: string
           invite_source?: string
           invited_by?: string | null
@@ -2942,6 +2947,7 @@ export type Database = {
           banned_reason?: string | null
           club_id?: string
           created_at?: string
+          ended_at?: string | null
           id?: string
           invite_source?: string
           invited_by?: string | null
@@ -10406,6 +10412,7 @@ export type Database = {
       }
       event_people: {
         Row: {
+          anonymized_at: string | null
           bio_en: string | null
           bio_pl: string | null
           company_id: string | null
@@ -10442,6 +10449,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          anonymized_at?: string | null
           bio_en?: string | null
           bio_pl?: string | null
           company_id?: string | null
@@ -10478,6 +10486,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          anonymized_at?: string | null
           bio_en?: string | null
           bio_pl?: string | null
           company_id?: string | null
@@ -16834,6 +16843,41 @@ export type Database = {
           },
         ]
       }
+      metered_views_daily: {
+        Row: {
+          accounts: number
+          anonymous: number
+          computed_at: string
+          day: string
+          members: number
+          tenant_id: string
+        }
+        Insert: {
+          accounts?: number
+          anonymous?: number
+          computed_at?: string
+          day: string
+          members?: number
+          tenant_id: string
+        }
+        Update: {
+          accounts?: number
+          anonymous?: number
+          computed_at?: string
+          day?: string
+          members?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "metered_views_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       metering_event_log: {
         Row: {
           entity_id: string | null
@@ -17746,6 +17790,8 @@ export type Database = {
           id: string
           ip: unknown
           language: string
+          last_engaged_at: string | null
+          last_human_open_at: string | null
           last_name: string | null
           meta: Json | null
           source: string | null
@@ -17771,6 +17817,8 @@ export type Database = {
           id?: string
           ip?: unknown
           language?: string
+          last_engaged_at?: string | null
+          last_human_open_at?: string | null
           last_name?: string | null
           meta?: Json | null
           source?: string | null
@@ -17796,6 +17844,8 @@ export type Database = {
           id?: string
           ip?: unknown
           language?: string
+          last_engaged_at?: string | null
+          last_human_open_at?: string | null
           last_name?: string | null
           meta?: Json | null
           source?: string | null
@@ -17810,6 +17860,110 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      newsletter_sunset_exclusions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          reason: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          reason: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          reason?: string
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_sunset_exclusions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_exclusions_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_exclusions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_sunset_requests: {
+        Row: {
+          attempts: number
+          claimed_until: string | null
+          last_error: string | null
+          mail_outcome: string | null
+          mailed_at: string | null
+          nonce: string
+          requested_at: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_until?: string | null
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          claimed_until?: string | null
+          last_error?: string | null
+          mail_outcome?: string | null
+          mailed_at?: string | null
+          nonce?: string
+          requested_at?: string
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_sunset_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "crm_funnel_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_requests_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: true
+            referencedRelation: "newsletter_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_sunset_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_preferences: {
         Row: {
@@ -18546,7 +18700,7 @@ export type Database = {
       paywall_hits: {
         Row: {
           day: string
-          entity_id: string
+          entity_id: string | null
           entity_type: string
           first_at: string
           hits: number
@@ -18561,7 +18715,7 @@ export type Database = {
         }
         Insert: {
           day: string
-          entity_id: string
+          entity_id?: string | null
           entity_type: string
           first_at?: string
           hits?: number
@@ -18576,7 +18730,7 @@ export type Database = {
         }
         Update: {
           day?: string
-          entity_id?: string
+          entity_id?: string | null
           entity_type?: string
           first_at?: string
           hits?: number
@@ -27553,6 +27707,18 @@ export type Database = {
         Returns: Json
       }
       admin_data_retention_get: { Args: never; Returns: Json }
+      admin_data_retention_newsletter_due: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      admin_data_retention_newsletter_exclude: {
+        Args: { p_reason: string; p_subscriber_id: string }
+        Returns: Json
+      }
+      admin_data_retention_newsletter_include: {
+        Args: { p_reason: string; p_subscriber_id: string }
+        Returns: Json
+      }
       admin_data_retention_preview: { Args: never; Returns: Json }
       admin_data_retention_run_now: {
         Args: { p_confirm: boolean }
@@ -34914,6 +35080,10 @@ export type Database = {
         Args: { p_days?: number }
         Returns: Json
       }
+      newsletter_engagement_touch: {
+        Args: { p_email: string; p_tenant: string }
+        Returns: boolean
+      }
       newsletter_min_tier_emails: {
         Args: { p_min: number; p_tenant: string }
         Returns: {
@@ -34940,6 +35110,34 @@ export type Database = {
       }
       newsletter_subscriber_list_set: {
         Args: { p_list_key: string; p_op: string; p_subscriber_id: string }
+        Returns: Json
+      }
+      newsletter_sunset_claim: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempt: number
+          delete_after: string
+          email: string
+          first_name: string
+          lang: string
+          nonce: string
+          requested_at: string
+          subscriber_id: string
+          tenant_id: string
+          unsubscribe_token: string
+        }[]
+      }
+      newsletter_sunset_keep: {
+        Args: { p_nonce: string; p_subscriber: string }
+        Returns: Json
+      }
+      newsletter_sunset_mark: {
+        Args: {
+          p_error?: string
+          p_nonce: string
+          p_outcome: string
+          p_subscriber: string
+        }
         Returns: Json
       }
       normalize_public_host: { Args: { p_raw: string }; Returns: string }

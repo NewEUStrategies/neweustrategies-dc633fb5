@@ -2633,6 +2633,62 @@
       "when": 1792478113912,
       "tag": "0375_revenue_diagnostic_snoozes",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1792478173912,
+      "tag": "0376_club_applications_account_erasure",
+      "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1792478233912,
+      "tag": "0377_club_applications_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1792478293912,
+      "tag": "0378_metered_views_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1792478353912,
+      "tag": "0379_event_attendees_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1792478413912,
+      "tag": "0380_newsletter_sunset_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1792478473912,
+      "tag": "0381_newsletter_sunset_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1792478533912,
+      "tag": "0382_newsletter_sunset_panel",
+      "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1792478593912,
+      "tag": "0383_data_retention_y1_core",
+      "breakpoints": true
     }
   ]
 }

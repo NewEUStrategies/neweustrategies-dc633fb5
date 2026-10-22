@@ -47,6 +47,10 @@ const GATED_PREFIXES = [
   // o skutkach (usunięcie, anonimizacja) - surowy klucz zamiast zdania
   // zostawiłby admina bez informacji, co dzieje się z danymi.
   "adminDataRetention",
+  // Strona „Chcę dalej otrzymywać" (I9d-Y1, wygaszanie nieaktywnych
+  // subskrybentów): odbiorca bez tej strony w swoim języku nie potwierdzi
+  // subskrypcji i zostanie usunięty z listy.
+  "newsletterKeep",
   // Sieć kontaktów: cała powierzchnia ma dwie wersje językowe w UI, a jej
   // komunikaty (ciche odmowy, limity zaproszeń, zgłoszenia do moderacji)
   // decydują o tym, co użytkownik rozumie ze swojej prywatności. Rozjazd

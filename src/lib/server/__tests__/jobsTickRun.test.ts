@@ -139,6 +139,15 @@ const fixtures = vi.hoisted(() => ({
   semanticIndex: { scanned: 24, embedded: 20 },
   profileIndex: { scanned: 16, embedded: 12, pruned: 5 },
   clubThreadIndex: { scanned: 16, embedded: 9, pruned: 2 },
+  newsletterSunset: {
+    claimed: 6,
+    queued: 3,
+    duplicate: 1,
+    suppressed: 1,
+    failed: 1,
+    deferred: 0,
+    gone: 0,
+  },
 }));
 
 /**
@@ -282,6 +291,11 @@ vi.mock("@/lib/events/jobs/ticketLifecycleJob.server", () => ({
 vi.mock("@/lib/events/jobs/followUpJob.server", () => ({
   runEventFollowUp: (admin: unknown, opts: unknown) =>
     jobs.run("eventFollowUp", [admin, opts], fixtures.eventFollowUp),
+}));
+
+vi.mock("@/lib/privacy/newsletterSunsetMail.server", () => ({
+  runNewsletterSunsetMail: (admin: unknown, opts: unknown) =>
+    jobs.run("newsletterSunset", [admin, opts], fixtures.newsletterSunset),
 }));
 
 vi.mock("@/lib/server/embeddings.server", () => ({
@@ -583,6 +597,9 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       profileIndex: fixtures.profileIndex,
       clubThreadIndex: fixtures.clubThreadIndex,
       clubScheduler: CLUB_ROW,
+      // Prośby wygaszania newslettera tylko w minucie 9 okna dziennego
+      // (sekcja na końcu) - tick testu jest o 10:00.
+      newsletterSunset: { error: "skipped_duty_cycle" },
       // Retencja danych biegnie wyłącznie w oknie nocnym (godzina 2 UTC);
       // tick testu jest o 10:00 - zaplanowane pominięcie (sekcja na końcu).
       dataRetention: { error: "skipped_duty_cycle" },
@@ -1374,6 +1391,46 @@ describe("retencja danych: okno nocne 02:07-02:57 UTC co 10 minut", () => {
     const result = await runJobsTick(admin);
 
     expect(jobError(result.dataRetention)).toBe("statement timeout");
+    expect(lastRun().ok).toBe(false);
+  });
+});
+
+// ===========================================================================
+// WYGASZANIE NEWSLETTERA (I9d-Y1): prośby o potwierdzenie w oknie dziennym
+// ===========================================================================
+describe("wygaszanie newslettera: prośby w oknie dziennym (minuta 9)", () => {
+  it("poza minutą 9: krok nie rusza, wynik to zaplanowane pominięcie", async () => {
+    const result = await tickAt(7);
+
+    expect(jobs.steps()).not.toContain("newsletterSunset");
+    expect(result.newsletterSunset).toEqual({ error: "skipped_duty_cycle" });
+  });
+
+  it("w oknie (10:09 UTC = 12:09 w Polsce): ten sam klient, termin 4 s, ZA jobami sieciowymi", async () => {
+    const result = await tickAt(9);
+
+    expect(result.newsletterSunset).toEqual(fixtures.newsletterSunset);
+    const [client, options] = jobs.argsOf("newsletterSunset") ?? [];
+    expect(client).toBe(admin);
+    expect(options).toEqual({ deadlineAt: at(9).getTime() + 4_000 });
+    expect(jobs.steps().at(-1)).toBe("newsletterSunset");
+    expect(lastRun()).toMatchObject({ ok: true, error: null });
+  });
+
+  it("noc (22:09 UTC): poza oknem dziennym czasu polskiego", async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 4, 22, 9, 0, 0)));
+
+    const result = await runJobsTick(admin);
+
+    expect(result.newsletterSunset).toEqual({ error: "skipped_duty_cycle" });
+  });
+
+  it("błąd kroku: `{ error }` i przebieg zgłoszony jako awaria", async () => {
+    jobs.failures.set("newsletterSunset", "newsletter sunset claim: [0].lang - oczekiwano pl|en");
+
+    const result = await tickAt(9);
+
+    expect(jobError(result.newsletterSunset)).toContain("newsletter sunset claim");
     expect(lastRun().ok).toBe(false);
   });
 });

@@ -258,7 +258,9 @@ export const DOMAIN_EVENT_TYPES = [
   "revenue_diagnostic.snoozed.v1",
   // Retencja danych (I9c-X2): zapis kategorii, karencja, przedłużenie kontaktu
   // CRM i ręczny przebieg (`admin_data_retention_*`). Ładunek: `op`
-  // i opcjonalnie `category` - bez danych osobowych.
+  // i opcjonalnie `category` - bez danych osobowych. I9d-Y1: `op` obejmuje
+  // też 'exclusion' (wykluczenie adresu z wygaszania newslettera i jego
+  // cofnięcie, SQL 20261020162100); inwalidacja idzie po prefiksie najemcy.
   "data_retention.changed.v1",
 ] as const;
 
