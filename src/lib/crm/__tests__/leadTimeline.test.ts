@@ -7,13 +7,21 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  LEAD_JOURNEY_TIMELINE_LABELS,
   auditTimelineEventType,
   buildLeadTimelineHtml,
+  leadJourneyTimelineTarget,
   leadTimelineDisplayName,
   leadTimelineEventFromAudit,
+  leadTimelineEventsFromJourneys,
   parseLeadTimelinePayload,
   type LeadTimelineEvent,
 } from "../leadTimeline";
+import { eventActivitySummary } from "../eventActivity";
+import { journeysDictionaries } from "@/lib/i18n-admin-journeys";
+import { parseLeadEnrollments } from "@/lib/journeys/parse";
+import { RPC_SHAPES } from "@/lib/journeys/__tests__/rpcShapes.fixture";
+import { JOURNEY_ENROLLMENT_STATUSES, JOURNEY_EXIT_REASONS } from "@/lib/journeys/limits";
 
 const XSS = '<img src=x onerror="alert(1)">';
 const LABELS = { submit: "Zgłoszenie", consent: "Zgoda" };
@@ -154,6 +162,96 @@ describe("wiersz audytu na osi czasu - typ i tytuł", () => {
   });
 });
 
+describe("zapisy do ścieżek na osi czasu - typ „journey” (SPEC §2.7, Integrator S8)", () => {
+  // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW: kontakt jest w ścieżce, a jego oś
+  // milczy; zakończony zapis pokazuje surowy kod (`exited`/`manual`) zamiast
+  // zdania; nazwy statusów na osi rozjeżdżają się z kartą „Ścieżki” (S5).
+  const [exited] = parseLeadEnrollments(RPC_SHAPES.leadEnrollments);
+  const active = {
+    ...exited,
+    enrollmentId: "d47ac10b-58cc-4372-a567-0e02b2c3d479",
+    status: "waiting" as const,
+    finishedAt: null,
+    exitReason: null,
+    isTest: false,
+  };
+
+  it("zakończony zapis = wejście i koniec; zdanie PL w tytule, EN w `meta`", () => {
+    const events = leadTimelineEventsFromJourneys([{ ...exited, isTest: false }]);
+    expect(events.map((e) => [e.id, e.type, e.at])).toEqual([
+      [`jr:${exited.enrollmentId}:in`, "journey", exited.enteredAt],
+      [`jr:${exited.enrollmentId}:out`, "journey", exited.finishedAt],
+    ]);
+    expect(events[0].title).toBe("Ścieżka „Porzucona kasa (v1)”: wejście (wersja 1)");
+    expect(events[1].title).toBe("Ścieżka „Porzucona kasa (v1)”: Wyszedł - Wyjęty ręcznie");
+    expect(eventActivitySummary(events[1].meta, "en", events[1].title)).toBe(
+      "Journey “Porzucona kasa (v1)”: Left - Removed by staff",
+    );
+    expect(events[1].meta).toMatchObject({
+      journey_id: exited.journeyId,
+      enrollment_id: exited.enrollmentId,
+      status: "exited",
+      exit_reason: "manual",
+      version: 1,
+      is_test: false,
+      phase: "out",
+    });
+    expect(events.every((e) => e.detail === null)).toBe(true);
+  });
+
+  it("zapis w toku = jeden wpis wejścia; zapis testowy ma dopisek „(test)”", () => {
+    const events = leadTimelineEventsFromJourneys([active, exited]);
+    expect(events.map((e) => e.id)).toEqual([
+      `jr:${active.enrollmentId}:in`,
+      `jr:${exited.enrollmentId}:in`,
+      `jr:${exited.enrollmentId}:out`,
+    ]);
+    expect(events[0].title).not.toContain("(test)");
+    expect(events[1].title).toBe("Ścieżka „Porzucona kasa (v1)” (test): wejście (wersja 1)");
+    expect(leadTimelineEventsFromJourneys([])).toEqual([]);
+  });
+
+  it("odnośnik do edytora: ścieżka (uuid) i bieżący krok; metadane spoza kontraktu - brak", () => {
+    const [entered] = leadTimelineEventsFromJourneys([active]);
+    expect(leadJourneyTimelineTarget(entered.meta)).toEqual({
+      journeyId: exited.journeyId,
+      nodeId: "w",
+    });
+    expect(
+      leadJourneyTimelineTarget({ journey_id: exited.journeyId, current_node_id: "zły krok!" }),
+    ).toEqual({ journeyId: exited.journeyId, nodeId: null });
+    expect(leadJourneyTimelineTarget({ journey_id: "../admin" })).toBeNull();
+    expect(leadJourneyTimelineTarget(null)).toBeNull();
+    expect(leadJourneyTimelineTarget(["x"])).toBeNull();
+  });
+
+  it("nazwy statusów i powodów wyjścia = etykiety S5 (PL i EN), komplet unii", () => {
+    const { pl, en } = journeysDictionaries;
+    for (const status of JOURNEY_ENROLLMENT_STATUSES) {
+      expect(LEAD_JOURNEY_TIMELINE_LABELS.status[status], status).toEqual([
+        pl.adminJourneys.enrollmentStatus[status],
+        en.adminJourneys.enrollmentStatus[status],
+      ]);
+    }
+    for (const reason of JOURNEY_EXIT_REASONS) {
+      expect(LEAD_JOURNEY_TIMELINE_LABELS.exitReason[reason], reason).toEqual([
+        pl.adminJourneys.exitReason[reason],
+        en.adminJourneys.exitReason[reason],
+      ]);
+    }
+  });
+
+  it("nazwa ścieżki z danymi wroga nie wchodzi do DOM wydruku", () => {
+    const html = buildLeadTimelineHtml({
+      lead: { first_name: "A", last_name: null, email: "a@example.test" },
+      events: leadTimelineEventsFromJourneys([{ ...active, journeyName: XSS }]),
+      typeLabels: { journey: "Ścieżka" },
+    });
+    expect(parse(html).querySelectorAll("img")).toHaveLength(0);
+    expect(parse(html).querySelector(".tg")?.textContent).toBe("Ścieżka");
+  });
+});
+
 describe("konsumenci osi czasu", () => {
   const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
@@ -164,6 +262,17 @@ describe("konsumenci osi czasu", () => {
     // Poprzedni kontrakt (tablica zdarzeń z polami kind/body) nie istnieje.
     expect(src).not.toContain("e.kind");
     expect(src).not.toContain("e.body");
+  });
+
+  it("obie powierzchnie znają typ „journey”: etykieta, kolor, zdanie w języku panelu i odnośnik", () => {
+    for (const path of ["src/routes/admin.crm.index.tsx", "src/routes/admin.crm.$id.tsx"]) {
+      const src = read(path);
+      expect(src, path).toContain("CrmJourneyActivityLink");
+      expect(src, path).toContain('e.type === "journey"');
+    }
+    const list = read("src/routes/admin.crm.index.tsx");
+    expect(list).toMatch(/journey: "Ścieżka"/);
+    expect(list).toMatch(/journey: "Journey"/);
   });
 
   it("drawer listy CRM buduje wydruk przez wspólny builder (K1)", () => {

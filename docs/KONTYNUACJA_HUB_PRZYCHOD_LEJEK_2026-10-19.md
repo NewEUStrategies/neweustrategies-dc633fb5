@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S7)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8 i S7)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21) i §23 (S7); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21), §22 (S8) i §23 (S7, scalenie po S8 - §23.11); specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -21,8 +21,8 @@ S4 i S2 (z #527). Na gałęzi PR jest S3 (dokończony i zintegrowany 2026-10-20,
 §18 dziennika: bliźniaki `0347…0351`, następny wolny `0352`; `overall` 4997;
 otwarte Z-S3-02…05; Z-S3-01, 06, 07 zamknięte w I9b) i **I9a** (2026-10-20, §19 dziennika): hub „Przychód
 i lejek” jest już w nawigacji panelu (monetyzacja + „Ścieżki komunikacji”
-w CRM, skróty ⌘K do zakładek), zakładki S7/S8 pokazują stan „w
-przygotowaniu” z odnośnikami do modułów, Wskaźniki - słownik S6, a karta kasy
+w CRM, skróty ⌘K do zakładek), zakładki S7/S8 pokazywały do swoich wycinków
+stan „w przygotowaniu” z odnośnikami do modułów, Wskaźniki - słownik S6, a karta kasy
 w `/admin/paywall?tab=checkout` ma pole okna porzucenia
 (`abandon_after_minutes`). Osobne PR do `main`: #528 (JoinUsForm), #529
 (First visit) - oba scalone.
@@ -66,51 +66,57 @@ w `/admin/settings/privacy` (leniwy chunk, `adminPageHead` sekcyjne),
 przełącznik pomiaru otwarć ścieżek (`journey_settings.open_tracking_enabled`,
 klucz w ustawieniach silnika S5 - UI ustawień w S8). Otwarte: Z-I9c-05, 06,
 09, 10 (wycinki), decyzje administratora danych Z-I9c-01, 04, 07, 08
-i rekomendacja treści zgody (pomiar otwarć, EDPB 2/2023) - §21.21. Następny
-krok: S8.
+i rekomendacja treści zgody (pomiar otwarć, EDPB 2/2023) - §21.21.
 
-**S7 (2026-10-22, §23 dziennika) - zintegrowany lokalnie, push po S8:**
-gałąź `hub/s7-zakladki-diagnostyka-c` (worktree `/home/user/wt/S7`, baza
-`75133fe2`). Dziesięć zakładek huba (Kokpit, Przychód, Lejek, Retencja,
+**S8 (2026-10-22, §22 dziennika) - zintegrowany:** zakładka Ścieżki (lista
+z `?status=&q=`, galeria szablonów `?new=1&template=`, kreator, ustawienia
+silnika z pomiarem otwarć `open_tracking_enabled`, nadawcą i Reply-To,
+pasek zdrowia), edytor kanwy `/admin/revenue/journeys/$journeyId` (kanwa
+i lista `role="tree"`, panel kroku 14 typów, edytor maila z podglądem
+zgodnym z wysyłką - Z-S5-08 w `variables.ts`, publikacja z blokadami,
+symulacja, test na sobie, autozapis z CAS i dialogiem różnic), wyniki
+(`?view=results`, A/B z `z`, rollup Z-I9c-06), karta „Ścieżki” i typ
+`journey` na osi leada w CRM, ⌘K „Nowa ścieżka”, licznik aktywnych ścieżek
+na pasku huba, „[TEST] ” w temacie maila testowego. Bez SQL; ratchet D-08
+`overall` 5023 → 5182. Otwarte Z-S8-01…10 (§22.5) - m.in. montaż wycieczek
+(P2), symulacja per predykat i osobny mail testowy (S5), scalenie plików
+współdzielonych z S7 (Z-S8-10).
+
+**S7 (2026-10-22, §23 dziennika) - zintegrowany i scalony z gałęzią PR po
+S8 (§23.11):** gałąź `hub/s7-zakladki-diagnostyka-c` (worktree
+`/home/user/wt/S7`, baza `75133fe2` + merge `df075ffc`). Dziesięć zakładek huba (Kokpit, Przychód, Lejek, Retencja,
 Społeczność, Diagnostyka, Oferta, Dostęp, Wskaźniki, Dane wejściowe),
 fakty diagnostyki i wyciszenia w SQL (3 migracje `20261020150000…150100`,
 bliźniaki `0373…0375`, **następny wolny `0376`**), 55 reguł z 15 szybkimi
 naprawami na mutatorach modułów, `RevenueSignalChip` (montaż w modułach -
 I9), licznik Diagnostyki na pasku huba (leniwa sonda), ⌘K 43 wskaźników,
-przychód zrealizowany na pulpicie spod klucza migawki BI. Stan „w
-przygotowaniu” został tylko Ścieżkom. Ratchet `overall` 5023 → 5159 (D-08, S7 +136,9 KB w leniwych chunkach panelu). Otwarte
-Z-S7-01…17 (§23.5). Przy przebazowaniu na gałąź z S8 uwaga na pliki
-współdzielone obu wycinków (`adminNav.ts`, `tabPreparing.ts` z molekułą
-i słownikiem - po obu wycinkach do usunięcia w całości, `RevenueHubLayout`,
-`hubDelivery.ts`, `check-bundle-size.ts`, `reports/i18n-parity.json`,
-dziennik §10/§17, ten plik, `docs/kontynuacja/README.md`).
+przychód zrealizowany na pulpicie spod klucza migawki BI. Po S8 i S7 żadna
+zakładka nie ma stanu „w przygotowaniu” - mechanizm (`tabPreparing.ts`,
+`RevenueTabPreparing`, słownik `-preparing`) usunięty w całości przy
+scaleniu (Z-S7-17); pasek huba ma oba liczniki (Diagnostyka z leniwej sondy
+S7, aktywne ścieżki S8), ⌘K - zakładki, 43 wskaźniki i „Nowa ścieżka”.
+Ratchet D-08 `overall` z łącznego pomiaru 5182 → 5316 (S7 +133,4 KB nad S8,
+leniwe chunki panelu; `css` 99,8 / 100 bez ratchetu). Otwarte Z-S7-01…16
+(§23.5). Materiały przekazania `docs/kontynuacja/` usunięte - praca jest
+w historii gałęzi i w dzienniku.
 
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
 ról: pozycja nawigacji albo zakładka huba, skrót ⌘K, sekcyjne `adminPageHead`,
-napisy PL/EN i stan pusty/„w przygotowaniu” z następnym krokiem - nigdy pusty
+napisy PL/EN i stan pusty z następnym krokiem - nigdy pusty
 ekran ani funkcja dostępna tylko z adresu albo z bazy.
 
 **Kolejka (jeden element naraz):**
 
-1. S8 - lista ścieżek, galeria szablonów, edytor kanwy (HubSpot-style),
-   wyniki per krok, ustawienia i zdrowie silnika - na gotowym API S5 (§20.4
-   „Dla S8”: server fn, `queries.ts`, `validateJourneyGraph`,
-   `JOURNEY_TRIGGERS`, `JOURNEY_TEMPLATES`, `journeyLabelKey`); podgląd treści
-   w przeglądarce wymaga klienckiego podstawiania zmiennych (Z-S5-08); po
-   obsłudze `?new=1` dopisz skrót ⌘K „Nowa ścieżka” w `adminNav.ts` (I9a go
-   świadomie pominął); podmieniając zaślepkę zakładki Ścieżek, usuń jej wpis
-   z `TAB_PREPARING`. Ustawienia silnika mają już klucz
-   `open_tracking_enabled` (pomiar otwarć, I9c-X2 - ten sam zapis co
-   przełącznik w karcie retencji); wyniki ścieżki dla okien starszych niż
-   retencja zapisów czytają rollup (Z-I9c-06).
-2. S7 - **zintegrowany lokalnie (§23 dziennika)**, czeka na S8: przebazuj
-   `hub/s7-zakladki-diagnostyka-c` na gałąź PR z S8, rozwiąż konflikty
-   plików współdzielonych (lista wyżej; po obu wycinkach `TAB_PREPARING`
-   jest pusty - usuń cały mechanizm „w przygotowaniu”, Z-S7-17), powtórz
-   bramki dotknięte zmianą bazy (vitest katalogów huba, zawężony typecheck,
-   build + `check:bundle` - ratchet D-08 po pomiarze), potem push i CI.
-3. I9 - **runner ścieżek w `jobs-tick`** (po zadaniach uczestnika, przed
+1. ~~S8~~ - **zintegrowany 2026-10-22 (§22 dziennika)**, w PR.
+2. ~~S7~~ - **zintegrowany i scalony z gałęzią PR po S8 2026-10-22 (§23,
+   §23.11 dziennika)**, w PR (fast-forward gałęzi PR do scalenia).
+3. I9d - RODO (kluby, licznik, newsletter; worktree `/home/user/wt/I9d`,
+   gałąź od `53c5d6d3` = S7 przed scaleniem): scal gałąź PR po S7
+   (`git merge`, pliki współdzielone huba jak w §23.11), potem powtórz
+   `plpgsql_check_gate` i pgTAP faktów S7 (Z-S7-16) - fakty czytają tabele
+   klubów, licznika i newslettera.
+4. I9 - **runner ścieżek w `jobs-tick`** (po zadaniach uczestnika, przed
    drenem kolejki maili: `runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`),
    `journey_rollup_daily` co godzinę, `journey_purge` raz na dobę, stan
    silnika w panelu zdrowia schedulera (§20.4); chipy `RevenueSignalChip`

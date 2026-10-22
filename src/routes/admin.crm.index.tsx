@@ -46,6 +46,7 @@ import {
 } from "@/lib/crm/leadTimeline";
 import { eventActivitySummary } from "@/lib/crm/eventActivity";
 import { CrmEventActivityLink } from "@/components/admin/crm/CrmEventActivityLink";
+import { CrmJourneyActivityLink } from "@/components/admin/crm/CrmJourneyActivityLink";
 import { useModuleRealtime } from "@/lib/realtime/useModuleRealtime";
 import { LinkedItemsCard } from "@/components/molecules/LinkedItemsCard";
 import { PresenceIndicator } from "@/components/molecules/PresenceIndicator";
@@ -270,6 +271,7 @@ const PL = {
     tlExportCsv: "Eksport CSV",
     tlExportPdf: "Eksport PDF",
     tlOpenEvent: "Otwórz w studiu wydarzenia",
+    tlOpenJourney: "Otwórz ścieżkę komunikacji",
     tlTypes: {
       submit: "Zgłoszenie",
       consent: "Zgoda",
@@ -278,6 +280,7 @@ const PL = {
       webhook: "Webhook",
       newsletter: "Newsletter",
       event: "Wydarzenie",
+      journey: "Ścieżka",
     } as Record<string, string>,
   },
   integ: {
@@ -343,6 +346,7 @@ const EN = {
     tlExportCsv: "Export CSV",
     tlExportPdf: "Export PDF",
     tlOpenEvent: "Open in the event studio",
+    tlOpenJourney: "Open the communication journey",
     tlTypes: {
       submit: "Submission",
       consent: "Consent",
@@ -351,6 +355,7 @@ const EN = {
       webhook: "Webhook",
       newsletter: "Newsletter",
       event: "Event",
+      journey: "Journey",
     } as Record<string, string>,
   },
   integ: {
@@ -1581,6 +1586,8 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
     webhook: "bg-orange-500/15 text-brand dark:text-brand",
     newsletter: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
     event: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+    // Zestaw klas etapu „propozycja" - już w arkuszu panelu (budżet `css`).
+    journey: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   };
 
   return (
@@ -1621,7 +1628,9 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
                   {L.detail.tlTypes[e.type] ?? e.type}
                 </Badge>
                 <span className="text-[12px] font-medium break-all">
-                  {e.type === "event" ? eventActivitySummary(e.meta, lang, e.title) : e.title}
+                  {e.type === "event" || e.type === "journey"
+                    ? eventActivitySummary(e.meta, lang, e.title)
+                    : e.title}
                 </span>
                 <time className="ml-auto text-[10px] text-muted-foreground">
                   {new Date(e.at).toLocaleString()}
@@ -1629,6 +1638,9 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
               </div>
               {e.type === "event" && (
                 <CrmEventActivityLink meta={e.meta} label={L.detail.tlOpenEvent} />
+              )}
+              {e.type === "journey" && (
+                <CrmJourneyActivityLink meta={e.meta} label={L.detail.tlOpenJourney} />
               )}
               {e.detail && (
                 <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere] leading-snug">

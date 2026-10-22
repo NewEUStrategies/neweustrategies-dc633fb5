@@ -862,18 +862,15 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (Integrator S7, 2026-10-22): bliźniaki drizzle 3 migracji S7 (bajt w bajt
     // z supabase, numery od pierwszego wolnego po `0372` z I9c; §6 dziennika).
     "drizzle/migrations/{0373,0374,0375}_*.sql",
-    // (Integrator S7, 2026-10-22): zakładki S7 mają treść - stan „w
-    // przygotowaniu" zostaje tylko Ścieżkom (I9a §19.6: wpisy, etapy `s7`/`s6s7`
-    // i słownik zdjęte, molekuła bez wpisu nic nie rysuje); testy tras I0
+    // (Integrator S7, 2026-10-22): zakładki S7 mają treść; testy tras I0
     // asertują nagłówki Kokpitu i Oferty zamiast zdania zaślepki; pulpit
     // atrapuje leniwy kafel przychodu zrealizowanego (zachowanie dowodzi
     // `MarketingPanel.realized.test.tsx`). Licznik Diagnostyki w układzie huba
     // (Z-S6-08) zostaje plikiem S6 - zmiana integratora (§23 dziennika).
-    "src/lib/admin/revenue/tabPreparing.ts",
-    "src/lib/admin/revenue/__tests__/tabPreparing.test.ts",
-    "src/lib/i18n-admin-revenue-preparing.ts",
-    "src/components/admin/revenue/molecules/RevenueTabPreparing.tsx",
-    "src/components/admin/revenue/molecules/__tests__/RevenueTabPreparing.test.tsx",
+    // (Scalenie S7 po S8, 2026-10-22): po S7 i S8 żadna zakładka nie ma stanu
+    // „w przygotowaniu” (I9a §19.6) - moduł `tabPreparing`, molekuła
+    // `RevenueTabPreparing`, słownik `-preparing` i ich testy usunięte
+    // (Z-S7-17, §23.11 dziennika); wpisy zdjęte z manifestów S7 i I9.
     "src/routes/__tests__/adminRevenueHubRoutes.test.tsx",
     "src/components/admin/dashboard/__tests__/dashboardPanels.test.tsx",
   ],
@@ -884,6 +881,18 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/lib/journeys/editorSearch.ts",
     "src/lib/journeys/__tests__/editorSearch.test.ts",
     "src/lib/i18n-admin-journeys-editor.ts",
+    // (Integrator S8, 2026-10-22): słownik podzielony na podzadania - lista,
+    // galeria i ustawienia silnika (S8.1), wyniki i karta leada (S8.2), kanwa
+    // (S8.3b), panele kroku (S8.3c), publikacja, symulacja i test (S8.3c2);
+    // `-editor` = sesja szkicu i złożenie edytora (S8.3a/d). Jeden plik na
+    // podzadanie - rozłączne pliki przy pracy kolejnych agentów.
+    "src/lib/i18n-admin-journeys-{list,results,canvas,steps,publish}.ts",
+    // (Integrator S8, 2026-10-22): Z-S5-08 - czysta część podstawiania
+    // zmiennych maila (`substituteDocVariables`, `journeyUrlVariables`) mieszka
+    // w liściu klienckim `variables.ts`, a `render.server.ts` ją importuje
+    // i re-eksportuje: podgląd edytora i wysyłka mają jedną implementację.
+    // Pliki S5 zmienione przez S8.3a (precedens: S4 i migawka S6).
+    "src/lib/journeys/{variables,render.server}.ts",
   ],
   I9: [
     ...HUB_SHARED_FILES,
@@ -907,16 +916,14 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     "src/components/admin/journeys/**",
     // (Integrator I9a, 2026-10-20 - decyzja właściciela: hub w nawigacji przed
     // I9). Powłoka panelu podaje nawigacji DOKŁADNE role i `search` skrótów
-    // ⌘K; stan „w przygotowaniu" zakładek (dane, słownik, testy); okno
-    // porzucenia kasy w karcie ustawień kasy (S1) - wspólny predykat
-    // w limitach I0, odczyt i zapis w module S1, serwer kasy S3.
+    // ⌘K; stan „w przygotowaniu" zakładek (dane, słownik, testy - usunięte
+    // po S7 i S8, §23.11); okno porzucenia kasy w karcie ustawień kasy (S1) -
+    // wspólny predykat w limitach I0, odczyt i zapis w module S1, serwer kasy
+    // S3.
     "src/components/admin/AdminShell.tsx",
     "src/components/admin/__tests__/AdminShell.test.tsx",
     "src/lib/locale/__tests__/coreScopeSurfaces.test.tsx",
     "src/routes/__tests__/platformPaywallRoute.test.tsx",
-    "src/lib/admin/revenue/tabPreparing.ts",
-    "src/lib/admin/revenue/__tests__/tabPreparing.test.ts",
-    "src/lib/i18n-admin-revenue-preparing.ts",
     "src/components/admin/paywall/CheckoutSettingsCard.tsx",
     "src/components/admin/paywall/__tests__/CheckoutSettingsCard.abandon.test.tsx",
     "src/hooks/useCheckoutSettings.ts",

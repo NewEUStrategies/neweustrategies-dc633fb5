@@ -653,6 +653,53 @@ describe("skrzynka CRM - karta kontaktu (drawer)", () => {
     expect(screen.getByRole("link", { name: "Open in the event studio" })).toBeInTheDocument();
   });
 
+  it("zapis do ścieżki ma typ „Ścieżka”, zdanie w języku panelu i odnośnik do edytora (S8)", async () => {
+    const journeyId = "4cab3de7-f976-404a-b54e-c37337942b7e";
+    const timeline = {
+      lead: { id: LEAD_ID, email: "anna@example.test" },
+      events: [
+        {
+          id: "jr:e1:out",
+          type: "journey",
+          at: new Date(Date.UTC(2026, 7, 5, 10)).toISOString(),
+          title: "Ścieżka „Powitanie”: Ukończona - Koniec ścieżki",
+          detail: null,
+          meta: {
+            journey_id: journeyId,
+            current_node_id: null,
+            summary_pl: "Ścieżka „Powitanie”: Ukończona - Koniec ścieżki",
+            summary_en: "Journey “Powitanie”: Completed - End of journey",
+          },
+        },
+      ],
+    };
+    h.timeline = timeline;
+    await mount();
+    fireEvent.click(await screen.findByLabelText("Szybki podgląd"));
+    await openTab(/Oś czasu/);
+    expect(
+      await screen.findByText("Ścieżka „Powitanie”: Ukończona - Koniec ścieżki"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ścieżka")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Otwórz ścieżkę komunikacji" }).getAttribute("href"),
+    ).toContain(`/admin/revenue/journeys/${journeyId}`);
+
+    cleanup();
+    h.lang = "en";
+    h.timeline = timeline;
+    await mount();
+    fireEvent.click(await screen.findByLabelText("Quick preview"));
+    await openTab(/Timeline/);
+    expect(
+      await screen.findByText("Journey “Powitanie”: Completed - End of journey"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Journey")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open the communication journey" }),
+    ).toBeInTheDocument();
+  });
+
   it("oś czasu ze zdarzeniami eksportuje się do CSV dla tego leada", async () => {
     Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
     h.timeline = {

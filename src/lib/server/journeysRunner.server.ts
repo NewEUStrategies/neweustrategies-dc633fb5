@@ -40,7 +40,7 @@ import {
   renderJourneyEmail,
   type JourneyLocale,
 } from "@/lib/journeys/render.server";
-import type { JourneyVariableValues } from "@/lib/journeys/variables";
+import { journeyUrlVariables, type JourneyVariableValues } from "@/lib/journeys/variables";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -135,14 +135,26 @@ export function queueBacklogged(depth: unknown): boolean {
   return int(depth.transactional_emails) > JOURNEY_ENGINE_LIMITS.queueBacklogMax;
 }
 
-/** Adresy serwisu najemcy - jedyne zmienne dozwolone w linkach maila. */
-export function journeyUrlVariables(origin: string): JourneyVariableValues {
-  return {
-    site_url: origin,
-    pricing_url: `${origin}/pricing`,
-    account_url: `${origin}/profile/billing`,
-    newsletter_url: `${origin}/profile/notifications`,
-  };
+/**
+ * Adresy serwisu najemcy - jedyne zmienne dozwolone w linkach maila. Jedna
+ * definicja w liściu `variables.ts` (Z-S5-08: podgląd edytora S8 składa te same
+ * ścieżki z originu karty); re-eksport zostaje dla dotychczasowych importów.
+ */
+export { journeyUrlVariables };
+
+/**
+ * Prefiks tematu maila z „Testuj na sobie” (SPEC §6.3, Integrator S8). Ten sam
+ * w PL i EN - to znacznik dla skrzynki, nie zdanie. Dokładany PO renderze:
+ * pusty temat ma dalej zatrzymać wysyłkę (`JourneyRenderError`), zamiast
+ * przejść walidację jako sam „[TEST] ”.
+ */
+export const JOURNEY_TEST_SUBJECT_PREFIX = "[TEST] ";
+
+/** Temat maila zapisu testowego - prefiks raz, także przy ponowieniu kroku. */
+export function journeyTestSubject(subject: string): string {
+  return subject.startsWith(JOURNEY_TEST_SUBJECT_PREFIX)
+    ? subject
+    : `${JOURNEY_TEST_SUBJECT_PREFIX}${subject}`;
 }
 
 function formatDate(value: unknown, locale: JourneyLocale): string | null {
@@ -400,7 +412,9 @@ async function sendOne(
       : "journey";
   const sent = await enqueueRawEmail({
     to: str(c.email) ?? "",
-    subject: rendered.subject,
+    // Zapis testowy („Testuj na sobie”) dostaje „[TEST] ” - panel testu to
+    // obiecuje (`adminJourneys.testPanel.prefix`), a skrzynka odróżnia próbę.
+    subject: email.isTest ? journeyTestSubject(rendered.subject) : rendered.subject,
     html: rendered.html,
     text: rendered.text,
     label,

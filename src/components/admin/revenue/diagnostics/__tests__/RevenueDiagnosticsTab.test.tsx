@@ -4,7 +4,7 @@
 // CO TEN PLIK DOWODZI (karta S7.1):
 //   1. Kontrakt montażu: eksport `RevenueDiagnosticsTab` i opakowanie
 //      `data-testid="revenue-tab-diagnostics"` (mapa `RevenueTabOutlet`
-//      i testy tras I0), bez `RevenueTabPreparing`.
+//      i testy tras I0), bez stanu „w przygotowaniu”.
 //   2. `useHydrated()`: do hydratacji stan „wczytywanie" i ZERO zapytań -
 //      znacznik serwera = pierwszy render klienta.
 //   3. Role DOKŁADNE: autor i sam `super_admin` dostają `RoleGateNotice`

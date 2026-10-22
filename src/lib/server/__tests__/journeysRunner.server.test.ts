@@ -21,6 +21,8 @@ import {
   JOURNEYS_CAP_DEFER_MINUTES,
   JOURNEYS_DEADLINE_MS,
   JOURNEYS_REPUTATION_DEFER_MINUTES,
+  JOURNEY_TEST_SUBJECT_PREFIX,
+  journeyTestSubject,
   journeyUrlVariables,
   queueBacklogged,
   runJourneysTick,
@@ -269,6 +271,54 @@ describe("tick", () => {
     expect(service.fromName).toBeNull();
     expect(test).toMatchObject({ label: "journey_test", category: "transactional" });
     expect(test.unsubscribeUrl).toMatch(/token=j/);
+    // SPEC §6.3 (Integrator S8): tylko zapis testowy ma znacznik w temacie.
+    expect(service.subject).toBe("Witaj Anna");
+    expect(test.subject).toBe("[TEST] Witaj Anna");
+  });
+
+  it("„[TEST] ” w temacie zapisu testowego - PL i EN, raz, po renderze (SPEC §6.3)", async () => {
+    for (const locale of ["pl", "en"] as const) {
+      h.enqueueRawEmail.mockClear();
+      const db = fakeDb(
+        happyHandlers({
+          journey_advance: (args) =>
+            ok(
+              args.p_enrollment_id === enrollment(1)
+                ? emailStep(1, { is_test: true })
+                : emailStep(2),
+            ),
+          journey_contact_for_send: () =>
+            ok({ ...CONTACT, locale, subject: "Hello {{first_name}}" }),
+        }),
+      );
+      await run(db);
+      const [test, regular] = h.enqueueRawEmail.mock.calls.map((c) => c[0]);
+      expect(test.subject, locale).toBe(`${JOURNEY_TEST_SUBJECT_PREFIX}Hello Anna`);
+      expect(regular.subject, locale).toBe("Hello Anna");
+    }
+    // Ponowienie kroku nie dubluje znacznika.
+    expect(journeyTestSubject("[TEST] Hello")).toBe("[TEST] Hello");
+    expect(journeyTestSubject("Hello")).toBe("[TEST] Hello");
+  });
+
+  it("pusty temat zapisu testowego dalej zatrzymuje wysyłkę (prefiks nie omija walidacji)", async () => {
+    const db = fakeDb(
+      happyHandlers({
+        journey_advance: (args) =>
+          ok(
+            args.p_enrollment_id === enrollment(1)
+              ? emailStep(1, { is_test: true })
+              : { status: "completed", journey_id: J },
+          ),
+        journey_contact_for_send: () => ok({ ...CONTACT, subject: "   " }),
+      }),
+    );
+    await run(db);
+    expect(h.enqueueRawEmail).not.toHaveBeenCalled();
+    expect(completes(db)[0]).toMatchObject({
+      p_result: "delivery_not_ready",
+      p_detail: { reason: "subject_empty" },
+    });
   });
 
   it("zaległość kolejki > 120: maile odłożone o 5 min, nic nie idzie do kolejki", async () => {

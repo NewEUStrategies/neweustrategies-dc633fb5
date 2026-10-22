@@ -137,6 +137,12 @@ const pl = {
       badge_few: "{{count}} elementy do uwagi",
       badge_many: "{{count}} elementów do uwagi",
       badge_other: "{{count}} elementu do uwagi",
+      // Licznik Ścieżek liczy aktywne ścieżki, nie rzeczy „do uwagi” - czytnik
+      // ekranu słyszy, co znaczy liczba (Integrator S8, Z-S6-08).
+      badgeJourneys_one: "{{count}} aktywna ścieżka",
+      badgeJourneys_few: "{{count}} aktywne ścieżki",
+      badgeJourneys_many: "{{count}} aktywnych ścieżek",
+      badgeJourneys_other: "{{count}} aktywnej ścieżki",
     },
     filters: {
       label: "Filtry huba",
@@ -482,6 +488,10 @@ const en: typeof pl = {
       badge_few: "{{count}} items need attention",
       badge_many: "{{count}} items need attention",
       badge_other: "{{count}} items need attention",
+      badgeJourneys_one: "{{count}} active journey",
+      badgeJourneys_few: "{{count}} active journeys",
+      badgeJourneys_many: "{{count}} active journeys",
+      badgeJourneys_other: "{{count}} active journeys",
     },
     filters: {
       label: "Hub filters",

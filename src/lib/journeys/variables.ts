@@ -13,6 +13,19 @@
 //               (zaufane, budowane z domeny najemcy); dane kontaktu w adresie
 //               byłyby wyciekiem PII do logów proxy i otwartym przekierowaniem.
 // Nieznany znacznik zostaje pusty (nie surowy `{{x}}` w mailu do czytelnika).
+//
+// PODSTAWIANIE W DOKUMENCIE MIESZKA TUTAJ (Z-S5-08, decyzja S8). Podgląd maila
+// w edytorze S8 działa w przeglądarce, przy każdej zmianie treści, na próbkach
+// (`JOURNEY_VARIABLE_SAMPLES`) - bez sieci i bez danych kontaktu. Żeby pokazał
+// DOKŁADNIE to, co wyśle runner, `substituteDocVariables` jest czystym kodem
+// tego liścia, a `render.server.ts` tylko go importuje (i re-eksportuje dla
+// zgodności). Adresy serwisu (`journeyUrlVariables`) mają tu kopię ścieżek
+// runnera - parytet przypina test podglądu S8, a przejście runnera na ten
+// import to zgłoszenie do integratora. Server fn podglądu dałaby tę samą
+// zgodność kosztem zapytania na każdy znak - odrzucone.
+// Moduł nie importuje nic w czasie działania (typy EmailDoc znikają przy
+// kompilacji), więc nie ciągnie do klienta niczego z serwera.
+import type { EmailBlock, EmailDoc, EmailI18n } from "@/lib/newsletter/emailDoc";
 
 export const JOURNEY_VARIABLES = [
   { key: "first_name", kind: "contact" },
@@ -62,6 +75,11 @@ export function substituteJourneyVariables(
   });
 }
 
+/** Wszystkie znaczniki w napisie, bez powtórzeń (podpowiedzi i ostrzeżenia edytora). */
+export function journeyVariableTags(text: string): string[] {
+  return [...new Set([...text.matchAll(TAG_RE)].map((match) => match[1]))];
+}
+
 /** Znaczniki spoza słownika (walidacja treści w edytorze). */
 export function unknownJourneyVariables(text: string): string[] {
   const known = new Set<string>(JOURNEY_VARIABLE_KEYS);
@@ -93,3 +111,66 @@ export const JOURNEY_VARIABLE_SAMPLES: Readonly<Record<"pl" | "en", JourneyVaria
     trial_ends_at: "24 Oct 2026",
   },
 };
+
+/**
+ * Adresy serwisu najemcy - jedyne zmienne dozwolone w linkach maila. Runner
+ * buduje je z `publicFacingOrigin(site_domain)`, podgląd edytora z originu
+ * karty; ścieżki są wspólne (test parytetu z `journeysRunner.server.ts`).
+ */
+export function journeyUrlVariables(origin: string): JourneyVariableValues {
+  return {
+    site_url: origin,
+    pricing_url: `${origin}/pricing`,
+    account_url: `${origin}/profile/billing`,
+    newsletter_url: `${origin}/profile/notifications`,
+  };
+}
+
+function sub(value: EmailI18n, vars: JourneyVariableValues, mode: SubstituteMode): EmailI18n {
+  return {
+    pl: substituteJourneyVariables(value.pl, vars, mode),
+    en: substituteJourneyVariables(value.en, vars, mode),
+  };
+}
+
+function subUrl(value: string | null, vars: JourneyVariableValues): string | null {
+  return value === null ? null : substituteJourneyVariables(value, vars, "url");
+}
+
+/** Zmienne w dokumencie, pole po polu (tryb wg rodzaju pola - patrz nagłówek). */
+export function substituteDocVariables(doc: EmailDoc, vars: JourneyVariableValues): EmailDoc {
+  const blocks = doc.blocks.map((block): EmailBlock => {
+    switch (block.type) {
+      case "heading":
+        return { ...block, text: sub(block.text, vars, "text") };
+      case "paragraph":
+        return { ...block, html: sub(block.html, vars, "html") };
+      case "footer-note":
+        return { ...block, html: sub(block.html, vars, "html") };
+      case "button":
+        return {
+          ...block,
+          label: sub(block.label, vars, "text"),
+          url: substituteJourneyVariables(block.url, vars, "url"),
+        };
+      case "image":
+        return {
+          ...block,
+          url: subUrl(block.url, vars),
+          href: subUrl(block.href, vars),
+          alt: substituteJourneyVariables(block.alt, vars, "text"),
+        };
+      case "quote":
+        return {
+          ...block,
+          text: sub(block.text, vars, "text"),
+          attribution: sub(block.attribution, vars, "text"),
+        };
+      case "post-list":
+        return { ...block, heading: sub(block.heading, vars, "text") };
+      default:
+        return block;
+    }
+  });
+  return { ...doc, blocks };
+}
