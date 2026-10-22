@@ -9,13 +9,16 @@
 // i klucze, Z ZAREJESTROWANYM rozszerzeniem panelu - hub czyta oba) oraz
 // manifestami wycinków (pisarze, których jeszcze nie ma).
 //
-// `metrics` są w trybie NIEŚCISŁYM: rejestr wskaźników huba powstaje w S6,
-// a I9 włącza regułę „byt zasilający metrykę unieważnia jej dziedzinę".
+// `metrics` są w TRYBIE ŚCISŁYM od I9 (Z-S6-11, Z-S7-03): każdy wpis należy
+// do rejestru huba S6, każde zdarzenie bytu unieważnia dziedzinę każdego jego
+// wskaźnika (mapa grupa → dziedzina `METRIC_GROUP_DOMAINS`), a każdy wskaźnik
+// huba ma byt albo jawny powód, dla którego go nie ma. Braki reguł szyny,
+// które ten tryb wykrył, stoją w zapadce `PENDING_BUS_RULES` (pliku
+// współdzielonego mapy nie zmienia wycinek - dopisuje integrator).
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { QueryKey } from "@tanstack/react-query";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HUB_FUNCTION_OWNERS, sliceOfPath } from "@/lib/ci/hubDelivery";
 import { applicationInboxKeys } from "@/lib/clubs/adminApplicationsInbox";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
 import { DOMAIN_EVENT_TYPES, type DomainEventRow } from "@/lib/realtime/domainEvents";
@@ -24,7 +27,18 @@ import {
   registerInvalidationExtension,
 } from "@/lib/realtime/eventInvalidationMap";
 import { ADMIN_HUB_INVALIDATION } from "@/lib/realtime/eventInvalidationMap.admin";
-import { HUB_ENTITY_IDS, HUB_SYNC_MANIFEST, type HubEntity } from "@/lib/revenue/syncManifest";
+import { HUB_METRIC_IDS, METRIC_GROUP, type MetricId } from "@/lib/analytics/semantic/metrics";
+import { journeyKeys } from "@/lib/journeys/keys";
+import { revenueKeys, type RevenueDomain } from "@/lib/revenue/keys";
+import {
+  HUB_ENTITY_IDS,
+  HUB_METRICS_WITHOUT_ENTITY,
+  HUB_SYNC_MANIFEST,
+  JOURNEY_STATS_METRICS,
+  METRIC_GROUP_DOMAINS,
+  type HubEntity,
+  type HubEntityId,
+} from "@/lib/revenue/syncManifest";
 
 /* ------------------------------------------------------- źródła prawdy */
 
@@ -96,6 +110,35 @@ function isPanelKey(key: QueryKey): boolean {
 }
 
 const entities = HUB_SYNC_MANIFEST.map((entity) => [entity.id, entity] as const);
+
+/** Dziedziny huba, pod którymi żyje wskaźnik (pusta lista dla wskaźników ścieżek). */
+function metricDomains(metric: MetricId): readonly RevenueDomain[] {
+  if ((JOURNEY_STATS_METRICS as readonly MetricId[]).includes(metric)) return [];
+  return METRIC_GROUP_DOMAINS[METRIC_GROUP[metric]];
+}
+
+/** Prefiksy cache wskaźnika: dziedziny jego grupy najemcy albo drzewo ścieżek. */
+function metricPrefixes(metric: MetricId): QueryKey[] {
+  if ((JOURNEY_STATS_METRICS as readonly MetricId[]).includes(metric)) return [journeyKeys.root()];
+  return metricDomains(metric).map((domain) => revenueKeys.domainTenant(domain, TENANT));
+}
+
+/**
+ * ZAPADKA (I9): reguły szyny, których brak wykrył tryb ścisły `metrics`.
+ * Mapa inwalidacji (`eventInvalidationMap.admin.ts`) jest plikiem
+ * współdzielonym - regułę dopisuje integrator, a wtedy test niżej każe zdjąć
+ * wpis stąd (lista zamknięta, jak `PENDING_MANIFEST_WRITERS` szybkich napraw).
+ *   * `newsletter_subscriber` → `email`: zapis, potwierdzenie i wypis
+ *     zmieniają przyrost listy, potwierdzenia DOI i wypisy w karcie Zdrowie
+ *     poczty, a reguły odświeżają dziś tylko Lejek (`funK`);
+ *   * `provider_subscription` → `economics` (LTV, LTV/CAC, zwrot CAC, R40
+ *     liczą się z księgi MRR) i `funnel` (konwersja okresu próbnego) - ruch
+ *     subskrypcji odświeża dziś tylko dziedziny księgi MRR (`mrrK`).
+ */
+const PENDING_BUS_RULES: Readonly<Partial<Record<HubEntityId, readonly RevenueDomain[]>>> = {
+  newsletter_subscriber: ["email"],
+  provider_subscription: ["economics", "funnel"],
+};
 
 let unregister: () => void = () => undefined;
 beforeAll(() => {
@@ -173,28 +216,27 @@ describe("manifest ⇄ trasy i pisarze", () => {
     }
   });
 
-  it.each(entities)(
-    "%s: pisarz istnieje albo należy do manifestu wycinka, który go dowiezie",
-    (_id, entity) => {
-      const orphans: string[] = [];
-      for (const writer of entity.writers) {
-        if (writer.kind === "rpc" || writer.kind === "trigger") {
-          if (!SQL_FUNCTIONS.has(writer.ref) && !(writer.ref in HUB_FUNCTION_OWNERS)) {
-            orphans.push(writer.ref);
-          }
-          continue;
-        }
-        const [path, exported] = writer.ref.split("#");
-        const source = existsSync(path) ? readFileSync(path, "utf8") : null;
-        const present =
-          source !== null &&
-          (exported === undefined ||
-            new RegExp(`export (?:const|async function|function) ${exported}\\b`).test(source));
-        if (!present && sliceOfPath(path) === null) orphans.push(writer.ref);
+  // TRYB ŚCISŁY PISARZY (I9): wszystkie wycinki S1-S8 są dowiezione, więc
+  // pisarz musi ISTNIEĆ - plik z eksportem albo funkcja SQL w migracjach.
+  // Dawna furtka („należy do manifestu wycinka, który go dowiezie") ukryła
+  // P24: `bulkUpdateCrmTasks` z SPEC nigdy nie powstał (Z-S7-02).
+  it.each(entities)("%s: pisarz istnieje (eksport w pliku albo funkcja SQL)", (_id, entity) => {
+    const orphans: string[] = [];
+    for (const writer of entity.writers) {
+      if (writer.kind === "rpc" || writer.kind === "trigger") {
+        if (!SQL_FUNCTIONS.has(writer.ref)) orphans.push(writer.ref);
+        continue;
       }
-      expect(orphans).toEqual([]);
-    },
-  );
+      const [path, exported] = writer.ref.split("#");
+      const source = existsSync(path) ? readFileSync(path, "utf8") : null;
+      const present =
+        source !== null &&
+        (exported === undefined ||
+          new RegExp(`export (?:const|async function|function) ${exported}\\b`).test(source));
+      if (!present) orphans.push(writer.ref);
+    }
+    expect(orphans).toEqual([]);
+  });
 });
 
 describe("manifest ⇄ szyna zdarzeń (z zarejestrowanym rozszerzeniem panelu)", () => {
@@ -237,5 +279,72 @@ describe("literały w manifeście = klucze fabryk modułów", () => {
   it('`["admin", "club-applications"]` = `applicationInboxKeys.all`', () => {
     const entity = HUB_SYNC_MANIFEST.find((e) => e.id === "club_application");
     expect(entity?.keys).toContainEqual([...applicationInboxKeys.all]);
+  });
+});
+
+describe("manifest ⇄ wskaźniki huba (tryb ścisły `metrics`, I9)", () => {
+  const hubMetrics = new Set<MetricId>(HUB_METRIC_IDS);
+  const fed = new Set(HUB_SYNC_MANIFEST.flatMap((entity) => entity.metrics));
+
+  it.each(entities)("%s: wskaźniki należą do rejestru huba, bez powtórzeń", (_id, entity) => {
+    expect(entity.metrics.filter((metric) => !hubMetrics.has(metric))).toEqual([]);
+    expect(new Set(entity.metrics).size).toBe(entity.metrics.length);
+  });
+
+  it("każda grupa wskaźników huba ma dziedzinę (poza ruchem, który nie jest hubem)", () => {
+    for (const metric of HUB_METRIC_IDS) {
+      expect(metricPrefixes(metric).length, metric).toBeGreaterThan(0);
+    }
+    expect(METRIC_GROUP_DOMAINS.traffic).toEqual([]);
+  });
+
+  it.each(entities.filter(([, entity]) => entity.metrics.length > 0))(
+    "%s: każde zdarzenie unieważnia dziedzinę każdego wskaźnika bytu",
+    (id, entity) => {
+      const pending = new Set(PENDING_BUS_RULES[id] ?? []);
+      const silent: string[] = [];
+      for (const type of entity.events) {
+        const keys = invalidationKeysFor(eventOf(type), { userId: "u1" });
+        for (const metric of entity.metrics) {
+          const reached = metricPrefixes(metric).some((prefix) =>
+            keys.some((key) => related(prefix, key)),
+          );
+          // Zapadka: brak dopuszczony WYŁĄCZNIE dla dziedziny czekającej na
+          // regułę integratora - inny brak to czerwień.
+          const waits = metricDomains(metric).some((domain) => pending.has(domain));
+          if (!reached && !waits) silent.push(`${type} → ${metric}`);
+        }
+      }
+      expect(silent).toEqual([]);
+    },
+  );
+
+  it.each(Object.entries(PENDING_BUS_RULES))(
+    "%s: wpis zapadki jest aktualny (regułę dopisuje integrator - wtedy zdejmij wpis)",
+    (id, domains) => {
+      const entity = HUB_SYNC_MANIFEST.find((e) => e.id === id);
+      expect(entity, id).toBeDefined();
+      for (const domain of domains ?? []) {
+        // Dziedzina musi należeć do wskaźnika bytu (inaczej wpis niczego nie tłumaczy)…
+        expect(
+          entity!.metrics.some((metric) => metricDomains(metric).includes(domain)),
+          `${id}: żaden wskaźnik nie żyje w dziedzinie ${domain}`,
+        ).toBe(true);
+        // …i reguła wciąż nie istnieje dla co najmniej jednego zdarzenia.
+        const prefix = revenueKeys.domainTenant(domain, TENANT);
+        const covered = entity!.events.every((type) =>
+          invalidationKeysFor(eventOf(type), { userId: "u1" }).some((key) => related(prefix, key)),
+        );
+        expect(covered, `zdejmij ${id} → ${domain} z PENDING_BUS_RULES`).toBe(false);
+      }
+    },
+  );
+
+  it("każdy wskaźnik huba ma byt w manifeście albo jawny powód, że go nie ma", () => {
+    const exempt = new Set<MetricId>(HUB_METRICS_WITHOUT_ENTITY);
+    expect(HUB_METRIC_IDS.filter((metric) => !fed.has(metric) && !exempt.has(metric))).toEqual([]);
+    // Wskaźnik zasilany bytem nie może jednocześnie udawać „bez bytu".
+    expect([...exempt].filter((metric) => fed.has(metric))).toEqual([]);
+    expect([...exempt].filter((metric) => !hubMetrics.has(metric))).toEqual([]);
   });
 });

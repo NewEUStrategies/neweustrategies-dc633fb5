@@ -830,8 +830,9 @@ export const QUICK_FIXES: { readonly [K in RevenueFixDialogId]: QuickFixSpec<Pay
     ],
     valid: (value) => !value.useFallback || value.fallbackAssigneeId !== null,
     apply: {
-      // Server fn S4 (P24) - zgłoszenie do integracji: wpis w manifeście
-      // `crm_task.writers` zamiast nieistniejącego `bulkUpdateCrmTasks`.
+      // Server fn S4 (P24) - pisarz `crm_task.writers` w manifeście (I9,
+      // Z-S7-02) zamiast nieistniejącego `bulkUpdateCrmTasks`; ten sam
+      // eksport woła lista CRM („Przypisz zadania bez osoby").
       writer: "src/lib/crm-tasks.functions.ts#assignUnassignedCrmTasks",
       moduleExport: "assignUnassignedCrmTasks",
       entity: "crm_task",

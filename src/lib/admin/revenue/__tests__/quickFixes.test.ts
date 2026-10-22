@@ -91,21 +91,17 @@ const ID = (n: number) => `e7150000-0000-4000-8000-${String(n).padStart(12, "0")
 /**
  * Pisarze, których brakuje w manifeście z przyczyn poza S7 - lista ZAMKNIĘTA
  * i z zapadką: gdy integrator dopisze pisarza do manifestu, test każe zdjąć
- * wpis stąd. P24: SPEC woła `bulkUpdateCrmTasks`, którego nie ma - naprawa
- * idzie istniejącym server fn S4 `assignUnassignedCrmTasks` (odchylenie S4).
+ * wpis stąd. Pusta od I9 (Z-S7-02): P24 - `crm_task.writers` wskazuje server
+ * fn S4 `assignUnassignedCrmTasks` zamiast nieistniejącego `bulkUpdateCrmTasks`.
  */
-const PENDING_MANIFEST_WRITERS: Readonly<Record<string, string>> = {
-  "src/lib/crm-tasks.functions.ts#assignUnassignedCrmTasks":
-    "HUB_SYNC_MANIFEST.crm_task.writers: server_fn assignUnassignedCrmTasks (P24, integracja I9)",
-};
+const PENDING_MANIFEST_WRITERS: Readonly<Record<string, string>> = {};
 
 /**
- * Eksporty bez innego wołającego niż naprawa huba. Server fn S4 jest zapisem
- * MODUŁU CRM (żyje w jego pliku, ma jego bramkę i walidację), ale ekran CRM
- * jeszcze go nie woła - zgłoszenie dla I9/S4 (przycisk „Przypisz zadania bez
- * osoby" w CRM). Lista zamknięta z zapadką jak wyżej.
+ * Eksporty bez innego wołającego niż naprawa huba - lista zamknięta z zapadką
+ * jak wyżej. Pusta od I9 (Z-S7-02): lista CRM woła `assignUnassignedCrmTasks`
+ * przyciskiem „Przypisz zadania bez osoby" (`AssignUnassignedTasksButton`).
  */
-const PENDING_MODULE_CONSUMERS: readonly string[] = ["assignUnassignedCrmTasks"];
+const PENDING_MODULE_CONSUMERS: readonly string[] = [];
 
 function manifestWriters(entity: string): string[] {
   const found = HUB_SYNC_MANIFEST.find((e) => e.id === entity);

@@ -137,6 +137,13 @@ vi.mock("@/lib/crm-tasks.functions", () => ({
   updateCrmTask: async () => ({ ok: true }),
   deleteCrmTask: async () => ({ ok: true }),
   importCrmLeads: async () => ({ ok: true, inserted: 0, updated: 0, skipped: 0 }),
+  // (I9, Z-S7-02) Akcja „Przypisz zadania bez osoby" - zachowanie w teście
+  // `AssignUnassignedTasksButton.test.tsx`; tu tylko miejsce na pasku.
+  assignUnassignedCrmTasks: async () => ({
+    assigned_to_owner: 0,
+    assigned_to_fallback: 0,
+    remaining: 0,
+  }),
 }));
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ isAdmin: h.isAdmin, isSuperAdmin: h.isSuperAdmin }),
@@ -328,6 +335,13 @@ describe("skrzynka CRM - lista", () => {
     const mount_ = await screen.findByTestId("revenue-signal-mount");
     expect(mount_).toHaveAttribute("data-surface", "crm");
     expect(mount_).toHaveAttribute("data-variant", "bar");
+  });
+
+  it('I9 (Z-S7-02, P24): pasek listy ma akcję „Przypisz zadania bez osoby"', async () => {
+    await mount();
+    expect(
+      await screen.findByRole("button", { name: "adminCrmTasks.assignUnassigned.action" }),
+    ).toBeInTheDocument();
   });
 
   it("pusta lista mówi wprost, że nic nie ma", async () => {

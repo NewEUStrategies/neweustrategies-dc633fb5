@@ -23,9 +23,10 @@
 // klucze (`couponQueries.ts:5`, `newsletterFieldLabels.ts:134`) - inaczej
 // bramka zmuszałaby do kasowania zdań, które wyjaśniają kod.
 //
-// LISTA DŁUGU JEST ZAMROŻONA w I0. Wycinek usuwa literały ze SWOICH plików
-// i NIE edytuje listy (plik współdzielony); wpis nieaktualny jest tylko
-// drukowany. Tryb ścisły (wpis nieaktualny = błąd, lista pusta) włącza I9.
+// LISTA DŁUGU BYŁA ZAMROŻONA w I0 (19 plików S1, 19 plików S4). Wycinki
+// usuwały literały ze SWOICH plików; I9 (2026-10-22, SPEC §3.1 I2) włączył TRYB
+// ŚCISŁY: lista jest pusta i test to przypina, więc literał klucza fabryki
+// w DOWOLNYM pliku spoza fabryk zaczerwienia CI - nie ma już gdzie go odłożyć.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -64,35 +65,16 @@ const FABRYKI: Readonly<Record<string, object>> = {
 const LEGACY_KEY_ALIASES: readonly (readonly string[])[] = [["admin-access-plans"]];
 
 /**
- * Pliki, w których literały kluczy fabryk wolno jeszcze trzymać - stan po I0,
- * posortowany, z wycinkiem-właścicielem w komentarzu. Wycinek usuwa literały
- * ze swoich plików; listę czyści I9.
+ * Pliki, w których literały kluczy fabryk wolno jeszcze trzymać - PUSTE od I9.
  *
- * Integrator S4 (2026-10-19): zdjęte wszystkie 19 plików S4 - są bez literałów
- * (Z-S4-04), więc od teraz literał w nich zaczerwienia bramkę jak w każdym
- * innym pliku.
+ * Integrator S4 (2026-10-19): zdjęte wszystkie 19 plików S4 (Z-S4-04).
+ * I9 (2026-10-22): zdjęte ostatnie 19 plików S1 - skan po scaleniu S7, S8
+ * i I9d nie znalazł w nich ani jednego literału (komponenty, hooki i trasy
+ * czytają klucze z fabryk). Lista zostaje jako jawny punkt kontrolny: test
+ * „tryb ścisły" przypina ją pustą, więc powrót długu wymaga świadomej zmiany
+ * bramki w przeglądzie, a nie cichego dopisania pliku.
  */
-const QUERY_KEY_LITERAL_DEBT: readonly string[] = [
-  "src/components/admin/AccessSettingsPane.tsx", // S1
-  "src/components/admin/PostGeneralOverview.tsx", // S1
-  "src/components/admin/coupons/organisms/CampaignsPage.tsx", // S1
-  "src/components/admin/newsletter/OverviewPanel.tsx", // S1
-  "src/components/admin/newsletter/PopupEventsPanel.tsx", // S1
-  "src/components/admin/newsletter/SubscribersPanel.tsx", // S1
-  "src/components/admin/newsletter/subscribers/ImportCsvDialog.tsx", // S1
-  "src/components/admin/pricing/organisms/RetentionTab.tsx", // S1
-  "src/hooks/useCheckoutSettings.ts", // S1
-  "src/hooks/useNewsletterSettings.ts", // S1
-  "src/lib/access/metering.ts", // S1
-  "src/lib/admin/couponQueries.ts", // S1
-  "src/lib/retention/queries.ts", // S1
-  "src/routes/admin.coupons.redemptions.tsx", // S1
-  "src/routes/admin.monetization.tsx", // S1
-  "src/routes/admin.newsletter.campaigns.$id.tsx", // S1
-  "src/routes/admin.newsletter.campaigns.index.tsx", // S1
-  "src/routes/admin.newsletter.overview.tsx", // S1
-  "src/routes/admin.paywall.tsx", // S1
-];
+const QUERY_KEY_LITERAL_DEBT: readonly string[] = [];
 
 /* ------------------------------------------------------------ sygnatury */
 
@@ -257,15 +239,14 @@ describe("bramka literałów kluczy React Query", () => {
     expect(nowe).toEqual([]);
   });
 
-  it("wpis nieaktualny jest tylko odnotowany (tryb ścisły - I9)", () => {
+  it("tryb ścisły (I9): lista długu jest pusta, a wpis bez literału byłby błędem", () => {
+    // SPEC §3.1 I2 - „lista długu → pusta w I9". Dwie asercje, bo pilnują
+    // dwóch różnych rzeczy: pusta lista (nikt nie odłożył nowego długu)
+    // i brak wpisów nieaktualnych (gdyby lista kiedyś wróciła, każdy wpis
+    // musi wskazywać plik, który NAPRAWDĘ trzyma literał).
+    expect(QUERY_KEY_LITERAL_DEBT).toEqual([]);
     const nieaktualne = QUERY_KEY_LITERAL_DEBT.filter((plik) => !SKAN.has(plik));
-    // Bez asercji ŚWIADOMIE: wycinek, który wyczyścił swój plik, nie może
-    // dostać czerwieni za to, że nie edytował listy współdzielonej.
-    if (nieaktualne.length > 0) {
-      console.info(
-        `[queryKeyLiterals] pliki bez literałów, do zdjęcia z listy w I9:\n  ${nieaktualne.join("\n  ")}`,
-      );
-    }
+    expect(nieaktualne).toEqual([]);
   });
 
   it("KANAREK: detektor łapie fiksturę i literały w realnych plikach repo", () => {

@@ -20,7 +20,7 @@
 // manifestu wycinka (`hubDelivery.ts`) - literówka nie przejdzie.
 import type { QueryKey } from "@tanstack/react-query";
 import type { Database } from "@/integrations/supabase/types";
-import type { MetricId } from "@/lib/analytics/semantic/metrics";
+import type { MetricGroup, MetricId } from "@/lib/analytics/semantic/metrics";
 import type { DomainEventType } from "@/lib/realtime/domainEvents";
 import type { RevenueTabId } from "@/lib/revenue/search";
 import { accessKeys, checkoutKeys, meteringKeys } from "@/lib/access/keys";
@@ -32,7 +32,7 @@ import { crmKeys } from "@/lib/crm/keys";
 import { journeyKeys } from "@/lib/journeys/keys";
 import { newsletterKeys } from "@/lib/newsletter/keys";
 import { retentionKeys } from "@/lib/retention/keys";
-import { revenueKeys } from "@/lib/revenue/keys";
+import { revenueKeys, type RevenueDomain } from "@/lib/revenue/keys";
 
 /**
  * Byty synchronizowane przez hub - po jednym na wiersz SPEC §3.2. Pominięte
@@ -116,7 +116,12 @@ export interface HubEntity {
   readonly events: readonly DomainEventType[];
   /** Zakładki huba, które pokazują byt - każde jego zdarzenie musi je odświeżać. */
   readonly hubTabs: readonly RevenueTabId[];
-  /** Wskaźniki zasilane bytem; uzupełnia I9 (tryb ścisły) po rejestrze S6. */
+  /**
+   * Wskaźniki huba (`HUB_METRIC_IDS`, rejestr S6), które ten byt zasila.
+   * TRYB ŚCISŁY (I9): każde zdarzenie bytu unieważnia dziedzinę każdego jego
+   * wskaźnika (`METRIC_GROUP_DOMAINS`) - inaczej kafel wskaźnika w otwartej
+   * karcie pokazuje liczbę sprzed zmiany, którą moduł właśnie zapisał.
+   */
   readonly metrics: readonly MetricId[];
 }
 
@@ -142,6 +147,61 @@ const SUBSCRIPTION_EVENTS = [
   "subscription.renewed.v1",
   "subscription.expired.v1",
 ] as const satisfies readonly DomainEventType[];
+
+/**
+ * Dziedziny huba, pod którymi żyją wskaźniki grupy rejestru S6 - prefiks
+ * `["admin-revenue", dziedzina, najemca]`, który unieważnia reguła szyny
+ * (`rev(d)` w `eventInvalidationMap.admin.ts`). Grupa ma kilka dziedzin, bo
+ * ten sam wskaźnik pokazuje kilka zakładek: NRR liczy most MRR, ale widać go
+ * też w Retencji (churn) i Kokpicie (snapshot). CRM liczy tor sprzedaży
+ * Lejka (`?track=sales`), więc jego dziedziną jest `funnel`. Ruch (`traffic`)
+ * nie należy do huba - pusta lista.
+ */
+export const METRIC_GROUP_DOMAINS = {
+  traffic: [],
+  revenue: ["mrr", "realized", "snapshot", "offer"],
+  retention: ["churn", "retention", "cohorts", "dunning"],
+  funnel: ["funnel"],
+  economics: ["economics", "inputs"],
+  email: ["email"],
+  community: ["events", "clubs"],
+  crm: ["funnel"],
+} as const satisfies Readonly<Record<MetricGroup, readonly RevenueDomain[]>>;
+
+/**
+ * Wskaźniki ścieżek (grupa `email` rejestru S6) liczy karta statystyk
+ * ścieżki - żyją pod `journeyKeys.root()`, nie pod dziedziną huba, więc
+ * zdarzenie statystyk ścieżki odświeża je przez klucze ścieżek.
+ */
+export const JOURNEY_STATS_METRICS = [
+  "journey_open_rate",
+  "journey_click_rate",
+  "journey_goal_rate",
+] as const satisfies readonly MetricId[];
+
+/**
+ * Wskaźniki huba BEZ bytu w manifeście - świadomie, z powodem. Test
+ * pokrycia wymaga, żeby każdy wskaźnik huba był albo zasilany bytem, albo
+ * stał tutaj (nowy wskaźnik nie zniknie po cichu z mapy synchronizacji).
+ *   * odczyty treści (DAU/MAU, WAU/MAU) i aktywność w klubach - zdarzenia
+ *     czytelnika, nie byty z pisarzem w panelu;
+ *   * konwersja strony cennika - sesje analityki pierwszej strony;
+ *   * zaangażowanie kampanii (otwarcia, kliknięcia, odbicia, skargi,
+ *     zniechęcenie) - zdarzenia odbiorców kampanii newslettera, których hub
+ *     nie synchronizuje jako bytu (karta Zdrowie poczty czyta je okresowo).
+ */
+export const HUB_METRICS_WITHOUT_ENTITY = [
+  "pricing_page_conversion_rate",
+  "email_open_rate",
+  "email_ctr_delivered",
+  "email_hard_bounce_rate",
+  "email_soft_bounce_rate",
+  "email_spam_complaint_rate",
+  "email_disaffection_rate",
+  "club_contributor_rate",
+  "dau_mau",
+  "wau_mau",
+] as const satisfies readonly MetricId[];
 
 export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
   {
@@ -221,7 +281,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     ],
     events: ["access_plan.changed.v1"],
     hubTabs: ["offer", "access", "mrr", "diagnostics"],
-    metrics: [],
+    metrics: ["price_realization"],
   },
   {
     // Reguła jednej encji: edytor wpisu i wyjątki paywalla piszą RÓŻNE wiersze
@@ -275,7 +335,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [couponKeys.admin(), couponKeys.redemptionsAll()],
     events: ["coupon.changed.v1", "coupon.redeemed.v1"],
     hubTabs: ["offer", "diagnostics"],
-    metrics: [],
+    metrics: ["coupon_redemption_rate", "average_discount"],
   },
   {
     id: "coupon_campaign",
@@ -288,7 +348,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [couponKeys.campaigns()],
     events: ["coupon_campaign.changed.v1"],
     hubTabs: ["offer", "diagnostics"],
-    metrics: [],
+    metrics: ["coupon_redemption_rate"],
   },
   {
     id: "retention_settings",
@@ -318,7 +378,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [retentionKeys.admin.feedback()],
     events: ["retention_flow.started.v1", "retention_flow.completed.v1"],
     hubTabs: ["retention"],
-    metrics: [],
+    metrics: ["cancellation_save_rate"],
   },
   {
     // `subscriptions` jest autorytatywna dla PIENIĘDZY (MRR, windykacja,
@@ -339,7 +399,30 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
       "billing_subscription.trial_ending.v1",
     ],
     hubTabs: ["mrr", "retention"],
-    metrics: [],
+    metrics: [
+      "mrr",
+      "arr",
+      "arpa",
+      "arpu",
+      "mrr_growth_mom",
+      "net_new_mrr",
+      "saas_quick_ratio",
+      "expansion_share_new_mrr",
+      "annual_plan_share",
+      "gross_revenue_churn",
+      "net_revenue_retention",
+      "gross_revenue_retention",
+      "involuntary_churn_share",
+      "dunning_recovery_rate",
+      "cohort_retention_m1",
+      "cohort_retention_m3",
+      "cohort_retention_m12",
+      "trial_to_paid_rate",
+      "ltv",
+      "ltv_cac_ratio",
+      "cac_payback_months",
+      "rule_of_40",
+    ],
   },
   {
     id: "entitlement",
@@ -358,7 +441,14 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     ],
     events: SUBSCRIPTION_EVENTS,
     hubTabs: ["mrr", "overview"],
-    metrics: [],
+    metrics: [
+      "active_subscriptions",
+      "logo_churn_monthly",
+      "logo_churn_annual",
+      "winback_rate_12m",
+      "returning_subscriber_share",
+      "revenue_realized",
+    ],
   },
   {
     // Jedna ścieżka zapisu (S1 scala nadanie z panelu i z darowizny). Hub
@@ -392,7 +482,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     ],
     events: ["billing_document.issued.v1", "billing_document.updated.v1"],
     hubTabs: ["mrr", "overview"],
-    metrics: [],
+    metrics: ["revenue_realized", "price_realization"],
   },
   {
     id: "payment_order",
@@ -413,7 +503,12 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
       "checkout.abandoned.v1",
     ],
     hubTabs: ["funnel", "mrr"],
-    metrics: [],
+    metrics: [
+      "checkout_conversion_rate",
+      "checkout_abandonment_rate",
+      "registered_to_paid_rate",
+      "revenue_realized",
+    ],
   },
   {
     // Rejestracja: profil zakłada trigger po `auth.users` - żaden ekran.
@@ -424,7 +519,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [billingKeys.admin.members(), crmKeys.leadsAll(), crmKeys.funnelStats()],
     events: ["account.registered.v1"],
     hubTabs: ["funnel"],
-    metrics: [],
+    metrics: ["visitor_to_registration_rate", "registered_to_paid_rate"],
   },
   {
     id: "paywall_hit",
@@ -438,7 +533,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [crmKeys.leadMeteringAll()],
     events: ["paywall.hit.v1", "metering.quota_exhausted.v1"],
     hubTabs: ["funnel", "access"],
-    metrics: [],
+    metrics: ["paywall_hit_rate", "paywall_conversion_rate"],
   },
   {
     // Cykl życia przesuwają też billing i silnik ścieżek - przez RPC
@@ -460,14 +555,24 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
       "crm_lead.lifecycle_changed.v1",
     ],
     hubTabs: ["funnel"],
-    metrics: [],
+    metrics: [
+      "lead_to_mql_rate",
+      "mql_to_sql_rate",
+      "win_rate",
+      "lead_response_time",
+      "sales_cycle_length",
+    ],
   },
   {
     id: "crm_task",
     tables: dbTables("crm_tasks"),
     writers: [
       { kind: "server_fn", ref: "src/lib/crm-tasks.functions.ts#createCrmTask" },
-      { kind: "server_fn", ref: "src/lib/crm-tasks.functions.ts#bulkUpdateCrmTasks" },
+      { kind: "server_fn", ref: "src/lib/crm-tasks.functions.ts#updateCrmTask" },
+      // P24 (I9, Z-S7-02): SPEC §3.2 wymienia `bulkUpdateCrmTasks`, którego
+      // nie ma - zbiorczym zapisem jest server fn S4 przypisania zadań bez
+      // osoby (lista CRM i szybka naprawa huba wołają ten sam eksport).
+      { kind: "server_fn", ref: "src/lib/crm-tasks.functions.ts#assignUnassignedCrmTasks" },
       // Akcja przepisu `create_crm_task` (z `origin_ref` - idempotencja).
       { kind: "rpc", ref: "run_workflow_step" },
     ],
@@ -498,7 +603,12 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
       "newsletter_subscriber.resubscribed.v1",
     ],
     hubTabs: ["funnel"],
-    metrics: [],
+    metrics: [
+      "signup_form_conversion_rate",
+      "newsletter_list_growth_rate",
+      "doi_confirmation_rate",
+      "email_unsubscribe_rate",
+    ],
   },
   {
     // Jedno RPC z białą listą kolumn per grupa; podział kolumn między ekrany
@@ -561,7 +671,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [journeyKeys.listAll(), journeyKeys.forLeadAll()],
     events: ["journey.stats_changed.v1"],
     hubTabs: ["journeys"],
-    metrics: [],
+    metrics: ["journey_open_rate", "journey_click_rate", "journey_goal_rate"],
   },
   {
     // `["event-registrations"]` = `registrationKeys.all` - fabryka mieszka
@@ -580,7 +690,12 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
       "event.registration.attended.v1",
     ],
     hubTabs: ["community"],
-    metrics: [],
+    metrics: [
+      "event_ticket_revenue",
+      "event_attendance_rate",
+      "no_show_rate",
+      "event_registration_conversion",
+    ],
   },
   {
     // `["admin", "club-applications"]` = `applicationInboxKeys.all` - fabryka
@@ -595,7 +710,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [["admin", "club-applications"], clubKeys.all],
     events: ["club_application.submitted.v1", "club_application.decided.v1"],
     hubTabs: ["community"],
-    metrics: [],
+    metrics: ["club_application_acceptance", "club_decision_time"],
   },
   {
     id: "club_member",
@@ -609,7 +724,7 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [clubKeys.all],
     events: ["club_member.changed.v1"],
     hubTabs: ["community"],
-    metrics: [],
+    metrics: ["club_active_member_rate"],
   },
   {
     id: "revenue_input",
@@ -619,7 +734,15 @@ export const HUB_SYNC_MANIFEST: readonly HubEntity[] = [
     keys: [revenueKeys.domain("inputs"), revenueKeys.domain("economics")],
     events: ["revenue_input.changed.v1"],
     hubTabs: ["inputs", "metrics", "overview"],
-    metrics: [],
+    metrics: [
+      "ltv",
+      "cac",
+      "new_cac_ratio",
+      "ltv_cac_ratio",
+      "cac_payback_months",
+      "subscription_gross_margin",
+      "rule_of_40",
+    ],
   },
   {
     id: "revenue_diagnostic",
