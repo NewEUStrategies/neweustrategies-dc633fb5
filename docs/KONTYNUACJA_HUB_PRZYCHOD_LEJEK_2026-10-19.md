@@ -1,4 +1,4 @@
-# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8, S7, I9d-Y1 i I9d-Y2)
+# Kontynuacja huba „Przychód i lejek” - prompt dla następnej sesji (2026-10-19, aktualizacja 2026-10-22 po S8, S7, I9d-Y1, I9d-Y2 i I9)
 
 Wklej poniższą treść jako pierwszą wiadomość nowej sesji.
 
@@ -11,7 +11,7 @@ Query, Supabase/Postgres (RLS, RPC, pgTAP), bun, vitest, Playwright, tsgo,
 i18n PL/EN.
 
 **Przeczytaj najpierw:** `docs/WDROZENIE_HUB_PRZYCHOD_LEJEK_2026-10.md` §17
-(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21, I9d-Y1 - §21.22, I9d-Y2 - §21.23), §22 (S8) i §23 (S7, scalenie po S8 - §23.11); specyfikacja
+(przekazanie) i sekcje wycinków §11-16, §18 (S3), §20 (S5), §21 (I9b - decyzje właściciela, I9c - §21.20-21.21, I9d-Y1 - §21.22, I9d-Y2 - §21.23), §22 (S8), §23 (S7, scalenie po S8 - §23.11) i §24 (I9 - integracja, wydanie i raport końcowy §24.11); runbook `docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md`; specyfikacja
 `docs/SPEC_MODUL_PRZYCHOD_LEJEK_2026-10-18.md` (czytaj sekcjami: §8.3 karty,
 §0.3, §2-§7, §8.4, §8.6, §9.3); wiedza `docs/WIEDZA_INSIDER_MARKETINGOWY_2026-10-19.md`
 i `docs/benchmarki/` (liczb benchmarków nie wymyślaj).
@@ -141,6 +141,23 @@ ostrzeżenie warunków `email_opened/clicked`; polityka komunikacji
 i prywatności w kodzie. Ratchet D-08 `overall` 5334 → 5357. Otwarte
 Z-I9d-11…21 (§21.23 pkt 10).
 
+**I9 (2026-10-22, §24 dziennika) - zintegrowany:** karta I9 w całości
+(§24.10). Ten sam worktree, baza `2113569d`. Runner ścieżek w `jobs-tick`
+(krok `journeys` przed drenem, termin 3 s, 200/50; wyłącznik
+`JOURNEYS_ENGINE_DISABLED` = `skipped: kill_switch`), skanery S2 co 5 min,
+`journey_rollup_daily` w minucie 13, `journey_purge('30 days')` o 03:11 UTC,
+karta silnika w panelu zdrowia harmonogramu; odnośniki moduły → hub
+(`RevenueSignalChip` w 10 ekranach, drogowskazy, aktywne ścieżki wydarzeń);
+bramki ścisłe (`queryKeyLiterals`, `metrics` manifestu z 3 nowymi regułami
+szyny, `domainMap`); zgłoszenia 9.2 i S7; przewodnik po Ścieżkach (Z-S8-01);
+4 migracje `20261020162600…162900` (bliźniaki `0387…0390`, **następny wolny
+`0391`, wersja `20261020163000`**): zestawienie statusów zapisów ścieżek,
+wspólny pomocnik wycofania zgody, zdarzenie `contact_message.submitted.v1`,
+czytelnicy zdarzeń kampanii po retencji. Runbook
+`docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` (przełączniki, sygnały, zapytania,
+wycofanie, kolejność wdrożenia `0347…0390` z kontrolnym SQL). Ratchet D-08
+`overall` 5357 → 5371. Otwarte - §24.6 dziennika.
+
 **Wymóg właściciela (2026-10-20): „wszystko, co robimy, ma być w panelu
 admina”.** Każdy kolejny wycinek kończy się wejściem w panelu dla właściwych
 ról: pozycja nawigacji albo zakładka huba, skrót ⌘K, sekcyjne `adminPageHead`,
@@ -156,7 +173,8 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
    gałąź PR po S7, `plpgsql_check_gate` i pgTAP faktów S7 (Z-S7-16)
    powtórzone po scaleniu - zielone. ~~I9d-Y2~~ - **zintegrowany 2026-10-22
    (§21.23 dziennika)** w tym samym worktree (treść zgody i pomiar).
-4. I9 - **runner ścieżek w `jobs-tick`** (po zadaniach uczestnika, przed
+4. ~~I9~~ - **zintegrowany 2026-10-22 (§24 dziennika)**; poniżej zakres
+   z karty (wykonany - §24.10). Runner ścieżek w `jobs-tick` (po zadaniach uczestnika, przed
    drenem kolejki maili: `runJourneysTick(admin, { deadlineAt, ingestLimit: 200, claimLimit: 50 })`),
    `journey_rollup_daily` co godzinę, `journey_purge` raz na dobę, stan
    silnika w panelu zdrowia schedulera (§20.4); chipy `RevenueSignalChip`
@@ -172,6 +190,12 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
    silnika u NES po teście na żywo `welcome_onboarding`
    i `abandoned_checkout` (§20.9 pkt 7, decyzja właściciela). Nawigacja
    i skróty zakładek są już z I9a (§19 dziennika).
+5. **Krok 5 - zamknięcie PR #530** (prompt kontynuacji §10): push gałęzi
+   `hub/i9d-rodo-2` po zielonych bramkach (fast-forward gałęzi PR), CI
+   PR #530 (także `e2e`, `e2e-seeded`), opis PR (wycinki z odnośnikami do
+   dziennika, decyzje właściciela, bramki, „Po stronie właściciela” -
+   §24.11 pkt 4), usunięcie scalonych gałęzi `hub/*`, PR gotowy do
+   przeglądu przy zielonym CI.
 
 **Zasady (decyzje właściciela):**
 
@@ -190,7 +214,7 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
 - Budżet D-08: `overall`/`css` ratchet o zmierzony przyrost (+1) z kroniką;
   `public`, `publicCss`, `chunk`, `boot` zamrożone.
 - Migracje: ≤ 45 KiB, idempotentne, nagłówki PL, bloki wersji (S7 `15*`,
-  I9 `16*` - zajęte do `162500`), bliźniak drizzle od `0387` + `_journal.json`; tenant/user z
+  I9 `16*` - zajęte do `162900`), bliźniak drizzle od `0391` + `_journal.json`; tenant/user z
   sesji; SECURITY DEFINER z `search_path`; AGENTS.md obowiązuje.
 - Pliki współdzielone (§8.4) zmienia Integrator wycinka przy scalaniu, z
   wpisem w dzienniku.
@@ -199,8 +223,9 @@ ekran ani funkcja dostępna tylko z adresu albo z bazy.
   (nawigacja/zakładka/karta), ⌘K, `adminPageHead` i napisy PL/EN.
 
 **Decyzje czekające na właściciela** (wyłącznie rzeczy niewykonalne
-z kontenera - §21.18 dziennika): wdrożenie migracji `0358…0386` i publikacja
-frontu (§21.17, §21.20, §21.21, §21.22 - retencja: 14 dni podglądu, także
+z kontenera - §21.18 i zbiorczo §24.11 pkt 4 dziennika): wdrożenie migracji
+`0347…0390` i publikacja frontu (kolejność i kontrolny SQL -
+`docs/RUNBOOK_HUB_PRZYCHOD_LEJEK.md` §8; §21.17, §21.20, §21.21, §21.22 - retencja: 14 dni podglądu, także
 osobne dla nowych kategorii I9d, przegląd liczb i listy „do wygaszenia”
 w karcie przed terminem karencji; §21.23 - skokowy spadek wskaźników otwarć
 po wdrożeniu, opcjonalna „Poproś o zgodę na pomiar”, `first_party`
