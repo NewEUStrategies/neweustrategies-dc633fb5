@@ -425,8 +425,13 @@ export function useSaveNewsletterSettings() {
 
 /* ---------------------------------------------------- odbiorcy (def. 17) */
 
-/** Domeny huba z reguły panelu `newsletter_subscriber.*` (lejek i kokpit). */
-const AUDIENCE_REVENUE_DOMAINS = ["funnel", "snapshot"] as const;
+/**
+ * Domeny huba z reguły panelu `newsletter_subscriber.*`: lejek, kokpit i (od
+ * I9, tryb ścisły `metrics` manifestu) zdrowie poczty - przyrost listy,
+ * potwierdzenia DOI i wypisy. Lustro reguły szyny, pilnowane testem
+ * `settingsQueries.test.ts` (odbiorcy, def. 17).
+ */
+const AUDIENCE_REVENUE_DOMAINS = ["funnel", "snapshot", "email"] as const;
 
 /**
  * Subskrybenci newslettera i leady CRM to DWA interfejsy tych samych ludzi
