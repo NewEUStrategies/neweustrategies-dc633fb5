@@ -91,6 +91,21 @@
     "adminEvents.studio.pages.standard",
     "adminEvents.studio.preview.formatLabel",
     "adminEvents.studio.sections.branding",
+    "adminJourneys.canvas.step.labelStats",
+    "adminJourneys.canvas.zoom.value",
+    "adminJourneys.common.category.marketing",
+    "adminJourneys.common.counter",
+    "adminJourneys.common.palette.newsletter",
+    "adminJourneys.emailStep.addBlockType",
+    "adminJourneys.emailStep.blockItem",
+    "adminJourneys.enrollments.columns.status",
+    "adminJourneys.enrollments.test",
+    "adminJourneys.enrollments.versionValue",
+    "adminJourneys.lead.test",
+    "adminJourneys.list.columns.status",
+    "adminJourneys.list.versionValue",
+    "adminJourneys.results.emails.columns.ctor",
+    "adminJourneys.sheetField.condition.status",
     "adminPostPanes.editor.langEn",
     "adminPostPanes.general.badgeOverride",
     "adminPostPanes.general.formatRow",
@@ -260,6 +275,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 570
+    "untranslated": 585
   }
 }
