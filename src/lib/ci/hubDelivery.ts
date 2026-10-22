@@ -1182,6 +1182,92 @@ export const HUB_SLICE_MANIFESTS: Readonly<Record<HubSliceId, readonly string[]>
     // (Integrator I9d-Y2, 2026-10-22) Tabela fabryk kluczy huba: wiersze
     // kluczy pomiaru newslettera (Y2-B) i prefiksy ich unieważniania.
     "src/lib/__tests__/hubKeyFactories.test.ts",
+    // (I9-A, 2026-10-22) Harmonogram huba (Z-S5-03): siatka community-cron
+    // (joby journeys, revenue-lifecycle), panel zdrowia harmonogramu (stan
+    // silnika ścieżek), teksty S8 po podpięciu runnera; jedna stopka wypisu
+    // (Z-S5-05); pgTAP zestawienia zapisów (Z-I9c-06) - glob
+    // `supabase/tests/hub_i9_*_test.sql` niżej, w bloku I9-C.
+    "src/routes/api/public/{community-cron.ts,-community-cron.test.ts}",
+    "src/lib/admin/scheduler.functions.ts",
+    "src/lib/admin/__tests__/schedulerFunctions.test.ts",
+    "src/lib/i18n-admin-scheduler.ts",
+    "src/components/admin/community/__tests__/SchedulerHealthPanel.test.tsx",
+    "src/lib/admin/journeys/summaries.ts",
+    "src/lib/i18n-admin-journeys-publish.ts",
+    "src/lib/email/{ownUnsubscribeFooter,provider.server}.ts",
+    "src/lib/email/__tests__/{ownUnsubscribeFooter,provider.server}.test.ts",
+    "src/lib/journeys/__tests__/journeyFooterDelivery.test.ts",
+    "docs/RUNBOOK_COMMUNITY.md",
+    ".env.example",
+    // (I9-B, 2026-10-22) Moduły → hub (SPEC §2.7), pisarz P24 i zgłoszenia
+    // S7 (Z-S7-01…12): sygnał Diagnostyki i drogowskazy w ekranach modułów,
+    // akcja przypisania zadań CRM, słownik wskaźników sterowany adresem,
+    // baner przerwanej szyny, waluta wiodąca migawki, powody rezygnacji
+    // w Cenniku, zdrowie poczty w migawce. Test skrzynki zgłoszeń klubów
+    // niżej, w bloku I9-C.
+    "src/routes/admin.crm.index.tsx",
+    "src/routes/__tests__/{adminBillingRoute,adminCouponsShellRoutes,adminCrmInboxRoute,adminNewsletterShellRoutes,adminWorkflowsRoute}.test.tsx",
+    "src/components/admin/clubs/__tests__/ClubInvitationsTab.test.tsx",
+    "src/components/admin/events/organisms/__tests__/{EventAnalyticsPanel,EventCommunicationsPanel,EventOverviewPanel}.test.tsx",
+    "src/components/admin/membership/organisms/__tests__/AdminMembershipWorkspace.test.tsx",
+    "src/components/admin/pricing/organisms/__tests__/AdminPricingWorkspace.test.tsx",
+    "src/components/admin/crm/AssignUnassignedTasksButton.tsx",
+    "src/components/admin/crm/__tests__/AssignUnassignedTasksButton.test.tsx",
+    "src/lib/i18n-admin-{revenue-links,crm-tasks,revenue-shell,revenue-finance,pricing}.ts",
+    "src/lib/admin/revenue/quickFixes.ts",
+    "src/lib/admin/revenue/__tests__/quickFixes.test.ts",
+    "src/components/admin/analytics/semantic/organisms/MetricDictionary.tsx",
+    "src/components/admin/analytics/semantic/__tests__/{semanticOrganisms,RevenueInsightSection}.test.tsx",
+    "src/lib/realtime/{tableChannelHub,useDomainEventStream}.ts",
+    "src/lib/realtime/__tests__/tableChannelHub.test.ts",
+    "src/lib/revenue/__tests__/syncScenarios.test.ts",
+    "src/lib/analytics/semantic/{revenueRaw,revenueSnapshot.functions}.ts",
+    "src/lib/analytics/semantic/snapshot.functions.test.ts",
+    "src/lib/retention/reasonLabel.ts",
+    "src/lib/admin/retentionStats.ts",
+    "src/lib/admin/__tests__/pricingRules.test.ts",
+    "src/components/admin/pricing/atoms/RetentionReasonText.tsx",
+    "src/components/admin/pricing/molecules/{RetentionFeedbackList,RetentionStatsCards}.tsx",
+    "src/components/admin/pricing/molecules/__tests__/retentionReasons.test.tsx",
+    // (I9-C, 2026-10-22) Zgłoszenia 9.2 i domknięcia S8/I9d: środowisko
+    // i uprawnienie dokumentu rozliczeniowego (Z-S2-07), odmowa progu Zespół
+    // w profilu (Z-I9b-09), import CSV bez przycinania (Z-I9b-15), etykiety
+    // powodów Skrzynki wysyłek (Z-I9c-02), zdarzenie formularza i szablon B2B
+    // (Z-S5-01), pgTAP bloku I9, link polityki w zgodach buildera (Z-I9d-19),
+    // zgłoszenia zanonimizowane w skrzynce klubów (Z-I9d-03), notka pomiaru
+    // w Kokpicie (Z-I9d-16).
+    "src/lib/billing/billingDocuments.server.ts",
+    "src/lib/billing/__tests__/{billingDocuments.server,webhookDispatch.server,webhookDispatchDocuments.server}.test.ts",
+    "src/routes/profile.organization.tsx",
+    "src/routes/__tests__/profileOrganizationRoute.test.tsx",
+    "src/lib/i18n-membership.ts",
+    "src/lib/crm/importMapping.ts",
+    "src/lib/crm/__tests__/importMapping.test.ts",
+    "src/lib/csv/parseCsv.ts",
+    "src/lib/csv/__tests__/parseCsv.test.ts",
+    "src/components/admin/crm/ImportLeadsCsvDialog.tsx",
+    "src/components/admin/crm/__tests__/crmDialogs.test.tsx",
+    "src/lib/admin/emailOutboxReason.ts",
+    "src/lib/admin/__tests__/emailOutboxReason.test.ts",
+    "src/components/admin/newsletter/outbox/**",
+    "src/lib/i18n-admin-email-outbox.ts",
+    "src/lib/journeys/{triggers,templates/pricing_enquiry_b2b}.ts",
+    "src/lib/journeys/__tests__/{templates,contactMessageEvent}.test.ts",
+    "src/lib/i18n-admin-journeys-steps.ts",
+    "src/lib/admin/journeys/__tests__/{journeyEditor.functions,summaries}.test.ts",
+    "supabase/tests/hub_i9_*_test.sql",
+    "src/lib/builder/__tests__/registryConsentLinks.test.ts",
+    "src/lib/clubs/{applyApi,adminApplicationsInbox}.ts",
+    "src/lib/clubs/__tests__/{applyApi,adminApplicationsInbox}.test.ts",
+    "src/components/admin/clubs/molecules/ClubInboxRow.tsx",
+    "src/components/admin/clubs/__tests__/ClubApplicationsInbox.test.tsx",
+    "src/lib/i18n-clubs-admin.ts",
+    "src/components/admin/dashboard/MarketingPanel.tsx",
+    "src/components/admin/dashboard/__tests__/MarketingPanel.realized.test.tsx",
+    // (Integrator I9, 2026-10-22) Reguły szyny wykryte trybem ścisłym
+    // `metrics` (subskrybent newslettera → `email`, subskrypcja u operatora
+    // → `economics` i `funnel`) - asercje rozszerzenia panelu.
+    "src/lib/realtime/__tests__/revenueInvalidation.test.ts",
   ],
 };
 

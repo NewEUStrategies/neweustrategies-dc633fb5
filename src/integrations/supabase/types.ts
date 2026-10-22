@@ -15152,6 +15152,57 @@ export type Database = {
           },
         ]
       }
+      journey_enrollment_daily_stats: {
+        Row: {
+          enrollments: number
+          entered_day: string
+          exit_reason: string
+          finished_day: string
+          journey_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          enrollments: number
+          entered_day: string
+          exit_reason?: string
+          finished_day: string
+          journey_id: string
+          status: string
+          tenant_id: string
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          enrollments?: number
+          entered_day?: string
+          exit_reason?: string
+          finished_day?: string
+          journey_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_enrollment_daily_stats_journey_fkey"
+            columns: ["tenant_id", "journey_id"]
+            isOneToOne: false
+            referencedRelation: "journey_definitions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "journey_enrollment_daily_stats_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journey_enrollments: {
         Row: {
           correlation_id: string
@@ -17302,6 +17353,48 @@ export type Database = {
           },
           {
             foreignKeyName: "newsletter_campaign_engagement_archive_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_campaign_engagement_daily: {
+        Row: {
+          campaign_id: string
+          clicks: number
+          day: string
+          opens: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number
+          day: string
+          opens?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number
+          day?: string
+          opens?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_engagement_daily_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_engagement_daily_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
