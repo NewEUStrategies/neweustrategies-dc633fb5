@@ -66,6 +66,7 @@ export function snapshot(role: "admin" | "editor"): RevenueSnapshotResult {
     dataSince: "2026-01-01",
     computedAt: "2026-10-15T11:00:00.000Z",
     basisMix: money ? { provider: 10, catalog: 0 } : null,
+    ratioCurrency: money ? "PLN" : null,
     role,
   };
 }

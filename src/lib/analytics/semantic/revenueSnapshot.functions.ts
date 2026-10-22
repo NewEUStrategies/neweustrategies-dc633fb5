@@ -105,6 +105,14 @@ export interface RevenueSnapshotResult {
   readonly dataSince: string | null;
   readonly computedAt: string | null;
   readonly basisMix: { readonly provider: number; readonly catalog: number } | null;
+  /**
+   * Waluta wiodąca wskaźników ilorazowych (NRR, GRR, quick ratio) i delt
+   * kwot - filtr `?cur=`, a bez niego pierwsza waluta danych bieżących
+   * (I9, Z-S7-06 / Z-S2-05). `null` = migawka nie zna żadnej kwoty. Panel
+   * czyta to pole zamiast odtwarzać regułę - odtworzenie pomijało zamówienia
+   * i bilety wydarzeń, więc podpis mógł wskazać inną walutę niż liczba.
+   */
+  readonly ratioCurrency: string | null;
   readonly role: "admin" | "editor";
 }
 
@@ -596,6 +604,7 @@ export async function revenueSnapshotHandler(
     dataSince: snap?.dataSince ?? null,
     computedAt: snap?.computedAt ?? null,
     basisMix: snap?.basisMix ?? null,
+    ratioCurrency: currency ?? null,
     role,
   };
 }

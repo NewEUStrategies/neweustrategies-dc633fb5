@@ -164,6 +164,7 @@ export function communitySnapshot(role: "admin" | "editor"): RevenueSnapshotResu
     dataSince: "2026-01-01",
     computedAt: "2026-10-15T11:00:00.000Z",
     basisMix: null,
+    ratioCurrency: role === "admin" ? "PLN" : null,
     role,
   };
 }

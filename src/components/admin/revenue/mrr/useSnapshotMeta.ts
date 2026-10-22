@@ -35,21 +35,20 @@ export interface SnapshotMeta {
 }
 
 /**
- * Waluta wiodąca jak w `getRevenueSnapshot`: filtr `?cur=`, a bez niego
- * pierwsza waluta pierwszej niepustej listy (MRR, potem przychód
- * zrealizowany). Migawka nie zwraca jeszcze `ratio_currency` (propozycja
- * Z-S2-05 dla S6), więc panel odtwarza tę samą regułę, żeby podpisać liczby.
+ * Waluta wiodąca wprost z migawki (`ratioCurrency`, I9 - Z-S7-06 / Z-S2-05):
+ * serwer wybiera ją raz dla wskaźników ilorazowych i delt (filtr `?cur=`,
+ * a bez niego pierwsza waluta danych - MRR, przychód, zamówienia, bilety).
+ * Panel nie odtwarza już tej reguły: kopia pomijała zamówienia i bilety,
+ * więc podpis mógł wskazać inną walutę niż ta, w której liczono NRR.
  */
 export function snapshotMetaOf(
-  snapshot: Pick<RevenueSnapshotResult, "dataSince" | "money" | "entries">,
+  snapshot: Pick<RevenueSnapshotResult, "dataSince" | "entries" | "ratioCurrency">,
   currency: string | null,
 ): SnapshotMeta {
-  const lists = [snapshot.money.mrr, snapshot.money.revenue_realized];
-  const first = lists.find((list) => (list?.length ?? 0) > 0)?.[0]?.currency ?? null;
   const winback = snapshot.entries.find((entry) => entry.metricId === "winback_rate_12m");
   return {
     dataSince: snapshot.dataSince,
-    leadingCurrency: currency ?? first,
+    leadingCurrency: currency ?? snapshot.ratioCurrency,
     winback12m: winback?.canonicalValue ?? null,
   };
 }

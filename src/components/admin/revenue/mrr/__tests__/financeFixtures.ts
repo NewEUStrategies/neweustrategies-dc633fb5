@@ -65,6 +65,7 @@ export function adminSnapshot(): RevenueSnapshotResult {
     dataSince: DATA_SINCE,
     computedAt: "2026-10-15T11:00:00.000Z",
     basisMix: { provider: 10, catalog: 0 },
+    ratioCurrency: "PLN",
     role: "admin",
   };
 }

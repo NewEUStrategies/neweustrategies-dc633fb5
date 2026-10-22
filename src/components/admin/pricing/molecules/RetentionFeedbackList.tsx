@@ -6,8 +6,12 @@
 // ofertę i mimo to odszedł) i kreska (oferty nie było - np. wyłączona).
 // Rozróżnienie „odrzucona" i „nie pokazano" jest jedynym sposobem, by odczytać
 // z panelu, czy rabat nie działa, czy po prostu nie doszedł do klienta.
+//
+// POWÓD SŁOWAMI PANELU (I9, Z-S7-08): `not_given` i `stripe:<kod>` przez
+// wspólny `RetentionReasonText` - ta sama reguła co karta powodów w hubie.
 import { useTranslation } from "react-i18next";
 
+import { RetentionReasonText } from "@/components/admin/pricing/atoms/RetentionReasonText";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RetentionFeedbackRow } from "@/lib/retention/queries";
 
@@ -36,7 +40,9 @@ export function RetentionFeedbackList({ feedback }: { feedback: RetentionFeedbac
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-medium">{row.reason_label}</div>
+                  <div className="text-sm font-medium">
+                    {row.reason_label === null ? "-" : <RetentionReasonText label={row.reason_label} />}
+                  </div>
                   {row.comment && (
                     <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                       {row.comment}

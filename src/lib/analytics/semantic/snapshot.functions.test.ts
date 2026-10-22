@@ -1662,8 +1662,16 @@ describe("getRevenueSnapshot - scalenie pięciu odczytów", () => {
     );
   });
 
+  it("waluta wiodąca jedzie w odpowiedzi (`ratioCurrency`, I9 - Z-S7-06)", async () => {
+    // Bez filtra: pierwsza waluta danych bieżących (MRR) - ta sama, w której
+    // liczą się wpisy i delty; panel podpisuje NRR/GRR tym polem.
+    expect((await wywolajHub(klientHuba())).ratioCurrency).toBe("PLN");
+    expect((await wywolajHub(klientHuba(), { currency: "EUR" })).ratioCurrency).toBe("EUR");
+  });
+
   it("filtr waluty zmienia walutę wiodącą obu okien naraz", async () => {
     const res = await wywolajHub(klientHuba(), { currency: "EUR" });
+    expect(res.ratioCurrency).toBe("EUR");
     expect(wpisHuba(res, "mrr").canonicalValue).toBe(200_000);
     const delta = res.deltas.find((d) => d.metricId === "mrr");
     // Euro do euro: 200 000 wobec 250 000 - nie złotówki do euro.
