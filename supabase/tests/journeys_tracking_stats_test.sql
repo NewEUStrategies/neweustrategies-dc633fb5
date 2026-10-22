@@ -45,6 +45,11 @@ INSERT INTO public.newsletter_subscribers (tenant_id, email, status) VALUES
 -- Most subskrybent -> CRM mógł dopisać flagę/leady; ustalamy stan wprost.
 UPDATE public.crm_leads SET marketing_consent = true
  WHERE id IN ('e5700000-0000-0000-0000-0000000001a1', 'e5700000-0000-0000-0000-0000000001a2');
+-- Zgoda odbiorcy na pomiar otwarć i kliknięć - od I9d-Y2 zapis zdarzeń
+-- wymaga jej w chwili zdarzenia (przypadki bez zgody: hub_i9d_y2_tracking).
+INSERT INTO public.crm_consent_log (tenant_id, email, source_type, consent_key, consent_text, given, created_at)
+VALUES ('e5700000-0000-0000-0000-0000000000a0', 'odbiorca@hub-s5-track.test', 'newsletter', 'email_measurement',
+        'Zgoda na pomiar otwarć i kliknięć', true, now() - interval '1 day');
 
 INSERT INTO public.journey_definitions (id, tenant_id, key, name, status, category, legal_basis) VALUES
   ('e5700000-0000-0000-0000-0000000010a1', 'e5700000-0000-0000-0000-0000000000a0', 'mail', 'Mail', 'active', 'marketing', NULL),

@@ -140,7 +140,15 @@ SELECT is_empty(
           '_newsletter_sunset_delete', '_newsletter_sunset_fold_events', '_newsletter_track_opens',
           'newsletter_engagement_touch', 'newsletter_sunset_claim', 'newsletter_sunset_keep',
           'newsletter_sunset_mark', 'tg_club_applications_club_detached', 'tg_club_members_membership_end',
-          'tg_club_members_membership_gone'
+          'tg_club_members_membership_gone',
+          -- (I9d-Y2) treść zgody i pomiar tylko za zgodą, ponowne potwierdzenie.
+          '_consent_covers_measurement', '_consent_measurement_versions', '_consent_text_sha256',
+          '_consent_text_version', '_email_measurement_consent', '_email_measurement_subject',
+          '_newsletter_consent_default', '_newsletter_consent_upgrade_defaults', '_newsletter_consent_version',
+          '_newsletter_log_consents', '_newsletter_measurement_candidates', '_newsletter_oneoff_mail_used',
+          'email_measurement_state', 'email_measurement_status', 'email_measurement_withdraw',
+          'newsletter_measurement_claim', 'newsletter_measurement_confirm', 'newsletter_measurement_mark',
+          'tg_crm_consent_log_measurement', 'tg_newsletter_consents_log', 'tg_newsletter_recipients_measured'
         ]::name[]) $$,
   'hub_grants: funkcje serwisowe, wewnętrzne i wyzwalacze huba bez EXECUTE dla anon i authenticated');
 -- hub-grants:end

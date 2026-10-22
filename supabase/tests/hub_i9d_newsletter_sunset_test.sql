@@ -73,6 +73,11 @@ SELECT t::uuid, k || '@i9d-newsletter.test', CASE WHEN k = 's7' THEN 'pending' E
                ('19d40000-0000-4000-8000-0000000000a0', 's9'), ('19d40000-0000-4000-8000-0000000000a0', 's10'),
                ('19d40000-0000-4000-8000-0000000000a0', 's11'),
                ('19d40000-0000-4000-8000-0000000000b0', 'sb'), ('19d40000-0000-4000-8000-0000000000c0', 'sc')) x(t, k);
+-- Zgoda na pomiar otwarć i kliknięć (od I9d-Y2 zapis zdarzeń wymaga jej
+-- w chwili zdarzenia) - udzielona razem z zapisem, więc z tą samą chwilą.
+INSERT INTO public.crm_consent_log (tenant_id, email, source_type, source_id, consent_key, consent_text, given)
+SELECT s.tenant_id, s.email, 'newsletter', s.id, 'email_measurement', 'Zgoda na pomiar otwarć i kliknięć', true
+  FROM public.newsletter_subscribers s WHERE s.email LIKE '%@i9d-newsletter.test';
 -- Wpisy zgód z zapisu (wyzwalacz modułu) - z chwilą zapisu, nie testu.
 UPDATE public.crm_consent_log SET created_at = pg_temp.ts('20 months') WHERE email LIKE '%@i9d-newsletter.test';
 -- S10: zgoda marketingowa także z formularza kontaktowego (inne źródło).
@@ -285,9 +290,14 @@ SELECT ok(
   AND NOT EXISTS (SELECT 1 FROM public.email_suppressions WHERE email = 's10@i9d-newsletter.test'),
   'lista wyłączeń NIETKNIĘTA: blokada zostaje (odpięta od subskrybenta), nowej nie ma (to nie sprzeciw)');
 
+-- Wpisy wygaśnięcia: „newsletter" S1 i S10, „marketing" S1 oraz - od
+-- I9d-Y2 - łańcuch „email_measurement" obu usuniętych (źródło newsletter).
 SELECT ok(
   (SELECT count(*) FROM public.crm_consent_log WHERE email LIKE '%@i9d-newsletter.test')
-    = (SELECT consents FROM before_del) + 3
+    = (SELECT consents FROM before_del) + 5
+  AND (SELECT count(*) = 2 FROM public.crm_consent_log
+        WHERE email LIKE '%@i9d-newsletter.test' AND consent_key = 'email_measurement' AND NOT given
+          AND form_id = 'retention:newsletter_sunset')
   AND (SELECT count(*) = 1 FROM public.crm_consent_log
         WHERE email = 's1@i9d-newsletter.test' AND consent_key = 'newsletter' AND NOT given
           AND source_type = 'newsletter' AND form_id = 'retention:newsletter_sunset'
