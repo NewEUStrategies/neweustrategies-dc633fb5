@@ -795,6 +795,20 @@ describe("useJourneyEditorSession - historia, flush i stany szkicu", () => {
     );
   });
 
+  it("announce: false - operację ogłasza widok (kanwa, lista), sesja jej nie powtarza; cofnięcie ma etykietę", async () => {
+    const { result } = await ready({ delayMs: 60_000 });
+    act(() => {
+      result.current.updateDraft((draft) => withStep(draft, "w1", "wait"), {
+        label: STEP,
+        announce: false,
+      });
+    });
+    expect(result.current.isDirty).toBe(true);
+    expect(result.current.announcement).toBeNull();
+    act(() => result.current.undo());
+    expect(result.current.announcement?.text).toBe(`Cofnięto: ${STEP}`);
+  });
+
   it("ensureNodeSaved: nowy krok maila trafia do zapisanego szkicu przed treścią (node_not_email)", async () => {
     const { result } = await ready({ delayMs: 60_000 });
     act(() => {

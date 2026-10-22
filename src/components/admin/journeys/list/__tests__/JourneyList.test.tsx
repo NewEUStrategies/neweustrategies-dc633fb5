@@ -9,6 +9,8 @@
 //   3. Akcje statusu tylko dla admina, z potwierdzeniem i tokenem
 //      `updated_at`; konflikt jest komunikatem (wynik `ok:false` nie rzuca).
 //   4. Klik w wiersz otwiera edytor; axe bez naruszeń.
+//   5. Wejście do edytora zapamiętuje filtr listy (`?status=&q=`) dla okruszków
+//      edytora; odczyt przechodzi przez walidator adresu huba.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,7 +36,12 @@ vi.mock("@/lib/journeys/journeys.functions", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 import { toast } from "sonner";
-import { JourneyList, type JourneyListProps } from "../JourneyList";
+import {
+  JourneyList,
+  recallJourneyListSearch,
+  rememberJourneyListSearch,
+  type JourneyListProps,
+} from "../JourneyList";
 import { axeViolations, summarize } from "@/test/axe";
 import { realT } from "@/test/i18nReal";
 import { parseJourneyList } from "@/lib/journeys/parse";
@@ -298,5 +305,41 @@ describe("JourneyList", () => {
     h.navigate.mockReset();
     fireEvent.click(within(rows()[1]).getByRole("button", { name: /Wznów/ }));
     expect(h.navigate).not.toHaveBeenCalled();
+  });
+
+  it("wejście do edytora (wiersz albo odnośnik) zapamiętuje filtr listy dla okruszków", () => {
+    window.sessionStorage.clear();
+    expect(recallJourneyListSearch()).toEqual({});
+    mount({ status: "paused", query: "  kasa " });
+    fireEvent.click(within(rows()[0]).getAllByRole("cell")[1]);
+    expect(recallJourneyListSearch()).toEqual({ status: "paused", q: "kasa" });
+    cleanup();
+
+    // Pusty filtr nadpisuje poprzedni - okruszki nie wracają do starego.
+    mount();
+    fireEvent.click(screen.getByRole("link", { name: /Powitanie nowego konta/ }));
+    expect(recallJourneyListSearch()).toEqual({});
+  });
+
+  it("odczyt filtra: walidator adresu huba, śmieci i zablokowana pamięć = pełna lista", () => {
+    rememberJourneyListSearch({ status: "active", q: "powitanie" });
+    expect(recallJourneyListSearch()).toEqual({ status: "active", q: "powitanie" });
+    window.sessionStorage.setItem(
+      "nes.journeyList.search",
+      JSON.stringify({ status: "usunięta", q: "x".repeat(500) }),
+    );
+    expect(recallJourneyListSearch()).toEqual({});
+    window.sessionStorage.setItem("nes.journeyList.search", "{nie json");
+    expect(recallJourneyListSearch()).toEqual({});
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    expect(() => rememberJourneyListSearch({ q: "a" })).not.toThrow();
+    expect(recallJourneyListSearch()).toEqual({});
+    getItem.mockRestore();
+    setItem.mockRestore();
   });
 });

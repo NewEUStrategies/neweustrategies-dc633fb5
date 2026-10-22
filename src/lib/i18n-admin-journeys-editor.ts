@@ -1,7 +1,14 @@
-// i18n edytora ścieżki (S8.3): gałąź `adminJourneys.editor` - sesja szkicu
-// (stany, komunikaty `aria-live`), autozapis, dialog konfliktu i podgląd maila.
-// Kolejne części edytora (pasek, trasa, okruszki) dopisują tu SWOJE poddrzewa
-// `adminJourneys.editor.<część>` - jedna gałąź, jeden plik edytora.
+// i18n edytora ścieżki (S8.3): gałąź `adminJourneys.editor` - trasa (stany
+// odczytu), okruszki, nagłówek, pasek edytora i paski stanów (S8.3d), sesja
+// szkicu (stany, komunikaty `aria-live`), autozapis, dialog konfliktu
+// i podgląd maila (S8.3a) - jedna gałąź, jeden plik edytora.
+//
+// REUŻYCIE ZAMIAST KOPII. Okruszki czytają „Przychód i lejek” i „Ścieżki”
+// ze słownika huba (`adminRevenue.title`, `adminRevenue.tab.journeys`),
+// okresy statystyk - `adminRevenue.period.*`, powiększenie - przyciski kanwy
+// (`adminJourneys.canvas.zoom.*`), a wstrzymanie i wznowienie - akcje listy
+// (`adminJourneys.list.actions/confirm/done.*`): ten sam napis w pasku i na
+// liście, jedno miejsce poprawki.
 //
 // ZERO KOLIZJI. Słownik silnika (`i18n-admin-journeys.ts`) i słowniki S8
 // (`-list`: `common`, `list`, `gallery`…; `-results`; `-publish`) nie mają
@@ -22,6 +29,60 @@ import i18n from "@/lib/i18n";
 const pl = {
   adminJourneys: {
     editor: {
+      route: {
+        loadingName: "Wczytywanie ścieżki…",
+        untitled: "Ścieżka bez nazwy",
+        notFound:
+          "Nie ma takiej ścieżki - mogła zostać usunięta albo należy do innej organizacji.",
+        unavailable:
+          "Edytor ścieżek jest chwilowo niedostępny - trwa wdrożenie silnika ścieżek. Spróbuj ponownie za kilka minut.",
+        loadFailed: "Nie udało się wczytać ścieżki.",
+        backToList: "Wróć do listy ścieżek",
+      },
+      breadcrumbs: {
+        label: "Nawigacja okruszkowa",
+      },
+      header: {
+        published: "Opublikowana wersja {{version}}",
+        unpublished: "Jeszcze nieopublikowana",
+        previewing: "Podgląd wersji {{version}} z {{date}} - tylko do odczytu",
+      },
+      toolbar: {
+        label: "Pasek edytora ścieżki",
+        view: {
+          label: "Widok",
+          canvas: "Kanwa",
+          list: "Lista",
+          results: "Wyniki",
+        },
+        stats: {
+          label: "Statystyki na kanwie",
+          off: "Bez statystyk",
+        },
+        version: {
+          label: "Wersja",
+          draft: "Szkic (edycja)",
+          item: "Wersja {{version}} z {{date}}",
+        },
+        actions: "Działania ścieżki",
+        settings: "Ustawienia ścieżki",
+        check: "Sprawdź ({{n}})",
+        checkLoading: "Sprawdź (…)",
+        simulate: "Symuluj",
+        test: "Testuj na sobie",
+        publish: "Opublikuj",
+        publishChanges: "Opublikuj zmiany",
+        publishAdminOnly: "Publikuje administrator.",
+      },
+      notice: {
+        showConflict: "Pokaż różnice",
+        chooseTrigger: "Wybierz wyzwalacz",
+        repair: "Napraw szkic",
+        backToDraft: "Wróć do szkicu",
+        versionMissing: "Ta ścieżka nie ma wersji {{version}}.",
+        versionInvalid:
+          "Graf tej wersji nie pasuje do obecnego schematu - podgląd wersji jest niedostępny.",
+      },
       session: {
         notice: {
           needsTrigger:
@@ -108,6 +169,59 @@ const pl = {
 const en: typeof pl = {
   adminJourneys: {
     editor: {
+      route: {
+        loadingName: "Loading the journey…",
+        untitled: "Untitled journey",
+        notFound: "This journey does not exist - it may have been deleted or belong to another organization.",
+        unavailable:
+          "The journey editor is temporarily unavailable while the journey engine is being deployed. Try again in a few minutes.",
+        loadFailed: "Could not load the journey.",
+        backToList: "Back to the journey list",
+      },
+      breadcrumbs: {
+        label: "Breadcrumb navigation",
+      },
+      header: {
+        published: "Published version {{version}}",
+        unpublished: "Not published yet",
+        previewing: "Previewing version {{version}} from {{date}} - read only",
+      },
+      toolbar: {
+        label: "Journey editor bar",
+        view: {
+          label: "View",
+          canvas: "Canvas",
+          list: "List",
+          results: "Results",
+        },
+        stats: {
+          label: "Statistics on the canvas",
+          off: "No statistics",
+        },
+        version: {
+          label: "Version",
+          draft: "Draft (editing)",
+          item: "Version {{version}} from {{date}}",
+        },
+        actions: "Journey actions",
+        settings: "Journey settings",
+        check: "Check ({{n}})",
+        checkLoading: "Check (…)",
+        simulate: "Simulate",
+        test: "Test on yourself",
+        publish: "Publish",
+        publishChanges: "Publish changes",
+        publishAdminOnly: "An administrator publishes the journey.",
+      },
+      notice: {
+        showConflict: "Show the differences",
+        chooseTrigger: "Choose a trigger",
+        repair: "Repair the draft",
+        backToDraft: "Back to the draft",
+        versionMissing: "This journey has no version {{version}}.",
+        versionInvalid:
+          "The graph of this version does not match the current schema - the version preview is unavailable.",
+      },
       session: {
         notice: {
           needsTrigger:
