@@ -281,6 +281,31 @@ describe("adres już zapisany", () => {
     expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("upsert"))).toBe(false);
   });
 
+  it("ponowny zapis istniejącego adresu = zaangażowanie (wygaszanie, I9d-Y1), odpowiedź bez zmian", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("upsert") ? ok(null) : ok({ id: "s-1", status: "subscribed" }),
+    );
+
+    const res = await subscribeToNewsletter({ data: input() });
+
+    expect(res).toEqual({ ok: true, status: "exists" });
+    const touch = h.rpc.mock.calls.find((c) => c[0] === "newsletter_engagement_touch");
+    expect(touch?.[1]).toEqual({ p_tenant: expect.any(String), p_email: input().email.toLowerCase() });
+  });
+
+  it("awaria znacznika zaangażowania nie psuje formularza", async () => {
+    db.setResponse(SUBSCRIBERS, (chain) =>
+      chain.has("upsert") ? ok(null) : ok({ id: "s-1", status: "subscribed" }),
+    );
+    h.rpc.mockImplementation(async (name: string) =>
+      name === "newsletter_engagement_touch"
+        ? { data: null, error: { message: "touch down" } }
+        : { data: [], error: null },
+    );
+
+    expect(await subscribeToNewsletter({ data: input() })).toEqual({ ok: true, status: "exists" });
+  });
+
   it("adres `pending` może spróbować ponownie - token się odświeża", async () => {
     db.setResponse(SUBSCRIBERS, (chain) => {
       if (chain.has("upsert")) return ok(null);

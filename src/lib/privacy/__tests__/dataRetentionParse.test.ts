@@ -7,9 +7,11 @@ import {
   DataRetentionShapeError,
   parseCrmExtension,
   parseDataRetentionCrmDue,
+  parseDataRetentionNewsletterDue,
   parseDataRetentionPreview,
   parseDataRetentionRunResult,
   parseDataRetentionState,
+  parseNewsletterExclusionResult,
 } from "../dataRetentionParse";
 import {
   EnforcementSchema,
@@ -125,9 +127,54 @@ describe("admin_data_retention_get", () => {
     });
   });
 
-  it("rozjazd kontraktu: nieznana kategoria, ujemny okres, zły tryb przebiegu", () => {
+  it("kategoria nowsza niż front: wiersz pominięty, reszta karty działa (I9d-Y1)", () => {
+    // Baza po migracji katalogu wdrożonej przed frontem - karta całego
+    // najemcy nie może przez to pokazać „nie udało się wczytać".
+    const newer = clone(STATE);
+    (newer.categories as Record<string, unknown>[])[0].key = "hologramy";
+    expect(parseDataRetentionState(newer).categories.map((c) => c.key)).toEqual(["consent_log"]);
+    const preview = parseDataRetentionPreview({
+      cap: 100000,
+      categories: [
+        { key: "hologramy", mode: "preview", count: 1, capped: false, cutoff: null, enabled: true },
+        {
+          key: "newsletter_inactive",
+          mode: "preview",
+          count: 4,
+          capped: false,
+          cutoff: "2025-10-20T00:00:00+00:00",
+          enabled: true,
+        },
+      ],
+    });
+    expect(preview.categories).toEqual([
+      {
+        key: "newsletter_inactive",
+        mode: "preview",
+        count: 4,
+        capped: false,
+        cutoff: "2025-10-20T00:00:00+00:00",
+        enabled: true,
+      },
+    ]);
+  });
+
+  it("nowe kategorie I9d-Y1 parsują się jak pozostałe (baza po migracji 20261020162200)", () => {
+    const raw = clone(STATE);
+    raw.categories = ["metered_views", "newsletter_inactive", "event_attendees", "club_applications"].map(
+      (key) => ({ ...CATEGORY, key }),
+    );
+    expect(parseDataRetentionState(raw).categories.map((c) => c.key)).toEqual([
+      "metered_views",
+      "newsletter_inactive",
+      "event_attendees",
+      "club_applications",
+    ]);
+  });
+
+  it("rozjazd kontraktu: klucz kategorii nie-napis, ujemny okres, zły tryb przebiegu", () => {
     const unknown = clone(STATE);
-    (unknown.categories as Record<string, unknown>[])[0].key = "hologramy";
+    (unknown.categories as Record<string, unknown>[])[0].key = 7;
     expect(shapePath(() => parseDataRetentionState(unknown))).toBe("categories[0].key");
     const negative = clone(STATE);
     (negative.categories as Record<string, unknown>[])[0].period_months = -1;
@@ -214,9 +261,156 @@ describe("podgląd, lista do anonimizacji, przebieg, przedłużenie", () => {
       ],
     });
     expect(parseDataRetentionRunResult({ busy: true })).toEqual({ busy: true, categories: [] });
+    // Kategoria wygaszania zwraca dodatkowe liczniki (requested, deleted,
+    // reset) - wynik przebiegu czyta wspólne pola, reszty nie odrzuca.
+    expect(
+      parseDataRetentionRunResult({
+        newsletter_inactive: {
+          mode: "execute",
+          affected: 5,
+          requested: 3,
+          deleted: 2,
+          reset: 1,
+          backlog: false,
+          cutoff: "2025-10-20T00:00:00+00:00",
+        },
+        hologramy: { mode: "execute", affected: 1 },
+      }).categories,
+    ).toEqual([{ key: "newsletter_inactive", mode: "execute", affected: 5, error: null }]);
     expect(
       parseCrmExtension({ lead_id: "l1", extended_until: "2027-10-20T10:00:00+00:00" }),
     ).toEqual({ leadId: "l1", extendedUntil: "2027-10-20T10:00:00+00:00" });
+  });
+});
+
+describe("lista „do wygaszenia\" (admin_data_retention_newsletter_due)", () => {
+  // Kształt z PRAWDZIWEGO RPC (20261020162100) - cykl wysłany, cykl czekający
+  // na wysyłkę i kandydat najbliższego przebiegu.
+  const DUE = {
+    items: [
+      {
+        email: "s1@example.test",
+        state: "mailed",
+        language: "en",
+        last_name: null,
+        first_name: "Ann",
+        mailed_at: "2026-09-01T08:03:00+00:00",
+        delete_after: "2026-10-01T08:03:00+00:00",
+        mail_outcome: "suppressed",
+        requested_at: "2026-09-01T02:07:00+00:00",
+        subscriber_id: "6f9e6f6e-0000-4000-8000-0000000000b1",
+        last_engaged_at: "2025-06-01T10:00:00+00:00",
+      },
+      {
+        email: "s2@example.test",
+        state: "requested",
+        language: "pl",
+        last_name: "Nowak",
+        first_name: null,
+        mailed_at: null,
+        delete_after: null,
+        mail_outcome: null,
+        requested_at: "2026-10-22T02:07:00+00:00",
+        subscriber_id: "6f9e6f6e-0000-4000-8000-0000000000b2",
+        last_engaged_at: "2025-05-01T10:00:00+00:00",
+      },
+      {
+        email: "s3@example.test",
+        state: "candidate",
+        language: "pl",
+        last_name: null,
+        first_name: null,
+        mailed_at: null,
+        delete_after: null,
+        mail_outcome: null,
+        requested_at: null,
+        subscriber_id: "6f9e6f6e-0000-4000-8000-0000000000b3",
+        last_engaged_at: "2025-04-01T10:00:00+00:00",
+      },
+    ],
+    counts: { due: 1, mailed: 1, excluded: 1, requested: 1, candidates: 1 },
+    cutoff: "2025-10-22T05:00:00+00:00",
+    enabled: true,
+    enforced: true,
+    excluded: [
+      {
+        email: "partner@example.test",
+        reason: "Prenumerata instytucjonalna",
+        created_at: "2026-10-20T10:00:00+00:00",
+        subscriber_id: "6f9e6f6e-0000-4000-8000-0000000000b4",
+      },
+    ],
+    daily_cap: 200,
+    period_months: 12,
+    response_days: 30,
+    open_tracking_enabled: false,
+  };
+
+  it("liczby, etapy, wynik wysyłki, wykluczeni z powodem, reguły i pomiar otwarć", () => {
+    const due = parseDataRetentionNewsletterDue(DUE);
+    expect(due.counts).toEqual({ candidates: 1, requested: 1, mailed: 1, due: 1, excluded: 1 });
+    expect(due.items.map((i) => i.state)).toEqual(["mailed", "requested", "candidate"]);
+    expect(due.items[0]).toMatchObject({
+      language: "en",
+      mailOutcome: "suppressed",
+      deleteAfter: "2026-10-01T08:03:00+00:00",
+    });
+    expect(due.excluded[0]).toEqual({
+      subscriberId: "6f9e6f6e-0000-4000-8000-0000000000b4",
+      email: "partner@example.test",
+      reason: "Prenumerata instytucjonalna",
+      createdAt: "2026-10-20T10:00:00+00:00",
+    });
+    expect(due).toMatchObject({
+      responseDays: 30,
+      dailyCap: 200,
+      openTrackingEnabled: false,
+      enabled: true,
+      enforced: true,
+      periodMonths: 12,
+    });
+  });
+
+  it("baza bez katalogu Y1 (kategoria nieznana bazie): okres i próg puste, lista pusta", () => {
+    const due = parseDataRetentionNewsletterDue({
+      ...DUE,
+      items: [],
+      excluded: [],
+      enabled: false,
+      enforced: false,
+      cutoff: null,
+      period_months: null,
+    });
+    expect(due).toMatchObject({ enabled: false, cutoff: null, periodMonths: null, items: [] });
+  });
+
+  it("rozjazd kontraktu: nieznany etap, zły język, wynik spoza CHECK", () => {
+    const badState = clone(DUE);
+    (badState.items as Record<string, unknown>[])[0].state = "deleted";
+    expect(shapePath(() => parseDataRetentionNewsletterDue(badState))).toBe("items[0].state");
+    const badLang = clone(DUE);
+    (badLang.items as Record<string, unknown>[])[1].language = "de";
+    expect(shapePath(() => parseDataRetentionNewsletterDue(badLang))).toBe("items[1].language");
+    const badOutcome = clone(DUE);
+    (badOutcome.items as Record<string, unknown>[])[0].mail_outcome = "failed";
+    expect(shapePath(() => parseDataRetentionNewsletterDue(badOutcome))).toBe(
+      "items[0].mail_outcome",
+    );
+  });
+
+  it("wynik wykluczenia i cofnięcia", () => {
+    expect(
+      parseNewsletterExclusionResult({
+        subscriber_id: "s",
+        excluded: true,
+        cycle_cancelled: true,
+      }),
+    ).toEqual({ subscriberId: "s", excluded: true, cycleCancelled: true });
+    expect(parseNewsletterExclusionResult({ subscriber_id: "s", excluded: false })).toEqual({
+      subscriberId: "s",
+      excluded: false,
+      cycleCancelled: false,
+    });
   });
 });
 

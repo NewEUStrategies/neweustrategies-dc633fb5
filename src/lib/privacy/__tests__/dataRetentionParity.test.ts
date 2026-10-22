@@ -1,12 +1,21 @@
-// PARYTET RETENCJI DANYCH (I9c-X2): stałe TS (`src/lib/privacy/dataRetention.ts`)
-// ⇄ SQL (migracje 20261020161000-161400).
+// PARYTET RETENCJI DANYCH (I9c-X2, I9d-Y1): stałe TS
+// (`src/lib/privacy/dataRetention.ts`, `newsletterSunset.ts`) ⇄ SQL.
 //
 // Rozjazd w jedną stronę: panel pozwala wybrać okres, którego CHECK bazy nie
 // przyjmie (zapis odrzucony bez wyjaśnienia); w drugą - baza przyjmuje okres,
 // którego panel nie umie pokazać, albo zadanie usuwa wpisy audytu, które
 // panel opisuje jako „finansowe, jak dowody księgowe". Fragmenty SQL budowane
-// są ze stałych TS i muszą wystąpić w migracjach DOSŁOWNIE (po wycięciu
-// komentarzy i sprowadzeniu białych znaków do zapisu kanonicznego).
+// są ze stałych TS i muszą wystąpić DOSŁOWNIE (po wycięciu komentarzy
+// i sprowadzeniu białych znaków do zapisu kanonicznego).
+//
+// NAJNOWSZA DEFINICJA, NIE PLIK NA SZTYWNO (I9d-Y1). Dotąd test czytał
+// migracje 161000/161100/161400 - po redefinicji katalogu, CHECK-ów i funkcji
+// w nowszej migracji (20261020162200 i dalej) stare pliki nadal by przeszły,
+// ale przestały dowodzić stanu bazy. Teraz każdy obiekt SQL (ograniczenie,
+// funkcja, tabela) jest szukany we WSZYSTKICH migracjach i porównywany jest
+// jego OSTATNI tekst w kolejności wersji - ta sama kolejność, w której replay
+// i produkcja budują bazę. Asercja dotyczy wycinka definicji (ciała funkcji
+// albo wyrażenia CHECK), nie całego pliku.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -17,6 +26,7 @@ import {
   DATA_RETENTION_EDITABLE_CATEGORIES,
   DATA_RETENTION_EXISTING,
   DATA_RETENTION_PERIODS,
+  DATA_RETENTION_REDACTED,
   DATA_RETENTION_RULES,
   DATA_RETENTION_RUN_CATEGORIES,
   DATA_RETENTION_STATUTORY_CATEGORIES,
@@ -28,9 +38,6 @@ import {
 import { dataRetentionKeys } from "../keys";
 
 const DIR = "supabase/migrations";
-const CORE = `${DIR}/20261020161000_data_retention_core.sql`;
-const EXECUTOR = `${DIR}/20261020161100_data_retention_executor.sql`;
-const PANEL = `${DIR}/20261020161400_data_retention_panel.sql`;
 
 const kanon = (sql: string) =>
   sql
@@ -38,16 +45,75 @@ const kanon = (sql: string) =>
     .replace(/\s*([(),\][])\s*/g, "$1")
     .trim();
 
-function migracja(path: string): string {
-  expect(existsSync(path), `brak migracji: ${path}`).toBe(true);
-  return kanon(stripSqlComments(readFileSync(path, "utf8")));
+/** Wszystkie migracje w kolejności wersji (nazwa = 14 cyfr wersji + nazwa). */
+const MIGRATIONS: readonly { file: string; sql: string }[] = readdirSync(DIR)
+  .filter((name) => /^\d{14}_.+\.sql$/.test(name))
+  .sort()
+  .map((file) => ({ file, sql: kanon(stripSqlComments(readFileSync(`${DIR}/${file}`, "utf8"))) }));
+
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+interface Located {
+  file: string;
+  sql: string;
+  index: number;
+  length: number;
+}
+
+/** OSTATNIE wystąpienie znacznika w NAJNOWSZEJ migracji, która go zawiera. */
+function locate(marker: RegExp, label: string): Located {
+  for (let i = MIGRATIONS.length - 1; i >= 0; i -= 1) {
+    const { file, sql } = MIGRATIONS[i];
+    const last = [...sql.matchAll(new RegExp(marker.source, "g"))].at(-1);
+    if (last?.index !== undefined) return { file, sql, index: last.index, length: last[0].length };
+  }
+  throw new Error(`${label}: brak definicji w migracjach`);
+}
+
+/** Najnowszy tekst obiektu: od znacznika do pierwszego wystąpienia końca. */
+function newest(marker: RegExp, end: string, label: string): { file: string; text: string } {
+  const at = locate(marker, label);
+  const stop = at.sql.indexOf(end, at.index + at.length);
+  expect(stop, `${label}: brak końca definicji w ${at.file}`).toBeGreaterThan(at.index);
+  return { file: at.file, text: at.sql.slice(at.index, stop + end.length) };
+}
+
+/** Najnowsza definicja funkcji `public.<nazwa>(…)` - nagłówek i ciało `$$…$$`. */
+function fn(name: string): string {
+  const at = locate(
+    new RegExp(`CREATE(?: OR REPLACE)? FUNCTION public\\.${escape(name)}\\(`),
+    `funkcja ${name}`,
+  );
+  const open = at.sql.indexOf("$$", at.index);
+  const close = at.sql.indexOf("$$", open + 2);
+  expect(open, `funkcja ${name}: brak ciała w ${at.file}`).toBeGreaterThan(at.index);
+  expect(close, `funkcja ${name}: niezamknięte ciało w ${at.file}`).toBeGreaterThan(open);
+  return at.sql.slice(at.index, close + 2);
+}
+
+/** Wyrażenie najnowszego CHECK o tej nazwie (do podanego końca). */
+function check(name: string, end: string): string {
+  return newest(new RegExp(`${escape(name)} CHECK\\(`), end, `CHECK ${name}`).text;
 }
 
 const lista = (xs: readonly string[]) => xs.map((x) => `'${x}'`).join(",");
 
-describe("retencja danych - parytet TS ⇄ SQL", () => {
+describe("retencja danych - parytet TS ⇄ SQL (najnowsza definicja)", () => {
+  it("wyszukiwanie najnowszej definicji: pliki w kolejności wersji, ostatni wygrywa", () => {
+    expect(existsSync(DIR)).toBe(true);
+    const versions = MIGRATIONS.map((m) => m.file.slice(0, 14));
+    expect([...versions].sort()).toEqual(versions);
+    // Katalog redefiniowany po I9c: najnowszy tekst NIE pochodzi z 161000.
+    const catalog = newest(
+      /CREATE(?: OR REPLACE)? FUNCTION public\._data_retention_catalog\(/,
+      "$$;",
+      "katalog",
+    );
+    expect(catalog.file > "20261020161000").toBe(true);
+  });
+
   it("CHECK okresu w tabeli ustawień = zakresy TS (kategoria edytowalna i ustawowa)", () => {
-    const sql = migracja(CORE);
+    const sql = check("data_retention_settings_period_check", "ELSE false END)");
     for (const category of DATA_RETENTION_EDITABLE_CATEGORIES) {
       const { minMonths, maxMonths } = DATA_RETENTION_PERIODS[category];
       expect(sql, category).toContain(
@@ -61,11 +127,21 @@ describe("retencja danych - parytet TS ⇄ SQL", () => {
         kanon(`WHEN '${category}' THEN period_months IS NULL AND enabled`),
       );
     }
-    expect(sql).toContain(kanon(`CHECK (category IN (${lista(DATA_RETENTION_RUN_CATEGORIES)}))`));
+    // Żadnej kategorii spoza TS w CHECK (ELSE false zamyka listę).
+    const whens = [...sql.matchAll(/WHEN '([a-z_]+)' THEN/g)].map((m) => m[1]);
+    expect(whens).toEqual([...DATA_RETENTION_RUN_CATEGORIES]);
   });
 
-  it("katalog `_data_retention_catalog()` = wartości domyślne, zakresy i reguły TS", () => {
-    const sql = migracja(CORE);
+  it("listy kategorii w CHECK ustawień i dziennika przebiegów = kolejność TS", () => {
+    for (const name of ["data_retention_settings_category_check", "data_retention_runs_category_check"]) {
+      expect(check(name, "))"), name).toBe(
+        kanon(`${name} CHECK (category IN (${lista(DATA_RETENTION_RUN_CATEGORIES)}))`),
+      );
+    }
+  });
+
+  it("katalog `_data_retention_catalog()` = wartości domyślne, zakresy, kolejność i reguły TS", () => {
+    const sql = fn("_data_retention_catalog");
     for (const category of DATA_RETENTION_EDITABLE_CATEGORIES) {
       const rule = DATA_RETENTION_PERIODS[category];
       expect(sql, category).toContain(
@@ -81,42 +157,117 @@ describe("retencja danych - parytet TS ⇄ SQL", () => {
         ),
       );
     }
+    const keys = [...sql.matchAll(/'key','([a-z_]+)'/g)].map((m) => m[1]);
+    expect(keys).toEqual([...DATA_RETENTION_RUN_CATEGORIES]);
     const r = DATA_RETENTION_RULES;
     expect(sql).toContain(
       kanon(
-        `'audit_network_months', ${r.auditNetworkMonths}, 'consent_proof_years', ${r.consentProofYears}, 'claims_limitation_years', ${r.claimsLimitationYears}, 'grace_days', ${r.graceDays}, 'postpone_max_days', ${r.postponeMaxDays}, 'crm_extension_months', ${r.crmExtensionMonths}, 'crm_notice_days', ${r.crmNoticeDays}, 'crm_extension_reason_min', ${r.crmExtensionReasonMin}, 'crm_extension_reason_max', ${r.crmExtensionReasonMax}, 'batch_default', ${r.batchDefault}, 'batch_max', ${r.batchMax}`,
-      ),
-    );
-    // Karencja nowego najemcy i wiersze istniejących - te same 14 dni.
-    expect(sql).toContain(kanon(`t.created_at + make_interval(days => ${r.graceDays})`));
-    expect(sql).toContain(kanon(`now() + interval '${r.graceDays} days'`));
-    expect(sql).toContain(
-      kanon(
-        `CHECK (char_length(reason) BETWEEN ${r.crmExtensionReasonMin} AND ${r.crmExtensionReasonMax})`,
+        `'rules', jsonb_build_object('audit_network_months', ${r.auditNetworkMonths}, 'consent_proof_years', ${r.consentProofYears}, 'claims_limitation_years', ${r.claimsLimitationYears}, 'grace_days', ${r.graceDays}, 'postpone_max_days', ${r.postponeMaxDays}, 'crm_extension_months', ${r.crmExtensionMonths}, 'crm_notice_days', ${r.crmNoticeDays}, 'crm_extension_reason_min', ${r.crmExtensionReasonMin}, 'crm_extension_reason_max', ${r.crmExtensionReasonMax}, 'batch_default', ${r.batchDefault}, 'batch_max', ${r.batchMax}, 'newsletter_response_days', ${r.newsletterResponseDays}, 'newsletter_daily_cap', ${r.newsletterDailyCap}))`,
       ),
     );
   });
 
-  it("stałe funkcji wykonawczych i panelu = reguły TS", () => {
-    const executor = migracja(EXECUTOR);
-    const panel = migracja(PANEL);
+  it("karencja: nowy najemca i seed istniejących - te same 14 dni", () => {
     const r = DATA_RETENTION_RULES;
-    expect(executor).toContain(`c_network_months constant integer := ${r.auditNetworkMonths}`);
-    expect(executor).toContain(`c_years constant integer := ${r.consentProofYears}`);
-    expect(executor).toContain(
+    expect(fn("_data_retention_effective")).toContain(
+      kanon(`t.created_at + make_interval(days => ${r.graceDays})`),
+    );
+    // Seed każdej migracji katalogu (I9c dla 9 kategorii, I9d-Y1 dla 4 nowych).
+    const seeds = MIGRATIONS.filter((m) =>
+      m.sql.includes(
+        kanon(
+          "FROM public.tenants t CROSS JOIN jsonb_array_elements(public._data_retention_catalog() -> 'categories')",
+        ),
+      ),
+    );
+    expect(seeds.length).toBeGreaterThanOrEqual(2);
+    for (const seed of seeds) {
+      expect(seed.sql, seed.file).toContain(kanon(`now() + interval '${r.graceDays} days'`));
+    }
+  });
+
+  it("powód przedłużenia i wykluczenia: ten sam CHECK tabel co limit TS", () => {
+    const r = DATA_RETENTION_RULES;
+    const reason = kanon(
+      `reason text NOT NULL CHECK (char_length(reason) BETWEEN ${r.crmExtensionReasonMin} AND ${r.crmExtensionReasonMax})`,
+    );
+    for (const table of ["data_retention_crm_extensions", "newsletter_sunset_exclusions"]) {
+      const sql = newest(
+        new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${table}\\(`),
+        ");",
+        table,
+      ).text;
+      expect(sql, table).toContain(reason);
+    }
+  });
+
+  it("stałe funkcji wykonawczych i panelu = reguły TS", () => {
+    const r = DATA_RETENTION_RULES;
+    expect(fn("_data_retention_audit_log")).toContain(
+      `c_network_months constant integer := ${r.auditNetworkMonths}`,
+    );
+    expect(fn("_data_retention_consent_log")).toContain(
+      `c_years constant integer := ${r.consentProofYears}`,
+    );
+    expect(fn("_data_retention_customer_until")).toContain(
       kanon(
         `EXTRACT(YEAR FROM (p_last_tx AT TIME ZONE 'Europe/Warsaw'))::int + ${r.claimsLimitationYears}`,
       ),
     );
-    expect(panel).toContain(`c_postpone_max constant integer := ${r.postponeMaxDays}`);
-    expect(panel).toContain(`c_notice constant integer := ${r.crmNoticeDays}`);
-    expect(panel).toContain(`c_months constant integer := ${r.crmExtensionMonths}`);
-    expect(panel).toContain(`c_reason_min constant integer := ${r.crmExtensionReasonMin}`);
-    expect(panel).toContain(`c_reason_max constant integer := ${r.crmExtensionReasonMax}`);
+    expect(fn("admin_data_retention_enforcement")).toContain(
+      `c_postpone_max constant integer := ${r.postponeMaxDays}`,
+    );
+    expect(fn("admin_data_retention_crm_due")).toContain(
+      `c_notice constant integer := ${r.crmNoticeDays}`,
+    );
+    const extend = fn("admin_data_retention_crm_extend");
+    expect(extend).toContain(`c_months constant integer := ${r.crmExtensionMonths}`);
+    for (const name of [
+      "admin_data_retention_crm_extend",
+      "admin_data_retention_newsletter_exclude",
+      "admin_data_retention_newsletter_include",
+    ]) {
+      const sql = fn(name);
+      expect(sql, name).toContain(`c_reason_min constant integer := ${r.crmExtensionReasonMin}`);
+      expect(sql, name).toContain(`c_reason_max constant integer := ${r.crmExtensionReasonMax}`);
+    }
+  });
+
+  it("wygaszanie newslettera: termin reakcji i dzienny limit próśb = reguły TS", () => {
+    const r = DATA_RETENTION_RULES;
+    for (const name of [
+      "_data_retention_newsletter_inactive",
+      "newsletter_sunset_claim",
+      "admin_data_retention_newsletter_due",
+    ]) {
+      expect(fn(name), name).toContain(
+        `c_response_days constant integer := ${r.newsletterResponseDays}`,
+      );
+    }
+    for (const name of ["newsletter_sunset_claim", "admin_data_retention_newsletter_due"]) {
+      expect(fn(name), name).toContain(`c_daily_cap constant integer := ${r.newsletterDailyCap}`);
+    }
+  });
+
+  it("dyspozytor przebiegu i podgląd karty mają gałąź KAŻDEJ kategorii TS", () => {
+    const run = fn("_data_retention_run_tenant");
+    const preview = fn("admin_data_retention_preview");
+    for (const category of DATA_RETENTION_RUN_CATEGORIES) {
+      // Brak gałęzi = `NULL` w wyniku przebiegu (parser karty) i „wyłączona"
+      // w podglądzie (pułapka 3 pakietu I9d-1).
+      expect(run, category).toContain(`WHEN '${category}' THEN public._data_retention_`);
+      expect(preview, category).toContain(`WHEN '${category}' THEN`);
+    }
+  });
+
+  it("znacznik zredagowanej wartości = stała TS", () => {
+    expect(fn("_data_retention_event_attendees")).toContain(
+      `c_redacted constant text := '${DATA_RETENTION_REDACTED}'`,
+    );
   });
 
   it("wpis audytu operacji finansowej: te same prefiksy akcji i typy encji", () => {
-    const sql = migracja(EXECUTOR);
+    const sql = fn("_data_retention_audit_is_financial");
     expect(sql).toContain(
       kanon(`LIKE ANY (ARRAY[${lista(AUDIT_FINANCIAL_ACTION_PREFIXES.map((p) => `${p}%`))}])`),
     );
@@ -148,6 +299,10 @@ describe("retencja danych - reguły TS", () => {
     expect(retentionPeriodOptions("email_send_log")).toEqual(
       Array.from({ length: 25 - 6 + 1 }, (_, i) => 6 + i),
     );
+    // I9d-Y1: odczyty licznika 2-13 (minimum chroni bieżący okres licznika).
+    expect(isRetentionPeriodAllowed("metered_views", 1)).toBe(false);
+    expect(isRetentionPeriodAllowed("metered_views", 3)).toBe(true);
+    expect(isRetentionPeriodAllowed("newsletter_inactive", 25)).toBe(false);
     for (const category of DATA_RETENTION_EDITABLE_CATEGORIES) {
       const rule = DATA_RETENTION_PERIODS[category];
       expect(isRetentionPeriodAllowed(category, rule.defaultMonths), category).toBe(true);
@@ -177,6 +332,8 @@ describe("retencja danych - reguły TS", () => {
       dataRetentionKeys.settings("t1"),
       dataRetentionKeys.preview("t1"),
       dataRetentionKeys.crmDue("t1"),
+      dataRetentionKeys.newsletterDue("t1"),
+      dataRetentionKeys.newsletterCopy("t1"),
     ]) {
       expect(key.slice(0, tenant.length)).toEqual([...tenant]);
     }

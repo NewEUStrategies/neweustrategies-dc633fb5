@@ -5,6 +5,14 @@
 // kształt to rozjazd kontraktu SQL <-> TS (migracja 20261020161400), więc
 // ma być głośny, a nie zamieniony na pustą kartę.
 //
+// WYJĄTEK: NIEZNANA KATEGORIA (I9d-Y1). Klucz spoza stałej TS w odczycie karty
+// i podglądzie to nie zły kształt, tylko baza NOWSZA niż front (migracja
+// katalogu wdrożona przed frontem - pułapka 5 pakietu I9d-1: karta całego
+// najemcy pokazywała wtedy „nie udało się wczytać"). Taki wiersz jest
+// POMIJANY (front nie ma dla niego słownika ani reguł), reszta kategorii
+// parsuje się ściśle. W drugą stronę (front nowszy niż baza) kategorii po
+// prostu brakuje w odpowiedzi, a wynik przebiegu iteruje stałą TS.
+//
 // Moduł czysty (bez Reacta i I/O): czyta go funkcja serwerowa i testy.
 import { DATA_RETENTION_RUN_CATEGORIES, type DataRetentionRunCategory } from "./dataRetention";
 
@@ -174,15 +182,20 @@ function nullableInstant(source: Bag, path: string, key: string): string | null 
   return has(source, path, key) === null ? null : instant(source, path, key);
 }
 
-function category(source: Bag, path: string, key: string): DataRetentionRunCategory {
+function isKnownCategory(value: unknown): value is DataRetentionRunCategory {
+  return (
+    typeof value === "string" && (DATA_RETENTION_RUN_CATEGORIES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Klucz kategorii: napis wymagany (inaczej rozjazd kontraktu), a nieznany
+ * napis = `null` - wiersz kategorii nowszej niż front jest pomijany.
+ */
+function category(source: Bag, path: string, key: string): DataRetentionRunCategory | null {
   const value = has(source, path, key);
-  if (
-    typeof value !== "string" ||
-    !(DATA_RETENTION_RUN_CATEGORIES as readonly string[]).includes(value)
-  ) {
-    fail(`${path}${key}`, "nieznana kategoria");
-  }
-  return value as DataRetentionRunCategory;
+  if (typeof value !== "string" || value === "") fail(`${path}${key}`, "oczekiwano klucza kategorii");
+  return isKnownCategory(value) ? value : null;
 }
 
 function mode(source: Bag, path: string, key: string): DataRetentionMode {
@@ -215,11 +228,13 @@ export function parseDataRetentionState(raw: unknown): DataRetentionStateDto {
   const s = bag(raw, "$");
   const g = bag(has(s, "", "grace"), "grace.");
   return {
-    categories: list(has(s, "", "categories"), "categories").map((entry, i) => {
+    categories: list(has(s, "", "categories"), "categories").flatMap((entry, i) => {
       const p = `categories[${i}].`;
       const c = bag(entry, p);
+      const key = category(c, p, "key");
+      if (key === null) return [];
       return {
-        key: category(c, p, "key"),
+        key,
         editable: bool(c, p, "editable"),
         periodMonths: nullableCount(c, p, "period_months"),
         defaultMonths: nullableCount(c, p, "default_months"),
@@ -253,11 +268,13 @@ export function parseDataRetentionPreview(raw: unknown): DataRetentionPreviewDto
   const s = bag(raw, "$");
   return {
     cap: count(s, "", "cap"),
-    categories: list(has(s, "", "categories"), "categories").map((entry, i) => {
+    categories: list(has(s, "", "categories"), "categories").flatMap((entry, i) => {
       const p = `categories[${i}].`;
       const c = bag(entry, p);
+      const key = category(c, p, "key");
+      if (key === null) return [];
       return {
-        key: category(c, p, "key"),
+        key,
         enabled: bool(c, p, "enabled"),
         mode: mode(c, p, "mode"),
         cutoff: nullableInstant(c, p, "cutoff"),
@@ -314,4 +331,146 @@ export function parseDataRetentionRunResult(raw: unknown): DataRetentionRunResul
 export function parseCrmExtension(raw: unknown): { leadId: string; extendedUntil: string } {
   const s = bag(raw, "$");
   return { leadId: text(s, "", "lead_id"), extendedUntil: instant(s, "", "extended_until") };
+}
+
+// ── Wygaszanie nieaktywnych subskrybentów newslettera (I9d-Y1) ───────────────
+
+/** Etap subskrybenta na liście „do wygaszenia". */
+export type NewsletterSunsetState = "candidate" | "requested" | "mailed";
+/** Wynik wysyłki prośby zapisany w cyklu (lustro CHECK `mail_outcome`). */
+export type NewsletterSunsetMailOutcome = "queued" | "duplicate" | "suppressed";
+
+export interface DataRetentionNewsletterDueItem {
+  subscriberId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  language: "pl" | "en";
+  /**
+   * `candidate` - prośba wyjdzie w najbliższym przebiegu; `requested` -
+   * czeka na wysyłkę (okno dzienne, limit najemcy); `mailed` - wysłana,
+   * biegnie termin reakcji.
+   */
+  state: NewsletterSunsetState;
+  lastEngagedAt: string | null;
+  requestedAt: string | null;
+  mailedAt: string | null;
+  mailOutcome: NewsletterSunsetMailOutcome | null;
+  /** Najwcześniejsza chwila usunięcia (wysłana prośba + termin reakcji). */
+  deleteAfter: string | null;
+}
+
+export interface DataRetentionNewsletterExcludedItem {
+  subscriberId: string;
+  email: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface DataRetentionNewsletterDueDto {
+  counts: {
+    /** Prośby w najbliższym przebiegu (sufit jak podgląd karty). */
+    candidates: number;
+    /** Cykle czekające na wysyłkę prośby. */
+    requested: number;
+    /** Prośby wysłane, termin reakcji biegnie. */
+    mailed: number;
+    /** Po terminie - do usunięcia w najbliższym przebiegu. */
+    due: number;
+    excluded: number;
+  };
+  items: DataRetentionNewsletterDueItem[];
+  excluded: DataRetentionNewsletterExcludedItem[];
+  responseDays: number;
+  dailyCap: number;
+  /** `false` = zaangażowanie liczone bez otwarć (dymek w karcie). */
+  openTrackingEnabled: boolean;
+  enabled: boolean;
+  enforced: boolean;
+  cutoff: string | null;
+  periodMonths: number | null;
+}
+
+function oneOf<T extends string>(
+  source: Bag,
+  path: string,
+  key: string,
+  allowed: readonly T[],
+): T {
+  const value = has(source, path, key);
+  if (typeof value !== "string" || !(allowed as readonly string[]).includes(value)) {
+    fail(`${path}${key}`, `oczekiwano ${allowed.join("|")}`);
+  }
+  return value as T;
+}
+
+const SUNSET_STATES = ["candidate", "requested", "mailed"] as const;
+const SUNSET_OUTCOMES = ["queued", "duplicate", "suppressed"] as const;
+
+// rpc-shape: admin_data_retention_newsletter_due
+export function parseDataRetentionNewsletterDue(raw: unknown): DataRetentionNewsletterDueDto {
+  const s = bag(raw, "$");
+  const counts = bag(has(s, "", "counts"), "counts.");
+  return {
+    counts: {
+      candidates: count(counts, "counts.", "candidates"),
+      requested: count(counts, "counts.", "requested"),
+      mailed: count(counts, "counts.", "mailed"),
+      due: count(counts, "counts.", "due"),
+      excluded: count(counts, "counts.", "excluded"),
+    },
+    items: list(has(s, "", "items"), "items").map((entry, i) => {
+      const p = `items[${i}].`;
+      const c = bag(entry, p);
+      const outcome = has(c, p, "mail_outcome");
+      return {
+        subscriberId: text(c, p, "subscriber_id"),
+        email: text(c, p, "email"),
+        firstName: nullableText(c, p, "first_name"),
+        lastName: nullableText(c, p, "last_name"),
+        language: oneOf(c, p, "language", ["pl", "en"] as const),
+        state: oneOf(c, p, "state", SUNSET_STATES),
+        lastEngagedAt: nullableInstant(c, p, "last_engaged_at"),
+        requestedAt: nullableInstant(c, p, "requested_at"),
+        mailedAt: nullableInstant(c, p, "mailed_at"),
+        mailOutcome: outcome === null ? null : oneOf(c, p, "mail_outcome", SUNSET_OUTCOMES),
+        deleteAfter: nullableInstant(c, p, "delete_after"),
+      };
+    }),
+    excluded: list(has(s, "", "excluded"), "excluded").map((entry, i) => {
+      const p = `excluded[${i}].`;
+      const c = bag(entry, p);
+      return {
+        subscriberId: text(c, p, "subscriber_id"),
+        email: text(c, p, "email"),
+        reason: text(c, p, "reason"),
+        createdAt: instant(c, p, "created_at"),
+      };
+    }),
+    responseDays: count(s, "", "response_days"),
+    dailyCap: count(s, "", "daily_cap"),
+    openTrackingEnabled: bool(s, "", "open_tracking_enabled"),
+    enabled: bool(s, "", "enabled"),
+    enforced: bool(s, "", "enforced"),
+    cutoff: nullableInstant(s, "", "cutoff"),
+    periodMonths: nullableCount(s, "", "period_months"),
+  };
+}
+
+/** Wynik wykluczenia albo cofnięcia wykluczenia adresu z wygaszania. */
+export interface NewsletterExclusionResultDto {
+  subscriberId: string;
+  excluded: boolean;
+  /** Tylko wykluczenie: prośba w toku została anulowana. */
+  cycleCancelled: boolean;
+}
+
+// rpc-shape: admin_data_retention_newsletter_exclude, admin_data_retention_newsletter_include
+export function parseNewsletterExclusionResult(raw: unknown): NewsletterExclusionResultDto {
+  const s = bag(raw, "$");
+  return {
+    subscriberId: text(s, "", "subscriber_id"),
+    excluded: bool(s, "", "excluded"),
+    cycleCancelled: Object.hasOwn(s, "cycle_cancelled") ? bool(s, "", "cycle_cancelled") : false,
+  };
 }
