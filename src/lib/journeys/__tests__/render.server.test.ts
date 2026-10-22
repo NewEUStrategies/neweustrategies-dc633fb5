@@ -9,6 +9,11 @@ import {
   verifyJourneyMessageToken,
 } from "@/lib/newsletter/trackingToken.server";
 import {
+  OWN_UNSUBSCRIBE_END,
+  OWN_UNSUBSCRIBE_START,
+  stripOwnUnsubscribe,
+} from "@/lib/email/ownUnsubscribeFooter";
+import {
   JourneyRenderError,
   htmlToText,
   journeyClickUrl,
@@ -181,6 +186,31 @@ describe("render", () => {
     expect(out.html).not.toContain(`u=${encodeURIComponent(unsubscribeUrl)}`);
     expect(out.text).toContain("Witaj, Anna");
     expect(out.text).toContain(`Wypisz się jednym kliknięciem: ${unsubscribeUrl}`);
+  });
+
+  it("stopka wypisu w znacznikach (Z-S5-05): dokładnie jeden blok w HTML i w tekście, poza nim treść", () => {
+    const unsubscribeUrl = journeyUnsubscribeUrl(ORIGIN, MESSAGE);
+    const out = renderJourneyEmail({ ...base, messageId: MESSAGE, unsubscribeUrl });
+    for (const content of [out.html, out.text]) {
+      expect(content.split(OWN_UNSUBSCRIBE_START)).toHaveLength(2);
+      expect(content.split(OWN_UNSUBSCRIBE_END)).toHaveLength(2);
+      const block = content.slice(
+        content.indexOf(OWN_UNSUBSCRIBE_START),
+        content.indexOf(OWN_UNSUBSCRIBE_END),
+      );
+      expect(block).toContain("Wypisz się jednym kliknięciem");
+      // Wycięcie bloku (droga platformy) zostawia treść maila, a zabiera
+      // WYŁĄCZNIE stopkę wypisu - druga stopka przychodzi od platformy.
+      const stripped = stripOwnUnsubscribe(content);
+      expect(stripped).not.toContain("Wypisz się jednym kliknięciem");
+      expect(stripped).toContain("Witaj");
+    }
+  });
+
+  it("komunikacja usługowa (bez adresu wypisu): bez znaczników stopki", () => {
+    const out = renderJourneyEmail({ ...base, messageId: MESSAGE, unsubscribeUrl: null });
+    expect(out.html).not.toContain("nes:unsub");
+    expect(out.text).not.toContain("nes:unsub");
   });
 
   it("bez zgody na pomiar (albo przełącznik wyłączony): bez piksela, linki wprost, wypis zostaje (I9d-Y2)", () => {

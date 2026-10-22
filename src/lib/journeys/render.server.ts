@@ -18,7 +18,9 @@
 //   * stopka wypisu tylko dla komunikacji marketingowej (usługa z podstawą
 //     prawną nie ma „wypisz się z marketingu" - nie jest marketingiem),
 //     adres wypisu doklejany PO przepisaniu linków (RFC 8058 nie idzie przez
-//     przekierowanie trackingu).
+//     przekierowanie trackingu); stopka jest OZNACZONA (`markOwnUnsubscribe`,
+//     Z-S5-05) - nadawca platformy dokleja własną stopkę wypisu, więc
+//     dostawca wycina naszą, a gateway z nagłówkami RFC 8058 ją zostawia.
 // Plik `.server`: render widzi adres, token wiadomości i adres wypisu.
 //
 // Podstawianie zmiennych w dokumencie (`substituteDocVariables`) jest czystym
@@ -33,6 +35,7 @@ import {
   signJourneyMessageToken,
   signJourneyUnsubscribeToken,
 } from "@/lib/newsletter/trackingToken.server";
+import { markOwnUnsubscribe } from "@/lib/email/ownUnsubscribeFooter";
 import { MEASUREMENT_FOOTER_COPY } from "@/lib/privacy/measurement";
 import {
   substituteDocVariables,
@@ -192,8 +195,12 @@ export function renderJourneyEmail(input: JourneyRenderInput): JourneyRenderResu
   const preheaderHtml = preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${esc(preheader)}</div>`
     : "";
+  // Stopka wypisu w znacznikach (Z-S5-05): jedna stopka w skrzynce - na
+  // drodze nadawcy platformy zostaje tylko jego stopka (`provider.server`).
   const footer = input.unsubscribeUrl
-    ? `<p style="color:#888;font-size:12px;text-align:center;margin:24px 0 0">${esc(FOOTER[input.locale])} <a href="${esc(input.unsubscribeUrl)}" style="color:#888">${esc(UNSUBSCRIBE_LABEL[input.locale])}</a>.</p>`
+    ? markOwnUnsubscribe(
+        `<p style="color:#888;font-size:12px;text-align:center;margin:24px 0 0">${esc(FOOTER[input.locale])} <a href="${esc(input.unsubscribeUrl)}" style="color:#888">${esc(UNSUBSCRIBE_LABEL[input.locale])}</a>.</p>`,
+      )
     : "";
   const measurementCopy = MEASUREMENT_FOOTER_COPY[input.locale];
   // Linia pomiaru PO przepisaniu linków (jak wypis): link wycofania nie może
@@ -209,7 +216,7 @@ export function renderJourneyEmail(input: JourneyRenderInput): JourneyRenderResu
 
   const textBody = htmlToText(body);
   const textUnsubscribe = input.unsubscribeUrl
-    ? `${textBody}\n\n${FOOTER[input.locale]} ${UNSUBSCRIBE_LABEL[input.locale]}: ${input.unsubscribeUrl}`
+    ? `${textBody}\n\n${markOwnUnsubscribe(`${FOOTER[input.locale]} ${UNSUBSCRIBE_LABEL[input.locale]}: ${input.unsubscribeUrl}`)}`
     : textBody;
   const text = input.measurementOptOutUrl
     ? `${textUnsubscribe}\n${measurementCopy.lead} ${measurementCopy.link}: ${input.measurementOptOutUrl}`
