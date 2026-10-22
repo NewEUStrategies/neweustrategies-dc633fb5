@@ -38,6 +38,11 @@ export type RecordEventOutcome =
   | "invalid_kind"
   | "unknown_campaign"
   | "unknown_subscriber"
+  // I9d-Y2 (20261020162400): odmowa zapisu bez pomiaru - wspólny przełącznik
+  // najemcy wyłączony albo odbiorca bez zgody na pomiar w CHWILI zdarzenia
+  // (także piksel ze starego maila po wycofaniu). To decyzja, nie awaria.
+  | "measurement_disabled"
+  | "no_measurement_consent"
   | "write_failed";
 
 export interface RecordCampaignEventInput {
@@ -88,6 +93,8 @@ const OUTCOMES: readonly RecordEventOutcome[] = [
   "invalid_kind",
   "unknown_campaign",
   "unknown_subscriber",
+  "measurement_disabled",
+  "no_measurement_consent",
   "write_failed",
 ];
 

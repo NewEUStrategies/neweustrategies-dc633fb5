@@ -7,7 +7,14 @@
 //     dzięki temu przycisk `{{pricing_url}}` jest bezwzględnym adresem, który
 //     renderer przepuszcza;
 //   * tracking 1:1 po `message_id` (`m=` w `nl-open`/`nl-click`), link podpisany
-//     razem z numerem (`jm:`), bez tokenu subskrybenta;
+//     razem z numerem (`jm:`), bez tokenu subskrybenta - i WYŁĄCZNIE za zgodą
+//     kontaktu na pomiar przy włączonym przełączniku najemcy (I9d-Y2, EDPB
+//     2/2023: piksel i link z identyfikatorem odbiorcy to dostęp do informacji
+//     w jego urządzeniu). Bez zgody: brak piksela, linki NIEPRZEPISANE (wariant
+//     bezpieczny zamiast anonimowego liczenia - przekierowanie i tak jest
+//     odczytem z urządzenia), a wypis zostaje (RFC 8058 nie jest pomiarem);
+//   * stopka „Nie mierz moich otwarć i kliknięć" (podpisany token kontaktu
+//     CRM) w każdym mailu marketingowym i w każdym mierzonym;
 //   * stopka wypisu tylko dla komunikacji marketingowej (usługa z podstawą
 //     prawną nie ma „wypisz się z marketingu" - nie jest marketingiem),
 //     adres wypisu doklejany PO przepisaniu linków (RFC 8058 nie idzie przez
@@ -26,6 +33,7 @@ import {
   signJourneyMessageToken,
   signJourneyUnsubscribeToken,
 } from "@/lib/newsletter/trackingToken.server";
+import { MEASUREMENT_FOOTER_COPY } from "@/lib/privacy/measurement";
 import {
   substituteDocVariables,
   substituteJourneyVariables,
@@ -48,11 +56,23 @@ export interface JourneyRenderInput {
   /** Adres wypisu RFC 8058; `null` = komunikacja usługowa (bez stopki wypisu). */
   unsubscribeUrl: string | null;
   /**
-   * Piksel otwarć (`journey_settings.open_tracking_enabled`, I9c-X2).
-   * `false` = mail bez piksela - najemca wyłączył pomiar otwarć; brak pola =
-   * piksel jak przed X2 (domyślnie włączony). Kliknięcia i wypis bez zmian.
+   * Piksel otwarć - WYŁĄCZNIE `true` (`journey_contact_for_send.open_tracking`:
+   * wspólny przełącznik najemcy ORAZ zgoda kontaktu na pomiar, I9d-Y2). Brak
+   * pola = bez piksela: odbiorca bez potwierdzonej zgody nie jest mierzony
+   * (dotąd brak pola znaczył piksel - I9c-X2).
    */
   openTracking?: boolean;
+  /**
+   * Linki przez przekierowanie z identyfikatorem wiadomości (`nl-click?m=`) -
+   * WYŁĄCZNIE `true` (`link_tracking`, ta sama reguła co piksel). Brak pola =
+   * linki do celu wprost, bez identyfikatora odbiorcy.
+   */
+  linkTracking?: boolean;
+  /**
+   * Adres „Nie mierz moich otwarć i kliknięć" (wycofanie SAMEGO pomiaru,
+   * zgoda na komunikację bez zmian). `null`/brak = bez tej linii stopki.
+   */
+  measurementOptOutUrl?: string | null;
 }
 
 export interface JourneyRenderResult {
@@ -149,14 +169,22 @@ export function renderJourneyEmail(input: JourneyRenderInput): JourneyRenderResu
 
   let index = 0;
   const messageId = input.messageId;
-  const tracked = messageId
-    ? body.replace(HREF_RE, (_m, quote: string, url: string) => {
-        const target = url.replace(/&amp;/gi, "&");
-        const href = journeyClickUrl(input.origin, messageId, target, index).replace(/&/g, "&amp;");
-        index += 1;
-        return `href=${quote}${href}${quote}`;
-      })
-    : body;
+  // Pomiar tylko jawnym `true` (zgoda + przełącznik) - każda inna wartość,
+  // także brak pola z bazy sprzed I9d-Y2, daje mail bez identyfikatora odbiorcy.
+  const linkTracking = Boolean(messageId) && input.linkTracking === true;
+  const openTracking = Boolean(messageId) && input.openTracking === true;
+  const tracked =
+    messageId && linkTracking
+      ? body.replace(HREF_RE, (_m, quote: string, url: string) => {
+          const target = url.replace(/&amp;/gi, "&");
+          const href = journeyClickUrl(input.origin, messageId, target, index).replace(
+            /&/g,
+            "&amp;",
+          );
+          index += 1;
+          return `href=${quote}${href}${quote}`;
+        })
+      : body;
 
   const preheader = input.preheader
     ? substituteJourneyVariables(input.preheader, input.vars, "text").trim()
@@ -167,16 +195,25 @@ export function renderJourneyEmail(input: JourneyRenderInput): JourneyRenderResu
   const footer = input.unsubscribeUrl
     ? `<p style="color:#888;font-size:12px;text-align:center;margin:24px 0 0">${esc(FOOTER[input.locale])} <a href="${esc(input.unsubscribeUrl)}" style="color:#888">${esc(UNSUBSCRIBE_LABEL[input.locale])}</a>.</p>`
     : "";
+  const measurementCopy = MEASUREMENT_FOOTER_COPY[input.locale];
+  // Linia pomiaru PO przepisaniu linków (jak wypis): link wycofania nie może
+  // sam przechodzić przez przekierowanie z identyfikatorem odbiorcy.
+  const measurementFooter = input.measurementOptOutUrl
+    ? `<p style="color:#888;font-size:12px;text-align:center;margin:8px 0 0">${esc(measurementCopy.lead)} <a href="${esc(input.measurementOptOutUrl)}" style="color:#888">${esc(measurementCopy.link)}</a>.</p>`
+    : "";
   const pixel =
-    messageId && input.openTracking !== false
+    messageId && openTracking
       ? `<img src="${esc(journeyPixelUrl(input.origin, messageId))}" width="1" height="1" alt="" style="display:none;width:1px;height:1px" />`
       : "";
-  const html = `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${preheaderHtml}${tracked}${footer}${pixel}</div>`;
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${preheaderHtml}${tracked}${footer}${measurementFooter}${pixel}</div>`;
 
   const textBody = htmlToText(body);
-  const text = input.unsubscribeUrl
+  const textUnsubscribe = input.unsubscribeUrl
     ? `${textBody}\n\n${FOOTER[input.locale]} ${UNSUBSCRIBE_LABEL[input.locale]}: ${input.unsubscribeUrl}`
     : textBody;
+  const text = input.measurementOptOutUrl
+    ? `${textUnsubscribe}\n${measurementCopy.lead} ${measurementCopy.link}: ${input.measurementOptOutUrl}`
+    : textUnsubscribe;
 
   return { subject, html, text, trackedLinks: index };
 }

@@ -126,6 +126,14 @@ describe("recordCampaignEvent", () => {
     expect(await record({})).toEqual({ recorded: false, outcome: "unknown_campaign" });
   });
 
+  it("odmowa bez zgody na pomiar albo przy wyłączonym przełączniku to decyzja, nie awaria (I9d-Y2)", async () => {
+    rpcResult = { data: { recorded: false, reason: "no_measurement_consent" }, error: null };
+    expect(await record({})).toEqual({ recorded: false, outcome: "no_measurement_consent" });
+
+    rpcResult = { data: { recorded: false, reason: "measurement_disabled" }, error: null };
+    expect(await record({})).toEqual({ recorded: false, outcome: "measurement_disabled" });
+  });
+
   it("przekazuje czas WYSTĄPIENIA, gdy producent go zna (webhook)", async () => {
     // Kubełkiem deduplikacji jest doba, a webhook dostawcy potrafi dotrzeć
     // z opóźnieniem albo poza kolejnością. Bez tego pola dwa otwarcia z tej

@@ -41,6 +41,7 @@ import {
   type JourneyLocale,
 } from "@/lib/journeys/render.server";
 import { journeyUrlVariables, type JourneyVariableValues } from "@/lib/journeys/variables";
+import { measurementOptOutUrl } from "@/lib/privacy/measurementToken.server";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -381,6 +382,17 @@ async function sendOne(
   // nie jest wysyłką za zgodą (RFC 8058 dotyczy poczty masowej).
   const unsubscribeUrl =
     email.category === "marketing" ? journeyUnsubscribeUrl(origin, messageId) : null;
+  // Pomiar (I9d-Y2): baza liczy `measurement` = wspólny przełącznik najemcy
+  // ORAZ zgoda kontaktu na pomiar. Link „Nie mierz moich otwarć i kliknięć"
+  // stoi w KAŻDYM mailu marketingowym (decyzja właściciela - także bez zgody,
+  // wtedy prowadzi do „pomiar jest wyłączony") i w każdym mierzonym mailu
+  // usługowym. Token niesie kontakt CRM, nie adres.
+  const measured = c.measurement === true;
+  const leadId = str(c.lead_id);
+  const optOutUrl =
+    leadId && (email.category === "marketing" || measured)
+      ? measurementOptOutUrl(origin, { kind: "lead", leadId }, locale)
+      : null;
 
   let rendered;
   try {
@@ -393,9 +405,11 @@ async function sendOne(
       origin,
       messageId,
       unsubscribeUrl,
-      // Wyłącznik najemcy (I9c-X2); brak pola w odpowiedzi (baza sprzed
-      // migracji 20261020161300) = piksel jak dotąd.
-      openTracking: c.open_tracking !== false,
+      // Piksel i linki z identyfikatorem tylko jawnym `true` z bazy (zgoda na
+      // pomiar i przełącznik najemcy, 20261020162400); brak pola = bez pomiaru.
+      openTracking: c.open_tracking === true,
+      linkTracking: c.link_tracking === true,
+      measurementOptOutUrl: optOutUrl,
     });
   } catch (err) {
     if (err instanceof JourneyRenderError) {

@@ -16,6 +16,7 @@ vi.mock("@/lib/email/reputationGate.server", () => ({ evaluateSendGate: h.evalua
 import { deterministicMessageId } from "@/lib/email/messageId";
 import { publicFacingOrigin } from "@/lib/http/host";
 import { emailDoc, button, paragraph } from "@/lib/journeys/templates/doc";
+import { verifyMeasurementToken } from "@/lib/privacy/measurementToken.server";
 import {
   JOURNEYS_BACKLOG_DEFER_MINUTES,
   JOURNEYS_CAP_DEFER_MINUTES,
@@ -55,8 +56,10 @@ function emailStep(n: number, extra: Record<string, unknown> = {}) {
   };
 }
 
+const LEAD = "7b0c4f2e-1d3a-4c5b-9e8f-0a1b2c3d4e5f";
 const CONTACT = {
   ready: true,
+  lead_id: LEAD,
   email: "anna@nes.example",
   first_name: "Anna",
   last_name: "Kowalska",
@@ -74,6 +77,10 @@ const CONTACT = {
   site_name: "NES",
   site_domain: "nes.example",
   vars: { plan_name: "Pro", trial_ends_at: "2026-10-24T10:00:00Z" },
+  // Kontakt ze zgodą na pomiar przy włączonym przełączniku (I9d-Y2).
+  measurement: true,
+  open_tracking: true,
+  link_tracking: true,
 };
 
 /** Atrapa klienta: kolejka wyników per RPC + dziennik wywołań. */
@@ -218,9 +225,23 @@ describe("tick", () => {
     );
     expect(input.html).toContain("24 października 2026");
     expect(input.html).toContain("nl-click?m=");
-    // Kontakt bez pola `open_tracking` (baza sprzed I9c-X2) = piksel jak dotąd.
+    // Kontakt ze zgodą na pomiar (I9d-Y2) = piksel i linki z identyfikatorem.
     expect(input.html).toContain("nl-open?m=");
     expect(input.text).toContain("Wypisz się");
+    // Link „Nie mierz moich otwarć i kliknięć" z podpisanym tokenem kontaktu CRM.
+    const optOut = /href="([^"]*\/api\/public\/newsletter\/measurement[^"]*)"/
+      .exec(input.html)?.[1]
+      ?.replace(/&amp;/g, "&");
+    expect(optOut).toBeTruthy();
+    const optOutUrl = new URL(optOut as string);
+    expect(optOutUrl.origin).toBe(origin);
+    expect(optOutUrl.searchParams.get("lang")).toBe("pl");
+    expect(verifyMeasurementToken(optOutUrl.searchParams.get("token"))).toEqual({
+      ok: true,
+      action: "withdraw",
+      subject: { kind: "lead", leadId: LEAD },
+    });
+    expect(input.text).toContain("Nie mierz moich otwarć i kliknięć: ");
     expect(completes(db)[0]).toEqual({
       p_enrollment_id: enrollment(1),
       p_lock_token: "lock-1",
@@ -233,14 +254,32 @@ describe("tick", () => {
     });
   });
 
-  it("pomiar otwarć wyłączony przez najemcę: mail bez piksela, kliknięcia zostają (I9c-X2)", async () => {
+  it("kontakt bez zgody na pomiar (albo przełącznik wyłączony): bez piksela, linki wprost, wypis i link wycofania zostają (I9d-Y2)", async () => {
     const db = fakeDb(
-      happyHandlers({ journey_contact_for_send: () => ok({ ...CONTACT, open_tracking: false }) }),
+      happyHandlers({
+        journey_contact_for_send: () =>
+          ok({ ...CONTACT, measurement: false, open_tracking: false, link_tracking: false }),
+      }),
     );
     await run(db);
     const input = h.enqueueRawEmail.mock.calls[0][0];
     expect(input.html).not.toContain("nl-open");
-    expect(input.html).toContain("nl-click?m=");
+    expect(input.html).not.toContain("nl-click");
+    expect(input.html).toContain(`href="${publicFacingOrigin("nes.example")}/pricing`);
+    expect(input.html).toContain("Wypisz się jednym kliknięciem");
+    expect(input.html).toContain("/api/public/newsletter/measurement?token=wl");
+  });
+
+  it("kontakt bez pól pomiaru (baza sprzed I9d-Y2) = mail bez pomiaru", async () => {
+    const legacy: Record<string, unknown> = { ...CONTACT };
+    delete legacy.measurement;
+    delete legacy.open_tracking;
+    delete legacy.link_tracking;
+    const db = fakeDb(happyHandlers({ journey_contact_for_send: () => ok(legacy) }));
+    await run(db);
+    const input = h.enqueueRawEmail.mock.calls[0][0];
+    expect(input.html).not.toContain("nl-open");
+    expect(input.html).not.toContain("nl-click");
   });
 
   it("usługa i test na żywo: poczta 1:1 bez wypisu; EN z datą po angielsku", async () => {

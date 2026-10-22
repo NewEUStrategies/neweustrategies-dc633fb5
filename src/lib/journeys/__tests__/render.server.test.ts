@@ -150,9 +150,15 @@ describe("render", () => {
     origin: ORIGIN,
   };
 
-  it("marketing: linki przez podpisane przekierowanie, piksel, stopka wypisu poza trackingiem", () => {
+  it("marketing ze zgodą na pomiar: linki przez podpisane przekierowanie, piksel, stopka wypisu poza trackingiem", () => {
     const unsubscribeUrl = journeyUnsubscribeUrl(ORIGIN, MESSAGE);
-    const out = renderJourneyEmail({ ...base, messageId: MESSAGE, unsubscribeUrl });
+    const out = renderJourneyEmail({
+      ...base,
+      messageId: MESSAGE,
+      unsubscribeUrl,
+      openTracking: true,
+      linkTracking: true,
+    });
     expect(out.subject).toBe("Witaj Anna");
     expect(out.trackedLinks).toBe(1);
     const href = /href="([^"]*nl-click[^"]*)"/.exec(out.html)?.[1]?.replace(/&amp;/g, "&");
@@ -177,22 +183,75 @@ describe("render", () => {
     expect(out.text).toContain(`Wypisz się jednym kliknięciem: ${unsubscribeUrl}`);
   });
 
-  it("pomiar otwarć wyłączony przez najemcę: bez piksela, kliknięcia i wypis bez zmian (I9c-X2)", () => {
+  it("bez zgody na pomiar (albo przełącznik wyłączony): bez piksela, linki wprost, wypis zostaje (I9d-Y2)", () => {
     const unsubscribeUrl = journeyUnsubscribeUrl(ORIGIN, MESSAGE);
-    const out = renderJourneyEmail({
+    for (const flags of [
+      { openTracking: false, linkTracking: false },
+      // Brak pól = bez pomiaru (dotąd brak `openTracking` znaczył piksel).
+      {},
+    ]) {
+      const out = renderJourneyEmail({ ...base, messageId: MESSAGE, unsubscribeUrl, ...flags });
+      expect(out.html).not.toContain("nl-open");
+      expect(out.html).not.toContain("nl-click");
+      expect(out.trackedLinks).toBe(0);
+      expect(out.html).toContain(`href="${ORIGIN}/pricing?utm=journey&amp;x=1"`);
+      // Wypis RFC 8058 nie jest pomiarem - zostaje.
+      expect(out.html).toContain("Wypisz się jednym kliknięciem");
+      expect(out.html).toContain(unsubscribeUrl.replace(/&/g, "&amp;"));
+    }
+  });
+
+  it("piksel i linki sterowane osobno, każde tylko jawnym `true`", () => {
+    const onlyLinks = renderJourneyEmail({
       ...base,
       messageId: MESSAGE,
-      unsubscribeUrl,
-      openTracking: false,
+      unsubscribeUrl: null,
+      linkTracking: true,
     });
-    expect(out.html).not.toContain("nl-open");
-    expect(out.html).toContain("nl-click");
-    expect(out.trackedLinks).toBeGreaterThan(0);
-    expect(out.html).toContain("Wypisz się jednym kliknięciem");
-    // Brak pola = piksel jak przed X2.
-    expect(renderJourneyEmail({ ...base, messageId: MESSAGE, unsubscribeUrl }).html).toContain(
-      "nl-open?m=",
+    expect(onlyLinks.html).toContain("nl-click?m=");
+    expect(onlyLinks.html).not.toContain("nl-open");
+    const onlyPixel = renderJourneyEmail({
+      ...base,
+      messageId: MESSAGE,
+      unsubscribeUrl: null,
+      openTracking: true,
+    });
+    expect(onlyPixel.html).toContain("nl-open?m=");
+    expect(onlyPixel.html).not.toContain("nl-click");
+  });
+
+  it('stopka „Nie mierz moich otwarć i kliknięć" poza przekierowaniem trackingu, PL i EN, HTML i tekst', () => {
+    const optOut = `${ORIGIN}/api/public/newsletter/measurement?token=wlabc&lang=pl`;
+    const pl = renderJourneyEmail({
+      ...base,
+      messageId: MESSAGE,
+      unsubscribeUrl: journeyUnsubscribeUrl(ORIGIN, MESSAGE),
+      openTracking: true,
+      linkTracking: true,
+      measurementOptOutUrl: optOut,
+    });
+    expect(pl.html).toContain(
+      "Nasze wiadomości mogą zawierać elementy mierzące otwarcia i kliknięcia.",
     );
+    expect(pl.html).toContain(`href="${optOut.replace(/&/g, "&amp;")}"`);
+    expect(pl.html).toContain("Nie mierz moich otwarć i kliknięć</a>");
+    // Link wycofania nie idzie przez `nl-click` (jeden link przepisany - przycisk treści).
+    expect(pl.trackedLinks).toBe(1);
+    expect(pl.html).not.toContain(`u=${encodeURIComponent(optOut)}`);
+    expect(pl.text).toContain(`Nie mierz moich otwarć i kliknięć: ${optOut}`);
+    const en = renderJourneyEmail({
+      ...base,
+      locale: "en",
+      messageId: null,
+      unsubscribeUrl: null,
+      measurementOptOutUrl: optOut,
+    });
+    expect(en.html).toContain("Don&#39;t measure my opens and clicks</a>");
+    expect(en.text).toContain(`Don't measure my opens and clicks: ${optOut}`);
+    // Brak adresu = brak linii (podgląd edytora, usługa bez pomiaru).
+    const none = renderJourneyEmail({ ...base, messageId: null, unsubscribeUrl: null });
+    expect(none.html).not.toContain("newsletter/measurement");
+    expect(none.html).not.toContain("mierzące");
   });
 
   it("usługa / podgląd: bez stopki wypisu, bez trackingu i piksela; EN", () => {

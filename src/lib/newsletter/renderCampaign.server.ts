@@ -9,9 +9,15 @@
 // Jedyny dodatek to opcjonalny kod kuponu (`{{coupon_code}}`, P04): bez niego
 // wynik jest identyczny jak przed wyniesieniem.
 //
+// I9d-Y2: drugi opcjonalny dodatek - linia stopki „Nie mierz moich otwarć
+// i kliknięć" (`measurementOptOutUrl`); bez niej wynik bajt w bajt jak dotąd.
+// O pomiarze (piksel, linki z tokenem) decyduje WOŁAJĄCY: odbiorca bez zgody
+// na pomiar dostaje `tracking = null` - mail jak wysyłka testowa.
+//
 // Plik `.server`: render widzi tokeny trackingu i adres wypisu odbiorcy - nie
 // ma powodu, żeby trafiał do paczki przeglądarki.
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
+import { MEASUREMENT_FOOTER_COPY } from "@/lib/privacy/measurement";
 
 /** Kod kuponu podstawiany w wysyłce testowej - tag nigdy nie wychodzi surowy. */
 export const SAMPLE_COUPON_CODE = "PRZYKLAD-KOD";
@@ -48,6 +54,9 @@ export function renderCampaignHtml(
     token: string;
     signLink?: (target: string) => string;
   } | null = null,
+  // Adres wycofania SAMEGO pomiaru (podpisany token subskrybenta). Doklejany
+  // PO przepisaniu linków - jak wypis, nie przechodzi przez przekierowanie.
+  measurementOptOutUrl: string | null = null,
 ): string {
   // Kod podstawiamy w SZABLONIE, przed zmiennymi osobowymi: imię odbiorcy
   // zawierające napis `{{coupon_code}}` nie może stać się nośnikiem kodu.
@@ -79,8 +88,12 @@ export function renderCampaignHtml(
          }
        </p>`
     : "";
+  const measurementCopy = MEASUREMENT_FOOTER_COPY[lang];
+  const measurementFooter = measurementOptOutUrl
+    ? `<p style="color:#888;font-size:12px;text-align:center">${esc(measurementCopy.lead)} <a href="${esc(measurementOptOutUrl)}" style="color:#888">${esc(measurementCopy.link)}</a>.</p>`
+    : "";
   const pixel = tracking
     ? trackingPixelImg(tracking.origin, tracking.campaignId, tracking.token)
     : "";
-  return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${content}${footer}${pixel}</div>`;
+  return `<div style="font-family:Arial,sans-serif;line-height:1.55;color:#111;max-width:640px;margin:0 auto">${content}${footer}${measurementFooter}${pixel}</div>`;
 }
