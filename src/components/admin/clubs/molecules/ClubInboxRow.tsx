@@ -35,6 +35,7 @@ import {
   applicationMailState,
   applicationStatusActions,
   applicationStatusTone,
+  isAnonymizedApplication,
   type ApplicationDetailField,
 } from "@/lib/clubs/adminApplicationsInbox";
 import type { ClubApplicationAdminRow, ClubApplicationStatus } from "@/lib/clubs/applyApi";
@@ -65,6 +66,9 @@ export function ClubInboxRow({
     new Date(iso).toLocaleString(locale, { dateStyle, timeStyle: "short" });
   const clubName = applicationClubName(row, lang);
   const mail = applicationMailState(row);
+  // RODO (I9d-Y1): dane osoby usunięte - etykieta zamiast pustego nazwiska,
+  // bez decyzji (baza odmawia `application_anonymized`, adresata nie ma).
+  const anonymized = isAnonymizedApplication(row);
 
   /** Pole puste (`null` albo `""`) NIE renderuje etykiety - pusta etykieta
       wyglądałaby jak dana, której kandydat „nie podał”, a nie jak brak pola. */
@@ -94,12 +98,25 @@ export function ClubInboxRow({
             aria-hidden="true"
           />
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">
-              {row.first_name} {row.last_name}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {row.email} · {row.company} · {row.job_position}
-            </span>
+            {anonymized ? (
+              <>
+                <span className="block truncate text-sm font-semibold" data-anonymized="">
+                  {t("adminClubs.applications.anonymized")}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t("adminClubs.applications.anonymizedNote")}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="block truncate text-sm font-semibold">
+                  {row.first_name} {row.last_name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {row.email} · {row.company} · {row.job_position}
+                </span>
+              </>
+            )}
             <span className="mt-1 block text-xs text-muted-foreground">
               {stamp(row.created_at, "medium")} · {row.specialization_slug}
               {clubName === null ? "" : ` · ${clubName}`} · {row.tier_key}
@@ -122,7 +139,7 @@ export function ClubInboxRow({
           <ClubInboxToneBadge tone={applicationStatusTone(row.status)}>
             {t(`adminClubs.applications.status.${row.status}`)}
           </ClubInboxToneBadge>
-          {applicationStatusActions(row.status).map((status) => (
+          {(anonymized ? [] : applicationStatusActions(row.status)).map((status) => (
             <Button
               key={status}
               size="sm"

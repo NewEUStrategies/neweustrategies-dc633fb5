@@ -581,6 +581,45 @@ describe("odmowa zapisu statusu", () => {
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
+  it("zgłoszenie zanonimizowane: etykieta zamiast pustego nazwiska, bez przycisków decyzji (I9, Z-I9d-03)", async () => {
+    planujDane([
+      clubApplicationAdminRow({
+        user_id: "1b4e28ba-2fa1-81d2-883f-0016d3cca427",
+        first_name: "",
+        last_name: "",
+        email: "",
+        company: "",
+        job_position: "",
+      }),
+    ]);
+    await zamontuj();
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+    const row = screen.getByRole("listitem");
+    expect(within(row).getByText("adminClubs.applications.anonymized")).toBeInTheDocument();
+    expect(within(row).getByText("adminClubs.applications.anonymizedNote")).toBeInTheDocument();
+    expect(within(row).queryByText(/adminClubs\.applications\.setStatus\./)).toBeNull();
+    // Status zostaje widoczny - to dana zgrubna, nie osobowa.
+    expect(within(row).getAllByText(/adminClubs\.applications\.status\./).length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("odmowa `application_anonymized` z bazy jest NAZWANA (zgłoszenie zanonimizowane w trakcie)", async () => {
+    planujDane([pendingRow()]);
+    clubRpc.setError(SET_STATUS, "application_anonymized", "P0001");
+    await zamontuj();
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+
+    fireEvent.click(
+      within(wiersz("Kowalska")).getByText("adminClubs.applications.setStatus.review"),
+    );
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        "adminClubs.applications.statusErrors.application_anonymized",
+      ),
+    );
+  });
+
   it("odmowa, której nie umiemy nazwać, schodzi na komunikat ogólny", async () => {
     planujDane([pendingRow()]);
     clubRpc.setError(SET_STATUS, "permission denied for function", "42501");

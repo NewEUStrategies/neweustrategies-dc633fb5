@@ -290,6 +290,10 @@ describe("clubApplicationStatusErrorCode", () => {
     expect(clubApplicationStatusErrorCode("admin_...: duplicate_open")).toBe("duplicate_open");
   });
 
+  it("rozpoznaje `application_anonymized` - decyzja bez adresata (I9, Z-I9d-03)", () => {
+    expect(clubApplicationStatusErrorCode("application_anonymized")).toBe("application_anonymized");
+  });
+
   it("wszystko inne to `unknown`", () => {
     for (const message of ["", "23505", "permission denied", "not_found"]) {
       expect(clubApplicationStatusErrorCode(message), message).toBe("unknown");
