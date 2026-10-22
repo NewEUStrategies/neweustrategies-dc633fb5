@@ -60,6 +60,7 @@ function rpc(): SupabaseRpcStub {
 
 function notificationRow(over: Partial<NotificationRowShape> = {}): NotificationRowShape {
   return {
+    meta: {},
     body_en: null,
     body_pl: null,
     created_at: "2026-03-14T12:00:00.000Z",
